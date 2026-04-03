@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.14] - Three-layer feedback: fix agent routing + global chat guidance
+
+### Changed
+- `primitives/update_context.py`: Agent feedback (`target="agent"`) now writes to `/agents/{slug}/memory/feedback.md` (agent workspace, cross-task). Previously routed to task-scoped feedback via feedback_distillation, dropping silently if agent had no active task.
+- `services/workspace.py`: `load_context()` now reads agent `memory/feedback.md` and injects into execution context. Agent feedback is visible to the agent on ALL task runs. Also fixed playbook file pattern to match `_playbook` naming convention.
+- `agents/tp_prompts/onboarding.py`: Added "Feedback routing in global chat" section — guides TP to route domain changes, agent style, task focus, and identity corrections correctly from global chat (not just task-scoped).
+- `docs/design/FEEDBACK-WORKFLOW-REDESIGN.md`: Updated from two-layer to three-layer model (domain/agent/task). Primitives section updated to ManageDomains + UpdateContext consolidated names.
+- Expected behavior: "Use formal tone" persists across all tasks the agent runs. "Don't track Tabnine" removes the entity from the domain. "Focus on pricing" steers one specific task.
+
+---
+
 ## [2026.04.03.13] - Task-scoped feedback: add domain-level routing
 
 ### Changed

@@ -502,18 +502,23 @@ class AgentWorkspace:
         if agent_md:
             parts.append(f"## Agent Directives\n{agent_md}")
 
+        # Agent feedback — cross-task style/tone preferences (ADR-156 3-layer model)
+        feedback = await self.read("memory/feedback.md")
+        if feedback and feedback.strip():
+            parts.append(f"## Agent Feedback (cross-task)\n{feedback}")
+
         # Playbook files — methodology (WHO: how this agent type thinks)
         memory_files = await self.list("memory/")
         for filename in memory_files:
             if filename.endswith("/"):
                 continue
             base = filename.replace(".md", "")
-            # ADR-154: Only load playbook files from agent memory/
-            if not (base.startswith("playbook-") or base.startswith("methodology-")):
+            # Load playbook files from agent memory/
+            if not (base.startswith("_playbook") or base.startswith("methodology-")):
                 continue
             content = await self.read(f"memory/{filename}")
             if content:
-                topic = base.replace("playbook-", "").replace("methodology-", "").replace("-", " ").title()
+                topic = base.replace("_playbook-", "").replace("methodology-", "").replace("-", " ").title()
                 parts.append(f"## Playbook: {topic}\n{content}")
 
         return "\n\n---\n\n".join(parts) if parts else ""

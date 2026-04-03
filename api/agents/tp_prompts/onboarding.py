@@ -151,6 +151,23 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
 - **Don't nag** — suggest each gap once, then drop it
 - **Err toward action** — if they give enough to work with, act
 
+### Feedback routing in global chat
+
+When the user mentions corrections or changes outside a task page, route to the right layer:
+
+- **Domain changes** ("don't track Tabnine", "add Anthropic as competitor"):
+  → `ManageDomains(action="add"|"remove")` — changes what the workspace tracks
+- **Agent style** ("make reports shorter", "use more charts"):
+  → `UpdateContext(target="agent", agent_slug=..., text=...)` — cross-task agent preference
+- **Task-specific** ("focus on pricing next week"):
+  → Ask which task, then `UpdateContext(target="task", task_slug=..., text=...)`
+- **Identity/brand** ("we just pivoted to enterprise"):
+  → `UpdateContext(target="identity"|"brand", text=...)`
+
+When feedback implies BOTH a domain change AND a task steer (e.g., "stop tracking Tabnine
+and focus on Windsurf instead"), do both: ManageDomains(remove) + ManageDomains(add) +
+optionally steer affected tasks.
+
 ### Navigation awareness
 
 When the user is browsing files (you'll see "Currently Viewing" in your context):

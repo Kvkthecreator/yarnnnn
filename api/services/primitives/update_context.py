@@ -260,7 +260,14 @@ async def _handle_awareness(auth: Any, text: str) -> dict:
 
 
 async def _handle_agent_feedback(auth: Any, input: dict) -> dict:
-    """Write feedback to agent's memory/feedback.md. Was: WriteAgentFeedback."""
+    """Write cross-task feedback to agent's workspace memory/feedback.md.
+
+    Agent feedback is style/tone/preference corrections that apply to ALL
+    tasks this agent works on. Written to /agents/{slug}/memory/feedback.md
+    (agent workspace), not task-scoped feedback.
+    """
+    from datetime import datetime, timezone
+
     agent_slug = input.get("agent_slug", "")
     feedback_text = input.get("text", "")
 
@@ -271,26 +278,44 @@ async def _handle_agent_feedback(auth: Any, input: dict) -> dict:
     user_id = auth.user_id if not isinstance(auth, dict) else auth["user_id"]
 
     try:
-        result = client.table("agents").select("id, title, role").eq("user_id", user_id).execute()
-        agents = result.data or []
+        from services.workspace import AgentWorkspace
 
-        from services.workspace import get_agent_slug
-        target_agent = None
-        for a in agents:
-            if get_agent_slug(a) == agent_slug:
-                target_agent = a
-                break
+        ws = AgentWorkspace(client, user_id, agent_slug)
 
-        if not target_agent:
+        # Verify agent exists
+        agent_md = await ws.read("AGENT.md")
+        if not agent_md:
             return {"success": False, "error": "not_found", "message": f"Agent '{agent_slug}' not found"}
 
-        from services.feedback_distillation import write_feedback_entry
-        success = await write_feedback_entry(
-            client, user_id, target_agent, feedback_text, source="conversation"
-        )
+        # Append to agent's memory/feedback.md (cross-task, persistent)
+        now = datetime.now(timezone.utc)
+        date_str = now.strftime("%Y-%m-%d %H:%M")
+        entry = f"## Feedback ({date_str}, source: user_conversation)\n- {feedback_text}\n"
 
-        if success:
-            return {"success": True, "message": f"Feedback written to {target_agent.get('title', agent_slug)}"}
+        existing = await ws.read("memory/feedback.md") or ""
+        if existing.startswith("# Agent Feedback"):
+            header_lines = existing.split("\n", 2)
+            rest = header_lines[2] if len(header_lines) > 2 else ""
+            updated = f"{header_lines[0]}\n{header_lines[1] if len(header_lines) > 1 else ''}\n\n{entry}\n{rest}"
+        else:
+            updated = f"# Agent Feedback\n\n{entry}\n{existing}"
+
+        ok = await ws.write("memory/feedback.md", updated,
+                            summary=f"User feedback: {feedback_text[:50]}")
+
+        if ok:
+            # Activity log
+            try:
+                from services.activity_log import write_activity
+                await write_activity(
+                    client=client, user_id=user_id,
+                    event_type="agent_feedback",
+                    summary=f"Feedback for {agent_slug}: {feedback_text[:60]}",
+                    metadata={"agent_slug": agent_slug, "source": "conversation"},
+                )
+            except Exception:
+                pass
+            return {"success": True, "message": f"Feedback written to {agent_slug} (applies to all tasks)"}
         else:
             return {"success": False, "error": "write_failed", "message": "Failed to write feedback"}
 

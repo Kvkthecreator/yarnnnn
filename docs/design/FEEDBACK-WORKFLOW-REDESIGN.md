@@ -1,22 +1,22 @@
-# Feedback Workflow — Two-Layer Model
+# Feedback Workflow — Three-Layer Model
 
-**Date:** 2026-03-26
-**Status:** Implementing
-**Depends on:** ADR-138 (Agents as Work Units), ADR-139 (Surface Architecture), ADR-143 (Feedback Substrate)
+**Date:** 2026-03-26 (original), 2026-04-03 (revised to three-layer)
+**Status:** Implemented (ADR-156: three-layer routing)
+**Depends on:** ADR-138 (Agents as Work Units), ADR-156 (Single Intelligence Layer)
 
 ---
 
-## Principle: Two Layers of Feedback
+## Principle: Three Layers of Feedback
 
-Feedback separates into WHO learns vs WHAT changes:
+Feedback routes to three layers: WHAT the workspace tracks, WHO produces output, HOW output is produced.
 
-| Layer | Target | Persistence | Read by | Example |
-|-------|--------|-------------|---------|---------|
-| **Agent-core** | `/agents/{slug}/memory/feedback.md` | Permanent, cross-task | Agent on every run | "Use formal tone", "Great charts" |
-| **Task-specific** | `/tasks/{slug}/TASK.md` or `memory/run_log.md` | Per-task only | Agent on this task's runs | "Focus on pricing", "Add a chart" |
+| Layer | What changes | Target | Persistence | Read by | Example |
+|-------|-------------|--------|-------------|---------|---------|
+| **Domain** | What entities the workspace tracks | ManageDomains(add/remove) | Permanent, cross-task | All tasks via context_reads | "Don't track Tabnine", "Add Anthropic" |
+| **Agent-core** | How the agent produces output (style, tone) | `/agents/{slug}/memory/feedback.md` | Permanent, cross-task | Agent on every run via load_context() | "Use formal tone", "Great charts" |
+| **Task-specific** | What this task focuses on and outputs | `/tasks/{slug}/memory/feedback.md` + TASK.md | Per-task only | Agent on this task's runs | "Focus on pricing", "Add a chart" |
 
-Agent-core feedback shapes the **person** (style, preferences, domain knowledge).
-Task-specific feedback shapes the **work** (focus, criteria, format, delivery).
+**Domain** changes affect what exists in the workspace. **Agent** feedback shapes the person. **Task** feedback shapes the work.
 
 ## Entry Points (All → TP Chat)
 
@@ -26,26 +26,24 @@ Task-specific feedback shapes the **work** (focus, criteria, format, delivery).
 
 No background jobs. No edit-distance extraction. Feedback is always explicit, always through TP.
 
-## Primitives
+## Primitives (ADR-146 consolidated)
 
-### WriteAgentFeedback (exists — ADR-143)
+### ManageDomains (domain layer)
+```
+ManageDomains(action="remove", domain="competitors", slug="tabnine")
+ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthropic")
+```
 
-**Available at:** workfloor + task page
+### UpdateContext(target="agent") (agent layer)
 **Writes to:** `/agents/{slug}/memory/feedback.md`
-**Scope:** Core identity learning — applies to all tasks this agent works on
-
+**Scope:** Cross-task — applies to all tasks this agent works on
 ```
-WriteAgentFeedback(
-  agent_slug: "research-agent",
-  feedback: "Use shorter executive summaries. 3 bullet points max."
-)
+UpdateContext(target="agent", agent_slug="research-agent", text="Use shorter executive summaries")
 ```
 
-### WriteTaskFeedback (new)
-
-**Available at:** task page only
-**Writes to:** TASK.md fields or `/tasks/{slug}/memory/run_log.md`
-**Scope:** Task-specific — only affects this task's future runs
+### UpdateContext(target="task") (task layer)
+**Writes to:** `/tasks/{slug}/memory/feedback.md` or TASK.md sections
+**Scope:** Per-task — only affects this task's future runs
 
 ```
 WriteTaskFeedback(
