@@ -1,8 +1,12 @@
 """
 Workspace Directory Registry — ADR-152: Unified Directory Registry (v2)
 
-Version: 2.0 (2026-04-01)
+Version: 2.1 (2026-04-03)
 Changelog:
+  v2.1 (2026-04-03) — ADR-157: assets/ subfolder for each entity-bearing context domain.
+                       First-class, visible directory for visual assets (favicons, charts,
+                       generated images). Replaces entity_assets/shared_assets documentation
+                       with live assets_folder convention. Scaffolded at onboarding.
   v2.0 (2026-04-01) — ADR-154: Entity tracker (_tracker.md) for entity-bearing domains.
                        Pipeline-maintained materialized view of domain contents.
                        get_tracker_template(), has_entity_tracker(), build_tracker_md() added.
@@ -88,7 +92,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "product.md": "# Product — {name}\n\n## Offering\n\n## Pricing\n\n## Recent Changes\n",
             "strategy.md": "# Strategy — {name}\n\n## Positioning\n\n## Threat Assessment\n\n## Opportunities\n",
         },
-        "entity_assets": ["logo.png"],
+        "assets_folder": True,
         "synthesis_file": "_landscape.md",
         "synthesis_template": (
             "# Competitive Landscape\n\n"
@@ -96,7 +100,6 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## Key Trends\n\n"
             "## Our Position\n"
         ),
-        "shared_assets": ["competitor-matrix.svg"],
         "tracker_file": "_tracker.md",
     },
 
@@ -110,7 +113,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "entity_structure": {
             "analysis.md": "# {name}\n\n## Market Size & Growth\n\n## Key Players\n\n## Trends\n\n## Opportunities\n",
         },
-        "entity_assets": [],
+        "assets_folder": True,
         "synthesis_file": "_overview.md",
         "synthesis_template": (
             "# Market Overview\n\n"
@@ -118,7 +121,6 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## Cross-Segment Patterns\n\n"
             "## Strategic Implications\n"
         ),
-        "shared_assets": ["market-map.svg"],
         "tracker_file": "_tracker.md",
     },
 
@@ -134,7 +136,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "history.md": "# Interaction History — {name}\n<!-- Dated, newest first -->\n",
             "open-items.md": "# Open Items — {name}\n\n## Follow-ups Due\n\n## Commitments Made\n",
         },
-        "entity_assets": [],
+        "assets_folder": True,
         "synthesis_file": "_portfolio.md",
         "synthesis_template": (
             "# Relationship Portfolio\n\n"
@@ -142,7 +144,6 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## At-Risk\n\n"
             "## Follow-Up Priorities\n"
         ),
-        "shared_assets": [],
         "tracker_file": "_tracker.md",
     },
 
@@ -157,7 +158,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "status.md": "# {name}\n\n## Current State\n\n## Progress\n\n## Blockers\n\n## Next Steps\n",
             "milestones.md": "# Milestones — {name}\n\n## Achieved\n\n## Upcoming\n",
         },
-        "entity_assets": ["roadmap.svg"],
+        "assets_folder": True,
         "synthesis_file": "_status.md",
         "synthesis_template": (
             "# Project Portfolio Status\n\n"
@@ -165,7 +166,6 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## Active Blockers\n\n"
             "## Resource Needs\n"
         ),
-        "shared_assets": ["project-roadmap.svg"],
         "tracker_file": "_tracker.md",
     },
 
@@ -180,10 +180,9 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "research.md": "# Research — {name}\n\n## Key Points\n\n## Sources\n\n## Audience Considerations\n",
             "outline.md": "# Outline — {name}\n\n## Key Messages\n\n## Structure\n\n## Tone\n",
         },
-        "entity_assets": [],
+        "assets_folder": True,
         "synthesis_file": None,
         "synthesis_template": None,
-        "shared_assets": [],
         "tracker_file": "_tracker.md",
     },
 
@@ -198,7 +197,6 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "synthesis_file": None,
         "synthesis_template": None,
         "signal_log": True,
-        "shared_assets": [],
     },
 
     # ADR-154: Output categories REMOVED. Tasks own their outputs directly
@@ -355,6 +353,23 @@ def get_output_category_path(category: str) -> Optional[str]:
     return None
 
 
+def has_assets_folder(key: str) -> bool:
+    """Check if a context domain has an assets/ subfolder (ADR-157)."""
+    d = WORKSPACE_DIRECTORIES.get(key)
+    return bool(d and d.get("assets_folder"))
+
+
+def get_assets_path(key: str) -> Optional[str]:
+    """Get the workspace-relative path to a domain's assets/ folder.
+
+    Returns e.g. 'context/competitors/assets' or None.
+    """
+    d = WORKSPACE_DIRECTORIES.get(key)
+    if not d or not d.get("assets_folder"):
+        return None
+    return f"{d['path']}/assets"
+
+
 def has_entity_tracker(key: str) -> bool:
     """Check if a context domain has an entity tracker (_tracker.md)."""
     d = WORKSPACE_DIRECTORIES.get(key)
@@ -453,6 +468,15 @@ async def scaffold_all_directories(client, user_id: str) -> list[str]:
                     template = directory.get("synthesis_template") or ""
                     await um.write(f"{path}/{synthesis}", template,
                                   summary=f"Directory scaffold: {key}")
+
+            # ADR-157: Scaffold assets/ folder for domains that support visual assets
+            if directory.get("assets_folder"):
+                assets_path = f"{path}/assets/.gitkeep"
+                existing_assets = await um.read(assets_path)
+                if not existing_assets:
+                    await um.write(assets_path,
+                                  "# Assets\n\nVisual assets for this domain (favicons, charts, diagrams).\n",
+                                  summary=f"Assets folder scaffold: {key}")
 
             # ADR-154: Scaffold _tracker.md for entity-bearing domains
             tracker = directory.get("tracker_file")

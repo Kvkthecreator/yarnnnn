@@ -213,7 +213,7 @@ async def _fetch_favicons_batch(um, user_id: str, requests: list[dict]) -> dict:
             domain_path = req["domain_path"]
             slug = req["slug"]
             url = req["url"]
-            ws_path = f"{domain_path}/{slug}/favicon.png"
+            ws_path = f"{domain_path}/assets/{slug}-favicon.png"
 
             # Skip if favicon already exists
             existing = await um.read(ws_path)

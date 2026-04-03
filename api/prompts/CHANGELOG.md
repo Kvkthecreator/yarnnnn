@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.6] - ADR-157: assets/ subfolder convention for visual assets
+
+### Changed
+- `services/directory_registry.py` v2.1: `entity_assets`/`shared_assets` fields replaced by `assets_folder: True`. All entity-bearing context domains get a visible `assets/` subfolder scaffolded at onboarding. Helpers: `has_assets_folder()`, `get_assets_path()`.
+- `services/directory_registry.py`: `scaffold_all_directories()` creates `assets/.gitkeep` for each domain with `assets_folder: True`.
+- `services/primitives/scaffold.py`: Favicon path changed from `{domain}/{slug}/favicon.png` to `{domain}/assets/{slug}-favicon.png`.
+- `services/task_types.py` v4.2: Step instructions updated — `update-context`, `bootstrap`, `derive-output` all reference `assets/` subfolder for visual assets.
+- Expected behavior: Favicons and future visual assets live in `{domain}/assets/` as siblings to entity folders. Synthesis agents list one directory to discover all domain visuals. Cross-entity assets (matrices, charts) have a natural home.
+
+---
+
 ## [2026.04.03.5] - ADR-153/156: Import jobs sunset — dead infrastructure removed
 
 ### Removed

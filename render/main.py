@@ -164,7 +164,8 @@ async def _upload_to_storage(file_bytes: bytes, storage_path: str, content_type:
         "Content-Type": content_type,
     }
     async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(upload_url, content=file_bytes, headers=headers)
+        # Use PUT for upsert — overwrites if file exists (ADR-157: re-fetch support)
+        resp = await client.put(upload_url, content=file_bytes, headers=headers)
         if resp.status_code not in (200, 201):
             raise RuntimeError(f"Storage upload HTTP {resp.status_code}: {resp.text}")
 

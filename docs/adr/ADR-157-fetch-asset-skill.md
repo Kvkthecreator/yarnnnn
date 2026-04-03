@@ -37,21 +37,37 @@ Future types (`logo`, `screenshot`) use the same interface but different acquisi
 
 ### Storage in context substrate
 
-Fetched assets are stored as workspace files with `content_url` pointing to Supabase Storage. They live alongside entity text files:
+### Domain-level `assets/` folder
+
+Each entity-bearing context domain has a visible `assets/` subfolder — a sibling to entity folders, not hidden inside them. This is a first-class directory, scaffolded at onboarding alongside trackers and synthesis files.
 
 ```
-/workspace/context/competitors/cursor/
-  profile.md          ← text intelligence
-  signals.md          ← dated findings
-  favicon.png         ← visual asset (content_url → storage)
+/workspace/context/competitors/
+  assets/                         ← domain-level visual assets
+    cursor-favicon.png            ← entity-linked via naming convention
+    zapier-favicon.png
+    competitor-matrix.svg         ← future: cross-entity generated visual
+  _tracker.md
+  _landscape.md
+  cursor/
+    profile.md                    ← text intelligence
+    signals.md
+  zapier/
+    profile.md
+    signals.md
 ```
 
-The `favicon.png` workspace file has:
+**Why `assets/` not per-entity:** Synthesis agents need all domain visuals in one listing. Cross-entity assets (competitive matrices, market maps) don't belong to any single entity. The naming convention (`{entity-slug}-{asset-type}.png`) links assets to entities without nesting.
+
+**Why visible (no `_` prefix):** Assets are first-class content, not infrastructure. They should be discoverable in the workspace explorer.
+
+Each asset workspace file has:
 - `content`: Brief description ("Favicon for cursor.com")
 - `content_url`: Supabase Storage URL
 - `content_type`: "image/png"
+- `metadata`: `{asset_type, source_url, size_bytes}`
 
-This makes favicons **part of the context substrate** — they're read by synthesis agents alongside text files, referenced in HTML output, and versioned with the entity.
+This makes assets **part of the context substrate** — read by synthesis agents, referenced in HTML output, versioned with the domain.
 
 ### Deduplication
 
@@ -86,14 +102,14 @@ Response:
 ### Callers
 
 **ScaffoldDomains** (initialization):
-- Entity input gains optional `domain` field: `{"domain": "competitors", "slug": "cursor", "name": "Cursor", "url": "cursor.com"}`
+- Entity input gains optional `url` field: `{"domain": "competitors", "slug": "cursor", "name": "Cursor", "url": "cursor.com"}`
 - When `url` is provided, ScaffoldDomains calls the render service to fetch the favicon
-- Writes workspace file at `{domain_path}/{slug}/favicon.png` with `content_url`
+- Writes workspace file at `{domain_path}/assets/{slug}-favicon.png` with `content_url`
 - Non-blocking: favicon fetch failure doesn't fail entity scaffolding
 
 **Agents via RuntimeDispatch** (bootstrap/steady-state):
-- `RuntimeDispatch(type="fetch-asset", input={url: "anthropic.com", asset_type: "favicon"}, output_format="png")`
-- Works exactly like existing chart/mermaid dispatch
+- `RuntimeDispatch(type="fetch-asset", input={url: "anthropic.com", asset_type: "favicon", size: 128, workspace_path: "context/competitors/assets/anthropic-favicon.png"}, output_format="png")`
+- `workspace_path` routes the output to the domain's `assets/` folder
 - Agent decides when to call based on domain intelligence
 
 ### Entity metadata convention
