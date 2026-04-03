@@ -19,15 +19,14 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 RUN npm install -g @mermaid-js/mermaid-cli
 
-# Remotion CLI for short-form video rendering (ADR-130)
-RUN npm install -g @remotion/cli@latest remotion@latest
+# Remotion: composition project deps installed below (not global)
 
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
-# ADR-157: Build Remotion composition project (install React + deps)
-RUN cd /app/skills/video/composition && npm install --production
+# ADR-157: Build Remotion composition project (React + Remotion CLI + deps)
+RUN cd /app/skills/video/composition && npm install
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]

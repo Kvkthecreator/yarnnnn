@@ -28,6 +28,36 @@ FPS = 30
 COMPOSITION_DIR = Path(__file__).parent.parent / "composition"
 
 
+def _find_remotion_cli() -> str:
+    """Find the remotion CLI binary. Checks multiple locations."""
+    import shutil
+
+    # 1. Composition-local node_modules
+    local_bin = COMPOSITION_DIR / "node_modules" / ".bin" / "remotion"
+    if local_bin.exists():
+        return str(local_bin)
+
+    # 2. Global npm bin
+    global_bin = shutil.which("remotion")
+    if global_bin:
+        return global_bin
+
+    # 3. Common global npm paths
+    for path in ["/usr/local/bin/remotion", "/usr/lib/node_modules/.bin/remotion"]:
+        if Path(path).exists():
+            return path
+
+    # 4. Try npx as last resort
+    npx = shutil.which("npx")
+    if npx:
+        return f"{npx} remotion"
+
+    raise FileNotFoundError(
+        "remotion CLI not found. Ensure @remotion/cli is installed "
+        "(npm install -g @remotion/cli or in composition/package.json)"
+    )
+
+
 async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str]:
     """Render a short-form video from slide-based specifications.
 
@@ -112,23 +142,31 @@ async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str
         output_path = out_file.name
 
     try:
-        # Use shell=True to inherit full PATH (npx installed globally via npm)
-        cmd = (
-            f"npx remotion render MainComposition {output_path}"
-            f" --props={props_path}"
-            f" --codec=h264"
-            f" --log=error"
-        )
+        # Find remotion CLI — try npx first, fall back to node_modules/.bin, then global
+        remotion_bin = _find_remotion_cli()
+        cmd = [
+            remotion_bin, "render",
+            "MainComposition",
+            output_path,
+            f"--props={props_path}",
+            "--codec=h264",
+            "--log=error",
+        ]
 
         logger.info(f"[VIDEO] Rendering {total_duration}s video ({width}x{height}, {len(slides)} slides)")
 
+        # Add node_modules/.bin to PATH for composition-local deps
+        env = {**subprocess.os.environ}
+        node_bin = str(COMPOSITION_DIR / "node_modules" / ".bin")
+        env["PATH"] = f"{node_bin}:{env.get('PATH', '')}"
+
         result = subprocess.run(
             cmd,
-            shell=True,
             capture_output=True,
             text=True,
             timeout=180,
             cwd=str(COMPOSITION_DIR),
+            env=env,
         )
 
         if result.returncode != 0:
