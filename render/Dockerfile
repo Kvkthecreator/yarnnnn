@@ -19,8 +19,11 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 RUN npm install -g @mermaid-js/mermaid-cli
 
-# Remotion CLI + React deps for video rendering
-RUN npm install -g @remotion/cli@4.0.0 remotion@4.0.0 react@18 react-dom@18 zod@3
+# Remotion CLI + React deps for video rendering (global)
+RUN npm install -g @remotion/cli@4.0.0 remotion@4.0.0 react@18 react-dom@18 zod@3 && \
+    echo "=== npm global prefix ===" && npm config get prefix && \
+    echo "=== which remotion ===" && which remotion || echo "not in PATH" && \
+    echo "=== find remotion ===" && find / -name "remotion" -type f 2>/dev/null | head -5 || true
 
 WORKDIR /app
 COPY requirements.txt .
