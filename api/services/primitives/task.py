@@ -412,7 +412,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                       summary="ADR-149: task steering file", tags=["memory"])
 
         # ADR-154: Seed task awareness file
-        await tw.write("awareness.md",
+        await tw.write("_awareness.md",
                       "# Task Awareness\n\nFirst run — no prior cycles.\n",
                       summary="ADR-154: task awareness file", tags=["awareness"])
 

@@ -88,8 +88,9 @@ function buildContextNodes(input: {
 }): TreeNode[] {
   const domainChildren = relabelTopLevelNodes(
     filterNodes(input.domainTree, (node) => {
-      const lower = node.path.toLowerCase();
-      return !lower.endsWith('/_tracker.md') && !lower.startsWith('/workspace/context/signals');
+      // ADR-156: Hide all _prefixed files (system infrastructure) + signals temporal log
+      const filename = node.path.split('/').pop() || '';
+      return !filename.startsWith('_') && !node.path.startsWith('/workspace/context/signals');
     }),
     input.domainTitles
   );

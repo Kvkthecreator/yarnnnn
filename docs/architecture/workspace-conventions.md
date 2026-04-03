@@ -1,6 +1,6 @@
 # Architecture: Workspace Conventions
 
-**Status:** Canonical (v11 — ADR-154 execution boundary reform)
+**Status:** Canonical (v12 — ADR-156 naming convention)
 **Date:** 2026-03-31
 **Related:**
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR
@@ -42,9 +42,9 @@ Everything the workspace "knows" — user identity, learned preferences, referen
 ├── IDENTITY.md                    # Who the user is (name, role, company, industry)
 ├── BRAND.md                       # Output identity (tone, style, visual preferences)
 ├── AWARENESS.md                   # TP's situational notes (shift handoff, cross-session)
-├── CONTEXT.md                     # Inferred context (from documents + onboarding)
-├── preferences.md                 # Learned preferences (from user edit feedback)
-├── notes.md                       # TP-extracted standing instructions (nightly cron)
+├── _playbook.md                   # System: TP orchestration playbook (hidden)
+├── _style.md                      # System: inferred style from edit patterns (hidden)
+├── notes.md                       # TP-written facts and standing instructions
 ├── uploads/                       # User-uploaded reference material (was: documents/)
 │   ├── ir-deck-march-2026.md      # Extracted text from uploaded PDF
 │   └── product-roadmap.md         # Extracted text from uploaded DOCX
@@ -54,12 +54,12 @@ Everything the workspace "knows" — user identity, learned preferences, referen
 │   └── content/                   # Blog drafts, comms, launch material
 └── context/                       # Accumulated context domains (ADR-151)
     ├── competitors/               # Per-competitor entity folders
-    │   ├── _tracker.md            # Entity registry + freshness (ADR-154, pipeline-maintained)
-    │   ├── _landscape.md          # Cross-entity synthesis (agent-written)
+    │   ├── _tracker.md            # System: entity registry + freshness (hidden)
+    │   ├── landscape.md           # Content: cross-entity synthesis (agent-written, visible)
     │   └── {company-slug}/
     │       ├── profile.md, signals.md, product.md, strategy.md
     │       └── assets/
-    ├── market/                    # Same pattern: _tracker.md + _overview.md + entities
+    ├── market/                    # Same pattern: _tracker.md + overview.md + entities
     ├── relationships/
     ├── projects/
     ├── content/
@@ -73,19 +73,28 @@ The workfloor explorer preserves structured visibility rules, but presents them 
 
 Visibility rules:
 
+### File Naming Convention (ADR-156)
+
+Three tiers, one glance tells you ownership:
+
+| Convention | Meaning | Writer | Visible in explorer? |
+|---|---|---|---|
+| **UPPERCASE.md** | Charter/identity — defines who/what/why | User + TP | Yes |
+| **lowercase.md** | Content — user knowledge, notes, feedback, synthesis | User + TP + agents | Yes |
+| **_prefixed.md** | System infrastructure — derived, pipeline-managed | Pipeline/system | **No** (hidden) |
+
+**Frontend rule:** Any file whose name starts with `_` is hidden from the explorer. One rule, no exceptions.
+
 | File/Directory | Visible? | Where shown |
 |---|---|---|
 | Task folders + task outputs (`/tasks/{slug}/...`) | Yes | `Tasks/` explorer subtree |
 | Context domain entity files (`{entity}/profile.md`, `signals.md`, etc.) | Yes | `Domains/` explorer subtree |
-| Domain synthesis files (`_landscape.md`, `_overview.md`, etc.) | Yes | Domain folder root |
+| Domain synthesis files (`landscape.md`, `overview.md`, etc.) | Yes | Domain folder root |
 | Uploads (`/workspace/uploads/*`) | Yes | `Uploads/` explorer subtree |
-| IDENTITY.md, BRAND.md, AWARENESS.md, notes.md, preferences.md | Yes | `Settings/` explorer subtree |
-| `_tracker.md` | No | Hidden infrastructure |
-| `playbook-orchestration.md`, `WORKSPACE.md` | No | System infrastructure |
+| IDENTITY.md, BRAND.md, AWARENESS.md, notes.md | Yes | `Settings/` explorer subtree |
+| `_tracker.md`, `_style.md`, `_playbook.md`, `_awareness.md`, `_run_log.md` | No | System infrastructure (hidden) |
 | `/agents/` (all files) | No | Agent identity = system |
 | `/workspace/context/signals/` root | No | Temporal log, not user-browseable |
-
-**Clarification:** underscore-prefixed synthesis files at the domain root remain user-visible. Only `_tracker.md` stays hidden. This keeps domain overviews accessible while preserving the internal entity registry as infrastructure.
 
 ### User Uploads (`/workspace/uploads/`)
 

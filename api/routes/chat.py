@@ -935,7 +935,7 @@ async def _load_task_context(
 
     # 2. Read run_log.md — last 5 ## sections
     run_log_last_5 = ""
-    run_log = await tw.read("memory/run_log.md")
+    run_log = await tw.read("memory/_run_log.md")
     if run_log:
         sections = re.split(r"(?=^## )", run_log, flags=re.MULTILINE)
         # Filter out empty sections

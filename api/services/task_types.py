@@ -92,7 +92,7 @@ STEP_INSTRUCTIONS = {
         "4. For company/product entities with a known website, fetch their favicon:\n"
         "   RuntimeDispatch(type='fetch-asset', input={url: 'openai.com', asset_type: 'favicon', "
         "size: 128, workspace_path: '<domain>/assets/<entity-slug>-favicon.png'}, output_format='png')\n"
-        "5. After entities are created, update the synthesis file (_landscape.md) with an overview.\n\n"
+        "5. After entities are created, update the synthesis file (landscape.md) with an overview.\n\n"
         "EXAMPLE WriteWorkspace call:\n"
         "  WriteWorkspace(path='openai/profile.md', content='# OpenAI\\n\\n## Overview\\nOpenAI is...', "
         "scope='context', domain='competitors')\n\n"

@@ -480,7 +480,7 @@ async def get_task(
     ws = TaskWorkspace(auth.client, auth.user_id, slug)
     content = await ws.read_task()
     parsed = _parse_task_md(content) if content else None
-    run_log = await ws.read("memory/run_log.md")
+    run_log = await ws.read("memory/_run_log.md")
 
     response = _task_row_to_response(row, parsed)
     response.run_log = run_log

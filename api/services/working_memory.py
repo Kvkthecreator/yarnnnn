@@ -98,7 +98,7 @@ async def build_working_memory(
     # ADR-143: Read brand + orchestration playbook from workspace
     brand_content = memory_files.get("BRAND.md", "")
     orchestration_playbook = await asyncio.to_thread(
-        _get_workspace_file_sync, user_id, "playbook-orchestration.md", _make_client()
+        _get_workspace_file_sync, user_id, "_playbook.md", _make_client()
     )
 
     # ADR-144: Read identity + awareness + compute context readiness
@@ -122,7 +122,7 @@ async def build_working_memory(
 
     working_memory = {
         # ADR-156: "profile" extraction removed — IDENTITY.md is rendered directly
-        "preferences": _extract_preferences_from_file(memory_files.get("preferences.md")),
+        "preferences": _extract_preferences_from_file(memory_files.get("_style.md")),
         "known": _extract_known_from_file(memory_files.get("notes.md")),
         "identity": identity_content,
         "brand": brand_content.strip() if brand_content else None,

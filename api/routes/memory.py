@@ -212,9 +212,9 @@ async def _scaffold_default_roster(client, user_id: str):
         um = UserMemory(client, user_id)
 
         # TP orchestration playbook
-        if not await um.read("playbook-orchestration.md"):
+        if not await um.read("_playbook.md"):
             await um.write(
-                "playbook-orchestration.md",
+                "_playbook.md",
                 TP_ORCHESTRATION_PLAYBOOK,
                 summary="ADR-143: TP orchestration playbook (seed)",
             )
@@ -360,7 +360,7 @@ async def update_profile(update: ProfileUpdate, auth: UserClient):
 
 @router.get("/styles", response_model=StylesListResponse)
 async def get_styles(auth: UserClient):
-    """Get tone/verbosity preferences from /memory/preferences.md."""
+    """Get tone/verbosity preferences from /workspace/_style.md."""
     try:
         um = UserMemory(auth.client, auth.user_id)
         prefs = await um.get_preferences()
@@ -375,7 +375,7 @@ async def get_styles(auth: UserClient):
 
 @router.patch("/styles/{platform}", response_model=StyleItem)
 async def update_style(platform: str, update: StyleUpdate, auth: UserClient):
-    """Set tone/verbosity for a platform in /memory/preferences.md."""
+    """Set tone/verbosity for a platform in /workspace/_style.md."""
     try:
         platform = _normalize_style_platform(platform)
         um = UserMemory(auth.client, auth.user_id)

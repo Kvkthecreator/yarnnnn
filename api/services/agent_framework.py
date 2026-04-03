@@ -63,7 +63,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                                 "moves, update entity profiles, flag strategic changes. When "
                                 "asked for deliverables, synthesize from accumulated context.",
         "methodology": {
-            "playbook-outputs.md": (
+            "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
                 "## Report Structure\n"
                 "1. **Executive Summary** — 2-3 sentences, lead with the insight not the process\n"
@@ -84,7 +84,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Insights the user hasn't seen elsewhere (not just restating source material)\n"
                 "- Actionable implications, not just observations\n"
             ),
-            "playbook-research.md": (
+            "_playbook-research.md": (
                 "# Research Playbook\n\n"
                 "## Investigation Depth\n"
                 "- Start broad: landscape scan via web search + workspace knowledge\n"
@@ -121,7 +121,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                                 "trends, and opportunities. When asked for deliverables, "
                                 "synthesize from accumulated research.",
         "methodology": {
-            "playbook-outputs.md": (
+            "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
                 "## Report Structure\n"
                 "1. **Executive Summary** — 2-3 sentences, lead with the insight not the process\n"
@@ -142,7 +142,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Insights the user hasn't seen elsewhere (not just restating source material)\n"
                 "- Actionable implications, not just observations\n"
             ),
-            "playbook-research.md": (
+            "_playbook-research.md": (
                 "# Research Playbook\n\n"
                 "## Investigation Depth\n"
                 "- Start broad: landscape scan via web search + workspace knowledge\n"
@@ -181,7 +181,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                                 "When asked for deliverables, synthesize from accumulated "
                                 "relationship context.",
         "methodology": {
-            "playbook-outputs.md": (
+            "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
                 "## Meeting Brief Format\n"
                 "- **Context** — who, when, what's the relationship history (2-3 sentences)\n"
@@ -222,7 +222,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                                 "milestones, and blockers from platform signals. When asked for "
                                 "deliverables, synthesize from accumulated project context.",
         "methodology": {
-            "playbook-outputs.md": (
+            "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
                 "## Status Report Format\n"
                 "1. **Summary** — 2-3 sentences: overall health, biggest risk, biggest win\n"
@@ -264,7 +264,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                                 "polished content from accumulated research. Use visual assets "
                                 "(charts, diagrams, images) where they add value.",
         "methodology": {
-            "playbook-outputs.md": (
+            "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
                 "## Deliverable Formats\n"
                 "### Reports\n"
@@ -291,7 +291,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Every section earns its place — delete sections that don't add value\n"
                 "- Proofread: no orphaned references, no TBD placeholders\n"
             ),
-            "playbook-formats.md": (
+            "_playbook-formats.md": (
                 "# Format Playbook\n\n"
                 "## Format Selection Heuristics\n"
                 "- Status update for executives → presentation (slide format)\n"
@@ -329,7 +329,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                                 "deliverables — board updates, stakeholder reports, all-hands "
                                 "summaries. Write for leadership audiences.",
         "methodology": {
-            "playbook-outputs.md": (
+            "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
                 "## Deliverable Formats\n"
                 "### Board Updates / Executive Summaries\n"
@@ -351,7 +351,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Every section earns its place — delete sections that don't add value\n"
                 "- Proofread: no orphaned references, no TBD placeholders\n"
             ),
-            "playbook-formats.md": (
+            "_playbook-formats.md": (
                 "# Format Playbook\n\n"
                 "## Format Selection Heuristics\n"
                 "- Board update → presentation (slide format) with appendix data\n"
@@ -386,7 +386,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         "default_instructions": "Monitor Slack channels. Capture decisions, action items, "
                                 "and key discussions. Produce scannable daily recaps.",
         "methodology": {
-            "playbook-outputs.md": (
+            "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
                 "## Channel Recap Format\n"
                 "- **Decisions Made** — what was decided, by whom, in which thread\n"
@@ -420,7 +420,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         "default_instructions": "Monitor Notion workspace. Track page changes, flag stale "
                                 "content, summarize updates.",
         "methodology": {
-            "playbook-outputs.md": (
+            "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
                 "## Knowledge Base Update Format\n"
                 "- **What Changed** — pages created, updated, or reorganized\n"
@@ -445,7 +445,7 @@ AGENT_TYPES = AGENT_TEMPLATES
 
 
 # =============================================================================
-# TP Orchestration Playbook — workspace-level (/workspace/playbook-orchestration.md)
+# TP Orchestration Playbook — workspace-level (/workspace/_playbook.md)
 # =============================================================================
 # TP is infrastructure, not workforce. Its playbook lives at workspace scope,
 # not under /agents/. Seeded at roster creation, evolves through user feedback.

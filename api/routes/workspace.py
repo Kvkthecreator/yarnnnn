@@ -183,7 +183,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
             ("BRAND.md", "Brand"),
             ("AWARENESS.md", "Awareness"),
             ("notes.md", "Notes"),
-            ("preferences.md", "Preferences"),
+            ("_style.md", "Style"),
         ]
         settings = []
         for filename, label in SETTINGS_FILES:

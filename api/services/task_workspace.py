@@ -176,11 +176,11 @@ class TaskWorkspace:
         return folder_path
 
     async def append_run_log(self, entry: str) -> bool:
-        """Append an entry to memory/run_log.md.
+        """Append an entry to memory/_run_log.md.
 
         Each entry is a line with date, outcome, observations.
         """
-        existing = await self.read("memory/run_log.md")
+        existing = await self.read("memory/_run_log.md")
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         line = f"- [{now}] {entry}"
         if existing:
@@ -188,7 +188,7 @@ class TaskWorkspace:
         else:
             content = f"# Run Log\n\n{line}"
         return await self.write(
-            "memory/run_log.md",
+            "memory/_run_log.md",
             content,
             summary="Task run history",
         )

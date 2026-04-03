@@ -54,7 +54,7 @@ WRITE_WORKSPACE_TOOL = {
 - Use during "update-context" steps to persist research findings
 - Example: WriteWorkspace(path="acme-corp/signals.md", content="...", scope="context", domain="competitors")
 - Entity files: {entity-slug}/profile.md, signals.md, product.md, strategy.md
-- Synthesis files: _landscape.md, _overview.md, _portfolio.md
+- Synthesis files: landscape.md, overview.md, portfolio.md
 
 **Agent workspace** (default scope):
 - Rarely needed — agent workspace is identity only (AGENT.md, playbooks)

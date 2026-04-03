@@ -187,10 +187,10 @@ async def _post_run_domain_scan(
                 rel = path.replace(prefix, "")
                 parts = rel.split("/")
                 if len(parts) < 2:
-                    continue  # Top-level files (_tracker.md, _landscape.md) — skip
+                    continue  # Top-level files (_tracker.md, landscape.md) — skip
                 entity_slug = parts[0]
                 if entity_slug.startswith("_"):
-                    continue  # Synthesis/tracker files
+                    continue  # System infrastructure files (_tracker.md)
                 filename = parts[1].replace(".md", "")
 
                 if entity_slug not in entity_files:
@@ -353,7 +353,7 @@ async def _post_run_domain_scan(
             awareness_lines.append("- All entities current. Discover new entities or deepen existing profiles.")
 
         awareness_content = "\n".join(awareness_lines) + "\n"
-        await tw.write("awareness.md", awareness_content,
+        await tw.write("_awareness.md", awareness_content,
                       summary=f"Task awareness update v{version_number}")
 
     except Exception as e:
@@ -537,7 +537,7 @@ async def gather_task_context(
     if task_slug:
         try:
             tw = TaskWorkspace(client, user_id, task_slug)
-            awareness = await tw.read("awareness.md")
+            awareness = await tw.read("_awareness.md")
             if awareness and "no prior cycles" not in awareness:
                 sections.append(f"## Execution Awareness\n{awareness}")
         except Exception as e:
@@ -1013,7 +1013,7 @@ async def execute_task(
         # =====================================================================
         task_phase = "steady"
         try:
-            _awareness_check = await tw.read("awareness.md") or ""
+            _awareness_check = await tw.read("_awareness.md") or ""
             if "## Phase: bootstrap" in _awareness_check or "no prior cycles" in _awareness_check:
                 task_phase = "bootstrap"
         except Exception:
@@ -2110,7 +2110,7 @@ def _load_user_context(client, user_id: str) -> Optional[list]:
         for k, v in profile.items():
             if v:
                 user_context.append({"key": k, "value": v})
-        prefs = UserMemory._parse_preferences_md(memory_files.get("preferences.md"))
+        prefs = UserMemory._parse_preferences_md(memory_files.get("_style.md"))
         for platform, settings in prefs.items():
             if settings.get("tone"):
                 user_context.append({"key": f"tone_{platform}", "value": settings["tone"]})

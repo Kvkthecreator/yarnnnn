@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.7] - ADR-156: Workspace file naming convention (3-tier)
+
+### Changed
+- Three-tier naming convention established:
+  - `UPPERCASE.md` = charter/identity (user + TP write, visible)
+  - `lowercase.md` = content (user + TP + agents, visible)
+  - `_prefixed.md` = system infrastructure (pipeline/system, **hidden**)
+- **Synthesis files renamed** (drop underscore — these are agent-written content, not infrastructure):
+  - `_landscape.md` → `landscape.md`, `_overview.md` → `overview.md`, `_portfolio.md` → `portfolio.md`, `_status.md` → `status.md`
+- **System files renamed** (add underscore — these are system-managed):
+  - `preferences.md` → `_style.md` (inferred from edit patterns)
+  - `awareness.md` (task-level) → `_awareness.md` (pipeline cycle state)
+  - `run_log.md` → `_run_log.md` (pipeline audit trail)
+  - `playbook-orchestration.md` → `_playbook.md` (system-seeded)
+  - `playbook-*.md` → `_playbook-*.md` (agent craft guides)
+- Frontend filter: one rule — `filename.startsWith('_')` → hidden. Replaces selective _tracker.md check.
+- Expected behavior: users see charter files (IDENTITY.md, TASK.md) and content files (landscape.md, feedback.md) but NOT system infrastructure (_tracker.md, _style.md, _awareness.md, _run_log.md).
+
+---
+
 ## [2026.04.03.6] - ADR-157: assets/ subfolder convention for visual assets
 
 ### Changed

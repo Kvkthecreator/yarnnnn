@@ -340,8 +340,8 @@ async def _handle_task_feedback(auth: Any, input: dict) -> dict:
 
         elif feedback_target == "run_log":
             entry = f"\n## Feedback ({date_str})\n- {feedback_text}\n"
-            existing = await tw.read("memory/run_log.md") or ""
-            await tw.write("memory/run_log.md", existing + entry,
+            existing = await tw.read("memory/_run_log.md") or ""
+            await tw.write("memory/_run_log.md", existing + entry,
                           summary=f"Task feedback: {feedback_text[:50]}")
             return {"success": True, "message": f"Feedback recorded in run log for {task_slug}"}
 

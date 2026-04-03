@@ -93,7 +93,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "strategy.md": "# Strategy — {name}\n\n## Positioning\n\n## Threat Assessment\n\n## Opportunities\n",
         },
         "assets_folder": True,
-        "synthesis_file": "_landscape.md",
+        "synthesis_file": "landscape.md",
         "synthesis_template": (
             "# Competitive Landscape\n\n"
             "## Market Map\n\n"
@@ -114,7 +114,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "analysis.md": "# {name}\n\n## Market Size & Growth\n\n## Key Players\n\n## Trends\n\n## Opportunities\n",
         },
         "assets_folder": True,
-        "synthesis_file": "_overview.md",
+        "synthesis_file": "overview.md",
         "synthesis_template": (
             "# Market Overview\n\n"
             "## Landscape Summary\n\n"
@@ -137,7 +137,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "open-items.md": "# Open Items — {name}\n\n## Follow-ups Due\n\n## Commitments Made\n",
         },
         "assets_folder": True,
-        "synthesis_file": "_portfolio.md",
+        "synthesis_file": "portfolio.md",
         "synthesis_template": (
             "# Relationship Portfolio\n\n"
             "## Health Overview\n\n"
@@ -159,7 +159,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "milestones.md": "# Milestones — {name}\n\n## Achieved\n\n## Upcoming\n",
         },
         "assets_folder": True,
-        "synthesis_file": "_status.md",
+        "synthesis_file": "status.md",
         "synthesis_template": (
             "# Project Portfolio Status\n\n"
             "## Overall Health\n\n"
