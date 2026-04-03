@@ -9,7 +9,7 @@ Contains:
 - ROLE_PROMPTS: Per-role prompt templates for LLM synthesis
 - build_role_prompt(): Assembles prompt from agent config
 - validate_output(): Per-role output validation
-- (ADR-117: get_past_versions_context removed — feedback in workspace preferences.md)
+- (ADR-117: get_past_versions_context removed — feedback in workspace style.md)
 """
 
 import logging
@@ -745,7 +745,7 @@ def validate_output(role: str, content: str, config: dict) -> dict:
 
 
 # ADR-117: get_past_versions_context() removed — feedback now distilled to
-# workspace memory/preferences.md by feedback_distillation.py.
+# workspace memory/style.md by feedback_distillation.py.
 # All strategies load preferences via AgentWorkspace.load_context().
 
 

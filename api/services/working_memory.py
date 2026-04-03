@@ -6,7 +6,7 @@ Analogous to Claude Code reading CLAUDE.md — TP reads what's explicitly stated
 nothing inferred by background jobs.
 
 Sources (Memory + Activity layers only):
-  /memory/ files — MEMORY.md, preferences.md, notes.md (ADR-108, replaces user_memory table)
+  /memory/ files — MEMORY.md, style.md, notes.md (ADR-108, replaces user_memory table)
   activity_log   — recent system events: agent runs, syncs, memory writes (Activity)
   filesystem_*   — raw synced platform content (searched on demand, not in prompt)
 
@@ -323,7 +323,7 @@ def _get_user_memory_files_sync(user_id: str, client: Any) -> dict[str, str]:
 
 
 def _extract_preferences_from_file(content: Optional[str]) -> list[dict]:
-    """Extract preferences from preferences.md content. ADR-108."""
+    """Extract preferences from style.md content. ADR-108."""
     from services.workspace import UserMemory
     prefs = UserMemory._parse_preferences_md(content)
     return [{"platform": k, **v} for k, v in prefs.items()]

@@ -131,7 +131,7 @@ class UserMemoryService:
             return ""
 
         sections = []
-        for filename in ("MEMORY.md", "preferences.md", "notes.md"):
+        for filename in ("MEMORY.md", "style.md", "notes.md"):
             content = files.get(filename, "").strip()
             if content:
                 sections.append(content)

@@ -23,7 +23,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
   - `preferences.md` → `style.md` (user can review/correct inferred style)
   - `awareness.md` (task-level) stays `awareness.md` (user sees execution state)
 - Frontend filter: one rule — `filename.startsWith('_')` → hidden. Replaces selective _tracker.md check.
-- Expected behavior: users see charter files (IDENTITY.md, TASK.md) and content files (landscape.md, feedback.md) but NOT system infrastructure (_tracker.md, _style.md, _awareness.md, _run_log.md).
+- Expected behavior: users see charter files (IDENTITY.md, TASK.md), content files (landscape.md, feedback.md, style.md, awareness.md) but NOT system infrastructure (_tracker.md, _playbook.md, _run_log.md).
 
 ---
 

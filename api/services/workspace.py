@@ -837,7 +837,7 @@ class UserMemory:
                                 summary="User identity")
 
     async def get_preferences(self) -> dict:
-        """Parse preferences.md into structured dict."""
+        """Parse style.md into structured dict."""
         content = await self.read("style.md")
         return self._parse_preferences_md(content)
 
@@ -918,7 +918,7 @@ class UserMemory:
 
     @staticmethod
     def _parse_preferences_md(content: Optional[str]) -> dict:
-        """Parse preferences.md into {platform: {tone, verbosity}}."""
+        """Parse style.md into {platform: {tone, verbosity}}."""
         if not content:
             return {}
         prefs = {}
@@ -937,7 +937,7 @@ class UserMemory:
 
     @staticmethod
     def _render_preferences_md(prefs: dict) -> str:
-        """Render preferences dict as preferences.md content."""
+        """Render preferences dict as style.md content."""
         lines = ["# Communication Preferences", ""]
         for platform in sorted(prefs.keys()):
             settings = prefs[platform]

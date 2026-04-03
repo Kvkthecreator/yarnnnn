@@ -13,7 +13,7 @@ Memory is everything YARNNN knows *about the user* — their name, role, how the
 | File | Purpose | Example content |
 |------|---------|-----------------|
 | `/workspace/IDENTITY.md` | User identity (name, role, company, work context) | "Sarah, VP Eng at Acme, building ML infrastructure" |
-| `/memory/preferences.md` | Per-platform tone/verbosity | slack: casual/brief, notion: detailed |
+| `/memory/style.md` | Per-platform tone/verbosity | slack: casual/brief, notion: detailed |
 | `/memory/notes.md` | Accumulated facts, instructions, preferences | "Prefers bullet points", "Always include TL;DR" |
 
 Note: `/memory/MEMORY.md` is deprecated (ADR-156). Profile data lives in IDENTITY.md.
@@ -40,7 +40,7 @@ Memory has two write paths (ADR-156: nightly extraction removed):
 
 | Source | Trigger | What's written | Where |
 |--------|---------|---------------|-------|
-| **User directly** | Memory page save | Profile, styles, manual entries | MEMORY.md, preferences.md, notes.md |
+| **User directly** | Memory page save | Profile, styles, manual entries | MEMORY.md, style.md, notes.md |
 | **TP conversation** | TP proactively saves facts via `UpdateContext(target="memory")` | Facts, preferences, instructions learned in chat | notes.md |
 
 ### In-Session Memory (ADR-156)
@@ -121,9 +121,9 @@ The system learns implicitly, but the user owns the data.
 ### API behavior (user-facing)
 
 - `PATCH /api/memory/profile`: partial upsert to MEMORY.md. Omitted fields are untouched. Explicit `null` or empty string clears that field.
-- `GET /api/memory/styles`: list configured platform styles from preferences.md.
+- `GET /api/memory/styles`: list configured platform styles from style.md.
 - `GET /api/memory/styles/{platform}`: fetch one platform style state.
-- `PATCH /api/memory/styles/{platform}`: partial upsert to preferences.md. Omitted fields are untouched. Explicit `null` or empty string clears tone/verbosity.
+- `PATCH /api/memory/styles/{platform}`: partial upsert to style.md. Omitted fields are untouched. Explicit `null` or empty string clears tone/verbosity.
 - `DELETE /api/memory/styles/{platform}`: clear tone + verbosity for that platform.
 - `GET /api/memory/user/memories`: list notes from notes.md (content-hash IDs).
 - `POST /api/memory/user/memories`: add a note to notes.md.

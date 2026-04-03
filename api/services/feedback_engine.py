@@ -8,7 +8,7 @@ Computes edit metrics between draft and final content:
 
 These metrics feed the Feedback layer of the agent intelligence model
 (ADR-101). feedback_distillation.py distills them into workspace
-memory/preferences.md, loaded by all strategies via load_context() (ADR-117).
+style.md, loaded by all strategies via load_context() (ADR-117).
 """
 
 from __future__ import annotations

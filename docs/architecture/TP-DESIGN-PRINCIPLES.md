@@ -135,8 +135,8 @@ Files TP reads at session start and writes during conversation via `UpdateContex
 | `IDENTITY.md` | Who the user is | TP via `UpdateContext(target="identity")` |
 | `BRAND.md` | Output style/voice | TP via `UpdateContext(target="brand")` |
 | `AWARENESS.md` | TP's situational notes (shift handoff) | TP via `UpdateContext(target="awareness")` |
-| `notes.md` | Standing instructions | Nightly cron (memory extraction) |
-| `preferences.md` | Learned output preferences | Feedback distillation |
+| `notes.md` | Standing instructions | TP in-session via `UpdateContext(target="memory")` |
+| `style.md` | Learned output style (tone, verbosity) | Feedback distillation from user edits |
 
 IDENTITY.md and BRAND.md carry facts about the user. AWARENESS.md carries TP's qualitative understanding of the workspace — current focus, task state, context health, next steps. It's a shift handoff note, not a health score. Direct write (no inference layer), full replacement each time.
 

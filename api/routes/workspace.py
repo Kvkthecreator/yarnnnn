@@ -177,7 +177,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
 
         # ── Settings (user config files at workspace root) ──
         # These are user-visible and editable: Identity, Brand, Awareness, etc.
-        # System files (playbook-orchestration.md, WORKSPACE.md) are hidden.
+        # System files (_playbook.md, WORKSPACE.md) are hidden.
         SETTINGS_FILES = [
             ("IDENTITY.md", "Identity"),
             ("BRAND.md", "Brand"),
