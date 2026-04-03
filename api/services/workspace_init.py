@@ -275,9 +275,6 @@ Initialized: {timestamp.strftime('%Y-%m-%d %H:%M UTC')}
 ## Context Domains
 {chr(10).join(context_domains)}
 
-### Output Categories
-{chr(10).join(output_categories)}
-
 ## How This Workspace Works
 
 **Registries are templates.** The agent types, task types, and directory structure
