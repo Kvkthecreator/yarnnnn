@@ -180,6 +180,9 @@ async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str
             f"--props={props_path}",
             "--codec=h264",
             "--log=error",
+            "--browser-executable=/usr/bin/chromium",
+            "--disable-web-security",
+            "--chrome-mode=headless-shell",
         ]
 
         logger.info(f"[VIDEO] Rendering {total_duration}s video ({width}x{height}, {len(slides)} slides)")
@@ -188,6 +191,9 @@ async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str
         env = {**subprocess.os.environ}
         node_bin = str(COMPOSITION_DIR / "node_modules" / ".bin")
         env["PATH"] = f"{node_bin}:{env.get('PATH', '')}"
+        # Chromium config for Docker (no-sandbox, set browser path)
+        env["PUPPETEER_EXECUTABLE_PATH"] = "/usr/bin/chromium"
+        env["CHROMIUM_PATH"] = "/usr/bin/chromium"
 
         result = subprocess.run(
             cmd,
