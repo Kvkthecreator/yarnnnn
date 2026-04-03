@@ -24,7 +24,7 @@ All execution is inline — no background worker, no Redis. On-demand operations
 ### Data Flow
 
 ```
-External APIs ──[Import Jobs]──→ workspace context domains
+External APIs ──[Task Execution (live API)]──→ workspace context domains
                                          │
                                 [Task Pipeline]
                                          │
@@ -58,7 +58,7 @@ activity_log ◄── ALL features (observability)
 | Agent execution (manual/MCP) | `services/agent_execution.py` | User action / MCP | `check_credits()` (caller) | 9K-20K |
 | Context inference | `services/context_inference.py` | TP `UpdateSharedContext` | Chat message limit | ~3K-5K |
 | Web search | `services/primitives/web_search.py` | TP/headless tool use | Caller's tool round limit | ~2K-4K |
-| Context import | `agents/integration/context_import.py` | Import jobs cron | None (bounded by job count) | ~3K-6K |
+| ~~Context import~~ | ~~`agents/integration/context_import.py`~~ | DELETED (ADR-153 + ADR-156) — platform data through tasks | — | — |
 
 ### Haiku Consumers (`claude-haiku-4-5-20251001`)
 
@@ -73,9 +73,7 @@ activity_log ◄── ALL features (observability)
 
 | Consumer | File | Trigger | Cost |
 |----------|------|---------|------|
-| Import jobs | `jobs/import_jobs.py` | Every 5 min | Platform API calls only |
 | Workspace cleanup | `services/workspace.py` | Hourly cron | DB deletes |
-| Import jobs | `jobs/import_jobs.py` | Every 5 min | DB + platform API |
 | Scheduler heartbeat | `jobs/unified_scheduler.py` | Every 5 min | DB queries + activity writes |
 
 ---

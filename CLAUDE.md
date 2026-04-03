@@ -162,8 +162,8 @@ YARNNN runs on **4 Render services** (ADR-083: worker + Redis removed; ADR-118: 
 All execution is inline — no background worker, no Redis. Output gateway (yarnnn-render) is independent (Docker, pandoc + python-pptx + openpyxl + matplotlib + pillow). See ADR-118 for the "Claude Code online" model: two-filesystem architecture — capability filesystem (skills in `render/skills/`, platform-wide) + content filesystem (workspace_files + S3, user-scoped). Skills follow Claude Code SKILL.md conventions.
 
 **Critical shared env vars** (must be on API + Unified Scheduler):
-- `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Scheduler **cannot run import jobs** without it.
-- `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` — needed by Scheduler for import jobs
+- `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Scheduler needs it for task execution with platform APIs.
+- `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` — needed by Scheduler for task execution with Notion API
 
 **API-only env vars** (not needed on schedulers):
 - `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — ADR-147: only needed for OAuth initiation on API. Schedulers use encrypted tokens from DB for sync.
@@ -185,13 +185,13 @@ All execution is inline — no background worker, no Redis. Output gateway (yarn
 - `RENDER_SERVICE_URL` — URL of yarnnn-render service (defaults to `https://yarnnn-render.onrender.com`)
 - `RENDER_SERVICE_SECRET` — Shared secret for authenticating to POST /render (ADR-118 D.2, must match Render service)
 
-**Common mistake**: Adding an env var to the API service but forgetting the Scheduler. The API handles OAuth and stores tokens; Scheduler decrypts and uses them for import jobs.
+**Common mistake**: Adding an env var to the API service but forgetting the Scheduler. The API handles OAuth and stores tokens; Scheduler decrypts and uses them for task execution with platform APIs.
 
 **Impact triggers** — if you change any of these, check the affected services:
 | If you change... | Also check... |
 |-----------------|--------------|
 | Env vars (any) | All 4 services — use Render MCP `update_environment_variables` |
-| OAuth flow / token handling | Unified Scheduler (decrypts & uses tokens for import jobs) |
+| OAuth flow / token handling | Unified Scheduler (decrypts & uses tokens for task execution) |
 | Supabase schema (RPC, tables, RLS) | Unified Scheduler + MCP Server (both use service key) |
 | Agent execution / pipeline logic | Unified Scheduler (triggers agent runs via cron) |
 | MCP tool definitions / auth | MCP Server (separate service, separate deploy) |
@@ -334,7 +334,7 @@ You MUST:
 ### ADR-056: Per-Source Sync
 
 - Sync operates per-source (channel, label, page) not per-platform
-- `integration_import_jobs` tracks sync state per resource
+- `integration_import_jobs` — DEPRECATED (ADR-153 + ADR-156: import jobs sunset, platform data flows through task execution)
 
 ---
 

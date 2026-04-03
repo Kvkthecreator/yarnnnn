@@ -1,12 +1,7 @@
 """
-Integration Agents - AI-powered processing for external platform data.
+Integration Agents — DELETED (ADR-153 + ADR-156)
 
-All external data passes through these agents before storage.
-Raw API data → Agent (LLM) → Structured context blocks.
-
-See ADR-027: Integration Read Architecture
+ContextImportAgent and platform_semantics deleted.
+Platform data flows through task execution (Monitor Slack, Monitor Notion),
+not background import jobs. Agents call platform APIs live during scheduled runs.
 """
-
-from .context_import import ContextImportAgent
-
-__all__ = ["ContextImportAgent"]

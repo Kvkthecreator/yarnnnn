@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.5] - ADR-153/156: Import jobs sunset — dead infrastructure removed
+
+### Removed
+- `jobs/import_jobs.py`: DELETED — entire import job processing module (~615 lines). Platform data flows through task execution (ADR-153), not background import jobs.
+- `agents/integration/context_import.py`: DELETED — ContextImportAgent (Sonnet consumer extracting blocks that were discarded post ADR-153).
+- `agents/integration/platform_semantics.py`: DELETED — Slack signal extraction helper for import pipeline.
+- `jobs/unified_scheduler.py`: Import job processing block removed. Scheduler no longer queries integration_import_jobs.
+- `routes/integrations.py`: POST /notion/import returns deprecation message. Background processing function removed.
+- Expected behavior: No import jobs run. Platform data enters workspace through Monitor Slack / Monitor Notion task types. Agents call platform APIs live during scheduled task execution.
+
+---
+
 ## [2026.04.03.4] - ADR-157 Phase 2: Visual asset guidance in prompts
 
 ### Changed

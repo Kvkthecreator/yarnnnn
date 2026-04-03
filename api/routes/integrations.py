@@ -35,7 +35,7 @@ from integrations.core.types import (
     IntegrationStatus,
     ExportStatus,
 )
-from agents.integration import ContextImportAgent
+# ContextImportAgent DELETED (ADR-153 + ADR-156: platform data flows through task execution)
 
 logger = logging.getLogger(__name__)
 
@@ -54,55 +54,9 @@ PROVIDER_ALIASES: dict[str, list[str]] = {
 # Background Import Processing
 # =============================================================================
 
-async def _process_import_job_background(job_id: str, job_data: dict):
-    """
-    Process an import job in the background.
-
-    This runs as a FastAPI BackgroundTask, providing immediate feedback to users
-    while processing happens asynchronously. The cron job serves as a safety net
-    for any jobs that fail to start this way.
-
-    Args:
-        job_id: The import job ID
-        job_data: The job data dict (as inserted into DB)
-    """
-    from jobs.import_jobs import process_import_job
-
-    try:
-        # Get service client for background processing
-        service_client = get_service_client()
-
-        # Fetch the full job record
-        result = service_client.table("integration_import_jobs").select("*").eq(
-            "id", job_id
-        ).limit(1).execute()
-
-        if not result.data:
-            logger.error(f"[IMPORT_BG] Job {job_id} not found")
-            return
-
-        job = result.data[0]
-
-        # Process the job
-        logger.info(f"[IMPORT_BG] Starting background processing for job {job_id}")
-        success = await process_import_job(service_client, job)
-
-        if success:
-            logger.info(f"[IMPORT_BG] ✓ Completed job {job_id}")
-        else:
-            logger.warning(f"[IMPORT_BG] ✗ Job {job_id} failed (check job status for details)")
-
-    except Exception as e:
-        logger.error(f"[IMPORT_BG] Unexpected error processing job {job_id}: {e}")
-        # Try to mark job as failed
-        try:
-            service_client = get_service_client()
-            service_client.table("integration_import_jobs").update({
-                "status": "failed",
-                "error_message": f"Background processing error: {str(e)}"
-            }).eq("id", job_id).execute()
-        except Exception:
-            pass  # Best effort
+# _process_import_job_background DELETED (ADR-153 + ADR-156)
+# Platform data flows through task execution (Monitor Slack, Monitor Notion),
+# not background import jobs. See ADR-153 for the explicit sunset decision.
 
 
 # =============================================================================
@@ -1351,98 +1305,19 @@ async def start_notion_import(
     request: StartImportRequest,
     auth: UserClient,
     background_tasks: BackgroundTasks
-) -> ImportJobResponse:
+) -> dict:
     """
-    Start a context import from a Notion page.
+    DEPRECATED (ADR-153 + ADR-156): Platform data flows through task execution.
+    Use Monitor Notion task type instead of import jobs.
 
-    Creates a background job that:
-    1. Fetches page content (including child pages)
-    2. Runs ContextImportAgent to extract structured context
-    3. Stores results as context_sources
-
-    The job runs async; poll GET /integrations/import/{job_id} for status.
+    Retained as endpoint to prevent frontend 404s. Returns deprecation message.
     """
-    user_id = auth.user_id
-
-    try:
-        # Get user's Notion integration
-        integration = auth.client.table("platform_connections").select(
-            "id, credentials_encrypted, status"
-        ).eq("user_id", user_id).eq("platform", "notion").limit(1).execute()
-
-        if not integration.data:
-            raise HTTPException(
-                status_code=404,
-                detail="No Notion integration found. Please connect first."
-            )
-
-        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Notion integration is {integration.data[0]['status']}. Please reconnect."
-            )
-
-        # Use resource_name if provided, otherwise use resource_id as fallback
-        # (Background job processor will resolve the actual page title via MCP)
-        resource_name = request.resource_name or request.resource_id
-
-        # Build config dict from request
-        config_dict = {}
-        if request.config:
-            config_dict["learn_style"] = request.config.learn_style
-            # style_user_id not applicable for Notion (no per-user filtering)
-
-        # ADR-030: Build scope dict with defaults (Notion-specific params)
-        scope_dict = {
-            "max_depth": 2,  # How deep to traverse child pages
-            "max_pages": 10  # Maximum pages to extract
-        }
-        if request.scope:
-            # Notion reuses max_items as max_pages
-            scope_dict["max_pages"] = request.scope.max_items
-
-        # Create import job
-        job_data = {
-            "user_id": user_id,
-            "provider": "notion",
-            "resource_id": request.resource_id,
-            "resource_name": resource_name,
-            # project_id removed - ADR-058: column no longer exists in table
-            "instructions": request.instructions,
-            "config": config_dict if config_dict else None,
-            "scope": scope_dict,  # ADR-030
-            "status": "pending",
-            "progress": 0,
-        }
-
-        result = auth.client.table("integration_import_jobs").insert(job_data).execute()
-
-        if not result.data:
-            raise HTTPException(status_code=500, detail="Failed to create import job")
-
-        job = result.data[0]
-
-        style_note = " (with style learning)" if config_dict.get("learn_style") else ""
-        logger.info(f"[INTEGRATIONS] User {user_id} started Notion import job {job['id']}{style_note}")
-
-        # Trigger background processing immediately
-        background_tasks.add_task(_process_import_job_background, job["id"], job_data)
-
-        return ImportJobResponse(
-            id=job["id"],
-            provider="notion",
-            resource_id=job["resource_id"],
-            resource_name=job.get("resource_name"),
-            status=job["status"],
-            progress=job.get("progress", 0),
-            created_at=job["created_at"],
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Failed to start Notion import for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to start import: {str(e)}")
+    # ADR-153 + ADR-156: Import jobs sunset.
+    # Platform data flows through task execution (Monitor Notion task type).
+    return {
+        "deprecated": True,
+        "message": "Import jobs have been replaced by monitoring tasks. Create a 'monitor-notion' task instead.",
+    }
 
 
 # =============================================================================

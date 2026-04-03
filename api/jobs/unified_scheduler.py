@@ -6,7 +6,6 @@ Three-layer execution: mechanical scheduling, LLM generation, TP intelligence.
 Layer 1 (this file — zero LLM cost):
 - Task scheduling: SQL query → execute_task() for each due task
 - Workspace ephemeral cleanup (ADR-119)
-- Import jobs
 - Lifecycle hygiene: pause underperformers (ADR-156)
 
 Layer 2 (task_pipeline.py — Sonnet per task):
@@ -32,7 +31,7 @@ from typing import Any, Optional
 
 from croniter import croniter
 
-from .import_jobs import get_pending_import_jobs, process_import_job, recover_stale_processing_jobs
+# import_jobs DELETED (ADR-153 + ADR-156: platform data flows through task execution)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -501,35 +500,8 @@ async def run_unified_scheduler():
             logger.warning(f"[WORKSPACE] Ephemeral cleanup failed (non-fatal): {e}")
 
     # -------------------------------------------------------------------------
-    # ADR-040: Event trigger cooldowns are database-backed (event_trigger_log).
-    # No in-memory cleanup needed.
-
+    # Import jobs DELETED (ADR-153 + ADR-156: platform data flows through task execution)
     # -------------------------------------------------------------------------
-    # Process Integration Import Jobs (ADR-027)
-    # -------------------------------------------------------------------------
-    import_count = 0
-    import_success = 0
-
-    try:
-        # First, recover any stale processing jobs (safety net for crashed processes)
-        recovered_count = await recover_stale_processing_jobs(supabase, stale_minutes=10)
-        if recovered_count > 0:
-            logger.info(f"[IMPORT] Recovered {recovered_count} stale job(s)")
-
-        import_jobs = await get_pending_import_jobs(supabase)
-        import_count = len(import_jobs)
-        logger.info(f"[IMPORT] Found {import_count} pending import job(s)")
-
-        for job in import_jobs:
-            try:
-                if await process_import_job(supabase, job):
-                    import_success += 1
-            except Exception as e:
-                logger.error(f"[IMPORT] Unexpected error for job {job.get('id')}: {e}")
-    except Exception as e:
-        # Handle schema cache miss or table not found errors gracefully
-        # PGRST205 = table not found in schema cache (needs cache refresh in Supabase)
-        logger.warning(f"[IMPORT] Import jobs processing skipped: {e}")
 
     # -------------------------------------------------------------------------
     # ADR-156: Deterministic lifecycle hygiene (replaces Composer heartbeat)
@@ -559,7 +531,6 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     summary_parts = [
         f"tasks={task_success}/{tasks_found}",
-        f"imports={import_success}/{import_count}",
     ]
     if lifecycle_paused > 0:
         summary_parts.append(f"lifecycle={lifecycle_paused} paused")
@@ -576,13 +547,11 @@ async def run_unified_scheduler():
         try:
             from services.activity_log import write_activity
 
-            heartbeat_summary = f"Scheduler cycle: tasks={task_success}/{tasks_found}, imports={import_success}/{import_count}"
+            heartbeat_summary = f"Scheduler cycle: tasks={task_success}/{tasks_found}"
             heartbeat_metadata = {
                 "tasks_due": tasks_found,
                 "tasks_succeeded": task_success,
                 "tasks_failed": task_failed,
-                "imports_checked": import_count,
-                "imports_triggered": import_success,
                 "lifecycle_paused": lifecycle_paused,
                 "errors": errors_encountered if errors_encountered else None,
                 "cycle_started_at": now.isoformat(),
