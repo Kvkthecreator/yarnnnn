@@ -101,7 +101,7 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
             "BRAND.md": (DEFAULT_BRAND_MD, "Default brand baseline"),
             "AWARENESS.md": (DEFAULT_AWARENESS_MD, "TP situational awareness"),
             "_playbook.md": (TP_ORCHESTRATION_PLAYBOOK, "TP orchestration playbook"),
-            "_style.md": ("# Style\n<!-- System-inferred from edit patterns. -->\n", "Style placeholder"),
+            "style.md": ("# Style\n<!-- System-inferred from edit patterns. -->\n", "Style placeholder"),
             "notes.md": ("# Notes\n<!-- TP-extracted facts and instructions. -->\n", "Notes placeholder"),
         }
 

@@ -736,7 +736,7 @@ async def generate_draft_inline(
         for k, v in profile.items():
             if v:
                 user_context.append({"key": k, "value": v})
-        prefs = UserMemory._parse_preferences_md(memory_files.get("_style.md"))
+        prefs = UserMemory._parse_preferences_md(memory_files.get("style.md"))
         for platform, settings in prefs.items():
             if settings.get("tone"):
                 user_context.append({"key": f"tone_{platform}", "value": settings["tone"]})

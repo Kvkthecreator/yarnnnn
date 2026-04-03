@@ -122,7 +122,7 @@ async def build_working_memory(
 
     working_memory = {
         # ADR-156: "profile" extraction removed — IDENTITY.md is rendered directly
-        "preferences": _extract_preferences_from_file(memory_files.get("_style.md")),
+        "preferences": _extract_preferences_from_file(memory_files.get("style.md")),
         "known": _extract_known_from_file(memory_files.get("notes.md")),
         "identity": identity_content,
         "brand": brand_content.strip() if brand_content else None,

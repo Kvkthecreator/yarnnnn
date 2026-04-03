@@ -776,7 +776,7 @@ class UserMemory:
         Charter files (UPPERCASE) + system files (_prefixed) + content files (lowercase).
         """
         files = {}
-        for filename in ("IDENTITY.md", "BRAND.md", "_style.md"):
+        for filename in ("IDENTITY.md", "BRAND.md", "style.md"):
             content = await self.read(filename)
             if content:
                 files[filename] = content
@@ -800,7 +800,7 @@ class UserMemory:
     def read_all_sync(self) -> dict[str, str]:
         """Synchronous read_all for thread pool use. ADR-156: naming convention."""
         files = {}
-        for filename in ("IDENTITY.md", "BRAND.md", "_style.md"):
+        for filename in ("IDENTITY.md", "BRAND.md", "style.md"):
             content = self.read_sync(filename)
             if content:
                 files[filename] = content
@@ -838,7 +838,7 @@ class UserMemory:
 
     async def get_preferences(self) -> dict:
         """Parse preferences.md into structured dict."""
-        content = await self.read("_style.md")
+        content = await self.read("style.md")
         return self._parse_preferences_md(content)
 
     async def update_preferences(self, platform: str, updates: dict) -> bool:
@@ -856,7 +856,7 @@ class UserMemory:
                     del prefs[platform][k]
             if platform in prefs and not prefs[platform]:
                 del prefs[platform]
-        return await self.write("_style.md", self._render_preferences_md(prefs),
+        return await self.write("style.md", self._render_preferences_md(prefs),
                                 summary="Communication and content preferences")
 
     async def get_notes(self) -> list[dict]:

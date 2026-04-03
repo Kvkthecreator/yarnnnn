@@ -360,7 +360,7 @@ async def update_profile(update: ProfileUpdate, auth: UserClient):
 
 @router.get("/styles", response_model=StylesListResponse)
 async def get_styles(auth: UserClient):
-    """Get tone/verbosity preferences from /workspace/_style.md."""
+    """Get tone/verbosity preferences from /workspace/style.md."""
     try:
         um = UserMemory(auth.client, auth.user_id)
         prefs = await um.get_preferences()
@@ -375,7 +375,7 @@ async def get_styles(auth: UserClient):
 
 @router.patch("/styles/{platform}", response_model=StyleItem)
 async def update_style(platform: str, update: StyleUpdate, auth: UserClient):
-    """Set tone/verbosity for a platform in /workspace/_style.md."""
+    """Set tone/verbosity for a platform in /workspace/style.md."""
     try:
         platform = _normalize_style_platform(platform)
         um = UserMemory(auth.client, auth.user_id)

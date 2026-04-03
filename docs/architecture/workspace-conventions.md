@@ -43,7 +43,7 @@ Everything the workspace "knows" — user identity, learned preferences, referen
 ├── BRAND.md                       # Output identity (tone, style, visual preferences)
 ├── AWARENESS.md                   # TP's situational notes (shift handoff, cross-session)
 ├── _playbook.md                   # System: TP orchestration playbook (hidden)
-├── _style.md                      # System: inferred style from edit patterns (hidden)
+├── style.md                       # Inferred style from edit patterns (visible — user can review/correct)
 ├── notes.md                       # TP-written facts and standing instructions
 ├── uploads/                       # User-uploaded reference material (was: documents/)
 │   ├── ir-deck-march-2026.md      # Extracted text from uploaded PDF
@@ -91,8 +91,8 @@ Three tiers, one glance tells you ownership:
 | Context domain entity files (`{entity}/profile.md`, `signals.md`, etc.) | Yes | `Domains/` explorer subtree |
 | Domain synthesis files (`landscape.md`, `overview.md`, etc.) | Yes | Domain folder root |
 | Uploads (`/workspace/uploads/*`) | Yes | `Uploads/` explorer subtree |
-| IDENTITY.md, BRAND.md, AWARENESS.md, notes.md | Yes | `Settings/` explorer subtree |
-| `_tracker.md`, `_style.md`, `_playbook.md`, `_awareness.md`, `_run_log.md` | No | System infrastructure (hidden) |
+| IDENTITY.md, BRAND.md, AWARENESS.md, notes.md, style.md | Yes | `Settings/` explorer subtree |
+| `_tracker.md`, `_playbook.md`, `_playbook-*.md`, `_run_log.md` | No | System infrastructure (hidden) |
 | `/agents/` (all files) | No | Agent identity = system |
 | `/workspace/context/signals/` root | No | Temporal log, not user-browseable |
 
