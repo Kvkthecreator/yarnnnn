@@ -115,11 +115,15 @@ Related spoke links. No hard CTA.
 4. **X Article** — full cross-post from blog (see X Article template below). Published 3-7 days after blog for depth/permanence/indexing.
 5. **Medium draft** — full article pasted via browser, saved as draft. Set canonical URL on publish. Within 1 week of blog.
 
-**Execution method:** Claude in Chrome (visual browser automation). For each platform:
+**Execution method:** Claude in Chrome (visual browser automation). **Two-tab workflow:** Keep Tab 1 on the live blog post (yarnnn.com/blog/[slug]) as reference. Use Tab 2 for each platform editor. This avoids re-reading the markdown file and is more token-efficient.
+
+**HTML clipboard paste technique (proven 2026-04-03):** For rich-text editors (X Articles Draft.js, Medium, LinkedIn Quill), use `ClipboardEvent` with `text/html` data. Build the article as HTML (`<h2>`, `<p>`, `<strong>`, `<em>` tags), create a `DataTransfer` with `text/html` set, dispatch a `ClipboardEvent('paste')` on the focused editor element. This preserves headings, bold, italic, and links. Paste in 2-3 chunks for long articles to avoid editor detachment.
+
+For each platform:
 - **LinkedIn**: Navigate to yarnnn company page → "+ Create" → "Start a post" → type content directly into composer → click Post. Note: LinkedIn's Quill editor sometimes requires JS injection (`editor.innerHTML = ...`) if direct typing fails.
 - **X/Twitter**: Navigate to `x.com/compose/post` → type tweet → verify character count (circle must be blue, not red) → click Post. For threads, use the "+" button to add tweets.
-- **X Articles**: Click "Articles" in X sidebar → "Write" button → type title → click "Start writing" body area → type content in chunks (long pastes cause detach). Include "Originally published at yarnnn.com/blog/[slug]" at bottom. Save as draft; Kevin publishes.
-- **Medium**: Navigate to `medium.com/new-story` → type title → press Enter → paste body via ClipboardEvent JS injection into ProseMirror editor → saves as draft automatically.
+- **X Articles**: Click "Articles" in X sidebar → "Write" button → type title → click "Start writing" body area → paste body via HTML ClipboardEvent in 2 chunks (Draft.js editor). `execCommand('insertText')` works for plain text but `\n\n` breaks paragraph separation and URLs auto-link/duplicate. Use HTML paste instead. Include "Originally published at yarnnn.com/blog/[slug]" at bottom. Save as draft; Kevin publishes.
+- **Medium**: Navigate to `medium.com/new-story` → type title → press Enter → click body area → paste body via HTML ClipboardEvent on the body `<p>` element (class `graf--p`). Paste in 2 chunks (first half, then cursor-to-end + second half). Saves as draft automatically. Kevin sets canonical URL on publish.
 
 **Timing:** Blog commit first (push to deploy). LinkedIn + X tweet same session. X Article 3-7 days later. Medium within 1 week. Reddit when natural opportunity arises.
 
