@@ -24,11 +24,10 @@ RUN npm install -g @mermaid-js/mermaid-cli
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# ADR-157: Install Remotion composition deps BEFORE full COPY (cache-efficient)
-COPY skills/video/composition/package.json /app/skills/video/composition/package.json
-RUN cd /app/skills/video/composition && npm install
-
 COPY . .
+
+# ADR-157: Install Remotion composition deps AFTER full COPY
+# (must be after COPY so node_modules isn't overwritten)
+RUN cd /app/skills/video/composition && npm install
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]
