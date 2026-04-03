@@ -1,19 +1,29 @@
 """
-ScaffoldDomains Primitive — ADR-155
+ScaffoldDomains Primitive — ADR-155 + ADR-157
 
 TP-driven domain scaffolding: TP decides WHAT entities to create,
 this primitive handles HOW (templates, files, trackers).
 
 Single tool call replaces N × WriteWorkspace calls for entity creation.
 The TP retains full control over which entities are scaffolded.
+
+ADR-157: When entities have a `url` field, ScaffoldDomains fetches
+the favicon via the render service (fetch-asset skill) and stores it
+as a workspace file alongside the entity's text files.
 """
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
+
 logger = logging.getLogger(__name__)
+
+RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
+RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
 
 
 SCAFFOLD_DOMAINS_TOOL = {
@@ -30,8 +40,8 @@ Each entity gets:
 
 Example:
 ScaffoldDomains(entities=[
-  {"domain": "competitors", "slug": "cursor", "name": "Cursor", "facts": ["AI code editor by Anysphere", "YC-backed"]},
-  {"domain": "competitors", "slug": "copilot", "name": "GitHub Copilot", "facts": ["Microsoft/OpenAI backed"]},
+  {"domain": "competitors", "slug": "cursor", "name": "Cursor", "url": "cursor.com", "facts": ["AI code editor by Anysphere", "YC-backed"]},
+  {"domain": "competitors", "slug": "copilot", "name": "GitHub Copilot", "url": "github.com/features/copilot", "facts": ["Microsoft/OpenAI backed"]},
   {"domain": "market", "slug": "ai-coding", "name": "AI Coding Tools", "facts": ["$2B+ market by 2026"]},
 ])
 
@@ -61,6 +71,10 @@ Only create entities you have reasonable evidence for. Don't guess.""",
                             "type": "array",
                             "items": {"type": "string"},
                             "description": "Known facts about this entity (1-3 bullets)",
+                        },
+                        "url": {
+                            "type": "string",
+                            "description": "Entity's website domain (e.g., 'cursor.com'). Used to fetch favicon (ADR-157).",
                         },
                     },
                     "required": ["domain", "slug", "name"],
@@ -99,11 +113,15 @@ async def handle_scaffold_domains(auth: Any, input: dict) -> dict:
         if v.get("type") == "context" and v.get("entity_structure")
     }
 
+    # ADR-157: Collect entities with URLs for batch favicon fetching
+    favicon_requests: list[dict] = []
+
     for entity in entities:
         domain_key = entity.get("domain", "")
         slug = entity.get("slug", "")
         name = entity.get("name", "")
         facts = entity.get("facts", [])
+        entity_url = entity.get("url", "")
 
         if domain_key not in valid_domains:
             skipped.setdefault(domain_key, []).append(slug)
@@ -130,8 +148,19 @@ async def handle_scaffold_domains(auth: Any, input: dict) -> dict:
 
         if entity_created:
             scaffolded.setdefault(domain_key, []).append(slug)
+            # ADR-157: Queue favicon fetch for entities with URL
+            if entity_url:
+                favicon_requests.append({
+                    "domain_path": domain_path,
+                    "slug": slug,
+                    "url": entity_url,
+                })
         else:
             skipped.setdefault(domain_key, []).append(slug)
+
+    # ADR-157: Fetch favicons for scaffolded entities (non-blocking)
+    favicon_results = await _fetch_favicons_batch(um, auth.user_id, favicon_requests)
+    total_files += favicon_results.get("fetched", 0)
 
     # Rebuild trackers for affected domains
     for domain_key in scaffolded:
@@ -159,8 +188,86 @@ async def handle_scaffold_domains(auth: Any, input: dict) -> dict:
         "scaffolded": scaffolded,
         "skipped": {k: v for k, v in skipped.items() if v},
         "total_files": total_files,
-        "message": f"Scaffolded {total_entities} entities across {domains_count} domains ({total_files} files)",
+        "favicons": favicon_results,
+        "message": f"Scaffolded {total_entities} entities across {domains_count} domains ({total_files} files, {favicon_results.get('fetched', 0)} favicons)",
     }
+
+
+async def _fetch_favicons_batch(um, user_id: str, requests: list[dict]) -> dict:
+    """ADR-157: Fetch favicons for entities via render service.
+
+    Non-blocking: individual failures are logged but don't fail scaffolding.
+    Each favicon is stored as a workspace file with content_url.
+    """
+    if not requests:
+        return {"fetched": 0, "failed": 0}
+
+    fetched = 0
+    failed = 0
+    headers = {}
+    if RENDER_SERVICE_SECRET:
+        headers["X-Render-Secret"] = RENDER_SERVICE_SECRET
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for req in requests:
+            domain_path = req["domain_path"]
+            slug = req["slug"]
+            url = req["url"]
+            ws_path = f"{domain_path}/{slug}/favicon.png"
+
+            # Skip if favicon already exists
+            existing = await um.read(ws_path)
+            if existing:
+                continue
+
+            try:
+                resp = await client.post(
+                    f"{RENDER_SERVICE_URL}/render",
+                    json={
+                        "type": "fetch-asset",
+                        "input": {
+                            "url": url,
+                            "asset_type": "favicon",
+                            "size": 128,
+                        },
+                        "output_format": "png",
+                        "filename": f"favicon-{slug}",
+                        "user_id": user_id,
+                    },
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                result = resp.json()
+
+                if result.get("success") and result.get("output_url"):
+                    ok = await um.write(
+                        ws_path,
+                        f"Favicon for {url}",
+                        content_type="image/png",
+                        content_url=result["output_url"],
+                        metadata={
+                            "asset_type": "favicon",
+                            "source_url": url,
+                            "size_bytes": result.get("size_bytes", 0),
+                        },
+                        summary=f"Favicon: {slug}",
+                    )
+                    if ok:
+                        fetched += 1
+                    else:
+                        failed += 1
+                else:
+                    logger.warning(f"[SCAFFOLD] Favicon fetch failed for {url}: {result.get('error', 'unknown')}")
+                    failed += 1
+
+            except Exception as e:
+                logger.warning(f"[SCAFFOLD] Favicon fetch failed for {url}: {e}")
+                failed += 1
+
+    if fetched:
+        logger.info(f"[SCAFFOLD] Fetched {fetched} favicons ({failed} failed)")
+
+    return {"fetched": fetched, "failed": failed}
 
 
 async def _scan_domain_entities(um, domain_path: str, domain_key: str) -> list[dict]:

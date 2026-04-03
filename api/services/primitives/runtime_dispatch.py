@@ -37,19 +37,21 @@ Available skills:
 - mermaid: Mermaid syntax → PNG or SVG diagram (via mermaid-cli)
 - image: Image processing → PNG (via pillow)
 - video: Scene spec → MP4 short-form video clip (via Remotion, max 30s)
+- fetch-asset: Fetch external visual asset (favicon, logo) → PNG (ADR-157)
 
 Construct the input spec according to the skill's SKILL.md instructions (injected into your context when authorized).
 
 Examples:
 - RuntimeDispatch(type="chart", input={"chart_type": "bar", "title": "Growth", "labels": ["Jan", "Feb"], "datasets": [{"label": "Users", "data": [100, 200]}]}, output_format="png")
 - RuntimeDispatch(type="mermaid", input={"diagram": "graph TD; A-->B; B-->C"}, output_format="svg")
-- RuntimeDispatch(type="video", input={"title": "Metrics", "scenes": [{"type": "metric", "label": "Users", "value": "12K", "duration": 5}], "duration_seconds": 15}, output_format="mp4")""",
+- RuntimeDispatch(type="video", input={"title": "Metrics", "scenes": [{"type": "metric", "label": "Users", "value": "12K", "duration": 5}], "duration_seconds": 15}, output_format="mp4")
+- RuntimeDispatch(type="fetch-asset", input={"url": "anthropic.com", "asset_type": "favicon", "size": 128}, output_format="png")""",
     "input_schema": {
         "type": "object",
         "properties": {
             "type": {
                 "type": "string",
-                "description": "Skill type to invoke (chart, mermaid, image, video). See SKILL.md docs in your context.",
+                "description": "Skill type to invoke (chart, mermaid, image, video, fetch-asset). See SKILL.md docs in your context.",
             },
             "input": {
                 "type": "object",
@@ -133,9 +135,16 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
 
     # Write workspace_files row with content_url — FATAL on failure (ADR-118 Resolved Decision #3)
     agent_slug = getattr(auth, "agent_slug", None) or "unknown"
-    title = skill_input.get("title", skill_type)
-    safe_title = "".join(c if c.isalnum() or c in "-_ " else "" for c in title).strip().replace(" ", "-")[:50]
-    ws_path = f"/agents/{agent_slug}/outputs/{safe_title}.{output_format}"
+
+    # ADR-157: fetch-asset writes to caller-specified workspace_path (context domain)
+    # Other skills write to agent outputs
+    workspace_path_override = skill_input.get("workspace_path")
+    if workspace_path_override:
+        ws_path = workspace_path_override
+    else:
+        title = skill_input.get("title", skill_type)
+        safe_title = "".join(c if c.isalnum() or c in "-_ " else "" for c in title).strip().replace(" ", "-")[:50]
+        ws_path = f"/agents/{agent_slug}/outputs/{safe_title}.{output_format}"
 
     try:
         auth.client.table("workspace_files").upsert(

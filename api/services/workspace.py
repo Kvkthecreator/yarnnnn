@@ -738,8 +738,13 @@ class UserMemory:
             logger.warning(f"[USER_MEMORY] Read sync failed: {path}: {e}")
             return None
 
-    async def write(self, filename: str, content: str, summary: str = None) -> bool:
-        """Write a memory file (upsert). Returns True on success."""
+    async def write(self, filename: str, content: str, summary: str = None,
+                    content_type: str = None, content_url: str = None,
+                    metadata: dict = None) -> bool:
+        """Write a memory file (upsert). Returns True on success.
+
+        ADR-157: Supports content_url for binary asset references (favicons, images).
+        """
         path = self._full_path(filename)
         try:
             data = {
@@ -750,6 +755,12 @@ class UserMemory:
             }
             if summary is not None:
                 data["summary"] = summary
+            if content_type is not None:
+                data["content_type"] = content_type
+            if content_url is not None:
+                data["content_url"] = content_url
+            if metadata is not None:
+                data["metadata"] = metadata
             self._db.table("workspace_files").upsert(
                 data, on_conflict="user_id,path"
             ).execute()

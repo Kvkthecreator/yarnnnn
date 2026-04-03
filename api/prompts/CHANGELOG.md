@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.2] - ADR-157: Fetch-asset skill — visual assets in context substrate
+
+### Added
+- `render/skills/fetch-asset/`: NEW render skill — fetches external visual assets (favicons via Google Favicon API). Deterministic, free, zero LLM cost.
+- `primitives/scaffold.py`: ScaffoldDomains now accepts `url` field on entities. When provided, fetches favicon via render service and stores as workspace file with `content_url`.
+- `primitives/runtime_dispatch.py`: Added `fetch-asset` to available skill types. Agents can fetch favicons during update-context or derive-output steps.
+- `services/workspace.py`: Extended `UserMemory.write()` with `content_url`, `content_type`, `metadata` params (parity with AgentWorkspace.write()).
+- Expected behavior: Entities scaffolded with a `url` get a `favicon.png` workspace file stored alongside their text files. Synthesis tasks can reference these in HTML output. Favicon fetch failures are non-blocking.
+
+---
+
 ## [2026.04.03.1] - ADR-156: Composer sunset — single intelligence layer
 
 ### Removed
