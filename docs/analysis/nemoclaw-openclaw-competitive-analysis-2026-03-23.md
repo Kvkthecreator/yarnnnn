@@ -1,7 +1,7 @@
 # NemoClaw / OpenClaw vs YARNNN: Architectural & Strategic Comparison
 
-> **Status**: Research complete. Cross-checked against YARNNN codebase and live web sources.
-> **Date**: 2026-03-23
+> **Status**: Research complete. Cross-checked against YARNNN codebase and live web sources. Updated 2026-04-03 with Karpathy "LLM Knowledge Bases" cross-analysis (Section 5).
+> **Date**: 2026-03-23 (updated 2026-04-03)
 > **Authors**: KVK, Claude
 > **Context**: NVIDIA launched NemoClaw at GTC 2026 (March 16). This analysis separates the NemoClaw wrapper from the OpenClaw core, compares architectural primitives against YARNNN, and maps the competitive landscape.
 
@@ -162,3 +162,163 @@ This is structurally unmatched in the OpenClaw ecosystem. A "weekly competitive 
 - `render/skills/` — 8-skill output gateway (ADR-118)
 - `api/services/composer.py` — Composer heartbeat + portfolio assessment (ADR-111)
 - `api/services/agent_execution.py` — PM phase dispatch, assembly composition (ADR-120, ADR-121)
+
+---
+
+## 5. Karpathy's "LLM Knowledge Bases" — YARNNN as the Product Version
+
+> **Added**: 2026-04-03
+> **Source**: [Karpathy tweet](https://x.com/karpathy/status/2039805659525644595) on LLM Knowledge Bases
+
+### 5.1 What Karpathy Described
+
+Karpathy outlined a personal workflow for building LLM-maintained knowledge bases, concluding: **"I think there is room here for an incredible new product instead of a hacky collection of scripts."** His workflow:
+
+| Step | Karpathy's workflow | Description |
+|---|---|---|
+| **Data ingest** | Raw documents → `raw/` directory | Articles, papers, repos, datasets, images indexed as source material |
+| **Compilation** | LLM "compiles" a wiki from `raw/` | Collection of `.md` files in directory structure. Summaries, backlinks, concept articles, cross-links. LLM writes and maintains all data — human rarely touches it. |
+| **IDE / Frontend** | Obsidian as viewer | View raw data, compiled wiki, derived visualizations. Marp for slides. |
+| **Q&A** | Agent queries against wiki | Complex questions researched against ~100 articles / ~400K words. No fancy RAG — LLM auto-maintains index files + brief summaries. |
+| **Output → feedback** | Outputs filed back into wiki | Explorations and queries "always add up" in the knowledge base. |
+| **Linting** | LLM health checks | Find inconsistencies, impute missing data, discover connections, suggest further questions. |
+| **Tooling** | Custom CLIs (search engine, etc.) | Handed to LLM as tools for larger queries. |
+
+### 5.2 Concept-by-Concept Mapping to YARNNN
+
+Every concept Karpathy described has a direct, implemented counterpart in YARNNN — often more sophisticated than his script-based version.
+
+#### Data Ingest: `raw/` → Context Domains
+
+Karpathy indexes source documents into a `raw/` directory. YARNNN's equivalent is the **context domain architecture** (ADR-151, ADR-152).
+
+| Karpathy | YARNNN |
+|---|---|
+| `raw/` directory | `/workspace/context/{domain}/` — 6 domains: competitors, market, relationships, projects, content_research, signals |
+| Manual file placement | **Automated perception pipeline**: platform sync (Slack, Notion) writes structured summaries; agents write entity files during task execution via `_post_run_domain_scan()` |
+| Static files | **Entity-structured directories**: each domain has per-entity subfolders with templated files (`get_entity_stub_content()` in `directory_registry.py`) |
+
+Key difference: Karpathy's ingest is manual (Obsidian Web Clipper + hotkey). YARNNN's is continuous and automated — agents discover entities during execution and create structured files using domain-specific templates.
+
+#### Compilation: LLM → Wiki
+
+Karpathy's LLM "compiles" summaries, backlinks, and concept articles from raw data. YARNNN does this through two mechanisms:
+
+**1. Entity tracker files** (`_tracker.md`) — deterministic, zero LLM cost:
+```python
+# directory_registry.py → build_tracker_md()
+# Returns markdown table: | Slug | Last Updated | Files | Status |
+# Domain health summary: total, active, stale, discovered counts
+```
+
+**2. Synthesis files** (`_landscape.md`, `_overview.md`) — LLM-maintained cross-entity analysis:
+```python
+# Each context domain has a synthesis_file + synthesis_template
+# Agents update these when cross-entity patterns emerge during task execution
+```
+
+**3. Agent identity files** (`AGENT.md`, `thesis.md`, `memory/preferences.md`) — accumulated understanding:
+```
+/agents/{slug}/
+  AGENT.md              # Identity + domain expertise (like CLAUDE.md)
+  thesis.md             # Running domain understanding (LLM-maintained)
+  memory/
+    preferences.md      # Distilled from user edit feedback (ADR-117)
+    reflections.md      # Self-assessment of recent outputs (ADR-128)
+```
+
+Key difference: Karpathy maintains one flat wiki. YARNNN maintains **per-agent + per-domain + per-task** structured knowledge with explicit lifecycle management (ephemeral → active → archived).
+
+#### Index Files: Auto-Maintained Summaries
+
+Karpathy notes: "I thought I had to reach for fancy RAG, but the LLM has been pretty good about auto-maintaining index files and brief summaries." YARNNN validates this — the `_tracker.md` files serve exactly this purpose:
+
+```python
+# task_pipeline.py → _post_run_domain_scan()
+# After EVERY task execution:
+# 1. Scan entity-bearing domains
+# 2. Rebuild _tracker.md (deterministic — no LLM)
+# 3. Update task awareness.md with cycle state
+# 4. Append to signal log
+```
+
+This means every agent run automatically refreshes the "index" of accumulated knowledge. The next run reads `_tracker.md` first to understand what exists before diving into domain files — same pattern as Karpathy's LLM reading index files before answering questions.
+
+#### Outputs Add Up: The Accumulation Loop
+
+Karpathy: "I end up filing the outputs back into the wiki to enhance it for further queries. So my own explorations and queries always add up." This is YARNNN's **accumulation thesis** (ADR-072, evolved into ADR-151):
+
+```
+Task execution cycle:
+  1. gather_task_context() → reads _tracker.md + domain files + feedback
+  2. Agent generates output (competitive brief, market analysis, etc.)
+  3. save_output() → /tasks/{slug}/outputs/{date}/output.md
+  4. _post_run_domain_scan() → writes entity updates BACK to /workspace/context/
+  5. Rebuilds _tracker.md
+
+Next cycle reads the enriched context → produces better output → writes more back
+```
+
+The critical insight both Karpathy and YARNNN share: **knowledge is an accumulating asset, not a stateless query**. Each execution enriches the substrate for the next one.
+
+#### Linting: Health Checks on Knowledge
+
+Karpathy runs "health checks" to find inconsistencies, impute missing data, and discover connections. YARNNN has three implemented mechanisms:
+
+**1. Feedback distillation** (ADR-117): User edits to agent outputs are analyzed (`compute_edit_metrics()` in `feedback_engine.py`), categorized (additions, deletions, rewrites), and distilled into `memory/feedback.md` for the task. Next execution reads this and adjusts.
+
+**2. Agent self-reflection** (ADR-128): After generating output, agents produce a self-assessment appended to `memory/reflections.md` — rolling window of 5 recent entries. This is extracted from the output and stripped before delivery.
+
+**3. Context inference** (ADR-144): `infer_shared_context()` in `context_inference.py` can process documents, URLs, and free text to update `IDENTITY.md` or `BRAND.md` — essentially "recompiling" the workspace identity from new data.
+
+#### Search: Querying the Knowledge Base
+
+Karpathy vibe-coded "a small and naive search engine over the wiki." YARNNN has production-grade search at two levels:
+
+**Full-text search** (Postgres RPC):
+```python
+# workspace.py → search()
+# RPC: search_workspace(p_user_id, p_query, p_path_prefix, p_limit)
+# Returns: path, summary, content[:500], rank, updated_at
+```
+
+**Semantic search** (embedding-based, domain-scoped):
+```sql
+-- search_memories(): hybrid score = 70% cosine similarity + 30% importance
+-- Domain scoping: specified domain + default domain (always-accessible)
+-- Model: text-embedding-3-small (1536 dimensions)
+```
+
+**Agent-facing primitives**: `SearchWorkspace` and `QueryKnowledge` tools exposed to agents during execution, scoped by domain.
+
+### 5.3 What YARNNN Has That Karpathy's Workflow Doesn't
+
+| Capability | Karpathy | YARNNN |
+|---|---|---|
+| **Multi-agent** | One human directing one LLM | Multiple specialized agents with distinct domains, each maintaining their own workspace + shared context domains |
+| **Automated scheduling** | Manual (human runs queries) | Cron-based task scheduling with pulse intelligence (ADR-126, ADR-141) |
+| **Feedback loop** | Manual (human reviews and re-prompts) | Automated: edit metrics → feedback distillation → next-run injection |
+| **Output pipeline** | Markdown files viewed in Obsidian | Agent draft → quality gate → assembly → render service (8 skills: PDF, PPTX, charts, etc.) → delivery |
+| **Platform perception** | Manual (Obsidian Web Clipper) | Continuous platform sync (Slack, Notion) with structured extraction |
+| **Context domains** | Flat wiki directory | 6 typed domains with entity templates, trackers, synthesis files, assets |
+| **Team coordination** | N/A | PM agents steering contributors, cross-agent reading, assembly composition |
+| **Cost awareness** | Unbounded (every query = full LLM call) | 3-tier pulse (Tier 1 = zero LLM cost, Tier 2 = Haiku, Tier 3 = Sonnet only when needed) |
+
+### 5.4 What Karpathy's Workflow Has That YARNNN Should Consider
+
+| Capability | Karpathy | YARNNN gap |
+|---|---|---|
+| **Local-first** | Everything in local `~/` directory, works offline | Cloud-dependent (Supabase, Render, Claude API). No offline mode. |
+| **Obsidian as IDE** | Rich viewer for markdown + images + slides | Dashboard is functional but doesn't match Obsidian's markdown rendering + plugin ecosystem |
+| **Image-native** | Downloads images locally, LLM references them | Workspace is text-only (`workspace_files` stores markdown). ADR-157 adds `assets/` folders but image integration is nascent. |
+| **Slide output** | Marp format → slide decks in Obsidian | PPTX skill exists on render service but not integrated into the wiki/knowledge flow |
+| **Finetuning path** | "Synthetic data generation + finetuning to have your LLM know the data in its weights" | No finetuning path. All context is prompt-injected. At scale, this becomes a context window bottleneck. |
+| **Radical simplicity** | No database, no cloud, no infrastructure | 5 Render services, Supabase, S3, Docker. Powerful but operationally heavy. |
+
+### 5.5 Strategic Implication
+
+Karpathy explicitly called for "an incredible new product instead of a hacky collection of scripts." YARNNN **is** that product — the architectural mapping is nearly 1:1. The validation is remarkable: an independent first-principles exploration by one of the most respected practitioners in AI arrived at the same primitives (markdown-as-knowledge, auto-maintained indexes, accumulating outputs, health-check linting, search-as-tool) that YARNNN has been building systematically through 150+ ADRs.
+
+The positioning opportunity: YARNNN can credibly claim to be the productized version of Karpathy's vision, with multi-agent coordination, automated scheduling, and a production output pipeline on top.
+
+The gap to close: Karpathy's workflow is radically simple (local files, one LLM, Obsidian). YARNNN's is operationally complex (cloud services, Postgres, Docker). The question is whether the added sophistication (multi-agent, pulse intelligence, feedback distillation) justifies the added complexity for the target user. For knowledge workers who need recurring, improving outputs from a team of specialists — yes. For a researcher building a personal wiki — Karpathy's scripts win on simplicity.
