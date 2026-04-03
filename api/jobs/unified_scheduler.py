@@ -1,21 +1,21 @@
 """
-YARNNN v5 - Unified Scheduler (ADR-138 + ADR-141)
+YARNNN v5 - Unified Scheduler (ADR-138 + ADR-141 + ADR-156)
 
 Three-layer execution: mechanical scheduling, LLM generation, TP intelligence.
 
 Layer 1 (this file — zero LLM cost):
 - Task scheduling: SQL query → execute_task() for each due task
-- Platform content cleanup (ADR-072)
 - Workspace ephemeral cleanup (ADR-119)
 - Import jobs
-- Composer heartbeat (ADR-111)
-- Memory extraction (nightly)
+- Lifecycle hygiene: pause underperformers (ADR-156)
 
-Layer 2 (task_execution.py — Sonnet per task):
+Layer 2 (task_pipeline.py — Sonnet per task):
 - TASK.md → AGENT.md → context → generate → deliver
 
-Layer 3 (thinking_partner.py — user-present + periodic heartbeat):
-- Chat mode + TP heartbeat (reads health flags, orchestrates)
+Layer 3 (thinking_partner.py — user-present only):
+- Chat mode with primitives. TP is the single intelligence layer (ADR-156).
+- Memory: TP writes facts in-session via UpdateContext(target="memory")
+- Session continuity: inline summary at session close (chat.py) + AWARENESS.md
 
 Run every 5 minutes via Render cron:
   schedule: "*/5 * * * *"
@@ -548,117 +548,11 @@ async def run_unified_scheduler():
         logger.warning(f"[LIFECYCLE] Lifecycle phase skipped: {e}")
 
     # -------------------------------------------------------------------------
-    # Memory Extraction + Session Summaries (ADR-064, ADR-067 Phase 1)
-    # Process yesterday's sessions — only run at midnight UTC
+    # ADR-156: Nightly memory extraction + session summaries REMOVED.
+    # Memory: TP writes facts in-session via UpdateContext(target="memory").
+    # Session summaries: generated inline at session close (chat.py).
+    # Session continuity: TP writes shift notes to AWARENESS.md.
     # -------------------------------------------------------------------------
-    memory_users = 0
-    memory_extracted = 0
-    summaries_written = 0
-    if now.hour == 0 and now.minute < 5:  # Only in first 5 minutes of midnight UTC
-        try:
-            from services.memory import process_conversation
-            from services.session_continuity import generate_session_summary
-
-            # Get TP sessions from yesterday
-            yesterday = (now - timedelta(days=1)).date().isoformat()
-            today = now.date().isoformat()
-
-            sessions_result = (
-                supabase.table("chat_sessions")
-                .select("id, user_id, created_at, session_type")
-                .gte("created_at", yesterday)
-                .lt("created_at", today)
-                .eq("session_type", "thinking_partner")
-                .execute()
-            )
-            sessions = sessions_result.data or []
-            logger.info(f"[MEMORY] Found {len(sessions)} sessions from yesterday to process")
-
-            for session in sessions:
-                try:
-                    session_id = session["id"]
-                    user_id = session["user_id"]
-                    session_date = session.get("created_at", yesterday)[:10]
-
-                    # Get messages for this session
-                    messages_result = (
-                        supabase.table("session_messages")
-                        .select("role, content, metadata")
-                        .eq("session_id", session_id)
-                        .order("sequence_number")
-                        .execute()
-                    )
-                    messages = messages_result.data or []
-                    user_msg_count = len([m for m in messages if m.get("role") == "user"])
-
-                    if user_msg_count >= 3:
-                        # Memory extraction (ADR-064) — global TP sessions only
-                        # Project sessions have multi-agent context; memory extraction
-                        # is user-scoped and doesn't apply to project conversations
-                        session_type = session.get("session_type", "thinking_partner")
-                        if session_type == "thinking_partner":
-                            extracted = await process_conversation(
-                                client=supabase,
-                                user_id=user_id,
-                                messages=messages,
-                                session_id=session_id,
-                            )
-                            if extracted > 0:
-                                memory_extracted += extracted
-                                memory_users += 1
-                                logger.info(f"[MEMORY] Extracted {extracted} memories from session {session_id}")
-
-                        # Session summary (ADR-067 Phase 1)
-                        # Requires ≥ 5 user messages — substantive sessions only
-                        if user_msg_count >= 5:
-                            summary = await generate_session_summary(
-                                messages=messages,
-                                session_date=session_date,
-                            )
-                        else:
-                            summary = None
-                        if summary:
-                            supabase.table("chat_sessions").update(
-                                {"summary": summary}
-                            ).eq("id", session_id).execute()
-                            summaries_written += 1
-                            logger.info(f"[MEMORY] Wrote session summary for {session_id}")
-
-                except Exception as session_err:
-                    logger.warning(f"[MEMORY] Error processing session {session['id']}: {session_err}")
-
-            if memory_users > 0 or summaries_written > 0:
-                logger.info(
-                    f"[MEMORY] Processed {memory_users} sessions, "
-                    f"extracted {memory_extracted} memories, "
-                    f"wrote {summaries_written} session summaries"
-                )
-
-            # Write session_summary_written events (aggregate per user who had sessions)
-            if summaries_written > 0:
-                try:
-                    from services.activity_log import write_activity as _ssw
-                    # Get unique user_ids from yesterday's sessions
-                    session_user_ids = list(set(
-                        s.get("user_id") for s in (sessions_result.data or []) if s.get("user_id")
-                    ))
-                    for uid in session_user_ids:
-                        await _ssw(
-                            client=supabase,
-                            user_id=uid,
-                            event_type="session_summary_written",
-                            summary=f"Session summaries: {summaries_written} written, {memory_extracted} memories extracted",
-                            metadata={
-                                "summaries_written": summaries_written,
-                                "memories_extracted": memory_extracted,
-                                "sessions_processed": memory_users,
-                            },
-                        )
-                except Exception as e:
-                    logger.debug(f"[MEMORY] Activity log write failed for session summaries: {e}")
-
-        except Exception as e:
-            logger.warning(f"[MEMORY] Memory extraction phase skipped: {e}")
 
     # -------------------------------------------------------------------------
     # Summary
@@ -667,8 +561,6 @@ async def run_unified_scheduler():
         f"tasks={task_success}/{tasks_found}",
         f"imports={import_success}/{import_count}",
     ]
-    if memory_extracted > 0:
-        summary_parts.append(f"memory={memory_extracted} from {memory_users} sessions")
     if lifecycle_paused > 0:
         summary_parts.append(f"lifecycle={lifecycle_paused} paused")
 
@@ -692,7 +584,6 @@ async def run_unified_scheduler():
                 "imports_checked": import_count,
                 "imports_triggered": import_success,
                 "lifecycle_paused": lifecycle_paused,
-                "memory_extracted": memory_extracted,
                 "errors": errors_encountered if errors_encountered else None,
                 "cycle_started_at": now.isoformat(),
                 "cycle_completed_at": datetime.now(timezone.utc).isoformat(),

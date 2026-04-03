@@ -317,45 +317,7 @@ def _get_user_memory_files_sync(user_id: str, client: Any) -> dict[str, str]:
     return um.read_all_sync()
 
 
-def _get_work_index_sync(user_id: str, client: Any) -> Optional[list[dict]]:
-    """Read /memory/WORK.md and parse work scopes (sync, for thread pool). ADR-132."""
-    try:
-        result = (
-            client.table("workspace_files")
-            .select("content")
-            .eq("user_id", user_id)
-            .eq("path", "/memory/WORK.md")
-            .limit(1)
-            .execute()
-        )
-        rows = result.data or []
-        if not rows or not rows[0].get("content", "").strip():
-            return None
-
-        content = rows[0]["content"]
-        # Parse work units — simple extraction of **Name** entries
-        import re
-        scopes = []
-        unit_pattern = re.compile(
-            r"- \*\*(.+?)\*\*\n((?:  - .+\n?)*)",
-            re.MULTILINE,
-        )
-        for match in unit_pattern.finditer(content):
-            name = match.group(1)
-            props = match.group(2)
-            status = "active"
-            for line in props.strip().split("\n"):
-                line = line.strip().lstrip("- ")
-                if line.startswith("status:"):
-                    status = line.split(":", 1)[1].strip()
-            scopes.append({
-                "name": name,
-                "status": status,
-            })
-        return scopes if scopes else None
-    except Exception as e:
-        logger.warning(f"[WORKING_MEMORY] Failed to read work index: {e}")
-        return None
+    # _get_work_index_sync DELETED (ADR-156: WORK.md dissolved post ADR-132)
 
 
 def _extract_profile_from_file(content: Optional[str]) -> dict:

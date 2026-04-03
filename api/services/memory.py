@@ -1,20 +1,16 @@
 """
-User Memory Service — ADR-108: User Memory Filesystem Migration
+User Memory Service — ADR-108 + ADR-156
 
-Extracts stable personal facts from conversations and persists them
-as entries in /memory/notes.md (workspace_files). Read-merge-write pattern
-ensures deduplication and document-level coherence.
+Extracts stable personal facts and persists them as entries in
+/memory/notes.md (workspace_files). Read-merge-write pattern ensures
+deduplication and document-level coherence.
 
-Agent-scoped context lives in workspace files (ADR-106): AGENT.md (instructions),
-memory/ directory (observations, goal, review log).
-Session continuity lives in session_continuity.py.
-
-Write:
-  - process_conversation(): nightly cron (midnight UTC) extracts stable facts
-    from prior day's sessions → read-merge-write to /memory/notes.md
-
-Read:
-  - get_for_prompt(): formats /memory/ files for TP system prompt injection
+ADR-156: Nightly cron extraction REMOVED. Primary write path is now
+TP calling UpdateContext(target="memory") during conversation.
+This module is retained for:
+  - extract_from_text_to_user_memory(): bulk import from user-provided text
+  - process_conversation(): available for manual/test invocation
+  - _extract_facts(): shared LLM extraction logic
 """
 
 import logging

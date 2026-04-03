@@ -1,9 +1,9 @@
-# ADR-156: Composer Sunset — Single Intelligence Layer
+# ADR-156: Single Intelligence Layer — Composer Sunset + Memory/Session In-Session
 
-**Status:** Proposed
+**Status:** Implemented (Phase 1: Composer sunset + Phase 2: Memory/session dissolution)
 **Date:** 2026-04-03
-**Supersedes:** ADR-111 (Agent Composer)
-**Partially supersedes:** ADR-126 (Agent Pulse — Composer portions)
+**Supersedes:** ADR-111 (Agent Composer), ADR-114 (Composer Substrate-Aware Assessment)
+**Partially supersedes:** ADR-064 (Unified Memory Service — nightly cron removed), ADR-126 (Agent Pulse — Composer portions)
 **Related:** ADR-138 (Agents as Work Units), ADR-141 (Unified Execution Architecture), ADR-144 (Inference-First Shared Context), ADR-155 (Workspace Inference Onboarding)
 
 ---
@@ -120,11 +120,32 @@ No new TP prompt section needed — the context awareness prompt (ADR-144) alrea
 
 ---
 
+### Phase 2: Memory and Session Dissolution
+
+Nightly Haiku cron jobs for memory extraction and session summaries are removed.
+TP handles both in-session, following the Claude Code model.
+
+**Memory extraction dissolved:**
+- Before: Nightly cron → Haiku reads yesterday's sessions → extracts facts → writes notes.md
+- After: TP proactively saves facts via `UpdateContext(target="memory")` during conversation
+- Prompt guidance added to `tp_prompts/onboarding.py` ("In-Session Memory" section)
+- `memory.py` retained for bulk import use only
+
+**Session summaries dissolved:**
+- Before: Nightly cron → Haiku summarizes yesterday's sessions → writes chat_sessions.summary
+- After: Inline summary at session close (already exists in `chat.py:372`)
+- Session continuity: TP writes shift notes to AWARENESS.md (already documented)
+
+**Dead code removed:**
+- `_get_work_index_sync()` in working_memory.py (WORK.md reader — dead post ADR-132)
+- Nightly memory/session cron block in unified_scheduler.py (~110 lines)
+
+---
+
 ## What This Does NOT Change
 
 - **Task scheduling** — unchanged, Layer 1 mechanical
 - **Task pipeline** — unchanged, Layer 2 generation
-- **Memory extraction** — unchanged, nightly cron (extractive, not judgment)
 - **Context inference** — unchanged, TP-driven via UpdateContext
 - **Agent roster** — unchanged, pre-scaffolded at signup (ADR-140)
 - **Working memory structure** — extended with two new signals, not restructured

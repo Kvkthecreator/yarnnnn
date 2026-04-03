@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.3] - ADR-156 Phase 2: Memory and session dissolution
+
+### Removed
+- `jobs/unified_scheduler.py`: Nightly memory extraction + session summary cron block removed (~110 lines). Memory: TP writes in-session. Session summaries: inline at session close.
+- `services/working_memory.py`: `_get_work_index_sync()` dead code removed (WORK.md reader, dead post ADR-132).
+
+### Changed
+- `agents/tp_prompts/onboarding.py`: Added "In-Session Memory" section — TP proactively saves stable facts via `UpdateContext(target="memory")`. Follows Claude Code model: memory happens in the moment of learning.
+- `services/memory.py`: Docstring updated — module retained for bulk import only, nightly cron removed.
+- Expected behavior: TP saves facts (role, preferences, standing instructions) during conversation when it learns them. No nightly batch. Facts available immediately for next interaction. Session continuity via inline summary + AWARENESS.md shift notes.
+
+---
+
 ## [2026.04.03.2] - ADR-157: Fetch-asset skill — visual assets in context substrate
 
 ### Added

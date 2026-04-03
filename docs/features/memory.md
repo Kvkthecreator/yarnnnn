@@ -34,28 +34,28 @@ Memory is everything YARNNN knows *about the user* — their name, role, how the
 
 ## How Memory is written
 
-Memory has three write paths:
+Memory has two write paths (ADR-156: nightly extraction removed):
 
 | Source | Trigger | What's written | Where |
 |--------|---------|---------------|-------|
 | **User directly** | Memory page save | Profile, styles, manual entries | MEMORY.md, preferences.md, notes.md |
-| **TP conversation** | User says "remember this" → `SaveMemory` primitive | Facts, preferences, instructions stated in chat | notes.md |
-| **Nightly extraction** | Cron (midnight UTC, processes yesterday's sessions) | Stable facts extracted from conversations | notes.md |
+| **TP conversation** | TP proactively saves facts via `UpdateContext(target="memory")` | Facts, preferences, instructions learned in chat | notes.md |
 
-### SaveMemory primitive (ADR-108)
+### In-Session Memory (ADR-156)
 
-TP has the `SaveMemory` primitive (chat-mode only). When a user explicitly asks to remember something, TP calls SaveMemory to persist it immediately to `/memory/notes.md`.
+TP writes facts proactively during conversation via `UpdateContext(target="memory")`. This follows the Claude Code model: memory happens in the moment of learning, not as a batch job hours later.
 
-- **Add-only**: SaveMemory appends. No update/delete from chat.
+- **Proactive**: TP saves facts it learns without needing the user to say "remember this"
+- **Add-only**: Appends to notes.md. No update/delete from chat.
 - **Deduplication**: Checks existing notes before adding (case-insensitive content match).
 - **Activity logged**: Each save creates a `memory_written` activity entry.
 - **Three entry types**: `fact` (about the user), `preference` (how they like things), `instruction` (standing directive).
 
 Users manage existing entries (edit, delete) via the Memory page UI.
 
-### Nightly extraction (`process_conversation()`)
+### Nightly extraction — REMOVED (ADR-156)
 
-The nightly cron (`unified_scheduler.py`, midnight UTC) processes all TP sessions from the previous day. The User Memory Service (`api/services/memory.py`) reviews each conversation via LLM and extracts stable personal facts worth remembering. This is a batch job — a preference stated in conversation today will be in working memory by the next morning (or immediately if the user asks TP to remember it via SaveMemory).
+Previously, a nightly cron extracted facts from yesterday's conversations via Haiku LLM. This is now unnecessary because TP writes facts in-session. The `process_conversation()` function in `memory.py` is retained for bulk import use only.
 
 ### Read-merge-write pattern
 
@@ -158,12 +158,12 @@ Users can add, edit, and delete Memory entries directly. Changes are immediate.
 
 | File | Purpose |
 |------|---------|
-| `api/services/memory.py` | Extraction service (nightly cron) |
-| `api/services/primitives/save_memory.py` | SaveMemory primitive (real-time, chat-mode) |
+| `api/services/memory.py` | Extraction service (retained for bulk import only — ADR-156) |
+| `api/services/primitives/update_context.py` | `UpdateContext(target="memory")` — primary write path (ADR-156) |
 | `api/services/workspace.py` | `UserMemory` class — reads/writes `/memory/` files |
 | `api/services/working_memory.py` | Formats memory for prompt injection |
 | `api/routes/memory.py` | Memory page API endpoints |
-| `api/services/session_continuity.py` | Session summary generation (chat-layer, separate from memory) |
+| `api/services/session_continuity.py` | Session summary generation (inline at session close) |
 
 ---
 

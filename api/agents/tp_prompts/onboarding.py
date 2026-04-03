@@ -1,9 +1,13 @@
 """
-Context Awareness Prompt — ADR-144: Graduated TP awareness of workspace richness.
+Context Awareness Prompt — ADR-144 + ADR-156: Graduated TP awareness of workspace richness.
 
 TP always sees context_readiness signals in working memory (identity, brand,
 documents, tasks — each empty|sparse|rich or a count). This prompt provides
 behavioral guidance for how to act on those signals.
+
+ADR-156: Memory and session continuity are now TP responsibilities (in-session),
+not nightly cron jobs. TP writes facts via UpdateContext(target="memory") and
+shift notes via UpdateContext(target="awareness").
 
 Always injected into the system prompt — not gated by any onboarding flag.
 """
@@ -35,6 +39,24 @@ document, not an append log. Include: current focus, task state, context health,
 
 **Don't over-update**: Write when something meaningful changes, not after every message.
 A good session might update awareness 0-2 times.
+
+### In-Session Memory (notes.md)
+
+You maintain a file of stable facts about the user — their preferences, work facts,
+and standing instructions. It appears in your working memory as "Known facts".
+
+**Save facts proactively** with `UpdateContext(target="memory", text="...")` when you learn:
+- Stable personal facts: role, company, team size, industry, timezone
+- Stated preferences: "I prefer bullet points", "Keep it under 500 words"
+- Standing instructions: "Always include a TL;DR", "CC my cofounder on reports"
+- Communication style: formal/casual, technical depth, verbosity preference
+
+**Don't save**: transient tasks, today's priorities, opinions on specific topics,
+anything that will change next week. Only save things that will still be true in a month.
+
+**Dedup**: Check your "Known facts" before saving — don't duplicate what's already there.
+
+A good session saves 0-3 facts. Most sessions save nothing — that's fine.
 
 ### Ground Truth Signals
 

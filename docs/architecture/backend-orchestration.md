@@ -13,7 +13,7 @@ YARNNN runs 4 Render services sharing a single codebase:
 | # | Service | Render ID | Type | Schedule | Role |
 |---|---------|-----------|------|----------|------|
 | 1 | `yarnnn-api` | `srv-d5sqotcr85hc73dpkqdg` | Web Service | Always-on | API endpoints, OAuth, TP chat, manual triggers |
-| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Task execution, composer, memory, cleanup, import jobs |
+| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Task execution, lifecycle hygiene, cleanup, import jobs (ADR-156: composer + nightly memory removed) |
 | 3 | `yarnnn-mcp-server` | `srv-d6f4vg1drdic739nli4g` | Web Service | Always-on | MCP server for Claude.ai/Desktop (ADR-075) |
 | 4 | `yarnnn-render` | `srv-d6sirjffte5s73f90pfg` | Web Service (Docker) | Always-on | Output gateway — PDF, PPTX, charts, HTML (ADR-118) |
 
@@ -35,7 +35,8 @@ External APIs ──[Import Jobs]──→ workspace context domains
                                          ▼
                                 Email (+ optional render)
 
-chat_sessions ──[Memory Extraction]──→ user_memory ──→ injected into TP
+TP chat ──[UpdateContext(memory)]──→ /memory/notes.md ──→ injected into TP
+                                    (ADR-156: in-session, not nightly cron)
 
 activity_log ◄── ALL features (observability)
 ```
@@ -63,10 +64,9 @@ activity_log ◄── ALL features (observability)
 
 | Consumer | File | Trigger | Gating | Est. Input Tokens |
 |----------|------|---------|--------|------------------|
-| Composer assessment | `services/composer.py` | Scheduler cron heartbeat | State-change gate + `check_credits()` | ~1K-2K |
-| Memory extraction | `services/memory.py` | Nightly cron (midnight) | Min 3 user messages/session | ~1K + conversation |
-| Session summary | `services/session_continuity.py` | Nightly cron (midnight) | Min 3 user messages/session | ~1K + conversation |
-| Project session summary | `services/session_continuity.py` | Nightly cron (midnight) | Min 3 user messages/session | ~1K + conversation |
+| ~~Composer assessment~~ | ~~`services/composer.py`~~ | DELETED (ADR-156) | — | — |
+| ~~Memory extraction~~ | ~~`services/memory.py`~~ | REMOVED from cron (ADR-156) — TP writes in-session | — | — |
+| ~~Session summary (nightly)~~ | ~~`services/session_continuity.py`~~ | REMOVED from cron (ADR-156) — inline at session close | — | — |
 | Session compaction | `routes/chat.py` | Token overflow mid-chat | `COMPACTION_THRESHOLD` | Conversation history |
 
 ### Zero-LLM Consumers (DB/API only)

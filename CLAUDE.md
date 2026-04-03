@@ -254,17 +254,20 @@ You MUST:
 
 ## Key Architecture References
 
-### ADR-064: Unified Memory Service
+### ADR-064: Unified Memory Service (updated by ADR-156)
 
-**Memory is implicit** — TP no longer has explicit memory tools (`create_memory`, `update_memory`, etc.)
+**Memory is in-session** — TP writes facts proactively via `UpdateContext(target="memory")` during conversation. Follows the Claude Code model: memory happens in the moment of learning, not as a batch job.
 
-- Memory extraction happens via nightly cron (midnight UTC) via `api/services/memory.py` — NOT at real-time session end
-- User can still edit memories directly via Context page
-- Working memory injected into TP prompt is unchanged
+- ADR-156: Nightly cron extraction REMOVED. TP writes facts in-session.
+- Session summaries: generated inline at session close (chat.py), not by nightly cron.
+- Session continuity: TP writes shift notes to AWARENESS.md.
+- User can still edit memories directly via Context page.
+- Working memory injected into TP prompt is unchanged.
 
 **Key files**:
-- `api/services/memory.py` — extraction service
+- `api/services/memory.py` — retained for bulk import only (nightly cron removed)
 - `api/services/working_memory.py` — formats memory for prompt injection
+- `api/agents/tp_prompts/onboarding.py` — memory-write guidance for TP
 - `docs/features/memory.md` — user-facing docs
 
 ### ADR-059: Simplified Context Model (Current Schema)
