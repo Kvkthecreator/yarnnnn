@@ -26,7 +26,7 @@ from .list import LIST_TOOL, handle_list
 from .execute import EXECUTE_TOOL, handle_execute
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
-from .coordinator import CREATE_AGENT_TOOL, handle_create_agent
+from .coordinator import MANAGE_AGENT_TOOL, handle_manage_agent
 from .task import CREATE_TASK_TOOL, handle_create_task
 from .manage_task import MANAGE_TASK_TOOL, handle_manage_task
 from .update_context import UPDATE_CONTEXT_TOOL, handle_update_context
@@ -171,7 +171,7 @@ CHAT_PRIMITIVES = [
     # ADR-155: Domain scaffolding (TP-driven)
     MANAGE_DOMAINS_TOOL,
     # Agent/Task lifecycle (3, was 6)
-    CREATE_AGENT_TOOL,
+    MANAGE_AGENT_TOOL,
     CREATE_TASK_TOOL,
     MANAGE_TASK_TOOL,
     # Execution
@@ -201,7 +201,7 @@ HEADLESS_PRIMITIVES = [
     DISCOVER_AGENTS_TOOL,
     READ_AGENT_CONTEXT_TOOL,
     # Lifecycle (3) + Domain management (1)
-    CREATE_AGENT_TOOL,
+    MANAGE_AGENT_TOOL,
     CREATE_TASK_TOOL,
     MANAGE_TASK_TOOL,
     MANAGE_DOMAINS_TOOL,
@@ -228,7 +228,7 @@ HANDLERS: dict[str, Callable] = {
     "GetSystemState": handle_get_system_state,
     "Clarify": handle_clarify,
     "list_integrations": handle_list_integrations,
-    "CreateAgent": handle_create_agent,
+    "ManageAgent": handle_manage_agent,
     "CreateTask": handle_create_task,
     "ManageTask": handle_manage_task,
     "UpdateContext": handle_update_context,

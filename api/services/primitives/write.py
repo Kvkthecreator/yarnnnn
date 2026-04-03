@@ -105,12 +105,12 @@ async def handle_write(auth: Any, input: dict) -> dict:
             "message": "Write requires ':new' identifier. Use Edit for modifications.",
         }
 
-    # ADR-111: Agent creation moved to CreateAgent primitive
+    # ADR-111/156: Agent creation moved to ManageAgent primitive
     if parsed.entity_type == "agent":
         return {
             "success": False,
-            "error": "use_create_agent",
-            "message": "Use CreateAgent to create agents. Write handles memories and documents only. Example: CreateAgent(title=\"Weekly Status\", role=\"synthesize\", frequency=\"weekly\")",
+            "error": "use_manage_agent",
+            "message": "Use ManageAgent(action=\"create\") to create agents. Write handles memories and documents only.",
         }
 
     # Get table

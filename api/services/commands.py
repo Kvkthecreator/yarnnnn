@@ -151,7 +151,7 @@ Check their roster first — they probably just need a task on an existing agent
 1. Check roster: `List(pattern="agent:*")`
 2. If all 6 exist, suggest creating a task instead: "You already have a full team. Want me to assign a task to one of them?"
 3. If they insist on a new agent: `Clarify(question="What type?", options=["Research", "Content", "Marketing", "CRM"])`
-4. Create: `CreateAgent(title=..., role=...)`
+4. Create: `ManageAgent(action="create", title=..., role=...)`
 """,
     },
 

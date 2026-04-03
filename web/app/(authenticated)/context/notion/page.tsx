@@ -133,15 +133,9 @@ export default function NotionContextPage() {
             limit={sourceSelection.limit}
             saving={sourceSelection.saving}
             error={sourceSelection.error || data.error}
-            showImportPrompt={sourceSelection.showImportPrompt}
-            importing={sourceSelection.importing}
-            importProgress={sourceSelection.importProgress}
-            newlySelectedIds={sourceSelection.newlySelectedIds}
             onToggle={sourceSelection.handleToggle}
             onSave={sourceSelection.handleSave}
             onDiscard={sourceSelection.handleDiscard}
-            onImport={sourceSelection.handleImport}
-            onSkipImport={sourceSelection.handleSkipImport}
             renderMetadata={renderNotionMetadata}
             justConnected={justConnected}
             platformLabel="Notion"

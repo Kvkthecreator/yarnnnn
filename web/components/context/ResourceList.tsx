@@ -5,7 +5,6 @@ import {
   AlertCircle,
   AlertTriangle,
   BadgeAlert,
-  Check,
   CheckCircle2,
   Loader2,
   Search,
@@ -35,15 +34,9 @@ interface ResourceListProps {
   limit: number;
   saving: boolean;
   error: string | null;
-  showImportPrompt: boolean;
-  importing: boolean;
-  importProgress: { phase: string; current: number; total: number } | null;
-  newlySelectedIds: string[];
   onToggle: (sourceId: string) => void;
   onSave: () => void;
   onDiscard: () => void;
-  onImport: () => void;
-  onSkipImport: () => void;
 
   /** Per-resource metadata renderer (platform-specific) */
   renderMetadata?: (resource: LandscapeResource) => React.ReactNode;
@@ -66,15 +59,9 @@ export function ResourceList({
   limit,
   saving,
   error,
-  showImportPrompt,
-  importing,
-  importProgress,
-  newlySelectedIds,
   onToggle,
   onSave,
   onDiscard,
-  onImport,
-  onSkipImport,
   renderMetadata,
   justConnected,
   platformLabel,
@@ -282,56 +269,7 @@ export function ResourceList({
           </div>
         )}
 
-        {/* Import prompt — positioned prominently above the list */}
-        {showImportPrompt && (
-          <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
-            {importing ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  <span className="text-sm font-medium">{importProgress?.phase}</span>
-                </div>
-                {importProgress && importProgress.total > 1 && (
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div
-                      className="bg-primary h-2 rounded-full transition-all"
-                      style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Sources saved successfully</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Import recent context from {newlySelectedIds.length === 1 ? 'this source' : `these ${newlySelectedIds.length} sources`}?
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Import now gives immediate context. Skip waits for scheduled sync.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 mt-4">
-                  <button
-                    onClick={onSkipImport}
-                    className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
-                  >
-                    Wait for sync
-                  </button>
-                  <button
-                    onClick={onImport}
-                    className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-                  >
-                    Import now
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        {/* ADR-153/156: Import prompt removed. Platform data flows through task execution. */}
 
         <div className="flex flex-wrap gap-2 items-center pt-1">
           <div className="relative flex-1 min-w-[220px]">

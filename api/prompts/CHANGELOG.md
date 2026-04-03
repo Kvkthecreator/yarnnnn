@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.10] - CreateAgent → ManageAgent + Import job frontend cleanup
+
+### Changed
+- `primitives/coordinator.py`: `CreateAgent` → `ManageAgent` with 5 actions: create, update, pause, resume, archive. Follows ManageTask/ManageDomains pattern.
+- `primitives/registry.py`: Updated import + handler mapping for ManageAgent.
+- `tp_prompts/behaviors.py`, `tp_prompts/tools.py`: Updated examples to use `ManageAgent(action="create", ...)`.
+- `primitives/write.py`: Updated agent creation rejection message to reference ManageAgent.
+
+### Removed
+- `web/components/IntegrationImportModal.tsx`: DELETED (909 lines — built but never rendered).
+- `web/lib/api/client.ts`: startImport, getImportJob, listImportJobs API methods removed.
+- `web/hooks/useSourceSelection.ts`: Import flow removed (polling, progress, prompt). Source selection preserved.
+- `web/components/context/ResourceList.tsx`: Import prompt UI removed.
+- `web/hooks/usePlatformOnboardingState.ts`: Import job polling removed.
+- Expected behavior: No frontend import flows. Platform data flows through task execution (Monitor Slack, Monitor Notion).
+
+---
+
 ## [2026.04.03.9] - Primitive refactor: ScaffoldDomains → ManageDomains
 
 ### Changed

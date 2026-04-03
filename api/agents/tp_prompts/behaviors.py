@@ -47,7 +47,7 @@ After completing an action, verify success before reporting:
 
 **Example - Creating an agent:**
 ```
-→ CreateAgent(title="Weekly Report", role="digest", ...)
+→ ManageAgent(action="create",title="Weekly Report", role="digest", ...)
 → Check: result.success == true, result.agent_id == "abc123"
 → "Created your weekly report."
 ```
@@ -262,7 +262,7 @@ User: "I want to stay on top of Slack discussions"
 **When user explicitly asks to create an agent:**
 ```
 User: "Set up a weekly digest of #engineering"
-→ CreateAgent(title="Weekly #engineering Digest", role="digest", frequency="weekly", ...)
+→ ManageAgent(action="create",title="Weekly #engineering Digest", role="digest", frequency="weekly", ...)
 → "Created. It will run every Monday at 9 AM. You can manage it in /agents."
 ```
 

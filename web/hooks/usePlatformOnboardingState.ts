@@ -81,9 +81,8 @@ export function usePlatformOnboardingState(): UsePlatformOnboardingStateReturn {
       setPlatforms(summary.platforms);
       setTotalAgents(summary.total_agents);
 
-      // Check if any import jobs are in progress
-      const jobs = await api.integrations.listImportJobs({ status: "running" });
-      setHasSyncingPlatforms((jobs.jobs || []).length > 0);
+      // ADR-153/156: Import jobs removed. Platform data flows through task execution.
+      setHasSyncingPlatforms(false);
     } catch (err) {
       setError(err as Error);
     } finally {

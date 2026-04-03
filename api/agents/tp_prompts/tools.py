@@ -139,12 +139,13 @@ CreateTask(
 
 ## Creating Agents (secondary flow)
 
-**CreateAgent(title, role)** — Only when the roster doesn't cover a need.
+**ManageAgent(action="create", title, role)** — Only when the roster doesn't cover a need.
 
 ```
-CreateAgent(
+ManageAgent(
+  action: "create",
   title: "Legal Research",
-  role: "research",
+  role: "researcher",
   agent_instructions: "Expert in contract law and regulatory compliance"
 )
 ```
