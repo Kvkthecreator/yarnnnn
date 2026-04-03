@@ -174,12 +174,25 @@ async def _upload_to_storage(file_bytes: bytes, storage_path: str, content_type:
 
 @app.get("/health")
 async def health():
+    import shutil, subprocess as sp
+    node_v = sp.run(["node", "--version"], capture_output=True, text=True).stdout.strip() if shutil.which("node") else "not found"
+    npm_v = sp.run(["npm", "--version"], capture_output=True, text=True).stdout.strip() if shutil.which("npm") else "not found"
+    npm_prefix = sp.run(["npm", "config", "get", "prefix"], capture_output=True, text=True).stdout.strip() if shutil.which("npm") else "n/a"
+    remotion_bin = shutil.which("remotion")
+    npx_bin = shutil.which("npx")
+    comp_nm = Path("skills/video/composition/node_modules").exists()
     return {
         "status": "ok",
         "skills": list(SKILLS.keys()),
         "compose": True,
         "layout_modes": ["document", "presentation", "dashboard", "data"],
         "storage": bool(SUPABASE_URL and SUPABASE_SERVICE_KEY),
+        "node": node_v,
+        "npm": npm_v,
+        "npm_prefix": npm_prefix,
+        "remotion_bin": remotion_bin,
+        "npx_bin": npx_bin,
+        "composition_node_modules": comp_nm,
     }
 
 
