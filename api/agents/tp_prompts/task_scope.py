@@ -48,10 +48,15 @@ If the user asks to create something new, direct them to the workfloor.
 
 When the user gives feedback, determine whether it's about the AGENT (person) or the TASK (work):
 
+**Domain-level changes** → `ManageDomains(action="add"|"remove")`
+- Entity corrections: "we don't compete with Tabnine" → ManageDomains(action="remove", domain="competitors", slug="tabnine")
+- New entities: "add Anthropic as a competitor" → ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthropic")
+- These change WHAT the workspace tracks. Affects all tasks that read from that domain.
+- Use Clarify first if the change is significant (removing multiple entities, adding a new domain area).
+
 **Agent-core feedback** → `UpdateContext(target="agent", agent_slug=..., text=...)`
 - Style/tone preferences: "use formal tone", "shorter summaries"
 - Positive reinforcement: "great charts", "good analysis"
-- Domain corrections: "we don't compete with X"
 - These persist across ALL tasks this agent works on.
 
 **Task-specific feedback** → `UpdateContext(target="task", task_slug=..., text=..., feedback_target=...)`
@@ -60,6 +65,11 @@ When the user gives feedback, determine whether it's about the AGENT (person) or
 - Content issues: "the competitor section is thin" → feedback_target="run_log"
 - Delivery changes: "send on Mondays" → feedback_target="objective"
 - These only affect THIS task's future runs.
+
+**Routing judgment**: When the user says something like "I don't care about Tabnine," that's a
+domain change (remove entity), NOT task feedback. Route to ManageDomains first, then optionally
+steer the task. When in doubt: domain changes affect what exists, task feedback affects how output
+is produced from what exists.
 
 After significant feedback, ask: "Want me to run this task now with the updated focus?"
 If yes, use `ManageTask(task_slug=..., action="trigger")`.

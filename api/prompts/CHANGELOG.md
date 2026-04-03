@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.13] - Task-scoped feedback: add domain-level routing
+
+### Changed
+- `agents/tp_prompts/task_scope.py`: Three-layer feedback routing (was two). Added domain-level changes as first routing category. When user says "we don't compete with Tabnine," TP routes to ManageDomains(action="remove"), not agent feedback. Clarify for significant domain changes. Routing judgment guidance: domain changes affect what exists, task feedback affects how output is produced from what exists.
+- Expected behavior: User corrections about WHAT to track (entities) are routed to ManageDomains. WHO corrections (agent style) to UpdateContext(target="agent"). HOW corrections (output format/focus) to UpdateContext(target="task"). Previously entity corrections were misrouted to agent feedback.
+
+---
+
 ## [2026.04.03.12] - Delete inference_state — TP judges from raw context
 
 ### Removed
