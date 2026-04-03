@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# System deps: pandoc (documents/reports), fonts, Node.js (mermaid-cli), Chromium (mermaid rendering)
+# System deps: pandoc, fonts, Chromium (mermaid rendering)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         pandoc \
@@ -9,10 +9,15 @@ RUN apt-get update && \
         texlive-fonts-recommended \
         texlive-latex-extra \
         fonts-dejavu \
-        nodejs \
-        npm \
         chromium \
+        curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Node.js 20 LTS via NodeSource (proper install with node, npm, npx in PATH)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/* && \
+    node --version && npm --version && npx --version
 
 # Mermaid CLI for diagram rendering (uses Puppeteer + Chromium)
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
