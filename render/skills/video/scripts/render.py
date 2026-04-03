@@ -112,19 +112,19 @@ async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str
         output_path = out_file.name
 
     try:
-        cmd = [
-            "npx", "remotion", "render",
-            "MainComposition",
-            output_path,
-            f"--props={props_path}",
-            "--codec=h264",
-            "--log=error",
-        ]
+        # Use shell=True to inherit full PATH (npx installed globally via npm)
+        cmd = (
+            f"npx remotion render MainComposition {output_path}"
+            f" --props={props_path}"
+            f" --codec=h264"
+            f" --log=error"
+        )
 
         logger.info(f"[VIDEO] Rendering {total_duration}s video ({width}x{height}, {len(slides)} slides)")
 
         result = subprocess.run(
             cmd,
+            shell=True,
             capture_output=True,
             text=True,
             timeout=180,
