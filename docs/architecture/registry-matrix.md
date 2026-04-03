@@ -79,12 +79,12 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 |---|---|---|---|
 | **Competitive Intelligence** | domain-steward | competitors/ | web_search, investigate, chart |
 | **Market Research** | domain-steward | market/ | web_search, investigate, chart |
-| **Business Development** | domain-steward | relationships/ | read_platforms, investigate |
-| **Operations** | domain-steward | projects/ | read_platforms, chart |
+| **Business Development** | domain-steward | relationships/ | read_slack, read_notion, read_github, investigate |
+| **Operations** | domain-steward | projects/ | read_slack, read_notion, read_github, chart |
 | **Marketing & Creative** | domain-steward | content/ | web_search, chart, image, video_render, compose_html |
 | **Executive Reporting** | synthesizer | (cross-domain) | compose_html, chart |
-| **Slack Bot** | platform-bot | platform-scoped observer | read_platforms, write_slack |
-| **Notion Bot** | platform-bot | platform-scoped observer | read_platforms, write_notion |
+| **Slack Bot** | platform-bot | platform-scoped observer | read_slack, write_slack |
+| **Notion Bot** | platform-bot | platform-scoped observer | read_notion, write_notion |
 
 **Key principle:** Each domain-steward agent owns one context domain. The synthesizer (Executive) reads all domains. Templates are bootstrapping — AGENT.md is the runtime source of truth.
 

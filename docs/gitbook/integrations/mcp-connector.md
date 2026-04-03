@@ -117,8 +117,8 @@ Once connected, your AI tool has access to these YARNNN capabilities:
 
 | What you can ask for | What happens |
 |---|---|
-| "Check my YARNNN status" | Shows connected platforms, sync freshness, and active agents |
-| "Search my Slack/Notion for X" | Searches synced content across platforms |
+| "Check my YARNNN status" | Shows connected platforms, selected sources, and active agents |
+| "Search my Slack/Notion for X" | Reads connected platforms live through YARNNN's provider tools |
 | "What does YARNNN know about me?" | Shows profile, preferences, and learned patterns |
 | "List my agents" | Shows configured agents with schedules |
 | "Run my weekly digest" | Triggers an agent to generate a new run |

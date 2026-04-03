@@ -362,10 +362,9 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     },
 
     # ── Platform Monitoring (context, platform-specific) ──
-    # NOTE (2026-04-03 cleanup): `context_sources=["platforms"]` is preserved as
-    # task-type intent metadata. It should be read as "this task depends on
-    # platform-scoped observation" rather than "headless mode already has a
-    # settled generic platform tool path."
+    # `context_sources=["platforms"]` is intent metadata for platform-scoped
+    # observation tasks. Concrete provider access is now granted through
+    # explicit agent capabilities (read_slack, read_notion, read_github, etc.).
 
     "monitor-slack": {
         "display_name": "Monitor Slack",

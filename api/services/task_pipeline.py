@@ -2196,7 +2196,7 @@ async def _generate(
     ADR-154: tools_used and tool_rounds returned for awareness.md.
     """
     from services.anthropic import chat_completion_with_tools
-    from services.primitives.registry import get_tools_for_mode, create_headless_executor
+    from services.primitives.registry import get_headless_tools_for_agent, create_headless_executor
     from services.agent_pipeline import validate_output
     from services.agent_execution import (
         SONNET_MODEL, _is_narration, _strip_tool_narration,
@@ -2214,11 +2214,14 @@ async def _generate(
     if has_asset_capabilities(role):
         max_tool_rounds = max(max_tool_rounds, 6)
 
-    headless_tools = get_tools_for_mode("headless")
+    headless_tools = await get_headless_tools_for_agent(
+        client, user_id, agent=agent, agent_sources=[],
+    )
     executor = create_headless_executor(
         client, user_id,
         agent_sources=[],
         agent=agent,
+        dynamic_tools=headless_tools,
     )
 
     messages = [{"role": "user", "content": user_message}]

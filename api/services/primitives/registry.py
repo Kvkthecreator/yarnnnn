@@ -42,7 +42,9 @@ from .workspace import (
 )
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
 from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
-from services.platform_tools import is_platform_tool, handle_platform_tool
+from services.platform_tools import (
+    is_platform_tool, handle_platform_tool, get_platform_tools_for_agent,
+)
 
 # ---------------------------------------------------------------------------
 # Deleted imports (ADR-146 — absorbed into UpdateContext / ManageTask):
@@ -183,11 +185,8 @@ CHAT_PRIMITIVES = [
 ]  # 15 tools — at P5 budget
 
 # Headless mode: background agent execution.
-# NOTE (2026-04-03 cleanup): generic `platform_*` tools are intentionally NOT
-# exposed here yet. Agent/task metadata still carries platform-related concepts
-# (`read_platforms`, `context_sources=["platforms"]`) because the product
-# taxonomy still recognizes platform-scoped work, but the concrete headless
-# runtime contract is unresolved and should not be inferred from this registry.
+# Base registry only. Provider-native platform tools are added dynamically per
+# agent capability bundle via `get_headless_tools_for_agent()`.
 HEADLESS_PRIMITIVES = [
     # Discovery (4)
     READ_TOOL,
@@ -310,7 +309,65 @@ def get_tools_for_mode(mode: str) -> list[dict]:
         return list(CHAT_PRIMITIVES)  # Default to chat
 
 
-def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[list] = None, coordinator_agent_id: Optional[str] = None, agent: Optional[dict] = None):
+class HeadlessAuth:
+    """Minimal auth context for headless execution."""
+
+    def __init__(
+        self,
+        client,
+        user_id,
+        agent_sources=None,
+        coordinator_agent_id=None,
+        agent=None,
+    ):
+        self.client = client
+        self.user_id = user_id
+        self.headless = True
+        self.agent_sources = agent_sources
+        self.coordinator_agent_id = coordinator_agent_id
+        self.agent = agent
+        self.pending_renders: list[dict] = []
+        if agent:
+            from services.workspace import get_agent_slug
+            self.agent_slug = get_agent_slug(agent)
+        else:
+            self.agent_slug = None
+
+
+async def get_headless_tools_for_agent(
+    client: Any,
+    user_id: str,
+    agent: Optional[dict] = None,
+    agent_sources: Optional[list] = None,
+    coordinator_agent_id: Optional[str] = None,
+) -> list[dict]:
+    """
+    Resolve the full headless tool surface for an agent.
+
+    Headless execution always gets the base primitive registry. Platform tools are
+    added dynamically from the dedicated platform runtime when, and only when:
+    1. the agent capability bundle grants them, and
+    2. the user has the provider connected.
+    """
+    tools = list(HEADLESS_PRIMITIVES)
+    if not client or not user_id or not agent:
+        return tools
+
+    auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id, agent)
+    platform_tools = await get_platform_tools_for_agent(auth, agent)
+    if platform_tools:
+        tools.extend(platform_tools)
+    return tools
+
+
+def create_headless_executor(
+    client: Any,
+    user_id: str,
+    agent_sources: Optional[list] = None,
+    coordinator_agent_id: Optional[str] = None,
+    agent: Optional[dict] = None,
+    dynamic_tools: Optional[list[dict]] = None,
+):
     """
     Create a tool executor function for headless mode.
 
@@ -318,27 +375,15 @@ def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[
     that dispatches to primitive handlers with headless-appropriate
     error handling (log + return error dict, never raise).
     """
-    class HeadlessAuth:
-        """Minimal auth context for headless execution."""
-        def __init__(self, client, user_id, agent_sources=None, coordinator_agent_id=None, agent=None):
-            self.client = client
-            self.user_id = user_id
-            self.headless = True
-            self.agent_sources = agent_sources
-            self.coordinator_agent_id = coordinator_agent_id
-            self.agent = agent
-            self.pending_renders: list[dict] = []
-            if agent:
-                from services.workspace import get_agent_slug
-                self.agent_slug = get_agent_slug(agent)
-            else:
-                self.agent_slug = None
-
     auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id, agent)
+    allowed_tool_names = set(_HEADLESS_TOOL_NAMES)
+    if dynamic_tools:
+        allowed_tool_names.update(tool["name"] for tool in dynamic_tools if tool.get("name"))
 
     async def executor(tool_name: str, tool_input: dict) -> dict:
-        # ADR-146: Check against explicit headless registry
-        if tool_name not in _HEADLESS_TOOL_NAMES:
+        # Headless execution gets the base registry plus capability-scoped
+        # platform tools resolved for this agent.
+        if tool_name not in allowed_tool_names:
             logger.warning(
                 f"[HEADLESS] Tool {tool_name} not available in headless mode, skipping"
             )
@@ -348,16 +393,8 @@ def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[
                 "message": f"Tool {tool_name} is not available in headless mode",
             }
 
-        handler = HANDLERS.get(tool_name)
-        if not handler:
-            return {
-                "success": False,
-                "error": "unknown_primitive",
-                "message": f"Unknown primitive: {tool_name}",
-            }
-
         try:
-            return await handler(auth, tool_input)
+            return await execute_primitive(auth, tool_name, tool_input)
         except Exception as e:
             logger.error(f"[HEADLESS] Tool {tool_name} failed: {e}")
             return {

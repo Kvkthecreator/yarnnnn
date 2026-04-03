@@ -24,21 +24,21 @@ Three concerns, separated:
 Each agent type is a **product offering** — a role the user "hires" for their project team. Type = capability set + display identity. 8 user-facing types + PM infrastructure:
 
 ```
-briefer:    [read_platforms, summarize, produce_markdown, compose_html]
+briefer:    [read_slack, read_notion, summarize, produce_markdown, compose_html]
             "Keeps you briefed on what's happening"
-monitor:    [read_platforms, detect_change, alert, produce_markdown, compose_html]
+monitor:    [read_slack, read_notion, read_github, detect_change, alert, produce_markdown, compose_html]
             "Watches for what matters and alerts you"
-researcher: [read_platforms, web_search, investigate, produce_markdown, chart, mermaid, compose_html]
+researcher: [read_slack, read_notion, read_github, web_search, investigate, produce_markdown, chart, mermaid, compose_html]
             "Investigates topics and produces analysis"
-drafter:    [read_platforms, produce_markdown, chart, mermaid, compose_html]
+drafter:    [read_notion, read_github, produce_markdown, chart, mermaid, compose_html]
             "Produces deliverables and documents for you"
-analyst:    [read_platforms, data_analysis, cross_reference, chart, mermaid, produce_markdown, compose_html]
+analyst:    [read_slack, read_notion, read_github, data_analysis, cross_reference, chart, mermaid, produce_markdown, compose_html]
             "Tracks metrics and surfaces patterns"
-writer:     [read_platforms, produce_markdown, compose_html]
+writer:     [read_notion, produce_markdown, compose_html]
             "Crafts communications and content"
-planner:    [read_platforms, produce_markdown, compose_html]
+planner:    [read_notion, read_github, produce_markdown, compose_html]
             "Prepares plans, agendas, and follow-ups"
-scout:      [read_platforms, web_search, produce_markdown, chart, compose_html]
+scout:      [read_slack, read_notion, read_github, web_search, produce_markdown, chart, compose_html]
             "Tracks competitors and market movements"
 pm:         [read_workspace, check_freshness, steer_contributors, trigger_assembly, manage_work_plan]
             Coordinates project team (infrastructure, not user-facing)
@@ -56,13 +56,20 @@ Each capability maps to: a runtime, a tool (if any), skill docs (if any), and an
 
 ```
 Cognitive (prompt-driven, no tool):
-├── read_platforms, synthesize, detect_change, cross_reference
+├── synthesize, detect_change, cross_reference
 ├── data_analysis, alert, investigate, calendar_access, profile_attendees
 └── produce_markdown
 
 Tool-backed (internal tools):
 ├── web_search       → tool: WebSearch
 └── read_workspace   → tool: ReadWorkspace
+
+Provider-native external tools:
+├── read_slack       → runtime: external:slack, tools: platform_slack_list_channels, platform_slack_get_channel_history
+├── write_slack      → runtime: external:slack, tool: platform_slack_send_message
+├── read_notion      → runtime: external:notion, tools: platform_notion_search, platform_notion_get_page
+├── write_notion     → runtime: external:notion, tool: platform_notion_create_comment
+└── read_github      → runtime: external:github, tools: platform_github_list_repos, platform_github_get_issues
 
 Asset production (compute runtimes):
 ├── chart            → runtime: python_render, tool: RuntimeDispatch, docs: chart/SKILL.md
@@ -72,10 +79,6 @@ Asset production (compute runtimes):
 
 Composition (post-generation pipeline step):
 └── compose_html     → runtime: python_render, post_generation: true
-
-Platform skills (external APIs, SKILL.md importable from marketplace):
-├── write_slack      → runtime: external:slack, tool: SlackWrite, requires_auth
-└── write_notion     → runtime: external:notion, tool: NotionWrite, requires_auth
 
 PM coordination (internal):
 ├── check_freshness     → tool: CheckContributorFreshness
@@ -96,6 +99,7 @@ python_render:   yarnnn-render service (Docker: Python + matplotlib + pandoc + p
 node_remotion:   yarnnn-video service (Docker: Node.js + Remotion + Chrome) [future]
 external:slack:  Slack API via user OAuth token
 external:notion: Notion API via user OAuth token
+external:github: GitHub API via user OAuth token
 ```
 
 ### Resolution path
@@ -265,7 +269,7 @@ Layout mode is decoupled from agent type. Any agent's output can be rendered in 
 digest
 
 ## Capabilities
-- read_platforms, synthesize, produce_markdown, compose_html
+- read_slack, read_notion, synthesize, produce_markdown, compose_html
 
 ## Instructions
 Recap all activity across connected Slack channels...

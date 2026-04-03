@@ -658,7 +658,7 @@ async def generate_draft_inline(
     """
     from services.anthropic import chat_completion_with_tools
     from services.primitives.registry import (
-        get_tools_for_mode,
+        get_headless_tools_for_agent,
         create_headless_executor,
     )
     from services.agent_pipeline import (
@@ -775,11 +775,14 @@ async def generate_draft_inline(
 
     # ADR-080: Mode-gated tools and executor
     # ADR-106: Pass agent dict so workspace primitives have agent context
-    headless_tools = get_tools_for_mode("headless")
+    headless_tools = await get_headless_tools_for_agent(
+        client, user_id, agent=agent, agent_sources=[],
+    )
     executor = create_headless_executor(
         client, user_id,
         agent_sources=[],  # Column dropped — sources no longer on agents table
         agent=agent,
+        dynamic_tools=headless_tools,
     )
 
     import json

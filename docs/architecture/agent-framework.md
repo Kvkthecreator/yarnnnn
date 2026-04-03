@@ -329,11 +329,11 @@ Capabilities are determined by agent type. Each type has a fixed capability set 
 
 | Agent Type | Capabilities | Example |
 |---|---|---|
-| digest | read_platforms, synthesize, produce_markdown, compose_html | Slack Recap email |
-| monitor | read_platforms, detect_change, alert, produce_markdown, compose_html | Channel watch alert |
-| research | read_platforms, web_search, investigate, produce_markdown, chart, mermaid, compose_html | Report with visualizations |
-| synthesize | read_platforms, cross_reference, data_analysis, chart, mermaid, produce_markdown, compose_html | Cross-platform deck |
-| prepare | read_platforms, calendar_access, profile_attendees, produce_markdown, compose_html | Meeting briefing |
+| digest | read_slack, read_notion, synthesize, produce_markdown, compose_html | Slack Recap email |
+| monitor | read_slack, read_notion, read_github, detect_change, alert, produce_markdown, compose_html | Channel watch alert |
+| research | read_slack, read_notion, read_github, web_search, investigate, produce_markdown, chart, mermaid, compose_html | Report with visualizations |
+| synthesize | read_slack, read_notion, read_github, cross_reference, data_analysis, chart, mermaid, produce_markdown, compose_html | Cross-platform deck |
+| prepare | read_notion, read_github, calendar_access, profile_attendees, produce_markdown, compose_html | Meeting briefing |
 | pm | read_workspace, check_freshness, steer_contributors, trigger_assembly, manage_work_plan | Assembly coordination |
 
 Asset-producing capabilities (chart, mermaid, image) resolve to `RenderAsset` tool calls against the `python_render` runtime. See [Agent Capability Substrate](output-substrate.md) for the three-registry architecture.

@@ -45,7 +45,7 @@ not create agents from scratch.
 ### Business Development
 
 - **Domain owned:** `relationships/`
-- **Capabilities:** read_platforms, investigate
+- **Capabilities:** read_slack, read_notion, read_github, investigate
 - **What it maintains:** Stakeholder profiles, relationship context, meeting history in `/workspace/context/relationships/`
 - **What it produces:** Meeting prep briefs, stakeholder updates
 - **Typical tasks:** track-relationships, meeting-prep, stakeholder-update
@@ -53,7 +53,7 @@ not create agents from scratch.
 ### Operations
 
 - **Domain owned:** `projects/`
-- **Capabilities:** read_platforms, chart
+- **Capabilities:** read_slack, read_notion, read_github, chart
 - **What it maintains:** Project status, internal initiative tracking, team activity in `/workspace/context/projects/`
 - **What it produces:** Project status reports, stakeholder updates
 - **Typical tasks:** track-projects, project-status
@@ -85,7 +85,7 @@ not create agents from scratch.
 ### Slack Bot
 
 - **Primary surface:** Slack
-- **Capabilities:** read_platforms, write_slack
+- **Capabilities:** read_slack, write_slack
 - **What it contributes:** Slack-origin observations and digests; may append to `/workspace/context/signals/`
 - **What it produces:** Slack monitoring reports, signal digests
 - **Typical tasks:** monitor-slack
@@ -94,7 +94,7 @@ not create agents from scratch.
 ### Notion Bot
 
 - **Primary surface:** Notion
-- **Capabilities:** read_platforms, write_notion
+- **Capabilities:** read_notion, write_notion
 - **What it contributes:** Notion-origin observations and digests; may append to `/workspace/context/signals/`
 - **What it produces:** Notion monitoring reports, signal digests
 - **Typical tasks:** monitor-notion

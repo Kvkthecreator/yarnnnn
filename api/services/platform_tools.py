@@ -1,9 +1,9 @@
 """
-Platform Tools for Thinking Partner
+Platform Capability Runtime
 
-ADR-076: Tool definitions and handlers for platform operations.
-These tools are dynamically added to TP based on user's connected integrations.
-All platforms use Direct API: SlackAPIClient, NotionAPIClient.
+Provider-native tool definitions and handlers for platform operations.
+These tools are available to TP and, when explicitly granted by agent
+capabilities, to headless task execution as well.
 
 ADR-131: Gmail and Calendar sunset.
 ADR-147: GitHub platform integration — list repos, get issues/PRs.
@@ -253,6 +253,22 @@ PLATFORM_TOOLS_BY_PROVIDER = {
     "github": GITHUB_TOOLS,
 }
 
+PLATFORM_TOOLS_BY_CAPABILITY = {
+    "read_slack": ["platform_slack_list_channels", "platform_slack_get_channel_history"],
+    "write_slack": ["platform_slack_send_message"],
+    "read_notion": ["platform_notion_search", "platform_notion_get_page"],
+    "write_notion": ["platform_notion_create_comment"],
+    "read_github": ["platform_github_list_repos", "platform_github_get_issues"],
+}
+
+CAPABILITY_PROVIDER_MAP = {
+    "read_slack": "slack",
+    "write_slack": "slack",
+    "read_notion": "notion",
+    "write_notion": "notion",
+    "read_github": "github",
+}
+
 
 # =============================================================================
 # Dynamic Tool Loading
@@ -293,6 +309,59 @@ async def get_platform_tools_for_user(auth: Any) -> list[dict]:
         logger.error(f"[PLATFORM-TOOLS] Error loading tools: {e}")
 
     return tools
+
+
+async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]) -> list[dict]:
+    """
+    Get platform tools allowed by explicit provider-native capabilities.
+
+    Only returns tools for:
+    1. providers the user has connected, and
+    2. providers/actions granted by the agent capability bundle
+    """
+    if not capabilities:
+        return []
+
+    try:
+        result = auth.client.table("platform_connections").select(
+            "platform, status"
+        ).eq("user_id", auth.user_id).eq("status", "active").execute()
+        connected_providers = {row["platform"] for row in (result.data or [])}
+    except Exception as e:
+        logger.error(f"[PLATFORM-TOOLS] Error loading connected providers: {e}")
+        return []
+
+    allowed_tool_names: set[str] = set()
+    for capability in capabilities:
+        provider = CAPABILITY_PROVIDER_MAP.get(capability)
+        if not provider or provider not in connected_providers:
+            continue
+        allowed_tool_names.update(PLATFORM_TOOLS_BY_CAPABILITY.get(capability, []))
+
+    if not allowed_tool_names:
+        return []
+
+    tools = []
+    for provider in sorted(connected_providers):
+        for tool in PLATFORM_TOOLS_BY_PROVIDER.get(provider, []):
+            if tool.get("name") in allowed_tool_names:
+                tools.append(tool)
+
+    logger.info(
+        "[PLATFORM-TOOLS] Capability-scoped tool load: %s tool(s) from %s",
+        len(tools),
+        sorted(connected_providers),
+    )
+    return tools
+
+
+async def get_platform_tools_for_agent(auth: Any, agent: dict) -> list[dict]:
+    """Get platform tools for a specific agent based on its explicit capabilities."""
+    from services.agent_framework import get_type_capabilities
+
+    role = (agent or {}).get("role", "")
+    capabilities = get_type_capabilities(role) if role else []
+    return await get_platform_tools_for_capabilities(auth, capabilities)
 
 
 # =============================================================================

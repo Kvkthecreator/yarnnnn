@@ -54,7 +54,8 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         "display_name": "Competitive Intelligence",
         "tagline": "Tracks and analyzes competitors",
         "capabilities": [
-            "web_search", "read_workspace", "search_knowledge", "read_platforms",
+            "web_search", "read_workspace", "search_knowledge",
+            "read_slack", "read_notion", "read_github",
             "investigate", "produce_markdown", "chart", "mermaid", "compose_html",
         ],
         "description": "Maintains competitive intelligence. Tracks competitor products, "
@@ -112,7 +113,8 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         "display_name": "Market Research",
         "tagline": "Tracks market trends and opportunities",
         "capabilities": [
-            "web_search", "read_workspace", "search_knowledge", "read_platforms",
+            "web_search", "read_workspace", "search_knowledge",
+            "read_slack", "read_notion", "read_github",
             "investigate", "produce_markdown", "chart", "mermaid", "compose_html",
         ],
         "description": "Maintains market intelligence. Tracks segments, trends, sizing, "
@@ -171,7 +173,8 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         "display_name": "Business Development",
         "tagline": "Manages relationships and deals",
         "capabilities": [
-            "read_platforms", "read_workspace", "search_knowledge",
+            "read_slack", "read_notion", "read_github",
+            "read_workspace", "search_knowledge",
             "produce_markdown", "compose_html",
         ],
         "description": "Maintains relationship intelligence. Tracks contacts, interactions, "
@@ -213,7 +216,8 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         "display_name": "Operations",
         "tagline": "Tracks projects and workstreams",
         "capabilities": [
-            "read_platforms", "read_workspace", "search_knowledge",
+            "read_slack", "read_notion", "read_github",
+            "read_workspace", "search_knowledge",
             "produce_markdown", "chart", "compose_html",
         ],
         "description": "Maintains project intelligence. Tracks status, milestones, "
@@ -254,7 +258,8 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         "display_name": "Marketing & Creative",
         "tagline": "Creates content and go-to-market materials",
         "capabilities": [
-            "web_search", "read_workspace", "search_knowledge", "read_platforms",
+            "web_search", "read_workspace", "search_knowledge",
+            "read_slack", "read_notion", "read_github",
             "produce_markdown", "chart", "mermaid", "image", "video_render", "compose_html",
         ],
         "description": "Maintains content research and produces creative deliverables. "
@@ -371,10 +376,9 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
     },
 
     # ── Platform Bots (capture platform signals) ──
-    # NOTE (2026-04-03 cleanup): `read_platforms` remains capability metadata,
-    # not a guarantee that generic headless platform tools are wired. It is
-    # preserved because platform-scoped observation is still part of the agent
-    # taxonomy, even though the final runtime authority/access model is pending.
+    # Provider-native read/write capabilities are the runtime contract. OAuth
+    # and connection state live in the integrations layer; agents get explicit
+    # platform access through these deterministic capability bundles.
 
     "slack_bot": {
         "class": "platform-bot",
@@ -383,7 +387,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         "display_name": "Slack Bot",
         "tagline": "Captures Slack activity",
         "capabilities": [
-            "read_platforms", "write_slack", "summarize", "produce_markdown",
+            "read_slack", "write_slack", "summarize", "produce_markdown",
         ],
         "description": "Captures signals from Slack. Decisions, action items, key "
                        "discussions. Produces daily recaps.",
@@ -417,7 +421,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         "display_name": "Notion Bot",
         "tagline": "Tracks Notion changes",
         "capabilities": [
-            "read_platforms", "write_notion", "summarize", "produce_markdown",
+            "read_notion", "write_notion", "summarize", "produce_markdown",
         ],
         "description": "Tracks Notion workspace changes. Page updates, new content, "
                        "stale pages.",
@@ -615,7 +619,6 @@ def resolve_role(role: str) -> str:
 
 CAPABILITIES: dict[str, dict[str, Any]] = {
     # -- Cognitive (prompt-driven, no dedicated tool) --
-    "read_platforms":    {"category": "cognitive", "runtime": "internal"},
     "summarize":         {"category": "cognitive", "runtime": "internal"},
     "detect_change":     {"category": "cognitive", "runtime": "internal"},
     "alert":             {"category": "cognitive", "runtime": "internal"},
@@ -628,6 +631,28 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     "web_search":        {"category": "tool", "runtime": "internal", "tool": "WebSearch"},
     "read_workspace":    {"category": "tool", "runtime": "internal", "tool": "ReadWorkspace"},
     "search_knowledge":  {"category": "tool", "runtime": "internal", "tool": "QueryKnowledge"},
+
+    # -- Platform runtime (provider-native external capabilities) --
+    "read_slack": {
+        "category": "tool", "runtime": "external:slack",
+        "tools": ["platform_slack_list_channels", "platform_slack_get_channel_history"],
+    },
+    "write_slack": {
+        "category": "tool", "runtime": "external:slack",
+        "tools": ["platform_slack_send_message"],
+    },
+    "read_notion": {
+        "category": "tool", "runtime": "external:notion",
+        "tools": ["platform_notion_search", "platform_notion_get_page"],
+    },
+    "write_notion": {
+        "category": "tool", "runtime": "external:notion",
+        "tools": ["platform_notion_create_comment"],
+    },
+    "read_github": {
+        "category": "tool", "runtime": "external:github",
+        "tools": ["platform_github_list_repos", "platform_github_get_issues"],
+    },
 
     # -- Asset production (compute runtimes) --
     "chart":   {
@@ -671,6 +696,7 @@ RUNTIMES: dict[str, dict[str, Any]] = {
     "python_render":  {"description": "yarnnn-render service (Docker: Python + Node.js + Chromium + matplotlib + Remotion)"},
     "external:slack": {"description": "Slack API via user OAuth token"},
     "external:notion":{"description": "Notion API via user OAuth token"},
+    "external:github":{"description": "GitHub API via user OAuth token"},
 }
 
 
