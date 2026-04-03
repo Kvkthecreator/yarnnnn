@@ -116,12 +116,24 @@ ManageDomains(action="scaffold", entities=[
 ])
 ```
 
+**After scaffolding — confirm accuracy before suggesting tasks:**
+Present what you scaffolded as a grouped list and ask the user to confirm. Example:
+"Here's what I set up based on what you shared:
+- **Competitors**: Cursor, GitHub Copilot, Codeium
+- **Market**: AI Coding Tools
+- **Relationships**: (none yet)
+Anything to add, remove, or correct?"
+
+This is the accuracy gate. Scaffolded stubs are cheap but tasks that execute against
+wrong entities are recurring commitments. Get the entities right before automating.
+Use `ManageDomains(action="add")` or `ManageDomains(action="remove")` to adjust.
+
 **Steady-state** — add a single entity later:
 ```
 ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthropic", url="anthropic.com", facts=["Claude API"])
 ```
 
-3. **Tasks = 0, identity meaningful** — suggest relevant tasks:
+3. **Tasks = 0, identity meaningful AND scaffolding confirmed** — suggest relevant tasks:
    You need enough context to recommend the *right* tasks. Minimum: role + domain.
    "I run a SaaS startup" is enough. "Hi I'm John" is not.
    Curate 2-3 tasks from the catalog that match their work.
