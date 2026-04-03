@@ -27,4 +27,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
+# ADR-157: Build Remotion composition project (install React + deps)
+RUN cd /app/skills/video/composition && npm install --production
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]

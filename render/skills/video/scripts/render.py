@@ -1,12 +1,13 @@
 """
 Video render skill — short-form video generation via Remotion.
 
-Produces MP4 clips (15-30s max) from structured scene specifications.
-Calls `npx remotion render` via subprocess with a JSON props file.
+ADR-157: Agnostic slide-based composition. Slides contain positioned
+elements with layout modes and transitions. Agent decides content;
+Remotion handles timing, animation, and rendering.
 
 Constraints:
 - Max 30 seconds duration
-- Max 5 scenes
+- Max 8 slides
 - Silent (no audio)
 - 1080p resolution (landscape or portrait)
 """
@@ -20,7 +21,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 MAX_DURATION_SECONDS = 30
-MAX_SCENES = 8
+MAX_SLIDES = 8
 FPS = 30
 
 # Remotion composition project directory
@@ -28,57 +29,80 @@ COMPOSITION_DIR = Path(__file__).parent.parent / "composition"
 
 
 async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str]:
-    """Render a short-form video from scene specifications.
+    """Render a short-form video from slide-based specifications.
 
-    Args:
-        input_spec: Scene-based video specification (see SKILL.md)
-        output_format: Must be "mp4"
-
-    Returns:
-        (file_bytes, content_type) tuple
-
-    Raises:
-        ValueError: If input is invalid or exceeds constraints
+    input_spec: {
+        "title": str,
+        "orientation": "landscape" | "portrait",
+        "theme": {"background": str, "foreground": str, "accent": str, "muted": str},
+        "slides": [
+            {
+                "layout": "center" | "stack" | "split",
+                "duration": int (seconds),
+                "transition": "fade" | "slide-left" | "slide-up" | "cut",
+                "elements": [
+                    {"type": "heading", "text": str, "size": str},
+                    {"type": "text", "text": str, "size": str, "color": str},
+                    {"type": "value", "text": str, "size": str},
+                    {"type": "badge", "text": str, "color": str},
+                    {"type": "list", "items": [str]},
+                    {"type": "divider"},
+                    {"type": "spacer", "height": int},
+                ]
+            }
+        ]
+    }
+    output_format: Must be "mp4"
+    Returns: (file_bytes, content_type)
     """
     if output_format != "mp4":
         raise ValueError(f"Video only supports mp4 output, got: {output_format}")
 
-    # Validate constraints
-    duration = input_spec.get("duration_seconds", 15)
-    if duration > MAX_DURATION_SECONDS:
-        raise ValueError(f"Video duration {duration}s exceeds maximum of {MAX_DURATION_SECONDS}s")
+    # Validate slides
+    slides = input_spec.get("slides", [])
+    if not slides:
+        raise ValueError("Video requires at least 1 slide")
+    if len(slides) > MAX_SLIDES:
+        raise ValueError(f"Video has {len(slides)} slides, maximum is {MAX_SLIDES}")
 
-    scenes = input_spec.get("scenes", [])
-    if not scenes:
-        raise ValueError("Video requires at least 1 scene")
-    if len(scenes) > MAX_SCENES:
-        raise ValueError(f"Video has {len(scenes)} scenes, maximum is {MAX_SCENES}")
-
-    # Validate total scene duration matches
-    total_scene_duration = sum(s.get("duration", 3) for s in scenes)
-    if total_scene_duration > MAX_DURATION_SECONDS:
+    # Validate total duration
+    total_duration = sum(s.get("duration", 4) for s in slides)
+    if total_duration > MAX_DURATION_SECONDS:
         raise ValueError(
-            f"Total scene duration ({total_scene_duration}s) exceeds "
-            f"maximum of {MAX_DURATION_SECONDS}s"
+            f"Total duration ({total_duration}s) exceeds maximum of {MAX_DURATION_SECONDS}s"
         )
 
     orientation = input_spec.get("orientation", "landscape")
     width = 1920 if orientation == "landscape" else 1080
     height = 1080 if orientation == "landscape" else 1920
 
-    total_frames = total_scene_duration * FPS
+    total_frames = total_duration * FPS
 
-    # Write props to temp file for Remotion
+    # Theme defaults
+    theme = input_spec.get("theme", {})
+    default_theme = {
+        "background": "#0f172a",
+        "foreground": "#ffffff",
+        "accent": "#3b82f6",
+        "muted": "#94a3b8",
+    }
+    merged_theme = {**default_theme, **theme}
+
+    # Build props for Remotion
+    props = {
+        "title": input_spec.get("title", "Video"),
+        "slides": slides,
+        "theme": merged_theme,
+        "width": width,
+        "height": height,
+        "fps": FPS,
+    }
+
+    # Write props to temp file
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".json", delete=False
     ) as props_file:
-        json.dump({
-            "title": input_spec.get("title", "Video"),
-            "scenes": scenes,
-            "width": width,
-            "height": height,
-            "fps": FPS,
-        }, props_file)
+        json.dump(props, props_file)
         props_path = props_file.name
 
     # Output temp file
@@ -88,44 +112,37 @@ async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str
         output_path = out_file.name
 
     try:
-        # Call Remotion CLI
         cmd = [
             "npx", "remotion", "render",
-            str(COMPOSITION_DIR / "src" / "index.ts"),
             "MainComposition",
             output_path,
             f"--props={props_path}",
-            f"--width={width}",
-            f"--height={height}",
-            f"--fps={FPS}",
-            f"--frames={total_frames}",
             "--codec=h264",
             "--log=error",
         ]
 
-        logger.info(f"[VIDEO] Rendering {total_scene_duration}s video ({width}x{height})")
+        logger.info(f"[VIDEO] Rendering {total_duration}s video ({width}x{height}, {len(slides)} slides)")
 
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=180,  # 3 min timeout for rendering
+            timeout=180,
             cwd=str(COMPOSITION_DIR),
         )
 
         if result.returncode != 0:
             error_msg = result.stderr[:500] if result.stderr else "Unknown error"
+            logger.error(f"[VIDEO] Remotion stderr: {result.stderr[:1000]}")
             raise RuntimeError(f"Remotion render failed: {error_msg}")
 
-        # Read output file
         output_bytes = Path(output_path).read_bytes()
         if not output_bytes:
             raise RuntimeError("Remotion produced empty output")
 
-        logger.info(f"[VIDEO] Rendered {len(output_bytes)} bytes")
+        logger.info(f"[VIDEO] Rendered {len(output_bytes)} bytes ({total_duration}s, {len(slides)} slides)")
         return output_bytes, "video/mp4"
 
     finally:
-        # Cleanup temp files
         Path(props_path).unlink(missing_ok=True)
         Path(output_path).unlink(missing_ok=True)
