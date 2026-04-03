@@ -268,6 +268,46 @@ No agent-level execution state in the prompt. Clean separation.
 4. Remove agent `working/` reads from `load_context()` — task working/ is used instead
 5. Delete dead files: `tasks.json`, `goal.md`, `observations.md`, `review-log.md`, `created-agents.md`, `state.md`
 
+### Phase 2b: Tracker-Driven Context Selection (Implemented 2026-04-03)
+
+Refactors `_gather_context_domains()` in `task_pipeline.py` to use objective-driven entity
+selection instead of naive recency-ordered file loading.
+
+**Problem:** As domains grow (30+ entities × 4 files = 120+ files), the previous approach
+(`ORDER BY updated_at DESC LIMIT 20`) misses relevant-but-not-recent files. A task asking
+"how does Acme compare to Beta" might not see Beta's profile if it was updated 3 weeks ago
+and 20 newer files exist.
+
+**Solution — Hybrid A+C (deterministic heuristic + agent-driven deep retrieval):**
+
+1. **Synthesis first.** Always load domain synthesis files (`_landscape.md`, `_overview.md`, etc.) —
+   highest value-per-token context, cross-entity patterns. Zero additional cost.
+
+2. **Objective-matched entities.** `_match_entities_to_objective()` pattern-matches task objective
+   text (title, deliverable, audience, purpose, success criteria) against entity slugs in the domain.
+   If matches found → load matched entities' full files (all files per entity, not just profile).
+   Plus load remaining budget as profile-only for non-matched entities (breadth).
+
+3. **Profile-only fallback.** If objective is general (e.g., "weekly competitive brief" with no
+   specific entity names) → load only `profile.md` per entity. This gives the agent summary-level
+   context for all entities within the file budget, rather than full depth on an arbitrary 20.
+
+4. **Agent-driven deep retrieval.** Agent starts with synthesis + matched/profile context, then
+   uses existing `ReadWorkspace` / `QueryKnowledge` tools during tool rounds to pull additional
+   files as needed. No new tools required.
+
+**What changed:**
+- `_gather_context_domains()` — new `task_info` parameter, three-branch loading logic
+- `_match_entities_to_objective()` — new function, deterministic string matching
+- `gather_task_context()` — passes `task_info` to `_gather_context_domains()`
+
+**What didn't change:** Task declaration model, _tracker.md structure, awareness.md, agent tool
+primitives, post-run domain scan, token truncation limits.
+
+**Rationale:** See `docs/analysis/context-prioritization-discourse-2026-04-03.md`. Triggered by
+Karpathy "LLM Knowledge Bases" cross-analysis revealing context window scaling as the highest-severity
+architectural gap.
+
 ### Phase 3: Registry + Prompt Cleanup
 
 1. Fix `context_reads` for `track-relationships` and `track-projects`

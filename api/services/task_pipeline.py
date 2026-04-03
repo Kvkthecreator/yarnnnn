@@ -30,24 +30,136 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _normalize_match_text(value: str) -> str:
+    """Normalize text for deterministic token-aware substring matching."""
+    return re.sub(r"[^a-z0-9]+", " ", (value or "").lower()).strip()
+
+
+def _build_objective_search_text(task_info: dict) -> str:
+    """Flatten task objective fields into a normalized search string."""
+    objective = task_info.get("objective", {}) or {}
+    parts = [
+        task_info.get("title", ""),
+        objective.get("deliverable", ""),
+        objective.get("audience", ""),
+        objective.get("purpose", ""),
+        objective.get("format", ""),
+    ]
+    parts.extend(task_info.get("success_criteria", []) or [])
+    normalized = _normalize_match_text(" ".join(parts))
+    return f" {normalized} " if normalized else ""
+
+
+def _parse_tracker_entities(tracker_content: str) -> list[dict]:
+    """Parse tracker markdown table into entity metadata rows."""
+    entities = []
+    for raw_line in (tracker_content or "").splitlines():
+        line = raw_line.strip()
+        if not line.startswith("|"):
+            continue
+
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+        if cells[0].lower() == "slug" or set(cells[0]) == {"-"}:
+            continue
+
+        files = [
+            file_name.strip()
+            for file_name in cells[2].split(",")
+            if file_name.strip() and file_name.strip() != "—"
+        ]
+        entities.append({
+            "slug": cells[0],
+            "last_updated": cells[1],
+            "files": files,
+            "status": cells[3],
+        })
+
+    return entities
+
+
+def _get_primary_entity_filename(domain_key: str) -> Optional[str]:
+    """Return the primary summary file for entities in a given domain."""
+    from services.directory_registry import get_domain
+
+    domain = get_domain(domain_key) or {}
+    entity_structure = domain.get("entity_structure") or {}
+    if not entity_structure:
+        return None
+    return next(iter(entity_structure.keys()), None)
+
+
+def _match_entities_to_objective(
+    tracker_entities: list[str],
+    task_info: dict,
+) -> list[str]:
+    """Match task objective text against entity slugs/names in tracker.
+
+    ADR-154 Phase 2: Tracker-driven context selection. Instead of loading the 20
+    most recent files regardless of relevance, we use the task objective to select
+    which entities matter for this execution cycle.
+
+    Rationale: see docs/analysis/context-prioritization-discourse-2026-04-03.md
+    (Option A — deterministic heuristic, zero LLM cost).
+
+    Returns list of entity slugs that match the objective. Empty list means
+    "no specific match" → caller falls back to synthesis + primary-file loading.
+    """
+    if not tracker_entities:
+        return []
+
+    objective_text = _build_objective_search_text(task_info)
+    if not objective_text:
+        return []
+
+    matched = []
+    for slug in tracker_entities:
+        variants = {
+            _normalize_match_text(slug),
+            _normalize_match_text(slug.replace("-", " ")),
+            _normalize_match_text(slug.replace("_", " ")),
+        }
+        if any(variant and f" {variant} " in objective_text for variant in variants):
+            matched.append(slug)
+
+    return matched
+
+
 async def _gather_context_domains(
     client,
     user_id: str,
     context_reads: list[str],
+    task_info: Optional[dict] = None,
     max_files_per_domain: int = 20,
     max_content_per_file: int = 3000,
 ) -> str:
     """Read accumulated context from workspace context domains.
 
     ADR-151: /workspace/context/{domain}/ files are the primary context source.
-    Reads all files from each domain in context_reads, ordered by recency.
+
+    ADR-154 Phase 2 — Tracker-driven selective loading (hybrid A+C):
+    Instead of "load 20 most recent files" (naive), this function now:
+      1. Always loads synthesis files first (cross-entity summaries, high value)
+      2. If task objective mentions specific entities → load those entities' full files
+      3. If objective is general → load only the primary summary file per entity
+         (profile.md, analysis.md, status.md, etc.)
+      4. Agent can use ReadWorkspace/QueryKnowledge tools for deeper retrieval during
+         tool rounds (Option C — agent-driven deep retrieval)
+
+    Rationale: As workspaces grow (30+ entities × 4 files each = 120+ files),
+    recency-ordered loading misses relevant-but-not-recent files. Entity matching
+    ensures the agent sees what matters for THIS task, not just what was touched last.
+    See: docs/analysis/context-prioritization-discourse-2026-04-03.md
 
     Returns formatted context string with domain sections.
     """
     if not context_reads:
         return ""
 
-    from services.directory_registry import get_domain_folder
+    from services.directory_registry import (
+        get_domain_folder, get_synthesis_content, get_tracker_path, has_entity_tracker,
+    )
 
     sections = []
 
@@ -58,34 +170,179 @@ async def _gather_context_domains(
 
         prefix = f"/workspace/{folder}"
         try:
-            result = (
-                client.table("workspace_files")
-                .select("path, content, updated_at, tags")
-                .eq("user_id", user_id)
-                .like("path", f"{prefix}/%")
-                .order("updated_at", desc=True)
-                .limit(max_files_per_domain)
-                .execute()
-            )
-            rows = result.data or []
-
-            if not rows:
-                continue
-
             domain_parts = []
-            for row in rows:
-                path = row.get("path", "")
-                content = (row.get("content") or "")[:max_content_per_file]
-                updated = row.get("updated_at", "")[:10]  # Date only
 
-                # Make path relative to domain folder for readability
-                rel_path = path.replace(prefix + "/", "")
-
-                if content.strip():
-                    domain_parts.append(
-                        f"### {rel_path}" + (f" (updated {updated})" if updated else "") +
-                        f"\n{content}"
+            # ── Step 1: Always load synthesis file (cross-entity summary) ──
+            # Synthesis files (_landscape.md, _overview.md, etc.) are the
+            # highest-value-per-token context — cross-entity patterns, market
+            # maps, relationship health. Always included regardless of objective.
+            synthesis_info = get_synthesis_content(domain_key)
+            if synthesis_info:
+                synthesis_filename, _ = synthesis_info
+                synthesis_path = f"{prefix}/{synthesis_filename}"
+                try:
+                    synth_result = (
+                        client.table("workspace_files")
+                        .select("path, content, updated_at")
+                        .eq("user_id", user_id)
+                        .eq("path", synthesis_path)
+                        .limit(1)
+                        .execute()
                     )
+                    synth_rows = synth_result.data or []
+                    if synth_rows and (synth_rows[0].get("content") or "").strip():
+                        row = synth_rows[0]
+                        content = (row.get("content") or "")[:max_content_per_file]
+                        updated = row.get("updated_at", "")[:10]
+                        domain_parts.append(
+                            f"### {synthesis_filename} (synthesis, updated {updated})\n{content}"
+                        )
+                except Exception:
+                    pass  # Non-fatal — continue without synthesis
+
+            # ── Step 2: Determine entity loading strategy ──
+            # If this domain has entities, try objective-matching first.
+            # Otherwise (signals, non-entity domains), fall back to recency.
+            matched_entities = []
+            has_entities = has_entity_tracker(domain_key)
+            tracker_entities = []
+            primary_entity_file = _get_primary_entity_filename(domain_key)
+
+            if has_entities:
+                tracker_path = get_tracker_path(domain_key)
+                try:
+                    tracker_result = (
+                        client.table("workspace_files")
+                        .select("path, content, updated_at")
+                        .eq("user_id", user_id)
+                        .eq("path", f"/workspace/{tracker_path}")
+                        .limit(1)
+                        .execute()
+                    )
+                    tracker_rows = tracker_result.data or []
+                    if tracker_rows:
+                        tracker_entities = _parse_tracker_entities(
+                            tracker_rows[0].get("content") or ""
+                        )
+                except Exception:
+                    pass  # Non-fatal — fall through to general loading
+
+            if has_entities and task_info and tracker_entities:
+                matched_entities = _match_entities_to_objective(
+                    [entity["slug"] for entity in tracker_entities], task_info,
+                )
+
+            # ── Step 3: Load entity files based on strategy ──
+            if matched_entities:
+                # TARGETED: Objective mentions specific entities → load their full files
+                # This ensures "how does Acme compare to Beta" gets both entities'
+                # profiles, signals, product, and strategy files.
+                tracker_by_slug = {entity["slug"]: entity for entity in tracker_entities}
+                for entity_slug in matched_entities:
+                    entity_prefix = f"{prefix}/{entity_slug}/"
+                    entity_limit = max(
+                        len(tracker_by_slug.get(entity_slug, {}).get("files", [])),
+                        1,
+                    ) + 2
+                    try:
+                        entity_result = (
+                            client.table("workspace_files")
+                            .select("path, content, updated_at")
+                            .eq("user_id", user_id)
+                            .like("path", f"{entity_prefix}%")
+                            .order("updated_at", desc=True)
+                            .limit(entity_limit)
+                            .execute()
+                        )
+                        for row in (entity_result.data or []):
+                            content = (row.get("content") or "")[:max_content_per_file]
+                            updated = row.get("updated_at", "")[:10]
+                            rel_path = row.get("path", "").replace(prefix + "/", "")
+                            if content.strip():
+                                domain_parts.append(
+                                    f"### {rel_path} (matched, updated {updated})\n{content}"
+                                )
+                    except Exception:
+                        pass
+
+                # Also load a few recent non-matched entity profiles for breadth
+                # (the agent may discover cross-entity patterns)
+                remaining_budget = max(0, max_files_per_domain - len(domain_parts))
+                if remaining_budget > 0 and primary_entity_file:
+                    matched_set = set(matched_entities)
+                    try:
+                        broad_result = (
+                            client.table("workspace_files")
+                            .select("path, content, updated_at")
+                            .eq("user_id", user_id)
+                            .like("path", f"{prefix}/%/{primary_entity_file}")
+                            .order("updated_at", desc=True)
+                            .limit(remaining_budget + len(matched_entities))
+                            .execute()
+                        )
+                        for row in (broad_result.data or []):
+                            rel_path = row.get("path", "").replace(prefix + "/", "")
+                            entity = rel_path.split("/")[0] if "/" in rel_path else ""
+                            if entity in matched_set:
+                                continue  # Already loaded in full
+                            content = (row.get("content") or "")[:max_content_per_file]
+                            updated = row.get("updated_at", "")[:10]
+                            if content.strip():
+                                domain_parts.append(
+                                    f"### {rel_path} (updated {updated})\n{content}"
+                                )
+                                remaining_budget -= 1
+                                if remaining_budget <= 0:
+                                    break
+                    except Exception:
+                        pass
+
+            elif has_entities:
+                # GENERAL: No specific entity match → load the domain's primary
+                # entity summary file (summary-level, not full entity files).
+                # Agent can use ReadWorkspace
+                # to pull specific entity files during tool rounds if needed.
+                if primary_entity_file:
+                    try:
+                        profile_result = (
+                            client.table("workspace_files")
+                            .select("path, content, updated_at")
+                            .eq("user_id", user_id)
+                            .like("path", f"{prefix}/%/{primary_entity_file}")
+                            .order("updated_at", desc=True)
+                            .limit(max_files_per_domain)
+                            .execute()
+                        )
+                        for row in (profile_result.data or []):
+                            content = (row.get("content") or "")[:max_content_per_file]
+                            updated = row.get("updated_at", "")[:10]
+                            rel_path = row.get("path", "").replace(prefix + "/", "")
+                            if content.strip():
+                                domain_parts.append(
+                                    f"### {rel_path} (updated {updated})\n{content}"
+                                )
+                    except Exception:
+                        pass
+
+            else:
+                # NON-ENTITY domain (signals, etc.) — recency-ordered, unchanged
+                result = (
+                    client.table("workspace_files")
+                    .select("path, content, updated_at, tags")
+                    .eq("user_id", user_id)
+                    .like("path", f"{prefix}/%")
+                    .order("updated_at", desc=True)
+                    .limit(max_files_per_domain)
+                    .execute()
+                )
+                for row in (result.data or []):
+                    content = (row.get("content") or "")[:max_content_per_file]
+                    updated = row.get("updated_at", "")[:10]
+                    rel_path = row.get("path", "").replace(prefix + "/", "")
+                    if content.strip():
+                        domain_parts.append(
+                            f"### {rel_path} (updated {updated})\n{content}"
+                        )
 
             if domain_parts:
                 sections.append(
@@ -562,12 +819,13 @@ async def gather_task_context(
                         pass
 
     # 2. Accumulated context domains — PRIMARY CONTEXT (ADR-151/152)
+    # ADR-154 Phase 2: pass task_info for objective-driven entity selection
     context_domains_text = ""
     if task_info:
         context_reads = task_info.get("context_reads", [])
         if context_reads:
             context_domains_text = await _gather_context_domains(
-                client, user_id, context_reads,
+                client, user_id, context_reads, task_info=task_info,
             )
     if context_domains_text:
         sections.append(context_domains_text)
