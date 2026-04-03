@@ -7,6 +7,7 @@ EXECUTION DISCIPLINE REMINDERS (auto-injected via hook):
 5. QUALITY CHECKS — Double-check API routes match frontend calls. Verify column names, import paths, and backend/frontend field name alignment.
 6. RENDER PARITY — When changing env vars, check all 4 services (API, Unified Scheduler, Platform Sync, MCP Server).
 7. PROMPT CHANGES — If modifying TP prompts or primitives, update api/prompts/CHANGELOG.md.
+7b. PRIMITIVE RENAMES — When renaming or adding primitives, grep the OLD name across: api/agents/tp_prompts/, docs/architecture/, docs/adr/, docs/design/, docs/features/, CLAUDE.md, api/services/commands.py, api/services/agent_creation.py. All active docs must reference the new name IN THE SAME COMMIT.
 8. GIT — Commit and push when changes are complete. Conventional commit style with ADR refs where applicable.
 9. PROGRESS — Use TodoWrite for multi-step tasks. Share progress. Mark todos complete immediately.
 10. BEHAVIORAL ARTIFACTS — Hooks, prompts, registries, and data-handling configs are versioned artifacts. Before adding or relocating, audit existing placement for architectural fit. Maintain changelogs (like `api/prompts/CHANGELOG.md`) for all behavioral injections. New registries need clear ownership and documented location rationale.
