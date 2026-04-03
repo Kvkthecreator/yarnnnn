@@ -175,12 +175,18 @@ async def _upload_to_storage(file_bytes: bytes, storage_path: str, content_type:
 @app.get("/health")
 async def health():
     import shutil, subprocess as sp
-    node_v = sp.run(["node", "--version"], capture_output=True, text=True).stdout.strip() if shutil.which("node") else "not found"
-    npm_v = sp.run(["npm", "--version"], capture_output=True, text=True).stdout.strip() if shutil.which("npm") else "not found"
-    npm_prefix = sp.run(["npm", "config", "get", "prefix"], capture_output=True, text=True).stdout.strip() if shutil.which("npm") else "n/a"
+    # Check both 'node' and 'nodejs' (Debian uses 'nodejs')
+    node_cmd = shutil.which("node") or shutil.which("nodejs")
+    node_v = sp.run([node_cmd, "--version"], capture_output=True, text=True).stdout.strip() if node_cmd else "not found"
+    npm_cmd = shutil.which("npm")
+    npm_v = sp.run([npm_cmd, "--version"], capture_output=True, text=True).stdout.strip() if npm_cmd else "not found"
+    npm_prefix = sp.run([npm_cmd, "config", "get", "prefix"], capture_output=True, text=True).stdout.strip() if npm_cmd else "n/a"
     remotion_bin = shutil.which("remotion")
     npx_bin = shutil.which("npx")
     comp_nm = Path("skills/video/composition/node_modules").exists()
+    # Scan for remotion binary
+    remotion_search = sp.run("find /usr -name remotion -type f 2>/dev/null | head -5", shell=True, capture_output=True, text=True).stdout.strip()
+    comp_contents = sp.run("ls -la skills/video/composition/", shell=True, capture_output=True, text=True).stdout.strip()
     return {
         "status": "ok",
         "skills": list(SKILLS.keys()),
@@ -193,6 +199,8 @@ async def health():
         "remotion_bin": remotion_bin,
         "npx_bin": npx_bin,
         "composition_node_modules": comp_nm,
+        "remotion_find": remotion_search,
+        "composition_ls": comp_contents,
     }
 
 
