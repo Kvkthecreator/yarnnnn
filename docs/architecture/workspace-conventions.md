@@ -207,7 +207,7 @@ The meaning of `latest/` and `{date}/` folders varies by task mode:
 
 TP's understanding of the workspace comes from three layers. Full architecture documented in [TP-DESIGN-PRINCIPLES.md](TP-DESIGN-PRINCIPLES.md#awareness-architecture).
 
-**Layer 1: Ground truth** — `context_readiness` dict computed fresh at session start from actual workspace state. Identity/brand richness, task count, document count, domain health. Disposable — dies at session end.
+**Layer 1: Ground truth** — `workspace_state` dict computed fresh at session start from actual workspace state. Identity/brand richness, task count, document count, domain health. Disposable — dies at session end.
 
 **Layer 2: Workspace files** — IDENTITY.md (user facts), BRAND.md (output style), AWARENESS.md (TP's situational notes), notes.md (standing instructions), preferences.md (output preferences). Persistent, written by TP and system hooks. AWARENESS.md is TP-specific — its shift handoff for cross-session continuity.
 

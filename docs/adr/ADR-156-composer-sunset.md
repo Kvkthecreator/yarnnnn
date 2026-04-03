@@ -37,7 +37,7 @@ This is the same model Claude Code follows: all judgment happens in the conversa
 | Function | LLM? | Verdict |
 |----------|-------|---------|
 | `heartbeat_data_query()` — workspace health assessment | No (pure SQL) | Absorb into working memory |
-| `should_composer_act()` — 13 heuristic triggers | No (pure logic) | Delete (TP has context_readiness) |
+| `should_composer_act()` — 13 heuristic triggers | No (pure logic) | Delete (TP has workspace_state) |
 | `_llm_composer_assessment()` — "should I create an agent?" | Yes (Haiku) | **Delete** — judgment moves to TP |
 | `_execute_composer_decisions()` — autonomous agent creation | No (executes LLM decision) | **Delete** — TP creates via primitives |
 | `run_lifecycle_assessment()` — pause underperformers | No (deterministic) | Move to scheduler as zero-LLM rule |

@@ -101,11 +101,16 @@ def test_sparse_context_in_format():
         "system_summary": {},
         "system_reference": {"agent_roles": [], "connected_platforms": []},
         "user_shared_files": [],
-        "context_readiness": {
+        "workspace_state": {
             "identity": "sparse",
             "brand": "empty",
             "documents": 0,
-            "tasks": 0,
+            "tasks_active": 0,
+            "tasks_stale": 0,
+            "inference_state": "empty",
+            "context_domains": 0,
+            "credits_used": 0, "credits_limit": -1, "budget_exhausted": False,
+            "agents_flagged": [],
         },
     }
 
@@ -116,8 +121,8 @@ def test_sparse_context_in_format():
            "sparse" in formatted.lower() and "enrich" in formatted.lower())
     record("empty brand surfaces in prompt",
            "brand" in formatted.lower() and ("empty" in formatted.lower() or "none" in formatted.lower()))
-    record("context gaps section present",
-           "context gaps" in formatted.lower())
+    record("workspace state section present",
+           "workspace state" in formatted.lower())
 
 
 def test_sparse_vs_empty_differentiation():
@@ -130,12 +135,12 @@ def test_sparse_vs_empty_differentiation():
         "agents": [], "platforms": [], "recent_sessions": [],
         "system_summary": {}, "system_reference": {"agent_roles": [], "connected_platforms": []},
         "user_shared_files": [],
-        "context_readiness": {"identity": "empty", "brand": "empty", "documents": 0, "tasks": 0},
+        "workspace_state": {"identity": "empty", "brand": "empty", "documents": 0, "tasks_active": 0, "tasks_stale": 0, "inference_state": "empty", "context_domains": 0, "credits_used": 0, "credits_limit": -1, "budget_exhausted": False, "agents_flagged": []},
     }
 
     wm_sparse = dict(wm_empty)
     wm_sparse["identity"] = "Just a name"
-    wm_sparse["context_readiness"] = {"identity": "sparse", "brand": "empty", "documents": 0, "tasks": 0}
+    wm_sparse["workspace_state"] = {"identity": "sparse", "brand": "empty", "documents": 0, "tasks_active": 0, "tasks_stale": 0, "inference_state": "empty", "context_domains": 0, "credits_used": 0, "credits_limit": -1, "budget_exhausted": False, "agents_flagged": []}
 
     fmt_empty = format_for_prompt(wm_empty)
     fmt_sparse = format_for_prompt(wm_sparse)

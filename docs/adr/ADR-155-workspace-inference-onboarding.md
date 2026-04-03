@@ -18,7 +18,7 @@ Separately, the current onboarding flow (ADR-144) is conversational — TP nudge
 
 **Context page as onboarding surface**: After signup, the user lands on `/context` with the TP inference component front and center. Empty states on `/tasks` and activity surfaces during this phase. The user provides identity (text, URLs, docs) and watches their workspace build in real time — folders appearing, entity stubs populating, domain structure emerging.
 
-**Workspace maturity as routing signal**: The TP's `context_readiness` signal (identity: empty|sparse|rich) determines which surface is the "home" and what empty states show. Not a binary `is_onboarding` flag — graduated maturity.
+**Workspace maturity as routing signal**: The TP's `workspace_state` signal (identity: empty|sparse|rich) determines which surface is the "home" and what empty states show. Not a binary `is_onboarding` flag — graduated maturity.
 
 ## Architecture
 
@@ -265,7 +265,7 @@ These are refinements to Phase 1 quality, not new trigger infrastructure.
 |------|--------|
 | `api/services/primitives/update_context.py` | Trigger inference cascade on identity write |
 | `api/services/workspace_inference.py` | NEW — workspace-wide inference engine |
-| `api/services/working_memory.py` | Extended context_readiness (inference_state) |
+| `api/services/working_memory.py` | Extended workspace_state (inference_state) |
 | `api/agents/tp_prompts/onboarding.py` | Inference surfacing, maturity-aware guidance |
 | `web/lib/routes.ts` | Maturity-based home route |
 | `web/app/(authenticated)/context/page.tsx` | Setup phase layout, live scaffolding UI |

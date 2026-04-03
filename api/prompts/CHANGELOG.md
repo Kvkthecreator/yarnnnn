@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.11] - Unified workspace_state signal (replaces context_readiness + work_budget + agent_health)
+
+### Changed
+- `services/working_memory.py`: Three separate working memory keys (`context_readiness`, `work_budget`, `agent_health`) merged into single `workspace_state` dict. One signal for all TP awareness: identity/brand gaps, documents, tasks active/stale, budget, agent health flags.
+- `services/working_memory.py`: Added `_count_stale_tasks()` — detects tasks that haven't run in 2x their schedule. Surfaced as `tasks_stale` in workspace_state.
+- `services/working_memory.py`: `format_for_prompt()` — three separate rendering sections (Context gaps, Work budget, Agent health) replaced by single "Workspace state" section.
+- `agents/tp_prompts/onboarding.py`: Updated docstring to reference `workspace_state` instead of `context_readiness`.
+- Expected behavior: TP sees one "Workspace state" section listing all gaps, health issues, and budget in a single block. Same information, unified presentation. Stale task detection is new — TP can now surface "your market research hasn't run in 3 weeks."
+
+---
+
 ## [2026.04.03.10] - CreateAgent → ManageAgent + Import job frontend cleanup
 
 ### Changed

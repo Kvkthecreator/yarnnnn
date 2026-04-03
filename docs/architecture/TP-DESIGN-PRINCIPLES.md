@@ -11,7 +11,7 @@
 TP is the intelligence layer. It reads context, assesses state, and makes judgment calls. We provide clear context signals and priority guidance — NOT mechanical IF/THEN rules.
 
 **We give TP:**
-- Rich context (working memory, WORKSPACE.md, context_readiness, navigation state)
+- Rich context (working memory, WORKSPACE.md, workspace_state, navigation state)
 - Clear priorities (identity before brand before tasks)
 - Behavioral philosophy (one thing at a time, act then adjust, don't overwhelm)
 - Tools to act (UpdateContext, CreateTask, ManageTask, etc.)
@@ -31,7 +31,7 @@ TP is the intelligence layer. It reads context, assesses state, and makes judgme
 ### 1. Context Manager
 TP manages what's in the workspace filesystem. Every primitive is a filesystem write with judgment about what to write and where.
 
-- Reads: working memory, WORKSPACE.md, context_readiness, navigation context
+- Reads: working memory, WORKSPACE.md, workspace_state, navigation context
 - Writes: UpdateContext (identity/brand/memory/agent/task), CreateTask, ManageTask, ManageDomains
 - Routes feedback to the right scope (workspace / agent / task)
 - Scaffolds context domains: after processing identity, TP reasons about what entities should exist and calls ManageDomains to pre-populate (ADR-155). No separate inference service — TP IS the inference layer.
@@ -48,7 +48,7 @@ TP guides users through workspace setup and ongoing use. It sees what's missing,
 
 - Priority: identity → brand → tasks (but JUDGMENT, not gating)
 - Philosophy: one suggestion at a time, don't nag, act on clear intent
-- Awareness: context_readiness signals, navigation state ("viewing" what)
+- Awareness: workspace_state signals, navigation state ("viewing" what)
 
 ---
 
@@ -56,7 +56,7 @@ TP guides users through workspace setup and ongoing use. It sees what's missing,
 
 **Cold start is a conversation, not a wizard.**
 
-TP reads the workspace state (context_readiness) and uses judgment to guide the user. It doesn't force a sequence. It suggests what would be most valuable RIGHT NOW.
+TP reads the workspace state (workspace_state) and uses judgment to guide the user. It doesn't force a sequence. It suggests what would be most valuable RIGHT NOW.
 
 - Empty workspace + no context: "Tell me about yourself and your work" (ContextSetup component on `/context`)
 - User provides identity: TP processes → UpdateContext → ManageDomains (pre-populates all domains with entity stubs)
@@ -114,15 +114,15 @@ Computed at session start by `build_working_memory()`. Dies at session end. Neve
 
 | Signal | Source | What TP sees |
 |--------|--------|-------------|
-| `context_readiness.identity` | `_classify_richness(IDENTITY.md)` | `empty \| sparse \| rich` |
-| `context_readiness.brand` | `_classify_richness(BRAND.md)` | `empty \| sparse \| rich` |
-| `context_readiness.documents` | `filesystem_documents` count | integer |
-| `context_readiness.tasks` | `tasks` count (non-archived) | integer |
-| `context_readiness.context_domains` | count of domains with >0 files | integer |
+| `workspace_state.identity` | `_classify_richness(IDENTITY.md)` | `empty \| sparse \| rich` |
+| `workspace_state.brand` | `_classify_richness(BRAND.md)` | `empty \| sparse \| rich` |
+| `workspace_state.documents` | `filesystem_documents` count | integer |
+| `workspace_state.tasks` | `tasks` count (non-archived) | integer |
+| `workspace_state.context_domains` | count of domains with >0 files | integer |
 | `active_tasks` | `tasks` table query (top 10) | slug, mode, status, schedule, last/next run |
 | `context_domains` | per-domain file count + freshness | domain, file_count, latest_update, health |
 
-`context_readiness` renders into the prompt as "Context gaps." `active_tasks` and `context_domains` are computed but not yet rendered (infrastructure ready).
+`workspace_state` renders into the prompt as "Context gaps." `active_tasks` and `context_domains` are computed but not yet rendered (infrastructure ready).
 
 **Purpose:** Ground truth prevents staleness. TP validates its own understanding against these signals every session.
 

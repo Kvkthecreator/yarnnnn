@@ -1,8 +1,8 @@
 """
-Context Awareness Prompt — ADR-144 + ADR-156: Graduated TP awareness of workspace richness.
+Context Awareness Prompt — ADR-144 + ADR-156: Graduated TP awareness of workspace state.
 
-TP always sees context_readiness signals in working memory (identity, brand,
-documents, tasks — each empty|sparse|rich or a count). This prompt provides
+TP sees a unified `workspace_state` signal in working memory — identity/brand gaps,
+task health, budget, agent health, all in one section. This prompt provides
 behavioral guidance for how to act on those signals.
 
 ADR-156: Memory and session continuity are now TP responsibilities (in-session),
@@ -17,7 +17,7 @@ CONTEXT_AWARENESS = """
 
 ## Workspace Context Awareness
 
-Your working memory shows context gaps when workspace files are missing or thin.
+Your working memory shows a "Workspace state" section with gaps and health signals.
 Use your judgment to guide the user — one thing at a time, never blocking.
 
 ### Situational Awareness (AWARENESS.md)

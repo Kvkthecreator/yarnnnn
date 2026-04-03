@@ -16,14 +16,12 @@ What goes in the prompt (~3,000 tokens, + ~500 for agent scope):
   - Awareness: AWARENESS.md — TP's persistent situational notes (shift handoff)
   - Active tasks (max 10): slug, mode, status, schedule, last/next run ← ADR-149
   - Context domains: per-domain file count + freshness + health ← ADR-151
-  - Context readiness: identity/brand/docs/tasks/domains richness ← ADR-144/151
-  - Preferences: tone_*, verbosity_*, preference:*
+  - Workspace state: unified signal — identity/brand gaps, tasks stale, budget, agent health ← ADR-156
+  - Preferences: tone_*, verbosity_*
   - What you've told me: fact:*, instruction:*
   - Active agents (max 5)
-  - Connected platforms + sync freshness (structured, not just strings) ← ADR-072
-  - System summary: last signal pass, pending reviews, failed jobs ← ADR-072
-  - Work budget: credits used/limit/exhausted ← ADR-156
-  - Agent health: flagged agents with low approval rates ← ADR-156
+  - Connected platforms + sync freshness ← ADR-072
+  - System summary: pending reviews ← ADR-072
   - Scoped agent: instructions + memory (if session is agent-scoped) ← ADR-087
 
 TP can invoke GetSystemState primitive for detailed operational state.
@@ -120,8 +118,10 @@ async def build_working_memory(
         asyncio.to_thread(_get_agent_health_sync, user_id, _make_client()),
     )
 
+    # Compute stale tasks (hasn't run in 2x its schedule)
+    tasks_stale = _count_stale_tasks(active_tasks)
+
     working_memory = {
-        # ADR-156: "profile" extraction removed — IDENTITY.md is rendered directly
         "preferences": _extract_preferences_from_file(memory_files.get("style.md")),
         "known": _extract_known_from_file(memory_files.get("notes.md")),
         "identity": identity_content,
@@ -134,20 +134,27 @@ async def build_working_memory(
         "system_summary": system_summary,
         "system_reference": _build_system_reference(platforms),
         "user_shared_files": user_shared_files,
-        # ADR-149/151: Active tasks + context domain health for TP meta-awareness
+        # ADR-149/151: Active tasks + context domain health
         "active_tasks": active_tasks,
         "context_domains": context_domains,
-        # ADR-156: Work budget + agent health (replaces Composer awareness)
-        "work_budget": work_budget,
-        "agent_health": agent_health,
-        # ADR-144/155: Context readiness signal for TP graduated awareness
-        "context_readiness": {
+        # ADR-156: Unified workspace state — single signal for TP awareness
+        "workspace_state": {
+            # Identity
             "identity": _classify_richness(identity_content),
             "brand": _classify_richness(brand_content),
-            "documents": doc_count,
-            "tasks": task_count,
-            "context_domains": len([d for d in context_domains if d.get("file_count", 0) > 0]) if context_domains else 0,
             "inference_state": _get_inference_state(context_domains),
+            # Content
+            "documents": doc_count,
+            "context_domains": len([d for d in context_domains if d.get("file_count", 0) > 0]) if context_domains else 0,
+            # Work
+            "tasks_active": task_count,
+            "tasks_stale": tasks_stale,
+            # Budget
+            "credits_used": work_budget.get("used", 0),
+            "credits_limit": work_budget.get("limit", -1),
+            "budget_exhausted": work_budget.get("exhausted", False),
+            # Health (only flagged agents)
+            "agents_flagged": agent_health,
         },
     }
 
@@ -175,6 +182,32 @@ def _get_workspace_file_sync(user_id: str, filename: str, client: Any) -> Option
     except Exception:
         pass
     return None
+
+
+def _count_stale_tasks(active_tasks: list[dict]) -> int:
+    """Count tasks that haven't run in 2x their expected schedule. ADR-156."""
+    from datetime import datetime, timezone, timedelta
+
+    SCHEDULE_DAYS = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 30}
+    now = datetime.now(timezone.utc)
+    stale = 0
+    for task in active_tasks:
+        if task.get("status") != "active":
+            continue
+        schedule = task.get("schedule", "")
+        last_run = task.get("last_run")
+        if not last_run or not schedule:
+            continue
+        expected_days = SCHEDULE_DAYS.get(schedule)
+        if not expected_days:
+            continue
+        try:
+            last_dt = datetime.fromisoformat(last_run.replace(" ", "T") + ":00+00:00")
+            if (now - last_dt) > timedelta(days=expected_days * 2):
+                stale += 1
+        except (ValueError, TypeError):
+            continue
+    return stale
 
 
 def _classify_richness(content: Optional[str]) -> str:
@@ -848,28 +881,52 @@ def format_for_prompt(working_memory: dict) -> str:
             freshness = f", updated {latest}" if latest else ""
             lines.append(f"- **{d['domain']}**: {health} ({count} files{freshness})")
 
-    # Context readiness (ADR-144: computed ground truth signals)
-    readiness = working_memory.get("context_readiness", {})
-    if readiness:
-        gap_lines = []
-        for item, val in readiness.items():
-            if val == "empty" or val == 0:
-                if item == "identity":
-                    gap_lines.append("- **Identity**: empty — ask user about themselves and their work")
-                elif item == "brand":
-                    gap_lines.append("- **Brand**: empty — suggest sharing website or communication style")
-                elif item == "documents":
-                    gap_lines.append("- **Documents**: none — suggest uploading key files (decks, guides, reports)")
-                elif item == "tasks":
-                    gap_lines.append("- **Tasks**: none — suggest deliverables from catalog once identity is meaningful")
-            elif val == "sparse":
-                if item == "identity":
-                    gap_lines.append("- **Identity**: sparse — enrich before suggesting tasks (need role + domain + industry)")
-                elif item == "brand":
-                    gap_lines.append("- **Brand**: sparse — could be enriched from website or brand materials")
-        if gap_lines:
-            lines.append("\n### Context gaps")
-            lines.extend(gap_lines)
+    # ADR-156: Unified workspace state — single awareness section for TP
+    ws = working_memory.get("workspace_state", {})
+    if ws:
+        state_lines = []
+
+        # Identity gaps
+        identity = ws.get("identity", "empty")
+        brand = ws.get("brand", "empty")
+        if identity == "empty":
+            state_lines.append("- **Identity**: empty — ask user about themselves and their work")
+        elif identity == "sparse":
+            state_lines.append("- **Identity**: sparse — enrich before suggesting tasks (need role + domain + industry)")
+        if brand == "empty":
+            state_lines.append("- **Brand**: empty — suggest sharing website or communication style")
+        elif brand == "sparse":
+            state_lines.append("- **Brand**: sparse — could be enriched from website or brand materials")
+
+        # Content gaps
+        if ws.get("documents", 0) == 0:
+            state_lines.append("- **Documents**: none — suggest uploading key files (decks, guides, reports)")
+        if ws.get("tasks_active", 0) == 0:
+            state_lines.append("- **Tasks**: none — suggest deliverables from catalog once identity is meaningful")
+
+        # Work health
+        stale = ws.get("tasks_stale", 0)
+        if stale > 0:
+            state_lines.append(f"- **Stale tasks**: {stale} task{'s' if stale != 1 else ''} overdue for execution")
+
+        # Budget
+        budget_limit = ws.get("credits_limit", -1)
+        if budget_limit != -1:
+            used = ws.get("credits_used", 0)
+            if ws.get("budget_exhausted"):
+                state_lines.append(f"- **Budget**: EXHAUSTED ({used}/{budget_limit} credits)")
+            elif used > 0:
+                state_lines.append(f"- **Budget**: {used}/{budget_limit} credits used")
+
+        # Agent health
+        flagged = ws.get("agents_flagged", [])
+        for ah in flagged:
+            pct = f"{ah['approval_rate']:.0%}"
+            state_lines.append(f"- **{ah['title']}**: {pct} approval over {ah['run_count']} runs ({ah['flag']})")
+
+        if state_lines:
+            lines.append("\n### Workspace state")
+            lines.extend(state_lines)
 
     # Orchestration playbook (ADR-143)
     playbook = working_memory.get("orchestration_playbook")
@@ -1048,24 +1105,5 @@ def format_for_prompt(working_memory: dict) -> str:
         failed = system_summary.get("failed_jobs_24h", 0)
         if failed > 0:
             lines.append(f"- Failed jobs (24h): {failed}")
-
-    # ADR-156: Work budget status
-    work_budget = working_memory.get("work_budget", {})
-    budget_limit = work_budget.get("limit", -1)
-    if budget_limit != -1:
-        used = work_budget.get("used", 0)
-        exhausted = work_budget.get("exhausted", False)
-        if exhausted:
-            lines.append(f"\n### Work budget: EXHAUSTED ({used}/{budget_limit} credits used)")
-        elif used > 0:
-            lines.append(f"\n### Work budget: {used}/{budget_limit} credits used")
-
-    # ADR-156: Agent health flags (only flagged agents shown)
-    agent_health = working_memory.get("agent_health", [])
-    if agent_health:
-        lines.append(f"\n### Agent health concerns")
-        for ah in agent_health:
-            pct = f"{ah['approval_rate']:.0%}"
-            lines.append(f"- {ah['title']}: {pct} approval over {ah['run_count']} runs ({ah['flag']})")
 
     return "\n".join(lines)
