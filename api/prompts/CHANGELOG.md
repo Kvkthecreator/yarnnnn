@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.4] - ADR-157 Phase 2: Visual asset guidance in prompts
+
+### Changed
+- `agents/tp_prompts/onboarding.py`: ScaffoldDomains example updated with `url` field. Added guidance: "Include url when you know the entity's website — system auto-fetches favicon."
+- `services/task_types.py` v4.1: Three step instruction updates:
+  - `update-context`: Added VISUAL ASSETS section — capture entity URLs in source metadata, fetch favicon via RuntimeDispatch for new entities.
+  - `update-context:bootstrap`: Added step 4 — fetch favicon for company/product entities with known websites. Source comment convention: `<!-- source: researched | date: YYYY-MM-DD | url: example.com -->`.
+  - `derive-output`: Added VISUAL ASSETS section — embed entity favicons from context using `<img src="{content_url}">` in HTML output.
+- Expected behavior: Context tasks capture entity URLs and fetch favicons during research. Synthesis tasks embed stored favicons in HTML reports for visual richness. TP includes `url` when scaffolding company entities.
+
+---
+
 ## [2026.04.03.3] - ADR-156 Phase 2: Memory and session dissolution
 
 ### Removed

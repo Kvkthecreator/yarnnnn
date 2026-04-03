@@ -102,10 +102,15 @@ Only scaffold entities you have reasonable evidence for. Each entity gets stub f
 with known facts + [Needs research] markers. This gives their research tasks a warm
 start instead of discovering everything from scratch.
 
+**Include `url` when you know the entity's website** — the system automatically fetches
+their favicon and stores it in the workspace. This gives synthesis tasks visual assets
+to embed in reports. Any domain works (e.g., "cursor.com", "anthropic.com").
+
 Example after learning about a dev tools startup:
 ```
 ScaffoldDomains(entities=[
-  {"domain": "competitors", "slug": "cursor", "name": "Cursor", "facts": ["AI code editor"]},
+  {"domain": "competitors", "slug": "cursor", "name": "Cursor", "url": "cursor.com", "facts": ["AI code editor"]},
+  {"domain": "competitors", "slug": "copilot", "name": "GitHub Copilot", "url": "github.com", "facts": ["Microsoft/OpenAI"]},
   {"domain": "market", "slug": "ai-coding", "name": "AI Coding Tools", "facts": ["Fast-growing segment"]},
 ])
 ```

@@ -1,6 +1,6 @@
 # ADR-157: Fetch-Asset Skill — External Asset Acquisition for Context Substrate
 
-**Status:** Proposed
+**Status:** Phase 1-2 Implemented
 **Date:** 2026-04-03
 **Supersedes:** None
 **Extends:** ADR-118 (Skills as Capability Layer), ADR-151 (Shared Context Domains), ADR-152 (Unified Directory Registry), ADR-155 (Workspace Inference & Onboarding)

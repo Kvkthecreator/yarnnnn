@@ -21,12 +21,13 @@ Mode + Bootstrap (ADR-154):
   task transitions from aggressive bootstrapping to steady-state cadence.
   Phase (bootstrap/steady/complete) is derived by the pipeline at runtime.
 
-Version: 4.0 (2026-04-01)
+Version: 4.1 (2026-04-03)
 Changelog:
   v1.0 — 13 product-named types (ADR-145)
   v2.0 — context_reads/writes, output_category, STEP_INSTRUCTIONS templates (ADR-152)
   v3.0 — Atomic split: 7 context + 8 synthesis types. Task-first, user-friendly naming.
   v4.0 — ADR-154: default_mode + bootstrap criteria on all task types. Phase-aware execution.
+  v4.1 — ADR-157: Visual asset guidance in step instructions (favicon fetch + embed).
 
 Canonical docs:
   - docs/architecture/registry-matrix.md
@@ -61,6 +62,13 @@ STEP_INSTRUCTIONS = {
         "UPDATE entity files with new findings — add dated entries to signal sections, "
         "update assessments if your view has changed. "
         "Update synthesis files with cross-entity pattern changes.\n\n"
+        "VISUAL ASSETS: For entity profiles (especially companies/products), include the "
+        "entity's website domain in the source metadata comment: "
+        "<!-- source: researched | date: YYYY-MM-DD | url: example.com -->. "
+        "If a new entity has a known website and no favicon.png exists yet, fetch one: "
+        "RuntimeDispatch(type='fetch-asset', input={url: 'example.com', asset_type: 'favicon', "
+        "size: 128, workspace_path: '<context-domain-path>/<entity-slug>/favicon.png'}, "
+        "output_format='png'). This enriches the context for downstream synthesis.\n\n"
         "Append to the cross-domain signal log with dated entries for this cycle.\n\n"
         "Your output for this step: a CHANGELOG of what you added, updated, or discovered."
     ),
@@ -76,8 +84,13 @@ STEP_INSTRUCTIONS = {
         "   - domain=<your assigned domain>\n"
         "   - path='<entity-slug>/profile.md' (e.g., 'openai/profile.md')\n"
         "   - content: substantive profile with real findings, not placeholder headers\n"
+        "   - Include the entity's website in the source comment: "
+        "<!-- source: researched | date: YYYY-MM-DD | url: openai.com -->\n"
         "3. Create at least 3 entity profiles. Each must have real content.\n"
-        "4. After entities are created, update the synthesis file (_landscape.md) with an overview.\n\n"
+        "4. For company/product entities with a known website, fetch their favicon:\n"
+        "   RuntimeDispatch(type='fetch-asset', input={url: 'openai.com', asset_type: 'favicon', "
+        "size: 128, workspace_path: '<domain>/<entity-slug>/favicon.png'}, output_format='png')\n"
+        "5. After entities are created, update the synthesis file (_landscape.md) with an overview.\n\n"
         "EXAMPLE WriteWorkspace call:\n"
         "  WriteWorkspace(path='openai/profile.md', content='# OpenAI\\n\\n## Overview\\nOpenAI is...', "
         "scope='context', domain='competitors')\n\n"
@@ -91,6 +104,11 @@ STEP_INSTRUCTIONS = {
         "This is a DERIVATIVE of accumulated context — emphasize what CHANGED "
         "since last cycle. The reader has seen prior outputs; lead with what's new. "
         "Reference persistent assets from context domains where they exist.\n\n"
+        "VISUAL ASSETS: Entity profiles may include favicon.png files (with content_url). "
+        "When referencing companies or products in your output, embed their favicon using "
+        "the stored URL: <img src=\"{content_url}\" width=\"24\" height=\"24\" alt=\"{name}\">. "
+        "This makes reports visually rich. Only use favicons that exist in the context — "
+        "don't generate favicon URLs yourself.\n\n"
         "Structure: What's New → What Changed → What It Means → Standing Context (brief)."
     ),
 
