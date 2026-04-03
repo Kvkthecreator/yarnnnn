@@ -182,7 +182,7 @@ export function ChatPanel({
       </div>
 
       {/* Input */}
-      <div className="px-3 pb-3 pt-1 border-t border-border shrink-0">
+      <div className="relative px-3 pb-3 pt-1 border-t border-border shrink-0">
         {showCommandPicker && (
           <CommandPicker query={commandQuery ?? ''} onSelect={(cmd) => { setInput(cmd + ' '); setCommandPickerOpen(false); textareaRef.current?.focus(); }} onClose={() => setCommandPickerOpen(false)} isOpen={commandPickerOpen} />
         )}
