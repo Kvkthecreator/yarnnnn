@@ -83,8 +83,8 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 | **Operations** | domain-steward | projects/ | read_platforms, chart |
 | **Marketing & Creative** | domain-steward | content/ | web_search, chart, image, video_render, compose_html |
 | **Executive Reporting** | synthesizer | (cross-domain) | compose_html, chart |
-| **Slack Bot** | platform-bot | signals/ (Slack) | read_platforms, write_slack |
-| **Notion Bot** | platform-bot | signals/ (Notion) | read_platforms, write_notion |
+| **Slack Bot** | platform-bot | platform-scoped observer | read_platforms, write_slack |
+| **Notion Bot** | platform-bot | platform-scoped observer | read_platforms, write_notion |
 
 **Key principle:** Each domain-steward agent owns one context domain. The synthesizer (Executive) reads all domains. Templates are bootstrapping — AGENT.md is the runtime source of truth.
 
@@ -101,7 +101,7 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 
 ### Running a Context Task (Example: Track Competitors)
 1. Scheduler triggers (next_run_at <= now)
-2. Research Agent gathers fresh intelligence (web search, platform content)
+2. Research Agent gathers fresh intelligence (workspace context, web search, task-scoped source reads)
 3. Agent writes findings to `/workspace/context/competitors/` (entity files, analysis)
 4. Agent appends signal to `/workspace/context/signals/`
 5. No output produced — context accumulates silently

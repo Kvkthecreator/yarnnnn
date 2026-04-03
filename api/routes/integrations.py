@@ -177,11 +177,12 @@ class NotionPagesListResponse(BaseModel):
 
 
 # =============================================================================
-# Import Job Models
+# Legacy Import Compatibility Models
+# Retained only so deprecated endpoints and response shapes stay stable.
 # =============================================================================
 
 class ImportConfigRequest(BaseModel):
-    """Configuration options for import jobs."""
+    """Legacy configuration shape for deprecated import endpoints."""
     learn_style: bool = False  # Extract communication style from content
     style_user_id: Optional[str] = None  # For Slack: filter to specific user's messages
 
@@ -196,7 +197,7 @@ class ImportScopeRequest(BaseModel):
 
 
 class StartImportRequest(BaseModel):
-    """Request to start a context import job."""
+    """Legacy request shape for deprecated context import endpoint."""
     resource_id: str  # channel_id or page_id
     resource_name: Optional[str] = None  # #channel-name or Page Title
     project_id: Optional[str] = None  # Optional project to associate
@@ -255,7 +256,7 @@ def _parse_progress_details(progress_dict: Optional[dict]) -> Optional[ImportJob
 
 
 class ImportJobResponse(BaseModel):
-    """Status of an import job."""
+    """Legacy status shape for deprecated import jobs."""
     id: str
     provider: str
     resource_id: str
@@ -271,7 +272,7 @@ class ImportJobResponse(BaseModel):
 
 
 class ImportJobsListResponse(BaseModel):
-    """List of import jobs."""
+    """Legacy list shape for deprecated import jobs."""
     jobs: list[ImportJobResponse]
 
 
@@ -292,7 +293,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
             "id, platform, status, metadata, created_at"
         ).eq("user_id", user_id).execute()
 
-        # Derive last_used_at from sync_registry (source of truth)
+        # Derive last_used_at from resource bookkeeping in sync_registry
         registry_result = auth.client.table("sync_registry").select(
             "platform, last_synced_at"
         ).eq("user_id", user_id).execute()
@@ -559,7 +560,7 @@ async def get_integration(
         metadata = row.get("metadata", {}) or {}
         platform = row["platform"]
 
-        # Derive last_used_at from sync_registry (source of truth)
+        # Derive last_used_at from resource bookkeeping in sync_registry
         from services.freshness import get_platform_freshness_from_registry
         last_synced = await get_platform_freshness_from_registry(
             auth.client, user_id, platform
@@ -1961,10 +1962,9 @@ async def get_platform_sync_status(
     auth: UserClient,
 ) -> dict[str, Any]:
     """
-    Get sync status for a platform.
+    Get resource coverage / freshness status for a platform.
 
-    ADR-049: Context Freshness Model
-    Returns freshness information for each synced resource.
+    Returns timestamp/error information for each tracked resource.
     """
     from datetime import timezone
 

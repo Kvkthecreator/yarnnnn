@@ -1,5 +1,5 @@
 """
-Activity Log — ADR-063: Four-Layer Model + ADR-072: System State Awareness + ADR-129: Two-Tier Scoping
+Activity Log — ADR-063 Four-Layer Model + ADR-129 Two-Tier Scoping
 
 Append-only system provenance log. Records what YARNNN has done across all pipelines.
 
@@ -10,19 +10,17 @@ Scoping: Two-tier (ADR-129) — workspace-level macro + project-level micro via 
 Write points (all non-fatal — callers continue regardless of log failure):
   - agent_execution.py: 'agent_run' after version created
   - routes/agents.py: 'agent_approved' / 'agent_rejected' on version status change
-  - platform_worker.py: 'platform_synced' after sync batch completes
   - routes/integrations.py: 'integration_connected' / 'integration_disconnected' on OAuth lifecycle
   - TP memory tools: 'memory_written' after user_memory upsert
   - chat.py: 'chat_session' when session ends
-  - unified_scheduler.py: 'scheduler_heartbeat' on each execution cycle (ADR-072)
-  - unified_scheduler.py: 'content_cleanup' after expired content deletion
-  - unified_scheduler.py: 'session_summary_written' after session summary generation
+  - unified_scheduler.py: 'scheduler_heartbeat' on hourly heartbeat writes
+  - unified_scheduler.py: 'content_cleanup' kept for legacy cleanup history
   - task_pipeline.py: 'task_executed' after task execution (ADR-141)
 
 Read points:
   - working_memory.py: get_recent_activity() → injected as "Recent activity" block
     in TP system prompt (~300 tokens, last 10 events, 7-day window)
-  - system_state.py: Aggregates operational state for TP GetSystemState primitive (ADR-072)
+  - system_state.py: Aggregates operational state for TP GetSystemState primitive
 """
 
 import logging
@@ -59,19 +57,19 @@ VALID_EVENT_TYPES = frozenset({
     "agent_approved",
     "agent_rejected",
     "agent_bootstrapped",           # ADR-110/140: Auto-created or scaffolded agent
-    "agent_scheduled",              # Composer lifecycle action
+    "agent_scheduled",              # Lifecycle hygiene action
     # Platform & sync
-    "platform_synced",
+    "platform_synced",              # Legacy — kept for historical events
     "integration_connected",
     "integration_disconnected",
     "content_cleanup",              # Legacy — kept for historical events
     # Sessions & memory
     "chat_session",
     "memory_written",
-    "session_summary_written",      # Session compaction summaries generated
+    "session_summary_written",      # Legacy / compatibility event
     # System
     "scheduler_heartbeat",          # ADR-072: Scheduler execution cycle
-    "composer_heartbeat",           # ADR-111: TP Composer periodic assessment
+    "composer_heartbeat",           # Legacy — kept for historical events
 })
 
 

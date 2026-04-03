@@ -1,14 +1,14 @@
 """
-Working Memory Builder - ADR-063: Four-Layer Model + ADR-072: System State Awareness
+Working Memory Builder - ADR-063 Four-Layer Model
 
 Builds the working memory injected into the TP system prompt at session start.
 Analogous to Claude Code reading CLAUDE.md — TP reads what's explicitly stated,
 nothing inferred by background jobs.
 
-Sources (Memory + Activity layers only):
+Sources:
   /memory/ files — MEMORY.md, style.md, notes.md (ADR-108, replaces user_memory table)
-  activity_log   — recent system events: agent runs, syncs, memory writes (Activity)
-  filesystem_*   — raw synced platform content (searched on demand, not in prompt)
+  activity_log   — recent system events: task runs, integrations, scheduler heartbeat
+  workspace_files — identity, brand, awareness, context domain health
 
 What goes in the prompt (~3,000 tokens, + ~500 for agent scope):
   - Identity: IDENTITY.md content (name, role, company, work context) ← ADR-144/156
@@ -20,8 +20,8 @@ What goes in the prompt (~3,000 tokens, + ~500 for agent scope):
   - Preferences: tone_*, verbosity_*
   - What you've told me: fact:*, instruction:*
   - Active agents (max 5)
-  - Connected platforms + sync freshness ← ADR-072
-  - System summary: pending reviews ← ADR-072
+  - Connected platforms + selected-source state
+  - System summary: pending reviews / failed jobs
   - Scoped agent: instructions + memory (if session is agent-scoped) ← ADR-087
 
 TP can invoke GetSystemState primitive for detailed operational state.
@@ -538,9 +538,7 @@ def _get_active_agents_sync(user_id: str, client: Any) -> list:
 
 
 def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
-    """Fetch connected platform summary (sync, for thread pool).
-    Derives freshness from sync_registry (per-resource truth).
-    """
+    """Fetch connected platform summary (sync, for thread pool)."""
     from services.freshness import calculate_freshness
 
     platforms = []
@@ -548,7 +546,7 @@ def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
     try:
         # Get connections for status
         conn_result = client.table("platform_connections").select(
-            "platform, status"
+            "platform, status, landscape"
         ).eq("user_id", user_id).order("platform").limit(MAX_PLATFORMS).execute()
 
         if not conn_result.data:
@@ -573,12 +571,15 @@ def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
             platform_name = p.get("platform", "unknown")
             status = p.get("status", "unknown")
             last_synced = max_synced.get(platform_name)
+            landscape = p.get("landscape", {}) or {}
+            selected_sources = landscape.get("selected_sources", []) or []
 
             platforms.append({
                 "platform": platform_name,
                 "status": status,
-                "last_synced": last_synced,
+                "last_activity_at": last_synced,
                 "freshness": calculate_freshness(last_synced, now),
+                "selected_sources_count": len(selected_sources),
             })
 
     except Exception as e:
@@ -644,64 +645,14 @@ def _get_user_shared_files_sync(user_id: str, client: Any) -> list[dict]:
 
 
 def _get_system_summary_sync(user_id: str, client: Any) -> dict:
-    """Build structured system summary (sync, for thread pool). ADR-072."""
-    now = datetime.now(timezone.utc)
+    """Build structured system summary (sync, for thread pool)."""
     summary: dict[str, Any] = {
-        "platform_sync_freshness": [],
         "pending_reviews_count": 0,
         "failed_jobs_24h": 0,
     }
 
     try:
-        # 1. Per-platform sync freshness (from sync_registry — single source of truth)
-        from services.freshness import calculate_freshness
-
-        # Connections for status only
-        conn_result = (
-            client.table("platform_connections")
-            .select("platform, status")
-            .eq("user_id", user_id)
-            .execute()
-        )
-
-        # sync_registry for freshness + resource counts (single query)
-        registry_result = (
-            client.table("sync_registry")
-            .select("platform, last_synced_at")
-            .eq("user_id", user_id)
-            .execute()
-        )
-
-        # Build max last_synced_at and resource count per platform
-        max_synced: dict[str, str] = {}
-        resource_counts: dict[str, int] = {}
-        for row in (registry_result.data or []):
-            p = row.get("platform", "")
-            ts = row.get("last_synced_at")
-            resource_counts[p] = resource_counts.get(p, 0) + 1
-            if ts and (p not in max_synced or ts > max_synced[p]):
-                max_synced[p] = ts
-
-        platform_freshness = []
-        for p in (conn_result.data or []):
-            platform = p.get("platform", "unknown")
-            status = p.get("status", "unknown")
-            last_synced = max_synced.get(platform)
-
-            platform_freshness.append({
-                "platform": platform,
-                "status": status,
-                "freshness": calculate_freshness(last_synced, now),
-                "resources_synced": resource_counts.get(platform, 0),
-            })
-
-        summary["platform_sync_freshness"] = platform_freshness
-
-    except Exception as e:
-        logger.warning(f"[WORKING_MEMORY] Failed to fetch platform sync freshness: {e}")
-
-    try:
-        # 3. Pending reviews (agent versions with status=draft)
+        # Pending reviews (agent versions with status=draft)
         # Use a direct query approach that works with the schema
         pending_result = (
             client.table("agent_runs")
@@ -979,8 +930,12 @@ def format_for_prompt(working_memory: dict) -> str:
         for p in platforms:
             status = p.get("status", "unknown")
             freshness = p.get("freshness", "unknown")
+            selected = p.get("selected_sources_count", 0)
             if status == "active":
-                lines.append(f"- {p.get('platform')}: {freshness}")
+                lines.append(
+                    f"- {p.get('platform')}: {selected} selected source"
+                    f"{'s' if selected != 1 else ''}, {freshness}"
+                )
             else:
                 lines.append(f"- {p.get('platform')}: {status}")
 
@@ -1065,24 +1020,10 @@ def format_for_prompt(working_memory: dict) -> str:
                 caps = ", ".join(r.get("capabilities", [])[:4])
                 lines.append(f"- `{r['role']}`: {r.get('description', '')[:80]}")
 
-    # System Summary (ADR-072) — structured operational state
+    # System Summary — structured operational state
     system_summary = working_memory.get("system_summary", {})
     if system_summary:
         lines.append(f"\n### System status")
-
-        # Platform sync freshness
-        platform_freshness = system_summary.get("platform_sync_freshness", [])
-        if platform_freshness:
-            for p in platform_freshness:
-                platform = p.get("platform", "unknown")
-                status = p.get("status", "unknown")
-                freshness = p.get("freshness", "unknown")
-                resources = p.get("resources_synced", 0)
-
-                if status == "active":
-                    lines.append(f"- {platform}: {freshness} ({resources} resource{'s' if resources != 1 else ''})")
-                else:
-                    lines.append(f"- {platform}: {status}")
 
         # Pending reviews
         pending = system_summary.get("pending_reviews_count", 0)

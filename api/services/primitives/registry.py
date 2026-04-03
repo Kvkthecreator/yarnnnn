@@ -183,6 +183,11 @@ CHAT_PRIMITIVES = [
 ]  # 15 tools — at P5 budget
 
 # Headless mode: background agent execution.
+# NOTE (2026-04-03 cleanup): generic `platform_*` tools are intentionally NOT
+# exposed here yet. Agent/task metadata still carries platform-related concepts
+# (`read_platforms`, `context_sources=["platforms"]`) because the product
+# taxonomy still recognizes platform-scoped work, but the concrete headless
+# runtime contract is unresolved and should not be inferred from this registry.
 HEADLESS_PRIMITIVES = [
     # Discovery (4)
     READ_TOOL,

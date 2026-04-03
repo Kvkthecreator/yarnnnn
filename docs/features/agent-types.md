@@ -4,7 +4,11 @@
 **Date:** 2026-03-31 (updated: v4 domain-steward model)
 **Related:** [Registry Matrix](../architecture/registry-matrix.md), [ADR-140: Agent Workforce](../adr/ADR-140-agent-workforce-model.md), [ADR-145: Task Type Registry](../adr/ADR-145-task-type-registry.md)
 
-YARNNN agents are organized into three classes: **domain stewards** (own a context domain), **synthesizers** (read across all domains), and **platform bots** (mechanical platform I/O). All agents are pre-scaffolded at sign-up. Users enrich agent identity through use — they do not create agents from scratch.
+YARNNN agents are organized into three classes: **domain stewards** (own a
+context domain), **synthesizers** (read across all domains), and
+**platform bots** (platform-scoped observation / delivery helpers). All agents
+are pre-scaffolded at sign-up. Users enrich agent identity through use — they do
+not create agents from scratch.
 
 **Key principle:** Each domain-steward agent owns one context domain. The synthesizer (Executive) reads all domains. Templates (`AGENT_TEMPLATES`) are bootstrapping — `AGENT.md` is the runtime source of truth.
 
@@ -16,7 +20,7 @@ YARNNN agents are organized into three classes: **domain stewards** (own a conte
 |-------|-------|------|----------|
 | **domain-steward** | 5 | Own one context domain, maintain knowledge, produce domain-scoped deliverables | Domain-cognitive, multi-step reasoning, web research |
 | **synthesizer** | 1 | Read across all domains, produce cross-domain deliverables | Cross-domain composition, reads everything, writes nothing to context |
-| **platform-bot** | 2 | Mechanical platform I/O — read signals, write actions | Platform-scoped, single API, activated on platform connect |
+| **platform-bot** | 2 | Platform-scoped observation and delivery helper | Platform-specific, activated on platform connect |
 
 ---
 
@@ -80,18 +84,18 @@ YARNNN agents are organized into three classes: **domain stewards** (own a conte
 
 ### Slack Bot
 
-- **Domain owned:** `signals/` (Slack)
+- **Primary surface:** Slack
 - **Capabilities:** read_platforms, write_slack
-- **What it maintains:** Slack signal log in `/workspace/context/signals/`
+- **What it contributes:** Slack-origin observations and digests; may append to `/workspace/context/signals/`
 - **What it produces:** Slack monitoring reports, signal digests
 - **Typical tasks:** monitor-slack
 - **Activation:** Activated when Slack platform connected
 
 ### Notion Bot
 
-- **Domain owned:** `signals/` (Notion)
+- **Primary surface:** Notion
 - **Capabilities:** read_platforms, write_notion
-- **What it maintains:** Notion signal log in `/workspace/context/signals/`
+- **What it contributes:** Notion-origin observations and digests; may append to `/workspace/context/signals/`
 - **What it produces:** Notion monitoring reports, signal digests
 - **Typical tasks:** monitor-notion
 - **Activation:** Activated when Notion platform connected
@@ -114,7 +118,7 @@ Reflections capture the agent's self-awareness after each run: mandate fitness, 
 | Default instructions | `api/services/agent_pipeline.py` (DEFAULT_INSTRUCTIONS) |
 | Execution strategies | `api/services/execution_strategies.py` |
 | Primitive registry | `api/services/primitives/registry.py` |
-| Content fetching | `api/services/platform_content.py` |
+| Platform tools | `api/services/platform_tools.py` |
 | Generation pipeline | `api/services/agent_execution.py` |
 | Framework reference | [docs/architecture/agent-framework.md](../architecture/agent-framework.md) |
 | Targeting architecture | [ADR-104](../adr/ADR-104-agent-instructions-unified-targeting.md) |

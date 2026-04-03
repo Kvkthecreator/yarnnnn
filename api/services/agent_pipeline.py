@@ -3,7 +3,9 @@ Agent Pipeline Utilities
 
 ADR-109: Role-keyed prompt templates and validation.
          Scope × Role × Trigger framework (skill renamed to role for agent behavioral axis).
-ADR-073: Live API fetch functions removed — agents read from workspace context.
+
+Prompt assembly operates over workspace context, task files, and tool-returned
+source material. It no longer assumes a generic synced platform-content layer.
 
 Contains:
 - ROLE_PROMPTS: Per-role prompt templates for LLM synthesis
@@ -747,5 +749,4 @@ def validate_output(role: str, content: str, config: dict) -> dict:
 # ADR-117: get_past_versions_context() removed — feedback now distilled to
 # workspace memory/style.md by feedback_distillation.py.
 # All strategies load preferences via AgentWorkspace.load_context().
-
 

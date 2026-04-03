@@ -1,14 +1,13 @@
 """
-GetSystemState Primitive — ADR-072: System State Awareness
+GetSystemState Primitive — System State Awareness
 
 Aggregates operational state from across YARNNN's infrastructure into a queryable
 snapshot. Gives TP the same visibility into system state that a human operator
 would have.
 
 Data sources:
-  - sync_registry: Per-resource sync freshness (single source of truth)
+  - sync_registry: Per-resource coverage / last-observed bookkeeping
   - activity_log: scheduler_heartbeat, agent runs
-  - integration_import_jobs: Active/failed job state
   - platform_connections: Available resources (landscape)
 
 This is a read-only aggregation layer — no writes, no side effects.
@@ -30,16 +29,16 @@ GET_SYSTEM_STATE_TOOL = {
     "name": "GetSystemState",
     "description": """Get a snapshot of YARNNN's operational state.
 
-Use when the user asks about system status, sync state, or "what happened":
+Use when the user asks about system status, resource coverage, or "what happened":
 - "What happened last night?" → check scheduler_heartbeat, agent runs
 - "Why didn't my digest run?" → check agent execution state
-- "Is Slack syncing?" → check per-platform sync freshness
+- "Is Slack connected / covered?" → check per-platform resource state
 - "What platforms are connected?" → check platform connections with landscape
 
 Returns structured SystemStateSnapshot with:
-- platform_sync_status: Per-platform sync freshness with resource details
+- platform_sync_status: Per-platform resource state with timestamps and details
 - pending_reviews: Count of agent versions awaiting review
-- failed_jobs: Any failed import jobs in last 24 hours
+- failed_jobs: Reserved compatibility field (currently empty)
 - scheduler_health: Last heartbeat, items processed
 
 This is system introspection, not content search. Use Search for content.""",
@@ -65,7 +64,7 @@ This is system introspection, not content search. Use Search for content.""",
 
 @dataclass
 class PlatformSyncStatus:
-    """Sync status for a single platform."""
+    """Resource status for a single platform."""
     platform: str
     status: str  # active, disconnected, error
     last_synced_at: Optional[str] = None
@@ -87,7 +86,7 @@ class SchedulerHealth:
 
 @dataclass
 class FailedJob:
-    """A failed import job."""
+    """Reserved compatibility shape for failed background jobs."""
     job_id: str
     platform: str
     resource_name: str
@@ -199,8 +198,8 @@ async def _get_platform_sync_status(
     user_id: str,
     platform_filter: Optional[str] = None,
 ) -> list[PlatformSyncStatus]:
-    """Fetch per-platform sync status with resource-level detail.
-    Derives platform-level freshness from sync_registry (per-resource truth).
+    """Fetch per-platform resource status with resource-level detail.
+    Derives platform-level freshness from sync_registry timestamps.
     """
     from services.freshness import calculate_freshness
 
@@ -222,14 +221,14 @@ async def _get_platform_sync_status(
         for conn in (connections_result.data or []):
             platform = conn.get("platform", "unknown")
 
-            # Get per-resource sync state from sync_registry
+            # Get per-resource coverage / last-observed state from sync_registry
             resources = await _get_resource_sync_state(client, user_id, platform)
 
             # Derive platform-level last_synced_at from resources (max)
             resource_times = [r["last_synced_at"] for r in resources if r.get("last_synced_at")]
             last_synced = max(resource_times) if resource_times else None
 
-            # Calculate freshness from sync_registry truth
+            # Calculate a coarse freshness label from latest resource activity
             freshness = calculate_freshness(last_synced, now)
 
             # Parse landscape (available resources)
@@ -248,7 +247,7 @@ async def _get_platform_sync_status(
         return statuses
 
     except Exception as e:
-        logger.warning(f"[GetSystemState] Failed to get platform sync status: {e}")
+        logger.warning(f"[GetSystemState] Failed to get platform resource status: {e}")
         return []
 
 
@@ -257,7 +256,7 @@ async def _get_resource_sync_state(
     user_id: str,
     platform: str,
 ) -> list[dict]:
-    """Fetch per-resource sync state from sync_registry."""
+    """Fetch per-resource coverage state from sync_registry."""
     try:
         result = (
             client.table("sync_registry")

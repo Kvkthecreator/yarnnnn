@@ -1,16 +1,20 @@
 # Context
 
 > Layer 3 of 4 in the YARNNN four-layer model (ADR-063)
-> **Updated**: 2026-04-02 — ADR-155 workspace-wide inference; context page as onboarding surface
-> Previous: 2026-03-31 — ADR-153 platform_content sunset; context flows through tracking tasks
+> **Updated**: 2026-04-03 — cleanup after ADR-153/156; stale sync-era references removed
 
 ---
 
 ## What it is
 
-Context is the accumulated knowledge substrate that agents build up over time. It lives in the workspace filesystem — primarily `/workspace/context/` (domain-structured accumulated intelligence) and `/workspace/uploads/` (user-contributed reference material).
+Context is the accumulated knowledge substrate that agents build up over time.
+It lives in the workspace filesystem — primarily `/workspace/context/`
+(domain-structured accumulated intelligence) and `/workspace/uploads/`
+(user-contributed reference material).
 
-**Platform data flows through tracking tasks.** Connect a platform (Slack, Notion, GitHub) → create a monitoring task → the assigned agent calls platform APIs live during execution → accumulated context builds in `/workspace/context/` domains. There is no intermediate staging table (ADR-153: `platform_content` sunset).
+Platform connections are adjacent to context, not part of context itself.
+They provide auth, discovery, and source selection. YARNNN no longer maintains a
+bulk-synced platform cache as a context layer.
 
 Context is never injected wholesale into the TP system prompt. It is fetched on demand, during a session, via TP primitives (`Search`, `Read`, `GetSystemState`).
 
@@ -41,25 +45,17 @@ Three workspace maturity phases determine routing:
 - Not a log of YARNNN's actions — that is Activity (`activity_log`)
 - Not generated output — that is Work (`agent_runs`, `/tasks/{slug}/outputs/`)
 - Not pre-loaded into the TP prompt — TP fetches it on demand
-- Not a bulk-synced platform cache — `platform_content` table is sunset (ADR-153)
-
----
-
-## The `platform_content` table — DEPRECATED (ADR-153)
-
-> **Sunset.** The `platform_content` table and its bulk sync pipeline are deprecated. Platform data now flows through tracking tasks: agents call platform APIs live during execution and write structured context to `/workspace/context/` domains. The table may still contain legacy data but is no longer written to or read from by the active execution pipeline.
+- Not a bulk-synced platform cache — `platform_content` is sunset (ADR-153)
 
 ---
 
 ## Table Schema
 
-### `platform_content` — DEPRECATED (ADR-153)
+### `platform_connections` — OAuth credentials and integration state
 
-Legacy bulk-synced platform content table. No longer written to or read from by the active pipeline. Schema retained for reference only. See ADR-153 for migration details.
-
-### `platform_connections` — OAuth credentials and settings
-
-Stores encrypted OAuth tokens, sync preferences, selected sources, and last_synced_at per platform per user. Still active — provides auth infrastructure for live API calls during agent execution.
+Stores encrypted OAuth tokens, platform metadata, discovered landscape, and
+selected sources per platform per user. Still active — provides auth
+infrastructure and source boundaries for platform access.
 
 ### `workspace_files` — Primary context substrate
 
@@ -97,13 +93,15 @@ In addition to external platform data and shared knowledge, agents read **cognit
 
 Context domains are populated by TP inference (ADR-144) and agent execution, providing shared grounding that enriches all task outputs.
 
-This cognitive context is injected as `mandate_context` in the agent's prompt — presented alongside gathered platform/knowledge context. It answers "what am I supposed to contribute and how does PM evaluate the project?" rather than "what data is available?"
+This cognitive context is injected as `mandate_context` in the agent's prompt.
+It answers "what am I supposed to contribute?" rather than "what data is
+available?"
 
-The three context substrates (external platforms, internal knowledge, agent cognition) are peer layers — each contributes to the agent's situational awareness. See [FOUNDATIONS.md](../architecture/FOUNDATIONS.md) Axiom 2 for the three intelligence substrates.
+### `sync_registry` — Resource coverage / legacy bookkeeping
 
-### `sync_registry` — Per-resource sync state (legacy)
-
-Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Legacy table from the bulk sync era — may still be used for OAuth health checks.
+Tracks per-resource timestamps, counts, exclusions, and error state for connected
+platform resources. It remains in use for coverage and status surfaces, but it is
+not evidence of an active generic sync pipeline.
 
 ---
 
@@ -112,13 +110,13 @@ Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Legacy 
 **Chat mode** (TP primitives):
 - `Search` — semantic search across workspace files (accumulated context, uploads, agent memory)
 - `Read` — direct file read by path
-- `RefreshPlatformContent(platform="...")` — live platform API call for fresh data
+- live `platform_*` tools — direct platform reads/actions when an integration is connected
 - `WebSearch` — external web search
 
 **Headless mode** (agent execution):
 - `Search`, `ReadWorkspace`, `SearchWorkspace`, `QueryKnowledge` — workspace-scoped reads
-- `RefreshPlatformContent` — live platform API calls during execution
-- Agents gather context from `/workspace/context/` domains, prior task outputs, and live API calls
+- Agents gather context from `/workspace/context/` domains, prior task outputs, and task-owned files
+- Platform monitoring task types exist in the task registry, but platform access should be treated as task-scoped workflow logic rather than a generic cached context layer
 
 **Context UI** — `/context` surfaces:
 - **Identity** (workspace identity and brand)
@@ -129,7 +127,8 @@ Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Legacy 
 
 ## Platform Integrations
 
-All platforms use Direct API clients — no MCP, no gateway (ADR-076). Agents call these APIs live during task execution (ADR-153).
+All platforms use direct API clients — no bulk sync cache, no platform content
+table in the active execution path.
 
 | Platform | Client | What agents can access |
 |---|---|---|
@@ -143,7 +142,8 @@ All platforms use Direct API clients — no MCP, no gateway (ADR-076). Agents ca
 
 ## The accumulation moat
 
-Agents process external signals and write structured context to `/workspace/context/` domains. Over time, the workspace accumulates:
+Agents process external signals and write structured context to
+`/workspace/context/` domains. Over time, the workspace accumulates:
 - Domain-structured intelligence (competitor profiles, market trends, relationship maps)
 - Agent memory and reflections (learned preferences, domain theses)
 - Task outputs (deliverables, research artifacts)
@@ -159,7 +159,7 @@ This is how YARNNN builds intelligence over time. A user with 6 months of agent 
 | Question | Answer |
 |---|---|
 | Does TP get context in its system prompt? | No — Context is fetched on demand via primitives, never pre-loaded |
-| Is there a platform content cache? | No — `platform_content` is sunset (ADR-153). Agents call platform APIs live during execution. |
+| Is there a platform content cache? | No — `platform_content` is sunset (ADR-153). |
 | Where does accumulated context live? | `/workspace/context/` domains — structured by the domain registry (ADR-151) |
 | Can a document upload add Memory entries? | Not automatically. "Promote document to Memory" is a deferred feature |
 
@@ -171,6 +171,4 @@ This is how YARNNN builds intelligence over time. A user with 6 months of agent 
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Four-layer model
 - [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview
 - [context-pipeline.md](../architecture/context-pipeline.md) — Technical pipeline detail
-- `api/services/platform_content.py` — Unified content service
-- `api/workers/platform_worker.py` — sync worker
-- `api/services/primitives/search.py` — `Search(scope="platform_content")`
+- [PLATFORM-INTEGRATIONS.md](../integrations/PLATFORM-INTEGRATIONS.md) — platform connection model

@@ -84,14 +84,14 @@ async def get_status(
     scope: Optional[str] = None,
     platform: Optional[str] = None,
 ) -> dict:
-    """Get YARNNN system status: connected platforms, sync freshness, recent activity, and active agents.
+    """Get YARNNN system status: connected platforms, resource coverage, recent activity, and active agents.
 
-    Use this to check what platforms are connected, when they last synced,
+    Use this to check what platforms are connected, what resources are covered,
     whether the scheduler is running, and if there are any issues.
 
     Args:
-        scope: What to check. Options: "full" (default), "signals", "sync", "scheduler", "jobs"
-        platform: Optional filter to a specific platform (slack, gmail, notion, calendar)
+        scope: What to check. Options: "full" (default), "sync", "scheduler", "jobs"
+        platform: Optional filter to a specific platform (slack, notion, github)
     """
     auth = ctx.request_context.lifespan_context["auth"]
 
@@ -262,18 +262,19 @@ async def search_content(
     query: str,
     platform: Optional[str] = None,
 ) -> dict:
-    """Search YARNNN's workspace content (synced platform data, agent outputs, documents).
+    """Search YARNNN's workspace content (context files, agent outputs, documents).
 
     Searches across all workspace files using full-text search.
-    Results include synced platform content, agent outputs, and shared documents.
+    Results include workspace context, task outputs, and shared documents.
 
     Args:
         query: What to search for (e.g., "project Acme decisions", "budget discussion")
-        platform: Optional filter to a specific platform path prefix (slack, notion, github)
+        platform: Legacy compatibility parameter. Platform-root filtering is not
+            applied because the old `/platforms/` workspace root no longer exists.
     """
     auth = ctx.request_context.lifespan_context["auth"]
 
-    path_prefix = f"/platforms/{platform}" if platform else None
+    path_prefix = None
 
     result = auth.client.rpc("search_workspace", {
         "p_user_id": auth.user_id,

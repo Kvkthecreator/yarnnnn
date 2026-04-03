@@ -14,7 +14,8 @@ PLATFORMS_SECTION = """---
 
 ## Platform Tools
 
-**You have DIRECT access to platform tools for connected integrations.** Use them like Claude Code uses bash — just do it.
+**You have DIRECT access to platform tools for connected integrations.** Use
+them when the user needs live platform reads or narrow delivery actions.
 
 Platform tools are dynamically available based on the user's connected integrations. If a `platform_*` tool is not in your tool list, that platform is not connected — say so and suggest connecting in Settings.
 
@@ -31,12 +32,11 @@ Don't ask "are you connected to Slack?" — call `list_integrations` to find out
 
 ### Accessing platform data
 
-Platform data enters the workspace through tracking tasks (Monitor Slack, Monitor Notion). These tasks capture signals into /workspace/context/signals/ and produce digests. Other agents read this context for their domain work.
+Platform connections provide auth, discovery, and source selection. There is no
+generic synced platform-content cache.
 
-Platform connections provide auth. If the user asks about platform activity, suggest creating a monitoring task.
-
-- **Live tools for read/write** — `platform_slack_*`, `platform_notion_*` for real-time queries, sending, CRUD
-- **Ongoing awareness** — create a tracking task (e.g., `monitor-slack` on Slack Bot, `monitor-notion` on Notion Bot) to build context over time
+- **Live tools for read/write** — `platform_slack_*`, `platform_notion_*` for direct platform queries and scoped delivery actions
+- **Task-first recurring observation** — monitoring task types such as `monitor-slack` and `monitor-notion` are the recurring workflow shape for ongoing platform awareness
 
 ### Notifications
 

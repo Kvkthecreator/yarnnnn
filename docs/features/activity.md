@@ -36,7 +36,7 @@ These merge into a unified project timeline via `mergeTimeline()` in the Meeting
 
 ## What it is not
 
-- Not platform content — that is Context (`platform_content`)
+- Not accumulated workspace context — that lives in `/workspace/context/` and related workspace files
 - Not generated output — that is Work (`agent_runs`, workspace output folders)
 - Not stable user knowledge — that is Memory (`user_memory`)
 - Not a replacement for `agent_runs` or `session_messages` — those hold full records; Activity holds lightweight event summaries
@@ -68,18 +68,12 @@ Append-only. Written by service role only (no user-facing INSERT).
 
 | event_type | Written by | When | Scope |
 |---|---|---|---|
-| `platform_synced` | `platform_worker.py` | After sync batch completes | Platform |
-| `content_cleanup` | `unified_scheduler.py` | After expired content removal | Platform |
+| `content_cleanup` | `unified_scheduler.py` | After ephemeral workspace cleanup | System |
 | `integration_connected` | `routes/integrations.py` | After OAuth connection | Platform |
 | `integration_disconnected` | `routes/integrations.py` | After OAuth disconnection | Platform |
-| `composer_heartbeat` | `unified_scheduler.py` | After Composer assessment cycle | Composer |
-| `agent_bootstrapped` | `onboarding_bootstrap.py` | After auto-created agent on platform connect | Composer |
-| `project_scaffolded` | `project_registry.py` | After project scaffolded via registry | Composer |
-| `duty_promoted` | `composer.py` | After Composer promoted agent duty | Composer |
-| `memory_written` | `memory.py` | After nightly memory extraction | Memory |
-| `session_summary_written` | `unified_scheduler.py` | After session summary generation | Memory |
+| `agent_bootstrapped` | `onboarding_bootstrap.py` | After default agent scaffold | System |
 | `chat_session` | `chat.py` | At end of each chat turn | Chat |
-| `scheduler_heartbeat` | `unified_scheduler.py` | Every 5 min execution cycle | System |
+| `scheduler_heartbeat` | `unified_scheduler.py` | Hourly heartbeat write | System |
 
 ### Task-level events (Tier 2)
 
@@ -117,21 +111,17 @@ Each write point is a single `write_activity()` call from `api/services/activity
 The `VALID_EVENT_TYPES` frozenset in `activity_log.py` is the canonical constraint — any event_type not in that set is rejected with a warning log.
 
 ```
-agent_execution.py
-  -> version delivered
-  -> write_activity("agent_run", summary="Weekly Digest v3 delivered", metadata={agent_id, project_slug, ...})
+task_pipeline.py
+  -> recurring task finishes
+  -> write_activity("task_executed", summary="Executed weekly-digest", metadata={task_slug, ...})
 
-agent_pulse.py
-  -> pulse decision made
-  -> write_activity("agent_pulsed", summary="Observed: no new content", metadata={action, reason, tier, ...})
-
-platform_worker.py
-  -> sync batch returns successfully
-  -> write_activity("platform_synced", summary="Synced gmail: 12 items", ...)
+routes/integrations.py
+  -> OAuth connection succeeds
+  -> write_activity("integration_connected", summary="Connected Slack", metadata={platform, ...})
 
 unified_scheduler.py
-  -> agent generation triggered
-  -> write_activity("agent_scheduled", summary="Scheduled: Weekly Digest", metadata={agent_id, ...})
+  -> hourly heartbeat written
+  -> write_activity("scheduler_heartbeat", summary="Scheduler healthy", metadata={tasks_found, ...})
 ```
 
 ---
@@ -144,10 +134,10 @@ unified_scheduler.py
 
 ```
 ### Recent activity
-- 2026-03-22 09:00 . Weekly Digest v3 generated (staged)
-- 2026-03-22 08:45 . Synced gmail: 12 items
-- 2026-03-21 14:30 . PM checked on contributors - 2 fresh, 1 overdue
-- 2026-03-21 09:00 . Agent pulsed: observe (no new content)
+- 2026-04-03 09:00 . Executed weekly-digest
+- 2026-04-03 08:45 . Connected Slack
+- 2026-04-03 08:00 . Scheduler healthy
+- 2026-04-02 16:30 . Session summary updated
 ```
 
 This block consumes approximately 300 tokens of the 2,000 token working memory budget.

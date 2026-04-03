@@ -371,6 +371,10 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
     },
 
     # ── Platform Bots (capture platform signals) ──
+    # NOTE (2026-04-03 cleanup): `read_platforms` remains capability metadata,
+    # not a guarantee that generic headless platform tools are wired. It is
+    # preserved because platform-scoped observation is still part of the agent
+    # taxonomy, even though the final runtime authority/access model is pending.
 
     "slack_bot": {
         "class": "platform-bot",

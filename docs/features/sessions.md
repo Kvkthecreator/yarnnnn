@@ -44,12 +44,12 @@ When a new session starts, TP gets a fresh **working memory block** injected int
 | What's in working memory | Source | How it gets there |
 |---|---|---|
 | Name, role, company, timezone | `user_memory` | User sets via Context page |
-| Tone and verbosity preferences | `user_memory` | User sets or nightly extraction |
-| Facts, instructions, preferences | `user_memory` | User sets or nightly extraction |
+| Tone and verbosity preferences | `user_memory` | User sets or TP writes in-session |
+| Facts, instructions, preferences | `user_memory` | User sets or TP writes in-session |
 | Active agents (up to 5) | `agents` | Always live |
-| Connected platforms + sync freshness | `platform_connections` | Always live |
-| Recent activity (last 10 events, 7-day window) | `activity_log` | Written by pipeline + sync |
-| Recent session summaries | `chat_sessions.summary` | **Not currently written — always empty** |
+| Connected platforms + resource status | `platform_connections` + `sync_registry` | Always live |
+| Recent activity (last 10 events, 7-day window) | `activity_log` | Written by pipeline, scheduler, integrations |
+| Recent session summaries | `chat_sessions.summary` | Inline at session close when available |
 
 **What does NOT carry over:**
 - Raw conversation history (previous sessions' messages are not fetched)
@@ -58,9 +58,8 @@ When a new session starts, TP gets a fresh **working memory block** injected int
 
 ### Memory extraction from conversations
 
-Preferences stated during a conversation are extracted by the **nightly cron** (`unified_scheduler.py`, midnight UTC) which processes all prior day's sessions in batch. A preference stated today becomes part of working memory tomorrow morning.
-
-There is no real-time session-end extraction. The Context page is the only way to get something into working memory immediately.
+TP writes durable facts and instructions in-session via context update tools.
+There is no nightly memory extraction cron anymore.
 
 ---
 
