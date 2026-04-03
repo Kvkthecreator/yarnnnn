@@ -142,7 +142,6 @@ async def build_working_memory(
             # Identity
             "identity": _classify_richness(identity_content),
             "brand": _classify_richness(brand_content),
-            "inference_state": _get_inference_state(context_domains),
             # Content
             "documents": doc_count,
             "context_domains": len([d for d in context_domains if d.get("file_count", 0) > 0]) if context_domains else 0,
@@ -221,18 +220,7 @@ def _classify_richness(content: Optional[str]) -> str:
     return "rich"
 
 
-def _get_inference_state(context_domains: list | None) -> str:
-    """Classify workspace inference state from context domain health. ADR-155 revised.
-
-    Derived from ground truth (do entity files exist?) not from persisted state.
-    Returns: empty | scaffolded | validated
-    """
-    if not context_domains:
-        return "empty"
-    domains_with_entities = [d for d in context_domains if d.get("file_count", 0) > 0]
-    if len(domains_with_entities) >= 2:
-        return "scaffolded"
-    return "empty"
+    # _get_inference_state DELETED — TP judges from raw context_domains data directly
 
 
 def _count_tasks_sync(user_id: str, client: Any) -> int:

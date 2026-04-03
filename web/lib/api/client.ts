@@ -592,10 +592,9 @@ export const api = {
         }>;
         readiness: {
           identity: 'empty' | 'sparse' | 'rich';
-          inference_state: 'empty' | 'scaffolded' | 'validated';
           has_domains: boolean;
           has_tasks: boolean;
-          phase: 'setup' | 'scaffolded' | 'active';
+          phase: 'setup' | 'ready' | 'active';
         };
       }>(`/api/workspace/nav`),
 

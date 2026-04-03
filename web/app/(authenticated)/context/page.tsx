@@ -140,7 +140,7 @@ export default function ContextPage() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
   // ADR-155: Workspace maturity phase for setup-phase layout
-  const [phase, setPhase] = useState<'setup' | 'scaffolded' | 'active' | null>(null);
+  const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
 
   // Virtual root for resolveNodeByPath/buildBreadcrumbs (not displayed)
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
@@ -332,7 +332,7 @@ export default function ContextPage() {
                   // Refresh tree after inference completes (~4s)
                   setTimeout(loadExplorer, 5000);
                   // Phase will update on next nav fetch
-                  setTimeout(() => setPhase('scaffolded'), 6000);
+                  setTimeout(() => setPhase('ready'), 6000);
                 }}
               />
             </div>

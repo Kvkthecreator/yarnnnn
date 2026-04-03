@@ -265,7 +265,7 @@ These are refinements to Phase 1 quality, not new trigger infrastructure.
 |------|--------|
 | `api/services/primitives/update_context.py` | Trigger inference cascade on identity write |
 | `api/services/workspace_inference.py` | NEW — workspace-wide inference engine |
-| `api/services/working_memory.py` | Extended workspace_state (inference_state) |
+| `api/services/working_memory.py` | workspace_state (TP judges from raw context_domains) |
 | `api/agents/tp_prompts/onboarding.py` | Inference surfacing, maturity-aware guidance |
 | `web/lib/routes.ts` | Maturity-based home route |
 | `web/app/(authenticated)/context/page.tsx` | Setup phase layout, live scaffolding UI |

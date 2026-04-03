@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.12] - Delete inference_state — TP judges from raw context
+
+### Removed
+- `services/working_memory.py`: `inference_state` field and `_get_inference_state()` deleted. TP judges workspace readiness from raw signals (context_domains file counts, identity richness) — no derived state label needed.
+- `routes/workspace.py`: inference_state computation removed from nav endpoint. Phase simplified: setup → ready → active (from raw has_domains + has_tasks + identity).
+- Frontend: `inference_state` type removed from client.ts. Phase `"scaffolded"` → `"ready"`.
+- Clarify primitive retained as structural pause marker — TP uses it before consequential actions, then handles follow-up with existing primitives (ManageDomains, UpdateContext, CreateTask).
+- Expected behavior: No state machine for scaffolding. TP reads workspace_state raw signals and uses judgment. Clarify creates explicit pause points in the flow.
+
+---
+
 ## [2026.04.03.11] - Unified workspace_state signal (replaces context_readiness + work_budget + agent_health)
 
 ### Changed

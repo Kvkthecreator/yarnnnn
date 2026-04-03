@@ -230,28 +230,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
             except Exception:
                 pass
 
-        # Inference state from AWARENESS.md
-        inference_state = "empty"
-        awareness_setting = next((s for s in settings if s["filename"] == "AWARENESS.md"), None)
-        if awareness_setting:
-            try:
-                aw_content = (
-                    auth.client.table("workspace_files")
-                    .select("content")
-                    .eq("user_id", auth.user_id)
-                    .eq("path", "/workspace/AWARENESS.md")
-                    .limit(1)
-                    .execute()
-                )
-                if aw_content.data:
-                    aw_text = aw_content.data[0].get("content", "")
-                    if "Scaffolded Domains" in aw_text:
-                        inference_state = "scaffolded"
-                    if "source: researched" in aw_text:
-                        inference_state = "validated"
-            except Exception:
-                pass
-
+        # ADR-156: Phase computed from raw signals — no inference_state needed
         has_domains = any(d["entity_count"] > 0 for d in domains)
         has_tasks = len(tasks) > 0
 
@@ -262,12 +241,11 @@ async def get_workspace_nav(auth: UserClient) -> dict:
             "settings": settings,
             "readiness": {
                 "identity": identity_richness,
-                "inference_state": inference_state,
                 "has_domains": has_domains,
                 "has_tasks": has_tasks,
                 "phase": (
                     "active" if has_tasks else
-                    "scaffolded" if (identity_richness == "rich" and (has_domains or inference_state == "scaffolded")) else
+                    "ready" if (identity_richness == "rich" and has_domains) else
                     "setup"
                 ),
             },
