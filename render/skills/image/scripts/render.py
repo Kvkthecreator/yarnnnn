@@ -1,90 +1,108 @@
-"""Image composition skill — layout spec → PNG/JPG via Pillow."""
+"""
+Image generation skill — prompt → PNG/JPG via Google Gemini.
 
+ADR-157: Replaces Pillow text+rectangles card generator.
+Uses gemini-2.5-flash-image for AI image generation (500 free/day).
+
+Style presets ensure professional business output quality.
+"""
+
+import base64
 import io
-from PIL import Image, ImageDraw, ImageFont
+import os
+import logging
 
-# Layout presets: name → (width, height)
-_LAYOUTS = {
-    "card": (1200, 630),
-    "banner": (1200, 300),
-    "square": (1080, 1080),
+logger = logging.getLogger(__name__)
+
+# Gemini model for image generation
+MODEL = "gemini-2.5-flash-preview-image-generation"
+
+# Style presets — injected as prompt suffixes for consistent quality
+STYLE_PRESETS = {
+    "professional": "clean professional style, corporate aesthetic, minimal, high quality",
+    "minimal": "minimalist design, clean lines, generous whitespace, modern",
+    "technical": "technical diagram style, clear labels, structured layout, precise",
+    "editorial": "editorial illustration, magazine quality, sophisticated composition",
+    "abstract": "abstract visualization, geometric shapes, modern art style",
 }
 
-# DejaVu Sans is bundled in the Docker image (fonts-dejavu apt package)
-_FONT_REGULAR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-_FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+# Supported aspect ratios
+VALID_ASPECT_RATIOS = {
+    "1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "4:5", "5:4",
+}
 
-
-def _hex_to_rgb(hex_color: str) -> tuple:
-    """Convert hex color (#RRGGBB) to RGB tuple."""
-    hex_color = hex_color.lstrip("#")
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-
-
-def _get_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-    """Load DejaVu Sans font at given size."""
-    path = _FONT_BOLD if bold else _FONT_REGULAR
-    try:
-        return ImageFont.truetype(path, size)
-    except OSError:
-        # Fallback to default if DejaVu not available (e.g., local dev)
-        return ImageFont.load_default()
+MAX_PROMPT_LENGTH = 2000
 
 
 async def render_image(input_data: dict, output_format: str) -> tuple[bytes, str]:
-    """
-    Compose an image from layout spec.
+    """Generate an image from a text prompt via Gemini.
 
     input_data: {
-        "layout": "card"|"banner"|"square" (optional),
-        "width": int, "height": int (optional, override layout),
-        "background": "#hex" (optional),
-        "elements": [
-            {"type": "text", "content": str, "x": int, "y": int, ...},
-            {"type": "rect", "x": int, "y": int, "width": int, "height": int, "color": "#hex"},
-        ]
+        "prompt": str,           # Required: what to generate
+        "aspect_ratio": str,     # Optional: "1:1", "16:9", etc. Default: "1:1"
+        "style": str,            # Optional: preset name or custom style text
+        "size": str,             # Optional: "512", "1K", "2K". Default: "1K"
     }
     output_format: "png" or "jpg"
     Returns: (file_bytes, content_type)
     """
+    from google import genai
+    from google.genai import types
+
     if output_format not in ("png", "jpg"):
-        raise ValueError(f"Unsupported image format: {output_format}")
+        raise ValueError(f"Unsupported format: {output_format}. Use 'png' or 'jpg'.")
 
-    content_types = {"png": "image/png", "jpg": "image/jpeg"}
+    prompt = input_data.get("prompt", "")
+    if not prompt:
+        raise ValueError("prompt is required")
+    if len(prompt) > MAX_PROMPT_LENGTH:
+        raise ValueError(f"Prompt too long: {len(prompt)} chars (max {MAX_PROMPT_LENGTH})")
 
-    # Canvas dimensions
-    layout = input_data.get("layout", "card")
-    default_w, default_h = _LAYOUTS.get(layout, (1200, 630))
-    width = input_data.get("width", default_w)
-    height = input_data.get("height", default_h)
+    aspect_ratio = input_data.get("aspect_ratio", "1:1")
+    if aspect_ratio not in VALID_ASPECT_RATIOS:
+        aspect_ratio = "1:1"
 
-    if width > 4096 or height > 4096:
-        raise ValueError("Maximum canvas size is 4096x4096")
+    style = input_data.get("style", "professional")
 
-    # Create canvas
-    bg_color = _hex_to_rgb(input_data.get("background", "#ffffff"))
-    img = Image.new("RGB", (width, height), bg_color)
-    draw = ImageDraw.Draw(img)
+    # Inject style preset into prompt
+    if style in STYLE_PRESETS:
+        prompt = f"{prompt}. Style: {STYLE_PRESETS[style]}"
+    elif style and style != "none":
+        # Custom style text
+        prompt = f"{prompt}. Style: {style}"
 
-    # Render elements in order
-    for elem in input_data.get("elements", []):
-        elem_type = elem.get("type")
+    mime_type = "image/png" if output_format == "png" else "image/jpeg"
 
-        if elem_type == "text":
-            font = _get_font(elem.get("font_size", 24), elem.get("bold", False))
-            color = _hex_to_rgb(elem.get("color", "#000000"))
-            draw.text((elem["x"], elem["y"]), elem["content"], fill=color, font=font)
+    # Call Gemini
+    api_key = os.environ.get("GOOGLE_API_KEY", "")
+    if not api_key:
+        raise ValueError("GOOGLE_API_KEY not configured on render service")
 
-        elif elem_type == "rect":
-            color = _hex_to_rgb(elem.get("color", "#000000"))
-            x, y = elem["x"], elem["y"]
-            draw.rectangle([x, y, x + elem["width"], y + elem["height"]], fill=color)
+    client = genai.Client(api_key=api_key)
 
-    # Export
-    buf = io.BytesIO()
-    if output_format == "jpg":
-        img.save(buf, format="JPEG", quality=90)
-    else:
-        img.save(buf, format="PNG")
+    try:
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+            ),
+        )
+    except Exception as e:
+        error_msg = str(e)
+        if "SAFETY" in error_msg.upper() or "BLOCKED" in error_msg.upper():
+            raise ValueError(f"Image generation blocked by safety filter. Try rephrasing: {error_msg}")
+        raise ValueError(f"Gemini image generation failed: {error_msg}")
 
-    return buf.getvalue(), content_types[output_format]
+    # Extract image from response
+    if not response.candidates:
+        raise ValueError("No image generated — empty response from Gemini")
+
+    for part in response.candidates[0].content.parts:
+        if part.inline_data and part.inline_data.data:
+            image_bytes = part.inline_data.data
+            if isinstance(image_bytes, str):
+                image_bytes = base64.b64decode(image_bytes)
+            return image_bytes, mime_type
+
+    raise ValueError("No image data in Gemini response — model may have returned text only")
