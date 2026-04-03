@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Gemini model for image generation
-MODEL = "gemini-2.5-flash-preview-image-generation"
+MODEL = "gemini-2.5-flash-image"
 
 # Style presets — injected as prompt suffixes for consistent quality
 STYLE_PRESETS = {
