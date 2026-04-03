@@ -8,13 +8,15 @@
 
 Memory is everything YARNNN knows *about the user* — their name, role, how they like to work, facts and standing instructions they've stated. **Memory is stable, explicit, and user-owned.**
 
-**Storage**: Memory lives in `/memory/` files within `workspace_files` (ADR-108). Three files back the Memory page:
+**Storage**: Memory lives in workspace files (ADR-108, ADR-156). Two systems:
 
 | File | Purpose | Example content |
 |------|---------|-----------------|
-| `/memory/MEMORY.md` | Profile (identity) | name, role, company, timezone, summary |
+| `/workspace/IDENTITY.md` | User identity (name, role, company, work context) | "Sarah, VP Eng at Acme, building ML infrastructure" |
 | `/memory/preferences.md` | Per-platform tone/verbosity | slack: casual/brief, notion: detailed |
 | `/memory/notes.md` | Accumulated facts, instructions, preferences | "Prefers bullet points", "Always include TL;DR" |
+
+Note: `/memory/MEMORY.md` is deprecated (ADR-156). Profile data lives in IDENTITY.md.
 
 **Analogy**: Memory is YARNNN's equivalent of Claude Code's auto-memory. The system learns from interaction and stores what's useful. Users can review and edit anytime.
 

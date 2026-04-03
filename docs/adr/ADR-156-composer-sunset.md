@@ -176,7 +176,16 @@ These are real tensions surfaced during this decision. They are easier to design
 6. Add deterministic underperformer pause to `unified_scheduler.py`
 7. Mark ADR-111 as superseded by ADR-156
 
-### Phase 2: Deferred Design (separate ADR)
+### Phase 3: MEMORY.md Profile Deprecation + Import Jobs Table Drop
+
+1. Remove MEMORY.md alias from workspace.py — IDENTITY.md returned as-is
+2. Remove "About you" profile section from working_memory.py — Identity renders directly
+3. Update callers (task_pipeline, agent_execution, integrations, system) to read "IDENTITY.md" key
+4. Stub out import job readers (endpoints, system_state, working_memory failed_jobs)
+5. Drop `integration_import_jobs` table (migration 139)
+6. Clean up account reset references
+
+### Phase 4: Deferred Design (separate ADR)
 
 Address the deferred questions about TP heartbeat, task-to-TP feedback, and automatic evaluation. These require architectural discussion, not just code deletion.
 
@@ -186,10 +195,18 @@ Address the deferred questions about TP heartbeat, task-to-TP feedback, and auto
 
 | File | Action |
 |------|--------|
-| `api/services/composer.py` | **DELETE** |
-| `api/test_adr111_composer.py` | **DELETE** |
-| `api/jobs/unified_scheduler.py` | Remove heartbeat loop, add underperformer pause rule |
+| `api/services/composer.py` | **DELETE** (Phase 1) |
+| `api/test_adr111_composer.py` | **DELETE** (Phase 1) |
+| `api/jobs/import_jobs.py` | **DELETE** (Phase 2) |
+| `api/agents/integration/context_import.py` | **DELETE** (Phase 2) |
+| `api/agents/integration/platform_semantics.py` | **DELETE** (Phase 2) |
+| `api/jobs/unified_scheduler.py` | Remove heartbeat + imports + nightly crons |
 | `api/services/agent_execution.py` | Remove `maybe_trigger_heartbeat` call |
-| `api/services/working_memory.py` | Add work_budget + agent_health signals |
+| `api/services/working_memory.py` | Remove profile, add work_budget + agent_health |
+| `api/services/workspace.py` | Remove MEMORY.md alias |
+| `api/services/primitives/system_state.py` | Stub _get_failed_jobs |
+| `api/routes/integrations.py` | Stub import endpoints |
+| `api/routes/account.py` | Remove import_jobs cleanup |
+| `supabase/migrations/139_drop_import_jobs.sql` | Drop table |
 | `docs/adr/ADR-111-agent-composer.md` | Mark superseded by ADR-156 |
-| `CLAUDE.md` | Update Composer references |
+| `CLAUDE.md` | Update references |

@@ -772,17 +772,14 @@ class UserMemory:
     async def read_all(self) -> dict[str, str]:
         """Read workspace context files. Returns {filename: content}.
 
-        ADR-133: IDENTITY.md + BRAND.md from /workspace/.
+        ADR-156: IDENTITY.md + BRAND.md from /workspace/.
         Also reads notes.md from /memory/ (TP-accumulated knowledge, separate path).
-        Returns legacy key 'MEMORY.md' mapped from IDENTITY.md for backward compat.
         """
         files = {}
         for filename in ("IDENTITY.md", "BRAND.md"):
             content = await self.read(filename)
             if content:
-                # Map IDENTITY.md → MEMORY.md key for backward compat with working memory parser
-                key = "MEMORY.md" if filename == "IDENTITY.md" else filename
-                files[key] = content
+                files[filename] = content
         # Notes stay at /memory/ — read directly
         try:
             result = (
@@ -801,13 +798,12 @@ class UserMemory:
         return files
 
     def read_all_sync(self) -> dict[str, str]:
-        """Synchronous read_all for thread pool use."""
+        """Synchronous read_all for thread pool use. ADR-156: no MEMORY.md alias."""
         files = {}
         for filename in ("IDENTITY.md", "BRAND.md"):
             content = self.read_sync(filename)
             if content:
-                key = "MEMORY.md" if filename == "IDENTITY.md" else filename
-                files[key] = content
+                files[filename] = content
         try:
             result = (
                 self._db.table("workspace_files")

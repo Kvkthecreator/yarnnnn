@@ -242,7 +242,7 @@ async def get_system_status(auth: UserClient):
     try:
         from services.workspace import UserMemory
         um = UserMemory(auth.client, user_id)
-        profile = UserMemory._parse_memory_md(um.read_sync("MEMORY.md"))
+        profile = UserMemory._parse_memory_md(um.read_sync("IDENTITY.md"))
         user_tz_str = profile.get("timezone") or "UTC"
     except Exception as e:
         logger.debug(f"Failed to fetch user timezone: {e}")

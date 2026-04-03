@@ -2106,7 +2106,7 @@ def _load_user_context(client, user_id: str) -> Optional[list]:
         um = UserMemory(client, user_id)
         memory_files = um.read_all_sync()
         user_context = []
-        profile = UserMemory._parse_memory_md(memory_files.get("MEMORY.md"))
+        profile = UserMemory._parse_memory_md(memory_files.get("IDENTITY.md"))
         for k, v in profile.items():
             if v:
                 user_context.append({"key": k, "value": v})

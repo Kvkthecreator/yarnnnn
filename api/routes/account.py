@@ -282,7 +282,7 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
 
         # Sync state
         deleted["export_log"] = _delete_rows(client, "export_log", user_id)
-        deleted["integration_import_jobs"] = _delete_rows(client, "integration_import_jobs", user_id)
+        # ADR-156: integration_import_jobs table dropped (migration 139)
         deleted["sync_registry"] = _delete_rows(client, "sync_registry", user_id)
         deleted["integration_sync_config"] = _delete_rows(client, "integration_sync_config", user_id)
         # ADR-153: platform_content table dropped
@@ -344,7 +344,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "event_trigger_log",
             "export_log",
             "filesystem_documents",
-            "integration_import_jobs",
+            # "integration_import_jobs" — dropped (migration 139)
             "integration_sync_config",
             "notifications",
             "platform_connections",

@@ -732,7 +732,7 @@ async def generate_draft_inline(
         memory_files = um.read_all_sync()
         # Build key-value list matching the shape _build_headless_system_prompt expects
         user_context = []
-        profile = UserMemory._parse_memory_md(memory_files.get("MEMORY.md"))
+        profile = UserMemory._parse_memory_md(memory_files.get("IDENTITY.md"))
         for k, v in profile.items():
             if v:
                 user_context.append({"key": k, "value": v})

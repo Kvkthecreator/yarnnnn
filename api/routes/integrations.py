@@ -471,92 +471,15 @@ async def list_import_jobs(
     status: Optional[str] = Query(None, description="Filter by status"),
     provider: Optional[str] = Query(None, description="Filter by provider"),
     limit: int = Query(20, le=100)
-) -> ImportJobsListResponse:
-    """
-    List user's import jobs.
-
-    Note: This route must be defined before /integrations/{provider} to avoid
-    FastAPI matching '/integrations/import' as provider='import'.
-    """
-    user_id = auth.user_id
-
-    try:
-        query = auth.client.table("integration_import_jobs").select(
-            "*"
-        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit)
-
-        if status:
-            query = query.eq("status", status)
-        if provider:
-            query = query.eq("platform", provider)
-
-        result = query.execute()
-
-        jobs = [
-            ImportJobResponse(
-                id=job["id"],
-                provider=job["provider"],
-                resource_id=job["resource_id"],
-                resource_name=job.get("resource_name"),
-                status=job["status"],
-                progress=job.get("progress", 0),
-                progress_details=_parse_progress_details(job.get("progress_details")),  # ADR-030
-                result=_parse_import_result(job.get("result")),
-                error_message=job.get("error_message"),
-                created_at=job["created_at"],
-                started_at=job.get("started_at"),
-                completed_at=job.get("completed_at"),
-            )
-            for job in (result.data or [])
-        ]
-
-        return ImportJobsListResponse(jobs=jobs)
-
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Failed to list import jobs for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list import jobs")
+) -> dict:
+    """DEPRECATED (ADR-153/156): Import jobs sunset. Returns empty list."""
+    return {"jobs": [], "deprecated": True}
 
 
 @router.get("/integrations/import/{job_id}")
-async def get_import_job(
-    job_id: str,
-    auth: UserClient
-) -> ImportJobResponse:
-    """
-    Get status of an import job.
-    """
-    user_id = auth.user_id
-
-    try:
-        result = auth.client.table("integration_import_jobs").select(
-            "*"
-        ).eq("id", job_id).eq("user_id", user_id).limit(1).execute()
-
-        if not result.data:
-            raise HTTPException(status_code=404, detail="Import job not found")
-
-        job = result.data[0]
-
-        return ImportJobResponse(
-            id=job["id"],
-            provider=job["provider"],
-            resource_id=job["resource_id"],
-            resource_name=job.get("resource_name"),
-            status=job["status"],
-            progress=job.get("progress", 0),
-            progress_details=_parse_progress_details(job.get("progress_details")),  # ADR-030
-            result=_parse_import_result(job.get("result")),
-            error_message=job.get("error_message"),
-            created_at=job["created_at"],
-            started_at=job.get("started_at"),
-            completed_at=job.get("completed_at"),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Failed to get import job {job_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get import job")
+async def get_import_job(job_id: str, auth: UserClient) -> dict:
+    """DEPRECATED (ADR-153/156): Import jobs sunset."""
+    return {"deprecated": True, "message": "Import jobs have been replaced by monitoring tasks."}
 
 
 # =============================================================================
@@ -1885,7 +1808,7 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     try:
         from services.workspace import UserMemory
         um = UserMemory(auth.client, auth.user_id)
-        profile = UserMemory._parse_memory_md(um.read_sync("MEMORY.md"))
+        profile = UserMemory._parse_memory_md(um.read_sync("IDENTITY.md"))
         user_tz = profile.get("timezone") or "UTC"
     except Exception as e:
         logger.debug(f"Failed to fetch user timezone: {e}")

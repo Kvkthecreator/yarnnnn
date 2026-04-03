@@ -11,8 +11,7 @@ Sources (Memory + Activity layers only):
   filesystem_*   — raw synced platform content (searched on demand, not in prompt)
 
 What goes in the prompt (~3,000 tokens, + ~500 for agent scope):
-  - About you: name, role, company, timezone
-  - Identity: IDENTITY.md content ← ADR-144
+  - Identity: IDENTITY.md content (name, role, company, work context) ← ADR-144/156
   - Brand: BRAND.md content ← ADR-143
   - Awareness: AWARENESS.md — TP's persistent situational notes (shift handoff)
   - Active tasks (max 10): slug, mode, status, schedule, last/next run ← ADR-149
@@ -122,7 +121,7 @@ async def build_working_memory(
     )
 
     working_memory = {
-        "profile": _extract_profile_from_file(memory_files.get("MEMORY.md")),
+        # ADR-156: "profile" extraction removed — IDENTITY.md is rendered directly
         "preferences": _extract_preferences_from_file(memory_files.get("preferences.md")),
         "known": _extract_known_from_file(memory_files.get("notes.md")),
         "identity": identity_content,
@@ -320,14 +319,7 @@ def _get_user_memory_files_sync(user_id: str, client: Any) -> dict[str, str]:
     # _get_work_index_sync DELETED (ADR-156: WORK.md dissolved post ADR-132)
 
 
-def _extract_profile_from_file(content: Optional[str]) -> dict:
-    """Extract profile from MEMORY.md content. ADR-108."""
-    from services.workspace import UserMemory
-    profile = UserMemory._parse_memory_md(content)
-    # Ensure all expected keys exist
-    for key in ("name", "role", "company", "timezone", "summary"):
-        profile.setdefault(key, None)
-    return profile
+    # _extract_profile_from_file DELETED (ADR-156: IDENTITY.md renders directly)
 
 
 def _extract_preferences_from_file(content: Optional[str]) -> list[dict]:
@@ -725,23 +717,7 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
         except Exception as e2:
             logger.warning(f"[WORKING_MEMORY] Failed to fetch pending reviews (fallback): {e2}")
 
-    try:
-        # 4. Failed jobs in last 24 hours
-        cutoff = (now - timedelta(hours=24)).isoformat()
-
-        failed_result = (
-            client.table("integration_import_jobs")
-            .select("id", count="exact")
-            .eq("user_id", user_id)
-            .eq("status", "failed")
-            .gte("created_at", cutoff)
-            .execute()
-        )
-
-        summary["failed_jobs_24h"] = failed_result.count or 0
-
-    except Exception as e:
-        logger.warning(f"[WORKING_MEMORY] Failed to fetch failed jobs count: {e}")
+    # ADR-156: integration_import_jobs query removed (table deprecated, import jobs sunset)
 
     return summary
 
@@ -826,18 +802,7 @@ def format_for_prompt(working_memory: dict) -> str:
     """
     lines = ["## Working Memory\n"]
 
-    # Profile (WHO)
-    profile = working_memory.get("profile", {})
-    if any(v for v in profile.values() if v):
-        lines.append("### About you")
-        if profile.get("name"):
-            role_str = f" ({profile.get('role')})" if profile.get("role") else ""
-            company_str = f" at {profile.get('company')}" if profile.get("company") else ""
-            lines.append(f"**{profile['name']}**{role_str}{company_str}")
-        if profile.get("timezone"):
-            lines.append(f"Timezone: {profile['timezone']}")
-        if profile.get("summary"):
-            lines.append(f"{profile['summary']}")
+    # ADR-156: "About you" profile section removed — IDENTITY.md renders directly below
 
     # Identity (ADR-144: workspace IDENTITY.md)
     identity = working_memory.get("identity")

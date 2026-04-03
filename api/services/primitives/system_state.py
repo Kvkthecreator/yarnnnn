@@ -382,40 +382,8 @@ async def _get_pending_reviews_count(client: Any, user_id: str) -> int:
 
 
 async def _get_failed_jobs(client: Any, user_id: str) -> list[FailedJob]:
-    """Fetch failed import jobs from last 24 hours.
-
-    integration_import_jobs has created_at and completed_at, not updated_at.
-    Use created_at for the recency filter.
-    """
-    try:
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-
-        result = (
-            client.table("integration_import_jobs")
-            .select("id, provider, resource_name, error_message, created_at")
-            .eq("user_id", user_id)
-            .eq("status", "failed")
-            .gte("created_at", cutoff)
-            .order("created_at", desc=True)
-            .limit(10)
-            .execute()
-        )
-
-        jobs = []
-        for row in (result.data or []):
-            jobs.append(FailedJob(
-                job_id=row.get("id", ""),
-                platform=row.get("provider", "unknown"),
-                resource_name=row.get("resource_name", "unknown"),
-                error_message=row.get("error_message", "No error message"),
-                failed_at=row.get("created_at", ""),
-            ))
-
-        return jobs
-
-    except Exception as e:
-        logger.warning(f"[GetSystemState] Failed to get failed jobs: {e}")
-        return []
+    """ADR-156: integration_import_jobs deprecated. Returns empty list."""
+    return []
 
 
 def _format_state_message(snapshot: SystemStateSnapshot) -> str:
