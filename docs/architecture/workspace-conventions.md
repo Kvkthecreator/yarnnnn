@@ -129,7 +129,7 @@ A **domain registry** governs the structure. Each domain (competitors, market, r
 - `<!-- source: researched -->` — agent-validated via WebSearch/platform data. Full content.
 - No tag — manually created or pre-ADR-155 entity.
 
-Inferred stubs are created by the TP via `ScaffoldDomains` primitive during onboarding. Research tasks validate and upgrade them. Re-scaffolding is idempotent: researched entities are never overwritten, inferred stubs are replaced.
+Inferred stubs are created by the TP via `ManageDomains` primitive during onboarding. Research tasks validate and upgrade them. Re-scaffolding is idempotent: researched entities are never overwritten, inferred stubs are replaced.
 
 ---
 

@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.9] - Primitive refactor: ScaffoldDomains → ManageDomains
+
+### Changed
+- `primitives/scaffold.py`: `ScaffoldDomains` renamed to `ManageDomains` with `action` parameter. Four actions: scaffold (bulk, onboarding), add (single entity, steady-state), remove (deprecate), list (query). Primitive is now operation-agnostic — use case (onboarding vs steady-state) is separated from the primitive interface.
+- `primitives/registry.py`: Updated import + handler mapping. Added to HEADLESS_PRIMITIVES (agents can manage domains during task execution).
+- `agents/tp_prompts/onboarding.py`: Updated examples to use `ManageDomains(action="scaffold", entities=[...])`. Added "steady-state" example: `ManageDomains(action="add", domain="competitors", slug="anthropic", ...)`. Onboarding recipe preserved — TP still scaffolds ALL domains in one call after identity processing.
+- Expected behavior: Same onboarding flow, but TP can now also add single entities during conversation ("Add Anthropic as a competitor") without the bulk scaffold interface.
+
+---
+
 ## [2026.04.03.8] - ADR-154 Phase 2b: Tracker-driven context selection
 
 ### Changed

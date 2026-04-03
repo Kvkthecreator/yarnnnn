@@ -164,7 +164,7 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
         logger.info(f"[UPDATE_CONTEXT] Updated {filename} ({len(new_content)} chars)")
 
         # ADR-155 revised: No backend inference cascade. TP decides what to scaffold
-        # via ScaffoldDomains primitive after processing identity/brand.
+        # via ManageDomains primitive after processing identity/brand.
 
         return {
             "success": True,

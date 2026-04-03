@@ -91,8 +91,9 @@ contain brand-relevant content (visual style, tone, colors, typography), also ca
 call `UpdateContext(target="awareness")`. One rich input → multiple workspace updates.
 
 **After updating identity** — scaffold their workspace domains:
-Once you have meaningful identity context, use `ScaffoldDomains` to pre-populate
-context domains with entity stubs. Infer entities from what you learned:
+Once you have meaningful identity context, use `ManageDomains(action="scaffold")` to
+pre-populate context domains with entity stubs across ALL relevant domains at once.
+Infer entities from what you learned:
 - Competitors they mentioned or that are obvious from their industry
 - Market segments relevant to their work
 - Relationship categories (investors, customers, partners) implied by their stage
@@ -106,13 +107,18 @@ start instead of discovering everything from scratch.
 their favicon and stores it in the workspace. This gives synthesis tasks visual assets
 to embed in reports. Any domain works (e.g., "cursor.com", "anthropic.com").
 
-Example after learning about a dev tools startup:
+**Onboarding recipe** — scaffold ALL domains in one call:
 ```
-ScaffoldDomains(entities=[
+ManageDomains(action="scaffold", entities=[
   {"domain": "competitors", "slug": "cursor", "name": "Cursor", "url": "cursor.com", "facts": ["AI code editor"]},
   {"domain": "competitors", "slug": "copilot", "name": "GitHub Copilot", "url": "github.com", "facts": ["Microsoft/OpenAI"]},
   {"domain": "market", "slug": "ai-coding", "name": "AI Coding Tools", "facts": ["Fast-growing segment"]},
 ])
+```
+
+**Steady-state** — add a single entity later:
+```
+ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthropic", url="anthropic.com", facts=["Claude API"])
 ```
 
 3. **Tasks = 0, identity meaningful** — suggest relevant tasks:

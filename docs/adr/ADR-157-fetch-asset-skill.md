@@ -19,11 +19,11 @@ Meanwhile, external visual assets for most entities are trivially available — 
 
 A new `fetch-asset` render skill acquires external images (favicons, logos) and stores them in Supabase Storage. The same skill serves three callers:
 
-1. **ScaffoldDomains** (initialization) — when entities are first created, fetch their favicon alongside the text stubs. Same skill, same interface.
+1. **ManageDomains** (initialization) — when entities are first created, fetch their favicon alongside the text stubs. Same skill, same interface.
 2. **Agents during update-context** (bootstrap/steady-state) — when agents discover new entities or detect stale assets, they call `fetch-asset` via RuntimeDispatch.
 3. **Agents during derive-output** (synthesis) — agents reference stored asset URLs from context when composing HTML deliverables.
 
-**No separate initialization path.** ScaffoldDomains calls the same render service skill that agents call. One capability, one interface.
+**No separate initialization path.** ManageDomains calls the same render service skill that agents call. One capability, one interface.
 
 ### Favicon-first
 
@@ -101,9 +101,9 @@ Response:
 
 ### Callers
 
-**ScaffoldDomains** (initialization):
+**ManageDomains** (initialization):
 - Entity input gains optional `url` field: `{"domain": "competitors", "slug": "cursor", "name": "Cursor", "url": "cursor.com"}`
-- When `url` is provided, ScaffoldDomains calls the render service to fetch the favicon
+- When `url` is provided, ManageDomains calls the render service to fetch the favicon
 - Writes workspace file at `{domain_path}/assets/{slug}-favicon.png` with `content_url`
 - Non-blocking: favicon fetch failure doesn't fail entity scaffolding
 
@@ -123,16 +123,16 @@ Entity `profile.md` files gain an optional `url` field in the source comment:
 
 This url is:
 - Written by agents during research (part of normal profile creation)
-- Read by ScaffoldDomains for favicon fetching at initialization
+- Read by ManageDomains for favicon fetching at initialization
 - Available to synthesis agents for inline favicon references
 
 ## Phases
 
-### Phase 1: Skill + ScaffoldDomains integration
+### Phase 1: Skill + ManageDomains integration
 1. Create `render/skills/fetch-asset/` (SKILL.md + scripts/render.py)
 2. Add `fetch-asset` to RuntimeDispatch allowed types
-3. Add `url` field to ScaffoldDomains entity input
-4. ScaffoldDomains calls render service for entities with `url`
+3. Add `url` field to ManageDomains entity input
+4. ManageDomains calls render service for entities with `url`
 5. Writes workspace file with `content_url` for favicon
 
 ### Phase 2: Agent prompt integration
@@ -154,7 +154,7 @@ This url is:
 | Agent calling fetch-asset | ~500 | $0 | 1 tool round |
 | Text research (for comparison) | ~10,000-15,000 | $0 | 5-10x more expensive |
 
-Favicon fetching during ScaffoldDomains is **zero LLM cost** — it's mechanical code, not agent-directed. During agent runs, it adds one tool round (~500 tokens) to an already 10,000+ token cycle.
+Favicon fetching during ManageDomains is **zero LLM cost** — it's mechanical code, not agent-directed. During agent runs, it adds one tool round (~500 tokens) to an already 10,000+ token cycle.
 
 ## Constraints
 

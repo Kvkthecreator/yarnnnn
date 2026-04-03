@@ -32,9 +32,9 @@ TP is the intelligence layer. It reads context, assesses state, and makes judgme
 TP manages what's in the workspace filesystem. Every primitive is a filesystem write with judgment about what to write and where.
 
 - Reads: working memory, WORKSPACE.md, context_readiness, navigation context
-- Writes: UpdateContext (identity/brand/memory/agent/task), CreateTask, ManageTask, ScaffoldDomains
+- Writes: UpdateContext (identity/brand/memory/agent/task), CreateTask, ManageTask, ManageDomains
 - Routes feedback to the right scope (workspace / agent / task)
-- Scaffolds context domains: after processing identity, TP reasons about what entities should exist and calls ScaffoldDomains to pre-populate (ADR-155). No separate inference service — TP IS the inference layer.
+- Scaffolds context domains: after processing identity, TP reasons about what entities should exist and calls ManageDomains to pre-populate (ADR-155). No separate inference service — TP IS the inference layer.
 
 ### 2. Work Orchestrator
 TP creates and manages tasks. It knows the task type catalog, understands which agents handle what, and matches user intent to the right task configuration.
@@ -59,7 +59,7 @@ TP guides users through workspace setup and ongoing use. It sees what's missing,
 TP reads the workspace state (context_readiness) and uses judgment to guide the user. It doesn't force a sequence. It suggests what would be most valuable RIGHT NOW.
 
 - Empty workspace + no context: "Tell me about yourself and your work" (ContextSetup component on `/context`)
-- User provides identity: TP processes → UpdateContext → ScaffoldDomains (pre-populates all domains with entity stubs)
+- User provides identity: TP processes → UpdateContext → ManageDomains (pre-populates all domains with entity stubs)
 - User says "track competitors": TP creates the task immediately (doesn't gate on brand being set)
 - User browses empty context/competitors/: "This is your competitor intelligence folder. Want to start tracking?"
 

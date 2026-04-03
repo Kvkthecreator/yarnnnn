@@ -22,7 +22,7 @@ This dual-intelligence model was established in ADR-111 when TP lacked workforce
 - ADR-138 gave TP `CreateTask`, `ManageTask` (evaluate/steer/complete)
 - ADR-140 pre-scaffolded the agent roster (no creation needed at cold start)
 - ADR-144 gave TP graduated context awareness (identity/brand/domains/tasks)
-- ADR-155 gave TP `ScaffoldDomains` for workspace-wide inference
+- ADR-155 gave TP `ManageDomains` for workspace-wide inference
 
 TP now has full workforce management capability. Composer is a second intelligence layer making strategic decisions the user never sees happening.
 

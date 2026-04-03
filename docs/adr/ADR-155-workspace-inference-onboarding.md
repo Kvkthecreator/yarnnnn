@@ -192,12 +192,12 @@ Invest ~$0.03 upstream to save ~$1.00+ downstream per task.
 
 **Original**: `workspace_inference.py` — shadow Haiku inference call triggered as backend side-effect after UpdateContext. Eliminated during audit — violated single-intelligence-layer principle.
 
-**Revised**: `ScaffoldDomains` primitive — TP decides WHAT entities to scaffold, backend handles HOW (templates, files, trackers). One tool call, no shadow LLM.
+**Revised**: `ManageDomains` primitive — TP decides WHAT entities to scaffold, backend handles HOW (templates, files, trackers). One tool call, no shadow LLM.
 
-Flow: TP processes identity → reasons about entities → calls `ScaffoldDomains({entities: [...]})` → backend creates stubs with `<!-- source: inferred -->` + `[Needs research]` gaps → TP narrates result.
+Flow: TP processes identity → reasons about entities → calls `ManageDomains({entities: [...]})` → backend creates stubs with `<!-- source: inferred -->` + `[Needs research]` gaps → TP narrates result.
 
 Key files:
-- `api/services/primitives/scaffold.py` — ScaffoldDomains handler
+- `api/services/primitives/scaffold.py` — ManageDomains handler
 - `api/services/directory_registry.py` — `get_entity_stub_content()` template enrichment
 - `api/agents/tp_prompts/onboarding.py` — scaffolding guidance for TP
 
@@ -213,7 +213,7 @@ Deleted: `api/services/workspace_inference.py` (shadow inference), backend casca
 ### Phase 3: TP Notification Channel + FAB Ambient Awareness (Implemented)
 All system side effects surface through the TP chat — inline notification cards in the stream when chat is open, FAB badge when closed.
 
-Notification-worthy tools: UpdateContext, CreateTask, ScaffoldDomains, ManageTask (evaluate/complete).
+Notification-worthy tools: UpdateContext, CreateTask, ManageDomains, ManageTask (evaluate/complete).
 
 Key files:
 - `web/contexts/TPContext.tsx` — detection + queue + flush
@@ -224,14 +224,14 @@ Design doc: `docs/design/TP-NOTIFICATION-CHANNEL.md`
 
 ### Phase 4: Deferred — Existing Flow Sufficient
 
-No new triggers needed. The TP + UpdateContext + ScaffoldDomains path covers all context evolution:
+No new triggers needed. The TP + UpdateContext + ManageDomains path covers all context evolution:
 
 | Event | How it's handled |
 |-------|-----------------|
-| User mentions new competitor | TP calls UpdateContext(identity) + ScaffoldDomains |
-| Document upload | TP extracts context → UpdateContext + ScaffoldDomains |
+| User mentions new competitor | TP calls UpdateContext(identity) + ManageDomains |
+| Document upload | TP extracts context → UpdateContext + ManageDomains |
 | Platform connection | Landscape metadata only — not entity-level signal |
-| Re-scaffolding after identity change | TP calls ScaffoldDomains again (idempotent) |
+| Re-scaffolding after identity change | TP calls ManageDomains again (idempotent) |
 
 ### Architectural Audit (2026-04-02)
 

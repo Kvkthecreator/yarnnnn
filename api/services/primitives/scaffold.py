@@ -1,15 +1,16 @@
 """
-ScaffoldDomains Primitive — ADR-155 + ADR-157
+ManageDomains Primitive — ADR-155 + ADR-157
 
-TP-driven domain scaffolding: TP decides WHAT entities to create,
-this primitive handles HOW (templates, files, trackers).
+CRUD operations on workspace context domain entities.
+TP decides WHAT entities to create/manage, this primitive handles HOW.
 
-Single tool call replaces N × WriteWorkspace calls for entity creation.
-The TP retains full control over which entities are scaffolded.
+Actions:
+  scaffold: Bulk entity creation (onboarding, identity update)
+  add: Single entity creation (steady-state)
+  remove: Deprecate an entity (mark inactive in tracker)
+  list: List entities in a domain
 
-ADR-157: When entities have a `url` field, ScaffoldDomains fetches
-the favicon via the render service (fetch-asset skill) and stores it
-as a workspace file alongside the entity's text files.
+ADR-157: When entities have a `url` field, fetches favicon via render service.
 """
 from __future__ import annotations
 
@@ -26,32 +27,38 @@ RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render
 RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
 
 
-SCAFFOLD_DOMAINS_TOOL = {
-    "name": "ScaffoldDomains",
-    "description": """Create entity stubs across workspace context domains in one operation.
+MANAGE_DOMAINS_TOOL = {
+    "name": "ManageDomains",
+    "description": """Manage entities in workspace context domains (competitors, market, relationships, projects, content_research).
 
-Use this after learning about the user's work to pre-populate their workspace.
-You decide which entities to create — the system handles templates and file structure.
+**action="scaffold"** — Bulk entity creation. Use after learning about the user's work to pre-populate their workspace across multiple domains at once.
+  ManageDomains(action="scaffold", entities=[
+    {"domain": "competitors", "slug": "cursor", "name": "Cursor", "url": "cursor.com", "facts": ["AI code editor"]},
+    {"domain": "market", "slug": "ai-coding", "name": "AI Coding Tools", "facts": ["Fast-growing segment"]},
+  ])
 
-Each entity gets:
-- Profile/analysis stub with your provided facts
-- [Needs research] markers on unknown sections
-- Tracker update per domain
+**action="add"** — Add a single entity to a domain. Use during steady-state when the user mentions a new competitor, contact, or project.
+  ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthropic", url="anthropic.com", facts=["Claude API", "Safety-focused"])
 
-Example:
-ScaffoldDomains(entities=[
-  {"domain": "competitors", "slug": "cursor", "name": "Cursor", "url": "cursor.com", "facts": ["AI code editor by Anysphere", "YC-backed"]},
-  {"domain": "competitors", "slug": "copilot", "name": "GitHub Copilot", "url": "github.com/features/copilot", "facts": ["Microsoft/OpenAI backed"]},
-  {"domain": "market", "slug": "ai-coding", "name": "AI Coding Tools", "facts": ["$2B+ market by 2026"]},
-])
+**action="remove"** — Deprecate an entity (marks inactive in tracker, does not delete files).
+  ManageDomains(action="remove", domain="competitors", slug="old-company")
 
+**action="list"** — List entities in a domain with status and file counts.
+  ManageDomains(action="list", domain="competitors")
+
+Each scaffolded entity gets stub files with your provided facts + [Needs research] markers.
 Only create entities you have reasonable evidence for. Don't guess.""",
     "input_schema": {
         "type": "object",
         "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["scaffold", "add", "remove", "list"],
+                "description": "Operation: scaffold (bulk), add (single), remove (deprecate), list (query)",
+            },
             "entities": {
                 "type": "array",
-                "description": "List of entities to scaffold",
+                "description": "For action=scaffold: list of entities to create across domains",
                 "items": {
                     "type": "object",
                     "properties": {
@@ -74,24 +81,57 @@ Only create entities you have reasonable evidence for. Don't guess.""",
                         },
                         "url": {
                             "type": "string",
-                            "description": "Entity's website domain (e.g., 'cursor.com'). Used to fetch favicon (ADR-157).",
+                            "description": "Entity's website domain (e.g., 'cursor.com'). Used to fetch favicon.",
                         },
                     },
                     "required": ["domain", "slug", "name"],
                 },
             },
+            "domain": {
+                "type": "string",
+                "description": "For action=add/remove/list: the target domain",
+            },
+            "slug": {
+                "type": "string",
+                "description": "For action=add/remove: entity slug",
+            },
+            "name": {
+                "type": "string",
+                "description": "For action=add: entity display name",
+            },
+            "facts": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "For action=add: known facts (1-3 bullets)",
+            },
+            "url": {
+                "type": "string",
+                "description": "For action=add: entity's website domain for favicon fetch",
+            },
         },
-        "required": ["entities"],
+        "required": ["action"],
     },
 }
 
 
-async def handle_scaffold_domains(auth: Any, input: dict) -> dict:
-    """Scaffold entity stubs across context domains.
+async def handle_manage_domains(auth: Any, input: dict) -> dict:
+    """Route ManageDomains to appropriate action handler."""
+    action = input.get("action", "scaffold")
 
-    TP decides WHAT (which entities in which domains).
-    This handler does HOW (template application, file writes, tracker rebuild).
-    """
+    if action == "scaffold":
+        return await _handle_scaffold(auth, input)
+    elif action == "add":
+        return await _handle_add(auth, input)
+    elif action == "remove":
+        return await _handle_remove(auth, input)
+    elif action == "list":
+        return await _handle_list(auth, input)
+    else:
+        return {"success": False, "error": "invalid_action", "message": f"Unknown action: {action}"}
+
+
+async def _handle_scaffold(auth: Any, input: dict) -> dict:
+    """Bulk entity creation across domains. Onboarding + identity update path."""
     from services.workspace import UserMemory
     from services.directory_registry import (
         get_entity_stub_content, get_tracker_path, build_tracker_md,
@@ -185,6 +225,7 @@ async def handle_scaffold_domains(auth: Any, input: dict) -> dict:
 
     return {
         "success": True,
+        "action": "scaffold",
         "scaffolded": scaffolded,
         "skipped": {k: v for k, v in skipped.items() if v},
         "total_files": total_files,
@@ -192,6 +233,103 @@ async def handle_scaffold_domains(auth: Any, input: dict) -> dict:
         "message": f"Scaffolded {total_entities} entities across {domains_count} domains ({total_files} files, {favicon_results.get('fetched', 0)} favicons)",
     }
 
+
+async def _handle_add(auth: Any, input: dict) -> dict:
+    """Add a single entity to a domain. Steady-state use."""
+    # Reuse scaffold with a single-element entities list
+    entity = {
+        "domain": input.get("domain", ""),
+        "slug": input.get("slug", ""),
+        "name": input.get("name", ""),
+        "facts": input.get("facts", []),
+        "url": input.get("url", ""),
+    }
+    if not entity["domain"] or not entity["slug"] or not entity["name"]:
+        return {"success": False, "error": "missing_fields", "message": "action=add requires domain, slug, and name"}
+
+    result = await _handle_scaffold(auth, {"entities": [entity]})
+    result["action"] = "add"
+    return result
+
+
+async def _handle_remove(auth: Any, input: dict) -> dict:
+    """Mark an entity as inactive in its domain tracker."""
+    from services.workspace import UserMemory
+    from services.directory_registry import (
+        get_tracker_path, build_tracker_md, has_entity_tracker, WORKSPACE_DIRECTORIES,
+    )
+
+    domain_key = input.get("domain", "")
+    slug = input.get("slug", "")
+    if not domain_key or not slug:
+        return {"success": False, "error": "missing_fields", "message": "action=remove requires domain and slug"}
+
+    if domain_key not in WORKSPACE_DIRECTORIES:
+        return {"success": False, "error": "invalid_domain", "message": f"Unknown domain: {domain_key}"}
+
+    um = UserMemory(auth.client, auth.user_id)
+    domain_path = WORKSPACE_DIRECTORIES[domain_key]["path"]
+
+    # Check entity exists
+    entity_files = um._db.table("workspace_files").select(
+        "path"
+    ).eq("user_id", auth.user_id).like(
+        "path", f"/workspace/{domain_path}/{slug}/%"
+    ).limit(1).execute()
+
+    if not (entity_files.data or []):
+        return {"success": False, "error": "not_found", "message": f"Entity {slug} not found in {domain_key}"}
+
+    # Add deprecation marker to the entity's primary file
+    primary_path = f"{domain_path}/{slug}/profile.md"
+    existing = await um.read(primary_path)
+    if existing and "<!-- status: inactive -->" not in existing:
+        await um.write(primary_path, f"<!-- status: inactive -->\n{existing}",
+                       summary=f"Deprecated: {domain_key}/{slug}")
+
+    # Rebuild tracker
+    if has_entity_tracker(domain_key):
+        tracker_path = get_tracker_path(domain_key)
+        if tracker_path:
+            entity_list = await _scan_domain_entities(um, domain_path, domain_key)
+            tracker_content = build_tracker_md(domain_key, entity_list)
+            await um.write(tracker_path, tracker_content, summary="Tracker rebuild after remove")
+
+    return {
+        "success": True,
+        "action": "remove",
+        "domain": domain_key,
+        "slug": slug,
+        "message": f"Marked {slug} as inactive in {domain_key}",
+    }
+
+
+async def _handle_list(auth: Any, input: dict) -> dict:
+    """List entities in a domain with status and file counts."""
+    from services.workspace import UserMemory
+    from services.directory_registry import WORKSPACE_DIRECTORIES
+
+    domain_key = input.get("domain", "")
+    if not domain_key or domain_key not in WORKSPACE_DIRECTORIES:
+        return {"success": False, "error": "invalid_domain", "message": f"Provide a valid domain: {', '.join(k for k, v in WORKSPACE_DIRECTORIES.items() if v.get('type') == 'context')}"}
+
+    um = UserMemory(auth.client, auth.user_id)
+    domain_path = WORKSPACE_DIRECTORIES[domain_key]["path"]
+    entity_list = await _scan_domain_entities(um, domain_path, domain_key)
+
+    return {
+        "success": True,
+        "action": "list",
+        "domain": domain_key,
+        "entities": entity_list,
+        "count": len(entity_list),
+        "message": f"{len(entity_list)} entities in {domain_key}",
+    }
+
+
+# =============================================================================
+# Internal helpers
+# =============================================================================
 
 async def _fetch_favicons_batch(um, user_id: str, requests: list[dict]) -> dict:
     """ADR-157: Fetch favicons for entities via render service.
@@ -257,15 +395,15 @@ async def _fetch_favicons_batch(um, user_id: str, requests: list[dict]) -> dict:
                     else:
                         failed += 1
                 else:
-                    logger.warning(f"[SCAFFOLD] Favicon fetch failed for {url}: {result.get('error', 'unknown')}")
+                    logger.warning(f"[MANAGE_DOMAINS] Favicon fetch failed for {url}: {result.get('error', 'unknown')}")
                     failed += 1
 
             except Exception as e:
-                logger.warning(f"[SCAFFOLD] Favicon fetch failed for {url}: {e}")
+                logger.warning(f"[MANAGE_DOMAINS] Favicon fetch failed for {url}: {e}")
                 failed += 1
 
     if fetched:
-        logger.info(f"[SCAFFOLD] Fetched {fetched} favicons ({failed} failed)")
+        logger.info(f"[MANAGE_DOMAINS] Fetched {fetched} favicons ({failed} failed)")
 
     return {"fetched": fetched, "failed": failed}
 
@@ -276,7 +414,7 @@ async def _scan_domain_entities(um, domain_path: str, domain_key: str) -> list[d
 
     try:
         all_files = um._db.table("workspace_files").select(
-            "path, updated_at"
+            "path, updated_at, content"
         ).eq("user_id", um._user_id).like(
             "path", f"/workspace/{domain_path}/%"
         ).execute()
@@ -290,7 +428,7 @@ async def _scan_domain_entities(um, domain_path: str, domain_key: str) -> list[d
         if len(parts) < 2:
             continue
         slug = parts[0]
-        if slug.startswith("_"):
+        if slug.startswith("_") or slug == "assets":
             continue
 
         if slug not in entities:
@@ -307,5 +445,10 @@ async def _scan_domain_entities(um, domain_path: str, domain_key: str) -> list[d
         updated = row.get("updated_at")
         if updated and updated > entities[slug]["last_updated"]:
             entities[slug]["last_updated"] = updated
+
+        # Check for inactive marker
+        content = row.get("content", "")
+        if content and "<!-- status: inactive -->" in content:
+            entities[slug]["status"] = "inactive"
 
     return list(entities.values())

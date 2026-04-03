@@ -171,7 +171,7 @@ The workspace has `BRAND.md` with visual style guidelines (colors, typography pr
 - `update-context` and `derive-output` already mention RuntimeDispatch for visual assets
 - May need specific guidance: "For content topics without a company favicon, generate a topic illustration"
 
-### 4. ScaffoldDomains (future)
+### 4. ManageDomains (future)
 
 - Content research entities could get auto-generated hero images at scaffold time
 - Same pattern as favicon fetch: non-blocking, stored in `assets/`

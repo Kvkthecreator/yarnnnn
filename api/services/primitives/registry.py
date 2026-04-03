@@ -30,7 +30,7 @@ from .coordinator import CREATE_AGENT_TOOL, handle_create_agent
 from .task import CREATE_TASK_TOOL, handle_create_task
 from .manage_task import MANAGE_TASK_TOOL, handle_manage_task
 from .update_context import UPDATE_CONTEXT_TOOL, handle_update_context
-from .scaffold import SCAFFOLD_DOMAINS_TOOL, handle_scaffold_domains
+from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
 from .workspace import (
     READ_WORKSPACE_TOOL, handle_read_workspace,
     WRITE_WORKSPACE_TOOL, handle_write_workspace,
@@ -169,7 +169,7 @@ CHAT_PRIMITIVES = [
     # Context mutations — unified (1, was 4)
     UPDATE_CONTEXT_TOOL,
     # ADR-155: Domain scaffolding (TP-driven)
-    SCAFFOLD_DOMAINS_TOOL,
+    MANAGE_DOMAINS_TOOL,
     # Agent/Task lifecycle (3, was 6)
     CREATE_AGENT_TOOL,
     CREATE_TASK_TOOL,
@@ -200,10 +200,11 @@ HEADLESS_PRIMITIVES = [
     # Inter-agent (2)
     DISCOVER_AGENTS_TOOL,
     READ_AGENT_CONTEXT_TOOL,
-    # Lifecycle (3)
+    # Lifecycle (3) + Domain management (1)
     CREATE_AGENT_TOOL,
     CREATE_TASK_TOOL,
     MANAGE_TASK_TOOL,
+    MANAGE_DOMAINS_TOOL,
     # ADR-148: RuntimeDispatch removed from headless — assets rendered post-generation
     # RuntimeDispatch kept in HANDLERS for TP chat usage (explicit user requests)
 ]  # 16 tools
@@ -231,7 +232,7 @@ HANDLERS: dict[str, Callable] = {
     "CreateTask": handle_create_task,
     "ManageTask": handle_manage_task,
     "UpdateContext": handle_update_context,
-    "ScaffoldDomains": handle_scaffold_domains,
+    "ManageDomains": handle_manage_domains,
     "ReadWorkspace": handle_read_workspace,
     "WriteWorkspace": handle_write_workspace,
     "SearchWorkspace": handle_search_workspace,
