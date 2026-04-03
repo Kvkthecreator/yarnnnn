@@ -97,7 +97,7 @@ When new documents are uploaded or platforms sync fresh content, TP can suggest:
 
 ## Context Readiness Signal
 
-Working memory includes a `context_readiness` object so TP knows what's sparse:
+Working memory includes a `workspace_state` object so TP knows what's sparse:
 
 ```json
 {
@@ -124,6 +124,6 @@ No separate onboarding step. The workfloor IS the onboarding surface.
 ### TP Context Awareness
 
 The context awareness prompt is **always injected** into TP's system prompt (not gated
-by any onboarding flag). TP sees `context_readiness` signals in working memory every
+by any onboarding flag). TP sees `workspace_state` signals in working memory every
 turn and uses judgment to guide the user. Platform connections are not a prerequisite —
 they enrich context but don't gate it.
