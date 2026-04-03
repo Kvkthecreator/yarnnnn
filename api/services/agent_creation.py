@@ -2,7 +2,7 @@
 Agent Creation — Shared logic for all agent creation paths (ADR-111).
 
 Single source of truth for creating agents. Called by:
-- CreateAgent primitive (chat + headless)
+- ManageAgent primitive (chat + headless, action="create")
 - Onboarding bootstrap service (ADR-110)
 - POST /agents route (agents.py)
 

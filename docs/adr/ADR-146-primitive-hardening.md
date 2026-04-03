@@ -20,7 +20,7 @@ The primitive set has grown organically from 7 (v2, 2026-02-11) to 27 (current) 
 
 3. **Task lifecycle is 5 separate tools.** `CreateTask`, `TriggerTask`, `UpdateTask`, `PauseTask`, `ResumeTask` — the last three are status/schedule mutations on an existing task. PauseTask and ResumeTask are literally status toggles.
 
-4. **The CRUD quintet predates the workspace filesystem.** `Read`, `Write`, `Edit`, `List`, `Search` were designed for a `type:identifier` reference grammar world. Post-ADR-106, workspace files coexist as a parallel addressing system. `Write(ref="memory:new")` and `WriteWorkspace(path="memory/x.md")` are two paradigms for the same operation. In practice, `Write` is vestigial — agent creation redirects to `CreateAgent`, memory creation is handled by `SaveMemory`, and document creation is handled by file upload.
+4. **The CRUD quintet predates the workspace filesystem.** `Read`, `Write`, `Edit`, `List`, `Search` were designed for a `type:identifier` reference grammar world. Post-ADR-106, workspace files coexist as a parallel addressing system. `Write(ref="memory:new")` and `WriteWorkspace(path="memory/x.md")` are two paradigms for the same operation. In practice, `Write` is vestigial — agent creation redirects to `ManageAgent`, memory creation is handled by `SaveMemory`, and document creation is handled by file upload.
 
 5. **Execute is a grab bag.** 4 remaining actions (`agent.generate`, `platform.publish`, `agent.acknowledge`, `agent.schedule`) with no unifying principle. `agent.generate` is redundant with `TriggerTask`. `agent.acknowledge` is a workspace append.
 
@@ -118,12 +118,12 @@ ManageTask(
 ### Phase 3: Retire Vestigial CRUD Primitives
 
 **Delete `Write`** — Every creation path has a specialized primitive:
-- Agents → `CreateAgent`
+- Agents → `ManageAgent`
 - Tasks → `CreateTask`
 - Memories → `UpdateContext(target="memory")`
 - Documents → file upload (not a primitive)
 
-`Write` currently redirects agent creation to `CreateAgent` anyway. Its remaining paths (memory:new, document:new) are either handled by `UpdateContext` or unused.
+`Write` currently redirects agent creation to `ManageAgent` anyway. Its remaining paths (memory:new, document:new) are either handled by `UpdateContext` or unused.
 
 **Retire `Execute`** — Its remaining actions dissolve:
 - `agent.generate` → `ManageTask(action="trigger")` (tasks are the execution unit, not agents directly)
@@ -202,7 +202,7 @@ HEADLESS_PRIMITIVES = [
 | 7 | **WebSearch** | Search the web |
 | 8 | **list_integrations** | Platform metadata |
 | 9 | **UpdateContext** | All context mutations (identity, brand, memory, agent feedback, task feedback) |
-| 10 | **CreateAgent** | Create agent identity |
+| 10 | **ManageAgent** | Create agent identity |
 | 11 | **CreateTask** | Create task with registry |
 | 12 | **ManageTask** | Trigger, update, pause, resume tasks |
 | 13 | **Clarify** | Ask user for input |
@@ -214,7 +214,7 @@ HEADLESS_PRIMITIVES = [
 | 1-6 | Discovery + External | Same as chat (minus Edit, list_integrations, Clarify, UpdateContext) |
 | 7-11 | Workspace suite | ReadWorkspace, WriteWorkspace, SearchWorkspace, QueryKnowledge, ListWorkspace |
 | 12-13 | Inter-agent | DiscoverAgents, ReadAgentContext |
-| 14-15 | Lifecycle | CreateAgent, CreateTask, ManageTask |
+| 14-15 | Lifecycle | ManageAgent, CreateTask, ManageTask |
 | 16 | Output | RuntimeDispatch |
 
 ### Deleted (14 tools removed from combined surface)

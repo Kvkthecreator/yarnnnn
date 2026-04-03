@@ -135,7 +135,7 @@ Workspace (1 per user, implicit)
 
 | PM/Project Responsibility | New Home | Mechanism |
 |---|---|---|
-| Create agents | TP primitive | `CreateAgent` with AGENT.md |
+| Create agents | TP primitive | `ManageAgent` with AGENT.md |
 | Create tasks | TP primitive | `CreateTask` with TASK.md, assigns agent(s) |
 | Agent health monitoring | Composer cron | Periodic workforce health check (existing, thins to health-only) |
 | Quality assessment | Agent self-check | Haiku post-generation eval against TASK.md criteria |
@@ -655,7 +655,7 @@ Steps:
 **Goal**: TP can create agents, create tasks, trigger tasks, and manage the workforce.
 
 Steps:
-1. Update `CreateAgent` primitive — writes identity-focused AGENT.md
+1. Update `ManageAgent` primitive — writes identity-focused AGENT.md
 2. Create `CreateTask` primitive — writes TASK.md, creates DB row, assigns agent
 3. Create `TriggerTask` primitive — run a task now with optional injected context
 4. Create `AssembleOutputs` primitive — read outputs from multiple tasks, compose unified deliverable

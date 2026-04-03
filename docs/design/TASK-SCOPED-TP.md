@@ -43,7 +43,7 @@ Connected platforms: {platform_status}
 ```
 
 **Primitives available:**
-- CreateAgent, CreateTask, TriggerTask (any task)
+- ManageAgent, CreateTask, TriggerTask (any task)
 - Search, WebSearch, RefreshPlatformContent
 - Read, Write, Edit, List, Execute
 - SaveMemory, Clarify
@@ -95,7 +95,7 @@ adjust delivery, and trigger runs. You can update TASK.md fields
 - Clarify
 
 **NOT available (workfloor-only):**
-- CreateAgent, CreateTask (wrong scope — go to workfloor for that)
+- ManageAgent, CreateTask (wrong scope — go to workfloor for that)
 
 **Plus menu:**
 - Run this task now
@@ -156,7 +156,7 @@ TASK_SCOPE_ALLOWED = {
 }
 
 TASK_SCOPE_BLOCKED = {
-    "CreateAgent", "CreateTask", "Write", "Execute", "SaveMemory",
+    "ManageAgent", "CreateTask", "Write", "Execute", "SaveMemory",
 }
 ```
 

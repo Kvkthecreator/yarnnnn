@@ -172,17 +172,16 @@ Primitives are the operations available to agents. Two explicit registries (ADR-
 - Discovery: Read, List, Search, Edit, GetSystemState
 - External: RefreshPlatformContent, WebSearch, ListIntegrations
 - Context: UpdateContext (unified — identity, brand, memory, agent feedback, task feedback)
-- Lifecycle: CreateAgent, CreateTask, ManageTask (trigger/update/pause/resume)
+- Lifecycle: ManageAgent (create/update/pause/resume/archive), CreateTask, ManageTask (trigger/update/pause/resume/evaluate/steer/complete), ManageDomains (scaffold/add/remove/list)
 - Execution: Execute
 - Interaction: Clarify
 
 **Headless mode** (17 tools — background agent execution):
 - Discovery: Read, List, Search, GetSystemState
-- External: RefreshPlatformContent, WebSearch
+- External: WebSearch
 - Workspace: ReadWorkspace, WriteWorkspace, SearchWorkspace, QueryKnowledge, ListWorkspace
 - Inter-agent: DiscoverAgents, ReadAgentContext
-- Lifecycle: CreateAgent, CreateTask, ManageTask
-- Output: RuntimeDispatch
+- Lifecycle: ManageAgent, CreateTask, ManageTask, ManageDomains
 
 See `api/services/primitives/registry.py` for the canonical source.
 

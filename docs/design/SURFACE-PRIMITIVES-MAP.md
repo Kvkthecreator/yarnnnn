@@ -34,7 +34,7 @@ on the task page. TP receives surface context and should respect these boundarie
 | `/recap` | "slack recap" | Clarify → CreateTask (digest) |
 | `/summary` | "work summary" | Clarify → CreateTask (report) |
 | `/research` | "research this" | Clarify → CreateTask (research) |
-| `/create` | "create agent" | CreateAgent |
+| `/create` | "create agent" | ManageAgent |
 | `/search` | "search my platforms" | Search (platform_content) |
 | `/sync` | "sync my", "refresh" | RefreshPlatformContent |
 | `/memory` | "remember that" | SaveMemory |
@@ -55,7 +55,7 @@ Chips disappear once user sends any message.
 All chat-mode primitives are available. Workspace-relevant:
 - `UpdateSharedContext` — identity/brand mutations
 - `CreateTask`, `TriggerTask` — task lifecycle (with auto-navigate)
-- `CreateAgent` — agent creation
+- `ManageAgent` — agent creation
 - `SaveMemory` — store user preferences/facts
 - `WebSearch`, `Search`, `Read`, `List` — information retrieval
 - `RefreshPlatformContent` — platform sync
@@ -95,7 +95,7 @@ Same set as workfloor, but TP receives task surface context that scopes behavior
 **Not intended for task page** (workspace-level):
 - `UpdateSharedContext` — available but TP should not offer it in task context
 - `CreateTask` — available but unusual from within a task page
-- `CreateAgent` — available but irrelevant to task scope
+- `ManageAgent` — available but irrelevant to task scope
 
 ---
 
@@ -124,7 +124,7 @@ The frontend auto-navigates on success (600ms delay). Current navigating primiti
 | `TriggerTask` | `/tasks/{slug}` |
 
 Future candidates:
-- `CreateAgent` → `/agents/{id}`
+- `ManageAgent` → `/agents/{id}`
 
 ---
 

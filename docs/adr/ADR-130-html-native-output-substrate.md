@@ -222,7 +222,7 @@ Layout mode is decoupled from agent type. Any agent's output can be rendered in 
 - `LEGACY_ROLE_MAP` + `resolve_role()` for backward compatibility
 - `display_name`, `tagline`, `default_frequency` per type
 - `list_agent_types()`, `get_type_display()` helpers
-- All LLM-facing prompts migrated: Composer (v3.0), TP CreateAgent, TP behaviors, CreateAgent primitive, commands
+- All LLM-facing prompts migrated: Composer (v3.0, superseded by ADR-156), TP ManageAgent, TP behaviors, ManageAgent primitive, commands
 - All code callers migrated: agent_creation, agent_pipeline, agent_execution, agent_pulse, composer, working_memory
 - `VALID_ROLES` derived from `AGENT_TYPES` registry (single source of truth)
 - `infer_scope()` uses `ROLE_TO_SCOPE` for all types
