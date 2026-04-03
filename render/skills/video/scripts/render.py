@@ -31,38 +31,53 @@ COMPOSITION_DIR = Path(__file__).parent.parent / "composition"
 def _find_remotion_cli() -> str:
     """Find the remotion CLI binary. Checks multiple locations."""
     import shutil
+    import glob
 
     # 1. Composition-local node_modules
     local_bin = COMPOSITION_DIR / "node_modules" / ".bin" / "remotion"
     if local_bin.exists():
         return str(local_bin)
 
-    # 2. Global npm bin
+    # 2. Global npm bin (shutil.which)
     global_bin = shutil.which("remotion")
     if global_bin:
         return global_bin
 
-    # 3. Common global npm paths
-    for path in ["/usr/local/bin/remotion", "/usr/lib/node_modules/.bin/remotion"]:
+    # 3. Common global npm paths (Debian/Ubuntu variants)
+    for path in [
+        "/usr/local/bin/remotion",
+        "/usr/local/lib/node_modules/.bin/remotion",
+        "/usr/local/lib/node_modules/@remotion/cli/remotion",
+        "/usr/lib/node_modules/.bin/remotion",
+        "/usr/lib/node_modules/@remotion/cli/remotion",
+    ]:
         if Path(path).exists():
             return path
 
-    # 4. Try npx as last resort
+    # 4. Search for remotion binary anywhere in common npm dirs
+    for pattern in ["/usr/local/lib/node_modules/**/remotion", "/usr/lib/node_modules/**/remotion"]:
+        matches = glob.glob(pattern, recursive=True)
+        for m in matches:
+            if Path(m).is_file() and "cli" in m.lower():
+                return m
+
+    # 5. Try npx as last resort
     npx = shutil.which("npx")
     if npx:
         return f"{npx} remotion"
 
     # Log diagnostic info for debugging
-    import os
+    import os, glob as g
     comp_dir = str(COMPOSITION_DIR)
     nm_exists = (COMPOSITION_DIR / "node_modules").exists()
-    bin_exists = (COMPOSITION_DIR / "node_modules" / ".bin").exists()
-    remotion_exists = (COMPOSITION_DIR / "node_modules" / ".bin" / "remotion").exists()
+    global_remotion = g.glob("/usr/local/lib/node_modules/**/*remotion*", recursive=True)[:10]
     logger.error(
         f"[VIDEO] remotion CLI not found. Diagnostics: "
         f"COMPOSITION_DIR={comp_dir}, exists={COMPOSITION_DIR.exists()}, "
-        f"node_modules={nm_exists}, .bin={bin_exists}, remotion={remotion_exists}, "
-        f"cwd={os.getcwd()}, "
+        f"node_modules={nm_exists}, "
+        f"which_remotion={shutil.which('remotion')}, "
+        f"which_npx={shutil.which('npx')}, "
+        f"global_remotion={global_remotion}, "
         f"dir_contents={os.listdir(comp_dir) if COMPOSITION_DIR.exists() else 'DIR_MISSING'}"
     )
 
