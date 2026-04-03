@@ -11,3 +11,4 @@ EXECUTION DISCIPLINE REMINDERS (auto-injected via hook):
 8. GIT — Commit and push when changes are complete. Conventional commit style with ADR refs where applicable.
 9. PROGRESS — Use TodoWrite for multi-step tasks. Share progress. Mark todos complete immediately.
 10. BEHAVIORAL ARTIFACTS — Hooks, prompts, registries, and data-handling configs are versioned artifacts. Before adding or relocating, audit existing placement for architectural fit. Maintain changelogs (like `api/prompts/CHANGELOG.md`) for all behavioral injections. New registries need clear ownership and documented location rationale.
+11. CONTENT OPS — Single source of truth is content/OPS.md. Workflow: draft in content/posts/{slug}.md → publish to blog (commit+push) → cross-post via Claude in Chrome (LinkedIn, X, Medium, Reddit). NO separate platform-variant markdown files. Read content/OPS.md + VOICE_AND_BRAND.md + STRATEGY.md before any content work.
