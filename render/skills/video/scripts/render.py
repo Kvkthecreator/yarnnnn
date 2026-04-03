@@ -52,6 +52,20 @@ def _find_remotion_cli() -> str:
     if npx:
         return f"{npx} remotion"
 
+    # Log diagnostic info for debugging
+    import os
+    comp_dir = str(COMPOSITION_DIR)
+    nm_exists = (COMPOSITION_DIR / "node_modules").exists()
+    bin_exists = (COMPOSITION_DIR / "node_modules" / ".bin").exists()
+    remotion_exists = (COMPOSITION_DIR / "node_modules" / ".bin" / "remotion").exists()
+    logger.error(
+        f"[VIDEO] remotion CLI not found. Diagnostics: "
+        f"COMPOSITION_DIR={comp_dir}, exists={COMPOSITION_DIR.exists()}, "
+        f"node_modules={nm_exists}, .bin={bin_exists}, remotion={remotion_exists}, "
+        f"cwd={os.getcwd()}, "
+        f"dir_contents={os.listdir(comp_dir) if COMPOSITION_DIR.exists() else 'DIR_MISSING'}"
+    )
+
     raise FileNotFoundError(
         "remotion CLI not found. Ensure @remotion/cli is installed "
         "(npm install -g @remotion/cli or in composition/package.json)"

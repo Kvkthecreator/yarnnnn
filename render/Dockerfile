@@ -27,7 +27,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # ADR-157: Install Remotion composition deps (React + @remotion/cli)
-# Must run after COPY so source files are present. Cache-bust: v2
-RUN cd /app/skills/video/composition && npm install && ls -la node_modules/.bin/remotion
+RUN cd /app/skills/video/composition && \
+    npm install 2>&1 && \
+    echo "=== Remotion binary check ===" && \
+    ls -la node_modules/.bin/remotion && \
+    echo "=== Remotion version ===" && \
+    node_modules/.bin/remotion --version
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]
