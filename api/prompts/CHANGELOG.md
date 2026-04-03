@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.03.8] - ADR-154 Phase 2b: Tracker-driven context selection
+
+### Changed
+- `services/task_pipeline.py`: `_gather_context_domains()` refactored from naive recency-ordered loading to three-branch strategy: (1) synthesis files always loaded first, (2) objective-matched entities loaded in full, (3) profile-only fallback for general objectives. Non-entity domains (signals) unchanged.
+- `services/task_pipeline.py`: New `_match_entities_to_objective()` function — deterministic string matching of task objective against entity slugs. Zero LLM cost.
+- `services/task_pipeline.py`: `gather_task_context()` now passes `task_info` to `_gather_context_domains()`.
+- Expected behavior: Tasks mentioning specific entities (e.g., "Acme competitive profile") get those entities' full files. General tasks (e.g., "weekly landscape brief") get profile-only summaries for all entities. Synthesis files always included. Agent can use ReadWorkspace/QueryKnowledge tools for deeper retrieval during tool rounds.
+
+---
+
 ## [2026.04.03.7] - ADR-156: Workspace file naming convention (3-tier)
 
 ### Changed
