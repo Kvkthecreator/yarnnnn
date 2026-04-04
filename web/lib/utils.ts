@@ -30,12 +30,15 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   Respond: "Responding",
   Clarify: "Asking for clarification",
 
-  // Agent lifecycle (ADR-111)
-  CreateAgent: "Creating agent",
+  // Agent lifecycle (ADR-156)
+  ManageAgent: "Managing agent",
 
   // Task primitives (ADR-138, ADR-146)
   CreateTask: "Creating task",
   ManageTask: "Managing task",
+
+  // Domain management (ADR-155)
+  ManageDomains: "Managing domains",
 
   // Context (ADR-146)
   UpdateContext: "Updating context",
