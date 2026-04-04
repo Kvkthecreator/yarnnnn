@@ -362,7 +362,7 @@ async def _lookup_user_from_slack(
             db_client.table("platform_connections")
             .select("user_id, metadata")
             .eq("platform", "slack")
-            .eq("status", "connected")
+            .eq("status", "active")
             .execute()
         )
 

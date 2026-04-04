@@ -277,7 +277,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                     .select("landscape")
                     .eq("user_id", user_id)
                     .eq("platform", platform)
-                    .eq("status", "connected")
+                    .eq("status", "active")
                     .maybe_single()
                     .execute()
                 )

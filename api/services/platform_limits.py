@@ -174,7 +174,7 @@ def get_source_count(client, user_id: str, provider: str) -> int:
             .select("landscape")
             .eq("user_id", user_id)
             .eq("platform", provider)
-            .eq("status", "connected")
+            .eq("status", "active")
             .execute()
         )
         if not result.data:
@@ -196,7 +196,7 @@ def get_platform_count(client, user_id: str) -> int:
             client.table("platform_connections")
             .select("id")
             .eq("user_id", user_id)
-            .eq("status", "connected")
+            .eq("status", "active")
             .execute()
         )
         return len(result.data) if result.data else 0

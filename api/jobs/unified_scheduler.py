@@ -434,7 +434,7 @@ async def run_unified_scheduler():
     try:
         _conn_result = supabase.table("platform_connections").select(
             "user_id"
-        ).in_("status", ["connected", "active"]).execute()
+        ).eq("status", "active").execute()
         active_user_ids = list(set(row["user_id"] for row in (_conn_result.data or [])))
     except Exception:
         active_user_ids = []

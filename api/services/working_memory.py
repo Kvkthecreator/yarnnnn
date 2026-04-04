@@ -495,7 +495,7 @@ def _build_system_reference(platforms: list) -> dict:
         })
 
     # --- Connected platform names (derived from already-fetched platforms) ---
-    connected = [p.get("platform") for p in platforms if p.get("status") in ("active", "connected")]
+    connected = [p.get("platform") for p in platforms if p.get("status") == "active"]
 
     return {
         "agent_roles": roles,
