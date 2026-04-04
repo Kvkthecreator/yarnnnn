@@ -244,6 +244,69 @@ Parameters:
             "required": ["repo"]
         }
     },
+    # ADR-158 Phase 5: GitHub reference tools
+    {
+        "name": "platform_github_get_repo_metadata",
+        "description": """Get metadata for a GitHub repository: description, topics, language, stars, forks, license.
+
+Use to understand what a repo is about without reading code. Works for any public repo or repos the user has access to.
+
+Parameters:
+- repo: Full repo name (owner/repo format)""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "repo": {
+                    "type": "string",
+                    "description": "Full repo name: owner/repo"
+                },
+            },
+            "required": ["repo"]
+        }
+    },
+    {
+        "name": "platform_github_get_readme",
+        "description": """Get the README content for a GitHub repository.
+
+Returns the README as text (truncated to 5000 chars). Use to understand what a product/project claims to be. NOT for code analysis.
+
+Parameters:
+- repo: Full repo name (owner/repo format)""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "repo": {
+                    "type": "string",
+                    "description": "Full repo name: owner/repo"
+                },
+            },
+            "required": ["repo"]
+        }
+    },
+    {
+        "name": "platform_github_get_releases",
+        "description": """Get recent releases for a GitHub repository.
+
+Returns tag names, release notes (truncated), and publish dates. Use to track what shipped.
+
+Parameters:
+- repo: Full repo name (owner/repo format)
+- limit: Number of releases (default 10)""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "repo": {
+                    "type": "string",
+                    "description": "Full repo name: owner/repo"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of releases to retrieve. Default: 10."
+                },
+            },
+            "required": ["repo"]
+        }
+    },
 ]
 
 # All platform tools by provider
@@ -258,7 +321,11 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
     "write_slack": ["platform_slack_send_message"],
     "read_notion": ["platform_notion_search", "platform_notion_get_page"],
     "write_notion": ["platform_notion_create_comment"],
-    "read_github": ["platform_github_list_repos", "platform_github_get_issues"],
+    "read_github": [
+        "platform_github_list_repos", "platform_github_get_issues",
+        "platform_github_get_repo_metadata", "platform_github_get_readme",
+        "platform_github_get_releases",
+    ],
 }
 
 CAPABILITY_PROVIDER_MAP = {
@@ -787,6 +854,35 @@ async def _handle_github_tool(auth: Any, tool: str, tool_input: dict) -> dict:
                 "url": item.get("html_url"),
             })
         return {"success": True, "result": {"items": formatted, "count": len(formatted), "repo": repo}}
+
+    # ADR-158 Phase 5: Reference reads
+    elif tool == "get_repo_metadata":
+        repo = tool_input.get("repo")
+        if not repo or "/" not in repo:
+            return {"success": False, "error": "repo is required (format: owner/repo)"}
+        metadata = await github_client.get_repo_metadata(token=token, repo=repo)
+        if isinstance(metadata, dict) and metadata.get("error"):
+            return {"success": False, "error": metadata.get("error", "GitHub API error")}
+        return {"success": True, "result": metadata}
+
+    elif tool == "get_readme":
+        repo = tool_input.get("repo")
+        if not repo or "/" not in repo:
+            return {"success": False, "error": "repo is required (format: owner/repo)"}
+        readme = await github_client.get_readme(token=token, repo=repo)
+        if isinstance(readme, dict) and readme.get("error"):
+            return {"success": False, "error": readme.get("error", "GitHub API error")}
+        return {"success": True, "result": readme}
+
+    elif tool == "get_releases":
+        repo = tool_input.get("repo")
+        if not repo or "/" not in repo:
+            return {"success": False, "error": "repo is required (format: owner/repo)"}
+        limit = tool_input.get("limit", 10)
+        releases = await github_client.get_releases(token=token, repo=repo, per_page=limit)
+        if releases and isinstance(releases[0], dict) and releases[0].get("error"):
+            return {"success": False, "error": releases[0].get("error", "GitHub API error")}
+        return {"success": True, "result": {"releases": releases, "count": len(releases), "repo": repo}}
 
     return {"success": False, "error": f"Unknown GitHub tool: {tool}"}
 

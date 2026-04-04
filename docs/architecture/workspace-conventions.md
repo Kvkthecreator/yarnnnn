@@ -74,10 +74,13 @@ Everything the workspace "knows" — user identity, learned preferences, referen
     │   ├── _tracker.md            # Per-page freshness (hidden)
     │   └── {page-slug}/
     │       └── latest.md          # Most recent observation
-    └── github/                    # ADR-158: GitHub Bot temporal observations (deferred)
+    └── github/                    # ADR-158: GitHub Bot temporal + reference observations
         ├── _tracker.md            # Per-repo freshness (hidden)
-        └── {repo-slug}/
-            └── latest.md          # Most recent observation
+        └── {owner}/{repo}/        # Per-repo folder (own + external public repos)
+            ├── latest.md          # Issues/PRs activity (temporal, every cycle)
+            ├── releases.md        # Recent releases (temporal, every cycle)
+            ├── readme.md          # README summary (reference, weekly refresh)
+            └── metadata.md        # Repo identity (reference, weekly refresh)
 ```
 
 ### Agent OS Visibility (ADR-154)

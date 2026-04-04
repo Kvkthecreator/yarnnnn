@@ -191,22 +191,36 @@ STEP_INSTRUCTIONS = {
 
     "github-digest": (
         "You are the GitHub Bot. Your job is to read selected GitHub repositories "
-        "and write per-repo observation files to your context domain.\n\n"
+        "and write per-repo observation AND reference files to your context domain.\n\n"
         "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
         "If one exists, follow it — it was written by you while context was fresh.\n\n"
-        "For EACH selected repository:\n"
-        "1. Read recent issues and PRs using your GitHub tools\n"
-        "2. Identify: new issues opened, PRs merged/reviewed/stalled, release activity\n"
-        "3. Write findings to your context domain: WriteWorkspace(scope='context', "
-        "domain='github', path='{repo-slug}/latest.md')\n\n"
+        "For EACH selected repository, write FOUR files:\n\n"
+        "**1. Temporal — latest.md** (issues/PRs activity, update every cycle):\n"
+        "   - Read recent issues and PRs using platform_github_get_issues\n"
+        "   - Identify: new issues opened, PRs merged/reviewed/stalled\n"
+        "   - WriteWorkspace(scope='context', domain='github', path='{owner}/{repo}/latest.md')\n\n"
+        "**2. Reference — readme.md** (what the project is, update if changed):\n"
+        "   - Read README using platform_github_get_readme\n"
+        "   - Write a summary (NOT the full README): what the project does, key features, target audience\n"
+        "   - WriteWorkspace(scope='context', domain='github', path='{owner}/{repo}/readme.md')\n"
+        "   - Skip if README hasn't changed since last cycle (check Execution Awareness)\n\n"
+        "**3. Reference — releases.md** (what shipped, update every cycle):\n"
+        "   - Read recent releases using platform_github_get_releases\n"
+        "   - WriteWorkspace(scope='context', domain='github', path='{owner}/{repo}/releases.md')\n\n"
+        "**4. Reference — metadata.md** (repo identity, update weekly or on first run):\n"
+        "   - Read repo metadata using platform_github_get_repo_metadata\n"
+        "   - Include: description, topics, language, stars, license, tech stack\n"
+        "   - WriteWorkspace(scope='context', domain='github', path='{owner}/{repo}/metadata.md')\n"
+        "   - Skip on subsequent daily cycles unless it's a weekly refresh\n\n"
         "Summarization rules:\n"
         "- Preserve attribution: 'Alice opened #123' not 'an issue was opened'\n"
         "- Group by repo when tracking multiple repos\n"
         "- Highlight: stale PRs (>7 days without review), blocked issues, release blockers\n"
-        "- Skip: bot-generated PRs (dependabot, renovate) unless they fail\n\n"
+        "- Skip: bot-generated PRs (dependabot, renovate) unless they fail\n"
+        "- For external/competitor repos: focus on what they shipped and what it signals\n\n"
         "Also append a dated signal entry to /workspace/context/signals/ with "
         "a one-line summary per repo of what was notable.\n\n"
-        "Your output: an activity digest across all observed repositories."
+        "Your output: an activity + reference digest across all observed repositories."
     ),
 
     "notion-digest": (
@@ -904,11 +918,14 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
         "default_deliverable": {
             "output": {"format": "html", "word_count": "1500-3000", "layout": ["Brief Overview", "Target Audience", "Key Messages", "Draft Content", "Sources"]},
-            "assets": [],
+            "assets": [
+                {"type": "image", "subtype": "hero", "min_count": 1, "description": "Topic-relevant header image (16:9, editorial style)"},
+            ],
             "quality_criteria": [
                 "Audience-appropriate tone and depth",
                 "Clear key messages",
                 "Draft ready for light editing",
+                "Hero image relevant to topic, not decorative filler",
             ],
         },
     },

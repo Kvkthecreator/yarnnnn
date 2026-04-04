@@ -239,22 +239,69 @@ It would fail if it became: broad ingestion, a hidden cache, or automatic canon 
 - Both are `task_class: "synthesis"` (produce output, don't accumulate context)
 - Platform-specific step instructions for compose → deliver workflow
 
-### Phase 4: GitHub Implementation (this commit)
+### Phase 4: GitHub Bot + Temporal Digest (complete)
 
 - `github_bot` agent template + DEFAULT_ROSTER entry + DB migration 140
 - `github-digest` task type (recurring, daily) — issues/PRs from selected repos
 - Platform-specific step instructions for GitHub observation workflow
-- Repository-as-reference capability deferred (separate conversation)
+
+### Phase 5: GitHub Inward Reference (this commit)
+
+GitHub is fundamentally different from Slack/Notion. It is both inward-facing
+(what your team is building) and outward-facing (what the market is shipping).
+For technical teams, GitHub is the system of record — not Slack (opinions), not
+Notion (aspirations), but code, releases, and architecture (reality).
+
+**YARNNN's boundary:** GitHub as an information surface (what exists, what changed,
+what shipped), NOT as a development tool (code review, debugging, CI/CD). Agents
+understand *what* is being built and *how it's going*, not implementation details.
+
+Three layers of GitHub context, phased:
+
+| Layer | Type | Content | Phase |
+|---|---|---|---|
+| Issues/PRs | Temporal | What's in motion, who's blocked, what merged | P4 (done) |
+| README/releases/metadata | Reference | What the product is, what shipped, tech stack | P5 (this) |
+| External repos | Outward | Competitor activity, ecosystem shifts, OSS signals | P6 (next) |
+
+Phase 5 expands GitHub client and `github-digest` step instruction:
+- New client methods: `get_readme()`, `get_releases()`, `get_repo_metadata()`
+- New tool definitions exposed to headless agents
+- `github-digest` writes reference files alongside temporal observations
+- Per-repo directory gains: `readme.md`, `releases.md`, `metadata.md`
+- No new primitives, no new task types — same bot, richer output
+
+### Phase 6: GitHub Outward Observation (this commit)
+
+Same `github-digest` task type, but source selection accepts any public repo
+(not just user-owned). The bot doesn't need to know the difference between own
+and external repos — source selection and directory structure handle it:
+
+```text
+/workspace/context/github/
+  my-company/my-product/        # inward — your repo
+    latest.md                   # issues/PRs (temporal)
+    readme.md                   # README (reference)
+    releases.md                 # what shipped (temporal)
+    metadata.md                 # stack, description (reference)
+  competitor/their-product/     # outward — public repo
+    latest.md
+    readme.md
+    releases.md
+    metadata.md
+```
+
+No code reading. No implementation analysis. Metadata, docs, and activity only.
 
 ---
 
 ## What This ADR Does Not Decide
 
 - Cross-pollination: how/whether platform observations feed into canonical domains
-- Write-back: whether bots should write to platforms in Phase 1
-- GitHub scoping: what "GitHub Bot" actually does beyond issues/PRs
 - Hard TTL: cleanup jobs for temporal directories (only if needed)
 - Source selection UX: exact UI for channel/page/repo management
+- GitHub code reading: implementation-level analysis is IDE territory, explicitly out of scope
+- GitHub CI/CD: build status, deployment state — not an information surface YARNNN tracks
 
 ---
 

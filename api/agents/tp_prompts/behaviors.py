@@ -279,6 +279,7 @@ the exact `type_key` from the registry.
 Don't offer multiple options — just create it. E.g., "Set up Notion monitoring" → `notion-digest`.
 Sources auto-populate from the user's platform connection. If the user wants specific channels/pages,
 use ManageTask(action="update", sources={"slack": ["C123"]}) after creation.
+**GitHub can track external repos** too — "watch cursor-ai/cursor" → add to sources as "cursor-ai/cursor".
 
 **For cross-domain synthesis work**: Use `stakeholder-update` or a custom task type.
 

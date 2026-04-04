@@ -115,11 +115,12 @@ ADR-158: Platform bots own temporal context directories — one bot, one platfor
 ### GitHub Bot
 
 - **Domain owned:** `github/` (temporal — `/workspace/context/github/`)
-- **Capabilities:** read_github
-- **What it maintains:** Per-repo observation files in `/workspace/context/github/{repo}/latest.md`
-- **What it produces:** GitHub activity digests with issues, PRs, and repo activity
+- **Capabilities:** read_github (issues, PRs, README, releases, metadata)
+- **What it maintains:** Per-repo files: `latest.md` (activity), `readme.md` (project summary), `releases.md` (what shipped), `metadata.md` (repo identity). Works for own repos AND external public repos.
+- **What it produces:** GitHub activity + reference digests
 - **Typical tasks:** github-digest
 - **Activation:** Activated when GitHub platform connected
+- **Unique:** Can track any public repo (competitors, ecosystem) — not limited to user's own repos
 
 ---
 

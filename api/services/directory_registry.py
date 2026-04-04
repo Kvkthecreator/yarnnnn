@@ -255,15 +255,32 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "type": "context",
         "path": "context/github",
         "display_name": "GitHub",
-        "description": "Temporal observations from GitHub repos — issues, PRs, activity",
+        "description": "Temporal observations + reference data from GitHub repos — issues, PRs, releases, README, metadata",
         "managed_by": "agent",
         "temporal": True,
         "entity_type": "repo",
         "entity_structure": {
+            # Temporal (updated every cycle)
             "latest.md": (
-                "# {name}\n\n"
-                "<!-- Most recent observation from this repo -->\n"
-                "<!-- Updated by GitHub Bot digest task -->\n"
+                "# {name} — Activity\n\n"
+                "<!-- Issues, PRs, and activity from this repo -->\n"
+                "<!-- Updated by GitHub Bot every digest cycle -->\n"
+            ),
+            "releases.md": (
+                "# {name} — Releases\n\n"
+                "<!-- Recent releases and what shipped -->\n"
+                "<!-- Updated by GitHub Bot every digest cycle -->\n"
+            ),
+            # Reference (updated on first run + weekly refresh)
+            "readme.md": (
+                "# {name} — README Summary\n\n"
+                "<!-- What this project is, key features, target audience -->\n"
+                "<!-- Updated by GitHub Bot on first run + weekly -->\n"
+            ),
+            "metadata.md": (
+                "# {name} — Repository Metadata\n\n"
+                "<!-- Description, topics, language, stars, license -->\n"
+                "<!-- Updated by GitHub Bot on first run + weekly -->\n"
             ),
         },
         "synthesis_file": None,

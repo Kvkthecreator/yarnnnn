@@ -264,6 +264,86 @@ class GitHubAPIClient:
         )
 
     # =========================================================================
+    # Reference reads (ADR-158 Phase 5 — repo metadata, docs, releases)
+    # =========================================================================
+
+    async def get_repo_metadata(self, token: str, repo: str) -> dict:
+        """Get repository metadata: description, topics, language, stars, forks."""
+        data = await self._request("GET", f"/repos/{repo}", token)
+        if isinstance(data, dict) and data.get("error"):
+            return data
+        return {
+            "full_name": data.get("full_name"),
+            "description": data.get("description") or "",
+            "topics": data.get("topics", []),
+            "language": data.get("language"),
+            "languages_url": data.get("languages_url"),
+            "stars": data.get("stargazers_count", 0),
+            "forks": data.get("forks_count", 0),
+            "open_issues": data.get("open_issues_count", 0),
+            "created_at": data.get("created_at"),
+            "updated_at": data.get("updated_at"),
+            "pushed_at": data.get("pushed_at"),
+            "license": (data.get("license") or {}).get("spdx_id"),
+            "default_branch": data.get("default_branch"),
+            "private": data.get("private", False),
+            "archived": data.get("archived", False),
+            "homepage": data.get("homepage") or "",
+        }
+
+    async def get_readme(self, token: str, repo: str) -> dict:
+        """Get README content as rendered text (not raw markdown to avoid code analysis)."""
+        data = await self._request("GET", f"/repos/{repo}/readme", token)
+        if isinstance(data, dict) and data.get("error"):
+            return data
+        import base64
+        content = ""
+        if data.get("content") and data.get("encoding") == "base64":
+            try:
+                raw = base64.b64decode(data["content"]).decode("utf-8", errors="replace")
+                # Truncate to first 5000 chars — README as context, not full document
+                content = raw[:5000]
+                if len(raw) > 5000:
+                    content += "\n\n[Truncated — full README is longer]"
+            except Exception:
+                content = "(Could not decode README)"
+        return {
+            "name": data.get("name", "README.md"),
+            "path": data.get("path", ""),
+            "size": data.get("size", 0),
+            "content": content,
+        }
+
+    async def get_releases(
+        self, token: str, repo: str, per_page: int = 10
+    ) -> list[dict]:
+        """Get recent releases (tags + release notes)."""
+        data = await self._request(
+            "GET", f"/repos/{repo}/releases", token,
+            params={"per_page": per_page},
+        )
+        if isinstance(data, dict) and data.get("error"):
+            return [data]
+        releases = []
+        for r in (data if isinstance(data, list) else []):
+            releases.append({
+                "tag": r.get("tag_name"),
+                "name": r.get("name") or r.get("tag_name"),
+                "published_at": r.get("published_at"),
+                "prerelease": r.get("prerelease", False),
+                "body": (r.get("body") or "")[:2000],  # Truncate release notes
+                "author": (r.get("author") or {}).get("login"),
+            })
+        return releases
+
+    async def get_languages(self, token: str, repo: str) -> dict:
+        """Get language breakdown (bytes per language)."""
+        data = await self._request("GET", f"/repos/{repo}/languages", token)
+        if isinstance(data, dict) and data.get("error"):
+            return data
+        return data  # {language: bytes_count}
+
+    # =========================================================================
     # Write operations (Phase 2 — delivery)
     # =========================================================================
 

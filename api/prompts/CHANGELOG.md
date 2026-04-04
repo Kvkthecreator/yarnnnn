@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.04.7] - ADR-158 Phase 5+6: GitHub reference reads + external repo tracking
+
+### Added
+- `integrations/core/github_client.py`: Four new methods — `get_repo_metadata()` (description, topics, language, stars, license), `get_readme()` (truncated to 5K chars, summarized), `get_releases()` (tags + notes), `get_languages()` (byte breakdown).
+- `services/platform_tools.py`: Three new tool definitions — `platform_github_get_repo_metadata`, `platform_github_get_readme`, `platform_github_get_releases`. All under `read_github` capability. Handler code for all three.
+- `services/task_types.py`: `github-digest` step instruction expanded — writes 4 files per repo (latest.md, readme.md, releases.md, metadata.md). Reference files on first run + weekly refresh, temporal files every cycle.
+- `services/directory_registry.py`: GitHub entity_structure expanded from 1 file to 4 files per repo.
+- `agents/tp_prompts/platforms.py`: External repo tracking guidance — GitHub Bot can track any public repo, not just user's own. ManageTask example with `owner/repo` format.
+- `agents/tp_prompts/behaviors.py`: External repo note in task creation guidance.
+- Expected behavior: GitHub Bot produces richer context (what the project IS, not just what's in motion). External repos enable competitive/ecosystem tracking via the same task type. No new primitives needed.
+
+---
+
 ## [2026.04.04.6] - Agent playbook framework — selective loading + metadata registry
 
 ### Added
