@@ -209,7 +209,7 @@ TP's understanding of the workspace comes from three layers. Full architecture d
 
 **Layer 1: Ground truth** — `workspace_state` dict computed fresh at session start from actual workspace state. Identity/brand richness, task count, document count, domain health. Disposable — dies at session end.
 
-**Layer 2: Workspace files** — IDENTITY.md (user facts), BRAND.md (output style), AWARENESS.md (TP's situational notes), notes.md (standing instructions), preferences.md (output preferences). Persistent, written by TP and system hooks. AWARENESS.md is TP-specific — its shift handoff for cross-session continuity.
+**Layer 2: Workspace files** — IDENTITY.md (user facts), BRAND.md (output style), AWARENESS.md (TP's situational notes), notes.md (standing instructions), style.md (output preferences). Persistent, written by TP and system hooks. AWARENESS.md is TP-specific — its shift handoff for cross-session continuity.
 
 **Layer 3: Behavioral guidance** — `CONTEXT_AWARENESS` prompt (always injected). Priorities, judgment rules, task catalog.
 
@@ -289,7 +289,7 @@ Task outputs use `manifest.json` for metadata:
 | 2026-03-21 | v2 | ADR-128: cognitive files (self_assessment.md, directives.md) |
 | 2026-03-25 | v3 | ADR-138: task workspace, /tasks/{slug}/ added |
 | 2026-03-25 | v4 | ADR-142: unified filesystem. Four roots (/workspace/, /platforms/, /agents/, /tasks/). /knowledge/ dissolved into /platforms/ + /tasks/. /memory/ merged into /workspace/. /user_shared/ dissolved into session-scoped uploads. Document upload pipeline to /workspace/documents/. Three file-sharing contexts (shared docs, chat uploads, platform syncs). |
-| 2026-03-25 | v5 | ADR-143: playbook files + feedback consolidation. 3 agent memory files: feedback.md (rolling 10, TP writes), self_assessment.md (rolling 5, agent writes), playbook-*.md (craft). TP gets playbook-orchestration.md at /workspace/. BRAND.md injected into all agent execution contexts. Deleted: preferences.md, observations.md, supervisor-notes.md, review-log.md, directives.md. Renamed: methodology-* → playbook-*. |
+| 2026-03-25 | v5 | ADR-143: playbook files + feedback consolidation. 3 agent memory files: feedback.md (rolling 10, TP writes), self_assessment.md (rolling 5, agent writes), playbook-*.md (craft). TP gets playbook-orchestration.md at /workspace/. BRAND.md injected into all agent execution contexts. Deleted: style.md, observations.md, supervisor-notes.md, review-log.md, directives.md. Renamed: methodology-* → playbook-*. |
 | 2026-03-31 | v6 | ADR-149: DELIVERABLE.md quality contract added to /tasks/{slug}/. Task memory expanded: feedback.md (user corrections + TP evaluations), steering.md (TP management notes). outputs/ restructured with latest/ + {date}/ folders and mode-dependent semantics. Agent self_assessment.md renamed to reflections.md. |
 | 2026-03-31 | v7 | ADR-151: /workspace/context/ replaces /workspace/knowledge/. Accumulated context is workspace-scoped, shared across tasks. Domain registry governs structure. Task knowledge/ folder removed. |
 | 2026-03-31 | v8 | ADR-152: Unified directory registry. /workspace/documents/ renamed to /workspace/uploads/ (clarity: user-contributed vs system-produced). /workspace/outputs/ added (reports/, briefs/, content/ — promoted agent deliverables). Domain registry → directory registry (WORKSPACE_DIRECTORIES in directory_registry.py). |

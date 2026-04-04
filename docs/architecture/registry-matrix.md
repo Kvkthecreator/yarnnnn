@@ -154,8 +154,8 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 ├── BRAND.md                        # Output style (visible in Settings)
 ├── AWARENESS.md                    # TP situational notes (visible in Settings)
 ├── notes.md                        # Standing instructions (visible in Settings)
-├── preferences.md                  # Learned preferences (visible in Settings)
-├── playbook-orchestration.md       # TP methodology (HIDDEN — system file)
+├── style.md                        # Learned output style (visible in Settings)
+├── _playbook.md                    # TP methodology (HIDDEN — system file)
 ├── WORKSPACE.md                    # Init manifest (HIDDEN — system file)
 ├── uploads/                        # User-uploaded references
 ├── context/                        # ACCUMULATED CONTEXT (domains)

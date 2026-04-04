@@ -194,7 +194,7 @@ Four layers of perception feed agent execution (FOUNDATIONS Axiom 2):
 1. **External** — Agents call platform APIs (Slack, Notion, GitHub) live during task execution. Signals flow into `/workspace/context/` domains. Platform connections provide auth infrastructure; there is no intermediate staging table (ADR-153).
 2. **User-contributed** — Uploaded documents in `/workspace/uploads/`. Permanent reference material.
 3. **Internal** — Prior task outputs in `/tasks/{slug}/outputs/` + accumulated context in `/workspace/context/`. Each run's output feeds the next run's context.
-4. **Reflexive** — User feedback (edits, approvals), TP observations (`/workspace/notes.md`, `/workspace/preferences.md`).
+4. **Reflexive** — User feedback (edits, approvals), TP observations (`/workspace/notes.md`, `/workspace/style.md`).
 
 The recursive property: external data → agent output → next cycle's context → better output. Accumulated attention compounds.
 
@@ -204,7 +204,7 @@ The recursive property: external data → agent output → next cycle's context 
 
 Three distinct mechanisms drive agent development:
 
-- **Feedback** — User corrections (edits, comments) routed by TP to the appropriate scope: workspace-level (`/workspace/preferences.md`), agent-level (`/agents/{slug}/memory/`), or task-level (`/tasks/{slug}/feedback.md`).
+- **Feedback** — User corrections (edits, comments) routed by TP to the appropriate scope: workspace-level (`/workspace/style.md`), agent-level (`/agents/{slug}/memory/`), or task-level (`/tasks/{slug}/feedback.md`).
 - **Evaluation** — TP judges task output quality against the DELIVERABLE.md specification. Produces steering directives (`/tasks/{slug}/steering.md`) that guide the next execution cycle.
 - **Reflection** — Agent self-assesses fitness and confidence post-run, written to `/agents/{slug}/memory/reflections.md`. Formerly "contributor assessment." Gives the agent a developmental voice independent of external judgment.
 

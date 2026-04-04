@@ -301,7 +301,7 @@ Agents develop inward — accumulating domain expertise, not unlocking new capab
 | Dimension | Mechanism | Example |
 |---|---|---|
 | **Knowledge depth** | Thesis evolution, workspace memory, observations | Domain understanding deepens with each run |
-| **Behavioral refinement** | Feedback distillation → preferences.md | User edits teach output style |
+| **Behavioral refinement** | Feedback distillation → style.md | User edits teach output style |
 | **Authorization** | User-granted write-back permissions | User enables `write_slack` for a specific agent |
 
 There is no seniority system, no promotion flow, no duty expansion. An agent improves by knowing its domain better, not by gaining new tools.
