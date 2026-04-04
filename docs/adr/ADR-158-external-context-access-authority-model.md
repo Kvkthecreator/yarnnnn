@@ -231,10 +231,13 @@ It would fail if it became: broad ingestion, a hidden cache, or automatic canon 
 - TP prompts updated with source selection guidance
 - Frontend source selection UI deferred — TP is the current UX surface
 
-### Phase 3: Write-back Task Types (future)
+### Phase 3: Write-back Task Types (this commit)
 
-- `slack-respond`, `notion-update` as distinct task types
+- `slack-respond` (reactive) — post to Slack from workspace context
+- `notion-update` (reactive) — comment on Notion page from workspace context
 - Separate from digest — read+write not overloaded into one task
+- Both are `task_class: "synthesis"` (produce output, don't accumulate context)
+- Platform-specific step instructions for compose → deliver workflow
 
 ### Phase 4: GitHub Implementation (future)
 

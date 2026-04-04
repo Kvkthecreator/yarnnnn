@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.04.3] - ADR-158 Phase 3: Write-back task types
+
+### Added
+- `services/task_types.py` (v5.1): Two new platform write-back task types: `slack-respond` (reactive, posts to Slack) and `notion-update` (reactive, comments on Notion pages). Both are synthesis-class tasks — they compose from workspace context and deliver, not observe. Platform-specific step instructions for compose → deliver workflow.
+- `agents/tp_prompts/onboarding.py`: Task catalog updated with write-back types + suggestion guidance.
+- `services/agent_framework.py`: TP orchestration playbook updated with bot task types.
+- Expected behavior: TP can create "post this analysis to #engineering" as a slack-respond task. Distinct from slack-digest (read) — write-back is intentional delivery.
+
+---
+
 ## [2026.04.04.2] - ADR-158 Phase 2: Per-task source selection
 
 ### Changed

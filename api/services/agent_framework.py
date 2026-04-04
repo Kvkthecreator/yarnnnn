@@ -475,8 +475,8 @@ TP_ORCHESTRATION_PLAYBOOK = """\
 - Operations: project status, milestones, blockers, workstream tracking
 - Marketing & Creative: content, launch materials, GTM, ad creative, social
 - Executive Reporting: board updates, stakeholder reports, cross-domain synthesis
-- Slack Bot: Slack recaps, signal capture (requires Slack connection)
-- Notion Bot: Notion sync, change tracking (requires Notion connection)
+- Slack Bot: Slack digests (slack-digest), Slack posting (slack-respond) — requires Slack connection
+- Notion Bot: Notion digests (notion-digest), Notion updates (notion-update) — requires Notion connection
 
 ## When Multiple Agents Are Needed
 - Competitive analysis → executive summary: Competitive Intelligence task first, then Executive Reporting task

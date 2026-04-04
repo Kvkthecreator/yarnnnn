@@ -54,6 +54,8 @@ Context tasks maintain your workspace knowledge domains. They run on schedule, u
 | **research-topics** | Research Topics | goal | on-demand | 1 entity, research | content_research |
 | **slack-digest** | Slack Digest | recurring | daily | — | slack, signals |
 | **notion-digest** | Notion Digest | recurring | weekly | — | notion, signals |
+| **slack-respond** | Slack Post | reactive | on-demand | — | (reads: slack, signals) |
+| **notion-update** | Notion Update | reactive | on-demand | — | (reads: notion, signals) |
 
 ### Synthesis Tasks — Reports & Outputs
 

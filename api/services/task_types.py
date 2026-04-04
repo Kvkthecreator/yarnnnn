@@ -33,6 +33,9 @@ Changelog:
          monitor-notion → notion-digest. Platform-specific step instructions.
          context_reads/writes updated to bot-owned directories (slack, notion)
          instead of signals-only. Bots write per-source observation files.
+  v5.1 — ADR-158 Phase 3: Write-back task types. slack-respond (reactive),
+         notion-update (reactive). Distinct from digest tasks — delivery, not
+         observation. Sources param in build_task_md_from_type().
 
 Canonical docs:
   - docs/architecture/registry-matrix.md
@@ -145,6 +148,43 @@ STEP_INSTRUCTIONS = {
         "Also append a dated signal entry to /workspace/context/signals/ with "
         "a one-line summary per channel of what was notable.\n\n"
         "Your output: a digest of what happened across all observed channels."
+    ),
+
+    # ADR-158 Phase 3: Write-back task instructions
+    "slack-respond": (
+        "You are the Slack Bot. Your job is to post a message to a specific Slack "
+        "channel or the user's DM based on the task objective.\n\n"
+        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
+        "If one exists, follow it.\n\n"
+        "Steps:\n"
+        "1. Read relevant context from your domain (/workspace/context/slack/) "
+        "and other workspace context as needed\n"
+        "2. Compose the message according to the objective and output spec\n"
+        "3. Send using platform_slack_send_message with the target channel_id\n\n"
+        "Message rules:\n"
+        "- Keep messages concise and scannable — Slack is not a document surface\n"
+        "- Use bullet points, not paragraphs\n"
+        "- Attribution: name sources when referencing workspace context\n"
+        "- Tone: match the channel's communication style\n\n"
+        "Your output: confirmation of what was sent and where."
+    ),
+
+    "notion-update": (
+        "You are the Notion Bot. Your job is to update or comment on a specific "
+        "Notion page based on the task objective.\n\n"
+        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
+        "If one exists, follow it.\n\n"
+        "Steps:\n"
+        "1. Read the target Notion page using your Notion tools\n"
+        "2. Read relevant workspace context as needed\n"
+        "3. Compose the update or comment according to the objective\n"
+        "4. Post using platform_notion_create_comment with the target page_id\n\n"
+        "Update rules:\n"
+        "- Preserve existing page structure — don't restructure\n"
+        "- Use Notion-native formatting (toggles, callouts, tables)\n"
+        "- Link related pages rather than duplicating content\n"
+        "- Keep updates focused — one update per objective\n\n"
+        "Your output: confirmation of what was posted and where."
     ),
 
     "notion-digest": (
@@ -485,6 +525,86 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Distinguish meaningful edits from formatting changes",
                 "Flag pages not updated in >30 days",
                 "Links to original Notion pages",
+            ],
+        },
+    },
+
+    # ── Platform Write-Back Tasks (ADR-158 Phase 3: bot-initiated delivery) ──
+    # Bots can write back to their platform — distinct from digest (read) tasks.
+    # Write-back is intentional delivery, not observation.
+
+    "slack-respond": {
+        "display_name": "Slack Post",
+        "description": "Post a message to a Slack channel or DM. Composes from workspace context and delivers via Slack.",
+        "category": "platform",
+        "task_class": "synthesis",
+        "default_mode": "reactive",
+        "default_schedule": "on-demand",
+        "output_format": "text",
+        "layout_mode": "message",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "slack_bot",
+                "step": "slack-respond",
+                "instruction": STEP_INSTRUCTIONS["slack-respond"],
+            },
+        ],
+        "context_reads": ["slack", "signals"],
+        "context_writes": [],
+        "context_sources": ["platforms", "workspace"],
+        "requires_platform": "slack",
+        "default_objective": {
+            "deliverable": "Slack message",
+            "audience": "Channel participants",
+            "purpose": "Deliver workspace intelligence to Slack",
+            "format": "Concise Slack message with bullet points",
+        },
+        "default_deliverable": {
+            "output": {"format": "text", "word_count": "50-300", "layout": ["Key Points", "Context"]},
+            "assets": [],
+            "quality_criteria": [
+                "Concise and scannable — Slack is not a document surface",
+                "Sources attributed when referencing workspace context",
+                "Appropriate tone for the target channel",
+            ],
+        },
+    },
+
+    "notion-update": {
+        "display_name": "Notion Update",
+        "description": "Post a comment or update to a Notion page. Composes from workspace context and delivers via Notion.",
+        "category": "platform",
+        "task_class": "synthesis",
+        "default_mode": "reactive",
+        "default_schedule": "on-demand",
+        "output_format": "text",
+        "layout_mode": "comment",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "notion_bot",
+                "step": "notion-update",
+                "instruction": STEP_INSTRUCTIONS["notion-update"],
+            },
+        ],
+        "context_reads": ["notion", "signals"],
+        "context_writes": [],
+        "context_sources": ["platforms", "workspace"],
+        "requires_platform": "notion",
+        "default_objective": {
+            "deliverable": "Notion page comment or update",
+            "audience": "Page collaborators",
+            "purpose": "Deliver workspace intelligence to Notion",
+            "format": "Structured comment with Notion formatting",
+        },
+        "default_deliverable": {
+            "output": {"format": "text", "word_count": "100-500", "layout": ["Summary", "Details"]},
+            "assets": [],
+            "quality_criteria": [
+                "Preserves existing page structure",
+                "Uses Notion-native formatting",
+                "Focused — one update per objective",
             ],
         },
     },

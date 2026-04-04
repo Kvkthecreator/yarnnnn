@@ -113,6 +113,30 @@ Context tasks maintain your workspace knowledge. They run on schedule, update do
 
 ---
 
+### Slack Post
+`slack-respond`
+
+**What it does:** Composes a message from workspace context and posts it to a Slack channel or DM. Delivery action, not observation.
+
+**Agent:** Slack Bot
+**Default schedule:** On-demand (reactive)
+**Domains (reads):** slack, signals
+**Requires platform:** Slack
+
+---
+
+### Notion Update
+`notion-update`
+
+**What it does:** Composes an update from workspace context and posts it as a comment on a Notion page. Delivery action, not observation.
+
+**Agent:** Notion Bot
+**Default schedule:** On-demand (reactive)
+**Domains (reads):** notion, signals
+**Requires platform:** Notion
+
+---
+
 ## Reports & Outputs — Synthesis Tasks
 
 Synthesis tasks read from accumulated context domains and produce deliverables. They are where workspace knowledge becomes polished, delivered output. Each synthesis task declares which domains it reads from — the richer those domains (maintained by context tasks), the better the output.
