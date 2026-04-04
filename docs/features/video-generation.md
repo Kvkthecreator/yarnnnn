@@ -1,6 +1,6 @@
 # Video Generation Skill — Implementation Plan
 
-**Status:** Planning
+**Status:** Phase 1 Implemented (requires Standard plan for memory)
 **Date:** 2026-04-03
 **Related:** ADR-118 (skills as capability layer), ADR-157 (visual assets)
 

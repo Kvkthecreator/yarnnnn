@@ -1,6 +1,6 @@
 # Image Generation Skill — Implementation Plan
 
-**Status:** Planning
+**Status:** Phase 1 Implemented, Phase 2 In Progress
 **Date:** 2026-04-03
 **Related:** ADR-157 (fetch-asset skill), ADR-118 (skills as capability layer)
 **Replaces:** Current `image` skill (Pillow text+rectangles)

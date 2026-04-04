@@ -56,10 +56,12 @@ Everything the workspace "knows" — user identity, learned preferences, referen
     ├── competitors/               # Per-competitor entity folders (canonical)
     │   ├── _tracker.md            # System: entity registry + freshness (hidden)
     │   ├── landscape.md           # Content: cross-entity synthesis (agent-written, visible)
+    │   ├── assets/                # ADR-157: domain-level visual assets (favicons, charts)
+    │   │   ├── cursor-favicon.png       # {entity-slug}-{asset-type}.{ext}
+    │   │   └── competitor-matrix.svg    # Cross-entity generated visuals
     │   └── {company-slug}/
-    │       ├── profile.md, signals.md, product.md, strategy.md
-    │       └── assets/
-    ├── market/                    # Same pattern: _tracker.md + overview.md + entities
+    │       └── profile.md, signals.md, product.md, strategy.md
+    ├── market/                    # Same pattern: _tracker.md + overview.md + assets/ + entities
     ├── relationships/
     ├── projects/
     ├── content/

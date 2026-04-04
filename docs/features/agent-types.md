@@ -10,7 +10,11 @@ context domain), **synthesizers** (read across all domains), and
 are pre-scaffolded at sign-up. Users enrich agent identity through use — they do
 not create agents from scratch.
 
-**Key principle:** Each domain-steward agent owns one context domain. The synthesizer (Executive) reads all domains. Templates (`AGENT_TEMPLATES`) are bootstrapping — `AGENT.md` is the runtime source of truth.
+**Key principles:**
+- Each domain-steward agent owns one context domain. The synthesizer reads all.
+- Templates (`AGENT_TEMPLATES`) are bootstrapping — `AGENT.md` is the runtime source of truth.
+- **Playbooks** (`_playbook-*.md`) define agent methodology — seeded from type registry, evolve with feedback. Loaded selectively by task class. See [Agent Playbook Framework](agent-playbook-framework.md).
+- **Visual production** (image/video) is Marketing's specialization. Other agents use charts/mermaid for data visualization only.
 
 ---
 
@@ -29,7 +33,8 @@ not create agents from scratch.
 ### Competitive Intelligence
 
 - **Domain owned:** `competitors/`
-- **Capabilities:** web_search, investigate, chart
+- **Capabilities:** web_search, investigate, chart, mermaid
+- **Playbooks:** outputs, research
 - **What it maintains:** Competitor entity files, competitive landscape analysis, market positioning data in `/workspace/context/competitors/`
 - **What it produces:** Competitive briefs, market reports, GTM intelligence
 - **Typical tasks:** track-competitors, competitive-brief
@@ -37,7 +42,8 @@ not create agents from scratch.
 ### Market Research
 
 - **Domain owned:** `market/`
-- **Capabilities:** web_search, investigate, chart
+- **Capabilities:** web_search, investigate, chart, mermaid
+- **Playbooks:** outputs, research
 - **What it maintains:** Market trends, industry analysis, sector data in `/workspace/context/market/`
 - **What it produces:** Market reports, launch materials, GTM reports
 - **Typical tasks:** track-market, market-report
@@ -46,6 +52,7 @@ not create agents from scratch.
 
 - **Domain owned:** `relationships/`
 - **Capabilities:** read_slack, read_notion, read_github, investigate
+- **Playbooks:** outputs
 - **What it maintains:** Stakeholder profiles, relationship context, meeting history in `/workspace/context/relationships/`
 - **What it produces:** Meeting prep briefs, stakeholder updates
 - **Typical tasks:** track-relationships, meeting-prep, stakeholder-update
@@ -54,6 +61,7 @@ not create agents from scratch.
 
 - **Domain owned:** `projects/`
 - **Capabilities:** read_slack, read_notion, read_github, chart
+- **Playbooks:** outputs
 - **What it maintains:** Project status, internal initiative tracking, team activity in `/workspace/context/projects/`
 - **What it produces:** Project status reports, stakeholder updates
 - **Typical tasks:** track-projects, project-status
@@ -61,7 +69,8 @@ not create agents from scratch.
 ### Marketing & Creative
 
 - **Domain owned:** `content/`
-- **Capabilities:** web_search, chart, image, video_render, compose_html
+- **Capabilities:** web_search, chart, mermaid, **image, video** (visual production specialist)
+- **Playbooks:** outputs, formats, **visual**
 - **What it maintains:** Content research, topic analysis, creative assets in `/workspace/context/content/`
 - **What it produces:** Content briefs, launch materials, creative outputs
 - **Typical tasks:** research-topics, content-brief, launch-material
@@ -73,7 +82,8 @@ not create agents from scratch.
 ### Executive Reporting
 
 - **Domain owned:** (cross-domain) — reads all context domains, owns none
-- **Capabilities:** compose_html, chart
+- **Capabilities:** compose_html, chart, mermaid
+- **Playbooks:** outputs, formats
 - **What it maintains:** Nothing — synthesizer reads, does not accumulate context
 - **What it produces:** Cross-domain executive summaries, stakeholder updates, composed HTML reports that draw from all agent domains
 - **Typical tasks:** stakeholder-update, market-report (cross-domain variants)

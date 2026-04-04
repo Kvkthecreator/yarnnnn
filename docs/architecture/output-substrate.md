@@ -283,7 +283,8 @@ Recap all activity across connected Slack channels...
 |---|---|
 | **Agent Framework (ADR-109)** | Agent Type Registry replaces `SKILL_ENABLED_ROLES` + `ROLE_PORTFOLIOS` seniority tiers. Pulse cadence absorbed into type definitions. |
 | **Workspace (ADR-106, 119)** | Output folders gain `output.html` + `assets/`. Manifest gains `agent_type` + `capabilities_used`. AGENT.md gains `## Type` + `## Capabilities`. |
-| **Skills (ADR-118)** | Format-builder skills dissolved. Asset renderers (chart, mermaid, image) preserved as compute primitives. Two-filesystem architecture preserved. SKILL.md convention preserved for skill knowledge. |
+| **Skills (ADR-118, ADR-157)** | 7 render skills: chart (matplotlib), mermaid (mermaid-cli), image (Gemini AI generation), video (Remotion slide composition), fetch-asset (favicon fetching), document (pandoc PDF/DOCX), spreadsheet (openpyxl XLSX). Two-filesystem architecture preserved. SKILL.md convention for skill knowledge. |
+| **Playbook Framework** | Agent-level methodology (`_playbook-*.md`). Selective loading by task class. Visual production playbook is Marketing-only (Axiom 3). See `docs/features/agent-playbook-framework.md`. |
 | **Assembly (ADR-120, 121)** | PM composes structured markdown sections. Layout mode specified at assembly level. |
 | **Coherence (ADR-128)** | Self-assessments continue for knowledge development. Not gated by seniority. |
 | **Delivery (ADR-118 D.3)** | Composed HTML as email body. Exports as download attachments. |
