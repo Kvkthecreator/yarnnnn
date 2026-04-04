@@ -1,32 +1,33 @@
 # Surface → Primitives → Actions Map
 
+**Date:** 2026-04-04 (v2 — Chat + Agents + Context surfaces)
+**Supersedes:** v1 (2026-03-25, Workfloor + Task Page)
+
 Canonical mapping of what's available on each surface. Defines scope boundaries
 for TP primitives, slash commands, plus menu actions, and suggestion chips.
 
 **Principle:** Each surface has a data scope. Actions available on that surface
-must match the scope — workspace-level actions on the workfloor, task-level actions
-on the task page. TP receives surface context and should respect these boundaries.
+must match the scope — workspace-level actions on the chat page, agent-level actions
+on the agents page. TP receives surface context and should respect these boundaries.
 
 ---
 
-## Workfloor (`/workfloor`)
+## Chat Page (`/chat`)
 
-**Scope:** Workspace-level. User manages identity, brand, agents, tasks overview.
+**Scope:** Workspace-level. User manages identity, brand, creates tasks, strategic direction.
 **Session:** Global TP session.
-**Surface context:** `type: "idle"` (no specific entity focused).
+**Surface context:** `type: "chat"`.
 
 ### Plus Menu Actions
 
 | Action | Prompt | Maps to Primitive |
 |--------|--------|-------------------|
-| Update my identity | "Update my identity" | `UpdateSharedContext(target="identity")` |
-| Update my brand | "Update my brand" | `UpdateSharedContext(target="brand")` |
 | Create a task | "Create a task for " | `CreateTask(...)` |
+| Update my context | "Update my context" | `UpdateSharedContext(target=...)` |
 | Web search | "Search the web for " | `WebSearch(query=...)` |
-| Fetch URL | (user pastes URL) | `WebSearch(url=...)` |
 | Upload file | (file dialog) | Attachment flow |
 
-### Slash Commands (workfloor only)
+### Slash Commands
 
 | Command | Trigger | Flow |
 |---------|---------|------|
@@ -35,8 +36,7 @@ on the task page. TP receives surface context and should respect these boundarie
 | `/summary` | "work summary" | Clarify → CreateTask (report) |
 | `/research` | "research this" | Clarify → CreateTask (research) |
 | `/create` | "create agent" | ManageAgent |
-| `/search` | "search my platforms" | Search (platform_content) |
-| `/sync` | "sync my", "refresh" | RefreshPlatformContent |
+| `/search` | "search my workspace" | Search |
 | `/memory` | "remember that" | SaveMemory |
 | `/web` | "search the web" | WebSearch |
 
@@ -44,9 +44,9 @@ on the task page. TP receives surface context and should respect these boundarie
 
 Shown when chat history is empty (no LLM call — static frontend):
 
-- "Tell me about myself and my work" → identity enrichment
-- "Update my brand from our website" → brand enrichment
-- "Help me set up my first task" → task creation flow
+- "Tell me about my work and who I serve"
+- "Set up competitive intelligence tracking"
+- "Create a weekly Slack recap"
 
 Chips disappear once user sends any message.
 
@@ -55,17 +55,46 @@ Chips disappear once user sends any message.
 All chat-mode primitives are available. Workspace-relevant:
 - `UpdateSharedContext` — identity/brand mutations
 - `CreateTask`, `TriggerTask` — task lifecycle (with auto-navigate)
-- `ManageAgent` — agent creation
+- `ManageAgent` — agent management
 - `SaveMemory` — store user preferences/facts
 - `WebSearch`, `Search`, `Read`, `List` — information retrieval
-- `RefreshPlatformContent` — platform sync
 - `Clarify` — ask user for input
 
 ---
 
-## Task Page (`/tasks/{slug}`)
+## Agents Page (`/agents`) — Agent Selected
 
-**Scope:** Single task. User steers execution, reviews output, refines criteria.
+**Scope:** Single agent. User reviews accumulated knowledge, manages responsibilities.
+**Session:** Agent-scoped TP session (keyed by `agent_slug`).
+**Surface context:** `type: "agent-detail"`, includes AGENT.md + domain summary + assigned tasks.
+
+### Plus Menu Actions
+
+| Action | Prompt | Maps to Primitive |
+|--------|--------|-------------------|
+| Run [task] now | "Run the task \"{title}\" now" | `TriggerTask(task_slug)` |
+| Assign a new task | "Assign a new task to this agent" | `CreateTask(agent_slug=...)` |
+| Review domain health | "How is this agent's domain?" | Conversational (read + assess) |
+| Web research | "Search the web for..." | `WebSearch(...)` |
+| Give feedback | "For the latest output..." | `UpdateContext(feedback_target=...)` |
+
+### TP Primitives Available
+
+Same set as chat page, but TP receives agent surface context that scopes behavior:
+- `TriggerTask` — run any of this agent's tasks
+- `CreateTask` — assign new work to this agent
+- `WebSearch`, `Search` — research scoped to agent's domain
+- `Read`, `List` — information retrieval
+
+**Available but not surfaced in plus menu** (workspace-level):
+- `UpdateSharedContext` — available but TP should not offer it in agent context
+- `ManageAgent` — available for this agent (rename, update identity)
+
+---
+
+## Agents Page — Task Drill-Down
+
+**Scope:** Single task under the selected agent. User steers execution, reviews output.
 **Session:** Task-scoped TP session (keyed by `task_slug`).
 **Surface context:** `type: "task-detail"`, includes TASK.md + run_log + latest output.
 
@@ -74,28 +103,52 @@ All chat-mode primitives are available. Workspace-relevant:
 | Action | Prompt | Maps to Primitive |
 |--------|--------|-------------------|
 | Run this task now | "Run the task \"{title}\" now" | `TriggerTask(task_slug)` |
-| Adjust focus | "For this task, focus on " | Conversational (UpdateTask) |
-| Refine criteria | "Refine the success criteria..." | `UpdateTask(task_slug)` |
-| Review latest output | "Review the latest output..." | Conversational (read + assess) |
+| Adjust focus | "For this task, focus on " | Conversational (ManageTask) |
+| Give feedback | "For the latest output..." | `UpdateContext(feedback_target="deliverable")` |
 | Web research for this task | "Search the web for..." | `WebSearch(...)` |
 
-### Slash Commands
+### TP Primitives Available
 
-**None.** Task page has no slash command picker. All task actions are through
-the plus menu or natural conversation.
-
-### TP Primitives Available (chat mode)
-
-Same set as workfloor, but TP receives task surface context that scopes behavior:
+Narrowed to task-relevant:
 - `TriggerTask` — run this specific task
-- `UpdateTask`, `PauseTask`, `ResumeTask` — modify this task
+- `ManageTask` — update, evaluate, steer, complete
 - `WebSearch`, `Search` — research scoped to task context
 - `Read`, `List` — information retrieval
+- `Clarify`
 
-**Not intended for task page** (workspace-level):
-- `UpdateSharedContext` — available but TP should not offer it in task context
-- `CreateTask` — available but unusual from within a task page
-- `ManageAgent` — available but irrelevant to task scope
+**Not intended for task drill-down** (agent/workspace-level):
+- `CreateTask` — go back to agent view or chat page
+- `ManageAgent` — agent-level, not task-level
+
+---
+
+## Context Page (`/context`)
+
+**Scope:** Workspace substrate. User browses domains, uploads, settings.
+**Session:** Global TP session (shared with chat page).
+**Surface context:** `type: "context"`, includes navigation path (domain, entity, file).
+
+### Plus Menu Actions
+
+| Action | Prompt | Maps to Primitive |
+|--------|--------|-------------------|
+| Update my context | "Update my context" | `UpdateSharedContext(target=...)` |
+| Upload file | (file dialog) | Attachment flow |
+| Web search | "Search the web for " | `WebSearch(query=...)` |
+| Create a task | "Create a task" | `CreateTask(...)` |
+
+### TP Primitives Available
+
+Same as chat page (same global session). Navigation context tells TP what the user is viewing, enabling contextual suggestions ("You're looking at the competitors domain — want me to create a tracking task?").
+
+---
+
+## Activity Page (`/activity`)
+
+**Scope:** Temporal observation. Read-only.
+**Session:** None (no chat on this surface).
+
+No primitives, no plus menu, no slash commands. This is a pure observation surface.
 
 ---
 
@@ -108,8 +161,8 @@ guide TP toward scope-appropriate actions.
 **Enforcement model:** Soft (prompt-level), not hard (primitive rejection).
 TP can technically call any chat-mode primitive from any surface, but the prompt
 guides it toward scope-appropriate behavior. This is intentional — hard gating
-would prevent legitimate cross-scope actions (e.g., "create a task from this
-output" on a task page).
+would prevent legitimate cross-scope actions (e.g., "create a new task" while
+viewing an agent's domain).
 
 ---
 
@@ -120,11 +173,9 @@ The frontend auto-navigates on success (600ms delay). Current navigating primiti
 
 | Primitive | Navigates to |
 |-----------|-------------|
-| `CreateTask` | `/tasks/{slug}` |
-| `TriggerTask` | `/tasks/{slug}` |
-
-Future candidates:
-- `ManageAgent` → `/agents/{id}`
+| `CreateTask` | `/agents?agent={agent_slug}&task={task_slug}` |
+| `TriggerTask` | `/agents?agent={agent_slug}&task={task_slug}` |
+| `ManageAgent` | `/agents?agent={agent_slug}` |
 
 ---
 

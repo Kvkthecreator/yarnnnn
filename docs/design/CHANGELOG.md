@@ -4,6 +4,55 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-04 — Agent-centric surface reframe + dedicated chat page
+
+Major surface architecture rewrite. Agents page becomes HOME, tasks dissolve into agent responsibilities, chat becomes a dedicated page.
+
+### Two key shifts
+1. **Agent-centric, not task-centric.** The primary working surface lists agents (stable 8-agent roster) with tasks as expandable children. Center panel dispatches by agent class: domain stewards show their directory, synthesizers show deliverables, bots show temporal observations.
+2. **Chat as a page, not a drawer.** TP gets its own `/chat` route — full-width, unscoped, strategic. Agent-scoped TP remains as a right panel on the agents page.
+
+### Navigation
+`Chat | Agents | Context | Activity` (four-segment toggle bar). Agents is `HOME_ROUTE`.
+
+### Documents updated
+- **SURFACE-ARCHITECTURE.md** → v3: full rewrite. Agent-centric page layout, dedicated chat page, four-surface model. Supersedes v2 workfloor + task page.
+- **AGENT-PRESENTATION-PRINCIPLES.md** → v2: agents as primary surface (not reference). Class-aware dispatch (domain/deliverable/observations). Tasks as responsibilities.
+- **SURFACE-PRIMITIVES-MAP.md** → v2: Chat page + Agents page (agent-scoped + task drill-down) + Context page. Replaces Workfloor + Task Page.
+- **TASK-SCOPED-TP.md** → v2: renamed to "Scoped TP". Three scopes: global (chat page), agent-scoped (agents page), task-scoped (drill-down).
+- **WORKSPACE-EXPLORER-UI.md** → v2: Tasks folder removed from explorer. Context page shows domains, uploads, settings only.
+- **SURFACE-ACTION-MAPPING.md** → updated surface mapping for v3 architecture.
+
+### Documents archived
+- **WORKFLOOR-LIVENESS.md** → `archive/` (workfloor dissolved into agents page)
+- **WORKSPACE-LAYOUT-NAVIGATION.md** → `archive/` (superseded by SURFACE-ARCHITECTURE.md v3)
+
+### Active docs (10 docs)
+| Doc | Purpose |
+|-----|---------|
+| `SURFACE-ARCHITECTURE.md` | Master layout spec: Chat + Agents + Context + Activity (v3) |
+| `AGENT-PRESENTATION-PRINCIPLES.md` | Agent as primary surface, class-aware dispatch (v2) |
+| `SURFACE-PRIMITIVES-MAP.md` | Primitive/action mapping per surface (v2) |
+| `TASK-SCOPED-TP.md` | Scoped TP: global, agent, task (v2) |
+| `WORKSPACE-EXPLORER-UI.md` | Context page explorer (v2, tasks removed) |
+| `SURFACE-ACTION-MAPPING.md` | Design principle: directives → chat, config → drawer |
+| `INLINE-PLUS-MENU.md` | Verb taxonomy for + menu actions |
+| `SHARED-CONTEXT-WORKFLOW.md` | Context update workflow |
+| `TP-NOTIFICATION-CHANNEL.md` | FAB badge + notification queueing |
+| `FEEDBACK-WORKFLOW-REDESIGN.md` | Feedback collection UX |
+
+### Deferred docs (retained, not updated)
+| Doc | Status |
+|-----|--------|
+| `DELIVERABLE-FIRST-USER-FLOW.md` | Still valid — task creation flow unchanged |
+| `TASK-SURFACE-REDESIGN.md` | Task detail views reused in agent drill-down |
+| `ONBOARDING-TP-AWARENESS.md` | Cold-start moves to chat page empty state |
+| `QUALITY-GATE-DESIGN.md` | Quality gates unchanged |
+| `SKILLS-REFRAME.md` | Skills architecture unchanged |
+| `FRONTEND-UX-BACKLOG.md` | Needs full review against v3 |
+
+---
+
 ## 2026-04-02 — Workfloor explorer shell + mixed file previews
 
 - **Workfloor shifted toward Finder / Windows Explorer mental model** — left panel is now a real hierarchical explorer, center panel is a file/folder browser with breadcrumbs, and TP remains a scoped right drawer.

@@ -1,257 +1,305 @@
 'use client';
 
 /**
- * Agents List — ADR-140
+ * Agents Page — Primary working surface (HOME).
  *
- * Two sections:
- * 1. Workforce types explainer (what kinds of agents/bots exist)
- * 2. Your agents (existing agent cards with links to /agents/[id])
- *
- * ADR-140: 6 workforce types — 4 agents (research, content, marketing, crm) + 2 bots (slack_bot, notion_bot)
+ * SURFACE-ARCHITECTURE.md v3: Three-panel layout.
+ * Left: AgentTreeNav (stable roster with task children)
+ * Center: AgentContentView (class-aware: domain/output/observations)
+ * Right: ChatPanel (agent-scoped TP, FAB toggle)
  */
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
-  Users,
   Loader2,
-  ChevronRight,
-  FlaskConical,
-  FileText,
-  TrendingUp,
   MessageCircle,
-  BookOpen,
+  Users,
+  ListChecks,
+  Globe,
+  Upload,
 } from 'lucide-react';
-import type { Agent } from '@/types';
-import { cn } from '@/lib/utils';
+import { useTP } from '@/contexts/TPContext';
+import type { Agent, Task } from '@/types';
 import { api } from '@/lib/api/client';
+import {
+  AgentTreeNav,
+  getDefaultAgentView,
+  type AgentView,
+} from '@/components/agents/AgentTreeNav';
+import { AgentContentView } from '@/components/agents/AgentContentView';
+import { ChatPanel } from '@/components/tp/ChatPanel';
+import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
-// =============================================================================
-// Workforce Types — ADR-140
-// =============================================================================
+export default function AgentsPage() {
+  const searchParams = useSearchParams();
+  const { sendMessage } = useTP();
 
-const WORKFORCE_TYPES = [
-  {
-    name: 'Research Agent',
-    icon: FlaskConical,
-    color: 'text-blue-500',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/20',
-    description: 'Investigates and analyzes topics across sources.',
-    examples: 'Market analysis, competitor tracking, trend reports, Slack recaps',
-    capabilities: ['Web search', 'Read platforms', 'Charts'],
-    roles: ['research', 'briefer', 'monitor', 'scout', 'digest', 'researcher', 'analyst', 'synthesize', 'custom'],
-  },
-  {
-    name: 'Content Agent',
-    icon: FileText,
-    color: 'text-purple-500',
-    bg: 'bg-purple-500/10',
-    border: 'border-purple-500/20',
-    description: 'Creates deliverables from accumulated context.',
-    examples: 'Investor updates, board decks, client reports, plans',
-    capabilities: ['Read workspace', 'Charts', 'Compose HTML'],
-    roles: ['content', 'drafter', 'writer', 'planner', 'prepare'],
-  },
-  {
-    name: 'Marketing Agent',
-    icon: TrendingUp,
-    color: 'text-pink-500',
-    bg: 'bg-pink-500/10',
-    border: 'border-pink-500/20',
-    description: 'Handles go-to-market activities and campaigns.',
-    examples: 'Campaign briefs, launch plans, market positioning',
-    capabilities: ['Web search', 'Read workspace', 'Compose HTML'],
-    roles: ['marketing'],
-  },
-  {
-    name: 'CRM Agent',
-    icon: Users,
-    color: 'text-orange-500',
-    bg: 'bg-orange-500/10',
-    border: 'border-orange-500/20',
-    description: 'Manages relationships and tracks interactions.',
-    examples: 'Customer follow-ups, relationship summaries, deal tracking',
-    capabilities: ['Read platforms', 'Read workspace'],
-    roles: ['crm'],
-  },
-  {
-    name: 'Slack Bot',
-    icon: MessageCircle,
-    color: 'text-teal-500',
-    bg: 'bg-teal-500/10',
-    border: 'border-teal-500/20',
-    description: 'Reads and writes Slack on your behalf.',
-    examples: 'Channel summaries, automated replies, status updates',
-    capabilities: ['Read Slack', 'Write Slack'],
-    roles: ['slack_bot'],
-  },
-  {
-    name: 'Notion Bot',
-    icon: BookOpen,
-    color: 'text-indigo-500',
-    bg: 'bg-indigo-500/10',
-    border: 'border-indigo-500/20',
-    description: 'Reads and writes Notion on your behalf.',
-    examples: 'Page updates, database entries, wiki maintenance',
-    capabilities: ['Read Notion', 'Write Notion'],
-    roles: ['notion_bot'],
-  },
-];
+  const agentFromUrl = searchParams.get('agent');
 
-function getTypeForRole(role: string) {
-  return WORKFORCE_TYPES.find(a => a.roles.includes(role)) || WORKFORCE_TYPES[0];
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-function formatRelativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = now - then;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-// =============================================================================
-// Page
-// =============================================================================
-
-export default function AgentsListPage() {
+  // ── State ──
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api.agents.list()
-      .then(setAgents)
-      .catch(() => setAgents([]))
-      .finally(() => setLoading(false));
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedTaskSlug, setSelectedTaskSlug] = useState<string | null>(null);
+  const [selectedView, setSelectedView] = useState<AgentView>('domain');
+  const [filter, setFilter] = useState<string | null>(null);
+
+  const [chatOpen, setChatOpen] = useState(false);
+  const [mutationPending, setMutationPending] = useState(false);
+
+  // ── Data loading ──
+  const loadData = useCallback(async () => {
+    try {
+      const [agentList, taskList] = await Promise.all([
+        api.agents.list(),
+        api.tasks.list(),
+      ]);
+      setAgents(agentList);
+      setTasks(taskList);
+      return { agents: agentList, tasks: taskList };
+    } catch {
+      setAgents([]);
+      setTasks([]);
+      return { agents: [], tasks: [] };
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const activeAgents = agents.filter(a => a.status !== 'archived');
+  // ── Initial load ──
+  useEffect(() => {
+    loadData().then(({ agents: agentList }) => {
+      // Auto-select agent from URL param or first with active tasks
+      if (agentFromUrl) {
+        const match = agentList.find(
+          a => a.id === agentFromUrl || a.slug === agentFromUrl
+        );
+        if (match) {
+          setSelectedAgentId(match.id);
+          setSelectedView(getDefaultAgentView(match));
+        }
+      } else if (agentList.length > 0 && !selectedAgentId) {
+        // Select first agent that has tasks, or just first agent
+        const withTasks = agentList.find(a => a.agent_class === 'domain-steward');
+        const first = withTasks || agentList[0];
+        setSelectedAgentId(first.id);
+        setSelectedView(getDefaultAgentView(first));
+      }
+    });
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Polling (30s) ──
+  useEffect(() => {
+    const interval = setInterval(loadData, 30_000);
+    return () => clearInterval(interval);
+  }, [loadData]);
+
+  // Refresh on tab focus
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadData();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [loadData]);
+
+  // ── Derived state ──
+  const selectedAgent = agents.find(a => a.id === selectedAgentId) || null;
+
+  // Get agent slug for task grouping
+  const getAgentSlug = (agent: Agent): string =>
+    agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  const agentTasks = selectedAgent
+    ? tasks.filter(t => t.agent_slugs?.includes(getAgentSlug(selectedAgent)))
+    : [];
+
+  // ── Actions ──
+  const handleSelectAgent = (agentId: string) => {
+    const agent = agents.find(a => a.id === agentId);
+    setSelectedAgentId(agentId);
+    setSelectedTaskSlug(null);
+    if (agent) setSelectedView(getDefaultAgentView(agent));
+  };
+
+  const handleSelectTask = (agentId: string, taskSlug: string) => {
+    setSelectedAgentId(agentId);
+    setSelectedTaskSlug(taskSlug);
+    setSelectedView('task-output');
+  };
+
+  const handleBack = () => {
+    setSelectedTaskSlug(null);
+    if (selectedAgent) setSelectedView(getDefaultAgentView(selectedAgent));
+  };
+
+  const handleRunTask = async (taskSlug: string) => {
+    setMutationPending(true);
+    try {
+      await api.tasks.run(taskSlug);
+    } catch (err) {
+      console.error('Failed to trigger task:', err);
+    } finally {
+      setMutationPending(false);
+    }
+  };
+
+  const handleToggleTaskStatus = async (taskSlug: string) => {
+    const task = tasks.find(t => t.slug === taskSlug);
+    if (!task) return;
+    setMutationPending(true);
+    try {
+      const newStatus = task.status === 'active' ? 'paused' : 'active';
+      await api.tasks.update(taskSlug, { status: newStatus });
+      await loadData();
+    } catch (err) {
+      console.error('Failed to toggle task status:', err);
+    } finally {
+      setMutationPending(false);
+    }
+  };
+
+  // ── Chat plus menu (agent-scoped) ──
+  const plusMenuActions: PlusMenuAction[] = selectedAgent ? [
+    ...(agentTasks.filter(t => t.status === 'active').length > 0 ? [{
+      id: 'run-task',
+      label: `Run ${agentTasks[0]?.title || 'task'}`,
+      icon: ListChecks,
+      verb: 'prompt' as const,
+      onSelect: () => { sendMessage(`Run the task "${agentTasks[0]?.title}" now`); },
+    }] : []),
+    {
+      id: 'assign-task',
+      label: 'Assign a new task',
+      icon: ListChecks,
+      verb: 'prompt' as const,
+      onSelect: () => { /* ChatPanel handles */ },
+    },
+    {
+      id: 'web-search',
+      label: 'Web research',
+      icon: Globe,
+      verb: 'prompt' as const,
+      onSelect: () => { /* ChatPanel handles */ },
+    },
+    {
+      id: 'upload-file',
+      label: 'Upload file',
+      icon: Upload,
+      verb: 'attach' as const,
+      onSelect: () => { /* ChatPanel handles file upload */ },
+    },
+  ] : [{
+    id: 'assign-task',
+    label: 'Create a task',
+    icon: ListChecks,
+    verb: 'prompt' as const,
+    onSelect: () => { /* ChatPanel handles */ },
+  }];
+
+  // ── Surface context ──
+  const surfaceOverride = selectedTaskSlug
+    ? { type: 'task-detail', taskSlug: selectedTaskSlug }
+    : selectedAgent
+    ? { type: 'agent-detail', agentSlug: getAgentSlug(selectedAgent) }
+    : { type: 'chat' };
+
+  // ── Render ──
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      {/* Header */}
-      <div className="mb-10">
-        <div className="flex items-center gap-3 mb-2">
-          <Users className="w-6 h-6 text-muted-foreground" />
-          <h1 className="text-2xl font-medium">Agents</h1>
-        </div>
-        <p className="text-sm text-muted-foreground max-w-2xl">
-          Agents are persistent domain experts. Each has an identity, accumulated memory,
-          and capabilities. They handle the full thinking chain: sense context, reason about
-          it, and produce output. You describe what you need — the right agent gets created.
-        </p>
+    <div className="flex h-full overflow-hidden">
+      {/* Left Panel — Agent Tree */}
+      <div className="w-[280px] shrink-0 border-r border-border flex flex-col bg-background">
+        <AgentTreeNav
+          agents={agents}
+          tasks={tasks}
+          selectedAgentId={selectedAgentId}
+          selectedTaskSlug={selectedTaskSlug}
+          selectedView={selectedView}
+          filter={filter}
+          onFilterChange={setFilter}
+          onSelectAgent={handleSelectAgent}
+          onSelectTask={handleSelectTask}
+          onSelectView={setSelectedView}
+          onRunTask={handleRunTask}
+          onToggleTaskStatus={handleToggleTaskStatus}
+          busy={mutationPending}
+        />
       </div>
 
-      {/* Workforce Types */}
-      <div className="mb-12">
-        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-4">
-          Workforce Types
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {WORKFORCE_TYPES.map(wtype => {
-            const Icon = wtype.icon;
-            return (
-              <div
-                key={wtype.name}
-                className={cn(
-                  'border rounded-xl p-5 space-y-3',
-                  wtype.border,
-                  wtype.bg,
-                )}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Icon className={cn('w-5 h-5', wtype.color)} />
-                  <h3 className="text-sm font-medium">{wtype.name}</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">{wtype.description}</p>
-                <p className="text-xs text-muted-foreground/60">{wtype.examples}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {wtype.capabilities.map(cap => (
-                    <span
-                      key={cap}
-                      className="px-2 py-0.5 text-[10px] font-medium rounded-full border border-border bg-background text-muted-foreground"
-                    >
-                      {cap}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Your Agents */}
-      <div>
-        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-4">
-          Your Agents {activeAgents.length > 0 && <span className="opacity-60">({activeAgents.length})</span>}
-        </h2>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : activeAgents.length === 0 ? (
-          <div className="text-center py-12 border border-border rounded-xl">
-            <Users className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground mb-1">No agents yet</p>
-            <p className="text-xs text-muted-foreground/60 mb-4">
-              Tell TP what work you need done.
-            </p>
-            <Link
-              href="/tasks"
-              className="inline-block px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              Go to tasks
-            </Link>
-          </div>
+      {/* Center Panel — Agent Content */}
+      <div className="flex-1 min-w-0 flex flex-col bg-background">
+        {selectedAgent ? (
+          <AgentContentView
+            agent={selectedAgent}
+            tasks={agentTasks}
+            view={selectedView}
+            selectedTaskSlug={selectedTaskSlug}
+            onBack={handleBack}
+            onSelectTask={(slug) => handleSelectTask(selectedAgent.id, slug)}
+            onRunTask={handleRunTask}
+            busy={mutationPending}
+          />
         ) : (
-          <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
-            {activeAgents.map(agent => {
-              const wtype = getTypeForRole(agent.role);
-              const Icon = wtype.icon;
-              const isPaused = agent.status === 'paused';
-
-              return (
-                <Link
-                  key={agent.id}
-                  href={`/agents/${agent.id}`}
-                  className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors group"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2.5 mb-1">
-                      <Icon className={cn('w-4 h-4 shrink-0', wtype.color)} />
-                      <span className="text-sm font-medium truncate">{agent.title}</span>
-                      {isPaused && (
-                        <span className="text-[10px] uppercase tracking-wider font-medium text-amber-500">
-                          Paused
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 ml-[26px] text-xs text-muted-foreground">
-                      <span>{wtype.name}</span>
-                      {agent.last_run_at && (
-                        <span>Last run: {formatRelativeTime(agent.last_run_at)}</span>
-                      )}
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-foreground transition-colors shrink-0 ml-4" />
-                </Link>
-              );
-            })}
+          <div className="flex items-center justify-center h-full p-8">
+            <div className="text-center max-w-sm">
+              <Users className="w-10 h-10 text-muted-foreground/15 mx-auto mb-3" />
+              <h2 className="text-lg font-medium mb-1">Your agents</h2>
+              <p className="text-sm text-muted-foreground">
+                Select an agent to see what they know and what they&apos;re working on.
+              </p>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Right Panel — Chat (FAB toggle) */}
+      {chatOpen ? (
+        <div className="w-[380px] shrink-0 border-l border-border flex flex-col bg-background relative">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+            <span className="text-xs text-muted-foreground truncate">
+              {selectedTaskSlug
+                ? `viewing ${tasks.find(t => t.slug === selectedTaskSlug)?.title || selectedTaskSlug}`
+                : selectedAgent
+                ? `viewing ${selectedAgent.title}`
+                : 'Chat'}
+            </span>
+            <button onClick={() => setChatOpen(false)} className="text-muted-foreground hover:text-foreground">
+              <MessageCircle className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            <ChatPanel
+              surfaceOverride={surfaceOverride}
+              plusMenuActions={plusMenuActions}
+              placeholder={
+                selectedTaskSlug ? `Steer ${tasks.find(t => t.slug === selectedTaskSlug)?.title || 'task'}...`
+                : selectedAgent ? `Ask about ${selectedAgent.title}...`
+                : 'Ask anything...'
+              }
+              showCommandPicker={false}
+            />
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-4 right-4 z-50 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 flex items-center justify-center transition-transform hover:scale-105"
+          title="Open chat"
+        >
+          <MessageCircle className="w-5 h-5" />
+        </button>
+      )}
     </div>
   );
 }

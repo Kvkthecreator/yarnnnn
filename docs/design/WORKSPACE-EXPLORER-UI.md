@@ -1,8 +1,9 @@
 # Workspace Explorer UI — Unified Navigation + Scoped Chat
 
 **Status:** Implemented (v1 explorer shell)  
-**Date:** 2026-04-02  
-**Depends on:** ADR-152 (directory registry), ADR-149 (task lifecycle), Agent Templates v4
+**Date:** 2026-04-04 (v2 — tasks removed, agents page owns task browsing)  
+**Depends on:** ADR-152 (directory registry), [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v3  
+**Supersedes:** v1 (2026-04-02, included Tasks folder in explorer)
 
 ---
 
@@ -20,17 +21,10 @@ The explorer now uses one navigation model. No separate domain-card browser, no 
 
 ## Left Panel: Workspace Explorer
 
-Unified file tree with synthetic roots:
+Unified file tree with synthetic roots. Tasks are NOT in the explorer — they are accessed through the agents page (see [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v3).
 
 ```
 yarnnn
-├── Tasks/
-│   ├── Market Landscape Tracking/
-│   │   ├── TASK.md
-│   │   ├── DELIVERABLE.md
-│   │   ├── outputs/
-│   │   └── awareness.md
-│   └── ...
 ├── Domains/
 │   ├── Competitors/
 │   │   ├── _landscape.md
@@ -38,7 +32,11 @@ yarnnn
 │   │   │   ├── profile.md
 │   │   │   └── signals.md
 │   │   └── ...
-│   └── ...
+│   ├── Market/
+│   ├── Relationships/
+│   ├── Projects/
+│   ├── Content/
+│   └── Signals/
 ├── Uploads/
 └── Settings/
     ├── IDENTITY.md
@@ -51,20 +49,14 @@ yarnnn
 - Click file → main panel shows file viewer
 - Folder expand/collapse for navigation
 - Top-level folders preserve current visibility rules rather than exposing every raw system path
-- Tasks are relabeled from slug → title in the explorer
 - Context domains are relabeled from key → display name in the explorer
 - Left panel collapse/expand behavior is unchanged from the prior workfloor shell
 
-### Task folder behavior
+### Surface split
 
-`/tasks` is treated like any other directory in the explorer:
-
-- Click a task folder → open that folder in the main panel
-- Click task files like `TASK.md`, `DELIVERABLE.md`, or output artifacts → preview those files inline
-- Task files are not special launch targets inside Workfloor
-
-This preserves one consistent rule:
-- Workfloor = Explorer/Finder for all surfaced files and folders
+The context page is the workspace substrate explorer. It shows accumulated knowledge (domains), user-contributed files (uploads), and workspace settings. Tasks and agent outputs are accessed through the agents page, not through the context explorer. This preserves a clean separation:
+- **Agents page** = manage work (agents, tasks, outputs)
+- **Context page** = browse knowledge (domains, uploads, settings)
 
 ---
 
@@ -183,18 +175,16 @@ POST /api/chat
 
 ## Implementation Priority
 
-| Feature | Effort | Priority |
-|---|---|---|
-| Left panel: file tree from workspace_files | Medium | P0 |
-| Main panel: directory listing view | Small | P0 |
-| Main panel: file viewer (markdown) | Small | P0 |
-| Main panel: task detail view (existing, adapt) | Medium | P0 |
-| Right panel: navigation context in chat | Small | P0 |
-| Left panel: folder metadata (counts, freshness) | Small | P1 |
-| Main panel: IDE tabs | Medium | P1 |
-| Main panel: agent detail view | Medium | P1 |
-| Main panel: output viewer (HTML) | Small (exists) | P1 |
-| Plus menu: context-dependent actions | Medium | P1 |
-| Main panel: inline editing | Medium | P2 |
-| Main panel: media viewer | Small | P2 |
-| New API: /workspace/tree, /workspace/file | Medium | P0 (required) |
+| Feature | Effort | Priority | Status |
+|---|---|---|---|
+| Left panel: file tree from workspace_files | Medium | P0 | Implemented |
+| Main panel: directory listing view | Small | P0 | Implemented |
+| Main panel: file viewer (markdown, HTML, images) | Small | P0 | Implemented |
+| Right panel: navigation context in chat | Small | P0 | Implemented |
+| API: /workspace/tree, /workspace/file | Medium | P0 | Implemented |
+| Left panel: folder metadata (counts, freshness) | Small | P1 | Pending |
+| Plus menu: context-dependent actions | Medium | P1 | Pending |
+| Main panel: inline editing | Medium | P2 | Deferred |
+| Main panel: media viewer (full) | Small | P2 | Deferred |
+
+**Removed from scope:** Task detail view and agent detail view are no longer in the context explorer — they live on the agents page per [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v3.

@@ -1,67 +1,75 @@
-# Task-Scoped TP — Context-Aware Chat at Task Level
+# Scoped TP — Agent + Task Context-Aware Chat
 
-**Date:** 2026-03-25
+**Date:** 2026-04-04 (v2 — agent-scoped TP as primary, task-scoped as drill-down)
 **Status:** Proposed
-**Depends on:** [ADR-139](../adr/ADR-139-workfloor-task-surface-architecture.md) v3, [ADR-138](../adr/ADR-138-agents-as-work-units.md)
-**Related:** [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md), [WORKFLOOR-LIVENESS.md](WORKFLOOR-LIVENESS.md)
+**Supersedes:** v1 (2026-03-25, workfloor + task-only scoping)
+**Depends on:** [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v3, [ADR-138](../adr/ADR-138-agents-as-work-units.md)
 
 ---
 
 ## Problem
 
-With the unified TP model (no PM agent), the same TP serves both the workfloor and the task page. But these surfaces have fundamentally different purposes:
-
-- **Workfloor**: manage the workforce (create agents, create tasks, monitor health)
-- **Task page**: manage the work (steer focus, review output, adjust delivery)
-
-Without scoping, the task page chat is just generic TP — it doesn't know which task the user is looking at, can't inject task context, and offers irrelevant actions (like "create agent").
+TP serves three surfaces: the chat page (unscoped), the agents page (agent-scoped), and task drill-downs within the agents page (task-scoped). Each surface has a different purpose and needs different context injection.
 
 ## Decision
 
 TP chat is **context-scoped by surface**. Same TP, same underlying model, but different:
-1. Session (keyed by task_slug)
-2. System prompt preamble (task context injected)
-3. Available actions (plus menu items)
-4. Slash commands (filtered to task-relevant)
+1. Session (keyed by scope — global, agent_slug, or task_slug)
+2. System prompt preamble (scope-appropriate context injected)
+3. Available actions (plus menu items filtered by scope)
 
 ---
 
-## Scope Comparison
+## Three Scopes
 
-### Workfloor TP (global scope)
+### 1. Chat Page TP (global scope)
 
-**Purpose:** Manage the workforce — create, assign, monitor.
+**Purpose:** Strategic direction — create tasks, manage workspace, cross-cutting questions.
 
-**Session key:** `user_id` only (task_slug IS NULL)
+**Session key:** `user_id` only (all slug fields NULL)
 
 **System prompt preamble:**
 ```
-You are on the user's workfloor — their command center for managing agents and tasks.
+You are on the user's chat page — their strategic command center.
+
 Your team: {agent_roster_summary}
 Active tasks: {task_list_summary}
 Connected platforms: {platform_status}
+Workspace state: {workspace_state_signal}
 ```
 
-**Primitives available:**
-- ManageAgent, CreateTask, TriggerTask (any task)
-- Search, WebSearch, RefreshPlatformContent
-- Read, Write, Edit, List, Execute
-- SaveMemory, Clarify
+**Plus menu:** Create a task, Update my context, Web search, Upload file
 
-**Plus menu:**
-- Create a task
-- Search platforms
-- Web search
-- Run a task now
-- Upload file
+### 2. Agent Page TP (agent-scoped)
 
-**Slash commands:**
-- /task, /recap, /summary, /research, /create
-- /search, /sync, /memory, /web
+**Purpose:** Manage an agent — review domain, trigger tasks, assign new work.
 
-### Task TP (task-scoped)
+**Session key:** `user_id` + `agent_slug`
 
-**Purpose:** Manage the work — steer focus, review output, adjust delivery.
+**System prompt preamble:**
+```
+You are helping the user manage the agent "{agent_title}" ({agent_type}).
+
+Agent identity:
+{agent_md_summary}
+
+Owned domain: {domain_name} ({entity_count} entities, last updated {last_update})
+
+Assigned tasks:
+{task_list_with_status_and_schedule}
+
+Your role:
+- Help the user understand what this agent knows and produces
+- Trigger any of the agent's tasks, assign new tasks
+- Review domain health and suggest improvements
+- You CANNOT create new agents here — direct the user to /chat
+```
+
+**Plus menu:** Run [task] now, Assign a task, Review domain health, Web research, Give feedback
+
+### 3. Task Drill-Down TP (task-scoped)
+
+**Purpose:** Steer a specific task — focus, criteria, review output, trigger runs.
 
 **Session key:** `user_id` + `task_slug`
 
@@ -69,45 +77,26 @@ Connected platforms: {platform_status}
 ```
 You are helping the user manage the task "{task_title}".
 
-## Task Definition
+Task definition:
 {task_md_content}
 
-## Latest Output Summary
+Latest output summary:
 {latest_output_first_500_chars}
 
-## Recent Run Log
+Recent run log:
 {run_log_last_5_entries}
 
-## Assigned Agent
-{agent_title} ({agent_role})
+Assigned agent: {agent_title} ({agent_role})
 Agent expertise: {agent_instructions_first_200_chars}
 
-Your job: help the user steer this task's focus, review output quality,
-adjust delivery, and trigger runs. You can update TASK.md fields
-(objective, criteria, output spec) based on user direction.
+Your role:
+- Steer focus, objective, and success criteria
+- Review output quality, suggest improvements
+- Trigger runs, adjust delivery
+- You CANNOT create agents or tasks here — use back navigation
 ```
 
-**Primitives available:**
-- TriggerTask (this task only)
-- Search, WebSearch, RefreshPlatformContent
-- Read, List (scoped to task + agent workspace)
-- Edit (TASK.md fields only)
-- Clarify
-
-**NOT available (workfloor-only):**
-- ManageAgent, CreateTask (wrong scope — go to workfloor for that)
-
-**Plus menu:**
-- Run this task now
-- Adjust focus / criteria
-- Change delivery
-- Review last output
-- Search platforms
-
-**Slash commands:**
-- /run (trigger this task)
-- /search, /web
-- NOT: /task, /create, /recap, /summary (workfloor-level)
+**Plus menu:** Run this task now, Adjust focus, Give feedback, Web research
 
 ---
 
@@ -117,132 +106,72 @@ adjust delivery, and trigger runs. You can update TASK.md fields
 
 ```python
 # In chat stream handler:
+agent_slug = None
 task_slug = None
-if surface_context and surface_context.type == 'task-detail':
-    task_slug = surface_context.taskSlug
+
+if surface_context:
+    if surface_context.type == 'task-detail':
+        task_slug = surface_context.taskSlug
+    elif surface_context.type == 'agent-detail':
+        agent_slug = surface_context.agentSlug
 
 if task_slug:
     session = await get_or_create_session(
         client, user_id, scope="daily", task_slug=task_slug
     )
-else:
-    # Global or agent-scoped
+elif agent_slug:
     session = await get_or_create_session(
-        client, user_id, scope="daily", agent_id=request_agent_id
+        client, user_id, scope="daily", agent_slug=agent_slug
+    )
+else:
+    # Global session (chat page, context page)
+    session = await get_or_create_session(
+        client, user_id, scope="daily"
     )
 ```
 
-Requires: `chat_sessions.task_slug` column (migration).
+Requires: `chat_sessions.agent_slug` column (new), `chat_sessions.task_slug` column (existing or new).
 
 ### 2. Context injection (`load_surface_content()`)
 
-When `surface_context.type == 'task-detail'`:
-1. Read `/tasks/{slug}/TASK.md` from workspace
-2. Read `/tasks/{slug}/memory/run_log.md` (last 5 entries)
-3. Read latest output summary (first 500 chars)
-4. Resolve agent from TASK.md `## Process` → read AGENT.md
-5. Inject all as system prompt preamble
+| Surface type | Context loaded |
+|---|---|
+| `"chat"` | Agent roster summary, task list, platform status, workspace state |
+| `"agent-detail"` | AGENT.md, owned domain summary (entity count, staleness), assigned tasks with status/schedule |
+| `"task-detail"` | TASK.md, run_log.md (last 5), latest output (500 chars), assigned agent AGENT.md |
+| `"context"` | Navigation path context (domain, entity, file) |
 
-### 3. Primitive gating
+### 3. Primitive scoping
 
-The existing `PRIMITIVE_MODES` registry gates by `"chat"` vs `"headless"`.
-Add a third dimension: surface scope.
-
-```python
-# In tools.py or a new surface_primitives.py:
-TASK_SCOPE_ALLOWED = {
-    "TriggerTask", "Search", "WebSearch", "Read", "List",
-    "RefreshPlatformContent", "Edit", "Clarify",
-}
-
-TASK_SCOPE_BLOCKED = {
-    "ManageAgent", "CreateTask", "Write", "Execute", "SaveMemory",
-}
-```
-
-When `surface_context.type == 'task-detail'`, filter the tools list before passing to Claude.
-
-### 4. TP prompt versioning
-
-Task-scoped preamble goes in `api/agents/tp_prompts/task_scope.py` (new file):
-
-```python
-TASK_SCOPE_PREAMBLE = """
-You are helping the user manage the task "{task_title}".
-
-{task_context}
-
-Your role on this page:
-- Steer the task's focus, objective, and success criteria
-- Review output quality and suggest improvements
-- Trigger runs and adjust delivery
-- You CANNOT create new agents or tasks here — direct the user to the workfloor for that
-"""
-```
+Soft enforcement via prompt — TP has access to all chat-mode primitives but the preamble guides scope-appropriate behavior. No hard blocking needed (prevents legitimate cross-scope actions from being impossible).
 
 ---
 
 ## Frontend Implementation
 
-### Task page layout (v5)
+### Chat component reuse
 
-Workfloor owns filesystem browsing, including `/tasks`. The task page is not
-the default renderer for task files; it is the dedicated task management
-surface for steering the task, reviewing status, and using task-scoped TP.
+All three scopes use the same `ChatPanel` component with different props:
 
-```
-┌─ Left (hero) ────────────────────┬─ Right (inspector) ─────────┐
-│                                  │                             │
-│  Latest / selected output        │  Task Overview              │
-│  Rendered HTML or markdown       │  Status · cadence · agent   │
-│                                  │                             │
-│                                  │  Deliverable                │
-│                                  │  Objective · criteria       │
-│                                  │  Raw spec collapsed by      │
-│                                  │  default                    │
-│                                  │                             │
-│                                  │  Context                    │
-│                                  │  Reads · writes             │
-│                                  │  Run log collapsed          │
-│                                  │                             │
-│                                  │  Runs                       │
-│                                  │  History + run controls     │
-└──────────────────────────────────┴─────────────────────────────┘
+```typescript
+// Chat page
+<ChatPanel surfaceOverride={{ type: "chat" }}
+           plusMenuActions={CHAT_PAGE_ACTIONS} />
 
-                                 ┌─ TP drawer ───────────────────┐
-                                 │ Task-scoped TP                │
-                                 │ Steer this task...            │
-                                 └───────────────────────────────┘
+// Agents page — agent selected
+<ChatPanel surfaceOverride={{ type: "agent-detail", agentSlug }}
+           plusMenuActions={buildAgentActions(agent, tasks)}
+           placeholder={`Ask about ${agent.title}...`} />
+
+// Agents page — task drill-down
+<ChatPanel surfaceOverride={{ type: "task-detail", taskSlug }}
+           plusMenuActions={buildTaskActions(task)}
+           placeholder={`Steer ${task.title}...`} />
 ```
 
-### Surface split
+### Session scope transitions
 
-The corrected split is:
-
-- Workfloor = browse task folders and files directly
-- Task page = manage the task as a work unit
-
-So clicking task artifacts in Workfloor should keep the user in the explorer.
-The task page remains reachable from task lists, activity links, delivery
-feedback links, and explicit "open task" navigation, but not from normal file
-selection inside Workfloor.
-
-### Chat component
-
-Reuse the task-scoped drawer pattern with:
-- `surfaceContext: { type: 'task-detail', taskSlug }`
-- Task-specific plus menu actions
-- Placeholder text: `Steer {taskTitle}...`
-
----
-
-## Migration
-
-```sql
-ALTER TABLE chat_sessions ADD COLUMN task_slug TEXT;
-CREATE INDEX idx_chat_sessions_task_slug
-  ON chat_sessions(user_id, task_slug) WHERE task_slug IS NOT NULL;
-```
+When the user selects a different agent or drills into a task, the ChatPanel receives a new `surfaceOverride` and switches session context. The previous session persists — returning to the same agent/task resumes the same conversation.
 
 ---
 
@@ -250,21 +179,20 @@ CREATE INDEX idx_chat_sessions_task_slug
 
 | File | Change |
 |------|--------|
-| `api/agents/tp_prompts/task_scope.py` | NEW — task-scoped preamble template |
-| `api/routes/chat.py` | Session routing by task_slug, context injection |
-| `api/services/working_memory.py` | `load_surface_content()` for task-detail |
-| `api/agents/tp_prompts/tools.py` | Document task-scoped primitive restrictions |
-| `web/app/(authenticated)/tasks/[slug]/page.tsx` | v5 layout: compact task management surface + chat drawer |
-| `web/components/desk/ChatDrawer.tsx` | Keep for task page (or inline ChatPanel variant) |
+| `api/agents/tp_prompts/scoped_preambles.py` | NEW — preamble templates for all three scopes |
+| `api/routes/chat.py` | Session routing by agent_slug/task_slug |
+| `api/services/working_memory.py` | `load_surface_content()` for agent-detail scope |
+| `web/app/(authenticated)/agents/page.tsx` | ChatPanel with agent/task scope switching |
+| `web/app/(authenticated)/chat/page.tsx` | Full-width ChatPanel with global scope |
 | `api/prompts/CHANGELOG.md` | Version entry |
-| `supabase/migrations/XXX_task_slug_sessions.sql` | Add task_slug column |
 
 ---
 
 ## Success Criteria
 
-1. User on `/tasks/{slug}` sees task-scoped chat that knows the task context
-2. Chat preamble includes TASK.md content, latest output, assigned agent
-3. Plus menu shows task-relevant actions only (no "create agent")
-4. Session persists per-task (revisiting same task = same conversation)
-5. Workfloor chat remains global (no task context leaking)
+1. Chat page shows unscoped TP with workspace-level context
+2. Agents page shows agent-scoped TP when agent is selected
+3. Task drill-down shows task-scoped TP with task context
+4. Session persists per-scope (revisiting same agent/task = same conversation)
+5. Plus menu adapts to current scope (agent actions vs task actions)
+6. Context page uses global session (same as chat page)

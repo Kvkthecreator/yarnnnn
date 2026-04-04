@@ -24,6 +24,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from services.supabase import UserClient
+from services.agent_framework import get_agent_class_and_domain
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +251,9 @@ class AgentResponse(BaseModel):
     agent_memory: Optional[dict] = None
     # ADR-118: Avatar
     avatar_url: Optional[str] = None
+    # SURFACE-ARCHITECTURE v3: agent class + owned context domain
+    agent_class: str = "domain-steward"  # domain-steward | synthesizer | platform-bot
+    context_domain: Optional[str] = None  # owned domain key (e.g., "competitors"), None for synthesizers
 
 
 class SourceFetchSummary(BaseModel):
@@ -526,12 +530,14 @@ async def list_agents(
                     quality_trend = "stable"
 
         intel = intelligence_map.get(d["id"], {})
+        role = d.get("role", "custom")
+        agent_class, context_domain = get_agent_class_and_domain(role)
 
         responses.append(AgentResponse(
             id=d["id"],
             title=d["title"],
             scope=d.get("scope", "cross_platform"),
-            role=d.get("role", "custom"),
+            role=role,
             type_config=d.get("type_config"),
             status=d["status"],
             created_at=d["created_at"],
@@ -545,6 +551,8 @@ async def list_agents(
             agent_instructions=intel.get("agent_instructions"),
             agent_memory=intel.get("agent_memory"),
             avatar_url=d.get("avatar_url"),
+            agent_class=agent_class,
+            context_domain=context_domain,
         ))
 
     return responses

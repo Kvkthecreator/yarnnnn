@@ -3,10 +3,10 @@
 **Date:** 2026-03-10
 **Status:** Active
 **Related:**
-- [Workspace Layout & Navigation](WORKSPACE-LAYOUT-NAVIGATION.md) — layout structure
-- [Workspace Drawer Refactor](archive/WORKSPACE-DRAWER-REFACTOR.md) — drawer vs inline decision
+- [Surface Architecture](SURFACE-ARCHITECTURE.md) v3 — Chat + Agents + Context + Activity
 - [Inline Plus Menu](INLINE-PLUS-MENU.md) — action verb taxonomy
 - [ADR-105: Instructions to Chat Surface](../adr/ADR-105-instructions-chat-surface-migration.md) — implementation plan
+- [Workspace Layout & Navigation](archive/WORKSPACE-LAYOUT-NAVIGATION.md) — archived layout structure
 
 ---
 
@@ -137,8 +137,28 @@ The current Instructions drawer tab (behavior textarea + audience fields + promp
 
 ---
 
+## Surface mapping (updated for v3 architecture)
+
+Four surfaces, each with clear interaction boundaries:
+
+| Surface | Route | Primary Interaction |
+|---------|-------|---------------------|
+| **Chat page** | `/chat` | Directives + strategic conversation — unscoped TP |
+| **Agents page** | `/agents` | Agent management + task steering — agent/task-scoped TP |
+| **Context page** | `/context` | Reference + browsing — workspace-scoped TP |
+| **Activity page** | `/activity` | Observation only — no chat, no actions |
+
+The chat page is the primary **directive** surface (tell TP what to do).
+The agents page mixes **directive** (steer via chat panel) and **reference** (view domain/outputs).
+The context page is primarily **reference** (browse workspace files) with light directive ability.
+
+See [SURFACE-PRIMITIVES-MAP.md](SURFACE-PRIMITIVES-MAP.md) for the full primitive/action mapping per surface.
+
+---
+
 ## Changelog
 
 | Date | Change |
 |------|--------|
 | 2026-03-10 | Initial principle — surface-action mapping with directive vs configuration distinction |
+| 2026-04-04 | Updated surface mapping for v3 architecture (Chat + Agents + Context + Activity) |

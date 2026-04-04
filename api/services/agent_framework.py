@@ -703,6 +703,20 @@ def resolve_role(role: str) -> str:
     return LEGACY_ROLE_MAP.get(role, role)
 
 
+def get_agent_class_and_domain(role: str) -> tuple[str, str | None]:
+    """Resolve agent role → (agent_class, context_domain).
+
+    Returns the agent class ("domain-steward", "synthesizer", "platform-bot")
+    and the owned context domain (or None for synthesizers).
+    Falls back to "domain-steward" / None for unknown roles.
+    """
+    resolved = resolve_role(role)
+    template = AGENT_TEMPLATES.get(resolved)
+    if template:
+        return template["class"], template.get("domain")
+    return "domain-steward", None
+
+
 # =============================================================================
 # Registry 2: Capabilities — what each capability resolves to
 # =============================================================================

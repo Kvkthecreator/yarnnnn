@@ -338,6 +338,9 @@ export interface Agent {
   quality_trend?: QualityTrend;
   avg_edit_distance?: number;
   description?: string;
+  // SURFACE-ARCHITECTURE v3: agent class + owned context domain
+  agent_class?: 'domain-steward' | 'synthesizer' | 'platform-bot';
+  context_domain?: string;  // owned domain key (e.g., "competitors"), null for synthesizers
 }
 
 export interface AgentCreate {
