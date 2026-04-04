@@ -221,11 +221,15 @@ It would fail if it became: broad ingestion, a hidden cache, or automatic canon 
 - Update TP working memory injection for temporal platform awareness
 - Update all downstream docs
 
-### Phase 2: Source Selection UI (future)
+### Phase 2: Source Selection (this commit)
 
-- Task management UI for channel/page/repo selection per task
-- Uses existing `landscape.py` logic as defaults
-- User-editable source list stored in TASK.md
+- `**Sources:**` field in TASK.md — serialized as `platform:id1,id2; platform:id3`
+- `parse_task_md()` extracts sources into `task_info["sources"]`
+- `CreateTask` auto-populates from `platform_connections.selected_sources`
+- `ManageTask(action="update", sources={...})` for user refinement via TP
+- `gather_task_context()` injects "Selected Sources" section with resolved names
+- TP prompts updated with source selection guidance
+- Frontend source selection UI deferred — TP is the current UX surface
 
 ### Phase 3: Write-back Task Types (future)
 

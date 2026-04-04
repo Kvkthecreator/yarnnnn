@@ -709,6 +709,18 @@ def parse_task_md(content: str) -> dict:
         elif line_stripped.startswith("**Context Writes:**"):
             raw = line_stripped.split("**Context Writes:**")[1].strip()
             result["context_writes"] = [d.strip() for d in raw.split(",") if d.strip() and d.strip() != "none"]
+        elif line_stripped.startswith("**Sources:**"):
+            # ADR-158 Phase 2: per-task source selection
+            # Format: slack:C123,C456; notion:page-id-1,page-id-2
+            raw = line_stripped.split("**Sources:**")[1].strip()
+            if raw and raw != "none":
+                sources = {}
+                for segment in raw.split(";"):
+                    segment = segment.strip()
+                    if ":" in segment:
+                        platform, ids_str = segment.split(":", 1)
+                        sources[platform.strip()] = [s.strip() for s in ids_str.split(",") if s.strip()]
+                result["sources"] = sources
         # ADR-154: **Output Category:** parsing removed — tasks own their outputs
 
     # Parse sections
@@ -799,6 +811,33 @@ async def gather_task_context(
                 sections.append(f"## Execution Awareness\n{awareness}")
         except Exception as e:
             logger.debug(f"[TASK_EXEC] Awareness read failed: {e}")
+
+    # 0b. Source scope — which platform sources to read (ADR-158 Phase 2)
+    if task_info and task_info.get("sources"):
+        sources = task_info["sources"]
+        source_lines = ["## Selected Sources"]
+        source_lines.append("Read ONLY from these selected sources (user-configured scope):")
+        for platform, ids in sources.items():
+            # Resolve source names from platform_connections landscape
+            try:
+                conn_result = (
+                    client.table("platform_connections")
+                    .select("landscape")
+                    .eq("user_id", user_id)
+                    .eq("provider", platform)
+                    .eq("status", "connected")
+                    .maybe_single()
+                    .execute()
+                )
+                name_map = {}
+                if conn_result and conn_result.data:
+                    resources = (conn_result.data.get("landscape") or {}).get("resources", [])
+                    name_map = {r["id"]: r.get("name", r["id"]) for r in resources}
+            except Exception:
+                name_map = {}
+            source_names = [name_map.get(sid, sid) for sid in ids]
+            source_lines.append(f"- **{platform}**: {', '.join(source_names)}")
+        sections.append("\n".join(source_lines))
 
     # 1. Domain tracker — entity registry for context tasks (ADR-154)
     if task_info:

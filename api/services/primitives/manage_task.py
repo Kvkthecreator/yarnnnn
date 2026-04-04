@@ -3,7 +3,7 @@ ManageTask Primitive — ADR-146 + ADR-149: Primitive Hardening + Task Lifecycle
 
 Unified task lifecycle primitive. 7 actions:
 - trigger  — run task immediately
-- update   — change schedule, delivery, mode, type
+- update   — change schedule, delivery, mode, type, sources (ADR-158)
 - pause    — stop scheduled runs
 - resume   — restore scheduled runs
 - evaluate — TP reads output + DELIVERABLE.md → quality judgment (ADR-149)
@@ -30,11 +30,12 @@ MANAGE_TASK_TOOL = {
   ManageTask(task_slug="weekly-briefing", action="trigger")
   ManageTask(task_slug="daily-recap", action="trigger", context="Focus on the product launch discussion")
 
-**action="update"** — Change schedule, delivery, mode, or type.
+**action="update"** — Change schedule, delivery, mode, type, or sources.
   ManageTask(task_slug="weekly-briefing", action="update", schedule="daily")
   ManageTask(task_slug="weekly-briefing", action="update", delivery="user@example.com")
   ManageTask(task_slug="weekly-briefing", action="update", mode="goal")
   ManageTask(task_slug="weekly-briefing", action="update", type_key="competitive-intel-brief")
+  ManageTask(task_slug="slack-digest", action="update", sources={"slack": ["C123", "C456"]})
 
   type_key assigns a task type from the registry, which defines the execution process
   (multi-step pipeline, agent assignments). Use when a task was created generically
@@ -98,6 +99,10 @@ MANAGE_TASK_TOOL = {
             "type_key": {
                 "type": "string",
                 "description": "For action='update': assign a task type from the registry (defines execution process + agent pipeline)"
+            },
+            "sources": {
+                "type": "object",
+                "description": "For action='update': per-task platform source selection. Map of platform → list of source IDs. E.g. {\"slack\": [\"C123\", \"C456\"]}"
             },
         },
         "required": ["task_slug", "action"]
@@ -290,8 +295,9 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
         changes.append(f"delivery → {new_delivery}")
 
     new_type_key = input.get("type_key", "").strip() or None
+    new_sources = input.get("sources")  # ADR-158 Phase 2
 
-    if not changes and not new_type_key:
+    if not changes and not new_type_key and not new_sources:
         return {"success": False, "error": "no_changes", "message": "No changes specified. Use schedule, delivery, mode, or type_key parameters."}
 
     # Apply DB update
@@ -316,6 +322,35 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
                 await tw.write("TASK.md", task_md, summary=f"Updated delivery: {new_delivery}")
         except Exception as e:
             logger.warning(f"[MANAGE_TASK] TASK.md delivery update failed (non-fatal): {e}")
+
+    # ADR-158 Phase 2: Update sources in TASK.md
+    if new_sources and isinstance(new_sources, dict):
+        try:
+            task_md = await tw.read_task()
+            if task_md:
+                # Serialize sources
+                parts = []
+                for platform, ids in new_sources.items():
+                    if isinstance(ids, list) and ids:
+                        parts.append(f"{platform}:{','.join(str(i) for i in ids)}")
+                sources_str = "; ".join(parts) if parts else "none"
+
+                if "**Sources:**" in task_md:
+                    task_md = re.sub(r"\*\*Sources:\*\*.*", f"**Sources:** {sources_str}", task_md)
+                else:
+                    # Insert after Context Writes line, or after Delivery
+                    if "**Context Writes:**" in task_md:
+                        task_md = re.sub(
+                            r"(\*\*Context Writes:\*\*.*)",
+                            rf"\1\n**Sources:** {sources_str}",
+                            task_md,
+                        )
+                    else:
+                        task_md += f"\n**Sources:** {sources_str}"
+                await tw.write("TASK.md", task_md, summary=f"Updated sources: {sources_str}")
+                changes.append(f"sources → {sources_str}")
+        except Exception as e:
+            logger.warning(f"[MANAGE_TASK] TASK.md sources update failed (non-fatal): {e}")
 
     # Assign type_key → updates TASK.md with type + process definition from registry
     if new_type_key:

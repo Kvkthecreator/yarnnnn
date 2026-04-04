@@ -266,6 +266,32 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
         if not agent_slug and resolved_agent_slugs:
             agent_slug = resolved_agent_slugs[0]
 
+        # ADR-158 Phase 2: Auto-populate sources from platform_connections
+        # for platform task types (requires_platform set in registry)
+        task_sources = input.get("sources")  # explicit override from TP
+        if not task_sources and task_type_def.get("requires_platform"):
+            platform = task_type_def["requires_platform"]
+            try:
+                conn_result = (
+                    auth.client.table("platform_connections")
+                    .select("landscape")
+                    .eq("user_id", user_id)
+                    .eq("provider", platform)
+                    .eq("status", "connected")
+                    .maybe_single()
+                    .execute()
+                )
+                if conn_result and conn_result.data:
+                    landscape = conn_result.data.get("landscape") or {}
+                    selected = landscape.get("selected_sources") or []
+                    if selected:
+                        source_ids = [s.get("id") for s in selected if s.get("id")]
+                        if source_ids:
+                            task_sources = {platform: source_ids}
+                            logger.info(f"[CREATE_TASK] Auto-populated {len(source_ids)} {platform} sources from platform_connections")
+            except Exception as e:
+                logger.warning(f"[CREATE_TASK] Failed to read platform sources: {e}")
+
         # Build TASK.md from type template
         task_md_content = build_task_md_from_type(
             type_key=type_key,
@@ -275,6 +301,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
             schedule=schedule,
             delivery=delivery,
             agent_slugs=resolved_agent_slugs or None,
+            sources=task_sources,
         )
 
     # --- Verify primary agent exists ---

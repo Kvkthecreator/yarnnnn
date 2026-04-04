@@ -38,6 +38,15 @@ generic synced platform-content cache.
 - **Live tools for read/write** — `platform_slack_*`, `platform_notion_*` for direct platform queries and scoped delivery actions
 - **Task-first recurring observation** — digest task types such as `slack-digest` and `notion-digest` are the recurring workflow shape for ongoing platform awareness. Bots write per-source observations to their own context directory (/workspace/context/slack/, /workspace/context/notion/)
 
+### Per-task source selection (ADR-158)
+
+Platform digest tasks auto-populate sources from the user's selected sources at creation time.
+Users can refine which channels/pages a task reads via:
+  ManageTask(task_slug="slack-digest", action="update", sources={"slack": ["C123", "C456"]})
+
+If the user says "only watch #engineering and #product" → update the task's sources.
+Sources are stored in TASK.md and injected into the agent's execution context.
+
 ### Notifications
 
 `Execute(action="notification.send", message="...", urgency="normal")` — lightweight email alert to user. For recurring content, use agents instead.

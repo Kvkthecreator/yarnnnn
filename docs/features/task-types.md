@@ -96,6 +96,7 @@ Context tasks maintain your workspace knowledge. They run on schedule, update do
 **Default schedule:** Daily
 **Domains (writes):** slack, signals
 **Requires platform:** Slack
+**Sources:** Auto-populated from platform connection; user-editable via ManageTask
 
 ---
 
@@ -108,6 +109,7 @@ Context tasks maintain your workspace knowledge. They run on schedule, update do
 **Default schedule:** Weekly
 **Domains (writes):** notion, signals
 **Requires platform:** Notion
+**Sources:** Auto-populated from platform connection; user-editable via ManageTask
 
 ---
 

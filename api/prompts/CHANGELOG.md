@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.04.2] - ADR-158 Phase 2: Per-task source selection
+
+### Changed
+- `services/task_pipeline.py`: parse_task_md() extracts **Sources:** field. gather_task_context() injects "Selected Sources" section into agent context with resolved source names from platform_connections landscape.
+- `services/task_types.py`: build_task_md_from_type() accepts sources param, serializes to TASK.md.
+- `services/primitives/task.py`: CreateTask auto-populates sources from platform_connections.selected_sources for platform task types (requires_platform).
+- `services/primitives/manage_task.py`: ManageTask action="update" now accepts sources param. Rewrites **Sources:** line in TASK.md.
+- `agents/tp_prompts/platforms.py`: Added per-task source selection guidance — ManageTask update example.
+- `agents/tp_prompts/behaviors.py`: Task creation guidance notes sources auto-populate + ManageTask refinement.
+- Expected behavior: Platform digest tasks auto-get sources from platform connection. Agent sees "Read ONLY from these selected sources" in context. Users can refine via TP ("only watch #engineering").
+
+---
+
 ## [2026.04.04.1] - ADR-158: Platform bot ownership + task type renames
 
 ### Changed

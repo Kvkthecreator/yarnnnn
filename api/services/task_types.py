@@ -948,6 +948,7 @@ def build_task_md_from_type(
     schedule: str | None = None,
     delivery: str | None = None,
     agent_slugs: list[str] | None = None,
+    sources: dict[str, list[str]] | None = None,
 ) -> str | None:
     """Build TASK.md content from a task type definition.
 
@@ -980,6 +981,14 @@ def build_task_md_from_type(
 
     effective_mode = task_type.get("default_mode", "recurring")
 
+    # ADR-158 Phase 2: serialize sources into TASK.md
+    sources_str = "none"
+    if sources:
+        parts = []
+        for platform, ids in sources.items():
+            parts.append(f"{platform}:{','.join(ids)}")
+        sources_str = "; ".join(parts)
+
     md = f"""# {title}
 
 **Slug:** {slug}
@@ -990,6 +999,7 @@ def build_task_md_from_type(
 **Delivery:** {delivery or 'none'}
 **Context Reads:** {', '.join(context_reads) if context_reads else 'none'}
 **Context Writes:** {', '.join(context_writes) if context_writes else 'none'}
+**Sources:** {sources_str}
 
 ## Objective
 - **Deliverable:** {deliverable_text}
