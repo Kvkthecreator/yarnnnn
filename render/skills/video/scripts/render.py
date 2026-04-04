@@ -182,7 +182,6 @@ async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str
             "--log=verbose",
             "--browser-executable=/usr/bin/chromium",
             "--gl=swangle",
-            "--enable-multiprocess-on-linux=false",
         ]
 
         logger.info(f"[VIDEO] Rendering {total_duration}s video ({width}x{height}, {len(slides)} slides)")
