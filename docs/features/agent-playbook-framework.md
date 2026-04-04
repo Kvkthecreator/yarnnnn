@@ -1,6 +1,6 @@
 # Agent Playbook Framework — Design Document
 
-**Status:** Design
+**Status:** Phase 1 Implemented
 **Date:** 2026-04-04
 **Related:** ADR-118 (skills/SKILL.md convention), ADR-140 (agent workforce), ADR-143 (methodology seeding)
 
@@ -144,12 +144,16 @@ For ALL agent types, the playbook framework provides:
 
 ## Implementation Phases
 
-### Phase 1: Framework + metadata (this scope)
-1. Add `description` and `tags` to playbook definitions in agent_framework.py
-2. Update `load_context()` to accept `task_type` parameter
-3. Build playbook index (short descriptions) for system prompt
-4. Load full content only for tag-matched playbooks
-5. Document the framework in architecture docs
+### Phase 1: Framework + metadata (IMPLEMENTED)
+1. `PLAYBOOK_METADATA` registry — description + tags per playbook file
+2. `TASK_PLAYBOOK_ROUTING` — maps task class (context/synthesis) to relevant tags
+3. `load_context(task_class=...)` — selective playbook loading based on task class
+4. `get_playbook_index()` — short index always in prompt (~55-85 tokens)
+5. `get_relevant_playbooks()` — full content only for tag-matched playbooks
+6. `ensure_seeded()` — retroactive seeding of missing playbooks from type registry
+7. `task_pipeline.py` — passes `task_class` from TASK.md to `load_context()`
+
+Key files: `agent_framework.py` (registry), `workspace.py` (loading), `task_pipeline.py` (routing)
 
 ### Phase 2: Per-agent playbook refinement
 1. Review and refine each agent type's playbooks for their specific domain

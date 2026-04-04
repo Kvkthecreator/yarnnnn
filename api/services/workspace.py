@@ -409,26 +409,35 @@ class AgentWorkspace:
 
     async def ensure_seeded(self, agent: dict) -> None:
         """
-        Lazy migration: if workspace is empty but agent has DB columns
-        (agent_instructions, agent_memory), seed workspace files from them.
+        Lazy migration: if workspace is empty, seed from DB columns.
+        Also seeds any missing playbooks from the type registry (ADR-157).
         Called once per execution — idempotent.
         """
-        # Check if workspace has any files (fast path: already seeded)
+        # Check if workspace has any files (fast path for full seed)
         files = await self.list("")
-        if files:
-            return  # Workspace already has content
+        if not files:
+            # Full seed from DB columns
+            instructions = (agent.get("agent_instructions") or "").strip()
+            if instructions:
+                await self.write("AGENT.md", instructions,
+                                 summary="Agent identity and behavioral instructions")
+            logger.info(f"[WORKSPACE] Seeded workspace from DB columns: {self._slug}")
 
-        # Seed AGENT.md from agent_instructions
-        instructions = (agent.get("agent_instructions") or "").strip()
-        if instructions:
-            await self.write("AGENT.md", instructions,
-                             summary="Agent identity and behavioral instructions")
-
-        # ADR-154: Legacy agent_memory JSONB migration REMOVED.
-        # Dissolved files (observations, review-log, goal, created-agents, state)
-        # are no longer written. Execution state lives on tasks, not agents.
-
-        logger.info(f"[WORKSPACE] Seeded workspace from DB columns: {self._slug}")
+        # ADR-157: Seed any missing playbooks from type registry
+        # This handles retroactive playbook additions (new playbook added to
+        # agent_framework.py after agent was created). Idempotent — skips existing.
+        role = agent.get("role", "")
+        if role:
+            from services.agent_framework import get_type_playbook
+            playbooks = get_type_playbook(role)
+            for filename, content in playbooks.items():
+                existing = await self.read(f"memory/{filename}")
+                if not existing:
+                    await self.write(
+                        f"memory/{filename}", content,
+                        summary=f"Playbook seed: {filename}",
+                    )
+                    logger.info(f"[WORKSPACE] Seeded missing playbook: {self._slug}/memory/{filename}")
 
     # =========================================================================
     # =========================================================================
@@ -486,14 +495,24 @@ class AgentWorkspace:
     # Convenience methods for common workspace patterns
     # =========================================================================
 
-    async def load_context(self) -> str:
+    async def load_context(self, task_class: str | None = None) -> str:
         """Load the agent's identity context for generation.
 
         ADR-154: Agent workspace is WHO only — identity + methodology.
         Execution state (reflections, feedback, working notes) lives on tasks.
         Domain knowledge lives in /workspace/context/ domains.
 
-        Returns formatted string of AGENT.md + playbooks.
+        ADR-157: Selective playbook loading. System prompt gets:
+        1. AGENT.md (always)
+        2. Feedback (always)
+        3. Playbook INDEX (always — short descriptions, ~100 tokens)
+        4. Relevant playbook CONTENT (only for task-class-matched playbooks)
+
+        Args:
+            task_class: "context" or "synthesis" — determines which playbooks
+                       are loaded in full. None = load all (backward compat).
+
+        Returns formatted string of AGENT.md + playbook index + relevant playbooks.
         """
         parts = []
 
@@ -507,19 +526,56 @@ class AgentWorkspace:
         if feedback and feedback.strip():
             parts.append(f"## Agent Feedback (cross-task)\n{feedback}")
 
-        # Playbook files — methodology (WHO: how this agent type thinks)
+        # Playbook index — short descriptions of all available playbooks
+        from services.agent_framework import (
+            get_playbook_index, get_relevant_playbooks, PLAYBOOK_METADATA,
+        )
+        agent_role = self._slug.replace("-", "_") if self._slug else None
+        # Resolve role from slug (slugs are hyphenated, roles are underscored)
+        if agent_role:
+            from services.agent_framework import resolve_role
+            # Try common mappings
+            role_candidates = [agent_role, agent_role.replace("_", "-")]
+        else:
+            role_candidates = []
+
+        # Build index from filesystem (what's actually seeded)
         memory_files = await self.list("memory/")
-        for filename in memory_files:
-            if filename.endswith("/"):
-                continue
-            base = filename.replace(".md", "")
-            # Load playbook files from agent memory/
-            if not (base.startswith("_playbook") or base.startswith("methodology-")):
-                continue
-            content = await self.read(f"memory/{filename}")
-            if content:
-                topic = base.replace("_playbook-", "").replace("methodology-", "").replace("-", " ").title()
-                parts.append(f"## Playbook: {topic}\n{content}")
+        playbook_files = [
+            f for f in memory_files
+            if not f.endswith("/") and (f.startswith("_playbook") or f.startswith("methodology-"))
+        ]
+
+        if playbook_files:
+            # Build index from metadata registry
+            index_lines = ["## Available Playbooks"]
+            for filename in playbook_files:
+                meta = PLAYBOOK_METADATA.get(filename, {})
+                desc = meta.get("description", filename.replace("_playbook-", "").replace(".md", ""))
+                name = filename.replace("_playbook-", "").replace(".md", "").replace("-", " ").title()
+                index_lines.append(f"- **{name}**: {desc}")
+            parts.append("\n".join(index_lines))
+
+            # Determine which playbooks to load in full
+            if task_class:
+                from services.agent_framework import TASK_PLAYBOOK_ROUTING
+                relevant_tags = set(TASK_PLAYBOOK_ROUTING.get(task_class, []))
+            else:
+                relevant_tags = None  # load all
+
+            # Load relevant playbook content
+            for filename in playbook_files:
+                # Check tag match
+                if relevant_tags is not None:
+                    meta = PLAYBOOK_METADATA.get(filename, {})
+                    playbook_tags = set(meta.get("tags", "").split(","))
+                    if not (relevant_tags & playbook_tags):
+                        continue  # skip — not relevant to this task class
+
+                content = await self.read(f"memory/{filename}")
+                if content:
+                    topic = filename.replace("_playbook-", "").replace("methodology-", "").replace("-", " ").replace(".md", "").title()
+                    parts.append(f"## Playbook: {topic}\n{content}")
 
         return "\n\n---\n\n".join(parts) if parts else ""
 

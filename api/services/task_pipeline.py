@@ -869,9 +869,9 @@ async def gather_task_context(
     if context_domains_text:
         sections.append(context_domains_text)
 
-    # 3. Agent identity — AGENT.md only (ADR-154: no thesis, no working notes)
-    # load_context() still used for now — will be thinned in Phase 2b
-    ws_context = await ws.load_context()
+    # 3. Agent identity + selective playbooks (ADR-157: task-class routing)
+    task_class = task_info.get("task_class") if task_info else None
+    ws_context = await ws.load_context(task_class=task_class)
     if ws_context:
         sections.append(f"## Agent Context\n{ws_context}")
 

@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.04.6] - Agent playbook framework — selective loading + metadata registry
+
+### Added
+- `agent_framework.py`: `PLAYBOOK_METADATA` registry — description + tags per playbook file. `TASK_PLAYBOOK_ROUTING` maps task class → relevant tags. `get_playbook_index()` builds compact index for prompt. `get_relevant_playbooks()` returns tag-matched subset.
+- `workspace.py`: `load_context(task_class=...)` — selective playbook loading. System prompt always gets playbook index (~55-85 tokens). Full content only for task-relevant playbooks. `ensure_seeded()` retroactively seeds missing playbooks from type registry.
+- `task_pipeline.py`: Passes `task_class` (from TASK.md) to `load_context()` for routing.
+
+### Changed
+- Expected behavior: Marketing agent doing a research task loads 1 playbook (~319 tokens) instead of 3 (~1170 tokens). Synthesis tasks load all relevant playbooks. Playbook index always visible so agent knows what's available. New playbooks added to agent_framework.py are retroactively seeded on next execution.
+
+### Design doc
+- `docs/features/agent-playbook-framework.md` — Phase 1 implemented.
+
+---
+
 ## [2026.04.04.5] - ADR-158 Phase 4: GitHub Bot + github-digest
 
 ### Added
