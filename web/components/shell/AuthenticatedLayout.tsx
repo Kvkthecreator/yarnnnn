@@ -106,10 +106,10 @@ function AuthenticatedLayoutInner({
     (newSurface: DeskSurface, handoffMessage?: string) => {
       switch (newSurface.type) {
         case 'agent-list':
-          router.push('/tasks');
+          router.push('/agents');
           return;
         case 'agent-detail':
-          router.push(`/agents/${newSurface.agentId}`);
+          router.push(`/agents?agent=${newSurface.agentId}`);
           return;
         case 'document-list':
           router.push('/context');
@@ -127,7 +127,7 @@ function AuthenticatedLayoutInner({
           router.push('/context');
           return;
         case 'task-detail':
-          router.push(`/tasks/${newSurface.taskSlug}`);
+          router.push(`/agents`);
           return;
       }
 

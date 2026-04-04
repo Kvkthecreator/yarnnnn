@@ -14,7 +14,7 @@ export default function OrchestratorRedirect() {
   useEffect(() => {
     // Preserve query params (e.g. ?provider=slack&status=connected)
     const params = searchParams?.toString();
-    router.replace(`/tasks${params ? `?${params}` : ''}`);
+    router.replace(`/agents${params ? `?${params}` : ''}`);
   }, [router, searchParams]);
 
   return null;

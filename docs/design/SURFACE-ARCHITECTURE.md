@@ -55,7 +55,7 @@ Four-segment toggle bar. Each segment has a clear purpose:
 - **Context** — I want to browse (workspace substrate)
 - **Activity** — I want to review (temporal history)
 
-`/agents` is `HOME_ROUTE`. Post-login, post-OAuth, and logo click all land here.
+`/agents` is `HOME_ROUTE` for returning users. New users (no tasks) land on `/chat` for onboarding. Post-OAuth and logo click land on `/agents`.
 
 ---
 
@@ -101,16 +101,19 @@ Full-width, max-width constrained (~720px centered). No side panels. Chat is the
 - **Plus menu actions:** Create a task, Update my context, Web search, Upload file
 - **Slash commands:** `/task`, `/research`, `/search`, `/web`, `/memory`
 
-### Cold Start (no tasks, new user)
+### Cold Start + Onboarding (no tasks, new user)
 
-When the user has no tasks yet, the chat page shows suggestion chips above the input:
+The chat page IS the onboarding surface. New users (0 tasks) are redirected here from auth callback instead of `/agents`.
 
-- "Tell me about my work and who I serve"
-- "Set up competitive intelligence tracking"
-- "Create a weekly Slack recap"
-- "Here's our website — figure out what I need" (paste URL)
+When there's no chat history, `ContextSetup` renders as the empty state — the full onboarding component with:
+- **Links** — paste company website, LinkedIn, etc.
+- **Files** — upload docs (PDF, DOCX, TXT)
+- **Notes** — describe your work in free text
+- **Skip options** — "What can you track for me?" / "I want to create a task"
 
-Chips disappear after first message. The chat page is where onboarding begins.
+On submit, all inputs compose into a single message to TP, which calls `UpdateContext` + `ManageDomains` to scaffold the workspace. After the first message, ContextSetup disappears and the page becomes a normal chat.
+
+This replaces the previous onboarding flow that lived on `/context` (setup-phase hero with ContextSetup). Onboarding is now fully consolidated on `/chat` — one surface, one flow.
 
 ### Why a page, not a drawer
 

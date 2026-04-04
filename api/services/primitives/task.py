@@ -548,7 +548,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                    + (f" Process: {process_narration}." if process_narration else ""),
         "ui_action": {
             "type": "NAVIGATE",
-            "data": {"url": f"/tasks/{slug}", "label": title},
+            "data": {"url": f"/agents", "label": title},
         },
     }
 

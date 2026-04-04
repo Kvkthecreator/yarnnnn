@@ -36,7 +36,6 @@ import {
 } from '@/components/agents/AgentTreeNav';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ChatPanel } from '@/components/tp/ChatPanel';
-import { ContextSetup } from '@/components/tp/ContextSetup';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import {
   RUN_TASK_CARD,
@@ -225,20 +224,16 @@ export default function AgentsPage() {
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => {} },
   ];
 
-  // Chat empty state — matches tasks page pattern
-  const chatEmptyState = selectedAgent ? (
+  // Chat empty state — simple prompt, onboarding lives on /chat
+  const chatEmptyState = (
     <div className="py-2 text-center">
       <MessageCircle className="mx-auto mb-1.5 h-5 w-5 text-muted-foreground/15" />
       <p className="text-[11px] text-muted-foreground/40">
-        {selectedTaskSlug ? 'Ask anything about this task' : `Ask anything about ${selectedAgent.title}`}
+        {selectedTaskSlug ? 'Ask anything about this task'
+          : selectedAgent ? `Ask anything about ${selectedAgent.title}`
+          : 'Select an agent to get started'}
       </p>
     </div>
-  ) : (
-    <ContextSetup
-      onSubmit={(msg) => sendMessage(msg)}
-      showSkipOptions
-      onSkipAction={(msg) => sendMessage(msg)}
-    />
   );
 
   // ── Render ──

@@ -4,6 +4,18 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-04b — Onboarding consolidated on /chat + navigation cleanup
+
+- **Onboarding migrated to /chat**: ContextSetup renders as chat page empty state. New users (0 tasks) redirected from auth callback to `/chat` instead of `/agents`.
+- **Context page cleanup**: setup-phase hero removed (ContextSetup no longer renders on context page). Context page is pure browsing.
+- **Agents page cleanup**: ContextSetup removed from chat empty state. Simple prompt text instead.
+- **NAVIGATE ui_actions**: `/tasks/{slug}` → `/agents` in CreateTask and ManageTask primitives.
+- **Hardcoded /tasks links fixed**: activity page, AuthenticatedLayout surface handler, orchestrator redirect all point to `/agents`.
+- **Middleware**: `/chat` added to protected route prefixes.
+- Updated: `ONBOARDING-TP-AWARENESS.md` (v2 — /chat as onboarding home), `SURFACE-ARCHITECTURE.md` (cold-start section).
+
+---
+
 ## 2026-04-04 — Agent-centric surface reframe + dedicated chat page
 
 Major surface architecture rewrite. Agents page becomes HOME, tasks dissolve into agent responsibilities, chat becomes a dedicated page.

@@ -29,7 +29,7 @@ import { api } from '@/lib/api/client';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { ChatPanel } from '@/components/tp/ChatPanel';
-import { ContextSetup } from '@/components/tp/ContextSetup';
+
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
@@ -217,14 +217,7 @@ export default function ContextPage() {
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => { } },
   ];
 
-  const emptyState = phase === 'setup' ? (
-    // Setup phase: minimal chat empty state — ContextSetup is the hero
-    <div className="text-center py-4">
-      <p className="text-[11px] text-muted-foreground/30">
-        Use the setup form to get started
-      </p>
-    </div>
-  ) : (
+  const emptyState = (
     <div className="space-y-3">
       <div className="text-center">
         <MessageCircle className="w-5 h-5 text-muted-foreground/15 mx-auto mb-1.5" />
@@ -319,22 +312,6 @@ export default function ContextPage() {
             </div>
             <div className="flex-1 overflow-auto">
               <ContentViewer selectedNode={selectedNode} onNavigate={handleExplorerSelect} />
-            </div>
-          </div>
-        ) : phase === 'setup' ? (
-          /* ADR-155: Setup phase — ContextSetup as hero content */
-          <div className="flex items-center justify-center h-full p-8">
-            <div className="w-full max-w-lg">
-              <ContextSetup
-                onSubmit={(msg) => {
-                  sendMessage(msg, { surface: effectiveSurface });
-                  setChatOpen(true);
-                  // Refresh tree after inference completes (~4s)
-                  setTimeout(loadExplorer, 5000);
-                  // Phase will update on next nav fetch
-                  setTimeout(() => setPhase('ready'), 6000);
-                }}
-              />
             </div>
           </div>
         ) : (

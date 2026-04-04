@@ -1,88 +1,47 @@
 'use client';
 
 /**
- * Chat Page — Dedicated full-page TP chat surface.
+ * Chat Page — Dedicated full-page TP chat surface + onboarding home.
  *
  * SURFACE-ARCHITECTURE.md v3: Unscoped TP for strategic direction,
  * cross-cutting questions, workspace management, and task creation.
- * This is the action surface — where the user directs their workforce.
+ *
+ * This is also the ONBOARDING surface. New users (post-signup) land here.
+ * When there's no chat history, ContextSetup renders as the cold-start
+ * experience — URLs, files, and notes that bootstrap workspace identity.
+ * After first interaction, the page is a normal full-page chat.
  */
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { MessageCircle, Globe, Upload, ListChecks, Settings2 } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
+import { ContextSetup } from '@/components/tp/ContextSetup';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import { useTP } from '@/contexts/TPContext';
-
-// Cold-start suggestion chips
-const SUGGESTIONS = [
-  'Tell me about my work and who I serve',
-  'Set up competitive intelligence tracking',
-  'Create a weekly Slack recap',
-];
-
-function ChatEmptyState({ onSuggestion }: { onSuggestion: (text: string) => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center h-full px-6 py-12">
-      <MessageCircle className="w-10 h-10 text-muted-foreground/15 mb-4" />
-      <h2 className="text-lg font-medium mb-1">What would you like to work on?</h2>
-      <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
-        Create tasks, update your workspace, or ask about your agents.
-      </p>
-      <div className="flex flex-wrap gap-2 justify-center max-w-lg">
-        {SUGGESTIONS.map(s => (
-          <button
-            key={s}
-            onClick={() => onSuggestion(s)}
-            className="px-3 py-1.5 text-sm rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function ChatPage() {
   const { messages, sendMessage } = useTP();
   const hasMessages = messages.length > 0;
 
-  const handleSuggestion = (text: string) => {
-    sendMessage(text);
-  };
-
-  // Plus menu actions need onSelect callbacks
+  // Plus menu actions — workspace-level
   const plusMenuActions: PlusMenuAction[] = useMemo(() => [
-    {
-      id: 'create-task',
-      label: 'Create a task',
-      icon: ListChecks,
-      verb: 'prompt' as const,
-      onSelect: () => { /* ChatPanel handles via verb */ },
-    },
-    {
-      id: 'update-context',
-      label: 'Update my context',
-      icon: Settings2,
-      verb: 'prompt' as const,
-      onSelect: () => { /* ChatPanel handles via verb */ },
-    },
-    {
-      id: 'web-search',
-      label: 'Web search',
-      icon: Globe,
-      verb: 'prompt' as const,
-      onSelect: () => { /* ChatPanel handles via verb */ },
-    },
-    {
-      id: 'upload-file',
-      label: 'Upload file',
-      icon: Upload,
-      verb: 'attach' as const,
-      onSelect: () => { /* ChatPanel handles file upload */ },
-    },
-  ], []);
+    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt' as const, onSelect: () => sendMessage('I want to create a task. What do you suggest based on my context?') },
+    { id: 'update-context', label: 'Update my context', icon: Settings2, verb: 'prompt' as const, onSelect: () => {} },
+    { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt' as const, onSelect: () => {} },
+    { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach' as const, onSelect: () => {} },
+  ], [sendMessage]);
+
+  // Cold-start: ContextSetup with full onboarding (URLs, files, notes)
+  // After first message: no empty state — chat takes over
+  const emptyState = !hasMessages ? (
+    <div className="flex flex-col items-center justify-center h-full px-4 py-8">
+      <ContextSetup
+        onSubmit={(msg) => sendMessage(msg)}
+        showSkipOptions
+        onSkipAction={(msg) => sendMessage(msg)}
+      />
+    </div>
+  ) : undefined;
 
   return (
     <div className="flex flex-col h-full max-w-3xl mx-auto w-full">
@@ -91,9 +50,7 @@ export default function ChatPage() {
         plusMenuActions={plusMenuActions}
         placeholder="Ask anything or type / ..."
         showCommandPicker={true}
-        emptyState={
-          !hasMessages ? <ChatEmptyState onSuggestion={handleSuggestion} /> : undefined
-        }
+        emptyState={emptyState}
       />
     </div>
   );

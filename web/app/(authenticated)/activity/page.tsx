@@ -244,7 +244,7 @@ function getNavigationTarget(
     case 'task_triggered':
     case 'task_paused':
     case 'task_resumed':
-      if (metadata.task_slug) return { href: `/tasks/${metadata.task_slug}`, label: 'View task' };
+      if (metadata.task_slug) return { href: `/agents`, label: 'View task' };
       return null;
     case 'agent_run':
     case 'agent_approved':
@@ -267,7 +267,7 @@ function getNavigationTarget(
       if (metadata.provider) return { href: `/context/${metadata.provider}`, label: `View ${metadata.provider}` };
       return null;
     case 'chat_session':
-      return { href: HOME_ROUTE, label: 'Open chat' };
+      return { href: '/chat', label: 'Open chat' };
     default:
       return null;
   }
@@ -301,7 +301,7 @@ function UpcomingSection({ tasks }: { tasks: Task[] }) {
       {scheduled.map(task => (
         <button
           key={task.slug}
-          onClick={() => router.push(`/tasks/${task.slug}`)}
+          onClick={() => router.push(`/agents`)}
           className="w-full flex items-center gap-2 py-1.5 text-left group hover:bg-muted/40 rounded px-2 -mx-2 transition-colors"
         >
           <Circle className="w-2 h-2 fill-emerald-500 text-emerald-500 shrink-0" />
@@ -314,7 +314,7 @@ function UpcomingSection({ tasks }: { tasks: Task[] }) {
       {paused.map(task => (
         <button
           key={task.slug}
-          onClick={() => router.push(`/tasks/${task.slug}`)}
+          onClick={() => router.push(`/agents`)}
           className="w-full flex items-center gap-2 py-1.5 text-left group hover:bg-muted/40 rounded px-2 -mx-2 transition-colors"
         >
           <Circle className="w-2 h-2 fill-muted-foreground/30 text-muted-foreground/30 shrink-0" />

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Suspense } from "react";
 import { getSafeNextPath } from "@/lib/auth/redirect";
-import { HOME_ROUTE } from "@/lib/routes";
+import { HOME_ROUTE, CHAT_ROUTE } from "@/lib/routes";
 import { api } from "@/lib/api/client";
 
 function CallbackHandler() {
@@ -45,12 +45,19 @@ function CallbackHandler() {
 
       if (session) {
         // ADR-144: Ensure roster is scaffolded (lazy creation on first login)
+        // New users (default HOME_ROUTE) land on /chat for onboarding
         if (next === HOME_ROUTE) {
           try {
             setStatus("Setting up...");
             await api.onboarding.getState(); // triggers roster scaffolding
+            // Check if user has any tasks — if not, they're new → /chat
+            const tasks = await api.tasks.list().catch(() => []);
+            window.location.href = tasks.length === 0 ? CHAT_ROUTE : next;
+            return;
           } catch {
-            // Best effort — don't block login
+            // Best effort — new users land on chat
+            window.location.href = CHAT_ROUTE;
+            return;
           }
         }
         window.location.href = next;
@@ -69,8 +76,12 @@ function CallbackHandler() {
         if (next === HOME_ROUTE) {
           try {
             await api.onboarding.getState();
+            const tasks = await api.tasks.list().catch(() => []);
+            window.location.href = tasks.length === 0 ? CHAT_ROUTE : next;
+            return;
           } catch {
-            // Best effort
+            window.location.href = CHAT_ROUTE;
+            return;
           }
         }
         window.location.href = next;

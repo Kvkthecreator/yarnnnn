@@ -251,7 +251,7 @@ async def _handle_trigger(auth: Any, task_slug: str, input: dict) -> dict:
                 "run_result": result,
                 "ui_action": {
                     "type": "NAVIGATE",
-                    "data": {"url": f"/tasks/{task_slug}", "label": f"View {task_slug}"},
+                    "data": {"url": f"/agents", "label": f"View {task_slug}"},
                 },
             }
         else:
