@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.04.4] - ADR-157: Visual production playbook for Marketing agent
+
+### Added
+- `agent_framework.py`: Marketing & Creative agent gains `_playbook-visual.md` methodology. Context-specific visual production guidance: image generation by output type (blog header vs launch material vs report cover), video construction rules (3-5 slides, layout by content type), prompt construction recipe, existing asset re-use (favicons from assets/), quality gate.
+- Seeded to `/agents/marketing-creative/memory/_playbook-visual.md` at agent creation. Loaded into system prompt via `load_context()` alongside existing output and format playbooks.
+- Expected behavior: Marketing agent produces contextually appropriate visuals — editorial images for blog posts, professional covers for reports, metrics videos for recaps — instead of generic RuntimeDispatch calls. Knows to check assets/ for favicons and prior images before generating new.
+
+---
+
 ## [2026.04.04.3] - ADR-158 Phase 3: Write-back task types
 
 ### Added

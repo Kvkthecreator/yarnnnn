@@ -22,6 +22,7 @@ Three agent classes:
     subfolders (channel/page/repo). ADR-158: bots own their directories.
 
 v4 (2026-03-31): 5 domain-stewards + 1 synthesizer + 2 platform-bots.
+v4.1 (2026-04-04): ADR-158 Phase 4 — GitHub Bot added. 5 + 1 + 3 = 9 agents.
 Templates are starting points — agents evolve via AGENT.md, which is the
 runtime source of truth for identity and behavior.
 
@@ -315,6 +316,61 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Contrast pattern: situation → complication → resolution\n"
                 "- Narrative arc: context → tension → insight → implication\n"
             ),
+            "_playbook-visual.md": (
+                "# Visual Production Playbook\n\n"
+                "## When to Generate Visuals\n"
+                "Use RuntimeDispatch to produce visual assets. Every visual must serve a purpose — "
+                "information, context, or brand presence. Never generate decorative filler.\n\n"
+                "## Image Generation (type='image')\n\n"
+                "### By Output Context\n"
+                "**Content Brief / Blog Post:**\n"
+                "- Prompt: topic-relevant conceptual illustration\n"
+                "- Aspect: 16:9 (blog header) or 3:2 (inline)\n"
+                "- Style: 'editorial' — magazine quality, sophisticated\n"
+                "- Include brand color in prompt if BRAND.md specifies one\n"
+                "- Place as hero image at top of deliverable\n\n"
+                "**Launch Material / Announcement:**\n"
+                "- Prompt: product-focused, action-oriented imagery\n"
+                "- Aspect: 1:1 (social) or 16:9 (banner)\n"
+                "- Style: 'professional' — clean, confident, modern\n"
+                "- Consider generating both 1:1 and 16:9 variants\n\n"
+                "**GTM Report / Competitive Brief:**\n"
+                "- Prefer charts and mermaid diagrams over generated images\n"
+                "- Generated images for cover/header only (4:3, 'professional' style)\n"
+                "- Use entity favicons from assets/ folder for company references\n\n"
+                "### Prompt Construction\n"
+                "1. Start with the subject: what the image depicts\n"
+                "2. Add composition guidance: 'centered', 'wide shot', 'close-up'\n"
+                "3. Include the style preset\n"
+                "4. If BRAND.md has colors, add: 'using [accent color] as highlight'\n"
+                "5. Always end with: 'no text overlay, no watermarks'\n\n"
+                "## Video Generation (type='video')\n\n"
+                "### When to Use Video\n"
+                "- Weekly/monthly recaps with 3+ key metrics → metrics video\n"
+                "- Key findings that benefit from sequential reveal → findings video\n"
+                "- Do NOT use video for single data points, simple lists, or anything "
+                "that works as well in static format\n\n"
+                "### Video Construction\n"
+                "- Always 3-5 slides. More is noisy, fewer is pointless.\n"
+                "- First slide: title + date/context (3s)\n"
+                "- Middle slides: content — one idea per slide (4-5s each)\n"
+                "- Last slide: attribution or CTA (2s)\n"
+                "- Theme: pull background/accent from BRAND.md if available\n"
+                "- Layout: 'center' for title/closing, 'split' for metric+label, 'stack' for lists\n\n"
+                "## Using Existing Assets\n\n"
+                "### Entity Favicons\n"
+                "Check the domain's assets/ folder for {entity-slug}-favicon.png files.\n"
+                "When referencing companies in HTML output, embed their favicon:\n"
+                "  <img src='{content_url}' width='24' height='24' alt='{name}'>\n\n"
+                "### Prior Generated Images\n"
+                "Check if a relevant image already exists in assets/ before generating new.\n"
+                "Re-use is better than redundant generation.\n\n"
+                "## Quality Gate\n"
+                "- Every visual must be referenced in the text\n"
+                "- Charts need axis labels and a one-sentence interpretation\n"
+                "- Generated images need alt text in the HTML\n"
+                "- If a visual doesn't add information the text doesn't already convey, drop it\n"
+            ),
         },
     },
 
@@ -447,6 +503,36 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
             ),
         },
     },
+
+    "github_bot": {
+        "class": "platform-bot",
+        "domain": "github",
+        "platform": "github",
+        "display_name": "GitHub Bot",
+        "tagline": "Tracks GitHub activity",
+        "capabilities": [
+            "read_github", "summarize", "produce_markdown",
+        ],
+        "description": "Tracks GitHub repository activity. Issues, PRs, discussions. "
+                       "Produces activity digests.",
+        "default_instructions": "Monitor selected GitHub repositories. Track issues, PRs, "
+                                "and activity. Produce scannable digests of repo activity.",
+        "methodology": {
+            "_playbook-outputs.md": (
+                "# Output Playbook\n\n"
+                "## Repository Activity Format\n"
+                "- **New Issues** — what was opened, by whom, labels/priority\n"
+                "- **PR Activity** — opened, merged, reviewed, stalled PRs\n"
+                "- **Key Discussions** — issues/PRs with significant engagement\n"
+                "- **Milestones** — release tags, milestone progress\n\n"
+                "## Summarization Rules\n"
+                "- Preserve attribution: 'Alice opened #123' not 'an issue was opened'\n"
+                "- Group by repo when tracking multiple repos\n"
+                "- Highlight: stale PRs (>7 days without review), blocked issues, release blockers\n"
+                "- Skip: bot-generated PRs (dependabot, renovate) unless they fail\n"
+            ),
+        },
+    },
 }
 
 # Backward compat alias — all existing callers import AGENT_TYPES
@@ -477,6 +563,7 @@ TP_ORCHESTRATION_PLAYBOOK = """\
 - Executive Reporting: board updates, stakeholder reports, cross-domain synthesis
 - Slack Bot: Slack digests (slack-digest), Slack posting (slack-respond) — requires Slack connection
 - Notion Bot: Notion digests (notion-digest), Notion updates (notion-update) — requires Notion connection
+- GitHub Bot: GitHub digests (github-digest) — requires GitHub connection
 
 ## When Multiple Agents Are Needed
 - Competitive analysis → executive summary: Competitive Intelligence task first, then Executive Reporting task
@@ -570,6 +657,7 @@ DEFAULT_ROSTER = [
     {"title": "Executive Reporting", "role": "executive"},
     {"title": "Slack Bot", "role": "slack_bot"},
     {"title": "Notion Bot", "role": "notion_bot"},
+    {"title": "GitHub Bot", "role": "github_bot"},
 ]
 
 # PM_MODES — REMOVED (PM/project architecture dissolved)
@@ -604,6 +692,7 @@ LEGACY_ROLE_MAP: dict[str, str] = {
     "executive": "executive",
     "slack_bot": "slack_bot",
     "notion_bot": "notion_bot",
+    "github_bot": "github_bot",
 }
 
 
