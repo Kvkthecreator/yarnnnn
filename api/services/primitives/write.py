@@ -19,7 +19,7 @@ WRITE_TOOL = {
     "name": "Write",
     "description": """Create a new memory or document entity.
 
-For agents, use CreateAgent instead.
+For agents, use ManageAgent instead.
 
 Examples:
 - Write(ref="memory:new", content={content: "User prefers bullet points", tags: ["preference"]})
