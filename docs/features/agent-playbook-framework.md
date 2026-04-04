@@ -4,6 +4,20 @@
 **Date:** 2026-04-04
 **Related:** ADR-118 (skills/SKILL.md convention), ADR-140 (agent workforce), ADR-143 (methodology seeding)
 
+## Governing Axioms
+
+These principles govern agent configuration, capability assignment, and playbook design:
+
+1. **Agents develop inward, not outward.** Each agent gets better at its specific domain through accumulated context, feedback, and refined playbooks — not by acquiring new capabilities. The CI agent becomes a better competitor analyst, not a better image generator.
+
+2. **Capabilities are fixed, methodology evolves.** What an agent CAN do (chart, mermaid, image) is set at creation by type. HOW it does it (playbooks) evolves with feedback. Capabilities = axis 2 (fixed). Playbooks = accumulated institutional knowledge.
+
+3. **Production is a specialization, not a shared concern.** Visual production (image generation, video composition) belongs to agents whose identity is *production* — Marketing & Creative. Domain agents (CI, Market Research, Operations) produce data visualizations (charts, diagrams) as part of analysis, but not creative/editorial visuals.
+
+4. **Multi-agent collaboration via process steps, not capability sharing.** When a deliverable needs deep analysis AND rich visuals, the answer is a multi-step process (researcher analyzes → producer creates), not giving the researcher image generation. The `process` array in task types supports this.
+
+5. **Playbooks are the agent development substrate.** They accumulate domain-specific methodology — the agent's institutional knowledge about how to do its work. Feedback distillation refines playbooks over time. This is how agents get incrementally better each cycle.
+
 ## Problem
 
 Agent playbooks (`_playbook-*.md`) are loaded in full into the system prompt on every execution. As playbooks grow (visual production, research methodology, output formatting), prompt token usage scales linearly. The Marketing agent already consumes ~1,200 tokens on playbooks alone.
@@ -176,10 +190,27 @@ The `_playbook` convention is already established (ADR-143). The framework adds 
 
 ## Relationship to Other Concepts
 
-- **Capabilities** (agent_framework.py) — WHAT an agent can do (chart, image, video). Fixed per type.
-- **Playbooks** (methodology) — HOW an agent uses its capabilities. Seeded per type, evolves with feedback.
-- **SKILL.md** (render service) — HOW to call the render API. Technical interface docs.
-- **DELIVERABLE.md** (per task) — WHAT quality the output must meet. Task-specific contract.
-- **Step instructions** (task_types.py) — WHEN to do what during execution. Task-type-level.
+| Layer | What it governs | Fixed or evolves? | Scope |
+|-------|----------------|-------------------|-------|
+| **Capabilities** | WHAT an agent can do (chart, image, video) | Fixed per type | Agent type |
+| **Playbooks** | HOW an agent uses its capabilities | Evolves with feedback | Agent type, loaded per task class |
+| **SKILL.md** | HOW to call the render API | Fixed (skill interface) | Render service |
+| **DELIVERABLE.md** | WHAT quality the output must meet | Per task, evolves with feedback | Task instance |
+| **Step instructions** | WHEN to do what during execution | Fixed per task type | Task type |
+| **Process steps** | WHO does what in sequence | Fixed per task type | Task type (multi-agent) |
 
-Playbooks fill the gap between capabilities and step instructions: the agent knows it CAN produce images (capability) and SHOULD produce a deliverable (step instruction), but the playbook tells it HOW to make good visual decisions for its domain.
+Playbooks fill the gap between capabilities and step instructions: the agent knows it CAN produce images (capability) and SHOULD produce a deliverable (step instruction), but the playbook tells it HOW to make good decisions for its domain.
+
+## Capability × Playbook Matrix
+
+Not all agents need all playbooks. Capabilities determine what playbooks are relevant:
+
+| Agent Class | Capabilities | Playbooks | Visual Production? |
+|------------|-------------|-----------|-------------------|
+| **Researchers** (CI, Market) | chart, mermaid | outputs, research | No — data viz only |
+| **Trackers** (Ops, BizDev) | chart (or none) | outputs | No |
+| **Producers** (Marketing) | chart, mermaid, image, video | outputs, formats, visual | **Yes** — full visual suite |
+| **Synthesizers** (Executive) | chart, mermaid | outputs, formats | No — data viz only |
+| **Bots** (Slack, Notion) | none | outputs | No |
+
+Axiom 3 in action: only production-class agents get visual playbooks and image/video capabilities.

@@ -81,19 +81,33 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 
 ## Agent Roster (Default — Pre-Scaffolded at Signup)
 
-| Agent | Class | Domain Owned | Capabilities Summary |
-|---|---|---|---|
-| **Competitive Intelligence** | domain-steward | competitors/ | web_search, investigate, chart |
-| **Market Research** | domain-steward | market/ | web_search, investigate, chart |
-| **Business Development** | domain-steward | relationships/ | read_slack, read_notion, read_github, investigate |
-| **Operations** | domain-steward | projects/ | read_slack, read_notion, read_github, chart |
-| **Marketing & Creative** | domain-steward | content/ | web_search, chart, image, video_render, compose_html |
-| **Executive Reporting** | synthesizer | (cross-domain) | compose_html, chart |
-| **Slack Bot** | platform-bot | slack/ (temporal) | read_slack, write_slack |
-| **Notion Bot** | platform-bot | notion/ (temporal) | read_notion, write_notion |
-| **GitHub Bot** | platform-bot | github/ (temporal) | read_github |
+| Agent | Class | Domain Owned | Data Viz | Visual Production | Playbooks |
+|---|---|---|---|---|---|
+| **Competitive Intelligence** | domain-steward | competitors/ | chart, mermaid | — | outputs, research |
+| **Market Research** | domain-steward | market/ | chart, mermaid | — | outputs, research |
+| **Business Development** | domain-steward | relationships/ | — | — | outputs |
+| **Operations** | domain-steward | projects/ | chart | — | outputs |
+| **Marketing & Creative** | domain-steward | content/ | chart, mermaid | **image, video** | outputs, formats, **visual** |
+| **Executive Reporting** | synthesizer | (cross-domain) | chart, mermaid | — | outputs, formats |
+| **Slack Bot** | platform-bot | slack/ (temporal) | — | — | outputs |
+| **Notion Bot** | platform-bot | notion/ (temporal) | — | — | outputs |
+| **GitHub Bot** | platform-bot | github/ (temporal) | — | — | outputs |
 
-**Key principle:** Each domain-steward agent owns one context domain. The synthesizer (Executive) reads all domains. Templates are bootstrapping — AGENT.md is the runtime source of truth.
+**Key principles:**
+- Each domain-steward owns one context domain. The synthesizer (Executive) reads all domains.
+- **Data viz** (chart, mermaid) is analytical — available to research/synthesis agents for data-driven visuals.
+- **Visual production** (image, video) is a specialization — only Marketing & Creative. Other agents collaborate via multi-step process when they need rich visuals.
+- **Playbooks** are agent-level methodology (how this agent does its work). Loaded selectively by task class. See `docs/features/agent-playbook-framework.md`.
+- Templates are bootstrapping — AGENT.md is the runtime source of truth.
+
+### Context Domain Assets (ADR-157)
+
+Each entity-bearing context domain has a visible `assets/` subfolder for visual assets:
+```
+/workspace/context/{domain}/assets/{entity-slug}-favicon.png
+```
+
+Favicons fetched automatically via ManageDomains when entities have a `url` field. Available to all agents reading the domain during synthesis.
 
 ---
 

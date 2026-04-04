@@ -355,7 +355,8 @@ You MUST:
 | Workspace Primitives | `api/services/primitives/workspace.py` (ADR-106) |
 | Agent Framework (canonical) | `docs/architecture/agent-framework.md` (ADR-109) |
 | Directory Registry | `api/services/directory_registry.py` (ADR-152: WORKSPACE_DIRECTORIES — context domains, uploads, output categories) |
-| Agent Framework (code) | `api/services/agent_framework.py` (ADR-140: workforce roster, AGENT_TEMPLATES, DEFAULT_ROSTER, capabilities, runtimes) |
+| Agent Framework (code) | `api/services/agent_framework.py` (ADR-140: workforce roster, AGENT_TEMPLATES, DEFAULT_ROSTER, capabilities, runtimes, PLAYBOOK_METADATA, TASK_PLAYBOOK_ROUTING) |
+| Agent Playbook Framework | `docs/features/agent-playbook-framework.md` (playbook loading, selective injection, governing axioms) |
 | Agent Creation (shared) | `api/services/agent_creation.py` (ADR-111 Phase 1) |
 | TP Composer / Heartbeat | DELETED (ADR-156 — Composer sunset, single intelligence layer) |
 | Agent Pulse Engine | DELETED (ADR-141: dissolved into scheduler SQL + task pipeline) |
