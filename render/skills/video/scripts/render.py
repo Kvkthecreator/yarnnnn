@@ -179,10 +179,10 @@ async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str
             output_path,
             f"--props={props_path}",
             "--codec=h264",
-            "--log=error",
+            "--log=verbose",
             "--browser-executable=/usr/bin/chromium",
-            "--chrome-mode=headless-shell",
             "--gl=swangle",
+            "--enable-multiprocess-on-linux=false",
         ]
 
         logger.info(f"[VIDEO] Rendering {total_duration}s video ({width}x{height}, {len(slides)} slides)")
@@ -191,11 +191,6 @@ async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str
         env = {**subprocess.os.environ}
         node_bin = str(COMPOSITION_DIR / "node_modules" / ".bin")
         env["PATH"] = f"{node_bin}:{env.get('PATH', '')}"
-        # Chromium config for Docker (no-sandbox required when running as root)
-        env["PUPPETEER_EXECUTABLE_PATH"] = "/usr/bin/chromium"
-        env["CHROMIUM_PATH"] = "/usr/bin/chromium"
-        # Remotion needs these for headless Docker rendering
-        env["REMOTION_CHROME_EXECUTABLE"] = "/usr/bin/chromium"
 
         result = subprocess.run(
             cmd,

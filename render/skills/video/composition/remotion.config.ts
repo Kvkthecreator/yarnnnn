@@ -2,8 +2,10 @@ import { Config } from "@remotion/cli/config";
 
 Config.setVideoImageFormat("jpeg");
 Config.setOverwriteOutput(true);
+
+// Docker rendering config
 Config.setChromiumOpenGlRenderer("swangle");
 Config.setDelayRenderTimeoutInMilliseconds(30000);
 
-// Docker: Chromium needs --no-sandbox when running as root
-Config.setChromiumDisableWebSecurity(true);
+// Required for Docker: Chromium runs as root, needs --no-sandbox
+Config.setChromiumMultiProcessOnLinux(false);
