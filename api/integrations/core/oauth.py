@@ -393,7 +393,9 @@ def get_frontend_redirect_url(
         }
         # Use caller-specified path if provided, otherwise default to /workfloor
         target_path = redirect_to if redirect_to else "/workfloor"
-        return f"{base_url}{target_path}?{urlencode(params)}"
+        # Handle redirect_to that already has query params (e.g. /settings?tab=connectors)
+        separator = "&" if "?" in target_path else "?"
+        return f"{base_url}{target_path}{separator}{urlencode(params)}"
     else:
         # On error, go to settings for troubleshooting
         params = {
