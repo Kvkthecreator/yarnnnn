@@ -36,6 +36,8 @@ Changelog:
   v5.1 — ADR-158 Phase 3: Write-back task types. slack-respond (reactive),
          notion-update (reactive). Distinct from digest tasks — delivery, not
          observation. Sources param in build_task_md_from_type().
+  v5.2 — ADR-158 Phase 4: GitHub digest. github-digest task type + step
+         instruction. GitHub Bot agent + roster entry.
 
 Canonical docs:
   - docs/architecture/registry-matrix.md
@@ -185,6 +187,26 @@ STEP_INSTRUCTIONS = {
         "- Link related pages rather than duplicating content\n"
         "- Keep updates focused — one update per objective\n\n"
         "Your output: confirmation of what was posted and where."
+    ),
+
+    "github-digest": (
+        "You are the GitHub Bot. Your job is to read selected GitHub repositories "
+        "and write per-repo observation files to your context domain.\n\n"
+        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
+        "If one exists, follow it — it was written by you while context was fresh.\n\n"
+        "For EACH selected repository:\n"
+        "1. Read recent issues and PRs using your GitHub tools\n"
+        "2. Identify: new issues opened, PRs merged/reviewed/stalled, release activity\n"
+        "3. Write findings to your context domain: WriteWorkspace(scope='context', "
+        "domain='github', path='{repo-slug}/latest.md')\n\n"
+        "Summarization rules:\n"
+        "- Preserve attribution: 'Alice opened #123' not 'an issue was opened'\n"
+        "- Group by repo when tracking multiple repos\n"
+        "- Highlight: stale PRs (>7 days without review), blocked issues, release blockers\n"
+        "- Skip: bot-generated PRs (dependabot, renovate) unless they fail\n\n"
+        "Also append a dated signal entry to /workspace/context/signals/ with "
+        "a one-line summary per repo of what was notable.\n\n"
+        "Your output: an activity digest across all observed repositories."
     ),
 
     "notion-digest": (
@@ -525,6 +547,44 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Distinguish meaningful edits from formatting changes",
                 "Flag pages not updated in >30 days",
                 "Links to original Notion pages",
+            ],
+        },
+    },
+
+    "github-digest": {
+        "display_name": "GitHub Digest",
+        "description": "Read selected GitHub repos. Track issues, PRs, and activity. Write per-repo observations.",
+        "category": "platform",
+        "task_class": "context",
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "html",
+        "layout_mode": "digest",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "github_bot",
+                "step": "github-digest",
+                "instruction": STEP_INSTRUCTIONS["github-digest"],
+            },
+        ],
+        "context_reads": ["github", "signals"],
+        "context_writes": ["github", "signals"],
+        "context_sources": ["platforms"],
+        "requires_platform": "github",
+        "default_objective": {
+            "deliverable": "GitHub activity digest",
+            "audience": "You and your team",
+            "purpose": "Track issues, PRs, and repository activity",
+            "format": "Scannable digest with attribution",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "500-1500", "layout": ["Issues", "Pull Requests", "Activity Summary"]},
+            "assets": [],
+            "quality_criteria": [
+                "Issues and PRs attributed to authors",
+                "Stale PRs (>7 days) flagged",
+                "Skip bot-generated PRs unless they fail",
             ],
         },
     },

@@ -32,7 +32,7 @@ YARNNN has three registries that work together:
 | **signals/** | slack-digest, notion-digest, ALL context tasks | ALL synthesis tasks | Slack Bot, Notion Bot |
 | **slack/** (temporal) | slack-digest | (TP awareness only) | Slack Bot |
 | **notion/** (temporal) | notion-digest | (TP awareness only) | Notion Bot |
-| **github/** (temporal, deferred) | github-digest (future) | (TP awareness only) | GitHub Bot (future) |
+| **github/** (temporal) | github-digest | (TP awareness only) | GitHub Bot |
 | **(cross-domain)** | — | stakeholder-update, market-report | Executive Reporting (synthesizer) |
 
 ---
@@ -56,6 +56,7 @@ Context tasks maintain your workspace knowledge domains. They run on schedule, u
 | **notion-digest** | Notion Digest | recurring | weekly | — | notion, signals |
 | **slack-respond** | Slack Post | reactive | on-demand | — | (reads: slack, signals) |
 | **notion-update** | Notion Update | reactive | on-demand | — | (reads: notion, signals) |
+| **github-digest** | GitHub Digest | recurring | daily | — | github, signals |
 
 ### Synthesis Tasks — Reports & Outputs
 
@@ -90,6 +91,7 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 | **Executive Reporting** | synthesizer | (cross-domain) | compose_html, chart |
 | **Slack Bot** | platform-bot | slack/ (temporal) | read_slack, write_slack |
 | **Notion Bot** | platform-bot | notion/ (temporal) | read_notion, write_notion |
+| **GitHub Bot** | platform-bot | github/ (temporal) | read_github |
 
 **Key principle:** Each domain-steward agent owns one context domain. The synthesizer (Executive) reads all domains. Templates are bootstrapping — AGENT.md is the runtime source of truth.
 

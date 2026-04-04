@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.04.5] - ADR-158 Phase 4: GitHub Bot + github-digest
+
+### Added
+- `services/agent_framework.py` (v4.1): `github_bot` agent template — platform-bot class, domain="github", capabilities: read_github. Added to DEFAULT_ROSTER (9 agents total). Orchestration playbook updated.
+- `services/task_types.py` (v5.2): `github-digest` task type — recurring daily, reads selected repos, writes per-repo observations to /workspace/context/github/. Platform-specific step instruction.
+- `supabase/migrations/140_add_github_bot_role.sql`: Adds `github_bot` to agents_role_check constraint.
+- Expected behavior: GitHub Bot is pre-scaffolded at sign-up (activated when GitHub connected). TP can create github-digest tasks. Same pattern as Slack/Notion bots.
+
+---
+
 ## [2026.04.04.4] - ADR-157: Visual production playbook for Marketing agent
 
 ### Added

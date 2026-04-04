@@ -20,7 +20,7 @@ not create agents from scratch.
 |-------|-------|------|----------|
 | **domain-steward** | 5 | Own one context domain, maintain knowledge, produce domain-scoped deliverables | Domain-cognitive, multi-step reasoning, web research |
 | **synthesizer** | 1 | Read across all domains, produce cross-domain deliverables | Cross-domain composition, reads everything, writes nothing to context |
-| **platform-bot** | 2 | Own temporal context directory, platform-scoped observation (ADR-158) | Platform-specific, activated on platform connect |
+| **platform-bot** | 3 | Own temporal context directory, platform-scoped observation (ADR-158) | Platform-specific, activated on platform connect |
 
 ---
 
@@ -80,7 +80,7 @@ not create agents from scratch.
 
 ---
 
-## Platform Bots (2)
+## Platform Bots (3)
 
 ADR-158: Platform bots own temporal context directories — one bot, one platform, one directory. Per-source subfolders (channel/page/repo) with `_tracker.md` for freshness. These directories are temporal awareness for TP, not canonical context for domain stewards. Cross-pollination into canonical domains is explicitly out of scope.
 
@@ -101,6 +101,15 @@ ADR-158: Platform bots own temporal context directories — one bot, one platfor
 - **What it produces:** Notion change digests with content updates, staleness flags
 - **Typical tasks:** notion-digest
 - **Activation:** Activated when Notion platform connected
+
+### GitHub Bot
+
+- **Domain owned:** `github/` (temporal — `/workspace/context/github/`)
+- **Capabilities:** read_github
+- **What it maintains:** Per-repo observation files in `/workspace/context/github/{repo}/latest.md`
+- **What it produces:** GitHub activity digests with issues, PRs, and repo activity
+- **Typical tasks:** github-digest
+- **Activation:** Activated when GitHub platform connected
 
 ---
 

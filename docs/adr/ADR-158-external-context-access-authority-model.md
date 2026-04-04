@@ -239,10 +239,12 @@ It would fail if it became: broad ingestion, a hidden cache, or automatic canon 
 - Both are `task_class: "synthesis"` (produce output, don't accumulate context)
 - Platform-specific step instructions for compose → deliver workflow
 
-### Phase 4: GitHub Implementation (future)
+### Phase 4: GitHub Implementation (this commit)
 
-- `github-digest` task type (issues/PRs from selected repos)
-- Repository-as-reference capability (separate conversation)
+- `github_bot` agent template + DEFAULT_ROSTER entry + DB migration 140
+- `github-digest` task type (recurring, daily) — issues/PRs from selected repos
+- Platform-specific step instructions for GitHub observation workflow
+- Repository-as-reference capability deferred (separate conversation)
 
 ---
 

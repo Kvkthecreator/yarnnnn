@@ -113,6 +113,19 @@ Context tasks maintain your workspace knowledge. They run on schedule, update do
 
 ---
 
+### GitHub Digest
+`github-digest`
+
+**What it does:** Reads selected GitHub repos. Tracks issues, PRs, and activity. Writes per-repo observation files to the GitHub Bot's temporal context directory.
+
+**Agent:** GitHub Bot
+**Default schedule:** Daily
+**Domains (writes):** github, signals
+**Requires platform:** GitHub
+**Sources:** Auto-populated from platform connection; user-editable via ManageTask
+
+---
+
 ### Slack Post
 `slack-respond`
 
