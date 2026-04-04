@@ -160,165 +160,180 @@ Primary working surface. User answers: "What are my agents working on? How are t
 └──────────────┴──────────────────────────┴──────────────────┘
 ```
 
-### Left Panel: AgentTreeNav
+### Left Panel: AgentNav (flat roster)
 
-Stable agent roster as expandable tree. Three sections matching agent classes:
-
-**Domain Stewards** (5 agents, each owns one context domain):
-- Competitive Intelligence → `competitors/`
-- Market Research → `market/`
-- Business Development → `relationships/`
-- Operations → `projects/`
-- Marketing & Creative → `content_research/`
-
-**Synthesizers** (1 agent, reads across domains):
-- Executive Reporting → cross-domain deliverables
-
-**Platform Bots** (2 agents, own temporal directories):
-- Slack Bot → `slack/`
-- Notion Bot → `notion/`
-
-Each agent expandable to show assigned tasks as children:
-```
-● Competitive Intelligence          ← agent (click = select)
-  ├ Track Competitors (weekly)      ← context task
-  └ Competitive Brief (weekly)      ← synthesis task
-```
-
-**Agent status indicators:**
-- Green dot = has active tasks, recently run
-- Gray dot = no tasks assigned yet (dormant)
-- Amber dot = tasks paused
-- Subtle schedule text on tasks ("weekly", "daily")
-
-**Filter pills:** All | Active | Dormant (by task assignment)
-
-### Center Panel: Agent-Class-Aware Dispatch
-
-The center panel renders differently based on the selected agent's class:
-
-#### Domain Steward View
-
-Primary: their context domain directory tree. This IS the agent's accumulated knowledge.
+Flat agent roster — no tree expansion, no task children. Click an agent → center panel shows everything.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  Competitive Intelligence — competitors/                  │
-│                                                          │
-│  ┌─ Domain Tree (200px) ──┬─ Content Viewer ───────────┐│
-│  │ _tracker.md             │                            ││
-│  │ _landscape.md           │  [Selected file content]   ││
-│  │ anthropic/              │  Rendered markdown or       ││
-│  │   ├ profile.md          │  directory listing          ││
-│  │   ├ signals.md          │                            ││
-│  │   └ assets/             │                            ││
-│  │ openai/                 │                            ││
-│  │   ├ profile.md          │                            ││
-│  │   └ signals.md          │                            ││
-│  └─────────────────────────┴────────────────────────────┘│
-│                                                          │
-│  ── Responsibilities ──────────────────────────────────  │
-│  Track Competitors (weekly, active, last: 2d ago)        │
-│  Competitive Brief (weekly, active, last: 5d ago)        │
-└──────────────────────────────────────────────────────────┘
+DOMAIN STEWARDS
+● Competitive Intelligence
+  competitors/ · 2 tasks
+● Market Research
+  market/ · 1 task
+● Business Development
+  relationships/ · 0 tasks
+● Operations
+  projects/ · 1 task
+● Marketing & Creative
+  content_research/ · 0 tasks
+
+SYNTHESIZERS
+● Executive Reporting
+  synthesizer · 2 tasks
+
+PLATFORM BOTS
+● Slack Bot
+  slack/ · 1 task
+● Notion Bot
+  notion/ · 0 tasks
 ```
 
-Domain tree uses the existing `WorkspaceTree` + `ContentViewer` components (already built for the context page). Below the domain explorer, a compact responsibilities section lists assigned tasks with status, schedule, and last-run metadata.
+Three sections matching agent classes. Each agent shows:
+- **Name** (primary text)
+- **Domain or class label** + task count (secondary text)
+- **Status dot**: green (active tasks), gray (dormant), amber (paused tasks)
 
-Clicking a task in the responsibilities section drills into that task's detail — center panel switches to task output view (existing `OutputView` component) with a back-breadcrumb to the agent's domain view.
+**Filter pills:** All | Active | Dormant
 
-#### Synthesizer View
+Tasks are NOT expandable children in the nav — they appear as task cards in the center panel. The left panel's job is agent selection only.
 
-Primary: their deliverable outputs. The synthesizer doesn't own a domain — it reads across domains and produces reports.
+### Center Panel: Task-Cards-as-Bridge Model
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  Executive Reporting                                      │
-│                                                          │
-│  Latest Output                                           │
-│  ┌──────────────────────────────────────────────────────┐│
-│  │                                                      ││
-│  │  [Rendered HTML — iframe or markdown]                ││
-│  │  Weekly Executive Summary — Apr 3, 2026              ││
-│  │                                                      ││
-│  └──────────────────────────────────────────────────────┘│
-│  Status: delivered · Export PDF                           │
-│                                                          │
-│  ── Run History ─────────────────────────────────────── │
-│  ● Apr 3  ✓ delivered                                    │
-│  ○ Mar 27 ✓ delivered                                    │
-│  ○ Mar 20 ✓ delivered                                    │
-│                                                          │
-│  ── Responsibilities ──────────────────────────────────  │
-│  Weekly Executive Summary (weekly, active)                │
-│  Stakeholder Update (monthly, active)                     │
-└──────────────────────────────────────────────────────────┘
-```
+The center panel has three zones, top to bottom:
 
-This reuses the existing `OutputView` and `RunHistoryView` components from the task page. The synthesizer's view IS the current task page's output view — because for synthesizers, the output is the primary artifact.
+1. **Agent header** — who this is, what they own/read
+2. **Task cards** — what they're working on, with context_reads/writes visible (the bridge between agent and files)
+3. **Content area** — domain files (stewards), output list (synthesizers), or full-render when file selected
 
-#### Platform Bot View
-
-Primary: their temporal observations directory.
-
-```
-┌──────────────────────────────────────────────────────────┐
-│  Slack Bot — slack/                                       │
-│                                                          │
-│  ┌─ Temporal Tree ────────┬─ Content Viewer ────────────┐│
-│  │ 2026-04-03.md           │                            ││
-│  │ 2026-04-02.md           │  [Selected observation]    ││
-│  │ 2026-04-01.md           │                            ││
-│  │ _tracker.md             │                            ││
-│  └─────────────────────────┴────────────────────────────┘│
-│                                                          │
-│  ── Responsibilities ──────────────────────────────────  │
-│  Daily Slack Digest (daily, active, last: 6h ago)         │
-│                                                          │
-│  Platform: Slack · Connected ✓ · 4 channels selected     │
-└──────────────────────────────────────────────────────────┘
-```
-
-Bot view adds platform connection status at the bottom — this is relevant since bots are tied to a specific platform.
-
-### Right Panel: Agent-Scoped TP
-
-ChatPanel scoped to the selected agent. This is the intervention surface for steering agent behavior and task execution.
-
-- **Session:** Agent-scoped (`agent_slug` set, or task-scoped if drilling into a task)
-- **Surface context:** `{ type: "agent-detail", agentSlug: "{slug}" }` or `{ type: "task-detail", taskSlug: "{slug}" }` when drilled into a task
-- **Subtitle:** "viewing {agent title}" or "viewing {task title}"
-- **Trigger:** FAB button or always-visible panel (user preference)
-
-**Plus menu actions (agent-scoped):**
-- Run [task name] now (per assigned task)
-- Assign a new task
-- Review domain health
-- Web research
-- Give feedback on latest output
-
-**Plus menu actions (task drill-down):**
-- Run this task now
-- Adjust focus
-- Give feedback
-- Web research for this task
-
-### Empty State (no tasks assigned to selected agent)
+#### Default state (no file selected)
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  Competitive Intelligence                                 │
-│                                                          │
-│  ┌──────────────────────────────────────────────────────┐│
-│  │  No tasks assigned yet                               ││
-│  │                                                      ││
-│  │  This agent is ready to work. Assign a task to       ││
-│  │  start building competitive intelligence.             ││
-│  │                                                      ││
-│  │  [Assign a task →] (opens chat with prompt)          ││
-│  └──────────────────────────────────────────────────────┘│
-│                                                          │
-│  Domain: competitors/ (empty — will accumulate with use) │
+│  Domain: competitors/ (12 entities, 3 stale)              │
+│                                                           │
+│  ── Tasks ─────────────────────────────────────────────── │
+│  ┌─ Track Competitors (context · weekly) ───────────────┐ │
+│  │  Writes: competitors/     Last: 2d ago  Next: Mon 9am│ │
+│  │                                              [▸ Run] │ │
+│  └──────────────────────────────────────────────────────┘ │
+│  ┌─ Competitive Brief (synthesis · weekly) ─────────────┐ │
+│  │  Reads: competitors/, market/  Latest: Apr 3 delivered│ │
+│  │                        [▸ View output]       [▸ Run] │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                           │
+│  ── Domain: competitors/ ──────────────────────────────── │
+│  _tracker.md · _landscape.md                              │
+│  anthropic/ (profile.md, signals.md)                      │
+│  openai/ (profile.md, signals.md)                         │
+│  cursor/ (profile.md, signals.md)                         │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### File/output selected state
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Competitive Intelligence                                 │
+│  Domain: competitors/                                     │
+│                                                           │
+│  ── Tasks ─────────────────────────────────────────────── │
+│  [compact task cards — same as above, always visible]     │
+│                                                           │
+│  ── ← Back to overview ─────────────────────────────────  │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │                                                      │ │
+│  │  [Full rendered file — markdown, HTML iframe, etc.]  │ │
+│  │                                                      │ │
+│  └──────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────┘
+```
+
+Task cards stay pinned. Content area swaps between browse (file/output list) and view (full render). "← Back" returns to browse. Both "View output" on a synthesis task card and clicking a domain file use the same mechanism — set `selectedFile` → full render.
+
+#### Task card anatomy
+
+Each task card shows:
+- **Title** + type badge (`context` / `synthesis`) + schedule
+- **Context flow**: `Writes: competitors/` or `Reads: competitors/, market/`
+- **Status**: last run time, next run time, latest output status
+- **Actions**: `[▸ Run]` button, `[▸ View output]` for synthesis tasks
+
+The context_reads/context_writes come from the task API (parsed from TASK.md). These make the agent → directory → output data flow explicit.
+
+#### Synthesizer variant
+
+Same three-zone layout, but the content area shows output list instead of domain tree:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Executive Reporting                                      │
+│  Reads across: competitors, market, relationships         │
+│                                                           │
+│  ── Tasks ─────────────────────────────────────────────── │
+│  ┌─ Weekly Executive Summary (synthesis · weekly) ──────┐ │
+│  │  Reads: competitors/, market/, relationships/         │ │
+│  │  Latest: Apr 3 · delivered  [▸ View]         [▸ Run] │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                           │
+│  ── Outputs ──────────────────────────────────────────── │
+│  Apr 3, 2026 · delivered                                  │
+│  Mar 27, 2026 · delivered                                 │
+│  Mar 20, 2026 · delivered                                 │
+└──────────────────────────────────────────────────────────┘
+```
+
+Clicking an output row → full render in content area (same pattern as file selection).
+
+#### Bot variant
+
+Same layout — task cards + temporal observation directory:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Slack Bot                                                │
+│  Platform: Slack · Connected ✓ · 4 channels               │
+│                                                           │
+│  ── Tasks ─────────────────────────────────────────────── │
+│  ┌─ Daily Slack Digest (context · daily) ───────────────┐ │
+│  │  Writes: slack/           Last: 6h ago  Next: 9am    │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                           │
+│  ── Observations: slack/ ─────────────────────────────── │
+│  2026-04-04.md                                            │
+│  2026-04-03.md                                            │
+│  2026-04-02.md                                            │
+└──────────────────────────────────────────────────────────┘
+### Right Panel: Agent-Scoped TP
+
+ChatPanel scoped to the selected agent. Yarnnn logo FAB when closed.
+
+- **Session:** Agent-scoped (`agent_slug` set)
+- **Surface context:** `{ type: "agent-detail", agentSlug: "{slug}" }`
+- **Header:** yarnnn logo + "TP" label + "· viewing {agent title}"
+- **Trigger:** FAB button (yarnnn logo, rotate-180 hover) or always-visible panel
+
+**Plus menu actions:**
+- Run [task name] now (per assigned task)
+- Assign a new task
+- Web research
+- Upload file
+
+### Empty State (no tasks assigned to selected agent)
+
+Center panel shows agent header + empty task section + empty domain:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Competitive Intelligence                                 │
+│  Domain: competitors/ (empty)                             │
+│                                                           │
+│  ── Tasks ─────────────────────────────────────────────── │
+│  No tasks assigned yet.                                   │
+│  [Assign a task →] (opens chat with prompt)               │
+│                                                           │
+│  ── Domain: competitors/ ──────────────────────────────── │
+│  (Will accumulate as tasks execute)                       │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -326,11 +341,12 @@ ChatPanel scoped to the selected agent. This is the intervention surface for ste
 
 | Component | API Endpoint | Notes |
 |-----------|-------------|-------|
-| Agent roster | `GET /api/agents` | Existing. Add `context_domain` field. |
-| Tasks grouped by agent | `GET /api/tasks` | Existing. Client-side group by `agent_slug`. |
+| Agent roster | `GET /api/agents` | Returns `agent_class`, `context_domain`. |
+| Tasks with domains | `GET /api/tasks` | Returns `context_reads`, `context_writes`, `task_class`. Client-side group by `agent_slugs`. |
 | Domain tree | `GET /api/workspace/tree?prefix=/workspace/context/{domain}` | Existing. |
 | Task outputs | `GET /api/tasks/{slug}/outputs` | Existing. |
-| Agent-scoped chat | `POST /api/chat` with `surface_context.agentSlug` | Extend existing. |
+| File content | `GET /api/workspace/file?path=...` | Existing. |
+| Agent-scoped chat | `POST /api/chat` with `surface_context.agentSlug` | Existing. |
 
 ### Key Implementation Note
 

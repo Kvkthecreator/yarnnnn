@@ -705,15 +705,15 @@ export interface Task {
   delivery?: string;           // delivery channel summary
   type_key?: string;           // task type key (e.g., "track-competitors", "competitive-brief")
   task_class?: string;         // "context" | "synthesis" — determines UI treatment
+  context_reads?: string[];    // context domains this task reads from (parsed from TASK.md)
+  context_writes?: string[];   // context domains this task writes to (parsed from TASK.md)
 }
 
 export interface TaskDetail extends Task {
   run_log?: string;            // memory/run_log.md content
   success_criteria?: string[];
   output_spec?: string[];
-  context_reads?: string[];    // context domains this task reads from
-  context_writes?: string[];   // context domains this task writes to
-  // ADR-154: output_category removed — tasks own their outputs
+  // context_reads/context_writes inherited from Task
 }
 
 export interface TaskCreate {

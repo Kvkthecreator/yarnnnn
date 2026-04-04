@@ -4,12 +4,12 @@
  * Agents Page — Primary working surface (HOME).
  *
  * SURFACE-ARCHITECTURE.md v3: Three-panel layout.
- * Left: AgentTreeNav (stable roster with task children), collapsible
- * Center: AgentContentView (class-aware: domain/output/observations)
+ * Left: AgentNav (flat roster, click to select)
+ * Center: AgentContentView (agent header + task cards + browse/view)
  * Right: ChatPanel (agent-scoped TP, FAB toggle with yarnnn logo)
  *
- * Duplicated from the original tasks page (b2aa309) — same layout patterns,
- * panel widths, FAB behavior, chat header, empty states, and polling.
+ * Layout patterns duplicated from original tasks page (b2aa309):
+ * same panel widths, FAB behavior, chat header, polling, collapse.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -21,29 +21,16 @@ import {
   ListChecks,
   Globe,
   Upload,
-  Settings2,
   X,
   Play,
-  Target,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import type { Agent, Task } from '@/types';
 import { api } from '@/lib/api/client';
-import {
-  AgentTreeNav,
-  getDefaultAgentView,
-  type AgentView,
-} from '@/components/agents/AgentTreeNav';
+import { AgentTreeNav } from '@/components/agents/AgentTreeNav';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-import {
-  RUN_TASK_CARD,
-  ADJUST_TASK_CARD,
-  FEEDBACK_TASK_CARD,
-  RESEARCH_TASK_CARD,
-  type ActionCardConfig,
-} from '@/components/tp/InlineActionCard';
 
 export default function AgentsPage() {
   const searchParams = useSearchParams();
@@ -51,7 +38,6 @@ export default function AgentsPage() {
   const { loadScopedHistory, sendMessage } = useTP();
 
   const agentFromUrl = searchParams.get('agent');
-  const taskFromUrl = searchParams.get('task');
 
   // ── State ──
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -59,13 +45,10 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
 
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [selectedTaskSlug, setSelectedTaskSlug] = useState<string | null>(taskFromUrl);
-  const [selectedView, setSelectedView] = useState<AgentView>('domain');
   const [filter, setFilter] = useState<string | null>(null);
 
   const [panelOpen, setPanelOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
-  const [actionCard, setActionCard] = useState<ActionCardConfig | null>(null);
   const [mutationPending, setMutationPending] = useState(false);
 
   // ── Data loading ──
@@ -91,17 +74,11 @@ export default function AgentsPage() {
   useEffect(() => {
     loadData().then(({ agents: agentList }) => {
       if (agentFromUrl) {
-        const match = agentList.find(
-          a => a.id === agentFromUrl || a.slug === agentFromUrl
-        );
-        if (match) {
-          setSelectedAgentId(match.id);
-          setSelectedView(getDefaultAgentView(match));
-        }
+        const match = agentList.find(a => a.id === agentFromUrl || a.slug === agentFromUrl);
+        if (match) setSelectedAgentId(match.id);
       } else if (agentList.length > 0) {
         const first = agentList.find(a => a.agent_class === 'domain-steward') || agentList[0];
         setSelectedAgentId(first.id);
-        setSelectedView(getDefaultAgentView(first));
       }
     });
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
@@ -121,15 +98,10 @@ export default function AgentsPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [loadData]);
 
-  // ── Load scoped chat history on agent/task change ──
+  // ── Load scoped chat history on agent change ──
   useEffect(() => {
-    if (selectedTaskSlug) {
-      loadScopedHistory(undefined, selectedTaskSlug);
-    } else if (selectedAgentId) {
-      // Use agent ID for scoped history
-      loadScopedHistory(selectedAgentId);
-    }
-  }, [selectedAgentId, selectedTaskSlug, loadScopedHistory]);
+    if (selectedAgentId) loadScopedHistory(selectedAgentId);
+  }, [selectedAgentId, loadScopedHistory]);
 
   // ── Derived state ──
   const selectedAgent = agents.find(a => a.id === selectedAgentId) || null;
@@ -141,27 +113,9 @@ export default function AgentsPage() {
     ? tasks.filter(t => t.agent_slugs?.includes(getAgentSlug(selectedAgent)))
     : [];
 
-  const displayTitle = selectedTaskSlug
-    ? tasks.find(t => t.slug === selectedTaskSlug)?.title || selectedTaskSlug
-    : selectedAgent?.title || 'Agents';
-
   // ── Actions ──
   const handleSelectAgent = (agentId: string) => {
-    const agent = agents.find(a => a.id === agentId);
     setSelectedAgentId(agentId);
-    setSelectedTaskSlug(null);
-    if (agent) setSelectedView(getDefaultAgentView(agent));
-  };
-
-  const handleSelectTask = (agentId: string, taskSlug: string) => {
-    setSelectedAgentId(agentId);
-    setSelectedTaskSlug(taskSlug);
-    setSelectedView('task-output');
-  };
-
-  const handleBack = () => {
-    setSelectedTaskSlug(null);
-    if (selectedAgent) setSelectedView(getDefaultAgentView(selectedAgent));
   };
 
   const handleRunTask = async (taskSlug: string) => {
@@ -176,36 +130,12 @@ export default function AgentsPage() {
     }
   };
 
-  const handleToggleTaskStatus = async (taskSlug: string) => {
-    const task = tasks.find(t => t.slug === taskSlug);
-    if (!task) return;
-    setMutationPending(true);
-    try {
-      const newStatus = task.status === 'active' ? 'paused' : 'active';
-      await api.tasks.update(taskSlug, { status: newStatus });
-      await loadData();
-    } catch (err) {
-      console.error('Failed to toggle task status:', err);
-    } finally {
-      setMutationPending(false);
-    }
-  };
-
   // ── Chat config ──
-  const taskSurface = selectedTaskSlug
-    ? { type: 'task-detail' as const, taskSlug: selectedTaskSlug }
-    : selectedAgent
-    ? { type: 'agent-detail' as const, agentSlug: getAgentSlug(selectedAgent!) }
+  const surfaceOverride = selectedAgent
+    ? { type: 'agent-detail' as const, agentSlug: getAgentSlug(selectedAgent) }
     : undefined;
 
-  const plusMenuActions: PlusMenuAction[] = selectedTaskSlug ? [
-    // Task drill-down: task-specific actions with action cards
-    { id: 'run-task', label: 'Run now', icon: Play, verb: 'prompt', onSelect: () => setActionCard(RUN_TASK_CARD) },
-    { id: 'adjust-task', label: 'Adjust task', icon: Target, verb: 'prompt', onSelect: () => setActionCard(ADJUST_TASK_CARD) },
-    { id: 'feedback', label: 'Give feedback', icon: MessageCircle, verb: 'prompt', onSelect: () => setActionCard(FEEDBACK_TASK_CARD) },
-    { id: 'web-research', label: 'Web research', icon: Globe, verb: 'prompt', onSelect: () => setActionCard(RESEARCH_TASK_CARD) },
-  ] : selectedAgent ? [
-    // Agent selected: agent-level actions
+  const plusMenuActions: PlusMenuAction[] = selectedAgent ? [
     ...(agentTasks.filter(t => t.status === 'active').length > 0 ? [{
       id: 'run-task',
       label: `Run ${agentTasks[0]?.title || 'task'}`,
@@ -213,25 +143,20 @@ export default function AgentsPage() {
       verb: 'prompt' as const,
       onSelect: () => { sendMessage(`Run the task "${agentTasks[0]?.title}" now`); },
     }] : []),
-    { id: 'assign-task', label: 'Assign a new task', icon: ListChecks, verb: 'prompt', onSelect: () => { sendMessage(`Create a new task for ${selectedAgent.title}`); } },
-    { id: 'web-search', label: 'Web research', icon: Globe, verb: 'prompt', onSelect: () => { setChatOpen(true); } },
+    { id: 'assign-task', label: 'Assign a new task', icon: ListChecks, verb: 'prompt' as const, onSelect: () => { sendMessage(`Create a new task for ${selectedAgent.title}`); } },
+    { id: 'web-search', label: 'Web research', icon: Globe, verb: 'prompt' as const, onSelect: () => { setChatOpen(true); } },
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach' as const, onSelect: () => {} },
   ] : [
-    // No agent: workspace-level actions
-    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { sendMessage('I want to create a task. What do you suggest based on my context?'); } },
-    { id: 'update-info', label: 'Update my info', icon: Settings2, verb: 'prompt', onSelect: () => { setChatOpen(true); } },
-    { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setChatOpen(true); } },
-    { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => {} },
+    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt' as const, onSelect: () => { sendMessage('I want to create a task. What do you suggest based on my context?'); } },
+    { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt' as const, onSelect: () => { setChatOpen(true); } },
+    { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach' as const, onSelect: () => {} },
   ];
 
-  // Chat empty state — simple prompt, onboarding lives on /chat
   const chatEmptyState = (
     <div className="py-2 text-center">
       <MessageCircle className="mx-auto mb-1.5 h-5 w-5 text-muted-foreground/15" />
       <p className="text-[11px] text-muted-foreground/40">
-        {selectedTaskSlug ? 'Ask anything about this task'
-          : selectedAgent ? `Ask anything about ${selectedAgent.title}`
-          : 'Select an agent to get started'}
+        {selectedAgent ? `Ask anything about ${selectedAgent.title}` : 'Select an agent to get started'}
       </p>
     </div>
   );
@@ -247,7 +172,7 @@ export default function AgentsPage() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Left: Agent tree nav — collapsible */}
+      {/* Left: Agent roster — collapsible */}
       {panelOpen ? (
         <div className="w-[280px] shrink-0 border-r border-border flex flex-col bg-background">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
@@ -256,27 +181,14 @@ export default function AgentsPage() {
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-          {loading ? (
-            <div className="flex items-center justify-center flex-1">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <AgentTreeNav
-              agents={agents}
-              tasks={tasks}
-              selectedAgentId={selectedAgentId}
-              selectedTaskSlug={selectedTaskSlug}
-              selectedView={selectedView}
-              filter={filter}
-              onFilterChange={setFilter}
-              onSelectAgent={handleSelectAgent}
-              onSelectTask={handleSelectTask}
-              onSelectView={setSelectedView}
-              onRunTask={handleRunTask}
-              onToggleTaskStatus={handleToggleTaskStatus}
-              busy={mutationPending}
-            />
-          )}
+          <AgentTreeNav
+            agents={agents}
+            tasks={tasks}
+            selectedAgentId={selectedAgentId}
+            filter={filter}
+            onFilterChange={setFilter}
+            onSelectAgent={handleSelectAgent}
+          />
         </div>
       ) : (
         <div className="w-10 shrink-0 border-r border-border flex flex-col items-center py-2 gap-2 bg-background">
@@ -296,10 +208,6 @@ export default function AgentsPage() {
           <AgentContentView
             agent={selectedAgent}
             tasks={agentTasks}
-            view={selectedView}
-            selectedTaskSlug={selectedTaskSlug}
-            onBack={handleBack}
-            onSelectTask={(slug) => handleSelectTask(selectedAgent.id, slug)}
             onRunTask={handleRunTask}
             busy={mutationPending}
           />
@@ -333,9 +241,9 @@ export default function AgentsPage() {
             <div className="flex items-center gap-2">
               <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
               <span className="text-xs font-medium">TP</span>
-              {(selectedAgent || selectedTaskSlug) && (
+              {selectedAgent && (
                 <span className="text-[10px] text-muted-foreground/50 truncate max-w-[160px]">
-                  · viewing {displayTitle}
+                  · viewing {selectedAgent.title}
                 </span>
               )}
             </div>
@@ -345,12 +253,11 @@ export default function AgentsPage() {
           </div>
           <div className="flex-1 min-h-0">
             <ChatPanel
-              surfaceOverride={taskSurface}
+              surfaceOverride={surfaceOverride}
               plusMenuActions={plusMenuActions}
-              placeholder={selectedTaskSlug ? `Steer ${displayTitle}...` : selectedAgent ? `Ask about ${selectedAgent.title}...` : 'Ask anything or type / ...'}
+              placeholder={selectedAgent ? `Ask about ${selectedAgent.title}...` : 'Ask anything or type / ...'}
               emptyState={chatEmptyState}
-              showCommandPicker={!selectedTaskSlug && !selectedAgent}
-              pendingActionConfig={actionCard}
+              showCommandPicker={!selectedAgent}
             />
           </div>
         </div>
