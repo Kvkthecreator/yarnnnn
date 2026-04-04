@@ -196,7 +196,7 @@ async def render_video(input_spec: dict, output_format: str) -> tuple[bytes, str
             cmd,
             capture_output=True,
             text=True,
-            timeout=180,
+            timeout=300,  # 5 min — first render includes TS bundling
             cwd=str(COMPOSITION_DIR),
             env=env,
         )

@@ -103,8 +103,8 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     headers = {}
     if RENDER_SERVICE_SECRET:
         headers["X-Render-Secret"] = RENDER_SERVICE_SECRET
-    # Video renders need extended timeout (up to 180s for Remotion)
-    request_timeout = 180.0 if skill_type == "video" else 60.0
+    # Video renders need extended timeout (first render includes TS bundling)
+    request_timeout = 300.0 if skill_type == "video" else 60.0
     try:
         async with httpx.AsyncClient(timeout=request_timeout) as client:
             resp = await client.post(
