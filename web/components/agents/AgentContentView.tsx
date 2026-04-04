@@ -220,7 +220,7 @@ function DomainBrowse({
           className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded hover:bg-muted/50 transition-colors"
         >
           {node.type === 'folder' ? (
-            <FolderOpen className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+            <FolderOpen className="w-3.5 h-3.5 text-sky-600/60 shrink-0" />
           ) : (
             <FileText className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
           )}
@@ -301,9 +301,11 @@ function OutputBrowse({
 function FileView({
   node,
   onBack,
+  onNavigate,
 }: {
   node: TreeNode;
   onBack: () => void;
+  onNavigate: (node: TreeNode) => void;
 }) {
   return (
     <div className="flex flex-col h-full">
@@ -312,7 +314,7 @@ function FileView({
         Back to overview
       </button>
       <div className="flex-1 overflow-auto">
-        <ContentViewer selectedNode={node} onNavigate={() => {}} />
+        <ContentViewer selectedNode={node} onNavigate={onNavigate} />
       </div>
     </div>
   );
@@ -395,7 +397,7 @@ export function AgentContentView({ agent, tasks, onRunTask, busy }: AgentContent
         <AgentHeader agent={agent} tasks={tasks} />
         <TaskCardsSection tasks={tasks} onRunTask={onRunTask} onViewOutput={handleViewOutput} busy={busy} />
         <div className="flex-1 min-h-0 overflow-hidden">
-          <FileView node={selectedFile} onBack={handleBack} />
+          <FileView node={selectedFile} onBack={handleBack} onNavigate={setSelectedFile} />
         </div>
       </div>
     );

@@ -45,7 +45,6 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
 
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string | null>(null);
 
   const [panelOpen, setPanelOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
@@ -185,8 +184,6 @@ export default function AgentsPage() {
             agents={agents}
             tasks={tasks}
             selectedAgentId={selectedAgentId}
-            filter={filter}
-            onFilterChange={setFilter}
             onSelectAgent={handleSelectAgent}
           />
         </div>

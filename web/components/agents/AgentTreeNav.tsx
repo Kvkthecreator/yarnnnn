@@ -17,10 +17,7 @@ interface AgentTreeNavProps {
   agents: Agent[];
   tasks: Task[];
   selectedAgentId: string | null;
-  filter: string | null;
-  onFilterChange: (filter: string | null) => void;
   onSelectAgent: (agentId: string) => void;
-  busy?: boolean;
 }
 
 /** Get agent slug for task matching */
@@ -40,17 +37,11 @@ function hasActiveTasks(agent: Agent, tasks: Task[]): boolean {
   return tasks.some(t => t.agent_slugs?.includes(slug) && t.status === 'active');
 }
 
-/** Check if agent has any paused tasks */
-function hasPausedTasks(agent: Agent, tasks: Task[]): boolean {
-  const slug = getAgentSlug(agent);
-  return tasks.some(t => t.agent_slugs?.includes(slug) && t.status === 'paused');
-}
-
 const CLASS_ORDER = ['domain-steward', 'synthesizer', 'platform-bot'] as const;
 const CLASS_LABELS: Record<string, string> = {
-  'domain-steward': 'Domain Stewards',
-  'synthesizer': 'Synthesizers',
-  'platform-bot': 'Platform Bots',
+  'domain-steward': 'Your Team',
+  'synthesizer': 'Cross-Team',
+  'platform-bot': 'Integrations',
 };
 
 /** Metadata line: domain or class label + task count */
@@ -66,52 +57,17 @@ export function AgentTreeNav({
   agents,
   tasks,
   selectedAgentId,
-  filter,
-  onFilterChange,
   onSelectAgent,
 }: AgentTreeNavProps) {
-  // Filter
-  const filtered = filter === 'active'
-    ? agents.filter(a => hasActiveTasks(a, tasks))
-    : filter === 'dormant'
-    ? agents.filter(a => !hasActiveTasks(a, tasks))
-    : agents;
-
   // Group by class
   const grouped = CLASS_ORDER.map(cls => ({
     cls,
     label: CLASS_LABELS[cls],
-    agents: filtered.filter(a => (a.agent_class || 'domain-steward') === cls),
+    agents: agents.filter(a => (a.agent_class || 'domain-steward') === cls),
   })).filter(g => g.agents.length > 0);
-
-  // Counts
-  const activeCount = agents.filter(a => hasActiveTasks(a, tasks)).length;
-  const dormantCount = agents.length - activeCount;
 
   return (
     <div className="flex flex-col h-full text-sm">
-      {/* Filter pills */}
-      <div className="flex gap-1 px-3 py-2 border-b border-border shrink-0">
-        {[
-          { key: null, label: 'All', count: agents.length },
-          { key: 'active', label: 'Active', count: activeCount },
-          { key: 'dormant', label: 'Dormant', count: dormantCount },
-        ].map(f => (
-          <button
-            key={f.key ?? 'all'}
-            onClick={() => onFilterChange(f.key)}
-            className={cn(
-              'px-2 py-0.5 text-[11px] font-medium rounded-full transition-colors',
-              filter === f.key
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {f.label} {f.count > 0 && <span className="opacity-50">{f.count}</span>}
-          </button>
-        ))}
-      </div>
-
       {/* Agent list */}
       <div className="flex-1 overflow-y-auto py-1">
         {grouped.map(group => (
@@ -127,12 +83,9 @@ export function AgentTreeNav({
               const isSelected = agent.id === selectedAgentId;
               const taskCount = countTasks(agent, tasks);
               const active = hasActiveTasks(agent, tasks);
-              const paused = hasPausedTasks(agent, tasks);
 
               const statusColor = active
                 ? 'fill-green-500 text-green-500'
-                : paused
-                ? 'fill-amber-500 text-amber-500'
                 : 'text-muted-foreground/30';
 
               return (
@@ -157,9 +110,9 @@ export function AgentTreeNav({
           </div>
         ))}
 
-        {filtered.length === 0 && (
+        {agents.length === 0 && (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-            No matching agents
+            No agents
           </div>
         )}
       </div>
