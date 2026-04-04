@@ -824,7 +824,7 @@ async def gather_task_context(
                     client.table("platform_connections")
                     .select("landscape")
                     .eq("user_id", user_id)
-                    .eq("provider", platform)
+                    .eq("platform", platform)
                     .eq("status", "connected")
                     .maybe_single()
                     .execute()

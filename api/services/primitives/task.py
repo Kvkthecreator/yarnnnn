@@ -276,7 +276,7 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                     auth.client.table("platform_connections")
                     .select("landscape")
                     .eq("user_id", user_id)
-                    .eq("provider", platform)
+                    .eq("platform", platform)
                     .eq("status", "connected")
                     .maybe_single()
                     .execute()
@@ -473,7 +473,6 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                                     f"{folder}/{synthesis_file}",
                                     synthesis_template,
                                     summary=f"ADR-151: scaffold {domain_key} domain",
-                                    tags=["context", domain_key],
                                     metadata={"domain": domain_key, "type": "synthesis"},
                                 )
                                 logger.info(f"[CREATE_TASK] Scaffolded context domain: {domain_key}")
@@ -489,7 +488,6 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
                                     await um.write(
                                         tracker_path, tracker_content,
                                         summary=f"ADR-154: entity tracker for {domain_key}",
-                                        tags=["tracker", domain_key],
                                     )
             except Exception as e:
                 logger.warning(f"[CREATE_TASK] Context domain scaffold failed (non-fatal): {e}")
