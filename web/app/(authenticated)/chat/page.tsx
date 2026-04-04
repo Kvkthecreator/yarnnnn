@@ -13,7 +13,7 @@
  * After first interaction, the overlay disappears and it's normal chat.
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Globe, Upload, ListChecks, Settings2 } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { ContextSetup } from '@/components/tp/ContextSetup';
@@ -21,8 +21,14 @@ import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import { useTP } from '@/contexts/TPContext';
 
 export default function ChatPage() {
-  const { messages, sendMessage, isLoading } = useTP();
+  const { messages, sendMessage, isLoading, loadScopedHistory } = useTP();
   const hasMessages = messages.length > 0 || isLoading;
+
+  // Load global session history — ensures we're on global scope
+  // (user may have navigated here from /agents which set agent scope)
+  useEffect(() => {
+    loadScopedHistory();
+  }, [loadScopedHistory]);
 
   // Plus menu actions — workspace-level
   const plusMenuActions: PlusMenuAction[] = useMemo(() => [
