@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.04.8] - ADR-158: GitHub entity depth fix + soft TTL + scheduling docs
+
+### Fixed
+- `services/task_pipeline.py`: Entity slug extraction now uses `entity_depth` from registry. GitHub repos (`owner/repo` = depth 2) were being parsed wrong — `cursor-ai` treated as entity, `cursor` as filename. Now correctly extracts `cursor-ai/cursor` as entity slug.
+
+### Added
+- `services/directory_registry.py`: `entity_depth` field on GitHub domain (2), `ttl_days` on all temporal domains (Slack: 14d, Notion: 30d, GitHub: 30d). `get_entity_depth()` helper.
+- `services/task_pipeline.py`: Soft TTL enforcement in `_gather_context_domains()`. Temporal domains only load files within TTL window via `.gte("updated_at", cutoff)`. Temporal domain sections labeled "Platform Observations" with TTL window note.
+- `docs/adr/ADR-158`: Platform scheduling frequency table + TTL policy documentation.
+- Expected behavior: Agent context from temporal domains automatically excludes stale observations. Slack context = last 14 days. Notion/GitHub = last 30 days. No cleanup jobs needed.
+
+---
+
 ## [2026.04.04.7] - ADR-158 Phase 5+6: GitHub reference reads + external repo tracking
 
 ### Added

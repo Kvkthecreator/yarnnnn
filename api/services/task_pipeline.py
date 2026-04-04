@@ -159,6 +159,7 @@ async def _gather_context_domains(
 
     from services.directory_registry import (
         get_domain_folder, get_synthesis_content, get_tracker_path, has_entity_tracker,
+        WORKSPACE_DIRECTORIES,
     )
 
     sections = []
@@ -169,6 +170,16 @@ async def _gather_context_domains(
             continue
 
         prefix = f"/workspace/{folder}"
+        domain_def = WORKSPACE_DIRECTORIES.get(domain_key, {})
+        is_temporal = domain_def.get("temporal", False)
+        ttl_days = domain_def.get("ttl_days")
+
+        # ADR-158: Soft TTL — temporal domains only load files within TTL window
+        ttl_cutoff = None
+        if is_temporal and ttl_days:
+            from datetime import datetime, timezone, timedelta
+            ttl_cutoff = (datetime.now(timezone.utc) - timedelta(days=ttl_days)).isoformat()
+
         try:
             domain_parts = []
 
@@ -304,12 +315,16 @@ async def _gather_context_domains(
                 # to pull specific entity files during tool rounds if needed.
                 if primary_entity_file:
                     try:
-                        profile_result = (
+                        profile_query = (
                             client.table("workspace_files")
                             .select("path, content, updated_at")
                             .eq("user_id", user_id)
                             .like("path", f"{prefix}/%/{primary_entity_file}")
-                            .order("updated_at", desc=True)
+                        )
+                        if ttl_cutoff:
+                            profile_query = profile_query.gte("updated_at", ttl_cutoff)
+                        profile_result = (
+                            profile_query.order("updated_at", desc=True)
                             .limit(max_files_per_domain)
                             .execute()
                         )
@@ -325,16 +340,17 @@ async def _gather_context_domains(
                         pass
 
             else:
-                # NON-ENTITY domain (signals, etc.) — recency-ordered, unchanged
-                result = (
+                # NON-ENTITY domain (signals, etc.) — recency-ordered
+                # ADR-158: temporal domains filtered by TTL
+                query = (
                     client.table("workspace_files")
                     .select("path, content, updated_at, tags")
                     .eq("user_id", user_id)
                     .like("path", f"{prefix}/%")
-                    .order("updated_at", desc=True)
-                    .limit(max_files_per_domain)
-                    .execute()
                 )
+                if ttl_cutoff:
+                    query = query.gte("updated_at", ttl_cutoff)
+                result = query.order("updated_at", desc=True).limit(max_files_per_domain).execute()
                 for row in (result.data or []):
                     content = (row.get("content") or "")[:max_content_per_file]
                     updated = row.get("updated_at", "")[:10]
@@ -345,8 +361,12 @@ async def _gather_context_domains(
                         )
 
             if domain_parts:
+                # ADR-158: label temporal domains explicitly
+                label = f"Platform Observations: {domain_key}" if is_temporal else f"Accumulated Context: {domain_key}"
+                if is_temporal and ttl_days:
+                    label += f" (last {ttl_days} days)"
                 sections.append(
-                    f"## Accumulated Context: {domain_key}\n" +
+                    f"## {label}\n" +
                     "\n\n".join(domain_parts)
                 )
 
@@ -438,17 +458,20 @@ async def _post_run_domain_scan(
 
             # Extract entity subfolders from paths
             # e.g., /workspace/context/competitors/acme-corp/profile.md → acme-corp
+            # e.g., /workspace/context/github/cursor-ai/cursor/latest.md → cursor-ai/cursor
+            from services.directory_registry import get_entity_depth
+            entity_depth = get_entity_depth(domain_key)
             entity_files: dict[str, dict] = {}  # slug → {last_updated, files}
             for row in rows:
                 path = row.get("path", "")
                 rel = path.replace(prefix, "")
                 parts = rel.split("/")
-                if len(parts) < 2:
+                if len(parts) < entity_depth + 1:
                     continue  # Top-level files (_tracker.md, landscape.md) — skip
-                entity_slug = parts[0]
+                entity_slug = "/".join(parts[:entity_depth])
                 if entity_slug.startswith("_"):
                     continue  # System infrastructure files (_tracker.md)
-                filename = parts[1].replace(".md", "")
+                filename = parts[entity_depth].replace(".md", "")
 
                 if entity_slug not in entity_files:
                     entity_files[entity_slug] = {

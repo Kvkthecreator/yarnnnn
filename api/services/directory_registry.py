@@ -218,6 +218,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "description": "Temporal observations from Slack channels — decisions, signals, activity",
         "managed_by": "agent",
         "temporal": True,
+        "ttl_days": 14,  # Slack is high-volume stream — 2 weeks of relevance
         "entity_type": "channel",
         "entity_structure": {
             "latest.md": (
@@ -238,6 +239,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "description": "Temporal observations from Notion pages — changes, updates, content state",
         "managed_by": "agent",
         "temporal": True,
+        "ttl_days": 30,  # Notion changes are slower — 1 month of relevance
         "entity_type": "page",
         "entity_structure": {
             "latest.md": (
@@ -258,7 +260,9 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "description": "Temporal observations + reference data from GitHub repos — issues, PRs, releases, README, metadata",
         "managed_by": "agent",
         "temporal": True,
+        "ttl_days": 30,  # Activity is temporal (14d), but reference files are durable (no expiry) — use 30d as soft ceiling
         "entity_type": "repo",
+        "entity_depth": 2,  # owner/repo — two-level entity slug
         "entity_structure": {
             # Temporal (updated every cycle)
             "latest.md": (
@@ -329,6 +333,12 @@ def get_domain(key: str) -> Optional[dict[str, Any]]:
 def get_domain_folder(key: str) -> Optional[str]:
     """Alias for get_directory_path — backwards compat with domain_registry callers."""
     return get_directory_path(key)
+
+
+def get_entity_depth(key: str) -> int:
+    """Get entity path depth for a domain. Default 1, GitHub is 2 (owner/repo)."""
+    d = WORKSPACE_DIRECTORIES.get(key)
+    return d.get("entity_depth", 1) if d else 1
 
 
 def get_entity_template(key: str, entity_name: str) -> dict[str, str]:

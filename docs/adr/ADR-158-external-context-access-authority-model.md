@@ -295,6 +295,34 @@ No code reading. No implementation analysis. Metadata, docs, and activity only.
 
 ---
 
+## Platform Scheduling & TTL Policy
+
+### Scheduling Frequency
+
+| Platform | Task | Default | Rationale |
+|---|---|---|---|
+| Slack | slack-digest | Daily | High-volume stream — signals decay fast |
+| Notion | notion-digest | Weekly | Document changes are slower, less urgent |
+| GitHub | github-digest | Daily | Issues/PRs move fast, releases ship at any time |
+
+Write-back tasks (`slack-respond`, `notion-update`) are reactive (on-demand) — no schedule.
+
+### Soft TTL on Temporal Directories
+
+Temporal domain files have a `ttl_days` value. Context gathering (`_gather_context_domains`)
+filters out files older than TTL when assembling agent context. Files remain on disk —
+readers simply ignore them past TTL. No cleanup jobs.
+
+| Domain | TTL | Rationale |
+|---|---|---|
+| Slack | 14 days | Stream context decays quickly |
+| Notion | 30 days | Document state changes less frequently |
+| GitHub | 30 days | Activity is temporal (14d equivalent), reference files are durable |
+
+Canonical domains (competitors, market, etc.) have no TTL — they are durable by design.
+
+---
+
 ## What This ADR Does Not Decide
 
 - Cross-pollination: how/whether platform observations feed into canonical domains
