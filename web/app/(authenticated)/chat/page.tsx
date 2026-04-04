@@ -7,21 +7,22 @@
  * cross-cutting questions, workspace management, and task creation.
  *
  * This is also the ONBOARDING surface. New users (post-signup) land here.
- * When there's no chat history, ContextSetup renders as the cold-start
- * experience — URLs, files, and notes that bootstrap workspace identity.
- * After first interaction, the page is a normal full-page chat.
+ * When there's no chat history, ContextSetup renders as a full-page overlay
+ * centered above ChatPanel's input bar. ContextSetup gets max-w-xl of real
+ * estate — not constrained to ChatPanel's internal message area.
+ * After first interaction, the overlay disappears and it's normal chat.
  */
 
 import { useMemo } from 'react';
-import { MessageCircle, Globe, Upload, ListChecks, Settings2 } from 'lucide-react';
+import { Globe, Upload, ListChecks, Settings2 } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { ContextSetup } from '@/components/tp/ContextSetup';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import { useTP } from '@/contexts/TPContext';
 
 export default function ChatPage() {
-  const { messages, sendMessage } = useTP();
-  const hasMessages = messages.length > 0;
+  const { messages, sendMessage, isLoading } = useTP();
+  const hasMessages = messages.length > 0 || isLoading;
 
   // Plus menu actions — workspace-level
   const plusMenuActions: PlusMenuAction[] = useMemo(() => [
@@ -31,27 +32,29 @@ export default function ChatPage() {
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach' as const, onSelect: () => {} },
   ], [sendMessage]);
 
-  // Cold-start: ContextSetup with full onboarding (URLs, files, notes)
-  // After first message: no empty state — chat takes over
-  const emptyState = !hasMessages ? (
-    <div className="flex flex-col items-center justify-center h-full px-4 py-8">
-      <ContextSetup
-        onSubmit={(msg) => sendMessage(msg)}
-        showSkipOptions
-        onSkipAction={(msg) => sendMessage(msg)}
-      />
-    </div>
-  ) : undefined;
-
   return (
-    <div className="flex flex-col h-full max-w-3xl mx-auto w-full">
+    <div className="flex flex-col h-full max-w-3xl mx-auto w-full relative">
+      {/* ChatPanel always renders — handles messages + input bar */}
       <ChatPanel
         surfaceOverride={{ type: 'chat' }}
         plusMenuActions={plusMenuActions}
-        placeholder="Ask anything or type / ..."
+        placeholder={hasMessages ? 'Ask anything or type / ...' : 'Or just type here...'}
         showCommandPicker={true}
-        emptyState={emptyState}
       />
+
+      {/* Onboarding overlay — renders OVER ChatPanel's empty message area */}
+      {/* Positioned to fill the space above the input bar */}
+      {!hasMessages && (
+        <div className="absolute inset-0 bottom-[72px] flex items-center justify-center px-6 py-8 bg-background z-10">
+          <div className="w-full max-w-xl">
+            <ContextSetup
+              onSubmit={(msg) => sendMessage(msg)}
+              showSkipOptions
+              onSkipAction={(msg) => sendMessage(msg)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
