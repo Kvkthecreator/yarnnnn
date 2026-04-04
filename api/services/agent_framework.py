@@ -13,12 +13,13 @@ Three independent axes per agent (ADR-140):
   - Tasks (TASK.md): work assignments, come and go
 
 Three agent classes:
-  - domain-steward: owns a context domain (/workspace/{domain}/), accumulates
-    knowledge over time, produces deliverables by synthesizing from context
+  - domain-steward: owns a canonical context domain (/workspace/context/{domain}/),
+    accumulates knowledge over time, produces deliverables by synthesizing from context
   - synthesizer: reads across all context domains, produces cross-domain
     deliverables (e.g., executive reporting). Owns no domain.
-  - platform-bot: captures signals from one external platform (Slack, Notion).
-    Mechanical, scoped to one API.
+  - platform-bot: owns a temporal context domain (/workspace/context/{platform}/),
+    captures signals from one external platform (Slack, Notion). Per-source
+    subfolders (channel/page/repo). ADR-158: bots own their directories.
 
 v4 (2026-03-31): 5 domain-stewards + 1 synthesizer + 2 platform-bots.
 Templates are starting points — agents evolve via AGENT.md, which is the
@@ -36,9 +37,9 @@ from typing import Any
 # Registry 1: Agent Templates — workforce roster (ADR-140)
 # =============================================================================
 # Pre-scaffolded at sign-up. Three classes:
-#   domain-steward — owns a context domain, accumulates knowledge, synthesizes
+#   domain-steward — owns a canonical context domain, accumulates knowledge, synthesizes
 #   synthesizer    — reads across domains, produces cross-domain deliverables
-#   platform-bot   — captures signals from one external platform
+#   platform-bot   — owns a temporal context domain, captures signals from one platform (ADR-158)
 #
 # Templates are starting points. AGENT.md is the runtime source of truth.
 # Type determines capabilities (axis 2). Identity (axis 1) and tasks (axis 3)
@@ -382,7 +383,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
 
     "slack_bot": {
         "class": "platform-bot",
-        "domain": None,
+        "domain": "slack",
         "platform": "slack",
         "display_name": "Slack Bot",
         "tagline": "Captures Slack activity",
@@ -416,7 +417,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
 
     "notion_bot": {
         "class": "platform-bot",
-        "domain": None,
+        "domain": "notion",
         "platform": "notion",
         "display_name": "Notion Bot",
         "tagline": "Tracks Notion changes",

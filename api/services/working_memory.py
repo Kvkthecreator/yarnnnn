@@ -144,7 +144,7 @@ async def build_working_memory(
             "brand": _classify_richness(brand_content),
             # Content
             "documents": doc_count,
-            "context_domains": len([d for d in context_domains if d.get("file_count", 0) > 0]) if context_domains else 0,
+            "context_domains": len([d for d in context_domains if d.get("file_count", 0) > 0 and not d.get("temporal")]) if context_domains else 0,
             # Work
             "tasks_active": task_count,
             "tasks_stale": tasks_stale,
@@ -286,18 +286,20 @@ def _get_active_tasks_sync(user_id: str, client: Any) -> list[dict]:
 
 
 def _get_context_domain_health_sync(user_id: str, client: Any) -> list[dict]:
-    """Get context domain health summary for TP awareness (sync). ADR-151.
+    """Get context domain health summary for TP awareness (sync). ADR-151, ADR-158.
 
-    Returns list of {domain, file_count, latest_update} for each domain
-    that has files in /workspace/context/.
+    Returns list of {domain, file_count, latest_update, temporal} for each domain
+    that has files in /workspace/context/. ADR-158: includes temporal flag for
+    platform observation domains (slack, notion, github).
     """
     from services.directory_registry import CONTEXT_DOMAINS, get_domain_folder
     domains = []
-    for domain_key in CONTEXT_DOMAINS:
+    for domain_key, domain_def in CONTEXT_DOMAINS.items():
         folder = get_domain_folder(domain_key)
         if not folder:
             continue
         prefix = f"/workspace/{folder}/"
+        is_temporal = domain_def.get("temporal", False)
         try:
             result = (
                 client.table("workspace_files")
@@ -324,9 +326,10 @@ def _get_context_domain_health_sync(user_id: str, client: Any) -> list[dict]:
                 "file_count": file_count,
                 "latest_update": latest,
                 "health": "active" if file_count > 1 else ("seeded" if file_count == 1 else "empty"),
+                "temporal": is_temporal,
             })
         except Exception:
-            domains.append({"domain": domain_key, "file_count": 0, "latest_update": None, "health": "empty"})
+            domains.append({"domain": domain_key, "file_count": 0, "latest_update": None, "health": "empty", "temporal": is_temporal})
     return domains
 
 
@@ -809,16 +812,30 @@ def format_for_prompt(working_memory: dict) -> str:
                 parts.append(f"next: {t['next_run']}")
             lines.append(f"- {' | '.join(p for p in parts if p)}")
 
-    # Context domains (ADR-151: ground truth domain health)
+    # Context domains (ADR-151: ground truth domain health, ADR-158: temporal distinction)
     context_domains = working_memory.get("context_domains", [])
     if context_domains:
-        lines.append("\n### Context domains")
-        for d in context_domains:
-            health = d.get("health", "empty")
-            count = d.get("file_count", 0)
-            latest = d.get("latest_update")
-            freshness = f", updated {latest}" if latest else ""
-            lines.append(f"- **{d['domain']}**: {health} ({count} files{freshness})")
+        canonical = [d for d in context_domains if not d.get("temporal")]
+        temporal = [d for d in context_domains if d.get("temporal")]
+
+        if canonical:
+            lines.append("\n### Context domains")
+            for d in canonical:
+                health = d.get("health", "empty")
+                count = d.get("file_count", 0)
+                latest = d.get("latest_update")
+                freshness = f", updated {latest}" if latest else ""
+                lines.append(f"- **{d['domain']}**: {health} ({count} files{freshness})")
+
+        if temporal:
+            populated = [d for d in temporal if d.get("file_count", 0) > 0]
+            if populated:
+                lines.append("\n### Platform awareness (temporal, not canonical)")
+                for d in populated:
+                    count = d.get("file_count", 0)
+                    latest = d.get("latest_update")
+                    freshness = f", updated {latest}" if latest else ""
+                    lines.append(f"- **{d['domain']}**: {count} observations{freshness}")
 
     # ADR-156: Unified workspace state — single awareness section for TP
     ws = working_memory.get("workspace_state", {})

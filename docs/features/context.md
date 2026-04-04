@@ -78,9 +78,11 @@ In addition to external platform data and shared knowledge, agents read **cognit
 | Task feedback | `/tasks/{slug}/memory/feedback.md` | Accumulated user feedback distilled from edits |
 | Task steering | `/tasks/{slug}/memory/steering.md` | TP/user steering directives for next run |
 
-### Accumulated Context Domains (ADR-151)
+### Accumulated Context Domains (ADR-151, ADR-158)
 
-`/workspace/context/` holds accumulated context shared across all tasks and agents. Six domains:
+`/workspace/context/` holds accumulated context. Two classes of domains:
+
+**Canonical domains** — durable, steward-owned:
 
 | Domain | Path | Content |
 |--------|------|---------|
@@ -91,7 +93,15 @@ In addition to external platform data and shared knowledge, agents read **cognit
 | Content | `/workspace/context/content/` | Content strategy, brand voice |
 | Signals | `/workspace/context/signals/` | Notable events, triggers |
 
-Context domains are populated by TP inference (ADR-144) and agent execution, providing shared grounding that enriches all task outputs.
+**Temporal domains** (ADR-158) — bot-owned, platform observations:
+
+| Domain | Path | Content | Bot |
+|--------|------|---------|-----|
+| Slack | `/workspace/context/slack/` | Per-channel observations | Slack Bot |
+| Notion | `/workspace/context/notion/` | Per-page observations | Notion Bot |
+| GitHub | `/workspace/context/github/` | Per-repo observations (deferred) | GitHub Bot |
+
+Canonical domains are populated by TP inference (ADR-144) and domain steward agent execution. Temporal domains are populated by platform bot digest tasks. TP sees both via working memory injection, but temporal domains are explicitly marked as non-canonical.
 
 This cognitive context is injected as `mandate_context` in the agent's prompt.
 It answers "what am I supposed to contribute?" rather than "what data is

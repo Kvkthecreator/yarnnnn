@@ -44,7 +44,7 @@ Scope determines the agent's **context strategy** — how intelligence is gather
 
 | Scope | Source | Strategy | Character |
 |-------|--------|----------|-----------|
-| **platform** | Specific sources from one platform (Slack channels, Gmail labels, Notion pages, Calendar) | PlatformBoundStrategy → content dump | High-fidelity, recency-driven, bounded |
+| **platform** | Platform bot owns a temporal context directory; reads live via platform tools (ADR-158) | Bot writes per-source observations to `/workspace/context/{platform}/` | High-fidelity, recency-driven, temporal |
 | **cross_platform** | Sources from multiple connected platforms | CrossPlatformStrategy → multi-platform dump | Broader, requires synthesis and prioritization |
 | **knowledge** | Accumulated `/knowledge/` filesystem + workspace files + agent outputs | KnowledgeStrategy → workspace-driven queries | Longitudinal, compounds over time, the moat |
 | **research** | Web search, external APIs, uploaded documents + knowledge grounding | ResearchStrategy → primitives-driven | Unbounded scope, requires scoping via instructions |

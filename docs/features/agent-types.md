@@ -6,7 +6,7 @@
 
 YARNNN agents are organized into three classes: **domain stewards** (own a
 context domain), **synthesizers** (read across all domains), and
-**platform bots** (platform-scoped observation / delivery helpers). All agents
+**platform bots** (own temporal context directories, platform-scoped observation). All agents
 are pre-scaffolded at sign-up. Users enrich agent identity through use — they do
 not create agents from scratch.
 
@@ -20,7 +20,7 @@ not create agents from scratch.
 |-------|-------|------|----------|
 | **domain-steward** | 5 | Own one context domain, maintain knowledge, produce domain-scoped deliverables | Domain-cognitive, multi-step reasoning, web research |
 | **synthesizer** | 1 | Read across all domains, produce cross-domain deliverables | Cross-domain composition, reads everything, writes nothing to context |
-| **platform-bot** | 2 | Platform-scoped observation and delivery helper | Platform-specific, activated on platform connect |
+| **platform-bot** | 2 | Own temporal context directory, platform-scoped observation (ADR-158) | Platform-specific, activated on platform connect |
 
 ---
 
@@ -82,22 +82,24 @@ not create agents from scratch.
 
 ## Platform Bots (2)
 
+ADR-158: Platform bots own temporal context directories — one bot, one platform, one directory. Per-source subfolders (channel/page/repo) with `_tracker.md` for freshness. These directories are temporal awareness for TP, not canonical context for domain stewards. Cross-pollination into canonical domains is explicitly out of scope.
+
 ### Slack Bot
 
-- **Primary surface:** Slack
+- **Domain owned:** `slack/` (temporal — `/workspace/context/slack/`)
 - **Capabilities:** read_slack, write_slack
-- **What it contributes:** Slack-origin observations and digests; may append to `/workspace/context/signals/`
-- **What it produces:** Slack monitoring reports, signal digests
-- **Typical tasks:** monitor-slack
+- **What it maintains:** Per-channel observation files in `/workspace/context/slack/{channel}/latest.md`
+- **What it produces:** Slack activity digests with decisions, action items, key discussions
+- **Typical tasks:** slack-digest
 - **Activation:** Activated when Slack platform connected
 
 ### Notion Bot
 
-- **Primary surface:** Notion
+- **Domain owned:** `notion/` (temporal — `/workspace/context/notion/`)
 - **Capabilities:** read_notion, write_notion
-- **What it contributes:** Notion-origin observations and digests; may append to `/workspace/context/signals/`
-- **What it produces:** Notion monitoring reports, signal digests
-- **Typical tasks:** monitor-notion
+- **What it maintains:** Per-page observation files in `/workspace/context/notion/{page}/latest.md`
+- **What it produces:** Notion change digests with content updates, staleness flags
+- **Typical tasks:** notion-digest
 - **Activation:** Activated when Notion platform connected
 
 ---

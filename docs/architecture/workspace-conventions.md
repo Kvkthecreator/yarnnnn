@@ -52,8 +52,8 @@ Everything the workspace "knows" — user identity, learned preferences, referen
 │   ├── reports/                   # Reports, analyses, digests
 │   ├── briefs/                    # Briefs, summaries, prep docs
 │   └── content/                   # Blog drafts, comms, launch material
-└── context/                       # Accumulated context domains (ADR-151)
-    ├── competitors/               # Per-competitor entity folders
+└── context/                       # Accumulated context domains (ADR-151, ADR-158)
+    ├── competitors/               # Per-competitor entity folders (canonical)
     │   ├── _tracker.md            # System: entity registry + freshness (hidden)
     │   ├── landscape.md           # Content: cross-entity synthesis (agent-written, visible)
     │   └── {company-slug}/
@@ -64,7 +64,18 @@ Everything the workspace "knows" — user identity, learned preferences, referen
     ├── projects/
     ├── content/
     ├── signals/                   # Cross-domain temporal signal log (no tracker)
-    └── assets/                    # Cross-domain shared assets
+    ├── slack/                     # ADR-158: Slack Bot temporal observations
+    │   ├── _tracker.md            # Per-channel freshness (hidden)
+    │   └── {channel-slug}/
+    │       └── latest.md          # Most recent observation
+    ├── notion/                    # ADR-158: Notion Bot temporal observations
+    │   ├── _tracker.md            # Per-page freshness (hidden)
+    │   └── {page-slug}/
+    │       └── latest.md          # Most recent observation
+    └── github/                    # ADR-158: GitHub Bot temporal observations (deferred)
+        ├── _tracker.md            # Per-repo freshness (hidden)
+        └── {repo-slug}/
+            └── latest.md          # Most recent observation
 ```
 
 ### Agent OS Visibility (ADR-154)

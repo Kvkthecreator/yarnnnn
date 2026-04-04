@@ -55,9 +55,12 @@ There are two supported access patterns in the current codebase:
    - Connected integrations expose `platform_*` tools.
    - These are live reads and scoped write/delivery actions where supported.
 
-2. **Task-first recurring observation**
-   - Monitoring task types such as `monitor-slack` and `monitor-notion` define recurring observation workflows.
-   - Context accumulation remains task-shaped rather than sync-shaped.
+2. **Task-first recurring observation (ADR-158)**
+   - Platform bots own temporal context directories: Slack Bot → `/workspace/context/slack/`, Notion Bot → `/workspace/context/notion/`.
+   - Digest task types (`slack-digest`, `notion-digest`) write per-source observations.
+   - Per-source subfolders (channel/page) with `_tracker.md` for freshness.
+   - These are temporal awareness for TP — not canonical context for domain stewards.
+   - Cross-pollination into canonical domains is explicitly out of scope.
 
 The important architectural shift is that a platform connection no longer implies
 "keep a cached copy of this platform in YARNNN."
@@ -154,6 +157,7 @@ Do **not** add a new generic sync/cache pipeline.
 
 ## Related
 
+- [ADR-158: External Context Access — Platform Bot Ownership](../adr/ADR-158-external-context-access-authority-model.md)
 - [ADR-153: Platform Content Sunset](../adr/ADR-153-platform-content-sunset.md)
 - [ADR-147: GitHub Platform Integration](../adr/ADR-147-github-platform-integration.md)
 - [ADR-131: Gmail & Calendar Sunset](../adr/ADR-131-gmail-calendar-sunset.md)

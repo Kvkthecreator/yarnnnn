@@ -1240,7 +1240,7 @@ async def start_notion_import(
     # Platform data flows through task execution (Monitor Notion task type).
     return {
         "deprecated": True,
-        "message": "Import jobs have been replaced by monitoring tasks. Create a 'monitor-notion' task instead.",
+        "message": "Import jobs have been replaced by digest tasks. Create a 'notion-digest' task instead.",
     }
 
 

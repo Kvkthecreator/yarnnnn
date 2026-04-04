@@ -21,7 +21,7 @@ Mode + Bootstrap (ADR-154):
   task transitions from aggressive bootstrapping to steady-state cadence.
   Phase (bootstrap/steady/complete) is derived by the pipeline at runtime.
 
-Version: 4.1 (2026-04-03)
+Version: 5.0 (2026-04-04)
 Changelog:
   v1.0 — 13 product-named types (ADR-145)
   v2.0 — context_reads/writes, output_category, STEP_INSTRUCTIONS templates (ADR-152)
@@ -29,6 +29,10 @@ Changelog:
   v4.0 — ADR-154: default_mode + bootstrap criteria on all task types. Phase-aware execution.
   v4.1 — ADR-157: Visual asset guidance in step instructions (favicon fetch + embed).
   v4.2 — ADR-157: assets/ subfolder convention. All visual assets in domain assets/ folder.
+  v5.0 — ADR-158: Platform bot ownership. monitor-slack → slack-digest,
+         monitor-notion → notion-digest. Platform-specific step instructions.
+         context_reads/writes updated to bot-owned directories (slack, notion)
+         instead of signals-only. Bots write per-source observation files.
 
 Canonical docs:
   - docs/architecture/registry-matrix.md
@@ -119,6 +123,48 @@ STEP_INSTRUCTIONS = {
         "Gather new signals from platform context. Log new signals to the signal domain. "
         "Update pattern synthesis if new cross-signal patterns emerge. "
         "Produce the deliverable emphasizing what's new since last cycle."
+    ),
+
+    # ADR-158: Platform-specific digest instructions
+    "slack-digest": (
+        "You are the Slack Bot. Your job is to read selected Slack channels and "
+        "write per-channel observation files to your context domain.\n\n"
+        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
+        "If one exists, follow it — it was written by you while context was fresh.\n\n"
+        "For EACH selected channel:\n"
+        "1. Read recent messages using your Slack tools\n"
+        "2. Extract: decisions made, action items assigned, key discussions, FYIs\n"
+        "3. Write findings to your context domain: WriteWorkspace(scope='context', "
+        "domain='slack', path='{channel-slug}/latest.md')\n\n"
+        "Summarization rules:\n"
+        "- Preserve attribution: 'Alice proposed X' not 'it was proposed'\n"
+        "- Threads > individual messages: summarize thread conclusions\n"
+        "- Skip: bot messages, emoji-only, routine standup entries\n"
+        "- Highlight: unanswered questions, unresolved disagreements\n"
+        "- Flag urgency: 'blocked', 'need help', 'ASAP', mentions of the user\n\n"
+        "Also append a dated signal entry to /workspace/context/signals/ with "
+        "a one-line summary per channel of what was notable.\n\n"
+        "Your output: a digest of what happened across all observed channels."
+    ),
+
+    "notion-digest": (
+        "You are the Notion Bot. Your job is to read selected Notion pages and "
+        "write per-page observation files to your context domain.\n\n"
+        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
+        "If one exists, follow it — it was written by you while context was fresh.\n\n"
+        "For EACH selected page/database:\n"
+        "1. Read the page using your Notion tools\n"
+        "2. Identify: what changed since last observation, new content, stale sections\n"
+        "3. Write findings to your context domain: WriteWorkspace(scope='context', "
+        "domain='notion', path='{page-slug}/latest.md')\n\n"
+        "Change detection rules:\n"
+        "- Track meaningful content changes vs formatting-only edits\n"
+        "- Flag pages not updated in >30 days (potential staleness)\n"
+        "- Note high-frequency edit pages (active collaboration)\n"
+        "- Preserve page structure context — what fits where in the hierarchy\n\n"
+        "Also append a dated signal entry to /workspace/context/signals/ with "
+        "a one-line summary per page of what changed.\n\n"
+        "Your output: a change digest across all observed pages."
     ),
 }
 
@@ -361,14 +407,15 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
     },
 
-    # ── Platform Monitoring (context, platform-specific) ──
-    # `context_sources=["platforms"]` is intent metadata for platform-scoped
-    # observation tasks. Concrete provider access is now granted through
-    # explicit agent capabilities (read_slack, read_notion, read_github, etc.).
+    # ── Platform Digest Tasks (ADR-158: bot-owned, per-source observation) ──
+    # Each platform bot owns a temporal context directory and writes per-source
+    # observation files. Bots read live via platform tools, write to their
+    # directory + signal log. Cross-pollination into canonical domains is out
+    # of scope — these are awareness surfaces for TP, not steward inputs.
 
-    "monitor-slack": {
-        "display_name": "Monitor Slack",
-        "description": "Capture signals, decisions, and action items from Slack channels.",
+    "slack-digest": {
+        "display_name": "Slack Digest",
+        "description": "Read selected Slack channels. Capture decisions, action items, and key discussions. Write per-channel observations.",
         "category": "platform",
         "task_class": "context",
         "default_mode": "recurring",
@@ -379,12 +426,12 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "slack_bot",
-                "step": "capture-and-report",
-                "instruction": STEP_INSTRUCTIONS["capture-and-report"],
+                "step": "slack-digest",
+                "instruction": STEP_INSTRUCTIONS["slack-digest"],
             },
         ],
-        "context_reads": ["signals"],
-        "context_writes": ["signals"],
+        "context_reads": ["slack", "signals"],
+        "context_writes": ["slack", "signals"],
         "context_sources": ["platforms"],
         "requires_platform": "slack",
         "default_objective": {
@@ -404,9 +451,9 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
     },
 
-    "monitor-notion": {
-        "display_name": "Monitor Notion",
-        "description": "Track changes, new content, and stale pages in Notion workspace.",
+    "notion-digest": {
+        "display_name": "Notion Digest",
+        "description": "Read selected Notion pages. Track changes, new content, and stale sections. Write per-page observations.",
         "category": "platform",
         "task_class": "context",
         "default_mode": "recurring",
@@ -417,16 +464,16 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "process": [
             {
                 "agent_type": "notion_bot",
-                "step": "capture-and-report",
-                "instruction": STEP_INSTRUCTIONS["capture-and-report"],
+                "step": "notion-digest",
+                "instruction": STEP_INSTRUCTIONS["notion-digest"],
             },
         ],
-        "context_reads": ["signals"],
-        "context_writes": ["signals"],
+        "context_reads": ["notion", "signals"],
+        "context_writes": ["notion", "signals"],
         "context_sources": ["platforms"],
         "requires_platform": "notion",
         "default_objective": {
-            "deliverable": "Notion sync report",
+            "deliverable": "Notion change digest",
             "audience": "You and your team",
             "purpose": "Track content changes and flag stale pages",
             "format": "Change log with staleness flags",

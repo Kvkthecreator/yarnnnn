@@ -29,7 +29,10 @@ YARNNN has three registries that work together:
 | **relationships/** | track-relationships | meeting-prep, stakeholder-update | Business Development |
 | **projects/** | track-projects | project-status, stakeholder-update | Operations |
 | **content/** | research-topics | content-brief, launch-material | Marketing & Creative |
-| **signals/** | monitor-slack, monitor-notion, ALL context tasks | ALL synthesis tasks | Slack Bot, Notion Bot |
+| **signals/** | slack-digest, notion-digest, ALL context tasks | ALL synthesis tasks | Slack Bot, Notion Bot |
+| **slack/** (temporal) | slack-digest | (TP awareness only) | Slack Bot |
+| **notion/** (temporal) | notion-digest | (TP awareness only) | Notion Bot |
+| **github/** (temporal, deferred) | github-digest (future) | (TP awareness only) | GitHub Bot (future) |
 | **(cross-domain)** | — | stakeholder-update, market-report | Executive Reporting (synthesizer) |
 
 ---
@@ -49,8 +52,8 @@ Context tasks maintain your workspace knowledge domains. They run on schedule, u
 | **track-relationships** | Track Relationships | recurring | weekly | 3 entities, profile | relationships, signals |
 | **track-projects** | Track Projects | recurring | weekly | 2 entities, status | projects, signals |
 | **research-topics** | Research Topics | goal | on-demand | 1 entity, research | content_research |
-| **monitor-slack** | Monitor Slack | recurring | daily | — | signals |
-| **monitor-notion** | Monitor Notion | recurring | weekly | — | signals |
+| **slack-digest** | Slack Digest | recurring | daily | — | slack, signals |
+| **notion-digest** | Notion Digest | recurring | weekly | — | notion, signals |
 
 ### Synthesis Tasks — Reports & Outputs
 
@@ -83,8 +86,8 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 | **Operations** | domain-steward | projects/ | read_slack, read_notion, read_github, chart |
 | **Marketing & Creative** | domain-steward | content/ | web_search, chart, image, video_render, compose_html |
 | **Executive Reporting** | synthesizer | (cross-domain) | compose_html, chart |
-| **Slack Bot** | platform-bot | platform-scoped observer | read_slack, write_slack |
-| **Notion Bot** | platform-bot | platform-scoped observer | read_notion, write_notion |
+| **Slack Bot** | platform-bot | slack/ (temporal) | read_slack, write_slack |
+| **Notion Bot** | platform-bot | notion/ (temporal) | read_notion, write_notion |
 
 **Key principle:** Each domain-steward agent owns one context domain. The synthesizer (Executive) reads all domains. Templates are bootstrapping — AGENT.md is the runtime source of truth.
 

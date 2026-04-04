@@ -1,584 +1,251 @@
-# ADR-158: External Context Access and Authority Model
+# ADR-158: External Context Access — Platform Bot Ownership Model
 
-**Status:** Proposed  
-**Date:** 2026-04-03  
-**Related:** ADR-141, ADR-151, ADR-152, ADR-153, ADR-154, ADR-156, ADR-157
+**Status:** Accepted (Phase 1)  
+**Date:** 2026-04-03 (proposed), 2026-04-04 (resolved decisions)  
+**Related:** ADR-140, ADR-141, ADR-151, ADR-152, ADR-153, ADR-154, ADR-156, ADR-157
 
 ---
 
 ## Context
 
-YARNNN has already moved away from the old platform-sync architecture:
+YARNNN has moved away from the old platform-sync architecture:
 
-- `platform_content` is sunset
+- `platform_content` is sunset (ADR-153)
 - platform sync workers and sync cron are deleted
-- tasks are the execution unit
-- `/workspace/context/` is the durable knowledge substrate
+- tasks are the execution unit (ADR-141)
+- `/workspace/context/` is the durable knowledge substrate (ADR-151, ADR-152)
 
-But the replacement model is not yet conceptually settled.
+Three ambiguities remained:
 
-Three ambiguities remain:
+1. **Access**: Should external platform data be read live, cached, or task-scoped?
+2. **Authority**: Can any platform-reading task write canonical context directly?
+3. **Source types**: Slack (stream), Notion (document), GitHub (artifacts+code) behave differently.
 
-1. **Access ambiguity**
-   - Should external platform data be read live, cached, or task-scoped?
-   - What role should `platform_connections` and `sync_registry` still play?
-
-2. **Authority ambiguity**
-   - If a task reads Slack, Notion, or GitHub, can it update canonical context directly?
-   - Is every platform-reading task a valid writer to durable workspace truth?
-
-3. **Source-type ambiguity**
-   - Slack is a stream of events, not a durable knowledge base
-   - Notion is both a document source and a change surface
-   - GitHub is different again: issues/PRs are work artifacts, while repositories may be direct system/reference context
-
-This creates a trust problem.
-
-Observation is not the same as workspace truth. A platform-reading task may detect something useful, but that does not mean it should automatically mutate canonical domain state.
-
-There is also a broader product-level reframe underway.
-
-The older service philosophy was closer to:
-
-- connect user platforms
-- read/sync them in the background
-- sometimes write back there
-
-That is no longer an adequate model for "autonomous recurring work."
-
-The current architecture suggests a different center of gravity:
-
-- recurring tasks, not background sync, are how work happens
-- external platforms are observation/reference surfaces
-- durable knowledge lives in the workspace
-- write-back to third-party tools is a delivery/action surface, not the core substrate
-
-There is a live proposal to introduce a **separate temporal platform-observation folder inside `/workspace/context/`** rather than forcing all external observations into either:
-
-- canonical context domains, or
-- purely task-local working state
-
-This needs to be evaluated carefully against sunk-cost risk. A dedicated temporal folder could clarify the service model, or it could accidentally recreate the old sync/cache philosophy in a new filesystem shape.
+The older model (connect → sync → cache) is dead. The replacement model is:
+**Tasks are how work happens. Platforms are observation surfaces. Workspace is truth.**
 
 ---
 
 ## Decision
 
-Adopt a task-first, authority-layered model for external context.
+### One bot, one platform, one directory.
 
-### 1. Tasks are the only scheduled execution unit
+Each platform gets a dedicated bot agent (already in the ADR-140 roster). Each bot owns
+a per-source context directory. The mapping is 1:1:1.
 
-No generic platform sync/cache jobs.
-
-External platform reads happen in only two modes:
-
-- **Interactive live read**: explicit TP/user/tool action
-- **Task live read**: recurring or on-demand task execution
-
-### 2. External platform access is a read capability, not default write authority
-
-Reading Slack, Notion, or GitHub does **not** by itself grant authority to rewrite canonical context domains.
-
-Observation and curation are separate responsibilities.
-
-### 3. Workspace context is the sole accumulated substrate, but not all context is canon
-
-`/workspace/context/` may contain:
-
-- **canonical context domains** — durable, curated, steward-owned
-- **temporal observation domains** — time-bound, lower-trust, not canon by default
-
-External platforms are not mirrored wholesale into YARNNN.
-
-### 4. Write authority is layered
-
-There are two write layers:
-
-- **Observation layer**
-  - multi-writer
-  - provisional
-  - append-oriented
-  - lower-trust
-
-- **Canonical layer**
-  - curated
-  - durable
-  - higher-trust
-  - steward-owned by default
-
-### 5. External sources are not treated as one class
-
-Platforms are classified by the type of truth they provide:
-
-- stream surfaces
-- document/reference surfaces
-- work/artifact/system surfaces
-
-This taxonomy is preferable to forcing Slack, Notion, and GitHub into one generic "platform integration" model.
-
-### 6. Current directional leaning: dedicated temporal platform observation domain
-
-If this proposal proceeds, the favored variant is:
-
-- a **separate folder at the context level**
-- explicitly **temporal**, not canonical
-- used for platform observation artifacts
-- eligible for downstream promotion, but not canon by default
-
-Initial shape under consideration:
-
-```text
-/workspace/context/platforms/
-  README.md                  # explicit policy + trust boundary
-  slack/
-  notion/
-  github/
+```
+Slack Bot   → /workspace/context/slack/    (per-channel subfolders)
+Notion Bot  → /workspace/context/notion/   (per-page subfolders)
+GitHub Bot  → /workspace/context/github/   (per-repo subfolders, deferred)
 ```
 
-This is **not** a return to the old `/platforms/` root.
+### Resolved Decisions
 
-It is a bounded, context-level temporal observation layer whose purpose is:
+**RD-1: Platform directories are context domains, per-source structured.**
 
-- keep external awareness visible and structured
-- support recurring observer tasks
-- avoid forcing all external observations directly into canonical domain files
-- avoid burying all external state inside task-local directories
+Each platform gets its own directory in the directory registry with `type: "context"` and
+`temporal: true`. Entity type is the platform's natural unit: channel (Slack), page (Notion),
+repo (GitHub). Per-source subfolders enable freshness tracking via `_tracker.md` — TP can
+see "the #general channel was last observed 3 days ago" and qualify its answers accordingly.
+
+**RD-2: Bots own their directories (domain assignment).**
+
+Platform bots in `agent_framework.py` get `domain` assignment (was `None`). This follows
+the same axis-1 relationship as domain stewards: Competitive Intel owns `competitors/`,
+Slack Bot owns `slack/`. Bots are agents with a narrow, platform-scoped responsibility.
+
+**RD-3: Platform reading is an agent tool, not TP infrastructure.**
+
+Platform tools (`read_slack`, `read_notion`, `read_github`) are capabilities for work
+agents — same class as `web_search`. TP does not call platform tools directly. TP gets
+temporal awareness via working memory injection of bot directories.
+
+Separation: bots perceive → bots write to their directory → TP reads directory summaries.
+
+**RD-4: Platform directories are temporal awareness for TP, not cross-agent context.**
+
+Bot directories are consumed by:
+- **TP** — as injected awareness (what's happening outside the system)
+- **The bot's own tasks** — for continuity across runs
+
+They are **not** primary input for domain steward tasks. Cross-pollination (e.g., "take
+Slack signals and update competitor profiles") is explicitly out of scope — it's a separate
+task design conversation requiring its own architectural framing.
+
+**RD-5: Task types named by what they do.**
+
+- `slack-digest` — read selected channels, produce digest, write to `/workspace/context/slack/`
+- `notion-digest` — read selected pages, produce digest, write to `/workspace/context/notion/`
+- `github-digest` — read selected repos (issues/PRs), write to `/workspace/context/github/` (deferred)
+
+Write-back task types (`slack-respond`, `notion-update`) can be added later as distinct
+task types on the same bot. This avoids overloading one task with read+write.
+
+**RD-6: Source selection is user-managed per task.**
+
+Initial source selection uses existing `landscape.py` + `compute_smart_defaults()`.
+Users can refine which channels/pages/repos via task management UI. No broad workspace
+mirroring — user opts into the specific external surfaces worth recurring attention.
+
+**RD-7: GitHub is architecturally consistent but implementation-deferred.**
+
+GitHub Bot gets a directory entry (`github`, entity_type: "repo") and domain assignment
+for architectural consistency. The `github-digest` task type (issues/PRs from selected
+repos) follows the same pattern as Slack/Notion. Repository-as-reference (reading code/docs)
+is a different capability — closer to "research" than "platform monitoring" — and deferred.
+
+**RD-8: Soft TTL, no cleanup jobs.**
+
+Temporal directories use soft TTL — readers deprioritize stale entries, nothing is
+automatically deleted. Hard cleanup only if directories become noisy. This does not
+require bringing back backend sync jobs.
+
+**RD-9: Cross-pollination is out of scope.**
+
+Automatic promotion from platform directories to canonical domains is explicitly deferred.
+If/when addressed, it should be its own architectural conversation — not embedded in
+platform access work.
 
 ---
 
 ## Epistemic Model
 
-External reads should default to **temporal**. Canon must be earned.
+External reads default to **temporal**. Canon must be earned.
 
 Three epistemic classes:
 
-### Temporal
+| Class | Description | Examples |
+|---|---|---|
+| **Temporal** | Event truth — what changed, what happened, what is active now | Slack debate, Notion page change, PR in review |
+| **Reference** | Trusted external source material — usable during execution, not auto-canon | Selected Notion spec page, repo structure, uploaded doc |
+| **Workspace Canon** | YARNNN's curated understanding — durable, steward-owned | `competitors/{entity}/profile.md`, synthesis files |
 
-Event truth. What changed, what happened, what is active now.
-
-Examples:
-- a Slack debate happened
-- a Notion page changed yesterday
-- a PR is currently in review
-
-### Reference
-
-Trusted external source material. Can be used directly during execution, but is not automatically workspace-owned canon.
-
-Examples:
-- a selected Notion spec page
-- a repository structure or implementation reality
-- a user-uploaded reference doc
-
-### Workspace Canon
-
-YARNNN's own curated, stewarded understanding. Durable state owned by the workspace itself.
-
-Examples:
-- `projects/{entity}/status.md`
-- `relationships/{entity}/profile.md`
-- `competitors/{entity}/profile.md`
-- domain synthesis files such as `landscape.md`, `overview.md`, `portfolio.md`
-
-Default rule:
-
-- External read -> temporal or reference
-- Distilled conclusion -> eligible for workspace canon
+Default rule: External read → temporal or reference. Distilled conclusion → eligible for canon.
 
 ---
 
 ## Source Taxonomy
 
-### 1. Stream Surfaces
+### 1. Stream Surfaces (Slack)
 
-Examples: Slack
+High volume, high noise, context-fragmented. Useful for signals, decisions, urgency,
+relationship movement. Weak as direct durable truth.
 
-Properties:
+Handling: read live → extract signals → write to `/workspace/context/slack/{channel}/` →
+canonical promotion only through separate curation task (out of scope).
 
-- high volume
-- high noise
-- context-fragmented
-- useful for emerging signals, decisions, urgency, and relationship movement
-- weak as direct durable truth
+### 2. Document / Reference Surfaces (Notion)
 
-Default handling:
+More durable than streams. Can act as direct source material. Still mutable.
 
-- read live
-- extract signals
-- write to observation layer
-- promote to canonical state only through curation
+Handling: monitor what changed → write observations to `/workspace/context/notion/{page}/` →
+selected pages usable as direct task input → promote distilled conclusions selectively.
 
-### 2. Document / Reference Surfaces
+### 3. Work / Artifact Surfaces (GitHub)
 
-Examples: Notion pages, selected external docs
+Issues/PRs contain operational truth. Repositories contain product/system truth.
+Not well-described by the stream model.
 
-Properties:
-
-- more durable than streams
-- can act as direct source material
-- still mutable and uneven in reliability
-
-Default handling:
-
-- use directly as task input when relevant
-- monitor changes when needed
-- promote distilled conclusions into workspace canon selectively
-
-### 3. Work / Artifact / System Surfaces
-
-Examples: GitHub issues, PRs, repositories
-
-Properties:
-
-- work artifacts contain operational/project truth
-- repositories can contain direct product/system truth
-- not well-described by the same model as Slack
-
-Default handling:
-
-- issues / PRs / discussions -> temporal/workstream observation
-- repositories -> reference/system understanding
-- persist only derived summaries and durable conclusions
+Handling: issues/PRs → temporal observation in `/workspace/context/github/{repo}/` →
+repository-as-reference deferred (separate capability conversation).
 
 ---
 
 ## Authority Model
 
-### Observation Writes
+Two write layers, but enforcement is architectural (bot ownership) not code-enforced:
 
-Allowed from multiple tasks/agents.
+| Layer | Who writes | Properties | Examples |
+|---|---|---|---|
+| **Observation** | Platform bots (via their tasks) | Temporal, append-oriented, lower-trust | Channel digests, page change summaries, issue/PR observations |
+| **Canonical** | Domain stewards (via their tasks) | Curated, durable, steward-owned | Entity profiles, synthesis files, domain assessments |
 
-Properties:
-
-- append-oriented or provisional
-- lower-trust
-- reversible or supersedable
-- may include candidate interpretations
-
-Examples:
-
-- dated signal summaries
-- task-local notes
-- candidate updates
-- extracted action items
-- source observations
-
-### Canonical Writes
-
-Restricted by default to the steward for the target domain.
-
-Properties:
-
-- curated
-- durable
-- intended as workspace truth
-
-Examples:
-
-- `competitors/{entity}/profile.md`
-- `relationships/{entity}/profile.md`
-- `projects/{entity}/status.md`
-- domain synthesis files
-
-### Default Rule
-
-Non-steward tasks may observe, append, and stage candidate updates.
-
-Steward tasks own canonical mutation by default.
-
-This creates a trust boundary:
-
-- many readers
-- many observers
-- few curators
+Default rule: Bots observe and write to their platform directory. Stewards curate and
+write to their canonical domain. TP sees both through working memory injection.
 
 ---
 
-## Directory Implications
+## Directory Structure
 
-### Durable Context
-
-`/workspace/context/`
-
-Purpose:
-
-- canonical knowledge
-- curated domain state
-- steward-owned entity files
-- steward-owned synthesis files
-
-### Temporal Observation Layer
-
-Current proposed variant:
-
-`/workspace/context/platforms/`
-
-Purpose:
-
-- temporal platform observation
-- lower-trust, non-canonical external awareness
-- recurring task continuity for platform-observer tasks
-- source-specific summaries and candidate findings
-
-Properties:
-
-- not canon by default
-- not read as equal to steward-owned domain files
-- promotion into canon is explicit or steward-mediated
-- bounded by source selection and TTL policy
-
-Example shape:
+### Per-source subfolders with tracker
 
 ```text
-/workspace/context/platforms/
-  README.md
-  slack/
-    _policy.md
-    2026-04-03.md
-  notion/
-    _policy.md
-    2026-04-03.md
-  github/
-    _policy.md
-    2026-04-03.md
+/workspace/context/slack/
+  _tracker.md              # | Channel | Last Updated | Status |
+  general/
+    latest.md              # Most recent observation
+  engineering/
+    latest.md
+  announcements/
+    latest.md
+
+/workspace/context/notion/
+  _tracker.md              # | Page | Last Updated | Status |
+  product-roadmap/
+    latest.md
+  meeting-notes/
+    latest.md
+
+/workspace/context/github/          # (deferred — directory exists, no task type yet)
+  _tracker.md              # | Repo | Last Updated | Status |
 ```
 
-The policy file exists to make the trust boundary explicit:
-
-- this folder is temporal
-- contents are observational, not canonical
-- entries may expire or be ignored once stale
-- promotion into canonical domains is separate
-
-### Task-Local Observation State
-
-Two initial forms:
-
-- task-local staging under the task workspace
-- append-only dated observations in `signals/`
-
-Task-local state remains useful even if a dedicated temporal platform folder exists.
-
-The likely split is:
-
-- task-local state for execution continuity and candidate findings
-- `/workspace/context/platforms/` for shared temporal awareness
-- canonical domains for steward-owned durable truth
-
-### TTL
-
-Temporal observation requires TTL semantics.
-
-TTL metadata alone is **not** sufficient; it must be enforced somehow.
-
-Two enforcement models:
-
-1. **Soft TTL**
-   - expired entries remain on disk
-   - readers ignore or deprioritize them
-   - lower implementation cost
-
-2. **Hard TTL**
-   - expired entries are deleted or compacted by a hygiene job
-   - keeps the folder clean
-   - requires explicit cleanup logic
-
-Current preference:
-
-- start with **soft TTL**
-- add hard cleanup later only if the temporal folder becomes noisy
-
-This does **not** require bringing back backend sync jobs.
-
-A lightweight scheduler hygiene pass is acceptable if needed. That is categorically different from a platform ingestion worker.
+Per-source freshness via `_tracker.md` gives TP temporal awareness:
+- "The #general channel was last observed yesterday — I can speak to recent Slack activity."
+- "The product-roadmap page hasn't been checked in 2 weeks — my Notion context may be stale."
 
 ---
 
-## Task Roles
+## Sunk-Cost Check
 
-External-reading recurring tasks should usually fall into one of three roles:
+This model passes the sunk-cost test because it:
 
-### Observer
+- **Is task-driven** — no background sync, no cache jobs
+- **Is source-bounded** — user selects channels/pages/repos per task
+- **Is explicitly temporal** — directories are awareness, not canon
+- **Respects existing architecture** — bots are already in the roster, directories follow registry patterns
+- **Does not recreate platform_content** — no bulk ingestion, no retention policies, no platform worker
 
-Reads external sources live and produces observations.
-
-Typical writes:
-
-- `signals/`
-- task-local working state
-- candidate updates
-
-### Curator / Steward
-
-Reads existing context, observations, and optionally external sources. Updates canonical domain files.
-
-Typical writes:
-
-- entity files
-- domain synthesis files
-
-### Synthesizer
-
-Reads canonical context and produces downstream outputs.
-
-Typical writes:
-
-- task outputs
-- rendered deliverables
-
-This model is preferable to assuming every platform-reading task is also a canonical domain writer.
+It would fail if it became: broad ingestion, a hidden cache, or automatic canon for other agents.
 
 ---
 
-## Platform Guidance
+## Implementation Phases
 
-### Slack
+### Phase 1: Registry + Ownership (this commit)
 
-Slack is primarily a **temporal observation surface**.
+- Add `slack`, `notion`, `github` to directory registry (`temporal: true`)
+- Assign `domain` to platform bots in agent framework
+- Rename task types: `monitor-slack` → `slack-digest`, `monitor-notion` → `notion-digest`
+- Update step instructions for platform-specific writing
+- Update TP working memory injection for temporal platform awareness
+- Update all downstream docs
 
-Useful for:
+### Phase 2: Source Selection UI (future)
 
-- decisions in motion
-- action items
-- blockers
-- urgency
-- relationship signals
-- project movement
+- Task management UI for channel/page/repo selection per task
+- Uses existing `landscape.py` logic as defaults
+- User-editable source list stored in TASK.md
 
-Default handling:
+### Phase 3: Write-back Task Types (future)
 
-- read live during task execution
-- write observations to temporal observation layer
-- stage candidate updates to `relationships/` or `projects/` when appropriate
-- canonical promotion occurs through steward curation
+- `slack-respond`, `notion-update` as distinct task types
+- Separate from digest — read+write not overloaded into one task
 
-Slack content itself should not be treated as workspace canon.
+### Phase 4: GitHub Implementation (future)
 
-### Notion
-
-Notion is a **hybrid**:
-
-- temporal change surface
-- document/reference source
-
-Supported modes:
-
-- monitor what changed
-- use selected pages/databases as direct source material
-- selectively promote distilled findings into workspace canon
-
-If a temporal platform folder exists, Notion change observations may live there while durable document-derived conclusions are promoted elsewhere.
-
-Notion content is not automatically workspace canon just because it is more structured than Slack.
-
-### GitHub
-
-GitHub should be split into two conceptual modes:
-
-#### A. Work Artifact Surface
-
-Issues, PRs, discussions, comments.
-
-Handling:
-
-- temporal/workstream observation
-- useful for `projects/` and `signals/`
-
-#### B. Repository / System Reference Surface
-
-Repositories as source-of-truth about the user's product, system, or implementation reality.
-
-Handling:
-
-- live, selective reads
-- reference input during task execution
-- persist only derived summaries, architecture understanding, or task-relevant conclusions
-
-GitHub does **not** automatically require its own context domain.
-
-A dedicated technical-context domain should be considered only if repository/system understanding becomes a first-class part of the product model.
-
-If a temporal platform folder exists, GitHub issue/PR observations may live there, while repository/system understanding remains reference-oriented and task-scoped unless explicitly promoted.
-
----
-
-## Source Selection
-
-Platform observation should be **extremely user-selected**.
-
-This is especially important if a shared temporal folder exists. Without strict source selection, the temporal layer will drift toward a noisy cache.
-
-Implications:
-
-- Slack: selected channels only
-- Notion: selected pages/databases only
-- GitHub: selected repos only
-
-Default principle:
-
-**No broad workspace mirroring.**
-
-The user should opt into the specific external surfaces that are worth recurring attention.
-
-This keeps the temporal layer:
-
-- bounded
-- inspectable
-- trustworthy enough for awareness
-- resistant to sliding back into background sync philosophy
-
----
-
-## Product and Architecture Check: Is This Sunk Cost?
-
-This proposal should be rejected if it becomes:
-
-- "platform_content, but in files"
-- broad ingestion of all connected platforms
-- a hidden cache that other agents treat as canon
-- a new default substrate for every task
-
-This proposal is justified only if it remains:
-
-- task-driven
-- source-bounded
-- explicitly temporal
-- TTL-aware
-- separate from canon
-- promotion-based rather than automatic
-
-The question is not "should platforms have folders because they used to?"
-
-The question is:
-
-**Does a dedicated temporal platform observation layer make recurring autonomous work clearer and more trustworthy than either task-local-only state or direct writes into canon?**
-
-That is the standard by which this should be judged.
-
----
-
-## Implementation Surfaces If Proceeding
-
-This ADR does not implement them, but if the temporal-folder variant is adopted, these surfaces likely need review:
-
-- directory registry and scaffolding
-- workspace initialization
-- task type registry for platform observer tasks
-- TP working memory / awareness formatting
-- primitives and read/write boundaries
-- search/query behavior so temporal observations are not mistaken for canon
-- scheduler hygiene only if hard TTL is adopted
+- `github-digest` task type (issues/PRs from selected repos)
+- Repository-as-reference capability (separate conversation)
 
 ---
 
 ## What This ADR Does Not Decide
 
-- exact format for candidate updates
-- whether candidate updates should be explicit files or implicit task-local notes
-- whether steward review should be explicit or implicit
-- whether some domains should allow broader write authority than others
-- whether GitHub warrants a dedicated domain later
-- the exact headless live-platform-read tool surface
+- Cross-pollination: how/whether platform observations feed into canonical domains
+- Write-back: whether bots should write to platforms in Phase 1
+- GitHub scoping: what "GitHub Bot" actually does beyond issues/PRs
+- Hard TTL: cleanup jobs for temporal directories (only if needed)
+- Source selection UX: exact UI for channel/page/repo management
 
 ---
 
@@ -586,49 +253,20 @@ This ADR does not implement them, but if the temporal-folder variant is adopted,
 
 ### Positive
 
-- restores a trust boundary between observation and durable truth
-- keeps tasks as the single scheduling model
-- avoids rebuilding platform sync/cache infrastructure
-- lets Slack, Notion, and GitHub behave differently without forcing one ontology
-- makes canonical context more defensible
+- Restores trust boundary between observation and durable truth
+- 1:1:1 mapping (bot → platform → directory) is simple and auditable
+- TP gets temporal awareness without calling platform tools
+- Tasks remain the single scheduling model
+- No new infrastructure — bots already exist, directories follow registry patterns
 
 ### Negative
 
-- introduces a more explicit distinction between observation and curation
-- may slow direct platform-to-canon writes
-- may require additional task orchestration between observer and steward tasks
+- More scaffolding (3 new directories, domain assignments, task type renames)
+- Cross-pollination requires separate task design (can't just read Slack and write to competitors/)
+- GitHub is architecturally present but functionally deferred
 
 ### Risks
 
-- too much process could block useful automation
-- if candidate staging is too implicit, ambiguity will return
-- if steward-only mutation is too rigid, the system could bottleneck
-
----
-
-## Open Questions
-
-1. Should candidate updates live only in task-local state, or also in shared observation files?
-2. Should steward tasks poll for candidate updates, or be explicitly triggered?
-3. Should some domains allow broader write authority than others?
-4. Is GitHub repository understanding important enough to deserve its own domain?
-5. How should headless agents get live external read capability without collapsing authority boundaries?
-6. Should YARNNN explicitly distinguish **reference canon** from **workspace canon** in the product model?
-7. Should `/workspace/context/platforms/` exist as a first-class temporal observation domain, or is task-local state + `signals/` sufficient?
-8. If `/workspace/context/platforms/` exists, should TTL be soft (read-time) or hard (cleanup-time)?
-9. How should TP present temporal platform awareness without implying canonical truth?
-
----
-
-## Decision Heuristic
-
-If a source read says:
-
-- "what happened?" -> temporal
-- "what does this external source currently say?" -> reference
-- "what should become durable workspace truth?" -> workspace canon
-
-Default rule:
-
-**External reads are temporal or reference.  
-Workspace canon must be earned through curation.**
+- Platform directories could grow noisy without source selection discipline
+- Users may expect bots to automatically enrich canonical domains (requires UX education)
+- Naming change (monitor-* → *-digest) requires frontend + doc updates

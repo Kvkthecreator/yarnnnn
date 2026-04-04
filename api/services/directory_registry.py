@@ -1,8 +1,12 @@
 """
 Workspace Directory Registry — ADR-152: Unified Directory Registry (v2)
 
-Version: 2.1 (2026-04-03)
+Version: 3.0 (2026-04-04)
 Changelog:
+  v3.0 (2026-04-04) — ADR-158: Platform observation domains (slack, notion, github).
+                       Temporal context directories owned by platform bots. Per-source
+                       entity structure (channel/page/repo subfolders with _tracker.md).
+                       temporal: True flag distinguishes from canonical domains.
   v2.1 (2026-04-03) — ADR-157: assets/ subfolder for each entity-bearing context domain.
                        First-class, visible directory for visual assets (favicons, charts,
                        generated images). Replaces entity_assets/shared_assets documentation
@@ -16,13 +20,15 @@ Changelog:
 
 Single source of truth for ALL workspace content directories. Governs:
   /workspace/uploads/    — user-contributed reference material
-  /workspace/context/    — agent-accumulated intelligence substrate (6 domains)
-  /workspace/outputs/    — agent-produced synthesized deliverables
+  /workspace/context/    — agent-accumulated intelligence substrate (9 domains)
 
-Three directory types:
+Two directory types:
   user_contributed — user uploads, permanent, not agent-managed
   context          — agent-accumulated, entity-structured, grows with execution
-  output           — agent-produced, deliverable documents promoted from tasks
+
+Context domains split into two classes:
+  canonical  — durable, steward-owned (competitors, market, relationships, projects, content_research, signals)
+  temporal   — platform observations, bot-owned (slack, notion, github) — marked with temporal: True
 
 Design principles:
   1. One registry governs all workspace directories
@@ -199,9 +205,71 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "signal_log": True,
     },
 
-    # ADR-154: Output categories REMOVED. Tasks own their outputs directly
-    # at /tasks/{slug}/outputs/. No /workspace/outputs/ promotion layer.
-    # See ADR-154 "tasks own their outputs" decision.
+    # ── Platform Observation Domains (ADR-158: temporal, bot-owned) ──
+    # Temporal awareness from external platforms. NOT canonical — TP reads these
+    # for situational awareness, but they don't feed into steward domains
+    # automatically. Each bot owns one platform directory.
+    # Cross-pollination into canonical domains is explicitly out of scope.
+
+    "slack": {
+        "type": "context",
+        "path": "context/slack",
+        "display_name": "Slack",
+        "description": "Temporal observations from Slack channels — decisions, signals, activity",
+        "managed_by": "agent",
+        "temporal": True,
+        "entity_type": "channel",
+        "entity_structure": {
+            "latest.md": (
+                "# {name}\n\n"
+                "<!-- Most recent observation from this channel -->\n"
+                "<!-- Updated by Slack Bot digest task -->\n"
+            ),
+        },
+        "synthesis_file": None,
+        "synthesis_template": None,
+        "tracker_file": "_tracker.md",
+    },
+
+    "notion": {
+        "type": "context",
+        "path": "context/notion",
+        "display_name": "Notion",
+        "description": "Temporal observations from Notion pages — changes, updates, content state",
+        "managed_by": "agent",
+        "temporal": True,
+        "entity_type": "page",
+        "entity_structure": {
+            "latest.md": (
+                "# {name}\n\n"
+                "<!-- Most recent observation from this page -->\n"
+                "<!-- Updated by Notion Bot digest task -->\n"
+            ),
+        },
+        "synthesis_file": None,
+        "synthesis_template": None,
+        "tracker_file": "_tracker.md",
+    },
+
+    "github": {
+        "type": "context",
+        "path": "context/github",
+        "display_name": "GitHub",
+        "description": "Temporal observations from GitHub repos — issues, PRs, activity",
+        "managed_by": "agent",
+        "temporal": True,
+        "entity_type": "repo",
+        "entity_structure": {
+            "latest.md": (
+                "# {name}\n\n"
+                "<!-- Most recent observation from this repo -->\n"
+                "<!-- Updated by GitHub Bot digest task -->\n"
+            ),
+        },
+        "synthesis_file": None,
+        "synthesis_template": None,
+        "tracker_file": "_tracker.md",
+    },
 }
 
 

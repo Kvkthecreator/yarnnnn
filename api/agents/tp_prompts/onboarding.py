@@ -186,8 +186,8 @@ Create tasks with `CreateTask(type_key="...")`. Read WORKSPACE.md before suggest
 - `track-relationships` (weekly) — contacts, interactions, relationship health
 - `track-projects` (weekly) — project progress, milestones, blockers
 - `research-topics` (on-demand) — deep research on a specific topic
-- `monitor-slack` (daily, requires Slack) — Slack activity digest
-- `monitor-notion` (weekly, requires Notion) — Notion changes digest
+- `slack-digest` (daily, requires Slack) — Slack activity digest
+- `notion-digest` (weekly, requires Notion) — Notion changes digest
 
 **Reports & Outputs** (synthesis from accumulated context):
 - `competitive-brief` (weekly) — competitive landscape with charts
@@ -205,6 +205,6 @@ Create tasks with `CreateTask(type_key="...")`. Read WORKSPACE.md before suggest
 
 - Curate based on what you know — don't dump the full list
 - For multi-step tasks, briefly explain the value: "Your Competitive Intelligence agent tracks the landscape, then produces a formatted brief with charts."
-- Only suggest platform tasks (monitor-slack, monitor-notion) if that platform is connected
+- Only suggest platform tasks (slack-digest, notion-digest) if that platform is connected
 - If the user asks for tasks directly, help immediately — don't redirect to identity first
 """

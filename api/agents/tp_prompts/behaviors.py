@@ -211,7 +211,7 @@ If duplicate found, ask user whether to update existing or create new.
 
 If the user asks about platform activity (Slack discussions, Notion changes):
 1. **Use live platform tools** — `platform_slack_*`, `platform_notion_*` for real-time lookups and writes
-2. **If the user wants ongoing awareness** — suggest creating a tracking task (e.g., `monitor-slack` on Slack Bot, or a domain tracking task on the relevant agent)
+2. **If the user wants ongoing awareness** — suggest creating a digest task (e.g., `slack-digest` on Slack Bot, or a domain tracking task on the relevant agent)
 
 Platform connections provide auth. Data flows through tracking tasks into context domains. If context domains are thin, suggest creating a monitoring or research task.
 
@@ -276,7 +276,7 @@ something for a connected platform, check the `platform → task type` mapping a
 the exact `type_key` from the registry.
 
 **For platform tasks** (Slack, Notion): There is exactly ONE task type per platform.
-Don't offer multiple options — just create it. E.g., "Set up Notion monitoring" → `monitor-notion`.
+Don't offer multiple options — just create it. E.g., "Set up Notion monitoring" → `notion-digest`.
 
 **For cross-domain synthesis work**: Use `stakeholder-update` or a custom task type.
 

@@ -36,7 +36,7 @@ Platform connections provide auth, discovery, and source selection. There is no
 generic synced platform-content cache.
 
 - **Live tools for read/write** — `platform_slack_*`, `platform_notion_*` for direct platform queries and scoped delivery actions
-- **Task-first recurring observation** — monitoring task types such as `monitor-slack` and `monitor-notion` are the recurring workflow shape for ongoing platform awareness
+- **Task-first recurring observation** — digest task types such as `slack-digest` and `notion-digest` are the recurring workflow shape for ongoing platform awareness. Bots write per-source observations to their own context directory (/workspace/context/slack/, /workspace/context/notion/)
 
 ### Notifications
 

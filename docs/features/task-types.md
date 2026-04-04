@@ -87,26 +87,26 @@ Context tasks maintain your workspace knowledge. They run on schedule, update do
 
 ---
 
-### Monitor Slack
-`monitor-slack`
+### Slack Digest
+`slack-digest`
 
-**What it does:** Extracts decisions, action items, key discussions, and FYIs from Slack channels. Writes signals for consumption by synthesis tasks.
+**What it does:** Reads selected Slack channels. Captures decisions, action items, and key discussions. Writes per-channel observation files to the Slack Bot's temporal context directory.
 
 **Agent:** Slack Bot
 **Default schedule:** Daily
-**Domains (writes):** signals
+**Domains (writes):** slack, signals
 **Requires platform:** Slack
 
 ---
 
-### Monitor Notion
-`monitor-notion`
+### Notion Digest
+`notion-digest`
 
-**What it does:** Tracks what changed in your Notion workspace — page updates, staleness, structural shifts. Writes signals for consumption by synthesis tasks.
+**What it does:** Reads selected Notion pages. Tracks changes, new content, and stale sections. Writes per-page observation files to the Notion Bot's temporal context directory.
 
 **Agent:** Notion Bot
 **Default schedule:** Weekly
-**Domains (writes):** signals
+**Domains (writes):** notion, signals
 **Requires platform:** Notion
 
 ---

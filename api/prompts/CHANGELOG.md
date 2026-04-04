@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.04.1] - ADR-158: Platform bot ownership + task type renames
+
+### Changed
+- `services/directory_registry.py` (v3.0): Three platform observation domains added — `slack`, `notion`, `github`. All marked `temporal: true`. Per-source entity structure (channel/page/repo subfolders with `_tracker.md`).
+- `services/agent_framework.py`: Platform bots get domain ownership — `slack_bot.domain = "slack"`, `notion_bot.domain = "notion"`. Bots are no longer homeless.
+- `services/task_types.py` (v5.0): `monitor-slack` → `slack-digest`, `monitor-notion` → `notion-digest`. Platform-specific step instructions replace generic `capture-and-report`. context_reads/writes updated to bot-owned directories.
+- `services/working_memory.py`: Context domain health now carries `temporal` flag. TP prompt separates canonical domains from "Platform awareness (temporal, not canonical)" section. Empty platform directories are hidden from TP.
+- `agents/tp_prompts/behaviors.py`: Task type references updated to new names.
+- `agents/tp_prompts/onboarding.py`: Task catalog and suggestion guidance updated.
+- `agents/tp_prompts/platforms.py`: Platform integration guidance updated with bot directory paths.
+- `routes/integrations.py`: Deprecated import job message updated.
+- Expected behavior: Bots own temporal context directories. TP sees platform awareness as distinct from canonical domains. Platform digest tasks write per-source observations to their directory.
+
+---
+
 ## [2026.04.03.14] - Three-layer feedback: fix agent routing + global chat guidance
 
 ### Changed
