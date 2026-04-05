@@ -567,12 +567,11 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     setSetupConfirmModal({ open: true, data: setupData });
                     setStatus({ type: 'complete', message: 'Agent created' });
                   } else if (action.type === 'NAVIGATE') {
-                    // ADR-144: TP navigates user to a page (task, agent, etc.)
-                    const url = action.data?.url as string;
-                    if (url) {
-                      // Delay slightly so the user sees the tool result before navigating
-                      setTimeout(() => router.push(url), 600);
-                    }
+                    // ADR-144: Navigation links shown inline on tool call result.
+                    // No auto-redirect — user clicks the "View →" link when ready.
+                    // Auto-redirect was removed because bulk tool calls (e.g., creating
+                    // 5 tasks in one turn) would redirect on the first result, losing
+                    // the remaining tool calls and TP's response text.
                   } else if (action.type === 'UPDATE_TODOS') {
                     const todos = (action.data?.todos as Todo[]) || [];
                     dispatch({ type: 'SET_TODOS', todos });
