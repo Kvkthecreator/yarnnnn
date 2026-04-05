@@ -3,13 +3,10 @@
 /**
  * Agents Page — Primary working surface (HOME).
  *
- * SURFACE-ARCHITECTURE.md v3: Three-panel layout.
+ * SURFACE-ARCHITECTURE.md v4: Three-panel layout.
  * Left: AgentNav (flat roster, click to select)
- * Center: AgentContentView (agent header + task cards + browse/view)
+ * Center: AgentContentView (three-tab: Agent / Setup / Settings)
  * Right: ChatPanel (agent-scoped TP, FAB toggle with yarnnn logo)
- *
- * Layout patterns duplicated from original tasks page (b2aa309):
- * same panel widths, FAB behavior, chat header, polling, collapse.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -129,6 +126,25 @@ export default function AgentsPage() {
     }
   };
 
+  const handlePauseTask = async (taskSlug: string) => {
+    setMutationPending(true);
+    try {
+      const task = tasks.find(t => t.slug === taskSlug);
+      const newStatus = task?.status === 'active' ? 'paused' : 'active';
+      await api.tasks.update(taskSlug, { status: newStatus });
+      await loadData();
+    } catch (err) {
+      console.error('Failed to update task:', err);
+    } finally {
+      setMutationPending(false);
+    }
+  };
+
+  const handleOpenChat = (prompt?: string) => {
+    setChatOpen(true);
+    if (prompt) sendMessage(prompt);
+  };
+
   // ── Chat config ──
   const surfaceOverride = selectedAgent
     ? { type: 'agent-detail' as const, agentSlug: getAgentSlug(selectedAgent) }
@@ -206,6 +222,8 @@ export default function AgentsPage() {
             agent={selectedAgent}
             tasks={agentTasks}
             onRunTask={handleRunTask}
+            onPauseTask={handlePauseTask}
+            onOpenChat={handleOpenChat}
             busy={mutationPending}
           />
         ) : agents.length === 0 ? (
