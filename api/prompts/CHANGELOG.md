@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.05.1] - Rendering playbook — shared visual output consistency
+
+### Added
+- `agent_framework.py`: `_PLAYBOOK_RENDERING` constant — shared rendering methodology for all synthesis-capable agents. Covers: color roles with professional defaults (BRAND.md overrides), typography hierarchy, layout rules, chart styling, existing asset re-use (check assets/ before generating), do's and don'ts.
+- Added `_playbook-rendering.md` to 6 agent types: competitive_intel, market_research, business_dev, operations, marketing, executive. Loaded during synthesis tasks via `rendering` tag.
+- `PLAYBOOK_METADATA`: Added `_playbook-rendering.md` entry with `rendering` tag.
+- `TASK_PLAYBOOK_ROUTING`: Added `rendering` to synthesis tag set.
+- Expected behavior: ALL agents producing HTML deliverables now have consistent rendering rules — same color usage, same typography, same chart styling, same asset re-use patterns. Outputs from different agents look like they come from the same brand.
+
+---
+
 ## [2026.04.04.8] - ADR-158: GitHub entity depth fix + soft TTL + scheduling docs
 
 ### Fixed

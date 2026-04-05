@@ -46,6 +46,71 @@ from typing import Any
 # Type determines capabilities (axis 2). Identity (axis 1) and tasks (axis 3)
 # are independent — see ADR-140 for the three-axis model.
 
+# =============================================================================
+# Shared Playbook Content (referenced by multiple agent types)
+# =============================================================================
+
+_PLAYBOOK_RENDERING = (
+    "# Rendering Playbook\n\n"
+    "## Purpose\n"
+    "Consistent, brand-aligned HTML output across all deliverables. "
+    "Read BRAND.md for the user's specific colors and style preferences. "
+    "This playbook provides professional defaults — BRAND.md overrides when specified.\n\n"
+    "## Color Usage\n"
+    "### Default Palette (override with BRAND.md values when available)\n"
+    "- **Headings**: near-black, not pure black — `#1a1a2e` (warm dark) or BRAND primary\n"
+    "- **Body text**: `#374151` (dark gray) — easier to read than black\n"
+    "- **Accent/highlight**: `#3b82f6` (blue) or BRAND accent color\n"
+    "- **Muted/secondary**: `#6b7280` (gray) — captions, timestamps, labels\n"
+    "- **Surface/background**: `#ffffff` (white) or `#f9fafb` (light gray for cards)\n"
+    "- **Borders**: `#e5e7eb` (light gray) — subtle, never heavy\n"
+    "- **Success/positive**: `#10b981` — green for positive changes, metrics up\n"
+    "- **Warning/negative**: `#ef4444` — red for negative changes, risks, blockers\n\n"
+    "### Color Principles\n"
+    "- Use accent color sparingly — headings, links, key metrics. Not backgrounds.\n"
+    "- Charts should use the accent color as primary, with gray/muted for secondary series\n"
+    "- Tables: alternate row backgrounds with `#f9fafb` for readability\n"
+    "- Never use more than 3 colors in a single chart\n\n"
+    "## Typography Hierarchy\n"
+    "- **H1** (report title): 28-32px, weight 700, heading color\n"
+    "- **H2** (section): 22-24px, weight 600, heading color\n"
+    "- **H3** (subsection): 18-20px, weight 600, heading color\n"
+    "- **Body**: 16px, weight 400, body text color, line-height 1.6\n"
+    "- **Caption/label**: 13-14px, weight 400, muted color\n"
+    "- **Metric value**: 36-48px, weight 700, accent color\n"
+    "- **Change badge**: 14px, weight 600, green/red with pill background\n\n"
+    "## Layout Rules\n"
+    "- Max content width: 720px for reading, 960px for dashboards\n"
+    "- Section spacing: 32-48px between major sections\n"
+    "- Card padding: 24px\n"
+    "- Use whitespace generously — dense reports are unreadable\n\n"
+    "## Chart Styling\n"
+    "- Bar/line charts: accent color primary, gray for secondary\n"
+    "- Always include axis labels and a one-sentence interpretation below\n"
+    "- Minimal gridlines — horizontal only, light gray\n"
+    "- No chart borders, no decorative elements\n"
+    "- Legend only when >1 data series\n\n"
+    "## Existing Assets\n"
+    "**Always check the domain's assets/ folder before generating new visuals.**\n"
+    "- Entity favicons (`{slug}-favicon.png`): embed as inline icons next to company names\n"
+    "  `<img src='{content_url}' width='20' height='20' style='vertical-align:middle; margin-right:6px'>`\n"
+    "- Prior generated images: re-use if still relevant. Don't regenerate.\n"
+    "- Charts from prior cycles: reference or update, don't recreate from scratch\n\n"
+    "## Do's and Don'ts\n"
+    "**Do:**\n"
+    "- Use consistent heading hierarchy (never skip levels)\n"
+    "- Include alt text on all images\n"
+    "- Use semantic color (green = good, red = bad, blue = neutral highlight)\n"
+    "- Make tables scannable: bold first column, right-align numbers\n\n"
+    "**Don't:**\n"
+    "- Use pure black (#000000) for text — too harsh\n"
+    "- Use more than 2 fonts in one document\n"
+    "- Add decorative images that don't carry information\n"
+    "- Use colored backgrounds for entire sections (use for badges/pills only)\n"
+    "- Center-align body text (left-align always, center only for headings/metrics)\n"
+)
+
+
 AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
 
     # ── Domain Stewards (own a context domain) ──
@@ -106,6 +171,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Note when new findings update or contradict prior knowledge\n"
                 "- Flag emerging patterns across multiple investigation cycles\n"
             ),
+            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
         },
     },
 
@@ -166,6 +232,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Identify emerging trends before they hit mainstream coverage\n"
                 "- Cross-reference multiple analyst reports — consensus vs contrarian signals\n"
             ),
+            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
         },
     },
 
@@ -209,6 +276,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Timely: meeting briefs available before the meeting, not after\n"
                 "- Concise: scannable in 2 minutes — the user has 5 minutes before the call\n"
             ),
+            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
         },
     },
 
@@ -251,6 +319,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Actionable: every section implies a next step\n"
                 "- Concise: one page per project max — scannable by executives\n"
             ),
+            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
         },
     },
 
@@ -298,6 +367,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Every section earns its place — delete sections that don't add value\n"
                 "- Proofread: no orphaned references, no TBD placeholders\n"
             ),
+            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
             "_playbook-formats.md": (
                 "# Format Playbook\n\n"
                 "## Format Selection Heuristics\n"
@@ -316,6 +386,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Contrast pattern: situation → complication → resolution\n"
                 "- Narrative arc: context → tension → insight → implication\n"
             ),
+            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
             "_playbook-visual.md": (
                 "# Visual Production Playbook\n\n"
                 "## When to Generate Visuals\n"
@@ -429,6 +500,7 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Contrast pattern: situation → complication → resolution\n"
                 "- Narrative arc: context → tension → insight → implication\n"
             ),
+            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
         },
     },
 
@@ -868,13 +940,17 @@ PLAYBOOK_METADATA: dict[str, dict[str, str]] = {
         "description": "Image and video generation by output context — prompt construction, asset re-use, quality gate",
         "tags": "visual,synthesis",
     },
+    "_playbook-rendering.md": {
+        "description": "HTML output rendering — typography, color roles, layout, chart styling, existing asset usage",
+        "tags": "synthesis,rendering",
+    },
 }
 
 # Task class → which playbook tags to load in full
 # (playbooks not matching any tag still appear in the index)
 TASK_PLAYBOOK_ROUTING: dict[str, list[str]] = {
     "context": ["research", "context"],           # context tasks: research + tracking methodology
-    "synthesis": ["synthesis", "formatting", "visual"],  # synthesis tasks: output + format + visual
+    "synthesis": ["synthesis", "formatting", "visual", "rendering"],  # synthesis tasks: output + format + visual + rendering
 }
 
 
