@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.05.2] - Onboarding task scaffold — auto-create and trigger after entity confirmation
+
+### Changed
+- `tp_prompts/onboarding.py`: Onboarding priority #3 changed from "suggest relevant tasks" to "auto-scaffold default tasks and trigger immediately." After user confirms scaffolded entities, TP now creates default context tasks for populated domains, triggers them immediately, and tells the user their team is working. Synthesis task (executive summary) created but not triggered until context tasks complete.
+- Expected behavior: Users see first intelligence outputs within minutes of onboarding, not on next scheduled run. Day-one experience goes from "empty dashboard" to "populated knowledge base."
+
+---
+
 ## [2026.04.05.1] - Rendering playbook — shared visual output consistency
 
 ### Added
