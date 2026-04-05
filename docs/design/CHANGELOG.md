@@ -4,6 +4,41 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-05 — Three-tab center panel + knowledge-first agent view
+
+Major center panel redesign. Agent tab shows knowledge as hero, task metadata collapses to a single status line. Setup tab for task configuration. Settings tab for identity/history/feedback.
+
+### Key shifts from v3
+1. **Knowledge is the hero.** Agent tab default shows domain browser (stewards), output viewer (synthesizers), or observations (bots) — filling 90% of the space. Task cards removed from default view.
+2. **Three-tab center panel.** Agent / Setup / Settings replaces the vertical stack (header → task cards → domain files). Each tab serves a distinct user intent at decreasing frequency.
+3. **Task naming convention.** Task names are freeform — never include frequency, agent name, or type classification. Schedule is config, not identity.
+4. **TP-mediated actions.** Setup tab uses action buttons (Run Now, Pause) and "Edit via TP →" links rather than inline CRUD forms.
+5. **Left panel simplified.** Section labels renamed: Your Team / Cross-Team / Integrations. Filter pills removed (roster is fixed).
+
+### Documents updated
+- **SURFACE-ARCHITECTURE.md** → v4: three-tab center panel, task naming convention, updated implementation sequence.
+- **AGENT-PRESENTATION-PRINCIPLES.md** → v3: knowledge-first, three-tab model, 8 principles rewritten.
+
+### Documents superseded
+- **FRONTEND-UX-BACKLOG.md** → SUPERSEDED (workfloor + /tasks/[slug] concepts dissolved)
+- **TASK-SURFACE-REDESIGN.md** → SUPERSEDED (task detail tabs absorbed into agent Setup/Settings tabs)
+
+### Active docs (10 docs)
+| Doc | Purpose |
+|-----|---------|
+| `SURFACE-ARCHITECTURE.md` | Master layout spec: Chat + Agents + Context + Activity (v4, three-tab center panel) |
+| `AGENT-PRESENTATION-PRINCIPLES.md` | Knowledge-first agent view, three-tab model (v3) |
+| `SURFACE-PRIMITIVES-MAP.md` | Primitive/action mapping per surface (v2) |
+| `TASK-SCOPED-TP.md` | Scoped TP: global, agent, task (v2) |
+| `WORKSPACE-EXPLORER-UI.md` | Context page explorer (v2, tasks removed) |
+| `ONBOARDING-TP-AWARENESS.md` | /chat as onboarding home (v2) |
+| `SURFACE-ACTION-MAPPING.md` | Design principle: directives → chat, config → drawer |
+| `INLINE-PLUS-MENU.md` | Verb taxonomy for + menu actions |
+| `SHARED-CONTEXT-WORKFLOW.md` | Context update workflow |
+| `DELIVERABLE-FIRST-USER-FLOW.md` | Task creation flow (still valid) |
+
+---
+
 ## 2026-04-04b — Onboarding consolidated on /chat + navigation cleanup
 
 - **Onboarding migrated to /chat**: ContextSetup renders as chat page empty state. New users (0 tasks) redirected from auth callback to `/chat` instead of `/agents`.

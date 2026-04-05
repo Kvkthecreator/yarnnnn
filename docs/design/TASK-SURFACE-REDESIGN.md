@@ -1,6 +1,6 @@
 # Task Surface Redesign — ADR-149/151 Frontend Surfacing
 
-**Status:** Proposed (deferred from backend implementation)  
+**Status:** SUPERSEDED by [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v4 (2026-04-05). `/tasks/[slug]` page dissolved. Task details surfaced via the Setup tab on the three-tab agent center panel. Deliverable spec, feedback, steering notes, evaluation controls all live on agent Setup/Settings tabs.  
 **Date:** 2026-03-31  
 **Depends on:** ADR-149 (task lifecycle), ADR-151 (context domains)  
 **Implements:** ADR-149 Phase 6

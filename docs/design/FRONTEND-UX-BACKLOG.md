@@ -1,7 +1,7 @@
 # Frontend UX Backlog
 
 **Date:** 2026-04-01  
-**Status:** Deferred — stabilize backend + test execution loop first
+**Status:** SUPERSEDED by [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v4 (2026-04-05). Workfloor dissolved into agents page. `/tasks/[slug]` dissolved into three-tab agent center panel (Agent / Setup / Settings). See SURFACE-ARCHITECTURE.md for current layout.
 
 ---
 

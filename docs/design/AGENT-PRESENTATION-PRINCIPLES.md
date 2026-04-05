@@ -1,206 +1,164 @@
 # Agent Presentation Principles
 
-**Date:** 2026-04-04 (v2 — agents as primary surface)
+**Date:** 2026-04-05 (v3 — three-tab center panel, knowledge-first)
 **Status:** Active
-**Supersedes:** v1 (2026-03-13, agent as reference surface)
+**Supersedes:** v2 (2026-04-04, task-cards-as-bridge vertical stack)
 **Related:**
-- [Surface Architecture](SURFACE-ARCHITECTURE.md) v3 — agents page is HOME
+- [Surface Architecture](SURFACE-ARCHITECTURE.md) v4 — agents page is HOME, three-tab model
 - [Surface-Action Mapping](SURFACE-ACTION-MAPPING.md) — directive vs configuration surfaces
 - [ADR-140](../adr/ADR-140-agent-workforce-model.md) — workforce model (3 classes, pre-scaffolded roster)
 - [ADR-138](../adr/ADR-138-agents-as-work-units.md) — agents as work units (tasks are WHAT, agents are WHO)
 
 ---
 
-## Core Insight (Updated)
+## Core Insight
 
-The backend has three agent classes: domain-steward, synthesizer, platform-bot. The frontend must answer: **how does a user supervise their team?**
+Users don't come to the agents page to see task cards. They come to see **what their agents know** and **what they've produced**. The agent IS its accumulated knowledge — domain files, entity profiles, synthesis outputs. Tasks are just the mechanism that keeps the knowledge fresh.
 
-Users think:
-- "What does my competitive intelligence agent know?" — **domain-first**
-- "What did my exec summary agent produce this week?" — **output-first**
-- "Is my Slack bot up to date?" — **platform-first**
+The three-tab center panel (Agent / Setup / Settings) reflects three user intents with decreasing frequency:
 
-The answer depends on the agent class. Domain stewards are defined by their accumulated knowledge. Synthesizers are defined by their deliverables. Bots are defined by their platform connection. The agents page dispatches to the right view for each class.
+1. **Agent tab** (default, daily) — "What does this agent know?" → knowledge browser
+2. **Setup tab** (occasional) — "How is this configured?" → task config, schedule, delivery
+3. **Settings tab** (rare) — "Who is this agent?" → identity, history, feedback
 
 ---
 
-## Principle 1: Agent Class Determines View
+## Principle 1: Knowledge Is the Hero
 
-**The agent's class determines what the user sees when selecting it.** Not a uniform card or detail page — each class gets the view that matches its output shape.
+**The Agent tab shows the agent's accumulated knowledge — not task cards, not status dashboards.** Domain files fill 90% of the space. Task metadata collapses to a single status line.
 
-| Agent Class | Primary View | What Defines It |
+A user opening "Competitive Intelligence" sees:
+- A 2-line description of what this agent does
+- A single status line: `● Active · Updated 2h ago · Weekly · competitors/ → signals/`
+- Then immediately: the domain file browser filling the rest of the panel
+
+The status line is clickable — it links to the Setup tab for operational details.
+
+---
+
+## Principle 2: Agent Class Determines the Hero Content
+
+The Agent tab's hero area varies by class, but the three-tab structure is identical for all agents.
+
+| Agent Class | Agent Tab Hero | What Defines It |
 |---|---|---|
-| **Domain steward** | Directory explorer (context domain tree) | Accumulated knowledge in their owned domain |
-| **Synthesizer** | Deliverable viewer (latest output + history) | Reports and cross-domain compositions |
-| **Platform bot** | Temporal observations (daily logs) | Platform connection + observation stream |
+| **Domain steward** | Directory browser (`/workspace/context/{domain}/`) | Accumulated knowledge in their owned domain |
+| **Synthesizer** | Latest output (rendered HTML) + run history | Reports and cross-domain compositions |
+| **Platform bot** | Observations directory (`/workspace/context/{platform}/`) + connection status | Platform connection + observation stream |
 
-This replaces the v1 approach of a uniform agent identity page. The agent's AGENT.md and memory files are still accessible but secondary — the primary view is the agent's *work product*.
+This replaces the v2 approach of vertical stacking (header → task cards → domain files). The tab model gives knowledge the full panel height instead of competing with task cards for vertical space.
 
 ---
 
-## Principle 2: Agents Are Stable, Tasks Come and Go
+## Principle 3: Tasks Are Infrastructure, Not the Primary Surface
 
-**The left panel roster is stable — 8 agents, always visible.** Tasks appear as expandable children under each agent.
+**Tasks appear on the Setup tab, not the Agent tab.** The Agent tab shows only a collapsed status line derived from the agent's tasks.
 
-This is the key UX difference from the task-centric model:
-- Tasks page: flat list of 5-15 transient items, no grouping
-- Agents page: stable roster of 8 entities, each with 0-3 task responsibilities
+Status line derivation:
+- **Status dot**: green (has active tasks), gray (no tasks / all paused)
+- **Freshness**: "Updated 2h ago" — from most recent `last_run_at` across tasks
+- **Cadence**: "Weekly" — from most frequent task schedule
+- **Context flow**: "competitors/ → signals/" — reads/writes from tasks, abbreviated
 
-Users build a relationship with their agents over time. "My competitive intelligence agent" is a persistent mental anchor. "track-competitors" is a task slug they'll forget.
+If the agent has no tasks, the status line shows: `○ No active tasks`
+
+Users who want to see task objectives, schedules, delivery channels, or trigger runs go to the **Setup tab**. This is intentional separation: observation (Agent tab) vs. configuration (Setup tab).
+
+---
+
+## Principle 4: Agents Are Stable, Tasks Come and Go
+
+**The left panel roster is permanent — 8 agents, always visible, no filters.** Users build a relationship with their agents over time. "My competitive intelligence agent" is a persistent mental anchor.
 
 ### Roster layout
 
-Three sections matching agent classes:
+Three sections with user-friendly labels:
 
 ```
-DOMAIN STEWARDS
-● Competitive Intelligence (2 tasks)
-● Market Research (1 task)
-● Business Development (0 tasks)
-● Operations (1 task)
-● Marketing & Creative (0 tasks)
-
-SYNTHESIZERS
-● Executive Reporting (2 tasks)
-
-PLATFORM BOTS
-● Slack Bot (1 task)
-● Notion Bot (0 tasks)
-```
-
-Agents without tasks are visible but muted (gray dot). This communicates "ready to work" rather than hiding them.
-
----
-
-## Principle 3: Tasks Are Responsibilities, Not Primary Objects
-
-**Tasks appear as children of their assigned agent — they are what the agent is "responsible for."**
-
-```
+YOUR TEAM
 ● Competitive Intelligence
-  ├ Track Competitors (weekly, active)
-  └ Competitive Brief (weekly, active)
+  competitors/ · 1 task
+● Market Research
+  market/ · 0 tasks
+● Business Development
+  relationships/ · 0 tasks
+● Operations
+  projects/ · 0 tasks
+● Marketing & Creative
+  content_research/ · 0 tasks
+
+CROSS-TEAM
+● Executive Reporting
+  synthesizer · 0 tasks
+
+INTEGRATIONS
+● Slack Bot
+  slack/ · 1 task
+● Notion Bot
+  notion/ · 0 tasks
+● GitHub Bot
+  github/ · 0 tasks
 ```
 
-Clicking a task under an agent drills into that task's detail (output, deliverable spec, run history). But the navigational frame is always "I'm looking at this agent's work," not "I'm looking at an isolated task."
-
-### Task metadata in agent context
-
-When showing tasks as agent responsibilities, display:
-- Task title (human-readable)
-- Schedule ("weekly", "daily", "monthly")
-- Status (active/paused/completed) via color
-- Last run ("2d ago") for freshness signal
-
-### Task drill-down
-
-Clicking a task switches the center panel to task detail view:
-- Output viewer (rendered HTML/markdown)
-- Run history
-- Deliverable spec
-- Back-breadcrumb to agent's primary view
-
-This reuses existing `OutputView`, `RunHistoryView`, `DeliverableView` components.
+No filter pills (All/Active/Dormant removed). The roster is fixed — agents can't be deleted (ADR-140). Showing all 8 always communicates "ready to work" for dormant agents.
 
 ---
 
-## Principle 4: Domain Stewards Show Knowledge, Not Cards
+## Principle 5: Task Names Are Freeform
 
-**For domain stewards (5 of 8 agents), the primary view IS their context domain directory.**
+**A task name is the user's description of the work. It never includes frequency, agent name, or internal type classification.**
 
-The competitive intelligence agent's view is the `/workspace/context/competitors/` tree — entity folders, tracker files, synthesis files. This is the agent's accumulated knowledge made visible.
+- Good: "Track Competitors", "Q2 Board Deck", "Monitor HN for AI launches"
+- Bad: "Weekly Competitor Report" (frequency is config, not identity)
+- Bad: "Competitive Intelligence - Track" (redundant with agent name)
+- Bad: "context-track-competitors" (internal classification)
 
-Why this works better than a card/summary view:
-- Users can see exactly what the agent knows
-- Entity-level drill-down (click `anthropic/profile.md` → read the profile)
-- Staleness is visible (_tracker.md shows last-updated dates)
-- The domain IS the agent's identity — not a separate concept
-
-### Domain-agent mapping
-
-| Agent | Domain | Directory |
-|---|---|---|
-| Competitive Intelligence | `competitors` | `/workspace/context/competitors/` |
-| Market Research | `market` | `/workspace/context/market/` |
-| Business Development | `relationships` | `/workspace/context/relationships/` |
-| Operations | `projects` | `/workspace/context/projects/` |
-| Marketing & Creative | `content_research` | `/workspace/context/content_research/` |
-
-This mapping comes from `AGENT_TEMPLATES` in `api/services/agent_framework.py` and the `steward_agent` field in `api/services/directory_registry.py`.
+The task type registry provides default `display_name` values, but users and TP can name tasks anything. Schedule, mode, and type_key are separate fields.
 
 ---
 
-## Principle 5: Synthesizers Show Deliverables
+## Principle 6: TP-Mediated Actions, Not CRUD Forms
 
-**For the synthesizer agent (Executive Reporting), the primary view is the latest deliverable output.**
+**Configuration changes go through TP, not inline edit forms.** The Setup tab shows current config as read-only cards with action buttons that either:
 
-The synthesizer doesn't own a domain — it reads across domains and produces reports. Its value is in the composed output, so that's what the user sees first.
+1. Call APIs directly for simple actions: Run Now (`api.tasks.run()`), Pause (`api.tasks.update()`)
+2. Open TP chat for complex changes: "Edit via TP →" pre-composes a chat prompt
 
-Layout: latest output (rendered HTML/iframe) with run history below. Same pattern as the current task page's OutputView — because for synthesizers, the single-output assumption IS correct.
-
----
-
-## Principle 6: Bots Show Observations + Connection Status
-
-**For platform bots (Slack Bot, Notion Bot), the primary view is their temporal observations directory plus platform connection health.**
-
-Bots are mechanical — they sense a platform and write structured observations. The user cares about:
-1. Is the platform connected and healthy?
-2. What has the bot observed recently?
-
-The view shows the temporal directory (`/workspace/context/slack/`, `/workspace/context/notion/`) with daily observation files, plus a connection status indicator at the bottom.
+This is consistent with the product model: the agent platform talks to you. Forms are for settings pages; the working surface uses conversation.
 
 ---
 
-## Principle 7: Agent-Scoped TP, Not Task-Scoped Only
+## Principle 7: Cognitive State Is Inline, Not Separate
 
-**TP chat on the agents page is agent-scoped by default, narrowing to task-scoped on drill-down.**
+Agent developmental state (quality score, feedback trends, learned preferences) appears on the Settings tab — visible when the user intentionally looks for it, but not cluttering the daily-use Agent tab.
 
-| State | TP Scope | Use Cases |
-|---|---|---|
-| Agent selected | Agent-scoped | "Run the competitive brief", "What does this agent know about Anthropic?", "Assign a new task" |
-| Task selected (drill-down) | Task-scoped | "Focus on pricing this week", "Run this task now", "The competitor section is weak" |
-
-Agent-scoped TP is broader than task-scoped — it can discuss the agent's domain, trigger any of the agent's tasks, or assign new work. Task-scoped TP narrows to a specific task's execution and output.
+For domain stewards: domain health is implicit in the file browser (entity count, file dates).
+For synthesizers: quality is implicit in the output history (delivered/failed, edit distance).
+For all agents: the Settings tab's History section shows quality_score, trend, and recent runs.
 
 ---
 
-## Principle 8: Cognitive State Is Inline, Not Separate
+## Principle 8: One Surface for Agent Content
 
-**Agent developmental state (self-reflection, feedback trends, run confidence) appears inline within the agent view, not on a separate dashboard.**
+**Domain files render on the agents page, not as a redirect to the Context page.** The agents page is a master-detail surface — selecting an agent shows their content inline. This avoids the redirect loop (agents → context → back to agents) that breaks user flow.
 
-For domain stewards: domain health indicators in the _tracker.md (entity count, staleness, coverage).
-For synthesizers: run trajectory with confidence trend in the run history.
-For all agents: memory file sizes and last-updated dates signal developmental depth.
+The Context page exists for **cross-cutting browsing** — viewing domains across agents, managing uploads, editing workspace settings. It's the Finder view of the whole workspace. The agents page is the agent-scoped view of the same files.
 
-The existing `_tracker.md` file (deterministic, zero LLM cost) already serves as the "cognitive dashboard" for domain stewards — it shows what the agent knows, what's stale, and what's missing.
+Both surfaces read from the same data (workspace_files via `GET /api/workspace/tree`). No duplication.
 
 ---
 
-## Anti-Patterns (Updated)
+## Anti-Patterns
 
 | Anti-pattern | Why it fails | Correct approach |
 |---|---|---|
-| Uniform agent detail page | Different agent classes have different primary artifacts | Class-aware dispatch (domain/deliverable/observations) |
-| Tasks as primary navigation | Tasks are transient, agents are persistent | Agents as roster, tasks as responsibilities |
-| Separate agent reference page | Forces navigation away from working context | Agent identity info is inline in the agent view |
-| Flat task list ungrouped | No relationship between work and worker visible | Tasks grouped under their assigned agent |
-| Domain explorer only on context page | The domain IS the steward's primary view | Domain explorer embedded in steward agent view |
-
----
-
-## Migration from v1
-
-v1 had the agents page as a secondary reference surface (workforce types explainer + card list linking to `/agents/[id]` identity pages). v2 promotes agents to the primary working surface:
-
-| v1 | v2 |
-|---|---|
-| `/agents` = explainer + card list | `/agents` = HOME, three-panel working surface |
-| `/agents/[id]` = identity reference page | Agent identity inline in center panel |
-| `/tasks` = primary working surface | Tasks as children of agents |
-| Separate task page for output/config | Task detail via drill-down from agent |
-
-The `/agents/[id]` route can redirect to `/agents?agent={id}` (slug-resolved) for backwards compatibility during migration.
+| Task cards as hero | Users came to see knowledge, not task metadata | Tasks collapse to status line (Agent tab) or Setup tab |
+| Vertical stack (header → tasks → files) | Files compete with task cards for vertical space | Tabs give knowledge full panel height |
+| Redirecting to Context page for file browsing | Breaks flow, loses agent context | Master-detail inline on agents page |
+| Frequency in task names | Schedule is config, not identity | Freeform names, schedule as separate field |
+| Filter pills on fixed roster | Can't delete agents, filtering hides them pointlessly | Show all 8 always |
+| CRUD forms for task config | Product model is conversational | TP-mediated actions |
+| Uniform agent detail page | Different classes have different primary artifacts | Class-aware hero dispatch |
 
 ---
 
@@ -208,7 +166,6 @@ The `/agents/[id]` route can redirect to `/agents?agent={id}` (slug-resolved) fo
 
 | Date | Change |
 |------|--------|
-| 2026-03-13 | v1 — Source-first mental model, progressive disclosure, platform icons, source-affinity grouping. Agent as reference surface. |
-| 2026-03-16 | v1.1 — Platform icons on dashboard, supervision dashboard, origin badges. |
-| 2026-03-21 | v1.2 — Principle 8: cognitive state is operational (ADR-128 Phase 6). |
-| 2026-04-04 | v2 — Agent-centric reframe. Agents as primary working surface, not reference. Class-aware dispatch (domain/deliverable/observations). Tasks as responsibilities. Agent-scoped TP. Supersedes source-first grouping (domain-first for stewards, output-first for synthesizers). |
+| 2026-03-13 | v1 — Source-first mental model, progressive disclosure, platform icons, agent as reference surface. |
+| 2026-04-04 | v2 — Agent-centric reframe. Agents as primary working surface. Class-aware dispatch. Tasks as children. Task-cards-as-bridge vertical stack. |
+| 2026-04-05 | v3 — Three-tab center panel (Agent / Setup / Settings). Knowledge is the hero. Task metadata collapses to status line. Task naming convention (freeform, no frequency). Roster labels (Your Team / Cross-Team / Integrations, no filter pills). TP-mediated actions. |
