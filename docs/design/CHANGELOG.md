@@ -4,6 +4,31 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-05b — Onboarding scaffold + daily briefing + Home page
+
+- **New design doc**: `ONBOARDING-SCAFFOLD-AND-BRIEFING.md` — onboarding scaffolds everything (directories → entities → tasks → trigger → briefing), daily briefing as persistent collapsible header, Home page rename, agent work rhythm framing.
+- **Chat → Home rename**: Nav label changes from "Chat" to "Home". Route stays `/chat`. Home page shows daily briefing (what happened, coming up, needs attention, workspace signals) above TP chat. Briefing is persistent — auto-collapses after first message but never disappears.
+- **Onboarding scaffold sequence**: After entity confirmation gate, TP auto-creates default tasks for populated domains and triggers immediate execution. Synthesis tasks trigger after context tasks complete. All orchestrated via existing primitives (CreateTask, ManageTask trigger).
+- **Agent work rhythm**: UI framing shift — "Works weekly" not "Scheduled weekly." Display-only, no data model change. Schedule stays on tasks table.
+- **SURFACE-ARCHITECTURE.md** updated: Home page section, route map, navigation bar.
+
+### Active docs (11 docs)
+| Doc | Purpose |
+|-----|---------|
+| `SURFACE-ARCHITECTURE.md` | Master layout spec (v4, three-tab + Home page) |
+| `AGENT-PRESENTATION-PRINCIPLES.md` | Knowledge-first agent view (v3) |
+| `ONBOARDING-SCAFFOLD-AND-BRIEFING.md` | Onboarding scaffold, daily briefing, Home page (NEW) |
+| `SURFACE-PRIMITIVES-MAP.md` | Primitive/action mapping per surface (v2) |
+| `TASK-SCOPED-TP.md` | Scoped TP: global, agent, task (v2) |
+| `WORKSPACE-EXPLORER-UI.md` | Context page explorer (v2) |
+| `ONBOARDING-TP-AWARENESS.md` | /chat as onboarding home (v2) |
+| `SURFACE-ACTION-MAPPING.md` | Directives → chat, config → drawer |
+| `INLINE-PLUS-MENU.md` | Verb taxonomy for + menu actions |
+| `SHARED-CONTEXT-WORKFLOW.md` | Context update workflow |
+| `DELIVERABLE-FIRST-USER-FLOW.md` | Task creation flow |
+
+---
+
 ## 2026-04-05 — Three-tab center panel + knowledge-first agent view
 
 Major center panel redesign. Agent tab shows knowledge as hero, task metadata collapses to a single status line. Setup tab for task configuration. Settings tab for identity/history/feedback.

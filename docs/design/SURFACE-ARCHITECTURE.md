@@ -11,12 +11,12 @@
 
 Four surfaces, each with a clear purpose:
 
-| Surface | Route | Purpose | Chat |
-|---------|-------|---------|------|
-| **Chat** | `/chat` | Unscoped TP — strategic direction, cross-cutting questions, workspace management | Full-page (hero) |
-| **Agents** | `/agents` (home) | Primary working surface — agent roster, three-tab center panel (Agent / Setup / Settings) | Right panel (agent-scoped TP) |
-| **Context** | `/context` | Workspace substrate — cross-agent domains, uploads, settings as browsable filesystem | Right panel (workspace-scoped TP) |
-| **Activity** | `/activity` | Temporal observation — upcoming runs, past events, execution history | No chat (observation only) |
+| Surface | Route | Nav Label | Purpose | Chat |
+|---------|-------|-----------|---------|------|
+| **Home** | `/chat` | Home | Daily briefing + unscoped TP — workspace signals, strategic direction, onboarding | Full-page with persistent briefing header |
+| **Agents** | `/agents` | Agents | Primary working surface — agent roster, three-tab center panel (Agent / Setup / Settings) | Right panel (agent-scoped TP) |
+| **Context** | `/context` | Context | Workspace substrate — cross-agent domains, uploads, settings as browsable filesystem | Right panel (workspace-scoped TP) |
+| **Activity** | `/activity` | Activity | Temporal observation — upcoming runs, past events, execution history | No chat (observation only) |
 
 **Key shift from v3:** The center panel no longer stacks agent header → task cards → domain files vertically. Instead, a **three-tab model** puts knowledge (domain files/outputs) as the hero on the default Agent tab, with task configuration and agent settings on separate tabs. Task metadata collapses to a single status line — tasks are operational infrastructure, not the primary thing users look at.
 
@@ -25,8 +25,8 @@ Four surfaces, each with a clear purpose:
 ## Route Map
 
 ```
-/chat                → Dedicated TP chat. Full-page, unscoped. Strategic direction.
-/agents              → Home. Agent roster + three-tab center panel. Agent-scoped TP panel.
+/chat                → Home page. Daily briefing + TP chat. Full-page, unscoped.
+/agents              → Agents page. Agent roster + three-tab center panel. Agent-scoped TP panel.
 /agents?agent={slug} → Agent selected. Three-tab view: Agent / Setup / Settings.
 /context             → Workspace explorer. Cross-agent domains, uploads, settings.
 /activity            → Temporal activity log. Upcoming runs, past events.
@@ -41,23 +41,25 @@ Four surfaces, each with a clear purpose:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Logo  │  [Chat | Agents | Context | Activity]  │  User Menu │
+│ Logo  │  [Home | Agents | Context | Activity]  │  User Menu │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Four-segment toggle bar. `/agents` is `HOME_ROUTE` for returning users. New users (no tasks) land on `/chat` for onboarding.
+Four-segment toggle bar: `Home | Agents | Context | Activity`. `/agents` is `HOME_ROUTE` for returning users. New users (no tasks) land on `/chat` (Home) for onboarding. See [ONBOARDING-SCAFFOLD-AND-BRIEFING.md](ONBOARDING-SCAFFOLD-AND-BRIEFING.md) for Home page layout with daily briefing.
 
 ---
 
-## 1. Chat Page (`/chat`)
+## 1. Home Page (`/chat` route, nav label "Home")
 
 ### Purpose
 
-Unscoped TP — the strategic conversation surface. User discusses workforce strategy, asks cross-cutting questions, creates tasks, updates workspace identity, uploads documents.
+Daily command center + unscoped TP. The Home page shows the daily briefing (what happened, what's coming up, what needs attention) as a persistent collapsible header, with TP chat below. For new users, the onboarding flow (ContextSetup) replaces the briefing.
+
+See [ONBOARDING-SCAFFOLD-AND-BRIEFING.md](ONBOARDING-SCAFFOLD-AND-BRIEFING.md) for full layout spec and briefing behavior.
 
 ### Layout
 
-Full-width, max-width constrained (~720px centered). No side panels.
+Full-width, max-width constrained (~720px centered). Persistent briefing header + chat below.
 
 ### Properties
 
@@ -65,9 +67,13 @@ Full-width, max-width constrained (~720px centered). No side panels.
 - **Surface context:** `{ type: "chat" }`
 - **Plus menu actions:** Create a task, Update my context, Web search, Upload file
 
-### Cold Start + Onboarding
+### Daily briefing (returning user)
 
-The chat page IS the onboarding surface. When no chat history exists, `ContextSetup` renders as empty state — links, files, notes inputs that compose into a single TP message on submit.
+Persistent collapsible header — always visible, auto-collapses after first message. Shows: what happened (last 24h activity), coming up (scheduled runs), needs attention (dormant agents, empty domains), workspace signals (platform/entity/task counts).
+
+### Cold Start + Onboarding (new user)
+
+When there are no tasks, ContextSetup renders as full-page overlay above chat input (existing behavior). Briefing header does not render until workspace has active tasks.
 
 ---
 
@@ -462,4 +468,4 @@ The task type registry provides default names (e.g., `display_name: "Track Compe
 | 2026-03-25 | v1 — Agent cards (left) + TP chat (left) + tasks/workspace tabs (right). |
 | 2026-03-25 | v2 — Output-first. Workfloor: output feed + agent roster grid. Task page: output hero + trajectory. Chat as drawer. |
 | 2026-04-04 | v3 — Agent-centric reframe. Agents page replaces workfloor + tasks page. Tasks dissolve into agent responsibilities. Chat becomes dedicated page. Task-cards-as-bridge center panel. |
-| 2026-04-05 | v4 — Three-tab center panel (Agent / Setup / Settings). Knowledge is the hero on the Agent tab. Task metadata collapses to a status line. Task naming convention: freeform, never includes frequency. Left panel section labels: Your Team, Cross-Team, Integrations (no filter pills). |
+| 2026-04-05 | v4 — Three-tab center panel (Agent / Setup / Settings). Knowledge is the hero on the Agent tab. Task metadata collapses to a status line. Task naming convention: freeform, never includes frequency. Left panel section labels: Your Team, Cross-Team, Integrations (no filter pills). Chat page renamed to Home with persistent daily briefing header. Agent work rhythm framing (display-only). |
