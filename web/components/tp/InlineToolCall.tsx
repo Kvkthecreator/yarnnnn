@@ -109,7 +109,7 @@ export function InlineToolCall({ block, compact = true }: InlineToolCallProps & 
     return null;
   }
 
-  // Claude Code-style compact display: [Using X...] done
+  // Claude Code-style compact display with expandable details
   if (compact) {
     const isRunning = block.status === 'pending';
     const errorMsg = block.result?.data?.error as string | undefined;
@@ -118,17 +118,26 @@ export function InlineToolCall({ block, compact = true }: InlineToolCallProps & 
     const navUrl = navAction?.url as string | undefined;
     const navLabel = navAction?.label as string | undefined;
 
+    // Show details by default for completed calls
+    const hasInput = block.input && Object.keys(block.input).length > 0;
+    const hasResult = block.result?.data && Object.keys(block.result.data).length > 0;
+    const hasDetails = hasInput || hasResult;
+
     return (
       <div className="my-0.5">
-        <div
+        <button
+          onClick={() => hasDetails && setExpanded(!expanded)}
           className={cn(
             'inline-flex items-center gap-1.5 text-xs font-mono py-0.5',
+            hasDetails && 'cursor-pointer hover:text-foreground',
             isRunning && 'text-muted-foreground',
             block.status === 'success' && 'text-muted-foreground',
             block.status === 'failed' && 'text-destructive'
           )}
         >
-          <span className="text-muted-foreground/60">[</span>
+          {hasDetails && (
+            <ChevronRight className={cn('w-3 h-3 text-muted-foreground/40 transition-transform', expanded && 'rotate-90')} />
+          )}
           {isRunning && (
             <>
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -149,8 +158,25 @@ export function InlineToolCall({ block, compact = true }: InlineToolCallProps & 
               <span>{errorMsg ? `failed: ${errorMsg.slice(0, 40)}${errorMsg.length > 40 ? '...' : ''}` : 'failed'}</span>
             </>
           )}
-          <span className="text-muted-foreground/60">]</span>
-        </div>
+        </button>
+
+        {/* Expanded details */}
+        {expanded && hasDetails && (
+          <div className="ml-4 mt-1 mb-2 text-[11px] font-mono space-y-1.5 border-l-2 border-border/40 pl-3">
+            {hasInput && (
+              <pre className="text-muted-foreground/70 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+                {JSON.stringify(block.input, null, 2)}
+              </pre>
+            )}
+            {hasResult && block.result?.data?.message ? (
+              <p className="text-muted-foreground/50">→ {String(block.result.data.message)}</p>
+            ) : null}
+            {hasResult && block.result?.data?.error ? (
+              <p className="text-destructive/70">→ {String(block.result.data.error)}</p>
+            ) : null}
+          </div>
+        )}
+
         {block.status === 'success' && navUrl && (
           <Link
             href={navUrl}
