@@ -26,9 +26,9 @@ Current load mechanism (`load_context()`) does a filesystem scan → read all `_
 
 ## Design Principles
 
-### 1. Index in prompt, content on demand
+### 1. Index in prompt, content on demand (IMPLEMENTED)
 
-Follow Claude Code's CLAUDE.md pattern: the system prompt contains a **short index** of available playbooks with one-line descriptions. The full playbook content is loaded only when relevant to the current task.
+Follow Claude Code's CLAUDE.md pattern: the system prompt contains a **compact index** (~233 tokens) of available playbooks with one-line descriptions + critical rules. Full playbook content is NOT injected — agent reads via ReadWorkspace on demand. Same pattern applied to SKILL.md docs (~102 tokens vs ~1,500 tokens full injection). Total savings: ~3,115 tokens per execution (~39%).
 
 ```
 ## Available Playbooks

@@ -2621,18 +2621,26 @@ async def _execute_direct(
             user_context=user_context,
         )
 
-        # Skill docs — append as additional content block
+        # Skill reference — compact index, not full SKILL.md injection (~50t vs ~1500t)
+        # Agent can read full specs via ReadWorkspace if needed
         if has_asset_capabilities(role):
-            try:
-                from services.agent_execution import _fetch_skill_docs
-                skill_docs = await _fetch_skill_docs()
-                if skill_docs:
-                    system_prompt.append({
-                        "type": "text",
-                        "text": f"\n\n## Output Skill Documentation\n{skill_docs}",
-                    })
-            except Exception:
-                pass
+            from services.agent_framework import get_type_capabilities, CAPABILITIES
+            asset_caps = [
+                c for c in get_type_capabilities(role)
+                if CAPABILITIES.get(c, {}).get("category") == "asset"
+            ]
+            skill_lines = ["\n\n## Output Skills (RuntimeDispatch)"]
+            skill_lines.append("Call `RuntimeDispatch(type, input, output_format)` to produce visual assets.")
+            for cap in asset_caps:
+                cap_def = CAPABILITIES.get(cap, {})
+                docs_path = cap_def.get("skill_docs", "")
+                out_type = cap_def.get("output_type", "")
+                skill_lines.append(f"- **{cap}**: {out_type} — full spec in `{docs_path}`")
+            skill_lines.append("Read playbooks in memory/ for when and how to use each skill.")
+            system_prompt.append({
+                "type": "text",
+                "text": "\n".join(skill_lines),
+            })
 
         # Generate
         draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(

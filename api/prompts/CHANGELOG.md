@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.05.3] - Referential prompt injection — playbooks + skills (~39% token savings)
+
+### Changed
+- `workspace.py`: `load_context()` injects compact index + critical rules (~233t) instead of full playbook content (~1,950t). Agent reads full playbooks via ReadWorkspace on demand.
+- `task_pipeline.py`: SKILL.md replaced with compact skill reference (~102t) instead of HTTP-fetched SKILL.md files (~1,500t). Agent has type + output format + docs path.
+- Net: ~3,115 tokens saved per execution (~39% of system prompt).
+- Expected behavior: Agent sees methodology index, reads detail on demand. Critical rules always in prompt.
+
+---
+
 ## [2026.04.05.2] - Onboarding task scaffold — auto-create and trigger after entity confirmation
 
 ### Changed

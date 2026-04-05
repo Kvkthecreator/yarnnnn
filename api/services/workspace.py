@@ -502,17 +502,15 @@ class AgentWorkspace:
         Execution state (reflections, feedback, working notes) lives on tasks.
         Domain knowledge lives in /workspace/context/ domains.
 
-        ADR-157: Selective playbook loading. System prompt gets:
-        1. AGENT.md (always)
-        2. Feedback (always)
-        3. Playbook INDEX (always — short descriptions, ~100 tokens)
-        4. Relevant playbook CONTENT (only for task-class-matched playbooks)
+        ADR-157: Referential playbook injection (Claude Code pattern).
+        System prompt gets compact index + critical rules (~100 tokens).
+        Full playbook content readable on demand via ReadWorkspace.
 
         Args:
             task_class: "context" or "synthesis" — determines which playbooks
-                       are loaded in full. None = load all (backward compat).
+                       are highlighted as relevant. None = all (backward compat).
 
-        Returns formatted string of AGENT.md + playbook index + relevant playbooks.
+        Returns formatted string of AGENT.md + feedback + playbook index.
         """
         parts = []
 
@@ -526,20 +524,9 @@ class AgentWorkspace:
         if feedback and feedback.strip():
             parts.append(f"## Agent Feedback (cross-task)\n{feedback}")
 
-        # Playbook index — short descriptions of all available playbooks
-        from services.agent_framework import (
-            get_playbook_index, get_relevant_playbooks, PLAYBOOK_METADATA,
-        )
-        agent_role = self._slug.replace("-", "_") if self._slug else None
-        # Resolve role from slug (slugs are hyphenated, roles are underscored)
-        if agent_role:
-            from services.agent_framework import resolve_role
-            # Try common mappings
-            role_candidates = [agent_role, agent_role.replace("_", "-")]
-        else:
-            role_candidates = []
+        # Playbook index — referential, not full content (Claude Code pattern)
+        from services.agent_framework import PLAYBOOK_METADATA, TASK_PLAYBOOK_ROUTING
 
-        # Build index from filesystem (what's actually seeded)
         memory_files = await self.list("memory/")
         playbook_files = [
             f for f in memory_files
@@ -547,35 +534,37 @@ class AgentWorkspace:
         ]
 
         if playbook_files:
-            # Build index from metadata registry
-            index_lines = ["## Available Playbooks"]
+            # Determine which playbooks are relevant to this task class
+            relevant_tags = None
+            if task_class and task_class in TASK_PLAYBOOK_ROUTING:
+                relevant_tags = set(TASK_PLAYBOOK_ROUTING[task_class])
+
+            index_lines = [
+                "## Agent Methodology",
+                "Your playbooks are in memory/. Read them via ReadWorkspace when making methodology decisions.",
+            ]
             for filename in playbook_files:
                 meta = PLAYBOOK_METADATA.get(filename, {})
                 desc = meta.get("description", filename.replace("_playbook-", "").replace(".md", ""))
                 name = filename.replace("_playbook-", "").replace(".md", "").replace("-", " ").title()
-                index_lines.append(f"- **{name}**: {desc}")
-            parts.append("\n".join(index_lines))
 
-            # Determine which playbooks to load in full
-            if task_class:
-                from services.agent_framework import TASK_PLAYBOOK_ROUTING
-                relevant_tags = set(TASK_PLAYBOOK_ROUTING.get(task_class, []))
-            else:
-                relevant_tags = None  # load all
-
-            # Load relevant playbook content
-            for filename in playbook_files:
-                # Check tag match
+                # Mark relevant playbooks
+                is_relevant = True
                 if relevant_tags is not None:
-                    meta = PLAYBOOK_METADATA.get(filename, {})
                     playbook_tags = set(meta.get("tags", "").split(","))
-                    if not (relevant_tags & playbook_tags):
-                        continue  # skip — not relevant to this task class
+                    is_relevant = bool(relevant_tags & playbook_tags)
 
-                content = await self.read(f"memory/{filename}")
-                if content:
-                    topic = filename.replace("_playbook-", "").replace("methodology-", "").replace("-", " ").replace(".md", "").title()
-                    parts.append(f"## Playbook: {topic}\n{content}")
+                marker = " ← relevant" if is_relevant else ""
+                index_lines.append(f"- **{name}** (memory/{filename}): {desc}{marker}")
+
+            # Critical rules — always apply, extracted from playbooks
+            index_lines.append("")
+            index_lines.append("**Always apply:**")
+            index_lines.append("- Check domain assets/ folder for existing visuals before generating new")
+            index_lines.append("- Use BRAND.md colors when available, professional defaults otherwise")
+            index_lines.append("- Every visual must carry information — no decorative filler")
+
+            parts.append("\n".join(index_lines))
 
         return "\n\n---\n\n".join(parts) if parts else ""
 
