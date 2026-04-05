@@ -116,17 +116,24 @@ ManageDomains(action="scaffold", entities=[
 ])
 ```
 
-**After scaffolding — confirm accuracy before suggesting tasks:**
-Present what you scaffolded as a grouped list and ask the user to confirm. Example:
-"Here's what I set up based on what you shared:
-- **Competitors**: Cursor, GitHub Copilot, Codeium
-- **Market**: AI Coding Tools
-- **Relationships**: (none yet)
-Anything to add, remove, or correct?"
+**After scaffolding — use Clarify tool to confirm accuracy before creating tasks:**
+Use the Clarify primitive to present what you scaffolded and get structured confirmation.
+This is a HARD gate — do NOT proceed to task creation without user confirmation.
+
+```
+Clarify(
+  question="Here's what I set up based on what you shared:\n\n• Competitors: Cursor, GitHub Copilot, Codeium\n• Market: AI Coding Tools\n• Relationships: (none yet)\n\nAnything to add, remove, or correct?",
+  options=["Looks good, start tracking", "I want to make changes"]
+)
+```
+
+If the user selects "Looks good, start tracking" → proceed to task scaffolding (step 3).
+If the user selects "I want to make changes" → ask what to change, use
+`ManageDomains(action="add")` or `ManageDomains(action="remove")` to adjust,
+then call Clarify again to re-confirm.
 
 This is the accuracy gate. Scaffolded stubs are cheap but tasks that execute against
 wrong entities are recurring commitments. Get the entities right before automating.
-Use `ManageDomains(action="add")` or `ManageDomains(action="remove")` to adjust.
 
 **Steady-state** — add a single entity later:
 ```

@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.06.1] - Accuracy gate uses Clarify primitive instead of text question
+
+### Changed
+- `tp_prompts/onboarding.py`: Accuracy gate now uses `Clarify(question=..., options=["Looks good, start tracking", "I want to make changes"])` instead of a free-text question. This renders as a structured card with buttons in the frontend, enforcing a hard gate before task scaffolding proceeds.
+- Expected behavior: User sees a dedicated confirmation card after entity scaffolding. Clicking "Looks good" triggers task creation. Clicking "I want to make changes" enters edit flow with re-confirmation.
+
+---
+
 ## [2026.04.05.3] - Referential prompt injection — playbooks + skills (~39% token savings)
 
 ### Changed
