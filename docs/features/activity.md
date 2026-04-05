@@ -9,7 +9,7 @@
 
 Activity is the system provenance log — a record of what YARNNN has done. It answers the question "what happened recently?" rather than "what do I know about the user?" (Memory) or "what's on the platforms right now?" (Context).
 
-Every time YARNNN completes something meaningful — runs an agent, syncs a platform, pulses an agent, assembles a project output — it appends a row to `activity_log`. The log is append-only. Nothing is updated or deleted.
+Every time YARNNN completes something meaningful — executes a task, connects a platform, approves agent output — it appends a row to `activity_log`. The log is append-only. Nothing is updated or deleted.
 
 **Analogy**: Activity is YARNNN's git commit log. It records what was done, when, and what the outcome was. It is not the output itself (that is Work) and not the content (that is Context).
 
@@ -68,7 +68,6 @@ Append-only. Written by service role only (no user-facing INSERT).
 
 | event_type | Written by | When | Scope |
 |---|---|---|---|
-| `content_cleanup` | `unified_scheduler.py` | After ephemeral workspace cleanup | System |
 | `integration_connected` | `routes/integrations.py` | After OAuth connection | Platform |
 | `integration_disconnected` | `routes/integrations.py` | After OAuth disconnection | Platform |
 | `agent_bootstrapped` | `onboarding_bootstrap.py` | After default agent scaffold | System |
@@ -100,7 +99,11 @@ These events carry `task_slug` in their JSONB `metadata` field.
 | `agent_approved` | `routes/agents.py` | When user approves a run |
 | `agent_rejected` | `routes/agents.py` | When user rejects a run |
 
-**Note:** PM coordination events (`pm_pulsed`, `project_heartbeat`, etc.) are from the dissolved project layer (ADR-138). They remain in the `VALID_EVENT_TYPES` set for historical data but are no longer written by current code.
+**Note:** Several event types exist in `VALID_EVENT_TYPES` for querying historical data but are no longer written by current code:
+- `agent_run` — pre-ADR-141 agent execution events
+- `platform_synced`, `content_cleanup` — pre-ADR-153 platform sync cron
+- `memory_written`, `session_summary_written`, `composer_heartbeat` — pre-ADR-156 nightly background jobs
+- PM coordination events (`pm_pulsed`, `project_heartbeat`, etc.) — dissolved project layer (ADR-138)
 
 ---
 
@@ -164,11 +167,11 @@ Returns project-scoped events filtered by `PROJECT_EVENT_TYPES` + `metadata->>pr
 
 ## What Activity enables
 
-**TP grounding**: TP can answer "when did you last run my digest?" or "what happened in last night's sync?" from working memory, without a live database lookup mid-conversation.
+**TP grounding**: TP can answer "when did you last run my digest?" or "what happened with my tasks?" from working memory, without a live database lookup mid-conversation.
 
-**Supervision**: The global activity page provides an auditable trail of what YARNNN has done across the workspace — platform operations, Composer decisions, memory extraction.
+**Supervision**: The global activity page provides an auditable trail of what YARNNN has done across the workspace — task executions, platform connections, scheduler health.
 
-**Project intelligence**: Project timelines show agent thinking (pulse decisions), PM coordination (steering, assessment, assembly), and conversation — making agent intelligence visible between output deliveries.
+**Task visibility**: Task-level events (created, executed, paused, steered, completed) make the full lifecycle visible between output deliveries.
 
 **Cold-start awareness**: On a brand-new account, the activity block is empty. TP knows it has no history. This is better than silence — it's an explicit signal.
 
@@ -190,14 +193,13 @@ Returns project-scoped events filtered by `PROJECT_EVENT_TYPES` + `metadata->>pr
 
 ## Volume expectations
 
-- Agent runs: ~1-3/day per project
-- Agent pulse events: ~4-48/day per agent (varies by role cadence, ADR-126)
-- PM pulse events: ~48/day per project (30-min cadence)
-- Platform syncs: ~4-8/day per user
-- Memory writes: occasional (nightly extraction)
+- Task executions: ~1-5/day per active task (depends on schedule)
+- Agent approvals/rejections: ~1-3/day per active user
+- Scheduler heartbeats: 24/day (hourly)
 - Chat turns: ~5-20/day per active user
+- Integration events: occasional (OAuth connect/disconnect)
 
-Typical: ~50-200 rows/day per active user (increased from ~20-40 due to pulse events). No TTL — rows accumulate over time. At this volume, the table stays manageable indefinitely.
+Typical: ~20-60 rows/day per active user. No TTL — rows accumulate over time. At this volume, the table stays manageable indefinitely.
 
 ---
 

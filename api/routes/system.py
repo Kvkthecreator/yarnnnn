@@ -1,11 +1,14 @@
 """
-System routes - Operations status (ADR-073, ADR-084)
+System routes - Operations status (ADR-073, ADR-141)
 
 Provides operational visibility into background orchestration:
-- Platform sync status with per-resource detail from sync_registry
-- Content accumulation (ADR-153: platform_content removed, context via tasks)
-- Background job status from activity_log
-- Sync schedule observability: timezone, windows, hit/miss status (ADR-084)
+- Platform connection status with per-resource detail from sync_registry
+- Background job status from activity_log (task execution + system health)
+- Scheduler heartbeat observability
+
+ADR-141/153/156 cleanup: Platform sync cron, memory extraction, session summaries,
+Composer heartbeat, and content cleanup are all deleted. The scheduler now only does
+task execution, workspace cleanup, and lifecycle hygiene.
 
 Mounted at /api/system
 """
@@ -20,11 +23,7 @@ from datetime import datetime, timezone, timedelta
 logger = logging.getLogger(__name__)
 
 from services.supabase import UserClient
-from services.platform_limits import (
-    SYNC_SCHEDULES,
-    get_next_sync_time,
-    _resolve_timezone,
-)
+from services.platform_limits import get_next_sync_time
 
 router = APIRouter()
 
@@ -45,16 +44,8 @@ class ResourceSyncStatus(BaseModel):
     last_error_at: Optional[str] = None
 
 
-class PlatformContentSummary(BaseModel):
-    """ADR-153: platform_content dropped. Returns zeros for API compat."""
-    total_items: int = 0
-    retained_items: int = 0
-    ephemeral_items: int = 0
-    freshest_at: Optional[str] = None
-
-
 class PlatformSyncStatus(BaseModel):
-    """Sync status for a single platform."""
+    """Connection status for a single platform."""
     platform: str
     connected: bool
     last_synced_at: Optional[str] = None
@@ -62,7 +53,6 @@ class PlatformSyncStatus(BaseModel):
     source_count: int = 0
     status: str = "unknown"  # healthy, stale, pending, disconnected
     resources: list[ResourceSyncStatus] = []
-    content: Optional[PlatformContentSummary] = None
 
 
 class BackgroundJobStatus(BaseModel):
@@ -75,128 +65,21 @@ class BackgroundJobStatus(BaseModel):
     schedule_description: Optional[str] = None  # ADR-084: when this job is expected to run
 
 
-class ScheduleWindow(BaseModel):
-    """ADR-084: A single sync schedule window with execution status."""
-    time: str           # "08:00" in user's local timezone
-    time_utc: str       # ISO timestamp in UTC for this window today
-    status: str         # "completed" | "failed" | "missed" | "upcoming" | "active"
-
-
-class SyncScheduleInfo(BaseModel):
-    """ADR-084: Sync schedule observability."""
-    timezone: str
-    sync_frequency_label: str
-    todays_windows: list[ScheduleWindow]
-    next_sync_at: Optional[str] = None
-
-
 class SystemStatusResponse(BaseModel):
     """System operations status overview."""
     platform_sync: list[PlatformSyncStatus]
     background_jobs: list[BackgroundJobStatus]
     tier: str = "free"
     sync_frequency: str = "2x_daily"
-    sync_schedule: Optional[SyncScheduleInfo] = None  # ADR-084
 
-
-# =============================================================================
-# ADR-084: Schedule Observability Helpers
-# =============================================================================
 
 # Static schedule descriptions for background jobs
+# ADR-141/153/156: Only task execution + system health remain
 JOB_SCHEDULE_DESCRIPTIONS = {
-    "Platform Sync": "Per tier schedule",
-    "Memory Extraction": "Daily at 00:00 UTC",
-    "Session Summaries": "Daily at 00:00 UTC",
     "Task Execution": "When due (checked every 5 min)",
-    "Composer Heartbeat": "Pro: every 5 min / Free: daily at 00:00 UTC",
-    "Content Cleanup": "Daily at 00:00 UTC",
-    "Scheduler Heartbeat": "Every 5 min",
+    "Scheduler Heartbeat": "Hourly",
 }
 
-SYNC_FREQUENCY_LABELS = {
-    "1x_daily": "1x daily",
-    "2x_daily": "2x daily",
-    "4x_daily": "4x daily",
-    "hourly": "Hourly",
-}
-
-
-def _build_todays_windows(
-    sync_frequency: str,
-    user_tz_str: str,
-    now_utc: datetime,
-    sync_events: list[dict],
-) -> list[ScheduleWindow]:
-    """
-    Build today's schedule windows with hit/miss/failed status.
-
-    Checks each schedule window against activity_log platform_synced events.
-    Status values:
-    - "completed": sync event in window, no error
-    - "failed": sync event in window, but has metadata.error (ADR-086)
-    - "missed": past window, no sync event
-    - "upcoming": future window
-    - "active": current window, no event yet
-    """
-    tz = _resolve_timezone(user_tz_str)
-    now_local = now_utc.astimezone(tz)
-    today_local = now_local.date()
-
-    schedule = SYNC_SCHEDULES.get(sync_frequency)
-
-    if schedule is None:
-        # Hourly — build windows for each hour of today
-        schedule = [f"{h:02d}:00" for h in range(24)]
-
-    # Parse sync events with timestamps and error status
-    parsed_events: list[tuple[datetime, bool]] = []
-    for ev in sync_events:
-        ts = ev.get("created_at")
-        if ts:
-            try:
-                event_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                has_error = bool((ev.get("metadata") or {}).get("error"))
-                parsed_events.append((event_dt, has_error))
-            except (ValueError, TypeError):
-                pass
-
-    windows = []
-    for time_str in schedule:
-        hour, minute = map(int, time_str.split(":"))
-        # Build this window's datetime in user's timezone, then convert to UTC
-        window_local = tz.localize(
-            datetime.combine(today_local, datetime.min.time().replace(hour=hour, minute=minute))
-        )
-        window_utc = window_local.astimezone(timezone.utc)
-        window_end_utc = window_utc + timedelta(minutes=30)
-
-        # Determine status
-        if now_utc < window_utc:
-            status = "upcoming"
-        else:
-            # Find events in this window
-            window_events = [
-                (et, err) for et, err in parsed_events
-                if window_utc <= et <= window_end_utc
-            ]
-
-            if window_events:
-                # Any event with error → "failed"; all clean → "completed"
-                any_error = any(err for _, err in window_events)
-                status = "failed" if any_error else "completed"
-            elif now_utc < window_end_utc:
-                status = "active"
-            else:
-                status = "missed"
-
-        windows.append(ScheduleWindow(
-            time=time_str,
-            time_utc=window_utc.isoformat(),
-            status=status,
-        ))
-
-    return windows
 
 
 # =============================================================================
@@ -264,14 +147,7 @@ async def get_system_status(auth: UserClient):
         p = row["platform"]
         registry_by_platform.setdefault(p, []).append(row)
 
-    # ─── Platform Content Counts (per platform) ───────────────────────────────
-    # ADR-153: platform_content table dropped. Return empty summaries.
-    content_counts: dict[str, PlatformContentSummary] = {
-        "slack": PlatformContentSummary(),
-        "notion": PlatformContentSummary(),
-    }
-
-    # ─── Build Platform Sync Status ────────────────────────────────────────────
+    # ─── Build Platform Connection Status ────────────────────────────────────────
     platform_sync = []
     all_platforms = ["slack", "notion"]  # ADR-131: Gmail/Calendar sunset
 
@@ -351,7 +227,6 @@ async def get_system_status(auth: UserClient):
                 source_count=len(selected_sources),
                 status=platform_status,
                 resources=resources,
-                content=content_counts.get(platform),
             ))
         else:
             platform_sync.append(PlatformSyncStatus(
@@ -360,128 +235,39 @@ async def get_system_status(auth: UserClient):
                 status="disconnected",
             ))
 
-    # ─── Background Jobs Status ────────────────────────────────────────────────
+    # ─── Background Jobs Status (ADR-141/153/156: only active jobs) ─────────────
     background_jobs = []
 
     job_types = [
-        ("platform_synced", "Platform Sync"),
-        ("memory_written", "Memory Extraction"),
-        ("session_summary_written", "Session Summaries"),
         ("task_executed", "Task Execution"),
-        ("composer_heartbeat", "Composer Heartbeat"),
-        ("content_cleanup", "Content Cleanup"),
         ("scheduler_heartbeat", "Scheduler Heartbeat"),
     ]
 
     for event_type, label in job_types:
-        if event_type == "platform_synced":
-            # Aggregate recent platform_synced events (multiple platforms sync in parallel)
-            sync_window = (now - timedelta(minutes=30)).isoformat()
-            event_result = auth.client.table("activity_log").select(
-                "id, summary, metadata, created_at"
-            ).eq("user_id", user_id).eq(
-                "event_type", event_type
-            ).gte("created_at", sync_window).order(
-                "created_at", desc=True
-            ).limit(10).execute()
-
-            if event_result.data:
-                # Aggregate: combine summaries, sum items, use most recent timestamp
-                latest = event_result.data[0]
-                total_items = sum(
-                    (e.get("metadata", {}) or {}).get("items_synced", 0)
-                    for e in event_result.data
-                )
-                platforms = [
-                    (e.get("metadata", {}) or {}).get("platform", "")
-                    for e in event_result.data
-                ]
-                has_error = any(
-                    (e.get("metadata", {}) or {}).get("error")
-                    for e in event_result.data
-                )
-                summary = f"Synced {', '.join(p for p in platforms if p)}: {total_items} items"
-                background_jobs.append(BackgroundJobStatus(
-                    job_type=label,
-                    last_run_at=latest["created_at"],
-                    last_run_status="failed" if has_error else "success",
-                    last_run_summary=summary,
-                    items_processed=total_items,
-                ))
-            else:
-                # Fall back to the single most recent event (outside 30min window)
-                fallback = auth.client.table("activity_log").select(
-                    "id, summary, metadata, created_at"
-                ).eq("user_id", user_id).eq(
-                    "event_type", event_type
-                ).order("created_at", desc=True).limit(1).execute()
-                if fallback.data:
-                    event = fallback.data[0]
-                    metadata = event.get("metadata", {}) or {}
-                    background_jobs.append(BackgroundJobStatus(
-                        job_type=label,
-                        last_run_at=event["created_at"],
-                        last_run_status="success" if not metadata.get("error") else "failed",
-                        last_run_summary=event.get("summary"),
-                        items_processed=metadata.get("items_processed", 0),
-                    ))
-                else:
-                    background_jobs.append(BackgroundJobStatus(
-                        job_type=label,
-                        last_run_status="never_run",
-                    ))
-        else:
-            event_result = auth.client.table("activity_log").select(
-                "id, summary, metadata, created_at"
-            ).eq("user_id", user_id).eq(
-                "event_type", event_type
-            ).order("created_at", desc=True).limit(1).execute()
-
-            if event_result.data:
-                event = event_result.data[0]
-                metadata = event.get("metadata", {}) or {}
-                background_jobs.append(BackgroundJobStatus(
-                    job_type=label,
-                    last_run_at=event["created_at"],
-                    last_run_status="success" if not metadata.get("error") else "failed",
-                    last_run_summary=event.get("summary"),
-                    items_processed=metadata.get("items_processed", 0),
-                ))
-            else:
-                background_jobs.append(BackgroundJobStatus(
-                    job_type=label,
-                    last_run_status="never_run",
-                ))
-
-    # ─── ADR-084: Sync Schedule Observability ────────────────────────────────
-    # Query today's platform_synced events for window status
-    tz = _resolve_timezone(user_tz_str)
-    now_local = now.astimezone(tz)
-    today_start_local = tz.localize(
-        datetime.combine(now_local.date(), datetime.min.time())
-    )
-    today_start_utc = today_start_local.astimezone(timezone.utc)
-
-    try:
-        sync_events_result = auth.client.table("activity_log").select(
-            "created_at, metadata"
+        event_result = auth.client.table("activity_log").select(
+            "id, summary, metadata, created_at"
         ).eq("user_id", user_id).eq(
-            "event_type", "platform_synced"
-        ).gte("created_at", today_start_utc.isoformat()).execute()
-        sync_events = sync_events_result.data or []
-    except Exception:
-        sync_events = []
+            "event_type", event_type
+        ).order("created_at", desc=True).limit(1).execute()
 
-    todays_windows = _build_todays_windows(
-        sync_frequency, user_tz_str, now, sync_events
-    )
+        if event_result.data:
+            event = event_result.data[0]
+            metadata = event.get("metadata", {}) or {}
+            background_jobs.append(BackgroundJobStatus(
+                job_type=label,
+                last_run_at=event["created_at"],
+                last_run_status="success" if not metadata.get("error") else "failed",
+                last_run_summary=event.get("summary"),
+                items_processed=metadata.get("items_processed", 0),
+            ))
+        else:
+            background_jobs.append(BackgroundJobStatus(
+                job_type=label,
+                last_run_status="never_run",
+            ))
 
-    sync_schedule = SyncScheduleInfo(
-        timezone=user_tz_str,
-        sync_frequency_label=SYNC_FREQUENCY_LABELS.get(sync_frequency, sync_frequency),
-        todays_windows=todays_windows,
-        next_sync_at=get_next_sync_time(sync_frequency, user_tz_str),
-    )
+    # ADR-153: Sync schedule observability removed — no platform sync cron.
+    # Platform data flows through task execution now.
 
     # Add schedule descriptions to background jobs
     for job in background_jobs:
@@ -492,7 +278,6 @@ async def get_system_status(auth: UserClient):
         background_jobs=background_jobs,
         tier=tier,
         sync_frequency=sync_frequency,
-        sync_schedule=sync_schedule,
     )
 
 

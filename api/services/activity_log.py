@@ -8,14 +8,11 @@ Table: activity_log
 Scoping: Two-tier (ADR-129) — workspace-level macro + project-level micro via metadata.project_slug
 
 Write points (all non-fatal — callers continue regardless of log failure):
-  - agent_execution.py: 'agent_run' after version created
+  - task_pipeline.py: 'task_executed' after task execution (ADR-141)
   - routes/agents.py: 'agent_approved' / 'agent_rejected' on version status change
   - routes/integrations.py: 'integration_connected' / 'integration_disconnected' on OAuth lifecycle
-  - TP memory tools: 'memory_written' after user_memory upsert
   - chat.py: 'chat_session' when session ends
   - unified_scheduler.py: 'scheduler_heartbeat' on hourly heartbeat writes
-  - unified_scheduler.py: 'content_cleanup' kept for legacy cleanup history
-  - task_pipeline.py: 'task_executed' after task execution (ADR-141)
 
 Read points:
   - working_memory.py: get_recent_activity() → injected as "Recent activity" block
@@ -46,6 +43,7 @@ async def resolve_agent_project_slug_full(client, user_id: str, agent: dict) -> 
     return None
 
 VALID_EVENT_TYPES = frozenset({
+    # ── Active (currently written by live code) ──
     # Task lifecycle (ADR-138/141)
     "task_executed",                # Task pipeline completed (scheduled or manual)
     "task_created",                 # Task created via TP primitive
@@ -53,23 +51,25 @@ VALID_EVENT_TYPES = frozenset({
     "task_paused",                  # Task paused via TP primitive
     "task_resumed",                 # Task resumed via TP primitive
     # Agent lifecycle
-    "agent_run",                    # Legacy: pre-ADR-141 execution events (still in DB)
     "agent_approved",
     "agent_rejected",
     "agent_bootstrapped",           # ADR-110/140: Auto-created or scaffolded agent
     "agent_scheduled",              # Lifecycle hygiene action
-    # Platform & sync
-    "platform_synced",              # Legacy — kept for historical events
+    # Platform connections
     "integration_connected",
     "integration_disconnected",
-    "content_cleanup",              # Legacy — kept for historical events
-    # Sessions & memory
+    # Sessions
     "chat_session",
-    "memory_written",
-    "session_summary_written",      # Legacy / compatibility event
     # System
-    "scheduler_heartbeat",          # ADR-072: Scheduler execution cycle
-    "composer_heartbeat",           # Legacy — kept for historical events
+    "scheduler_heartbeat",          # Hourly scheduler heartbeat
+
+    # ── Historical only (no longer written, kept for querying old events) ──
+    "agent_run",                    # Pre-ADR-141 execution events
+    "platform_synced",              # Pre-ADR-153 platform sync cron
+    "content_cleanup",              # Pre-ADR-153 content TTL cleanup
+    "memory_written",               # Pre-ADR-156 nightly memory extraction
+    "session_summary_written",      # Pre-ADR-156 nightly session summaries
+    "composer_heartbeat",           # Pre-ADR-156 Composer heartbeat
 })
 
 

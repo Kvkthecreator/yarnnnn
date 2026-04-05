@@ -1057,9 +1057,8 @@ export const api = {
     },
   },
 
-  // ADR-072/073: System/Operations status
+  // System/Operations status (ADR-141/153/156: streamlined)
   system: {
-    // Get system operations status with per-resource detail
     getStatus: () =>
       request<{
         platform_sync: Array<{
@@ -1077,12 +1076,6 @@ export const api = {
             has_cursor: boolean;
             status: "fresh" | "recent" | "stale" | "never_synced" | "unknown";
           }>;
-          content: {
-            total_items: number;
-            retained_items: number;
-            ephemeral_items: number;
-            freshest_at: string | null;
-          } | null;
         }>;
         background_jobs: Array<{
           job_type: string;
@@ -1090,21 +1083,10 @@ export const api = {
           last_run_status: "success" | "failed" | "never_run" | "unknown";
           last_run_summary: string | null;
           items_processed: number;
-          schedule_description: string | null;  // ADR-084
+          schedule_description: string | null;
         }>;
         tier: string;
         sync_frequency: string;
-        // ADR-084: Sync schedule observability
-        sync_schedule: {
-          timezone: string;
-          sync_frequency_label: string;
-          todays_windows: Array<{
-            time: string;
-            time_utc: string;
-            status: "completed" | "failed" | "missed" | "upcoming" | "active";
-          }>;
-          next_sync_at: string | null;
-        } | null;
       }>("/api/system/status"),
 
     // Lightweight endpoint for polling sync completion during pipeline runs
