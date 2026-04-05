@@ -25,12 +25,6 @@ function getAgentSlug(agent: Agent): string {
   return agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
-/** Count tasks for an agent */
-function countTasks(agent: Agent, tasks: Task[]): number {
-  const slug = getAgentSlug(agent);
-  return tasks.filter(t => t.agent_slugs?.includes(slug)).length;
-}
-
 /** Check if agent has any active tasks */
 function hasActiveTasks(agent: Agent, tasks: Task[]): boolean {
   const slug = getAgentSlug(agent);
@@ -44,13 +38,17 @@ const CLASS_LABELS: Record<string, string> = {
   'platform-bot': 'Integrations',
 };
 
-/** Metadata line: domain or class label + task count */
-function getMetaLine(agent: Agent, taskCount: number): string {
+/** Metadata line: domain + work rhythm (derived from most frequent task schedule) */
+function getMetaLine(agent: Agent, agentTasks: Task[]): string {
   const domain = agent.context_domain;
   const cls = agent.agent_class || 'domain-steward';
   const domainLabel = domain ? `${domain}/` : cls === 'synthesizer' ? 'synthesizer' : '';
-  const taskLabel = taskCount === 1 ? '1 task' : `${taskCount} tasks`;
-  return domainLabel ? `${domainLabel} · ${taskLabel}` : taskLabel;
+
+  const activeTasks = agentTasks.filter(t => t.status === 'active');
+  const rhythm = activeTasks[0]?.schedule;
+  const rhythmLabel = rhythm ? `works ${rhythm}` : agentTasks.length > 0 ? `${agentTasks.length} tasks` : '';
+
+  return domainLabel && rhythmLabel ? `${domainLabel} · ${rhythmLabel}` : domainLabel || rhythmLabel || '';
 }
 
 export function AgentTreeNav({
@@ -81,7 +79,8 @@ export function AgentTreeNav({
 
             {group.agents.map(agent => {
               const isSelected = agent.id === selectedAgentId;
-              const taskCount = countTasks(agent, tasks);
+              const slug = getAgentSlug(agent);
+              const agentTasks = tasks.filter(t => t.agent_slugs?.includes(slug));
               const active = hasActiveTasks(agent, tasks);
 
               const statusColor = active
@@ -101,7 +100,7 @@ export function AgentTreeNav({
                   <div className="min-w-0 flex-1">
                     <p className={cn('text-sm truncate', isSelected ? 'font-medium' : '')}>{agent.title}</p>
                     <p className="text-[11px] text-muted-foreground/50 truncate">
-                      {getMetaLine(agent, taskCount)}
+                      {getMetaLine(agent, agentTasks)}
                     </p>
                   </div>
                 </button>

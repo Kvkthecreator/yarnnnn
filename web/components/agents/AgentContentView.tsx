@@ -146,17 +146,11 @@ function StatusLine({
       <Circle className={cn('w-2 h-2 shrink-0', statusColor)} />
       {hasActive ? (
         <>
-          <span>Active</span>
+          <span className="capitalize">Works {schedule || 'on schedule'}</span>
           {lastRun && (
             <>
               <span className="text-muted-foreground/30">·</span>
               <span>Updated {formatRelativeTime(lastRun)}</span>
-            </>
-          )}
-          {schedule && (
-            <>
-              <span className="text-muted-foreground/30">·</span>
-              <span className="capitalize">{schedule}</span>
             </>
           )}
         </>
@@ -468,8 +462,22 @@ function SetupTab({
     );
   }
 
+  // Derive agent work rhythm from most frequent active task schedule
+  const activeTasks = tasks.filter(t => t.status === 'active');
+  const rhythm = activeTasks[0]?.schedule;
+
   return (
     <div className="flex-1 overflow-auto px-5 py-4 space-y-4">
+      {/* Agent work rhythm */}
+      {rhythm && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground pb-1 border-b border-border/50">
+          <Circle className="w-2 h-2 fill-green-500 text-green-500 shrink-0" />
+          <span>Works <span className="capitalize">{rhythm}</span></span>
+          <span className="text-muted-foreground/30">·</span>
+          <span>Tasks run on this schedule unless overridden</span>
+        </div>
+      )}
+
       <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Tasks</h3>
 
       {tasks.map(task => (
