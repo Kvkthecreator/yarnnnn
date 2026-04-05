@@ -13,7 +13,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import { X, Link2, Upload, FileText, Loader2, Plus, ArrowRight, ListChecks, Sparkles } from 'lucide-react';
+import { X, Link2, Upload, FileText, Loader2, Plus, ArrowRight, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 
@@ -27,10 +27,6 @@ interface ContextSetupProps {
   onSubmit: (message: string) => void;
   /** Called when user dismisses without submitting */
   onDismiss?: () => void;
-  /** Show skip chips at the bottom (cold start only) */
-  showSkipOptions?: boolean;
-  /** Called when user clicks a skip option */
-  onSkipAction?: (message: string) => void;
   /** Compact mode (for plus menu, smaller padding) */
   compact?: boolean;
 }
@@ -38,8 +34,6 @@ interface ContextSetupProps {
 export function ContextSetup({
   onSubmit,
   onDismiss,
-  showSkipOptions = false,
-  onSkipAction,
   compact = false,
 }: ContextSetupProps) {
   // --- Links ---
@@ -174,15 +168,15 @@ export function ContextSetup({
   return (
     <div className={cn(
       'rounded-xl border border-border bg-background shadow-sm animate-in fade-in slide-in-from-bottom-3 duration-200',
-      compact ? 'p-3' : 'p-4'
+      compact ? 'p-3' : 'p-6'
     )}>
       {/* Header */}
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex items-start justify-between mb-5">
         <div>
-          <p className={cn('font-medium', compact ? 'text-xs' : 'text-sm')}>
+          <p className={cn('font-medium', compact ? 'text-xs' : 'text-base')}>
             Tell me about yourself and your work
           </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <p className={cn('text-muted-foreground mt-1', compact ? 'text-[11px]' : 'text-sm')}>
             Share anything — I'll figure out where it goes.
           </p>
         </div>
@@ -193,7 +187,7 @@ export function ContextSetup({
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className={cn('space-y-4', compact ? 'space-y-3' : 'space-y-5')}>
         {/* Links section */}
         <div>
           <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-1.5">
@@ -272,8 +266,8 @@ export function ContextSetup({
             value={notes}
             onChange={e => setNotes(e.target.value)}
             placeholder="I'm a founder building... / I work in... / My team does..."
-            rows={3}
-            className="w-full text-[12px] bg-muted/30 border border-border/50 rounded px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y placeholder:text-muted-foreground/30"
+            rows={5}
+            className="w-full text-sm bg-muted/30 border border-border/50 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y placeholder:text-muted-foreground/30"
           />
         </div>
       </div>
@@ -283,41 +277,22 @@ export function ContextSetup({
         onClick={handleSubmit}
         disabled={!hasContent || isUploading || submitting}
         className={cn(
-          'w-full mt-3 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-colors',
+          'w-full mt-5 flex items-center justify-center gap-2 rounded-lg font-medium transition-colors',
+          compact ? 'py-2 text-xs mt-3' : 'py-3 text-sm',
           hasContent && !isUploading && !submitting
             ? 'bg-primary text-primary-foreground hover:bg-primary/90'
             : 'bg-muted text-muted-foreground cursor-not-allowed'
         )}
       >
         {submitting ? (
-          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Setting up...</>
+          <><Loader2 className="w-4 h-4 animate-spin" /> Setting up...</>
         ) : isUploading ? (
-          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading...</>
+          <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
         ) : (
-          <>Get started <ArrowRight className="w-3.5 h-3.5" /></>
+          <>Get started <ArrowRight className="w-4 h-4" /></>
         )}
       </button>
 
-      {/* Skip options (cold start only) */}
-      {showSkipOptions && onSkipAction && (
-        <div className="mt-3 pt-3 border-t border-border/30">
-          <p className="text-[10px] text-muted-foreground/50 mb-1.5">Already set up?</p>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => onSkipAction('What can you track for me?')}
-              className="flex-1 text-[10px] px-2 py-1.5 rounded border border-border/40 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
-            >
-              What can you track?
-            </button>
-            <button
-              onClick={() => onSkipAction('I want to create a task')}
-              className="flex-1 flex items-center justify-center gap-1 text-[10px] px-2 py-1.5 rounded border border-border/40 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
-            >
-              <ListChecks className="w-3 h-3" /> Create a task
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

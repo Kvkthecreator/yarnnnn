@@ -90,11 +90,9 @@ export default function HomePage() {
       {/* Onboarding overlay — only for new users (no tasks) */}
       {isNewUser && !hasMessages && (
         <div className="absolute inset-0 bottom-[72px] flex items-center justify-center px-6 py-8 bg-background z-10">
-          <div className="w-full max-w-xl">
+          <div className="w-full max-w-2xl">
             <ContextSetup
               onSubmit={(msg) => sendMessage(msg)}
-              showSkipOptions
-              onSkipAction={(msg) => sendMessage(msg)}
             />
           </div>
         </div>
