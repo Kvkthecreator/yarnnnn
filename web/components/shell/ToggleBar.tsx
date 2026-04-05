@@ -3,18 +3,18 @@
 /**
  * ToggleBar — Claude Desktop-style pill toggle for top-level navigation
  *
- * SURFACE-ARCHITECTURE.md v3: Four segments: Chat | Agents | Context | Activity
+ * SURFACE-ARCHITECTURE.md v4: Four segments: Home | Agents | Context | Activity
  * Each segment is a Next.js Link (route-based navigation).
  * Active segment determined by pathname prefix matching.
  */
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageCircle, Users, FolderOpen, Activity } from 'lucide-react';
+import { Home, Users, FolderOpen, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SEGMENTS = [
-  { id: 'chat', label: 'Chat', icon: MessageCircle, href: '/chat' },
+  { id: 'chat', label: 'Home', icon: Home, href: '/chat' },
   { id: 'agents', label: 'Agents', icon: Users, href: '/agents' },
   { id: 'context', label: 'Context', icon: FolderOpen, href: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, href: '/activity' },

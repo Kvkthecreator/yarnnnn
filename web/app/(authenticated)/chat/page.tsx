@@ -1,34 +1,64 @@
 'use client';
 
 /**
- * Chat Page — Dedicated full-page TP chat surface + onboarding home.
+ * Home Page — Daily briefing + unscoped TP chat.
  *
- * SURFACE-ARCHITECTURE.md v3: Unscoped TP for strategic direction,
- * cross-cutting questions, workspace management, and task creation.
+ * SURFACE-ARCHITECTURE.md v4: The Home page (nav label "Home", route /chat).
+ * Returning users see a persistent collapsible daily briefing above the chat.
+ * New users (0 tasks) see ContextSetup onboarding overlay.
  *
- * This is also the ONBOARDING surface. New users (post-signup) land here.
- * When there's no chat history, ContextSetup renders as a full-page overlay
- * centered above ChatPanel's input bar. ContextSetup gets max-w-xl of real
- * estate — not constrained to ChatPanel's internal message area.
- * After first interaction, the overlay disappears and it's normal chat.
+ * The briefing never disappears — it auto-collapses to a one-line summary
+ * after the first message, and the user can expand/collapse at any time.
  */
 
-import { useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Globe, Upload, ListChecks, Settings2 } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { ContextSetup } from '@/components/tp/ContextSetup';
+import { DailyBriefing } from '@/components/home/DailyBriefing';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import { useTP } from '@/contexts/TPContext';
+import type { Agent, Task } from '@/types';
+import { api } from '@/lib/api/client';
 
-export default function ChatPage() {
+export default function HomePage() {
   const { messages, sendMessage, isLoading, loadScopedHistory } = useTP();
   const hasMessages = messages.length > 0 || isLoading;
 
-  // Load global session history — ensures we're on global scope
-  // (user may have navigated here from /agents which set agent scope)
+  // ── Data for briefing ──
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [agentList, taskList] = await Promise.all([
+        api.agents.list(),
+        api.tasks.list(),
+      ]);
+      setAgents(agentList);
+      setTasks(taskList);
+    } catch {
+      // Silently fail — briefing will show empty state
+    } finally {
+      setDataLoaded(true);
+    }
+  }, []);
+
+  // Load global session history + briefing data
   useEffect(() => {
     loadScopedHistory();
-  }, [loadScopedHistory]);
+    loadData();
+  }, [loadScopedHistory, loadData]);
+
+  // Refresh briefing data every 60s
+  useEffect(() => {
+    const interval = setInterval(loadData, 60_000);
+    return () => clearInterval(interval);
+  }, [loadData]);
+
+  const hasTasks = tasks.length > 0;
+  const isNewUser = dataLoaded && !hasTasks;
 
   // Plus menu actions — workspace-level
   const plusMenuActions: PlusMenuAction[] = useMemo(() => [
@@ -40,17 +70,25 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full max-w-3xl mx-auto w-full relative">
+      {/* Daily briefing — persistent header for returning users */}
+      {hasTasks && (
+        <DailyBriefing
+          agents={agents}
+          tasks={tasks}
+          hasMessages={hasMessages}
+        />
+      )}
+
       {/* ChatPanel always renders — handles messages + input bar */}
       <ChatPanel
         surfaceOverride={{ type: 'chat' }}
         plusMenuActions={plusMenuActions}
-        placeholder={hasMessages ? 'Ask anything or type / ...' : 'Or just type here...'}
+        placeholder={hasMessages ? 'Ask anything or type / ...' : hasTasks ? 'Ask anything or type / ...' : 'Or just type here...'}
         showCommandPicker={true}
       />
 
-      {/* Onboarding overlay — renders OVER ChatPanel's empty message area */}
-      {/* Positioned to fill the space above the input bar */}
-      {!hasMessages && (
+      {/* Onboarding overlay — only for new users (no tasks) */}
+      {isNewUser && !hasMessages && (
         <div className="absolute inset-0 bottom-[72px] flex items-center justify-center px-6 py-8 bg-background z-10">
           <div className="w-full max-w-xl">
             <ContextSetup
