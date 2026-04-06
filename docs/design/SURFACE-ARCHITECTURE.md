@@ -1,24 +1,30 @@
 # Surface Architecture — Chat + Agents + Context + Activity
 
-**Date:** 2026-04-06 (v5 — pinned header + Browse/Tasks/Agent tabs, Finder-style freshness)
+**Date:** 2026-04-06 (v6 — dashboard+chat two-panel, composed agent views, unified TP)
 **Status:** Proposed
-**Supersedes:** v3 (2026-04-04, task-cards-as-bridge center panel)
+**Supersedes:** v5 (2026-04-06, pinned header + Browse/Tasks/Agent tabs)
 **Depends on:** [ADR-138](../adr/ADR-138-agents-as-work-units.md) (Agents as Work Units), [ADR-140](../adr/ADR-140-agent-workforce-model.md) (Workforce Model), [ADR-152](../adr/ADR-152-unified-directory-registry.md) (Directory Registry)
 
 ---
 
-## Design Thesis: Knowledge Is the Hero
+## Design Thesis: Dashboard + Chat, Everywhere
 
-Four surfaces, each with a clear purpose:
+Every surface is **dashboard + chat**. The dashboard varies by context. The chat is TP (same unified session everywhere). The file system lives on the Context page.
 
-| Surface | Route | Nav Label | Purpose | Chat |
-|---------|-------|-----------|---------|------|
-| **Home** | `/chat` | Home | Daily briefing + unscoped TP — workspace signals, strategic direction, onboarding | Full-page with persistent briefing header |
-| **Agents** | `/agents` | Agents | Primary working surface — agent roster, three-tab center panel (Agent / Setup / Settings) | Right panel (agent-scoped TP) |
-| **Context** | `/context` | Context | Workspace substrate — cross-agent domains, uploads, settings as browsable filesystem | Right panel (workspace-scoped TP) |
-| **Activity** | `/activity` | Activity | Temporal observation — upcoming runs, past events, execution history | No chat (observation only) |
+| Surface | Route | Nav Label | Dashboard (left/center) | Chat (right panel) |
+|---------|-------|-----------|------------------------|-------------------|
+| **Home** | `/chat` | Home | Daily briefing: what happened, what changed, what's next | TP chat (unified session) |
+| **Agents** (overview) | `/agents` | Agents | Agent roster cards (overview grid) | TP chat |
+| **Agents** (selected) | `/agents?agent={slug}` | Agents | Composed agent dashboard from domain files | TP chat (agent-scoped context) |
+| **Context** | `/context` | Context | File system browser (left panel + content viewer) | TP chat |
+| **Activity** | `/activity` | Activity | Timeline feed | No chat |
 
-**Key shift from v4:** Pinned header above tabs carries agent identity + capability + actions at all times. Tabs renamed Browse/Tasks/Agent for clarity. Browse tab uses Finder-style per-file freshness timestamps (content freshness) while header shows agent work rhythm (worker freshness). Two separate freshness signals: the worker's schedule vs the knowledge's actual modification dates. Left sidebar uses folder icons + left-border highlight for selected state. No default agent selection — center shows minimal empty state until user clicks.
+**Key shift from v5:**
+
+1. **Dashboard-first, not file-first.** Agent views show a composed dashboard (rendered from workspace files) as the default — not a file browser. "What did this agent find?" not "Browse the files it wrote."
+2. **Unified two-panel layout.** Dashboard left, TP chat right. Same pattern on every page. Chat is a collapsible right panel with FAB toggle — same component, same session, same conversation across all pages.
+3. **File system is secondary.** Accessed via Context page or "Browse files →" links from agent dashboards. Not embedded in every surface.
+4. **Reporting agent = Home page.** The daily-update task output IS the Home page dashboard content. No duplication — one source, one surface.
 
 ---
 
@@ -53,27 +59,44 @@ Four-segment toggle bar: `Home | Agents | Context | Activity`. `/agents` is `HOM
 
 ### Purpose
 
-Daily command center + unscoped TP. The Home page shows the daily briefing (what happened, what's coming up, what needs attention) as a persistent collapsible header, with TP chat below. For new users, the onboarding flow (ContextSetup) replaces the briefing.
+Daily command center. Two-panel layout: daily briefing dashboard on the left, TP chat on the right. For new users, ContextSetup replaces the dashboard.
 
-See [ONBOARDING-SCAFFOLD-AND-BRIEFING.md](ONBOARDING-SCAFFOLD-AND-BRIEFING.md) for full layout spec and briefing behavior.
+The Home page dashboard content comes from the Reporting agent's daily-update task. Same data, rendered as a structured dashboard rather than a flat report.
 
-### Layout
+See [ONBOARDING-SCAFFOLD-AND-BRIEFING.md](ONBOARDING-SCAFFOLD-AND-BRIEFING.md) for onboarding flow.
 
-Full-width, max-width constrained (~720px centered). Persistent briefing header + chat below.
+### Layout (returning user)
+
+```
+┌────────────────────────────────┬─────────────────────┐
+│  DAILY BRIEFING DASHBOARD      │  TP CHAT             │
+│                                │                      │
+│  What happened (24h)           │  [conversation]      │
+│  · CI: 2 profiles updated     │                      │
+│  · Slack: 3 channels digested │                      │
+│                                │                      │
+│  What changed                  │                      │
+│  · New competitor: Windsurf    │                      │
+│  · Market trend: AI agents    │                      │
+│                                │                      │
+│  Coming up                     │                      │
+│  · Tomorrow: Slack, GitHub    │                      │
+│  · Monday: CI, Biz Dev       │                      │
+│                                │                      │
+│  Workspace signals             │  [+] Ask anything... │
+│  8 agents · 6 tasks · 3 plat │                      │
+└────────────────────────────────┴─────────────────────┘
+```
+
+### Layout (new user, no tasks)
+
+ContextSetup as full-page overlay. Dashboard not rendered until workspace has active tasks.
 
 ### Properties
 
-- **Session:** Global TP session (`task_slug IS NULL`, `agent_slug IS NULL`)
-- **Surface context:** `{ type: "chat" }`
-- **Plus menu actions:** Create a task, Update my context, Web search, Upload file
-
-### Daily briefing (returning user)
-
-Persistent collapsible header — always visible, auto-collapses after first message. Shows: what happened (last 24h activity), coming up (scheduled runs), needs attention (dormant agents, empty domains), workspace signals (platform/entity/task counts).
-
-### Cold Start + Onboarding (new user)
-
-When there are no tasks, ContextSetup renders as full-page overlay above chat input (existing behavior). Briefing header does not render until workspace has active tasks.
+- **Session:** Unified workspace session (ADR-159)
+- **Surface context:** `{ type: "home" }`
+- **Chat panel:** Collapsible right panel, same as all other pages
 
 ---
 
@@ -81,33 +104,80 @@ When there are no tasks, ContextSetup renders as full-page overlay above chat in
 
 ### Purpose
 
-Primary working surface. User selects an agent from the left panel and sees a three-tab center panel. The master-detail pattern — navigation pinned left, content fills center — avoids cross-page redirects.
+Primary working surface. Three-panel layout: agent roster (left), composed dashboard or overview (center), TP chat (right). The center panel shows a composed agent dashboard — rendered from workspace files, not a file browser.
 
 ### Layout (desktop ≥ 1024px)
 
+**No agent selected (overview):**
+
 ```
 ┌──────────────┬──────────────────────────┬──────────────────┐
-│  LEFT PANEL  │    CENTER PANEL          │  RIGHT PANEL     │
-│  Agent List  │    Three-Tab View        │  ChatPanel       │
-│  (280px)     │    (flex-1)              │  (380px / FAB)   │
+│  LEFT PANEL  │    AGENT OVERVIEW        │  RIGHT PANEL     │
+│  Agent List  │    (card grid)           │  ChatPanel       │
+│  (280px)     │                          │  (380px / FAB)   │
 ├──────────────┼──────────────────────────┼──────────────────┤
-│              │  Operations     [▶ Run][⏸]│                  │
-│ AGENTS       │  Domain Steward · projects│  Agent-scoped TP │
-│ 📁 Comp Intel│  Works weekly · Ran 1h ago│                  │
-│ 📁 Market Res│ ─────────────────────────│                  │
-│ 📁 Biz Dev   │  [Browse] [Tasks(2)] [Agent]               │
-│ 📂 Operations│ ─────────────────────────│                  │
-│ 📁 Marketing │  📁 assets       3d ago  │                  │
-│              │  📁 fundraising  1h ago  │                  │
-│ CROSS-TEAM   │  📁 go-to-market 1h ago  │                  │
-│ 📁 Exec Rpt  │  📄 _tracker.md  1h ago  │                  │
-│              │  📄 status.md    1h ago  │                  │
+│              │  Your Team               │                  │
+│ AGENTS       │  8 agents · 6 tasks      │  TP Chat         │
+│ 📁 Comp Intel│                          │  (unified)       │
+│ 📁 Market Res│  [CI] [MR] [BD]         │                  │
+│ 📁 Biz Dev   │  [Op] [MC] [ER]         │                  │
+│ 📁 Operations│  [Slack] [Notion] [GH]  │                  │
+│ 📁 Marketing │                          │                  │
+│ CROSS-TEAM   │                          │                  │
+│ 📁 Reporting │                          │                  │
 │ INTEGRATIONS │                          │                  │
 │ 📁 Slack Bot │                          │                  │
-│ 📁 Notion Bot│                          │                  │
-│ 📁 GitHub Bot│                          │                  │
 └──────────────┴──────────────────────────┴──────────────────┘
 ```
+
+**Agent selected (composed dashboard):**
+
+```
+┌──────────────┬──────────────────────────┬──────────────────┐
+│  LEFT PANEL  │    AGENT DASHBOARD       │  RIGHT PANEL     │
+│  Agent List  │    (composed view)       │  ChatPanel       │
+├──────────────┼──────────────────────────┼──────────────────┤
+│              │  Competitive Intelligence│                  │
+│ AGENTS       │  Works weekly · Ran 2h   │  TP Chat         │
+│ 📁 Comp Intel│  ────────────────────────│  (agent-scoped)  │
+│ 📁 Market Res│                          │                  │
+│ 📁 Biz Dev   │  ## What's New           │                  │
+│ 📂 Operations│  · Cursor raised $900M   │                  │
+│ 📁 Marketing │  · Ahrefs launched AI    │                  │
+│              │                          │                  │
+│ CROSS-TEAM   │  ## Landscape            │                  │
+│ 📁 Reporting │  [rendered synthesis]    │                  │
+│              │                          │                  │
+│ INTEGRATIONS │  ## Competitors (6)      │                  │
+│ 📁 Slack Bot │  [entity cards/table]    │                  │
+│ 📁 Notion Bot│                          │                  │
+│              │  [Browse files →]        │                  │
+│              │  [Tasks] [Settings]      │                  │
+└──────────────┴──────────────────────────┴──────────────────┘
+```
+
+### Composed Agent Dashboard
+
+The center panel's default view is a **composed page** assembled from the agent's workspace files. No LLM cost — pure frontend rendering of existing files.
+
+Each agent type has a fixed template:
+
+| Agent Type | Dashboard sections | Source files |
+|---|---|---|
+| **Competitive Intelligence** | What's New (signals) + Landscape (synthesis) + Competitors (entity cards) | `signals/`, `_landscape.md`, `{entity}/profile.md` |
+| **Market Research** | Trends + Segments + Overview | `_overview.md`, `{segment}/analysis.md` |
+| **Business Development** | Recent activity + Contacts + Relationships | `_portfolio.md`, `{contact}/profile.md` |
+| **Operations** | Status + Projects + Blockers | `_overview.md`, `{project}/status.md` |
+| **Marketing & Creative** | Research + Topics + Content pipeline | `{topic}/research.md` |
+| **Reporting** | Latest report (rendered HTML) + Run history | Task outputs |
+| **Platform bots** | Latest digest (rendered) + Observations | `{source}/latest.md` |
+
+The dashboard reads from the existing workspace API (`getDomainEntities`, `getFile`). Sections that have no data show "No data yet — this section populates as the agent works."
+
+**Secondary actions** (below the dashboard):
+- **Browse files →** — links to Context page filtered to this domain
+- **Tasks** — expandable section showing task config (objective, schedule, actions)
+- **Settings** — agent identity, AGENT.md, history
 
 ### Left Panel: Agent Roster (Finder-style)
 
@@ -214,16 +284,17 @@ Sections: Identity (name, role, class, domain, origin), Instructions (rendered A
 
 ---
 
-### Right Panel: Agent-Scoped TP
+### Right Panel: Unified TP Chat
 
-ChatPanel scoped to the selected agent. Yarnnn logo FAB when collapsed.
+Same ChatPanel component on every page. Unified session (ADR-159) — conversation persists across all navigations. Surface context shifts TP's awareness.
 
-- **Session:** Agent-scoped (`agent_slug` set)
-- **Surface context:** `{ type: "agent-detail", agentSlug: "{slug}" }`
-- **Header:** yarnnn logo + "TP" label + "· viewing {agent title}"
+- **Session:** Unified workspace session (same everywhere)
+- **Surface context:** Varies per page (home/agents/context), sent per message
+- **Header:** yarnnn logo + "TP" label + context subtitle
+- **Toggle:** FAB button (yarnnn logo) shows/hides the panel. Same across all pages.
 
 **Plus menu actions:**
-- Run [task name] now (per active task)
+- Run [task name] now (per active task, agent pages)
 - Assign a new task
 - Web research
 - Upload file
@@ -339,3 +410,5 @@ TP receives a compact index (~200-500 tokens) instead of full working memory. Su
 | 2026-03-25 | v2 — Output-first. Workfloor: output feed + agent roster grid. Task page: output hero + trajectory. Chat as drawer. |
 | 2026-04-04 | v3 — Agent-centric reframe. Agents page replaces workfloor + tasks page. Tasks dissolve into agent responsibilities. Chat becomes dedicated page. Task-cards-as-bridge center panel. |
 | 2026-04-05 | v4 — Three-tab center panel (Agent / Setup / Settings). Knowledge is the hero on the Agent tab. Task metadata collapses to a status line. Task naming convention: freeform, never includes frequency. Left panel section labels: Your Team, Cross-Team, Integrations (no filter pills). Chat page renamed to Home with persistent daily briefing header. Agent work rhythm framing (display-only). |
+| 2026-04-06 | v5 — Pinned header + Browse/Tasks/Agent tabs. Finder-style freshness. Folder icons in left panel. |
+| 2026-04-06 | v6 — Dashboard + Chat two-panel model. Composed agent dashboards from workspace files (not file browser). Unified TP chat panel across all pages. Reporting agent daily-update = Home page dashboard. File system secondary (Context page + links). Agent dashboard templates per domain type. |
