@@ -38,7 +38,7 @@ const CLASS_LABELS: Record<string, string> = {
   'platform-bot': 'Integrations',
 };
 
-/** Metadata line: domain + work rhythm (derived from most frequent task schedule) */
+/** Metadata line: domain + work rhythm + freshness */
 function getMetaLine(agent: Agent, agentTasks: Task[]): string {
   const domain = agent.context_domain;
   const cls = agent.agent_class || 'domain-steward';
@@ -46,9 +46,33 @@ function getMetaLine(agent: Agent, agentTasks: Task[]): string {
 
   const activeTasks = agentTasks.filter(t => t.status === 'active');
   const rhythm = activeTasks[0]?.schedule;
-  const rhythmLabel = rhythm ? `works ${rhythm}` : agentTasks.length > 0 ? `${agentTasks.length} tasks` : '';
 
-  return domainLabel && rhythmLabel ? `${domainLabel} · ${rhythmLabel}` : domainLabel || rhythmLabel || '';
+  // Freshness: most recent last_run_at across tasks
+  const lastRun = agentTasks
+    .map(t => t.last_run_at)
+    .filter(Boolean)
+    .sort()
+    .reverse()[0];
+  const freshness = lastRun ? formatRelativeShort(lastRun) : null;
+
+  const parts: string[] = [];
+  if (domainLabel) parts.push(domainLabel);
+  if (rhythm) parts.push(`works ${rhythm}`);
+  if (freshness) parts.push(freshness);
+  if (parts.length === 0 && agentTasks.length > 0) parts.push(`${agentTasks.length} tasks`);
+
+  return parts.join(' · ');
+}
+
+function formatRelativeShort(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 export function AgentTreeNav({

@@ -68,12 +68,20 @@ export default function AgentsPage() {
 
   // ── Initial load ──
   useEffect(() => {
-    loadData().then(({ agents: agentList }) => {
+    loadData().then(({ agents: agentList, tasks: taskList }) => {
       if (agentFromUrl) {
         const match = agentList.find(a => a.id === agentFromUrl || a.slug === agentFromUrl);
         if (match) setSelectedAgentId(match.id);
       } else if (agentList.length > 0) {
-        const first = agentList.find(a => a.agent_class === 'domain-steward') || agentList[0];
+        // Select the most recently active agent (has tasks with recent runs),
+        // falling back to first domain-steward, then first agent
+        const agentWithRecentTask = agentList.find(a => {
+          const slug = a.slug || a.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+          return taskList.some((t: Task) => t.agent_slugs?.includes(slug) && t.status === 'active');
+        });
+        const first = agentWithRecentTask
+          || agentList.find(a => a.agent_class === 'domain-steward')
+          || agentList[0];
         setSelectedAgentId(first.id);
       }
     });
