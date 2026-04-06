@@ -1,14 +1,18 @@
 'use client';
 
 /**
- * AgentContentView — Three-tab center panel.
+ * AgentContentView — Center panel for selected agent.
  *
- * SURFACE-ARCHITECTURE.md v4: Three tabs:
- * 1. Agent (default) — knowledge is the hero. Status line + domain browser / output viewer.
- * 2. Setup — task configuration, schedule, delivery, actions.
- * 3. Settings — identity, AGENT.md, history, feedback.
+ * SURFACE-ARCHITECTURE.md v5: Pinned header + three renamed tabs.
  *
- * Same tab structure for all agent classes — only the Agent tab hero varies.
+ * Header (pinned): Agent name, class, domain, rhythm, freshness, actions.
+ * Browse tab (default): Finder-style domain browser with per-item freshness.
+ * Tasks tab: Task cards with objectives, schedule, delivery, actions.
+ * Agent tab: Identity, AGENT.md, history, feedback.
+ *
+ * Design rationale: agents are autonomous workers maintaining a filesystem.
+ * Header shows "who + when" (worker rhythm). Browse shows "what" (content
+ * freshness per file). Two separate freshness signals — worker vs knowledge.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -17,10 +21,10 @@ import {
   Loader2,
   ChevronLeft,
   FolderOpen,
+  FolderClosed,
   Play,
   Pause,
   Circle,
-  ArrowRight,
   MessageSquare,
   Layers,
 } from 'lucide-react';
@@ -28,11 +32,12 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
+import { FileIcon } from '@/components/workspace/FileIcon';
 import type { Agent, Task, TaskOutput } from '@/types';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
 
-type Tab = 'agent' | 'setup' | 'settings';
+type Tab = 'browse' | 'tasks' | 'agent';
 
 interface AgentContentViewProps {
   agent: Agent;
@@ -57,26 +62,140 @@ function formatRelativeTime(dateStr: string): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return future ? `in ${hours}h` : `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  return future ? `in ${days}d` : `${days}d ago`;
+  if (days < 7) return future ? `in ${days}d` : `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  return future ? `in ${weeks}w` : `${weeks}w ago`;
 }
 
-function getAgentDescription(agent: Agent, tasks: Task[]): string {
+function formatTimestamp(value?: string): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+const CLASS_LABELS: Record<string, string> = {
+  'domain-steward': 'Domain Steward',
+  'synthesizer': 'Synthesizer',
+  'platform-bot': 'Platform Bot',
+};
+
+// ─── Pinned Header ───
+
+function AgentHeader({
+  agent,
+  tasks,
+  onRunTask,
+  onPauseTask,
+  busy,
+}: {
+  agent: Agent;
+  tasks: Task[];
+  onRunTask: (slug: string) => void;
+  onPauseTask: (slug: string) => void;
+  busy: boolean;
+}) {
   const cls = agent.agent_class || 'domain-steward';
-  // Use first task's objective purpose as description, or fallback
-  const firstTask = tasks[0];
-  if (firstTask?.objective?.purpose) return firstTask.objective.purpose;
-  if (cls === 'synthesizer') return 'Cross-domain composition into executive summaries and reports';
-  if (cls === 'platform-bot') return `Monitors ${agent.context_domain || 'platform'} for activity and changes`;
-  return `Maintains ${agent.context_domain || 'domain'} intelligence`;
+  const classLabel = CLASS_LABELS[cls] || cls;
+  const domain = agent.context_domain;
+  const activeTasks = tasks.filter(t => t.status === 'active');
+  const hasActive = activeTasks.length > 0;
+  const schedule = activeTasks[0]?.schedule;
+
+  // Most recent run across all tasks
+  const lastRun = tasks
+    .map(t => t.last_run_at)
+    .filter(Boolean)
+    .sort()
+    .reverse()[0];
+
+  // Primary active task for Run Now
+  const primaryTask = activeTasks[0];
+
+  return (
+    <div className="px-5 py-3 border-b border-border shrink-0">
+      {/* Line 1: Name + actions */}
+      <div className="flex items-center gap-3">
+        <h2 className="text-base font-medium flex-1 truncate">{agent.title}</h2>
+        {primaryTask && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => onRunTask(primaryTask.slug)}
+              disabled={busy}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
+            >
+              <Play className="w-3 h-3" />
+              Run
+            </button>
+            <button
+              onClick={() => onPauseTask(primaryTask.slug)}
+              disabled={busy}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
+            >
+              {primaryTask.status === 'active' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+              {primaryTask.status === 'active' ? 'Pause' : 'Resume'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Line 2: Class · domain · rhythm · freshness */}
+      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+        <span>{classLabel}</span>
+        {domain && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span>{domain}/</span>
+          </>
+        )}
+        {schedule && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="capitalize">Works {schedule}</span>
+          </>
+        )}
+        {lastRun && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span>Ran {formatRelativeTime(lastRun)}</span>
+          </>
+        )}
+        {!hasActive && !schedule && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground/50">No active tasks</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ─── Tab Bar ───
 
-function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
+function TabBar({
+  active,
+  onChange,
+  taskCount,
+}: {
+  active: Tab;
+  onChange: (t: Tab) => void;
+  taskCount: number;
+}) {
   const tabs: { key: Tab; label: string }[] = [
+    { key: 'browse', label: 'Browse' },
+    { key: 'tasks', label: taskCount > 0 ? `Tasks (${taskCount})` : 'Tasks' },
     { key: 'agent', label: 'Agent' },
-    { key: 'setup', label: 'Setup' },
-    { key: 'settings', label: 'Settings' },
   ];
 
   return (
@@ -102,84 +221,16 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
   );
 }
 
-// ─── Status Line (collapsed task metadata) ───
+// ═══════════════════════════════════════════════════════════════
+// TAB 1: BROWSE — Finder-style domain browser
+// ═══════════════════════════════════════════════════════════════
 
-function StatusLine({
+function BrowseTab({
   agent,
   tasks,
-  onClickSetup,
 }: {
   agent: Agent;
   tasks: Task[];
-  onClickSetup: () => void;
-}) {
-  const activeTasks = tasks.filter(t => t.status === 'active');
-  const hasActive = activeTasks.length > 0;
-
-  // Freshness: most recent last_run_at across tasks
-  const lastRun = tasks
-    .map(t => t.last_run_at)
-    .filter(Boolean)
-    .sort()
-    .reverse()[0];
-
-  // Cadence: most frequent schedule
-  const schedule = activeTasks[0]?.schedule;
-
-  // Context flow: unique reads → writes
-  const reads = Array.from(new Set(tasks.flatMap(t => t.context_reads || [])));
-  const writes = Array.from(new Set(tasks.flatMap(t => t.context_writes || [])));
-  const flow = writes.length > 0
-    ? `${writes.map(d => `${d}/`).join(', ')}${reads.length > 0 ? ` ← ${reads.filter(r => !writes.includes(r)).map(d => `${d}/`).join(', ')}` : ''}`
-    : reads.length > 0
-    ? `Reads: ${reads.map(d => `${d}/`).join(', ')}`
-    : '';
-
-  const statusColor = hasActive ? 'fill-green-500 text-green-500' : 'text-muted-foreground/30';
-
-  return (
-    <button
-      onClick={onClickSetup}
-      className="w-full flex items-center gap-2 px-5 py-1.5 text-[11px] text-muted-foreground hover:bg-muted/30 transition-colors border-b border-border"
-      title="View setup details"
-    >
-      <Circle className={cn('w-2 h-2 shrink-0', statusColor)} />
-      {hasActive ? (
-        <>
-          <span className="capitalize">Works {schedule || 'on schedule'}</span>
-          {lastRun && (
-            <>
-              <span className="text-muted-foreground/30">·</span>
-              <span>Updated {formatRelativeTime(lastRun)}</span>
-            </>
-          )}
-        </>
-      ) : (
-        <span>No active tasks</span>
-      )}
-      {flow && (
-        <>
-          <span className="text-muted-foreground/30 ml-auto">·</span>
-          <span className="truncate max-w-[200px]">{flow}</span>
-        </>
-      )}
-      <ArrowRight className="w-3 h-3 text-muted-foreground/30 shrink-0 ml-1" />
-    </button>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// TAB 1: AGENT — Knowledge is the hero
-// ═══════════════════════════════════════════════════════════════
-
-function AgentTab({
-  agent,
-  tasks,
-  onClickSetup,
-}: {
-  agent: Agent;
-  tasks: Task[];
-  onClickSetup: () => void;
 }) {
   const cls = agent.agent_class || 'domain-steward';
   const domain = agent.context_domain;
@@ -188,45 +239,28 @@ function AgentTab({
   // Reset selection when agent changes
   useEffect(() => { setSelectedNode(null); }, [agent.id]);
 
-  const description = getAgentDescription(agent, tasks);
-
   return (
     <div className="flex flex-col h-full">
-      {/* Agent header */}
-      <div className="px-5 py-3 shrink-0">
-        <h2 className="text-base font-medium">{agent.title}</h2>
-        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{description}</p>
-      </div>
-
-      {/* Status line */}
-      <StatusLine agent={agent} tasks={tasks} onClickSetup={onClickSetup} />
-
-      {/* Hero content */}
-      <div className="flex-1 min-h-0 overflow-auto">
-        {selectedNode ? (
-          <div className="flex flex-col h-full">
-            <button
-              onClick={() => setSelectedNode(null)}
-              className="flex items-center gap-1 px-5 py-2 text-sm text-muted-foreground hover:text-foreground border-b border-border shrink-0"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back to overview
-            </button>
-            <div className="flex-1 overflow-auto">
-              <ContentViewer selectedNode={selectedNode} onNavigate={setSelectedNode} />
-            </div>
+      {selectedNode ? (
+        <div className="flex flex-col h-full">
+          <button
+            onClick={() => setSelectedNode(null)}
+            className="flex items-center gap-1 px-5 py-2 text-sm text-muted-foreground hover:text-foreground border-b border-border shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back
+          </button>
+          <div className="flex-1 overflow-auto">
+            <ContentViewer selectedNode={selectedNode} onNavigate={setSelectedNode} />
           </div>
-        ) : (cls === 'domain-steward' || cls === 'platform-bot') && domain ? (
-          <DomainBrowse domain={domain} onSelectNode={setSelectedNode} />
-        ) : cls === 'synthesizer' ? (
-          <SynthesizerHero tasks={tasks} onSelectNode={setSelectedNode} />
-        ) : (
-          <EmptyDomain />
-        )}
-      </div>
-
-      {/* Latest output footer (for stewards with synthesis tasks) */}
-      {cls !== 'synthesizer' && <LatestOutputFooter tasks={tasks} onSelect={setSelectedNode} />}
+        </div>
+      ) : cls === 'synthesizer' ? (
+        <SynthesizerBrowse tasks={tasks} onSelectNode={setSelectedNode} />
+      ) : domain ? (
+        <DomainBrowse domain={domain} onSelectNode={setSelectedNode} />
+      ) : (
+        <EmptyBrowse agentClass={cls} />
+      )}
     </div>
   );
 }
@@ -254,35 +288,58 @@ function DomainBrowse({
   }
 
   if (nodes.length === 0) {
-    return <EmptyDomain />;
+    return <EmptyBrowse agentClass="domain-steward" />;
   }
 
+  // Sort: folders first, then files, alphabetical within
+  const sorted = [...nodes].sort((a, b) => {
+    const aRank = a.type === 'folder' ? 0 : 1;
+    const bRank = b.type === 'folder' ? 0 : 1;
+    return aRank - bRank || a.name.localeCompare(b.name);
+  });
+
   return (
-    <div className="px-3 py-2 space-y-0.5">
-      {nodes.map(node => (
-        <button
-          key={node.path}
-          onClick={() => onSelectNode(node)}
-          className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded hover:bg-muted/50 transition-colors"
-        >
-          {node.type === 'folder' ? (
-            <FolderOpen className="w-3.5 h-3.5 text-sky-600/60 shrink-0" />
-          ) : (
-            <FileText className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
-          )}
-          <span className="truncate flex-1">{node.name}</span>
-          {node.type === 'folder' && node.children && (
-            <span className="text-[10px] text-muted-foreground/40 shrink-0">
-              {node.children.length} items
-            </span>
-          )}
-        </button>
-      ))}
+    <div className="flex-1 overflow-auto">
+      {/* Column headers */}
+      <div className="grid grid-cols-[minmax(0,1fr)_80px] gap-3 px-5 py-2 text-[10px] uppercase tracking-wide text-muted-foreground/40 border-b border-border/40">
+        <span>Name</span>
+        <span className="text-right">Modified</span>
+      </div>
+
+      {/* File list */}
+      <div className="divide-y divide-border/30">
+        {sorted.map(node => (
+          <button
+            key={node.path}
+            onClick={() => onSelectNode(node)}
+            className="grid w-full grid-cols-[minmax(0,1fr)_80px] gap-3 px-5 py-2.5 text-left hover:bg-muted/30 transition-colors"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              {node.type === 'folder' ? (
+                <FolderClosed className="w-4 h-4 text-sky-600/60 shrink-0" />
+              ) : (
+                <FileIcon filename={node.name} size="md" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm truncate">{node.name}</p>
+                {node.type === 'folder' && node.children && (
+                  <p className="text-[10px] text-muted-foreground/40">
+                    {node.children.length} item{node.children.length !== 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="text-[11px] text-muted-foreground/50 text-right self-center tabular-nums">
+              {formatTimestamp(node.updated_at)}
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
-function SynthesizerHero({
+function SynthesizerBrowse({
   tasks,
   onSelectNode,
 }: {
@@ -298,7 +355,6 @@ function SynthesizerHero({
   useEffect(() => {
     if (synthesisTasks.length === 0) { setLoading(false); return; }
 
-    // Load latest output for hero display + history
     const primary = synthesisTasks[0];
     Promise.all([
       api.tasks.getLatestOutput(primary.slug).catch(() => null),
@@ -320,12 +376,7 @@ function SynthesizerHero({
   }
 
   if (!latestOutput && outputs.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <FileText className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground">No outputs yet</p>
-      </div>
-    );
+    return <EmptyBrowse agentClass="synthesizer" />;
   }
 
   return (
@@ -353,7 +404,7 @@ function SynthesizerHero({
       {/* Run history */}
       {outputs.length > 0 && (
         <div className="border-t border-border px-5 py-2 shrink-0">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground/50 mb-1">Run history</p>
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-1">Run history</p>
           <div className="space-y-0.5">
             {outputs.slice(0, 5).map((item, i) => (
               <div key={`${item.taskSlug}-${item.output.date}-${i}`} className="flex items-center gap-2 text-xs text-muted-foreground py-0.5">
@@ -369,64 +420,28 @@ function SynthesizerHero({
   );
 }
 
-function LatestOutputFooter({
-  tasks,
-  onSelect,
-}: {
-  tasks: Task[];
-  onSelect: (node: TreeNode) => void;
-}) {
-  const [latest, setLatest] = useState<{ slug: string; title: string; output: TaskOutput } | null>(null);
-
-  const synthesisTasks = useMemo(() => tasks.filter(t => t.task_class === 'synthesis'), [tasks]);
-
-  useEffect(() => {
-    if (synthesisTasks.length === 0) return;
-    const task = synthesisTasks[0];
-    api.tasks.getLatestOutput(task.slug)
-      .then(output => { if (output) setLatest({ slug: task.slug, title: task.title, output }); })
-      .catch(() => {});
-  }, [synthesisTasks]);
-
-  if (!latest) return null;
-
+function EmptyBrowse({ agentClass }: { agentClass: string }) {
   return (
-    <div className="border-t border-border px-5 py-2 shrink-0">
-      <button
-        onClick={() => {
-          // Create a synthetic tree node for the output
-          const node: TreeNode = {
-            name: `${latest.title} — ${latest.output.date || 'Latest'}`,
-            path: `/tasks/${latest.slug}/outputs/latest/output.html`,
-            type: 'file',
-          };
-          onSelect(node);
-        }}
-        className="w-full flex items-center gap-2 text-sm text-left hover:bg-muted/30 rounded px-1 py-1 transition-colors"
-      >
-        <FileText className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
-        <span className="truncate flex-1">Latest: {latest.title}</span>
-        <span className="text-[10px] text-muted-foreground/40 shrink-0">{latest.output.date || ''}</span>
-        <span className="text-[10px] text-muted-foreground/40 capitalize shrink-0">{latest.output.status}</span>
-      </button>
-    </div>
-  );
-}
-
-function EmptyDomain() {
-  return (
-    <div className="text-center py-12">
-      <FolderOpen className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
-      <p className="text-sm text-muted-foreground">Knowledge will accumulate as tasks run.</p>
+    <div className="flex-1 flex items-center justify-center">
+      <div className="text-center">
+        <FolderOpen className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground/50">
+          {agentClass === 'synthesizer'
+            ? 'No outputs yet'
+            : agentClass === 'platform-bot'
+            ? 'Connect platform to populate'
+            : 'Knowledge will accumulate as tasks run'}
+        </p>
+      </div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// TAB 2: SETUP — Task configuration + actions
+// TAB 2: TASKS — Task configuration + actions
 // ═══════════════════════════════════════════════════════════════
 
-function SetupTab({
+function TasksTab({
   agent,
   tasks,
   onRunTask,
@@ -462,26 +477,28 @@ function SetupTab({
     );
   }
 
-  // Derive agent work rhythm from most frequent active task schedule
-  const activeTasks = tasks.filter(t => t.status === 'active');
-  const rhythm = activeTasks[0]?.schedule;
-
   return (
-    <div className="flex-1 overflow-auto px-5 py-4 space-y-4">
-      {/* Agent work rhythm */}
-      {rhythm && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground pb-1 border-b border-border/50">
-          <Circle className="w-2 h-2 fill-green-500 text-green-500 shrink-0" />
-          <span>Works <span className="capitalize">{rhythm}</span></span>
-          <span className="text-muted-foreground/30">·</span>
-          <span>Tasks run on this schedule unless overridden</span>
+    <div className="flex-1 overflow-auto px-5 py-4 space-y-3">
+      {/* Context flow summary */}
+      {tasks.some(t => (t.context_reads?.length || 0) > 0 || (t.context_writes?.length || 0) > 0) && (
+        <div className="flex items-center gap-3 text-xs text-muted-foreground pb-3 border-b border-border/40">
+          {Array.from(new Set(tasks.flatMap(t => t.context_writes || []))).map(d => (
+            <div key={d} className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500/50" />
+              <span>Writes {d}/</span>
+            </div>
+          ))}
+          {Array.from(new Set(tasks.flatMap(t => t.context_reads || []))).map(d => (
+            <div key={d} className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500/50" />
+              <span>Reads {d}/</span>
+            </div>
+          ))}
         </div>
       )}
 
-      <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Tasks</h3>
-
       {tasks.map(task => (
-        <TaskSetupCard
+        <TaskCard
           key={task.slug}
           task={task}
           onRun={() => onRunTask(task.slug)}
@@ -490,32 +507,11 @@ function SetupTab({
           busy={busy}
         />
       ))}
-
-      {/* Sources summary */}
-      {tasks.some(t => (t.context_reads?.length || 0) > 0 || (t.context_writes?.length || 0) > 0) && (
-        <div className="pt-2">
-          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/50 mb-2">Context Flow</h3>
-          <div className="text-xs text-muted-foreground space-y-1">
-            {Array.from(new Set(tasks.flatMap(t => t.context_writes || []))).map(d => (
-              <div key={d} className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500/50" />
-                <span>Writes to {d}/</span>
-              </div>
-            ))}
-            {Array.from(new Set(tasks.flatMap(t => t.context_reads || []))).map(d => (
-              <div key={d} className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500/50" />
-                <span>Reads from {d}/</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-function TaskSetupCard({
+function TaskCard({
   task,
   onRun,
   onPause,
@@ -544,24 +540,28 @@ function TaskSetupCard({
 
       {/* Objective */}
       {task.objective && (
-        <div className="space-y-1">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Objective</p>
-          <div className="text-xs text-muted-foreground space-y-0.5">
-            {task.objective.deliverable && <p>· {task.objective.deliverable}</p>}
-            {task.objective.audience && <p>· Audience: {task.objective.audience}</p>}
-            {task.objective.purpose && <p>· Purpose: {task.objective.purpose}</p>}
-          </div>
+        <div className="text-xs text-muted-foreground space-y-0.5">
+          {task.objective.deliverable && <p>· {task.objective.deliverable}</p>}
+          {task.objective.audience && <p>· Audience: {task.objective.audience}</p>}
+          {task.objective.purpose && <p>· Purpose: {task.objective.purpose}</p>}
         </div>
       )}
 
       {/* Schedule */}
-      <div className="space-y-1">
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Schedule</p>
-        <div className="text-xs text-muted-foreground space-y-0.5">
-          {task.schedule && <p>· Cadence: <span className="capitalize">{task.schedule}</span></p>}
-          {task.next_run_at && <p>· Next: {formatRelativeTime(task.next_run_at)}</p>}
-          {task.last_run_at && <p>· Last: {formatRelativeTime(task.last_run_at)}</p>}
-        </div>
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        {task.schedule && <span className="capitalize">{task.schedule}</span>}
+        {task.next_run_at && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span>Next: {formatRelativeTime(task.next_run_at)}</span>
+          </>
+        )}
+        {task.last_run_at && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span>Last: {formatRelativeTime(task.last_run_at)}</span>
+          </>
+        )}
       </div>
 
       {/* Actions */}
@@ -595,18 +595,18 @@ function TaskSetupCard({
 }
 
 // ═══════════════════════════════════════════════════════════════
-// TAB 3: SETTINGS — Identity, history, feedback
+// TAB 3: AGENT — Identity, history, feedback
 // ═══════════════════════════════════════════════════════════════
 
-function SettingsTab({ agent }: { agent: Agent }) {
+function AgentTab({ agent }: { agent: Agent }) {
   const cls = agent.agent_class || 'domain-steward';
-  const classLabel = cls === 'domain-steward' ? 'Domain Steward' : cls === 'synthesizer' ? 'Synthesizer' : 'Platform Bot';
+  const classLabel = CLASS_LABELS[cls] || cls;
 
   return (
     <div className="flex-1 overflow-auto px-5 py-4 space-y-5">
       {/* Identity */}
       <div className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Identity</h3>
+        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Identity</h3>
         <div className="text-xs text-muted-foreground space-y-1">
           <p>· Name: {agent.title}</p>
           <p>· Role: {agent.role} ({classLabel})</p>
@@ -618,7 +618,7 @@ function SettingsTab({ agent }: { agent: Agent }) {
       {/* Instructions (AGENT.md) */}
       {agent.agent_instructions && (
         <div className="space-y-2">
-          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Instructions (AGENT.md)</h3>
+          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Instructions</h3>
           <div className="rounded-lg border border-border bg-muted/10 p-3">
             <div className="prose prose-sm max-w-none dark:prose-invert text-xs">
               <MarkdownRenderer content={agent.agent_instructions} />
@@ -629,7 +629,7 @@ function SettingsTab({ agent }: { agent: Agent }) {
 
       {/* History */}
       <div className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/50">History</h3>
+        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">History</h3>
         <div className="text-xs text-muted-foreground space-y-1">
           {agent.quality_score != null && (
             <p>
@@ -653,7 +653,7 @@ function SettingsTab({ agent }: { agent: Agent }) {
       {/* Feedback */}
       {agent.agent_memory?.feedback && (
         <div className="space-y-2">
-          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Feedback</h3>
+          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Feedback</h3>
           <div className="rounded-lg border border-border bg-muted/10 p-3">
             <div className="prose prose-sm max-w-none dark:prose-invert text-xs">
               <MarkdownRenderer content={agent.agent_memory.feedback} />
@@ -664,7 +664,7 @@ function SettingsTab({ agent }: { agent: Agent }) {
 
       {/* Created */}
       <div className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Created</h3>
+        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Created</h3>
         <p className="text-xs text-muted-foreground">
           {new Date(agent.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
@@ -678,22 +678,29 @@ function SettingsTab({ agent }: { agent: Agent }) {
 // ═══════════════════════════════════════════════════════════════
 
 export function AgentContentView({ agent, tasks, onRunTask, onPauseTask, onOpenChat, busy }: AgentContentViewProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('agent');
+  const [activeTab, setActiveTab] = useState<Tab>('browse');
 
-  // Reset to Agent tab when agent changes
-  useEffect(() => { setActiveTab('agent'); }, [agent.id]);
+  // Reset to Browse tab when agent changes
+  useEffect(() => { setActiveTab('browse'); }, [agent.id]);
 
-  const switchToSetup = useCallback(() => setActiveTab('setup'), []);
+  const taskCount = tasks.length;
 
   return (
     <div className="flex flex-col h-full">
-      <TabBar active={activeTab} onChange={setActiveTab} />
+      <AgentHeader
+        agent={agent}
+        tasks={tasks}
+        onRunTask={onRunTask}
+        onPauseTask={onPauseTask}
+        busy={busy}
+      />
+      <TabBar active={activeTab} onChange={setActiveTab} taskCount={taskCount} />
 
-      {activeTab === 'agent' && (
-        <AgentTab agent={agent} tasks={tasks} onClickSetup={switchToSetup} />
+      {activeTab === 'browse' && (
+        <BrowseTab agent={agent} tasks={tasks} />
       )}
-      {activeTab === 'setup' && (
-        <SetupTab
+      {activeTab === 'tasks' && (
+        <TasksTab
           agent={agent}
           tasks={tasks}
           onRunTask={onRunTask}
@@ -702,8 +709,8 @@ export function AgentContentView({ agent, tasks, onRunTask, onPauseTask, onOpenC
           busy={busy}
         />
       )}
-      {activeTab === 'settings' && (
-        <SettingsTab agent={agent} />
+      {activeTab === 'agent' && (
+        <AgentTab agent={agent} />
       )}
     </div>
   );
