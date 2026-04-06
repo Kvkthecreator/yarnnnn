@@ -1,8 +1,8 @@
 # Surface Architecture — Chat + Agents + Context + Activity
 
-**Date:** 2026-04-06 (v7 — unified shell, agents as intelligence surface, Context owns all file browsing)
+**Date:** 2026-04-06 (v7.2 — task-class-aware tabs, BI + intelligence room framing)
 **Status:** Implementing
-**Supersedes:** v6.1 (2026-04-06, global breadcrumb, briefing room spatial awareness)
+**Supersedes:** v7.1 (2026-04-06, tabs restored), v7 (unified shell), v6.1 (global breadcrumb)
 **Depends on:** [ADR-138](../adr/ADR-138-agents-as-work-units.md) (Agents as Work Units), [ADR-140](../adr/ADR-140-agent-workforce-model.md) (Workforce Model), [ADR-152](../adr/ADR-152-unified-directory-registry.md) (Directory Registry)
 
 ---
@@ -184,16 +184,21 @@ Primary working surface. Intelligence surface — shows what agents know and wha
 └──────────────┴──────────────────────────┴──────────────────┘
 ```
 
-### Center Panel: Pinned Header + Three Tabs
+### Center Panel: Pinned Header + Task-Class-Aware Tabs
 
-When an agent is selected, the center panel shows a pinned header above three tabs. Each tab gets the full height with its own scroll.
+When an agent is selected, the center panel shows a pinned header above **adaptive tabs** that depend on what task classes the agent has. Inspired by BI dashboards (Looker, Metabase) + intelligence room briefings.
+
+**BI + Intelligence Room framing:**
+- **Report** = the briefing on the analyst's desk. The rendered deliverable. (BI: the dashboard/report view)
+- **Data** = the source files the analyst maintains. Accumulated context. (BI: the data explorer)
+- **Pipeline** = the analyst's assignment and schedule. (BI: ETL/pipeline config)
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Competitive Intelligence                                     │
 │  Domain Steward · competitors/ · Works weekly · Ran 2h ago    │
 ├──────────────────────────────────────────────────────────────┤
-│  [Dashboard]       [Tasks (2)]       [Agent]                  │
+│  [Report]     [Data]     [Pipeline (2)]     [Agent]           │
 ├──────────────────────────────────────────────────────────────┤
 │                                                               │
 │  (active tab content — full height, own scroll)               │
@@ -201,36 +206,72 @@ When an agent is selected, the center panel shows a pinned header above three ta
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**Header (pinned):** Agent name, class label, domain, cadence, last run. Communicates "autonomous worker" identity.
+#### Tab visibility — task-class-aware
 
-**Dashboard tab (default):** Composed from workspace files via `getDomainEntities()` and `getFile()`. Entity cards, synthesis content, what's new. "View files" links to `/context?domain={domain}` — no embedded file browser.
+Tabs appear based on what the agent actually has, not its class:
 
-**Tasks tab:** Task cards with status, objective, schedule, actions (Run Now, Pause/Resume, Edit via TP). Context flow summary (domain reads/writes).
-
-**Agent tab:** Identity, AGENT.md instructions, history (quality score, run count), feedback. Low-frequency reference material.
-
-Tabs represent three different user intents that shouldn't be stacked: "What does this agent know?" (dashboard), "What work is it doing?" (tasks), "Who is this agent?" (agent). Dashboard resets as default when switching agents.
-
-### What was deleted (v6.1 → v7)
-
-- **Browse tab** — dissolved. Dashboard portion kept as the primary section. File browsing removed entirely from Agents page.
-- **`DomainBrowse` component** — deleted. Was a duplicate of ContentViewer's DirectoryView with different styling.
-- **`SynthesizerBrowse` component** — deleted. Synthesizer dashboard handles output display.
-- **`EmptyBrowse` component** — deleted. Empty states handled by dashboard.
-- **Tab bar** — deleted. Three sections visible in one scroll.
-- **Embedded ContentViewer on Agents page** — deleted. Context page is the only file viewer.
-
-### Composed Agent Dashboard
-
-Each agent class renders a composed dashboard from workspace files. No LLM cost — pure frontend rendering.
-
-| Agent Class | Dashboard sections | Source files |
+| Agent has... | Tabs shown | Default tab |
 |---|---|---|
-| **Domain Steward** | What's New (recent entities) + Synthesis (overview) + Entity cards | `getDomainEntities()`, synthesis file via `getFile()` |
-| **Synthesizer** | Latest rendered output (HTML iframe or markdown) + run history | `getLatestOutput()`, `listOutputs()` |
-| **Platform Bot** | Latest digest + observations | Same as synthesizer pattern |
+| Synthesis + context tasks | Report · Data · Pipeline · Agent | Report |
+| Context tasks only (no synthesis yet) | Data · Pipeline · Agent | Data |
+| Synthesis tasks only (Reporting agent) | Report · Pipeline · Agent | Report |
+| Platform bot (digest only) | Data · Pipeline · Agent | Data |
 
-"View files" at bottom links to `/context?domain={domain}` for raw file browsing.
+#### Report tab — "What did this agent produce?"
+
+Latest synthesis task output rendered as hero. Version history below (prior outputs, click to view).
+
+The report layout is **tailored per task type** — not a generic iframe:
+
+| Task type | Report layout | Emphasis |
+|---|---|---|
+| `competitive-brief` | Landscape, threat/opportunity cards, change signals | Who moved, what changed |
+| `market-report` | Segment sizing, trend arrows, opportunities | Where the market is going |
+| `project-status` | Progress indicators, blockers, milestone timeline | What's on track |
+| `meeting-prep` | Contact profile, history, talking points | Who you're meeting |
+| `content-brief` | Topic outline, audience, competitive angle | What to write |
+| `daily-update` | Cross-domain summary, signal highlights | Executive briefing |
+| `stakeholder-update` | Multi-domain roll-up, key decisions | Board/investor view |
+
+**Pragmatic path:** Start with the structural change (task-class-aware tabs, Report as default when outputs exist). Tailored report layouts iterate per task type over time. Initial Report tab renders HTML iframe or markdown (same as current synthesizer view) — the tailoring is frontend-only work on top.
+
+**Empty state (no outputs yet):** "No reports yet — this agent's synthesis tasks will produce deliverables here."
+
+#### Data tab — "What does this agent know?"
+
+Composed domain intelligence view. Entity cards, synthesis summary, freshness signals. NOT a file browser — that's the Context page.
+
+- Domain stewards: entity cards + synthesis content + what's new (current AgentDashboard)
+- Platform bots: latest observations per source
+- Agents without a domain: tab not shown
+
+"View files" link at bottom → `/context?domain={domain}`.
+
+#### Pipeline tab — "What work is assigned?"
+
+Task cards with objectives, schedule, delivery, actions. Context flow summary (domain reads/writes). Unchanged from v7.
+
+#### Agent tab — "Who is this agent?"
+
+Identity, AGENT.md, history, feedback. Low-frequency reference. Unchanged from v7.
+
+### What was deleted (v6.1 → v7+)
+
+- **Browse tab** — dissolved. File browsing removed entirely from Agents page.
+- **`DomainBrowse`, `SynthesizerBrowse`, `EmptyBrowse` components** — deleted.
+- **Embedded ContentViewer on Agents page** — deleted. Context page is the only file viewer.
+- **Agent-class-based rendering** — replaced with task-class-based tab visibility.
+
+### Rendering model — task-class-driven, not agent-class-driven
+
+The rendering key is `task.task_class` ("context" or "synthesis"), not `agent.agent_class`. An agent with both types of tasks shows both Report and Data tabs.
+
+| Tab | Data source | Component |
+|---|---|---|
+| **Report** | `getLatestOutput(slug)` + `listOutputs(slug)` per synthesis task | Report viewer (tailored per type_key, initially generic) |
+| **Data** | `getDomainEntities(domain)` + `getFile(synthesis)` | Domain dashboard (entity cards, synthesis, freshness) |
+
+No LLM cost — pure frontend rendering of existing workspace files and task outputs.
 
 ### Left Panel: Agent Roster
 
@@ -363,4 +404,6 @@ TP receives a compact index (~200-500 tokens) instead of full working memory. Su
 | 2026-04-06 | v5 — Pinned header + Browse/Tasks/Agent tabs. Finder-style freshness. Folder icons in left panel. |
 | 2026-04-06 | v6 — Dashboard + Chat two-panel model. Composed agent dashboards from workspace files (not file browser). Unified TP chat panel across all pages. Reporting agent daily-update = Home page dashboard. File system secondary (Context page + links). Agent dashboard templates per domain type. |
 | 2026-04-06 | v6.1 — Global breadcrumb in header. BreadcrumbContext + GlobalBreadcrumb component. Pages set segments, header renders. Replaces context page local breadcrumb bar and agent header browse path. "Briefing room" spatial awareness: toggle bar = which room, breadcrumb = where you're standing. |
-| 2026-04-06 | v7 — Unified shell refactor. ThreePanelLayout shared component eliminates three duplicated three-panel layouts. Agent center panel flattened from three tabs to single scrollable view (dashboard + tasks + agent identity). All file browsing removed from Agents page — Context page is the single file browser. Context page gains `?domain=` deep-link param. Shared hooks and utilities extracted. ~200 lines of duplicate DomainBrowse/SynthesizerBrowse/EmptyBrowse deleted. Frontend rendering reads filesystem via API (no registry coupling). |
+| 2026-04-06 | v7 — Unified shell refactor. ThreePanelLayout shared component eliminates three duplicated three-panel layouts. All file browsing removed from Agents page — Context page is the single file browser. Context page gains `?domain=` deep-link param. Shared hooks and utilities extracted. ~200 lines of duplicate DomainBrowse/SynthesizerBrowse/EmptyBrowse deleted. |
+| 2026-04-06 | v7.1 — Tabs restored. Three user intents (know/do/identity) shouldn't be stacked in one scroll. |
+| 2026-04-06 | v7.2 — Task-class-aware tabs. BI + intelligence room framing: Report (deliverables) / Data (accumulated context) / Pipeline (task config) / Agent (identity). Tabs appear based on task_class presence, not agent_class. Report tab is default when synthesis outputs exist; Data tab default otherwise. Tailored report layouts per task type (iterative — start generic, specialize over time). |
