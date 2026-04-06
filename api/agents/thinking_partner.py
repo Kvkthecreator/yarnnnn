@@ -27,7 +27,7 @@ from services.anthropic import (
 from services.primitives import execute_primitive
 from services.primitives.registry import CHAT_PRIMITIVES
 from services.commands import detect_command, get_command_prompt_addition, detect_command_hybrid
-from services.working_memory import build_working_memory, format_for_prompt
+from services.working_memory import build_working_memory, format_compact_index
 from services.platform_tools import get_platform_tools_for_user
 
 
@@ -143,8 +143,9 @@ class ThinkingPartnerAgent(BaseAgent):
         if not include_context:
             context_text = "No context loaded for this conversation."
         elif injected_context:
-            # ADR-058: Use pre-built working memory (preferred path)
-            context_text = format_for_prompt(injected_context)
+            # ADR-159: Compact index (replaces full working memory dump)
+            surface_ctx = injected_context.pop("_surface_context", None)
+            context_text = format_compact_index(injected_context, surface_context=surface_ctx)
         else:
             # Legacy path: format from ContextBundle
             context_text = self._format_memories(context, selected_domain_name)
@@ -342,6 +343,10 @@ class ThinkingPartnerAgent(BaseAgent):
             injected_context = await build_working_memory(
                 auth.user_id, auth.client, agent=scoped_agent,
             )
+            # ADR-159: Attach surface context for compact index rendering
+            if injected_context and surface_content:
+                # Extract surface type info for compact index
+                injected_context["_surface_context"] = params.get("surface_context_raw")
         except Exception:
             # Working memory is best-effort; fall back to legacy path
             pass

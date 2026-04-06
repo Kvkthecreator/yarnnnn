@@ -334,6 +334,91 @@ async def get_session_messages(
     return result.data or []
 
 
+async def _write_conversation_summary(auth, messages: list[dict]) -> None:
+    """
+    ADR-159: Write rolling conversation summary to /workspace/memory/conversation.md.
+
+    Called every 5 user messages. Extracts key decisions, corrections, and focus
+    from the full message history. Written as a workspace file that TP can read
+    on demand via ReadWorkspace.
+
+    Uses a simple extraction (no LLM) — last 20 messages summarized by role.
+    """
+    try:
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+        # Extract key content from recent messages (last 20)
+        recent = messages[-20:] if len(messages) > 20 else messages
+        decisions = []
+        topics = []
+
+        for m in recent:
+            role = m.get("role", "")
+            content = (m.get("content") or "").strip()
+            if not content:
+                continue
+
+            # User messages: capture as topics/requests
+            if role == "user" and len(content) > 10:
+                first_line = content.split("\n")[0][:120]
+                topics.append(first_line)
+
+            # Assistant messages with tool calls: capture as decisions
+            tool_history = (m.get("metadata") or {}).get("tool_history", [])
+            for tool in tool_history:
+                name = tool.get("name", "")
+                summary = tool.get("result_summary", "")
+                if name in ("CreateTask", "ManageTask", "UpdateContext", "ManageDomains"):
+                    decisions.append(f"{name}: {summary[:100]}" if summary else name)
+
+        # Build summary
+        summary_parts = [
+            f"# Conversation Summary\nLast updated: {now}\n",
+        ]
+
+        if decisions:
+            summary_parts.append("## Actions taken")
+            for d in decisions[-10:]:  # Last 10 decisions
+                summary_parts.append(f"- {d}")
+
+        if topics:
+            summary_parts.append("\n## Topics discussed")
+            for t in topics[-8:]:  # Last 8 topics
+                summary_parts.append(f"- {t}")
+
+        summary_content = "\n".join(summary_parts)
+
+        # Write to workspace
+        from services.supabase import get_service_client
+        svc = get_service_client()
+        path = "/workspace/memory/conversation.md"
+
+        # Upsert
+        existing = svc.table("workspace_files").select("id").eq(
+            "user_id", auth.user_id
+        ).eq("path", path).execute()
+
+        if existing.data:
+            svc.table("workspace_files").update({
+                "content": summary_content,
+                "updated_at": now,
+            }).eq("id", existing.data[0]["id"]).execute()
+        else:
+            svc.table("workspace_files").insert({
+                "user_id": auth.user_id,
+                "path": path,
+                "content": summary_content,
+                "tags": ["memory", "conversation"],
+            }).execute()
+
+        logger.debug(f"[ADR-159] Wrote conversation.md ({len(decisions)} decisions, {len(topics)} topics)")
+
+    except Exception as e:
+        logger.warning(f"[ADR-159] Failed to write conversation.md: {e}")
+
+
 async def _summarize_previous_session(previous_session_id: str, client) -> None:
     """
     Generate summary for a closed session (runs as BackgroundTask).
@@ -1053,9 +1138,20 @@ async def global_chat(
             }
         )
 
-    # Load existing messages and session-level compaction summary
-    # ADR-067: In-session compaction at 80% threshold; compaction block prepended if present
+    # ADR-159: Load existing messages with rolling window.
+    # Only last N messages sent to API. Older context in conversation.md.
+    MESSAGE_WINDOW = 10  # ~5 user+assistant pairs
     existing_messages = await get_session_messages(auth.client, session_id)
+
+    # Write conversation.md every 5 user messages for rolling compaction
+    user_msg_count = sum(1 for m in existing_messages if m.get("role") == "user")
+    if user_msg_count > 0 and user_msg_count % 5 == 0:
+        await _write_conversation_summary(auth, existing_messages)
+
+    # Window: keep only last N messages for API call
+    # Full history stays in DB for chat UI display
+    if len(existing_messages) > MESSAGE_WINDOW:
+        existing_messages = existing_messages[-MESSAGE_WINDOW:]
 
     # Fetch compaction_summary from chat_sessions (may be None for most sessions)
     existing_compaction = None
@@ -1158,6 +1254,7 @@ async def global_chat(
                     "surface_content": surface_content,  # ADR-023: What user is viewing
                     "images": images_for_api,  # Inline base64 images
                     "scoped_agent": scoped_agent,  # ADR-087: Agent-scoped context
+                    "surface_context_raw": request.surface_context.dict() if request.surface_context else None,  # ADR-159
                 }
 
             async for event in agent.execute_stream_with_tools(

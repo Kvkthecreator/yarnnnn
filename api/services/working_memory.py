@@ -769,11 +769,125 @@ def estimate_working_memory_tokens(working_memory: dict) -> int:
     return len(json_str) // 4
 
 
+def format_compact_index(working_memory: dict, surface_context: Optional[dict] = None) -> str:
+    """
+    ADR-159: Compact index for TP system prompt (~200-500 tokens).
+
+    Replaces the full working memory dump. TP reads workspace files on demand
+    via ReadWorkspace when it needs detail. This index tells TP what exists
+    and provides just enough signal to guide judgment.
+
+    Three tiers:
+      1. This compact index (always in prompt)
+      2. Last 5 messages (rolling window, handled by chat.py)
+      3. On-demand files (TP reads via ReadWorkspace)
+    """
+    lines = ["## Workspace Index\n"]
+
+    # --- Workspace state (unified signal) ---
+    ws = working_memory.get("workspace_state", {})
+    identity = ws.get("identity", "empty")
+    brand = ws.get("brand", "empty")
+    tasks_active = ws.get("tasks_active", 0)
+    tasks_stale = ws.get("tasks_stale", 0)
+    docs = ws.get("documents", 0)
+    domains_active = ws.get("context_domains", 0)
+
+    lines.append(f"Identity: {identity} | Brand: {brand} | {tasks_active} active tasks | {domains_active} context domains | {docs} documents")
+
+    # Gaps (only if present)
+    if identity == "empty":
+        lines.append("- Gap: identity empty — ask user about themselves")
+    if tasks_active == 0 and identity != "empty":
+        lines.append("- Gap: no tasks — suggest from catalog after scaffolding")
+    if tasks_stale > 0:
+        lines.append(f"- Gap: {tasks_stale} stale task{'s' if tasks_stale != 1 else ''}")
+    if ws.get("budget_exhausted"):
+        lines.append(f"- Budget: EXHAUSTED ({ws.get('credits_used', 0)}/{ws.get('credits_limit', 0)})")
+
+    # --- Team summary (one line per agent class) ---
+    agents = working_memory.get("agents", [])
+    real_agents = [a for a in agents if "_note" not in a]
+    if real_agents:
+        stewards = [a for a in real_agents if a.get("agent_class") == "domain-steward" or a.get("role") not in ("executive_reporting", "slack_bot", "notion_bot", "github_bot")]
+        bots = [a for a in real_agents if a.get("role") in ("slack_bot", "notion_bot", "github_bot")]
+        lines.append(f"\nTeam: {len(stewards)} domain agents, {len(bots)} integrations")
+
+    # --- Active tasks (compact: slug + schedule + freshness) ---
+    active_tasks = working_memory.get("active_tasks", [])
+    if active_tasks:
+        lines.append(f"\nTasks ({len(active_tasks)}):")
+        for t in active_tasks[:8]:  # Cap at 8
+            parts = [f"**{t['slug']}**"]
+            if t.get("schedule"):
+                parts.append(t["schedule"])
+            if t.get("last_run"):
+                parts.append(f"ran {t['last_run']}")
+            if t.get("next_run"):
+                parts.append(f"next {t['next_run']}")
+            lines.append(f"- {' · '.join(parts)}")
+
+    # --- Context domains (one line each: name + health) ---
+    context_domains = working_memory.get("context_domains", [])
+    if context_domains:
+        canonical = [d for d in context_domains if not d.get("temporal")]
+        temporal = [d for d in context_domains if d.get("temporal") and d.get("file_count", 0) > 0]
+        if canonical:
+            lines.append("\nDomains:")
+            for d in canonical:
+                count = d.get("file_count", 0)
+                health = d.get("health", "empty")
+                lines.append(f"- {d['domain']}/: {health} ({count} files)")
+        if temporal:
+            lines.append("\nPlatform observations:")
+            for d in temporal:
+                lines.append(f"- {d['domain']}/: {d.get('file_count', 0)} files")
+
+    # --- Platforms (connected status only) ---
+    platforms = working_memory.get("platforms", [])
+    connected = [p for p in platforms if p.get("status") == "active"]
+    if connected:
+        names = ", ".join(p.get("platform", "?") for p in connected)
+        lines.append(f"\nPlatforms: {names}")
+
+    # --- Surface context (what user is currently viewing) ---
+    if surface_context:
+        page = surface_context.get("type", "chat")
+        agent_slug = surface_context.get("agentSlug")
+        task_slug = surface_context.get("taskSlug")
+        if agent_slug:
+            lines.append(f"\nCurrently viewing: Agents > {agent_slug}")
+        elif task_slug:
+            lines.append(f"\nCurrently viewing: Task > {task_slug}")
+        elif page == "context":
+            lines.append("\nCurrently viewing: Context (workspace explorer)")
+        else:
+            lines.append("\nCurrently viewing: Home")
+
+    # --- File references (TP reads on demand) ---
+    lines.append("\n### Memory files (read with ReadWorkspace if you need detail)")
+    lines.append("- `/workspace/IDENTITY.md` — who the user is")
+    lines.append("- `/workspace/BRAND.md` — visual style and voice")
+    lines.append("- `/workspace/AWARENESS.md` — your shift notes from prior sessions")
+    lines.append("- `/workspace/memory/conversation.md` — summary of earlier conversation")
+    lines.append("- `/workspace/memory/notes.md` — stable facts and user preferences")
+
+    # --- Agent health flags (only if flagged) ---
+    flagged = ws.get("agents_flagged", [])
+    if flagged:
+        lines.append("\nAgent health flags:")
+        for ah in flagged:
+            lines.append(f"- {ah['title']}: {ah['flag']}")
+
+    return "\n".join(lines)
+
+
 def format_for_prompt(working_memory: dict) -> str:
     """
-    Format working memory dict as a readable string for prompt injection.
+    LEGACY: Full working memory dump for prompt injection (~3-8K tokens).
 
-    This is the text that goes into TP's system prompt.
+    Superseded by format_compact_index() (ADR-159). Retained for MCP server
+    compatibility and fallback. New TP calls should use format_compact_index().
     """
     lines = ["## Working Memory\n"]
 

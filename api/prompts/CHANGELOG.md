@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.06.5] - ADR-159: Filesystem-as-memory — compact index replaces working memory dump
+
+### Changed
+- `working_memory.py`: New `format_compact_index()` function (~200-500 tokens) replaces `format_for_prompt()` (~3-8K tokens). Compact index shows: workspace state signal, team summary, active tasks (slug+schedule+freshness), context domains (health), platforms, surface context, and file references for on-demand reading.
+- `thinking_partner.py`: Switched from `format_for_prompt()` to `format_compact_index()`. Surface context passed through for "Currently viewing" section.
+- `chat.py`: Message rolling window (last 10 messages sent to API, not full history). conversation.md written every 5 user messages as rolling summary. Full history preserved in DB for chat UI.
+- Expected behavior: ~70% token reduction per TP message. TP reads workspace files on demand via ReadWorkspace instead of receiving full context dump. First few interactions may show TP calling ReadWorkspace more often as it learns to pull context.
+
+---
+
 ## [2026.04.06.4] - Fix delivery model — context tasks silent, synthesis tasks deliver
 
 ### Changed
