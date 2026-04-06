@@ -78,6 +78,15 @@ function formatRelativeTime(dateStr: string): string {
   return future ? `in ${weeks}w` : `${weeks}w ago`;
 }
 
+/** Freshness classification for visual indicators */
+function getNodeFreshness(updatedAt?: string): 'new' | 'recent' | 'stale' {
+  if (!updatedAt) return 'stale';
+  const hours = (Date.now() - new Date(updatedAt).getTime()) / 3600000;
+  if (hours < 1) return 'new';       // Created/modified in last hour
+  if (hours < 24) return 'recent';   // Modified in last day
+  return 'stale';                     // Older than 24h
+}
+
 function formatTimestamp(value?: string): string {
   if (!value) return '—';
   const date = new Date(value);
@@ -317,42 +326,75 @@ function DomainBrowse({
     return aRank - bRank || a.name.localeCompare(b.name);
   });
 
+  // Domain summary: total items + most recent update
+  const allUpdates = nodes
+    .map(n => n.updated_at)
+    .filter(Boolean)
+    .sort()
+    .reverse();
+  const folderCount = nodes.filter(n => n.type === 'folder').length;
+  const fileCount = nodes.filter(n => n.type === 'file').length;
+
   return (
     <div className="flex-1 overflow-auto">
+      {/* Domain summary */}
+      <div className="px-5 py-2 text-[11px] text-muted-foreground/50 border-b border-border/40 flex items-center gap-3">
+        <span>{folderCount} entities · {fileCount} files</span>
+        {allUpdates[0] && (
+          <>
+            <span className="text-muted-foreground/20">·</span>
+            <span>Last updated {formatTimestamp(allUpdates[0])}</span>
+          </>
+        )}
+      </div>
+
       {/* Column headers */}
-      <div className="grid grid-cols-[minmax(0,1fr)_80px] gap-3 px-5 py-2 text-[10px] uppercase tracking-wide text-muted-foreground/40 border-b border-border/40">
+      <div className="grid grid-cols-[minmax(0,1fr)_90px] gap-3 px-5 py-2 text-[10px] uppercase tracking-wide text-muted-foreground/40 border-b border-border/40">
         <span>Name</span>
         <span className="text-right">Modified</span>
       </div>
 
       {/* File list */}
       <div className="divide-y divide-border/30">
-        {sorted.map(node => (
-          <button
-            key={node.path}
-            onClick={() => onSelectNode(node)}
-            className="grid w-full grid-cols-[minmax(0,1fr)_80px] gap-3 px-5 py-2.5 text-left hover:bg-muted/30 transition-colors"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              {node.type === 'folder' ? (
-                <FolderClosed className="w-4 h-4 text-sky-600/60 shrink-0" />
-              ) : (
-                <FileIcon filename={node.name} size="md" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-sm truncate">{node.name}</p>
-                {node.type === 'folder' && node.children && (
-                  <p className="text-[10px] text-muted-foreground/40">
-                    {node.children.length} item{node.children.length !== 1 ? 's' : ''}
-                  </p>
+        {sorted.map(node => {
+          const freshness = getNodeFreshness(node.updated_at);
+          return (
+            <button
+              key={node.path}
+              onClick={() => onSelectNode(node)}
+              className="grid w-full grid-cols-[minmax(0,1fr)_90px] gap-3 px-5 py-2.5 text-left hover:bg-muted/30 transition-colors"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                {node.type === 'folder' ? (
+                  <FolderClosed className="w-4 h-4 text-sky-600/60 shrink-0" />
+                ) : (
+                  <FileIcon filename={node.name} size="md" />
                 )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm truncate">{node.name}</p>
+                    {freshness === 'new' && (
+                      <span className="shrink-0 text-[9px] font-medium text-green-600 bg-green-500/10 px-1 py-0.5 rounded">new</span>
+                    )}
+                  </div>
+                  {node.type === 'folder' && node.children && (
+                    <p className="text-[10px] text-muted-foreground/40">
+                      {node.children.length} item{node.children.length !== 1 ? 's' : ''}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="text-[11px] text-muted-foreground/50 text-right self-center tabular-nums">
-              {formatTimestamp(node.updated_at)}
-            </div>
-          </button>
-        ))}
+              <div className={cn(
+                'text-[11px] text-right self-center tabular-nums',
+                freshness === 'new' ? 'text-green-600/70' :
+                freshness === 'recent' ? 'text-muted-foreground/60' :
+                'text-muted-foreground/35'
+              )}>
+                {formatTimestamp(node.updated_at)}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

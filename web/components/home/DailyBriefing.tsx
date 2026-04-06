@@ -79,6 +79,18 @@ export function DailyBriefing({ agents, tasks, hasMessages }: DailyBriefingProps
       });
   }, [tasks, agents]);
 
+  // Recently scaffolded: tasks created in last 24h that haven't run yet
+  const recentlyCreated = useMemo(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    return tasks
+      .filter(t => new Date(t.created_at).getTime() > cutoff && !t.last_run_at)
+      .map(t => {
+        const agentSlug = t.agent_slugs?.[0];
+        const agent = agents.find(a => getAgentSlug(a) === agentSlug);
+        return { task: t, agentTitle: agent?.title || t.title };
+      });
+  }, [tasks, agents]);
+
   // Coming up: next scheduled runs grouped by timeframe
   const comingUp = useMemo(() => {
     return activeTasks
@@ -112,6 +124,7 @@ export function DailyBriefing({ agents, tasks, hasMessages }: DailyBriefingProps
 
   // Summary line for collapsed state
   const summaryParts: string[] = [];
+  if (recentlyCreated.length > 0) summaryParts.push(`${recentlyCreated.length} new`);
   if (recentRuns.length > 0) summaryParts.push(`${recentRuns.length} ran`);
   if (comingUp.length > 0) summaryParts.push(`${comingUp.length} coming up`);
   if (needsAttention.length > 0) summaryParts.push(`${needsAttention.length} attention`);
@@ -160,6 +173,22 @@ export function DailyBriefing({ agents, tasks, hasMessages }: DailyBriefingProps
                   {task.last_run_at && (
                     <span className="text-muted-foreground/40 shrink-0 ml-auto">{formatRelativeTime(task.last_run_at)}</span>
                   )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recently created (scaffolded) */}
+        {recentlyCreated.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground/50 mb-1">Set up</p>
+            <div className="space-y-0.5">
+              {recentlyCreated.map(({ task, agentTitle }) => (
+                <div key={task.slug} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="shrink-0 text-[9px] font-medium text-green-600 bg-green-500/10 px-1 py-0.5 rounded">new</span>
+                  <span className="truncate">{agentTitle}: {task.title}</span>
+                  <span className="text-muted-foreground/40 shrink-0 ml-auto capitalize">{task.schedule || task.mode || ''}</span>
                 </div>
               ))}
             </div>
