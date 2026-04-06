@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
   MessageCircle,
@@ -28,102 +28,19 @@ import { AgentTreeNav } from '@/components/agents/AgentTreeNav';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-import { Circle, FolderOpen } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
-// ─── Agent Overview (no selection state) ───
+// ─── Empty state (no agent selected) ───
 
-function AgentOverview({
-  agents,
-  tasks,
-  onSelectAgent,
-}: {
-  agents: Agent[];
-  tasks: Task[];
-  onSelectAgent: (agentId: string) => void;
-}) {
-  const getSlug = (a: Agent) => a.slug || a.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-
-  const cards = agents.map(agent => {
-    const slug = getSlug(agent);
-    const agentTasks = tasks.filter(t => t.agent_slugs?.includes(slug));
-    const activeTasks = agentTasks.filter(t => t.status === 'active');
-    const hasActive = activeTasks.length > 0;
-    const lastRun = agentTasks.map(t => t.last_run_at).filter(Boolean).sort().reverse()[0];
-    const rhythm = activeTasks[0]?.schedule;
-    const cls = agent.agent_class || 'domain-steward';
-
-    return { agent, agentTasks, hasActive, lastRun, rhythm, cls };
-  });
-
-  const activeCount = cards.filter(c => c.hasActive).length;
-  const taskCount = tasks.filter(t => t.status === 'active').length;
-
+function EmptyState() {
   return (
-    <div className="flex-1 overflow-auto p-6">
-      {/* Summary */}
-      <div className="mb-6">
-        <h2 className="text-base font-medium">Your Team</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {activeCount} active agents · {taskCount} active tasks
-        </p>
-      </div>
-
-      {/* Agent cards grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {cards.map(({ agent, hasActive, lastRun, rhythm, cls }) => (
-          <button
-            key={agent.id}
-            onClick={() => onSelectAgent(agent.id)}
-            className="text-left rounded-lg border border-border p-4 hover:bg-muted/30 hover:border-border/80 transition-colors"
-          >
-            <div className="flex items-center gap-2 mb-1.5">
-              <Circle className={cn('w-2 h-2 shrink-0', hasActive ? 'fill-green-500 text-green-500' : 'text-muted-foreground/30')} />
-              <span className="text-sm font-medium truncate">{agent.title}</span>
-            </div>
-            <div className="text-xs text-muted-foreground space-y-0.5">
-              {agent.context_domain && (
-                <div className="flex items-center gap-1">
-                  <FolderOpen className="w-3 h-3 text-muted-foreground/30" />
-                  <span>{agent.context_domain}/</span>
-                </div>
-              )}
-              <div className="flex items-center gap-1.5">
-                {rhythm && <span className="capitalize">Works {rhythm}</span>}
-                {lastRun && (
-                  <>
-                    {rhythm && <span className="text-muted-foreground/30">·</span>}
-                    <span>{formatShort(lastRun)}</span>
-                  </>
-                )}
-                {!rhythm && !lastRun && (
-                  <span className="text-muted-foreground/40">
-                    {cls === 'platform-bot' ? 'Connect platform to activate' : 'No tasks yet'}
-                  </span>
-                )}
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
+    <div className="flex-1 flex items-center justify-center">
+      <p className="text-sm text-muted-foreground/30">Select an agent</p>
     </div>
   );
 }
 
-function formatShort(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
 export default function AgentsPage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { loadScopedHistory, sendMessage } = useTP();
 
   const agentFromUrl = searchParams.get('agent');
@@ -166,7 +83,7 @@ export default function AgentsPage() {
         const match = agentList.find(a => a.id === agentFromUrl || a.slug === agentFromUrl);
         if (match) setSelectedAgentId(match.id);
       }
-      // Otherwise: no default selection — center panel shows overview
+      // Otherwise: no default selection — center panel shows empty state
     });
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -317,24 +234,8 @@ export default function AgentsPage() {
             onOpenChat={handleOpenChat}
             busy={mutationPending}
           />
-        ) : agents.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="max-w-sm text-center">
-              <Users className="w-10 h-10 text-muted-foreground/15 mx-auto mb-3" />
-              <h2 className="text-lg font-medium mb-1">No agents yet</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Set up your workspace first, then your agent roster will appear.
-              </p>
-              <button
-                onClick={() => router.push('/context')}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                Set up workspace
-              </button>
-            </div>
-          </div>
         ) : (
-          <AgentOverview agents={agents} tasks={tasks} onSelectAgent={handleSelectAgent} />
+          <EmptyState />
         )}
       </div>
 

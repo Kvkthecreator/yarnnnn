@@ -232,9 +232,10 @@ def _parse_task_md(content: str) -> dict:
         if agent_match:
             agent_slugs = [a.strip() for a in agent_match.group(1).split(",")]
 
-    # Process section (multi-agent tasks may have Agents list here)
+    # Process section
     in_process = False
     process: dict = {}
+    process_agent_slugs: list[str] = []
     for line in lines:
         if line.strip() == "## Process":
             in_process = True
@@ -251,10 +252,20 @@ def _parse_task_md(content: str) -> dict:
                     process["agents"] = agent_slugs
                 else:
                     process[key] = val
+        # Extract agent slugs from numbered process steps: "1. **StepName** (agent-slug): ..."
+        if in_process:
+            step_match = re.match(r"\d+\.\s+\*\*.*?\*\*\s+\(([^)]+)\)", line)
+            if step_match:
+                slug_val = step_match.group(1).strip()
+                if slug_val not in process_agent_slugs:
+                    process_agent_slugs.append(slug_val)
     if process:
         result["process"] = process
 
-    # Agent slugs (from top-level field or Process section)
+    # Agent slugs: prefer top-level **Agent:** field, then **Agents:** in process,
+    # then extract from numbered process steps (build_task_md_from_type format)
+    if not agent_slugs and process_agent_slugs:
+        agent_slugs = process_agent_slugs
     if agent_slugs:
         result["agent_slugs"] = agent_slugs
 
