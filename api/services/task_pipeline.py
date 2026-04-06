@@ -1104,14 +1104,43 @@ If context says "(No context available)" or tools return no results:
 
     user_message = "\n".join(user_parts)
 
-    # Return system prompt as cached content block — stable across tool rounds
+    # Split system prompt into static (cached) + dynamic (uncached) blocks.
+    # Static block: output rules, agent instructions, methodology, tool guidance,
+    # visual assets, empty context handling — identical for same agent across runs.
+    # Dynamic block: user context, deliverable spec, success criteria —
+    # task-specific content that changes per execution.
+    #
+    # This maximizes prompt caching: static block hits cache on tool rounds 2+
+    # AND across different task runs for the same agent.
+
+    # Find the split point — everything before "## User Context" or
+    # "## Deliverable Specification" is static
+    static_end_markers = [
+        "\n\n## User Context",
+        "\n\n## Deliverable Specification",
+        "\n\n## Self-Reflection",  # reflection postamble starts here
+    ]
+    static_part = system
+    dynamic_part = ""
+    for marker in static_end_markers:
+        idx = system.find(marker)
+        if idx != -1:
+            static_part = system[:idx]
+            dynamic_part = system[idx:]
+            break
+
     system_blocks = [
         {
             "type": "text",
-            "text": system,
+            "text": static_part,
             "cache_control": {"type": "ephemeral"},
-        }
+        },
     ]
+    if dynamic_part.strip():
+        system_blocks.append({
+            "type": "text",
+            "text": dynamic_part,
+        })
 
     return system_blocks, user_message
 

@@ -224,22 +224,19 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   }, [status]);
 
   // ---------------------------------------------------------------------------
-  // Load chat history (ADR-087 Phase 3: supports agent-scoped history)
+  // Load chat history — Unified session model (one conversation per workspace)
   // ---------------------------------------------------------------------------
-  // Track which scope was last loaded to avoid redundant fetches
-  const lastLoadedScopeRef = useRef<string | undefined>(undefined);
+  // No scope switching. One global session. Surface context sent per message.
+  // Messages persist across page navigations — no clearing.
 
-  const loadScopedHistory = useCallback(async (agentId?: string, taskSlug?: string) => {
-    // Skip if already loaded for this scope
-    const scopeKey = taskSlug ? `task:${taskSlug}` : agentId ?? '__global__';
-    if (lastLoadedScopeRef.current === scopeKey) return;
-
-    // Clear messages IMMEDIATELY on scope change — prevents bleed from prior scope
-    dispatch({ type: 'CLEAR_MESSAGES' });
-    lastLoadedScopeRef.current = scopeKey;
+  const loadScopedHistory = useCallback(async (_agentId?: string, _taskSlug?: string) => {
+    // Unified session: always load global history. Agent/task params ignored —
+    // surface context is sent per message, not per session.
+    if (historyLoadedRef.current) return;
+    historyLoadedRef.current = true;
 
     try {
-      const result = await api.chat.globalHistory(1, agentId, taskSlug);
+      const result = await api.chat.globalHistory(1);
 
       if (result.sessions && result.sessions.length > 0) {
         const session = result.sessions[0];
@@ -311,10 +308,8 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     }
   }, []);
 
-  // Load global history on mount (dashboard default)
+  // Load global history on mount — unified session, loaded once
   useEffect(() => {
-    if (historyLoadedRef.current) return;
-    historyLoadedRef.current = true;
     loadScopedHistory();
   }, [loadScopedHistory]);
 

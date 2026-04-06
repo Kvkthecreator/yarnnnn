@@ -1010,7 +1010,8 @@ async def global_chat(
     """
     from services.platform_limits import check_monthly_message_limit
 
-    # ADR-125: Extract routing context from surface_context
+    # Extract surface context for working memory injection (not session routing).
+    # Unified session model: one session per workspace, surface context on messages.
     request_agent_id = None
     request_task_slug = None
     if request.surface_context:
@@ -1019,29 +1020,14 @@ async def global_chat(
         if request.surface_context.taskSlug:
             request_task_slug = request.surface_context.taskSlug
 
-    # Session routing: Task-scoped > Agent-scoped > Global TP
-    if request_task_slug:
-        # Task-scoped session (takes priority over agent_id)
-        session = await get_or_create_task_session(
-            auth.client,
-            auth.user_id,
-            task_slug=request_task_slug,
-        )
-    elif request_agent_id:
-        # Agent-scoped session
-        session = await get_or_create_session(
-            auth.client,
-            auth.user_id,
-            scope="daily",
-            agent_id=request_agent_id,
-        )
-    else:
-        # Global TP session (no agent)
-        session = await get_or_create_session(
-            auth.client,
-            auth.user_id,
-            scope="daily",
-        )
+    # Unified session: always global — one conversation per workspace.
+    # Surface context (agent/task being viewed) is metadata on messages,
+    # not a session boundary. TP adapts working memory based on surface.
+    session = await get_or_create_session(
+        auth.client,
+        auth.user_id,
+        scope="daily",
+    )
     session_id = session["id"]
 
     # Generate summary for previous session if this is a new session

@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.06.2] - Task pipeline cache optimization — split static/dynamic blocks
+
+### Changed
+- `task_pipeline.py`: `build_task_execution_prompt()` now returns TWO system blocks instead of one. Block 1 (cached): output rules, agent instructions, methodology, tool guidance. Block 2 (uncached): user context, deliverable spec, success criteria. This allows the static portion to be cached across tool rounds AND across different task runs for the same agent.
+- Expected behavior: Cache hit rate should increase from ~26% to ~50-60% for task execution. Static content (~8-10K tokens) cached, dynamic content (~3-5K tokens) always fresh.
+
+---
+
 ## [2026.04.06.1] - Accuracy gate uses Clarify primitive instead of text question
 
 ### Changed

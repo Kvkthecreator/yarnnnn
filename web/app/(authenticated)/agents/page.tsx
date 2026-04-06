@@ -185,10 +185,10 @@ export default function AgentsPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [loadData]);
 
-  // ── Load scoped chat history on agent change ──
+  // ── Load chat history (unified session — once, not per agent) ──
   useEffect(() => {
-    if (selectedAgentId) loadScopedHistory(selectedAgentId);
-  }, [selectedAgentId, loadScopedHistory]);
+    loadScopedHistory();
+  }, [loadScopedHistory]);
 
   // ── Derived state ──
   const selectedAgent = agents.find(a => a.id === selectedAgentId) || null;
