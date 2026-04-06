@@ -4,13 +4,14 @@
 
 ---
 
-## The short version (current model — ADR-067 implemented)
+## The short version (current model — ADR-159 proposed)
 
-- Sessions use **inactivity-based boundaries** (4-hour gap = new session). The UTC midnight hard cut was removed.
-- Within a session, TP has the full conversation history (up to a 50,000 token budget).
-- **In-session compaction** triggers at 80% of budget — a summary block is prepended rather than silently truncating oldest messages.
-- Across sessions, TP knows what's in **working memory** — profile, preferences, recent activity, active agents, and **recent session summaries** (last 3 within 14-day window).
-- Session summaries are written by the nightly cron to `chat_sessions.summary`.
+- **One session per workspace** — no agent-scoped or task-scoped sessions. Surface context (which page/agent the user is viewing) is metadata on messages, not a session boundary.
+- Sessions use **inactivity-based boundaries** (4-hour gap = new session).
+- TP receives a **compact index** (~200-500 tokens) of workspace state instead of a full working memory dump (~3-8K tokens). TP reads workspace files on demand via ReadWorkspace.
+- **Message window**: last 5 messages sent to API. Older conversation context compacted into `/workspace/memory/conversation.md` — TP reads on demand.
+- **In-session compaction**: `conversation.md` written every 5 messages as a rolling summary.
+- Cross-session continuity via shift notes (`/workspace/memory/awareness.md`) and stable facts (`/workspace/memory/notes.md`).
 
 ---
 
@@ -20,127 +21,105 @@
 
 Every chat message goes through `get_or_create_session()` in [chat.py](../../api/routes/chat.py):
 
-- **If a session exists with activity within the last 4 hours**: reuse it (inactivity-based boundary, ADR-067)
+- **If a session exists with activity within the last 4 hours**: reuse it
 - **If not**: create a new `chat_sessions` row
 
-The previous UTC midnight hard cut was replaced with an inactivity-based boundary in ADR-067. A user continuing a thread from this morning stays in the same session; a user starting after a 4+ hour gap gets a new one. The nightly cron continues to run at UTC midnight regardless — backend scheduling and session management are decoupled.
+Unified session model (ADR-159): all messages route to the global session regardless of which page the user is on. `agent_id` and `task_slug` on `chat_sessions` are deprecated — surface context is tracked per message, not per session.
 
 ### Within a session
 
-Every user message and assistant response is appended to `session_messages` with a monotonically increasing `sequence_number`. Tool calls and results are stored in the assistant message's `metadata.tool_history` so they can be reconstructed as proper `tool_use`/`tool_result` blocks on subsequent turns (required by the Anthropic API).
+Every user message and assistant response is appended to `session_messages`. The API call receives:
 
-When building context for each new message, the last 50 messages are fetched (ordered by sequence) and truncated to a **50,000 token budget** — most recent messages win. No compression, no summarization — just a hard cut from the oldest end.
+| Content | Tokens | Source |
+|---------|--------|--------|
+| Compact index | ~200-500 | Built from agents + tasks + workspace state |
+| Last 5 messages | ~2-3K | Rolling window from session_messages |
+| System prompt (static rules + tools) | ~3-4K | Cached via prompt caching |
+| On-demand reads | 0-2K | Only when TP calls ReadWorkspace |
+
+Total: ~5-8K input tokens per message (vs ~18-23K in previous model).
+
+### Conversation compaction
+
+Every 5 messages, the system writes a rolling summary to `/workspace/memory/conversation.md`. This file captures decisions, corrections, instructions, and current focus — not just topics.
+
+TP reads `conversation.md` via ReadWorkspace when it needs older context (e.g., user references something from earlier in the session).
 
 ### Ending a session
 
-There is no explicit session close. Sessions stay `active` until the next day creates a new one. `ended_at` exists in the schema but is never set by any current code.
+Sessions close on 4-hour inactivity. On close, a final `conversation.md` summary is written. The `awareness.md` file (TP's shift notes) carries context to the next session.
 
 ---
 
 ## What carries over between sessions
 
-When a new session starts, TP gets a fresh **working memory block** injected into its system prompt. This is the only cross-session continuity mechanism.
-
-| What's in working memory | Source | How it gets there |
+| What | Source | How it gets there |
 |---|---|---|
-| Name, role, company, timezone | `user_memory` | User sets via Context page |
-| Tone and verbosity preferences | `user_memory` | User sets or TP writes in-session |
-| Facts, instructions, preferences | `user_memory` | User sets or TP writes in-session |
-| Active agents (up to 5) | `agents` | Always live |
-| Connected platforms + resource status | `platform_connections` + `sync_registry` | Always live |
-| Recent activity (last 10 events, 7-day window) | `activity_log` | Written by pipeline, scheduler, integrations |
-| Recent session summaries | `chat_sessions.summary` | Inline at session close when available |
+| Stable user facts (name, role, preferences) | `/workspace/memory/notes.md` | TP writes in-session via UpdateContext(target="memory") |
+| Shift handoff notes | `/workspace/memory/awareness.md` | TP writes in-session via UpdateContext(target="awareness") |
+| Prior conversation summary | `/workspace/memory/conversation.md` | Written every 5 messages + on session close |
+| Agent roster + task status | `agents` + `tasks` tables | Live queries in compact index |
+| Platform connection status | `platform_connections` | Live query in compact index |
 
 **What does NOT carry over:**
-- Raw conversation history (previous sessions' messages are not fetched)
+- Raw conversation history (only the summary in conversation.md)
 - Tool execution results
-- Anything TP inferred but didn't explicitly learn during the session
-
-### Memory extraction from conversations
-
-TP writes durable facts and instructions in-session via context update tools.
-There is no nightly memory extraction cron anymore.
+- Full working memory dump (replaced by compact index)
 
 ---
 
 ## Contrast with Claude Code
 
-Claude Code uses auto-compaction — context-window-pressure-driven, not time-based — and maintains cross-session continuity via CLAUDE.md and auto memory.
-
-| | Claude Code | YARNNN (ADR-067 implemented) |
+| | Claude Code | YARNNN (ADR-159) |
 |---|---|---|
-| **Session boundary** | Context-window-driven | Inactivity-based (4h default) |
-| **In-session overflow** | Auto-compaction (`<summary>` block prepended) | Compaction at 80% of 50k token budget |
-| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | `user_memory` + agents + activity + `chat_sessions.summary` |
-| **Session summaries** | Auto-generated during compaction | Written by nightly cron |
-| **Session resumption** | `--continue` / `--resume <id>` | Not supported (session_id ignored, deferred) |
+| **Session boundary** | Context-window-driven | Inactivity-based (4h) |
+| **In-session compaction** | Auto-compaction (`<summary>` block) | conversation.md written every 5 messages |
+| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | notes.md + awareness.md + conversation.md |
+| **Context injection** | Compact prompt, read files on demand | Compact index, ReadWorkspace on demand |
+| **Tool definitions** | Available tools in prompt | Same (15 tools, ~4K tokens, cached) |
+| **File access** | Read tool | ReadWorkspace tool |
 
-The practical implication today: if a user had a long conversation yesterday about their preferences, TP won't remember the conversation details today — but it will know the extracted preferences (after the nightly cron runs).
-
----
-
-## Architecture direction (ADR-067)
-
-[ADR-067](../adr/ADR-067-session-compaction-architecture.md) follows Claude Code's session model fully — three changes, all decided:
-
-### Phase 1 — Session summaries (cross-session auto memory)
-
-The YARNNN equivalent of Claude Code's auto memory (MEMORY.md). The nightly cron writes a prose summary to `chat_sessions.summary` after processing memory extraction for each session. The "Recent conversations" working memory block — currently always empty — is populated with the last 3 summaries within a 14-day window.
-
-The reader is already built: `working_memory.py → _get_recent_sessions()` queries `chat_sessions.summary` and `format_for_prompt()` renders "Recent conversations." Only the writer (nightly cron) needs wiring — ~30 lines.
-
-**Example summary**:
-> [2026-02-19] Worked on Q2 board update — settled on 4-section structure. User wants financials added; agent paused pending numbers. Also set up weekly #engineering digest.
-
-### Phase 2 — Inactivity-based session boundary
-
-The UTC midnight hard cut is replaced with an inactivity-based boundary (default: 4 hours). A user continuing a thread from this morning stays in the same session; a user starting a new work context after a break gets a new one.
-
-The nightly cron continues to run at UTC midnight regardless — backend scheduling and conversational session management are now decoupled.
-
-### Phase 3 — In-session compaction
-
-The YARNNN equivalent of Claude Code's auto-compaction. When the history budget reaches 80% (40k of 50k tokens), instead of silently truncating the oldest messages, a compaction summary is generated and prepended as an assistant-role `<summary>` block. The model continues from the compaction point with full awareness of prior work — the same mechanism Claude Code uses.
-
-Compaction text is stored in `chat_sessions.compaction_summary` and reused on subsequent turns — the summary is generated once per overflow event, not on every turn.
+The models are now closely aligned. Both use referential injection (point to files, read on demand) rather than dump-everything-into-prompt.
 
 ---
 
-## Directive and Decision Persistence (ADR-128)
+## Unified session model
 
-Meeting room conversations (project sessions, ADR-124) produce directives and decisions that must outlive the session. ADR-128 introduces a persistence mechanism: agents self-write durable guidance to workspace files during chat, rather than relying on post-chat extraction.
+Previous model (ADR-087, ADR-125): per-scope sessions (global, agent-scoped, task-scoped). Navigating between pages cleared messages and loaded different session histories.
 
-| What persists | Where | Written by | Survives |
-|---------------|-------|-----------|----------|
-| User directives to contributors | `/agents/{slug}/memory/directives.md` | Agent-via-chat (WriteWorkspace) | Session rotation, compaction |
-| Project-level decisions | `/projects/{slug}/memory/decisions.md` | PM-via-chat (WriteWorkspace) | Session rotation, compaction |
+Current model (ADR-159): one session per workspace. Messages persist across page navigations. Surface context (which page/agent the user is viewing) is sent per message and used for working memory injection — TP adapts its focus without session boundaries.
 
-**How it works**: During meeting room conversation, agents judge whether a user statement is a durable directive (focus area, style preference, priority) vs. ephemeral discussion. Durable directives are appended to the appropriate `memory/*.md` file via the WriteWorkspace primitive (already registered for `agent_chat` mode). On the agent's next headless run, `load_context()` reads all `memory/*.md` files, so the directive is injected into the execution context.
-
-**What this solves**: Without this, a user saying "focus on action items, not just summaries" in the meeting room would be lost when the session compacts or rotates. With directive persistence, the guidance survives in the filesystem and shapes all future runs.
+| Previous | Current |
+|---|---|
+| Global session (Home, Context) | One session for all pages |
+| Agent-scoped session (per agent) | Surface context metadata per message |
+| Task-scoped session (per task) | Surface context metadata per message |
+| Messages cleared on navigation | Messages persist |
+| `agent_id` on chat_sessions | Deprecated — surface_context on messages |
 
 ---
 
-## Remaining gaps
+## Architecture direction (ADR-159)
 
-1. **No real-time extraction** — preferences from a conversation land in working memory overnight, not immediately. *(Deferred in ADR-067)*
-2. **No explicit close** — sessions accumulate as `active` indefinitely; `ended_at` is never set.
-3. **`session_id` parameter ignored** — `ChatRequest.session_id` exists but the backend always uses inactivity-scope auto-create; users can't resume a specific old session from the frontend. *(Deferred in ADR-067)*
-4. **Project-scoped sessions** — ADR-124 (Project Meeting Room) proposes project sessions where multiple agents participate as attributed authors. The meeting room transcript becomes a fourth perception layer (Axiom 2 extension). Session compaction at project scope is flagged as future work. *(Proposed in ADR-124)*
+### Phase 1: Compact index + message window
 
-### Resolved (ADR-067)
-- Session summaries — nightly cron writes `chat_sessions.summary`; "Recent conversations" block populates
-- In-session compaction — `maybe_compact_history()` triggers at 80% budget; `<summary>` block prepended
-- UTC midnight boundary — replaced with 4-hour inactivity check; nightly cron decoupled
+Replace working memory dump with compact index builder. Implement 5-message rolling window. Write conversation.md every 5 messages. Update TP prompts to reference files.
+
+### Phase 2: Conversation file lifecycle
+
+Write final conversation.md on session close. Inject prior session summary into next session's compact index. Verify TP reads conversation.md for older context.
+
+### Phase 3: Surface-aware index
+
+Add surface-specific detail to compact index (e.g., agent domain summary when viewing an agent). Optionally trim tool definitions by surface.
 
 ---
 
 ## Related
 
 - [Memory](./memory.md) — what persists across sessions and how it's written
-- [Backend Orchestration](../architecture/backend-orchestration.md) — nightly cron context (different domain from session management)
-- [ADR-067](../adr/ADR-067-session-compaction-architecture.md) — Session compaction and continuity architecture (implemented)
-- [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — activity log in working memory
+- [ADR-159](../adr/ADR-159-filesystem-as-memory.md) — Filesystem-as-memory architecture (proposed)
+- [ADR-067](../adr/ADR-067-session-compaction-architecture.md) — Session compaction (implemented, evolved by ADR-159)
+- [ADR-156](../adr/ADR-156-composer-sunset.md) — In-session memory writes (implemented)
 - `api/routes/chat.py` — session creation, message append, history building
-- `supabase/migrations/008_chat_sessions.sql` — schema and RPC
-- `api/services/working_memory.py` — what TP receives at session start
+- `api/services/working_memory.py` — compact index builder

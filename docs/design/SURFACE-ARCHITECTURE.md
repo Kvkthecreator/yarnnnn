@@ -1,6 +1,6 @@
 # Surface Architecture — Chat + Agents + Context + Activity
 
-**Date:** 2026-04-05 (v4 — three-tab center panel, knowledge-first agent view)
+**Date:** 2026-04-06 (v5 — pinned header + Browse/Tasks/Agent tabs, Finder-style freshness)
 **Status:** Proposed
 **Supersedes:** v3 (2026-04-04, task-cards-as-bridge center panel)
 **Depends on:** [ADR-138](../adr/ADR-138-agents-as-work-units.md) (Agents as Work Units), [ADR-140](../adr/ADR-140-agent-workforce-model.md) (Workforce Model), [ADR-152](../adr/ADR-152-unified-directory-registry.md) (Directory Registry)
@@ -18,7 +18,7 @@ Four surfaces, each with a clear purpose:
 | **Context** | `/context` | Context | Workspace substrate — cross-agent domains, uploads, settings as browsable filesystem | Right panel (workspace-scoped TP) |
 | **Activity** | `/activity` | Activity | Temporal observation — upcoming runs, past events, execution history | No chat (observation only) |
 
-**Key shift from v3:** The center panel no longer stacks agent header → task cards → domain files vertically. Instead, a **three-tab model** puts knowledge (domain files/outputs) as the hero on the default Agent tab, with task configuration and agent settings on separate tabs. Task metadata collapses to a single status line — tasks are operational infrastructure, not the primary thing users look at.
+**Key shift from v4:** Pinned header above tabs carries agent identity + capability + actions at all times. Tabs renamed Browse/Tasks/Agent for clarity. Browse tab uses Finder-style per-file freshness timestamps (content freshness) while header shows agent work rhythm (worker freshness). Two separate freshness signals: the worker's schedule vs the knowledge's actual modification dates. Left sidebar uses folder icons + left-border highlight for selected state. No default agent selection — center shows minimal empty state until user clicks.
 
 ---
 
@@ -91,260 +91,126 @@ Primary working surface. User selects an agent from the left panel and sees a th
 │  Agent List  │    Three-Tab View        │  ChatPanel       │
 │  (280px)     │    (flex-1)              │  (380px / FAB)   │
 ├──────────────┼──────────────────────────┼──────────────────┤
-│              │                          │                  │
-│ YOUR TEAM    │  [Agent | Setup | Settings]                │
-│ ● Comp Intel │                          │  Agent-scoped TP │
-│ ● Market Res │  (tab content fills      │                  │
-│ ● Biz Dev    │   remaining space)       │                  │
-│ ● Operations │                          │                  │
-│ ● Marketing  │                          │                  │
-│              │                          │                  │
-│ CROSS-TEAM   │                          │                  │
-│ ● Exec Rpt   │                          │                  │
-│              │                          │                  │
+│              │  Operations     [▶ Run][⏸]│                  │
+│ AGENTS       │  Domain Steward · projects│  Agent-scoped TP │
+│ 📁 Comp Intel│  Works weekly · Ran 1h ago│                  │
+│ 📁 Market Res│ ─────────────────────────│                  │
+│ 📁 Biz Dev   │  [Browse] [Tasks(2)] [Agent]               │
+│ 📂 Operations│ ─────────────────────────│                  │
+│ 📁 Marketing │  📁 assets       3d ago  │                  │
+│              │  📁 fundraising  1h ago  │                  │
+│ CROSS-TEAM   │  📁 go-to-market 1h ago  │                  │
+│ 📁 Exec Rpt  │  📄 _tracker.md  1h ago  │                  │
+│              │  📄 status.md    1h ago  │                  │
 │ INTEGRATIONS │                          │                  │
-│ ● Slack Bot  │                          │                  │
-│ ● Notion Bot │                          │                  │
-│ ● GitHub Bot │                          │                  │
+│ 📁 Slack Bot │                          │                  │
+│ 📁 Notion Bot│                          │                  │
+│ 📁 GitHub Bot│                          │                  │
 └──────────────┴──────────────────────────┴──────────────────┘
 ```
 
-### Left Panel: Agent Roster
+### Left Panel: Agent Roster (Finder-style)
 
 Flat agent list, no tree expansion, no filter pills. Three sections:
 
-- **Your Team** — domain stewards (5 agents)
+- **Agents** — domain stewards (5 agents)
 - **Cross-Team** — synthesizers (1 agent)
 - **Integrations** — platform bots (3 agents)
 
-Each agent shows: name, domain label + task count, binary status dot (green = active tasks, gray = dormant).
+Each agent shows: folder icon (open when selected, closed when not), agent name, domain path, right-aligned freshness timestamp with color coding (green <24h, gray <72h, amber >72h), task count. Selected agent gets left-border highlight + accent background.
 
-The roster is fixed (ADR-140: pre-scaffolded, no deletion). All 8 agents always visible. Agents without tasks show as dormant — communicating "ready to work."
+No default selection — center panel shows minimal empty state ("Select an agent") until user clicks.
 
-### Center Panel: Three-Tab Model
+The roster is fixed (ADR-140: pre-scaffolded, no deletion). All 8+ agents always visible. Agents without tasks show as dormant — communicating "ready to work."
 
-When an agent is selected, the center panel shows three tabs:
+### Center Panel: Pinned Header + Three Tabs
+
+When an agent is selected, the center panel shows a pinned header (always visible) above three tabs:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  [Agent]   [Setup]   [Settings]                              │
+│  Operations                                     [▶ Run] [⏸] │
+│  Domain Steward · projects/ · Works weekly · Ran 1h ago      │
+├──────────────────────────────────────────────────────────────┤
+│  [Browse]          [Tasks (2)]          [Agent]              │
 ├──────────────────────────────────────────────────────────────┤
 │                                                              │
-│  (tab content)                                               │
+│  (tab content — full height, own scroll)                     │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**Agent** is the default tab. Tab selection persists per agent (navigating away and back remembers the last tab).
+**Header** carries: agent name + action buttons (line 1), class label · domain · cadence · last run (line 2). Actions (Run/Pause) are always accessible — not buried in a tab. Header communicates the "autonomous worker" signal: who is this, what it's responsible for, that it's active.
+
+**Browse** is the default tab. Tab resets to Browse when switching agents.
 
 ---
 
-### Tab 1: Agent (Default) — "What does this agent know?"
+### Tab 1: Browse (Default) — "What does this agent know?"
 
-The knowledge tab. Domain files and outputs are the hero — 90% of the space. Task metadata collapses to a single status line.
+The knowledge tab. Finder-style domain browser with per-item freshness timestamps. Header (above tabs) provides the worker-level context; this tab provides the knowledge-level view.
+
+**Two distinct freshness signals:**
+- **Header:** "Ran 1h ago" = agent's last execution (worker rhythm)
+- **File list:** per-item `Modified` column = content freshness (knowledge state)
+
+A user sees: "This agent runs weekly, it last ran 1h ago, and during that run it updated fundraising/ and go-to-market/ but product-development/ hasn't changed in 2 weeks."
 
 #### Domain Steward Layout
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Competitive Intelligence                                     │
-│  Maintains competitor profiles, pricing, strategy, and        │
-│  market positioning                                           │
-│                                                               │
-│  ● Active · Updated 2h ago · Weekly                           │
-│  competitors/ → signals/                                      │
+│  Name                                           Modified     │
 ├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  📁 cursor/                             4 files               │
-│  📁 openai/                             3 files               │
-│  📁 anthropic/                          3 files               │
-│  📄 landscape.md                                              │
-│  📁 assets/                             5 files               │
-│                                                               │
-├──────────────────────────────────────────────────────────────┤
-│  📄 Latest: Competitive Landscape Brief · Apr 3 · View →     │
+│  📁 cursor                                        1h ago     │
+│     3 items                                                  │
+│  📁 openai                                        3d ago     │
+│     2 items                                                  │
+│  📁 anthropic                                     2w ago     │
+│     2 items                                                  │
+│  📄 landscape.md                                  1h ago     │
+│  📁 assets                                        3d ago     │
+│     5 items                                                  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**Components (top to bottom):**
-
-1. **Agent header** — agent name + description (from AGENT.md or task objective). 2-3 lines max.
-2. **Status line** — single line: active/paused dot, freshness ("Updated 2h ago"), cadence ("Weekly"), context flow ("competitors/ → signals/"). This is the task metadata, collapsed. Click to go to Setup tab.
-3. **Domain browser** (hero, fills remaining space) — the agent's owned context directory. Uses existing `ContentViewer` — folders drill in, files render inline. This is the master-detail file browser, not a flat list.
-4. **Latest output footer** (conditional) — if the agent has a synthesis task, show the latest output as a single-line card. Click to render full output.
+Folders show item count as subtitle. Modified timestamps use relative format (1h ago, 3d ago, 2w ago). Folder timestamps inherit most recent child's `updated_at`. Clicking a folder or file navigates into `ContentViewer` with a Back button.
 
 #### Synthesizer Layout
 
-Same structure, but the hero is the output viewer instead of the domain browser:
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Reporting                                          │
-│  Cross-domain composition of competitor, market, and          │
-│  relationship intelligence into executive summaries           │
-│                                                               │
-│  ● Active · Last delivered Apr 3 · Weekly                     │
-│  Reads: competitors/, market/, relationships/                 │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  (Rendered HTML output — latest deliverable)           │  │
-│  │                                                        │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                               │
-│  Run history:                                                 │
-│  Apr 3, 2026 · delivered                                      │
-│  Mar 27, 2026 · delivered                                     │
-│  Mar 20, 2026 · delivered                                     │
-└──────────────────────────────────────────────────────────────┘
-```
+Latest rendered output as hero (HTML iframe or markdown), with run history below.
 
 #### Bot Layout
 
-Same structure — observations directory is the hero:
+Same as domain steward — observations directory with per-channel freshness.
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Slack Bot                                                    │
-│  Monitors selected Slack channels for decisions, action       │
-│  items, and key discussions                                   │
-│                                                               │
-│  ● Active · Updated 6h ago · Daily                            │
-│  slack/ → signals/ · Connected ✓                              │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  📁 general/                            latest.md             │
-│  📁 engineering/                        latest.md             │
-│  📁 product/                            latest.md             │
-│  📄 _tracker.md                                               │
-│                                                               │
-└──────────────────────────────────────────────────────────────┘
-```
+#### Empty State
 
-#### Empty State (no tasks, domain empty)
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Competitive Intelligence                                     │
-│  Ready to track competitor profiles, pricing, and strategy    │
-│                                                               │
-│  ○ No active tasks                                            │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  📂 (empty)                                                   │
-│  Knowledge will accumulate as tasks run.                      │
-│                                                               │
-│  [Assign a task →]  (opens TP chat with prompt)               │
-│                                                               │
-└──────────────────────────────────────────────────────────────┘
-```
+Centered message: "Knowledge will accumulate as tasks run" (domain steward), "No outputs yet" (synthesizer), "Connect platform to populate" (platform bot).
 
 ---
 
-### Tab 2: Setup — "How is this configured?"
+### Tab 2: Tasks (N) — "What work is assigned?"
 
-Operational configuration — everything about how the work gets done. TP-mediated actions rather than CRUD forms.
+Task cards with objectives, schedule, delivery, and actions. Tab label shows count: "Tasks (2)".
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  TASKS                                                        │
-│                                                               │
-│  Track Competitors                                            │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Status: ● Active         Mode: Recurring              │  │
-│  │                                                        │  │
-│  │  Objective                                             │  │
-│  │  · Deliverable: Maintained competitor intelligence     │  │
-│  │  · Audience: Internal — feeds synthesis tasks          │  │
-│  │  · Purpose: Keep competitor profiles current           │  │
-│  │                                                        │  │
-│  │  Schedule                                              │  │
-│  │  · Cadence: Weekly                                     │  │
-│  │  · Next run: Apr 7, 9:00 AM                           │  │
-│  │  · Last run: Apr 3 (2 days ago)                       │  │
-│  │                                                        │  │
-│  │  Delivery                                              │  │
-│  │  · Channel: None (context task — writes to workspace) │  │
-│  │                                                        │  │
-│  │  Context Flow                                          │  │
-│  │  · Reads: competitors/                                 │  │
-│  │  · Writes: competitors/, signals/                      │  │
-│  │                                                        │  │
-│  │  [Run Now]  [Pause]  [Edit via TP →]                  │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                               │
-│  Competitive Landscape Brief                                  │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Status: ● Active         Mode: Recurring              │  │
-│  │  ...                                                   │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                               │
-│  OUTPUT SPEC (DELIVERABLE.md)                                 │
-│  · Format: Structured entity files per competitor             │
-│  · Quality criteria: min 3 profiles, updated within 30 days  │
-│                                                               │
-│  SOURCES                                                      │
-│  · Web search, Platform signals, Workspace context            │
-└──────────────────────────────────────────────────────────────┘
-```
+**Context flow summary** at top: colored dots showing which domains this agent writes to (green) and reads from (blue).
 
-**Components:**
+**Per-task card** shows: status dot (green/amber/gray) + title + mode badge (recurring/goal/reactive), objective (deliverable, audience, purpose), schedule inline (cadence · next · last), action buttons (Run Now, Pause/Resume, Edit via TP).
 
-1. **Task sections** — one section per assigned task. Shows objective, schedule, delivery, context flow. Each task has action buttons: Run Now, Pause/Resume, "Edit via TP" (opens chat with a task-edit prompt).
-2. **Output spec** — from DELIVERABLE.md. Quality criteria, format expectations.
-3. **Sources** — what data sources this agent's tasks use (web, platforms, workspace).
+**CRUD model:** Actions are TP-mediated buttons, not inline edit forms. "Run Now" calls `api.tasks.run()`. "Pause" calls `api.tasks.update({ status: 'paused' })`. "Edit via TP" opens the right-panel chat with a pre-composed prompt.
 
-**CRUD model:** Actions are TP-mediated buttons, not inline edit forms. "Run Now" calls `api.tasks.run()`. "Pause" calls `api.tasks.update({ status: 'paused' })`. "Edit via TP" opens the right-panel chat with a pre-composed prompt like "I want to change the schedule for Track Competitors."
+**Empty state:** Centered message + "Assign via TP" button that opens chat with a task-creation prompt.
 
-**Multiple tasks:** If an agent has 2+ tasks, each gets its own expandable section. Most agents have 1-2 tasks.
+Note: Run/Pause actions are also available in the pinned header (primary task only) for quick access without switching to this tab.
 
 ---
 
-### Tab 3: Settings — "Who is this agent?"
+### Tab 3: Agent — "Who is this agent?"
 
-Identity, history, and feedback. Low-frequency reference material.
+Identity, history, and feedback. Low-frequency reference material — the worker profile.
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  IDENTITY                                                     │
-│  · Name: Competitive Intelligence                             │
-│  · Role: competitive_intelligence (Domain Steward)            │
-│  · Domain: competitors/                                       │
-│  · Origin: Pre-scaffolded                                     │
-│                                                               │
-│  INSTRUCTIONS (AGENT.MD)                                      │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  (Rendered AGENT.md content — editable?)               │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                               │
-│  PLAYBOOKS                                                    │
-│  · playbook-outputs.md                                        │
-│  · playbook-research.md                                       │
-│                                                               │
-│  HISTORY                                                      │
-│  · Quality: 85% (↑ improving)                                │
-│  · Total runs: 12                                             │
-│  · Apr 3 ✓ · Mar 27 ✓ · Mar 20 ✓ · Mar 13 ✓               │
-│                                                               │
-│  FEEDBACK                                                     │
-│  · "Include pricing data in profiles" (Mar 27)                │
-│  · "More detail on funding rounds" (Mar 15)                   │
-│  · Learned: always include pricing, funding in profiles       │
-│                                                               │
-│  STEERING NOTES                                               │
-│  · "Focus on AI code generation companies next cycle"         │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**Components:**
-
-1. **Identity** — agent name, role, domain, class, origin. Read-only (identity is fixed at scaffold time per ADR-140).
-2. **Instructions** — AGENT.md content. View and potentially edit inline (or via TP).
-3. **Playbooks** — list of playbook files with view links.
-4. **History** — quality score, trend, total runs, recent run list with status icons.
-5. **Feedback** — from `memory/feedback.md`. User corrections and TP evaluations.
-6. **Steering notes** — from `memory/steering.md`. TP's notes for next cycle.
-7. **Learned preferences** — computed from edit patterns across runs.
+Sections: Identity (name, role, class, domain, origin), Instructions (rendered AGENT.md), History (quality score + trend, total runs, last run), Feedback (from agent memory), Created date.
 
 ---
 
@@ -415,13 +281,17 @@ The task type registry provides default names (e.g., `display_name: "Track Compe
 
 ---
 
-## 7. Session Architecture
+## 7. Session Architecture (ADR-159)
 
-| Surface | Session Key | Scope |
-|---------|-------------|-------|
-| Chat page | `user_id` (global) | Unscoped — workspace-level TP |
-| Agents page (agent selected) | `user_id` + `agent_slug` | Agent-scoped TP |
-| Context page | `user_id` (global) | Workspace-scoped TP (same session as chat) |
+**Unified session**: one session per workspace. No agent-scoped or task-scoped sessions. Surface context is metadata per message, not a session boundary. Messages persist across all page navigations.
+
+| Surface | Session | Surface Context |
+|---------|---------|-----------------|
+| Home page | Global (workspace) | `{ page: "home" }` |
+| Agents page (agent selected) | Global (workspace) | `{ page: "agents", agentSlug: "..." }` |
+| Context page | Global (workspace) | `{ page: "context", path: "..." }` |
+
+TP receives a compact index (~200-500 tokens) instead of full working memory. Surface context shifts TP's focus without creating new sessions. See [ADR-159](../adr/ADR-159-filesystem-as-memory.md) and [sessions.md](../features/sessions.md).
 
 ---
 
