@@ -28,6 +28,98 @@ import { AgentTreeNav } from '@/components/agents/AgentTreeNav';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
+import { Circle, FolderOpen } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// ─── Agent Overview (no selection state) ───
+
+function AgentOverview({
+  agents,
+  tasks,
+  onSelectAgent,
+}: {
+  agents: Agent[];
+  tasks: Task[];
+  onSelectAgent: (agentId: string) => void;
+}) {
+  const getSlug = (a: Agent) => a.slug || a.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  const cards = agents.map(agent => {
+    const slug = getSlug(agent);
+    const agentTasks = tasks.filter(t => t.agent_slugs?.includes(slug));
+    const activeTasks = agentTasks.filter(t => t.status === 'active');
+    const hasActive = activeTasks.length > 0;
+    const lastRun = agentTasks.map(t => t.last_run_at).filter(Boolean).sort().reverse()[0];
+    const rhythm = activeTasks[0]?.schedule;
+    const cls = agent.agent_class || 'domain-steward';
+
+    return { agent, agentTasks, hasActive, lastRun, rhythm, cls };
+  });
+
+  const activeCount = cards.filter(c => c.hasActive).length;
+  const taskCount = tasks.filter(t => t.status === 'active').length;
+
+  return (
+    <div className="flex-1 overflow-auto p-6">
+      {/* Summary */}
+      <div className="mb-6">
+        <h2 className="text-base font-medium">Your Team</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          {activeCount} active agents · {taskCount} active tasks
+        </p>
+      </div>
+
+      {/* Agent cards grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {cards.map(({ agent, hasActive, lastRun, rhythm, cls }) => (
+          <button
+            key={agent.id}
+            onClick={() => onSelectAgent(agent.id)}
+            className="text-left rounded-lg border border-border p-4 hover:bg-muted/30 hover:border-border/80 transition-colors"
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <Circle className={cn('w-2 h-2 shrink-0', hasActive ? 'fill-green-500 text-green-500' : 'text-muted-foreground/30')} />
+              <span className="text-sm font-medium truncate">{agent.title}</span>
+            </div>
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              {agent.context_domain && (
+                <div className="flex items-center gap-1">
+                  <FolderOpen className="w-3 h-3 text-muted-foreground/30" />
+                  <span>{agent.context_domain}/</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5">
+                {rhythm && <span className="capitalize">Works {rhythm}</span>}
+                {lastRun && (
+                  <>
+                    {rhythm && <span className="text-muted-foreground/30">·</span>}
+                    <span>{formatShort(lastRun)}</span>
+                  </>
+                )}
+                {!rhythm && !lastRun && (
+                  <span className="text-muted-foreground/40">
+                    {cls === 'platform-bot' ? 'Connect platform to activate' : 'No tasks yet'}
+                  </span>
+                )}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatShort(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 export default function AgentsPage() {
   const searchParams = useSearchParams();
@@ -68,22 +160,13 @@ export default function AgentsPage() {
 
   // ── Initial load ──
   useEffect(() => {
-    loadData().then(({ agents: agentList, tasks: taskList }) => {
+    loadData().then(({ agents: agentList }) => {
+      // Only auto-select if URL specifies an agent
       if (agentFromUrl) {
         const match = agentList.find(a => a.id === agentFromUrl || a.slug === agentFromUrl);
         if (match) setSelectedAgentId(match.id);
-      } else if (agentList.length > 0) {
-        // Select the most recently active agent (has tasks with recent runs),
-        // falling back to first domain-steward, then first agent
-        const agentWithRecentTask = agentList.find(a => {
-          const slug = a.slug || a.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-          return taskList.some((t: Task) => t.agent_slugs?.includes(slug) && t.status === 'active');
-        });
-        const first = agentWithRecentTask
-          || agentList.find(a => a.agent_class === 'domain-steward')
-          || agentList[0];
-        setSelectedAgentId(first.id);
       }
+      // Otherwise: no default selection — center panel shows overview
     });
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -251,9 +334,7 @@ export default function AgentsPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-            Select an agent from the panel
-          </div>
+          <AgentOverview agents={agents} tasks={tasks} onSelectAgent={handleSelectAgent} />
         )}
       </div>
 
