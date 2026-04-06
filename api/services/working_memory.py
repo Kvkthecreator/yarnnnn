@@ -99,10 +99,11 @@ async def build_working_memory(
         _get_workspace_file_sync, user_id, "_playbook.md", _make_client()
     )
 
-    # ADR-144: Read identity + awareness + compute context readiness
-    identity_content, awareness_content = await asyncio.gather(
+    # ADR-144: Read identity + awareness + conversation summary + compute context readiness
+    identity_content, awareness_content, conversation_summary = await asyncio.gather(
         asyncio.to_thread(_get_workspace_file_sync, user_id, "IDENTITY.md", _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "AWARENESS.md", _make_client()),
+        asyncio.to_thread(_get_workspace_file_sync, user_id, "memory/conversation.md", _make_client()),
     )
     task_count, doc_count = await asyncio.gather(
         asyncio.to_thread(_count_tasks_sync, user_id, _make_client()),
@@ -127,6 +128,7 @@ async def build_working_memory(
         "identity": identity_content,
         "brand": brand_content.strip() if brand_content else None,
         "awareness": awareness_content,
+        "conversation_summary": conversation_summary,
         "orchestration_playbook": orchestration_playbook,
         "agents": agents,
         "platforms": platforms,
@@ -857,12 +859,36 @@ def format_compact_index(working_memory: dict, surface_context: Optional[dict] =
         task_slug = surface_context.get("taskSlug")
         if agent_slug:
             lines.append(f"\nCurrently viewing: Agents > {agent_slug}")
+            # Surface-aware: include agent's domain detail
+            scoped = working_memory.get("scoped_agent")
+            if scoped:
+                title = scoped.get("title", agent_slug)
+                instructions = scoped.get("instructions")
+                if instructions:
+                    # First 200 chars of AGENT.md as context
+                    preview = instructions.strip()[:200]
+                    if len(instructions.strip()) > 200:
+                        preview += "..."
+                    lines.append(f"Agent instructions preview: {preview}")
+                lines.append(f"(Read full AGENT.md: `/agents/{agent_slug}/AGENT.md`)")
         elif task_slug:
             lines.append(f"\nCurrently viewing: Task > {task_slug}")
+            lines.append(f"(Read full task: `/tasks/{task_slug}/TASK.md`)")
         elif page == "context":
             lines.append("\nCurrently viewing: Context (workspace explorer)")
         else:
             lines.append("\nCurrently viewing: Home")
+
+    # --- Prior conversation context (brief preview) ---
+    conversation_summary = working_memory.get("conversation_summary")
+    if conversation_summary and conversation_summary.strip():
+        # Extract just the first 3 lines of content (after the header)
+        conv_lines = [l for l in conversation_summary.strip().split("\n") if l.strip() and not l.startswith("#")]
+        if conv_lines:
+            preview = " | ".join(conv_lines[:3])
+            if len(preview) > 200:
+                preview = preview[:200] + "..."
+            lines.append(f"\nPrior conversation: {preview}")
 
     # --- File references (TP reads on demand) ---
     lines.append("\n### Memory files (read with ReadWorkspace if you need detail)")

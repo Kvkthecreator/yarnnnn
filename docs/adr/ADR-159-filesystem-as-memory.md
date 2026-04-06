@@ -1,6 +1,6 @@
 # ADR-159: Filesystem-as-Memory — Referential Context Injection
 
-**Status:** Phase 1 Implemented
+**Status:** Implemented (Phase 1-3)
 **Date:** 2026-04-06
 **Supersedes:** Working memory dump model (ADR-059 injection, ADR-063 four-layer model)
 **Evolves:** ADR-067 (session compaction), ADR-087 (agent scoped context), ADR-156 (in-session memory)
@@ -236,4 +236,5 @@ This ADR assumes the unified session model (implemented in fc4302b):
 | Date | Change |
 |------|--------|
 | 2026-04-06 | v1 — Initial proposal. Compact index, message window, conversation.md, stress test findings. |
-| 2026-04-06 | Phase 1 Implemented — `format_compact_index()` in working_memory.py, 10-message rolling window in chat.py, `_write_conversation_summary()` writes conversation.md every 5 user messages, thinking_partner.py switched to compact index. Unified session model (fc4302b). Prompt CHANGELOG [2026.04.06.5]. Phase 2 (conversation file lifecycle on session close) and Phase 3 (surface-aware tool trimming) remain proposed. |
+| 2026-04-06 | Phase 1 Implemented — `format_compact_index()` in working_memory.py, 10-message rolling window in chat.py, `_write_conversation_summary()` writes conversation.md every 5 user messages, thinking_partner.py switched to compact index. Unified session model (fc4302b). Prompt CHANGELOG [2026.04.06.5]. |
+| 2026-04-06 | Phases 2+3 Implemented — Phase 2: final conversation.md written on session close (4h inactivity), conversation_summary fetched in build_working_memory and previewed in compact index. Phase 3: surface-aware agent detail — when viewing an agent, compact index includes AGENT.md preview and file path reference. |

@@ -1123,6 +1123,10 @@ async def global_chat(
             session["previous_session_id"],
             get_service_client(),
         ))
+        # ADR-159 Phase 2: Write final conversation.md on session close
+        prev_messages = await get_session_messages(auth.client, session["previous_session_id"])
+        if prev_messages:
+            await _write_conversation_summary(auth, prev_messages)
 
     # Check monthly message limit (Free tier only — Pro is unlimited)
     allowed, messages_used, message_limit = check_monthly_message_limit(auth.client, auth.user_id)
