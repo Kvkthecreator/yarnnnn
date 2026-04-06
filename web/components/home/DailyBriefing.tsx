@@ -132,8 +132,9 @@ export function DailyBriefing({ agents, tasks, hasMessages }: DailyBriefingProps
 
   const today = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-  // ── Render ──
+  // ── Render — full dashboard (fills left panel) ──
 
+  // Legacy collapsed state preserved for narrow contexts
   if (collapsed) {
     return (
       <button
@@ -148,9 +149,9 @@ export function DailyBriefing({ agents, tasks, hasMessages }: DailyBriefingProps
   }
 
   return (
-    <div className="border-b border-border bg-muted/10">
+    <div className="h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium">Daily Briefing</span>
           <span className="text-[10px] text-muted-foreground/50">{today}</span>
@@ -160,7 +161,7 @@ export function DailyBriefing({ agents, tasks, hasMessages }: DailyBriefingProps
         </button>
       </div>
 
-      <div className="px-4 pb-3 space-y-3">
+      <div className="px-5 py-4 space-y-5">
         {/* What happened */}
         {recentRuns.length > 0 && (
           <div>
