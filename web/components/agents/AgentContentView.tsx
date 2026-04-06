@@ -66,9 +66,18 @@ function HeaderIcon({ agentClass }: { agentClass: string }) {
   }
 }
 
+// ─── Work State (fetched once, shared across header) ───
+
+interface WorkState {
+  entityCount: number;
+  recentEntityCount: number;  // updated in last 24h
+  synthesisOutputCount: number;
+  lastEntityUpdate: string | null;
+}
+
 // ─── Pinned Header ───
 
-function AgentHeader({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+function AgentHeader({ agent, tasks, workState }: { agent: Agent; tasks: Task[]; workState: WorkState | null }) {
   const cls = agent.agent_class || 'domain-steward';
   const classLabel = CLASS_LABELS[cls] || cls;
   const domain = agent.context_domain;
@@ -78,8 +87,19 @@ function AgentHeader({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const mandate = getAgentMandate(agent);
   const lastRun = tasks.map(t => t.last_run_at).filter(Boolean).sort().reverse()[0];
 
+  // Health signal: all fresh, some stale, or empty
+  const healthSignal = workState
+    ? workState.entityCount === 0 ? 'empty'
+      : workState.recentEntityCount === workState.entityCount ? 'fresh'
+      : workState.recentEntityCount > 0 ? 'partial'
+      : 'stale'
+    : null;
+
+  const healthColor = healthSignal === 'fresh' ? 'bg-green-500' : healthSignal === 'partial' ? 'bg-amber-500' : healthSignal === 'stale' ? 'bg-red-400' : 'bg-muted-foreground/20';
+
   return (
     <div className="px-5 py-3 border-b border-border shrink-0">
+      {/* Line 1: Avatar + Name + Mandate */}
       <div className="flex items-center gap-3">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
@@ -92,6 +112,8 @@ function AgentHeader({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
           {mandate && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{mandate}</p>}
         </div>
       </div>
+
+      {/* Line 2: Identity signals */}
       <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
         <span>{classLabel}</span>
         {domain && (
@@ -107,6 +129,22 @@ function AgentHeader({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
           <><span className="text-muted-foreground/30">·</span><span className="text-muted-foreground/50">No active tasks</span></>
         )}
       </div>
+
+      {/* Line 3: Work-state signals (only when we have data) */}
+      {workState && workState.entityCount > 0 && (
+        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <span className={cn('w-1.5 h-1.5 rounded-full', healthColor)} />
+            <span>{workState.entityCount} entities tracked</span>
+          </div>
+          {workState.recentEntityCount > 0 && workState.recentEntityCount < workState.entityCount && (
+            <span>{workState.recentEntityCount} updated recently</span>
+          )}
+          {workState.synthesisOutputCount > 0 && (
+            <><span className="text-muted-foreground/30">·</span><span>{workState.synthesisOutputCount} reports</span></>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -436,6 +474,54 @@ export function AgentContentView({
   busy,
 }: AgentContentViewProps) {
   const { setBreadcrumb } = useBreadcrumb();
+  const [workState, setWorkState] = useState<WorkState | null>(null);
+
+  // Fetch work-state signals for the header
+  useEffect(() => {
+    setWorkState(null);
+    const domain = agent.context_domain;
+    const synthesisTasks = tasks.filter(t => t.task_class === 'synthesis');
+
+    const promises: Promise<void>[] = [];
+
+    // Domain entity stats
+    if (domain) {
+      promises.push(
+        api.workspace.getDomainEntities(domain).then(data => {
+          const entities = data.entities || [];
+          const now = Date.now();
+          const recentCount = entities.filter(
+            e => e.last_updated && (now - new Date(e.last_updated).getTime()) < 86400000
+          ).length;
+          const allUpdates = entities.map(e => e.last_updated).filter(Boolean).sort().reverse();
+
+          setWorkState(prev => ({
+            entityCount: data.entity_count || entities.length,
+            recentEntityCount: recentCount,
+            synthesisOutputCount: prev?.synthesisOutputCount ?? 0,
+            lastEntityUpdate: allUpdates[0] || null,
+          }));
+        }).catch(() => {})
+      );
+    }
+
+    // Synthesis output count
+    if (synthesisTasks.length > 0) {
+      promises.push(
+        Promise.all(
+          synthesisTasks.map(t => api.tasks.listOutputs(t.slug, 1).then(r => r.total || 0).catch(() => 0))
+        ).then(counts => {
+          const total = counts.reduce((a, b) => a + b, 0);
+          setWorkState(prev => ({
+            entityCount: prev?.entityCount ?? 0,
+            recentEntityCount: prev?.recentEntityCount ?? 0,
+            synthesisOutputCount: total,
+            lastEntityUpdate: prev?.lastEntityUpdate ?? null,
+          }));
+        })
+      );
+    }
+  }, [agent.id, agent.context_domain, tasks.map(t => t.slug).join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derive which tabs to show based on task classes
   const hasSynthesisTasks = tasks.some(t => t.task_class === 'synthesis');
@@ -459,7 +545,7 @@ export function AgentContentView({
     setActiveTab(newDefault);
   }, [agent.id, hasSynthesisTasks, hasContextDomain]);
 
-  // Ensure active tab is valid (e.g., if tasks change and report tab disappears)
+  // Ensure active tab is valid
   const validTab = availableTabs.some(t => t.key === activeTab) ? activeTab : availableTabs[0]?.key || 'pipeline';
 
   useEffect(() => {
@@ -468,7 +554,7 @@ export function AgentContentView({
 
   return (
     <div className="flex flex-col h-full">
-      <AgentHeader agent={agent} tasks={tasks} />
+      <AgentHeader agent={agent} tasks={tasks} workState={workState} />
       <TabBar tabs={availableTabs} active={validTab} onChange={setActiveTab} />
 
       <div className="flex-1 overflow-auto">

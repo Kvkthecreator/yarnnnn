@@ -155,25 +155,27 @@ function AuthenticatedLayoutInner({
   return (
     <TPProvider onSurfaceChange={handleSurfaceChange}>
       <div className="flex flex-col h-screen bg-background">
-        {/* Top Bar - Single unified bar */}
+        {/* Top Bar */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
-          {/* Left: Logo + breadcrumb */}
-          <div className="flex items-center gap-1 min-w-0">
+          {/* Left: Logo */}
+          <div className="flex items-center min-w-0">
             <button
               onClick={navigateToHome}
               className="text-xl font-brand hover:opacity-80 transition-opacity shrink-0"
             >
               yarnnn
             </button>
-            <GlobalBreadcrumb />
           </div>
 
           {/* Center: Toggle bar */}
           <ToggleBar />
 
-          {/* Right: User menu only */}
+          {/* Right: User menu */}
           <UserMenu email={userEmail} />
         </header>
+
+        {/* Secondary bar: breadcrumb (renders only when segments exist) */}
+        <GlobalBreadcrumb />
 
         {/* Main content */}
         <main className="flex-1 overflow-y-auto">{children}</main>
