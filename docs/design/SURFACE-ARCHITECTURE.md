@@ -1,30 +1,38 @@
 # Surface Architecture — Chat + Agents + Context + Activity
 
-**Date:** 2026-04-06 (v6.1 — global breadcrumb, briefing room spatial awareness)
-**Status:** Proposed
-**Supersedes:** v5 (2026-04-06, pinned header + Browse/Tasks/Agent tabs)
+**Date:** 2026-04-06 (v7 — unified shell, agents as intelligence surface, Context owns all file browsing)
+**Status:** Implementing
+**Supersedes:** v6.1 (2026-04-06, global breadcrumb, briefing room spatial awareness)
 **Depends on:** [ADR-138](../adr/ADR-138-agents-as-work-units.md) (Agents as Work Units), [ADR-140](../adr/ADR-140-agent-workforce-model.md) (Workforce Model), [ADR-152](../adr/ADR-152-unified-directory-registry.md) (Directory Registry)
 
 ---
 
-## Design Thesis: Dashboard + Chat, Everywhere
+## Design Thesis: Unified Shell, Intelligence Surfaces, One File Browser
 
-Every surface is **dashboard + chat**. The dashboard varies by context. The chat is TP (same unified session everywhere). The file system lives on the Context page.
+Every surface shares **one shell** (`ThreePanelLayout`): optional left panel + center content + collapsible TP chat right panel + FAB toggle. The shell is a shared component — pages only provide the content, not the chrome.
 
-| Surface | Route | Nav Label | Dashboard (left/center) | Chat (right panel) |
-|---------|-------|-----------|------------------------|-------------------|
-| **Home** | `/chat` | Home | Daily briefing: what happened, what changed, what's next | TP chat (unified session) |
-| **Agents** (overview) | `/agents` | Agents | Agent roster cards (overview grid) | TP chat |
-| **Agents** (selected) | `/agents?agent={slug}` | Agents | Composed agent dashboard from domain files | TP chat (agent-scoped context) |
-| **Context** | `/context` | Context | File system browser (left panel + content viewer) | TP chat |
+**Three principles:**
+
+1. **Agents page = intelligence surface.** Shows composed dashboards from workspace files — entity cards, synthesis, freshness signals. No file browsing. "View files" links to Context page. Single scrollable view per agent (no tabs).
+2. **Context page = the only file browser.** All raw file viewing happens here. Agents page links into it with domain pre-filtering (`/context?domain=competitors`). One place to browse files, not three duplicate implementations.
+3. **Shared shell, not duplicated layout.** Three-panel layout, chat panel, FAB toggle, data loading, polling, timestamp utilities — extracted once, used everywhere.
+
+| Surface | Route | Nav Label | Center Content | Chat (right panel) |
+|---------|-------|-----------|---------------|-------------------|
+| **Home** | `/chat` | Home | Daily briefing dashboard | TP chat (unified session) |
+| **Agents** (overview) | `/agents` | Agents | Agent roster (left) + empty state (center) | TP chat |
+| **Agents** (selected) | `/agents?agent={slug}` | Agents | Agent roster (left) + scrollable intelligence view (center) | TP chat (agent-scoped context) |
+| **Context** | `/context` | Context | Workspace tree (left) + file/folder viewer (center) | TP chat |
+| **Context** (deep-linked) | `/context?domain={key}` | Context | Pre-filtered to domain folder | TP chat |
 | **Activity** | `/activity` | Activity | Timeline feed | No chat |
 
-**Key shift from v5:**
+**Key shift from v6.1:**
 
-1. **Dashboard-first, not file-first.** Agent views show a composed dashboard (rendered from workspace files) as the default — not a file browser. "What did this agent find?" not "Browse the files it wrote."
-2. **Unified two-panel layout.** Dashboard left, TP chat right. Same pattern on every page. Chat is a collapsible right panel with FAB toggle — same component, same session, same conversation across all pages.
-3. **File system is secondary.** Accessed via Context page or "Browse files →" links from agent dashboards. Not embedded in every surface.
-4. **Reporting agent = Home page.** The daily-update task output IS the Home page dashboard content. No duplication — one source, one surface.
+1. **Kill file browsing on Agents page.** `DomainBrowse`, `SynthesizerBrowse`, `EmptyBrowse` deleted. The Browse tab dissolves — its dashboard portion (AgentDashboard) becomes the default center view. "Browse files" links to `/context?domain={domain}` instead of embedding a second file browser.
+2. **Flatten agent center panel.** Three tabs (Browse/Tasks/Agent) collapse into one scrollable view: dashboard (top) → tasks (middle) → agent identity (bottom). No tab switching needed.
+3. **Extract shared shell.** `ThreePanelLayout` component handles: left panel (collapsible, configurable width), center content, right chat panel (collapsible, FAB toggle), chat header. Pages pass content, not layout code.
+4. **Extract shared utilities.** One `formatRelativeTime()`, one freshness classifier, one `useAgentsAndTasks()` hook with built-in polling. No more three implementations of the same helpers.
+5. **Context page gains domain pre-filtering.** URL param `?domain=competitors` auto-navigates to `/workspace/context/competitors` on load. Agents page "View files" links here.
 
 ---
 
@@ -32,9 +40,10 @@ Every surface is **dashboard + chat**. The dashboard varies by context. The chat
 
 ```
 /chat                → Home page. Daily briefing + TP chat. Full-page, unscoped.
-/agents              → Agents page. Agent roster + three-tab center panel. Agent-scoped TP panel.
-/agents?agent={slug} → Agent selected. Three-tab view: Agent / Setup / Settings.
+/agents              → Agents page. Agent roster (left) + scrollable intelligence view (center). Agent-scoped TP panel.
+/agents?agent={slug} → Agent selected. Dashboard + tasks + identity (single scroll).
 /context             → Workspace explorer. Cross-agent domains, uploads, settings.
+/context?domain={key}→ Pre-filtered to domain folder (deep-link from Agents page).
 /activity            → Temporal activity log. Upcoming runs, past events.
 /settings            → Billing, usage, memory, system, connectors, account.
 ```
@@ -121,24 +130,23 @@ ContextSetup as full-page overlay. Dashboard not rendered until workspace has ac
 
 ### Purpose
 
-Primary working surface. Three-panel layout: agent roster (left), composed dashboard or overview (center), TP chat (right). The center panel shows a composed agent dashboard — rendered from workspace files, not a file browser.
+Primary working surface. Intelligence surface — shows what agents know and what they're doing, not their raw files. Three-panel layout: agent roster (left), scrollable intelligence view (center), TP chat (right).
 
 ### Layout (desktop ≥ 1024px)
 
-**No agent selected (overview):**
+**No agent selected:**
 
 ```
 ┌──────────────┬──────────────────────────┬──────────────────┐
-│  LEFT PANEL  │    AGENT OVERVIEW        │  RIGHT PANEL     │
-│  Agent List  │    (card grid)           │  ChatPanel       │
-│  (280px)     │                          │  (380px / FAB)   │
-├──────────────┼──────────────────────────┼──────────────────┤
-│              │  Your Team               │                  │
-│ AGENTS       │  8 agents · 6 tasks      │  TP Chat         │
-│ 📁 Comp Intel│                          │  (unified)       │
-│ 📁 Market Res│  [CI] [MR] [BD]         │                  │
-│ 📁 Biz Dev   │  [Op] [MC] [ER]         │                  │
-│ 📁 Operations│  [Slack] [Notion] [GH]  │                  │
+│  LEFT PANEL  │    EMPTY STATE           │  (FAB only)      │
+│  Agent List  │    "Select an agent"     │                  │
+│  (280px)     │                          │                  │
+├──────────────┼──────────────────────────┤                  │
+│ AGENTS       │                          │                  │
+│ 📁 Comp Intel│                          │                  │
+│ 📁 Market Res│                          │                  │
+│ 📁 Biz Dev   │                          │                  │
+│ 📁 Operations│                          │                  │
 │ 📁 Marketing │                          │                  │
 │ CROSS-TEAM   │                          │                  │
 │ 📁 Reporting │                          │                  │
@@ -147,191 +155,119 @@ Primary working surface. Three-panel layout: agent roster (left), composed dashb
 └──────────────┴──────────────────────────┴──────────────────┘
 ```
 
-**Agent selected (composed dashboard):**
+**Agent selected (single scrollable view):**
 
 ```
 ┌──────────────┬──────────────────────────┬──────────────────┐
-│  LEFT PANEL  │    AGENT DASHBOARD       │  RIGHT PANEL     │
-│  Agent List  │    (composed view)       │  ChatPanel       │
-├──────────────┼──────────────────────────┼──────────────────┤
-│              │  Competitive Intelligence│                  │
-│ AGENTS       │  Works weekly · Ran 2h   │  TP Chat         │
-│ 📁 Comp Intel│  ────────────────────────│  (agent-scoped)  │
+│  LEFT PANEL  │  SCROLLABLE VIEW         │  RIGHT PANEL     │
+│  Agent List  │                          │  ChatPanel       │
+├──────────────┤  ┌─ HEADER ────────────┐ ├──────────────────┤
+│              │  │ Competitive Intel    │ │                  │
+│ AGENTS       │  │ Steward · Ran 2h ago│ │  TP Chat         │
+│ ▸ Comp Intel │  └────────────────────┘ │  (agent-scoped)  │
 │ 📁 Market Res│                          │                  │
-│ 📁 Biz Dev   │  ## What's New           │                  │
-│ 📂 Operations│  · Cursor raised $900M   │                  │
-│ 📁 Marketing │  · Ahrefs launched AI    │                  │
+│ 📁 Biz Dev   │  ── DASHBOARD ─────────  │                  │
+│ 📁 Operations│  What's New              │                  │
+│ 📁 Marketing │  · Cursor raised $900M   │                  │
+│              │  Landscape               │                  │
+│ CROSS-TEAM   │  [rendered synthesis]    │                  │
+│ 📁 Reporting │  Competitors (6)         │                  │
+│              │  [entity cards]          │                  │
+│ INTEGRATIONS │  [View files →]          │                  │
+│ 📁 Slack Bot │                          │                  │
+│              │  ── TASKS ─────────────  │                  │
+│              │  [task cards]            │                  │
 │              │                          │                  │
-│ CROSS-TEAM   │  ## Landscape            │                  │
-│ 📁 Reporting │  [rendered synthesis]    │                  │
-│              │                          │                  │
-│ INTEGRATIONS │  ## Competitors (6)      │                  │
-│ 📁 Slack Bot │  [entity cards/table]    │                  │
-│ 📁 Notion Bot│                          │                  │
-│              │  [Browse files →]        │                  │
-│              │  [Tasks] [Settings]      │                  │
+│              │  ── AGENT ─────────────  │                  │
+│              │  Identity · Instructions │                  │
+│              │  History · Feedback      │                  │
 └──────────────┴──────────────────────────┴──────────────────┘
 ```
 
+### Center Panel: Single Scrollable View (no tabs)
+
+When an agent is selected, the center panel is a **single scrollable page** with three sections. No tab switching. Header is pinned; everything else scrolls.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Competitive Intelligence                                     │
+│  Domain Steward · competitors/ · Works weekly · Ran 2h ago    │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ── DASHBOARD (primary, largest) ──────────────────────────  │
+│  What's New · Synthesis · Entity cards                        │
+│  [View files →]  (links to /context?domain=competitors)       │
+│                                                               │
+│  ── TASKS ─────────────────────────────────────────────────  │
+│  Task cards with objectives, schedule, actions                │
+│                                                               │
+│  ── AGENT ─────────────────────────────────────────────────  │
+│  Identity · Instructions · History · Feedback                 │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Header (pinned):** Agent name, class label, domain, cadence, last run. Communicates "autonomous worker" identity.
+
+**Dashboard section (top):** Composed from workspace files via `getDomainEntities()` and `getFile()`. Entity cards, synthesis content, what's new. Same as previous AgentDashboard component. "View files" links to `/context?domain={domain}` — no embedded file browser.
+
+**Tasks section (middle):** Task cards with status, objective, schedule, actions (Run Now, Pause/Resume, Edit via TP). Context flow summary (domain reads/writes).
+
+**Agent section (bottom):** Identity, AGENT.md instructions, history (quality score, run count), feedback. Low-frequency reference material.
+
+### What was deleted (v6.1 → v7)
+
+- **Browse tab** — dissolved. Dashboard portion kept as the primary section. File browsing removed entirely from Agents page.
+- **`DomainBrowse` component** — deleted. Was a duplicate of ContentViewer's DirectoryView with different styling.
+- **`SynthesizerBrowse` component** — deleted. Synthesizer dashboard handles output display.
+- **`EmptyBrowse` component** — deleted. Empty states handled by dashboard.
+- **Tab bar** — deleted. Three sections visible in one scroll.
+- **Embedded ContentViewer on Agents page** — deleted. Context page is the only file viewer.
+
 ### Composed Agent Dashboard
 
-The center panel's default view is a **composed page** assembled from the agent's workspace files. No LLM cost — pure frontend rendering of existing files.
+Each agent class renders a composed dashboard from workspace files. No LLM cost — pure frontend rendering.
 
-Each agent type has a fixed template:
-
-| Agent Type | Dashboard sections | Source files |
+| Agent Class | Dashboard sections | Source files |
 |---|---|---|
-| **Competitive Intelligence** | What's New (signals) + Landscape (synthesis) + Competitors (entity cards) | `signals/`, `_landscape.md`, `{entity}/profile.md` |
-| **Market Research** | Trends + Segments + Overview | `_overview.md`, `{segment}/analysis.md` |
-| **Business Development** | Recent activity + Contacts + Relationships | `_portfolio.md`, `{contact}/profile.md` |
-| **Operations** | Status + Projects + Blockers | `_overview.md`, `{project}/status.md` |
-| **Marketing & Creative** | Research + Topics + Content pipeline | `{topic}/research.md` |
-| **Reporting** | Latest report (rendered HTML) + Run history | Task outputs |
-| **Platform bots** | Latest digest (rendered) + Observations | `{source}/latest.md` |
+| **Domain Steward** | What's New (recent entities) + Synthesis (overview) + Entity cards | `getDomainEntities()`, synthesis file via `getFile()` |
+| **Synthesizer** | Latest rendered output (HTML iframe or markdown) + run history | `getLatestOutput()`, `listOutputs()` |
+| **Platform Bot** | Latest digest + observations | Same as synthesizer pattern |
 
-The dashboard reads from the existing workspace API (`getDomainEntities`, `getFile`). Sections that have no data show "No data yet — this section populates as the agent works."
+"View files" at bottom links to `/context?domain={domain}` for raw file browsing.
 
-**Secondary actions** (below the dashboard):
-- **Browse files →** — links to Context page filtered to this domain
-- **Tasks** — expandable section showing task config (objective, schedule, actions)
-- **Settings** — agent identity, AGENT.md, history
+### Left Panel: Agent Roster
 
-### Left Panel: Agent Roster (Finder-style)
-
-Flat agent list, no tree expansion, no filter pills. Three sections:
-
-- **Agents** — domain stewards (5 agents)
-- **Cross-Team** — synthesizers (1 agent)
-- **Integrations** — platform bots (3 agents)
-
-Each agent shows: folder icon (open when selected, closed when not), agent name, domain path, right-aligned freshness timestamp with color coding (green <24h, gray <72h, amber >72h), task count. Selected agent gets left-border highlight + accent background.
-
-No default selection — center panel shows minimal empty state ("Select an agent") until user clicks.
-
-The roster is fixed (ADR-140: pre-scaffolded, no deletion). All 8+ agents always visible. Agents without tasks show as dormant — communicating "ready to work."
-
-### Center Panel: Pinned Header + Three Tabs
-
-When an agent is selected, the center panel shows a pinned header (always visible) above three tabs:
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Operations                                     [▶ Run] [⏸] │
-│  Domain Steward · projects/ · Works weekly · Ran 1h ago      │
-├──────────────────────────────────────────────────────────────┤
-│  [Browse]          [Tasks (2)]          [Agent]              │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│  (tab content — full height, own scroll)                     │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**Header** carries: agent name + action buttons (line 1), class label · domain · cadence · last run (line 2). Actions (Run/Pause) are always accessible — not buried in a tab. Header communicates the "autonomous worker" signal: who is this, what it's responsible for, that it's active.
-
-**Browse** is the default tab. Tab resets to Browse when switching agents.
-
----
-
-### Tab 1: Browse (Default) — "What does this agent know?"
-
-The knowledge tab. Finder-style domain browser with per-item freshness timestamps. Header (above tabs) provides the worker-level context; this tab provides the knowledge-level view.
-
-**Two distinct freshness signals:**
-- **Header:** "Ran 1h ago" = agent's last execution (worker rhythm)
-- **File list:** per-item `Modified` column = content freshness (knowledge state)
-
-A user sees: "This agent runs weekly, it last ran 1h ago, and during that run it updated fundraising/ and go-to-market/ but product-development/ hasn't changed in 2 weeks."
-
-#### Domain Steward Layout
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Name                                           Modified     │
-├──────────────────────────────────────────────────────────────┤
-│  📁 cursor                                        1h ago     │
-│     3 items                                                  │
-│  📁 openai                                        3d ago     │
-│     2 items                                                  │
-│  📁 anthropic                                     2w ago     │
-│     2 items                                                  │
-│  📄 landscape.md                                  1h ago     │
-│  📁 assets                                        3d ago     │
-│     5 items                                                  │
-└──────────────────────────────────────────────────────────────┘
-```
-
-Folders show item count as subtitle. Modified timestamps use relative format (1h ago, 3d ago, 2w ago). Folder timestamps inherit most recent child's `updated_at`. Clicking a folder or file navigates into `ContentViewer` with a Back button.
-
-#### Synthesizer Layout
-
-Latest rendered output as hero (HTML iframe or markdown), with run history below.
-
-#### Bot Layout
-
-Same as domain steward — observations directory with per-channel freshness.
-
-#### Empty State
-
-Centered message: "Knowledge will accumulate as tasks run" (domain steward), "No outputs yet" (synthesizer), "Connect platform to populate" (platform bot).
-
----
-
-### Tab 2: Tasks (N) — "What work is assigned?"
-
-Task cards with objectives, schedule, delivery, and actions. Tab label shows count: "Tasks (2)".
-
-**Context flow summary** at top: colored dots showing which domains this agent writes to (green) and reads from (blue).
-
-**Per-task card** shows: status dot (green/amber/gray) + title + mode badge (recurring/goal/reactive), objective (deliverable, audience, purpose), schedule inline (cadence · next · last), action buttons (Run Now, Pause/Resume, Edit via TP).
-
-**CRUD model:** Actions are TP-mediated buttons, not inline edit forms. "Run Now" calls `api.tasks.run()`. "Pause" calls `api.tasks.update({ status: 'paused' })`. "Edit via TP" opens the right-panel chat with a pre-composed prompt.
-
-**Empty state:** Centered message + "Assign via TP" button that opens chat with a task-creation prompt.
-
-Note: Run/Pause actions are also available in the pinned header (primary task only) for quick access without switching to this tab.
-
----
-
-### Tab 3: Agent — "Who is this agent?"
-
-Identity, history, and feedback. Low-frequency reference material — the worker profile.
-
-Sections: Identity (name, role, class, domain, origin), Instructions (rendered AGENT.md), History (quality score + trend, total runs, last run), Feedback (from agent memory), Created date.
-
----
+Unchanged from v6.1. Flat agent list, three sections (Agents, Cross-Team, Integrations), freshness timestamps, task count. No default selection.
 
 ### Right Panel: Unified TP Chat
 
-Same ChatPanel component on every page. Unified session (ADR-159) — conversation persists across all navigations. Surface context shifts TP's awareness.
-
-- **Session:** Unified workspace session (same everywhere)
-- **Surface context:** Varies per page (home/agents/context), sent per message
-- **Header:** yarnnn logo + "TP" label + context subtitle
-- **Toggle:** FAB button (yarnnn logo) shows/hides the panel. Same across all pages.
+Same `ChatPanel` component on every page via shared `ThreePanelLayout`. Unified session (ADR-159). Surface context shifts TP's awareness per page.
 
 **Plus menu actions:**
-- Run [task name] now (per active task, agent pages)
+- Run [task name] now (per active task)
 - Assign a new task
 - Web research
 - Upload file
 
 ---
 
-## 3. Context Page (`/context`)
+## 3. Context Page (`/context`) — The Only File Browser
 
 ### Purpose
 
-Workspace-level substrate explorer. Browsing the full workspace filesystem: cross-agent context domains, uploads, settings files. This is the "Finder" view — for when the user wants to browse across agents, not within one.
+Workspace-level substrate explorer. **The single place for all raw file browsing.** Cross-agent context domains, uploads, settings files. Agents page links here for deep file exploration.
 
-The Context page shows the same domain directories that appear on individual agent views, but organized by workspace structure rather than by agent ownership. It's the cross-cutting view.
+### Deep-linking
+
+`/context?domain={key}` auto-navigates to `/workspace/context/{path}` on load. Example: Agents page "View files" link for Competitive Intelligence → `/context?domain=competitors` → tree auto-expands to `context/competitors/` folder.
 
 ### Layout
 
-Three-panel explorer (unchanged):
+Three-panel explorer via shared `ThreePanelLayout`:
 - **Left:** WorkspaceTree (Domains, Uploads, Settings)
-- **Center:** ContentViewer
-- **Right:** Workspace-scoped ChatPanel
+- **Center:** ContentViewer (directory listing + type-aware file preview)
+- **Right:** Workspace-scoped ChatPanel (via shared shell)
 
 ---
 
@@ -406,16 +342,17 @@ TP receives a compact index (~200-500 tokens) instead of full working memory. Su
 
 ---
 
-## 10. Implementation Sequence
+## 10. Implementation Sequence (v7)
 
 | Step | What | Scope |
 |------|------|-------|
-| 1 | Rewrite `AgentContentView` as three-tab component | Frontend, medium |
-| 2 | Build Agent tab (status line + domain browser / output viewer) | Frontend, medium |
-| 3 | Build Setup tab (task details + actions) | Frontend, medium |
-| 4 | Build Settings tab (identity, history, feedback) | Frontend, medium |
-| 5 | Wire new API data (agent detail endpoint for feedback, AGENT.md) | Frontend + backend, small |
-| 6 | Clean up old task-cards-as-bridge code | Frontend, cleanup |
+| 1 | Extract shared `ThreePanelLayout` shell component | Frontend, medium |
+| 2 | Extract shared hooks (`useAgentsAndTasks`) and utilities (`formatRelativeTime`, freshness) | Frontend, small |
+| 3 | Refactor `AgentContentView` — flatten tabs into single scroll, delete file browsing components | Frontend, medium |
+| 4 | Add domain pre-filtering to Context page (`?domain=` URL param) | Frontend, small |
+| 5 | Refactor Agents page to use shared shell | Frontend, small |
+| 6 | Refactor Home page to use shared shell | Frontend, small |
+| 7 | Delete dead code: `DomainBrowse`, `SynthesizerBrowse`, `EmptyBrowse`, duplicate timestamp utils | Frontend, cleanup |
 
 ---
 
@@ -430,3 +367,4 @@ TP receives a compact index (~200-500 tokens) instead of full working memory. Su
 | 2026-04-06 | v5 — Pinned header + Browse/Tasks/Agent tabs. Finder-style freshness. Folder icons in left panel. |
 | 2026-04-06 | v6 — Dashboard + Chat two-panel model. Composed agent dashboards from workspace files (not file browser). Unified TP chat panel across all pages. Reporting agent daily-update = Home page dashboard. File system secondary (Context page + links). Agent dashboard templates per domain type. |
 | 2026-04-06 | v6.1 — Global breadcrumb in header. BreadcrumbContext + GlobalBreadcrumb component. Pages set segments, header renders. Replaces context page local breadcrumb bar and agent header browse path. "Briefing room" spatial awareness: toggle bar = which room, breadcrumb = where you're standing. |
+| 2026-04-06 | v7 — Unified shell refactor. ThreePanelLayout shared component eliminates three duplicated three-panel layouts. Agent center panel flattened from three tabs to single scrollable view (dashboard + tasks + agent identity). All file browsing removed from Agents page — Context page is the single file browser. Context page gains `?domain=` deep-link param. Shared hooks and utilities extracted. ~200 lines of duplicate DomainBrowse/SynthesizerBrowse/EmptyBrowse deleted. Frontend rendering reads filesystem via API (no registry coupling). |

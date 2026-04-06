@@ -15,6 +15,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Loader2,
   FileText,
@@ -29,12 +30,12 @@ import {
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { formatShort } from '@/lib/formatting';
 import type { Agent, Task } from '@/types';
 
 interface AgentDashboardProps {
   agent: Agent;
   tasks: Task[];
-  onBrowseFiles: () => void;
 }
 
 // Domain → icon mapping
@@ -55,17 +56,7 @@ const ENTITY_LABELS: Record<string, string> = {
   topic: 'Research Topics',
 };
 
-function formatShort(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const hours = Math.floor(diff / 3600000);
-  if (hours < 1) return 'just now';
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return `${Math.floor(days / 7)}w ago`;
-}
-
-export function AgentDashboard({ agent, tasks, onBrowseFiles }: AgentDashboardProps) {
+export function AgentDashboard({ agent, tasks }: AgentDashboardProps) {
   const domain = agent.context_domain;
   const cls = agent.agent_class || 'domain-steward';
 
@@ -108,7 +99,7 @@ export function AgentDashboard({ agent, tasks, onBrowseFiles }: AgentDashboardPr
 
   // Synthesizer/bot agents without owned domains — show different view
   if (!domain || cls === 'synthesizer') {
-    return <SynthesizerDashboard agent={agent} tasks={tasks} onBrowseFiles={onBrowseFiles} />;
+    return <SynthesizerDashboard agent={agent} tasks={tasks} />;
   }
 
   const entities = domainData?.entities || [];
@@ -214,16 +205,19 @@ export function AgentDashboard({ agent, tasks, onBrowseFiles }: AgentDashboardPr
         </div>
       )}
 
-      {/* Footer links */}
-      <div className="px-5 py-3 flex items-center gap-3">
-        <button
-          onClick={onBrowseFiles}
-          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-        >
-          <FolderOpen className="w-3 h-3" />
-          Browse files
-        </button>
-      </div>
+      {/* Footer: link to Context page for file browsing */}
+      {domain && (
+        <div className="px-5 py-3 flex items-center gap-3">
+          <Link
+            href={`/context?domain=${domain}`}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+          >
+            <FolderOpen className="w-3 h-3" />
+            View files
+            <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
@@ -232,11 +226,9 @@ export function AgentDashboard({ agent, tasks, onBrowseFiles }: AgentDashboardPr
 function SynthesizerDashboard({
   agent,
   tasks,
-  onBrowseFiles,
 }: {
   agent: Agent;
   tasks: Task[];
-  onBrowseFiles: () => void;
 }) {
   const [latestOutput, setLatestOutput] = useState<{ html?: string; md?: string; date?: string } | null>(null);
   const [loading, setLoading] = useState(true);

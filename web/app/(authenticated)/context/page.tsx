@@ -3,18 +3,16 @@
 /**
  * Context Surface — Workspace explorer (domains, uploads, settings)
  *
- * Finder / Windows Explorer mental model:
- * - Left: hierarchical workspace tree (collapsible)
- * - Center: folder details view + type-aware file preview
- * - Right: TP chat drawer (collapsible, context-aware)
+ * SURFACE-ARCHITECTURE.md v7: The single file browser. All raw file viewing
+ * happens here. Agents page links in with ?domain={key} for deep-linking.
  *
- * Tasks are NOT in this explorer — they have their own surface at /tasks.
+ * Uses ThreePanelLayout for shared shell.
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
-  X,
   MessageCircle,
   Upload,
   Globe,
@@ -28,7 +26,7 @@ import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { api } from '@/lib/api/client';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
-import { ChatPanel } from '@/components/tp/ChatPanel';
+import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
@@ -88,7 +86,6 @@ function buildContextNodes(input: {
 }): TreeNode[] {
   const domainChildren = relabelTopLevelNodes(
     filterNodes(input.domainTree, (node) => {
-      // ADR-156: Hide all _prefixed files (system infrastructure) + signals temporal log
       const filename = node.path.split('/').pop() || '';
       return !filename.startsWith('_') && !node.path.startsWith('/workspace/context/signals');
     }),
@@ -133,17 +130,19 @@ function buildContextNodes(input: {
 // =============================================================================
 
 export default function ContextPage() {
+  const searchParams = useSearchParams();
   const { loadScopedHistory, sendMessage } = useTP();
   const { surface } = useDesk();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
 
+  const domainParam = searchParams.get('domain');
+
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
-  // ADR-155: Workspace maturity phase for setup-phase layout
   const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
+  const [domainDeepLinked, setDomainDeepLinked] = useState(false);
 
-  // Virtual root for resolveNodeByPath/buildBreadcrumbs (not displayed)
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
 
   const loadExplorer = useCallback(async () => {
@@ -165,9 +164,27 @@ export default function ContextPage() {
       });
 
       setTreeNodes(nodes);
-      // ADR-155: Track workspace maturity phase
       setPhase(nav.readiness?.phase || 'active');
-      // Don't auto-select root — let user pick from tree
+
+      // Domain deep-linking: auto-navigate to domain folder on first load
+      if (domainParam && !domainDeepLinked) {
+        setDomainDeepLinked(true);
+        // Find the domain node in the Context folder's children
+        const contextFolder = nodes.find(n => n.name === 'Context');
+        if (contextFolder?.children) {
+          // Match by domain key (the original folder name before relabeling)
+          // The path will be like /workspace/context/{domain}
+          const domainNode = contextFolder.children.find(
+            n => n.path === `/workspace/context/${domainParam}` || n.path.endsWith(`/${domainParam}`)
+          );
+          if (domainNode) {
+            setSelectedPath(domainNode.path);
+            return;
+          }
+        }
+      }
+
+      // Preserve current selection if still valid
       setSelectedPath((prev) => {
         if (prev) {
           const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: nodes };
@@ -180,7 +197,7 @@ export default function ContextPage() {
     } finally {
       setFileTreeLoading(false);
     }
-  }, []);
+  }, [domainParam, domainDeepLinked]);
 
   const selectedNode = selectedPath ? resolveNodeByPath(virtualRoot, selectedPath) : null;
   const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
@@ -188,7 +205,6 @@ export default function ContextPage() {
   // Push breadcrumb path into global header
   useEffect(() => {
     if (breadcrumbs.length > 0) {
-      // Max 2 segments to keep header clean
       const segs = breadcrumbs.slice(0, 2).map((crumb, i) => ({
         label: crumb.name,
         ...(i < breadcrumbs.length - 1 ? { onClick: () => setSelectedPath(crumb.path) } : {}),
@@ -199,22 +215,13 @@ export default function ContextPage() {
     }
   }, [selectedPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Clear on unmount
   useEffect(() => {
     return () => clearBreadcrumb();
   }, [clearBreadcrumb]);
 
   const effectiveSurface = selectedNode
-    ? {
-        ...surface,
-        type: 'workspace-explorer' as const,
-        path: selectedNode.path,
-        navigation_type: selectedNode.type,
-      }
+    ? { ...surface, type: 'workspace-explorer' as const, path: selectedNode.path, navigation_type: selectedNode.type }
     : surface;
-
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
@@ -232,9 +239,9 @@ export default function ContextPage() {
 
   const plusMenuActions: PlusMenuAction[] = [
     { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { sendMessage('I want to create a task. What do you suggest based on my context?', { surface: effectiveSurface }); } },
-    { id: 'update-info', label: 'Update my info', icon: Settings2, verb: 'prompt', onSelect: () => { setChatOpen(true); } },
-    { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => { setChatOpen(true); } },
-    { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => { } },
+    { id: 'update-info', label: 'Update my info', icon: Settings2, verb: 'prompt', onSelect: () => {} },
+    { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => {} },
+    { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => {} },
   ];
 
   const emptyState = (
@@ -260,109 +267,58 @@ export default function ContextPage() {
     </div>
   );
 
+  // Left panel content for ThreePanelLayout
+  const leftPanelContent = (
+    <div className="flex-1 overflow-y-auto">
+      {fileTreeLoading && treeNodes.length === 0 ? (
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          Loading...
+        </div>
+      ) : treeNodes.length > 0 ? (
+        <div className="p-2">
+          <WorkspaceTree
+            nodes={treeNodes}
+            selectedPath={selectedPath || undefined}
+            onSelect={handleExplorerSelect}
+          />
+        </div>
+      ) : (
+        <div className="p-3 text-sm text-muted-foreground">Failed to load explorer</div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* Left: Explorer panel */}
-      {panelOpen ? (
-        <div className="w-[280px] shrink-0 border-r border-border flex flex-col bg-background">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-            <div>
-              <p className="text-sm font-medium text-foreground">Explorer</p>
-              <p className="text-[11px] text-muted-foreground">Workspace context and settings</p>
-            </div>
-            <button onClick={() => setPanelOpen(false)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {fileTreeLoading && treeNodes.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Loading...
-              </div>
-            ) : treeNodes.length > 0 ? (
-              <div className="p-2">
-                <WorkspaceTree
-                  nodes={treeNodes}
-                  selectedPath={selectedPath || undefined}
-                  onSelect={handleExplorerSelect}
-                />
-              </div>
-            ) : (
-              <div className="p-3 text-sm text-muted-foreground">Failed to load explorer</div>
-            )}
+    <ThreePanelLayout
+      leftPanel={{
+        title: 'Explorer',
+        subtitle: 'Workspace context and settings',
+        content: leftPanelContent,
+        collapsedIcon: <FolderOpen className="w-4 h-4" />,
+        collapsedTitle: 'Explorer',
+      }}
+      chat={{
+        surfaceOverride: effectiveSurface,
+        plusMenuActions,
+        emptyState,
+        contextLabel: selectedNode ? `viewing ${selectedNode.name}` : undefined,
+      }}
+    >
+      {selectedNode ? (
+        <div className="flex-1 overflow-auto bg-background flex flex-col">
+          <div className="flex-1 overflow-auto">
+            <ContentViewer selectedNode={selectedNode} onNavigate={handleExplorerSelect} />
           </div>
         </div>
       ) : (
-        <div className="w-10 shrink-0 border-r border-border flex flex-col items-center py-2 gap-2 bg-background">
-          <button
-            onClick={() => setPanelOpen(true)}
-            className="p-2 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
-            title="Explorer"
-          >
-            <FolderOpen className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Center: Content viewer */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {selectedNode ? (
-          <div className="flex-1 overflow-auto bg-background flex flex-col">
-            <div className="flex-1 overflow-auto">
-              <ContentViewer selectedNode={selectedNode} onNavigate={handleExplorerSelect} />
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center max-w-xs">
-              <FolderOpen className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Select a file or folder from the explorer</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Right: Chat panel or FAB */}
-      {chatOpen && (
-        <div className="w-[380px] shrink-0 border-l border-border flex flex-col bg-background overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background z-10 shrink-0">
-            <div className="flex items-center gap-2">
-              <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
-              <span className="text-xs font-medium">TP</span>
-              {selectedNode && (
-                <span className="text-[10px] text-muted-foreground/50 truncate max-w-[160px]">
-                  · viewing {selectedNode.name}
-                </span>
-              )}
-            </div>
-            <button onClick={() => setChatOpen(false)} className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="flex-1 min-h-0">
-            <ChatPanel
-              surfaceOverride={effectiveSurface}
-              plusMenuActions={plusMenuActions}
-              emptyState={emptyState}
-            />
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center max-w-xs">
+            <FolderOpen className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Select a file or folder from the explorer</p>
           </div>
         </div>
       )}
-
-      {!chatOpen && (
-        <button
-          onClick={() => setChatOpen(true)}
-          className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center group"
-          title="Chat with TP"
-        >
-          <img
-            src="/assets/logos/circleonly_yarnnn_1.svg"
-            alt="yarnnn"
-            className="w-12 h-12 transition-transform duration-500 group-hover:rotate-180"
-          />
-        </button>
-      )}
-    </div>
+    </ThreePanelLayout>
   );
 }
