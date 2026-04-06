@@ -17,9 +17,11 @@ import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
+import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { ToggleBar } from './ToggleBar';
+import { GlobalBreadcrumb } from './GlobalBreadcrumb';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
 import { HOME_ROUTE, isHomeRoute } from '@/lib/routes';
 
@@ -79,11 +81,13 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   }
 
   return (
-    <DeskProvider>
-      <AuthenticatedLayoutInner userEmail={userEmail}>
-        {children}
-      </AuthenticatedLayoutInner>
-    </DeskProvider>
+    <BreadcrumbProvider>
+      <DeskProvider>
+        <AuthenticatedLayoutInner userEmail={userEmail}>
+          {children}
+        </AuthenticatedLayoutInner>
+      </DeskProvider>
+    </BreadcrumbProvider>
   );
 }
 
@@ -153,14 +157,15 @@ function AuthenticatedLayoutInner({
       <div className="flex flex-col h-screen bg-background">
         {/* Top Bar - Single unified bar */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
-          {/* Left: Logo - always navigates home */}
-          <div className="flex items-center gap-4">
+          {/* Left: Logo + breadcrumb */}
+          <div className="flex items-center gap-1 min-w-0">
             <button
               onClick={navigateToHome}
-              className="text-xl font-brand hover:opacity-80 transition-opacity"
+              className="text-xl font-brand hover:opacity-80 transition-opacity shrink-0"
             >
               yarnnn
             </button>
+            <GlobalBreadcrumb />
           </div>
 
           {/* Center: Toggle bar */}

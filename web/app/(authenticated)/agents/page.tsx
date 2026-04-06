@@ -22,6 +22,7 @@ import {
   Play,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
+import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import type { Agent, Task } from '@/types';
 import { api } from '@/lib/api/client';
 import { AgentTreeNav } from '@/components/agents/AgentTreeNav';
@@ -42,6 +43,7 @@ function EmptyState() {
 export default function AgentsPage() {
   const searchParams = useSearchParams();
   const { loadScopedHistory, sendMessage } = useTP();
+  const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
 
   const agentFromUrl = searchParams.get('agent');
 
@@ -116,6 +118,16 @@ export default function AgentsPage() {
   const agentTasks = selectedAgent
     ? tasks.filter(t => t.agent_slugs?.includes(getAgentSlug(selectedAgent)))
     : [];
+
+  // ── Breadcrumb: agent name (browse path set by AgentContentView) ──
+  useEffect(() => {
+    if (selectedAgent) {
+      setBreadcrumb([{ label: selectedAgent.title }]);
+    } else {
+      clearBreadcrumb();
+    }
+    return () => clearBreadcrumb();
+  }, [selectedAgent?.id, selectedAgent?.title, setBreadcrumb, clearBreadcrumb]);
 
   // ── Actions ──
   const handleSelectAgent = (agentId: string) => {

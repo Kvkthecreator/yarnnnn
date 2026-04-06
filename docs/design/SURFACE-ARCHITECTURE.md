@@ -1,6 +1,6 @@
 # Surface Architecture — Chat + Agents + Context + Activity
 
-**Date:** 2026-04-06 (v6 — dashboard+chat two-panel, composed agent views, unified TP)
+**Date:** 2026-04-06 (v6.1 — global breadcrumb, briefing room spatial awareness)
 **Status:** Proposed
 **Supersedes:** v5 (2026-04-06, pinned header + Browse/Tasks/Agent tabs)
 **Depends on:** [ADR-138](../adr/ADR-138-agents-as-work-units.md) (Agents as Work Units), [ADR-140](../adr/ADR-140-agent-workforce-model.md) (Workforce Model), [ADR-152](../adr/ADR-152-unified-directory-registry.md) (Directory Registry)
@@ -47,11 +47,28 @@ Every surface is **dashboard + chat**. The dashboard varies by context. The chat
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Logo  │  [Home | Agents | Context | Activity]  │  User Menu │
+│ yarnnn / CI / cursor  │  [Home | Agents | Context | Activity]  │  User Menu │
 └─────────────────────────────────────────────────────────────┘
+  ↑ global breadcrumb         ↑ toggle bar                         ↑ avatar
 ```
 
-Four-segment toggle bar: `Home | Agents | Context | Activity`. `/agents` is `HOME_ROUTE` for returning users. New users (no tasks) land on `/chat` (Home) for onboarding. See [ONBOARDING-SCAFFOLD-AND-BRIEFING.md](ONBOARDING-SCAFFOLD-AND-BRIEFING.md) for Home page layout with daily briefing.
+**Header**: Logo + global breadcrumb (left), toggle bar (center), user menu (right).
+
+**Global breadcrumb** (`BreadcrumbContext`): Pages set breadcrumb segments into a shared context; the header reads and renders them. Max 2 depth segments after the logo. Provides spatial awareness — "where in the room am I?" — consistent across all surfaces. Briefing room metaphor: the toggle bar tells you which room, the breadcrumb tells you where you're standing.
+
+| Surface | Breadcrumb |
+|---------|------------|
+| Home | _(empty — just logo)_ |
+| Agents (overview) | _(empty)_ |
+| Agents (selected) | `/ Competitive Intelligence` |
+| Agents (browsing file) | `/ Competitive Intelligence / cursor` |
+| Context (domain selected) | `/ Competitors` |
+| Context (deep file) | `/ Competitors / cursor` |
+| Activity | _(empty)_ |
+
+Key files: `web/contexts/BreadcrumbContext.tsx`, `web/components/shell/GlobalBreadcrumb.tsx`.
+
+**Toggle bar**: Four-segment pill: `Home | Agents | Context | Activity`. `/agents` is `HOME_ROUTE` for returning users. New users (no tasks) land on `/chat` (Home) for onboarding. See [ONBOARDING-SCAFFOLD-AND-BRIEFING.md](ONBOARDING-SCAFFOLD-AND-BRIEFING.md) for Home page layout with daily briefing.
 
 ---
 
@@ -412,3 +429,4 @@ TP receives a compact index (~200-500 tokens) instead of full working memory. Su
 | 2026-04-05 | v4 — Three-tab center panel (Agent / Setup / Settings). Knowledge is the hero on the Agent tab. Task metadata collapses to a status line. Task naming convention: freeform, never includes frequency. Left panel section labels: Your Team, Cross-Team, Integrations (no filter pills). Chat page renamed to Home with persistent daily briefing header. Agent work rhythm framing (display-only). |
 | 2026-04-06 | v5 — Pinned header + Browse/Tasks/Agent tabs. Finder-style freshness. Folder icons in left panel. |
 | 2026-04-06 | v6 — Dashboard + Chat two-panel model. Composed agent dashboards from workspace files (not file browser). Unified TP chat panel across all pages. Reporting agent daily-update = Home page dashboard. File system secondary (Context page + links). Agent dashboard templates per domain type. |
+| 2026-04-06 | v6.1 — Global breadcrumb in header. BreadcrumbContext + GlobalBreadcrumb component. Pages set segments, header renders. Replaces context page local breadcrumb bar and agent header browse path. "Briefing room" spatial awareness: toggle bar = which room, breadcrumb = where you're standing. |

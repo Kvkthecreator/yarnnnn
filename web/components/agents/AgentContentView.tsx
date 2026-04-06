@@ -16,6 +16,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import {
   FileText,
   Loader2,
@@ -129,12 +130,10 @@ function HeaderIcon({ agentClass }: { agentClass: string }) {
 function AgentHeader({
   agent,
   tasks,
-  browsePath,
   onBack,
 }: {
   agent: Agent;
   tasks: Task[];
-  browsePath: string | null;
   onBack: (() => void) | null;
 }) {
   const cls = agent.agent_class || 'domain-steward';
@@ -181,37 +180,31 @@ function AgentHeader({
         </div>
       </div>
 
-      {/* Line 2: Class · domain · rhythm · freshness (or browse path) */}
+      {/* Line 2: Class · domain · rhythm · freshness */}
       <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
-        {browsePath ? (
-          <span className="truncate">{browsePath}</span>
-        ) : (
+        <span>{classLabel}</span>
+        {domain && (
           <>
-            <span>{classLabel}</span>
-            {domain && (
-              <>
-                <span className="text-muted-foreground/30">·</span>
-                <span>{domain}/</span>
-              </>
-            )}
-            {schedule && (
-              <>
-                <span className="text-muted-foreground/30">·</span>
-                <span className="capitalize">Works {schedule}</span>
-              </>
-            )}
-            {lastRun && (
-              <>
-                <span className="text-muted-foreground/30">·</span>
-                <span>Ran {formatRelativeTime(lastRun)}</span>
-              </>
-            )}
-            {!hasActive && !schedule && (
-              <>
-                <span className="text-muted-foreground/30">·</span>
-                <span className="text-muted-foreground/50">No active tasks</span>
-              </>
-            )}
+            <span className="text-muted-foreground/30">·</span>
+            <span>{domain}/</span>
+          </>
+        )}
+        {schedule && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="capitalize">Works {schedule}</span>
+          </>
+        )}
+        {lastRun && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span>Ran {formatRelativeTime(lastRun)}</span>
+          </>
+        )}
+        {!hasActive && !schedule && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground/50">No active tasks</span>
           </>
         )}
       </div>
@@ -777,6 +770,7 @@ function AgentTab({ agent }: { agent: Agent }) {
 export function AgentContentView({ agent, tasks, onRunTask, onPauseTask, onOpenChat, busy }: AgentContentViewProps) {
   const [activeTab, setActiveTab] = useState<Tab>('browse');
   const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
+  const { setBreadcrumb } = useBreadcrumb();
 
   // Reset to Browse tab + clear selection when agent changes
   useEffect(() => { setActiveTab('browse'); setSelectedNode(null); }, [agent.id]);
@@ -789,8 +783,28 @@ export function AgentContentView({ agent, tasks, onRunTask, onPauseTask, onOpenC
 
   const taskCount = tasks.length;
 
-  // Browse path for header breadcrumb
+  // Browse path for global breadcrumb
   const browsePath = selectedNode ? selectedNode.path.replace(/^\/workspace\/context\//, '') : null;
+
+  // Push browse depth into global breadcrumb (agent name set by parent page)
+  useEffect(() => {
+    if (activeTab === 'browse' && browsePath) {
+      const parts = browsePath.split('/').filter(Boolean);
+      // Max 2 segments: agent title (set by page) + up to 2 path segments
+      const segs = [
+        { label: agent.title, onClick: () => setSelectedNode(null) },
+        ...parts.slice(0, 2).map((part, i) => ({
+          label: part,
+          // Last segment is current — no onClick
+          ...(i < parts.length - 1 && i < 1 ? { onClick: () => setSelectedNode(null) } : {}),
+        })),
+      ];
+      setBreadcrumb(segs);
+    } else {
+      // Reset to just agent name when not browsing a file
+      setBreadcrumb([{ label: agent.title }]);
+    }
+  }, [activeTab, browsePath, agent.title, setBreadcrumb]);
 
   // Back handler: clear selection to return to domain root
   const handleBack = selectedNode ? () => setSelectedNode(null) : null;
@@ -800,7 +814,6 @@ export function AgentContentView({ agent, tasks, onRunTask, onPauseTask, onOpenC
       <AgentHeader
         agent={agent}
         tasks={tasks}
-        browsePath={activeTab === 'browse' ? browsePath : null}
         onBack={activeTab === 'browse' ? handleBack : null}
       />
       <TabBar active={activeTab} onChange={handleTabChange} taskCount={taskCount} />

@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
-import { cn } from '@/lib/utils';
+import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { api } from '@/lib/api/client';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
@@ -135,6 +135,7 @@ function buildContextNodes(input: {
 export default function ContextPage() {
   const { loadScopedHistory, sendMessage } = useTP();
   const { surface } = useDesk();
+  const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
 
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -183,6 +184,25 @@ export default function ContextPage() {
 
   const selectedNode = selectedPath ? resolveNodeByPath(virtualRoot, selectedPath) : null;
   const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
+
+  // Push breadcrumb path into global header
+  useEffect(() => {
+    if (breadcrumbs.length > 0) {
+      // Max 2 segments to keep header clean
+      const segs = breadcrumbs.slice(0, 2).map((crumb, i) => ({
+        label: crumb.name,
+        ...(i < breadcrumbs.length - 1 ? { onClick: () => setSelectedPath(crumb.path) } : {}),
+      }));
+      setBreadcrumb(segs);
+    } else {
+      clearBreadcrumb();
+    }
+  }, [selectedPath]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear on unmount
+  useEffect(() => {
+    return () => clearBreadcrumb();
+  }, [clearBreadcrumb]);
 
   const effectiveSurface = selectedNode
     ? {
@@ -289,27 +309,6 @@ export default function ContextPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {selectedNode ? (
           <div className="flex-1 overflow-auto bg-background flex flex-col">
-            <div className="flex items-center gap-1 px-4 py-2 border-b border-border shrink-0 overflow-x-auto">
-              {breadcrumbs.map((crumb, index) => (
-                <div key={crumb.path} className="flex items-center gap-1 shrink-0">
-                  {index > 0 && <span className="text-xs text-muted-foreground/40">/</span>}
-                  <button
-                    onClick={() => setSelectedPath(crumb.path)}
-                    className={cn(
-                      'rounded px-1.5 py-0.5 text-xs hover:bg-muted/60',
-                      crumb.path === selectedNode.path ? 'text-foreground font-medium' : 'text-muted-foreground'
-                    )}
-                  >
-                    {crumb.name}
-                  </button>
-                </div>
-              ))}
-              <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-                {selectedNode.type === 'folder'
-                  ? `${selectedNode.children?.length || 0} items`
-                  : selectedNode.path.split('.').pop()?.toUpperCase() || 'FILE'}
-              </span>
-            </div>
             <div className="flex-1 overflow-auto">
               <ContentViewer selectedNode={selectedNode} onNavigate={handleExplorerSelect} />
             </div>
