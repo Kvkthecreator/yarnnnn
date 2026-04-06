@@ -3,17 +3,17 @@
 /**
  * AgentContentView — Center panel for selected agent.
  *
- * SURFACE-ARCHITECTURE.md v7: Single scrollable view (no tabs).
+ * SURFACE-ARCHITECTURE.md v7.1: Pinned header + three tabs.
  *
  * Header (pinned): Agent name, class, domain, rhythm, freshness.
- * Dashboard section: Composed intelligence from workspace files.
- * Tasks section: Task cards with objectives, schedule, actions.
- * Agent section: Identity, AGENT.md, history, feedback.
+ * Dashboard tab (default): Composed intelligence from workspace files.
+ * Tasks tab: Task cards with objectives, schedule, actions.
+ * Agent tab: Identity, AGENT.md, history, feedback.
  *
  * File browsing removed — "View files" links to /context?domain={domain}.
  */
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import {
   Play,
@@ -23,7 +23,6 @@ import {
   Layers,
   Brain,
   Plug,
-  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -345,20 +344,50 @@ function AgentSection({ agent }: { agent: Agent }) {
   );
 }
 
-// ─── Section Divider ───
+// ─── Tab Bar ───
 
-function SectionDivider({ label }: { label: string }) {
+type Tab = 'dashboard' | 'tasks' | 'agent';
+
+function TabBar({
+  active,
+  onChange,
+  taskCount,
+}: {
+  active: Tab;
+  onChange: (t: Tab) => void;
+  taskCount: number;
+}) {
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'dashboard', label: 'Dashboard' },
+    { key: 'tasks', label: taskCount > 0 ? `Tasks (${taskCount})` : 'Tasks' },
+    { key: 'agent', label: 'Agent' },
+  ];
+
   return (
-    <div className="px-5 pt-6 pb-2">
-      <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground/30 font-medium">
-        {label}
-      </h3>
+    <div className="flex gap-0 border-b border-border shrink-0">
+      {tabs.map(t => (
+        <button
+          key={t.key}
+          onClick={() => onChange(t.key)}
+          className={cn(
+            'px-4 py-2 text-sm font-medium transition-colors relative',
+            active === t.key
+              ? 'text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          {t.label}
+          {active === t.key && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground" />
+          )}
+        </button>
+      ))}
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN COMPONENT — Single scrollable view
+// MAIN COMPONENT — Pinned header + three tabs
 // ═══════════════════════════════════════════════════════════════
 
 export function AgentContentView({
@@ -369,7 +398,11 @@ export function AgentContentView({
   onOpenChat,
   busy,
 }: AgentContentViewProps) {
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const { setBreadcrumb } = useBreadcrumb();
+
+  // Reset to Dashboard tab when agent changes
+  useEffect(() => { setActiveTab('dashboard'); }, [agent.id]);
 
   useEffect(() => {
     setBreadcrumb([{ label: agent.title }]);
@@ -378,28 +411,25 @@ export function AgentContentView({
   return (
     <div className="flex flex-col h-full">
       <AgentHeader agent={agent} tasks={tasks} />
+      <TabBar active={activeTab} onChange={setActiveTab} taskCount={tasks.length} />
 
       <div className="flex-1 overflow-auto">
-        {/* Dashboard section (primary) */}
-        <AgentDashboard
-          agent={agent}
-          tasks={tasks}
-        />
-
-        {/* Tasks section */}
-        <SectionDivider label="Tasks" />
-        <TasksSection
-          agent={agent}
-          tasks={tasks}
-          onRunTask={onRunTask}
-          onPauseTask={onPauseTask}
-          onOpenChat={onOpenChat}
-          busy={busy}
-        />
-
-        {/* Agent identity section */}
-        <SectionDivider label="Agent" />
-        <AgentSection agent={agent} />
+        {activeTab === 'dashboard' && (
+          <AgentDashboard agent={agent} tasks={tasks} />
+        )}
+        {activeTab === 'tasks' && (
+          <TasksSection
+            agent={agent}
+            tasks={tasks}
+            onRunTask={onRunTask}
+            onPauseTask={onPauseTask}
+            onOpenChat={onOpenChat}
+            busy={busy}
+          />
+        )}
+        {activeTab === 'agent' && (
+          <AgentSection agent={agent} />
+        )}
       </div>
     </div>
   );

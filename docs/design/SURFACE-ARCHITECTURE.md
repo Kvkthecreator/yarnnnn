@@ -184,36 +184,32 @@ Primary working surface. Intelligence surface — shows what agents know and wha
 └──────────────┴──────────────────────────┴──────────────────┘
 ```
 
-### Center Panel: Single Scrollable View (no tabs)
+### Center Panel: Pinned Header + Three Tabs
 
-When an agent is selected, the center panel is a **single scrollable page** with three sections. No tab switching. Header is pinned; everything else scrolls.
+When an agent is selected, the center panel shows a pinned header above three tabs. Each tab gets the full height with its own scroll.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Competitive Intelligence                                     │
 │  Domain Steward · competitors/ · Works weekly · Ran 2h ago    │
 ├──────────────────────────────────────────────────────────────┤
+│  [Dashboard]       [Tasks (2)]       [Agent]                  │
+├──────────────────────────────────────────────────────────────┤
 │                                                               │
-│  ── DASHBOARD (primary, largest) ──────────────────────────  │
-│  What's New · Synthesis · Entity cards                        │
-│  [View files →]  (links to /context?domain=competitors)       │
-│                                                               │
-│  ── TASKS ─────────────────────────────────────────────────  │
-│  Task cards with objectives, schedule, actions                │
-│                                                               │
-│  ── AGENT ─────────────────────────────────────────────────  │
-│  Identity · Instructions · History · Feedback                 │
+│  (active tab content — full height, own scroll)               │
 │                                                               │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 **Header (pinned):** Agent name, class label, domain, cadence, last run. Communicates "autonomous worker" identity.
 
-**Dashboard section (top):** Composed from workspace files via `getDomainEntities()` and `getFile()`. Entity cards, synthesis content, what's new. Same as previous AgentDashboard component. "View files" links to `/context?domain={domain}` — no embedded file browser.
+**Dashboard tab (default):** Composed from workspace files via `getDomainEntities()` and `getFile()`. Entity cards, synthesis content, what's new. "View files" links to `/context?domain={domain}` — no embedded file browser.
 
-**Tasks section (middle):** Task cards with status, objective, schedule, actions (Run Now, Pause/Resume, Edit via TP). Context flow summary (domain reads/writes).
+**Tasks tab:** Task cards with status, objective, schedule, actions (Run Now, Pause/Resume, Edit via TP). Context flow summary (domain reads/writes).
 
-**Agent section (bottom):** Identity, AGENT.md instructions, history (quality score, run count), feedback. Low-frequency reference material.
+**Agent tab:** Identity, AGENT.md instructions, history (quality score, run count), feedback. Low-frequency reference material.
+
+Tabs represent three different user intents that shouldn't be stacked: "What does this agent know?" (dashboard), "What work is it doing?" (tasks), "Who is this agent?" (agent). Dashboard resets as default when switching agents.
 
 ### What was deleted (v6.1 → v7)
 
