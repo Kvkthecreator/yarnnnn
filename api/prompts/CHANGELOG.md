@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.06.4] - Fix delivery model — context tasks silent, synthesis tasks deliver
+
+### Changed
+- `task_pipeline.py`: `_parse_delivery_target("none")` now returns `None` (was falling through to email fallback). `delivery="email"` resolves to user's email. Unknown formats log warning instead of guessing.
+- `tp_prompts/onboarding.py`: Synthesis tasks (daily-update, stakeholder-update) pass `delivery="email"`. Context tasks omit delivery (silent). Delivery rule documented for TP.
+- Expected behavior: Context tasks (track-*, research-*) run silently — no per-task emails. Synthesis tasks deliver via email. Daily-update replaces the per-task email flood with one operational digest.
+
+---
+
 ## [2026.04.06.3] - Reporting Agent rename + daily-update task type
 
 ### Changed

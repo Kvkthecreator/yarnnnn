@@ -2489,8 +2489,11 @@ def _parse_delivery_target(delivery_str: str, client, user_id: str) -> Optional[
     - Slack: "slack:#channel" → {"platform": "slack", "target": "#channel", "format": "send"}
     - None/empty → email fallback
     """
-    if not delivery_str:
-        # Fall back to user email
+    if not delivery_str or delivery_str.strip().lower() == "none":
+        return None  # No delivery configured — task runs silently
+
+    # "email" without address → resolve to user's email
+    if delivery_str.strip().lower() == "email":
         from services.agent_execution import get_user_email
         from services.supabase import get_service_client
         email = get_user_email(get_service_client(), user_id)
@@ -2505,12 +2508,8 @@ def _parse_delivery_target(delivery_str: str, client, user_id: str) -> Optional[
         target = delivery_str[6:]
         return {"platform": "slack", "target": target, "format": "send"}
 
-    # Unknown format — try email fallback
-    from services.agent_execution import get_user_email
-    from services.supabase import get_service_client
-    email = get_user_email(get_service_client(), user_id)
-    if email:
-        return {"platform": "email", "target": email, "format": "send"}
+    # Unknown delivery format — don't guess, return None
+    logger.warning(f"[TASK_EXEC] Unknown delivery format: '{delivery_str}' — skipping")
     return None
 
 
