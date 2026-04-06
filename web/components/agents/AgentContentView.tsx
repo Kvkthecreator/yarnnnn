@@ -51,6 +51,14 @@ interface AgentContentViewProps {
   busy: boolean;
 }
 
+/** Extract the first line of instructions as a mandate summary */
+function getAgentMandate(agent: Agent): string | null {
+  if (!agent.agent_instructions) return null;
+  // First sentence of instructions
+  const first = agent.agent_instructions.split(/\.\s/)[0];
+  return first ? first + '.' : null;
+}
+
 // ─── Helpers ───
 
 function formatRelativeTime(dateStr: string): string {
@@ -106,29 +114,18 @@ function HeaderIcon({ agentClass }: { agentClass: string }) {
   }
 }
 
-/** Get a meaningful description for the agent */
-function getAgentPurpose(agent: Agent, tasks: Task[]): string | null {
-  // Use first task's objective purpose
-  const firstTask = tasks[0];
-  if (firstTask?.objective?.purpose) return firstTask.objective.purpose;
-  if (firstTask?.objective?.deliverable) return firstTask.objective.deliverable;
-  return null;
-}
-
 // ─── Pinned Header ───
 
 function AgentHeader({
   agent,
   tasks,
-  onRunTask,
-  onPauseTask,
-  busy,
+  browsePath,
+  onBack,
 }: {
   agent: Agent;
   tasks: Task[];
-  onRunTask: (slug: string) => void;
-  onPauseTask: (slug: string) => void;
-  busy: boolean;
+  browsePath: string | null;
+  onBack: (() => void) | null;
 }) {
   const cls = agent.agent_class || 'domain-steward';
   const classLabel = CLASS_LABELS[cls] || cls;
@@ -137,7 +134,7 @@ function AgentHeader({
   const hasActive = activeTasks.length > 0;
   const schedule = activeTasks[0]?.schedule;
   const color = avatarColor(agent.role);
-  const purpose = getAgentPurpose(agent, tasks);
+  const mandate = getAgentMandate(agent);
 
   // Most recent run across all tasks
   const lastRun = tasks
@@ -146,13 +143,18 @@ function AgentHeader({
     .sort()
     .reverse()[0];
 
-  // Primary active task for Run Now
-  const primaryTask = activeTasks[0];
-
   return (
     <div className="px-5 py-3 border-b border-border shrink-0">
-      {/* Line 1: Avatar + Name + actions */}
+      {/* Line 1: Back / Avatar + Name */}
       <div className="flex items-center gap-3">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="p-1 -ml-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
           style={{ backgroundColor: color + '18' }}
@@ -163,57 +165,43 @@ function AgentHeader({
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-semibold truncate">{agent.title}</h2>
-          {purpose && (
-            <p className="text-xs text-muted-foreground truncate mt-0.5">{purpose}</p>
+          {mandate && (
+            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{mandate}</p>
           )}
         </div>
-        {primaryTask && (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => onRunTask(primaryTask.slug)}
-              disabled={busy}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
-            >
-              <Play className="w-3 h-3" />
-              Run
-            </button>
-            <button
-              onClick={() => onPauseTask(primaryTask.slug)}
-              disabled={busy}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
-            >
-              {primaryTask.status === 'active' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-              {primaryTask.status === 'active' ? 'Pause' : 'Resume'}
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* Line 2: Class · domain · rhythm · freshness */}
+      {/* Line 2: Class · domain · rhythm · freshness (or browse path) */}
       <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
-        <span>{classLabel}</span>
-        {domain && (
+        {browsePath ? (
+          <span className="truncate">{browsePath}</span>
+        ) : (
           <>
-            <span className="text-muted-foreground/30">·</span>
-            <span>{domain}/</span>
-          </>
-        )}
-        {schedule && (
-          <>
-            <span className="text-muted-foreground/30">·</span>
-            <span className="capitalize">Works {schedule}</span>
-          </>
-        )}
-        {lastRun && (
-          <>
-            <span className="text-muted-foreground/30">·</span>
-            <span>Ran {formatRelativeTime(lastRun)}</span>
-          </>
-        )}
-        {!hasActive && !schedule && (
-          <>
-            <span className="text-muted-foreground/30">·</span>
-            <span className="text-muted-foreground/50">No active tasks</span>
+            <span>{classLabel}</span>
+            {domain && (
+              <>
+                <span className="text-muted-foreground/30">·</span>
+                <span>{domain}/</span>
+              </>
+            )}
+            {schedule && (
+              <>
+                <span className="text-muted-foreground/30">·</span>
+                <span className="capitalize">Works {schedule}</span>
+              </>
+            )}
+            {lastRun && (
+              <>
+                <span className="text-muted-foreground/30">·</span>
+                <span>Ran {formatRelativeTime(lastRun)}</span>
+              </>
+            )}
+            {!hasActive && !schedule && (
+              <>
+                <span className="text-muted-foreground/30">·</span>
+                <span className="text-muted-foreground/50">No active tasks</span>
+              </>
+            )}
           </>
         )}
       </div>
@@ -268,36 +256,27 @@ function TabBar({
 function BrowseTab({
   agent,
   tasks,
+  selectedNode,
+  onSelectNode,
 }: {
   agent: Agent;
   tasks: Task[];
+  selectedNode: TreeNode | null;
+  onSelectNode: (node: TreeNode | null) => void;
 }) {
   const cls = agent.agent_class || 'domain-steward';
   const domain = agent.context_domain;
-  const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
-
-  // Reset selection when agent changes
-  useEffect(() => { setSelectedNode(null); }, [agent.id]);
 
   return (
     <div className="flex flex-col h-full">
       {selectedNode ? (
-        <div className="flex flex-col h-full">
-          <button
-            onClick={() => setSelectedNode(null)}
-            className="flex items-center gap-1 px-5 py-2 text-sm text-muted-foreground hover:text-foreground border-b border-border shrink-0"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Back
-          </button>
-          <div className="flex-1 overflow-auto">
-            <ContentViewer selectedNode={selectedNode} onNavigate={setSelectedNode} />
-          </div>
+        <div className="flex-1 overflow-auto">
+          <ContentViewer selectedNode={selectedNode} onNavigate={(n) => onSelectNode(n)} />
         </div>
       ) : cls === 'synthesizer' ? (
-        <SynthesizerBrowse tasks={tasks} onSelectNode={setSelectedNode} />
+        <SynthesizerBrowse tasks={tasks} onSelectNode={(n) => onSelectNode(n)} />
       ) : domain ? (
-        <DomainBrowse domain={domain} onSelectNode={setSelectedNode} />
+        <DomainBrowse domain={domain} onSelectNode={(n) => onSelectNode(n)} />
       ) : (
         <EmptyBrowse agentClass={cls} />
       )}
@@ -719,25 +698,37 @@ function AgentTab({ agent }: { agent: Agent }) {
 
 export function AgentContentView({ agent, tasks, onRunTask, onPauseTask, onOpenChat, busy }: AgentContentViewProps) {
   const [activeTab, setActiveTab] = useState<Tab>('browse');
+  const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
 
-  // Reset to Browse tab when agent changes
-  useEffect(() => { setActiveTab('browse'); }, [agent.id]);
+  // Reset to Browse tab + clear selection when agent changes
+  useEffect(() => { setActiveTab('browse'); setSelectedNode(null); }, [agent.id]);
+
+  // Clear selection when switching away from Browse
+  const handleTabChange = useCallback((tab: Tab) => {
+    if (tab !== 'browse') setSelectedNode(null);
+    setActiveTab(tab);
+  }, []);
 
   const taskCount = tasks.length;
+
+  // Browse path for header breadcrumb
+  const browsePath = selectedNode ? selectedNode.path.replace(/^\/workspace\/context\//, '') : null;
+
+  // Back handler: clear selection to return to domain root
+  const handleBack = selectedNode ? () => setSelectedNode(null) : null;
 
   return (
     <div className="flex flex-col h-full">
       <AgentHeader
         agent={agent}
         tasks={tasks}
-        onRunTask={onRunTask}
-        onPauseTask={onPauseTask}
-        busy={busy}
+        browsePath={activeTab === 'browse' ? browsePath : null}
+        onBack={activeTab === 'browse' ? handleBack : null}
       />
-      <TabBar active={activeTab} onChange={setActiveTab} taskCount={taskCount} />
+      <TabBar active={activeTab} onChange={handleTabChange} taskCount={taskCount} />
 
       {activeTab === 'browse' && (
-        <BrowseTab agent={agent} tasks={tasks} />
+        <BrowseTab agent={agent} tasks={tasks} selectedNode={selectedNode} onSelectNode={setSelectedNode} />
       )}
       {activeTab === 'tasks' && (
         <TasksTab
