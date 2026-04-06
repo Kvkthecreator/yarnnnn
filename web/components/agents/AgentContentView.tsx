@@ -27,12 +27,15 @@ import {
   Circle,
   MessageSquare,
   Layers,
+  Brain,
+  Plug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { FileIcon } from '@/components/workspace/FileIcon';
+import { avatarColor } from '@/lib/agent-identity';
 import type { Agent, Task, TaskOutput } from '@/types';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
@@ -90,6 +93,28 @@ const CLASS_LABELS: Record<string, string> = {
   'platform-bot': 'Platform Bot',
 };
 
+/** Per-class icon for header */
+function HeaderIcon({ agentClass }: { agentClass: string }) {
+  const cls = 'w-5 h-5';
+  switch (agentClass) {
+    case 'synthesizer':
+      return <Layers className={cls} />;
+    case 'platform-bot':
+      return <Plug className={cls} />;
+    default:
+      return <Brain className={cls} />;
+  }
+}
+
+/** Get a meaningful description for the agent */
+function getAgentPurpose(agent: Agent, tasks: Task[]): string | null {
+  // Use first task's objective purpose
+  const firstTask = tasks[0];
+  if (firstTask?.objective?.purpose) return firstTask.objective.purpose;
+  if (firstTask?.objective?.deliverable) return firstTask.objective.deliverable;
+  return null;
+}
+
 // ─── Pinned Header ───
 
 function AgentHeader({
@@ -111,6 +136,8 @@ function AgentHeader({
   const activeTasks = tasks.filter(t => t.status === 'active');
   const hasActive = activeTasks.length > 0;
   const schedule = activeTasks[0]?.schedule;
+  const color = avatarColor(agent.role);
+  const purpose = getAgentPurpose(agent, tasks);
 
   // Most recent run across all tasks
   const lastRun = tasks
@@ -124,9 +151,22 @@ function AgentHeader({
 
   return (
     <div className="px-5 py-3 border-b border-border shrink-0">
-      {/* Line 1: Name + actions */}
+      {/* Line 1: Avatar + Name + actions */}
       <div className="flex items-center gap-3">
-        <h2 className="text-base font-medium flex-1 truncate">{agent.title}</h2>
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          style={{ backgroundColor: color + '18' }}
+        >
+          <div style={{ color }}>
+            <HeaderIcon agentClass={cls} />
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold truncate">{agent.title}</h2>
+          {purpose && (
+            <p className="text-xs text-muted-foreground truncate mt-0.5">{purpose}</p>
+          )}
+        </div>
         {primaryTask && (
           <div className="flex items-center gap-1.5 shrink-0">
             <button
@@ -150,7 +190,7 @@ function AgentHeader({
       </div>
 
       {/* Line 2: Class · domain · rhythm · freshness */}
-      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+      <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
         <span>{classLabel}</span>
         {domain && (
           <>
