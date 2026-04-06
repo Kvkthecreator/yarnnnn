@@ -179,7 +179,7 @@ Same structure, but the hero is the output viewer instead of the domain browser:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Executive Reporting                                          │
+│  Reporting                                          │
 │  Cross-domain composition of competitor, market, and          │
 │  relationship intelligence into executive summaries           │
 │                                                               │

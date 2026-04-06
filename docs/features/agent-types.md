@@ -79,14 +79,14 @@ not create agents from scratch.
 
 ## Synthesizer (1)
 
-### Executive Reporting
+### Reporting
 
 - **Domain owned:** (cross-domain) — reads all context domains, owns none
 - **Capabilities:** compose_html, chart, mermaid
 - **Playbooks:** outputs, formats
 - **What it maintains:** Nothing — synthesizer reads, does not accumulate context
-- **What it produces:** Cross-domain executive summaries, stakeholder updates, composed HTML reports that draw from all agent domains
-- **Typical tasks:** stakeholder-update, market-report (cross-domain variants)
+- **What it produces:** Daily operational updates, cross-domain executive summaries, stakeholder reports
+- **Typical tasks:** daily-update (daily, operational), stakeholder-update (monthly, strategic)
 
 ---
 

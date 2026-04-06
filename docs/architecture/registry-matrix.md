@@ -33,7 +33,7 @@ YARNNN has three registries that work together:
 | **slack/** (temporal) | slack-digest | (TP awareness only) | Slack Bot |
 | **notion/** (temporal) | notion-digest | (TP awareness only) | Notion Bot |
 | **github/** (temporal) | github-digest | (TP awareness only) | GitHub Bot |
-| **(cross-domain)** | — | stakeholder-update, market-report | Executive Reporting (synthesizer) |
+| **(cross-domain)** | — | daily-update, stakeholder-update, market-report | Reporting (synthesizer) |
 
 ---
 
@@ -88,13 +88,13 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 | **Business Development** | domain-steward | relationships/ | — | — | outputs |
 | **Operations** | domain-steward | projects/ | chart | — | outputs |
 | **Marketing & Creative** | domain-steward | content/ | chart, mermaid | **image, video** | outputs, formats, **visual** |
-| **Executive Reporting** | synthesizer | (cross-domain) | chart, mermaid | — | outputs, formats |
+| **Reporting** | synthesizer | (cross-domain) | chart, mermaid | — | outputs, formats |
 | **Slack Bot** | platform-bot | slack/ (temporal) | — | — | outputs |
 | **Notion Bot** | platform-bot | notion/ (temporal) | — | — | outputs |
 | **GitHub Bot** | platform-bot | github/ (temporal) | — | — | outputs |
 
 **Key principles:**
-- Each domain-steward owns one context domain. The synthesizer (Executive) reads all domains.
+- Each domain-steward owns one context domain. The synthesizer (Reporting) reads all domains.
 - **Data viz** (chart, mermaid) is analytical — available to research/synthesis agents for data-driven visuals.
 - **Visual production** (image, video) is a specialization — only Marketing & Creative. Other agents collaborate via multi-step process when they need rich visuals.
 - **Playbooks** are agent-level methodology (how this agent does its work). Loaded selectively by task class. See `docs/features/agent-playbook-framework.md`.

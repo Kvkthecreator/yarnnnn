@@ -123,6 +123,19 @@ STEP_INSTRUCTIONS = {
         "Structure: What's New → What Changed → What It Means → Standing Context (brief)."
     ),
 
+    "daily-digest": (
+        "Produce a concise daily update for the user. This is operational, not analytical.\n\n"
+        "Structure: What Happened → What Changed → What's Next\n\n"
+        "**What Happened**: Which tasks ran today, which agents were active. "
+        "Brief summary of each task's output (1-2 sentences, not the full report).\n\n"
+        "**What Changed**: Key updates to workspace context domains — new entities discovered, "
+        "signals logged, profiles updated. Focus on what's NEW since yesterday.\n\n"
+        "**What's Next**: Upcoming scheduled tasks, when they'll run, what they'll cover.\n\n"
+        "Keep it scannable — the user should absorb this in under 60 seconds. "
+        "Use bullet points, not paragraphs. No charts or visuals needed. "
+        "If nothing meaningful happened today, say so briefly — don't pad."
+    ),
+
     "capture-and-report": (
         "Read existing context files (patterns, signal history). "
         "Gather new signals from platform context. Log new signals to the signal domain. "
@@ -847,6 +860,45 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Board-level polish",
                 "Key milestones with status",
                 "Forward-looking strategic priorities",
+            ],
+        },
+    },
+
+    "daily-update": {
+        "display_name": "Daily Update",
+        "description": "Daily operational digest — what your agents did, what changed, what's coming up.",
+        "category": "synthesis",
+        "task_class": "synthesis",
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "html",
+        "layout_mode": "email",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "executive",
+                "step": "daily-digest",
+                "instruction": STEP_INSTRUCTIONS["daily-digest"],
+            },
+        ],
+        "context_reads": ["competitors", "market", "projects", "relationships", "signals"],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Daily workspace update",
+            "audience": "You — quick morning scan",
+            "purpose": "Stay informed about what your agents did and what's coming up",
+            "format": "Scannable digest under 60 seconds",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "300-600", "layout": ["What Happened", "What Changed", "What's Next"]},
+            "assets": [],
+            "quality_criteria": [
+                "Scannable in under 60 seconds",
+                "Lead with what's new, skip what didn't change",
+                "Bullet points, not paragraphs",
+                "If nothing happened, say so briefly",
             ],
         },
     },

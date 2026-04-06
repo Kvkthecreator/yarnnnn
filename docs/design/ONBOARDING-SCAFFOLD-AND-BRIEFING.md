@@ -30,7 +30,7 @@ The product is "hiring a team." A hired team arrives with a plan, learns your co
 6. **TP auto-scaffolds default tasks** for each agent whose domain has entities
 7. **TP triggers immediate execution** of all context tasks (run-now)
 8. TP informs user: "Your team is working. First results in ~5 minutes."
-9. Context tasks complete → **TP triggers synthesis tasks** (Executive Reporting)
+9. Context tasks complete → **TP triggers synthesis tasks** (Reporting)
 10. Synthesis completes → delivery fires (email, if configured)
 11. **TP generates first daily briefing** on the Home page
 
@@ -51,7 +51,7 @@ The product is "hiring a team." A hired team arrives with a plan, learns your co
 | Business Development | `track-relationships` | relationships/ has entities |
 | Operations | `track-projects` | projects/ has entities |
 | Marketing & Creative | `research-topics` | content_research/ has entities |
-| Executive Reporting | `executive-summary` (synthesis) | At least 1 context task active |
+| Reporting | `executive-summary` (synthesis) | At least 1 context task active |
 | Slack Bot | `slack-digest` | Slack connected |
 | Notion Bot | `notion-digest` | Notion connected |
 | GitHub Bot | `github-digest` | GitHub connected |

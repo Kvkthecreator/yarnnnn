@@ -152,7 +152,7 @@ For ALL agent types, the playbook framework provides:
 | **Business Development** | outputs | synthesis, relationships |
 | **Operations** | outputs | synthesis, projects, tracking |
 | **Marketing & Creative** | outputs, formats, visual | synthesis, formatting, visual, image, video |
-| **Executive Reporting** | outputs, formats | synthesis, formatting, cross-domain |
+| **Reporting** | outputs, formats | synthesis, formatting, cross-domain |
 | **Slack Bot** | outputs | platform, digest |
 | **Notion Bot** | outputs | platform, digest |
 

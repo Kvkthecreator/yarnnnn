@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.06.3] - Reporting Agent rename + daily-update task type
+
+### Changed
+- `agent_framework.py`: "Executive Reporting" → "Reporting" (display_name + tagline + description). Role key `executive` unchanged (no DB migration). Agent now handles two cadences: daily operational + monthly strategic.
+- `task_types.py` v4.3: New `daily-update` task type — daily operational digest (what ran, what changed, what's next). Assigned to Reporting agent. New step instruction `daily-digest`. 300-600 words, scannable in 60 seconds.
+- `tp_prompts/onboarding.py`: Auto-create daily-update task during onboarding. Added to task catalog.
+- 11 files updated across docs, CLAUDE.md, TP prompts for "Executive Reporting" → "Reporting" rename.
+- Expected behavior: User gets daily operational email (what agents did today) from Reporting agent. Separate from monthly stakeholder update (cross-domain strategic analysis). TP no longer needs a separate daily notification mechanism.
+
+---
+
 ## [2026.04.06.2] - Task pipeline cache optimization — split static/dynamic blocks
 
 ### Changed

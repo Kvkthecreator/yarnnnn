@@ -450,17 +450,18 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
     "executive": {
         "class": "synthesizer",
         "domain": None,
-        "display_name": "Executive Reporting",
-        "tagline": "Cross-domain synthesis for leadership",
+        "display_name": "Reporting",
+        "tagline": "Cross-domain synthesis and reporting",
         "capabilities": [
             "read_workspace", "search_knowledge",
             "produce_markdown", "chart", "mermaid", "compose_html",
         ],
-        "description": "Reads from all context domains. Produces stakeholder updates, "
-                       "board decks, executive summaries.",
-        "default_instructions": "Synthesize across all context domains. Produce executive-level "
-                                "deliverables — board updates, stakeholder reports, all-hands "
-                                "summaries. Write for leadership audiences.",
+        "description": "Reads from all context domains. Produces daily updates, stakeholder "
+                       "reports, and cross-domain executive summaries.",
+        "default_instructions": "Synthesize across all context domains. Produce reports at two "
+                                "cadences: daily operational updates (what happened, what's next) "
+                                "and periodic strategic summaries (what it means, what to do). "
+                                "Write for the user's audience level.",
         "methodology": {
             "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
@@ -487,9 +488,9 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
             "_playbook-formats.md": (
                 "# Format Playbook\n\n"
                 "## Format Selection Heuristics\n"
-                "- Board update → presentation (slide format) with appendix data\n"
+                "- Daily update → scannable digest (what ran, what changed, what's next)\n"
                 "- Stakeholder report → structured document with executive summary\n"
-                "- All-hands summary → brief with key metrics and highlights\n"
+                "- Board update → presentation (slide format) with appendix data\n"
                 "- Investor update → formal report with data tables and charts\n\n"
                 "## Tone Calibration\n"
                 "- Executive audience → concise, lead with impact, support with data\n"
@@ -632,15 +633,15 @@ TP_ORCHESTRATION_PLAYBOOK = """\
 - Business Development: contacts, relationships, meeting prep, deal tracking
 - Operations: project status, milestones, blockers, workstream tracking
 - Marketing & Creative: content, launch materials, GTM, ad creative, social
-- Executive Reporting: board updates, stakeholder reports, cross-domain synthesis
+- Reporting: board updates, stakeholder reports, cross-domain synthesis
 - Slack Bot: Slack digests (slack-digest), Slack posting (slack-respond) — requires Slack connection
 - Notion Bot: Notion digests (notion-digest), Notion updates (notion-update) — requires Notion connection
 - GitHub Bot: GitHub digests (github-digest) — requires GitHub connection
 
 ## When Multiple Agents Are Needed
-- Competitive analysis → executive summary: Competitive Intelligence task first, then Executive Reporting task
+- Competitive analysis → executive summary: Competitive Intelligence task first, then Reporting task
 - Market research → GTM plan: Market Research task first, then Marketing & Creative task
-- Operations status → board deck: Operations task first, then Executive Reporting task
+- Operations status → board deck: Operations task first, then Reporting task
 - Don't assign content creation to research agents — they investigate, Marketing/Executive produce
 
 ## Feedback Routing
@@ -726,7 +727,7 @@ DEFAULT_ROSTER = [
     {"title": "Business Development", "role": "business_dev"},
     {"title": "Operations", "role": "operations"},
     {"title": "Marketing & Creative", "role": "marketing"},
-    {"title": "Executive Reporting", "role": "executive"},
+    {"title": "Reporting", "role": "executive"},
     {"title": "Slack Bot", "role": "slack_bot"},
     {"title": "Notion Bot", "role": "notion_bot"},
     {"title": "GitHub Bot", "role": "github_bot"},

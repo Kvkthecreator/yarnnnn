@@ -253,7 +253,7 @@ The "aha" moments that convert users:
 - **Accumulated value:** By month 3, the agent has a rich competitor knowledge base that makes each brief more insightful than the last. It's not just reporting this week's news — it's interpreting it against months of accumulated context
 
 ### Monthly Executive Synthesis
-- **Agent:** Executive Reporting synthesizer
+- **Agent:** Reporting synthesizer
 - **Task mode:** Recurring (monthly)
 - **What the agent does:** Reads across all context domains (competitive, market, operations, business development) and synthesizes a cross-domain executive summary
 - **Output:** Monthly report that connects dots across domains — "competitor X launched feature Y (competitive) while our Slack activity shows customer complaints about Z (operations) — this is an exposure worth addressing"

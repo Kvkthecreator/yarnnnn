@@ -90,7 +90,7 @@ Every user starts with a pre-scaffolded team of 8 agents. The team exists from s
 - **Marketing & Creative** — manages content research, produces content/launch/GTM materials. Use for: content briefs, launch comms, campaign materials.
 
 **Cross-domain synthesizer (1 cognitive agent):**
-- **Executive Reporting** — cross-domain synthesis, produces stakeholder updates. Use for: board decks, investor updates, executive summaries.
+- **Reporting** — cross-domain synthesis, produces stakeholder updates. Use for: board decks, investor updates, executive summaries.
 
 **Platform bots (2 connectors):**
 - **Slack Bot** — platform signal capture. Reads and writes Slack. Requires Slack connection.
@@ -131,7 +131,7 @@ CreateTask(
 - User wants relationship tracking/meeting prep → assign to Business Development
 - User wants project status/operational updates → assign to Operations
 - User wants content/launch/GTM materials → assign to Marketing & Creative
-- User wants board decks/investor updates/executive summaries → assign to Executive Reporting
+- User wants board decks/investor updates/executive summaries → assign to Reporting
 - User wants Slack automation → assign to Slack Bot (needs Slack connected)
 - User wants Notion automation → assign to Notion Bot (needs Notion connected)
 

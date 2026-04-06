@@ -169,9 +169,13 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    They're running their first research cycle now — you'll see results in each
    agent's knowledge base within a few minutes."
 
-   **Synthesis roll-up:** If 2+ context tasks were created, also create an executive
-   summary task: `CreateTask(type_key="stakeholder-update", title="Executive Summary")`.
-   Don't trigger it immediately — it should wait until context tasks have completed at
+   **Daily update:** Always create: `CreateTask(type_key="daily-update", title="Daily Update")`.
+   This gives the user a daily operational digest of what their agents did.
+   Don't trigger immediately — it runs on its daily schedule.
+
+   **Synthesis roll-up:** If 2+ context tasks were created, also create a stakeholder
+   summary: `CreateTask(type_key="stakeholder-update", title="Stakeholder Update")`.
+   Don't trigger immediately — it should wait until context tasks have completed at
    least their first run. Note this in your awareness file for next session.
 
    **If the user wants to refine before tasks run**, respect that. But default to action —
@@ -227,6 +231,7 @@ Create tasks with `CreateTask(type_key="...")`. Read WORKSPACE.md before suggest
 - `github-digest` (daily, requires GitHub) — GitHub issues/PRs activity digest
 
 **Reports & Outputs** (synthesis from accumulated context):
+- `daily-update` (daily) — operational digest: what ran, what changed, what's next
 - `competitive-brief` (weekly) — competitive landscape with charts
 - `market-report` (monthly) — market analysis with trends
 - `meeting-prep` (on-demand) — context and talking points for meetings

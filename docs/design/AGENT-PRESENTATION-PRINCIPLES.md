@@ -88,7 +88,7 @@ YOUR TEAM
   content_research/ · 0 tasks
 
 CROSS-TEAM
-● Executive Reporting
+● Reporting
   synthesizer · 0 tasks
 
 INTEGRATIONS
