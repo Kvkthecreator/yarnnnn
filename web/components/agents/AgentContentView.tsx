@@ -35,6 +35,7 @@ import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { FileIcon } from '@/components/workspace/FileIcon';
+import { AgentDashboard } from '@/components/agents/AgentDashboard';
 import { avatarColor } from '@/lib/agent-identity';
 import type { Agent, Task, TaskOutput } from '@/types';
 
@@ -259,7 +260,7 @@ function TabBar({
 }
 
 // ═══════════════════════════════════════════════════════════════
-// TAB 1: BROWSE — Finder-style domain browser
+// TAB 1: BROWSE — Dashboard (default) or file browser
 // ═══════════════════════════════════════════════════════════════
 
 function BrowseTab({
@@ -273,21 +274,56 @@ function BrowseTab({
   selectedNode: TreeNode | null;
   onSelectNode: (node: TreeNode | null) => void;
 }) {
+  const [browseMode, setBrowseMode] = useState(false);
   const cls = agent.agent_class || 'domain-steward';
   const domain = agent.context_domain;
+
+  // Reset mode when agent changes
+  useEffect(() => { setBrowseMode(false); onSelectNode(null); }, [agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-col h-full">
       {selectedNode ? (
-        <div className="flex-1 overflow-auto">
-          <ContentViewer selectedNode={selectedNode} onNavigate={(n) => onSelectNode(n)} />
+        /* File viewer — when a file/folder is selected from browse mode */
+        <div className="flex flex-col h-full">
+          <button
+            onClick={() => onSelectNode(null)}
+            className="flex items-center gap-1 px-5 py-2 text-sm text-muted-foreground hover:text-foreground border-b border-border shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back
+          </button>
+          <div className="flex-1 overflow-auto">
+            <ContentViewer selectedNode={selectedNode} onNavigate={(n) => onSelectNode(n)} />
+          </div>
         </div>
-      ) : cls === 'synthesizer' ? (
-        <SynthesizerBrowse tasks={tasks} onSelectNode={(n) => onSelectNode(n)} />
-      ) : domain ? (
-        <DomainBrowse domain={domain} onSelectNode={(n) => onSelectNode(n)} />
+      ) : browseMode ? (
+        /* File browser mode */
+        <div className="flex flex-col h-full">
+          <button
+            onClick={() => setBrowseMode(false)}
+            className="flex items-center gap-1 px-5 py-2 text-sm text-muted-foreground hover:text-foreground border-b border-border shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back to dashboard
+          </button>
+          <div className="flex-1 overflow-auto">
+            {domain ? (
+              <DomainBrowse domain={domain} onSelectNode={(n) => onSelectNode(n)} />
+            ) : cls === 'synthesizer' ? (
+              <SynthesizerBrowse tasks={tasks} onSelectNode={(n) => onSelectNode(n)} />
+            ) : (
+              <EmptyBrowse agentClass={cls} />
+            )}
+          </div>
+        </div>
       ) : (
-        <EmptyBrowse agentClass={cls} />
+        /* Dashboard mode (default) */
+        <AgentDashboard
+          agent={agent}
+          tasks={tasks}
+          onBrowseFiles={() => setBrowseMode(true)}
+        />
       )}
     </div>
   );
