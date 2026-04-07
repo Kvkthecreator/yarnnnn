@@ -133,8 +133,15 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
-    """Identity/brand update via inference merge. Was: UpdateSharedContext."""
-    from services.context_inference import infer_shared_context
+    """Identity/brand update via inference merge. Was: UpdateSharedContext.
+
+    ADR-162 Sub-phase A: After inference completes, run deterministic gap
+    detection on the result and include it in the response payload. TP reads
+    `gaps.single_most_important_gap` and issues at most one targeted Clarify
+    if severity is "high". This is the post-inference "what's missing" loop
+    without introducing a shadow LLM call.
+    """
+    from services.context_inference import infer_shared_context, detect_inference_gaps
     from services.workspace import UserMemory
 
     text = input.get("text", "")
@@ -163,6 +170,17 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
 
         logger.info(f"[UPDATE_CONTEXT] Updated {filename} ({len(new_content)} chars)")
 
+        # ADR-162 Sub-phase A: Deterministic gap detection on the inference output.
+        # Pure Python, zero LLM cost. TP reads `gaps.single_most_important_gap`
+        # and decides whether to issue a Clarify in the next turn.
+        gap_report = detect_inference_gaps(target=target, inferred_content=new_content)
+        if gap_report.get("single_most_important_gap"):
+            logger.info(
+                f"[UPDATE_CONTEXT] Gap detected for {target}: "
+                f"{gap_report['single_most_important_gap']['field']} "
+                f"({gap_report['richness']})"
+            )
+
         # ADR-155 revised: No backend inference cascade. TP decides what to scaffold
         # via ManageDomains primitive after processing identity/brand.
 
@@ -171,6 +189,7 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
             "target": target,
             "filename": filename,
             "content": new_content,
+            "gaps": gap_report,
             "message": f"Updated {filename} successfully",
         }
 

@@ -105,9 +105,10 @@ async def build_working_memory(
         asyncio.to_thread(_get_workspace_file_sync, user_id, "AWARENESS.md", _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "memory/conversation.md", _make_client()),
     )
-    task_count, doc_count = await asyncio.gather(
+    task_count, doc_count, recent_uploads = await asyncio.gather(
         asyncio.to_thread(_count_tasks_sync, user_id, _make_client()),
         asyncio.to_thread(_count_documents_sync, user_id, _make_client()),
+        asyncio.to_thread(_get_recent_uploads_sync, user_id, _make_client()),
     )
 
     # ADR-151: Fetch active tasks + context domain health for TP meta-awareness
@@ -139,6 +140,8 @@ async def build_working_memory(
         # ADR-149/151: Active tasks + context domain health
         "active_tasks": active_tasks,
         "context_domains": context_domains,
+        # ADR-162 Sub-phase B: Recent uploads — TP should consider processing these
+        "recent_uploads": recent_uploads,
         # ADR-156: Unified workspace state — single signal for TP awareness
         "workspace_state": {
             # Identity
@@ -252,6 +255,35 @@ def _count_documents_sync(user_id: str, client: Any) -> int:
         return result.count or 0
     except Exception:
         return 0
+
+
+def _get_recent_uploads_sync(user_id: str, client: Any) -> list[dict]:
+    """Recent document uploads (sync, for thread pool). ADR-162 Sub-phase B.
+
+    Returns documents uploaded in the last 7 days. Used by the compact index
+    to surface "pending uploads" — uploads that arrived outside an active
+    chat session and that TP should consider processing via UpdateContext.
+
+    The 7-day window is intentionally generous: a user who uploads on day 1
+    and chats on day 5 should still see TP offer to read the document. Older
+    uploads are not surfaced because they've either been processed already or
+    the user has explicitly chosen not to mention them.
+    """
+    try:
+        from datetime import datetime, timezone, timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        result = (
+            client.table("filesystem_documents")
+            .select("id, filename, uploaded_at")
+            .eq("user_id", user_id)
+            .gte("uploaded_at", cutoff)
+            .order("uploaded_at", desc=True)
+            .limit(5)
+            .execute()
+        )
+        return result.data or []
+    except Exception:
+        return []
 
 
 def _get_active_tasks_sync(user_id: str, client: Any) -> list[dict]:
@@ -851,6 +883,16 @@ def format_compact_index(working_memory: dict, surface_context: Optional[dict] =
     if connected:
         names = ", ".join(p.get("platform", "?") for p in connected)
         lines.append(f"\nPlatforms: {names}")
+
+    # --- Recent uploads (ADR-162 Sub-phase B) ---
+    # Surface uploads from the last 7 days. TP should proactively offer to
+    # process these via UpdateContext when the user is in chat. Empty list
+    # means no recent uploads — silent.
+    recent_uploads = working_memory.get("recent_uploads", [])
+    if recent_uploads:
+        lines.append(f"\nRecent uploads ({len(recent_uploads)} in last 7 days) — consider offering to process via UpdateContext:")
+        for u in recent_uploads[:3]:
+            lines.append(f"- {u.get('filename', 'document')} (uploaded {u.get('uploaded_at', '')[:10]})")
 
     # --- Surface context (what user is currently viewing) ---
     if surface_context:

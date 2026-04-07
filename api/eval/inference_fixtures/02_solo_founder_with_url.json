@@ -1,0 +1,25 @@
+{
+  "name": "Solo founder with company URL",
+  "description": "Founder mention plus a fetched company URL. Should produce rich identity with company, role, industry, and at least one domain.",
+  "target": "identity",
+  "inputs": {
+    "text": "I'm Sarah, founder of Acme. We make AI tools for designers.",
+    "document_contents": [],
+    "url_contents": [
+      {
+        "url": "acme.com",
+        "content": "Acme — design tools for the AI era. Founded 2024 in San Francisco. 12-person team. Series A funding led by Sequoia. Our flagship product is a generative design tool that lets designers iterate 10x faster on visual concepts."
+      }
+    ],
+    "existing_content": ""
+  },
+  "expected": {
+    "must_contain_entities": ["Sarah", "Acme", "AI tools", "designers", "Series A"],
+    "must_have_sections": ["Who", "Domains of Attention"],
+    "must_not_fabricate": ["co-founder names", "specific revenue numbers", "office locations not mentioned"],
+    "min_word_count": 80,
+    "max_word_count": 400,
+    "expected_richness": "rich",
+    "expected_high_severity_gaps": []
+  }
+}

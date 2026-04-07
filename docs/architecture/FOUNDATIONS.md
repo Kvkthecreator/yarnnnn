@@ -222,6 +222,10 @@ The Composer capability activates when:
 - A periodic self-assessment fires (are agents healthy? is anything missing?)
 - A user conversationally requests (explicit direction — scaffold or adjust)
 
+### Compositional Quality Is Now Measurable (ADR-162)
+
+The Composer's substrate assessment depends on the quality of inference (IDENTITY.md, BRAND.md, domain entities). Bad inference upstream cascades into wrong compositional decisions downstream — wrong agents, wrong tasks, wrong scaffolding, wasted work budget. ADR-162 makes inference quality testable via an offline evaluation harness, recoverable via deterministic gap detection (zero-cost post-inference loop), and proactive on document uploads. None of this introduces new autonomous LLM judgment; it tightens the inference TP already does, in conversation, where the user can see and correct.
+
 ---
 
 ## Axiom 6: Autonomy Is the Product Direction
@@ -329,6 +333,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-130 (HTML-Native Output Substrate) | Implements Derived Principle 9 — three-registry architecture (Agent Types, Capabilities, Runtimes). Deterministic type-based capabilities. Three-concern separation (capability/presentation/export). | Phase 1 Implemented |
 | ADR-138 (Agents as Work Units) | Implements Axioms 1+5+6 — PM dissolved into TP, projects replaced by tasks, agents are identity-only domain experts | Proposed |
 | ADR-161 (Daily Update Anchor) | Implements Axiom 6 floor — every workspace gets one essential task at signup, the heartbeat artifact, with deterministic empty-state for zero-cost dormant runs | Proposed |
+| ADR-162 (Inference Hardening) | Implements Axiom 5 quality — eval harness, deterministic gap detection, upload trigger via working memory, source provenance comments. All additive, zero shadow LLM calls. | Proposed |
 
 ---
 

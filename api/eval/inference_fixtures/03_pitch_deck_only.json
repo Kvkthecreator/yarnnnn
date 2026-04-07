@@ -1,0 +1,25 @@
+{
+  "name": "Rich pitch deck, no chat",
+  "description": "User uploads a pitch deck without typing anything. Inference should extract company, vision, market, team size, traction.",
+  "target": "identity",
+  "inputs": {
+    "text": "",
+    "document_contents": [
+      {
+        "filename": "northstar-pitch-q4.pdf",
+        "content": "NORTHSTAR — Climate intelligence for asset managers. We turn raw weather, satellite, and policy data into investable signals. Series A, $8M raised. Team of 14 in Boston. Customers include three top-20 hedge funds and two reinsurance firms. Founded by Jamie Chen (ex-MSCI) and Priya Rao (ex-Two Sigma) in 2023. Vision: every climate-exposed dollar is informed by real-time signal, not annual reports. Roadmap Q1 2026: physical-risk scoring API, parametric insurance pricing module."
+      }
+    ],
+    "url_contents": [],
+    "existing_content": ""
+  },
+  "expected": {
+    "must_contain_entities": ["Northstar", "climate", "asset managers", "Jamie Chen", "Priya Rao", "Boston"],
+    "must_have_sections": ["Who", "Domains of Attention"],
+    "must_not_fabricate": ["competitor names not in source", "specific customer names not in source", "future revenue projections"],
+    "min_word_count": 100,
+    "max_word_count": 500,
+    "expected_richness": "rich",
+    "expected_high_severity_gaps": []
+  }
+}

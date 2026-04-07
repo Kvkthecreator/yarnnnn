@@ -1,0 +1,20 @@
+{
+  "name": "Re-inference merging new info into existing identity",
+  "description": "User already has a sparse IDENTITY.md and provides new text. Inference should merge — preserve known facts and add new ones, not overwrite.",
+  "target": "identity",
+  "inputs": {
+    "text": "Quick update: we just closed our seed round, $3M led by Founders Fund. Adding payments and onboarding to the roadmap.",
+    "document_contents": [],
+    "url_contents": [],
+    "existing_content": "# Identity\n\n## Who\nMira Patel, founder at Driftwood. We make team collaboration tools for remote design studios.\n\n## Domains of Attention\n- Product design — refining the core canvas experience\n- Hiring — early team build-out\n"
+  },
+  "expected": {
+    "must_contain_entities": ["Mira", "Driftwood", "design", "seed", "Founders Fund"],
+    "must_have_sections": ["Who", "Domains of Attention"],
+    "must_not_fabricate": ["specific employees", "office locations", "competitor names"],
+    "min_word_count": 80,
+    "max_word_count": 400,
+    "expected_richness": "rich",
+    "expected_high_severity_gaps": []
+  }
+}

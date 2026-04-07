@@ -1,0 +1,20 @@
+{
+  "name": "Thin brand input — should trigger gaps",
+  "description": "User provides only a one-line tone hint. Brand inference will produce something but gap detection should flag missing voice and audience.",
+  "target": "brand",
+  "inputs": {
+    "text": "We're casual but precise.",
+    "document_contents": [],
+    "url_contents": [],
+    "existing_content": ""
+  },
+  "expected": {
+    "must_contain_entities": ["casual", "precise"],
+    "must_have_sections": ["Tone"],
+    "must_not_fabricate": ["specific audience demographics", "specific publications", "company name"],
+    "min_word_count": 15,
+    "max_word_count": 200,
+    "expected_richness": "sparse",
+    "expected_high_severity_gaps": ["voice", "audience"]
+  }
+}

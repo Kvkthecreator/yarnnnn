@@ -1,0 +1,30 @@
+{
+  "name": "Rich multi-source identity — text + doc + URL combined",
+  "description": "User provides chat text, a doc, and a URL all in one inference call. Should produce the richest possible identity, no gaps.",
+  "target": "identity",
+  "inputs": {
+    "text": "I'm Marcus Liu, co-founder of Tessera. We're building a privacy-first analytics platform.",
+    "document_contents": [
+      {
+        "filename": "tessera-overview.md",
+        "content": "Tessera Analytics. Founded 2024 by Marcus Liu (ex-Stripe data infra) and Sam Okafor (ex-Mozilla privacy team). YC W25. We give product teams the analytics they need without sending PII to third-party processors. Self-hosted option, EU residency by default, GDPR-native. Currently in design partner phase with three companies."
+      }
+    ],
+    "url_contents": [
+      {
+        "url": "tessera.dev",
+        "content": "Tessera — Analytics that respect your users. Built for product teams who care about privacy. Open core, self-hostable, EU-resident. Backed by Y Combinator. Series Seed open."
+      }
+    ],
+    "existing_content": ""
+  },
+  "expected": {
+    "must_contain_entities": ["Marcus Liu", "Sam Okafor", "Tessera", "privacy", "analytics", "Y Combinator"],
+    "must_have_sections": ["Who", "Domains of Attention"],
+    "must_not_fabricate": ["specific design partner names", "revenue", "team size beyond 2"],
+    "min_word_count": 120,
+    "max_word_count": 500,
+    "expected_richness": "rich",
+    "expected_high_severity_gaps": []
+  }
+}

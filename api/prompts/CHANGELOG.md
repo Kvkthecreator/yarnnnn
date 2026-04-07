@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.07.2] - ADR-162: Inference Hardening — gap detection + upload trigger surface
+
+### Changed
+- `tp_prompts/onboarding.py`: NEW "After UpdateContext returns — check the `gaps` field" section. After every `UpdateContext(target="identity"|"brand")` call, TP reads the `gaps.single_most_important_gap` field. If non-null AND severity is "high", TP issues exactly ONE Clarify with the suggested question and options. Rules: at most one Clarify per inference cycle, only for high severity, do not re-ask in same session, then proceed to scaffolding. NEW "When you see Recent uploads in your workspace index" section: TP proactively offers to process recently uploaded documents (within 7 days) via UpdateContext, but only with user consent — once per session.
+- `services/primitives/update_context.py`: `_handle_shared_context` now calls `detect_inference_gaps()` after every successful inference and returns the structured gap report in the response payload (under `gaps` key).
+- `services/context_inference.py`: New `detect_inference_gaps()` function — pure-Python deterministic gap detection. New `_append_inference_meta()` writes a `<!-- inference-meta: ... -->` HTML comment with source provenance to every inference output.
+- `services/working_memory.py`: New `_get_recent_uploads_sync()` queries `filesystem_documents` for documents uploaded in last 7 days. Surfaced in `format_compact_index()` as a "Recent uploads" section.
+- Expected behavior: After inference, TP no longer pushes thin context downstream. When IDENTITY.md ends up sparse (e.g., only "I run a consulting firm"), the gap detector flags the missing company name as high-severity, and TP asks ONE follow-up question instead of scaffolding domains based on weak input. When users upload documents outside of chat, TP sees them in working memory and offers to process them on next interaction. Inference cost unchanged ($0.02/call); gap detection costs $0 (pure Python); upload surface costs $0 (single SQL query reusing existing table). No shadow LLM calls (preserves single-intelligence-layer / ADR-156).
+
+---
+
 ## [2026.04.07.1] - ADR-161: Daily Update as Anchor — TP no longer creates daily-update
 
 ### Changed

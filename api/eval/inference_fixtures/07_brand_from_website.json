@@ -1,0 +1,25 @@
+{
+  "name": "Brand inference from website copy",
+  "description": "Brand voice and tone should be extracted from rendered website text. Should produce voice, tone, and audience.",
+  "target": "brand",
+  "inputs": {
+    "text": "",
+    "document_contents": [],
+    "url_contents": [
+      {
+        "url": "harborlight.io",
+        "content": "Harborlight | Steady navigation for shipping software. We don't build for the moon. We build for Tuesday morning, when your queue is full and the build is broken and you need to ship. Our tools are quiet, fast, and out of your way. No dashboards. No engagement metrics. Just the diff, the test, and the deploy. Built by engineers who got tired of shouty productivity tools. Now serving 200+ engineering teams who want to focus on the work, not the tooling around the work."
+      }
+    ],
+    "existing_content": ""
+  },
+  "expected": {
+    "must_contain_entities": ["Harborlight", "engineers", "shipping"],
+    "must_have_sections": ["Voice", "Audience"],
+    "must_not_fabricate": ["specific customer names", "founder backgrounds"],
+    "min_word_count": 80,
+    "max_word_count": 400,
+    "expected_richness": "rich",
+    "expected_high_severity_gaps": []
+  }
+}

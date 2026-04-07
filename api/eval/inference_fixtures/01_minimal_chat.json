@@ -1,0 +1,20 @@
+{
+  "name": "Minimal chat — anemic input",
+  "description": "Just one sentence. The inference SHOULD produce a sparse identity, and gap detection should flag missing company name and missing domain count.",
+  "target": "identity",
+  "inputs": {
+    "text": "I run a consulting firm.",
+    "document_contents": [],
+    "url_contents": [],
+    "existing_content": ""
+  },
+  "expected": {
+    "must_contain_entities": ["consulting"],
+    "must_have_sections": ["Who"],
+    "must_not_fabricate": ["specific client names", "specific revenue", "co-founder"],
+    "min_word_count": 20,
+    "max_word_count": 200,
+    "expected_richness": "sparse",
+    "expected_high_severity_gaps": ["company_name", "domain_count"]
+  }
+}

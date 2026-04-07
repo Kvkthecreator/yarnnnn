@@ -1,0 +1,29 @@
+{
+  "name": "Multiple documents, B2B SaaS context",
+  "description": "Two documents covering company overview and customer profile. Inference should synthesize a coherent identity from both.",
+  "target": "identity",
+  "inputs": {
+    "text": "",
+    "document_contents": [
+      {
+        "filename": "company-overview.md",
+        "content": "Lattice is a developer productivity platform for engineering teams of 50+. We help engineering managers measure delivery velocity, identify bottlenecks, and run more effective standups. Founded 2022, 28 employees, HQ in Brooklyn. Bootstrapped to $4M ARR, profitable since Q3 2025."
+      },
+      {
+        "filename": "icp-doc.md",
+        "content": "Ideal customer profile: Series B+ B2B SaaS companies with 50-200 engineers, distributed teams, weekly release cadence. CTO or VP Eng is the buyer. Use cases: sprint health monitoring, on-call rotation analysis, retro facilitation. Pain points being solved: lack of objective signal on team performance, retros that stay surface-level, overburdened tech leads."
+      }
+    ],
+    "url_contents": [],
+    "existing_content": ""
+  },
+  "expected": {
+    "must_contain_entities": ["Lattice", "developer productivity", "engineering", "Brooklyn"],
+    "must_have_sections": ["Who", "Domains of Attention"],
+    "must_not_fabricate": ["funding round details", "specific customer names", "founder names"],
+    "min_word_count": 100,
+    "max_word_count": 450,
+    "expected_richness": "rich",
+    "expected_high_severity_gaps": []
+  }
+}

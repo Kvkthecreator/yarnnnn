@@ -1,0 +1,20 @@
+{
+  "name": "Independent consultant with explicit clients",
+  "description": "Work-context-rich text describing engagements. Should produce identity with multiple clients as domain entities and recurring rhythms.",
+  "target": "identity",
+  "inputs": {
+    "text": "I'm an independent fractional CTO working with three early-stage startups: Bloom (HR tech, Series A), Voltage (climate hardware, seed), and Notebook (AI agent platform, pre-seed). I run weekly check-ins with each, monthly board prep for Bloom, and quarterly architecture reviews for all three. My background is 15 years in payments infrastructure (Stripe, Square, then engineering leadership at Affirm).",
+    "document_contents": [],
+    "url_contents": [],
+    "existing_content": ""
+  },
+  "expected": {
+    "must_contain_entities": ["fractional CTO", "Bloom", "Voltage", "Notebook"],
+    "must_have_sections": ["Who", "Domains of Attention", "Work Patterns"],
+    "must_not_fabricate": ["client revenue", "specific deal terms", "team sizes not mentioned"],
+    "min_word_count": 120,
+    "max_word_count": 500,
+    "expected_richness": "rich",
+    "expected_high_severity_gaps": []
+  }
+}

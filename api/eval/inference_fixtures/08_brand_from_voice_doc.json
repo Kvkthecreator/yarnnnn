@@ -1,0 +1,25 @@
+{
+  "name": "Brand inference from voice/style document",
+  "description": "Document explicitly describing how the user writes. Brand inference should capture voice precisely, identify audience.",
+  "target": "brand",
+  "inputs": {
+    "text": "",
+    "document_contents": [
+      {
+        "filename": "writing-voice.md",
+        "content": "How I write\n\nI write for technical operators — engineering managers, infra leads, platform teams. They're skeptical of marketing language. They're allergic to 'leverage,' 'synergy,' 'unlock.' They want concrete claims with concrete evidence.\n\nI use short sentences. I use the second person. I never use exclamation marks. I lead with the takeaway, then explain. Charts must have axes labeled and units on every value.\n\nI avoid: emojis, excessive bolding, headers that don't earn their place. I cite sources inline, not in footnotes. I write in present tense unless describing a specific historical event."
+      }
+    ],
+    "url_contents": [],
+    "existing_content": ""
+  },
+  "expected": {
+    "must_contain_entities": ["technical", "engineering", "concrete"],
+    "must_have_sections": ["Voice", "Audience", "Style Notes"],
+    "must_not_fabricate": ["specific publications", "specific writing samples"],
+    "min_word_count": 100,
+    "max_word_count": 500,
+    "expected_richness": "rich",
+    "expected_high_severity_gaps": []
+  }
+}
