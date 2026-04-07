@@ -3,21 +3,29 @@
 /**
  * ToggleBar — Claude Desktop-style pill toggle for top-level navigation
  *
- * SURFACE-ARCHITECTURE.md v4: Four segments: Home | Agents | Context | Activity
- * Each segment is a Next.js Link (route-based navigation).
- * Active segment determined by pathname prefix matching.
+ * ADR-163 Surface Restructure: Four segments: Chat | Work | Agents | Context
+ * Each answers exactly one question:
+ *   - Chat: "What should I do? What's happening?"
+ *   - Work: "What is my workforce doing?"
+ *   - Agents: "Who's on my team?"
+ *   - Context: "What does my workspace know?"
+ *
+ * Previous nav (v7.2) was Home | Agents | Context | Activity, with "Home"
+ * pointing at /chat. The v8 restructure renames Home to Chat (its true
+ * identity), elevates Work to first-class, absorbs Activity into per-surface
+ * contexts, and shrinks Agents to a roster-plus-identity view.
  */
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, FolderOpen, Activity } from 'lucide-react';
+import { MessageCircle, Briefcase, Users, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SEGMENTS = [
-  { id: 'chat', label: 'Home', icon: Home, href: '/chat' },
+  { id: 'chat', label: 'Chat', icon: MessageCircle, href: '/chat' },
+  { id: 'work', label: 'Work', icon: Briefcase, href: '/work' },
   { id: 'agents', label: 'Agents', icon: Users, href: '/agents' },
   { id: 'context', label: 'Context', icon: FolderOpen, href: '/context' },
-  { id: 'activity', label: 'Activity', icon: Activity, href: '/activity' },
 ] as const;
 
 export function ToggleBar() {
@@ -25,7 +33,7 @@ export function ToggleBar() {
 
   const activeId = SEGMENTS.find(s =>
     pathname === s.href || pathname.startsWith(s.href + '/')
-  )?.id ?? 'agents';
+  )?.id ?? 'chat';
 
   return (
     <div className="flex items-center gap-0.5 rounded-full bg-muted/60 p-0.5">

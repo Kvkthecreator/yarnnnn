@@ -4,18 +4,22 @@ import { isAdminEmail } from "@/lib/internal-access";
 import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
 
+// ADR-163 Surface Restructure: four top-level surfaces + system.
+// HOME_ROUTE is now /chat (listed explicitly below).
 const PROTECTED_PREFIXES = [
-  HOME_ROUTE,
   "/chat",
-  "/projects",
+  "/work",
   "/agents",
-  "/memory",
-  "/activity",
   "/context",
+  "/memory",
   "/system",
   "/settings",
   "/integrations",
   "/docs",
+  // Legacy routes still protected for redirect stubs
+  "/workfloor",
+  "/orchestrator",
+  "/tasks",
 ];
 
 function redirectToLogin(request: NextRequest) {

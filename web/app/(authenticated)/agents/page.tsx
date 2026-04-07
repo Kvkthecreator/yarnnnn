@@ -1,15 +1,21 @@
 'use client';
 
 /**
- * Agents Page — Primary working surface (HOME).
+ * Agents Page — Roster + identity (ADR-163 Surface Restructure).
  *
- * SURFACE-ARCHITECTURE.md v7: Unified shell, single scrollable center panel.
- * Left: AgentNav (flat roster, click to select)
- * Center: Scrollable intelligence view (dashboard + tasks + agent identity)
- * Right: ChatPanel via ThreePanelLayout (agent-scoped TP, FAB toggle)
+ * Answers exactly one question: "Who is this agent, and are they healthy?"
+ *
+ * Left: AgentTreeNav (flat roster, click to select)
+ * Center: Identity card (AGENT.md, role, origin, creation) + Health card
+ *         (tasks assigned, approval rate, last run) + links out to /work
+ *         and /context
+ * Right: ChatPanel via ThreePanelLayout (agent-scoped TP)
+ *
+ * Work observation (Pipeline, Report) moved to /work surface per ADR-163.
+ * Domain entity browsing (Data) moved to /context?domain= per ADR-163.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
@@ -24,7 +30,6 @@ import { useTP } from '@/contexts/TPContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
 import type { Agent } from '@/types';
-import { api } from '@/lib/api/client';
 import { AgentTreeNav } from '@/components/agents/AgentTreeNav';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
@@ -42,12 +47,11 @@ export default function AgentsPage() {
   const searchParams = useSearchParams();
   const { loadScopedHistory, sendMessage } = useTP();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
-  const { agents, tasks, loading, reload } = useAgentsAndTasks();
+  const { agents, tasks, loading } = useAgentsAndTasks();
 
   const agentFromUrl = searchParams.get('agent');
 
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [mutationPending, setMutationPending] = useState(false);
 
   // Auto-select from URL on first load
   useEffect(() => {
@@ -80,32 +84,8 @@ export default function AgentsPage() {
     return () => clearBreadcrumb();
   }, [selectedAgent?.id, selectedAgent?.title, setBreadcrumb, clearBreadcrumb]);
 
-  // Actions
-  const handleRunTask = async (taskSlug: string) => {
-    setMutationPending(true);
-    try {
-      await api.tasks.run(taskSlug);
-      await reload();
-    } catch (err) {
-      console.error('Failed to trigger task:', err);
-    } finally {
-      setMutationPending(false);
-    }
-  };
-
-  const handlePauseTask = async (taskSlug: string) => {
-    setMutationPending(true);
-    try {
-      const task = tasks.find(t => t.slug === taskSlug);
-      const newStatus = task?.status === 'active' ? 'paused' : 'active';
-      await api.tasks.update(taskSlug, { status: newStatus });
-      await reload();
-    } catch (err) {
-      console.error('Failed to update task:', err);
-    } finally {
-      setMutationPending(false);
-    }
-  };
+  // ADR-163: Run/pause task actions moved to /work. The Agents page is
+  // now roster + identity + health only — no work mutations here.
 
   // Chat config
   const surfaceOverride = selectedAgent
@@ -180,10 +160,7 @@ export default function AgentsPage() {
         <AgentContentView
           agent={selectedAgent}
           tasks={agentTasks}
-          onRunTask={handleRunTask}
-          onPauseTask={handlePauseTask}
           onOpenChat={(prompt) => sendMessage(prompt || '')}
-          busy={mutationPending}
         />
       ) : (
         <EmptyState />

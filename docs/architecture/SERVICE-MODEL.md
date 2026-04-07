@@ -236,6 +236,27 @@ These four pieces compound: measurement validates that gap detection is helping;
 
 ---
 
+## Surface Architecture (ADR-163)
+
+Four top-level destinations, each answering one question:
+
+| Surface | Route | Question | Contents |
+|---|---|---|---|
+| **Chat** | `/chat` (HOME) | "What should I do? What's happening?" | TP chat + daily briefing dashboard fed by the `daily-update` task |
+| **Work** | `/work` | "What is my workforce doing?" | Task list sorted by upcoming + task detail with output, actions, schedule |
+| **Agents** | `/agents` | "Who's on my team?" | Agent roster + identity/health card |
+| **Context** | `/context` | "What does my workspace know?" | Workspace filesystem browser |
+
+**Mode collapse (surface only):** the schema preserves three task modes (`recurring | goal | reactive`) because the execution layer needs the distinction (ADR-149). The surface shows two labels — `Recurring` and `One-time` (`goal` and `reactive` both map to "One-time"). The `WorkModeBadge` component is the single place modes are rendered on the frontend; `taskModeLabel()` in `web/types/index.ts` is the canonical helper.
+
+**Activity absorbed:** the old `/activity` top-level page is deleted. Per-task activity lives on `/work/{slug}`, per-agent activity on `/agents`, workspace-wide on the Chat briefing dashboard, diagnostic events in Settings → System Status.
+
+**Inference visibility:** inferred content (IDENTITY.md, BRAND.md) is rendered via `InferenceContentView` which parses the `<!-- inference-meta: ... -->` HTML comment from ADR-162 Sub-phase D and renders source provenance captions + gap banners inline.
+
+Full design doc: [SURFACE-ARCHITECTURE.md](../design/SURFACE-ARCHITECTURE.md) (v8).
+
+---
+
 ## Feedback, Evaluation, and Reflection (ADR-149)
 
 Three distinct mechanisms drive agent development:

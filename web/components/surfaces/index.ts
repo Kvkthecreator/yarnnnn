@@ -10,7 +10,7 @@
  * - Documents: migrated to /docs, /docs/[id]
  * - Integrations: migrated to /integrations, /integrations/[provider]
  * - Agents: migrated to /agents, /agents/[id]
- * - Activity: migrated to /activity
+ * - Activity: DELETED (ADR-163) — absorbed into per-entity surfaces + Chat briefing
  * - Context browser: deprecated (use chat)
  *
  * ADR-066 Migration:

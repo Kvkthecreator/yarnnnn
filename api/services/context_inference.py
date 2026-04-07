@@ -159,9 +159,13 @@ async def infer_shared_context(
         if result:
             logger.info(f"[INFERENCE] Generated {target} ({len(result)} chars)")
             # ADR-162 Sub-phase D: Append source provenance HTML comment.
-            # Frontend can parse this to render "Last updated from: ..." captions.
+            # Frontend parses this to render "Last updated from: ..." captions.
             # The comment is at the bottom and parseable without breaking markdown.
-            result = _append_inference_meta(result, target, source_summary)
+            # ADR-163 extends this comment to also embed the gap report so the
+            # Context tab can render "needs more info" markers without a
+            # separate API call.
+            gap_report = detect_inference_gaps(target=target, inferred_content=result)
+            result = _append_inference_meta(result, target, source_summary, gap_report=gap_report)
             return result
     except Exception as e:
         logger.error(f"[INFERENCE] Failed for {target}: {e}")
@@ -169,12 +173,22 @@ async def infer_shared_context(
     return existing_content or ""
 
 
-def _append_inference_meta(content: str, target: str, source_summary: dict) -> str:
+def _append_inference_meta(
+    content: str,
+    target: str,
+    source_summary: dict,
+    gap_report: Optional[dict] = None,
+) -> str:
     """Append an inference-meta HTML comment to the end of inference output.
 
     ADR-162 Sub-phase D: Source provenance. Frontend can parse this to show
     "Last updated from: 2 documents + 1 URL · 2h ago" captions on the Context
     tab. Backend can read it to detect re-inference patterns.
+
+    ADR-163: Optional gap_report is embedded alongside source provenance so
+    the Context tab can render "needs more info" markers inline without
+    a separate API call. Gaps are computed at inference time and stored with
+    the content they describe.
 
     The comment is JSON-shaped inside an HTML comment so it survives markdown
     rendering and is easy to parse on the frontend.
@@ -198,6 +212,14 @@ def _append_inference_meta(content: str, target: str, source_summary: dict) -> s
             "urls": source_summary.get("urls", []),
         },
     }
+    if gap_report is not None:
+        # Keep only the fields the frontend needs — drop `single_most_important_gap`
+        # since it's derivable from `gaps` at render time, keeping the embedded
+        # JSON lean.
+        meta["gaps"] = {
+            "richness": gap_report.get("richness"),
+            "items": gap_report.get("gaps", []),
+        }
     comment = f"\n\n<!-- inference-meta: {json.dumps(meta, separators=(',', ':'))} -->"
     return content + comment
 

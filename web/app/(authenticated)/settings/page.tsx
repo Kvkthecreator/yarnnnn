@@ -26,7 +26,6 @@ import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useTP } from "@/contexts/TPContext";
-import { HOME_ROUTE } from "@/lib/routes";
 import { MemorySection } from "@/components/settings/MemorySection";
 import { SystemSection } from "@/components/settings/SystemSection";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";

@@ -308,6 +308,16 @@ export interface AgentMemory {
 // ADR-138: Task mode (moved from agents to tasks — mode is temporal behavior of work, not identity)
 export type TaskMode = 'recurring' | 'goal' | 'reactive';
 
+// ADR-163: User-facing mode label. The schema preserves three modes
+// (recurring | goal | reactive) because the execution layer needs the
+// distinction (goal has the revision loop, reactive is dispatch-and-done),
+// but the user only ever sees two labels. All task-displaying components
+// use this helper, never the raw schema value.
+export type TaskModeLabel = 'Recurring' | 'One-time';
+export function taskModeLabel(mode: string | undefined | null): TaskModeLabel {
+  return mode === 'recurring' ? 'Recurring' : 'One-time';
+}
+
 // ADR-087: Scoped chat session
 export interface AgentSession {
   id: string;

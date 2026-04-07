@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Workfloor — Legacy redirect to /tasks (new home)
+ * Workfloor — Legacy redirect to HOME_ROUTE (ADR-163: /chat)
+ * Preserved for any stale bookmarks pointing at /workfloor.
  */
 
 import { useEffect } from 'react';

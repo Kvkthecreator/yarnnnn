@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Suspense } from "react";
 import { getSafeNextPath } from "@/lib/auth/redirect";
-import { HOME_ROUTE, CHAT_ROUTE } from "@/lib/routes";
+import { HOME_ROUTE } from "@/lib/routes";
 import { api } from "@/lib/api/client";
 
 function CallbackHandler() {
@@ -45,19 +45,15 @@ function CallbackHandler() {
 
       if (session) {
         // ADR-144: Ensure roster is scaffolded (lazy creation on first login)
-        // New users (default HOME_ROUTE) land on /chat for onboarding
+        // ADR-163: HOME_ROUTE is now /chat — both new and returning users land
+        // on chat by default. The briefing dashboard shows whatever the workspace
+        // has (empty-state from ADR-161 for dormant users, real digest otherwise).
         if (next === HOME_ROUTE) {
           try {
             setStatus("Setting up...");
             await api.onboarding.getState(); // triggers roster scaffolding
-            // Check if user has any tasks — if not, they're new → /chat
-            const tasks = await api.tasks.list().catch(() => []);
-            window.location.href = tasks.length === 0 ? CHAT_ROUTE : next;
-            return;
           } catch {
-            // Best effort — new users land on chat
-            window.location.href = CHAT_ROUTE;
-            return;
+            // Best effort — HOME_ROUTE is the fallback anyway
           }
         }
         window.location.href = next;
@@ -72,16 +68,13 @@ function CallbackHandler() {
       const { data: { session: retrySession } } = await supabase.auth.getSession();
 
       if (retrySession) {
-        // ADR-144: Ensure roster scaffolding on retry path too
+        // ADR-144: Ensure roster scaffolding on retry path too.
+        // ADR-163: HOME_ROUTE is now /chat — single landing for all users.
         if (next === HOME_ROUTE) {
           try {
             await api.onboarding.getState();
-            const tasks = await api.tasks.list().catch(() => []);
-            window.location.href = tasks.length === 0 ? CHAT_ROUTE : next;
-            return;
           } catch {
-            window.location.href = CHAT_ROUTE;
-            return;
+            // Best effort — HOME_ROUTE is the fallback anyway
           }
         }
         window.location.href = next;

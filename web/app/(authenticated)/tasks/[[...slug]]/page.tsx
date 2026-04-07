@@ -1,16 +1,17 @@
 'use client';
 
 /**
- * Tasks redirect → Agents page.
+ * Tasks → Work redirect.
  *
- * SURFACE-ARCHITECTURE.md v3: Tasks are now accessed through the agents
- * page as responsibilities under each agent. This redirect preserves
- * bookmarks and links while the tasks page is superseded.
+ * ADR-163: The top-level /tasks catchall is superseded by /work. Bookmarks
+ * pointing at /tasks or /tasks/{slug} get preserved here. If a slug was
+ * provided, it's forwarded to /work?task={slug} so deep-links land on the
+ * right detail panel.
  */
 
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { HOME_ROUTE } from '@/lib/routes';
+import { WORK_ROUTE } from '@/lib/routes';
 
 export default function TasksRedirect() {
   const router = useRouter();
@@ -18,11 +19,9 @@ export default function TasksRedirect() {
   const slug = params?.slug ? (params.slug as string[])[0] : null;
 
   useEffect(() => {
-    // Redirect to agents page. Task slug context is lost since tasks
-    // are now children of agents — the user will need to find the task
-    // through its agent.
-    router.replace(HOME_ROUTE);
-  }, [router]);
+    const target = slug ? `${WORK_ROUTE}?task=${encodeURIComponent(slug)}` : WORK_ROUTE;
+    router.replace(target);
+  }, [router, slug]);
 
   return null;
 }

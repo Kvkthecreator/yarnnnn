@@ -11,7 +11,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Loader2,
   RefreshCw,
@@ -19,8 +18,6 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  ArrowRight,
-  Activity,
   HeartPulse,
   Cpu,
 } from 'lucide-react';
@@ -101,7 +98,6 @@ const BACKGROUND_JOBS: Array<{
 // =============================================================================
 
 export function SystemSection() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJobStatus[]>([]);
 
@@ -207,17 +203,9 @@ export function SystemSection() {
             </div>
           </section>
 
-          {/* Link to Activity */}
-          <div className="pt-4 border-t border-border">
-            <button
-              onClick={() => router.push('/activity')}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <Activity className="w-4 h-4" />
-              View full activity history
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
+          {/* ADR-163: /activity page deleted. Workspace-wide activity now
+              surfaces on the Chat briefing dashboard; per-entity activity
+              lives on the relevant work/agent surfaces. */}
         </div>
       )}
     </div>

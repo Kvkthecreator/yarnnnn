@@ -292,6 +292,10 @@ A user who describes their work and sees correctly-scoped agents that understand
 
 Work descriptions carry implicit lifecycle, expressed as task `mode`. "I have 3 clients" implies persistent, recurring work → `recurring` tasks. "I need a board deck" implies bounded, deliverable-scoped work → `goal` task that completes on delivery. "Alert me if competitor changes pricing" → `reactive` task. The system infers mode from the work description — the user does not configure it. Recurring tasks run indefinitely. Goal tasks dissolve on completion. Reactive tasks wait for triggers.
 
+### Implication: Surface Simplicity, Schema Fidelity (ADR-163)
+
+The schema needs three modes because the execution layer has three genuinely different behaviors (recurring heartbeat, goal revision loop, reactive dispatch-and-done). The user does not need to see three labels — from the user's perspective, there are only two kinds of work they delegate: "watch this for me" (Recurring) and "build this for me" (One-time). ADR-163 codifies this split: the schema preserves three modes, the surface shows two labels, and the mapping is fixed (`recurring → Recurring`, `goal | reactive → One-time`). This is a deliberate design decision — surface simplicity is worth the small cost of a non-identity mapping between schema and UI. The execution layer answers "what do we do?", the surface answers "what do you choose?", and those are different questions.
+
 ---
 
 ## Derived Principles
@@ -334,6 +338,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-138 (Agents as Work Units) | Implements Axioms 1+5+6 — PM dissolved into TP, projects replaced by tasks, agents are identity-only domain experts | Proposed |
 | ADR-161 (Daily Update Anchor) | Implements Axiom 6 floor — every workspace gets one essential task at signup, the heartbeat artifact, with deterministic empty-state for zero-cost dormant runs | Proposed |
 | ADR-162 (Inference Hardening) | Implements Axiom 5 quality — eval harness, deterministic gap detection, upload trigger via working memory, source provenance comments. All additive, zero shadow LLM calls. | Proposed |
+| ADR-163 (Surface Restructure) | Four-surface nav (Chat \| Work \| Agents \| Context). Mode collapse on surface (two labels) with schema preserved (three modes). Activity absorbed. Agents shrunk to identity. Inference visibility frontend. | Proposed |
 
 ---
 

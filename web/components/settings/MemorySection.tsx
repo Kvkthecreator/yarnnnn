@@ -27,8 +27,8 @@ import {
 import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import { HOME_ROUTE } from '@/lib/routes';
-import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { CHAT_ROUTE } from '@/lib/routes';
+import { InferenceContentView } from '@/components/context/InferenceContentView';
 
 // =============================================================================
 // Types
@@ -307,7 +307,14 @@ export function BrandSection() {
           <h2 className="text-lg font-semibold text-foreground">Brand</h2>
           {brandContent && !editing && (
             <button
-              onClick={() => { setDraft(brandContent); setEditing(true); }}
+              onClick={() => {
+                // ADR-162/163: Strip the <!-- inference-meta: ... --> comment
+                // before dropping into the editor so the user edits the
+                // readable body, not the JSON payload.
+                const META_RE = /\n*<!--\s*inference-meta:[\s\S]*?-->\s*$/;
+                setDraft(brandContent.replace(META_RE, '').trimEnd());
+                setEditing(true);
+              }}
               className="text-sm text-primary hover:underline"
             >
               Edit
@@ -337,9 +344,11 @@ export function BrandSection() {
           </div>
         </div>
       ) : brandContent ? (
-        <div className="border border-border rounded-lg p-4">
-          <MarkdownRenderer content={brandContent} />
-        </div>
+        // ADR-162/163: Render via InferenceContentView to show source caption
+        // and gap banner if the content was produced by infer_shared_context.
+        // Manually-edited content (no meta comment) falls through to plain
+        // markdown rendering.
+        <InferenceContentView content={brandContent} target="brand" />
       ) : (
         <div className="border border-dashed border-border rounded-lg p-6 text-center">
           <Palette className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
@@ -658,7 +667,7 @@ export function MemorySection() {
         <EntriesSection
           entries={entries}
           loading={false}
-          onAdd={() => router.push(`${HOME_ROUTE}?action=add-memory`)}
+          onAdd={() => router.push(CHAT_ROUTE)}
           onDelete={handleDeleteEntry}
         />
       )}
