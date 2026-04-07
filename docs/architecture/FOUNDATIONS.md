@@ -270,6 +270,16 @@ Both are valid. The architecture optimizes for the autonomous path while fully s
 
 Over time, the balance shifts toward autonomous. Early users direct more; tenured users supervise more. This is the natural consequence of agents developing expertise (Axiom 3) and the recursive substrate accumulating judgment (Axiom 2).
 
+### The Floor: A System That Reaches You (ADR-161)
+
+The autonomous mode and the directed mode are peers — but neither can prove the system exists if the user is not in the application. Email is the only channel that reaches the user *outside* YARNNN. Without a default scheduled artifact, a user who signs up but never engages in chat receives no signal that the system exists at all. The product appears dead.
+
+The architectural commitment: **every workspace receives a daily artifact, by default, from day one, with content that scales with workspace maturity**. This is the heartbeat artifact (the `daily-update` task), scaffolded at signup as the only default task, marked essential, and never auto-paused. Empty workspaces still receive the daily email — with a deterministic, honest "I have nothing to tell you yet, here's how to start" template that costs near-zero to produce and serves as a daily call to action.
+
+The floor is the minimum guarantee. Above it, the system scales with engagement: more tasks, richer context, denser digests. Below it: nothing. The point is that "below it" never exists — every signup gets the floor.
+
+This is structural, not aspirational. The daily-update is the same task object as any other in the schema; it's special only in metadata. See ADR-161.
+
 ### Implication: Work Context Over Configuration Breadth
 
 A user who describes their work and sees correctly-scoped agents that understand their domain has more confidence than a user who connects Slack and gets a generic recap of everything. The system should optimize for understanding the user's work over maximizing platform coverage.
@@ -318,6 +328,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-128 (Multi-Agent Coherence Protocol) | Corollary to Axiom 2 (three intelligence substrates + three coherence flows), Axiom 3 (cognitive files as developmental mechanism). Agent self-assessment, chat directive persistence. | Aligned (revised) |
 | ADR-130 (HTML-Native Output Substrate) | Implements Derived Principle 9 — three-registry architecture (Agent Types, Capabilities, Runtimes). Deterministic type-based capabilities. Three-concern separation (capability/presentation/export). | Phase 1 Implemented |
 | ADR-138 (Agents as Work Units) | Implements Axioms 1+5+6 — PM dissolved into TP, projects replaced by tasks, agents are identity-only domain experts | Proposed |
+| ADR-161 (Daily Update Anchor) | Implements Axiom 6 floor — every workspace gets one essential task at signup, the heartbeat artifact, with deterministic empty-state for zero-cost dormant runs | Proposed |
 
 ---
 

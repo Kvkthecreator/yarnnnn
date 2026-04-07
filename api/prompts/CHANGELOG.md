@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.07.1] - ADR-161: Daily Update as Anchor — TP no longer creates daily-update
+
+### Changed
+- `tp_prompts/onboarding.py`: REMOVED conditional `CreateTask(type_key="daily-update", ...)` instruction. The daily-update task is now scaffolded at workspace initialization with `essential=true`. TP is instructed to NEVER create a new daily-update; it always exists from signup. To adjust cadence/focus/pause, TP uses `ManageTask`. Task type catalog updated to mark daily-update as "ESSENTIAL ANCHOR — already exists from signup, do NOT recreate."
+- Expected behavior: Singular implementation — daily-update has exactly one creation path (signup), not signup-or-conversation. Empty workspaces still receive the daily email via a deterministic empty-state template (no LLM cost). TP cannot accidentally create duplicates because the slug is unique-constrained. The "your workforce is alive" promise is fulfilled from day one for every signup, even before the user engages in chat.
+
+---
+
 ## [2026.04.06.5] - ADR-159: Filesystem-as-memory — compact index replaces working memory dump
 
 ### Changed

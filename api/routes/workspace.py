@@ -70,7 +70,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
         # ── Tasks (from DB) ──
         tasks_result = (
             auth.client.table("tasks")
-            .select("id, slug, status, mode, schedule, next_run_at, last_run_at")
+            .select("id, slug, status, mode, schedule, next_run_at, last_run_at, essential")
             .eq("user_id", auth.user_id)
             .order("created_at", desc=True)
             .execute()
@@ -109,6 +109,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
                 "schedule": row.get("schedule"),
                 "next_run_at": row.get("next_run_at"),
                 "last_run_at": row.get("last_run_at"),
+                "essential": bool(row.get("essential", False)),
             })
 
         # ── Domains (from directory registry + tracker entity counts) ──

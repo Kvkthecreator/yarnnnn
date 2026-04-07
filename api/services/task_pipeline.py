@@ -1232,6 +1232,25 @@ async def execute_task(
     except Exception as e:
         logger.warning(f"[TASK_EXEC] Optimistic next_run_at bump failed: {e}")
 
+    # =====================================================================
+    # ADR-161: Daily-update empty-state branch
+    # If this is the daily-update anchor task and the workspace is otherwise
+    # empty (no other active tasks, no context entities), short-circuit with
+    # a deterministic template — no LLM cost. The user still gets their
+    # daily artifact in their inbox; it just honestly says "I have nothing
+    # to tell you yet" with a CTA back to chat.
+    # =====================================================================
+    if task_slug == "daily-update":
+        try:
+            is_empty = await _is_workspace_empty_for_daily_update(client, user_id)
+            if is_empty:
+                empty_result = await _execute_daily_update_empty_state(
+                    client, user_id, started_at
+                )
+                return empty_result
+        except Exception as e:
+            logger.warning(f"[TASK_EXEC] Empty-state check failed (non-fatal, falling through): {e}")
+
     try:
         # =====================================================================
         # 1. Read TASK.md
@@ -2521,6 +2540,254 @@ def _fail(task_slug: str, message: str) -> dict:
         "task_slug": task_slug,
         "status": "failed",
         "message": message,
+    }
+
+
+# =============================================================================
+# ADR-161: Daily Update Empty-State Branch
+# =============================================================================
+
+async def _is_workspace_empty_for_daily_update(client, user_id: str) -> bool:
+    """Check whether the workspace has anything for daily-update to summarize.
+
+    Empty when:
+      - No active tasks other than daily-update itself
+      - No context entities (no _tracker rows in any context domain)
+
+    Pure SQL — no LLM cost. Used to short-circuit daily-update execution
+    in the empty-state branch (ADR-161). When true, the pipeline emits a
+    deterministic call-to-action template instead of running an LLM call
+    to summarize nothing.
+    """
+    try:
+        # 1. Other active tasks?
+        other_tasks = (
+            client.table("tasks")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .eq("status", "active")
+            .neq("slug", "daily-update")
+            .execute()
+        )
+        if (other_tasks.count or 0) > 0:
+            return False
+
+        # 2. Any context-domain entity files?
+        # Entity files live at /workspace/context/{domain}/{entity}/*.md
+        # The cheapest signal is "any non-tracker, non-synthesis file under context/"
+        context_files = (
+            client.table("workspace_files")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .like("path", "/workspace/context/%")
+            .not_.like("path", "%/_tracker.md")
+            .not_.like("path", "%/_landscape.md")
+            .not_.like("path", "%/.gitkeep")
+            .execute()
+        )
+        if (context_files.count or 0) > 0:
+            return False
+
+        return True
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC] Empty workspace check failed: {e}")
+        # On error, fall through to normal pipeline (safer than mis-emitting empty)
+        return False
+
+
+def _build_empty_workspace_html() -> str:
+    """Deterministic HTML template for the empty-workspace daily-update.
+
+    No LLM call. No personalization. Honest acknowledgement that the workspace
+    is empty plus a call-to-action back to chat. The user still gets their
+    daily artifact in the inbox; it just says "I have nothing to tell you yet."
+    """
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Your YARNNN workforce is ready</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px; margin: 32px auto; padding: 0 24px; color: #374151; line-height: 1.6;">
+  <h1 style="color: #1a1a2e; font-size: 24px; margin-bottom: 16px;">Your workforce is ready</h1>
+  <p>Good morning. I'm <strong>Reporting</strong>, your synthesizer agent. I send you a daily operational digest of what your workforce is doing.</p>
+  <p>Right now, there's nothing for me to report — your team hasn't been told what to track yet. That's by design: I don't presume to know what matters to you until you tell me.</p>
+  <p style="margin-top: 24px;">
+    <a href="https://yarnnn.com/chat" style="display: inline-block; padding: 10px 18px; background: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Open a chat with me</a>
+  </p>
+  <p style="margin-top: 16px;">Tell me about your work — what you're focused on, who you're tracking, what platforms you use. I'll set up tracking, kick off research, and tomorrow's update will have something real to say.</p>
+  <hr style="margin: 32px 0; border: 0; border-top: 1px solid #e5e7eb;">
+  <p style="color: #6b7280; font-size: 13px;">This is your daily update from YARNNN. It runs every morning at 09:00 UTC. You can adjust the cadence or pause it from chat anytime.</p>
+</body>
+</html>"""
+
+
+def _build_empty_workspace_markdown() -> str:
+    """Markdown counterpart of the empty-workspace template (for output.md)."""
+    return (
+        "# Your workforce is ready\n\n"
+        "Good morning. I'm **Reporting**, your synthesizer agent. I send you "
+        "a daily operational digest of what your workforce is doing.\n\n"
+        "Right now, there's nothing for me to report — your team hasn't been "
+        "told what to track yet. That's by design: I don't presume to know "
+        "what matters to you until you tell me.\n\n"
+        "[Open a chat with me](https://yarnnn.com/chat)\n\n"
+        "Tell me about your work — what you're focused on, who you're tracking, "
+        "what platforms you use. I'll set up tracking, kick off research, and "
+        "tomorrow's update will have something real to say.\n\n"
+        "---\n\n"
+        "*This is your daily update from YARNNN. It runs every morning at "
+        "09:00 UTC. You can adjust the cadence or pause it from chat anytime.*\n"
+    )
+
+
+async def _execute_daily_update_empty_state(
+    client,
+    user_id: str,
+    started_at: datetime,
+) -> dict:
+    """Empty-state execution path for the daily-update anchor task.
+
+    ADR-161: Deterministic, zero LLM. Writes the template to the task's
+    outputs folder, delivers via the standard delivery rail, updates
+    next_run_at to tomorrow 09:00 UTC, and returns a success result.
+
+    The output is co-located with normal runs in /tasks/daily-update/outputs/{date}/
+    so the surface treats it identically. The only difference is that no
+    agent_runs row is created (this is not an agent run — it's a system
+    template emission).
+    """
+    from services.task_workspace import TaskWorkspace
+    from services.delivery import deliver_from_output_folder
+
+    task_slug = "daily-update"
+    tw = TaskWorkspace(client, user_id, task_slug)
+
+    # Write output to date-stamped folder
+    date_folder = started_at.strftime("%Y-%m-%dT%H00")
+    folder_path = f"outputs/{date_folder}"
+
+    md_content = _build_empty_workspace_markdown()
+    html_content = _build_empty_workspace_html()
+
+    await tw.write(
+        f"{folder_path}/output.md",
+        md_content,
+        summary="Daily-update empty-state (deterministic template)",
+        tags=["output", "empty_state", "daily_update"],
+    )
+    await tw.write(
+        f"{folder_path}/output.html",
+        html_content,
+        summary="Daily-update empty-state HTML",
+        tags=["output", "empty_state", "daily_update", "html"],
+    )
+
+    import json as _json
+    manifest = {
+        "agent_slug": "reporting",
+        "created_at": started_at.isoformat(),
+        "status": "active",
+        "kind": "empty_state",
+        "files": [
+            {"path": "output.md", "type": "text/markdown", "role": "primary"},
+            {"path": "output.html", "type": "text/html", "role": "composed"},
+        ],
+    }
+    await tw.write(
+        f"{folder_path}/manifest.json",
+        _json.dumps(manifest, indent=2),
+        summary="Daily-update empty-state manifest",
+        tags=["manifest", "empty_state"],
+    )
+
+    # Resolve delivery destination from TASK.md (or fall back to user email)
+    task_md_content = await tw.read_task()
+    task_info = parse_task_md(task_md_content) if task_md_content else {}
+    delivery_target = (task_info.get("delivery") or "email").strip()
+    destination = _parse_delivery_target(delivery_target, client, user_id)
+
+    delivery_status = "no_destination"
+    delivery_error = None
+
+    if destination:
+        try:
+            # Use a synthetic agent dict — there's no agent_runs row for empty-state
+            agent_dict = {
+                "id": None,
+                "title": "Daily Update",
+                "role": "executive",
+            }
+            delivery_result = await deliver_from_output_folder(
+                client=client,
+                user_id=user_id,
+                agent=agent_dict,
+                output_folder=folder_path,
+                agent_slug="reporting",
+                version_id="",  # No agent_runs row
+                version_number=0,
+                destination=destination,
+                task_slug=task_slug,
+            )
+            if delivery_result.status.value == "success":
+                delivery_status = "delivered"
+                logger.info(f"[TASK_EXEC] daily-update empty-state delivered to {destination.get('target')}")
+            else:
+                delivery_status = "failed"
+                delivery_error = delivery_result.error_message
+                logger.warning(f"[TASK_EXEC] daily-update empty-state delivery failed: {delivery_error}")
+        except Exception as e:
+            delivery_status = "failed"
+            delivery_error = str(e)
+            logger.error(f"[TASK_EXEC] daily-update empty-state delivery exception: {e}")
+
+    # Update task scheduling: next run tomorrow 09:00 UTC, last_run_at now
+    now = datetime.now(timezone.utc)
+    next_run = calculate_next_run_at("daily", last_run_at=now)
+    try:
+        client.table("tasks").update({
+            "last_run_at": now.isoformat(),
+            "next_run_at": next_run.isoformat() if next_run else None,
+            "updated_at": now.isoformat(),
+        }).eq("user_id", user_id).eq("slug", task_slug).execute()
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC] daily-update empty-state next_run_at update failed: {e}")
+
+    # Append to run_log for observability
+    try:
+        await tw.append_run_log(
+            f"empty-state delivered (workspace empty) — delivery_status={delivery_status}"
+        )
+    except Exception:
+        pass
+
+    # Activity log
+    try:
+        from services.activity_log import write_activity
+        duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+        await write_activity(
+            client=client,
+            user_id=user_id,
+            event_type="task_executed",
+            summary=f"Daily Update empty-state ({delivery_status})",
+            metadata={
+                "task_slug": task_slug,
+                "kind": "empty_state",
+                "delivery_status": delivery_status,
+                "delivery_error": delivery_error,
+                "duration_ms": duration_ms,
+                "essential": True,
+            },
+        )
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC] daily-update empty-state activity log failed: {e}")
+
+    return {
+        "success": True,
+        "task_slug": task_slug,
+        "status": "delivered",
+        "message": f"Daily-update empty-state delivered ({delivery_status})",
+        "kind": "empty_state",
     }
 
 

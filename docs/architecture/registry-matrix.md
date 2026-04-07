@@ -62,8 +62,9 @@ Context tasks maintain your workspace knowledge domains. They run on schedule, u
 
 Synthesis tasks read from accumulated context domains and produce deliverables.
 
-| Type Key | Display Name | Mode | Schedule | Reads From | Output Category |
+| Type Key | Display Name | Mode | Schedule | Reads From | Notes |
 |---|---|---|---|---|---|
+| **daily-update** ⭐ | Daily Update | recurring | daily | ALL domains | **ESSENTIAL ANCHOR (ADR-161)** — scaffolded at signup, cannot be archived. Empty workspaces produce a deterministic template (zero LLM cost). The user-facing heartbeat artifact. |
 | **competitive-brief** | Competitive Brief | recurring | weekly | competitors, signals | briefs |
 | **market-report** | Market Report | recurring | monthly | market, competitors, signals | reports |
 | **meeting-prep** | Meeting Prep | reactive | on-demand | relationships, competitors, signals | briefs |

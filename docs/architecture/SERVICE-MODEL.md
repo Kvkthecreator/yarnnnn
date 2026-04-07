@@ -132,6 +132,28 @@ For each step in process:
 - Composer heartbeat: periodic workforce assessment
 - The only component that "thinks about" the system
 
+### The Heartbeat Artifact (ADR-161)
+
+Every workspace is scaffolded at signup with exactly one default task: `daily-update`. This task is **essential** — it cannot be archived, cannot be auto-paused, and exists from day one regardless of user engagement.
+
+The daily-update is the **user-facing manifestation of the system being alive**. It is the only task that arrives in the user's inbox by default. It runs every morning at 09:00 UTC. Its content scales with workspace maturity:
+
+- **Empty workspace** (no other active tasks, no context entities): a deterministic template (no LLM cost) — "Your workforce is here. Tell me what matters to start." with a CTA back to chat. ~$0/run.
+- **Sparse workspace** (some context, few runs): a "quiet day" digest framing what little there is. ~$0.03/run.
+- **Active workspace**: a full operational digest reading run logs across all active tasks. ~$0.05–0.15/run.
+
+Three layers of heartbeat exist:
+
+| Layer | Mechanism | What it does | Independence |
+|---|---|---|---|
+| **Infrastructure** | Render cron, every 5 min | Polls tasks, fires due ones | Plumbing — user never sees |
+| **Daily-update task** | One row in tasks, daily cadence | Produces user-facing artifact | Standard task in standard pipeline |
+| **User experiential** | Email landing at 9am | The user knows the system is alive | Emergent from above |
+
+These are technically independent but conceptually fused. The daily-update is *not* a special code path — it executes through `task_pipeline.execute_task()` like any other task. It is special only in metadata (`essential=true`) and in having an empty-state branch that short-circuits the LLM call when there is genuinely nothing to summarize.
+
+This is the floor that prevents dormant signups from going silent. See ADR-161 for the full rationale.
+
 ### How Output Gets Displayed and Delivered
 
 **Singular rendering path** (ADR-148): every task output is composed HTML. No branching based on agent type, no fallback renderers.

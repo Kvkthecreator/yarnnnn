@@ -36,6 +36,7 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
         "agents_created": [],
         "directories_scaffolded": [],
         "workspace_files_seeded": [],
+        "tasks_created": [],
         "already_initialized": False,
     }
 
@@ -127,14 +128,84 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
         except Exception as e:
             logger.warning(f"[WORKSPACE_INIT] Manifest write failed: {e}")
 
+    # =========================================================================
+    # Phase 5: Default Tasks — the heartbeat anchor (ADR-161)
+    # =========================================================================
+    # Every workspace gets exactly one default task: daily-update.
+    # It is essential — cannot be deleted or auto-paused. It is the user-facing
+    # manifestation of the system being alive, and runs daily at 09:00 UTC.
+    # Empty workspaces produce a deterministic "honest empty" template (zero
+    # LLM cost). Populated workspaces produce a real operational digest.
+    try:
+        existing_task = (
+            client.table("tasks")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("slug", "daily-update")
+            .execute()
+        )
+        if not (existing_task.data or []):
+            await _create_essential_daily_update(client, user_id)
+            result["tasks_created"].append("daily-update")
+            logger.info(f"[WORKSPACE_INIT] Default task: daily-update (essential)")
+        else:
+            logger.info(f"[WORKSPACE_INIT] daily-update task already exists, skipping")
+    except Exception as e:
+        logger.warning(f"[WORKSPACE_INIT] Default task creation failed: {e}")
+
     logger.info(
         f"[WORKSPACE_INIT] Complete for {user_id[:8]}: "
         f"{len(result['agents_created'])} agents, "
         f"{len(result['directories_scaffolded'])} directories, "
-        f"{len(result['workspace_files_seeded'])} files"
+        f"{len(result['workspace_files_seeded'])} files, "
+        f"{len(result['tasks_created'])} tasks"
     )
 
     return result
+
+
+async def _create_essential_daily_update(client: Any, user_id: str) -> None:
+    """Create the essential daily-update task at workspace initialization.
+
+    ADR-161: This is the heartbeat artifact. Every workspace gets one.
+    The task runs at 09:00 UTC each day. Empty workspaces produce a
+    deterministic template; populated workspaces produce a real digest.
+
+    The `essential=true` flag prevents archive and (future) auto-pause.
+    Users can manually pause via ManageTask if they explicitly opt out.
+    """
+    from services.task_workspace import TaskWorkspace
+    from services.task_types import build_task_md_from_type
+
+    now = datetime.now(timezone.utc)
+    # Tomorrow 09:00 UTC
+    tomorrow = now + timedelta(days=1)
+    next_run = tomorrow.replace(hour=9, minute=0, second=0, microsecond=0)
+
+    row = {
+        "user_id": user_id,
+        "slug": "daily-update",
+        "mode": "recurring",
+        "status": "active",
+        "schedule": "daily",
+        "next_run_at": next_run.isoformat(),
+        "essential": True,
+    }
+    insert_result = client.table("tasks").insert(row).execute()
+    if not insert_result.data:
+        raise RuntimeError("Failed to insert daily-update task")
+
+    # Write TASK.md so the pipeline has a charter to read
+    task_md = build_task_md_from_type(
+        type_key="daily-update",
+        title="Daily Update",
+        slug="daily-update",
+        schedule="daily",
+        delivery="email",
+        agent_slugs=["reporting"],
+    )
+    tw = TaskWorkspace(client, user_id, "daily-update")
+    await tw.write_task(task_md)
 
 
 async def update_workspace_manifest(client: Any, user_id: str) -> bool:

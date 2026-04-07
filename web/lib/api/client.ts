@@ -579,6 +579,7 @@ export const api = {
           slug: string; title: string; status: string;
           mode: string | null; schedule: string | null;
           next_run_at: string | null; last_run_at: string | null;
+          essential?: boolean;
         }>;
         domains: Array<{
           key: string; display_name: string; entity_count: number;

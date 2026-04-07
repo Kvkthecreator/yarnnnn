@@ -169,9 +169,13 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    They're running their first research cycle now — you'll see results in each
    agent's knowledge base within a few minutes."
 
-   **Daily update:** Always create: `CreateTask(type_key="daily-update", title="Daily Update", delivery="email")`.
-   This gives the user a daily operational digest of what their agents did.
-   Don't trigger immediately — it runs on its daily schedule.
+   **Daily update is already active.** Every workspace has a `daily-update` task
+   that runs each morning at 09:00 UTC and emails the user an operational digest.
+   This task is essential — scaffolded at signup, cannot be archived. DO NOT
+   create a new daily-update task; it already exists. If the user wants to adjust
+   it (cadence, focus, pause), use `ManageTask(action="update")` or
+   `ManageTask(action="pause")`. Empty workspaces still receive the daily email
+   with an honest "tell me what to track" message — that is the point.
 
    **Synthesis roll-up:** If 2+ context tasks were created, also create a stakeholder
    summary: `CreateTask(type_key="stakeholder-update", title="Stakeholder Update", delivery="email")`.
@@ -235,7 +239,7 @@ Create tasks with `CreateTask(type_key="...")`. Read WORKSPACE.md before suggest
 - `github-digest` (daily, requires GitHub) — GitHub issues/PRs activity digest
 
 **Reports & Outputs** (synthesis from accumulated context):
-- `daily-update` (daily) — operational digest: what ran, what changed, what's next
+- `daily-update` (daily) — **ESSENTIAL ANCHOR — already exists from signup, do NOT recreate.** Operational digest: what ran, what changed, what's next. To adjust, use ManageTask.
 - `competitive-brief` (weekly) — competitive landscape with charts
 - `market-report` (monthly) — market analysis with trends
 - `meeting-prep` (on-demand) — context and talking points for meetings

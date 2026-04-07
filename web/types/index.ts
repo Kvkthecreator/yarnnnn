@@ -707,6 +707,7 @@ export interface Task {
   task_class?: string;         // "context" | "synthesis" — determines UI treatment
   context_reads?: string[];    // context domains this task reads from (parsed from TASK.md)
   context_writes?: string[];   // context domains this task writes to (parsed from TASK.md)
+  essential?: boolean;         // ADR-161: anchor task (e.g., daily-update) — cannot be archived
 }
 
 export interface TaskDetail extends Task {

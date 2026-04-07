@@ -81,6 +81,8 @@ class TaskResponse(BaseModel):
     context_writes: Optional[list] = None
     # ADR-154: Phase + bootstrap
     phase: Optional[str] = None  # bootstrap | steady | complete
+    # ADR-161: Essential anchor flag — true for daily-update, blocks archive
+    essential: bool = False
     # Enriched from workspace (detail endpoint only)
     run_log: Optional[str] = None
 
@@ -368,6 +370,7 @@ def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> T
         output_spec=task_md_parsed.get("output_spec") if task_md_parsed else None,
         context_reads=task_md_parsed.get("context_reads") if task_md_parsed else None,
         context_writes=task_md_parsed.get("context_writes") if task_md_parsed else None,
+        essential=bool(row.get("essential", False)),
     )
 
 
@@ -436,7 +439,7 @@ async def list_tasks(
 
     query = (
         auth.client.table("tasks")
-        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at")
+        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at, essential")
         .eq("user_id", auth.user_id)
         .order("created_at", desc=True)
         .limit(limit)
@@ -475,7 +478,7 @@ async def get_task(
 
     result = (
         auth.client.table("tasks")
-        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at")
+        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at, essential")
         .eq("user_id", auth.user_id)
         .eq("slug", slug)
         .limit(1)
@@ -588,7 +591,7 @@ async def update_task(
     # Fetch existing
     existing = (
         auth.client.table("tasks")
-        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at")
+        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at, essential")
         .eq("user_id", auth.user_id)
         .eq("slug", slug)
         .limit(1)
@@ -604,6 +607,12 @@ async def update_task(
     if request.status is not None:
         if request.status not in ("active", "paused", "completed", "archived"):
             raise HTTPException(status_code=400, detail=f"Invalid status: {request.status}")
+        # ADR-161: Essential tasks cannot be archived or completed
+        if row.get("essential") and request.status in ("archived", "completed"):
+            raise HTTPException(
+                status_code=400,
+                detail="This task is essential to your workspace and cannot be archived or completed. You can pause it instead.",
+            )
         db_updates["status"] = request.status
     if request.schedule is not None:
         db_updates["schedule"] = request.schedule
@@ -668,11 +677,14 @@ async def archive_task(
 ) -> TaskResponse:
     """
     Archive a task (soft delete — sets status='archived').
+
+    ADR-161: Essential tasks (e.g., daily-update) cannot be archived.
+    They can be paused via PATCH if the user wants to opt out.
     """
     # Verify exists
     existing = (
         auth.client.table("tasks")
-        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at")
+        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at, essential")
         .eq("user_id", auth.user_id)
         .eq("slug", slug)
         .limit(1)
@@ -680,6 +692,12 @@ async def archive_task(
     )
     if not existing.data:
         raise HTTPException(status_code=404, detail="Task not found")
+
+    if existing.data[0].get("essential"):
+        raise HTTPException(
+            status_code=400,
+            detail="This task is essential to your workspace and cannot be archived. You can pause it instead.",
+        )
 
     result = (
         auth.client.table("tasks")
