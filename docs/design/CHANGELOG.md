@@ -4,7 +4,18 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-04-09 — ADR-167 v3: PageHeader two-band layout
+## 2026-04-09 — ADR-167 v4: PageHeader as chrome, not title
+
+- `web/components/shell/PageHeader.tsx` — rewritten to treat the page header as pure navigation chrome instead of a content-anchored title. v3's large promoted `h1.text-xl` title in Band 2 is deleted. The breadcrumb is ALWAYS present with the same small muted treatment across all states (list and detail) — list pages render `defaultLabel` as a single-segment breadcrumb instead of suppressing the strip. The metadata + actions row stays as an optional second row but collapses when both are absent.
+- **Why**: v3 had two residual problems that the user caught in screenshots. (1) v3 was still conditional: list-mode pages suppressed Band 1 entirely, so the header tone flipped between "compact nav strip + title band" (detail) and "title band only" (list). The user wanted the breadcrumb always present with the same manner. (2) v3's big title band was still competing with content. The daily-update task renders its own `<h1>Daily Workspace Update — April 8, 2026</h1>` as the first thing inside its output iframe, which stacked immediately below PageHeader's big "Daily Update" title — two headers doing the same job. The agents roster has the same issue: PageHeader's "Agents" title stacked above AgentRosterSurface's "Thinking Partner · 1" section header with no breathing room. v4 resolves both: the breadcrumb reads as chrome, always present in the same muted tone; the content owns the real H1.
+- Applied uniformly across `/work`, `/agents`, `/context` — one component file change fixes the audit across surfaces. No per-page changes.
+- `SURFACE-ARCHITECTURE.md` — Page header section rewritten to v4 (chrome-not-title + why), detail-mode ASCII diagrams updated, revision history row added (v9.3).
+- No ADR renumbering — this is a v4 amendment to ADR-167, continuing the v2/v3 amendment pattern.
+- No schema changes, no API changes, no new props on PageHeader (same `defaultLabel` / `subtitle` / `actions` contract).
+
+---
+
+## 2026-04-09 — ADR-167 v3: PageHeader two-band layout (superseded same day by v4)
 
 - `web/components/shell/PageHeader.tsx` — restructured from single-band (breadcrumb + metadata + actions above one thin divider) into two visually separated bands. Band 1 is a compact muted nav strip (breadcrumb path only). Band 2 is the content-anchored title header (title + metadata subtitle + inline actions), separated from Band 1 by a divider. List-mode pages (one segment, or `defaultLabel` fallback) suppress Band 1 entirely — the title band stands alone.
 - **Why**: v2 crammed navigation chrome with content-specific metadata into one dense strip, which made the *actual* page title ambiguous. Users consistently read the first H1 inside the content (e.g. "Daily Workspace Update — April 8, 2026") as the page title because there was no obvious anchor above the content divider saying "this is the thing you're looking at." v3 separates navigation from the content header: breadcrumb on top as pure nav, title + metadata + actions below as the content anchor.
@@ -12,6 +23,7 @@ Track changes to design documentation structure and active principles.
 - `SURFACE-ARCHITECTURE.md` — Page header section rewritten to v3 (two-band layout + why), detail-mode ASCII diagrams updated, revision history row added (v9.2).
 - No ADR renumbering — this is a v3 amendment to ADR-167, same pattern as the v2 amendment shipped on 2026-04-08.
 - No schema changes, no API changes, no new props on PageHeader (same `defaultLabel` / `subtitle` / `actions` contract). Pages using PageHeader did not change.
+- **Superseded same day by v4** — see entry above. v3 still had the residual duplicate-title problem (promoted title in Band 2 vs. content's own H1) and still suppressed the breadcrumb in list mode. v4 deletes the promoted title and makes the breadcrumb always-present.
 
 ---
 

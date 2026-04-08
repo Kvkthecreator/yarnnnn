@@ -76,24 +76,23 @@ The global header is **just** logo + toggle bar + avatar. There is no separate b
 
 **Toggle bar** (`web/components/shell/ToggleBar.tsx`): four-segment pill `Chat | Work | Agents | Context`. Icons: `MessageCircle`, `Briefcase`, `Users`, `FolderOpen`. `HOME_ROUTE` is `/chat` — both new and returning users land there.
 
-### Page header (ADR-167 v3)
+### Page header (ADR-167 v4)
 
-Every surface renders `<PageHeader />` as the first row of its center content area. The PageHeader consumes `BreadcrumbContext` (commit b033513). It is rendered as **two visually separated bands**: a compact nav strip on top (breadcrumb path, muted) and a title header below (anchors the page content).
+Every surface renders `<PageHeader />` as the first row of its center content area. The PageHeader consumes `BreadcrumbContext` (commit b033513) and is **chrome, not content**. It is always present with the same muted tone in every state, and it never promotes the last segment to a bold title — the content below owns the real H1.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ Work › reporting's work › Daily Update                               │ ← Band 1: nav strip (muted, compact)
+│ Work › reporting's work › Daily Update                               │ ← always present, muted (breadcrumb chrome)
 ├──────────────────────────────────────────────────────────────────────┤
-│ Daily Update                                [Run] [Pause] [Edit]     │ ← Band 2: title + actions
-│ Recurring · Active · Reporting · daily · Next: in 1h                 │ ← Band 2: subtitle (metadata strip)
+│ Recurring · Active · Reporting · daily · Next: 9h   [Run][Pause][Ed] │ ← metadata + actions (detail only; collapses in list mode)
 ├──────────────────────────────────────────────────────────────────────┤
-│ (page content)                                                       │
+│ (page content — content's own H1 is the visual hero)                 │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Why two bands.** v2 stacked breadcrumb + metadata + actions above one thin divider, which crammed navigation chrome together with content-specific metadata and made the actual page title ambiguous — users kept reading the first H1 inside the content as the page title because there was no obvious "this is the thing you're looking at" anchor. v3 separates navigation (Band 1) from content-anchored header (Band 2). The title sits with the metadata and actions that describe it, below a divider that cleanly cuts it off from the breadcrumb path.
+**Why chrome, not title.** v3 rendered the last breadcrumb segment as a large promoted `h1.text-xl`, which created a visual duplicate against content that already has its own H1. The daily-update task renders `<h1>Daily Workspace Update — April 8, 2026</h1>` as the first thing inside its output iframe, stacking it against PageHeader's big "Daily Update" title — two headers doing the same job. v3 also suppressed the breadcrumb entirely in list mode, so the header's tone was conditional (sometimes there was a nav strip, sometimes there wasn't). v4 fixes both: the breadcrumb is always rendered with the same muted tone, the last segment reads as chrome not content, and the content's own H1 is unambiguously the page title.
 
-**List-mode collapse.** When there's only one breadcrumb segment (list pages like `/work`, `/agents`, `/context`), Band 1 is suppressed — there's no path to navigate back through, so the title band stands alone.
+**List-mode behavior.** When no breadcrumb segments are set (list pages), PageHeader falls back to the `defaultLabel` and renders it as a single-segment breadcrumb with the same muted treatment. Same tone, same chrome, just shorter path. The metadata + actions row collapses when neither `subtitle` nor `actions` is passed.
 
 | Surface state | Breadcrumb / page title |
 |---|---|
@@ -199,10 +198,9 @@ In detail mode the page renders `<PageHeader />` (with the metadata strip as `su
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Work › reporting's work › Daily Update                              │ ← Band 1 (nav strip)
+│  Work › reporting's work › Daily Update                              │ ← breadcrumb chrome (always present)
 ├──────────────────────────────────────────────────────────────────────┤
-│  Daily Update                              [Run] [Pause] [Edit]      │ ← Band 2 title + actions
-│  Recurring · active · Reporting · daily · Next: 9h                   │ ← Band 2 subtitle
+│  Recurring · active · Reporting · daily · Next: 9h  [Run][Pause][Ed] │ ← metadata + actions row
 ├──────────────────────────────────────────────────────────────────────┤
 │  Objective                                                           │
 │  · Deliverable: Daily workspace update                               │
@@ -412,6 +410,7 @@ When adding a new detail-mode page, prefer the list/detail collapse pattern over
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-04-09 | v9.3 | ADR-167 v4 amendment — `<PageHeader />` rewritten as pure chrome. v3 had promoted the last breadcrumb segment to a bold `h1.text-xl`, which duplicated against content that already had its own H1 (daily-update's rendered output renders `<h1>Daily Workspace Update — April 8, 2026</h1>` immediately inside the iframe). v3 also suppressed the breadcrumb entirely in list mode, making the header tone conditional. v4: (1) breadcrumb is ALWAYS present with the same muted tone across all states — list pages render the `defaultLabel` as a single-segment breadcrumb instead of suppressing the strip; (2) no bold title promotion anywhere — the last segment reads as chrome; (3) metadata + actions row stays as an optional second row but collapses when both are absent. Content's own H1 is now unambiguously the visual page title. |
 | 2026-04-09 | v9.2 | ADR-167 v3 amendment — `<PageHeader />` restructured into two visually separated bands: Band 1 is a compact nav strip (breadcrumb path, muted), Band 2 is the title header (title + metadata subtitle + inline actions), with a divider between them. Previous v2 crammed breadcrumb + metadata + actions above one divider, which made the actual page title ambiguous against the content's own H1. v3 cleanly separates navigation (Band 1) from content-anchored header (Band 2). List-mode pages suppress Band 1 when there's only one segment. Applied uniformly across `/work`, `/agents`, `/context`. |
 | 2026-04-08 | v9.1 | ADR-167 v2 amendment — Breadcrumb collapses into in-page `<PageHeader />`. `<GlobalBreadcrumb />` floating bar DELETED. `WorkDetail`'s internal `<WorkHeader>` and `<ActionsRow>` DELETED — title moves to PageHeader breadcrumb (last segment), metadata moves to PageHeader `subtitle`, Run/Pause/Edit-via-chat moves to PageHeader `actions`. `AgentContentView`'s internal `<AgentHeader>` band DELETED for the same reason. `★ Essential` visual badge removed (the flag stays — it's load-bearing for archive guard). `meta-cognitive` class label added (TP was rendering as raw key). |
 | 2026-04-08 | v9 | ADR-167 — `/work` and `/agents` collapse from master-detail (left list + center detail + chat) into single surfaces with two URL-driven modes: list mode (full-width filterable list / roster) and detail mode (kind-aware detail dispatched on `task.output_kind`). `WorkList` and `AgentTreeNav` deleted. Auto-select-first deleted. `ThreePanelLayout.leftPanel` now optional. Four kind-aware middle components in `web/components/work/details/`. |
