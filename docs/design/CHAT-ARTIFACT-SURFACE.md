@@ -15,11 +15,12 @@ The corrected model is:
 
 ```
 Chat console
-  + one active structured artifact
   + visible artifact tabs
+  + one active structured artifact
+  + conversation and input
 ```
 
-The artifact tabs let product logic choose what matters now while still giving the user direct navigation. TP Console is not a tab. It is the base chat layer of `/chat`.
+The artifact tabs let product logic choose what matters now while still giving the user direct navigation. TP Console is not a tab. It is the page layout for `/chat`.
 
 ---
 
@@ -37,7 +38,7 @@ It keeps its existing font size, spacing, and proportions, but uses the same bla
 
 ### Chat Artifact Navigation
 
-Inside `/chat`, a second pill-tab switcher selects the one active artifact:
+Inside the TP chat surface, a pill-tab switcher selects the one active artifact:
 
 ```
 Daily Briefing | Recent Work | Context Gaps
@@ -59,7 +60,7 @@ Default selection:
 
 Only one artifact renders at a time.
 
-The artifact is inline with the chat surface, above the persistent TP console. This keeps chat as the dedicated surface and gives structured renderings one focused layer inside it.
+The artifact tabs and active artifact render inside the TP chat scroller. They are not siblings above a separate bordered chat panel, and `/chat` does not add a page-level divider between artifacts and the conversation. This keeps chat as the dedicated page layout and gives structured renderings one focused layer inside it.
 
 No artifact is a floating window. No artifact can overlap another artifact.
 
@@ -150,6 +151,6 @@ The old `web/components/command-desk/` package is removed.
 1. `/chat` has one centered chat surface, not multiple scattered windows.
 2. Artifact tabs are visible and navigable.
 3. Logic defaults to onboarding for new users and daily briefing for returning users.
-4. TP Console remains the persistent base layer, not an artifact tab.
+4. TP Console is the page layout, not an artifact tab or a bordered panel under artifacts.
 5. Global nav keeps its existing sizing and uses the same black active-state language as chat artifact tabs.
 6. TypeScript and production build pass.

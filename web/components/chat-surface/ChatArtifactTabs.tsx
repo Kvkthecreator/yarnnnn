@@ -12,8 +12,8 @@ interface ChatArtifactTabsProps {
 export function ChatArtifactTabs({ tabs, activeId, onSelect }: ChatArtifactTabsProps) {
   return (
     <nav
-      aria-label="Chat surfaces"
-      className="mx-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-border bg-background p-1 shadow-sm"
+      aria-label="Chat artifacts"
+      className="mx-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-xl bg-muted/50 p-1"
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;

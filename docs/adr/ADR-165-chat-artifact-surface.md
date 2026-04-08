@@ -32,7 +32,7 @@ The corrected model is closer to ChatGPT: chat is the dedicated primary surface,
 
 `/chat` becomes a **chat artifact surface**.
 
-The page has one primary layer: the TP chat console. Structured objects such as onboarding, daily briefing, recent work, context gaps, and outputs render as one active artifact inline within the chat surface. A tab switcher lets the user navigate between available artifacts, while product logic chooses the default artifact.
+The page has one primary layer: the TP chat console. Structured objects such as onboarding, daily briefing, recent work, context gaps, and outputs render as one active artifact inside the chat surface. A tab switcher inside that surface lets the user navigate between available artifacts, while product logic chooses the default artifact.
 
 This ADR does not add a fifth top-level destination, does not undo `/work`, `/agents`, or `/context`, and does not move the app to a desktop metaphor.
 
@@ -42,8 +42,9 @@ This ADR does not add a fifth top-level destination, does not undo `/work`, `/ag
 - Only one structured artifact is shown at a time.
 - Product logic selects the default artifact: onboarding for new users, daily briefing for returning users.
 - The user can override that default through visible tabs.
-- TP Console is not a tab. It is the base surface and remains present under the active artifact.
+- TP Console is not a tab. It is the page surface, and active artifacts render inside it.
 - Artifacts are inline by default, not scattered windows.
+- `/chat` avoids page-level borders and dividers that make the artifact layer feel separate from TP chat.
 - A single sheet or detail view can be added later for long-form inspection, but not as the default layout.
 - Full inspection still belongs to `/work`, `/agents`, and `/context`.
 
@@ -120,6 +121,7 @@ Recommended phases:
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-04-08 | v4 | Clarifies that artifacts and artifact tabs render inside the TP chat surface, not above a separate bordered chat panel. |
 | 2026-04-08 | v3 | Clarifies that TP Console is the base chat surface, not an artifact tab. Global nav keeps its original sizing while adopting the black active segment. |
 | 2026-04-08 | v2 | Replaces the multi-window command desk with a single chat artifact surface: one primary chat console plus one active artifact selected by tabs. |
 | 2026-04-08 | v1 | Initial command-desk proposal. Rejected after first implementation because multiple floating windows were visually unintuitive. |

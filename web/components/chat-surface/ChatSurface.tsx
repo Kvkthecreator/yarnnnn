@@ -23,7 +23,7 @@ interface ChatSurfaceProps {
 }
 
 const CHAT_EMPTY_STATE = (
-  <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-5 text-center">
+  <div className="px-4 py-5 text-center">
     <p className="text-sm font-medium">TP is here.</p>
     <p className="mt-1 text-sm text-muted-foreground">
       Ask for a readout, a new task, or what needs attention.
@@ -88,29 +88,32 @@ export function ChatSurface({
   }, [agents, dataLoading, isNewUser, onContextSubmit, tasks]);
 
   const activeTab = tabs.find((tab) => tab.id === activeArtifactId) ?? tabs[0];
+  const topContent = (
+    <div className="mx-auto w-full max-w-4xl space-y-4">
+      <ChatArtifactTabs
+        tabs={tabs}
+        activeId={activeTab.id}
+        onSelect={setActiveArtifactId}
+      />
+
+      <ChatArtifactCard>
+        {activeTab.content}
+      </ChatArtifactCard>
+    </div>
+  );
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-4 overflow-hidden px-4 py-5">
-        <ChatArtifactTabs
-          tabs={tabs}
-          activeId={activeTab.id}
-          onSelect={setActiveArtifactId}
+    <div className="h-full bg-background">
+      <div className="mx-auto h-full w-full max-w-5xl px-4 py-5">
+        <ChatPanel
+          surfaceOverride={{ type: 'chat' }}
+          plusMenuActions={plusMenuActions}
+          placeholder="Ask anything or type / ..."
+          showCommandPicker={true}
+          emptyState={CHAT_EMPTY_STATE}
+          topContent={topContent}
+          showInputDivider={false}
         />
-
-        <ChatArtifactCard>
-          {activeTab.content}
-        </ChatArtifactCard>
-
-        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-background">
-          <ChatPanel
-            surfaceOverride={{ type: 'chat' }}
-            plusMenuActions={plusMenuActions}
-            placeholder="Ask anything or type / ..."
-            showCommandPicker={true}
-            emptyState={CHAT_EMPTY_STATE}
-          />
-        </div>
       </div>
     </div>
   );

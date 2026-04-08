@@ -41,8 +41,12 @@ export interface ChatPanelProps {
   placeholder?: string;
   /** Empty state content — rendered when no messages */
   emptyState?: React.ReactNode;
+  /** Content rendered inside the message scroller before messages */
+  topContent?: React.ReactNode;
   /** Whether to show the command picker (/ commands) */
   showCommandPicker?: boolean;
+  /** Whether to render a divider above the input */
+  showInputDivider?: boolean;
 }
 
 export function ChatPanel({
@@ -51,7 +55,9 @@ export function ChatPanel({
   pendingActionConfig,
   placeholder = 'Ask anything or type / ...',
   emptyState,
+  topContent,
   showCommandPicker = true,
+  showInputDivider = true,
 }: ChatPanelProps) {
   const {
     messages,
@@ -103,6 +109,8 @@ export function ChatPanel({
   } = useFileAttachments();
 
   useEffect(() => {
+    if (messages.length === 0 && status.type === 'idle') return;
+
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, status]);
 
@@ -133,6 +141,12 @@ export function ChatPanel({
     <div className="flex flex-col h-full">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
+        {topContent && (
+          <div className="px-2 pb-3">
+            {topContent}
+          </div>
+        )}
+
         {messages.length === 0 && !isLoading && emptyState && (
           <div className="py-4 px-2">
             {emptyState}
@@ -182,7 +196,10 @@ export function ChatPanel({
       </div>
 
       {/* Input */}
-      <div className="relative px-3 pb-3 pt-1 border-t border-border shrink-0">
+      <div className={cn(
+        'relative px-3 pb-3 pt-1 shrink-0',
+        showInputDivider && 'border-t border-border'
+      )}>
         {showCommandPicker && (
           <CommandPicker query={commandQuery ?? ''} onSelect={(cmd) => { setInput(cmd + ' '); setCommandPickerOpen(false); textareaRef.current?.focus(); }} onClose={() => setCommandPickerOpen(false)} isOpen={commandPickerOpen} />
         )}
