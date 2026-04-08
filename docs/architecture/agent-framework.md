@@ -1,8 +1,16 @@
 # Agent Framework: Scope × Role × Trigger
 
-**Status:** Canonical
-**Date:** 2026-03-12 (updated 2026-03-17: `skill` → `role` per ADR-118; updated 2026-03-20: pulse model + role cadence per ADR-126; updated 2026-03-22: ADR-130 three-registry architecture — seniority/portfolios removed)
+**Status:** Partially superseded — see ADR-140 (v4 workforce roster) and ADR-164 (TP as agent) for current canonical model
+**Date:** 2026-03-12 (updated 2026-03-17: `skill` → `role` per ADR-118; updated 2026-03-20: pulse model + role cadence per ADR-126; updated 2026-03-22: ADR-130 three-registry architecture — seniority/portfolios removed; updated 2026-04-08: ADR-164 added meta-cognitive class)
 **Supersedes:** ADR-093 (7 purpose-first types), ADR-082 (8-type consolidation), ADR-044 (type reconceptualization)
+
+> **2026-04-08 update (ADR-164):** This document describes the earlier Scope × Role × Trigger taxonomy. The current roster model (10 agents across four classes) is defined in [ADR-140](../adr/ADR-140-agent-workforce-model.md) with TP added as the 10th agent (meta-cognitive class) via [ADR-164](../adr/ADR-164-back-office-tasks-tp-as-agent.md). Canonical references for current state:
+> - [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 1 — two-layer intelligence model (TP as the meta-cognitive agent)
+> - [SERVICE-MODEL.md](SERVICE-MODEL.md) — entity model, roster, back office tasks
+> - [registry-matrix.md](registry-matrix.md) — 10-agent roster table
+> - [docs/features/agent-types.md](../features/agent-types.md) — user-facing catalog of four agent classes
+>
+> The scope-derivation logic and older role enum (digest/prepare/monitor/research/synthesize/act) retained below for historical reference. Current role values live in `api/services/agent_framework.py` `AGENT_TEMPLATES`. The four current classes: `domain-steward`, `synthesizer`, `platform-bot`, `meta-cognitive`.
 **Related:**
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — mode system (preserved as Trigger axis)
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, archetype-driven strategies

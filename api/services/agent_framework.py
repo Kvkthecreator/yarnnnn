@@ -20,13 +20,21 @@ Three agent classes:
   - platform-bot: owns a temporal context domain (/workspace/context/{platform}/),
     captures signals from one external platform (Slack, Notion). Per-source
     subfolders (channel/page/repo). ADR-158: bots own their directories.
+  - meta-cognitive: owns orchestration itself (attention allocation, workforce
+    health, back office maintenance). Singular — only Thinking Partner.
+    Two runtime modes: chat (user-present) and task (back office executor).
+    ADR-164: TP as agent.
 
 v4 (2026-03-31): 5 domain-stewards + 1 synthesizer + 2 platform-bots.
 v4.1 (2026-04-04): ADR-158 Phase 4 — GitHub Bot added. 5 + 1 + 3 = 9 agents.
+v4.2 (2026-04-08): ADR-164 — Thinking Partner added as meta-cognitive agent.
+                   5 + 1 + 3 + 1 = 10 agents.
 Templates are starting points — agents evolve via AGENT.md, which is the
 runtime source of truth for identity and behavior.
 
-Canonical reference: docs/adr/ADR-140-agent-workforce-model.md
+Canonical references:
+  docs/adr/ADR-140-agent-workforce-model.md
+  docs/adr/ADR-164-back-office-tasks-tp-as-agent.md
 """
 
 from __future__ import annotations

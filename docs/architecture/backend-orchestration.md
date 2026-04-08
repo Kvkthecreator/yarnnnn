@@ -1,7 +1,7 @@
 # Backend Orchestration — Canonical Reference
 
-**Version**: 6.1
-**Last updated**: 2026-04-03
+**Version**: 7.0
+**Last updated**: 2026-04-08 (ADR-164 — scheduler as pure dispatcher)
 **Status**: Canonical — single authoritative reference for active background processing.
 
 ---
@@ -13,12 +13,11 @@ YARNNN runs 4 Render services sharing a single codebase:
 | # | Service | Render ID | Type | Schedule | Role |
 |---|---------|-----------|------|----------|------|
 | 1 | `yarnnn-api` | `srv-d5sqotcr85hc73dpkqdg` | Web Service | Always-on | API endpoints, OAuth, TP chat, manual triggers |
-| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Task execution, lifecycle hygiene, workspace cleanup, scheduler heartbeat |
+| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Task dispatcher — query due tasks, call execute_task(), hourly heartbeat write |
 | 3 | `yarnnn-mcp-server` | `srv-d6f4vg1drdic739nli4g` | Web Service | Always-on | MCP server for Claude.ai/Desktop (ADR-075) |
 | 4 | `yarnnn-render` | `srv-d6sirjffte5s73f90pfg` | Web Service (Docker) | Always-on | Output gateway — PDF, PPTX, charts, HTML (ADR-118) |
 
-Platform sync service is gone (ADR-153). Composer and nightly memory/session
-jobs are also gone (ADR-156).
+Platform sync service is gone (ADR-153). Composer and nightly memory/session jobs are also gone (ADR-156). As of **ADR-164**, the scheduler is now a pure task dispatcher — lifecycle hygiene (agent pausing) and ephemeral workspace cleanup are now back office tasks owned by TP, executed through the same `execute_task()` pipeline as user work.
 
 All execution is inline — no background worker, no Redis. On-demand operations use FastAPI BackgroundTasks.
 
@@ -61,48 +60,56 @@ activity_log ◄── task execution, integrations, scheduler heartbeat
 
 | Consumer | File | Trigger | Cost |
 |----------|------|---------|------|
-| Workspace cleanup | `services/workspace.py` | Hourly cron | DB deletes |
-| Scheduler heartbeat | `jobs/unified_scheduler.py` | Every 5 min | DB queries + activity writes |
+| Back office: agent hygiene | `services/back_office/agent_hygiene.py` | Scheduler cron via task pipeline (daily task) | DB reads/writes |
+| Back office: workspace cleanup | `services/back_office/workspace_cleanup.py` | Scheduler cron via task pipeline (daily task) | DB deletes |
+| Scheduler heartbeat | `jobs/unified_scheduler.py` | Every 5 min (hourly write) | DB queries + activity writes |
 
 ---
 
-## Unified Scheduler — Phase Map
+## Unified Scheduler — Pure Dispatcher (ADR-164)
 
 **File**: `api/jobs/unified_scheduler.py`
 **Render cron**: `*/5 * * * *` — `cd api && python -m jobs.unified_scheduler`
 
-Each tick executes these phases in order:
+As of ADR-164, the scheduler is a pure task dispatcher. No special-case hygiene logic. No knowledge of what any particular task does. Just: query due tasks, claim them atomically, dispatch `execute_task(slug)` for each, write an hourly heartbeat.
+
+Each tick executes:
 
 | Phase | Frequency | Gate | LLM? | Cost per tick |
 |-------|-----------|------|------|---------------|
-| 1. User discovery | Every tick | — | No | Shared DB queries |
-| 2. Task execution | Every tick | `next_run_at <= now` on tasks table | Sonnet (when tasks due) | 0 when idle; task cost only when due |
-| 3. Workspace cleanup | Hourly (`minute < 5`) | Ephemeral file TTLs | No | DB deletes |
-| 4. Lifecycle hygiene | Every tick | Underperformer rule | No | DB reads/writes |
-| 5. Scheduler heartbeat event | Hourly (`minute < 5`) | — | No | activity_log writes |
+| 1. User discovery (for heartbeat) | Every tick | `platform_connections.status='active'` | No | Shared DB queries |
+| 2. Task dispatch | Every tick | `tasks.next_run_at <= now AND status='active'` | Sonnet per due user task; zero for due back office tasks | 0 when idle; task cost only when due |
+| 3. Scheduler heartbeat event | Hourly (`minute < 5`) | — | No | activity_log writes |
+
+**Back office tasks** (agent hygiene, workspace cleanup) execute via Phase 2 — they're ordinary `tasks` table rows owned by TP, dispatched through `execute_task()` just like user tasks. The pipeline hands off to `_execute_tp_task()` which runs the declared executor. No separate scheduler phase for them.
 
 ### Cost Protection Mechanisms
 
 | Mechanism | What it prevents | Where |
 |-----------|-----------------|-------|
-| **Credit enforcement** | Unbounded task execution | `check_credits()` in `task_pipeline.py` |
+| **Credit enforcement** | Unbounded task execution | `check_credits()` in `task_pipeline.py` (bypassed for back office tasks) |
 | **Message limits** | Unbounded chat (Free tier) | `check_monthly_message_limit()` in `chat.py` |
 | **Execution lock** | Duplicate task runs | Optimistic `next_run_at` bump in `task_pipeline.py` |
-| **Hourly activity writes** | Activity log bloat | `is_hourly_tick` gate in scheduler |
+| **Hourly heartbeat writes** | activity_log bloat | `is_hourly_tick` gate in scheduler |
 | **Prompt caching** | Repeated token charges for stable prompts | `anthropic-beta: prompt-caching-2024-07-31` header on all calls |
 
 ---
 
 ## Observability
 
-### activity_log Events
+### activity_log Events (post ADR-164)
+
+Task-lifecycle events were deleted as redundant denormalizations (ADR-164). The authoritative record of "task X ran at time T" is now the `agent_runs` row plus `tasks.last_run_at`, not a duplicate activity_log entry.
 
 | Event Type | Writer | Frequency | Purpose |
 |-----------|--------|-----------|---------|
-| `task_executed` | `task_pipeline.py` | Per task run | Execution audit |
-| `content_cleanup` | `unified_scheduler.py` | Hourly (when items cleaned) | Cleanup tracking |
 | `scheduler_heartbeat` | `unified_scheduler.py` | Hourly | Scheduler health |
 | `chat_session` | `chat.py` | Per session start | Chat tracking |
+| `integration_connected` / `integration_disconnected` | `routes/integrations.py` | OAuth lifecycle | Platform audit |
+| `memory_written` | `services/memory.py` | UpdateContext writes | Memory audit |
+| `agent_feedback` / `agent_approved` / `agent_rejected` | Feedback + routes | User interactions | Feedback audit |
+
+See [docs/features/activity.md](../features/activity.md) for the full narrowed-role explanation.
 
 ### Consumers
 
@@ -119,13 +126,13 @@ Each tick executes these phases in order:
 | Table | Written by (backend) | Read by (backend) |
 |-------|---------------------|------------------|
 | `platform_connections` | OAuth / integrations routes | Scheduler (user discovery), integrations, status surfaces |
-| `agents` | API routes, lifecycle hygiene | Task pipeline, scheduler |
-| `tasks` | API routes, TP primitives | Scheduler (`next_run_at` query) |
-| `agent_runs` | Task pipeline | Frontend, delivery |
-| `workspace_files` | Task pipeline, TP context writes | Task pipeline (context), TP workspace tools |
+| `agents` | API routes, workspace_init, back office agent_hygiene (pause mutations) | Task pipeline, scheduler |
+| `tasks` | API routes, TP primitives, workspace_init | Scheduler (`next_run_at` query) |
+| `agent_runs` | Task pipeline | Frontend, delivery, back office agent_hygiene (read for approval stats) |
+| `workspace_files` | Task pipeline, TP context writes, back office workspace_cleanup (delete ephemerals) | Task pipeline (context), TP workspace tools |
 | `user_memory` | User edits / in-session context updates | Working memory → TP prompt |
 | `work_credits` | Task pipeline, render | Credit enforcement |
-| `activity_log` | Tasks, scheduler, integrations, chat | Working memory, system status |
+| `activity_log` | Scheduler heartbeat, integrations, chat, feedback | Working memory, system status |
 | `chat_sessions` | Chat endpoints | Session continuity |
 | `session_messages` | Chat endpoints | Session compaction / chat runtime |
 

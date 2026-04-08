@@ -1,13 +1,15 @@
 # Agent Presentation Principles
 
-**Date:** 2026-04-05 (v3 — three-tab center panel, knowledge-first)
-**Status:** Active
+**Date:** 2026-04-05 (v3 — three-tab center panel, knowledge-first); 2026-04-08 note added for ADR-163 + ADR-164
+**Status:** Partially superseded — ADR-163 collapsed the Agents page to roster + identity (no tabs); see SURFACE-ARCHITECTURE.md v8 for current surface model
 **Supersedes:** v2 (2026-04-04, task-cards-as-bridge vertical stack)
 **Related:**
-- [Surface Architecture](SURFACE-ARCHITECTURE.md) v4 — agents page is HOME, three-tab model
-- [Surface-Action Mapping](SURFACE-ACTION-MAPPING.md) — directive vs configuration surfaces
-- [ADR-140](../adr/ADR-140-agent-workforce-model.md) — workforce model (3 classes, pre-scaffolded roster)
+- [Surface Architecture](SURFACE-ARCHITECTURE.md) v8 — current model (ADR-163: Chat | Work | Agents | Context, Agents page is roster + identity only)
+- [ADR-140](../adr/ADR-140-agent-workforce-model.md) — workforce model (4 classes as of ADR-164, pre-scaffolded roster of 10 agents)
 - [ADR-138](../adr/ADR-138-agents-as-work-units.md) — agents as work units (tasks are WHAT, agents are WHO)
+- [ADR-164](../adr/ADR-164-back-office-tasks-tp-as-agent.md) — TP as the 10th agent (meta-cognitive class), back office tasks owned by TP
+
+> **2026-04-08 update:** After ADR-163, the Agents page is no longer the home and no longer uses a three-tab layout. Work observation moved to `/work`, context browsing to `/context`. The Agents page shrank to a single-view roster + identity + health card. This document's "three-tab center panel" principle is historical — the current Agents page has no tabs. After ADR-164, the workforce is 10 agents across 4 classes (domain-steward × 5, synthesizer × 1, platform-bot × 3, meta-cognitive × 1 = TP). The knowledge-first principle (Principle 1 below) remains directionally valid for the per-agent identity card, but the detail views it described now live on `/work` and `/context` surfaces.
 
 ---
 

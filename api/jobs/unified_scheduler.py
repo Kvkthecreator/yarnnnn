@@ -1,15 +1,26 @@
 """
-YARNNN v5 - Unified Scheduler (ADR-138 + ADR-141 + ADR-156)
+YARNNN v5 - Unified Scheduler (ADR-138 + ADR-141 + ADR-156 + ADR-164)
 
 Three-layer execution: mechanical scheduling, LLM generation, TP intelligence.
 
-Layer 1 (this file — zero LLM cost):
+Layer 1 (this file — pure dispatcher, zero LLM cost):
 - Task scheduling: SQL query → execute_task() for each due task
-- Workspace ephemeral cleanup (ADR-119)
-- Lifecycle hygiene: pause underperformers (ADR-156)
+- Atomic CAS claim to prevent duplicate execution
+- Hourly scheduler_heartbeat activity_log write
 
-Layer 2 (task_pipeline.py — Sonnet per task):
-- TASK.md → AGENT.md → context → generate → deliver
+ADR-164 update: lifecycle hygiene and ephemeral workspace cleanup are NO LONGER
+in this file. They have been migrated to back office tasks owned by TP:
+  - back-office-agent-hygiene → services/back_office/agent_hygiene.py
+  - back-office-workspace-cleanup → services/back_office/workspace_cleanup.py
+Both run through execute_task() via the TP dispatch branch in task_pipeline.py
+(_execute_tp_task). The scheduler has no knowledge of what any particular task
+does — it just dispatches execute_task() for everything that's due.
+
+Layer 2 (task_pipeline.py — Sonnet per user task; zero LLM for TP tasks):
+- TASK.md → resolve agent → dispatch
+- If agent.role == 'thinking_partner': _execute_tp_task() → run declared executor
+- Else: standard Sonnet generation path
+- All paths: save output, update last_run_at, calculate next_run_at
 
 Layer 3 (thinking_partner.py — user-present only):
 - Chat mode with primitives. TP is the single intelligence layer (ADR-156).

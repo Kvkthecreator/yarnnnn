@@ -126,6 +126,8 @@ type NotificationCardType =
   | { type: 'task_completed'; slug: string; title: string }
 ```
 
+> **Note (ADR-164):** These are **TypeScript notification card types**, not activity_log event types. The notification channel detects TP tool calls in the chat response stream (e.g., `ManageTask(action="evaluate")` returns → emit `task_evaluated` notification card). It does NOT read from activity_log. The matching task-lifecycle events in activity_log were deleted per ADR-164 as redundant denormalizations, but this frontend notification infrastructure still works because it's sourced from TP's live tool-use stream.
+
 ### Notification Queue
 
 ```tsx

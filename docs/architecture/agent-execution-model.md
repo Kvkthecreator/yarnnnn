@@ -93,6 +93,7 @@ Used by scheduler for due tasks.
 execute_task(client, user_id, task_slug)
 ├── 1. Read TASK.md (objective, criteria, output spec, agent slug)
 ├── 2. Resolve agent (DB lookup by slug)
+├── 2b. ADR-164 dispatch: if agent.role == 'thinking_partner' → _execute_tp_task() (back office path, skips LLM)
 ├── 3. Check work budget
 ├── 4. Create agent_runs record
 ├── 5. Read AGENT.md + agent memory + preferences
@@ -105,8 +106,10 @@ execute_task(client, user_id, task_slug)
 ├── 12. Deliver per TASK.md config
 ├── 13. Update tasks.last_run_at + calculate next_run_at
 ├── 14. Post-generation: self-observation, agent reflection (ADR-149), agent card
-└── 15. Activity log (task_executed) + work units
+└── 15. Work units only (ADR-164: task_executed activity_log write removed — agent_runs row is authoritative)
 ```
+
+**Back office dispatch (ADR-164)**: when step 2 resolves the assigned agent and finds `role == 'thinking_partner'`, control hands off to `_execute_tp_task()` which reads the TASK.md `## Process` section for an `executor: <dotted.path>` directive, imports the module, calls its `run(client, user_id, task_slug)` async function, writes the structured output to the standard outputs folder, updates `next_run_at`, and returns. Back office tasks bypass steps 3-15 entirely — no credit check, no LLM, no agent_runs row. See [ADR-164](../adr/ADR-164-back-office-tasks-tp-as-agent.md).
 
 ### Agent-first entry: `execute_agent_run(client, user_id, agent, trigger_context)`
 
