@@ -1,0 +1,425 @@
+'use client';
+
+/**
+ * WorkspaceStateView — single surface for every workspace-state scenario.
+ *
+ * ADR-165 v5: One component, state-driven lead view. Onboarding, briefing,
+ * recent work, and context gaps are facets of the same surface — not sibling
+ * artifacts in a tab strip.
+ *
+ * The component picks its lead view from `lead` (passed in) when TP opens
+ * it via the workspace-state marker, OR computes a deterministic lead from
+ * agents+tasks when the user opens it manually via the input-row icon.
+ *
+ * Lead views:
+ *   - empty    → ContextSetup gate (workspace has no identity yet)
+ *   - briefing → What changed (DailyBriefing)
+ *   - recent   → What's running (top tasks by updated_at)
+ *   - gaps     → Coverage gaps (domain agents without tasks)
+ *
+ * The user can switch between facets via lens links once the surface is open.
+ * Lens links are NOT navigation tabs — they reframe the same workspace state
+ * through a different lens.
+ */
+
+import { useMemo, useState, useEffect } from 'react';
+import { X, ClipboardList, Compass, Newspaper } from 'lucide-react';
+import { ContextSetup } from '@/components/tp/ContextSetup';
+import { DailyBriefing } from '@/components/home/DailyBriefing';
+import { CheckCircle2, Clock3, PauseCircle, AlertCircle } from 'lucide-react';
+import { taskModeLabel, type Agent, type Task } from '@/types';
+import { cn } from '@/lib/utils';
+
+export type WorkspaceStateLead = 'empty' | 'briefing' | 'recent' | 'gaps';
+
+interface WorkspaceStateViewProps {
+  open: boolean;
+  /** Lead view to render. If null, the component computes a deterministic lead from data. */
+  lead: WorkspaceStateLead | null;
+  agents: Agent[];
+  tasks: Task[];
+  dataLoading: boolean;
+  /** Workspace has no identity yet (drives auto-gate behavior). */
+  isEmpty: boolean;
+  /** Optional reason TP passed when opening the surface. */
+  reason?: string | null;
+  onClose: () => void;
+  onContextSubmit: (message: string) => void;
+}
+
+/**
+ * Compute a deterministic lead view from current workspace state.
+ * Used when the user opens the surface manually (no TP directive).
+ */
+function computeLead(
+  isEmpty: boolean,
+  agents: Agent[],
+  tasks: Task[],
+): WorkspaceStateLead {
+  if (isEmpty) return 'empty';
+
+  const domainAgents = agents.filter(
+    (a) => (a.agent_class || 'domain-steward') === 'domain-steward',
+  );
+  const agentsWithoutTasks = domainAgents.filter((agent) => {
+    const slug =
+      agent.slug ||
+      agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    return !tasks.some((task) => task.agent_slugs?.includes(slug));
+  });
+  if (agentsWithoutTasks.length > 0) return 'gaps';
+
+  if (tasks.length > 0) return 'briefing';
+  return 'recent';
+}
+
+export function WorkspaceStateView({
+  open,
+  lead,
+  agents,
+  tasks,
+  dataLoading,
+  isEmpty,
+  reason,
+  onClose,
+  onContextSubmit,
+}: WorkspaceStateViewProps) {
+  // Active lens — initialized from `lead` prop or computed from data.
+  const initialLead = lead ?? computeLead(isEmpty, agents, tasks);
+  const [activeLens, setActiveLens] = useState<WorkspaceStateLead>(initialLead);
+
+  // When the lead prop changes (TP opens with a different view), follow it.
+  useEffect(() => {
+    if (lead) setActiveLens(lead);
+  }, [lead]);
+
+  if (!open) return null;
+
+  const showLensSwitcher = activeLens !== 'empty' && !isEmpty;
+
+  return (
+    <section
+      className="mx-auto w-full max-w-3xl animate-in fade-in slide-in-from-top-2 duration-200"
+      aria-label="Workspace state"
+    >
+      <div className="rounded-xl border border-border bg-background shadow-sm">
+        {/* Header — title + reason + close */}
+        <header className="flex items-start justify-between border-b border-border px-4 py-2.5">
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+              Workspace state
+            </p>
+            {reason ? (
+              <p className="mt-0.5 text-sm text-foreground">{reason}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-muted-foreground/40 hover:bg-muted hover:text-muted-foreground"
+            aria-label="Close workspace state"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </header>
+
+        {/* Lens switcher — hidden in empty/gate state */}
+        {showLensSwitcher && (
+          <nav
+            aria-label="Workspace state lenses"
+            className="flex items-center gap-1 border-b border-border px-2 py-1.5"
+          >
+            <LensButton
+              active={activeLens === 'briefing'}
+              icon={Newspaper}
+              label="What changed"
+              onClick={() => setActiveLens('briefing')}
+            />
+            <LensButton
+              active={activeLens === 'recent'}
+              icon={ClipboardList}
+              label="Running"
+              onClick={() => setActiveLens('recent')}
+            />
+            <LensButton
+              active={activeLens === 'gaps'}
+              icon={Compass}
+              label="Coverage"
+              onClick={() => setActiveLens('gaps')}
+            />
+          </nav>
+        )}
+
+        {/* Active lens content */}
+        <div className="max-h-[42vh] overflow-y-auto">
+          {activeLens === 'empty' ? (
+            <EmptyLead onSubmit={onContextSubmit} />
+          ) : activeLens === 'briefing' ? (
+            <BriefingLead agents={agents} tasks={tasks} />
+          ) : activeLens === 'recent' ? (
+            <RecentLead agents={agents} tasks={tasks} loading={dataLoading} />
+          ) : (
+            <GapsLead agents={agents} tasks={tasks} loading={dataLoading} />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// =============================================================================
+// Lens switcher button
+// =============================================================================
+
+interface LensButtonProps {
+  active: boolean;
+  icon: React.ElementType;
+  label: string;
+  onClick: () => void;
+}
+
+function LensButton({ active, icon: Icon, label, onClick }: LensButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+        active
+          ? 'bg-foreground text-background'
+          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+// =============================================================================
+// Lead view: Empty (gate)
+// =============================================================================
+
+function EmptyLead({ onSubmit }: { onSubmit: (message: string) => void }) {
+  return (
+    <div className="p-3">
+      <ContextSetup onSubmit={onSubmit} embedded />
+    </div>
+  );
+}
+
+// =============================================================================
+// Lead view: Briefing
+// =============================================================================
+
+function BriefingLead({ agents, tasks }: { agents: Agent[]; tasks: Task[] }) {
+  return (
+    <div className="p-3">
+      <DailyBriefing
+        agents={agents}
+        tasks={tasks}
+        hasMessages={false}
+        forceExpanded
+      />
+    </div>
+  );
+}
+
+// =============================================================================
+// Lead view: Recent work
+// =============================================================================
+
+function agentTitleForTask(task: Task, agents: Agent[]) {
+  const slug = task.agent_slugs?.[0];
+  return agents.find((agent) => agent.slug === slug)?.title || slug || 'TP';
+}
+
+function formatRelativeTime(value?: string) {
+  if (!value) return null;
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return null;
+  const diff = Date.now() - then;
+  const future = diff < 0;
+  const abs = Math.abs(diff);
+  const mins = Math.floor(abs / 60000);
+  if (mins < 1) return future ? 'soon' : 'just now';
+  if (mins < 60) return future ? `in ${mins}m` : `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return future ? `in ${hours}h` : `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return future ? `in ${days}d` : `${days}d ago`;
+}
+
+function RecentLead({
+  agents,
+  tasks,
+  loading,
+}: {
+  agents: Agent[];
+  tasks: Task[];
+  loading: boolean;
+}) {
+  const visibleTasks = useMemo(
+    () =>
+      tasks
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.updated_at || b.created_at).getTime() -
+            new Date(a.updated_at || a.created_at).getTime(),
+        )
+        .slice(0, 6),
+    [tasks],
+  );
+
+  if (loading) {
+    return (
+      <div className="px-5 py-8 text-sm text-muted-foreground">
+        Loading current work...
+      </div>
+    );
+  }
+
+  if (visibleTasks.length === 0) {
+    return (
+      <div className="px-5 py-8">
+        <p className="text-sm font-medium">No work is running yet.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Tell TP what you want watched, prepared, or produced.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 p-4">
+      {visibleTasks.map((task) => {
+        const active = task.status === 'active';
+        const completed = task.status === 'completed';
+        const Icon = completed ? CheckCircle2 : active ? Clock3 : PauseCircle;
+        const lastSignal = formatRelativeTime(task.last_run_at || task.updated_at);
+
+        return (
+          <div
+            key={task.id}
+            className="rounded-lg border border-border/70 bg-muted/20 p-3"
+          >
+            <div className="flex items-start gap-2">
+              <Icon
+                className={cn(
+                  'mt-0.5 h-4 w-4 shrink-0',
+                  active ? 'text-green-600' : 'text-muted-foreground',
+                )}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="truncate text-sm font-medium">{task.title}</p>
+                  <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    {taskModeLabel(task.mode)}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {agentTitleForTask(task, agents)}
+                  {task.objective?.deliverable
+                    ? ` -> ${task.objective.deliverable}`
+                    : ''}
+                </p>
+              </div>
+              {lastSignal && (
+                <span className="shrink-0 text-xs text-muted-foreground/60">
+                  {lastSignal}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// =============================================================================
+// Lead view: Coverage gaps
+// =============================================================================
+
+function GapsLead({
+  agents,
+  tasks,
+  loading,
+}: {
+  agents: Agent[];
+  tasks: Task[];
+  loading: boolean;
+}) {
+  const domainAgents = agents.filter(
+    (agent) => (agent.agent_class || 'domain-steward') === 'domain-steward',
+  );
+  const agentsWithoutTasks = domainAgents.filter((agent) => {
+    const slug =
+      agent.slug ||
+      agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    return !tasks.some((task) => task.agent_slugs?.includes(slug));
+  });
+  // ADR-166: task_class → output_kind. "context" → "accumulates_context".
+  const contextTasks = tasks.filter(
+    (task) => task.output_kind === 'accumulates_context',
+  ).length;
+
+  if (loading) {
+    return (
+      <div className="px-5 py-8 text-sm text-muted-foreground">
+        Checking context...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 p-4">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/60">
+          Coverage
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+            <p className="text-xl font-semibold">{domainAgents.length}</p>
+            <p className="text-xs text-muted-foreground">domain agents</p>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+            <p className="text-xl font-semibold">{contextTasks}</p>
+            <p className="text-xs text-muted-foreground">context tasks</p>
+          </div>
+        </div>
+      </div>
+
+      {agentsWithoutTasks.length > 0 ? (
+        <div>
+          <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+            <AlertCircle className="h-4 w-4 text-amber-500" />
+            Needs setup
+          </div>
+          <div className="space-y-1.5">
+            {agentsWithoutTasks.slice(0, 5).map((agent) => (
+              <div
+                key={agent.id}
+                className="rounded-md border border-border/70 px-3 py-2 text-sm text-muted-foreground"
+              >
+                <span className="font-medium text-foreground">{agent.title}</span>{' '}
+                has no assigned work yet.
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+          <div className="flex items-center gap-1.5 text-sm font-medium">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            Coverage looks ready
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            TP has at least one work path for every domain agent.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,14 +1,18 @@
 'use client';
 
 /**
- * Chat Page - TP chat surface.
+ * Chat Page — TP chat surface (ADR-165 v5).
  *
- * ADR-165 revision: chat remains the single primary surface. Structured
- * artifacts render inline through a tab switcher rather than floating windows.
+ * The page is the dedicated TP chat product. Workspace state is opened
+ * on demand by TP (via the workspace-state marker) or by the user (via
+ * the input-row icon). No always-on artifact strip.
+ *
+ * The "Update my context" plus-menu action is owned by ChatSurface itself,
+ * since ContextSetup is the surface's empty-lead view.
  */
 
 import { useEffect, useMemo } from 'react';
-import { Globe, Upload, ListChecks, Settings2 } from 'lucide-react';
+import { ListChecks } from 'lucide-react';
 import { ChatSurface } from '@/components/chat-surface/ChatSurface';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import { useTP } from '@/contexts/TPContext';
@@ -25,10 +29,13 @@ export default function HomePage() {
   const isNewUser = !dataLoading && !hasTasks;
 
   const plusMenuActions: PlusMenuAction[] = useMemo(() => [
-    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt' as const, onSelect: () => sendMessage('I want to create a task. What do you suggest based on my context?') },
-    { id: 'update-context', label: 'Update my context', icon: Settings2, verb: 'prompt' as const, onSelect: () => {} },
-    { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt' as const, onSelect: () => {} },
-    { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach' as const, onSelect: () => {} },
+    {
+      id: 'create-task',
+      label: 'Create a task',
+      icon: ListChecks,
+      verb: 'prompt',
+      onSelect: () => sendMessage('I want to create a task. What do you suggest based on my context?'),
+    },
   ], [sendMessage]);
 
   return (

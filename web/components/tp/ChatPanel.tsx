@@ -28,7 +28,7 @@ import {
   InlineActionCard,
   type ActionCardConfig,
 } from '@/components/tp/InlineActionCard';
-import { ContextSetup } from '@/components/tp/ContextSetup';
+import { stripWorkspaceStateMeta } from '@/lib/workspace-state-meta';
 
 export interface ChatPanelProps {
   /** Surface override — when set, used instead of DeskContext surface */
@@ -47,6 +47,12 @@ export interface ChatPanelProps {
   showCommandPicker?: boolean;
   /** Whether to render a divider above the input */
   showInputDivider?: boolean;
+  /**
+   * Optional addon rendered inside the input row, between the textarea and
+   * the submit button. Used by ChatSurface (ADR-165 v5) for the workspace
+   * state toggle icon.
+   */
+  inputRowAddon?: React.ReactNode;
 }
 
 export function ChatPanel({
@@ -58,6 +64,7 @@ export function ChatPanel({
   topContent,
   showCommandPicker = true,
   showInputDivider = true,
+  inputRowAddon,
 }: ChatPanelProps) {
   const {
     messages,
@@ -165,7 +172,7 @@ export function ChatPanel({
             ) : (
               <>
                 {msg.role === 'assistant' ? (
-                  <MarkdownRenderer content={msg.content} compact />
+                  <MarkdownRenderer content={stripWorkspaceStateMeta(msg.content)} compact />
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
@@ -260,6 +267,7 @@ export function ChatPanel({
               rows={1}
               className="flex-1 py-2.5 pr-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
             />
+            {inputRowAddon}
             <button type="submit" disabled={isLoading || (!input.trim() && attachments.length === 0)} className="shrink-0 p-2.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"><Send className="w-4 h-4" /></button>
           </div>
           <div className="mt-1 flex items-center justify-between text-[9px] text-muted-foreground/40">

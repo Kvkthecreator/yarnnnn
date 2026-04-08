@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.08.3] - ADR-165 v5: Workspace State Surface Marker
+
+### Changed
+- `agents/tp_prompts/onboarding.py`: New "Workspace State Surface (ADR-165 v5)" section added to `CONTEXT_AWARENESS`. TP can now emit a `<!-- workspace-state: {"lead":"...","reason":"..."} -->` HTML comment as the last line of an assistant message to open the chat client's workspace state surface in a specific lead view. Four valid leads: `empty` (ContextSetup gate), `briefing` (what changed), `recent` (running tasks), `gaps` (coverage gaps). Tight ruleset: emit only on first message of session for empty identity OR fresh runs; emit when user asks "what's running"; emit when gaps are detected. AT MOST ONE marker per message. Marker is supplementary — text response above the marker is the answer. Same parser pattern as ADR-162 inference-meta marker — frontend strips the comment before display via `stripWorkspaceStateMeta()` in `web/lib/workspace-state-meta.ts`.
+- Expected behavior: TP becomes the surface opener (single intelligence layer per ADR-156). Frontend never guesses when to show workspace state — it just executes TP's directives. The chat page goes from "always-on tab strip + 38vh card" to "TP chat with on-demand workspace state surface." ContextSetup is no longer a peer artifact; it's the empty-lead view of the single surface, auto-opened for new users (cold start) or via the user's manual override (input-row icon / plus-menu "Update my context").
+
+---
+
 ## [2026.04.08.2] - ADR-166: Registry Coherence Pass
 
 ### Changed

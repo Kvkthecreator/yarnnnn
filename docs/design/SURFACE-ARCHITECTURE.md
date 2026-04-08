@@ -4,7 +4,7 @@
 **Status:** Canonical
 **Governed by:** [ADR-163](../adr/ADR-163-surface-restructure.md) — Surface Restructure
 **Active decisions:**
-- [ADR-165](../adr/ADR-165-chat-artifact-surface.md) — `/chat` internal layout
+- [ADR-165 v5](../adr/ADR-165-workspace-state-surface.md) — `/chat` workspace state surface (TP-directed, single component, four lead views)
 - [ADR-166](../adr/ADR-166-registry-coherence-pass.md) — task `output_kind` enum (4 values)
 - [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — `/work` and `/agents` collapse from master-detail into list/detail mode with kind-aware detail. **v2 amendment**: breadcrumb collapses into in-page `<PageHeader />`, replacing the floating bar AND the per-page title bands inside `WorkDetail`/`AgentContentView`.
 
@@ -350,9 +350,11 @@ Currently wired for BrandSection in Settings (via `MemorySection.tsx`). A dedica
 - `web/contexts/BreadcrumbContext.tsx` — breadcrumb segment state with `kind`-tagged segments (commit b033513). Contract unchanged; only the renderer location moved.
 
 ### Chat
-- `web/app/(authenticated)/chat/page.tsx` — Chat page (home)
-- `web/components/chat-surface/ChatSurface.tsx` — chat artifact surface (ADR-165)
-- `docs/design/CHAT-ARTIFACT-SURFACE.md` — chat artifact surface plan for `/chat` (ADR-165)
+- `web/app/(authenticated)/chat/page.tsx` — Chat page (home). Loads scoped history, supplies first-party plus-menu actions, delegates everything else to `ChatSurface`.
+- `web/components/chat-surface/ChatSurface.tsx` — page-level controller (ADR-165 v5). Owns surface open state, parses TP workspace-state markers, injects "Update my context" plus-menu action, renders `WorkspaceStateView` as `ChatPanel`'s `topContent` only when open.
+- `web/components/chat-surface/WorkspaceStateView.tsx` — single workspace-state component with four lead views (`empty | briefing | recent | gaps`) as internal state branches (ADR-165 v5). Replaces the four sibling artifact files from v4.
+- `web/lib/workspace-state-meta.ts` — parser + stripper for TP's workspace-state HTML-comment marker (same pattern as ADR-162 inference-meta).
+- `docs/design/WORKSPACE-STATE-SURFACE.md` — design doc for `/chat` workspace state surface (ADR-165 v5)
 
 ### Work
 - `web/app/(authenticated)/work/page.tsx` — Work page. List/detail mode switched on `?task=` URL state (ADR-167).

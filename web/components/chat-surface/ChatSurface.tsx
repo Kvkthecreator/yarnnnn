@@ -1,17 +1,36 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Compass, Newspaper, PanelsTopLeft } from 'lucide-react';
+/**
+ * ChatSurface — TP chat surface with on-demand workspace state view.
+ *
+ * ADR-165 v5: One single workspace state surface, opened by TP via marker
+ * directives or by the user via the input-row icon. No always-on artifact
+ * tabs. The page is TP chat — workspace state is a tool TP reaches for when
+ * relevant, not a permanent dashboard above the conversation.
+ *
+ * Marker pattern (ADR-165 v5, modeled on ADR-162 inference-meta):
+ *   <!-- workspace-state: {"lead":"empty","reason":"..."} -->
+ *
+ * The marker is parsed from the latest assistant message. When TP emits one,
+ * the surface auto-opens to the requested lead view. The marker is stripped
+ * from the displayed message body in ChatPanel.
+ *
+ * Manual override: the input-row icon toggles the surface. On manual open,
+ * the lead is computed deterministically from current data — TP is not
+ * called for manual opens.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { LayoutPanelTop, Settings2 } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { Agent, Task } from '@/types';
-import { ChatArtifactCard } from './ChatArtifactCard';
-import { ChatArtifactTabs } from './ChatArtifactTabs';
-import type { ChatArtifactId, ChatArtifactTab } from './chatArtifactTypes';
-import { ContextGapsArtifact } from './artifacts/ContextGapsArtifact';
-import { DailyBriefingArtifact } from './artifacts/DailyBriefingArtifact';
-import { OnboardingArtifact } from './artifacts/OnboardingArtifact';
-import { RecentWorkArtifact } from './artifacts/RecentWorkArtifact';
+import { useTP } from '@/contexts/TPContext';
+import {
+  parseWorkspaceStateMeta,
+  type WorkspaceStateLead,
+} from '@/lib/workspace-state-meta';
+import { WorkspaceStateView } from './WorkspaceStateView';
 
 interface ChatSurfaceProps {
   agents: Agent[];
@@ -39,80 +58,124 @@ export function ChatSurface({
   plusMenuActions,
   onContextSubmit,
 }: ChatSurfaceProps) {
-  const [activeArtifactId, setActiveArtifactId] = useState<ChatArtifactId>(isNewUser ? 'onboarding' : 'briefing');
+  const { messages } = useTP();
 
+  // Surface open state — controlled here, not by ChatPanel.
+  const [open, setOpen] = useState(false);
+  const [lead, setLead] = useState<WorkspaceStateLead | null>(null);
+  const [reason, setReason] = useState<string | null>(null);
+
+  // Track the last message id we processed for marker directives, so we
+  // don't re-fire the surface every render.
+  const [lastProcessedId, setLastProcessedId] = useState<string | null>(null);
+
+  // Cold-start: if the workspace is empty AND there are no messages yet,
+  // auto-open the surface to the empty lead. This is the gate behavior —
+  // TP hasn't had a chance to emit a marker yet because no message has
+  // been sent. Once TP responds, it owns the surface.
   useEffect(() => {
-    if (isNewUser) {
-      setActiveArtifactId('onboarding');
-      return;
+    if (isNewUser && messages.length === 0 && !open) {
+      setOpen(true);
+      setLead('empty');
+      setReason(null);
     }
+  }, [isNewUser, messages.length, open]);
 
-    if (activeArtifactId === 'onboarding') {
-      setActiveArtifactId('briefing');
-    }
-  }, [activeArtifactId, isNewUser]);
+  // Watch the latest assistant message for a workspace-state marker.
+  // When present, open the surface with the requested lead view.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const latest = messages[messages.length - 1];
+    if (latest.role !== 'assistant') return;
+    if (latest.id === lastProcessedId) return;
+    if (!latest.content) return;
 
-  const tabs = useMemo<ChatArtifactTab[]>(() => {
-    const baseTabs: ChatArtifactTab[] = [
-      {
-        id: 'briefing',
-        label: 'Daily Briefing',
-        icon: Newspaper,
-        content: <DailyBriefingArtifact agents={agents} tasks={tasks} />,
-      },
-      {
-        id: 'recent-work',
-        label: 'Recent Work',
-        icon: ClipboardList,
-        content: <RecentWorkArtifact agents={agents} tasks={tasks} loading={dataLoading} />,
-      },
-      {
-        id: 'context-gaps',
-        label: 'Context Gaps',
-        icon: Compass,
-        content: <ContextGapsArtifact agents={agents} tasks={tasks} loading={dataLoading} />,
-      },
-    ];
+    const { directive } = parseWorkspaceStateMeta(latest.content);
+    setLastProcessedId(latest.id);
+    if (!directive) return;
 
-    if (!isNewUser) return baseTabs;
+    setOpen(true);
+    setLead(directive.lead);
+    setReason(directive.reason ?? null);
+  }, [messages, lastProcessedId]);
 
-    return [
-      {
-        id: 'onboarding',
-        label: 'Get Started',
-        icon: PanelsTopLeft,
-        content: <OnboardingArtifact onSubmit={onContextSubmit} />,
-      },
-      ...baseTabs,
-    ];
-  }, [agents, dataLoading, isNewUser, onContextSubmit, tasks]);
+  const handleToggle = useCallback(() => {
+    setOpen((prev) => {
+      if (prev) return false;
+      // Manual open: deterministic lead, no TP call.
+      setLead(null); // null tells WorkspaceStateView to compute from data
+      setReason(null);
+      return true;
+    });
+  }, []);
 
-  const activeTab = tabs.find((tab) => tab.id === activeArtifactId) ?? tabs[0];
-  const topContent = (
-    <div className="mx-auto w-full max-w-4xl space-y-4">
-      <ChatArtifactTabs
-        tabs={tabs}
-        activeId={activeTab.id}
-        onSelect={setActiveArtifactId}
+  const openWithLead = useCallback((nextLead: WorkspaceStateLead, nextReason?: string) => {
+    setOpen(true);
+    setLead(nextLead);
+    setReason(nextReason ?? null);
+  }, []);
+
+  const handleClose = useCallback(() => setOpen(false), []);
+
+  // Inject "Update my context" as the first plus-menu action — owned by the
+  // surface, since ContextSetup is the surface's empty-lead view.
+  const augmentedPlusMenuActions: PlusMenuAction[] = useMemo(() => {
+    const updateAction: PlusMenuAction = {
+      id: 'update-context',
+      label: 'Update my context',
+      icon: Settings2,
+      verb: 'show',
+      onSelect: () => openWithLead('empty', 'Add to your workspace context'),
+    };
+    return [updateAction, ...plusMenuActions];
+  }, [plusMenuActions, openWithLead]);
+
+  const inputRowAddon = useMemo(
+    () => (
+      <button
+        type="button"
+        onClick={handleToggle}
+        className="shrink-0 p-2.5 text-muted-foreground hover:text-foreground transition-colors"
+        aria-label="Toggle workspace state"
+        title="Workspace state"
+      >
+        <LayoutPanelTop className="h-4 w-4" />
+      </button>
+    ),
+    [handleToggle],
+  );
+
+  const surfaceContent = (
+    <div className="mx-auto w-full max-w-3xl">
+      <WorkspaceStateView
+        open={open}
+        lead={lead}
+        agents={agents}
+        tasks={tasks}
+        dataLoading={dataLoading}
+        isEmpty={isNewUser}
+        reason={reason}
+        onClose={handleClose}
+        onContextSubmit={(msg) => {
+          onContextSubmit(msg);
+          setOpen(false);
+        }}
       />
-
-      <ChatArtifactCard>
-        {activeTab.content}
-      </ChatArtifactCard>
     </div>
   );
 
   return (
     <div className="h-full bg-background">
-      <div className="mx-auto h-full w-full max-w-5xl px-4 py-5">
+      <div className="mx-auto h-full w-full max-w-3xl px-4 py-5">
         <ChatPanel
           surfaceOverride={{ type: 'chat' }}
-          plusMenuActions={plusMenuActions}
+          plusMenuActions={augmentedPlusMenuActions}
           placeholder="Ask anything or type / ..."
           showCommandPicker={true}
           emptyState={CHAT_EMPTY_STATE}
-          topContent={topContent}
+          topContent={open ? surfaceContent : null}
           showInputDivider={false}
+          inputRowAddon={inputRowAddon}
         />
       </div>
     </div>

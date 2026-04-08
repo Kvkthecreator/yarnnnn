@@ -38,6 +38,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { NotificationCard } from '@/components/tp/NotificationCard';
 import { MessageBlock } from '@/types/desk';
 import { cn, getToolDisplayMessage } from '@/lib/utils';
+import { stripWorkspaceStateMeta } from '@/lib/workspace-state-meta';
 
 interface InlineToolCallProps {
   block: Extract<MessageBlock, { type: 'tool_call' }>;
@@ -282,10 +283,13 @@ export function MessageBlocks({ blocks, compact = true }: { blocks: MessageBlock
     <div className="space-y-1">
       {blocks.map((block, i) => {
         switch (block.type) {
-          case 'text':
-            return block.content ? (
-              <MarkdownRenderer key={i} content={block.content} compact />
+          case 'text': {
+            // ADR-165 v5: strip workspace-state marker before rendering
+            const stripped = stripWorkspaceStateMeta(block.content);
+            return stripped ? (
+              <MarkdownRenderer key={i} content={stripped} compact />
             ) : null;
+          }
           case 'thinking':
             return <ThinkingBlock key={i} content={block.content} />;
           case 'tool_call':

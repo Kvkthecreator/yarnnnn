@@ -4,6 +4,33 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-08 — ADR-165 v5: Workspace state surface (single-component, TP-directed)
+
+- **ADR-165 rewritten to v5** and renamed: `ADR-165-chat-artifact-surface.md` → `ADR-165-workspace-state-surface.md`. Same ADR number, same in-doc revision history (v1→v5), new file name to reflect the corrected concept.
+- **Design doc renamed**: `CHAT-ARTIFACT-SURFACE.md` → `WORKSPACE-STATE-SURFACE.md`. Full rewrite — the v4 model (four sibling artifacts in a tab strip) is replaced by one component with four lead views.
+- **Conceptual inversion**: v4 was "always-on tab strip + 38vh card with four sibling artifacts." v5 is "TP chat is the page; workspace state is one on-demand surface that opens when TP or the user asks." Three of the four v4 artifacts (Daily Briefing, Recent Work, Context Gaps) collapse into facets of one component because they read from the same data and answer adjacent questions. The fourth (Onboarding) is the gate path of the same component.
+- **TP becomes the surface opener** (single intelligence layer per ADR-156). New marker pattern: TP appends `<!-- workspace-state: {"lead":"...","reason":"..."} -->` as the LAST line of an assistant message. Same parser philosophy as ADR-162's `inference-meta` marker — frontend strips before display, parses for directive, opens the surface.
+- **New file**: `web/lib/workspace-state-meta.ts` — `parseWorkspaceStateMeta()` + `stripWorkspaceStateMeta()`.
+- **New file**: `web/components/chat-surface/WorkspaceStateView.tsx` — single component with four lead views (`empty | briefing | recent | gaps`) as internal state branches, lens switcher, header with reason/close.
+- **Rewrote**: `web/components/chat-surface/ChatSurface.tsx` — owns surface open state, watches `messages` for TP markers, injects "Update my context" plus-menu action, renders `WorkspaceStateView` as `ChatPanel`'s `topContent` only when open.
+- **Touched**: `web/components/tp/ChatPanel.tsx` — strips marker before display via `stripWorkspaceStateMeta`, accepts new `inputRowAddon` prop for the workspace-state toggle icon.
+- **Touched**: `web/components/tp/InlineToolCall.tsx` — strips marker from `MessageBlocks` text-block render path.
+- **Touched**: `web/app/(authenticated)/chat/page.tsx` — passes only first-party plus-menu actions (Create a task), removes the no-op `update-context`/`web-search`/`upload-file` stubs (cleanup of dead code).
+- **TP prompt update**: `api/agents/tp_prompts/onboarding.py` gains a "Workspace State Surface (ADR-165 v5)" section under `CONTEXT_AWARENESS`. Tight initial ruleset — at most one marker per message, steady-state silence is correct. See `api/prompts/CHANGELOG.md` entry `[2026.04.08.3]`.
+- **Chat column width fix** (independent, landed in same commit): `/chat` page wrapper changes from `max-w-5xl` (1024px) to `max-w-3xl` (768px). Claude Code parity. The textarea inherits the cap.
+- **Files DELETED** (singular implementation, no parallel paths):
+  - `web/components/chat-surface/ChatArtifactCard.tsx`
+  - `web/components/chat-surface/ChatArtifactTabs.tsx`
+  - `web/components/chat-surface/chatArtifactTypes.ts`
+  - `web/components/chat-surface/artifacts/ContextGapsArtifact.tsx`
+  - `web/components/chat-surface/artifacts/DailyBriefingArtifact.tsx`
+  - `web/components/chat-surface/artifacts/OnboardingArtifact.tsx`
+  - `web/components/chat-surface/artifacts/RecentWorkArtifact.tsx`
+  - `web/components/chat-surface/artifacts/` directory itself
+- **SURFACE-ARCHITECTURE.md** Chat section updated with the new file map and the renamed ADR pointer.
+
+---
+
 ## 2026-04-08 — ADR-167 v2: Breadcrumb collapse into PageHeader
 
 - **ADR-167 amended in place** with a "V2 Amendment — Breadcrumb collapse into PageHeader" section. Same intent (the breadcrumb-as-navigation thesis from b033513 + ADR-167's surface mode collapse), now landing the visual simplification: the breadcrumb moves out of the global layout and into the first row of each surface as a `<PageHeader />` component.
