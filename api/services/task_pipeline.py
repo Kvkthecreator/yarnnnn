@@ -720,8 +720,19 @@ def parse_task_md(content: str) -> dict:
             result["type_key"] = line_stripped.split("**Type:**")[1].strip()
         elif line_stripped.startswith("**Mode:**"):
             result["mode"] = line_stripped.split("**Mode:**")[1].strip()
+        # ADR-166: **Output:** is the canonical key (output_kind, 4-value enum).
+        # Backward compat: also accept legacy **Class:** and remap.
+        elif line_stripped.startswith("**Output:**"):
+            result["output_kind"] = line_stripped.split("**Output:**")[1].strip()
         elif line_stripped.startswith("**Class:**"):
-            result["task_class"] = line_stripped.split("**Class:**")[1].strip()
+            legacy_class = line_stripped.split("**Class:**")[1].strip()
+            # Legacy class → output_kind mapping
+            _legacy_map = {
+                "context": "accumulates_context",
+                "synthesis": "produces_deliverable",
+                "back_office": "system_maintenance",
+            }
+            result["output_kind"] = _legacy_map.get(legacy_class, "produces_deliverable")
         elif line_stripped.startswith("**Schedule:**"):
             result["schedule"] = line_stripped.split("**Schedule:**")[1].strip()
         elif line_stripped.startswith("**Delivery:**"):
@@ -892,9 +903,9 @@ async def gather_task_context(
     if context_domains_text:
         sections.append(context_domains_text)
 
-    # 3. Agent identity + selective playbooks (ADR-157: task-class routing)
-    task_class = task_info.get("task_class") if task_info else None
-    ws_context = await ws.load_context(task_class=task_class)
+    # 3. Agent identity + selective playbooks (ADR-166: output_kind routing)
+    output_kind = task_info.get("output_kind") if task_info else None
+    ws_context = await ws.load_context(output_kind=output_kind)
     if ws_context:
         sections.append(f"## Agent Context\n{ws_context}")
 
@@ -1040,12 +1051,13 @@ If context says "(No context available)" or tools return no results:
             val = objective.get(key)
             if val:
                 user_parts.append(f"- **{key.capitalize()}:** {val}")
-        # ADR-154: Phase-aware step instruction
+        # ADR-154/166: Phase-aware step instruction. Routing key is output_kind.
         step_instruction = objective.get("step_instruction")
-        task_class = task_info.get("task_class", "")
+        output_kind = task_info.get("output_kind", "")
         type_key = task_info.get("type_key", "")
+        is_context_task = output_kind == "accumulates_context"
 
-        if task_phase == "bootstrap" and task_class == "context":
+        if task_phase == "bootstrap" and is_context_task:
             # Bootstrap context task — inject discovery-focused instruction
             from services.task_types import STEP_INSTRUCTIONS
             bootstrap_instruction = STEP_INSTRUCTIONS.get("update-context:bootstrap", "")
@@ -1054,7 +1066,7 @@ If context says "(No context available)" or tools return no results:
                 context_writes = task_info.get("context_writes", [])
                 primary_domain = next((d for d in context_writes if d != "signals"), "")
                 step_instruction = bootstrap_instruction.replace("{domain}", primary_domain)
-        elif not step_instruction and task_class == "context":
+        elif not step_instruction and is_context_task:
             # Steady-state context task without explicit step instruction
             from services.task_types import STEP_INSTRUCTIONS
             step_instruction = STEP_INSTRUCTIONS.get("update-context", "")

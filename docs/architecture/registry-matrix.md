@@ -1,8 +1,8 @@
 # Registry Matrix — Domains, Tasks, Agents
 
 **Status:** Canonical  
-**Date:** 2026-03-31  
-**Related:** ADR-140 (Agent Workforce), ADR-145 (Task Type Registry), ADR-151 (Context Domains), ADR-152 (Unified Directory Registry)
+**Date:** 2026-04-08 (ADR-166 coherence pass)
+**Related:** ADR-140 (Agent Workforce), ADR-145 (Task Type Registry), ADR-151 (Context Domains), ADR-152 (Unified Directory Registry), ADR-164 (Back Office Tasks), ADR-166 (Registry Coherence)
 
 ---
 
@@ -13,37 +13,59 @@ YARNNN has three registries that work together:
 | Registry | Governs | File | Key constant |
 |---|---|---|---|
 | **Directory Registry** | Workspace structure + context domains | `directory_registry.py` | `WORKSPACE_DIRECTORIES` |
-| **Agent Templates** (v4 domain-steward) | Who does the work — domain-steward + synthesizer + bot | `agent_framework.py` | `AGENT_TEMPLATES` |
-| **Task Types** (v3 atomic) | How work gets done — split into context + synthesis | `task_types.py` | `TASK_TYPES` |
+| **Agent Templates** (v4 domain-steward + meta-cognitive) | Who does the work — domain-steward + synthesizer + bot + TP | `agent_framework.py` | `AGENT_TEMPLATES` |
+| **Task Types** (v6 — ADR-166) | How work gets done — classified by `output_kind` | `task_types.py` | `TASK_TYPES` |
 
-**Read direction:** Domains are upstream → Context tasks WRITE to domains → Synthesis tasks READ from domains → Agent types execute task steps.
+**Read direction:** Domains are upstream → context-accumulating tasks WRITE to domains → deliverable-producing tasks READ from domains → agent types execute task steps. External-action and system-maintenance tasks sit alongside, governed by the same pipeline.
+
+## Two Axes of Organization (ADR-166)
+
+After ADR-166 every task is described by exactly two axes:
+
+| Axis | Where it lives | Values | Used for |
+|---|---|---|---|
+| **`mode`** (temporal posture) | TASK.md `**Mode:**` + `tasks.mode` column | `recurring \| goal \| reactive` | TP management posture: auto-deliver vs. evaluate-and-steer-to-completion vs. dispatch-and-done. |
+| **`output_kind`** (work shape) | TASK.md `**Output:**` + task_types registry | `accumulates_context \| produces_deliverable \| external_action \| system_maintenance` | Pipeline routing: which playbooks load, where output goes, who consumes it, what UI treatment to use. |
+
+**Dropped (ADR-166):** the redundant `category` field on task types and the related `TASK_TYPE_CATEGORIES` constant. Categorization was overlapping shorthand for owner agent + output_kind; both already exist explicitly elsewhere.
+
+**Renamed (ADR-166):** `task_class` → `output_kind`. The old two-value enum (`context | synthesis`) couldn't express external actions (slack-respond, notion-update) or back office work (system_maintenance). The 4-value enum is the clean carve.
 
 ---
 
 ## Domain ↔ Task ↔ Agent Matrix
 
-| Context Domain | Context Tasks (WRITE) | Synthesis Tasks (READ) | Agent (domain steward) |
+| Context Domain | Tasks that WRITE (accumulates_context) | Tasks that READ (produces_deliverable) | Agent (domain steward) |
 |---|---|---|---|
-| **competitors/** | track-competitors | competitive-brief, market-report, meeting-prep, launch-material, gtm-report | Competitive Intelligence |
-| **market/** | track-market | market-report, launch-material, gtm-report | Market Research |
+| **competitors/** | track-competitors | competitive-brief, market-report, meeting-prep, launch-material | Competitive Intelligence |
+| **market/** | track-market | market-report, launch-material | Market Research |
 | **relationships/** | track-relationships | meeting-prep, stakeholder-update | Business Development |
 | **projects/** | track-projects | project-status, stakeholder-update | Operations |
-| **content/** | research-topics | content-brief, launch-material | Marketing & Creative |
-| **signals/** | slack-digest, notion-digest, ALL context tasks | ALL synthesis tasks | Slack Bot, Notion Bot |
+| **content_research/** | research-topics | content-brief, launch-material | Marketing & Creative |
+| **signals/** | slack-digest, notion-digest, github-digest, ALL track-* | ALL deliverable-producing tasks | Slack Bot, Notion Bot, GitHub Bot |
 | **slack/** (temporal) | slack-digest | (TP awareness only) | Slack Bot |
 | **notion/** (temporal) | notion-digest | (TP awareness only) | Notion Bot |
 | **github/** (temporal) | github-digest | (TP awareness only) | GitHub Bot |
 | **(cross-domain)** | — | daily-update, stakeholder-update, market-report | Reporting (synthesizer) |
 
+External-action tasks (`slack-respond`, `notion-update`) read from the domains in their `context_reads` but produce no workspace artifact — their effect is the platform write. System-maintenance tasks (`back-office-*`) touch no domains; they emit hygiene signals only.
+
 ---
 
-## Task Type Catalog (v3 — Atomic Split)
+## Task Type Catalog (v6 — ADR-166)
 
-Task types are split into two classes: **context tasks** (accumulate workspace knowledge) and **synthesis tasks** (produce deliverables from accumulated context). For full intelligence coverage, create one of each — e.g., `track-competitors` + `competitive-brief`.
+Task types are organized by `output_kind`. There are exactly four:
 
-### Context Tasks — Track & Research
+1. **`accumulates_context`** — writes to a workspace context domain. Produces no user-visible artifact this run; the run's value is what it adds to the domain.
+2. **`produces_deliverable`** — writes a user-visible output to `/tasks/{slug}/outputs/`. The "synthesis tasks" of prior versions.
+3. **`external_action`** — takes an action on an external platform via API write. No workspace artifact; the effect lives on the third-party surface.
+4. **`system_maintenance`** — TP-owned, deterministic, no LLM. Emits orchestration signals (paused agents, cleaned-up files) into activity_log.
 
-Context tasks maintain your workspace knowledge domains. They run on schedule, update domain folders, and produce NO report output.
+For full intelligence coverage, pair an `accumulates_context` task with a `produces_deliverable` task — e.g., `track-competitors` (Mon) + `competitive-brief` (Fri).
+
+### Accumulates Context — Track & Research
+
+Maintain workspace knowledge domains. Run on schedule, update domain folders, produce no report output.
 
 | Type Key | Display Name | Mode | Schedule | Bootstrap | Domains (writes) |
 |---|---|---|---|---|---|
@@ -54,29 +76,46 @@ Context tasks maintain your workspace knowledge domains. They run on schedule, u
 | **research-topics** | Research Topics | goal | on-demand | 1 entity, research | content_research |
 | **slack-digest** | Slack Digest | recurring | daily | — | slack, signals |
 | **notion-digest** | Notion Digest | recurring | weekly | — | notion, signals |
-| **slack-respond** | Slack Post | reactive | on-demand | — | (reads: slack, signals) |
-| **notion-update** | Notion Update | reactive | on-demand | — | (reads: notion, signals) |
 | **github-digest** | GitHub Digest | recurring | daily | — | github, signals |
 
-### Synthesis Tasks — Reports & Outputs
+All `track-*` tasks read both their domain AND the `signals/` domain — same shape across the board (ADR-166 normalization).
 
-Synthesis tasks read from accumulated context domains and produce deliverables.
+### Produces Deliverable — Reports & Outputs
+
+Read from accumulated context, write a finished artifact to `/tasks/{slug}/outputs/`.
 
 | Type Key | Display Name | Mode | Schedule | Reads From | Notes |
 |---|---|---|---|---|---|
 | **daily-update** ⭐ | Daily Update | recurring | daily | ALL domains | **ESSENTIAL ANCHOR (ADR-161)** — scaffolded at signup, cannot be archived. Empty workspaces produce a deterministic template (zero LLM cost). The user-facing heartbeat artifact. |
 | **competitive-brief** | Competitive Brief | recurring | weekly | competitors, signals | briefs |
-| **market-report** | Market Report | recurring | monthly | market, competitors, signals | reports |
-| **meeting-prep** | Meeting Prep | reactive | on-demand | relationships, competitors, signals | briefs |
+| **market-report** | Market Report | recurring | monthly | market, competitors, signals | Absorbs former `gtm-report`. Single market+competitive+GTM intelligence brief (ADR-166). |
+| **meeting-prep** | Meeting Prep | **goal** | on-demand | relationships, competitors, signals | Has clear completion (the meeting). Goal-shaped, not reactive (ADR-166). |
 | **stakeholder-update** | Stakeholder Update | recurring | monthly | ALL domains | reports |
 | **project-status** | Project Status Report | recurring | weekly | projects, signals | reports |
 | **content-brief** | Content Brief | goal | on-demand | content_research, competitors, signals | content_output |
 | **launch-material** | Launch Material | goal | on-demand | content_research, competitors, market, signals | content_output |
-| **gtm-report** | GTM Report | weekly | content | competitors, market, signals | reports |
+
+### External Action — Platform Writes
+
+Take an action on an external platform via API write. The user's workspace gets no artifact; the effect lives on the third-party surface.
+
+| Type Key | Display Name | Mode | Schedule | Reads From | Writes To |
+|---|---|---|---|---|---|
+| **slack-respond** | Slack Post | reactive | on-demand | slack, signals | Slack channel/thread |
+| **notion-update** | Notion Update | reactive | on-demand | notion, signals | Notion page |
+
+### System Maintenance — Back Office (ADR-164)
+
+TP-owned, deterministic, no LLM. Run through the same task pipeline as user-facing tasks. Visible to users at `/work` (essential, cannot be archived).
+
+| Type Key | Display Name | Mode | Schedule | Owner | Effect |
+|---|---|---|---|---|---|
+| **back-office-agent-hygiene** ⭐ | Agent Hygiene | recurring | daily | TP | Pauses agents whose approval rate has decayed below threshold. |
+| **back-office-workspace-cleanup** ⭐ | Workspace Cleanup | recurring | daily | TP | Sweeps ephemeral files past TTL, prunes orphaned outputs. |
 
 ### Outputs — Tasks Own Their Outputs (ADR-154)
 
-`/workspace/outputs/` directory and `output_category` field **REMOVED**. Tasks own their outputs directly at `/tasks/{slug}/outputs/`. Users access outputs by clicking tasks in the nav. Context tasks write to `/workspace/context/{domain}/`.
+`/workspace/outputs/` directory and `output_category` field **REMOVED**. Tasks own their outputs directly at `/tasks/{slug}/outputs/`. Users access outputs by clicking tasks in the nav. Context-accumulating tasks write to `/workspace/context/{domain}/`. External-action and system-maintenance tasks emit no workspace files at all.
 
 ---
 
@@ -101,7 +140,7 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 - Each domain-steward owns one context domain. The synthesizer (Reporting) reads all domains.
 - **Data viz** (chart, mermaid) is analytical — available to research/synthesis agents for data-driven visuals.
 - **Visual production** (image, video) is a specialization — only Marketing & Creative. Other agents collaborate via multi-step process when they need rich visuals.
-- **Playbooks** are agent-level methodology (how this agent does its work). Loaded selectively by task class. See `docs/features/agent-playbook-framework.md`.
+- **Playbooks** are agent-level methodology (how this agent does its work). Loaded selectively by task `output_kind` (ADR-166). See `docs/features/agent-playbook-framework.md`.
 - Templates are bootstrapping — AGENT.md is the runtime source of truth.
 - **Thinking Partner (TP)** is the meta-cognitive agent (ADR-164). It has two runtime modes: chat (user-present conversation) and task (back office execution of TP-owned tasks like agent hygiene and workspace cleanup). TP owns no context domain; its domain is orchestration itself.
 

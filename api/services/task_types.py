@@ -1,12 +1,20 @@
 """
-Task Type Registry — ADR-152 + ADR-154: Atomic Task Types
+Task Type Registry — ADR-152 + ADR-154 + ADR-166: Atomic Task Types
 
-Two classes of tasks, dead simple:
-  CONTEXT tasks — maintain a workspace context domain (track, research, monitor)
-  SYNTHESIS tasks — produce outputs from accumulated context (reports, briefs, content)
+Each task type has one `output_kind` (ADR-166) describing what shape of work
+the task produces. Four values:
 
-Users think: "What do I want to track?" → context tasks.
-             "What reports do I want?" → synthesis tasks.
+  accumulates_context  — Writes to a workspace context domain. No user-visible
+                         artifact this run. (track-*, *-digest, research-topics)
+  produces_deliverable — Writes a user-visible output to /tasks/{slug}/outputs/.
+                         (daily-update, *-brief, *-report, *-prep, *-update)
+  external_action      — Takes an action on an external platform via API write.
+                         (slack-respond, notion-update)
+  system_maintenance   — TP-owned. Produces an orchestration signal. Deterministic,
+                         no LLM. (back-office-*)
+
+Users think: "What do I want to track?" → tasks with output_kind=accumulates_context.
+             "What reports do I want?" → tasks with output_kind=produces_deliverable.
 
 Agents are auto-assigned. The task type determines which agent handles it.
 Process step instructions come from STEP_INSTRUCTIONS (generic templates).
@@ -21,27 +29,28 @@ Mode + Bootstrap (ADR-154):
   task transitions from aggressive bootstrapping to steady-state cadence.
   Phase (bootstrap/steady/complete) is derived by the pipeline at runtime.
 
-Version: 5.0 (2026-04-04)
+Version: 6.0 (2026-04-08 — ADR-166 registry coherence pass)
 Changelog:
   v1.0 — 13 product-named types (ADR-145)
   v2.0 — context_reads/writes, output_category, STEP_INSTRUCTIONS templates (ADR-152)
-  v3.0 — Atomic split: 7 context + 8 synthesis types. Task-first, user-friendly naming.
-  v4.0 — ADR-154: default_mode + bootstrap criteria on all task types. Phase-aware execution.
+  v3.0 — Atomic split: context + synthesis types. Task-first, user-friendly naming.
+  v4.0 — ADR-154: default_mode + bootstrap criteria. Phase-aware execution.
   v4.1 — ADR-157: Visual asset guidance in step instructions (favicon fetch + embed).
-  v4.2 — ADR-157: assets/ subfolder convention. All visual assets in domain assets/ folder.
-  v5.0 — ADR-158: Platform bot ownership. monitor-slack → slack-digest,
-         monitor-notion → notion-digest. Platform-specific step instructions.
-         context_reads/writes updated to bot-owned directories (slack, notion)
-         instead of signals-only. Bots write per-source observation files.
-  v5.1 — ADR-158 Phase 3: Write-back task types. slack-respond (reactive),
-         notion-update (reactive). Distinct from digest tasks — delivery, not
-         observation. Sources param in build_task_md_from_type().
-  v5.2 — ADR-158 Phase 4: GitHub digest. github-digest task type + step
-         instruction. GitHub Bot agent + roster entry.
+  v4.2 — ADR-157: assets/ subfolder convention.
+  v5.0 — ADR-158: Platform bot ownership. monitor-* → *-digest. Bots own directories.
+  v5.1 — ADR-158 Phase 3: Write-back task types (slack-respond, notion-update).
+  v5.2 — ADR-158 Phase 4: GitHub digest + GitHub Bot.
+  v6.0 — ADR-166 Registry Coherence Pass:
+         - DROPPED `category` field and `TASK_TYPE_CATEGORIES` constant
+         - RENAMED `task_class` → `output_kind`, expanded enum to 4 values
+         - RECLASSIFIED slack-respond/notion-update: synthesis → external_action
+         - DELETED gtm-report (merged into market-report)
+         - CHANGED meeting-prep mode: reactive → goal (it has clear completion)
+         - NORMALIZED track-* context_reads (all four read domain + signals now)
 
 Canonical docs:
   - docs/architecture/registry-matrix.md
-  - docs/adr/ADR-154-execution-boundary-reform.md
+  - docs/adr/ADR-166-registry-coherence-pass.md
 """
 
 from __future__ import annotations
@@ -262,14 +271,10 @@ STEP_INSTRUCTIONS = {
 # Task Type Categories
 # =============================================================================
 
-TASK_TYPE_CATEGORIES = {
-    "context": {"display_name": "Track & Research", "order": 1},
-    "synthesis": {"display_name": "Reports & Outputs", "order": 2},
-    "platform": {"display_name": "Platform Monitoring", "order": 3},
-    # ADR-164: Back office — scheduled maintenance work owned by TP.
-    # Not hidden from the user, just a different class of task.
-    "back_office": {"display_name": "Back Office", "order": 4},
-}
+# ADR-166: TASK_TYPE_CATEGORIES dropped. Categorization is implicit via owner agent
+# class + output_kind. The orphaned `web/components/workfloor/TaskTypeCatalog.tsx`
+# was the only consumer of categories on the frontend; it has been deleted in the
+# same commit per singular-implementation discipline.
 
 
 # =============================================================================
@@ -286,8 +291,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "track-competitors": {
         "display_name": "Track Competitors",
         "description": "Research and maintain intelligence on competitors — products, pricing, funding, strategy.",
-        "category": "context",
-        "task_class": "context",
+        "output_kind": "accumulates_context",
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "bootstrap": {
@@ -304,9 +308,10 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
         ],
-        "context_reads": ["competitors"],
+        # ADR-166: normalized — all track-* tasks read their domain + signals
+        # for consistent next-cycle directive context.
+        "context_reads": ["competitors", "signals"],
         "context_writes": ["competitors", "signals"],
-        # ADR-154: output_category removed — tasks own their outputs
         "context_sources": ["web", "platforms", "workspace"],
         "requires_platform": None,
         "default_objective": {
@@ -334,8 +339,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "track-market": {
         "display_name": "Track Market",
         "description": "Research and maintain intelligence on market segments, sizing, trends, and opportunities.",
-        "category": "context",
-        "task_class": "context",
+        "output_kind": "accumulates_context",
         "default_mode": "recurring",
         "default_schedule": "monthly",
         "bootstrap": {
@@ -352,7 +356,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
         ],
-        "context_reads": ["market"],
+        # ADR-166: normalized — all track-* tasks read their domain + signals
+        "context_reads": ["market", "signals"],
         "context_writes": ["market", "signals"],
         "context_sources": ["web", "platforms", "workspace"],
         "requires_platform": None,
@@ -376,8 +381,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "track-relationships": {
         "display_name": "Track Relationships",
         "description": "Maintain contact profiles, interaction history, and relationship health from platform signals.",
-        "category": "context",
-        "task_class": "context",
+        "output_kind": "accumulates_context",
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "bootstrap": {
@@ -418,8 +422,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "track-projects": {
         "display_name": "Track Projects",
         "description": "Maintain project status, milestones, and blockers from platform signals and team activity.",
-        "category": "context",
-        "task_class": "context",
+        "output_kind": "accumulates_context",
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "bootstrap": {
@@ -460,8 +463,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "research-topics": {
         "display_name": "Research Topics",
         "description": "Deep research on specific topics — accumulate findings, sources, and outlines for content creation.",
-        "category": "context",
-        "task_class": "context",
+        "output_kind": "accumulates_context",
         "default_mode": "goal",
         "default_schedule": "on-demand",
         "bootstrap": {
@@ -508,8 +510,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "slack-digest": {
         "display_name": "Slack Digest",
         "description": "Read selected Slack channels. Capture decisions, action items, and key discussions. Write per-channel observations.",
-        "category": "platform",
-        "task_class": "context",
+        "output_kind": "accumulates_context",
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "html",
@@ -546,8 +547,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "notion-digest": {
         "display_name": "Notion Digest",
         "description": "Read selected Notion pages. Track changes, new content, and stale sections. Write per-page observations.",
-        "category": "platform",
-        "task_class": "context",
+        "output_kind": "accumulates_context",
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
@@ -584,8 +584,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "github-digest": {
         "display_name": "GitHub Digest",
         "description": "Read selected GitHub repos. Track issues, PRs, and activity. Write per-repo observations.",
-        "category": "platform",
-        "task_class": "context",
+        "output_kind": "accumulates_context",
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "html",
@@ -626,8 +625,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "slack-respond": {
         "display_name": "Slack Post",
         "description": "Post a message to a Slack channel or DM. Composes from workspace context and delivers via Slack.",
-        "category": "platform",
-        "task_class": "synthesis",
+        "output_kind": "external_action",
         "default_mode": "reactive",
         "default_schedule": "on-demand",
         "output_format": "text",
@@ -664,8 +662,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "notion-update": {
         "display_name": "Notion Update",
         "description": "Post a comment or update to a Notion page. Composes from workspace context and delivers via Notion.",
-        "category": "platform",
-        "task_class": "synthesis",
+        "output_kind": "external_action",
         "default_mode": "reactive",
         "default_schedule": "on-demand",
         "output_format": "text",
@@ -707,8 +704,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "competitive-brief": {
         "display_name": "Competitive Brief",
         "description": "Weekly competitive intelligence report with charts, positioning analysis, and strategic implications.",
-        "category": "synthesis",
-        "task_class": "synthesis",
+        "output_kind": "produces_deliverable",
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
@@ -749,9 +745,11 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "market-report": {
         "display_name": "Market Report",
-        "description": "Deep market analysis with segment sizing, player landscape, and opportunity identification.",
-        "category": "synthesis",
-        "task_class": "synthesis",
+        # ADR-166: absorbs former gtm-report. Market intelligence, competitive moves,
+        # and GTM signals all roll up here — they read the same context domains and
+        # the audience overlap (leadership, strategy, marketing) is total.
+        "description": "Market intelligence report with segment sizing, competitive moves, GTM signals, and opportunity identification.",
+        "output_kind": "produces_deliverable",
         "default_mode": "recurring",
         "default_schedule": "monthly",
         "output_format": "html",
@@ -769,21 +767,23 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "context_sources": ["workspace"],
         "requires_platform": None,
         "default_objective": {
-            "deliverable": "Market research report",
-            "audience": "Leadership and strategy team",
-            "purpose": "Synthesize market intelligence from accumulated research",
-            "format": "Comprehensive report with data visualizations",
+            "deliverable": "Market intelligence report",
+            "audience": "Leadership, strategy, and marketing teams",
+            "purpose": "Synthesize market, competitive, and GTM signals into a single intelligence brief",
+            "format": "Comprehensive report with data visualizations and competitive matrices",
         },
         "default_deliverable": {
-            "output": {"format": "html", "word_count": "3000-5000", "layout": ["Executive Summary", "Market Overview", "Key Players", "Technology Trends", "Opportunities & Threats", "Recommendations"]},
+            "output": {"format": "html", "word_count": "3000-5000", "layout": ["Executive Summary", "Market Overview", "Competitive Moves", "Key Players", "GTM Signals", "Opportunities & Threats", "Recommendations"]},
             "assets": [
                 {"type": "chart", "subtype": "distribution", "min_count": 1, "description": "Market share or segment breakdown"},
-                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Growth trend data"},
+                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Growth or signal trend data"},
+                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Competitive feature/positioning matrix"},
             ],
             "quality_criteria": [
                 "Data-backed claims with recency noted",
                 "Minimum 5 key players profiled",
-                "Clear opportunity identification",
+                "Competitive moves separated from noise",
+                "Clear opportunity identification with implications",
             ],
         },
     },
@@ -791,9 +791,10 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "meeting-prep": {
         "display_name": "Meeting Prep",
         "description": "Pre-meeting brief with relationship context, talking points, and open items.",
-        "category": "synthesis",
-        "task_class": "synthesis",
-        "default_mode": "reactive",
+        "output_kind": "produces_deliverable",
+        # ADR-166: meeting-prep has clear completion (the meeting happens), so it's
+        # goal-shaped, not reactive. User triggers, TP orchestrates to a deliverable.
+        "default_mode": "goal",
         "default_schedule": "on-demand",
         "output_format": "html",
         "layout_mode": "document",
@@ -829,8 +830,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "stakeholder-update": {
         "display_name": "Stakeholder Update",
         "description": "Board-ready update synthesizing all domains — projects, market, competitive, relationships.",
-        "category": "synthesis",
-        "task_class": "synthesis",
+        "output_kind": "produces_deliverable",
         "default_mode": "recurring",
         "default_schedule": "monthly",
         "output_format": "html",
@@ -870,8 +870,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "daily-update": {
         "display_name": "Daily Update",
         "description": "Daily operational digest — what your agents did, what changed, what's coming up.",
-        "category": "synthesis",
-        "task_class": "synthesis",
+        "output_kind": "produces_deliverable",
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "html",
@@ -909,8 +908,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "project-status": {
         "display_name": "Project Status Report",
         "description": "Weekly status report per workstream with progress, blockers, and next steps.",
-        "category": "synthesis",
-        "task_class": "synthesis",
+        "output_kind": "produces_deliverable",
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
@@ -947,8 +945,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "content-brief": {
         "display_name": "Content Brief",
         "description": "Blog post, article, or content draft synthesized from accumulated topic research.",
-        "category": "synthesis",
-        "task_class": "synthesis",
+        "output_kind": "produces_deliverable",
         "default_mode": "goal",
         "default_schedule": "on-demand",
         "output_format": "html",
@@ -988,8 +985,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "launch-material": {
         "display_name": "Launch Material",
         "description": "Launch announcements, press materials, and go-to-market content from accumulated research.",
-        "category": "synthesis",
-        "task_class": "synthesis",
+        "output_kind": "produces_deliverable",
         "default_mode": "goal",
         "default_schedule": "on-demand",
         "output_format": "html",
@@ -1023,46 +1019,9 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
     },
 
-    "gtm-report": {
-        "display_name": "GTM Report",
-        "description": "Go-to-market intelligence report with competitive moves, market signals, and channel performance.",
-        "category": "synthesis",
-        "task_class": "synthesis",
-        "default_mode": "recurring",
-        "default_schedule": "weekly",
-        "output_format": "html",
-        "layout_mode": "dashboard",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "marketing",
-                "step": "derive-output",
-                "instruction": STEP_INSTRUCTIONS["derive-output"],
-            },
-        ],
-        "context_reads": ["competitors", "market", "signals"],
-        "context_writes": [],
-        "context_sources": ["workspace"],
-        "requires_platform": None,
-        "default_objective": {
-            "deliverable": "GTM tracker report",
-            "audience": "Product, marketing, and strategy teams",
-            "purpose": "Synthesize competitive and market signals into GTM intelligence",
-            "format": "Dashboard-style report with feature matrices and signal cards",
-        },
-        "default_deliverable": {
-            "output": {"format": "html", "word_count": "1500-2500", "layout": ["Market Pulse", "Competitive Moves", "Channel Performance", "Opportunities", "Recommendations"]},
-            "assets": [
-                {"type": "chart", "subtype": "comparison", "min_count": 1, "description": "Feature matrix or competitive comparison"},
-                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Channel performance trends"},
-            ],
-            "quality_criteria": [
-                "Signal separated from noise",
-                "Every finding has an implication",
-                "Quantified where possible",
-            ],
-        },
-    },
+    # ADR-166: gtm-report DELETED — merged into market-report. Both read the same
+    # three context domains (competitors, market, signals) and serve overlapping
+    # leadership/strategy/marketing audiences. One report, broader sections.
 
     # ══════════════════════════════════════════════════════════════════════════
     # BACK OFFICE TASKS — ADR-164
@@ -1075,8 +1034,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "back-office-agent-hygiene": {
         "display_name": "Agent Hygiene",
         "description": "Reviews active agents daily. Pauses underperformers based on approval rate. Migrated from ADR-156 _pause_underperformers.",
-        "category": "back_office",
-        "task_class": "back_office",
+        "output_kind": "system_maintenance",
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "markdown",
@@ -1117,8 +1075,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "back-office-workspace-cleanup": {
         "display_name": "Workspace Cleanup",
         "description": "Deletes expired ephemeral files from /working/ (24h TTL) and /user_shared/ (30d TTL). Migrated from ADR-119/127 scheduler block.",
-        "category": "back_office",
-        "task_class": "back_office",
+        "output_kind": "system_maintenance",
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "markdown",
@@ -1210,31 +1167,27 @@ def evaluate_bootstrap_status(
     return "bootstrap"
 
 
-def list_task_types(category: str | None = None, task_class: str | None = None) -> list[dict[str, Any]]:
-    """List task types, optionally filtered by category or class.
+def list_task_types(output_kind: str | None = None) -> list[dict[str, Any]]:
+    """List task types, optionally filtered by output_kind (ADR-166).
 
     Args:
-        category: Filter by category key (context, synthesis, platform)
-        task_class: Filter by class (context, synthesis)
+        output_kind: Filter by output_kind. One of:
+            accumulates_context | produces_deliverable | external_action | system_maintenance
     """
     result = []
     for key, definition in TASK_TYPES.items():
-        if category and definition["category"] != category:
-            continue
-        if task_class and definition.get("task_class") != task_class:
+        if output_kind and definition.get("output_kind") != output_kind:
             continue
         result.append({"type_key": key, **definition})
-    cat_order = {k: v["order"] for k, v in TASK_TYPE_CATEGORIES.items()}
-    result.sort(key=lambda t: (cat_order.get(t["category"], 99), t["display_name"]))
+    # ADR-166: order by output_kind then display name
+    kind_order = {
+        "accumulates_context": 0,
+        "produces_deliverable": 1,
+        "external_action": 2,
+        "system_maintenance": 3,
+    }
+    result.sort(key=lambda t: (kind_order.get(t.get("output_kind"), 99), t["display_name"]))
     return result
-
-
-def list_categories() -> list[dict[str, Any]]:
-    """List task type categories in display order."""
-    return [
-        {"key": k, **v}
-        for k, v in sorted(TASK_TYPE_CATEGORIES.items(), key=lambda x: x[1]["order"])
-    ]
 
 
 def get_process_agent_types(type_key: str) -> list[str]:
@@ -1333,11 +1286,12 @@ def build_task_md_from_type(
             parts.append(f"{platform}:{','.join(ids)}")
         sources_str = "; ".join(parts)
 
+    # ADR-166: **Class:** → **Output:** (output_kind, 4-value enum)
     md = f"""# {title}
 
 **Slug:** {slug}
 **Type:** {type_key}
-**Class:** {task_type.get('task_class', 'synthesis')}
+**Output:** {task_type.get('output_kind', 'produces_deliverable')}
 **Mode:** {effective_mode}
 **Schedule:** {effective_schedule}
 **Delivery:** {delivery or 'none'}
@@ -1382,9 +1336,10 @@ def build_deliverable_md_from_type(
     output = deliverable.get("output", {})
     assets = deliverable.get("assets", [])
     criteria = deliverable.get("quality_criteria", [])
-    task_class = task_type.get("task_class", "synthesis")
+    # ADR-166: task_class → output_kind, 4-value enum
+    output_kind = task_type.get("output_kind", "produces_deliverable")
 
-    if task_class == "context":
+    if output_kind == "accumulates_context":
         # Context quality specification
         criteria_lines = [f"- {c}" for c in criteria]
         audience = audience_override or objective.get("audience", "")

@@ -6,6 +6,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.08.2] - ADR-166: Registry Coherence Pass
+
+### Changed
+- `services/task_types.py` v6.0: Dropped the `category` field from every task type and deleted the `TASK_TYPE_CATEGORIES` constant. Renamed `task_class` → `output_kind` and expanded the enum from 2 values (`context | synthesis`) to 4: `accumulates_context | produces_deliverable | external_action | system_maintenance`. `gtm-report` deleted (intent merged into `market-report`). `slack-respond`/`notion-update` reclassified to `external_action`. `meeting-prep` mode changed `reactive → goal` (it has a clear completion event). All `track-*` tasks normalized to read both their domain AND the `signals/` domain. `build_task_md_from_type` now serializes `**Output:**` instead of `**Class:**`. `list_task_types` signature updated to accept `output_kind` instead of `category`/`task_class`. `list_categories()` deleted.
+- `services/agent_framework.py`: `TASK_PLAYBOOK_ROUTING` → `TASK_OUTPUT_PLAYBOOK_ROUTING`, expanded to 4 keys. `system_maintenance` returns no playbooks (no LLM, no methodology needed). `external_action` inherits a light synthesis+formatting tag set. `get_relevant_playbooks(agent_type, output_kind=)` signature updated.
+- `services/workspace.py`: `AgentWorkspace.load_context(output_kind=)` — routing key is task `output_kind`, not `task_class`.
+- `services/task_pipeline.py`: `parse_task_md` accepts the canonical `**Output:**` line. Legacy `**Class:**` still parsed and remapped (`context → accumulates_context`, `synthesis → produces_deliverable`, `back_office → system_maintenance`) for backward compat. `build_task_execution_prompt` reads `output_kind` from `task_info` to gate phase-aware step instructions and route playbooks.
+- `routes/tasks.py`: `TaskResponse.task_class` → `TaskResponse.output_kind`. `_parse_task_md` parses both `**Output:**` (canonical) and `**Class:**` (legacy, remapped). `/api/tasks/types` endpoint now filters by `output_kind` instead of `category`. Response no longer includes a `categories` array.
+- `agents/tp_prompts/onboarding.py`: Removed `gtm-report` from the synthesis-task suggestion list. `market-report` description broadened to reflect that it now covers competitive moves and GTM signals (former `gtm-report` content).
+- `web/types/index.ts`: `Task.task_class` → `Task.output_kind`. `TaskType.category` field dropped, replaced with `output_kind` (typed as 4-value union). `TaskTypesResponse.categories` removed.
+- `web/lib/api/client.ts`: `tasks.listTypes()` accepts `output_kind` instead of `category`.
+- `web/components/{home/DailyBriefing,tasks/TaskTreeNav,chat-surface/artifacts/ContextGapsArtifact}.tsx`: All `task_class` checks updated to `output_kind === 'accumulates_context'` (was `=== 'context'`) or `output_kind === 'produces_deliverable'` (was `=== 'synthesis'`).
+- `web/components/workfloor/TaskTypeCatalog.tsx`: DELETED (orphaned — no importers).
+- `docs/architecture/registry-matrix.md`: Rewritten around the two-axis model. Domain-task-agent matrix updated. Task type catalog reorganized by `output_kind`. New section documents external_action and system_maintenance task families.
+- `docs/features/task-types.md`: Reorganized by `output_kind`. New sections: Platform Writes (external_action), Back Office (system_maintenance). `meeting-prep` annotated as goal-shaped. `market-report` annotated as absorbing former `gtm-report`. Summary table updated to 4 rows (one per output_kind).
+- `docs/features/agent-playbook-framework.md`: Implementation phase rewritten to reference `TASK_OUTPUT_PLAYBOOK_ROUTING` and `output_kind`-based routing. Notes that `system_maintenance` returns no playbooks.
+- DB backfill: `workspace_files` rows where `path LIKE '/tasks/%/TASK.md'` updated via psql — `**Class:** back_office` → `**Output:** system_maintenance`, `**Class:** synthesis` → `**Output:** produces_deliverable`, `**Class:** context` → `**Output:** accumulates_context`. KVK's 3 existing TASK.md files (daily-update, back-office-agent-hygiene, back-office-workspace-cleanup) successfully backfilled.
+- Expected behavior: Pipeline routing now keys on `output_kind` end-to-end. Playbook injection chooses the right tag set per output_kind: research+context for accumulators, synthesis+formatting+visual+rendering for deliverables, light synthesis+formatting for external actions, none for system maintenance. UI distinguishes tracking tasks (domain-status view) from everything else (output view) via the `accumulates_context` flag. `meeting-prep` now flows through the goal-shaped TP management posture (evaluate → steer → complete) instead of dispatch-and-done. `market-report` is the single market+competitive+GTM intelligence brief — no parallel `gtm-report` confusion. Two-axis model (mode + output_kind) now consistently expressed across registry, TASK.md, DB columns, API responses, frontend types, and docs.
+
+---
+
 ## [2026.04.08.1] - ADR-164: Back Office Tasks — TP as Agent
 
 ### Changed

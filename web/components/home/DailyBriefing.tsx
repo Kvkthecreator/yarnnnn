@@ -243,8 +243,9 @@ export function DailyBriefing({ agents, tasks, hasMessages, forceExpanded = fals
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground/40 pt-1 border-t border-border/50">
           <span>{agents.length} agents</span>
           <span>{activeTasks.length} active tasks</span>
-          <span>{tasks.filter(t => t.task_class === 'context').length} tracking</span>
-          <span>{tasks.filter(t => t.task_class === 'synthesis').length} reporting</span>
+          {/* ADR-166: task_class → output_kind */}
+          <span>{tasks.filter(t => t.output_kind === 'accumulates_context').length} tracking</span>
+          <span>{tasks.filter(t => t.output_kind === 'produces_deliverable').length} reporting</span>
         </div>
       </div>
     </div>

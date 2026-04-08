@@ -1014,11 +1014,17 @@ PLAYBOOK_METADATA: dict[str, dict[str, str]] = {
     },
 }
 
-# Task class → which playbook tags to load in full
+# ADR-166: task output_kind → which playbook tags to load in full
 # (playbooks not matching any tag still appear in the index)
-TASK_PLAYBOOK_ROUTING: dict[str, list[str]] = {
-    "context": ["research", "context"],           # context tasks: research + tracking methodology
-    "synthesis": ["synthesis", "formatting", "visual", "rendering"],  # synthesis tasks: output + format + visual + rendering
+TASK_OUTPUT_PLAYBOOK_ROUTING: dict[str, list[str]] = {
+    # accumulates_context: research + tracking methodology
+    "accumulates_context": ["research", "context"],
+    # produces_deliverable: synthesis + format + visual + rendering
+    "produces_deliverable": ["synthesis", "formatting", "visual", "rendering"],
+    # external_action: light synthesis (drafting platform messages)
+    "external_action": ["synthesis", "formatting"],
+    # system_maintenance: deterministic, no LLM playbooks needed
+    "system_maintenance": [],
 }
 
 
@@ -1053,22 +1059,26 @@ def get_playbook_index(agent_type: str) -> str:
     return "\n".join(lines)
 
 
-def get_relevant_playbooks(agent_type: str, task_class: str | None = None) -> dict[str, str]:
-    """Return only the playbooks relevant to the current task class.
+def get_relevant_playbooks(agent_type: str, output_kind: str | None = None) -> dict[str, str]:
+    """Return only the playbooks relevant to the current task's output_kind (ADR-166).
 
     Args:
         agent_type: Agent type key
-        task_class: "context" or "synthesis" (from task type definition)
+        output_kind: One of accumulates_context | produces_deliverable |
+                     external_action | system_maintenance.
 
     Returns:
-        {filename: content} for playbooks whose tags match the task class routing.
-        If no task_class provided, returns all playbooks (backward compat).
+        {filename: content} for playbooks whose tags match the output_kind routing.
+        If no output_kind provided, returns all playbooks (fallback).
+        If output_kind is system_maintenance, returns {} (no LLM, no playbooks needed).
     """
     all_playbooks = get_type_playbook(agent_type)
-    if not task_class or task_class not in TASK_PLAYBOOK_ROUTING:
+    if not output_kind or output_kind not in TASK_OUTPUT_PLAYBOOK_ROUTING:
         return all_playbooks  # fallback: load all
 
-    relevant_tags = set(TASK_PLAYBOOK_ROUTING[task_class])
+    relevant_tags = set(TASK_OUTPUT_PLAYBOOK_ROUTING[output_kind])
+    if not relevant_tags:
+        return {}  # system_maintenance: no playbooks
     result = {}
     for filename, content in all_playbooks.items():
         meta = PLAYBOOK_METADATA.get(filename, {})

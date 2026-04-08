@@ -550,9 +550,9 @@ export const api = {
       );
     },
 
-    // ADR-145: Task type registry
-    listTypes: (category?: string) => {
-      const params = category ? `?category=${category}` : "";
+    // ADR-145 / ADR-166: Task type registry filtered by output_kind
+    listTypes: (output_kind?: string) => {
+      const params = output_kind ? `?output_kind=${output_kind}` : "";
       return request<TaskTypesResponse>(`/api/tasks/types${params}`);
     },
 

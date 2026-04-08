@@ -60,12 +60,16 @@ const CONTEXT_VIEWS: ViewItem[] = [
   { id: 'run-history', label: 'Run History', icon: Clock },
 ];
 
+// ADR-166: task_class → output_kind. "context" → "accumulates_context".
+// Tasks that accumulate context get the domain-focused view set; everything
+// else (deliverables, external actions, system maintenance) gets the
+// synthesis/output view set.
 function getViewsForTask(task: Task): ViewItem[] {
-  return task.task_class === 'context' ? CONTEXT_VIEWS : SYNTHESIS_VIEWS;
+  return task.output_kind === 'accumulates_context' ? CONTEXT_VIEWS : SYNTHESIS_VIEWS;
 }
 
 export function getDefaultView(task: Task): TaskView {
-  return task.task_class === 'context' ? 'domain-status' : 'output';
+  return task.output_kind === 'accumulates_context' ? 'domain-status' : 'output';
 }
 
 export function TaskTreeNav({

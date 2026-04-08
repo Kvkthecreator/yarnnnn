@@ -15,7 +15,8 @@ export function ContextGapsArtifact({ agents, tasks, loading }: ContextGapsArtif
     const slug = agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     return !tasks.some((task) => task.agent_slugs?.includes(slug));
   });
-  const contextTasks = tasks.filter((task) => task.task_class === 'context').length;
+  // ADR-166: task_class → output_kind. "context" → "accumulates_context".
+  const contextTasks = tasks.filter((task) => task.output_kind === 'accumulates_context').length;
 
   if (loading) {
     return (

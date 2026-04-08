@@ -70,7 +70,9 @@ class TaskResponse(BaseModel):
     # Enriched from TASK.md
     title: Optional[str] = None
     type_key: Optional[str] = None  # ADR-154: task type key
-    task_class: Optional[str] = None  # ADR-154: context | synthesis
+    # ADR-166: 4-value enum — accumulates_context | produces_deliverable |
+    # external_action | system_maintenance. Was task_class (context | synthesis).
+    output_kind: Optional[str] = None
     objective: Optional[dict] = None
     process: Optional[dict] = None
     agent_slugs: Optional[list] = None
@@ -308,16 +310,26 @@ def _parse_task_md(content: str) -> dict:
 
     # Top-level bold metadata fields
     for line in lines:
-        # ADR-154: Mode, Type, Class
+        # ADR-154/166: Mode, Type, Output (was Class)
         mode_match = re.match(r"\*\*Mode:\*\*\s*(.*)", line)
         if mode_match:
             result["mode"] = mode_match.group(1).strip()
         type_match = re.match(r"\*\*Type:\*\*\s*(.*)", line)
         if type_match:
             result["type_key"] = type_match.group(1).strip()
+        # ADR-166: **Output:** is canonical. Legacy **Class:** still parsed.
+        output_match = re.match(r"\*\*Output:\*\*\s*(.*)", line)
+        if output_match:
+            result["output_kind"] = output_match.group(1).strip()
         class_match = re.match(r"\*\*Class:\*\*\s*(.*)", line)
         if class_match:
-            result["task_class"] = class_match.group(1).strip()
+            legacy = class_match.group(1).strip()
+            _legacy_map = {
+                "context": "accumulates_context",
+                "synthesis": "produces_deliverable",
+                "back_office": "system_maintenance",
+            }
+            result["output_kind"] = _legacy_map.get(legacy, "produces_deliverable")
 
         cr_match = re.match(r"\*\*Context Reads:\*\*\s*(.*)", line)
         if cr_match:
@@ -361,7 +373,7 @@ def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> T
         updated_at=row["updated_at"],
         title=title,
         type_key=task_md_parsed.get("type_key") if task_md_parsed else None,
-        task_class=task_md_parsed.get("task_class") if task_md_parsed else None,
+        output_kind=task_md_parsed.get("output_kind") if task_md_parsed else None,
         objective=objective,
         process=process,
         agent_slugs=task_md_parsed.get("agent_slugs") if task_md_parsed else None,
@@ -380,16 +392,16 @@ def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> T
 
 @router.get("/types")
 async def list_task_types_endpoint(
-    category: Optional[str] = None,
+    output_kind: Optional[str] = None,
 ):
-    """List available task types from the registry.
+    """List available task types from the registry (ADR-166).
 
-    Optionally filter by category: intelligence, operations, platform, content, tracking.
+    Optionally filter by output_kind:
+        accumulates_context | produces_deliverable | external_action | system_maintenance
     """
-    from services.task_types import list_task_types, list_categories
+    from services.task_types import list_task_types
 
-    types = list_task_types(category=category)
-    categories = list_categories()
+    types = list_task_types(output_kind=output_kind)
 
     # Slim down process for API response (don't expose full instructions)
     for t in types:
@@ -402,7 +414,7 @@ async def list_task_types_endpoint(
         # Don't send internal fields
         t.pop("default_objective", None)
 
-    return {"types": types, "categories": categories}
+    return {"types": types}
 
 
 @router.get("/types/{type_key}")

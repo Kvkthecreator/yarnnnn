@@ -1,8 +1,9 @@
 # Task Types — Deliverable Catalog
 
-> What YARNNN delivers. Task types are split into two atomic classes: **context tasks** (accumulate knowledge) and **synthesis tasks** (produce deliverables).
+> What YARNNN delivers. Task types are organized by **`output_kind`** (ADR-166):
+> `accumulates_context` (knowledge tasks), `produces_deliverable` (reports), `external_action` (platform writes), `system_maintenance` (TP back office).
 > Architecture: [docs/architecture/registry-matrix.md](../architecture/registry-matrix.md)
-> ADR: [ADR-145](../adr/ADR-145-task-type-registry-premeditated-orchestration.md)
+> ADRs: [ADR-145](../adr/ADR-145-task-type-registry-premeditated-orchestration.md), [ADR-166](../adr/ADR-166-registry-coherence-pass.md)
 
 ---
 
@@ -10,27 +11,29 @@
 
 1. User describes work → TP infers task type(s) from registry
 2. Platform scaffolds each task with the correct agent, schedule, and domain wiring
-3. **Context tasks** run on schedule, gather intelligence, and write to workspace context domains — no report output
-4. **Synthesis tasks** read from accumulated context domains, compose prose with inline data tables and diagrams
-5. System renders visual assets (charts from tables, diagrams from mermaid blocks)
-6. Compose service assembles everything into styled HTML per composition mode
-7. Output delivered via email/Slack/Notion or viewed in app
+3. **`accumulates_context`** tasks run on schedule, gather intelligence, and write to workspace context domains — no report output
+4. **`produces_deliverable`** tasks read from accumulated context domains, compose prose with inline data tables and diagrams
+5. **`external_action`** tasks read context, then write to a platform (Slack post, Notion comment) — the action is the output
+6. **`system_maintenance`** tasks (TP-owned) run deterministic Python — no LLM, no playbooks
+7. System renders visual assets (charts from tables, diagrams from mermaid blocks)
+8. Compose service assembles everything into styled HTML per composition mode
+9. Output delivered via email/Slack/Notion or viewed in app
 
-**For full intelligence (e.g., competitive), create BOTH a tracking task AND a synthesis task.** The tracking task accumulates context in `/workspace/context/`; the synthesis task produces reports from it. Without the tracking task, synthesis has nothing to read. Without the synthesis task, accumulated context never becomes a deliverable.
+**For full intelligence (e.g., competitive), pair an `accumulates_context` task with a `produces_deliverable` task.** The tracking task accumulates context in `/workspace/context/`; the report task produces deliverables from it. Without the tracking task, the report has nothing to read. Without the report, accumulated context never becomes a deliverable.
 
 ### Quality Contracts (ADR-149)
 
-Synthesis task types scaffold a **DELIVERABLE.md** quality contract at `/tasks/{slug}/DELIVERABLE.md`. This file defines what good output looks like for this task type: structure expectations, quality bar, audience assumptions. The agent reads DELIVERABLE.md during execution and the TP uses it as a reference when evaluating output quality. Context tasks do not have DELIVERABLE.md — they write to domain folders, not output folders.
+`produces_deliverable` task types scaffold a **DELIVERABLE.md** quality contract at `/tasks/{slug}/DELIVERABLE.md`. This file defines what good output looks like for this task type: structure expectations, quality bar, audience assumptions. The agent reads DELIVERABLE.md during execution and the TP uses it as a reference when evaluating output quality. `accumulates_context` tasks do not have DELIVERABLE.md — they write to domain folders, not output folders. `system_maintenance` tasks do not have DELIVERABLE.md — they emit signals only.
 
 ### Context Domains (ADR-151)
 
-Task types declare which workspace context domains they read and write via `context_reads` and `context_writes` fields. Context tasks primarily WRITE to domains. Synthesis tasks primarily READ from domains. This separation enables cross-task knowledge accumulation in `/workspace/context/`.
+Task types declare which workspace context domains they read and write via `context_reads` and `context_writes` fields. `accumulates_context` tasks primarily WRITE to domains. `produces_deliverable` tasks primarily READ from domains. This separation enables cross-task knowledge accumulation in `/workspace/context/`.
 
 ---
 
-## Track & Research — Context Tasks
+## Track & Research — `output_kind: accumulates_context`
 
-Context tasks maintain your workspace knowledge. They run on schedule, update domain folders in `/workspace/context/`, and produce **no report output**. Think of them as your always-on research team keeping institutional knowledge current.
+These tasks maintain your workspace knowledge. They run on schedule, update domain folders in `/workspace/context/`, and produce **no report output**. Think of them as your always-on research team keeping institutional knowledge current.
 
 ### Track Competitors
 `track-competitors`
@@ -126,33 +129,9 @@ Context tasks maintain your workspace knowledge. They run on schedule, update do
 
 ---
 
-### Slack Post
-`slack-respond`
+## Reports & Outputs — `output_kind: produces_deliverable`
 
-**What it does:** Composes a message from workspace context and posts it to a Slack channel or DM. Delivery action, not observation.
-
-**Agent:** Slack Bot
-**Default schedule:** On-demand (reactive)
-**Domains (reads):** slack, signals
-**Requires platform:** Slack
-
----
-
-### Notion Update
-`notion-update`
-
-**What it does:** Composes an update from workspace context and posts it as a comment on a Notion page. Delivery action, not observation.
-
-**Agent:** Notion Bot
-**Default schedule:** On-demand (reactive)
-**Domains (reads):** notion, signals
-**Requires platform:** Notion
-
----
-
-## Reports & Outputs — Synthesis Tasks
-
-Synthesis tasks read from accumulated context domains and produce deliverables. They are where workspace knowledge becomes polished, delivered output. Each synthesis task declares which domains it reads from — the richer those domains (maintained by context tasks), the better the output.
+These tasks read from accumulated context domains and produce deliverables. They are where workspace knowledge becomes polished, delivered output. Each one declares which domains it reads from — the richer those domains (maintained by `accumulates_context` tasks), the better the output.
 
 ### Competitive Brief
 `competitive-brief`
@@ -178,7 +157,7 @@ Synthesis tasks read from accumulated context domains and produce deliverables. 
 ### Market Report
 `market-report`
 
-**What you get:** Data-backed market analysis with trend visualizations and landscape mapping — composed from accumulated market and competitive intelligence.
+**What you get:** Single market intelligence brief covering market sizing, competitive moves, GTM signals, and opportunity identification. Composed from accumulated market, competitive, and signal context. **Absorbs former `gtm-report`** (ADR-166) — same audience, same context domains, one report instead of two.
 
 **Agent:** Content Agent
 **Default schedule:** Monthly
@@ -190,7 +169,9 @@ Synthesis tasks read from accumulated context domains and produce deliverables. 
 **Expected output:**
 - Executive summary
 - Market overview with growth chart
-- Competitive landscape (positioning map + player table)
+- Competitive moves (signal cards, positioning shifts)
+- Key players profiled (≥5)
+- GTM signals & opportunity windows
 - Trend analysis with charts
 - Opportunities & risks
 - Recommendations
@@ -203,6 +184,7 @@ Synthesis tasks read from accumulated context domains and produce deliverables. 
 **What you get:** Relationship context combined with competitive intelligence — everything you need before a meeting with a key contact.
 
 **Agent:** Content Agent
+**Default mode:** goal (the meeting is the completion event — ADR-166)
 **Default schedule:** On-demand
 **Reads from:** relationships, competitors, signals
 **Output category:** briefs
@@ -301,30 +283,71 @@ Synthesis tasks read from accumulated context domains and produce deliverables. 
 
 ---
 
-### GTM Report
-`gtm-report`
+## Platform Writes — `output_kind: external_action`
 
-**What you get:** Competitive moves, market signals, and feature matrices — intelligence dashboard composed from accumulated competitive and market context.
+These tasks read workspace context, compose a message, then write it to a third-party platform via API. The action is the output — there is no workspace artifact.
 
-**Agent:** Content Agent
-**Default schedule:** Weekly
-**Reads from:** competitors, market, signals
-**Output category:** reports
-**Composition mode:** Dashboard
+### Slack Post
+`slack-respond`
 
-**Expected output:**
-- Signal count cards (features, pricing, funding, hires)
-- Competitive feature matrix table
-- Signal log (most recent first)
-- Opportunity windows ranked by urgency
+**What it does:** Composes a message from workspace context and posts it to a Slack channel or DM.
+
+**Agent:** Slack Bot
+**Default mode:** reactive
+**Default schedule:** On-demand
+**Reads from:** slack, signals
+**Requires platform:** Slack
+
+---
+
+### Notion Update
+`notion-update`
+
+**What it does:** Composes an update from workspace context and posts it as a comment on a Notion page.
+
+**Agent:** Notion Bot
+**Default mode:** reactive
+**Default schedule:** On-demand
+**Reads from:** notion, signals
+**Requires platform:** Notion
+
+---
+
+## Back Office — `output_kind: system_maintenance`
+
+TP-owned. Run through the same task pipeline as user-facing tasks, but execute deterministic Python instead of an LLM. Visible at `/work` (essential, cannot be archived). See [ADR-164](../adr/ADR-164-back-office-tasks-tp-as-agent.md).
+
+### Agent Hygiene
+`back-office-agent-hygiene`
+
+**What it does:** Reviews active agents daily. Pauses agents whose approval rate has decayed below threshold. Migrated from the old `_pause_underperformers` scheduler hack.
+
+**Agent:** Thinking Partner (TP)
+**Default mode:** recurring
+**Default schedule:** Daily
+**Effect:** Agent status updates + activity_log entry
+
+---
+
+### Workspace Cleanup
+`back-office-workspace-cleanup`
+
+**What it does:** Sweeps ephemeral files past their TTL, prunes orphaned outputs, keeps the workspace tidy. Migrated from the old scheduler cleanup branch.
+
+**Agent:** Thinking Partner (TP)
+**Default mode:** recurring
+**Default schedule:** Daily
+**Effect:** File deletions + activity_log entry
 
 ---
 
 ## Summary
 
-| Class | Types | Agent | Purpose |
-|-------|-------|-------|---------|
-| **Context — Track & Research** | 7 types | research, crm, slack_bot, notion_bot | Accumulate workspace knowledge (no output) |
-| **Synthesis — Reports & Outputs** | 8 types | content | Produce deliverables from accumulated context |
+| `output_kind` | Types | Owners | Purpose |
+|---|---|---|---|
+| `accumulates_context` | 8 types | Domain stewards + platform bots | Accumulate workspace knowledge (no user-visible artifact) |
+| `produces_deliverable` | 8 types | Domain stewards + Reporting | Produce deliverables from accumulated context |
+| `external_action` | 2 types | Platform bots | Write to a third-party platform; no workspace artifact |
+| `system_maintenance` | 2 types | Thinking Partner | TP-owned hygiene; deterministic Python, no LLM |
 
 **Total:** 15 task types. Context tasks write to domains. Synthesis tasks read from domains. All synthesis tasks use the Content Agent — composition is a single concern. Context gathering uses specialized agents (Research, CRM, platform bots) matched to the domain.

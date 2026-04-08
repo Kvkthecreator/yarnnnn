@@ -714,7 +714,9 @@ export interface Task {
   agent_slugs?: string[];      // assigned agents (from TASK.md ## Process)
   delivery?: string;           // delivery channel summary
   type_key?: string;           // task type key (e.g., "track-competitors", "competitive-brief")
-  task_class?: string;         // "context" | "synthesis" — determines UI treatment
+  // ADR-166: 4-value enum (was task_class):
+  // accumulates_context | produces_deliverable | external_action | system_maintenance
+  output_kind?: string;
   context_reads?: string[];    // context domains this task reads from (parsed from TASK.md)
   context_writes?: string[];   // context domains this task writes to (parsed from TASK.md)
   essential?: boolean;         // ADR-161: anchor task (e.g., daily-update) — cannot be archived
@@ -763,7 +765,8 @@ export interface TaskType {
   type_key: string;
   display_name: string;
   description: string;
-  category: string;
+  // ADR-166: category dropped. output_kind classifies what shape the task produces.
+  output_kind: 'accumulates_context' | 'produces_deliverable' | 'external_action' | 'system_maintenance';
   default_schedule: string;
   output_format: string;
   export_options: string[];
@@ -774,7 +777,6 @@ export interface TaskType {
 
 export interface TaskTypesResponse {
   types: TaskType[];
-  categories: Array<{ key: string; display_name: string }>;
 }
 
 export interface ProcessStepOutput {

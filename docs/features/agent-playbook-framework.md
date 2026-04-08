@@ -160,12 +160,12 @@ For ALL agent types, the playbook framework provides:
 
 ### Phase 1: Framework + metadata (IMPLEMENTED)
 1. `PLAYBOOK_METADATA` registry — description + tags per playbook file
-2. `TASK_PLAYBOOK_ROUTING` — maps task class (context/synthesis) to relevant tags
-3. `load_context(task_class=...)` — selective playbook loading based on task class
+2. `TASK_OUTPUT_PLAYBOOK_ROUTING` — maps task `output_kind` (4 values) to relevant tags (ADR-166, was `TASK_PLAYBOOK_ROUTING` keyed on the old 2-value `task_class`)
+3. `load_context(output_kind=...)` — selective playbook loading based on output_kind
 4. `get_playbook_index()` — short index always in prompt (~55-85 tokens)
-5. `get_relevant_playbooks()` — full content only for tag-matched playbooks
+5. `get_relevant_playbooks(agent_type, output_kind=...)` — full content only for tag-matched playbooks. Returns `{}` for `system_maintenance` (no LLM, no playbooks needed).
 6. `ensure_seeded()` — retroactive seeding of missing playbooks from type registry
-7. `task_pipeline.py` — passes `task_class` from TASK.md to `load_context()`
+7. `task_pipeline.py` — passes `output_kind` from TASK.md to `load_context()`
 
 Key files: `agent_framework.py` (registry), `workspace.py` (loading), `task_pipeline.py` (routing)
 

@@ -284,13 +284,12 @@ Create tasks with `CreateTask(type_key="...")`. Read WORKSPACE.md before suggest
 **Reports & Outputs** (synthesis from accumulated context):
 - `daily-update` (daily) — **ESSENTIAL ANCHOR — already exists from signup, do NOT recreate.** Operational digest: what ran, what changed, what's next. To adjust, use ManageTask.
 - `competitive-brief` (weekly) — competitive landscape with charts
-- `market-report` (monthly) — market analysis with trends
+- `market-report` (monthly) — market intelligence + GTM signals + competitive moves (one report)
 - `meeting-prep` (on-demand) — context and talking points for meetings
 - `stakeholder-update` (monthly) — executive/board summary
 - `project-status` (weekly) — project progress report
 - `content-brief` (on-demand) — research-backed content draft
 - `launch-material` (on-demand) — launch comms and positioning
-- `gtm-report` (weekly) — go-to-market tracker
 
 **For full intelligence: pair a tracking task with a synthesis task.** "track-competitors" feeds context that "competitive-brief" synthesizes into a weekly report.
 

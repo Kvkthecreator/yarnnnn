@@ -495,7 +495,7 @@ class AgentWorkspace:
     # Convenience methods for common workspace patterns
     # =========================================================================
 
-    async def load_context(self, task_class: str | None = None) -> str:
+    async def load_context(self, output_kind: str | None = None) -> str:
         """Load the agent's identity context for generation.
 
         ADR-154: Agent workspace is WHO only — identity + methodology.
@@ -506,9 +506,13 @@ class AgentWorkspace:
         System prompt gets compact index + critical rules (~100 tokens).
         Full playbook content readable on demand via ReadWorkspace.
 
+        ADR-166: Routing key is task `output_kind`, not `task_class`.
+
         Args:
-            task_class: "context" or "synthesis" — determines which playbooks
-                       are highlighted as relevant. None = all (backward compat).
+            output_kind: One of accumulates_context | produces_deliverable |
+                         external_action | system_maintenance — determines
+                         which playbooks are highlighted as relevant. None =
+                         all (backward compat).
 
         Returns formatted string of AGENT.md + feedback + playbook index.
         """
@@ -525,7 +529,7 @@ class AgentWorkspace:
             parts.append(f"## Agent Feedback (cross-task)\n{feedback}")
 
         # Playbook index — referential, not full content (Claude Code pattern)
-        from services.agent_framework import PLAYBOOK_METADATA, TASK_PLAYBOOK_ROUTING
+        from services.agent_framework import PLAYBOOK_METADATA, TASK_OUTPUT_PLAYBOOK_ROUTING
 
         memory_files = await self.list("memory/")
         playbook_files = [
@@ -534,10 +538,10 @@ class AgentWorkspace:
         ]
 
         if playbook_files:
-            # Determine which playbooks are relevant to this task class
+            # ADR-166: route by output_kind
             relevant_tags = None
-            if task_class and task_class in TASK_PLAYBOOK_ROUTING:
-                relevant_tags = set(TASK_PLAYBOOK_ROUTING[task_class])
+            if output_kind and output_kind in TASK_OUTPUT_PLAYBOOK_ROUTING:
+                relevant_tags = set(TASK_OUTPUT_PLAYBOOK_ROUTING[output_kind])
 
             index_lines = [
                 "## Agent Methodology",
