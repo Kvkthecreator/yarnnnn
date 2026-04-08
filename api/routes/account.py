@@ -1,15 +1,21 @@
 """
-Account Management Routes — ADR-122 Phase 5 rewrite
+Account Management Routes — Layered purge + transactional reinit.
 
-Purge actions are workspace-aware: all deletions include workspace_files,
-work_credits alongside relational tables.
+Three purge actions, each paired with the appropriate reinit step so the
+workspace invariants (ADR-140 roster, ADR-151/152 context domains, ADR-161
+daily-update essential task, ADR-164 back office essential tasks) hold the
+moment each endpoint returns.
 
-Three purge actions:
-  1. Clear workspace — agents, projects, outputs, knowledge, activity
-  2. Disconnect platforms — connections, sync state, synced content
-  3. Reset account — full wipe, recreate default workspace
+  1. Clear workspace  — purges agents/tasks/workspace_files/activity/chat,
+                        then re-scaffolds via initialize_workspace()
+  2. Disconnect platforms — purges sync state + per ADR-158 deletes the three
+                        platform-owned context directories (/workspace/context/
+                        {slack,notion,github}/), PAUSES (does not delete) the
+                        platform-bot agents so reconnect is a status flip
+  3. Reset account    — full wipe (all user-scoped tables + workspaces row),
+                        then re-scaffolds via initialize_workspace()
 
-Plus: deactivate (permanent account deletion).
+Plus: deactivate (permanent account deletion — auth user drop cascades).
 """
 
 import logging
@@ -35,7 +41,10 @@ class DangerZoneStats(BaseModel):
     projects: int
     chat_sessions: int
     platform_connections: int
-    platform_content: int = 0  # ADR-153: table dropped, kept for API compat
+    # Count of workspace_files under /workspace/context/{slack,notion,github}/
+    # (ADR-158: platform-bot owned context). Replaces the old platform_content
+    # field which was a dropped table (ADR-153).
+    platform_context_files: int
 
 
 class OperationResult(BaseModel):
@@ -200,7 +209,16 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         projects = _count_workspace_paths(client, user_id, "/projects/")
         chat_sessions = _count_rows(client, "chat_sessions", user_id)
         platform_connections = _count_rows(client, "platform_connections", user_id)
-        # ADR-153: platform_content table dropped
+
+        # ADR-158: count files across all three platform-owned context dirs.
+        platform_context_files = sum(
+            _count_workspace_paths(client, user_id, prefix)
+            for prefix in (
+                "/workspace/context/slack/",
+                "/workspace/context/notion/",
+                "/workspace/context/github/",
+            )
+        )
 
         return DangerZoneStats(
             workspace_files=workspace_files,
@@ -208,6 +226,7 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             projects=projects,
             chat_sessions=chat_sessions,
             platform_connections=platform_connections,
+            platform_context_files=platform_context_files,
         )
     except Exception as e:
         logger.error(f"[ACCOUNT] Failed to get danger zone stats: {e}")
@@ -221,14 +240,26 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
 @router.delete("/account/workspace")
 async def clear_workspace(auth: UserClient) -> OperationResult:
     """
-    Clear all workspace data: agents, projects, outputs, knowledge, activity.
+    Clear all workspace data, then re-scaffold the workspace to a fresh-account state.
 
-    Deletes:
-    - workspace_files (all paths — agents, projects, knowledge, memory)
+    Purge:
+    - workspace_files (all paths — agents, context, tasks, memory)
     - agents table (cascades agent_runs, export prefs, delivery logs)
+    - tasks table (including the three essential tasks — they are re-scaffolded below)
     - chat_sessions (cascades session_messages)
-    - work_credits, activity_log
-    - agent_proposals, agent_context_log
+    - work_credits, activity_log, agent_proposals, agent_context_log
+
+    Reinit (transactional — same endpoint, not deferred to next page load):
+    - Full workspace initialization via `initialize_workspace()`:
+      * DEFAULT_ROSTER agents (ADR-140, 10 agents including TP)
+      * Context domain folders (ADR-151/152)
+      * Workspace seed files (IDENTITY.md, BRAND.md, AWARENESS.md, _playbook.md)
+      * Essential tasks (ADR-161 daily-update + ADR-164 back office tasks)
+
+    The reinit is *not* optional. A workspace without the essential task set is
+    a broken workspace — the daily-update heartbeat fires only if the task row
+    exists. Doing reinit here guarantees `/work`, `/chat`, and the scheduler
+    see a consistent state the moment this endpoint returns.
     """
     user_id = auth.user_id
     deleted: dict[str, int] = {}
@@ -236,6 +267,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     try:
         client = get_service_client()
 
+        # --- Phase 1: Purge ---
         # Workspace filesystem — the primary data store
         deleted["workspace_files"] = _delete_workspace_files(client, user_id)
 
@@ -253,9 +285,29 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
 
         logger.info(f"[ACCOUNT] User {user_id} cleared workspace: {deleted}")
 
+        # --- Phase 2: Reinit ---
+        # Restore the fresh-account invariants: roster + domains + seed files + essential tasks.
+        # Failures here are logged but don't fail the request — the purge succeeded, and the
+        # lazy init path in /user/onboarding-state remains as a safety net.
+        reinit_summary: dict = {}
+        try:
+            from services.workspace_init import initialize_workspace
+            reinit_summary = await initialize_workspace(client, user_id)
+            logger.info(
+                f"[ACCOUNT] User {user_id} reinit after clear: "
+                f"{len(reinit_summary.get('agents_created', []))} agents, "
+                f"{len(reinit_summary.get('tasks_created', []))} tasks"
+            )
+        except Exception as reinit_err:
+            logger.error(f"[ACCOUNT] Workspace reinit after clear failed for {user_id}: {reinit_err}")
+
         return OperationResult(
             success=True,
-            message=f"Cleared {deleted['workspace_files']} workspace files and {deleted['agents']} agents",
+            message=(
+                f"Cleared {deleted['workspace_files']} workspace files and {deleted['agents']} agents; "
+                f"restored {len(reinit_summary.get('agents_created', []))} agents and "
+                f"{len(reinit_summary.get('tasks_created', []))} essential tasks"
+            ),
             deleted=deleted,
         )
     except Exception as e:
@@ -266,13 +318,27 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
 @router.delete("/account/integrations")
 async def clear_integrations(auth: UserClient) -> OperationResult:
     """
-    Disconnect all platforms and clear sync data.
+    Disconnect all platforms and clear platform-owned context.
 
-    Deletes:
-    - platform_connections, integration_import_jobs, sync_registry
-    - integration_sync_config
-    - workspace_files under /knowledge/ (synced content)
-    - export_log, agent_export_preferences
+    Per ADR-158 (platform bot ownership), each platform bot owns one temporal
+    context directory (`/workspace/context/{slack,notion,github}/`). This
+    endpoint deletes those directories (and their per-source subfolders),
+    tears down sync state, and **pauses** (not deletes) the platform-bot
+    agents so:
+      - the roster invariant from ADR-140 holds (8 domain-stewards + 1
+        synthesizer + bots = 10 agents including TP)
+      - reconnecting a platform is a simple status flip + new OAuth, not a
+        re-scaffold
+      - canonical context domains (competitors, market, etc.) owned by
+        domain-stewards are untouched
+
+    Does NOT delete:
+      - Any agent (platform bots are paused, domain-stewards untouched)
+      - The three essential tasks (ADR-161 daily-update, ADR-164 back office) —
+        they are platform-agnostic
+      - Canonical context domains under `/workspace/context/{competitors,
+        market, relationships, projects, content_research, signals}/`
+      - IDENTITY.md / BRAND.md / AWARENESS.md / _playbook.md
     """
     user_id = auth.user_id
     deleted: dict[str, int] = {}
@@ -280,7 +346,7 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
     try:
         client = get_service_client()
 
-        # Sync state
+        # --- Sync state ---
         deleted["export_log"] = _delete_rows(client, "export_log", user_id)
         # ADR-156: integration_import_jobs table dropped (migration 139)
         deleted["sync_registry"] = _delete_rows(client, "sync_registry", user_id)
@@ -288,29 +354,45 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
         # ADR-153: platform_content table dropped
         deleted["slack_user_cache"] = _delete_rows(client, "slack_user_cache", user_id, optional=True)
 
-        # Export preferences (no user_id column — resolve via agent_ids)
-        agent_ids = [
-            r["id"] for r in
-            (client.table("agents").select("id").eq("user_id", user_id).execute().data or [])
-        ]
-        if agent_ids:
-            try:
-                client.table("agent_export_preferences").delete().in_("agent_id", agent_ids).execute()
-                deleted["agent_export_preferences"] = len(agent_ids)
-            except Exception:
-                deleted["agent_export_preferences"] = 0
+        # --- Platform-owned context directories (ADR-158) ---
+        # Each platform bot owns exactly one temporal directory. Deleting here
+        # removes all per-source subfolders (channels, pages, repos) and their
+        # _tracker.md files in one shot.
+        context_files_deleted = 0
+        for platform_dir in ("/workspace/context/slack/", "/workspace/context/notion/", "/workspace/context/github/"):
+            context_files_deleted += _delete_workspace_files(client, user_id, platform_dir)
+        deleted["platform_context_files"] = context_files_deleted
 
-        # Knowledge workspace files (synced platform content)
-        deleted["knowledge_files"] = _delete_workspace_files(client, user_id, "/knowledge/")
+        # --- Pause platform-bot agents (do not delete — roster invariant) ---
+        # ADR-140: bots are part of the pre-scaffolded roster. Deleting them
+        # would require a re-scaffold on reconnect. Pausing lets the reconnect
+        # flow simply flip status back to 'active'.
+        paused_agents = 0
+        try:
+            bot_result = (
+                client.table("agents")
+                .update({"status": "paused"})
+                .eq("user_id", user_id)
+                .in_("role", ["slack_bot", "notion_bot", "github_bot"])
+                .execute()
+            )
+            paused_agents = len(bot_result.data or [])
+        except Exception as pause_err:
+            logger.warning(f"[ACCOUNT] Failed to pause platform-bot agents for {user_id}: {pause_err}")
+        deleted["platform_bots_paused"] = paused_agents
 
-        # Platform connections last (other tables may reference them)
+        # --- Platform connections last (other tables may reference them) ---
         deleted["platform_connections"] = _delete_rows(client, "platform_connections", user_id)
 
         logger.info(f"[ACCOUNT] User {user_id} cleared integrations: {deleted}")
 
         return OperationResult(
             success=True,
-            message=f"Disconnected {deleted['platform_connections']} platforms and cleared sync data",
+            message=(
+                f"Disconnected {deleted['platform_connections']} platforms, "
+                f"cleared {context_files_deleted} context files, "
+                f"paused {paused_agents} platform bots"
+            ),
             deleted=deleted,
         )
     except Exception as e:
@@ -322,7 +404,13 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
 async def full_account_reset(auth: UserClient) -> OperationResult:
     """
     Full account reset: delete all user data, keep auth account active.
-    Recreates a default workspace.
+
+    Purges every user-scoped table + workspace_files + MCP OAuth state, recreates
+    the `workspaces` row, then synchronously re-scaffolds the workspace via
+    `initialize_workspace()` so the endpoint returns with the fresh-account
+    invariants intact (roster, context domains, seed files, essential tasks).
+
+    See `clear_workspace` for the reasoning on why reinit is transactional.
     """
     user_id = auth.user_id
     deleted: dict[str, int] = {}
@@ -330,6 +418,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
     try:
         client = get_service_client()
 
+        # --- Phase 1: Purge ---
         # All workspace files — the primary data store
         deleted["workspace_files"] = _delete_workspace_files(client, user_id)
 
@@ -377,9 +466,26 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
 
         logger.info(f"[ACCOUNT] User {user_id} performed full reset: {deleted}")
 
+        # --- Phase 2: Reinit ---
+        # Restore the fresh-account invariants. Non-fatal — same rationale as clear_workspace.
+        reinit_summary: dict = {}
+        try:
+            from services.workspace_init import initialize_workspace
+            reinit_summary = await initialize_workspace(client, user_id)
+            logger.info(
+                f"[ACCOUNT] User {user_id} reinit after reset: "
+                f"{len(reinit_summary.get('agents_created', []))} agents, "
+                f"{len(reinit_summary.get('tasks_created', []))} tasks"
+            )
+        except Exception as reinit_err:
+            logger.error(f"[ACCOUNT] Workspace reinit after reset failed for {user_id}: {reinit_err}")
+
         return OperationResult(
             success=True,
-            message="Account reset complete. You can start fresh.",
+            message=(
+                f"Account reset complete — restored {len(reinit_summary.get('agents_created', []))} agents "
+                f"and {len(reinit_summary.get('tasks_created', []))} essential tasks."
+            ),
             deleted=deleted,
         )
     except Exception as e:

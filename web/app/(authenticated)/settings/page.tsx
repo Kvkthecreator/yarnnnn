@@ -36,7 +36,8 @@ interface DangerZoneStats {
   projects: number;
   chat_sessions: number;
   platform_connections: number;
-  platform_content: number;
+  // ADR-158: files under /workspace/context/{slack,notion,github}/
+  platform_context_files: number;
 }
 
 interface NotificationPreferences {
@@ -221,9 +222,11 @@ export default function SettingsPage() {
           result = await api.account.clearWorkspace();
           setPurgeSuccess(result.message);
           clearMessages();
-          // ADR-140: Re-scaffold default roster after workspace purge
+          // Backend now re-scaffolds transactionally (ADR-140/151/161/164 invariants).
+          // This call is a harmless safety net; it returns the already-restored state.
           await api.onboarding.getState().catch(() => null);
-          // ADR-155: After purge, identity is empty → go to /context (setup phase)
+          // Route to /context: identity was wiped and re-seeded to default template,
+          // so user should set it up again before productive work resumes.
           setTimeout(() => router.push('/context'), 1500);
           break;
         case "integrations":
@@ -234,9 +237,11 @@ export default function SettingsPage() {
           result = await api.account.resetAccount();
           setPurgeSuccess(result.message);
           clearMessages();
-          // ADR-140: Re-scaffold default roster after full reset
+          // Backend now re-scaffolds transactionally (ADR-140/151/161/164 invariants).
+          // This call is a harmless safety net; it returns the already-restored state.
           await api.onboarding.getState().catch(() => null);
-          // ADR-155: After reset, identity is empty → go to /context (setup phase)
+          // Route to /context: identity was wiped and re-seeded to default template,
+          // so user should set it up again before productive work resumes.
           setTimeout(() => router.push('/context'), 1500);
           break;
         case "deactivate":
@@ -601,12 +606,12 @@ export default function SettingsPage() {
                         Disconnect Platforms
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Disconnect {dangerStats.platform_connections} platforms and clear {dangerStats.platform_content} synced items
+                        Disconnect {dangerStats.platform_connections} platforms and clear {dangerStats.platform_context_files} synced context files
                       </div>
                     </div>
                     <button
                       onClick={() => initiateDangerAction("integrations")}
-                      disabled={dangerStats.platform_connections === 0 && dangerStats.platform_content === 0}
+                      disabled={dangerStats.platform_connections === 0 && dangerStats.platform_context_files === 0}
                       className="px-4 py-2 text-muted-foreground border border-border rounded-md text-sm font-medium hover:text-foreground hover:border-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Disconnect
@@ -759,10 +764,14 @@ export default function SettingsPage() {
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>{dangerStats?.agents} agents and all their runs</li>
-                    <li>{dangerStats?.workspace_files} workspace files (memory, knowledge, outputs)</li>
-                    <li>All activity history and work budget records</li>
+                    <li>{dangerStats?.workspace_files} workspace files (memory, context, outputs)</li>
+                    <li>All tasks, activity history, and work budget records</li>
                   </ul>
-                  <p className="mt-2 text-sm">Platform connections will remain intact.</p>
+                  <p className="mt-2 text-sm">
+                    Your workspace will be re-scaffolded to a fresh state: default agent roster,
+                    context domains, identity/brand templates, and the essential daily-update task.
+                    Platform connections remain intact.
+                  </p>
                 </>
               )}
               {dangerAction === "integrations" && (
@@ -773,7 +782,8 @@ export default function SettingsPage() {
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>Disconnect {dangerStats?.platform_connections} connected platforms</li>
                     <li>Delete OAuth tokens (you&apos;ll need to reconnect)</li>
-                    <li>Clear {dangerStats?.platform_content} synced items and knowledge files</li>
+                    <li>Clear {dangerStats?.platform_context_files} synced context files (Slack / Notion / GitHub)</li>
+                    <li>Pause platform-bot agents (reconnecting will reactivate them)</li>
                   </ul>
                 </>
               )}
@@ -789,7 +799,10 @@ export default function SettingsPage() {
                     <li>{dangerStats?.chat_sessions} chat sessions</li>
                     <li>All memories, documents, activity, and sync data</li>
                   </ul>
-                  <p className="mt-2 text-sm">Your account will remain active with a fresh workspace.</p>
+                  <p className="mt-2 text-sm">
+                    Your account will remain active with a freshly re-scaffolded workspace
+                    (default agents, context domains, and essential tasks restored).
+                  </p>
                 </>
               )}
               {dangerAction === "deactivate" && (

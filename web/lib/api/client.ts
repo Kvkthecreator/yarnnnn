@@ -659,7 +659,7 @@ export const api = {
         projects: number;
         chat_sessions: number;
         platform_connections: number;
-        platform_content: number;
+        platform_context_files: number;
       }>("/api/account/danger-zone/stats"),
 
     clearWorkspace: () =>

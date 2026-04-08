@@ -1417,6 +1417,28 @@ async def oauth_callback(
 
             logger.info(f"[INTEGRATIONS] Connected {provider} for user {token_data['user_id']}")
 
+        # Reactivate the platform-bot agent if it was previously paused (e.g. by
+        # clear_integrations). ADR-140 roster invariant: bots are part of the
+        # pre-scaffolded roster, so we flip status rather than re-create.
+        _PROVIDER_TO_BOT_ROLE = {
+            "slack": "slack_bot",
+            "notion": "notion_bot",
+            "github": "github_bot",
+        }
+        bot_role = _PROVIDER_TO_BOT_ROLE.get(provider)
+        if bot_role:
+            try:
+                service_client.table("agents").update(
+                    {"status": "active"}
+                ).eq("user_id", token_data["user_id"]).eq("role", bot_role).eq(
+                    "status", "paused"
+                ).execute()
+            except Exception as reactivate_err:
+                logger.warning(
+                    f"[INTEGRATIONS] Failed to reactivate {bot_role} for "
+                    f"{token_data['user_id']}: {reactivate_err}"
+                )
+
         # Activity log: record integration connection (ADR-063)
         try:
             from services.activity_log import write_activity
