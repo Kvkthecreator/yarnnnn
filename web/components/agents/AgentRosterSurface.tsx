@@ -8,10 +8,10 @@
  * with health glances per agent.
  *
  * Grouping (ADR-140 v4 + ADR-164):
- *   - Domain Stewards: 5 agents that own context domains
- *   - Synthesizer: 1 agent (Reporting) that reads cross-domain
- *   - Platform Bots: 3 agents (Slack, Notion, GitHub) tied to integrations
- *   - Thinking Partner: 1 meta-cognitive agent that owns back office work
+ *   - Thinking Partner: 1 meta-cognitive agent that owns back office work (shown first)
+ *   - Specialists: 5 domain-steward agents that own context domains
+ *   - Reporting: 1 synthesizer agent that reads cross-domain
+ *   - Integrations: 3 platform-bot agents (Slack, Notion, GitHub)
  *
  * Per-card health glance:
  *   - Status indicator (active/paused)
@@ -35,23 +35,23 @@ interface AgentRosterSurfaceProps {
   onSelect: (agentId: string) => void;
 }
 
-const CLASS_ORDER = ['domain-steward', 'synthesizer', 'platform-bot', 'meta-cognitive'] as const;
+const CLASS_ORDER = ['meta-cognitive', 'domain-steward', 'synthesizer', 'platform-bot'] as const;
 const CLASS_LABELS: Record<string, { title: string; description: string }> = {
-  'domain-steward': {
-    title: 'Domain Stewards',
-    description: 'Each owns one context domain. They accumulate intelligence over time.',
-  },
-  'synthesizer': {
-    title: 'Synthesizer',
-    description: 'Reads across all domains to compose cross-domain reports.',
-  },
-  'platform-bot': {
-    title: 'Platform Bots',
-    description: 'Tied to platform integrations. Bridge external surfaces into context.',
-  },
   'meta-cognitive': {
     title: 'Thinking Partner',
-    description: 'Orchestration and back office. Conversational by day, runs hygiene by night.',
+    description: 'Your day-to-day collaborator. Chats with you and runs background upkeep.',
+  },
+  'domain-steward': {
+    title: 'Specialists',
+    description: 'Each one owns a topic and gets smarter about it over time.',
+  },
+  'synthesizer': {
+    title: 'Reporting',
+    description: 'Pulls from every specialist to write your cross-topic reports.',
+  },
+  'platform-bot': {
+    title: 'Integrations',
+    description: 'Connect your tools (Slack, Notion, GitHub) so the team can see what is happening there.',
   },
 };
 
