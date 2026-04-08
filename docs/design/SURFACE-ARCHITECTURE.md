@@ -76,16 +76,24 @@ The global header is **just** logo + toggle bar + avatar. There is no separate b
 
 **Toggle bar** (`web/components/shell/ToggleBar.tsx`): four-segment pill `Chat | Work | Agents | Context`. Icons: `MessageCircle`, `Briefcase`, `Users`, `FolderOpen`. `HOME_ROUTE` is `/chat` — both new and returning users land there.
 
-### Page header (ADR-167 v2)
+### Page header (ADR-167 v3)
 
-Every surface renders `<PageHeader />` as the first row of its center content area. The PageHeader consumes `BreadcrumbContext` (commit b033513) and renders the segments inline as a `Surface › ancestor › current` path. The breadcrumb's last segment IS the page title — there is no separate title row stacked below.
+Every surface renders `<PageHeader />` as the first row of its center content area. The PageHeader consumes `BreadcrumbContext` (commit b033513). It is rendered as **two visually separated bands**: a compact nav strip on top (breadcrumb path, muted) and a title header below (anchors the page content).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ Work › reporting's work › Daily Update         [Run] [Pause] [Edit]  │ ← PageHeader: breadcrumb + actions
-│ Recurring · Active · Reporting · daily · Next: in 1h                 │ ← optional `subtitle` slot: metadata strip
+│ Work › reporting's work › Daily Update                               │ ← Band 1: nav strip (muted, compact)
+├──────────────────────────────────────────────────────────────────────┤
+│ Daily Update                                [Run] [Pause] [Edit]     │ ← Band 2: title + actions
+│ Recurring · Active · Reporting · daily · Next: in 1h                 │ ← Band 2: subtitle (metadata strip)
+├──────────────────────────────────────────────────────────────────────┤
+│ (page content)                                                       │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+
+**Why two bands.** v2 stacked breadcrumb + metadata + actions above one thin divider, which crammed navigation chrome together with content-specific metadata and made the actual page title ambiguous — users kept reading the first H1 inside the content as the page title because there was no obvious "this is the thing you're looking at" anchor. v3 separates navigation (Band 1) from content-anchored header (Band 2). The title sits with the metadata and actions that describe it, below a divider that cleanly cuts it off from the breadcrumb path.
+
+**List-mode collapse.** When there's only one breadcrumb segment (list pages like `/work`, `/agents`, `/context`), Band 1 is suppressed — there's no path to navigate back through, so the title band stands alone.
 
 | Surface state | Breadcrumb / page title |
 |---|---|
@@ -191,8 +199,10 @@ In detail mode the page renders `<PageHeader />` (with the metadata strip as `su
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Work › reporting's work › Daily Update     [Run] [Pause] [Edit]     │ ← PageHeader (breadcrumb + actions)
-│  Recurring · active · Reporting · daily · Next: 9h                   │ ← PageHeader subtitle (metadata strip)
+│  Work › reporting's work › Daily Update                              │ ← Band 1 (nav strip)
+├──────────────────────────────────────────────────────────────────────┤
+│  Daily Update                              [Run] [Pause] [Edit]      │ ← Band 2 title + actions
+│  Recurring · active · Reporting · daily · Next: 9h                   │ ← Band 2 subtitle
 ├──────────────────────────────────────────────────────────────────────┤
 │  Objective                                                           │
 │  · Deliverable: Daily workspace update                               │
@@ -402,6 +412,7 @@ When adding a new detail-mode page, prefer the list/detail collapse pattern over
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-04-09 | v9.2 | ADR-167 v3 amendment — `<PageHeader />` restructured into two visually separated bands: Band 1 is a compact nav strip (breadcrumb path, muted), Band 2 is the title header (title + metadata subtitle + inline actions), with a divider between them. Previous v2 crammed breadcrumb + metadata + actions above one divider, which made the actual page title ambiguous against the content's own H1. v3 cleanly separates navigation (Band 1) from content-anchored header (Band 2). List-mode pages suppress Band 1 when there's only one segment. Applied uniformly across `/work`, `/agents`, `/context`. |
 | 2026-04-08 | v9.1 | ADR-167 v2 amendment — Breadcrumb collapses into in-page `<PageHeader />`. `<GlobalBreadcrumb />` floating bar DELETED. `WorkDetail`'s internal `<WorkHeader>` and `<ActionsRow>` DELETED — title moves to PageHeader breadcrumb (last segment), metadata moves to PageHeader `subtitle`, Run/Pause/Edit-via-chat moves to PageHeader `actions`. `AgentContentView`'s internal `<AgentHeader>` band DELETED for the same reason. `★ Essential` visual badge removed (the flag stays — it's load-bearing for archive guard). `meta-cognitive` class label added (TP was rendering as raw key). |
 | 2026-04-08 | v9 | ADR-167 — `/work` and `/agents` collapse from master-detail (left list + center detail + chat) into single surfaces with two URL-driven modes: list mode (full-width filterable list / roster) and detail mode (kind-aware detail dispatched on `task.output_kind`). `WorkList` and `AgentTreeNav` deleted. Auto-select-first deleted. `ThreePanelLayout.leftPanel` now optional. Four kind-aware middle components in `web/components/work/details/`. |
 | 2026-04-08 | v8.1 | ADR-165 accepted: `/chat` remains the Chat surface, but changes internally from two-panel layout to a single TP console layer with artifact tabs for onboarding, briefing, recent work, and context gaps. |
