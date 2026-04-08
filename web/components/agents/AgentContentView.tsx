@@ -1,19 +1,25 @@
 'use client';
 
 /**
- * AgentContentView — Center panel content for selected agent.
+ * AgentContentView — Center panel content for a selected agent.
  *
- * ADR-167 v2: This component is now content-only. The agent name, class,
- * domain, active task count, and last-run metadata all moved UP into the
- * page-level <PageHeader /> rendered by `app/(authenticated)/agents/page.tsx`.
- * AgentContentView renders only:
+ * ADR-167 v3 (2026-04-08): Full revamp. The previous version was two
+ * disconnected cards (Identity metadata dump + Health stats + link-outs)
+ * that read like a debug panel. This version is a single cohesive stream
+ * top-to-bottom showing WHAT the agent knows and WHAT it is doing:
  *
- *   - IdentityCard (role, origin, AGENT.md instructions, distilled feedback)
- *   - HealthCard (stats + link-outs to /work and /context)
+ *   1. Mandate          — first meaningful line of AGENT.md as a tagline
+ *   2. Instructions     — full AGENT.md body, the primary content
+ *   3. What it learned  — distilled feedback + recent reflections
+ *   4. Assigned work    — inline list of this agent's tasks (not a link-out)
+ *   5. Stats strip      — quiet bottom row: runs / approval / edit distance
  *
- * The agent's first sentence ("mandate") that used to live in the in-component
- * AgentHeader has been dropped — the breadcrumb + page metadata strip already
- * declares "you are looking at this agent" without needing a tagline.
+ * Page-level header (title, class, domain, task count, last run) already
+ * lives in <PageHeader /> rendered by app/(authenticated)/agents/page.tsx —
+ * this component does NOT repeat any of that metadata.
+ *
+ * Class labels are the same singular forms used in agents/page.tsx
+ * (Specialist / Reporting / Integration) to match the roster rename.
  */
 
 import Link from 'next/link';
@@ -21,9 +27,15 @@ import {
   Briefcase,
   FolderOpen,
   MessageSquare,
+  Sparkles,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { WorkModeBadge } from '@/components/work/WorkModeBadge';
 import { formatRelativeTime } from '@/lib/formatting';
 import { WORK_ROUTE, CONTEXT_ROUTE } from '@/lib/routes';
 import type { Agent, Task } from '@/types';
@@ -34,54 +46,95 @@ interface AgentContentViewProps {
   onOpenChat: (prompt?: string) => void;
 }
 
-const CLASS_LABELS: Record<string, string> = {
-  'domain-steward': 'Domain Steward',
-  'synthesizer': 'Synthesizer',
-  'platform-bot': 'Platform Bot',
-  'meta-cognitive': 'Thinking Partner',
-};
+// ───────────────────────────────────────────────────────────────
+// Helpers
+// ───────────────────────────────────────────────────────────────
 
-// ─── Identity Card ───
+/**
+ * Extract a one-liner mandate from AGENT.md. Skips H1/H2 headers and
+ * section markers so we get real prose. Returns null if nothing usable.
+ */
+function extractMandate(instructions: string | undefined | null): string | null {
+  if (!instructions) return null;
+  const lines = instructions.split('\n').map(l => l.trim());
+  for (const line of lines) {
+    if (!line) continue;
+    if (line.startsWith('#')) continue;
+    if (line.startsWith('>')) continue;
+    if (line.startsWith('-') || line.startsWith('*')) continue;
+    if (line.startsWith('```')) continue;
+    // first line of prose
+    return line.length > 240 ? line.slice(0, 237) + '…' : line;
+  }
+  return null;
+}
 
-function IdentityCard({ agent }: { agent: Agent }) {
-  const cls = agent.agent_class || 'domain-steward';
-  const classLabel = CLASS_LABELS[cls] || cls;
-
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-5 py-4 space-y-4">
-      <div className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Identity</h3>
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p>· Name: {agent.title}</p>
-          <p>· Role: {agent.role} ({classLabel})</p>
-          {agent.context_domain && <p>· Domain: {agent.context_domain}/</p>}
-          {agent.origin && <p>· Origin: {agent.origin.replace(/_/g, ' ')}</p>}
-          <p>
-            · Created:{' '}
-            {new Date(agent.created_at).toLocaleDateString(undefined, {
-              year: 'numeric', month: 'long', day: 'numeric',
-            })}
-          </p>
+    <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
+      {children}
+    </h3>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────
+// Blocks
+// ───────────────────────────────────────────────────────────────
+
+function Mandate({ agent }: { agent: Agent }) {
+  const mandate = extractMandate(agent.agent_instructions) || agent.description;
+  if (!mandate) return null;
+  return (
+    <div className="px-6 pt-6 pb-4">
+      <p className="text-base leading-relaxed text-foreground/90">
+        {mandate}
+      </p>
+    </div>
+  );
+}
+
+function InstructionsBlock({ agent }: { agent: Agent }) {
+  if (!agent.agent_instructions) return null;
+  return (
+    <div className="px-6 py-5 border-t border-border/40">
+      <SectionLabel>AGENT.md</SectionLabel>
+      <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
+        <div className="prose prose-sm max-w-none dark:prose-invert">
+          <MarkdownRenderer content={agent.agent_instructions} />
         </div>
       </div>
+    </div>
+  );
+}
 
-      {agent.agent_instructions && (
-        <div className="space-y-2">
-          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Instructions (AGENT.md)</h3>
-          <div className="rounded-lg border border-border bg-muted/10 p-3">
-            <div className="prose prose-sm max-w-none dark:prose-invert text-xs">
-              <MarkdownRenderer content={agent.agent_instructions} />
+function LearnedBlock({ agent }: { agent: Agent }) {
+  const feedback = agent.agent_memory?.feedback;
+  const reflections = agent.agent_memory?.reflections;
+  if (!feedback && !reflections) return null;
+
+  return (
+    <div className="px-6 py-5 border-t border-border/40 space-y-5">
+      {feedback && (
+        <div>
+          <SectionLabel>
+            <span className="inline-flex items-center gap-1.5">
+              <Sparkles className="w-3 h-3" />
+              Learned from your feedback
+            </span>
+          </SectionLabel>
+          <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
+            <div className="prose prose-sm max-w-none dark:prose-invert text-sm">
+              <MarkdownRenderer content={feedback} />
             </div>
           </div>
         </div>
       )}
-
-      {agent.agent_memory?.feedback && (
-        <div className="space-y-2">
-          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Feedback Distilled</h3>
-          <div className="rounded-lg border border-border bg-muted/10 p-3">
-            <div className="prose prose-sm max-w-none dark:prose-invert text-xs">
-              <MarkdownRenderer content={agent.agent_memory.feedback} />
+      {reflections && (
+        <div>
+          <SectionLabel>Recent reflections</SectionLabel>
+          <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
+            <div className="prose prose-sm max-w-none dark:prose-invert text-sm">
+              <MarkdownRenderer content={reflections} />
             </div>
           </div>
         </div>
@@ -90,74 +143,129 @@ function IdentityCard({ agent }: { agent: Agent }) {
   );
 }
 
-// ─── Health Card ───
+function TasksBlock({ tasks }: { tasks: Task[] }) {
+  if (tasks.length === 0) {
+    return (
+      <div className="px-6 py-5 border-t border-border/40">
+        <SectionLabel>Assigned work</SectionLabel>
+        <p className="text-sm text-muted-foreground/70">
+          No tasks assigned yet.
+        </p>
+      </div>
+    );
+  }
 
-function HealthCard({
-  agent,
-  tasks,
-  onOpenChat,
-}: {
-  agent: Agent;
-  tasks: Task[];
-  onOpenChat: (prompt?: string) => void;
-}) {
-  const activeTaskCount = tasks.filter(t => t.status === 'active').length;
+  // Active first, then paused, then archived — all by last_run recency.
+  const sorted = [...tasks].sort((a, b) => {
+    const statusOrder: Record<string, number> = { active: 0, paused: 1, archived: 2 };
+    const s = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+    if (s !== 0) return s;
+    const at = a.last_run_at ? new Date(a.last_run_at).getTime() : 0;
+    const bt = b.last_run_at ? new Date(b.last_run_at).getTime() : 0;
+    return bt - at;
+  });
+
+  return (
+    <div className="px-6 py-5 border-t border-border/40">
+      <SectionLabel>Assigned work · {tasks.length}</SectionLabel>
+      <div className="space-y-1">
+        {sorted.map(task => (
+          <Link
+            key={task.id}
+            href={`${WORK_ROUTE}?task=${encodeURIComponent(task.slug)}`}
+            className={cn(
+              'group flex items-center gap-3 rounded-md border border-border/40 bg-background hover:bg-muted/30 hover:border-border transition-colors px-3 py-2',
+              task.status !== 'active' && 'opacity-60',
+            )}
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium truncate">{task.title}</span>
+                <WorkModeBadge mode={task.mode} />
+                {task.status === 'paused' && (
+                  <span className="text-[10px] rounded-full bg-amber-500/10 text-amber-700 px-1.5 py-0.5">
+                    paused
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
+                {task.schedule && <span className="truncate">{task.schedule}</span>}
+                {task.schedule && task.last_run_at && <span className="text-muted-foreground/30">·</span>}
+                {task.last_run_at && <span>Ran {formatRelativeTime(task.last_run_at)}</span>}
+                {!task.last_run_at && !task.schedule && <span>never run</span>}
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground/70 shrink-0" />
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatsStrip({ agent, tasks, onOpenChat }: { agent: Agent; tasks: Task[]; onOpenChat: (prompt?: string) => void }) {
   const totalRuns = agent.version_count ?? 0;
+  // quality_score is "edit burden" (0=clean, 1=heavy). Approval = 1 - score.
   const approvalPct = agent.quality_score != null
     ? Math.round((1 - (agent.quality_score || 0)) * 100)
     : null;
   const trend = agent.quality_trend;
+  const avgEdit = agent.avg_edit_distance;
   const domain = agent.context_domain;
 
-  return (
-    <div className="px-5 py-4 space-y-4 border-t border-border">
-      <div className="space-y-2">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Health</h3>
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p>· Tasks assigned: {activeTaskCount}</p>
-          {totalRuns > 0 && <p>· Total runs: {totalRuns}</p>}
-          {approvalPct != null && totalRuns >= 5 && (
-            <p>
-              · Approval rate: {approvalPct}%
-              {trend && (
-                <span className={cn(
-                  'ml-1',
-                  trend === 'improving' && 'text-green-500',
-                  trend === 'declining' && 'text-red-500',
-                )}>
-                  ({trend === 'improving' ? '↑' : trend === 'declining' ? '↓' : '→'} {trend})
-                </span>
-              )}
-            </p>
-          )}
-          {agent.last_run_at && <p>· Last run: {formatRelativeTime(agent.last_run_at)}</p>}
-        </div>
-      </div>
+  const hasStats = totalRuns > 0 || approvalPct != null || avgEdit != null;
 
-      {/* Links out */}
-      <div className="space-y-2 pt-2">
+  return (
+    <div className="px-6 py-5 border-t border-border/40 space-y-4">
+      {hasStats && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+          {totalRuns > 0 && (
+            <span>
+              <span className="font-medium text-foreground">{totalRuns}</span> {totalRuns === 1 ? 'run' : 'runs'}
+            </span>
+          )}
+          {approvalPct != null && totalRuns >= 5 && (
+            <span className="inline-flex items-center gap-1">
+              <span className="font-medium text-foreground">{approvalPct}%</span> approved
+              {trend === 'improving' && <TrendingUp className="w-3 h-3 text-green-500" />}
+              {trend === 'declining' && <TrendingDown className="w-3 h-3 text-red-500" />}
+              {trend === 'stable' && <Minus className="w-3 h-3 text-muted-foreground/50" />}
+            </span>
+          )}
+          {avgEdit != null && totalRuns >= 5 && (
+            <span>
+              avg edit distance <span className="font-medium text-foreground">{avgEdit.toFixed(2)}</span>
+            </span>
+          )}
+          <span className="text-muted-foreground/40">
+            Created {new Date(agent.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+          </span>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <Link
           href={`${WORK_ROUTE}?agent=${agent.slug}`}
-          className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
         >
           <Briefcase className="w-4 h-4" />
-          See this agent's work
+          See full work list
         </Link>
         {domain && (
           <Link
             href={`${CONTEXT_ROUTE}?domain=${domain}`}
-            className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
           >
             <FolderOpen className="w-4 h-4" />
-            See this agent's context domain
+            Open /{domain}/
           </Link>
         )}
         <button
           onClick={() => onOpenChat(`Tell me about ${agent.title}`)}
-          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
         >
           <MessageSquare className="w-4 h-4" />
-          Chat about this agent
+          Ask about this agent
         </button>
       </div>
     </div>
@@ -165,7 +273,7 @@ function HealthCard({
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN — Identity-only view (ADR-163 + ADR-167 v2)
+// MAIN
 // ═══════════════════════════════════════════════════════════════
 
 export function AgentContentView({
@@ -175,8 +283,13 @@ export function AgentContentView({
 }: AgentContentViewProps) {
   return (
     <div className="flex-1 overflow-auto">
-      <IdentityCard agent={agent} />
-      <HealthCard agent={agent} tasks={tasks} onOpenChat={onOpenChat} />
+      <div className="max-w-3xl">
+        <Mandate agent={agent} />
+        <InstructionsBlock agent={agent} />
+        <LearnedBlock agent={agent} />
+        <TasksBlock tasks={tasks} />
+        <StatsStrip agent={agent} tasks={tasks} onOpenChat={onOpenChat} />
+      </div>
     </div>
   );
 }

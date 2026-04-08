@@ -31,10 +31,13 @@ import { PageHeader } from '@/components/shell/PageHeader';
 import { formatRelativeTime } from '@/lib/formatting';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
+// Singular, user-facing class labels. Must stay in sync with the section
+// titles in AgentRosterSurface.tsx. "Thinking Partner" matches the agent
+// title itself so is intentionally omitted when rendering alongside it.
 const CLASS_LABELS: Record<string, string> = {
-  'domain-steward': 'Domain Steward',
-  'synthesizer': 'Synthesizer',
-  'platform-bot': 'Platform Bot',
+  'domain-steward': 'Specialist',
+  'synthesizer': 'Reporting',
+  'platform-bot': 'Integration',
   'meta-cognitive': 'Thinking Partner',
 };
 
