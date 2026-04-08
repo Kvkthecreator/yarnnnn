@@ -3,6 +3,7 @@
 **Version:** v8 (2026-04-08)
 **Status:** Canonical
 **Governed by:** [ADR-163](../adr/ADR-163-surface-restructure.md) — Surface Restructure
+**Active decision:** [ADR-165](../adr/ADR-165-chat-command-desk-windowed-surface.md) — changes `/chat` internal layout from two-panel dashboard + chat to a managed TP command desk; does not add a fifth top-level surface.
 
 **Supersedes:**
 - v7.2 (2026-04-06) — task-class-aware tabs on Agents page
@@ -265,6 +266,7 @@ Currently wired for BrandSection in Settings (via `MemorySection.tsx`). A dedica
 ### Chat
 - `web/app/(authenticated)/chat/page.tsx` — Chat page (home)
 - (Briefing dashboard component — TBD, consumes daily-update output)
+- `docs/design/CHAT-COMMAND-DESK.md` — windowed command desk plan for `/chat` (ADR-165)
 
 ### Work
 - `web/app/(authenticated)/work/page.tsx` — Work page (new in ADR-163)
@@ -304,6 +306,7 @@ When adding per-entity activity surfaces, fold them into the entity's detail pag
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-04-08 | v8.1 | ADR-165 accepted: `/chat` remains the Chat surface, but changes internally from two-panel layout to a managed TP command desk with deterministic windows for onboarding, briefing, work, context gaps, outputs, and agents. |
 | 2026-04-08 | v8 | ADR-163 — Four-surface restructure: Chat \| Work \| Agents \| Context. Activity absorbed. Agents page shrunk to identity. New /work surface. Mode collapse (surface only). Inference visibility via InferenceContentView. |
 | 2026-04-06 | v7.2 | Task-class-aware tabs on Agents (superseded) |
 | 2026-04-06 | v7.1 | Tabs restored (superseded) |

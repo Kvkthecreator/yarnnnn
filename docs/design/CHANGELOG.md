@@ -4,6 +4,15 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-08 — Chat command desk first cut
+
+- **New design doc**: `CHAT-COMMAND-DESK.md` — documents `/chat` as a managed TP command desk with deterministic windows for onboarding, daily briefing, recent work, context gaps, outputs, and agents.
+- **New ADR**: `ADR-165-chat-command-desk-windowed-surface.md` — keeps ADR-163's four top-level surfaces intact while changing only the internal layout methodology of `/chat`; accepted after first implementation.
+- **First implementation**: `/chat` now uses `web/components/command-desk/` for deterministic desktop windows and a stacked mobile fallback.
+- **SURFACE-ARCHITECTURE.md** updated with an ADR-165 active-decision pointer and v8.1 revision-history entry.
+
+---
+
 ## 2026-04-05b — Onboarding scaffold + daily briefing + Home page
 
 - **New design doc**: `ONBOARDING-SCAFFOLD-AND-BRIEFING.md` — onboarding scaffolds everything (directories → entities → tasks → trigger → briefing), daily briefing as persistent collapsible header, Home page rename, agent work rhythm framing.

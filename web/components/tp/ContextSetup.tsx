@@ -29,12 +29,15 @@ interface ContextSetupProps {
   onDismiss?: () => void;
   /** Compact mode (for plus menu, smaller padding) */
   compact?: boolean;
+  /** Embedded mode lets parent shells provide the outer frame */
+  embedded?: boolean;
 }
 
 export function ContextSetup({
   onSubmit,
   onDismiss,
   compact = false,
+  embedded = false,
 }: ContextSetupProps) {
   // --- Links ---
   const [links, setLinks] = useState<string[]>([]);
@@ -167,7 +170,8 @@ export function ContextSetup({
 
   return (
     <div className={cn(
-      'rounded-xl border border-border bg-background shadow-sm animate-in fade-in slide-in-from-bottom-3 duration-200',
+      'bg-background animate-in fade-in slide-in-from-bottom-3 duration-200',
+      !embedded && 'rounded-xl border border-border shadow-sm',
       compact ? 'p-3' : 'p-6'
     )}>
       {/* Header */}

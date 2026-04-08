@@ -1,0 +1,90 @@
+'use client';
+
+import { CheckCircle2, Clock3, PauseCircle } from 'lucide-react';
+import { taskModeLabel, type Agent, type Task } from '@/types';
+import { cn } from '@/lib/utils';
+
+interface RecentWorkWindowProps {
+  agents: Agent[];
+  tasks: Task[];
+  loading: boolean;
+}
+
+function agentTitleForTask(task: Task, agents: Agent[]) {
+  const slug = task.agent_slugs?.[0];
+  return agents.find((agent) => agent.slug === slug)?.title || slug || 'TP';
+}
+
+function formatRelativeTime(value?: string) {
+  if (!value) return null;
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return null;
+  const diff = Date.now() - then;
+  const future = diff < 0;
+  const abs = Math.abs(diff);
+  const mins = Math.floor(abs / 60000);
+  if (mins < 1) return future ? 'soon' : 'just now';
+  if (mins < 60) return future ? `in ${mins}m` : `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return future ? `in ${hours}h` : `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return future ? `in ${days}d` : `${days}d ago`;
+}
+
+export function RecentWorkWindow({ agents, tasks, loading }: RecentWorkWindowProps) {
+  const visibleTasks = tasks
+    .slice()
+    .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime())
+    .slice(0, 8);
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center px-5 py-8 text-xs text-muted-foreground">
+        Loading current work...
+      </div>
+    );
+  }
+
+  if (visibleTasks.length === 0) {
+    return (
+      <div className="flex h-full flex-col justify-center px-5 py-8">
+        <p className="text-sm font-medium">No work is running yet.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Tell TP what you want watched, prepared, or produced. New work will land here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 p-3">
+      {visibleTasks.map((task) => {
+        const active = task.status === 'active';
+        const completed = task.status === 'completed';
+        const Icon = completed ? CheckCircle2 : active ? Clock3 : PauseCircle;
+        const lastSignal = formatRelativeTime(task.last_run_at || task.updated_at);
+
+        return (
+          <div key={task.id} className="rounded-lg border border-border/70 bg-muted/20 p-3">
+            <div className="flex items-start gap-2">
+              <Icon className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', active ? 'text-green-600' : 'text-muted-foreground')} />
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="truncate text-xs font-medium">{task.title}</p>
+                  <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                    {taskModeLabel(task.mode)}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                  {agentTitleForTask(task, agents)}
+                  {task.objective?.deliverable ? ` -> ${task.objective.deliverable}` : ''}
+                </p>
+              </div>
+              {lastSignal && <span className="shrink-0 text-[10px] text-muted-foreground/60">{lastSignal}</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
