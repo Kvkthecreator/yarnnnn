@@ -1,11 +1,16 @@
 'use client';
 
 /**
- * WorkspaceStateView — single surface for every workspace-state scenario.
+ * WorkspaceStateView — single modal surface for every workspace-state scenario.
  *
- * ADR-165 v5: One component, state-driven lead view. Onboarding, briefing,
- * recent work, and context gaps are facets of the same surface — not sibling
- * artifacts in a tab strip.
+ * ADR-165 v6 (2026-04-08): Rendered as a TP-directed MODAL, not an inline
+ * topContent overlay. TP opens it via the workspace-state marker; the user
+ * opens it via the input-row icon. Closed = gone (backdrop + Esc + close
+ * button all dismiss). Discovery responsibility moves entirely to TP — no
+ * cold-start auto-open from the frontend.
+ *
+ * One component, state-driven lead view. Onboarding, briefing, recent work,
+ * and context gaps are facets of the same surface — not sibling artifacts.
  *
  * The component picks its lead view from `lead` (passed in) when TP opens
  * it via the workspace-state marker, OR computes a deterministic lead from
@@ -17,7 +22,7 @@
  *   - recent   → What's running (top tasks by updated_at)
  *   - gaps     → Coverage gaps (domain agents without tasks)
  *
- * The user can switch between facets via lens links once the surface is open.
+ * The user can switch between facets via lens links once the modal is open.
  * Lens links are NOT navigation tabs — they reframe the same workspace state
  * through a different lens.
  */
@@ -93,77 +98,103 @@ export function WorkspaceStateView({
     if (lead) setActiveLens(lead);
   }, [lead]);
 
+  // Esc closes the modal. Body scroll lock while open.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const showLensSwitcher = activeLens !== 'empty' && !isEmpty;
 
   return (
-    <section
-      className="mx-auto w-full max-w-3xl animate-in fade-in slide-in-from-top-2 duration-200"
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-[10vh] backdrop-blur-sm animate-in fade-in duration-150"
+      role="dialog"
+      aria-modal="true"
       aria-label="Workspace state"
+      onClick={(e) => {
+        // Backdrop click closes; clicks inside the panel are stopped below.
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="rounded-xl border border-border bg-background shadow-sm">
-        {/* Header — title + reason + close */}
-        <header className="flex items-start justify-between border-b border-border px-4 py-2.5">
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-              Workspace state
-            </p>
-            {reason ? (
-              <p className="mt-0.5 text-sm text-foreground">{reason}</p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded p-1 text-muted-foreground/40 hover:bg-muted hover:text-muted-foreground"
-            aria-label="Close workspace state"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </header>
+      <section
+        className="w-full max-w-2xl animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="rounded-xl border border-border bg-background shadow-2xl">
+          {/* Header — title + reason + close */}
+          <header className="flex items-start justify-between border-b border-border px-4 py-2.5">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+                Workspace state
+              </p>
+              {reason ? (
+                <p className="mt-0.5 text-sm text-foreground">{reason}</p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded p-1 text-muted-foreground/40 hover:bg-muted hover:text-muted-foreground"
+              aria-label="Close workspace state"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </header>
 
-        {/* Lens switcher — hidden in empty/gate state */}
-        {showLensSwitcher && (
-          <nav
-            aria-label="Workspace state lenses"
-            className="flex items-center gap-1 border-b border-border px-2 py-1.5"
-          >
-            <LensButton
-              active={activeLens === 'briefing'}
-              icon={Newspaper}
-              label="What changed"
-              onClick={() => setActiveLens('briefing')}
-            />
-            <LensButton
-              active={activeLens === 'recent'}
-              icon={ClipboardList}
-              label="Running"
-              onClick={() => setActiveLens('recent')}
-            />
-            <LensButton
-              active={activeLens === 'gaps'}
-              icon={Compass}
-              label="Coverage"
-              onClick={() => setActiveLens('gaps')}
-            />
-          </nav>
-        )}
-
-        {/* Active lens content */}
-        <div className="max-h-[42vh] overflow-y-auto">
-          {activeLens === 'empty' ? (
-            <EmptyLead onSubmit={onContextSubmit} />
-          ) : activeLens === 'briefing' ? (
-            <BriefingLead agents={agents} tasks={tasks} />
-          ) : activeLens === 'recent' ? (
-            <RecentLead agents={agents} tasks={tasks} loading={dataLoading} />
-          ) : (
-            <GapsLead agents={agents} tasks={tasks} loading={dataLoading} />
+          {/* Lens switcher — hidden in empty/gate state */}
+          {showLensSwitcher && (
+            <nav
+              aria-label="Workspace state lenses"
+              className="flex items-center gap-1 border-b border-border px-2 py-1.5"
+            >
+              <LensButton
+                active={activeLens === 'briefing'}
+                icon={Newspaper}
+                label="What changed"
+                onClick={() => setActiveLens('briefing')}
+              />
+              <LensButton
+                active={activeLens === 'recent'}
+                icon={ClipboardList}
+                label="Running"
+                onClick={() => setActiveLens('recent')}
+              />
+              <LensButton
+                active={activeLens === 'gaps'}
+                icon={Compass}
+                label="Coverage"
+                onClick={() => setActiveLens('gaps')}
+              />
+            </nav>
           )}
+
+          {/* Active lens content */}
+          <div className="max-h-[60vh] overflow-y-auto">
+            {activeLens === 'empty' ? (
+              <EmptyLead onSubmit={onContextSubmit} />
+            ) : activeLens === 'briefing' ? (
+              <BriefingLead agents={agents} tasks={tasks} />
+            ) : activeLens === 'recent' ? (
+              <RecentLead agents={agents} tasks={tasks} loading={dataLoading} />
+            ) : (
+              <GapsLead agents={agents} tasks={tasks} loading={dataLoading} />
+            )}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }
 

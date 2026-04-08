@@ -1,14 +1,15 @@
 'use client';
 
 /**
- * Chat Page — TP chat surface (ADR-165 v5).
+ * Chat Page — TP chat surface (ADR-165 v6).
  *
- * The page is the dedicated TP chat product. Workspace state is opened
- * on demand by TP (via the workspace-state marker) or by the user (via
- * the input-row icon). No always-on artifact strip.
+ * The page is the dedicated TP chat product. The workspace state surface
+ * is a TP-directed modal — TP opens it via the workspace-state marker, the
+ * user opens it via the input-row icon. No always-on artifact strip, no
+ * cold-start auto-open from the frontend.
  *
  * The "Update my context" plus-menu action is owned by ChatSurface itself,
- * since ContextSetup is the surface's empty-lead view.
+ * since ContextSetup is the modal's empty-lead view.
  */
 
 import { useEffect, useMemo } from 'react';
@@ -19,14 +20,10 @@ import { useTP } from '@/contexts/TPContext';
 import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
 
 export default function HomePage() {
-  const { messages, sendMessage, isLoading, loadScopedHistory } = useTP();
-  const hasMessages = messages.length > 0 || isLoading;
+  const { sendMessage, loadScopedHistory } = useTP();
   const { agents, tasks, loading: dataLoading } = useAgentsAndTasks({ pollInterval: 60_000 });
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
-
-  const hasTasks = tasks.length > 0;
-  const isNewUser = !dataLoading && !hasTasks;
 
   const plusMenuActions: PlusMenuAction[] = useMemo(() => [
     {
@@ -43,7 +40,6 @@ export default function HomePage() {
       agents={agents}
       tasks={tasks}
       dataLoading={dataLoading}
-      isNewUser={isNewUser && !hasMessages}
       plusMenuActions={plusMenuActions}
       onContextSubmit={(msg) => sendMessage(msg)}
     />

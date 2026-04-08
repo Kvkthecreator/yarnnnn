@@ -39,17 +39,20 @@ export interface ChatPanelProps {
   pendingActionConfig?: ActionCardConfig | null;
   /** Input placeholder text */
   placeholder?: string;
-  /** Empty state content — rendered when no messages */
+  /**
+   * Empty state content — rendered when no messages. Used by surfaces that
+   * embed ChatPanel via ThreePanelLayout (work, agents) to show contextual
+   * "select something" guidance. The /chat surface (ADR-165 v6) does NOT
+   * use this — TP's first response is the empty state there.
+   */
   emptyState?: React.ReactNode;
-  /** Content rendered inside the message scroller before messages */
-  topContent?: React.ReactNode;
   /** Whether to show the command picker (/ commands) */
   showCommandPicker?: boolean;
   /** Whether to render a divider above the input */
   showInputDivider?: boolean;
   /**
    * Optional addon rendered inside the input row, between the textarea and
-   * the submit button. Used by ChatSurface (ADR-165 v5) for the workspace
+   * the submit button. Used by ChatSurface (ADR-165 v6) for the workspace
    * state toggle icon.
    */
   inputRowAddon?: React.ReactNode;
@@ -61,7 +64,6 @@ export function ChatPanel({
   pendingActionConfig,
   placeholder = 'Ask anything or type / ...',
   emptyState,
-  topContent,
   showCommandPicker = true,
   showInputDivider = true,
   inputRowAddon,
@@ -148,12 +150,6 @@ export function ChatPanel({
     <div className="flex flex-col h-full">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
-        {topContent && (
-          <div className="px-2 pb-3">
-            {topContent}
-          </div>
-        )}
-
         {messages.length === 0 && !isLoading && emptyState && (
           <div className="py-4 px-2">
             {emptyState}
