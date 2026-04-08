@@ -10,15 +10,35 @@
  * a leftPanel.
  *
  * Structure (with leftPanel):
- *   Left panel | Center content | Right chat (FAB-overlay, default closed)
+ *   Left panel | Center content | Right chat (resizable, default closed)
  *
  * Structure (without leftPanel):
- *   Center content (full width) | Right chat (FAB-overlay, default closed)
+ *   Center content (full width) | Right chat (resizable, default closed)
+ *
+ * Resize: both the left panel and the chat panel have a drag handle that
+ * persists width to localStorage (per panel role). IDE-style — grab the
+ * vertical edge to widen/narrow.
  */
 
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { ChatPanel, type ChatPanelProps } from '@/components/tp/ChatPanel';
+
+const CHAT_WIDTH_KEY = 'yarnnn:chat-panel-width';
+const LEFT_WIDTH_KEY = 'yarnnn:left-panel-width';
+const CHAT_MIN = 320;
+const CHAT_MAX = 720;
+const LEFT_MIN = 200;
+const LEFT_MAX = 560;
+
+function loadStoredWidth(key: string, fallback: number, min: number, max: number): number {
+  if (typeof window === 'undefined') return fallback;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return fallback;
+  const n = parseInt(raw, 10);
+  if (Number.isNaN(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
 
 export interface ThreePanelLayoutProps {
   /**
@@ -70,34 +90,99 @@ export function ThreePanelLayout({
 }: ThreePanelLayoutProps) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(chat?.defaultOpen ?? false);
-  const leftWidth = leftPanel?.width ?? 280;
-  const chatWidth = chat?.width ?? 380;
+
+  // Width state — hydrated from localStorage on mount to avoid SSR mismatch.
+  const [leftWidth, setLeftWidth] = useState(leftPanel?.width ?? 280);
+  const [chatWidth, setChatWidth] = useState(chat?.width ?? 380);
+
+  useEffect(() => {
+    setLeftWidth(loadStoredWidth(LEFT_WIDTH_KEY, leftPanel?.width ?? 280, LEFT_MIN, LEFT_MAX));
+    setChatWidth(loadStoredWidth(CHAT_WIDTH_KEY, chat?.width ?? 380, CHAT_MIN, CHAT_MAX));
+    // Read once on mount — defaults are stable per page render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Drag-to-resize for left panel (drag right edge → width grows)
+  const leftDragging = useRef(false);
+  const onLeftMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    leftDragging.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  // Drag-to-resize for chat panel (drag left edge → width grows leftward)
+  const chatDragging = useRef(false);
+  const onChatMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    chatDragging.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (leftDragging.current) {
+        const next = Math.max(LEFT_MIN, Math.min(LEFT_MAX, e.clientX));
+        setLeftWidth(next);
+      } else if (chatDragging.current) {
+        const next = Math.max(CHAT_MIN, Math.min(CHAT_MAX, window.innerWidth - e.clientX));
+        setChatWidth(next);
+      }
+    };
+    const onUp = () => {
+      if (leftDragging.current) {
+        leftDragging.current = false;
+        try { window.localStorage.setItem(LEFT_WIDTH_KEY, String(leftWidth)); } catch {}
+      }
+      if (chatDragging.current) {
+        chatDragging.current = false;
+        try { window.localStorage.setItem(CHAT_WIDTH_KEY, String(chatWidth)); } catch {}
+      }
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [leftWidth, chatWidth]);
 
   return (
     <div className="flex h-full overflow-hidden">
       {/* ── Left Panel (ADR-167: optional) ── */}
       {leftPanel && (
         panelOpen ? (
-          <div
-            className="shrink-0 border-r border-border flex flex-col bg-background"
-            style={{ width: leftWidth }}
-          >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-              <div>
-                <p className="text-sm font-medium text-foreground">{leftPanel.title}</p>
-                {leftPanel.subtitle && (
-                  <p className="text-[11px] text-muted-foreground">{leftPanel.subtitle}</p>
-                )}
+          <>
+            <div
+              className="shrink-0 border-r border-border flex flex-col bg-background"
+              style={{ width: leftWidth }}
+            >
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+                <div>
+                  <p className="text-sm font-medium text-foreground">{leftPanel.title}</p>
+                  {leftPanel.subtitle && (
+                    <p className="text-[11px] text-muted-foreground">{leftPanel.subtitle}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setPanelOpen(false)}
+                  className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <button
-                onClick={() => setPanelOpen(false)}
-                className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              {leftPanel.content}
             </div>
-            {leftPanel.content}
-          </div>
+            {/* Resize handle for left panel */}
+            <div
+              onMouseDown={onLeftMouseDown}
+              className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
+              title="Drag to resize"
+            />
+          </>
         ) : (
           <div className="w-10 shrink-0 border-r border-border flex flex-col items-center py-2 gap-2 bg-background">
             <button
@@ -118,37 +203,45 @@ export function ThreePanelLayout({
 
       {/* ── Right: Chat Panel or FAB ── */}
       {chat && chatOpen && (
-        <div
-          className="shrink-0 border-l border-border flex flex-col bg-background overflow-hidden"
-          style={{ width: chatWidth }}
-        >
-          <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background z-10 shrink-0">
-            <div className="flex items-center gap-2">
-              <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
-              <span className="text-xs font-medium">TP</span>
-              {chat.contextLabel && (
-                <span className="text-[10px] text-muted-foreground/50 truncate max-w-[160px]">
-                  · {chat.contextLabel}
-                </span>
-              )}
+        <>
+          {/* Resize handle for chat panel */}
+          <div
+            onMouseDown={onChatMouseDown}
+            className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
+            title="Drag to resize"
+          />
+          <div
+            className="shrink-0 border-l border-border flex flex-col bg-background overflow-hidden"
+            style={{ width: chatWidth }}
+          >
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background z-10 shrink-0">
+              <div className="flex items-center gap-2">
+                <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
+                <span className="text-xs font-medium">TP</span>
+                {chat.contextLabel && (
+                  <span className="text-[10px] text-muted-foreground/50 truncate max-w-[160px]">
+                    · {chat.contextLabel}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setChatOpen(false)}
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={() => setChatOpen(false)}
-              className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex-1 min-h-0">
+              <ChatPanel
+                surfaceOverride={chat.surfaceOverride}
+                plusMenuActions={chat.plusMenuActions}
+                placeholder={chat.placeholder}
+                emptyState={chat.emptyState}
+                showCommandPicker={chat.showCommandPicker}
+              />
+            </div>
           </div>
-          <div className="flex-1 min-h-0">
-            <ChatPanel
-              surfaceOverride={chat.surfaceOverride}
-              plusMenuActions={chat.plusMenuActions}
-              placeholder={chat.placeholder}
-              emptyState={chat.emptyState}
-              showCommandPicker={chat.showCommandPicker}
-            />
-          </div>
-        </div>
+        </>
       )}
 
       {chat && !chatOpen && (

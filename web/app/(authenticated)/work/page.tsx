@@ -274,6 +274,7 @@ export default function WorkPage() {
         emptyState: chatEmptyState,
         showCommandPicker: !selectedTask,
         contextLabel: selectedTask ? `viewing ${selectedTask.title}` : undefined,
+        defaultOpen: true,
       }}
     >
       <PageHeader

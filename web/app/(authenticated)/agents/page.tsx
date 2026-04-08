@@ -176,6 +176,7 @@ export default function AgentsPage() {
         emptyState: chatEmptyState,
         showCommandPicker: !selectedAgent,
         contextLabel: selectedAgent ? `viewing ${selectedAgent.title}` : undefined,
+        defaultOpen: true,
       }}
     >
       <PageHeader
