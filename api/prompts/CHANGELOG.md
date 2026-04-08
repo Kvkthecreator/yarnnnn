@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.08.1] - ADR-164: Back Office Tasks — TP as Agent
+
+### Changed
+- `services/agent_framework.py`: New `thinking_partner` entry in `AGENT_TEMPLATES` with `class='meta-cognitive'`, `domain=None`, and default instructions that describe TP's two runtime modes (chat + task). TP added as the 10th entry in `DEFAULT_ROSTER`. `LEGACY_ROLE_MAP` passthrough added. `get_agent_class_and_domain` docstring updated to enumerate all four classes.
+- `services/agent_creation.py`: `ROLE_TO_SCOPE` gains `"thinking_partner": "autonomous"`.
+- `services/workspace_init.py`: Phase 5 (default tasks) expanded to scaffold `back-office-agent-hygiene` and `back-office-workspace-cleanup` alongside `daily-update`. New helper `_create_essential_back_office_task()`. Back office tasks use `delivery="none"`, `agent_slugs=["thinking-partner"]`.
+- `services/task_types.py`: New `back_office` task category (order 4). Two new task types registered: `back-office-agent-hygiene` and `back-office-workspace-cleanup`. Both use `agent_type="thinking_partner"` in their process step and embed `executor: <dotted.path>` in the instruction text.
+- `services/task_pipeline.py`: `execute_task()` gains a TP dispatch branch — when `agent['role'] == 'thinking_partner'`, control hands off to `_execute_tp_task()` before the credit check and LLM generation. New function `_execute_tp_task()` imports the executor module via the `executor:` directive and calls its `run(client, user_id, task_slug)` coroutine. New helper `_extract_executor_path()` parses the directive from process step instructions.
+- `services/back_office/` (NEW): `__init__.py`, `agent_hygiene.py` (migrated from ADR-156 `_pause_underperformers`), `workspace_cleanup.py` (migrated from scheduler ephemeral cleanup block). Both expose `async def run(client, user_id, task_slug)`.
+- `jobs/unified_scheduler.py`: DELETED `_pause_underperformers()` function (~90 lines), DELETED ephemeral cleanup block (~30 lines), DELETED lifecycle hygiene loop from `run_unified_scheduler()`, DELETED unused `all_heartbeat_user_ids` list, DELETED `UNDERPERFORMER_MIN_RUNS`/`UNDERPERFORMER_MAX_APPROVAL` constants. Scheduler shrinks from 576 → 419 lines.
+- `services/task_pipeline.py`, `services/primitives/manage_task.py`, `services/primitives/task.py`, `services/agent_execution.py`: DELETED `write_activity()` calls for 9 task-lifecycle event types (`task_executed`, `task_triggered`, `task_paused`, `task_resumed`, `task_completed`, `task_evaluated`, `task_steered`, `task_created`, `agent_run`) as redundant denormalizations of `agent_runs` + `tasks` table state.
+- `supabase/migrations/142_add_thinking_partner_role.sql`: Adds `thinking_partner` to `agents_role_check`. Applied to production during implementation.
+- Expected behavior: Every workspace gets TP as the 10th agent at signup. Two back office tasks (agent-hygiene, workspace-cleanup) run daily through the same pipeline as user work, produce visible markdown outputs at `/tasks/{slug}/outputs/{date}/output.md`, and are inspectable on `/work` by filtering by agent = Thinking Partner. No `task_kind` column — ownership IS the distinction. Scheduler is now a pure dispatcher: query due tasks, dispatch execute_task, heartbeat. No more special-case hygiene logic in scheduler Python. TP's identity IS the same in chat runtime and task runtime — same AGENT.md at `/agents/thinking-partner/AGENT.md`, same workspace substrate. What differs is whether the caller is `routes/chat.py` (ThinkingPartnerAgent class) or `task_pipeline._execute_tp_task` (scheduler-triggered declarative execution). FOUNDATIONS Axiom 1 updated to formalize TP-as-agent.
+
+---
+
 ## [2026.04.07.2] - ADR-162: Inference Hardening — gap detection + upload trigger surface
 
 ### Changed

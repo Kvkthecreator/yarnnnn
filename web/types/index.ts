@@ -349,7 +349,7 @@ export interface Agent {
   avg_edit_distance?: number;
   description?: string;
   // SURFACE-ARCHITECTURE v3: agent class + owned context domain
-  agent_class?: 'domain-steward' | 'synthesizer' | 'platform-bot';
+  agent_class?: 'domain-steward' | 'synthesizer' | 'platform-bot' | 'meta-cognitive';
   context_domain?: string;  // owned domain key (e.g., "competitors"), null for synthesizers
 }
 

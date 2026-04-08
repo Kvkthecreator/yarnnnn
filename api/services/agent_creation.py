@@ -41,6 +41,8 @@ ROLE_TO_SCOPE = {
     "writer": "cross_platform",
     "planner": "platform",
     "scout": "research",
+    # ADR-164: TP as meta-cognitive agent — orchestration is autonomous scope
+    "thinking_partner": "autonomous",
     # Legacy mappings (DB may still have old values)
     "digest": "platform",
     "prepare": "platform",

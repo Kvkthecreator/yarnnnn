@@ -14,41 +14,52 @@ This document defines the foundational axioms of YARNNN's cognitive architecture
 
 ---
 
-## Axiom 1: Two Layers of Intelligence
+## Axiom 1: Two Layers of Intelligence, Expressed Through One Agent Substrate
 
-YARNNN has two distinct layers of intelligence that develop along different axes.
+YARNNN has two distinct layers of intelligence that develop along different axes. Both layers are expressed through the same agent substrate — the distinction is what each layer's tasks serve, not whether the entity is "an agent" or not.
 
-### The Meta-Cognitive Layer (TP)
+### TP is an Agent (Meta-Cognitive)
 
-The Thinking Partner is the **singular meta-intelligence**. It does not own a domain — it owns the **system's attention allocation**. Its responsibilities:
+**TP is an agent.** It is the *meta-cognitive* agent — a special role distinct from the domain agents of the workforce, but structurally the same kind of entity. TP has a row in the agents table, a slug (`thinking-partner`), a workspace folder (`/agents/thinking-partner/`), and can own tasks. What makes TP distinct is its *domain*: where domain agents own a segment of the user's work (competitors, market, projects), TP owns the user's attention allocation and the workforce's health. TP's tasks are the tasks of orchestration — deciding what should run, evaluating what has run, maintaining the workspace.
 
+TP develops **upward** over time — better judgment about what agents to create, when to adjust them, how to respond to the user's evolving work patterns. Its accumulation is system-level: what works for this user, what attention patterns produce value, what feedback signals matter. TP has two runtime modes that share this identity:
+
+1. **Chat runtime** — invoked when the user messages TP. Full conversation, streaming, all chat primitives. This is where TP makes judgment calls with the user present.
+2. **Task runtime** — invoked when the scheduler dispatches a back office task owned by TP. TP runs a declared executor (deterministic Python function or focused prompt) defined in the task's TASK.md ## Process section, writes a structured output, and the signal surfaces into working memory for chat-runtime TP to reference next conversation turn.
+
+TP's responsibilities remain:
 - **Conversational**: mediates between the user and the system
 - **Compositional**: assesses the user's substrate and scaffolds agents and tasks (Composer capability)
 - **Supervisory**: monitors agent health, reviews outputs, applies feedback
 - **Orchestrative**: adjusts, evolves, and dissolves agents based on changing needs
 
-TP develops **upward** over time — better judgment about what agents to create, when to adjust them, how to respond to the user's evolving work patterns. Its accumulation is system-level: what works for this user, what attention patterns produce value, what feedback signals matter.
+### Domain Agents (Domain-Cognitive)
 
-### The Domain-Cognitive Layer (Agents)
+Domain agents are **persistent entities that develop expertise in a specific domain of the user's work**. They are not task executors in the mechanical sense — they are autonomous cognitive functions that deepen their understanding over time.
 
-Agents are **persistent entities that develop expertise in a specific domain of the user's work**. They are not task executors. They are not static configurations. They are autonomous cognitive functions that deepen their understanding over time.
+Domain agents develop **inward** — deeper domain expertise, more capable execution, higher autonomy. An agent that starts as a daily Slack digest may evolve to notice patterns, draft responses, and eventually act independently in its domain.
 
-Agents develop **inward** — deeper domain expertise, more capable execution, higher autonomy. An agent that starts as a daily Slack digest may evolve to notice patterns, draft responses, and eventually act independently in its domain.
+### The Rule: Ownership Determines the Class of Work
+
+**Every task has an owner, and the owner determines the class of work.** A task owned by Competitive Intelligence produces competitive analysis. A task owned by TP produces orchestration judgment (agent health decisions, task freshness evaluations, workspace maintenance). If you can answer "what domain does this work serve?" the task belongs to a domain agent. If you can only answer "it serves the coherence of the system itself," the task belongs to TP.
+
+This is not a collapse of the two-layer model; it is the formalization of what TP already does. TP was always the orchestrator; making TP a first-class task owner means orchestration work can be scheduled, inspected, and reasoned about the same way domain work is. The meta/domain distinction persists — it is now expressed as "what does this task's output serve?" instead of "is this entity an agent or not?"
 
 ### The Relationship
 
-TP creates agents. Agents don't create TP capabilities. TP monitors agents. Agents don't monitor TP. TP can dissolve agents. Agents can't dissolve TP capabilities. The flow is always: **TP judges what attention is warranted → agents execute that attention → outputs feed back to TP for further judgment.**
+TP creates domain agents. Domain agents don't create TP capabilities. TP monitors domain agents. Domain agents don't monitor TP. TP can dissolve domain agents. Domain agents can't dissolve TP. The flow is always: **TP judges what attention is warranted → domain agents execute that attention → outputs feed back to TP for further judgment.**
 
-But agents are not mere functions. They accumulate domain knowledge that TP doesn't have. A mature Slack agent understands the team's communication patterns in a way TP's general intelligence does not. TP respects this — it orchestrates based on what agents know, not despite it.
+But domain agents accumulate domain knowledge that TP doesn't have. A mature Slack agent understands the team's communication patterns in a way TP's general intelligence does not. TP respects this — it orchestrates based on what agents know, not despite it.
 
-| | TP (Meta-Cognitive) | Agent (Domain-Cognitive) |
+| | TP (Meta-Cognitive Agent) | Domain Agent (Domain-Cognitive) |
 |---|---|---|
-| **Owns** | System's attention allocation | A specific domain of the user's work |
+| **Owns** | Orchestration itself (attention, workforce health) | A specific domain of the user's work |
 | **Develops** | Better judgment about what agents to create/adjust/dissolve | Deeper expertise in domain, more capable execution |
+| **Task outputs serve** | The coherence of the system itself | A segment of the user's work |
 | **Autonomy means** | Scaffolding agents without being asked | Taking multi-step action in domain without supervision |
 | **Accumulates** | System-level patterns (what works for this user) | Domain-level knowledge (what matters in this area) |
 | **Identity** | "I manage this user's cognitive workforce" | "I own [domain] and develop expertise in it" |
-| **Examples** | Singular | Slack recap, market researcher, investor update agent |
+| **Examples** | Thinking Partner (singular) | Competitive Intelligence, Market Research, Slack Bot, ... (many) |
 
 ---
 
@@ -339,6 +350,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-161 (Daily Update Anchor) | Implements Axiom 6 floor — every workspace gets one essential task at signup, the heartbeat artifact, with deterministic empty-state for zero-cost dormant runs | Proposed |
 | ADR-162 (Inference Hardening) | Implements Axiom 5 quality — eval harness, deterministic gap detection, upload trigger via working memory, source provenance comments. All additive, zero shadow LLM calls. | Proposed |
 | ADR-163 (Surface Restructure) | Four-surface nav (Chat \| Work \| Agents \| Context). Mode collapse on surface (two labels) with schema preserved (three modes). Activity absorbed. Agents shrunk to identity. Inference visibility frontend. | Proposed |
+| ADR-164 (Back Office Tasks — TP as Agent) | TP becomes the 10th agent (meta-cognitive class). Back office tasks are tasks owned by TP — same schema, same pipeline, visible by default. Agent hygiene + workspace cleanup migrated from scheduler to back office tasks. 9 task-lifecycle activity_log events removed as redundant denormalizations. Updates Axiom 1 to reflect TP-as-agent. | Implemented |
 
 ---
 

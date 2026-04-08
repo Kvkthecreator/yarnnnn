@@ -497,25 +497,9 @@ async def handle_create_task(auth: Any, input: dict) -> dict:
 
     # ADR-154: memory/tasks.json dissolved — task assignments tracked via TASK.md, not agent memory
 
-    # Activity log
-    try:
-        from services.activity_log import write_activity
-        await write_activity(
-            client=auth.client,
-            user_id=user_id,
-            event_type="task_created",
-            summary=f"Created task: {title}" + (f" (type: {type_key})" if type_key else f" (agent: {agent_slug})"),
-            event_ref=task_id,
-            metadata={
-                "task_slug": slug,
-                "type_key": type_key,
-                "agent_slug": agent_slug,
-                "process_agents": resolved_agent_slugs or [agent_slug],
-                "schedule": schedule,
-            },
-        )
-    except Exception:
-        pass
+    # ADR-164: task_created activity_log write removed. The tasks table row
+    # and the TASK.md charter file ARE the record of creation — no separate
+    # event needed.
 
     # Update WORKSPACE.md manifest (living manifest — ADR-152)
     try:

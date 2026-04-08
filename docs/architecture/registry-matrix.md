@@ -82,6 +82,8 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 
 ## Agent Roster (Default — Pre-Scaffolded at Signup)
 
+10 agents at signup (ADR-140 + ADR-164).
+
 | Agent | Class | Domain Owned | Data Viz | Visual Production | Playbooks |
 |---|---|---|---|---|---|
 | **Competitive Intelligence** | domain-steward | competitors/ | chart, mermaid | — | outputs, research |
@@ -93,6 +95,7 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 | **Slack Bot** | platform-bot | slack/ (temporal) | — | — | outputs |
 | **Notion Bot** | platform-bot | notion/ (temporal) | — | — | outputs |
 | **GitHub Bot** | platform-bot | github/ (temporal) | — | — | outputs |
+| **Thinking Partner** (ADR-164) | **meta-cognitive** | (orchestration) | — | — | — |
 
 **Key principles:**
 - Each domain-steward owns one context domain. The synthesizer (Reporting) reads all domains.
@@ -100,6 +103,7 @@ Synthesis tasks read from accumulated context domains and produce deliverables.
 - **Visual production** (image, video) is a specialization — only Marketing & Creative. Other agents collaborate via multi-step process when they need rich visuals.
 - **Playbooks** are agent-level methodology (how this agent does its work). Loaded selectively by task class. See `docs/features/agent-playbook-framework.md`.
 - Templates are bootstrapping — AGENT.md is the runtime source of truth.
+- **Thinking Partner (TP)** is the meta-cognitive agent (ADR-164). It has two runtime modes: chat (user-present conversation) and task (back office execution of TP-owned tasks like agent hygiene and workspace cleanup). TP owns no context domain; its domain is orchestration itself.
 
 ### Context Domain Assets (ADR-157)
 

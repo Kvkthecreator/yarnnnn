@@ -1505,32 +1505,9 @@ async def execute_agent_generation(
             f"status={final_status}, strategy={strategy.strategy_name}"
         )
 
-        # Activity log: record this agent run (ADR-063)
-        # Requires service role — activity_log has no user INSERT policy
-        try:
-            from services.activity_log import write_activity
-            from services.supabase import get_service_client as _get_svc2
-            _run_meta = {
-                "agent_id": str(agent_id),
-                "version_number": next_version,
-                "role": role,  # ADR-109: For pattern detection
-                "scope": scope,
-                "strategy": strategy.strategy_name,
-                "final_status": final_status,
-                "delivery_error": delivery_error,
-                "input_tokens": usage.get("input_tokens", 0),  # ADR-101
-                "output_tokens": usage.get("output_tokens", 0),  # ADR-101
-            }
-            await write_activity(
-                client=_get_svc2(),
-                user_id=user_id,
-                event_type="agent_run",
-                summary=f"{title} v{next_version} {final_status}",
-                event_ref=version_id,
-                metadata=_run_meta,
-            )
-        except Exception:
-            pass  # Non-fatal — never block execution
+        # ADR-164: agent_run activity_log write removed. The agent_runs
+        # table row is the authoritative execution record — no need to
+        # denormalize into activity_log.
 
         # Record work credits for delivered agent runs
         if final_status == "delivered":

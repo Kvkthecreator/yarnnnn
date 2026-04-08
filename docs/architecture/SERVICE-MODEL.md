@@ -37,9 +37,13 @@ Persistent domain experts with three independent axes:
 | **Capabilities** | Type registry — tools and runtimes available | Fixed at creation |
 | **Tasks** | TASK.md assignments — what work to do | Come and go |
 
-**Pre-scaffolded roster** (ADR-140): Every user gets 6 agents at sign-up:
-- 4 domain agents: Research, Content, Marketing, CRM
-- 2 platform bots: Slack Bot, Notion Bot
+**Pre-scaffolded roster** (ADR-140 + ADR-164): Every user gets 10 agents at sign-up:
+- 5 domain stewards: Competitive Intelligence, Market Research, Business Development, Operations, Marketing & Creative
+- 1 synthesizer: Reporting
+- 3 platform bots: Slack Bot, Notion Bot, GitHub Bot
+- 1 meta-cognitive: **Thinking Partner** (ADR-164) — owns back office tasks
+
+TP is an agent (ADR-164). It has the same structural shape as domain agents — row in the agents table, slug (`thinking-partner`), workspace folder (`/agents/thinking-partner/`), can own tasks. What distinguishes TP is its class (`meta-cognitive`) and domain (orchestration itself, no context domain). TP's tasks are back office tasks: agent hygiene, workspace cleanup, future task-freshness review.
 
 Agent types determine capabilities. Development is knowledge depth (accumulated memory, preferences, observations), not capability breadth. See [agent-framework.md](agent-framework.md).
 
@@ -68,16 +72,33 @@ Virtual filesystem over Postgres (`workspace_files` table). Three content areas:
 
 ---
 
-## Two Layers of Intelligence
+## Two Layers of Intelligence, One Agent Substrate (ADR-164)
 
-| Layer | Entity | Role | Develops |
-|-------|--------|------|----------|
-| **Meta-cognitive** | TP (Thinking Partner) | Creates agents, assigns tasks, monitors health, orchestrates | Upward — better judgment about attention allocation |
-| **Domain-cognitive** | Agents | Execute tasks, accumulate domain expertise | Inward — deeper knowledge in their domain |
+| Layer | Agent class | Role | Develops |
+|-------|-------------|------|----------|
+| **Meta-cognitive** | TP (Thinking Partner) — `meta-cognitive` | Creates agents, assigns tasks, monitors health, orchestrates; owns back office tasks | Upward — better judgment about attention allocation |
+| **Domain-cognitive** | Domain agents — `domain-steward`, `synthesizer`, `platform-bot` | Execute tasks, accumulate domain expertise | Inward — deeper knowledge in their domain |
 
-**TP** is the singular orchestrator. It mediates user conversation, creates/adjusts/dissolves agents and tasks, and supervises the workforce. TP is the control plane.
+**Both layers are expressed through the same agent substrate.** TP is an agent (ADR-164) — same DB row, same task ownership, same pipeline. What distinguishes TP from domain agents is its *class* and *domain* (meta-cognitive, orchestration itself) rather than being "not an agent."
 
-**Agents** are the data plane. They accumulate domain knowledge TP doesn't have. A mature Slack agent understands team communication patterns; TP orchestrates based on what agents know. See [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 1.
+TP has two runtime modes that share one identity:
+- **Chat runtime**: user-present conversation via `ThinkingPartnerAgent` class in `api/agents/thinking_partner.py`
+- **Task runtime**: scheduler-triggered back office task execution via `task_pipeline._execute_tp_task()`
+
+Domain agents accumulate domain knowledge TP doesn't have. A mature Slack Bot understands team communication patterns; TP orchestrates based on what agents know. See [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 1.
+
+### Back Office Tasks (ADR-164)
+
+Back office tasks are tasks owned by TP. They are scaffolded at workspace init as essential tasks alongside the daily-update heartbeat (ADR-161):
+
+| Task | Executor | Purpose |
+|---|---|---|
+| `back-office-agent-hygiene` | `services.back_office.agent_hygiene` | Daily: pause underperforming agents (migrated from ADR-156) |
+| `back-office-workspace-cleanup` | `services.back_office.workspace_cleanup` | Daily: delete expired ephemeral files (migrated from ADR-119/127) |
+
+Back office tasks run through the same `execute_task()` pipeline as user work. The pipeline dispatches on `agent.role`: if the resolved agent is `thinking_partner`, it hands off to `_execute_tp_task()` which reads the `executor:` directive from the TASK.md process step, imports the module, calls its `run(client, user_id, task_slug)` function, and writes the returned output to the standard outputs folder. Zero LLM cost for deterministic executors. Same substrate as user tasks: TASK.md, run log, output manifest, all visible on `/work`.
+
+No hidden flag. No `task_kind` column. Task ownership (agent.role) is the only distinguisher. Users can see back office tasks alongside user tasks on `/work` and can filter by agent if they want just one or the other.
 
 ---
 

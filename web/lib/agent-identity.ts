@@ -6,6 +6,7 @@
  *
  * v3 (ADR-140): 6 workforce types (4 agents + 2 bots). Two classes: agent (domain-cognitive) and bot (platform-mechanical).
  * v3.1 (ADR-158): GitHub Bot added. 3 platform bots total.
+ * v3.2 (ADR-164): Thinking Partner added as meta-cognitive agent. 10 agents total.
  * Legacy role names mapped to new types via resolveRole().
  */
 
@@ -39,6 +40,8 @@ function resolveRole(role?: string): string {
     case 'slack_bot':  return 'slack_bot';
     case 'notion_bot': return 'notion_bot';
     case 'github_bot': return 'github_bot';
+    // ADR-164: TP as meta-cognitive agent
+    case 'thinking_partner': return 'thinking_partner';
     default:           return role;
   }
 }
@@ -57,6 +60,7 @@ export function avatarColor(role?: string): string {
     case 'slack_bot':  return '#14b8a6';  // teal-500
     case 'notion_bot': return '#6366f1';  // indigo-500
     case 'github_bot': return '#10b981';  // emerald-500
+    case 'thinking_partner': return '#1f2937';  // gray-800 — infrastructure tone
     default:           return '#6b7280';  // gray-500
   }
 }
@@ -71,6 +75,7 @@ export function roleBadgeColor(role?: string): string {
     case 'slack_bot':  return 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300';
     case 'notion_bot': return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
     case 'github_bot': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
+    case 'thinking_partner': return 'bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100';
     default:           return 'bg-muted text-muted-foreground';
   }
 }
@@ -85,6 +90,7 @@ export function authorColor(authorRole?: string): string {
     case 'slack_bot':  return 'text-teal-600 dark:text-teal-400';
     case 'notion_bot': return 'text-indigo-600 dark:text-indigo-400';
     case 'github_bot': return 'text-emerald-600 dark:text-emerald-400';
+    case 'thinking_partner': return 'text-gray-900 dark:text-gray-100';
     default:           return 'text-muted-foreground/70';
   }
 }
@@ -103,6 +109,7 @@ export function roleDisplayName(role?: string): string {
     case 'slack_bot':  return 'Slack Bot';
     case 'notion_bot': return 'Notion Bot';
     case 'github_bot': return 'GitHub Bot';
+    case 'thinking_partner': return 'Thinking Partner';
     default:           return role || '';
   }
 }
@@ -113,6 +120,7 @@ export function roleShortLabel(role?: string): string {
     case 'slack_bot':  return 'Slack';
     case 'notion_bot': return 'Notion';
     case 'github_bot': return 'GitHub';
+    case 'thinking_partner': return 'TP';
     default:           return roleDisplayName(role);
   }
 }
@@ -127,6 +135,7 @@ export function roleTagline(role?: string): string {
     case 'slack_bot':  return 'Reads and writes Slack';
     case 'notion_bot': return 'Reads and writes Notion';
     case 'github_bot': return 'Reads GitHub activity';
+    case 'thinking_partner': return 'Orchestrates your workforce';
     default:           return '';
   }
 }

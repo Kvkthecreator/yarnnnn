@@ -266,6 +266,9 @@ TASK_TYPE_CATEGORIES = {
     "context": {"display_name": "Track & Research", "order": 1},
     "synthesis": {"display_name": "Reports & Outputs", "order": 2},
     "platform": {"display_name": "Platform Monitoring", "order": 3},
+    # ADR-164: Back office — scheduled maintenance work owned by TP.
+    # Not hidden from the user, just a different class of task.
+    "back_office": {"display_name": "Back Office", "order": 4},
 }
 
 
@@ -1057,6 +1060,98 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Signal separated from noise",
                 "Every finding has an implication",
                 "Quantified where possible",
+            ],
+        },
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # BACK OFFICE TASKS — ADR-164
+    # Owned by TP (role='thinking_partner'). Execute deterministic Python
+    # functions via task_pipeline._execute_tp_task(). The executor is declared
+    # in the process step's instruction field using `executor: <dotted.path>`.
+    # Back office tasks scaffolded at workspace init; essential (not archivable).
+    # ══════════════════════════════════════════════════════════════════════════
+
+    "back-office-agent-hygiene": {
+        "display_name": "Agent Hygiene",
+        "description": "Reviews active agents daily. Pauses underperformers based on approval rate. Migrated from ADR-156 _pause_underperformers.",
+        "category": "back_office",
+        "task_class": "back_office",
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "markdown",
+        "layout_mode": "document",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "thinking_partner",
+                "step": "back-office",
+                "instruction": (
+                    "Back office maintenance: review active agents and pause "
+                    "underperformers. Deterministic rule, zero LLM cost. "
+                    "executor: services.back_office.agent_hygiene"
+                ),
+            },
+        ],
+        "context_reads": [],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Agent hygiene report",
+            "audience": "User (for transparency) and the system itself",
+            "purpose": "Keep the workforce healthy by pausing consistently underperforming agents",
+            "format": "Markdown report with observations per agent and actions taken",
+        },
+        "default_deliverable": {
+            "output": {"format": "markdown", "word_count": "n/a", "layout": ["Summary", "Thresholds", "Observations"]},
+            "assets": [],
+            "quality_criteria": [
+                "Every active agent observed",
+                "Every action taken has a logged reason",
+                "Thresholds explicit in the report",
+            ],
+        },
+    },
+
+    "back-office-workspace-cleanup": {
+        "display_name": "Workspace Cleanup",
+        "description": "Deletes expired ephemeral files from /working/ (24h TTL) and /user_shared/ (30d TTL). Migrated from ADR-119/127 scheduler block.",
+        "category": "back_office",
+        "task_class": "back_office",
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "markdown",
+        "layout_mode": "document",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "thinking_partner",
+                "step": "back-office",
+                "instruction": (
+                    "Back office maintenance: delete expired ephemeral files "
+                    "per the TTL policy. Deterministic rule, zero LLM cost. "
+                    "executor: services.back_office.workspace_cleanup"
+                ),
+            },
+        ],
+        "context_reads": [],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Workspace cleanup report",
+            "audience": "User (for transparency) and the system itself",
+            "purpose": "Remove expired ephemeral files to keep workspace storage bounded",
+            "format": "Markdown report with per-tier deletion counts",
+        },
+        "default_deliverable": {
+            "output": {"format": "markdown", "word_count": "n/a", "layout": ["Summary", "Policy", "Results"]},
+            "assets": [],
+            "quality_criteria": [
+                "Both tiers processed",
+                "Errors logged explicitly",
+                "TTL windows stated in the report",
             ],
         },
     },

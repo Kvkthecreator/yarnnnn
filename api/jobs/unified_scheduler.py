@@ -299,106 +299,13 @@ async def execute_due_tasks(supabase_client, due_tasks: list[dict]) -> tuple[int
 
 
 # =============================================================================
-# ADR-156: Deterministic Lifecycle Hygiene (replaces Composer)
-# Zero LLM — mechanical rules only. Runs in scheduler cron.
+# ADR-164: Lifecycle hygiene migrated from this file to a back office task.
+# Was _pause_underperformers() + UNDERPERFORMER_MIN_RUNS + UNDERPERFORMER_MAX_APPROVAL.
+# Now lives at services/back_office/agent_hygiene.py and is executed through
+# the task pipeline via a back-office-agent-hygiene task owned by TP. Same
+# rules, same thresholds — just declarative and visible to the user as a
+# regular task run rather than hidden in scheduler code.
 # =============================================================================
-
-UNDERPERFORMER_MIN_RUNS = 8
-UNDERPERFORMER_MAX_APPROVAL = 0.30
-
-
-async def _pause_underperformers(client: Any, user_id: str) -> int:
-    """
-    Pause agents with consistently low approval rates.
-
-    Rule: >= UNDERPERFORMER_MIN_RUNS runs AND < UNDERPERFORMER_MAX_APPROVAL approval rate
-    AND origin != 'user_configured' (respect user's explicit choices).
-
-    Returns count of agents paused this cycle.
-    """
-    # Get active agents with their run stats
-    agents_result = client.table("agents").select(
-        "id, title, role, origin"
-    ).eq("user_id", user_id).eq("status", "active").execute()
-    agents = agents_result.data or []
-    if not agents:
-        return 0
-
-    agent_ids = [a["id"] for a in agents]
-
-    # Batch query: approval rates per agent
-    runs_result = client.table("agent_runs").select(
-        "agent_id, status"
-    ).in_("agent_id", agent_ids).execute()
-    runs = runs_result.data or []
-
-    # Compute per-agent stats
-    stats: dict[str, dict] = {}
-    for run in runs:
-        aid = run["agent_id"]
-        if aid not in stats:
-            stats[aid] = {"total": 0, "approved": 0}
-        stats[aid]["total"] += 1
-        if run.get("status") == "approved":
-            stats[aid]["approved"] += 1
-
-    paused_count = 0
-    for agent in agents:
-        aid = agent["id"]
-        # Skip user-configured agents — respect explicit choices
-        if agent.get("origin") == "user_configured":
-            continue
-
-        agent_stats = stats.get(aid)
-        if not agent_stats:
-            continue
-
-        total = agent_stats["total"]
-        if total < UNDERPERFORMER_MIN_RUNS:
-            continue
-
-        approval_rate = agent_stats["approved"] / total
-        if approval_rate >= UNDERPERFORMER_MAX_APPROVAL:
-            continue
-
-        # Pause the underperformer
-        try:
-            client.table("agents").update(
-                {"status": "paused"}
-            ).eq("id", aid).execute()
-
-            # Write coaching feedback
-            from services.feedback_distillation import write_feedback_entry
-            await write_feedback_entry(
-                client=client,
-                user_id=user_id,
-                agent=agent,
-                feedback_text=f"Auto-paused: {approval_rate:.0%} approval over {total} runs. Review output quality and deliverable spec.",
-                source="system_lifecycle",
-            )
-
-            # Log activity
-            from services.activity_log import write_activity
-            await write_activity(
-                client=client,
-                user_id=user_id,
-                event_type="agent_scheduled",
-                summary=f"Auto-paused {agent['title']} ({approval_rate:.0%} approval over {total} runs)",
-                metadata={
-                    "agent_id": aid,
-                    "lifecycle_action": "paused",
-                    "approval_rate": round(approval_rate, 2),
-                    "run_count": total,
-                    "origin": "lifecycle_hygiene",
-                },
-            )
-
-            paused_count += 1
-            logger.info(f"[LIFECYCLE] Paused {agent['title']} ({approval_rate:.0%} approval, {total} runs)")
-        except Exception as e:
-            logger.warning(f"[LIFECYCLE] Failed to pause {agent['title']}: {e}")
-
-    return paused_count
 
 
 # =============================================================================
@@ -429,7 +336,10 @@ async def run_unified_scheduler():
     logger.info(f"[{now.isoformat()}] Starting unified scheduler...")
 
     # -------------------------------------------------------------------------
-    # Shared: Discover active users once, reuse across phases
+    # Discover active users (those with platform connections) for heartbeat writes.
+    # ADR-164: We no longer need a separate "all users with agents" list —
+    # lifecycle hygiene moved to back office tasks that run per-user via the
+    # normal task dispatch path.
     # -------------------------------------------------------------------------
     try:
         _conn_result = supabase.table("platform_connections").select(
@@ -438,18 +348,6 @@ async def run_unified_scheduler():
         active_user_ids = list(set(row["user_id"] for row in (_conn_result.data or [])))
     except Exception:
         active_user_ids = []
-
-    # Also include users with active agents but no platform connections
-    try:
-        _agent_result = supabase.table("agents").select(
-            "user_id"
-        ).eq("status", "active").execute()
-        all_user_ids_set = set(active_user_ids)
-        for row in (_agent_result.data or []):
-            all_user_ids_set.add(row["user_id"])
-        all_heartbeat_user_ids = list(all_user_ids_set)
-    except Exception:
-        all_heartbeat_user_ids = list(active_user_ids)
 
     # -------------------------------------------------------------------------
     # ADR-141: Task execution — find and run due tasks
@@ -466,64 +364,12 @@ async def run_unified_scheduler():
     else:
         logger.info(f"[TASKS] No due tasks")
 
-
     # -------------------------------------------------------------------------
-    # ADR-119/127: Cleanup Ephemeral Workspace Files (hourly)
-    # Two-tier TTL: /working/ scratch = 24h, /user_shared/ staging = 30 days.
-    # -------------------------------------------------------------------------
-    if now.minute < 5:  # Same cadence as content cleanup
-        try:
-            # Tier 1: /working/ scratch files — 24h TTL
-            working_cleaned = supabase.table("workspace_files").delete().eq(
-                "lifecycle", "ephemeral"
-            ).like(
-                "path", "%/working/%"
-            ).lt(
-                "updated_at", (now - timedelta(hours=24)).isoformat()
-            ).execute()
-            working_count = len(working_cleaned.data or [])
-
-            # Tier 2: /user_shared/ staging files — 30 day TTL (ADR-127)
-            shared_cleaned = supabase.table("workspace_files").delete().eq(
-                "lifecycle", "ephemeral"
-            ).like(
-                "path", "%/user_shared/%"
-            ).lt(
-                "updated_at", (now - timedelta(days=30)).isoformat()
-            ).execute()
-            shared_count = len(shared_cleaned.data or [])
-
-            total_cleaned = working_count + shared_count
-            if total_cleaned > 0:
-                logger.info(f"[WORKSPACE] ADR-119/127: Cleaned {working_count} working + {shared_count} user_shared ephemeral files")
-        except Exception as e:
-            logger.warning(f"[WORKSPACE] Ephemeral cleanup failed (non-fatal): {e}")
-
-    # -------------------------------------------------------------------------
-    # Import jobs DELETED (ADR-153 + ADR-156: platform data flows through task execution)
-    # -------------------------------------------------------------------------
-
-    # -------------------------------------------------------------------------
-    # ADR-156: Deterministic lifecycle hygiene (replaces Composer heartbeat)
-    # Zero LLM — mechanical rule: pause agents with >=8 runs AND <30% approval
-    # that are NOT user-configured. Runs once per cycle.
-    # -------------------------------------------------------------------------
-    lifecycle_paused = 0
-    try:
-        for lc_uid in all_heartbeat_user_ids:
-            try:
-                paused = await _pause_underperformers(supabase, lc_uid)
-                lifecycle_paused += paused
-            except Exception as e:
-                logger.warning(f"[LIFECYCLE] Underperformer check failed for {lc_uid}: {e}")
-    except Exception as e:
-        logger.warning(f"[LIFECYCLE] Lifecycle phase skipped: {e}")
-
-    # -------------------------------------------------------------------------
-    # ADR-156: Nightly memory extraction + session summaries REMOVED.
-    # Memory: TP writes facts in-session via UpdateContext(target="memory").
-    # Session summaries: generated inline at session close (chat.py).
-    # Session continuity: TP writes shift notes to AWARENESS.md.
+    # ADR-164: Ephemeral cleanup and lifecycle hygiene migrated to back office
+    # tasks owned by TP. Both now run through execute_task() via the TP dispatch
+    # branch in task_pipeline.py. See services/back_office/workspace_cleanup.py
+    # and services/back_office/agent_hygiene.py. The scheduler is now a pure
+    # dispatcher — no knowledge of what any particular task does.
     # -------------------------------------------------------------------------
 
     # -------------------------------------------------------------------------
@@ -532,8 +378,6 @@ async def run_unified_scheduler():
     summary_parts = [
         f"tasks={task_success}/{tasks_found}",
     ]
-    if lifecycle_paused > 0:
-        summary_parts.append(f"lifecycle={lifecycle_paused} paused")
 
     # -------------------------------------------------------------------------
     # ADR-072: Write scheduler_heartbeat event for system state awareness
@@ -552,7 +396,6 @@ async def run_unified_scheduler():
                 "tasks_due": tasks_found,
                 "tasks_succeeded": task_success,
                 "tasks_failed": task_failed,
-                "lifecycle_paused": lifecycle_paused,
                 "errors": errors_encountered if errors_encountered else None,
                 "cycle_started_at": now.isoformat(),
                 "cycle_completed_at": datetime.now(timezone.utc).isoformat(),

@@ -230,17 +230,10 @@ async def _handle_trigger(auth: Any, task_slug: str, input: dict) -> dict:
         svc_client = get_service_client()
         result = await execute_task(svc_client, auth.user_id, task_slug)
 
-        # Activity log
-        try:
-            from services.activity_log import write_activity
-            await write_activity(
-                client=auth.client, user_id=auth.user_id,
-                event_type="task_triggered", summary=f"Triggered task: {task_slug} — {result.get('status', 'unknown')}",
-                event_ref=task["id"],
-                metadata={"task_slug": task_slug, "has_context": bool(context), "result": result.get("status")},
-            )
-        except Exception:
-            pass
+        # ADR-164: task_triggered activity_log write removed. Task triggers
+        # are visible via the task's run history (agent_runs + task outputs)
+        # and the task's `last_run_at` column — no need to denormalize into
+        # activity_log.
 
         if result.get("success"):
             return {
@@ -437,15 +430,8 @@ async def _handle_pause(auth: Any, task_slug: str) -> dict:
     except Exception as e:
         return {"success": False, "error": "update_failed", "message": str(e)}
 
-    try:
-        from services.activity_log import write_activity
-        await write_activity(
-            client=auth.client, user_id=auth.user_id,
-            event_type="task_paused", summary=f"Paused task: {task_slug}",
-            event_ref=task["id"], metadata={"task_slug": task_slug},
-        )
-    except Exception:
-        pass
+    # ADR-164: task_paused activity_log write removed. Task state is in the
+    # tasks table — the current status is authoritative, no event needed.
 
     return {
         "success": True,
@@ -477,15 +463,8 @@ async def _handle_resume(auth: Any, task_slug: str) -> dict:
     except Exception as e:
         return {"success": False, "error": "update_failed", "message": str(e)}
 
-    try:
-        from services.activity_log import write_activity
-        await write_activity(
-            client=auth.client, user_id=auth.user_id,
-            event_type="task_resumed", summary=f"Resumed task: {task_slug}",
-            event_ref=task["id"], metadata={"task_slug": task_slug, "next_run_at": next_run},
-        )
-    except Exception:
-        pass
+    # ADR-164: task_resumed activity_log write removed. Task state is in the
+    # tasks table — authoritative, no event needed.
 
     return {
         "success": True,
@@ -645,18 +624,9 @@ Return ONLY the JSON object, no other text."""
     except Exception as e:
         logger.warning(f"[MANAGE_TASK] Evaluation write to feedback.md failed: {e}")
 
-    # Activity log
-    try:
-        from services.activity_log import write_activity
-        await write_activity(
-            client=auth.client, user_id=auth.user_id,
-            event_type="task_evaluated",
-            summary=f"Evaluated {task_slug}: {assessment.get('criteria_met', '?')} criteria, rec: {assessment.get('recommendation', '?')}",
-            event_ref=task.get("id"),
-            metadata={"task_slug": task_slug, **assessment},
-        )
-    except Exception:
-        pass
+    # ADR-164: task_evaluated activity_log write removed. Evaluation is
+    # written to /tasks/{slug}/memory/feedback.md (ADR-149) — that file is
+    # the authoritative record. No denormalization.
 
     return {
         "success": True,
@@ -700,18 +670,8 @@ async def _handle_steer(auth: Any, task_slug: str, input: dict) -> dict:
     except Exception as e:
         return {"success": False, "error": "write_failed", "message": str(e)}
 
-    # Activity log
-    try:
-        from services.activity_log import write_activity
-        await write_activity(
-            client=auth.client, user_id=auth.user_id,
-            event_type="task_steered",
-            summary=f"Steered {task_slug}: {steering_text[:60]}",
-            event_ref=task.get("id"),
-            metadata={"task_slug": task_slug, "steering": steering_text[:200]},
-        )
-    except Exception:
-        pass
+    # ADR-164: task_steered activity_log write removed. Steering lives in
+    # /tasks/{slug}/memory/steering.md — the file is the record.
 
     return {
         "success": True,
@@ -744,18 +704,8 @@ async def _handle_complete(auth: Any, task_slug: str) -> dict:
     except Exception as e:
         return {"success": False, "error": "update_failed", "message": str(e)}
 
-    # Activity log
-    try:
-        from services.activity_log import write_activity
-        await write_activity(
-            client=auth.client, user_id=auth.user_id,
-            event_type="task_completed",
-            summary=f"Completed task: {task_slug}",
-            event_ref=task["id"],
-            metadata={"task_slug": task_slug, "mode": task.get("mode")},
-        )
-    except Exception:
-        pass
+    # ADR-164: task_completed activity_log write removed. Task state is in
+    # the tasks table — `status='completed'` is the record.
 
     return {
         "success": True,

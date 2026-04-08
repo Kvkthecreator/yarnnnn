@@ -1330,6 +1330,29 @@ async def execute_task(
         logger.info(f"[TASK_EXEC] Agent: {agent_slug} (role={role}, scope={scope})")
 
         # =====================================================================
+        # ADR-164: TP dispatch branch
+        # If the task is owned by TP (role='thinking_partner'), it is a back
+        # office task — scheduled maintenance work that TP executes on behalf
+        # of the workspace itself. Back office tasks run a declared executor
+        # (deterministic Python function today; LLM-backed prompt future) and
+        # write a structured output. They do NOT consume user work credits,
+        # do NOT create agent_runs rows, and do NOT go through the Sonnet
+        # generation path. Same substrate (tasks, outputs folders, TASK.md),
+        # different execution path.
+        # =====================================================================
+        if role == "thinking_partner":
+            return await _execute_tp_task(
+                client=client,
+                user_id=user_id,
+                task_slug=task_slug,
+                task_info=task_info,
+                agent=agent,
+                agent_slug=agent_slug,
+                tw=tw,
+                started_at=started_at,
+            )
+
+        # =====================================================================
         # 3. Check work credits
         # =====================================================================
         try:
@@ -1671,33 +1694,10 @@ async def execute_task(
             logger.warning(f"[TASK_EXEC] Schedule update failed: {e}")
 
         # =====================================================================
-        # 16. Activity log + work units
+        # 16. Work units (ADR-164: task_executed activity_log write removed —
+        # the agent_runs row IS the record of execution)
         # =====================================================================
         duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
-        try:
-            from services.activity_log import write_activity
-            await write_activity(
-                client=client,
-                user_id=user_id,
-                event_type="task_executed",
-                summary=f"{title} v{next_version} {final_status}",
-                event_ref=version_id,
-                metadata={
-                    "task_slug": task_slug,
-                    "agent_slug": agent_slug,
-                    "agent_id": str(agent_id),
-                    "version_number": next_version,
-                    "role": role,
-                    "scope": scope,
-                    "final_status": final_status,
-                    "delivery_error": delivery_error,
-                    "duration_ms": duration_ms,
-                    "input_tokens": _total_input_tokens(usage),
-                    "output_tokens": usage.get("output_tokens", 0),
-                },
-            )
-        except Exception as e:
-            logger.warning(f"[TASK_EXEC] Activity log write failed: {e}")
 
         if final_status == "delivered":
             try:
@@ -2198,32 +2198,9 @@ async def _execute_pipeline(
     except Exception as e:
         logger.warning(f"[PIPELINE] Schedule update failed: {e}")
 
-    # Activity log
+    # ADR-164: task_executed activity_log write removed. agent_runs row +
+    # task outputs folder + tasks.last_run_at are the authoritative record.
     duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
-    try:
-        from services.activity_log import write_activity
-        await write_activity(
-            client=client, user_id=user_id,
-            event_type="task_executed",
-            summary=f"{title} v{next_version} {final_status} ({len(steps)} steps)",
-            event_ref=version_id,
-            metadata={
-                "task_slug": task_slug,
-                "type_key": task_info.get("type_key"),
-                "process_steps": len(steps),
-                "agent_slugs": [s.get("agent_type") for s in steps],
-                "step_details": [
-                    {"step": i + 1, "step_name": s.get("step", f"step-{i+1}"), "agent_type": s.get("agent_type")}
-                    for i, s in enumerate(steps)
-                ],
-                "final_status": final_status,
-                "duration_ms": duration_ms,
-                "input_tokens": total_usage["input_tokens"],
-                "output_tokens": total_usage["output_tokens"],
-            },
-        )
-    except Exception as e:
-        logger.warning(f"[PIPELINE] Activity log write failed: {e}")
 
     logger.info(
         f"[PIPELINE] Complete: {task_slug} → {len(steps)} steps, v{next_version} "
@@ -2500,6 +2477,173 @@ def _load_user_context(client, user_id: str) -> Optional[list]:
         return None
 
 
+# =============================================================================
+# ADR-164: TP Task Execution Branch (Back Office Tasks)
+# =============================================================================
+#
+# When the task pipeline resolves an agent and discovers its role is
+# `thinking_partner`, the work is a back office task — scheduled maintenance
+# owned by the meta-cognitive agent. Back office tasks run a declared
+# executor rather than the normal Sonnet generation path.
+#
+# The executor is declared in the task's TASK.md ## Process section by
+# embedding `executor: <dotted.path.to.module>` in the step instruction.
+# `_execute_tp_task()` extracts that reference, imports the module, calls
+# its `run(client, user_id, task_slug)` async function, and writes the
+# returned output to the standard task outputs folder.
+#
+# Back office tasks do NOT consume user work credits (they're system
+# maintenance), do NOT create agent_runs rows, and do NOT go through LLM
+# generation. They write the same output.md + manifest.json + run_log.md
+# artifacts as regular tasks, so the /work surface renders them identically.
+
+_EXECUTOR_DIRECTIVE_RE = re.compile(
+    r"executor:\s*([a-zA-Z_][a-zA-Z0-9_.]*)", re.IGNORECASE
+)
+
+
+def _extract_executor_path(task_info: dict) -> Optional[str]:
+    """Find the `executor:` directive in the task's process step instructions.
+
+    Back office tasks embed `executor: services.back_office.agent_hygiene`
+    (or similar) in the process step's instruction text. This function
+    returns the first match, or None if no executor is declared.
+    """
+    process_steps = task_info.get("process_steps", [])
+    for step in process_steps:
+        instruction = step.get("instruction", "") or ""
+        match = _EXECUTOR_DIRECTIVE_RE.search(instruction)
+        if match:
+            return match.group(1)
+    return None
+
+
+async def _execute_tp_task(
+    client,
+    user_id: str,
+    task_slug: str,
+    task_info: dict,
+    agent: dict,
+    agent_slug: str,
+    tw,  # TaskWorkspace (already constructed by caller)
+    started_at: datetime,
+) -> dict:
+    """Execute a back office task (ADR-164).
+
+    The task's process step declares an executor path via `executor: <dotted.path>`.
+    This function imports the module, calls its `run(client, user_id, task_slug)`
+    function, and writes the returned output to the standard task outputs folder.
+
+    Returns the same shape as the regular pipeline's return value.
+    """
+    import importlib
+    import json as _json
+    from services.task_workspace import TaskWorkspace  # type: ignore
+
+    executor_path = _extract_executor_path(task_info)
+    if not executor_path:
+        return _fail(
+            task_slug,
+            "Back office task has no executor declared. "
+            "Add `executor: <module.path>` to the process step instruction in TASK.md."
+        )
+
+    # Import the executor module
+    try:
+        module = importlib.import_module(executor_path)
+    except ImportError as e:
+        return _fail(task_slug, f"Executor module not found: {executor_path} ({e})")
+
+    if not hasattr(module, "run") or not callable(module.run):
+        return _fail(
+            task_slug,
+            f"Executor module {executor_path} missing async `run(client, user_id, task_slug)` function"
+        )
+
+    logger.info(f"[TASK_EXEC:TP] {task_slug} → {executor_path}")
+
+    # Run the executor
+    try:
+        result = await module.run(client, user_id, task_slug)
+    except Exception as e:
+        logger.error(f"[TASK_EXEC:TP] Executor {executor_path} raised: {e}")
+        return _fail(task_slug, f"Executor {executor_path} failed: {e}")
+
+    if not isinstance(result, dict) or "output_markdown" not in result:
+        return _fail(
+            task_slug,
+            f"Executor {executor_path} returned invalid shape (expected dict with output_markdown)"
+        )
+
+    summary = result.get("summary", "Back office task completed.")
+    output_markdown = result["output_markdown"]
+    actions_taken = result.get("actions_taken", [])
+
+    # Write output to standard task outputs folder
+    date_folder = started_at.strftime("%Y-%m-%dT%H00")
+    folder_path = f"outputs/{date_folder}"
+
+    try:
+        await tw.write(
+            f"{folder_path}/output.md",
+            output_markdown,
+            summary=summary,
+            tags=["output", "back_office", agent_slug],
+        )
+
+        manifest = {
+            "agent_slug": agent_slug,
+            "created_at": started_at.isoformat(),
+            "status": "active",
+            "kind": "back_office",
+            "executor": executor_path,
+            "actions_taken": actions_taken,
+            "files": [
+                {"path": "output.md", "type": "text/markdown", "role": "primary"},
+            ],
+        }
+        await tw.write(
+            f"{folder_path}/manifest.json",
+            _json.dumps(manifest, indent=2),
+            summary=f"Back office manifest — {executor_path}",
+            tags=["manifest", "back_office"],
+        )
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC:TP] Output write failed (non-fatal): {e}")
+
+    # Append to run log
+    try:
+        await tw.append_run_log(f"back_office executor={executor_path} — {summary}")
+    except Exception:
+        pass
+
+    # Update task scheduling: last_run_at = now, next_run_at = next cadence
+    now = datetime.now(timezone.utc)
+    schedule = task_info.get("schedule", "")
+    try:
+        next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
+        client.table("tasks").update({
+            "last_run_at": now.isoformat(),
+            "next_run_at": next_run.isoformat() if next_run else None,
+            "updated_at": now.isoformat(),
+        }).eq("user_id", user_id).eq("slug", task_slug).execute()
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC:TP] next_run_at update failed: {e}")
+
+    duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+    logger.info(f"[TASK_EXEC:TP] {task_slug} done ({duration_ms}ms) — {summary}")
+
+    return {
+        "success": True,
+        "task_slug": task_slug,
+        "status": "completed",
+        "message": summary,
+        "kind": "back_office",
+        "executor": executor_path,
+        "actions_taken": actions_taken,
+    }
+
+
 def _parse_delivery_target(delivery_str: str, client, user_id: str) -> Optional[dict]:
     """Parse TASK.md delivery field into destination dict.
 
@@ -2761,26 +2905,8 @@ async def _execute_daily_update_empty_state(
     except Exception:
         pass
 
-    # Activity log
-    try:
-        from services.activity_log import write_activity
-        duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
-        await write_activity(
-            client=client,
-            user_id=user_id,
-            event_type="task_executed",
-            summary=f"Daily Update empty-state ({delivery_status})",
-            metadata={
-                "task_slug": task_slug,
-                "kind": "empty_state",
-                "delivery_status": delivery_status,
-                "delivery_error": delivery_error,
-                "duration_ms": duration_ms,
-                "essential": True,
-            },
-        )
-    except Exception as e:
-        logger.warning(f"[TASK_EXEC] daily-update empty-state activity log failed: {e}")
+    # ADR-164: task_executed activity_log write removed. Task outputs folder +
+    # tasks.last_run_at are the authoritative record of execution.
 
     return {
         "success": True,
@@ -2990,24 +3116,9 @@ async def _execute_direct(
             "delivered_at": now,
         }).eq("id", version_id).execute()
 
-        # Activity log
+        # ADR-164: task_executed activity_log write removed. The agent_runs
+        # row is the authoritative record.
         duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
-        try:
-            from services.activity_log import write_activity
-            await write_activity(
-                client=client, user_id=user_id,
-                event_type="task_executed",
-                summary=f"{title} v{next_version} delivered (direct)",
-                event_ref=version_id,
-                metadata={
-                    "agent_slug": agent_slug, "agent_id": str(agent_id),
-                    "version_number": next_version, "role": role,
-                    "final_status": "delivered", "duration_ms": duration_ms,
-                    "trigger_type": (trigger_context or {}).get("type", "manual"),
-                },
-            )
-        except Exception as e:
-            logger.warning(f"[TASK_EXEC] Activity log write failed: {e}")
 
         # Work credits
         try:

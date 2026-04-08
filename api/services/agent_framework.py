@@ -606,6 +606,56 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
             ),
         },
     },
+
+    # ── Meta-Cognitive (owns orchestration itself) ──
+    #
+    # ADR-164: TP is an agent. It is the single meta-cognitive agent —
+    # structurally the same kind of entity as the domain agents, but its
+    # domain is the user's attention allocation and the workforce's health
+    # rather than a segment of user work.
+    #
+    # TP has two runtime modes that share this identity:
+    #   1. Chat runtime — invoked from routes/chat.py via ThinkingPartnerAgent
+    #      class. Full conversation, streaming, all CHAT_PRIMITIVES available.
+    #   2. Task runtime — invoked from task_pipeline._execute_tp_task() when
+    #      the scheduler dispatches a back office task owned by TP. Runs a
+    #      declarative executor (deterministic Python function or focused
+    #      LLM prompt) declared in the task's TASK.md ## Process section.
+    #
+    # Back office tasks (e.g., back-office-agent-hygiene,
+    # back-office-workspace-cleanup, future back-office-task-freshness) are
+    # simply tasks owned by TP. There is no separate data model for them —
+    # a task is a task, and the owner determines the class of work. Every
+    # scheduled action in YARNNN is a task; TP owns the ones whose outputs
+    # serve the coherence of the system itself.
+
+    "thinking_partner": {
+        "class": "meta-cognitive",
+        "domain": None,  # TP does not own a context domain
+        "display_name": "Thinking Partner",
+        "tagline": "Orchestrates your workforce",
+        "capabilities": [
+            "read_workspace", "write_workspace", "search_knowledge",
+            "produce_markdown",
+        ],
+        "description": "Manages the user's attention allocation and the workforce's "
+                       "health. Creates tasks, evaluates outputs, steers agents, and "
+                       "runs back office maintenance (agent hygiene, workspace cleanup, "
+                       "task freshness). TP is the single meta-cognitive agent; its "
+                       "outputs serve the coherence of the system itself.",
+        "default_instructions": (
+            "You are Thinking Partner — the meta-cognitive agent. Your domain is the "
+            "user's workforce itself, not any segment of user work. When you execute "
+            "tasks, you are running back office maintenance: evaluating agent health, "
+            "cleaning up the workspace, reviewing task freshness. You never produce "
+            "domain content (reports, briefs, analyses). You produce orchestration "
+            "signals that keep the rest of the workforce coherent.\n\n"
+            "In task runtime, read the TASK.md ## Process section to find your "
+            "declared executor. Run it. Write a structured output summarizing what "
+            "you observed and any actions taken."
+        ),
+        "methodology": {},
+    },
 }
 
 # Backward compat alias — all existing callers import AGENT_TYPES
@@ -720,7 +770,7 @@ DEFAULT_AWARENESS_MD = """\
 """
 
 
-# Default roster created at sign-up (ADR-140)
+# Default roster created at sign-up (ADR-140 + ADR-164: TP added as 10th agent)
 DEFAULT_ROSTER = [
     {"title": "Competitive Intelligence", "role": "competitive_intel"},
     {"title": "Market Research", "role": "market_research"},
@@ -731,6 +781,8 @@ DEFAULT_ROSTER = [
     {"title": "Slack Bot", "role": "slack_bot"},
     {"title": "Notion Bot", "role": "notion_bot"},
     {"title": "GitHub Bot", "role": "github_bot"},
+    # ADR-164: TP is the meta-cognitive agent. Owns back office tasks.
+    {"title": "Thinking Partner", "role": "thinking_partner"},
 ]
 
 # PM_MODES — REMOVED (PM/project architecture dissolved)
@@ -766,6 +818,8 @@ LEGACY_ROLE_MAP: dict[str, str] = {
     "slack_bot": "slack_bot",
     "notion_bot": "notion_bot",
     "github_bot": "github_bot",
+    # ADR-164: TP as meta-cognitive agent
+    "thinking_partner": "thinking_partner",
 }
 
 
@@ -779,8 +833,13 @@ def resolve_role(role: str) -> str:
 def get_agent_class_and_domain(role: str) -> tuple[str, str | None]:
     """Resolve agent role → (agent_class, context_domain).
 
-    Returns the agent class ("domain-steward", "synthesizer", "platform-bot")
-    and the owned context domain (or None for synthesizers).
+    Returns the agent class and the owned context domain (or None for
+    synthesizers and meta-cognitive). Valid classes (ADR-140 + ADR-164):
+      - domain-steward  — owns a single context domain
+      - synthesizer     — cross-domain composition, no owned domain
+      - platform-bot    — owns a temporal platform directory
+      - meta-cognitive  — TP, owns orchestration itself (no context domain)
+
     Falls back to "domain-steward" / None for unknown roles.
     """
     resolved = resolve_role(role)

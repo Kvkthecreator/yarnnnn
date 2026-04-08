@@ -136,6 +136,7 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
     # manifestation of the system being alive, and runs daily at 09:00 UTC.
     # Empty workspaces produce a deterministic "honest empty" template (zero
     # LLM cost). Populated workspaces produce a real operational digest.
+    # ── Daily update (user-facing heartbeat, ADR-161) ──
     try:
         existing_task = (
             client.table("tasks")
@@ -151,7 +152,32 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
         else:
             logger.info(f"[WORKSPACE_INIT] daily-update task already exists, skipping")
     except Exception as e:
-        logger.warning(f"[WORKSPACE_INIT] Default task creation failed: {e}")
+        logger.warning(f"[WORKSPACE_INIT] Default task (daily-update) creation failed: {e}")
+
+    # ── Back office tasks (ADR-164) ──
+    # Scheduled maintenance owned by TP. Same substrate as user tasks; runs
+    # through the same pipeline via the TP dispatch branch in execute_task().
+    # Essential — users can pause but not archive.
+    for type_key, slug, title in [
+        ("back-office-agent-hygiene", "back-office-agent-hygiene", "Agent Hygiene"),
+        ("back-office-workspace-cleanup", "back-office-workspace-cleanup", "Workspace Cleanup"),
+    ]:
+        try:
+            existing = (
+                client.table("tasks")
+                .select("id")
+                .eq("user_id", user_id)
+                .eq("slug", slug)
+                .execute()
+            )
+            if not (existing.data or []):
+                await _create_essential_back_office_task(client, user_id, type_key, slug, title)
+                result["tasks_created"].append(slug)
+                logger.info(f"[WORKSPACE_INIT] Default task: {slug} (essential, TP-owned)")
+            else:
+                logger.info(f"[WORKSPACE_INIT] {slug} already exists, skipping")
+        except Exception as e:
+            logger.warning(f"[WORKSPACE_INIT] Back office task ({slug}) creation failed: {e}")
 
     logger.info(
         f"[WORKSPACE_INIT] Complete for {user_id[:8]}: "
@@ -205,6 +231,56 @@ async def _create_essential_daily_update(client: Any, user_id: str) -> None:
         agent_slugs=["reporting"],
     )
     tw = TaskWorkspace(client, user_id, "daily-update")
+    await tw.write_task(task_md)
+
+
+async def _create_essential_back_office_task(
+    client: Any,
+    user_id: str,
+    type_key: str,
+    slug: str,
+    title: str,
+) -> None:
+    """Create an essential back office task owned by TP (ADR-164).
+
+    Back office tasks execute via the TP dispatch branch in the task pipeline.
+    They scaffold with `essential=true` so users can't accidentally archive
+    them. Same substrate as user tasks, executed through the same pipeline,
+    producing the same output artifacts.
+    """
+    from services.task_workspace import TaskWorkspace
+    from services.task_types import build_task_md_from_type
+
+    now = datetime.now(timezone.utc)
+    # Tomorrow 09:00 UTC — back office tasks share the same daily cadence
+    # anchor as daily-update. Same rationale: predictable morning rhythm.
+    tomorrow = now + timedelta(days=1)
+    next_run = tomorrow.replace(hour=9, minute=0, second=0, microsecond=0)
+
+    row = {
+        "user_id": user_id,
+        "slug": slug,
+        "mode": "recurring",
+        "status": "active",
+        "schedule": "daily",
+        "next_run_at": next_run.isoformat(),
+        "essential": True,
+    }
+    insert_result = client.table("tasks").insert(row).execute()
+    if not insert_result.data:
+        raise RuntimeError(f"Failed to insert back office task: {slug}")
+
+    # Write TASK.md. agent_slugs=["thinking-partner"] matches the slug that
+    # get_agent_slug() derives from the "Thinking Partner" title.
+    task_md = build_task_md_from_type(
+        type_key=type_key,
+        title=title,
+        slug=slug,
+        schedule="daily",
+        delivery="none",  # Back office tasks don't deliver externally
+        agent_slugs=["thinking-partner"],
+    )
+    tw = TaskWorkspace(client, user_id, slug)
     await tw.write_task(task_md)
 
 
