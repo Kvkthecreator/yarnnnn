@@ -3,18 +3,18 @@
 import { DailyBriefing } from '@/components/home/DailyBriefing';
 import type { Agent, Task } from '@/types';
 
-interface DailyBriefingWindowProps {
+interface DailyBriefingArtifactProps {
   agents: Agent[];
   tasks: Task[];
-  hasMessages: boolean;
 }
 
-export function DailyBriefingWindow({ agents, tasks, hasMessages }: DailyBriefingWindowProps) {
+export function DailyBriefingArtifact({ agents, tasks }: DailyBriefingArtifactProps) {
   return (
     <DailyBriefing
       agents={agents}
       tasks={tasks}
-      hasMessages={hasMessages}
+      hasMessages={false}
+      forceExpanded
     />
   );
 }

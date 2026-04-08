@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * Chat Page - TP command desk.
+ * Chat Page - TP chat surface.
  *
- * ADR-165: Uses a managed command-desk canvas. Chat remains present,
- * while onboarding, briefing, work, and context are surfaced as windows.
+ * ADR-165 revision: chat remains the single primary surface. Structured
+ * artifacts render inline through a tab switcher rather than floating windows.
  */
 
 import { useEffect, useMemo } from 'react';
 import { Globe, Upload, ListChecks, Settings2 } from 'lucide-react';
-import { CommandDesk } from '@/components/command-desk/CommandDesk';
+import { ChatSurface } from '@/components/chat-surface/ChatSurface';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import { useTP } from '@/contexts/TPContext';
 import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
@@ -32,11 +32,10 @@ export default function HomePage() {
   ], [sendMessage]);
 
   return (
-    <CommandDesk
+    <ChatSurface
       agents={agents}
       tasks={tasks}
       dataLoading={dataLoading}
-      hasMessages={hasMessages}
       isNewUser={isNewUser && !hasMessages}
       plusMenuActions={plusMenuActions}
       onContextSubmit={(msg) => sendMessage(msg)}

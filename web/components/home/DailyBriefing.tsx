@@ -20,6 +20,7 @@ interface DailyBriefingProps {
   agents: Agent[];
   tasks: Task[];
   hasMessages: boolean;
+  forceExpanded?: boolean;
 }
 
 const STORAGE_KEY = 'yarnnn-briefing-collapsed';
@@ -43,7 +44,7 @@ function getAgentSlug(agent: Agent): string {
   return agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
-export function DailyBriefing({ agents, tasks, hasMessages }: DailyBriefingProps) {
+export function DailyBriefing({ agents, tasks, hasMessages, forceExpanded = false }: DailyBriefingProps) {
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem(STORAGE_KEY) === 'true';
@@ -51,13 +52,15 @@ export function DailyBriefing({ agents, tasks, hasMessages }: DailyBriefingProps
 
   // Auto-collapse when user sends first message
   useEffect(() => {
+    if (forceExpanded) return;
     if (hasMessages && !collapsed) {
       setCollapsed(true);
       localStorage.setItem(STORAGE_KEY, 'true');
     }
-  }, [hasMessages]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [forceExpanded, hasMessages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = () => {
+    if (forceExpanded) return;
     const next = !collapsed;
     setCollapsed(next);
     localStorage.setItem(STORAGE_KEY, String(next));
@@ -135,7 +138,7 @@ export function DailyBriefing({ agents, tasks, hasMessages }: DailyBriefingProps
   // ── Render — full dashboard (fills left panel) ──
 
   // Legacy collapsed state preserved for narrow contexts
-  if (collapsed) {
+  if (!forceExpanded && collapsed) {
     return (
       <button
         onClick={toggle}
@@ -156,9 +159,11 @@ export function DailyBriefing({ agents, tasks, hasMessages }: DailyBriefingProps
           <span className="text-xs font-medium">Daily Briefing</span>
           <span className="text-[10px] text-muted-foreground/50">{today}</span>
         </div>
-        <button onClick={toggle} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
-          <ChevronUp className="w-3 h-3" />
-        </button>
+        {!forceExpanded && (
+          <button onClick={toggle} className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded">
+            <ChevronUp className="w-3 h-3" />
+          </button>
+        )}
       </div>
 
       <div className="px-5 py-4 space-y-5">

@@ -2,11 +2,11 @@
 
 import { ContextSetup } from '@/components/tp/ContextSetup';
 
-interface OnboardingWindowProps {
+interface OnboardingArtifactProps {
   onSubmit: (message: string) => void;
 }
 
-export function OnboardingWindow({ onSubmit }: OnboardingWindowProps) {
+export function OnboardingArtifact({ onSubmit }: OnboardingArtifactProps) {
   return (
     <div className="p-3">
       <ContextSetup onSubmit={onSubmit} embedded />

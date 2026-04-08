@@ -4,11 +4,11 @@ Track changes to design documentation structure and active principles.
 
 ---
 
-## 2026-04-08 — Chat command desk first cut
+## 2026-04-08 — Chat artifact surface
 
-- **New design doc**: `CHAT-COMMAND-DESK.md` — documents `/chat` as a managed TP command desk with deterministic windows for onboarding, daily briefing, recent work, context gaps, outputs, and agents.
-- **New ADR**: `ADR-165-chat-command-desk-windowed-surface.md` — keeps ADR-163's four top-level surfaces intact while changing only the internal layout methodology of `/chat`; accepted after first implementation.
-- **First implementation**: `/chat` now uses `web/components/command-desk/` for deterministic desktop windows and a stacked mobile fallback.
+- **New design doc**: `CHAT-ARTIFACT-SURFACE.md` — documents `/chat` as one TP chat surface with a tab-selected structured artifact.
+- **New ADR**: `ADR-165-chat-artifact-surface.md` — keeps ADR-163's four top-level surfaces intact while changing only the internal layout methodology of `/chat`.
+- **First implementation**: `/chat` now uses `web/components/chat-surface/`; the earlier `command-desk` window package was removed after the multi-window layout proved visually unintuitive.
 - **SURFACE-ARCHITECTURE.md** updated with an ADR-165 active-decision pointer and v8.1 revision-history entry.
 
 ---
