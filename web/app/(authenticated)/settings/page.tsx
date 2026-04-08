@@ -225,9 +225,12 @@ export default function SettingsPage() {
           // Backend now re-scaffolds transactionally (ADR-140/151/161/164 invariants).
           // This call is a harmless safety net; it returns the already-restored state.
           await api.onboarding.getState().catch(() => null);
-          // Route to /context: identity was wiped and re-seeded to default template,
-          // so user should set it up again before productive work resumes.
-          setTimeout(() => router.push('/context'), 1500);
+          // Route to /work (ADR-167 list-mode landing): the three essential tasks
+          // are immediately visible in the list, giving the user concrete proof
+          // their re-scaffolded workspace is alive. Pre-ADR-167 we routed to
+          // /context because /work auto-selected and felt jarring; now /work is
+          // a meaningful list surface and the better landing.
+          setTimeout(() => router.push('/work'), 1500);
           break;
         case "integrations":
           result = await api.account.clearIntegrations();
@@ -240,9 +243,10 @@ export default function SettingsPage() {
           // Backend now re-scaffolds transactionally (ADR-140/151/161/164 invariants).
           // This call is a harmless safety net; it returns the already-restored state.
           await api.onboarding.getState().catch(() => null);
-          // Route to /context: identity was wiped and re-seeded to default template,
-          // so user should set it up again before productive work resumes.
-          setTimeout(() => router.push('/context'), 1500);
+          // Route to /work (ADR-167 list-mode landing): the three essential tasks
+          // are immediately visible in the list, giving the user concrete proof
+          // their re-scaffolded workspace is alive.
+          setTimeout(() => router.push('/work'), 1500);
           break;
         case "deactivate":
           result = await api.account.deactivateAccount();
