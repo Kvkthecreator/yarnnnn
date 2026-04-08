@@ -21,6 +21,7 @@ import {
   FolderKanban,
   Package,
   Database,
+  History,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
@@ -38,6 +39,8 @@ interface DangerZoneStats {
   platform_connections: number;
   // ADR-158: files under /workspace/context/{slack,notion,github}/
   platform_context_files: number;
+  // Phase 3 (L1): count of past task runs — drives the "Clear Work History" card.
+  agent_runs: number;
 }
 
 interface NotificationPreferences {
@@ -47,6 +50,7 @@ interface NotificationPreferences {
 
 type SettingsTab = "billing" | "usage" | "memory" | "system" | "connectors" | "account";
 type DangerAction =
+  | "work-history"
   | "workspace"
   | "integrations"
   | "reset"
@@ -218,6 +222,14 @@ export default function SettingsPage() {
     try {
       let result;
       switch (dangerAction) {
+        case "work-history":
+          result = await api.account.clearWorkHistory();
+          setPurgeSuccess(result.message);
+          // No reinit needed (L1 invariants don't include anything purged here).
+          // No route change — the user stays on Settings to see the success
+          // banner. Their tasks are still active and their next scheduled run
+          // will populate fresh outputs.
+          break;
         case "workspace":
           result = await api.account.clearWorkspace();
           setPurgeSuccess(result.message);
@@ -579,7 +591,29 @@ export default function SettingsPage() {
 
               {/* Purge Actions */}
               <div className="border-t border-border pt-6 space-y-3 mb-6">
-                {/* Clear Workspace */}
+                {/* L1: Clear Work History — lightest layer, no agent/task loss */}
+                <div className="p-4 border border-border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        <History className="w-4 h-4" />
+                        Clear Work History
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Delete {dangerStats.agent_runs} past run records and all task output folders. Tasks, agents, identity, and accumulated context are preserved.
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => initiateDangerAction("work-history")}
+                      disabled={dangerStats.agent_runs === 0}
+                      className="px-4 py-2 text-muted-foreground border border-border rounded-md text-sm font-medium hover:text-foreground hover:border-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Clear History
+                    </button>
+                  </div>
+                </div>
+
+                {/* L2: Clear Workspace — heavier, wipes agents+tasks but reinit restores roster */}
                 <div className="p-4 border border-border rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
@@ -756,11 +790,27 @@ export default function SettingsPage() {
               <h3 className="text-lg font-semibold">
                 {dangerAction === "deactivate" ? "Delete Account Permanently?" :
                  dangerAction === "reset" ? "Full Account Reset?" :
+                 dangerAction === "work-history" ? "Clear Work History?" :
                  "Confirm Deletion"}
               </h3>
             </div>
 
             <div className="text-muted-foreground mb-6">
+              {dangerAction === "work-history" && (
+                <>
+                  <p className="mb-2">
+                    Are you sure you want to <strong>clear your work history</strong>? This will delete:
+                  </p>
+                  <ul className="list-disc list-inside text-sm space-y-1">
+                    <li>{dangerStats?.agent_runs} past task run records</li>
+                    <li>All <code>/tasks/&lt;slug&gt;/outputs/</code> folders (every past deliverable)</li>
+                    <li>All <code>/tasks/&lt;slug&gt;/memory/_run_log.md</code> files (re-created on next run)</li>
+                  </ul>
+                  <p className="mt-2 text-sm">
+                    <strong>Preserved:</strong> all tasks, all agents, identity/brand, accumulated context (Competitive Intelligence, Market, etc.), chat sessions, platform connections, agent learning files (steering, feedback, reflections). Your next scheduled task fire will populate fresh outputs.
+                  </p>
+                </>
+              )}
               {dangerAction === "workspace" && (
                 <>
                   <p className="mb-2">

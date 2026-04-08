@@ -1,21 +1,38 @@
 """
 Account Management Routes — Layered purge + transactional reinit.
 
-Three purge actions, each paired with the appropriate reinit step so the
-workspace invariants (ADR-140 roster, ADR-151/152 context domains, ADR-161
-daily-update essential task, ADR-164 back office essential tasks) hold the
-moment each endpoint returns.
+Five purge actions arranged in increasing order of destructive scope. Each
+preserves the invariants from its layer's contract — see PURGE-LAYERING.md
+for the full design (output_kind taxonomy, what gets touched at each layer).
 
-  1. Clear workspace  — purges agents/tasks/workspace_files/activity/chat,
-                        then re-scaffolds via initialize_workspace()
-  2. Disconnect platforms — purges sync state + per ADR-158 deletes the three
-                        platform-owned context directories (/workspace/context/
-                        {slack,notion,github}/), PAUSES (does not delete) the
-                        platform-bot agents so reconnect is a status flip
-  3. Reset account    — full wipe (all user-scoped tables + workspaces row),
-                        then re-scaffolds via initialize_workspace()
+  L1. Clear work history     — purges past run records and task output folders
+                                 only. Tasks, agents, identity, accumulated
+                                 context, chat sessions all preserved. The
+                                 lightest possible "fresh slate" reset.
+  L2. Clear workspace        — purges agents/tasks/workspace_files/activity/chat,
+                                 then re-scaffolds via initialize_workspace().
+                                 Keeps platform connections.
+  L3. Disconnect platforms   — purges sync state + per ADR-158 deletes the three
+                                 platform-owned context directories
+                                 (/workspace/context/{slack,notion,github}/),
+                                 PAUSES the platform-bot agents so reconnect
+                                 is a status flip.
+  L4. Reset account          — full wipe (all user-scoped tables + workspaces
+                                 row), then re-scaffolds via initialize_workspace().
+  L5. Deactivate             — permanent account deletion (auth user drop
+                                 cascades all data).
 
-Plus: deactivate (permanent account deletion — auth user drop cascades).
+Layer invariants — what is NEVER touched by L1:
+  * `tasks` table rows (essential or otherwise)
+  * `agents` table rows
+  * `chat_sessions` (the user's relationship with TP)
+  * `workspace_files` outside `/tasks/{slug}/outputs/` and
+    `/tasks/{slug}/memory/_run_log.md` (so TASK.md, DELIVERABLE.md,
+    memory/feedback.md, memory/steering.md, memory/reflections.md, and the
+    entire `/workspace/context/` substrate are all preserved)
+  * `activity_log` (ADR-164 already removed task-lifecycle events from this
+    table; nothing in there is "work history" anymore)
+  * `platform_connections`
 """
 
 import logging
@@ -45,6 +62,9 @@ class DangerZoneStats(BaseModel):
     # (ADR-158: platform-bot owned context). Replaces the old platform_content
     # field which was a dropped table (ADR-153).
     platform_context_files: int
+    # ADR-166 / Phase 3: count of past task runs (work history). Sum of
+    # `agent_runs` rows. Drives the L1 "Clear Work History" card stats.
+    agent_runs: int
 
 
 class OperationResult(BaseModel):
@@ -139,6 +159,93 @@ def _count_workspace_paths(client, user_id: str, path_prefix: str) -> int:
         return 0
 
 
+def _count_workspace_pattern(client, user_id: str, like_pattern: str) -> int:
+    """Count workspace_files rows matching an arbitrary SQL LIKE pattern.
+
+    Caller is responsible for the trailing `%` (and any internal `%` for
+    cross-segment patterns like `/tasks/%/outputs/%`).
+    """
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("*", count="exact")
+            .eq("user_id", user_id)
+            .like("path", like_pattern)
+            .execute()
+        )
+        return result.count or 0
+    except Exception:
+        return 0
+
+
+def _delete_workspace_pattern(client, user_id: str, like_pattern: str) -> int:
+    """Delete workspace_files rows matching an arbitrary SQL LIKE pattern.
+
+    Two-step (count then delete) so we can return a real count without
+    forcing the caller to inspect a delete response shape.
+    """
+    try:
+        count = _count_workspace_pattern(client, user_id, like_pattern)
+        if count > 0:
+            (
+                client.table("workspace_files")
+                .delete()
+                .eq("user_id", user_id)
+                .like("path", like_pattern)
+                .execute()
+            )
+        return count
+    except Exception as e:
+        logger.warning(f"[ACCOUNT] workspace_files delete failed (pattern={like_pattern}): {e}")
+        return 0
+
+
+def _user_agent_ids(client, user_id: str) -> list[str]:
+    """Return all agent IDs owned by the user (used to scope agent_runs ops)."""
+    try:
+        result = client.table("agents").select("id").eq("user_id", user_id).execute()
+        return [r["id"] for r in (result.data or [])]
+    except Exception:
+        return []
+
+
+def _count_user_agent_runs(client, user_id: str) -> int:
+    """Count agent_runs rows belonging to the user (via agent_id → agents.user_id)."""
+    agent_ids = _user_agent_ids(client, user_id)
+    if not agent_ids:
+        return 0
+    try:
+        result = (
+            client.table("agent_runs")
+            .select("*", count="exact")
+            .in_("agent_id", agent_ids)
+            .execute()
+        )
+        return result.count or 0
+    except Exception:
+        return 0
+
+
+def _delete_user_agent_runs(client, user_id: str) -> int:
+    """Delete all agent_runs rows belonging to the user. Returns count deleted."""
+    agent_ids = _user_agent_ids(client, user_id)
+    if not agent_ids:
+        return 0
+    try:
+        count = _count_user_agent_runs(client, user_id)
+        if count > 0:
+            (
+                client.table("agent_runs")
+                .delete()
+                .in_("agent_id", agent_ids)
+                .execute()
+            )
+        return count
+    except Exception as e:
+        logger.warning(f"[ACCOUNT] agent_runs delete failed for {user_id}: {e}")
+        return 0
+
+
 # =============================================================================
 # Notification Preferences
 # =============================================================================
@@ -220,6 +327,9 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             )
         )
 
+        # Phase 3: count of past task runs (drives the L1 "Clear Work History" card).
+        agent_runs = _count_user_agent_runs(client, user_id)
+
         return DangerZoneStats(
             workspace_files=workspace_files,
             agents=agents,
@@ -227,6 +337,7 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             chat_sessions=chat_sessions,
             platform_connections=platform_connections,
             platform_context_files=platform_context_files,
+            agent_runs=agent_runs,
         )
     except Exception as e:
         logger.error(f"[ACCOUNT] Failed to get danger zone stats: {e}")
@@ -236,6 +347,78 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
 # =============================================================================
 # Purge Actions
 # =============================================================================
+
+@router.delete("/account/work-history")
+async def clear_work_history(auth: UserClient) -> OperationResult:
+    """
+    L1 — Clear work history. The lightest possible "fresh slate" reset.
+
+    Purges past run records and task output folders ONLY. Keeps everything
+    that defines the workspace (tasks, agents, identity, accumulated context,
+    chat sessions, platform connections). Designed for the user who wants to
+    "start fresh" without losing anything they've built up.
+
+    What gets deleted:
+      - All `agent_runs` rows belonging to the user (every past task execution
+        record). FK cascades on these tables also wipe their dependents
+        (e.g. `agent_export_preferences` legacy entries).
+      - `workspace_files` rows where path matches `/tasks/%/outputs/%`
+        (every past task output folder + manifest)
+      - `workspace_files` rows where path matches `/tasks/%/memory/_run_log.md`
+        (the agent's per-task observation log — re-created on next run)
+
+    What is preserved (the L1 invariant set):
+      - Every `tasks` table row (essential and otherwise)
+      - Every `agents` table row
+      - All `chat_sessions` (the user's relationship with TP)
+      - TASK.md, DELIVERABLE.md, memory/feedback.md, memory/steering.md,
+        memory/reflections.md (per-task)
+      - The entire `/workspace/context/` substrate (every accumulated context
+        domain)
+      - IDENTITY.md, BRAND.md, AWARENESS.md, _playbook.md
+      - All platform connections
+
+    No reinit needed — the L1 invariants don't include anything this
+    endpoint touches. The next scheduled task fire will create a fresh
+    `/outputs/{date}/` folder and a fresh `_run_log.md` automatically.
+
+    See docs/design/PURGE-LAYERING.md for the full layered model.
+    """
+    user_id = auth.user_id
+    deleted: dict[str, int] = {}
+
+    try:
+        client = get_service_client()
+
+        # Run records — every past task execution
+        deleted["agent_runs"] = _delete_user_agent_runs(client, user_id)
+
+        # Task output folders — `/tasks/{any-slug}/outputs/{any-date}/...`
+        deleted["task_outputs"] = _delete_workspace_pattern(
+            client, user_id, "/tasks/%/outputs/%"
+        )
+
+        # Per-task observation logs — re-created on next run
+        deleted["task_run_logs"] = _delete_workspace_pattern(
+            client, user_id, "/tasks/%/memory/_run_log.md"
+        )
+
+        logger.info(f"[ACCOUNT] User {user_id} cleared work history: {deleted}")
+
+        total = sum(deleted.values())
+        return OperationResult(
+            success=True,
+            message=(
+                f"Cleared work history: {deleted['agent_runs']} run records, "
+                f"{deleted['task_outputs']} output files, "
+                f"{deleted['task_run_logs']} run logs ({total} items total)"
+            ),
+            deleted=deleted,
+        )
+    except Exception as e:
+        logger.error(f"[ACCOUNT] Failed to clear work history for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear work history")
+
 
 @router.delete("/account/workspace")
 async def clear_workspace(auth: UserClient) -> OperationResult:
