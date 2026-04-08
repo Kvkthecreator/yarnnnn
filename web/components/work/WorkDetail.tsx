@@ -3,41 +3,44 @@
 /**
  * WorkDetail — Center panel for selected task on /work.
  *
- * ADR-163 Surface Restructure: This absorbs the Pipeline and Report content
- * that previously lived as tabs on the Agents page. A task's full detail
- * lives on /work now — schedule, next/last run, objective, output preview,
- * and actions (run now, pause/resume).
+ * ADR-167: Refactored from a one-shape detail view into a thin shell that
+ * dispatches the middle band on `task.output_kind`. The chrome (header,
+ * objective, actions, assigned-to footer) is uniform across all four kinds.
+ * The middle band — what the user actually came to see — diverges based on
+ * what shape of work the task produces:
+ *
+ *   accumulates_context  → TrackingMiddle    (domain folder + CHANGELOG)
+ *   produces_deliverable → DeliverableMiddle (today's iframe/markdown preview)
+ *   external_action      → ActionMiddle      (fire history + platform link)
+ *   system_maintenance   → MaintenanceMiddle (hygiene log + run history)
+ *
+ * The four middle components live in ./details/.
  *
  * Layout:
- *   - Pinned header: title, mode badge, assigned agent, essential badge
- *   - Objective block (from TASK.md)
- *   - Latest output preview (if any — iframe for HTML, markdown renderer for md)
- *   - Actions: Run now, Pause/Resume, Edit via TP (sends chat prompt)
- *   - Run history (compact list)
- *
- * The "Edit" and "Configure" paths all route back to TP chat — the source
- * of truth for task mutations is TASK.md, which is mutated by TP, not by
- * direct form posts.
+ *   - WorkHeader (chrome): title, mode badge, agent, schedule, next/last run
+ *   - ObjectiveBlock (chrome, suppressed for system_maintenance)
+ *   - {kind-specific middle component}
+ *   - ActionsRow (chrome): Run now, Pause/Resume, Edit via chat
+ *   - AssignedAgentLink (chrome)
  */
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Play,
   Pause,
   MessageSquare,
-  Loader2,
-  FileText,
   ExternalLink,
   Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api } from '@/lib/api/client';
-import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { formatRelativeTime } from '@/lib/formatting';
 import { WorkModeBadge } from './WorkModeBadge';
+import { DeliverableMiddle } from './details/DeliverableMiddle';
+import { TrackingMiddle } from './details/TrackingMiddle';
+import { ActionMiddle } from './details/ActionMiddle';
+import { MaintenanceMiddle } from './details/MaintenanceMiddle';
 import { AGENTS_ROUTE } from '@/lib/routes';
-import type { Task, Agent, TaskOutput } from '@/types';
+import type { Task, Agent } from '@/types';
 
 interface WorkDetailProps {
   task: Task;
@@ -127,69 +130,22 @@ function ObjectiveBlock({ task }: { task: Task }) {
   );
 }
 
-// ─── Output preview ───
+// ─── Kind dispatch (ADR-167) ───
 
-function OutputPreview({ taskSlug }: { taskSlug: string }) {
-  const [loading, setLoading] = useState(true);
-  const [latest, setLatest] = useState<TaskOutput | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setLatest(null);
-    api.tasks.getLatestOutput(taskSlug)
-      .then(result => setLatest(result))
-      .catch(() => setLatest(null))
-      .finally(() => setLoading(false));
-  }, [taskSlug]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-      </div>
-    );
+function KindMiddle({ task }: { task: Task }) {
+  switch (task.output_kind) {
+    case 'accumulates_context':
+      return <TrackingMiddle task={task} />;
+    case 'external_action':
+      return <ActionMiddle task={task} />;
+    case 'system_maintenance':
+      return <MaintenanceMiddle task={task} />;
+    case 'produces_deliverable':
+    default:
+      // Default to DeliverableMiddle for unknown/missing output_kind so legacy
+      // tasks with no enriched type info still render something useful.
+      return <DeliverableMiddle taskSlug={task.slug} />;
   }
-
-  if (!latest || (!latest.html_content && !latest.content)) {
-    return (
-      <div className="px-5 py-8 text-center">
-        <FileText className="w-6 h-6 text-muted-foreground/15 mx-auto mb-2" />
-        <p className="text-xs text-muted-foreground/60">
-          No output yet. This task will produce its first output on its next run.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="border-b border-border/40">
-      <div className="px-5 py-2 text-[11px] text-muted-foreground/60 flex items-center gap-2">
-        <span>Latest output</span>
-        {latest.date && (
-          <>
-            <span className="text-muted-foreground/30">·</span>
-            <span>{latest.date}</span>
-          </>
-        )}
-      </div>
-      <div className="min-h-[300px] max-h-[600px] overflow-auto">
-        {latest.html_content ? (
-          <iframe
-            srcDoc={latest.html_content}
-            className="h-[600px] w-full border-0 bg-white"
-            sandbox="allow-same-origin allow-scripts"
-            title={`${taskSlug} output`}
-          />
-        ) : (
-          <div className="p-5">
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <MarkdownRenderer content={latest.content ?? ''} />
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ─── Actions ───
@@ -258,13 +214,16 @@ export function WorkDetail({
   busy,
 }: WorkDetailProps) {
   const assignedAgent = findAssignedAgent(task, agents);
+  // ADR-167: system_maintenance tasks suppress the objective block — TP owns
+  // their contract, not the user. Other kinds always render it if present.
+  const showObjective = task.output_kind !== 'system_maintenance';
 
   return (
     <div className="flex flex-col h-full">
       <WorkHeader task={task} assignedAgent={assignedAgent} />
       <div className="flex-1 overflow-auto">
-        <ObjectiveBlock task={task} />
-        <OutputPreview taskSlug={task.slug} />
+        {showObjective && <ObjectiveBlock task={task} />}
+        <KindMiddle task={task} />
         <ActionsRow
           task={task}
           onRun={() => onRun(task.slug)}

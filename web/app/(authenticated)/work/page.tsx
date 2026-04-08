@@ -1,17 +1,22 @@
 'use client';
 
 /**
- * Work Page — Task list (left) + task detail (center) + TP chat (right).
+ * Work Page — List/detail surface (ADR-167).
  *
- * ADR-163 Surface Restructure: First-class top-level destination. Answers
- * "What is my workforce doing?" The task list is sorted by next_run_at
- * (upcoming soonest first). The detail panel shows the selected task's
- * full state including latest output, actions, and a link back to the
- * assigned agent.
+ * SURFACE-ARCHITECTURE.md v9: /work is a single surface with two modes:
+ *   - List mode (no `?task=` param): full-width WorkListSurface with filter
+ *     chips, search, group-by, agent filter
+ *   - Detail mode (`?task={slug}`): kind-aware WorkDetail dispatching the
+ *     middle band on task.output_kind (ADR-166)
  *
- * The `?agent=<slug>` query param filters the task list to that agent's
- * tasks — used when the user clicks "See this agent's work" from /agents.
- * The `?task=<slug>` query param deep-links to a specific task.
+ * The left sidebar from earlier versions is GONE — list mode IS the navigator.
+ * The breadcrumb (commit b033513) drives navigation between modes. Auto-select
+ * of the first task is GONE — landing on /work shows the list, not someone
+ * else's task by accident.
+ *
+ * The `?agent={slug}` query param is preserved as a deep-link shortcut: it
+ * pre-applies the agent filter in list mode. The breadcrumb's "Competitive
+ * Intelligence's work" segment continues to target this URL.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -21,21 +26,10 @@ import { useTP } from '@/contexts/TPContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
 import { api } from '@/lib/api/client';
-import { WorkList } from '@/components/work/WorkList';
+import { WorkListSurface } from '@/components/work/WorkListSurface';
 import { WorkDetail } from '@/components/work/WorkDetail';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-
-function EmptyState() {
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="text-center">
-        <Briefcase className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
-        <p className="text-sm text-muted-foreground/50">Select work</p>
-      </div>
-    </div>
-  );
-}
 
 export default function WorkPage() {
   const searchParams = useSearchParams();
@@ -47,36 +41,15 @@ export default function WorkPage() {
   const agentFilter = searchParams.get('agent');
   const taskSlugFromUrl = searchParams.get('task');
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
-  const [mutationPending, setMutationPending] = useState(false);
-
-  // Filter tasks by agent if filter is set
-  const filteredTasks = useMemo(() => {
-    if (!agentFilter) return tasks;
-    return tasks.filter(t => t.agent_slugs?.includes(agentFilter));
-  }, [tasks, agentFilter]);
-
-  // Auto-select from URL on first load
-  useEffect(() => {
-    if (taskSlugFromUrl && tasks.length > 0 && !selectedSlug) {
-      const match = tasks.find(t => t.slug === taskSlugFromUrl);
-      if (match) setSelectedSlug(match.slug);
-    }
-  }, [taskSlugFromUrl, tasks, selectedSlug]);
-
-  // Auto-select first task if none selected and list has items
-  useEffect(() => {
-    if (!selectedSlug && filteredTasks.length > 0) {
-      setSelectedSlug(filteredTasks[0].slug);
-    }
-  }, [filteredTasks, selectedSlug]);
-
+  // Detail mode is determined by URL — no auto-selection (ADR-167)
   const selectedTask = useMemo(
-    () => filteredTasks.find(t => t.slug === selectedSlug) ?? null,
-    [filteredTasks, selectedSlug],
+    () => (taskSlugFromUrl ? tasks.find(t => t.slug === taskSlugFromUrl) ?? null : null),
+    [taskSlugFromUrl, tasks],
   );
 
-  // Breadcrumb
+  const [mutationPending, setMutationPending] = useState(false);
+
+  // Breadcrumb (matches commit b033513 segment shape)
   useEffect(() => {
     if (selectedTask) {
       const agentSlug = agentFilter || selectedTask.agent_slugs?.[0];
@@ -108,7 +81,7 @@ export default function WorkPage() {
       clearBreadcrumb();
     }
     return () => clearBreadcrumb();
-  }, [selectedTask?.slug, selectedTask?.title, agentFilter, agents, setBreadcrumb, clearBreadcrumb]);
+  }, [selectedTask?.slug, selectedTask?.title, selectedTask?.agent_slugs, agentFilter, agents, setBreadcrumb, clearBreadcrumb]);
 
   // Actions
   const handleRunTask = useCallback(async (slug: string) => {
@@ -137,12 +110,19 @@ export default function WorkPage() {
     }
   }, [tasks, reload]);
 
+  // Click row in list mode → URL transition to detail mode
   const handleSelect = useCallback((slug: string) => {
-    setSelectedSlug(slug);
-    // Shallow-update URL with the selected task slug for deep-linking
     const sp = new URLSearchParams(searchParams.toString());
     sp.set('task', slug);
     router.replace(`/work?${sp.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  // Clear agent filter chip in list mode
+  const handleClearAgentFilter = useCallback(() => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('agent');
+    const qs = sp.toString();
+    router.replace(qs ? `/work?${qs}` : '/work', { scroll: false });
   }, [router, searchParams]);
 
   const plusMenuActions: PlusMenuAction[] = useMemo(() => {
@@ -179,7 +159,7 @@ export default function WorkPage() {
     <div className="py-2 text-center">
       <MessageCircle className="mx-auto mb-1.5 h-5 w-5 text-muted-foreground/15" />
       <p className="text-[11px] text-muted-foreground/40">
-        {selectedTask ? `Ask anything about "${selectedTask.title}"` : 'Select work to get started'}
+        {selectedTask ? `Ask anything about "${selectedTask.title}"` : 'Ask anything about your work'}
       </p>
     </div>
   );
@@ -194,21 +174,6 @@ export default function WorkPage() {
 
   return (
     <ThreePanelLayout
-      leftPanel={{
-        title: agentFilter
-          ? `${agents.find(a => a.slug === agentFilter)?.title ?? agentFilter}'s work`
-          : 'Work',
-        content: (
-          <WorkList
-            tasks={filteredTasks}
-            agents={agents}
-            selectedSlug={selectedSlug}
-            onSelect={handleSelect}
-          />
-        ),
-        collapsedIcon: <Briefcase className="w-4 h-4" />,
-        collapsedTitle: 'Work',
-      }}
       chat={{
         plusMenuActions,
         placeholder: selectedTask ? `Ask about "${selectedTask.title}"...` : 'Ask anything or type / ...',
@@ -227,7 +192,13 @@ export default function WorkPage() {
           busy={mutationPending}
         />
       ) : (
-        <EmptyState />
+        <WorkListSurface
+          tasks={tasks}
+          agents={agents}
+          agentFilter={agentFilter}
+          onClearAgentFilter={handleClearAgentFilter}
+          onSelect={handleSelect}
+        />
       )}
     </ThreePanelLayout>
   );

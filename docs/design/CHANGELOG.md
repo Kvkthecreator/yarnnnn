@@ -4,6 +4,16 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-08 — ADR-167: List/detail surfaces with kind-aware detail
+
+- **New ADR**: `ADR-167-list-detail-surfaces.md` — collapses `/work` and `/agents` from master-detail (left list + center detail + chat) into single surfaces with two URL-driven modes: list mode (full-width filterable list / roster) and detail mode (kind-aware detail).
+- **SURFACE-ARCHITECTURE.md → v9**: documents the list/detail collapse, the four kind-aware middle components in `web/components/work/details/`, and the deletion of `WorkList`/`AgentTreeNav`/`ThreePanelLayout.leftPanel` requirement.
+- **Component map updated** with `WorkListSurface`, `AgentRosterSurface`, and the four `details/*Middle.tsx` files.
+- **Migration note added**: when adding a new way to render a task in detail mode, add a new middle component dispatched from `WorkDetail`'s switch on `task.output_kind` — do not branch inside an existing middle component.
+- Auto-select-first behavior on `/work` and `/agents` is GONE. Landing on either page shows the list/roster, never someone else's task or agent by accident. The breadcrumb (commit b033513) drives navigation between modes — its promise of "click `Work` to go back to overview" is now deliverable.
+
+---
+
 ## 2026-04-08 — Chat artifact surface
 
 - **Breadcrumb scope bar**: `BreadcrumbContext` now supports route-backed `href` segments; `GlobalBreadcrumb` renders a centered linkable scope path under the four-toggle nav. Work, Agents, and Context emit deeper linkable paths, and Context supports `?path=` deep-linking.

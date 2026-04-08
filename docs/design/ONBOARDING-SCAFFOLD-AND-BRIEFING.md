@@ -268,7 +268,7 @@ When TP auto-scaffolds tasks during onboarding, it uses the registry defaults:
 | Step | What | Files |
 |------|------|-------|
 | 10 | Update AgentContentView status line wording | `web/components/agents/AgentContentView.tsx` |
-| 11 | Update AgentTreeNav metadata line | `web/components/agents/AgentTreeNav.tsx` |
+| 11 | Update agent roster card metadata line | `web/components/agents/AgentRosterSurface.tsx` (was `AgentTreeNav.tsx`, ADR-167) |
 | 12 | Update Setup tab to show rhythm at agent level | `web/components/agents/AgentContentView.tsx` |
 
 ### Phase 4: Synthesis roll-up

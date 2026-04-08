@@ -1,0 +1,216 @@
+# ADR-167: List/Detail Surfaces with Kind-Aware Detail
+
+**Status:** Accepted
+**Date:** 2026-04-08
+**Author:** KVK + Claude
+**Supersedes:** ADR-163 surface internals (Work + Agents pages); does NOT supersede ADR-163 itself (the four-surface restructure stays intact)
+**Related:** ADR-163 (Surface Restructure), ADR-166 (Registry Coherence Pass — output_kind), commit b033513 (linkable breadcrumb scope bar)
+
+---
+
+## Context
+
+Three things shipped in the last week that, together, made the current Work and Agents page shape obsolete:
+
+1. **ADR-163** introduced four top-level surfaces: Chat | Work | Agents | Context. It carved Work out as a first-class destination and shrunk Agents to "roster + identity card."
+
+2. **ADR-166** classified every task by `output_kind` — a 4-value enum (`accumulates_context | produces_deliverable | external_action | system_maintenance`) that describes what shape of work the task produces. The enum is now load-bearing for pipeline routing, playbook injection, and DELIVERABLE.md handling.
+
+3. **Commit b033513** ("feat: add linkable breadcrumb scope bar") upgraded the breadcrumb from inert label to navigable scope path with `kind`-tagged segments and `href` links. Each segment now promises a destination: clicking `Work` lands you on `/work`, clicking `Competitive Intelligence's work` lands you on `/work?agent=competitive-intelligence`.
+
+The breadcrumb's promise is broken in three places:
+
+- **`/work` is not a meaningful overview destination.** The page auto-selects the first task on mount (`useEffect` that runs whenever `selectedSlug` is null and the list is non-empty), so clicking the `Work` breadcrumb segment from a task detail just shows you a different task's detail with a different selection state. There is no "Work overview" view to land on.
+
+- **`WorkDetail` is uniformly blind to `output_kind`.** It always renders the same shape: header → objective → `<OutputPreview>` (an iframe over `api.tasks.getLatestOutput()`) → actions row. That fetch path is correct for `produces_deliverable` tasks and **wrong for the other three kinds**:
+  - `accumulates_context` tasks (`track-competitors`, `slack-digest`, etc.) write to a context domain, not to a task output folder. The iframe is empty.
+  - `external_action` tasks (`slack-respond`, `notion-update`) write to a third-party platform. The artifact lives off-platform.
+  - `system_maintenance` tasks (`back-office-agent-hygiene`, `back-office-workspace-cleanup`) emit a hygiene log + side effects. The framing is wrong.
+
+- **The left panel is dead chrome on a master-detail page that always has something selected.** Both Work and Agents use `ThreePanelLayout` with a permanent left list panel, but auto-select-first means you never actually need to scan the list to pick something — the page always lands you in detail. The left panel is just navigation between detail views, not a meaningful surface.
+
+The breadcrumb refactor and the `output_kind` carve are pulling in the same direction: **the surfaces want to be list-first, kind-aware, and navigation-driven from the breadcrumb**, not master-detail with a frozen left sidebar.
+
+## Decision
+
+Collapse `/work` and `/agents` from master-detail surfaces into single surfaces with two modes — **list mode** and **detail mode** — switched on URL state. Make detail mode kind-aware by dispatching the middle band on `task.output_kind`. Delete the auto-select-first behavior. The breadcrumb's promise becomes deliverable.
+
+### 1. Two surface modes, one URL convention
+
+| URL | Mode | Renders |
+|---|---|---|
+| `/work` | list | `<WorkListSurface>` — full-width filterable list of tasks |
+| `/work?agent={slug}` | list (filtered) | `<WorkListSurface>` with the agent filter pre-applied |
+| `/work?task={slug}` | detail | `<WorkDetail>` for that task (kind-aware) |
+| `/agents` | list | `<AgentRosterSurface>` — full-width roster grouped by class |
+| `/agents?agent={slug}` | detail | `<AgentDetail>` (today's `<AgentContentView>`) |
+
+The `?agent=` query param on `/work` is preserved as a deep-link shortcut. The breadcrumb (b033513) already targets it; preserving it costs nothing and keeps the breadcrumb's "Competitive Intelligence's work" segment functional. List mode's filter UI also supports applying/removing the agent filter, so the query param is just one way to arrive at a filtered state — not the only way.
+
+### 2. Delete auto-select-first
+
+Both `WorkPage` and `AgentsPage` currently have a `useEffect` that auto-selects the first item when nothing is selected. **Both are deleted.** When you land on `/work` with no `?task=` param, you see the list. When you land on `/agents` with no `?agent=` param, you see the roster. Selection is now an explicit action, driven by URL transitions (clicking a row updates the URL, breadcrumb reflects the new scope, browser back returns to list).
+
+### 3. Left panel dissolves
+
+`ThreePanelLayout.leftPanel` becomes optional. `/work` and `/agents` no longer pass it. The center surface owns the full width. The chat panel stays exactly as it is (FAB-overlaid, default closed). The breadcrumb takes over the navigation role the left panel used to play.
+
+`/context` retains the left panel — it has a legitimate tree-nav use case (filesystem browser) that the list/detail pattern doesn't fit.
+
+### 4. Kind-aware detail middle band
+
+The data shows that the four `output_kind` values need fundamentally different centerpiece data, not just different cosmetics:
+
+| `output_kind` | Centerpiece data | Where it lives |
+|---|---|---|
+| `accumulates_context` | Domain folder + entity files + last-run CHANGELOG | `workspace_files` under `/workspace/context/{domain}/` and `/tasks/{slug}/outputs/{date}/output.md` |
+| `produces_deliverable` | Latest rendered HTML/markdown output | `workspace_files` under `/tasks/{slug}/outputs/{date}/` |
+| `external_action` | Run history with platform target + status + sent message | `agent_runs` table + `/tasks/{slug}/outputs/{date}/output.txt` |
+| `system_maintenance` | Hygiene log + side-effect record | `agent_runs` + `/tasks/{slug}/outputs/{date}/output.md` |
+
+The chrome (header, mode badge, agent, schedule, next/last run, Run now, Pause, Edit via chat, assigned-to footer) is uniform across all four — roughly 60% of the current `WorkDetail` component by line count. The middle band is where the four diverge irreconcilably.
+
+`WorkDetail` becomes a thin shell:
+```
+WorkDetailShell
+├── WorkHeader               (shared — chrome)
+├── ObjectiveBlock           (shared — when objective exists; system_maintenance suppresses)
+├── ┌──────────────────────┐
+│   │ switch (output_kind) │
+│   │  ├ accumulates → TrackingMiddle    │
+│   │  ├ produces    → DeliverableMiddle │
+│   │  ├ external    → ActionMiddle      │
+│   │  └ system_main → MaintenanceMiddle │
+│   └──────────────────────┘
+├── ActionsRow               (shared — chrome)
+└── AssignedAgentLink        (shared — chrome)
+```
+
+Four middle components, one shared shell. The dispatch is ~10 lines.
+
+### 5. List mode for /work — filters, search, grouping
+
+`WorkListSurface` is a full-width component with:
+
+- **Filter chips** at the top, keyed on `output_kind`: `[ All ] [ Tracking ] [ Reports ] [ Actions ] [ System ]`. The chips are the primary navigation device.
+- **Search box** that filters by task title (substring match).
+- **Group-by dropdown**: defaults to "Output kind" (matching the chip filter). Other options: agent, status, schedule cadence.
+- **Status filter**: defaults to active+paused, can include archived.
+- **Agent filter**: pre-applied if `?agent={slug}` is in the URL; otherwise off. User can apply/remove via the list UI.
+- **Row content**: status dot, title, mode badge, assigned agent, next/last run, essential star. Same row shape as today's `<WorkRow>`, just with the surface around it doing more.
+
+Click a row → URL updates to `/work?task={slug}` → surface transitions to detail mode.
+
+### 6. List mode for /agents — roster grouped by class
+
+`AgentRosterSurface` is a full-width component with:
+
+- **Grouped sections** by agent class: Domain Stewards (5) / Synthesizer (1) / Platform Bots (3) / Thinking Partner (1).
+- **Per-agent card**: name, class label, domain (for stewards), active task count, approval rate (if ≥5 runs), last run, status indicator.
+- **No filters in v1** — 9 agents at signup is small enough that grouping is sufficient. Filters can come later if the roster grows.
+
+Click a card → URL updates to `/agents?agent={slug}` → surface transitions to detail mode (today's `<AgentContentView>`, lightly tidied).
+
+### 7. ThreePanelLayout becomes effectively two-panel-plus-FAB-chat
+
+`ThreePanelLayout.leftPanel` goes from required to optional. The component name is preserved (rather than renaming to `TwoPanelLayout`) because `/context` still uses it with a left panel. This is cheaper than renaming and re-importing 4+ surfaces. The shape change is internal: when `leftPanel` is omitted, the center fills the available width and the collapsed-icon strip is not rendered.
+
+## Why kind-aware detail (vs. one component with branching)
+
+Three options were considered:
+
+1. **Light** — keep one `WorkDetail` component, branch only the `OutputPreview` slot on `output_kind`. Smallest diff.
+2. **Medium** — separate detail components per kind sharing a `WorkDetailShell` wrapper. **Chosen.**
+3. **Heavy** — kind drives the whole route, full divergence. Overkill.
+
+Option 1 was rejected because the three non-deliverable kinds need entirely different data fetches at the centerpiece, not just different rendering of the same data. Stuffing four mutually-exclusive data fetches into one component is strictly worse than splitting. Option 3 was rejected because the chrome (header, actions, footer) genuinely is shared — rebuilding it four times is strictly worse than wrapping it once.
+
+## Why dissolve the left panel
+
+The left panel was a remnant of the master-detail era. With auto-select-first deleted and the breadcrumb providing scope navigation, the panel adds nothing the breadcrumb + list mode don't already provide:
+
+- Navigation between detail views? → Breadcrumb back to list, then click another row.
+- "What's next on my schedule?" scan? → That belongs in list mode itself, sorted by `next_run_at`, not a permanent sidebar.
+- Status overview? → Same — list mode with status grouping does this better than a cramped sidebar.
+
+The left panel was solving the absence of a real list view. We're adding the real list view, so the left panel can go.
+
+## Why query string URLs (not path segments)
+
+`/work?task={slug}` instead of `/work/{slug}`. Three reasons:
+
+1. **The breadcrumb (b033513) already targets query-string URLs.** Changing to path segments means rewriting the breadcrumb segment construction in two pages and potentially rewriting `BreadcrumbSegment.href` consumers.
+2. **Legacy redirects from ADR-163** (`/tasks` → `/work`, `/workfloor` → `/chat`, `/orchestrator` → `/chat`) are written against the query-string convention. Changing to path segments triggers redirect surgery.
+3. **Filter state and selection state co-exist.** `/work?agent=competitive-intelligence&task=competitive-brief` is a valid URL — agent filter pre-applied, task selected. Path segments would force a choice between `/work/agent/{slug}` and `/work/task/{slug}` and lose composability.
+
+## Architectural constraints honored
+
+- **ADR-163 stays intact.** Four surfaces. Same routes. Same toggle bar. This ADR changes only what happens *inside* `/work` and `/agents`.
+- **ADR-166 stays intact.** `output_kind` enum, two-axis model, registry coherence — all unchanged. This ADR consumes `output_kind` as a routing key.
+- **Commit b033513 (breadcrumb) stays intact.** No changes to `BreadcrumbContext`, `GlobalBreadcrumb`, or segment shape. The breadcrumb already does the right thing; it just needed real destinations to land on.
+- **Backend untouched.** Zero API changes, zero schema changes, zero new endpoints. The four middle components consume existing `api.tasks.*` calls plus (for `TrackingMiddle`) a workspace-files read for the domain folder, which is already exposed.
+
+## File-by-file change map
+
+| File | Change |
+|---|---|
+| `web/components/shell/ThreePanelLayout.tsx` | `leftPanel` becomes optional. When omitted, center fills width and collapsed-icon strip not rendered. |
+| `web/app/(authenticated)/work/page.tsx` | Switch on `?task=` for list/detail mode. Delete auto-select-first `useEffect`. List mode renders `<WorkListSurface>`, detail mode renders `<WorkDetail>`. No `leftPanel` prop. |
+| `web/app/(authenticated)/agents/page.tsx` | Switch on `?agent=` for list/detail mode. Delete auto-select-first `useEffect`. List mode renders `<AgentRosterSurface>`, detail mode renders `<AgentContentView>`. No `leftPanel` prop. |
+| `web/components/work/WorkList.tsx` | DELETED. Replaced by `WorkListSurface.tsx` (full-width with filters, search, grouping). |
+| `web/components/work/WorkListSurface.tsx` | NEW. Full-width list with filter chips, search, group-by, agent filter from URL. |
+| `web/components/work/WorkDetail.tsx` | Refactored to thin shell. Header, objective, actions row, assigned-to footer kept. `OutputPreview` extracted to `details/DeliverableMiddle.tsx`. Dispatches middle band on `task.output_kind`. |
+| `web/components/work/details/DeliverableMiddle.tsx` | NEW. Today's `OutputPreview` extracted unchanged. Renders for `produces_deliverable` tasks. |
+| `web/components/work/details/TrackingMiddle.tsx` | NEW. Renders domain status (entity count, freshness) + link to `/context?domain={key}` + last-run CHANGELOG (markdown summary from `outputs/{date}/output.md`). |
+| `web/components/work/details/ActionMiddle.tsx` | NEW. Renders action history (when, target, status) from `agent_runs` + sent-message preview + link out to platform target. |
+| `web/components/work/details/MaintenanceMiddle.tsx` | NEW. Renders hygiene log table from `outputs/{date}/output.md` + run history from `agent_runs`. |
+| `web/components/agents/AgentTreeNav.tsx` | DELETED. Replaced by `AgentRosterSurface.tsx`. |
+| `web/components/agents/AgentRosterSurface.tsx` | NEW. Full-width roster grouped by agent class with health glances per card. |
+| `web/components/agents/AgentContentView.tsx` | Lightly tidied. Surface-aware (knows it's now full-width center, not in a 3-panel context). |
+| `docs/design/SURFACE-ARCHITECTURE.md` | Bump to v9. Document list/detail mode collapse and kind-aware detail. |
+| `docs/adr/ADR-167-list-detail-surfaces.md` | THIS FILE. New. |
+| `CLAUDE.md` | ADR-167 entry added to ADR list. |
+
+## What this does NOT touch
+
+- ADR-163 four-surface restructure
+- ADR-166 registry coherence
+- Backend (zero changes)
+- DB schema (zero changes)
+- Legacy redirects (`/tasks`, `/workfloor`, `/orchestrator`)
+- Chat panel behavior (FAB-overlaid, default closed)
+- `WorkModeBadge`, `taskModeLabel()` mode collapse
+- `/context` page (keeps its left panel)
+- `/chat` page (already redesigned per ADR-165)
+- Breadcrumb context, segment shape, or rendering
+
+## Validation plan
+
+- TypeScript clean (`tsc --noEmit` exit 0)
+- Manual smoke test on KVK's actual data:
+  - `/work` lands on list, no auto-selection, filter chips visible
+  - Click `[ Tracking ]` chip → only `accumulates_context` tasks shown
+  - Click a `track-competitors` row → detail mode with `<TrackingMiddle>` (not iframe)
+  - Click `Work` breadcrumb → returns to list mode (preserved filter state OK)
+  - `/work?agent=competitive-intelligence` → list mode with agent filter pre-applied
+  - `/agents` lands on roster grouped by class
+  - Click an agent card → identity detail
+  - Click `Agents` breadcrumb → returns to roster
+- Verify `daily-update` (produces_deliverable, essential) shows correct iframe preview
+- Verify `back-office-agent-hygiene` (system_maintenance) shows hygiene log, not iframe
+
+## Risks
+
+- **Roster v1 might be too thin.** With 9 agents grouped into 4 sections, the roster surface might feel under-built compared to the work list. Acceptable in v1 — the structure is right, density can be added later. If it feels wrong in dogfooding we revisit.
+- **Filter state vs URL state ambiguity.** If the user applies filters in the list UI, do those reflect in the URL? In v1: only the agent filter does (preserves the breadcrumb deep-link contract). Other filters (output_kind, status, schedule) live in component state only. If users want shareable filtered URLs we add more query params later.
+- **No auto-select means landing on /work after a clean signup shows an empty-ish surface.** With KVK's 3 tasks this is fine. With a brand-new workspace (just `daily-update`) it's a list of one. Acceptable — the list grows organically and the daily-update anchor (ADR-161) ensures the list is never empty.
+
+## Implementation status
+
+(Phases 1-5 in progress as of 2026-04-08.)
+
+- Phase 1: ADR + ThreePanelLayout `leftPanel` optional
+- Phase 2: Extract `DeliverableMiddle`, build `Tracking/Action/Maintenance` middles, refactor `WorkDetail` to dispatch
+- Phase 3: Refactor `WorkPage` list/detail mode + build `WorkListSurface`
+- Phase 4: Refactor `AgentsPage` list/detail mode + build `AgentRosterSurface`
+- Phase 5: Update SURFACE-ARCHITECTURE.md to v9, CLAUDE.md, smoke test, commit

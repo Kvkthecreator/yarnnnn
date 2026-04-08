@@ -1,13 +1,19 @@
 'use client';
 
 /**
- * ThreePanelLayout — Shared three-panel shell used by all authenticated surfaces.
+ * ThreePanelLayout — Shared shell used by all authenticated surfaces.
  *
- * SURFACE-ARCHITECTURE.md v7: Every page shares one shell. Pages only provide
- * content, not chrome. Eliminates three duplicate three-panel implementations.
+ * SURFACE-ARCHITECTURE.md v9 (ADR-167): leftPanel is now optional. Pages that
+ * use the list/detail collapse pattern (Work, Agents) omit the left panel —
+ * the center surface owns the full width and the breadcrumb (b033513) drives
+ * navigation. Pages that legitimately need a tree nav (/context) still pass
+ * a leftPanel.
  *
- * Structure:
- *   Left panel (collapsible, configurable width) | Center content | Right chat panel (collapsible, FAB toggle)
+ * Structure (with leftPanel):
+ *   Left panel | Center content | Right chat (FAB-overlay, default closed)
+ *
+ * Structure (without leftPanel):
+ *   Center content (full width) | Right chat (FAB-overlay, default closed)
  */
 
 import { useState, type ReactNode } from 'react';
@@ -15,8 +21,11 @@ import { X } from 'lucide-react';
 import { ChatPanel, type ChatPanelProps } from '@/components/tp/ChatPanel';
 
 export interface ThreePanelLayoutProps {
-  /** Left panel content and configuration */
-  leftPanel: {
+  /**
+   * Left panel content and configuration. OPTIONAL (ADR-167).
+   * Omit for list/detail surfaces — the center surface owns the full width.
+   */
+  leftPanel?: {
     content: ReactNode;
     /** Header title shown above the panel */
     title: string;
@@ -61,43 +70,45 @@ export function ThreePanelLayout({
 }: ThreePanelLayoutProps) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(chat?.defaultOpen ?? false);
-  const leftWidth = leftPanel.width ?? 280;
+  const leftWidth = leftPanel?.width ?? 280;
   const chatWidth = chat?.width ?? 380;
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* ── Left Panel ── */}
-      {panelOpen ? (
-        <div
-          className="shrink-0 border-r border-border flex flex-col bg-background"
-          style={{ width: leftWidth }}
-        >
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-            <div>
-              <p className="text-sm font-medium text-foreground">{leftPanel.title}</p>
-              {leftPanel.subtitle && (
-                <p className="text-[11px] text-muted-foreground">{leftPanel.subtitle}</p>
-              )}
+      {/* ── Left Panel (ADR-167: optional) ── */}
+      {leftPanel && (
+        panelOpen ? (
+          <div
+            className="shrink-0 border-r border-border flex flex-col bg-background"
+            style={{ width: leftWidth }}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+              <div>
+                <p className="text-sm font-medium text-foreground">{leftPanel.title}</p>
+                {leftPanel.subtitle && (
+                  <p className="text-[11px] text-muted-foreground">{leftPanel.subtitle}</p>
+                )}
+              </div>
+              <button
+                onClick={() => setPanelOpen(false)}
+                className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
+            {leftPanel.content}
+          </div>
+        ) : (
+          <div className="w-10 shrink-0 border-r border-border flex flex-col items-center py-2 gap-2 bg-background">
             <button
-              onClick={() => setPanelOpen(false)}
-              className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
+              onClick={() => setPanelOpen(true)}
+              className="p-2 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+              title={leftPanel.collapsedTitle ?? leftPanel.title}
             >
-              <X className="w-3.5 h-3.5" />
+              {leftPanel.collapsedIcon}
             </button>
           </div>
-          {leftPanel.content}
-        </div>
-      ) : (
-        <div className="w-10 shrink-0 border-r border-border flex flex-col items-center py-2 gap-2 bg-background">
-          <button
-            onClick={() => setPanelOpen(true)}
-            className="p-2 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
-            title={leftPanel.collapsedTitle ?? leftPanel.title}
-          >
-            {leftPanel.collapsedIcon}
-          </button>
-        </div>
+        )
       )}
 
       {/* ── Center Content ── */}

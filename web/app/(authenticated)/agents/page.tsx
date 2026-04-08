@@ -1,18 +1,20 @@
 'use client';
 
 /**
- * Agents Page — Roster + identity (ADR-163 Surface Restructure).
+ * Agents Page — List/detail surface (ADR-167).
  *
- * Answers exactly one question: "Who is this agent, and are they healthy?"
+ * SURFACE-ARCHITECTURE.md v9: /agents is a single surface with two modes:
+ *   - List mode (no `?agent=` param): full-width AgentRosterSurface with the
+ *     team grouped by class (domain stewards, synthesizer, platform bots, TP),
+ *     health glances per card
+ *   - Detail mode (`?agent={slug}`): identity card via AgentContentView
  *
- * Left: AgentTreeNav (flat roster, click to select)
- * Center: Identity card (AGENT.md, role, origin, creation) + Health card
- *         (tasks assigned, approval rate, last run) + links out to /work
- *         and /context
- * Right: ChatPanel via ThreePanelLayout (agent-scoped TP)
+ * The left sidebar from earlier versions is GONE — the roster IS the navigator.
+ * The breadcrumb (commit b033513) drives navigation between modes. Auto-select
+ * of the first agent is GONE — landing on /agents shows the roster.
  *
- * Work observation (Pipeline, Report) moved to /work surface per ADR-163.
- * Domain entity browsing (Data) moved to /context?domain= per ADR-163.
+ * Answers exactly one question: "Who is on my team, and are they healthy?"
+ * Work observation lives on /work. Domain entity browsing lives on /context.
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -20,7 +22,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Loader2,
   MessageCircle,
-  Users,
   ListChecks,
   Globe,
   Upload,
@@ -30,17 +31,13 @@ import { useTP } from '@/contexts/TPContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
 import type { Agent } from '@/types';
-import { AgentTreeNav } from '@/components/agents/AgentTreeNav';
+import { AgentRosterSurface } from '@/components/agents/AgentRosterSurface';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
-function EmptyState() {
-  return (
-    <div className="flex-1 flex items-center justify-center">
-      <p className="text-sm text-muted-foreground/30">Select an agent</p>
-    </div>
-  );
+function getAgentSlug(agent: Agent): string {
+  return agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 export default function AgentsPage() {
@@ -52,30 +49,20 @@ export default function AgentsPage() {
 
   const agentFromUrl = searchParams.get('agent');
 
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-
-  // Auto-select from URL on first load
-  useEffect(() => {
-    if (agentFromUrl && agents.length > 0 && !selectedAgentId) {
-      const match = agents.find(a => a.id === agentFromUrl || a.slug === agentFromUrl);
-      if (match) setSelectedAgentId(match.id);
-    }
-  }, [agentFromUrl, agents, selectedAgentId]);
+  // Detail mode is determined by URL — no auto-selection (ADR-167)
+  const selectedAgent = useMemo(() => {
+    if (!agentFromUrl) return null;
+    return agents.find(a => a.id === agentFromUrl || getAgentSlug(a) === agentFromUrl) ?? null;
+  }, [agentFromUrl, agents]);
 
   // Load chat history (unified session — once)
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
-
-  // Derived state
-  const selectedAgent = agents.find(a => a.id === selectedAgentId) || null;
-
-  const getAgentSlug = (agent: Agent): string =>
-    agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
   const agentTasks = selectedAgent
     ? tasks.filter(t => t.agent_slugs?.includes(getAgentSlug(selectedAgent)))
     : [];
 
-  // Breadcrumb
+  // Breadcrumb (matches commit b033513 segment shape)
   useEffect(() => {
     if (selectedAgent) {
       const slug = getAgentSlug(selectedAgent);
@@ -89,8 +76,12 @@ export default function AgentsPage() {
     return () => clearBreadcrumb();
   }, [selectedAgent?.id, selectedAgent?.title, setBreadcrumb, clearBreadcrumb]);
 
-  // ADR-163: Run/pause task actions moved to /work. The Agents page is
-  // now roster + identity + health only — no work mutations here.
+  // Click card in roster → URL transition to detail mode
+  const handleSelectAgent = (id: string) => {
+    const agent = agents.find(a => a.id === id);
+    const slug = agent ? getAgentSlug(agent) : id;
+    router.replace(`/agents?agent=${encodeURIComponent(slug)}`, { scroll: false });
+  };
 
   // Chat config
   const surfaceOverride = selectedAgent
@@ -124,7 +115,7 @@ export default function AgentsPage() {
     <div className="py-2 text-center">
       <MessageCircle className="mx-auto mb-1.5 h-5 w-5 text-muted-foreground/15" />
       <p className="text-[11px] text-muted-foreground/40">
-        {selectedAgent ? `Ask anything about ${selectedAgent.title}` : 'Select an agent to get started'}
+        {selectedAgent ? `Ask anything about ${selectedAgent.title}` : 'Ask anything about your team'}
       </p>
     </div>
   );
@@ -139,24 +130,6 @@ export default function AgentsPage() {
 
   return (
     <ThreePanelLayout
-      leftPanel={{
-        title: 'Agents',
-        content: (
-          <AgentTreeNav
-            agents={agents}
-            tasks={tasks}
-            selectedAgentId={selectedAgentId}
-            onSelectAgent={(id) => {
-              setSelectedAgentId(id);
-              const agent = agents.find(a => a.id === id);
-              const slug = agent ? getAgentSlug(agent) : id;
-              router.replace(`/agents?agent=${encodeURIComponent(slug)}`, { scroll: false });
-            }}
-          />
-        ),
-        collapsedIcon: <Users className="w-4 h-4" />,
-        collapsedTitle: 'Agents',
-      }}
       chat={{
         surfaceOverride,
         plusMenuActions,
@@ -173,7 +146,11 @@ export default function AgentsPage() {
           onOpenChat={(prompt) => sendMessage(prompt || '')}
         />
       ) : (
-        <EmptyState />
+        <AgentRosterSurface
+          agents={agents}
+          tasks={tasks}
+          onSelect={handleSelectAgent}
+        />
       )}
     </ThreePanelLayout>
   );
