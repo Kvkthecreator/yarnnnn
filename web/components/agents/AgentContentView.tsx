@@ -1,32 +1,29 @@
 'use client';
 
 /**
- * AgentContentView — Center panel for selected agent.
+ * AgentContentView — Center panel content for selected agent.
  *
- * ADR-163 Surface Restructure: The Agents page shrinks to roster + identity
- * only. The tab-based layout (Report / Data / Pipeline / Agent from v7.2) is
- * gone. Work observation lives on /work, context browsing lives on /context.
- * The Agents page answers exactly one question: "Who is this agent, and are
- * they healthy?"
+ * ADR-167 v2: This component is now content-only. The agent name, class,
+ * domain, active task count, and last-run metadata all moved UP into the
+ * page-level <PageHeader /> rendered by `app/(authenticated)/agents/page.tsx`.
+ * AgentContentView renders only:
  *
- * Three sections in one scrollable view:
- *   1. Pinned header (avatar, name, class, domain, mandate)
- *   2. Identity card (AGENT.md instructions, role, origin, creation date)
- *   3. Health card (tasks assigned count, approval rate, last run) + links out
+ *   - IdentityCard (role, origin, AGENT.md instructions, distilled feedback)
+ *   - HealthCard (stats + link-outs to /work and /context)
+ *
+ * The agent's first sentence ("mandate") that used to live in the in-component
+ * AgentHeader has been dropped — the breadcrumb + page metadata strip already
+ * declares "you are looking at this agent" without needing a tagline.
  */
 
 import Link from 'next/link';
 import {
-  Layers,
-  Brain,
-  Plug,
   Briefcase,
   FolderOpen,
   MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import { avatarColor } from '@/lib/agent-identity';
 import { formatRelativeTime } from '@/lib/formatting';
 import { WORK_ROUTE, CONTEXT_ROUTE } from '@/lib/routes';
 import type { Agent, Task } from '@/types';
@@ -37,69 +34,12 @@ interface AgentContentViewProps {
   onOpenChat: (prompt?: string) => void;
 }
 
-function getAgentMandate(agent: Agent): string | null {
-  if (!agent.agent_instructions) return null;
-  const first = agent.agent_instructions.split(/\.\s/)[0];
-  return first ? first + '.' : null;
-}
-
 const CLASS_LABELS: Record<string, string> = {
   'domain-steward': 'Domain Steward',
   'synthesizer': 'Synthesizer',
   'platform-bot': 'Platform Bot',
+  'meta-cognitive': 'Thinking Partner',
 };
-
-function HeaderIcon({ agentClass }: { agentClass: string }) {
-  const cls = 'w-5 h-5';
-  switch (agentClass) {
-    case 'synthesizer': return <Layers className={cls} />;
-    case 'platform-bot': return <Plug className={cls} />;
-    default: return <Brain className={cls} />;
-  }
-}
-
-// ─── Pinned Header ───
-
-function AgentHeader({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
-  const cls = agent.agent_class || 'domain-steward';
-  const classLabel = CLASS_LABELS[cls] || cls;
-  const domain = agent.context_domain;
-  const color = avatarColor(agent.role);
-  const mandate = getAgentMandate(agent);
-  const activeTaskCount = tasks.filter(t => t.status === 'active').length;
-  const lastRun = tasks.map(t => t.last_run_at).filter(Boolean).sort().reverse()[0];
-
-  return (
-    <div className="px-5 py-3 border-b border-border shrink-0">
-      {/* Line 1: Avatar + Name + Mandate */}
-      <div className="flex items-center gap-3">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-          style={{ backgroundColor: color + '18' }}
-        >
-          <div style={{ color }}><HeaderIcon agentClass={cls} /></div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold truncate">{agent.title}</h2>
-          {mandate && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{mandate}</p>}
-        </div>
-      </div>
-
-      {/* Line 2: Identity signals */}
-      <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
-        <span>{classLabel}</span>
-        {domain && (
-          <><span className="text-muted-foreground/30">·</span><span>{domain}/</span></>
-        )}
-        <span className="text-muted-foreground/30">·</span>
-        <span>{activeTaskCount} active {activeTaskCount === 1 ? 'task' : 'tasks'}</span>
-        {lastRun && (
-          <><span className="text-muted-foreground/30">·</span><span>Ran {formatRelativeTime(lastRun)}</span></>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ─── Identity Card ───
 
@@ -225,7 +165,7 @@ function HealthCard({
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN — Identity-only view (ADR-163)
+// MAIN — Identity-only view (ADR-163 + ADR-167 v2)
 // ═══════════════════════════════════════════════════════════════
 
 export function AgentContentView({
@@ -234,12 +174,9 @@ export function AgentContentView({
   onOpenChat,
 }: AgentContentViewProps) {
   return (
-    <div className="flex flex-col h-full">
-      <AgentHeader agent={agent} tasks={tasks} />
-      <div className="flex-1 overflow-auto">
-        <IdentityCard agent={agent} />
-        <HealthCard agent={agent} tasks={tasks} onOpenChat={onOpenChat} />
-      </div>
+    <div className="flex-1 overflow-auto">
+      <IdentityCard agent={agent} />
+      <HealthCard agent={agent} tasks={tasks} onOpenChat={onOpenChat} />
     </div>
   );
 }

@@ -27,6 +27,7 @@ import { api } from '@/lib/api/client';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
@@ -322,6 +323,7 @@ export default function ContextPage() {
         contextLabel: selectedNode ? `viewing ${selectedNode.name}` : undefined,
       }}
     >
+      <PageHeader defaultLabel="Context" />
       {selectedNode ? (
         <div className="flex-1 overflow-auto bg-background flex flex-col">
           <div className="flex-1 overflow-auto">
@@ -329,7 +331,7 @@ export default function ContextPage() {
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-center h-full">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-xs">
             <FolderOpen className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">Select a file or folder from the explorer</p>

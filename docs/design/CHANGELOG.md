@@ -4,6 +4,19 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-08 — ADR-167 v2: Breadcrumb collapse into PageHeader
+
+- **ADR-167 amended in place** with a "V2 Amendment — Breadcrumb collapse into PageHeader" section. Same intent (the breadcrumb-as-navigation thesis from b033513 + ADR-167's surface mode collapse), now landing the visual simplification: the breadcrumb moves out of the global layout and into the first row of each surface as a `<PageHeader />` component.
+- **SURFACE-ARCHITECTURE.md → v9.1**: Top Bar now described as just logo + toggle + avatar. New "Page header" section documents the in-page breadcrumb pattern. Work/Agents detail-mode diagrams updated. Component map updated with `PageHeader.tsx` (new) and removes `GlobalBreadcrumb.tsx` (deleted).
+- **New file**: `web/components/shell/PageHeader.tsx` — consumes `BreadcrumbContext`, renders segments inline with optional `subtitle` and `actions` slots.
+- **Deleted file**: `web/components/shell/GlobalBreadcrumb.tsx` — replaced entirely.
+- **Deleted bands**: `WorkDetail`'s internal `<WorkHeader>` (title + status row + Next/Last) and `<ActionsRow>` (Run/Pause/Edit-via-chat). Both move UP into PageHeader. WorkDetail is now content-only: Objective + KindMiddle + AssignedAgent footer.
+- **Deleted bands**: `AgentContentView`'s internal `<AgentHeader>` (avatar + name + mandate + class · domain · task count). Same move — metadata strip becomes PageHeader subtitle. AgentContentView is now content-only: IdentityCard + HealthCard.
+- **Removed visual**: `★ Essential` badge next to task titles. The `essential` flag stays in the schema and DB (load-bearing for archive guard); only the visual badge is gone. Users discover it functionally when archive is rejected.
+- **Bug fix included**: `meta-cognitive` class label was missing from `CLASS_LABELS` in `AgentContentView` and `agents/page.tsx` (introduced by ADR-164). TP was rendering as the raw `meta-cognitive` key. Added.
+
+---
+
 ## 2026-04-08 — ADR-167: List/detail surfaces with kind-aware detail
 
 - **New ADR**: `ADR-167-list-detail-surfaces.md` — collapses `/work` and `/agents` from master-detail (left list + center detail + chat) into single surfaces with two URL-driven modes: list mode (full-width filterable list / roster) and detail mode (kind-aware detail).

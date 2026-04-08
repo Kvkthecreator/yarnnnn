@@ -21,7 +21,8 @@ import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { ToggleBar } from './ToggleBar';
-import { GlobalBreadcrumb } from './GlobalBreadcrumb';
+// ADR-167 v2: GlobalBreadcrumb DELETED. Each surface renders <PageHeader />
+// inside its own content area instead of a separate bar between header and main.
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
 import { HOME_ROUTE, isHomeRoute } from '@/lib/routes';
 
@@ -174,10 +175,8 @@ function AuthenticatedLayoutInner({
           <UserMenu email={userEmail} />
         </header>
 
-        {/* Secondary bar: breadcrumb (renders only when segments exist) */}
-        <GlobalBreadcrumb />
-
-        {/* Main content */}
+        {/* Main content. ADR-167 v2: each surface renders its own <PageHeader />
+            inside the content area — there is no separate breadcrumb bar. */}
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
 

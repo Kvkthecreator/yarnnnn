@@ -1,6 +1,6 @@
 # ADR-167: List/Detail Surfaces with Kind-Aware Detail
 
-**Status:** Accepted
+**Status:** Accepted (v2 amendment 2026-04-08 — see end)
 **Date:** 2026-04-08
 **Author:** KVK + Claude
 **Supersedes:** ADR-163 surface internals (Work + Agents pages); does NOT supersede ADR-163 itself (the four-surface restructure stays intact)
@@ -207,10 +207,99 @@ The left panel was solving the absence of a real list view. We're adding the rea
 
 ## Implementation status
 
-(Phases 1-5 in progress as of 2026-04-08.)
+- Phase 1 ✓: ADR + ThreePanelLayout `leftPanel` optional
+- Phase 2 ✓: Extracted `DeliverableMiddle`, built `Tracking/Action/Maintenance` middles, refactored `WorkDetail` to dispatch
+- Phase 3 ✓: Refactored `WorkPage` list/detail mode + built `WorkListSurface`
+- Phase 4 ✓: Refactored `AgentsPage` list/detail mode + built `AgentRosterSurface`
+- Phase 5 ✓: Updated SURFACE-ARCHITECTURE.md to v9, CLAUDE.md, smoke tested, committed (`d3b1bb4`)
+- Phase 6 ✓ (v2 amendment): Breadcrumb collapse into PageHeader — see below
 
-- Phase 1: ADR + ThreePanelLayout `leftPanel` optional
-- Phase 2: Extract `DeliverableMiddle`, build `Tracking/Action/Maintenance` middles, refactor `WorkDetail` to dispatch
-- Phase 3: Refactor `WorkPage` list/detail mode + build `WorkListSurface`
-- Phase 4: Refactor `AgentsPage` list/detail mode + build `AgentRosterSurface`
-- Phase 5: Update SURFACE-ARCHITECTURE.md to v9, CLAUDE.md, smoke test, commit
+---
+
+## V2 Amendment — Breadcrumb collapse into PageHeader
+
+**Date:** 2026-04-08 (same day as v1)
+**Trigger:** First dogfood of v1 surfaced two issues:
+1. The separate `<GlobalBreadcrumb />` bar floating between the global header and `<main>` felt detached from the surface content.
+2. The `WorkDetail` header band was re-stating the title that was already visible in the breadcrumb one row above. Detail pages had two competing "where am I" rows. The `★ Essential` badge added more visual weight to a row that was already redundant.
+
+### Decision (v2)
+
+**Move the breadcrumb out of the global layout and into the page content as a `<PageHeader />` component.** Each surface renders `<PageHeader />` as the first child of `ThreePanelLayout.children`. The breadcrumb's last segment IS the page title, so the per-page title bands inside `WorkDetail` and `AgentContentView` collapse into the row above.
+
+This is **not** a new ADR. It's the same intent as v1 (the breadcrumb-as-navigation thesis from commit b033513 + ADR-167's surface mode collapse), just landing the visual simplification we missed on the first pass.
+
+### What changed
+
+| Before (v1) | After (v2) |
+|---|---|
+| `<GlobalBreadcrumb />` rendered in `AuthenticatedLayout` between global header and `<main>` | DELETED. `AuthenticatedLayout` no longer renders any breadcrumb chrome. |
+| `WorkDetail` had its own `<WorkHeader>` band rendering title + mode badge + status row + Next/Last run row | DELETED. Title moves to PageHeader breadcrumb (last segment). Status metadata moves to PageHeader `subtitle` slot. |
+| `WorkDetail` had `<ActionsRow>` with Run / Pause / Edit-via-chat at the bottom | DELETED. Actions move to PageHeader `actions` slot, inline with the breadcrumb. |
+| `★ Essential` badge rendered next to the title | REMOVED. The `essential` flag stays in the schema and the DB (it's load-bearing — gates archive in `routes/tasks.py`). Users discover it functionally when they try to archive a daily-update and the API rejects it. No visual badge needed. |
+| `AgentContentView` had its own `<AgentHeader>` band with avatar + name + class + domain + active task count + last run | DELETED. Identity metadata moves to PageHeader `subtitle`. The "first sentence as mandate" tagline is dropped (the breadcrumb already declares the current agent). |
+| Pages set breadcrumb segments via `useEffect` and the global bar rendered them | UNCHANGED. Pages still call `setBreadcrumb()` with the same segment shape. Only the renderer location changes. |
+
+### New file
+
+- `web/components/shell/PageHeader.tsx` — consumes `BreadcrumbContext`, renders the segments inline as a `Surface › ancestor › current` path. Optional `subtitle` slot for the metadata strip and `actions` slot for inline buttons. Falls back to `defaultLabel` when no breadcrumb segments are set (so list-mode pages always have a title).
+
+### Deleted files
+
+- `web/components/shell/GlobalBreadcrumb.tsx` — the separate floating bar. Replaced entirely by `PageHeader`.
+
+### Modified files
+
+- `web/components/shell/AuthenticatedLayout.tsx` — drops `<GlobalBreadcrumb />` from the layout
+- `web/app/(authenticated)/work/page.tsx` — renders `<PageHeader subtitle={metadata strip} actions={Run/Pause/Edit} />` as first child of ThreePanelLayout. Imports `WorkModeBadge`, `formatRelativeTime`, action handlers stay on the page.
+- `web/app/(authenticated)/agents/page.tsx` — renders `<PageHeader subtitle={class · domain · tasks · last run} />` as first child
+- `web/app/(authenticated)/context/page.tsx` — renders `<PageHeader defaultLabel="Context" />`. The context breadcrumb is built from the workspace tree path on selection (unchanged).
+- `web/components/work/WorkDetail.tsx` — drops `WorkHeader`, `ActionsRow`, the `essential` star handling, and the `onRun`/`onPause`/`busy` props. Now content-only: ObjectiveBlock + KindMiddle + AssignedAgentLink.
+- `web/components/agents/AgentContentView.tsx` — drops `AgentHeader` and the mandate-extraction helper. Now content-only: IdentityCard + HealthCard. Adds `meta-cognitive` to `CLASS_LABELS` (was missing — TP showed up as the raw key).
+
+### Visual result
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ yarnnn                   [Chat | Work | Agents | Context]      KV    │ ← global header (unchanged)
+├──────────────────────────────────────────────────────────────────────┤
+│ Work › reporting's work › Daily Update         [Run] [Pause] [Edit]  │ ← PageHeader: breadcrumb + actions
+│ Recurring · Active · Reporting · daily · Next: in 1h                 │ ← PageHeader subtitle: metadata strip
+├──────────────────────────────────────────────────────────────────────┤
+│  Objective                                                           │
+│  ...                                                                 │
+│  [kind-aware middle band]                                            │
+│  ...                                                                 │
+│  → Assigned to Reporting                                             │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+The detail page goes from **5 stacked bands** (header / objective / output / actions / footer) to **3** (PageHeader / objective / kind-middle, plus inline footer). Bands shrink, whitespace tightens, the page reads as one cohesive view instead of a stack of competing chrome.
+
+For list-mode pages:
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ yarnnn                   [Chat | Work | Agents | Context]      KV    │
+├──────────────────────────────────────────────────────────────────────┤
+│ Agents                                                               │ ← PageHeader: just the surface label
+├──────────────────────────────────────────────────────────────────────┤
+│ Domain Stewards · 5                                                  │ ← roster section starts immediately
+│ ...                                                                  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+The previous version showed an empty floating bar above the roster (because list mode called `clearBreadcrumb()`); v2 always renders at least the surface label so the page never has an empty title slot.
+
+### What didn't change in v2
+
+- ADR-167 v1 architecture (list/detail mode collapse, kind-aware detail, deleted left sidebars, deleted auto-select-first)
+- `BreadcrumbContext` shape (segments, kinds, hrefs)
+- Pages still call `setBreadcrumb()` with the same multi-segment paths in detail mode
+- The breadcrumb's deep-link contract (`/work?agent=competitive-intelligence` from "Competitive Intelligence's work" segment)
+- The four kind-aware middle components in `web/components/work/details/`
+- Backend (zero changes)
+
+### `essential` flag — fate
+
+Kept in the schema. Kept in `routes/tasks.py` archive guard. Kept in `workspace_init.py` daily-update scaffold. Kept on `Task` TypeScript type. The semantic meaning ("this task cannot be archived, system metadata") is load-bearing (ADR-161). What v2 removes is the **visual** treatment — no `★ Essential` badge, no gold star next to the title. The protection it provides is enforced functionally; the user discovers it when they try to archive and can't, not by reading a star upfront.

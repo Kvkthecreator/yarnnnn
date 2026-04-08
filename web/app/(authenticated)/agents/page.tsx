@@ -1,23 +1,16 @@
 'use client';
 
 /**
- * Agents Page — List/detail surface (ADR-167).
+ * Agents Page — List/detail surface (ADR-167 + v2 amendment).
  *
- * SURFACE-ARCHITECTURE.md v9: /agents is a single surface with two modes:
- *   - List mode (no `?agent=` param): full-width AgentRosterSurface with the
- *     team grouped by class (domain stewards, synthesizer, platform bots, TP),
- *     health glances per card
- *   - Detail mode (`?agent={slug}`): identity card via AgentContentView
- *
- * The left sidebar from earlier versions is GONE — the roster IS the navigator.
- * The breadcrumb (commit b033513) drives navigation between modes. Auto-select
- * of the first agent is GONE — landing on /agents shows the roster.
- *
- * Answers exactly one question: "Who is on my team, and are they healthy?"
- * Work observation lives on /work. Domain entity browsing lives on /context.
+ * SURFACE-ARCHITECTURE.md v9.1: /agents is a single surface with two modes
+ * selected by URL state. PageHeader is rendered as the first row of the
+ * center surface, replacing the floating breadcrumb bar AND the per-page
+ * AgentHeader inside AgentContentView. The breadcrumb's last segment IS the
+ * page title — no duplication.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -34,7 +27,16 @@ import type { Agent } from '@/types';
 import { AgentRosterSurface } from '@/components/agents/AgentRosterSurface';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
+import { PageHeader } from '@/components/shell/PageHeader';
+import { formatRelativeTime } from '@/lib/formatting';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
+
+const CLASS_LABELS: Record<string, string> = {
+  'domain-steward': 'Domain Steward',
+  'synthesizer': 'Synthesizer',
+  'platform-bot': 'Platform Bot',
+  'meta-cognitive': 'Thinking Partner',
+};
 
 function getAgentSlug(agent: Agent): string {
   return agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -62,7 +64,7 @@ export default function AgentsPage() {
     ? tasks.filter(t => t.agent_slugs?.includes(getAgentSlug(selectedAgent)))
     : [];
 
-  // Breadcrumb (matches commit b033513 segment shape)
+  // Breadcrumb (segment shape from b033513; PageHeader renders inline now)
   useEffect(() => {
     if (selectedAgent) {
       const slug = getAgentSlug(selectedAgent);
@@ -120,6 +122,40 @@ export default function AgentsPage() {
     </div>
   );
 
+  // ─── Detail-mode subtitle: identity metadata strip (ADR-167 v2) ───
+  // Replaces the AgentHeader band that used to live inside AgentContentView.
+  const detailSubtitle = selectedAgent ? (() => {
+    const cls = selectedAgent.agent_class || 'domain-steward';
+    const classLabel = CLASS_LABELS[cls] || cls;
+    const domain = selectedAgent.context_domain;
+    const activeTaskCount = agentTasks.filter(t => t.status === 'active').length;
+    const lastRun = agentTasks
+      .map(t => t.last_run_at)
+      .filter(Boolean)
+      .sort()
+      .reverse()[0] || selectedAgent.last_run_at || null;
+
+    return (
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span>{classLabel}</span>
+        {domain && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span>{domain}/</span>
+          </>
+        )}
+        <span className="text-muted-foreground/30">·</span>
+        <span>{activeTaskCount} active {activeTaskCount === 1 ? 'task' : 'tasks'}</span>
+        {lastRun && (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <span>Ran {formatRelativeTime(lastRun)}</span>
+          </>
+        )}
+      </div>
+    );
+  })() : undefined;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -139,6 +175,10 @@ export default function AgentsPage() {
         contextLabel: selectedAgent ? `viewing ${selectedAgent.title}` : undefined,
       }}
     >
+      <PageHeader
+        defaultLabel="Agents"
+        subtitle={detailSubtitle}
+      />
       {selectedAgent ? (
         <AgentContentView
           agent={selectedAgent}

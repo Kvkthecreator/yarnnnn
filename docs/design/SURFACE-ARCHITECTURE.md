@@ -1,14 +1,15 @@
 # Surface Architecture — Chat + Work + Agents + Context
 
-**Version:** v9 (2026-04-08)
+**Version:** v9.1 (2026-04-08)
 **Status:** Canonical
 **Governed by:** [ADR-163](../adr/ADR-163-surface-restructure.md) — Surface Restructure
 **Active decisions:**
 - [ADR-165](../adr/ADR-165-chat-artifact-surface.md) — `/chat` internal layout
 - [ADR-166](../adr/ADR-166-registry-coherence-pass.md) — task `output_kind` enum (4 values)
-- [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — `/work` and `/agents` collapse from master-detail into list/detail mode with kind-aware detail
+- [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — `/work` and `/agents` collapse from master-detail into list/detail mode with kind-aware detail. **v2 amendment**: breadcrumb collapses into in-page `<PageHeader />`, replacing the floating bar AND the per-page title bands inside `WorkDetail`/`AgentContentView`.
 
 **Supersedes:**
+- v9 (2026-04-08) — list/detail collapse with separate `<GlobalBreadcrumb />` floating bar
 - v8 (2026-04-08) — three-panel master-detail on Work and Agents
 - v7.2 (2026-04-06) — task-class-aware tabs on Agents page
 - v7.1 (2026-04-06) — tabs restored
@@ -67,25 +68,38 @@ The old `/activity` page is **deleted**. Its content is absorbed into the surfac
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ yarnnn                   [Chat | Work | Agents | Context]     Avatar │
-│                          Work / Daily Update                         │
+│ yarnnn                   [Chat | Work | Agents | Context]     Avatar │ ← global header (logo / toggle / avatar)
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Global breadcrumb** (`BreadcrumbContext`): pages set linkable breadcrumb segments into a shared context; the shell renders them as a centered scope path under the four-toggle nav. Prefer `href` for route-backed segments and reserve `onClick` for local state that has no URL. On narrow screens, the path scrolls horizontally rather than wrapping into the main surface.
-
-| Surface state | Breadcrumb |
-|---|---|
-| Chat | _(empty — just logo)_ |
-| Work (overview) | _(empty)_ |
-| Work (task selected) | `Work / Daily Update` |
-| Work (filtered by agent) | `Work / Competitive Intelligence's work` |
-| Agents (overview) | _(empty)_ |
-| Agents (selected) | `Agents / Competitive Intelligence` |
-| Context (domain selected) | `Context / Competitors` |
-| Context (deep file) | `Context / Competitors / cursor / profile.md` |
+The global header is **just** logo + toggle bar + avatar. There is no separate breadcrumb bar below it. The breadcrumb lives **inside each surface** as a `<PageHeader />` component (ADR-167 v2) — see "Page header" below.
 
 **Toggle bar** (`web/components/shell/ToggleBar.tsx`): four-segment pill `Chat | Work | Agents | Context`. Icons: `MessageCircle`, `Briefcase`, `Users`, `FolderOpen`. `HOME_ROUTE` is `/chat` — both new and returning users land there.
+
+### Page header (ADR-167 v2)
+
+Every surface renders `<PageHeader />` as the first row of its center content area. The PageHeader consumes `BreadcrumbContext` (commit b033513) and renders the segments inline as a `Surface › ancestor › current` path. The breadcrumb's last segment IS the page title — there is no separate title row stacked below.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ Work › reporting's work › Daily Update         [Run] [Pause] [Edit]  │ ← PageHeader: breadcrumb + actions
+│ Recurring · Active · Reporting · daily · Next: in 1h                 │ ← optional `subtitle` slot: metadata strip
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+| Surface state | Breadcrumb / page title |
+|---|---|
+| Chat | _(no PageHeader on Chat surface — Chat is its own thing)_ |
+| Work (list) | `Work` |
+| Work (task selected) | `Work › reporting's work › Daily Update` (with metadata subtitle and inline actions) |
+| Work (filtered by agent) | `Work › Competitive Intelligence's work` |
+| Agents (list) | `Agents` |
+| Agents (selected) | `Agents › Competitive Intelligence` (with class · domain · task count · last run subtitle) |
+| Context (no selection) | `Context` |
+| Context (domain selected) | `Context › Competitors` |
+| Context (deep file) | `Context › Competitors › cursor › profile.md` |
+
+Pages set the breadcrumb segments via `setBreadcrumb()` in a `useEffect` (unchanged contract from b033513). PageHeader reads from the same context. List-mode pages clear the breadcrumb and PageHeader falls back to the surface label via `defaultLabel`.
 
 ---
 
@@ -166,7 +180,7 @@ The list is **sorted within each group** by status (active first) then `next_run
 
 ### Detail Mode (`/work?task={slug}`) — Kind-Aware (ADR-167)
 
-`WorkDetail` is a thin shell that dispatches the middle band on `task.output_kind`. The chrome (header, objective, actions, assigned-to footer) is uniform; the middle band differs because the four kinds need fundamentally different data:
+In detail mode the page renders `<PageHeader />` (with the metadata strip as `subtitle` and Run/Pause/Edit-via-chat as `actions`) followed by `<WorkDetail />`. PageHeader carries the breadcrumb path, status row, and inline action buttons; WorkDetail is content-only — objective + kind-aware middle + assigned-agent footer. The middle band dispatches on `task.output_kind` because the four kinds need fundamentally different data:
 
 | `output_kind` | Middle component | Renders |
 |---|---|---|
@@ -177,9 +191,8 @@ The list is **sorted within each group** by status (active first) then `next_run
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Daily Update              [Recurring]  [★ Essential]                │
-│  active · Reporting · daily                                          │
-│  Next: 9h  ·  Last: 16h ago                                          │
+│  Work › reporting's work › Daily Update     [Run] [Pause] [Edit]     │ ← PageHeader (breadcrumb + actions)
+│  Recurring · active · Reporting · daily · Next: 9h                   │ ← PageHeader subtitle (metadata strip)
 ├──────────────────────────────────────────────────────────────────────┤
 │  Objective                                                           │
 │  · Deliverable: Daily workspace update                               │
@@ -189,8 +202,6 @@ The list is **sorted within each group** by status (active first) then `next_run
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │ [iframe with rendered HTML — DeliverableMiddle]                │  │
 │  └───────────────────────────────────────────────────────────────┘  │
-├──────────────────────────────────────────────────────────────────────┤
-│  [Run now]  [Pause]                                  [Edit via chat] │
 ├──────────────────────────────────────────────────────────────────────┤
 │  → Assigned to Reporting                                             │
 └──────────────────────────────────────────────────────────────────────┘
@@ -208,6 +219,9 @@ The list is **sorted within each group** by status (active first) then `next_run
 - The left sidebar `WorkList` with auto-select-first → DELETED. Replaced by `WorkListSurface` (full-width list with filter chips, search, group-by). Landing on `/work` no longer shows you someone else's task by accident.
 - The single one-shape `OutputPreview` inside `WorkDetail` → DELETED. Replaced by four kind-specific middle components in `web/components/work/details/`. The dispatch lives in `WorkDetail`.
 - `ThreePanelLayout`'s left panel on `/work` → DELETED. The page no longer passes `leftPanel`. The layout is effectively two-panel (full-width center + FAB-overlay chat), which is what the page actually wanted all along.
+- `WorkDetail`'s internal `<WorkHeader>` band (title + mode badge + status row + Next/Last run row) → DELETED in v2. The title moves to `<PageHeader />`'s breadcrumb (last segment). The metadata moves to PageHeader's `subtitle` slot. One row instead of four.
+- `WorkDetail`'s internal `<ActionsRow>` (Run/Pause/Edit-via-chat at the bottom) → DELETED in v2. Actions move up to `<PageHeader />`'s `actions` slot, inline with the breadcrumb. One cluster of buttons instead of split top/bottom.
+- The `★ Essential` badge next to the title → REMOVED in v2 (visual treatment only). The `essential` flag stays in the schema and DB and continues to gate archive in `routes/tasks.py`. Users discover it functionally — try to archive a daily-update and the API rejects it. No upfront badge needed.
 
 ---
 
@@ -268,7 +282,7 @@ Click a card → URL transitions to `/agents?agent={slug}` → detail mode.
 
 ### Detail Mode (`/agents?agent={slug}`) — `AgentContentView`
 
-The single identity card. Same as v8 — no tabs, no work observation, no domain browsing.
+In detail mode the page renders `<PageHeader />` (with the identity metadata strip as `subtitle`) followed by `<AgentContentView />`. PageHeader carries the breadcrumb path and the `Class · domain · N tasks · Ran Xh ago` strip; AgentContentView is content-only — IdentityCard + HealthCard. The single identity card pattern from v8/v9 is preserved; only the chrome that used to be inside `AgentContentView` (the avatar / mandate / metadata band) moves up to PageHeader.
 
 ### Identity Card Sections
 - **Identity block:** name, role + class, domain, origin, creation date
@@ -286,6 +300,8 @@ The single identity card. Same as v8 — no tabs, no work observation, no domain
 
 - The left sidebar `AgentTreeNav` with auto-select-first → DELETED. Replaced by `AgentRosterSurface` (full-width grouped roster with health glances). Landing on `/agents` no longer shows you someone else's identity card by accident.
 - `ThreePanelLayout`'s left panel on `/agents` → DELETED. Same as `/work`.
+- `AgentContentView`'s internal `<AgentHeader>` band (avatar + name + mandate + class · domain · task count · last run) → DELETED in v2. The name moves to `<PageHeader />`'s breadcrumb (last segment). The metadata moves to PageHeader's `subtitle` slot. The "first sentence as mandate" tagline is dropped — the breadcrumb already declares the current agent.
+- `meta-cognitive` (Thinking Partner class) was missing from `CLASS_LABELS` in v8/v9 — added in v2 so TP renders as "Thinking Partner" in the metadata strip instead of the raw key.
 
 ### What Moved Out Of Agents (v7.2) — And Where
 | Old Tab | Content | Moved to |
@@ -328,10 +344,10 @@ Currently wired for BrandSection in Settings (via `MemorySection.tsx`). A dedica
 
 ### Shell
 - `web/components/shell/ToggleBar.tsx` — top-level nav (4 segments)
-- `web/components/shell/AuthenticatedLayout.tsx` — shell wrapper + TP provider
+- `web/components/shell/AuthenticatedLayout.tsx` — shell wrapper + TP provider. ADR-167 v2: no longer renders any breadcrumb chrome itself.
 - `web/components/shell/ThreePanelLayout.tsx` — layout primitive. `leftPanel` is OPTIONAL (ADR-167) — pages omit it for the list/detail pattern; `/context` keeps it for filesystem tree nav.
-- `web/components/shell/GlobalBreadcrumb.tsx` — centered scope path with linkable segments (commit b033513)
-- `web/contexts/BreadcrumbContext.tsx` — breadcrumb segment state with `kind`-tagged segments
+- `web/components/shell/PageHeader.tsx` — in-page breadcrumb + title row (ADR-167 v2). Consumes `BreadcrumbContext`. Optional `subtitle` slot for metadata strip and `actions` slot for inline buttons. Falls back to `defaultLabel` when no segments are set. Replaces the deleted `GlobalBreadcrumb.tsx`.
+- `web/contexts/BreadcrumbContext.tsx` — breadcrumb segment state with `kind`-tagged segments (commit b033513). Contract unchanged; only the renderer location moved.
 
 ### Chat
 - `web/app/(authenticated)/chat/page.tsx` — Chat page (home)
@@ -384,6 +400,7 @@ When adding a new detail-mode page, prefer the list/detail collapse pattern over
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-04-08 | v9.1 | ADR-167 v2 amendment — Breadcrumb collapses into in-page `<PageHeader />`. `<GlobalBreadcrumb />` floating bar DELETED. `WorkDetail`'s internal `<WorkHeader>` and `<ActionsRow>` DELETED — title moves to PageHeader breadcrumb (last segment), metadata moves to PageHeader `subtitle`, Run/Pause/Edit-via-chat moves to PageHeader `actions`. `AgentContentView`'s internal `<AgentHeader>` band DELETED for the same reason. `★ Essential` visual badge removed (the flag stays — it's load-bearing for archive guard). `meta-cognitive` class label added (TP was rendering as raw key). |
 | 2026-04-08 | v9 | ADR-167 — `/work` and `/agents` collapse from master-detail (left list + center detail + chat) into single surfaces with two URL-driven modes: list mode (full-width filterable list / roster) and detail mode (kind-aware detail dispatched on `task.output_kind`). `WorkList` and `AgentTreeNav` deleted. Auto-select-first deleted. `ThreePanelLayout.leftPanel` now optional. Four kind-aware middle components in `web/components/work/details/`. |
 | 2026-04-08 | v8.1 | ADR-165 accepted: `/chat` remains the Chat surface, but changes internally from two-panel layout to a single TP console layer with artifact tabs for onboarding, briefing, recent work, and context gaps. |
 | 2026-04-08 | v8 | ADR-163 — Four-surface restructure: Chat \| Work \| Agents \| Context. Activity absorbed. Agents page shrunk to identity. New /work surface. Mode collapse (surface only). Inference visibility via InferenceContentView. |
