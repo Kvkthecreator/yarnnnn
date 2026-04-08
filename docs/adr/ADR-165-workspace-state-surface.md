@@ -171,6 +171,21 @@ Independent fix landed in the same commit: `/chat` page wrapper changes from `ma
 - Animated in via Tailwind `animate-in fade-in zoom-in-95` — same motion grammar used elsewhere in the app
 - No external dependency added — built with a plain `fixed inset-0` div + ARIA `role="dialog"` / `aria-modal="true"`. The codebase has no Radix Dialog primitive, and the surface is simple enough that adding one for a single use site would be over-engineering
 
+### Toggle Icon Placement
+
+The `LayoutPanelTop` toggle icon sits **immediately to the right of the `+` button**, on the left side of the input row. It groups with the other left-side affordances (PlusMenu) rather than the right-side submit button. Rationale: the icon is an *input* affordance — "open the workspace state surface to act on it" — not an output/send action. Grouping it with the `+` menu reads as "additional things you can pull into this conversation," which is exactly what it does.
+
+### Dead Code Purge (v6)
+
+ADR-163 deleted the orchestrator concept (`Home | Agents | Context | Activity` → `Chat | Work | Agents | Context`) but left behind a dead cluster of pre-restructure surface infrastructure that nothing imports. v6 removes it as part of the singular-implementation discipline:
+
+- `web/components/desk/` (entire directory, 6 files, ~1,100 lines): `SurfaceRouter`, `WorkspaceLayout`, `AttentionBar`, `ExportActionBar`, `ChatDrawer`, `HandoffBanner`. All references the deleted orchestrator surface model. Note: `DeskContext` and `useDesk` hook are NOT deleted — they remain in `web/contexts/` and are still used by `AuthenticatedLayout`, `ChatPanel`, `useActiveDomain`, etc. to track the active desk surface for routing/breadcrumb purposes. Only the `desk/` *components* are dead.
+- `web/components/surfaces/` (entire directory, 3 files, ~613 lines): `IdleSurface`, `ContextEditorSurface`, barrel `index.ts`. Only consumer was `SurfaceRouter`.
+- `web/components/PlatformOnboardingPrompt.tsx` (~249 lines): four exported components (`PlatformOnboardingPrompt`, `PlatformSyncingBanner`, `PlatformConnectedBanner`, `NoPlatformsBanner`). Only consumer was `IdleSurface`. ADR-033 platform-first onboarding is superseded by ADR-144 (inference-first shared context, no separate onboarding page).
+- `web/hooks/usePlatformOnboardingState.ts` (~141 lines): only consumer was `IdleSurface`. Removed from `web/hooks/index.ts` barrel.
+
+Total deletion: ~2,100 lines. No content was folded into the modal — none of it was reachable from any live route. The chat modal was already the singular onboarding surface; this purge just removes the leftovers that no one was looking at.
+
 ---
 
 ## Consequences
@@ -201,7 +216,7 @@ Independent fix landed in the same commit: `/chat` page wrapper changes from `ma
 
 | Date | Version | Change |
 |---|---|---|
-| 2026-04-08 | **v6** | **Surface promoted to a true modal (backdrop, Esc, body scroll lock, click-outside dismiss). Frontend cold-start auto-open removed — discovery is TP's job, the prompt's existing "first turn, empty identity → emit `lead=empty`" rule handles new users on TP's first reply instead of on page mount. `CHAT_EMPTY_STATE` stub deleted (TP's greeting is the empty state on `/chat`). `isNewUser` prop dropped from ChatSurface. `topContent` prop deleted from ChatPanel (was only used by the v5 inline overlay). `emptyState` prop preserved on ChatPanel for `/work` and `/agents` slide-in chat use cases. Marker schema, parser, and TP prompt unchanged. No new dependencies (modal built with plain fixed-position div + ARIA dialog attributes).** |
+| 2026-04-08 | **v6** | **Surface promoted to a true modal (backdrop, Esc, body scroll lock, click-outside dismiss). Frontend cold-start auto-open removed — discovery is TP's job, the prompt's existing "first turn, empty identity → emit `lead=empty`" rule handles new users on TP's first reply instead of on page mount. `CHAT_EMPTY_STATE` stub deleted (TP's greeting is the empty state on `/chat`). `isNewUser` prop dropped from ChatSurface. `topContent` prop deleted from ChatPanel (was only used by the v5 inline overlay). `emptyState` prop preserved on ChatPanel for `/work` and `/agents` slide-in chat use cases. Toggle icon repositioned to immediately right of the `+` button (left-side affordance group), not next to the submit button. Marker schema, parser, and TP prompt unchanged. No new dependencies (modal built with plain fixed-position div + ARIA dialog attributes). Singular-implementation purge: deleted ~2,100 lines of pre-ADR-163 orphan code — `web/components/desk/` (6 files), `web/components/surfaces/` (3 files), `web/components/PlatformOnboardingPrompt.tsx`, `web/hooks/usePlatformOnboardingState.ts`, plus the matching barrel export — none of which were reachable from any live route after the four-surface restructure.** |
 | 2026-04-08 | v5 | Single workspace state surface, TP-directed open via HTML-comment marker. Four lead views as internal state of one component. Chat column capped to max-w-3xl. Legacy artifact files deleted. ADR + design doc renamed from "chat artifact surface" → "workspace state surface". |
 | 2026-04-08 | v4 | Clarifies that artifacts and artifact tabs render inside the TP chat surface, not above a separate bordered chat panel. |
 | 2026-04-08 | v3 | Clarifies that TP Console is the base chat surface, not an artifact tab. Global nav keeps its original sizing while adopting the black active segment. |

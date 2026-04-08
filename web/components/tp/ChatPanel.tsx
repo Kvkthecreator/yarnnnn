@@ -51,9 +51,10 @@ export interface ChatPanelProps {
   /** Whether to render a divider above the input */
   showInputDivider?: boolean;
   /**
-   * Optional addon rendered inside the input row, between the textarea and
-   * the submit button. Used by ChatSurface (ADR-165 v6) for the workspace
-   * state toggle icon.
+   * Optional addon rendered inside the input row, immediately to the right
+   * of the PlusMenu (+) button. Used by ChatSurface (ADR-165 v6) for the
+   * workspace state toggle icon — sits with the other left-side affordances,
+   * not next to the submit button.
    */
   inputRowAddon?: React.ReactNode;
 }
@@ -251,6 +252,7 @@ export function ChatPanel({
           <div className="flex items-end gap-1.5 border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
             <PlusMenu actions={plusMenuActions} disabled={isLoading} />
+            {inputRowAddon}
             <textarea
               ref={textareaRef}
               value={input}
@@ -263,7 +265,6 @@ export function ChatPanel({
               rows={1}
               className="flex-1 py-2.5 pr-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
             />
-            {inputRowAddon}
             <button type="submit" disabled={isLoading || (!input.trim() && attachments.length === 0)} className="shrink-0 p-2.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"><Send className="w-4 h-4" /></button>
           </div>
           <div className="mt-1 flex items-center justify-between text-[9px] text-muted-foreground/40">
