@@ -2,8 +2,9 @@
 Account Management Routes — Layered purge + transactional reinit.
 
 Five purge actions arranged in increasing order of destructive scope. Each
-preserves the invariants from its layer's contract — see PURGE-LAYERING.md
-for the full design (output_kind taxonomy, what gets touched at each layer).
+preserves the invariants from its layer's contract — see
+docs/features/data-privacy.md for the full design (layer taxonomy,
+invariants per layer, what gets touched at each layer).
 
   L1. Clear work history     — purges past run records and task output folders
                                  only. Tasks, agents, identity, accumulated
@@ -382,7 +383,7 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
     endpoint touches. The next scheduled task fire will create a fresh
     `/outputs/{date}/` folder and a fresh `_run_log.md` automatically.
 
-    See docs/design/PURGE-LAYERING.md for the full layered model.
+    See docs/features/data-privacy.md for the full layered model.
     """
     user_id = auth.user_id
     deleted: dict[str, int] = {}

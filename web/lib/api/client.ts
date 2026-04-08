@@ -663,9 +663,9 @@ export const api = {
         agent_runs: number;
       }>("/api/account/danger-zone/stats"),
 
-    // L1: Clear work history (PURGE-LAYERING.md). Lightest layer — wipes
-    // past run records + task output folders only. Tasks, agents, identity,
-    // accumulated context, chat sessions all preserved.
+    // L1: Clear work history (docs/features/data-privacy.md). Lightest
+    // layer — wipes past run records + task output folders only. Tasks,
+    // agents, identity, accumulated context, chat sessions all preserved.
     clearWorkHistory: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(
         "/api/account/work-history",

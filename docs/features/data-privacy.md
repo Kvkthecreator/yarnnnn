@@ -1,14 +1,16 @@
-# Purge Layering & Workspace Reinit
+# Data & Privacy — Purge Layering & Workspace Reinit
 
-> **Status**: Layered model fully shipped as of Phase 3 (2026-04-08). All five layers (L1–L5) live in production. The purge thread is closed.
+> **Surface**: Settings → Account tab ("Data & Privacy" section)
+> **Status**: Layered model fully shipped. All five layers (L1–L5) live in production. The purge thread is closed.
+> **History**: This doc lived at `docs/design/PURGE-LAYERING.md` through Phases 1–3 and was moved to `docs/features/data-privacy.md` in Phase 4 (2026-04-09) — it belongs with user-facing feature docs, not architectural design notes, now that the design is stable and shipped. It also supersedes the stale archived `docs/features/previous_versions/data-privacy.md` (deleted in the same commit).
 >
-> **Phase 1** (commit 16c7f0e): Transactional reinit on L2/L4 + ADR-158 platform context cleanup + OAuth bot reactivation. Fixed the latent correctness bug where post-purge workspace state depended on a lazy `/onboarding-state` race window.
+> **Phase 1** (commit 16c7f0e, 2026-04-08): Transactional reinit on L2/L4 + ADR-158 platform context cleanup + OAuth bot reactivation. Fixed the latent correctness bug where post-purge workspace state depended on a lazy `/onboarding-state` race window.
 >
-> **Phase 2** (commit 86a1026): Post-purge `/work` routing (ADR-167 list mode) + layered model design memo.
+> **Phase 2** (commit 86a1026, 2026-04-08): Post-purge `/work` routing (ADR-167 list mode) + layered model design memo.
 >
-> **Phase 3** (this commit): L1 endpoint shipped — `DELETE /account/work-history` with the "Clear Work History" Settings card. Reassessment after Phase 2 found that all three "blockers" the memo claimed for L1 were already resolved: (1) the per-user, per-path `workspace_files` purge primitive already exists in `back_office/workspace_cleanup.py`, (2) the `agent_runs → task_runs` rename has no commit timeline so L1 references the table as it exists today, (3) ADR-164 already removed task-lifecycle events from `activity_log` so L1 has nothing to delete there.
+> **Phase 3** (commit f3068a3, 2026-04-08): L1 endpoint shipped — `DELETE /account/work-history` with the "Clear Work History" Settings card. Reassessment after Phase 2 found that all three "blockers" the memo claimed for L1 were already resolved: (1) the per-user, per-path `workspace_files` purge primitive already exists in `back_office/workspace_cleanup.py`, (2) the `agent_runs → task_runs` rename has no commit timeline so L1 references the table as it exists today, (3) ADR-164 already removed task-lifecycle events from `activity_log` so L1 has nothing to delete there.
 >
-> **Scope**: Settings → Account tab purge actions and their relationship to workspace invariants.
+> **Phase 4** (this commit, 2026-04-09): Doc move only. No code changes. `docs/design/PURGE-LAYERING.md` → `docs/features/data-privacy.md`; stale archived `docs/features/previous_versions/data-privacy.md` deleted (superseded by this doc); inbound references in `account.py` and `client.ts` updated to the new path.
 >
 > **Related ADRs**: ADR-140 (roster), ADR-151/152 (directory registry), ADR-153 (platform_content sunset), ADR-158 (platform bot ownership), ADR-161 (daily-update anchor), ADR-164 (back office tasks), ADR-166 (output_kind taxonomy — the axis L1 slices on), ADR-167 (list/detail surfaces — `/work` is a meaningful post-purge landing).
 
@@ -176,12 +178,21 @@ These require a running API + test account and are documented here so they don't
 - `web/app/(authenticated)/settings/page.tsx` — post-purge route changed from `/context` → `/work` (ADR-167 list-mode landing)
 - `docs/design/PURGE-LAYERING.md` — added designed layer taxonomy (L1–L5) with `output_kind` axis from ADR-166; updated deferred-items section to reflect what's now ready vs still blocked
 
-### Phase 3 (2026-04-08, this commit)
+### Phase 3 (commit f3068a3, 2026-04-08)
 
 - `api/routes/account.py` — new `DELETE /account/work-history` endpoint (`clear_work_history`); new helpers `_count_workspace_pattern`, `_delete_workspace_pattern`, `_user_agent_ids`, `_count_user_agent_runs`, `_delete_user_agent_runs`; `DangerZoneStats.agent_runs` field added; `get_danger_zone_stats` returns it; module docstring updated to describe all 5 layers
 - `web/lib/api/client.ts` — `clearWorkHistory()` method added; `getDangerZoneStats` return type extended with `agent_runs`
 - `web/app/(authenticated)/settings/page.tsx` — `DangerZoneStats` interface extended; `DangerAction` type extended with `"work-history"`; new "Clear Work History" card (with `History` lucide icon) inserted as first purge action above "Clear Workspace"; new branch in danger-action handler; new confirmation dialog branch with explicit preserved/deleted lists
 - `docs/design/PURGE-LAYERING.md` — this memo: status header updated to "fully shipped", layer table marked with shipped endpoints, "Why L1 doesn't slice on output_kind" explanation added, "What we learned about the Phase 2 blockers" retrospective section added
+
+### Phase 4 (this commit, 2026-04-09) — doc relocation only
+
+- `docs/design/PURGE-LAYERING.md` → **`docs/features/data-privacy.md`** — moved via `git mv` so git history is preserved. The doc belongs in `features/` alongside other user-facing surface docs (`activity.md`, `agent-types.md`, `memory.md`, etc.) now that the design is stable and shipped. The `docs/design/` tree is for in-flight architectural design notes; this memo outlived that phase two commits ago.
+- `docs/features/previous_versions/data-privacy.md` — **deleted**. The stale archived doc from 2026-04-01 (commit 0019571) described a pre-ADR-140/151/158/164 purge model with references to dropped tables (`platform_content`, `filesystem_documents`, `integration_import_jobs` in the purge flow). Singular implementation discipline: one canonical doc per topic, no parallel stale archive.
+- `api/routes/account.py` — two `PURGE-LAYERING.md` references updated to `docs/features/data-privacy.md` (module docstring + `clear_work_history` docstring)
+- `web/lib/api/client.ts` — one `PURGE-LAYERING.md` reference updated to `docs/features/data-privacy.md` (inline comment on `clearWorkHistory`)
+
+No code behavior changes. No endpoint changes. No test changes.
 
 ## When to revisit this memo
 
