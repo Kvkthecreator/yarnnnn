@@ -7,8 +7,7 @@ export type ChatArtifactId =
   | 'onboarding'
   | 'briefing'
   | 'recent-work'
-  | 'context-gaps'
-  | 'chat';
+  | 'context-gaps';
 
 export interface ChatArtifactTab {
   id: ChatArtifactId;

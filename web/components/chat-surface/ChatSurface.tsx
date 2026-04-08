@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Compass, MessageCircle, Newspaper, PanelsTopLeft } from 'lucide-react';
+import { ClipboardList, Compass, Newspaper, PanelsTopLeft } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { Agent, Task } from '@/types';
@@ -72,11 +72,6 @@ export function ChatSurface({
         icon: Compass,
         content: <ContextGapsArtifact agents={agents} tasks={tasks} loading={dataLoading} />,
       },
-      {
-        id: 'chat',
-        label: 'TP Console',
-        icon: MessageCircle,
-      },
     ];
 
     if (!isNewUser) return baseTabs;
@@ -103,11 +98,9 @@ export function ChatSurface({
           onSelect={setActiveArtifactId}
         />
 
-        {activeTab.content && (
-          <ChatArtifactCard>
-            {activeTab.content}
-          </ChatArtifactCard>
-        )}
+        <ChatArtifactCard>
+          {activeTab.content}
+        </ChatArtifactCard>
 
         <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-background">
           <ChatPanel

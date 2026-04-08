@@ -19,7 +19,7 @@ Chat console
   + visible artifact tabs
 ```
 
-The artifact tabs let product logic choose what matters now while still giving the user direct navigation.
+The artifact tabs let product logic choose what matters now while still giving the user direct navigation. TP Console is not a tab. It is the base chat layer of `/chat`.
 
 ---
 
@@ -33,20 +33,20 @@ The global nav keeps ADR-163's four top-level surfaces:
 Chat | Work | Agents | Context
 ```
 
-It uses a pill-tab treatment: strong active segment, muted inactive segments, and consistent icon + label spacing.
+It keeps its existing font size, spacing, and proportions, but uses the same black active segment treatment as chat artifact tabs.
 
 ### Chat Artifact Navigation
 
 Inside `/chat`, a second pill-tab switcher selects the one active artifact:
 
 ```
-Daily Briefing | Recent Work | Context Gaps | TP Console
+Daily Briefing | Recent Work | Context Gaps
 ```
 
 For new users, the first tab becomes:
 
 ```
-Get Started | Daily Briefing | Recent Work | Context Gaps | TP Console
+Get Started | Daily Briefing | Recent Work | Context Gaps
 ```
 
 Default selection:
@@ -59,7 +59,7 @@ Default selection:
 
 Only one artifact renders at a time.
 
-The artifact is inline with the chat surface, above the TP console. Selecting `TP Console` hides the artifact and leaves chat as the sole visible content.
+The artifact is inline with the chat surface, above the persistent TP console. This keeps chat as the dedicated surface and gives structured renderings one focused layer inside it.
 
 No artifact is a floating window. No artifact can overlap another artifact.
 
@@ -113,19 +113,6 @@ Behavior:
 - Shows missing task coverage and high-level context readiness.
 - Links out to `/context` later when detail actions are added.
 
-### TP Console
-
-Source:
-
-- `ChatPanel`
-
-Behavior:
-
-- Hides the structured artifact and gives the full surface to chat.
-- Uses the same plus-menu actions as the previous `/chat` implementation.
-
----
-
 ## Component Plan
 
 ```
@@ -163,6 +150,6 @@ The old `web/components/command-desk/` package is removed.
 1. `/chat` has one centered chat surface, not multiple scattered windows.
 2. Artifact tabs are visible and navigable.
 3. Logic defaults to onboarding for new users and daily briefing for returning users.
-4. Selecting `TP Console` shows chat without a structured artifact.
-5. Global nav and chat artifact tabs share the same pill-tab language.
+4. TP Console remains the persistent base layer, not an artifact tab.
+5. Global nav keeps its existing sizing and uses the same black active-state language as chat artifact tabs.
 6. TypeScript and production build pass.

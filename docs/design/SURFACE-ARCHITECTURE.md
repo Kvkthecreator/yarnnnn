@@ -306,7 +306,7 @@ When adding per-entity activity surfaces, fold them into the entity's detail pag
 
 | Date | Version | Change |
 |---|---|---|
-| 2026-04-08 | v8.1 | ADR-165 accepted: `/chat` remains the Chat surface, but changes internally from two-panel layout to a single chat artifact surface with tabs for onboarding, briefing, recent work, context gaps, and TP console. |
+| 2026-04-08 | v8.1 | ADR-165 accepted: `/chat` remains the Chat surface, but changes internally from two-panel layout to a single TP console layer with artifact tabs for onboarding, briefing, recent work, and context gaps. |
 | 2026-04-08 | v8 | ADR-163 — Four-surface restructure: Chat \| Work \| Agents \| Context. Activity absorbed. Agents page shrunk to identity. New /work surface. Mode collapse (surface only). Inference visibility via InferenceContentView. |
 | 2026-04-06 | v7.2 | Task-class-aware tabs on Agents (superseded) |
 | 2026-04-06 | v7.1 | Tabs restored (superseded) |

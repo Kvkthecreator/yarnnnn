@@ -36,7 +36,7 @@ export function ToggleBar() {
   )?.id ?? 'chat';
 
   return (
-    <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1">
+    <div className="flex items-center gap-0.5 rounded-full bg-muted/60 p-0.5">
       {SEGMENTS.map(segment => {
         const Icon = segment.icon;
         const isActive = segment.id === activeId;
@@ -45,13 +45,13 @@ export function ToggleBar() {
             key={segment.id}
             href={segment.href}
             className={cn(
-              'flex items-center gap-2 rounded-full px-4 py-2 text-base font-medium transition-colors',
+              'flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors',
               isActive
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                ? 'bg-foreground text-background shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-3.5 w-3.5" />
             <span>{segment.label}</span>
           </Link>
         );
