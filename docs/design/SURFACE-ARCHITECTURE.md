@@ -61,22 +61,23 @@ The old `/activity` page is **deleted**. Its content is absorbed into the surfac
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ yarnnn / <breadcrumb>     [Chat | Work | Agents | Context]    Avatar │
+│ yarnnn                   [Chat | Work | Agents | Context]     Avatar │
+│                          Work / Daily Update                         │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Global breadcrumb** (`BreadcrumbContext`): pages set breadcrumb segments into a shared context; the header renders them. Max 2 segments after the logo. Each surface sets its own breadcrumb on selection.
+**Global breadcrumb** (`BreadcrumbContext`): pages set linkable breadcrumb segments into a shared context; the shell renders them as a centered scope path under the four-toggle nav. Prefer `href` for route-backed segments and reserve `onClick` for local state that has no URL. On narrow screens, the path scrolls horizontally rather than wrapping into the main surface.
 
 | Surface state | Breadcrumb |
 |---|---|
 | Chat | _(empty — just logo)_ |
 | Work (overview) | _(empty)_ |
-| Work (task selected) | `/ Daily Update` |
-| Work (filtered by agent) | `/ Competitive Intelligence's work` |
+| Work (task selected) | `Work / Daily Update` |
+| Work (filtered by agent) | `Work / Competitive Intelligence's work` |
 | Agents (overview) | _(empty)_ |
-| Agents (selected) | `/ Competitive Intelligence` |
-| Context (domain selected) | `/ Competitors` |
-| Context (deep file) | `/ Competitors / cursor` |
+| Agents (selected) | `Agents / Competitive Intelligence` |
+| Context (domain selected) | `Context / Competitors` |
+| Context (deep file) | `Context / Competitors / cursor / profile.md` |
 
 **Toggle bar** (`web/components/shell/ToggleBar.tsx`): four-segment pill `Chat | Work | Agents | Context`. Icons: `MessageCircle`, `Briefcase`, `Users`, `FolderOpen`. `HOME_ROUTE` is `/chat` — both new and returning users land there.
 
@@ -85,7 +86,7 @@ The old `/activity` page is **deleted**. Its content is absorbed into the surfac
 ## 1. Chat (`/chat`, HOME_ROUTE)
 
 ### Purpose
-Daily command center. Two-panel layout: daily briefing dashboard on the left, TP chat on the right. The briefing dashboard surfaces the `daily-update` task's latest output (ADR-161) as a structured view, plus a compact "Recent activity" feed.
+Dedicated TP chat surface. Structured renderings such as onboarding, daily briefing, recent work, and context gaps render as one active artifact above the persistent TP console.
 
 For new users with an empty workspace, the daily-update task still runs (deterministic empty-state template from ADR-161) and the briefing dashboard shows its honest "tell me what to track" message.
 

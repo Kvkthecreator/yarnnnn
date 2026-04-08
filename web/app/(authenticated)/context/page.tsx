@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Loader2,
   MessageCircle,
@@ -131,11 +131,13 @@ function buildContextNodes(input: {
 
 export default function ContextPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { loadScopedHistory, sendMessage } = useTP();
   const { surface } = useDesk();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
 
   const domainParam = searchParams.get('domain');
+  const pathParam = searchParams.get('path');
 
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -165,6 +167,15 @@ export default function ContextPage() {
 
       setTreeNodes(nodes);
       setPhase(nav.readiness?.phase || 'active');
+
+      // Path deep-linking: URL-addressable breadcrumb and explorer state.
+      if (pathParam) {
+        const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: nodes };
+        if (resolveNodeByPath(root, pathParam)) {
+          setSelectedPath(pathParam);
+          return;
+        }
+      }
 
       // Domain deep-linking: auto-navigate to domain folder on first load
       if (domainParam && !domainDeepLinked) {
@@ -197,7 +208,7 @@ export default function ContextPage() {
     } finally {
       setFileTreeLoading(false);
     }
-  }, [domainParam, domainDeepLinked]);
+  }, [domainParam, domainDeepLinked, pathParam]);
 
   const selectedNode = selectedPath ? resolveNodeByPath(virtualRoot, selectedPath) : null;
   const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
@@ -205,11 +216,16 @@ export default function ContextPage() {
   // Push breadcrumb path into global header
   useEffect(() => {
     if (breadcrumbs.length > 0) {
-      const segs = breadcrumbs.slice(0, 2).map((crumb, i) => ({
+      const displayBreadcrumbs = breadcrumbs[0]?.name === 'Context' ? breadcrumbs.slice(1) : breadcrumbs;
+      const segs = displayBreadcrumbs.map((crumb) => ({
         label: crumb.name,
-        ...(i < breadcrumbs.length - 1 ? { onClick: () => setSelectedPath(crumb.path) } : {}),
+        href: `/context?path=${encodeURIComponent(crumb.path)}`,
+        kind: crumb.type === 'file' ? 'context' as const : 'entity' as const,
       }));
-      setBreadcrumb(segs);
+      setBreadcrumb([
+        { label: 'Context', href: '/context', kind: 'surface' },
+        ...segs,
+      ]);
     } else {
       clearBreadcrumb();
     }
@@ -235,7 +251,8 @@ export default function ContextPage() {
 
   const handleExplorerSelect = useCallback((node: TreeNode) => {
     setSelectedPath(node.path);
-  }, []);
+    router.replace(`/context?path=${encodeURIComponent(node.path)}`, { scroll: false });
+  }, [router]);
 
   const plusMenuActions: PlusMenuAction[] = [
     { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { sendMessage('I want to create a task. What do you suggest based on my context?', { surface: effectiveSurface }); } },

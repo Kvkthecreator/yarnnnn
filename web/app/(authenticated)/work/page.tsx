@@ -79,10 +79,31 @@ export default function WorkPage() {
   // Breadcrumb
   useEffect(() => {
     if (selectedTask) {
-      setBreadcrumb([{ label: selectedTask.title }]);
+      const agentSlug = agentFilter || selectedTask.agent_slugs?.[0];
+      const agent = agentSlug ? agents.find(a => a.slug === agentSlug) : null;
+      setBreadcrumb([
+        { label: 'Work', href: '/work', kind: 'surface' },
+        ...(agentSlug ? [{
+          label: `${agent?.title ?? agentSlug}'s work`,
+          href: `/work?agent=${encodeURIComponent(agentSlug)}`,
+          kind: 'agent' as const,
+        }] : []),
+        {
+          label: selectedTask.title,
+          href: `/work?task=${encodeURIComponent(selectedTask.slug)}`,
+          kind: 'task',
+        },
+      ]);
     } else if (agentFilter) {
       const agent = agents.find(a => a.slug === agentFilter);
-      setBreadcrumb([{ label: `${agent?.title ?? agentFilter}'s work` }]);
+      setBreadcrumb([
+        { label: 'Work', href: '/work', kind: 'surface' },
+        {
+          label: `${agent?.title ?? agentFilter}'s work`,
+          href: `/work?agent=${encodeURIComponent(agentFilter)}`,
+          kind: 'agent',
+        },
+      ]);
     } else {
       clearBreadcrumb();
     }

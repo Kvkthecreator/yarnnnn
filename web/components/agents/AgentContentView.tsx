@@ -15,9 +15,7 @@
  *   3. Health card (tasks assigned count, approval rate, last run) + links out
  */
 
-import { useEffect } from 'react';
 import Link from 'next/link';
-import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import {
   Layers,
   Brain,
@@ -235,12 +233,6 @@ export function AgentContentView({
   tasks,
   onOpenChat,
 }: AgentContentViewProps) {
-  const { setBreadcrumb } = useBreadcrumb();
-
-  useEffect(() => {
-    setBreadcrumb([{ label: agent.title }]);
-  }, [agent.id, agent.title, setBreadcrumb]);
-
   return (
     <div className="flex flex-col h-full">
       <AgentHeader agent={agent} tasks={tasks} />

@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * GlobalBreadcrumb — Thin secondary location bar below the main header.
+ * GlobalBreadcrumb - centered scope path below the main navigation.
  *
  * SURFACE-ARCHITECTURE.md v7.2: Always-present structure on pages with depth.
  * Not inline with logo — sits as its own bar below the header. Pages set
  * segments via BreadcrumbContext; this component reads and renders them.
  *
  * When segments are empty, renders nothing (no empty bar).
- * When segments exist, renders a thin h-8 bar with path segments.
+ * When segments exist, renders a responsive scope path with linkable segments.
  *
  * Examples:
  *   Agents + CI selected:     Competitive Intelligence
@@ -18,6 +18,7 @@
 
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 
 export function GlobalBreadcrumb() {
   const { segments } = useBreadcrumb();
@@ -25,20 +26,30 @@ export function GlobalBreadcrumb() {
   if (segments.length === 0) return null;
 
   return (
-    <div className="h-8 border-b border-border/50 bg-muted/20 flex items-center px-4 shrink-0">
-      <nav className="flex items-center gap-1 min-w-0 text-sm">
+    <div className="border-b border-border/50 bg-background px-3 py-1.5 shrink-0">
+      <nav
+        aria-label="Breadcrumb"
+        className="mx-auto flex max-w-4xl items-center gap-1 overflow-x-auto text-xs sm:text-sm"
+      >
         {segments.map((seg, i) => (
-          <div key={i} className="flex items-center gap-1 shrink-0">
+          <div key={`${seg.label}-${i}`} className="flex items-center gap-1 shrink-0">
             {i > 0 && <ChevronRight className="w-3 h-3 text-muted-foreground/30 shrink-0" />}
-            {seg.onClick ? (
+            {seg.href ? (
+              <Link
+                href={seg.href}
+                className="text-muted-foreground hover:text-foreground transition-colors truncate max-w-[180px] sm:max-w-[240px]"
+              >
+                {seg.label}
+              </Link>
+            ) : seg.onClick ? (
               <button
                 onClick={seg.onClick}
-                className="text-muted-foreground hover:text-foreground transition-colors truncate max-w-[200px]"
+                className="text-muted-foreground hover:text-foreground transition-colors truncate max-w-[180px] sm:max-w-[240px]"
               >
                 {seg.label}
               </button>
             ) : (
-              <span className="text-foreground truncate max-w-[200px]">
+              <span className="text-foreground truncate max-w-[180px] sm:max-w-[240px]">
                 {seg.label}
               </span>
             )}

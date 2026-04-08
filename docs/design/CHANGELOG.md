@@ -6,6 +6,7 @@ Track changes to design documentation structure and active principles.
 
 ## 2026-04-08 — Chat artifact surface
 
+- **Breadcrumb scope bar**: `BreadcrumbContext` now supports route-backed `href` segments; `GlobalBreadcrumb` renders a centered linkable scope path under the four-toggle nav. Work, Agents, and Context emit deeper linkable paths, and Context supports `?path=` deep-linking.
 - **New design doc**: `CHAT-ARTIFACT-SURFACE.md` — documents `/chat` as one TP chat surface with a tab-selected structured artifact.
 - **New ADR**: `ADR-165-chat-artifact-surface.md` — keeps ADR-163's four top-level surfaces intact while changing only the internal layout methodology of `/chat`.
 - **First implementation**: `/chat` now uses `web/components/chat-surface/`; the earlier `command-desk` window package was removed after the multi-window layout proved visually unintuitive.

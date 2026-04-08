@@ -16,7 +16,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Loader2,
   MessageCircle,
@@ -45,6 +45,7 @@ function EmptyState() {
 
 export default function AgentsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { loadScopedHistory, sendMessage } = useTP();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
   const { agents, tasks, loading } = useAgentsAndTasks();
@@ -77,7 +78,11 @@ export default function AgentsPage() {
   // Breadcrumb
   useEffect(() => {
     if (selectedAgent) {
-      setBreadcrumb([{ label: selectedAgent.title }]);
+      const slug = getAgentSlug(selectedAgent);
+      setBreadcrumb([
+        { label: 'Agents', href: '/agents', kind: 'surface' },
+        { label: selectedAgent.title, href: `/agents?agent=${encodeURIComponent(slug)}`, kind: 'agent' },
+      ]);
     } else {
       clearBreadcrumb();
     }
@@ -141,7 +146,12 @@ export default function AgentsPage() {
             agents={agents}
             tasks={tasks}
             selectedAgentId={selectedAgentId}
-            onSelectAgent={setSelectedAgentId}
+            onSelectAgent={(id) => {
+              setSelectedAgentId(id);
+              const agent = agents.find(a => a.id === id);
+              const slug = agent ? getAgentSlug(agent) : id;
+              router.replace(`/agents?agent=${encodeURIComponent(slug)}`, { scroll: false });
+            }}
           />
         ),
         collapsedIcon: <Users className="w-4 h-4" />,

@@ -4,21 +4,23 @@
  * BreadcrumbContext — Global breadcrumb state for the header bar.
  *
  * Pages set breadcrumb segments via `setBreadcrumb()`. The header reads them.
- * Each segment has a label and optional onClick handler (for navigation).
+ * Prefer href for route-backed navigation. Use onClick only for local UI
+ * state that is not URL-addressable.
  *
  * Examples:
  *   Home page:           [] (empty — just "yarnnn")
  *   Agents overview:     [] (empty — toggle bar shows "Agents")
- *   Agent selected:      [{ label: "Competitive Intelligence" }]
- *   Agent browsing file: [{ label: "Competitive Intelligence", onClick }, { label: "cursor" }]
- *   Context / domain:    [{ label: "Competitors", onClick }, { label: "cursor" }]
+ *   Agent selected:      [{ label: "Agents", href: "/agents" }, { label: "Competitive Intelligence", href: "/agents?agent=..." }]
+ *   Context / domain:    [{ label: "Context", href: "/context" }, { label: "Competitors", href: "/context?path=..." }]
  */
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 
 export interface BreadcrumbSegment {
   label: string;
+  href?: string;
   onClick?: () => void;
+  kind?: 'surface' | 'entity' | 'task' | 'agent' | 'context' | 'output' | 'artifact';
 }
 
 interface BreadcrumbContextValue {
