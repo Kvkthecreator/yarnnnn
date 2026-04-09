@@ -3,10 +3,10 @@
 /**
  * ChatSurface — TP chat surface with TP-directed workspace state modal.
  *
- * ADR-167 v5 (2026-04-09) — layout restructured to match the surface shape
- * used by /work and /agents detail pages:
+ * ADR-167 v5 (2026-04-09), amended for /chat compactness — the chat surface
+ * keeps only its local identity header because a top-level breadcrumb row
+ * duplicated navigation state without adding hierarchy.
  *
- *   <PageHeader defaultLabel="Chat" />         — breadcrumb chrome
  *   <SurfaceIdentityHeader                     — the real h1 + actions
  *     title="Thinking Partner"
  *     actions={workspace-state toggle}
@@ -42,7 +42,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { LayoutPanelTop } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
-import { PageHeader } from '@/components/shell/PageHeader';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { Agent, Task } from '@/types';
@@ -131,8 +130,6 @@ export function ChatSurface({
   const isEmpty = !dataLoading && tasks.length === 0;
 
   // ChatSurface shape notes:
-  //   - PageHeader stays flush to the viewport edge (surface-wide chrome,
-  //     matches /work and /agents).
   //   - SurfaceIdentityHeader is wrapped in the same max-w-3xl container as
   //     the chat column below it, so the header ("⊙ Thinking Partner [⊞]")
   //     sits directly above the chat stream, sharing its left/right margins.
@@ -154,7 +151,6 @@ export function ChatSurface({
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <PageHeader defaultLabel="Chat" />
       <div className="mx-auto w-full max-w-3xl px-4">
         <SurfaceIdentityHeader
           size="md"
