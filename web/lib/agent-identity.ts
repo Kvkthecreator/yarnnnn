@@ -25,6 +25,7 @@ type CanonicalAgentRole =
   | 'thinking_partner';
 
 type AgentClass = 'domain-steward' | 'synthesizer' | 'platform-bot' | 'meta-cognitive';
+export type PlatformBotProvider = 'slack' | 'notion' | 'github';
 
 interface RoleMeta {
   displayName: string;
@@ -249,4 +250,17 @@ export function getAgentSlug(agent: { slug?: string | null; title?: string | nul
   const title = (agent.title || '').toLowerCase().trim();
   const slug = title.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   return slug || 'agent';
+}
+
+export function platformProviderForRole(role?: string | null): PlatformBotProvider | null {
+  switch (resolveRole(role)) {
+    case 'slack_bot':
+      return 'slack';
+    case 'notion_bot':
+      return 'notion';
+    case 'github_bot':
+      return 'github';
+    default:
+      return null;
+  }
 }

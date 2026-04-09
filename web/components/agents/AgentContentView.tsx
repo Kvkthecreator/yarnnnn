@@ -13,6 +13,7 @@
  */
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import {
   ArrowUpRight,
   Bot,
@@ -37,8 +38,10 @@ import {
   agentClassDescription,
   agentClassLabel,
   roleDisplayName,
+  platformProviderForRole,
   roleTagline,
 } from '@/lib/agent-identity';
+import { api } from '@/lib/api/client';
 import type { Agent, Task } from '@/types';
 
 interface AgentContentViewProps {
@@ -74,6 +77,17 @@ interface AgentPostureDescriptor {
   title: (agent: Agent, tasks: Task[]) => string;
   description: (agent: Agent, tasks: Task[]) => string;
   bullets: (agent: Agent, tasks: Task[], counts: TaskKindCounts) => string[];
+}
+
+interface PlatformSummary {
+  provider: string;
+  status: string;
+  workspace_name: string | null;
+  connected_at: string;
+  resource_count: number;
+  resource_type: string;
+  agent_count: number;
+  activity_7d: number;
 }
 
 type TaskKindCounts = Record<TaskOutputKind, number>;
@@ -220,22 +234,23 @@ const AGENT_POSTURE_REGISTRY: Record<AgentClass, AgentPostureDescriptor> = {
     },
   },
   'platform-bot': {
-    label: 'Platform posture',
-    title: (agent) => `${roleDisplayName(agent.role)} is a bridge, not a generic specialist`,
-    description: () => 'Integration bots usually split into observation work and write-back work. Those two postures should be visible separately.',
+    label: 'Platform connection and task mix',
+    title: (agent) => `${roleDisplayName(agent.role)} is defined by connection state and task mix`,
+    description: () => 'For platform bots, the first question is whether the platform is connected. The second is whether assigned work is observing activity or taking outbound action.',
     bullets: (agent, _, counts) => {
       const bullets = [];
       if (agent.context_domain) bullets.push(`Platform bridge: ${agent.context_domain}`);
       bullets.push(
         counts.accumulates_context > 0
           ? `${counts.accumulates_context} observation ${counts.accumulates_context === 1 ? 'task watches' : 'tasks watch'} the platform`
-          : 'No observation task is currently assigned',
+          : 'No observation task is currently assigned yet',
       );
       bullets.push(
         counts.external_action > 0
           ? `${counts.external_action} write-back ${counts.external_action === 1 ? 'task can act' : 'tasks can act'} on the platform`
-          : 'No write-back task is currently assigned',
+          : 'No write-back task is currently assigned yet',
       );
+      bullets.push('Use Settings > Connectors to connect or reconnect the platform when needed');
       return bullets;
     },
   },
@@ -287,8 +302,9 @@ const AGENT_EMPTY_STATE_REGISTRY: Record<AgentClass, AgentEmptyStateDescriptor> 
   },
   'platform-bot': {
     title: (agent) => `${roleDisplayName(agent.role)} has no platform work yet`,
-    description: () => 'Integration bots usually start by observing platform activity. Write-back tasks come later when you want the bot to take outbound actions.',
+    description: () => 'Platform bots usually start with connected-source observation. Write-back tasks come later, after the platform connection and source scope are in place.',
     nextSteps: (agent) => [
+      `Confirm ${roleDisplayName(agent.role)} is connected in Settings > Connectors`,
       `Start with one digest or observation task for ${roleDisplayName(agent.role)}`,
       'Add write-back work only when you want outbound actions on the platform',
       agent.context_domain
@@ -550,6 +566,148 @@ function AgentPostureBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   );
 }
 
+function platformManagementHref(provider: string | null): string {
+  switch (provider) {
+    case 'slack':
+      return '/context/slack';
+    case 'notion':
+      return '/context/notion';
+    default:
+      return '/settings?tab=connectors';
+  }
+}
+
+function platformManagementLabel(provider: string | null, connected: boolean): string {
+  switch (provider) {
+    case 'slack':
+    case 'notion':
+      return connected ? 'Manage sources' : 'Open connectors';
+    case 'github':
+      return connected ? 'Open connectors' : 'Connect platform';
+    default:
+      return 'Open connectors';
+  }
+}
+
+function PlatformConnectionBlock({ agent }: { agent: Agent }) {
+  const provider = platformProviderForRole(agent.role);
+  const [summary, setSummary] = useState<PlatformSummary | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      if (!provider) {
+        setLoaded(true);
+        return;
+      }
+      try {
+        const result = await api.integrations.getSummary();
+        const match = (result.platforms || []).find((platform) => platform.provider === provider) || null;
+        if (!cancelled) setSummary(match);
+      } catch {
+        if (!cancelled) setSummary(null);
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [provider]);
+
+  if (!provider) return null;
+
+  const connected = summary?.status === 'active';
+  const manageHref = platformManagementHref(provider);
+  const platformName = roleDisplayName(agent.role).replace(' Bot', '');
+
+  return (
+    <div className="px-6 py-5 border-t border-border/40">
+      <SectionLabel>Connection</SectionLabel>
+      <div className="rounded-lg border border-border/60 bg-background px-4 py-4">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-muted/30 border border-border/60 flex items-center justify-center shrink-0">
+            <Link2 className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-sm font-medium text-foreground">
+                {loaded
+                  ? connected
+                    ? `${platformName} is connected`
+                    : `${platformName} is not connected`
+                  : `Checking ${platformName} connection`}
+              </h4>
+              {loaded && (
+                <span
+                  className={cn(
+                    'inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                    connected
+                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+                  )}
+                >
+                  {connected ? 'connected' : 'not connected'}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {!loaded
+                ? 'Loading platform connection state from integrations.'
+                : connected
+                  ? summary?.workspace_name
+                    ? `Connected to ${summary.workspace_name}. Use the provider surface to manage sources, then use tasks to define observation or write-back work.`
+                    : 'Connected. Use the provider surface to manage sources, then use tasks to define observation or write-back work.'
+                  : 'This bot cannot observe or act until the platform is connected. Connect it in Settings > Connectors.'}
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <Link
+                href={manageHref}
+                className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20"
+              >
+                {platformManagementLabel(provider, connected)}
+                <ArrowUpRight className="w-3 h-3" />
+              </Link>
+              {manageHref !== '/settings?tab=connectors' && (
+                <Link
+                  href="/settings?tab=connectors"
+                  className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20"
+                >
+                  Connectors settings
+                  <ArrowUpRight className="w-3 h-3" />
+                </Link>
+              )}
+            </div>
+            {loaded && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {connected && summary?.resource_count != null && (
+                  <span className="inline-flex rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+                    {summary.resource_count} selected {summary.resource_type || 'resources'}
+                  </span>
+                )}
+                {connected && summary?.activity_7d != null && (
+                  <span className="inline-flex rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+                    {summary.activity_7d} events in the last 7d
+                  </span>
+                )}
+                {!connected && (
+                  <span className="inline-flex rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+                    No platform connection detected
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TaskCard({ task }: { task: Task }) {
   const descriptor = TASK_CARD_REGISTRY[task.output_kind as TaskOutputKind] || TASK_CARD_REGISTRY.produces_deliverable;
   const typeLabel = taskTypeLabel(task.type_key);
@@ -624,6 +782,8 @@ function TaskCard({ task }: { task: Task }) {
 function EmptyAssignedWork({ agent }: { agent: Agent }) {
   const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
   const nextSteps = descriptor.nextSteps(agent);
+  const platformProvider = agent.agent_class === 'platform-bot' ? platformProviderForRole(agent.role) : null;
+  const managementHref = platformManagementHref(platformProvider);
 
   return (
     <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-4">
@@ -638,8 +798,17 @@ function EmptyAssignedWork({ agent }: { agent: Agent }) {
           </p>
         ))}
       </div>
-      {agent.context_domain && (
-        <div className="mt-4">
+      <div className="mt-4 flex flex-wrap gap-2">
+        {platformProvider && (
+          <Link
+            href={managementHref}
+            className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+          >
+            {platformManagementLabel(platformProvider, false)}
+            <ArrowUpRight className="w-3 h-3" />
+          </Link>
+        )}
+        {agent.context_domain && (
           <Link
             href={`${CONTEXT_ROUTE}?domain=${agent.context_domain}`}
             className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
@@ -647,8 +816,8 @@ function EmptyAssignedWork({ agent }: { agent: Agent }) {
             Open context
             <ArrowUpRight className="w-3 h-3" />
           </Link>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -786,6 +955,7 @@ export function AgentContentView({ agent, tasks }: AgentContentViewProps) {
       />
       <div className="max-w-3xl">
         <AgentRoleBlock agent={agent} tasks={tasks} />
+        {agent.agent_class === 'platform-bot' && <PlatformConnectionBlock agent={agent} />}
         <AgentPostureBlock agent={agent} tasks={tasks} />
         <TasksBlock agent={agent} tasks={tasks} />
         <LearnedBlock agent={agent} />
