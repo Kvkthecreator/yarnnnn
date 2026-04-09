@@ -1,8 +1,7 @@
 """
-ManageTask Primitive — ADR-146 + ADR-149 + ADR-168: Unified Task Lifecycle
+ManageTask Primitive — ADR-146 + ADR-149: Primitive Hardening + Task Lifecycle
 
-Single task lifecycle primitive. 8 actions:
-- create   — scaffold a new task from a task type and assign to an agent (ADR-168)
+Unified task lifecycle primitive. 7 actions:
 - trigger  — run task immediately
 - update   — change schedule, delivery, mode, type, sources (ADR-158)
 - pause    — stop scheduled runs
@@ -12,16 +11,11 @@ Single task lifecycle primitive. 8 actions:
 - complete — mark task done, clear scheduling (ADR-149)
 
 Design principle P3 (One Tool Per Decision): TP decides "manage this task"
-and picks the action. One tool, one decision. Symmetric with ManageAgent,
-which covers agent creation in the same primitive.
-
-ADR-168 Commit 3 folded the former CreateTask primitive into action="create".
-No parallel creation path, no shim, no CreateTask tool — singular implementation.
+and picks the action. One tool, one decision.
 """
 
 import json
 import logging
-import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -30,27 +24,7 @@ logger = logging.getLogger(__name__)
 
 MANAGE_TASK_TOOL = {
     "name": "ManageTask",
-    "description": """Manage a task — create, trigger, update, pause, resume, evaluate, steer, or complete.
-
-**action="create"** — Scaffold a new task from a task type and assign to an agent (ADR-168).
-
-  Two creation paths:
-  1. From type registry (preferred): provide title + type_key. Pipeline, schedule,
-     agent, and objective are auto-populated from the registry.
-  2. Custom: provide title + agent_slug + objective manually.
-
-  type_key values: competitive-intel-brief, market-research-report, industry-signal-monitor,
-  due-diligence-summary, meeting-prep-brief, stakeholder-update, relationship-health-digest,
-  project-status-report, slack-recap, notion-sync-report, content-brief, launch-material,
-  gtm-tracker
-
-  Required: title, action="create". Plus one of: type_key OR agent_slug.
-  Optional: mode, objective, schedule, delivery, success_criteria, output_spec, focus, sources.
-
-  Examples:
-  - ManageTask(action="create", title="Weekly Competitive Briefing", type_key="competitive-intel-brief", focus="AI agent platforms")
-  - ManageTask(action="create", title="Daily Slack Recap", type_key="slack-recap", delivery="user@example.com")
-  - ManageTask(action="create", title="Custom Research", agent_slug="research-agent", objective={...})
+    "description": """Manage an existing task — trigger, update, pause, or resume.
 
 **action="trigger"** — Run the task immediately, outside normal cadence.
   ManageTask(task_slug="weekly-briefing", action="trigger")
@@ -65,7 +39,11 @@ MANAGE_TASK_TOOL = {
 
   type_key assigns a task type from the registry, which defines the execution process
   (multi-step pipeline, agent assignments). Use when a task was created generically
-  and needs a proper process definition. Same type_key values as action="create".
+  and needs a proper process definition. Available type_keys: competitive-intel-brief,
+  market-research-report, industry-signal-monitor, due-diligence-summary,
+  meeting-prep-brief, stakeholder-update, relationship-health-digest,
+  project-status-report, slack-recap, notion-sync-report, content-brief,
+  launch-material, gtm-tracker
 
 **action="pause"** — Stop future scheduled runs (can be resumed later).
   ManageTask(task_slug="weekly-briefing", action="pause")
@@ -88,53 +66,15 @@ MANAGE_TASK_TOOL = {
     "input_schema": {
         "type": "object",
         "properties": {
-            "action": {
-                "type": "string",
-                "enum": ["create", "trigger", "update", "pause", "resume", "evaluate", "steer", "complete"],
-                "description": "What to do with the task"
-            },
             "task_slug": {
                 "type": "string",
-                "description": "The task to manage. Required for all actions EXCEPT 'create' (where slug is generated from title)."
+                "description": "The task to manage"
             },
-            # --- action="create" fields (ADR-168 Commit 3: absorbed from former CreateTask primitive) ---
-            "title": {
+            "action": {
                 "type": "string",
-                "description": "For action='create': task name, e.g. 'Weekly Competitive Briefing'"
+                "enum": ["trigger", "update", "pause", "resume", "evaluate", "steer", "complete"],
+                "description": "What to do with the task"
             },
-            "type_key": {
-                "type": "string",
-                "description": "For action='create' or 'update': task type from the registry (auto-populates pipeline + schedule + agents). Required for action='create' unless agent_slug is provided."
-            },
-            "agent_slug": {
-                "type": "string",
-                "description": "For action='create': agent to assign (for custom tasks without type_key)."
-            },
-            "focus": {
-                "type": "string",
-                "description": "For action='create': topic or focus area to customize the deliverable, e.g. 'AI agent platforms' or 'Acme Corp'"
-            },
-            "objective": {
-                "type": "object",
-                "properties": {
-                    "deliverable": {"type": "string"},
-                    "audience": {"type": "string"},
-                    "purpose": {"type": "string"},
-                    "format": {"type": "string"},
-                },
-                "description": "For action='create' with a custom task: task objective (auto-populated from type_key if provided)"
-            },
-            "success_criteria": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "For action='create': what constitutes success for this task"
-            },
-            "output_spec": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "For action='create': expected sections in output"
-            },
-            # --- Shared fields used by multiple actions ---
             "context": {
                 "type": "string",
                 "description": "For action='trigger': optional context to inject for this run"
@@ -145,23 +85,27 @@ MANAGE_TASK_TOOL = {
             },
             "schedule": {
                 "type": "string",
-                "description": "For action='create' or 'update': cadence (daily, weekly, monthly, or cron expression)"
+                "description": "For action='update': new cadence (daily, weekly, monthly, or cron)"
             },
             "delivery": {
                 "type": "string",
-                "description": "For action='create' or 'update': delivery target (email or 'none')"
+                "description": "For action='update': new delivery target (email or 'none')"
             },
             "mode": {
                 "type": "string",
                 "enum": ["recurring", "goal", "reactive"],
-                "description": "For action='create' or 'update': temporal behavior"
+                "description": "For action='update': new temporal behavior"
+            },
+            "type_key": {
+                "type": "string",
+                "description": "For action='update': assign a task type from the registry (defines execution process + agent pipeline)"
             },
             "sources": {
                 "type": "object",
-                "description": "For action='create' or 'update': per-task platform source selection. Map of platform → list of source IDs. E.g. {\"slack\": [\"C123\", \"C456\"]}"
+                "description": "For action='update': per-task platform source selection. Map of platform → list of source IDs. E.g. {\"slack\": [\"C123\", \"C456\"]}"
             },
         },
-        "required": ["action"]
+        "required": ["task_slug", "action"]
     }
 }
 
@@ -171,22 +115,16 @@ async def handle_manage_task(auth: Any, input: dict) -> dict:
     Handle ManageTask — route to appropriate action handler.
 
     ADR-146: Single entry point for task lifecycle mutations.
-    ADR-168 Commit 3: action="create" absorbed from the former CreateTask primitive.
     """
+    task_slug = input.get("task_slug", "").strip()
     action = input.get("action", "")
 
-    valid_actions = ("create", "trigger", "update", "pause", "resume", "evaluate", "steer", "complete")
+    if not task_slug:
+        return {"success": False, "error": "missing_slug", "message": "task_slug is required"}
+
+    valid_actions = ("trigger", "update", "pause", "resume", "evaluate", "steer", "complete")
     if action not in valid_actions:
         return {"success": False, "error": "invalid_action", "message": f"action must be one of: {', '.join(valid_actions)}"}
-
-    # action="create" is the only action that doesn't require task_slug — the slug
-    # is generated from the title inside the handler.
-    if action == "create":
-        return await _handle_create(auth, input)
-
-    task_slug = input.get("task_slug", "").strip()
-    if not task_slug:
-        return {"success": False, "error": "missing_slug", "message": "task_slug is required for this action"}
 
     if action == "trigger":
         return await _handle_trigger(auth, task_slug, input)
@@ -251,64 +189,6 @@ async def _find_task(auth: Any, task_slug: str, select: str = "id, slug, status,
         return result.data
     except Exception as e:
         return {"error": True, "success": False, "error_code": "lookup_failed", "message": str(e)}
-
-
-# ---------------------------------------------------------------------------
-# Create helpers (ADR-168 Commit 3: absorbed from the former task.py primitive)
-# ---------------------------------------------------------------------------
-
-def _slugify(text: str) -> str:
-    """Generate a filesystem-safe slug from text."""
-    slug = text.lower().strip()
-    slug = re.sub(r"[^a-z0-9-]", "-", slug)
-    slug = re.sub(r"-+", "-", slug).strip("-")
-    return slug[:50] or "task"
-
-
-def _build_custom_task_md(
-    title: str,
-    slug: str,
-    agent_slug: str,
-    mode: str = "recurring",
-    objective: Optional[dict] = None,
-    schedule: Optional[str] = None,
-    delivery: Optional[str] = None,
-    success_criteria: Optional[list] = None,
-    output_spec: Optional[list] = None,
-) -> str:
-    """Build TASK.md content for a custom task (no type_key).
-
-    Type-key tasks use `build_task_md_from_type()` from task_types registry.
-    """
-    lines = [f"# {title}", "", f"**Slug:** {slug}", f"**Agent:** {agent_slug}", f"**Mode:** {mode}"]
-
-    if schedule:
-        lines.append(f"**Schedule:** {schedule}")
-    if delivery:
-        lines.append(f"**Delivery:** {delivery}")
-
-    if objective:
-        lines.append("")
-        lines.append("## Objective")
-        for key in ["deliverable", "audience", "purpose", "format"]:
-            val = objective.get(key)
-            if val:
-                lines.append(f"- **{key.capitalize()}:** {val}")
-
-    if success_criteria:
-        lines.append("")
-        lines.append("## Success Criteria")
-        for criterion in success_criteria:
-            lines.append(f"- {criterion}")
-
-    if output_spec:
-        lines.append("")
-        lines.append("## Output Spec")
-        for section in output_spec:
-            lines.append(f"- {section}")
-
-    lines.append("")
-    return "\n".join(lines)
 
 
 async def _handle_trigger(auth: Any, task_slug: str, input: dict) -> dict:
@@ -831,360 +711,4 @@ async def _handle_complete(auth: Any, task_slug: str) -> dict:
         "success": True,
         "task_slug": task_slug,
         "message": f"Task '{task_slug}' marked as completed. No further runs will be scheduled.",
-    }
-
-
-# ---------------------------------------------------------------------------
-# _handle_create — absorbed from the former CreateTask primitive (task.py, deleted)
-# ADR-168 Commit 3: CreateTask folded into ManageTask(action="create") for symmetry
-# with ManageAgent, which already covered agent creation in a single primitive.
-# ---------------------------------------------------------------------------
-
-async def _handle_create(auth: Any, input: dict) -> dict:
-    """
-    Create a new task and assign it to an agent.
-
-    Two paths:
-    A. type_key provided → resolve from registry, auto-populate pipeline + objective
-    B. agent_slug provided → custom task
-
-    Steps:
-    1. Validate title + (type_key OR agent_slug)
-    2. Generate slug from title
-    3. Resolve agent(s) — from pipeline or explicit agent_slug
-    4. Create DB row in tasks table (with auto-suffix on slug collision)
-    5. Write TASK.md via TaskWorkspace
-    6. Scaffold DELIVERABLE.md (ADR-149) + memory/feedback.md + memory/steering.md + awareness.md
-    7. Scaffold context domains for task's context_writes (ADR-151)
-    8. Update WORKSPACE.md manifest
-    9. Return success with task slug + process narration
-    """
-    title = input.get("title", "").strip()
-    type_key = input.get("type_key", "").strip() or None
-    agent_slug = input.get("agent_slug", "").strip() or None
-    focus = input.get("focus", "").strip() or None
-    mode = input.get("mode", "recurring")
-    objective = input.get("objective")
-    schedule = input.get("schedule")
-    delivery = input.get("delivery")
-    success_criteria = input.get("success_criteria")
-    output_spec = input.get("output_spec")
-
-    if mode not in ("recurring", "goal", "reactive"):
-        mode = "recurring"
-
-    if not title:
-        return {"success": False, "error": "missing_title", "message": "title is required for action='create'"}
-    if not type_key and not agent_slug:
-        return {"success": False, "error": "missing_type_or_agent", "message": "Either type_key or agent_slug is required for action='create'"}
-
-    user_id = auth.user_id
-    slug = _slugify(title)
-
-    # --- Path A: Type-key based creation (ADR-145) ---
-    resolved_agent_slugs: list[str] = []
-    resolved_steps: list = []
-    task_md_content: Optional[str] = None
-
-    if type_key:
-        from services.task_types import get_task_type, resolve_process_agents, build_task_md_from_type
-
-        task_type_def = get_task_type(type_key)
-        if not task_type_def:
-            return {"success": False, "error": "unknown_type", "message": f"Task type '{type_key}' not found in registry."}
-
-        # Use type's default schedule if not overridden
-        if not schedule:
-            schedule = task_type_def["default_schedule"]
-            if schedule == "on-demand":
-                schedule = None  # reactive tasks don't have a schedule
-
-        # ADR-154: Mode from registry, not inferred from schedule
-        if not input.get("mode"):
-            from services.task_types import get_default_mode
-            mode = get_default_mode(type_key)
-
-        # Resolve process agents from user's roster
-        agents_result = (
-            auth.client.table("agents")
-            .select("id, title, slug, role, status")
-            .eq("user_id", user_id)
-            .execute()
-        )
-        user_agents = agents_result.data or []
-
-        resolved_steps = resolve_process_agents(type_key, user_agents)
-        if resolved_steps:
-            resolved_agent_slugs = [s["agent_slug"] for s in resolved_steps if s["agent_slug"]]
-
-        # Use first process agent as primary (for single-step compat)
-        if not agent_slug and resolved_agent_slugs:
-            agent_slug = resolved_agent_slugs[0]
-
-        # ADR-158 Phase 2: Auto-populate sources from platform_connections
-        # for platform task types (requires_platform set in registry)
-        task_sources = input.get("sources")  # explicit override from TP
-        if not task_sources and task_type_def.get("requires_platform"):
-            platform = task_type_def["requires_platform"]
-            try:
-                conn_result = (
-                    auth.client.table("platform_connections")
-                    .select("landscape")
-                    .eq("user_id", user_id)
-                    .eq("platform", platform)
-                    .eq("status", "active")
-                    .maybe_single()
-                    .execute()
-                )
-                if conn_result and conn_result.data:
-                    landscape = conn_result.data.get("landscape") or {}
-                    selected = landscape.get("selected_sources") or []
-                    if selected:
-                        source_ids = [s.get("id") for s in selected if s.get("id")]
-                        if source_ids:
-                            task_sources = {platform: source_ids}
-                            logger.info(f"[MANAGE_TASK] Auto-populated {len(source_ids)} {platform} sources from platform_connections")
-            except Exception as e:
-                logger.warning(f"[MANAGE_TASK] Failed to read platform sources: {e}")
-
-        # Build TASK.md from type template
-        task_md_content = build_task_md_from_type(
-            type_key=type_key,
-            title=title,
-            slug=slug,
-            focus=focus,
-            schedule=schedule,
-            delivery=delivery,
-            agent_slugs=resolved_agent_slugs or None,
-            sources=task_sources,
-        )
-
-    # --- Verify primary agent exists ---
-    if not agent_slug:
-        return {"success": False, "error": "no_agent_resolved", "message": "Could not resolve an agent for this task type. Check your agent roster."}
-
-    try:
-        agent_result = (
-            auth.client.table("agents")
-            .select("id, title, slug")
-            .eq("user_id", user_id)
-            .eq("slug", agent_slug)
-            .maybe_single()
-            .execute()
-        )
-        if not agent_result or not agent_result.data:
-            return {
-                "success": False,
-                "error": "agent_not_found",
-                "message": f"Agent '{agent_slug}' not found. Create the agent first.",
-            }
-    except Exception as e:
-        logger.error(f"[MANAGE_TASK] Agent lookup failed: {e}")
-        return {"success": False, "error": "agent_lookup_failed", "message": str(e)}
-
-    # Default schedule for custom tasks
-    if not schedule:
-        schedule = "weekly"
-
-    # ADR-154: First run on creation for tasks with bootstrap criteria
-    # Bootstrap phase → run immediately. Otherwise → standard cadence.
-    has_bootstrap = False
-    if type_key:
-        from services.task_types import get_bootstrap_criteria
-        has_bootstrap = bool(get_bootstrap_criteria(type_key))
-
-    if has_bootstrap:
-        next_run_at = datetime.now(timezone.utc).isoformat()
-    else:
-        next_run_at = _compute_next_run(schedule) if schedule else None
-
-    # Create tasks row
-    now = datetime.now(timezone.utc)
-    # Try insert with auto-suffix on duplicate slug
-    task_id = None
-    max_attempts = 5
-    for attempt in range(max_attempts):
-        try_slug = slug if attempt == 0 else f"{slug}-{attempt + 1}"
-        try:
-            row = {
-                "user_id": user_id,
-                "slug": try_slug,
-                "mode": mode,
-                "status": "active",
-                "schedule": schedule,
-                "next_run_at": next_run_at,
-                "created_at": now.isoformat(),
-                "updated_at": now.isoformat(),
-            }
-            insert_result = auth.client.table("tasks").insert(row).execute()
-            if insert_result.data:
-                task_id = insert_result.data[0]["id"]
-                slug = try_slug  # Use the successful slug going forward
-                break
-        except Exception as e:
-            error_str = str(e)
-            if "tasks_user_slug_unique" in error_str:
-                if attempt < max_attempts - 1:
-                    continue  # Try next suffix
-                return {
-                    "success": False,
-                    "error": "duplicate_slug",
-                    "message": f"A task with slug '{slug}' already exists (tried {max_attempts} suffixes).",
-                }
-            logger.error(f"[MANAGE_TASK] DB insert failed: {e}")
-            return {"success": False, "error": "insert_failed", "message": error_str}
-    if not task_id:
-        return {"success": False, "error": "insert_failed", "message": "Failed to create task row"}
-
-    # Write TASK.md via TaskWorkspace
-    try:
-        from services.task_workspace import TaskWorkspace
-        tw = TaskWorkspace(auth.client, user_id, slug)
-
-        if task_md_content:
-            # Type-based: use pre-built TASK.md from registry
-            task_md = task_md_content
-        else:
-            # Custom: build manually
-            task_md = _build_custom_task_md(
-                title=title,
-                slug=slug,
-                agent_slug=agent_slug,
-                mode=mode,
-                objective=objective,
-                schedule=schedule,
-                delivery=delivery,
-                success_criteria=success_criteria,
-                output_spec=output_spec,
-            )
-        await tw.write("TASK.md", task_md, summary=f"Task definition: {title}", tags=["task", "definition"])
-
-        # ADR-149: Scaffold DELIVERABLE.md from type registry
-        if type_key:
-            from services.task_types import build_deliverable_md_from_type
-            deliverable_md = build_deliverable_md_from_type(type_key)
-            if deliverable_md:
-                await tw.write("DELIVERABLE.md", deliverable_md,
-                              summary=f"Deliverable spec for {title}", tags=["deliverable", "spec"])
-        else:
-            # Custom task — minimal deliverable scaffold
-            custom_deliverable = (
-                "# Deliverable Specification\n\n"
-                "## Expected Output\n"
-                f"- Format: HTML document\n"
-                f"- Layout: As specified in objective\n\n"
-                "## Expected Assets\n"
-                "- Visual assets optional where data supports\n\n"
-                "## Quality Criteria\n"
-                + ("\n".join(f"- {c}" for c in success_criteria) + "\n" if success_criteria else "- Output addresses the stated objective\n")
-                + "\n## Audience\n"
-                + (objective.get("audience", "") if isinstance(objective, dict) else "")
-                + "\n\n## User Preferences (inferred)\n"
-                "<!-- Populated by feedback inference (ADR-149). Empty at creation. -->\n"
-            )
-            await tw.write("DELIVERABLE.md", custom_deliverable,
-                          summary=f"Deliverable spec for {title}", tags=["deliverable", "spec"])
-
-        # ADR-149: Seed empty task memory files
-        await tw.write("memory/feedback.md",
-                      "# Task Feedback\n<!-- User corrections + TP evaluations. Newest first. ADR-149. -->\n",
-                      summary="ADR-149: task feedback file", tags=["memory"])
-        await tw.write("memory/steering.md",
-                      "# Steering Notes\n<!-- TP management notes for next cycle. Overwritten per evaluation. ADR-149. -->\n",
-                      summary="ADR-149: task steering file", tags=["memory"])
-
-        # ADR-154: Seed task awareness file
-        await tw.write("awareness.md",
-                      "# Task Awareness\n\nFirst run — no prior cycles.\n",
-                      summary="ADR-154: task awareness file", tags=["awareness"])
-
-        # ADR-151: Scaffold workspace context domains for this task's context_writes
-        if type_key:
-            try:
-                from services.task_types import get_task_type
-                from services.directory_registry import get_domain, get_domain_folder, get_synthesis_content
-                from services.workspace import UserMemory
-
-                task_type_def = get_task_type(type_key)
-                context_writes = (task_type_def or {}).get("context_writes", [])
-
-                if context_writes:
-                    um = UserMemory(auth.client, user_id)
-                    for domain_key in context_writes:
-                        domain = get_domain(domain_key)
-                        if not domain:
-                            continue
-                        folder = get_domain_folder(domain_key)
-                        if not folder:
-                            continue
-
-                        # Check if domain synthesis file already exists (domain already scaffolded)
-                        synthesis = get_synthesis_content(domain_key)
-                        if synthesis:
-                            synthesis_file, synthesis_template = synthesis
-                            existing = await um.read(f"{folder}/{synthesis_file}")
-                            if not existing:
-                                await um.write(
-                                    f"{folder}/{synthesis_file}",
-                                    synthesis_template,
-                                    summary=f"ADR-151: scaffold {domain_key} domain",
-                                    metadata={"domain": domain_key, "type": "synthesis"},
-                                )
-                                logger.info(f"[MANAGE_TASK] Scaffolded context domain: {domain_key}")
-
-                        # ADR-154: Scaffold _tracker.md for entity-bearing domains
-                        from services.directory_registry import has_entity_tracker, get_tracker_path, build_tracker_md
-                        if has_entity_tracker(domain_key):
-                            tracker_path = get_tracker_path(domain_key)
-                            if tracker_path:
-                                existing_tracker = await um.read(tracker_path)
-                                if not existing_tracker:
-                                    tracker_content = build_tracker_md(domain_key, [])
-                                    await um.write(
-                                        tracker_path, tracker_content,
-                                        summary=f"ADR-154: entity tracker for {domain_key}",
-                                    )
-            except Exception as e:
-                logger.warning(f"[MANAGE_TASK] Context domain scaffold failed (non-fatal): {e}")
-
-    except Exception as e:
-        logger.warning(f"[MANAGE_TASK] TASK.md write failed (non-fatal): {e}")
-
-    # ADR-154: memory/tasks.json dissolved — task assignments tracked via TASK.md, not agent memory
-    # ADR-164: task_created activity_log write removed. tasks table + TASK.md ARE the record.
-
-    # Update WORKSPACE.md manifest (living manifest — ADR-152)
-    try:
-        from services.workspace_init import update_workspace_manifest
-        await update_workspace_manifest(auth.client, user_id)
-    except Exception:
-        pass  # Non-fatal
-
-    # Build process narration for TP to explain the workflow
-    process_narration = None
-    if type_key and resolved_steps:
-        step_descriptions = []
-        for s in resolved_steps:
-            agent_label = s.get("agent_title") or s.get("agent_type", "agent")
-            step_descriptions.append(f"{agent_label} ({s['step']})")
-        process_narration = " → ".join(step_descriptions)
-
-    return {
-        "success": True,
-        "action": "create",
-        "task_id": task_id,
-        "task_slug": slug,
-        "type_key": type_key,
-        "agent_slug": agent_slug,
-        "process_agents": resolved_agent_slugs or [agent_slug],
-        "process_narration": process_narration,
-        "mode": mode,
-        "schedule": schedule,
-        "next_run_at": next_run_at,
-        "message": f"Created task '{title}'" + (f" ({type_key})" if type_key else "") + f" — {schedule or 'on-demand'}."
-                   + (f" Process: {process_narration}." if process_narration else ""),
-        "ui_action": {
-            "type": "NAVIGATE",
-            "data": {"url": f"/agents", "label": title},
-        },
     }

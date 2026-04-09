@@ -178,7 +178,7 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 | `DiscoverAgents` | lifecycle | ○ | ● | inter-agent | [workspace.py](../../api/services/primitives/workspace.py) | Find other agents in the workspace by role/scope/status (ADR-116 Phase 2). |
 | `UpdateContext` | context | ● | ○ | context-mutation | [update_context.py](../../api/services/primitives/update_context.py) | Single verb for all context mutations. Targets: `identity`, `brand`, `memory`, `agent`, `task`, `deliverable`. Chat only today; may extend to headless in future. |
 | `ManageAgent` | lifecycle | ● | ● | lifecycle | [coordinator.py](../../api/services/primitives/coordinator.py) | Create, update, pause, resume, archive agent. |
-| `ManageTask` | lifecycle | ● | ● | lifecycle | [manage_task.py](../../api/services/primitives/manage_task.py) | Create, trigger, update, pause, resume, evaluate, steer, complete task. ADR-168 Commit 3 folded the former `CreateTask` primitive into `action="create"` for symmetry with `ManageAgent`. |
+| `ManageTask` | lifecycle | ● | ● | lifecycle | [manage_task.py](../../api/services/primitives/manage_task.py) | Create, trigger, update, pause, resume, evaluate, steer, complete task. (Folds former `CreateTask` as `action="create"`.) |
 | `ManageDomains` | lifecycle | ● | ● | lifecycle | [scaffold.py](../../api/services/primitives/scaffold.py) | Scaffold, add, remove, list entities in workspace context domains (ADR-155/157). |
 | `RepurposeOutput` | action | ● | ○ | user-authorized | [repurpose.py](../../api/services/primitives/repurpose.py) | Adapt an existing task output to a different format or channel (ADR-148). |
 | `RuntimeDispatch` | action | ● | ○ (via type capability) | asset-render | [runtime_dispatch.py](../../api/services/primitives/runtime_dispatch.py) | Dispatch to output gateway for asset rendering (ADR-118). Chat exposure for explicit user requests. Headless agents with asset capabilities invoke it as a post-generation step, not as a mid-task tool. |
@@ -190,15 +190,15 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 
 ### Mode totals
 
-**Current state (post-ADR-168 Commit 3, as of 2026-04-09):**
+**Current state (post-ADR-168 Commit 2, as of 2026-04-09):**
 
-- **Chat mode:** 13 tools (was 15). `Execute` dissolved in Commit 2; `CreateTask` folded into `ManageTask(action="create")` in Commit 3. Current set: `Read`, `List`, `Search`, `Edit`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`. *(Names still in pre-Commit-4 form.)*
-- **Headless mode:** 15 static tools + `platform_*` dynamic (was 16). `CreateTask` folded in Commit 3. Set: `Read`, `List`, `Search`, `GetSystemState`, `WebSearch`, `ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, `QueryKnowledge`, `ListWorkspace`, `DiscoverAgents`, `ReadAgentContext`, `ManageAgent`, `ManageTask`, `ManageDomains`.
+- **Chat mode:** 14 tools (was 15). `Execute` dissolved in Commit 2. Current set: `Read`, `List`, `Search`, `Edit`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `CreateTask`, `ManageTask`, `RepurposeOutput`, `Clarify`. *(Names still in pre-Commit-4 form.)*
+- **Headless mode:** 16 static tools + `platform_*` dynamic. Unchanged by Commit 2. Set: `Read`, `List`, `Search`, `GetSystemState`, `WebSearch`, `ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, `QueryKnowledge`, `ListWorkspace`, `DiscoverAgents`, `ReadAgentContext`, `ManageAgent`, `CreateTask`, `ManageTask`, `ManageDomains`.
 
 **Target state (post-ADR-168 Commit 5):**
 
-- **Chat mode:** 13 static primitives (`LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`). Entity verbs renamed (no count change from current).
-- **Headless mode:** 15 static primitives + `platform_*` dynamic. The static set: `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`, `QueryKnowledge`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`. Entity + file verbs renamed; no count change from current.
+- **Chat mode:** 13 static primitives (`LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`). `CreateTask` folded into `ManageTask(action="create")`, entity verbs renamed.
+- **Headless mode:** 14 static primitives + `platform_*` dynamic. The static set: `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`, `QueryKnowledge`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`. *Note: 15 entries, not 14 — the count reflects CreateTask folding (−1) and ReadAgentContext rename (no count change). Final tally confirmed in Commit 5.*
 
 **Hard boundaries (enforced by [api/test_recent_commits.py](../../api/test_recent_commits.py)):**
 
@@ -239,13 +239,10 @@ The `feedback_target` sub-parameter on `target="task"` has its own 5-value enum:
 
 ### `ManageTask.action`
 
-8-value enum. Source of truth: `MANAGE_TASK_TOOL.input_schema.properties.action.enum` in `api/services/primitives/manage_task.py`. ADR-168 Commit 3 folded the former `CreateTask` primitive into this enum as `"create"` for symmetry with `ManageAgent`.
-
-Note: `task_slug` is required for all actions EXCEPT `create` (which generates the slug from `title`). The top-level `required` field in the tool schema is `["action"]`; the `task_slug` requirement is enforced inside `handle_manage_task()` for non-create actions.
+Current: 7-value enum. Source of truth: `MANAGE_TASK_TOOL.input_schema.properties.action.enum` in `api/services/primitives/manage_task.py`. ADR-168 Commit 3 will fold `CreateTask` into this enum as `"create"`, making it 8-value.
 
 | Action | Effect | Mode availability | Introduced |
 |---|---|---|---|
-| `create` | Scaffold a new task from a task type (or custom `agent_slug` + `objective`), generate slug from `title`, write TASK.md + DELIVERABLE.md + memory scaffolds, create `tasks` row. | both | ADR-168 C3 |
 | `trigger` | Fire the task immediately (dispatch to task pipeline via `_handle_trigger` → `execute_task()`) | both | ADR-146 |
 | `update` | Patch task fields (schedule, objective, sources, delivery) | both | ADR-146 |
 | `pause` | Set `tasks.status = 'paused'` | both | ADR-146 |
@@ -253,6 +250,7 @@ Note: `task_slug` is required for all actions EXCEPT `create` (which generates t
 | `evaluate` | Write TP evaluation to `memory/feedback.md` (goal-mode steering) | chat | ADR-149 |
 | `steer` | Write TP steering note to `memory/steering.md` | chat | ADR-149 |
 | `complete` | Mark goal-mode task complete | chat | ADR-149 |
+| `create` *(pending Commit 3)* | Scaffold a new task from a task type, assign to an agent, write TASK.md. Currently lives on the separate `CreateTask` primitive; will fold into `ManageTask` in ADR-168 Commit 3 for symmetry with `ManageAgent`. | both | ADR-168 C3 |
 
 ### `ManageDomains.action`
 
@@ -352,7 +350,7 @@ Any primitive change (rename, add, remove, mode change, enum extension) writes a
 | `Write` | Specialized primitives (ManageAgent, ManageTask, UpdateContext) | ADR-146 | P1: no remaining unique purpose |
 | `RefreshPlatformContent` | (none — flow dissolved) | ADR-153 | Platform sync removed; data flows through tracking tasks |
 | `Execute` | `ManageTask(action="trigger")` / `UpdateContext(target="agent")` / `ManageTask(action="update")` | ADR-168 Commit 2 *(shipped 2026-04-09)* | Actions dissolve into typed verbs. Also removed: `action` + `system` entity types from `refs.py` (vestigial — only served Execute's action-discovery surface). |
-| `CreateTask` | `ManageTask(action="create", title="...", type_key="..."\|agent_slug="...")` | ADR-168 Commit 3 *(shipped 2026-04-09)* | Symmetry with ManageAgent. Absorbed `title`, `type_key`, `agent_slug`, `focus`, `objective`, `success_criteria`, `output_spec` fields into `MANAGE_TASK_TOOL.input_schema`. Helpers (`_slugify`, `_build_custom_task_md`) moved into `manage_task.py`. File `primitives/task.py` deleted. |
+| `CreateTask` | `ManageTask(action="create")` | ADR-168 Commit 3 | Symmetry with ManageAgent |
 | `Read` | `LookupEntity` | ADR-168 Commit 4 | Name was ambiguous with file-layer read |
 | `List` | `ListEntities` | ADR-168 Commit 4 | Name was ambiguous |
 | `Search` | `SearchEntities` | ADR-168 Commit 4 | Name was ambiguous |

@@ -328,9 +328,7 @@ def test_registry_tool_counts():
     # Chat has UpdateContext and ManageTask
     record("Chat has UpdateContext", "UpdateContext" in chat_names)
     record("Chat has ManageTask", "ManageTask" in chat_names)
-    # ADR-168 Commit 3: CreateTask folded into ManageTask(action="create")
-    record("CreateTask not in chat registry", "CreateTask" not in chat_names)
-    record("CreateTask not in headless registry", "CreateTask" not in headless_names)
+    record("Chat has CreateTask", "CreateTask" in chat_names)
 
     # Headless has workspace tools
     record("Headless has ReadWorkspace", "ReadWorkspace" in headless_names)
@@ -396,22 +394,14 @@ def test_manage_task_tool_schema():
     required = schema["required"]
 
     actions = props["action"]["enum"]
-    # ADR-168 Commit 3: 8-value enum. "create" was added by folding the former
-    # CreateTask primitive into ManageTask. "evaluate", "steer", "complete" were
-    # added by ADR-149 for goal-mode task lifecycle.
-    record("ManageTask has 8 actions",
-           set(actions) == {"create", "trigger", "update", "pause", "resume", "evaluate", "steer", "complete"})
-    # ADR-168 Commit 3: task_slug is no longer at the top-level required field
-    # because action="create" generates the slug from title. task_slug is still
-    # required inside handle_manage_task() for all non-create actions.
-    record("ManageTask requires action only (task_slug conditional)",
-           set(required) == {"action"})
-    # Create-specific fields absorbed from former CreateTask
-    record("ManageTask has title field (create)", "title" in props)
-    record("ManageTask has type_key field", "type_key" in props)
-    record("ManageTask has agent_slug field", "agent_slug" in props)
-    record("ManageTask has focus field (create)", "focus" in props)
-    record("ManageTask has objective field (create)", "objective" in props)
+    # ADR-168 Commit 2: stale assertion updated. ADR-149 added "evaluate",
+    # "steer", "complete" for goal-mode task lifecycle (TP as task context
+    # manager). Drift-catching update while we're in the file.
+    # Commit 3 will add "create" as an 8th action (folding CreateTask).
+    record("ManageTask has 7 actions",
+           set(actions) == {"trigger", "update", "pause", "resume", "evaluate", "steer", "complete"})
+    record("ManageTask requires task_slug+action",
+           set(required) == {"task_slug", "action"})
     record("ManageTask has context field", "context" in props)
     record("ManageTask has schedule field", "schedule" in props)
     record("ManageTask has delivery field", "delivery" in props)
@@ -522,11 +512,6 @@ def test_no_dangling_imports():
         # ADR-168 Commit 2: Execute primitive dissolved
         "from services.primitives.execute",
         "from .execute import",
-        # ADR-168 Commit 3: CreateTask folded into ManageTask(action="create")
-        "from services.primitives.task import",
-        "from .task import",
-        "handle_create_task",
-        "CREATE_TASK_TOOL",
     ]
 
     api_dir = Path(__file__).parent

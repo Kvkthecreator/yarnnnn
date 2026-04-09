@@ -51,12 +51,14 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   Edit: Pencil,
   List: List,
   Search: Search,
+  Execute: Play,
   Todo: ListTodo,
   Respond: FileText,
   Clarify: FileText,
   // Agent lifecycle (ADR-156)
   ManageAgent: Sparkles,
-  // Task lifecycle (ADR-138, ADR-146, ADR-168: CreateTask folded into ManageTask)
+  // Task primitives (ADR-138, ADR-146)
+  CreateTask: Sparkles,
   ManageTask: Play,
   // Domain management (ADR-155)
   ManageDomains: Sparkles,

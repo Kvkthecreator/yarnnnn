@@ -5,14 +5,11 @@ ADR-146: Consolidated primitive set.
 - UpdateContext replaces UpdateSharedContext, SaveMemory, WriteAgentFeedback, WriteTaskFeedback
 - ManageTask replaces TriggerTask, UpdateTask, PauseTask, ResumeTask
 
-ADR-168 Commit 2: Execute primitive dissolved.
+ADR-168: Execute primitive dissolved.
 - agent.generate → ManageTask(task_slug=..., action="trigger")
 - agent.acknowledge → UpdateContext(target="agent", agent_slug=..., text=...)
 - platform.publish → delivery is a task property, configured via ManageTask update
 - agent.schedule → ManageTask(task_slug=..., action="update", schedule=...)
-
-ADR-168 Commit 3: CreateTask folded into ManageTask(action="create") for
-symmetry with ManageAgent. Single lifecycle verb per entity class.
 """
 
 TOOLS_SECTION = """---
@@ -104,16 +101,11 @@ Every user starts with a pre-scaffolded team of 8 agents. The team exists from s
 
 ## Creating Tasks (primary flow)
 
-**ManageTask(action="create", title, ...)** — Create a task and assign work to an existing agent (ADR-168).
+**CreateTask(title, agent_slug)** — Assign work to an existing agent.
 Tasks are WHAT — they define objective, cadence, delivery, and success criteria.
 
-Two creation paths:
-1. **Type-keyed (preferred):** `ManageTask(action="create", title="...", type_key="...")` — pipeline, schedule, and agent are auto-populated from the task type registry.
-2. **Custom:** provide `agent_slug` + `objective` manually when no type fits.
-
 ```
-ManageTask(
-  action: "create",
+CreateTask(
   title: "Weekly Competitive Briefing",
   agent_slug: "research-agent",
   objective: {output: "Weekly briefing", audience: "Founder", purpose: "Track competitors", format: "Document with charts"},
@@ -124,8 +116,8 @@ ManageTask(
 )
 ```
 
-**Required:** action="create", title, and one of {type_key, agent_slug}
-**Optional:** mode, objective, schedule, delivery, success_criteria, output_spec, focus, sources
+**Required:** title, agent_slug (must match an existing agent)
+**Optional:** mode, objective, schedule, delivery, success_criteria, output_spec
 
 **mode** determines temporal behavior:
 - `recurring` (default) — runs on fixed cadence indefinitely (weekly briefings, daily recaps)

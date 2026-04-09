@@ -424,7 +424,7 @@ ADR-145 task types don't remove the need for onboarding context. Without identit
 
 **When adding task type catalog to workfloor:**
 - Update SURFACE-PRIMITIVES-MAP.md with new surface elements
-- Catalog cards are NOT primitives — they're UI that scaffolds via `ManageTask(action="create")`
+- Catalog cards are NOT primitives — they're UI that scaffolds via `CreateTask`
 - The `+ Add deliverable` button triggers catalog, not a primitive directly
 - Chat plus menu may gain a "Browse deliverable types" action
 
