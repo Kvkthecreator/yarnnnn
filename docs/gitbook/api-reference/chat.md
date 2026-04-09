@@ -1,6 +1,6 @@
 # Chat API
 
-Chat endpoints power the Thinking Partner / Orchestrator experience.
+Chat endpoints power the Thinking Partner experience.
 
 ## Send message
 

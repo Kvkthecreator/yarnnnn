@@ -2,6 +2,14 @@
 
 Notable updates to YARNNN and GitBook docs.
 
+## April 2026
+
+### Service model sync (Apr 9)
+- Updated GitBook to match the current service model: agents are the specialists, tasks are the work units, and Thinking Partner is the meta-cognitive agent
+- Replaced legacy project, meeting-room, and orchestrator language across Getting Started, Concepts, FAQ, and Plans pages
+- Reframed the MCP connector as the three-tool context hub across LLMs instead of an external admin surface
+- Aligned public docs with the recent agent/work surface changes shipped in early April
+
 ## March 2026
 
 ### Public docs overhaul (Mar 17)

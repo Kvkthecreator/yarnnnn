@@ -1,38 +1,39 @@
 # Thinking Partner
 
-The **Thinking Partner (TP)** is YARNNN's conversational control layer.
+The **Thinking Partner (TP)** is YARNNN's meta-cognitive agent.
 
-In the product UI, you may also see this described as the **Orchestrator**. It is the same core system: the layer that helps you understand, steer, and supervise the rest of YARNNN at the system level.
+TP lives on the same agent substrate as the rest of the workforce. What makes it different is not a separate runtime or special UI category. What makes it different is its job: it manages the system.
 
 ## What TP is for
 
 Use TP when you want to:
 
 - ask questions across your synced work context
-- create new projects or agents
-- get a system-wide view of what your agents are doing
-- inspect what YARNNN knows and why it acted
+- create or adjust tasks
+- understand what your agents are doing across the system
+- inspect what YARNNN knows and why work ran
+- decide what should exist next in the workspace
 
-## TP vs. meeting rooms
+## TP vs. domain agents
 
-YARNNN has two conversational surfaces:
+YARNNN has one workforce with two kinds of jobs:
 
-| | Thinking Partner | Meeting rooms |
+| | Thinking Partner | Domain agents |
 |---|---|---|
-| **Scope** | System-wide | One project |
-| **Who you talk to** | The orchestrator | Any agent in the project |
-| **Best for** | Creating projects, system-level questions | Directing specific agents, reviewing work |
-| **Where** | Global orchestrator page | Inside each project |
+| **Scope** | System-wide | A specific domain or work area |
+| **Primary job** | Orchestrate, explain, and supervise | Execute recurring work |
+| **Best for** | Creating tasks, inspecting the system, redirecting priorities | Building depth and producing outputs |
+| **What compounds** | Judgment about attention allocation | Domain knowledge and execution quality |
 
-Most day-to-day interaction happens in **meeting rooms** — talking directly to the agents doing the work. TP is for bigger-picture decisions: creating new projects, cross-project questions, and overall workforce supervision.
+TP does not replace domain agents. It manages them.
 
 ## How TP is different from a generic chat tool
 
 | Generic AI chat | YARNNN Thinking Partner |
 |---|---|
 | Starts from the prompt in front of it | Starts with your connected work context |
-| Usually works one turn at a time | Manages an ongoing system of agents, projects, and feedback |
-| Helps you think | Helps you think and helps the system work |
+| Usually works one turn at a time | Manages an ongoing system of agents, tasks, and feedback |
+| Helps you think | Helps you think and helps the system keep working |
 | Resets easily | Improves as your context and feedback accumulate |
 
 ## What you can ask TP
@@ -41,7 +42,7 @@ Examples:
 
 > "What changed across Slack and Notion about the launch this week?"
 
-> "Create a project that gives me a weekly leadership brief from engineering and product."
+> "Create a weekly leadership brief from engineering and product."
 
 > "Why did my Slack agent generate today?"
 
@@ -49,11 +50,11 @@ Examples:
 
 ## TP and the agent workforce
 
-TP is not just another agent in a list. It is the layer that supervises the workforce.
+TP is an agent, but it is not just another specialist in a list.
 
-- TP creates projects and agents
-- TP monitors agent health and performance
-- TP helps interpret outputs
+- TP creates and adjusts tasks
+- TP monitors workforce health and back-office upkeep
+- TP helps interpret outputs and explain system behavior
 - TP helps you decide what should exist next
 
-Agents own specific domains of work. TP owns the judgment about how the whole system should evolve.
+Domain agents own specific domains of work. TP owns the judgment about how the whole system should evolve.

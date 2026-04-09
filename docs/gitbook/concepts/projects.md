@@ -1,82 +1,73 @@
-# Projects & Multi-Agent Work
+# Tasks & Multi-Agent Work
 
-Projects are how agents collaborate in YARNNN.
+Tasks are how work gets defined and delivered in YARNNN.
 
-## What is a project?
+## What is a task?
 
-A project is a container for a piece of recurring work. It has:
+A task is a standing work contract. It defines:
 
 - **An objective**: what the work should deliver, for whom, in what format
-- **Contributor agents**: the agents doing the actual work (pulling from Slack, researching, etc.)
-- **A Project Manager (PM) agent**: coordinates contributors, tracks freshness, assembles deliverables
+- **A mode and cadence**: whether the work is recurring, goal-based, or reactive
+- **A delivery target**: where the output should go
+- **An assignment**: which agent or multi-agent process should do the work
 
-Simple jobs — like a Slack recap — are a project with one contributor and a PM. Bigger jobs have multiple contributors working together.
+Simple jobs use one agent. Bigger jobs can define a multi-step process across several agents.
 
-## How projects get created
+## How tasks get created
 
 There are three ways:
 
-1. **Automatically**: when you connect a platform, YARNNN creates a matching project (Slack Recap, Notion Summary, etc.)
-2. **Through conversation**: ask the Orchestrator to create a project — "give me a weekly leadership brief from engineering and product"
-3. **By the system**: YARNNN's Composer periodically assesses your work and may suggest or auto-create projects when the pattern is clear
+1. **Through conversation**: ask Thinking Partner to set up recurring work in plain language
+2. **From a task type**: select a known outcome such as a brief, digest, or report
+3. **By iteration**: start with one task, then expand or refine as the workspace matures
 
-## The Project Manager agent
+## The daily update
 
-Every project has a PM agent. The PM is not a third layer of intelligence — it is a domain expert whose domain is project coordination.
+Every workspace starts with a daily update task.
 
-The PM:
+It is the minimum heartbeat of the system:
 
-- tracks whether contributors have fresh output
-- assesses contribution quality against the project objective
-- decides when to assemble contributions into a deliverable
-- steers contributors via briefs when their focus needs adjustment
-- manages the project's work budget
+- it proves the system is alive
+- it gives the user something useful even before a larger workflow exists
+- it becomes richer as more tasks and context accumulate
 
-PM agents are infrastructure — they do not count against your active agent limit.
+## Multi-agent work
 
-## Meeting rooms
+For larger jobs, a task can define a process instead of a single assignment.
 
-Each project has a **meeting room** — a group chat where agents are visible participants.
+Example:
 
-In the meeting room you can:
+- a domain steward gathers internal signals
+- a researcher adds external context
+- a synthesizer assembles the final deliverable
 
-- talk to any agent by @-mentioning them
-- give direction that persists across sessions
-- see agent activity (pulse decisions, runs, assessments)
-- review output and give feedback inline
+The task owns that process. Thinking Partner orchestrates it. There is no separate project-manager layer.
 
-The PM is the default responder in the meeting room. But you can talk to any contributor directly.
+## Task types
 
-## Multi-agent deliverables
+Task types are the product surface.
 
-For bigger jobs, the PM assembles contributions from multiple agents into one deliverable.
+Users think in outcomes, not internal mechanics. YARNNN resolves an outcome into the right work definition.
 
-Example: a weekly leadership brief might involve:
+Typical task shapes include:
 
-- a Slack agent summarizing #engineering and #product
-- a Notion agent pulling project status from docs
-- a research agent tracking competitor activity
-- the PM assembling all three into one polished report
+- recurring digests
+- status reports
+- research briefs
+- monitoring tasks that keep a domain fresh
 
-The PM decides when contributions are fresh and good enough to assemble. The output can be delivered as email, PDF, slides, or other formats.
+## What you see on the Work surface
 
-## Project types
+Each task has its own detail view in Work, including:
 
-YARNNN has a curated registry of project types:
-
-| Type | Created by | What it does |
-|---|---|---|
-| Slack Recap | Auto (on connect) | Summarizes selected Slack channels |
-| Notion Summary | Auto (on connect) | Summarizes selected Notion pages |
-| Custom | Conversation or Composer | Any recurring work you describe |
-
-Custom projects can have any combination of agents, sources, and output formats.
+- latest output
+- schedule and status
+- assigned agent or process
+- run history
+- delivery and export information
 
 ## Work budget
 
-Each project consumes work units when agents run, when the PM assembles, and when output is rendered. The work budget prevents unbounded compute:
+Tasks are the unit of autonomous work.
 
-- **Free**: 60 work units / month
-- **Pro**: 1,000 work units / month
-
-See [Plans](../plans/plans.md) for details.
+Work units meter task execution, composition, and delivery so the system can stay bounded instead of running indefinitely without constraint. See [Plans](../plans/plans.md) for details.

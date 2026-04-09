@@ -23,7 +23,7 @@ Plan limits below reflect the current product model: **Free** and **Pro**.
 
 ## What are work units?
 
-Work units measure autonomous work — each agent run, report assembly, and rendered output (PDF, slides, etc.) costs one unit. Messages (your conversations with agents) are counted separately.
+Work units measure autonomous work. Task execution, composition, and rendered delivery count toward the budget. Messages with Thinking Partner are counted separately.
 
 - **Free: 60 units/month** covers daily runs for 2 agents
 - **Pro: 1,000 units/month** covers a full workforce running multiple times per day
@@ -38,6 +38,6 @@ Work units measure autonomous work — each agent run, report assembly, and rend
 ## Notes
 
 - Source limits are enforced per platform.
-- Project Manager agents are infrastructure — they do not count against your active agent limit.
+- Tasks, not projects, are the unit of autonomous work in the current model.
 - Usage and next sync timestamp are available via `GET /api/user/limits`.
 - Pricing details may evolve; check the [changelog](../changelog.md) for updates.

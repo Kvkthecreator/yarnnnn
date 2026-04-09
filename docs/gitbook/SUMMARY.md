@@ -12,7 +12,7 @@
 
 * [How YARNNN works](concepts/how-yarnnn-works.md)
 * [What are agents?](concepts/what-are-agents.md)
-* [Projects & multi-agent work](concepts/projects.md)
+* [Tasks & multi-agent work](concepts/projects.md)
 * [Thinking Partner](concepts/thinking-partner.md)
 * [How YARNNN learns](concepts/how-yarnnn-learns.md)
 * [How your data is used](concepts/how-your-data-is-used.md)
@@ -22,7 +22,7 @@
 * [Overview](integrations/overview.md)
 * [Slack](integrations/slack.md)
 * [Notion](integrations/notion.md)
-* [MCP Connector — Claude & ChatGPT](integrations/mcp-connector.md)
+* [MCP Connector — Context Hub Across LLMs](integrations/mcp-connector.md)
 
 ## Plans & Billing
 

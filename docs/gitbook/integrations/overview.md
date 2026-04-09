@@ -28,13 +28,13 @@ Integrations are the onramp into the system's substrate.
 They make it possible to:
 
 - answer questions grounded in your real work
-- bootstrap useful starter agents quickly
+- bootstrap useful tasks and grounded agent work quickly
 - synthesize across platforms instead of staying in a single silo
 - build better output over time as the substrate deepens
 
 ## External AI access
 
-You can also use YARNNN from Claude or ChatGPT through the [MCP connector](mcp-connector.md).
+You can also use YARNNN from Claude, ChatGPT, and compatible clients through the [MCP connector](mcp-connector.md).
 
 ## Security
 

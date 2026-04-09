@@ -4,11 +4,11 @@
 
 ### What is YARNNN?
 
-YARNNN is an AI agent platform for recurring knowledge work. It connects to your tools, runs persistent agents in the background that deliver real work on schedule, and improves through supervision and accumulated feedback.
+YARNNN is an autonomous agent platform for recurring knowledge work. It connects to your tools, runs persistent agents against recurring tasks, and improves through supervision and accumulated feedback.
 
 ### How is YARNNN different from ChatGPT or Claude?
 
-Chat tools are session-based — they help in the moment but reset when you close the tab. YARNNN is system-based: it maintains synced context from your work tools, runs agents on schedule without you, and learns from your feedback over time. The output gets better the longer it runs.
+Chat tools are session-based. They help in the moment but reset when you close the tab. YARNNN is system-based: it maintains synced context from your work tools, runs tasks on schedule without you, and learns from your feedback over time. The output gets better the longer it runs.
 
 ### What kind of work can YARNNN do?
 
@@ -21,7 +21,7 @@ Common work patterns include:
 
 ### What does "autonomous" mean here?
 
-Agents run in the background on schedule — you don't need to prompt them. They pull fresh context from your connected tools, produce work, and deliver it. You review and redirect when needed. Over time, they require less supervision.
+Tasks run in the background on schedule or by trigger, using persistent agents and shared workspace context. You do not need to re-prompt from zero each time. You review and redirect when needed.
 
 ## Setup & Integrations
 
@@ -37,23 +37,23 @@ Source integrations are read-only for context ingestion. Delivery is separate: Y
 
 Yes. YARNNN starts with smart defaults after connection, and you can refine source coverage at any time.
 
-## Agents & Projects
+## Agents & Tasks
 
 ### Do I have to create agents manually?
 
-No. When you connect a platform, YARNNN automatically creates a project with agents matched to your workflow. You can also create projects through conversation — just describe what you need in plain language.
+No. YARNNN scaffolds a starter workforce, and Thinking Partner can create or adjust tasks and assignments from plain language.
 
-### What are projects?
+### What are tasks?
 
-Projects are how agents collaborate. A project has an objective, one or more contributor agents, and a Project Manager agent that coordinates their work and assembles deliverables. Simple jobs (like a Slack recap) are a project with one agent. Bigger jobs have multiple agents working together.
+Tasks are the work units. A task defines the objective, cadence, delivery target, and assigned agent or multi-agent process. Simple jobs use one agent. Bigger jobs can involve several agents working in sequence.
 
-### Can I talk to agents directly?
+### How do I steer the system?
 
-Yes. Each project has a meeting room where you can talk to any agent. Give direction, ask questions, or redirect focus. Your instructions persist across sessions — agents remember what you told them.
+Use Thinking Partner to create work, change priorities, refine task objectives, and inspect why something ran. Use the Work and Agents surfaces to review outputs, history, and the specialists involved.
 
 ### How do agents improve over time?
 
-Each agent learns from prior runs, edits, and your direct feedback. They also accumulate domain knowledge — understanding your team, projects, and communication patterns more deeply with each cycle.
+Each agent learns from prior runs, edits, and your feedback. They also accumulate domain knowledge, which means later work can become more specific and better calibrated than the first run.
 
 ### What output formats are available?
 
@@ -61,7 +61,7 @@ Agents can produce plain text, email-ready content, PDFs, slide decks (PPTX), sp
 
 ### Do agents have run history?
 
-Yes. Every generation creates a run you can inspect and review over time.
+Yes. Every task run creates inspectable history over time, including outputs and execution context.
 
 ## Privacy & Security
 
@@ -81,7 +81,7 @@ Check [Plans](../plans/plans.md). Limits are versioned and may evolve with produ
 
 ### What are work units?
 
-Work units measure autonomous work — agent runs, report assemblies, and rendered output. Free includes 60/month, Pro includes 1,000/month. Messages (conversations with agents) are counted separately.
+Work units measure autonomous work. Task execution, composition, and delivery count toward that budget. Messages with Thinking Partner are counted separately.
 
 ### Can I upgrade or downgrade later?
 

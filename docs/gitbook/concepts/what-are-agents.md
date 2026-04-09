@@ -1,44 +1,53 @@
 # What Are Agents?
 
-Agents are persistent work specialists inside YARNNN.
+Agents are persistent specialists inside YARNNN.
 
-They are not one-off prompts. They keep their own instructions, sources, run history, and accumulated feedback over time.
+They are not one-off prompts. Each agent keeps its own identity, capabilities, run history, and accumulated feedback over time.
+
+## Agents are the "who"
+
+YARNNN's service model separates:
+
+- **Agents = who does the work**
+- **Tasks = what work gets done**
+
+An agent can be assigned to more than one task. A task can be simple, or it can define a multi-agent process.
 
 ## What makes an agent useful
 
 Each agent combines four things:
 
-1. **A job**: what it is supposed to produce
-2. **Coverage**: which sources it should draw from
-3. **A schedule**: when and how often it runs
-4. **Feedback history**: what it has learned from prior runs
+1. **Identity**: its name, domain, and standing instructions
+2. **Capabilities**: which tools and runtimes it can use
+3. **Domain memory**: what it has learned from prior work
+4. **Assignments**: the tasks it is currently responsible for
 
 That is why the tenth run of an agent should be better than the first.
 
-## Common agent jobs
+## Common agent classes
 
-Most users begin with one of these:
+YARNNN's workforce includes a few different kinds of agents:
 
-- **Weekly update**: summarize Slack channels or Notion pages on a schedule
-- **Competitor watch**: monitor topics or competitors with web research
-- **Research tracker**: investigate a topic and deepen findings over time
-- **Status report**: synthesize activity across platforms into a polished deliverable
+- **Domain stewards**: specialists that keep a context domain fresh and useful
+- **Synthesizers**: agents that turn multiple inputs into a report or brief
+- **Platform bots**: agents tied closely to a platform such as Slack, Notion, or GitHub
+- **Thinking Partner**: the meta-cognitive agent that manages the workforce itself
 
 ## How agents run
 
-Every agent has a **pulse** — an autonomous sense-and-decide cycle that runs on cadence.
+Agents do not own the schedule by themselves. Tasks do.
 
-When the pulse fires, the agent checks whether it has fresh context and enough signal to produce useful work. If it does, it generates. If not, it waits. Either way, the pulse is visible — you can see what your agents are doing even when they decide not to generate.
+When a task runs, YARNNN resolves the assigned agent or agents, gathers the needed context, and executes the work.
 
-New agents pulse on their schedule. As agents gain tenure and trust, their pulse becomes more sophisticated — they self-assess before generating and can act off-schedule when something warrants it.
+This matters because the same agent can contribute to multiple tasks over time, which is how its knowledge compounds instead of being trapped inside one workflow.
 
 ## Agents work together
 
 For bigger jobs, multiple agents can collaborate on a single deliverable.
 
-One agent pulls from Slack, another from Notion, another does research — then a coordinator (the Project Manager agent) assembles their contributions into one polished output. You get a finished product, not fragments.
+One agent might pull internal signals, another might research external context, and a final synthesis step turns that into one polished output. You get a finished product, not fragments.
 
-This is how [projects](projects.md) work: a team of agents with a shared objective, coordinated by a PM.
+This is how [tasks](projects.md) scale from one specialist to a multi-agent process.
 
 ## Output formats
 
@@ -58,9 +67,10 @@ Every run gives you something concrete to evaluate.
 
 - review the work
 - edit it if needed
-- talk to the agent directly in its [meeting room](projects.md) to redirect its focus
+- ask TP to adjust the task, delivery, or emphasis
+- inspect the assigned specialist on the Agents surface
 
-That feedback becomes part of the agent's future behavior. Instructions you give in conversation persist across sessions — agents remember what you told them.
+That feedback becomes part of the agent's future behavior.
 
 ## Why persistence matters
 
