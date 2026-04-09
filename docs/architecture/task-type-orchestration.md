@@ -10,7 +10,10 @@
 
 ## Overview
 
-Task types are YARNNN's product surface — concrete deliverables users select, backed by pre-meditated multi-agent execution pipelines. The system resolves "I want a Competitive Intelligence Brief" into a deterministic sequence of agent steps, each contributing its best capability.
+Task types are YARNNN's product surface — concrete deliverables or recurring
+work contracts users select, backed by pre-meditated multi-agent execution
+pipelines. The system resolves "I want a Competitive Intelligence Brief" into a
+deterministic sequence of agent steps, each contributing its best capability.
 
 **Core principle:** Deliverable-first, not agent-first. Users think in outcomes; the platform resolves outcomes into agent orchestration.
 
@@ -29,13 +32,18 @@ TASK_TYPES: dict[str, TaskTypeDefinition] = {
     "type-key": {
         "display_name": str,           # User-facing name
         "description": str,            # One-line description for onboarding cards
-        "category": str,               # intelligence | operations | platform | content | tracking
+        "output_kind": str,            # accumulates_context | produces_deliverable | external_action | system_maintenance
+        "default_mode": str,           # recurring | goal | reactive
         "default_schedule": str,        # daily | weekly | biweekly | monthly | on-demand
+        "layout_mode": str,             # document | digest | email | message | comment
         "output_format": str,           # html | markdown
         "export_options": list[str],    # ["pdf", "pptx", "xlsx"]
         "process": list[ProcessStep],   # Ordered execution steps
-        "context_sources": list[str],   # ["web", "platforms", "workspace"]
+        "context_reads": list[str],     # Domains or ["*"] for all domains
+        "context_writes": list[str],    # Domains written by tracking tasks
         "requires_platform": str|None,  # "slack" | "notion" | None
+        "default_deliverable": dict,    # Deliverable contract scaffold for DELIVERABLE.md
+        "bootstrap": dict|None,         # Optional readiness criteria for context tasks
     }
 }
 ```
@@ -56,11 +64,12 @@ ProcessStep = {
 ```
 User selects task type
     → look up TASK_TYPES[type_key]
+    → assign output_kind + default_mode + context wiring
     → for each process step:
         → resolve agent from user's roster by agent_type
         → verify required capabilities via AGENT_TYPES registry
         → inject step instruction into execution prompt
-    → scaffold TASK.md with type_key, objective, pipeline reference
+    → scaffold TASK.md with type_key, objective, process reference
 ```
 
 ---
@@ -172,6 +181,28 @@ Two orchestration modes coexist:
 | Use case | Known deliverable patterns | Novel user requests |
 
 **Promotion path:** When TP consistently improvises the same pattern (e.g., "research topic → format as report" repeated 3+ times), suggest promoting it to a registered task type.
+
+## Surface Implications
+
+Task types should not produce one bespoke page per `type_key`. The shell should
+follow the same registry boundary the execution model uses:
+
+1. `output_kind` decides the primary `/work` detail shape
+2. registry metadata (`requires_platform`, `bootstrap`, `layout_mode`) adds
+   bounded secondary modules
+3. `type_key` specializes copy and small task-family affordances
+
+This keeps task presentation aligned with the execution model:
+
+- `accumulates_context` tasks are about context growth, freshness, and change logs
+- `produces_deliverable` tasks are about rendering and delivering an artifact
+- `external_action` tasks are about target, payload, and delivery result
+- `system_maintenance` tasks are about deterministic upkeep and observability
+
+Each task run should emit a surface-ready packet for the frontend, but
+"surface-ready output" is not always the same thing as a complete task view.
+Deliverable tasks can be artifact-led; the other three kinds still need
+operational context, history, and provenance around the artifact.
 
 ---
 

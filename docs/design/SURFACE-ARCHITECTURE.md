@@ -7,7 +7,7 @@
 - [ADR-165 v5](../adr/ADR-165-workspace-state-surface.md) — `/chat` workspace state surface (TP-directed, single component, four lead views)
 - [ADR-166](../adr/ADR-166-registry-coherence-pass.md) — task `output_kind` enum (4 values)
 - [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — `/work` and `/agents` collapse from master-detail into list/detail mode with kind-aware detail. **v2 amendment**: breadcrumb collapses into in-page `<PageHeader />`, replacing the floating bar AND the per-page title bands inside `WorkDetail`/`AgentContentView`.
-- [AGENT-SURFACE-PATTERNS](./AGENT-SURFACE-PATTERNS.md) — broader agent-shell and no-task-state rules layered on top of ADR-167
+- [AGENT-AND-TASK-SURFACE-PATTERNS](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — broader shell and no-task-state rules layered on top of ADR-167
 
 **Supersedes:**
 - v9 (2026-04-08) — list/detail collapse with separate `<GlobalBreadcrumb />` floating bar

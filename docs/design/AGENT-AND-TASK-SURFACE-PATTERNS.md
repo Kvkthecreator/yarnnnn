@@ -1,21 +1,23 @@
-# Agent Surface Patterns
+# Agent And Task Surface Patterns
 
 **Date:** 2026-04-09  
 **Status:** Active  
 **Related:**
 - [SURFACE-ARCHITECTURE.md](./SURFACE-ARCHITECTURE.md) — canonical route and surface model
 - [AGENT-PRESENTATION-PRINCIPLES.md](./AGENT-PRESENTATION-PRINCIPLES.md) — historical framing and prior agent-surface principles
+- [../features/task-types.md](../features/task-types.md) — task registry grouped by `output_kind`
 - [ADR-140](../adr/ADR-140-agent-workforce-model.md) — workforce classes
 - [ADR-164](../adr/ADR-164-back-office-tasks-tp-as-agent.md) — Thinking Partner as meta-cognitive agent
 - [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — canonical `/agents` list/detail surface
 
 ## Purpose
 
-Define the scalable presentation rules for agent surfaces.
+Define the scalable presentation rules for agent and task detail surfaces.
 
 This doc is broader than the current implementation pass. It covers:
 
 - how agent detail should vary by class without exploding into per-agent pages
+- how task detail should vary by `output_kind` without exploding into per-task-type pages
 - how no-task states should differ by agent class
 - when to create role-specific add-on modules
 - which presentation concerns belong to `agent_class`, `role`, or `task.output_kind`
@@ -31,6 +33,92 @@ The right layering is:
 3. **`role` can add small specialized modules when the data genuinely differs**
 
 This prevents a combinatorial explosion as the roster evolves.
+
+## Task-Side Counterpart On `/work`
+
+The same anti-fragmentation rule applies on the work surface, but the top-level
+cut is different.
+
+**Do not build one page per task type.**
+
+The right layering for task detail is:
+
+1. **`output_kind` chooses the primary `/work` shell**
+2. **registry metadata chooses optional secondary modules**
+3. **`type_key` only specializes bounded copy, labels, and a small number of modules**
+
+That means the task-side equivalent of `agent_class` is **not** `type_key`.
+It is `output_kind`.
+
+### Why `output_kind` is the right shell boundary
+
+The four task shapes represent materially different user questions:
+
+| `output_kind` | User question | Primary shell emphasis |
+|---|---|---|
+| `accumulates_context` | "What knowledge is this task keeping fresh?" | Domain coverage, freshness, changelog, context growth |
+| `produces_deliverable` | "What artifact did this task produce?" | Latest deliverable, exportability, audience, quality contract |
+| `external_action` | "What did this task send, where, and did it land?" | Target surface, payload, delivery result, action history |
+| `system_maintenance` | "What upkeep happened and can I trust it?" | Policy, thresholds, hygiene log, deterministic run history |
+
+If two task types answer the same user question with the same primary data
+shape, they should share the shell even if the copy differs.
+
+### What registry metadata should specialize
+
+Once the shell is chosen by `output_kind`, small secondary modules can come
+from registry metadata when the data genuinely differs:
+
+- `layout_mode` can distinguish document-style deliverables from email-like digests
+- `requires_platform` can add connection or target-surface panels
+- `bootstrap` can add tracker setup/progress modules
+- `default_deliverable` or quality metadata can shape expectation blocks
+
+This is the correct place for variation. It avoids forking the whole page just
+because one task type has a different framing detail.
+
+### Surface-Ready Output Principle
+
+Task outputs should be **surface-ready**, but that does not mean every task can
+collapse into a single generic "Latest output" section.
+
+There are two different concepts:
+
+- **surface-ready artifact** — a report, digest, message body, or log block that
+  is ready to render directly
+- **surface-ready task view** — the full user-facing explanation of what the task
+  did, including status, provenance, targets, history, and operational context
+
+For `produces_deliverable`, the artifact is often close to the whole story.
+For the other three `output_kind`s, the artifact is only one component of the
+page. A good task detail still needs kind-specific context around it.
+
+Every run should emit enough structure for the UI to render without guesswork:
+
+- primary artifact or latest payload
+- summary
+- status
+- timestamp
+- provenance
+- delivery/result metadata
+- links or exports
+- optional typed extras by `output_kind`
+
+### Recommended Frontend Shape For Task Detail
+
+```text
+WorkDetail
+├── SurfaceIdentityHeader
+├── TaskShellRegistry[output_kind]
+│   ├── kind-aware primary block
+│   └── kind-aware operational block
+├── TaskTypeAddonRegistry[task_family or capability]
+├── Instructions / Objective / Feedback blocks
+└── Assigned agent + task stats / run history
+```
+
+Use `TaskTypeAddonRegistry` only for bounded add-ons, not as a back door to one
+page per task type.
 
 ## Rendering Axes
 
