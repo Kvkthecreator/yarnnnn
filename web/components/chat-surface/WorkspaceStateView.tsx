@@ -1,97 +1,81 @@
 'use client';
 
 /**
- * WorkspaceStateView — single modal surface for every workspace-state scenario.
+ * WorkspaceStateView — Overview modal for /chat (ADR-165 v8).
  *
- * ADR-165 v7 (2026-04-09): The `empty` lens value dissolved. "Add context" is
- * now a peer lens (`context`) alongside briefing/recent/gaps, and the gate
- * behavior (cold-start lock) is decoupled from the lens name — it is driven
- * by `isEmpty` (the workspace-state boolean) alone. Four peer tabs, one
- * uniform component. The old "empty is exclusive" conflation is gone.
+ * Four peer tabs, all read-only, each mirroring a slice of TP's compact
+ * index (format_compact_index, ADR-159):
  *
- * Soft gate: on cold start (`isEmpty === true`), the switcher is still
- * hidden so the new user has a single focused decision to make, but the
- * lens value is just `context` like any other — not a special "empty" state.
- * The gate is a property of workspace state, not a property of the tab.
+ *   [Eye]      What I know     → workspace richness across identity/brand/team/work/knowledge/platforms/budget
+ *   [Bell]     Heads up        → gap + flag signals TP wants to surface, with "Ask TP" one-click prompts
+ *   [History]  Last time       → cross-session memory (AWARENESS.md + recent sessions)
+ *   [Activity] Team activity   → recent runs + coming up (thin glance — full view lives in /work)
  *
- * ADR-165 v6 (2026-04-08): Rendered as a TP-directed MODAL, not an inline
- * topContent overlay. TP opens it via the workspace-state marker; the user
- * opens it via the input-row icon. Closed = gone (backdrop + Esc + close
- * button all dismiss). Discovery responsibility moves entirely to TP — no
- * cold-start auto-open from the frontend.
+ * No write forms. No isEmpty prop. No soft gate. Tabs are always visible when
+ * the modal is open. Default tab on manual open is `overview` — the honest
+ * "show me the state" answer.
  *
- * The component picks its lead view from `lead` (passed in) when TP opens
- * it via the workspace-state marker, OR computes a deterministic lead from
- * agents+tasks when the user opens it manually via the input-row icon.
+ * The Onboarding modal is a separate sibling surface (OnboardingModal.tsx).
+ * This modal does NOT handle cold-start capture.
  *
- * Lead views (all peers):
- *   - context  → ContextSetup (onboarding on cold start, re-entry thereafter)
- *   - briefing → What changed (DailyBriefing)
- *   - recent   → What's running (top tasks by updated_at)
- *   - gaps     → Coverage gaps (domain agents without tasks)
+ * The only action affordance in this modal is the "Ask TP" button in the
+ * Heads up tab, which sends a pre-composed prompt to TP via sendMessage.
+ * The modal closes on click and the user sees TP's response in the chat
+ * stream. This preserves the single intelligence layer (ADR-156) — the
+ * modal never calls tools directly, all write intent routes through chat.
  */
 
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   X,
-  ClipboardList,
-  Compass,
-  Newspaper,
-  Sparkles,
+  Eye,
+  Bell,
+  History,
+  Activity,
   CheckCircle2,
   Clock3,
-  PauseCircle,
   AlertCircle,
+  Sparkles,
+  PauseCircle,
+  ArrowUpRight,
+  FileText,
+  Users,
+  Zap,
+  ClipboardList,
+  FolderOpen,
 } from 'lucide-react';
+import Link from 'next/link';
+import { api } from '@/lib/api/client';
 import { getAgentSlug } from '@/lib/agent-identity';
-import { ContextSetup } from './ContextSetup';
-import { DailyBriefing } from '@/components/home/DailyBriefing';
 import { taskModeLabel, type Agent, type Task } from '@/types';
 import { cn } from '@/lib/utils';
-
-export type WorkspaceStateLead = 'context' | 'briefing' | 'recent' | 'gaps';
+import type { WorkspaceStateLead } from '@/lib/workspace-state-meta';
 
 interface WorkspaceStateViewProps {
   open: boolean;
-  /** Lead view to render. If null, the component computes a deterministic lead from data. */
+  /** Which tab to open on first mount. If null, defaults to `overview`. */
   lead: WorkspaceStateLead | null;
   agents: Agent[];
   tasks: Task[];
   dataLoading: boolean;
-  /** Workspace has no identity yet (drives auto-gate behavior). */
-  isEmpty: boolean;
-  /** Optional reason TP passed when opening the surface. */
+  /** Optional reason TP passed when opening the surface (rendered in header). */
   reason?: string | null;
   onClose: () => void;
-  onContextSubmit: (message: string) => void;
+  /**
+   * Called when the user clicks "Ask TP" in the Heads up tab.
+   * Implementation should call sendMessage(prompt) and close the modal.
+   */
+  onAskTP: (prompt: string) => void;
+  /**
+   * Called when the user clicks the identity-empty "Ask TP" card,
+   * which routes to opening the Onboarding modal instead of chat.
+   */
+  onOpenOnboarding: () => void;
 }
 
-/**
- * Compute a deterministic lead view from current workspace state.
- * Used when the user opens the surface manually (no TP directive).
- *
- * `context` is the cold-start default — an empty workspace has nothing
- * meaningful in briefing/recent/gaps, so capture is the only useful view.
- */
-function computeLead(
-  isEmpty: boolean,
-  agents: Agent[],
-  tasks: Task[],
-): WorkspaceStateLead {
-  if (isEmpty) return 'context';
-
-  const domainAgents = agents.filter(
-    (a) => (a.agent_class || 'domain-steward') === 'domain-steward',
-  );
-  const agentsWithoutTasks = domainAgents.filter((agent) => {
-    const slug = getAgentSlug(agent);
-    return !tasks.some((task) => task.agent_slugs?.includes(slug));
-  });
-  if (agentsWithoutTasks.length > 0) return 'gaps';
-
-  if (tasks.length > 0) return 'briefing';
-  return 'recent';
-}
+// =============================================================================
+// Component
+// =============================================================================
 
 export function WorkspaceStateView({
   open,
@@ -99,18 +83,18 @@ export function WorkspaceStateView({
   agents,
   tasks,
   dataLoading,
-  isEmpty,
   reason,
   onClose,
-  onContextSubmit,
+  onAskTP,
+  onOpenOnboarding,
 }: WorkspaceStateViewProps) {
-  // Active lens — initialized from `lead` prop or computed from data.
-  const initialLead = lead ?? computeLead(isEmpty, agents, tasks);
-  const [activeLens, setActiveLens] = useState<WorkspaceStateLead>(initialLead);
+  // Active tab — initialized from `lead` prop, falls back to `overview`.
+  const initialLead = lead ?? 'overview';
+  const [activeTab, setActiveTab] = useState<WorkspaceStateLead>(initialLead);
 
-  // When the lead prop changes (TP opens with a different view), follow it.
+  // When the lead prop changes (TP opens with a different tab), follow it.
   useEffect(() => {
-    if (lead) setActiveLens(lead);
+    if (lead) setActiveTab(lead);
   }, [lead]);
 
   // Esc closes the modal. Body scroll lock while open.
@@ -130,20 +114,13 @@ export function WorkspaceStateView({
 
   if (!open) return null;
 
-  // Soft gate: switcher visibility is driven by workspace state ONLY, not by
-  // the active lens. On cold start we hide the switcher so the new user has a
-  // single focused decision (capture context). Once workspace has any content,
-  // all four tabs are reachable — including `context` as a peer for re-entry.
-  const showLensSwitcher = !isEmpty;
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-[10vh] backdrop-blur-sm animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
-      aria-label="Workspace state"
+      aria-label="Overview"
       onClick={(e) => {
-        // Backdrop click closes; clicks inside the panel are stopped below.
         if (e.target === e.currentTarget) onClose();
       }}
     >
@@ -152,11 +129,11 @@ export function WorkspaceStateView({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="rounded-xl border border-border bg-background shadow-2xl">
-          {/* Header — title + reason + close */}
+          {/* Header — title + optional reason + close */}
           <header className="flex items-start justify-between border-b border-border px-4 py-2.5">
             <div className="min-w-0">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-                Workspace state
+                Overview
               </p>
               {reason ? (
                 <p className="mt-0.5 text-sm text-foreground">{reason}</p>
@@ -166,55 +143,60 @@ export function WorkspaceStateView({
               type="button"
               onClick={onClose}
               className="rounded p-1 text-muted-foreground/40 hover:bg-muted hover:text-muted-foreground"
-              aria-label="Close workspace state"
+              aria-label="Close overview"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           </header>
 
-          {/* Lens switcher — hidden only on cold start (soft gate via isEmpty) */}
-          {showLensSwitcher && (
-            <nav
-              aria-label="Workspace state lenses"
-              className="flex items-center gap-1 border-b border-border px-2 py-1.5"
-            >
-              <LensButton
-                active={activeLens === 'briefing'}
-                icon={Newspaper}
-                label="What changed"
-                onClick={() => setActiveLens('briefing')}
-              />
-              <LensButton
-                active={activeLens === 'recent'}
-                icon={ClipboardList}
-                label="Running"
-                onClick={() => setActiveLens('recent')}
-              />
-              <LensButton
-                active={activeLens === 'gaps'}
-                icon={Compass}
-                label="Coverage"
-                onClick={() => setActiveLens('gaps')}
-              />
-              <LensButton
-                active={activeLens === 'context'}
-                icon={Sparkles}
-                label="Add context"
-                onClick={() => setActiveLens('context')}
-              />
-            </nav>
-          )}
+          {/* Tab bar — always visible. Four peer tabs in TP's voice. */}
+          <nav
+            aria-label="Overview tabs"
+            className="flex items-center gap-1 border-b border-border px-2 py-1.5"
+          >
+            <TabButton
+              active={activeTab === 'overview'}
+              icon={Eye}
+              label="What I know"
+              onClick={() => setActiveTab('overview')}
+            />
+            <TabButton
+              active={activeTab === 'flags'}
+              icon={Bell}
+              label="Heads up"
+              onClick={() => setActiveTab('flags')}
+            />
+            <TabButton
+              active={activeTab === 'recap'}
+              icon={History}
+              label="Last time"
+              onClick={() => setActiveTab('recap')}
+            />
+            <TabButton
+              active={activeTab === 'activity'}
+              icon={Activity}
+              label="Team activity"
+              onClick={() => setActiveTab('activity')}
+            />
+          </nav>
 
-          {/* Active lens content */}
+          {/* Active tab content */}
           <div className="max-h-[60vh] overflow-y-auto">
-            {activeLens === 'context' ? (
-              <ContextLead onSubmit={onContextSubmit} />
-            ) : activeLens === 'briefing' ? (
-              <BriefingLead agents={agents} tasks={tasks} />
-            ) : activeLens === 'recent' ? (
-              <RecentLead agents={agents} tasks={tasks} loading={dataLoading} />
-            ) : (
-              <GapsLead agents={agents} tasks={tasks} loading={dataLoading} />
+            {activeTab === 'overview' && (
+              <OverviewTab agents={agents} tasks={tasks} loading={dataLoading} />
+            )}
+            {activeTab === 'flags' && (
+              <FlagsTab
+                agents={agents}
+                tasks={tasks}
+                loading={dataLoading}
+                onAskTP={onAskTP}
+                onOpenOnboarding={onOpenOnboarding}
+              />
+            )}
+            {activeTab === 'recap' && <RecapTab />}
+            {activeTab === 'activity' && (
+              <ActivityTab agents={agents} tasks={tasks} loading={dataLoading} />
             )}
           </div>
         </div>
@@ -224,17 +206,17 @@ export function WorkspaceStateView({
 }
 
 // =============================================================================
-// Lens switcher button
+// Tab button
 // =============================================================================
 
-interface LensButtonProps {
+interface TabButtonProps {
   active: boolean;
   icon: React.ElementType;
   label: string;
   onClick: () => void;
 }
 
-function LensButton({ active, icon: Icon, label, onClick }: LensButtonProps) {
+function TabButton({ active, icon: Icon, label, onClick }: TabButtonProps) {
   return (
     <button
       type="button"
@@ -253,48 +235,612 @@ function LensButton({ active, icon: Icon, label, onClick }: LensButtonProps) {
 }
 
 // =============================================================================
-// Lead view: Context (identity capture + re-entry)
+// Tab 1 — "What I know" — the honest mirror
 // =============================================================================
-// On cold start this renders under a hidden switcher (the soft gate — driven
-// by `isEmpty` in the parent, not by this lens value). Once workspace has
-// any content, the switcher shows and this tab becomes a peer lens for
-// re-entry. Same component, two moments — the lens value is uniform.
 
-function ContextLead({ onSubmit }: { onSubmit: (message: string) => void }) {
+interface ProfileInfo {
+  name?: string | null;
+  role?: string | null;
+  company?: string | null;
+}
+
+interface BrandInfo {
+  exists: boolean;
+  richness: 'empty' | 'sparse' | 'rich';
+}
+
+function classifyRichness(content: string | null | undefined): 'empty' | 'sparse' | 'rich' {
+  if (!content || !content.trim()) return 'empty';
+  const stripped = content.trim();
+  if (stripped.length < 100 || stripped.split('\n').length < 3) return 'sparse';
+  return 'rich';
+}
+
+function richnessBadge(richness: 'empty' | 'sparse' | 'rich') {
+  const cls =
+    richness === 'rich'
+      ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+      : richness === 'sparse'
+        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+        : 'bg-muted text-muted-foreground';
+  const label = richness === 'rich' ? 'Rich' : richness === 'sparse' ? 'Sparse' : 'Empty';
   return (
-    <div className="p-3">
-      <ContextSetup onSubmit={onSubmit} embedded />
+    <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', cls)}>
+      {label}
+    </span>
+  );
+}
+
+function OverviewTab({
+  agents,
+  tasks,
+  loading,
+}: {
+  agents: Agent[];
+  tasks: Task[];
+  loading: boolean;
+}) {
+  const [profile, setProfile] = useState<ProfileInfo | null>(null);
+  const [brand, setBrand] = useState<BrandInfo | null>(null);
+  const [platformCount, setPlatformCount] = useState<number>(0);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setFetching(true);
+      try {
+        const [p, b, i] = await Promise.all([
+          api.profile.get().catch(() => null),
+          api.brand.get().catch(() => ({ content: null, exists: false })),
+          api.integrations.list().catch(() => ({ integrations: [] })),
+        ]);
+        if (cancelled) return;
+        setProfile(p);
+        setBrand({
+          exists: !!(b as { exists?: boolean }).exists,
+          richness: classifyRichness((b as { content?: string | null }).content),
+        });
+        const connected = (i.integrations || []).filter(
+          (it: { status: string }) => it.status === 'active' || it.status === 'connected',
+        );
+        setPlatformCount(connected.length);
+      } catch {
+        // Silently degrade — the tab still renders with what it has
+      } finally {
+        if (!cancelled) setFetching(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading || fetching) {
+    return (
+      <div className="px-5 py-8 text-sm text-muted-foreground">Reading your workspace...</div>
+    );
+  }
+
+  const identityRichness: 'empty' | 'sparse' | 'rich' = profile
+    ? classifyRichness(
+        [profile.name, profile.role, profile.company].filter(Boolean).join(' '),
+      )
+    : 'empty';
+
+  const domainAgents = agents.filter(
+    (a) => (a.agent_class || 'domain-steward') === 'domain-steward',
+  );
+  const BOT_ROLES: ReadonlySet<string> = new Set(['slack_bot', 'notion_bot', 'github_bot']);
+  const bots = agents.filter((a) => BOT_ROLES.has(a.role as string));
+
+  const activeTasks = tasks.filter((t) => t.status === 'active');
+  const pausedTasks = tasks.filter((t) => t.status === 'paused');
+
+  const contextTasks = tasks.filter((t) => t.output_kind === 'accumulates_context');
+  const deliverableTasks = tasks.filter((t) => t.output_kind === 'produces_deliverable');
+
+  return (
+    <div className="space-y-4 p-4">
+      <p className="text-xs text-muted-foreground/70">
+        Here's everything I currently know about your workspace.
+      </p>
+
+      {/* Identity & Brand */}
+      <section>
+        <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+          About you
+        </h3>
+        <div className="mt-2 space-y-1.5">
+          <OverviewRow
+            label="Identity"
+            value={
+              profile?.name || profile?.role || profile?.company
+                ? [profile.name, profile.role, profile.company].filter(Boolean).join(' · ')
+                : 'Not captured yet'
+            }
+            badge={richnessBadge(identityRichness)}
+            href="/context"
+          />
+          <OverviewRow
+            label="Brand"
+            value={brand?.exists ? 'Captured' : 'Not captured yet'}
+            badge={richnessBadge(brand?.richness || 'empty')}
+            href="/context"
+          />
+        </div>
+      </section>
+
+      {/* Team */}
+      <section>
+        <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+          Team
+        </h3>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <OverviewStat
+            icon={Users}
+            value={domainAgents.length}
+            label={`domain ${domainAgents.length === 1 ? 'agent' : 'agents'}`}
+            href="/agents"
+          />
+          <OverviewStat
+            icon={Zap}
+            value={bots.length}
+            label={`platform ${bots.length === 1 ? 'bot' : 'bots'}`}
+            href="/agents"
+          />
+        </div>
+      </section>
+
+      {/* Work */}
+      <section>
+        <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+          Work
+        </h3>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <OverviewStat
+            icon={Clock3}
+            value={activeTasks.length}
+            label={`active ${activeTasks.length === 1 ? 'task' : 'tasks'}`}
+            href="/work"
+          />
+          <OverviewStat
+            icon={PauseCircle}
+            value={pausedTasks.length}
+            label={`paused ${pausedTasks.length === 1 ? 'task' : 'tasks'}`}
+            href="/work"
+          />
+        </div>
+      </section>
+
+      {/* Knowledge */}
+      <section>
+        <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+          Knowledge
+        </h3>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <OverviewStat
+            icon={FolderOpen}
+            value={contextTasks.length}
+            label={`context ${contextTasks.length === 1 ? 'track' : 'tracks'}`}
+            href="/context"
+          />
+          <OverviewStat
+            icon={ClipboardList}
+            value={deliverableTasks.length}
+            label={`${deliverableTasks.length === 1 ? 'report' : 'reports'}`}
+            href="/work"
+          />
+        </div>
+      </section>
+
+      {/* Platforms */}
+      <section>
+        <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+          Platforms
+        </h3>
+        <div className="mt-2">
+          <OverviewRow
+            label="Connected"
+            value={
+              platformCount === 0
+                ? 'None yet'
+                : `${platformCount} ${platformCount === 1 ? 'integration' : 'integrations'}`
+            }
+            href="/context"
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function OverviewRow({
+  label,
+  value,
+  badge,
+  href,
+}: {
+  label: string;
+  value: string;
+  badge?: React.ReactNode;
+  href?: string;
+}) {
+  const content = (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/10 px-3 py-2 text-sm transition-colors hover:bg-muted/30">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="truncate text-foreground/90">{value}</span>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {badge}
+        {href && <ArrowUpRight className="h-3 w-3 text-muted-foreground/40" />}
+      </div>
+    </div>
+  );
+  return href ? <Link href={href}>{content}</Link> : content;
+}
+
+function OverviewStat({
+  icon: Icon,
+  value,
+  label,
+  href,
+}: {
+  icon: React.ElementType;
+  value: number;
+  label: string;
+  href?: string;
+}) {
+  const content = (
+    <div className="rounded-md border border-border/60 bg-muted/10 p-3 transition-colors hover:bg-muted/30">
+      <div className="flex items-center gap-2">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground/60" />
+        <span className="text-lg font-semibold tabular-nums">{value}</span>
+      </div>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
+    </div>
+  );
+  return href ? <Link href={href}>{content}</Link> : content;
+}
+
+// =============================================================================
+// Tab 2 — "Heads up" — gap + flag signals
+// =============================================================================
+
+interface FlagCard {
+  id: string;
+  severity: 'info' | 'warn' | 'alert';
+  title: string;
+  detail?: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+}
+
+function FlagsTab({
+  agents,
+  tasks,
+  loading,
+  onAskTP,
+  onOpenOnboarding,
+}: {
+  agents: Agent[];
+  tasks: Task[];
+  loading: boolean;
+  onAskTP: (prompt: string) => void;
+  onOpenOnboarding: () => void;
+}) {
+  const [identityMissing, setIdentityMissing] = useState<boolean>(false);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const profile = await api.profile.get().catch(() => null);
+        if (cancelled) return;
+        const hasIdentity = !!(
+          profile &&
+          (profile.name?.trim() || profile.role?.trim() || profile.company?.trim())
+        );
+        setIdentityMissing(!hasIdentity);
+      } catch {
+        setIdentityMissing(false);
+      } finally {
+        if (!cancelled) setFetching(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const flags = useMemo<FlagCard[]>(() => {
+    const items: FlagCard[] = [];
+
+    // Identity empty → opens Onboarding modal
+    if (identityMissing) {
+      items.push({
+        id: 'identity-empty',
+        severity: 'info',
+        title: "I don't know much about you yet",
+        detail: 'A few quick details will help me infer your context.',
+        action: {
+          label: 'Tell me about yourself',
+          onClick: onOpenOnboarding,
+        },
+      });
+    }
+
+    // No tasks yet
+    if (tasks.length === 0) {
+      items.push({
+        id: 'no-tasks',
+        severity: 'info',
+        title: 'Nothing is running yet',
+        detail: 'Your team is ready — they just need something to work on.',
+        action: {
+          label: 'Help me set up my first task',
+          onClick: () =>
+            onAskTP(
+              'Help me set up my first task. What do you suggest based on my workspace?',
+            ),
+        },
+      });
+    }
+
+    // Domain agents without tasks
+    const domainAgents = agents.filter(
+      (a) => (a.agent_class || 'domain-steward') === 'domain-steward',
+    );
+    const idle = domainAgents.filter((agent) => {
+      const slug = getAgentSlug(agent);
+      return !tasks.some((t) => t.agent_slugs?.includes(slug));
+    });
+    if (idle.length > 0) {
+      const names = idle
+        .slice(0, 3)
+        .map((a) => a.title)
+        .join(', ');
+      items.push({
+        id: 'agents-idle',
+        severity: 'info',
+        title: `${idle.length} ${idle.length === 1 ? 'agent has' : 'agents have'} no work yet`,
+        detail: names,
+        action: {
+          label: 'Suggest work for them',
+          onClick: () =>
+            onAskTP(
+              `I have ${idle.length} agents without work (${names}). What should they be doing?`,
+            ),
+        },
+      });
+    }
+
+    // Stale tasks — haven't run in a while given their schedule
+    const SCHEDULE_HOURS: Record<string, number> = {
+      daily: 24,
+      weekly: 24 * 7,
+      biweekly: 24 * 14,
+      monthly: 24 * 30,
+    };
+    const now = Date.now();
+    const stale = tasks.filter((t) => {
+      if (t.status !== 'active') return false;
+      const schedule = (t.schedule || '').toLowerCase();
+      const hours = SCHEDULE_HOURS[schedule];
+      if (!hours) return false;
+      if (!t.last_run_at) return false;
+      const lastRun = new Date(t.last_run_at).getTime();
+      if (Number.isNaN(lastRun)) return false;
+      return now - lastRun > hours * 2 * 60 * 60 * 1000;
+    });
+    if (stale.length > 0) {
+      items.push({
+        id: 'stale-tasks',
+        severity: 'warn',
+        title: `${stale.length} ${stale.length === 1 ? 'task hasn\u2019t' : 'tasks haven\u2019t'} run in a while`,
+        detail: stale
+          .slice(0, 3)
+          .map((t) => t.title)
+          .join(', '),
+        action: {
+          label: 'Look into why',
+          onClick: () =>
+            onAskTP(
+              `${stale.length} of my tasks haven't run recently. Can you check what's going on?`,
+            ),
+        },
+      });
+    }
+
+    return items;
+  }, [identityMissing, agents, tasks, onAskTP, onOpenOnboarding]);
+
+  if (loading || fetching) {
+    return (
+      <div className="px-5 py-8 text-sm text-muted-foreground">Checking in on things...</div>
+    );
+  }
+
+  if (flags.length === 0) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <CheckCircle2 className="mx-auto h-8 w-8 text-green-500/80" />
+        <p className="mt-2 text-sm font-medium text-foreground">Nothing worth flagging right now.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Your team is running steady. I'll pipe up if anything changes.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 p-4">
+      <p className="text-xs text-muted-foreground/70">Here are a few things I'd like you to notice.</p>
+      {flags.map((flag) => (
+        <FlagCardView key={flag.id} flag={flag} />
+      ))}
+    </div>
+  );
+}
+
+function FlagCardView({ flag }: { flag: FlagCard }) {
+  const iconCls =
+    flag.severity === 'alert'
+      ? 'text-red-500'
+      : flag.severity === 'warn'
+        ? 'text-amber-500'
+        : 'text-muted-foreground/60';
+  return (
+    <div className="rounded-lg border border-border/70 bg-muted/10 p-3">
+      <div className="flex items-start gap-2">
+        <AlertCircle className={cn('mt-0.5 h-4 w-4 shrink-0', iconCls)} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-foreground">{flag.title}</p>
+          {flag.detail && (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">{flag.detail}</p>
+          )}
+          {flag.action && (
+            <button
+              type="button"
+              onClick={flag.action.onClick}
+              className="mt-2 inline-flex items-center gap-1 rounded border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted"
+            >
+              <Sparkles className="h-3 w-3" />
+              {flag.action.label}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
 // =============================================================================
-// Lead view: Briefing
+// Tab 3 — "Last time" — cross-session memory
 // =============================================================================
 
-function BriefingLead({ agents, tasks }: { agents: Agent[]; tasks: Task[] }) {
+interface RecentSession {
+  id: string;
+  created_at: string;
+  preview?: string;
+}
+
+function RecapTab() {
+  const [awareness, setAwareness] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<RecentSession[]>([]);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [fileResp, historyResp] = await Promise.all([
+          api.workspace
+            .getFile('/workspace/AWARENESS.md')
+            .catch(() => null),
+          api.chat.globalHistory(5).catch(() => ({ sessions: [] })),
+        ]);
+        if (cancelled) return;
+        const content = fileResp?.content?.trim() || null;
+        setAwareness(content && content.length > 0 ? content : null);
+        const raw = (historyResp.sessions || []) as Array<{
+          id: string;
+          created_at: string;
+          messages?: Array<{ role: string; content: string }>;
+        }>;
+        setSessions(
+          raw.map((s) => {
+            const firstUser = s.messages?.find((m) => m.role === 'user');
+            return {
+              id: s.id,
+              created_at: s.created_at,
+              preview: firstUser?.content?.slice(0, 120),
+            };
+          }),
+        );
+      } catch {
+        if (!cancelled) {
+          setAwareness(null);
+          setSessions([]);
+        }
+      } finally {
+        if (!cancelled) setFetching(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (fetching) {
+    return (
+      <div className="px-5 py-8 text-sm text-muted-foreground">Flipping back through my notes...</div>
+    );
+  }
+
+  if (!awareness && sessions.length === 0) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <History className="mx-auto h-8 w-8 text-muted-foreground/40" />
+        <p className="mt-2 text-sm font-medium text-foreground">This is our first conversation.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          I'll start keeping notes between sessions so we can pick up where we left off.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-3">
-      <DailyBriefing
-        agents={agents}
-        tasks={tasks}
-        hasMessages={false}
-        forceExpanded
-      />
+    <div className="space-y-4 p-4">
+      <p className="text-xs text-muted-foreground/70">Here's what I remember from before.</p>
+
+      {awareness && (
+        <section>
+          <h3 className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+            <FileText className="h-3 w-3" />
+            My shift notes
+          </h3>
+          <div className="mt-2 rounded-lg border border-border/70 bg-muted/10 p-3">
+            <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-foreground/90">
+              {awareness.length > 600 ? awareness.slice(0, 600) + '\u2026' : awareness}
+            </pre>
+          </div>
+        </section>
+      )}
+
+      {sessions.length > 0 && (
+        <section>
+          <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+            Recent sessions
+          </h3>
+          <div className="mt-2 space-y-1.5">
+            {sessions.map((s) => (
+              <div
+                key={s.id}
+                className="rounded-md border border-border/60 bg-muted/10 px-3 py-2"
+              >
+                <p className="text-[11px] text-muted-foreground/70">
+                  {formatRelativeTime(s.created_at) || s.created_at.slice(0, 10)}
+                </p>
+                {s.preview && (
+                  <p className="mt-0.5 truncate text-xs text-foreground/80">{s.preview}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
 
 // =============================================================================
-// Lead view: Recent work
+// Tab 4 — "Team activity" — recent runs + coming up
 // =============================================================================
 
-function agentTitleForTask(task: Task, agents: Agent[]) {
-  const slug = task.agent_slugs?.[0];
-  return agents.find((agent) => agent.slug === slug)?.title || slug || 'TP';
-}
-
-function formatRelativeTime(value?: string) {
+function formatRelativeTime(value?: string): string | null {
   if (!value) return null;
   const then = new Date(value).getTime();
   if (Number.isNaN(then)) return null;
@@ -310,99 +856,14 @@ function formatRelativeTime(value?: string) {
   return future ? `in ${days}d` : `${days}d ago`;
 }
 
-function RecentLead({
-  agents,
-  tasks,
-  loading,
-}: {
-  agents: Agent[];
-  tasks: Task[];
-  loading: boolean;
-}) {
-  const visibleTasks = useMemo(
-    () =>
-      tasks
-        .slice()
-        .sort(
-          (a, b) =>
-            new Date(b.updated_at || b.created_at).getTime() -
-            new Date(a.updated_at || a.created_at).getTime(),
-        )
-        .slice(0, 6),
-    [tasks],
-  );
-
-  if (loading) {
-    return (
-      <div className="px-5 py-8 text-sm text-muted-foreground">
-        Loading current work...
-      </div>
-    );
-  }
-
-  if (visibleTasks.length === 0) {
-    return (
-      <div className="px-5 py-8">
-        <p className="text-sm font-medium">No work is running yet.</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Tell TP what you want watched, prepared, or produced.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2 p-4">
-      {visibleTasks.map((task) => {
-        const active = task.status === 'active';
-        const completed = task.status === 'completed';
-        const Icon = completed ? CheckCircle2 : active ? Clock3 : PauseCircle;
-        const lastSignal = formatRelativeTime(task.last_run_at || task.updated_at);
-
-        return (
-          <div
-            key={task.id}
-            className="rounded-lg border border-border/70 bg-muted/20 p-3"
-          >
-            <div className="flex items-start gap-2">
-              <Icon
-                className={cn(
-                  'mt-0.5 h-4 w-4 shrink-0',
-                  active ? 'text-green-600' : 'text-muted-foreground',
-                )}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
-                  <p className="truncate text-sm font-medium">{task.title}</p>
-                  <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                    {taskModeLabel(task.mode)}
-                  </span>
-                </div>
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {agentTitleForTask(task, agents)}
-                  {task.objective?.deliverable
-                    ? ` -> ${task.objective.deliverable}`
-                    : ''}
-                </p>
-              </div>
-              {lastSignal && (
-                <span className="shrink-0 text-xs text-muted-foreground/60">
-                  {lastSignal}
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+function agentTitleFor(task: Task, agents: Agent[]): string {
+  const slug = task.agent_slugs?.[0];
+  if (!slug) return 'TP';
+  const agent = agents.find((a) => getAgentSlug(a) === slug);
+  return agent?.title || slug;
 }
 
-// =============================================================================
-// Lead view: Coverage gaps
-// =============================================================================
-
-function GapsLead({
+function ActivityTab({
   agents,
   tasks,
   loading,
@@ -411,73 +872,139 @@ function GapsLead({
   tasks: Task[];
   loading: boolean;
 }) {
-  const domainAgents = agents.filter(
-    (agent) => (agent.agent_class || 'domain-steward') === 'domain-steward',
-  );
-  const agentsWithoutTasks = domainAgents.filter((agent) => {
-    const slug = getAgentSlug(agent);
-    return !tasks.some((task) => task.agent_slugs?.includes(slug));
-  });
-  // ADR-166: task_class → output_kind. "context" → "accumulates_context".
-  const contextTasks = tasks.filter(
-    (task) => task.output_kind === 'accumulates_context',
-  ).length;
+  const recentRuns = useMemo(() => {
+    return tasks
+      .filter((t) => !!t.last_run_at)
+      .sort(
+        (a, b) =>
+          new Date(b.last_run_at || '').getTime() -
+          new Date(a.last_run_at || '').getTime(),
+      )
+      .slice(0, 5);
+  }, [tasks]);
+
+  const comingUp = useMemo(() => {
+    return tasks
+      .filter((t) => t.status === 'active' && !!t.next_run_at)
+      .sort(
+        (a, b) =>
+          new Date(a.next_run_at || '').getTime() -
+          new Date(b.next_run_at || '').getTime(),
+      )
+      .slice(0, 5);
+  }, [tasks]);
 
   if (loading) {
     return (
-      <div className="px-5 py-8 text-sm text-muted-foreground">
-        Checking context...
+      <div className="px-5 py-8 text-sm text-muted-foreground">Peeking at your team...</div>
+    );
+  }
+
+  if (recentRuns.length === 0 && comingUp.length === 0) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <Activity className="mx-auto h-8 w-8 text-muted-foreground/40" />
+        <p className="mt-2 text-sm font-medium text-foreground">Your team hasn't run anything yet.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Once tasks are set up, you'll see recent runs and what's coming up here.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4 p-4">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/60">
-          Coverage
-        </p>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-            <p className="text-xl font-semibold">{domainAgents.length}</p>
-            <p className="text-xs text-muted-foreground">domain agents</p>
-          </div>
-          <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-            <p className="text-xl font-semibold">{contextTasks}</p>
-            <p className="text-xs text-muted-foreground">context tasks</p>
-          </div>
-        </div>
-      </div>
+      <p className="text-xs text-muted-foreground/70">Here's what your team has been up to.</p>
 
-      {agentsWithoutTasks.length > 0 ? (
-        <div>
-          <div className="mb-2 flex items-center gap-1.5 text-sm font-medium">
-            <AlertCircle className="h-4 w-4 text-amber-500" />
-            Needs setup
-          </div>
-          <div className="space-y-1.5">
-            {agentsWithoutTasks.slice(0, 5).map((agent) => (
-              <div
-                key={agent.id}
-                className="rounded-md border border-border/70 px-3 py-2 text-sm text-muted-foreground"
-              >
-                <span className="font-medium text-foreground">{agent.title}</span>{' '}
-                has no assigned work yet.
-              </div>
+      {recentRuns.length > 0 && (
+        <section>
+          <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+            Recent runs
+          </h3>
+          <div className="mt-2 space-y-1.5">
+            {recentRuns.map((task) => (
+              <TaskRow
+                key={`run-${task.id}`}
+                task={task}
+                agents={agents}
+                timestamp={task.last_run_at}
+                icon={CheckCircle2}
+                tone="positive"
+              />
             ))}
           </div>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-          <div className="flex items-center gap-1.5 text-sm font-medium">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            Coverage looks ready
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            TP has at least one work path for every domain agent.
-          </p>
-        </div>
+        </section>
       )}
+
+      {comingUp.length > 0 && (
+        <section>
+          <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+            Coming up
+          </h3>
+          <div className="mt-2 space-y-1.5">
+            {comingUp.map((task) => (
+              <TaskRow
+                key={`next-${task.id}`}
+                task={task}
+                agents={agents}
+                timestamp={task.next_run_at}
+                icon={Clock3}
+                tone="neutral"
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="pt-1">
+        <Link
+          href="/work"
+          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+        >
+          <ArrowUpRight className="h-3 w-3" />
+          See all work
+        </Link>
+      </div>
     </div>
+  );
+}
+
+function TaskRow({
+  task,
+  agents,
+  timestamp,
+  icon: Icon,
+  tone,
+}: {
+  task: Task;
+  agents: Agent[];
+  timestamp?: string | null;
+  icon: React.ElementType;
+  tone: 'positive' | 'neutral';
+}) {
+  const agentLabel = agentTitleFor(task, agents);
+  const rel = formatRelativeTime(timestamp || undefined);
+  return (
+    <Link
+      href={`/work?task=${encodeURIComponent(task.slug)}`}
+      className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/10 p-2.5 text-sm transition-colors hover:bg-muted/30"
+    >
+      <Icon
+        className={cn(
+          'mt-0.5 h-3.5 w-3.5 shrink-0',
+          tone === 'positive' ? 'text-green-600' : 'text-muted-foreground/60',
+        )}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-sm font-medium text-foreground">{task.title}</p>
+          <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            {taskModeLabel(task.mode)}
+          </span>
+        </div>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{agentLabel}</p>
+      </div>
+      {rel && <span className="shrink-0 text-[11px] text-muted-foreground/60">{rel}</span>}
+    </Link>
   );
 }

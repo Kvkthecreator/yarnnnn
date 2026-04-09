@@ -38,7 +38,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { NotificationCard } from '@/components/tp/NotificationCard';
 import { MessageBlock } from '@/types/desk';
 import { cn, getToolDisplayMessage } from '@/lib/utils';
-import { stripWorkspaceStateMeta } from '@/lib/workspace-state-meta';
+import { stripWorkspaceStateMeta, stripOnboardingMeta } from '@/lib/workspace-state-meta';
 
 interface InlineToolCallProps {
   block: Extract<MessageBlock, { type: 'tool_call' }>;
@@ -281,8 +281,8 @@ export function MessageBlocks({ blocks, compact = true }: { blocks: MessageBlock
       {blocks.map((block, i) => {
         switch (block.type) {
           case 'text': {
-            // ADR-165 v5: strip workspace-state marker before rendering
-            const stripped = stripWorkspaceStateMeta(block.content);
+            // ADR-165 v8: strip both workspace-state and onboarding markers
+            const stripped = stripOnboardingMeta(stripWorkspaceStateMeta(block.content));
             return stripped ? (
               <MarkdownRenderer key={i} content={stripped} compact />
             ) : null;

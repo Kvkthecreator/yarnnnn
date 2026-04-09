@@ -1,46 +1,31 @@
 'use client';
 
 /**
- * ChatSurface — TP chat surface with TP-directed workspace state modal.
- *
- * ADR-167 v5 (2026-04-09), amended for /chat compactness — the chat surface
- * keeps only its local identity header because a top-level breadcrumb row
- * duplicated navigation state without adding hierarchy.
+ * ChatSurface — TP chat surface with two structured modals (ADR-165 v8).
  *
  *   <SurfaceIdentityHeader                     — the real h1 + actions
  *     title="Thinking Partner"
- *     actions={workspace-state toggle}
+ *     actions={Overview toggle}
  *   />
  *   <ChatPanel />                              — conversation column
  *
- * The workspace-state toggle button (formerly an `inputRowAddon` crammed
- * inside the input row between the + menu and the textarea) moves up into
- * SurfaceIdentityHeader.actions where it sits alongside the page identity.
- * This matches /work detail's pattern where Run/Pause/Edit live in the
- * surface header, not in the chat input.
+ * Two sibling modals, opened independently:
+ *   1. WorkspaceStateView (Overview) — read-only diagnostic dashboard
+ *      Opened by: TP `<!-- workspace-state: ... -->` marker or user "Overview" button
+ *   2. OnboardingModal — first-run identity capture (wraps ContextSetup)
+ *      Opened by: TP `<!-- onboarding -->` marker only (no manual trigger)
  *
- * ADR-165 v7 (2026-04-09): The `empty` lens value dissolved into a peer
- * `context` tab. "Add context" is now always reachable from the lens
- * switcher (except on cold start where the switcher is soft-gated by
- * `isEmpty`), so the plus-menu "Update my context" redundancy was deleted —
- * the tab IS the entry point for context re-entry. Singular implementation:
- * one surface, one way in.
+ * Both modals cannot be open simultaneously. ChatSurface is the state machine
+ * that enforces exclusivity and routes markers to the correct modal.
  *
- * ADR-165 v6 (2026-04-08): The workspace state surface is rendered as a
- * MODAL, not an inline overlay. TP is the single source of intent for when
- * it appears — frontend never auto-opens. The user can manually toggle via
- * the surface header button as an escape hatch.
- *
- * Marker pattern (modeled on ADR-162 inference-meta, unchanged from v5):
- *   <!-- workspace-state: {"lead":"context","reason":"..."} -->
- *
- * The marker is parsed from the latest assistant message. When TP emits one,
- * the modal opens to the requested lead view. The marker is stripped from
- * the displayed message body in ChatPanel.
+ * ADR-165 v8 (2026-04-09): Onboarding split from workspace state. Overview
+ * modal has four read-only tabs (What I know / Heads up / Last time / Team
+ * activity). No isEmpty prop, no soft gate. Onboarding is a separate modal
+ * with its own marker. Two markers, two parsers, two modals.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { LayoutPanelTop } from 'lucide-react';
+import { LayoutDashboard } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -48,9 +33,11 @@ import type { Agent, Task } from '@/types';
 import { useTP } from '@/contexts/TPContext';
 import {
   parseWorkspaceStateMeta,
+  parseOnboardingMeta,
   type WorkspaceStateLead,
 } from '@/lib/workspace-state-meta';
 import { WorkspaceStateView } from './WorkspaceStateView';
+import { OnboardingModal } from './OnboardingModal';
 
 interface ChatSurfaceProps {
   agents: Agent[];
@@ -67,20 +54,21 @@ export function ChatSurface({
   plusMenuActions,
   onContextSubmit,
 }: ChatSurfaceProps) {
-  const { messages } = useTP();
+  const { messages, sendMessage } = useTP();
 
-  // Modal open state — controlled here, not by ChatPanel.
-  const [open, setOpen] = useState(false);
-  const [lead, setLead] = useState<WorkspaceStateLead | null>(null);
-  const [reason, setReason] = useState<string | null>(null);
+  // --- Overview modal state ---
+  const [overviewOpen, setOverviewOpen] = useState(false);
+  const [overviewLead, setOverviewLead] = useState<WorkspaceStateLead | null>(null);
+  const [overviewReason, setOverviewReason] = useState<string | null>(null);
 
-  // Track the last message id we processed for marker directives, so we
-  // don't re-fire the modal every render.
+  // --- Onboarding modal state ---
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+
+  // Track the last message id we processed for marker directives.
   const [lastProcessedId, setLastProcessedId] = useState<string | null>(null);
 
-  // Watch the latest assistant message for a workspace-state marker.
-  // When present, open the modal with the requested lead view. This is the
-  // ONLY automatic open path — there is no cold-start auto-open in v6.
+  // Watch the latest assistant message for BOTH markers.
+  // When present, open the matching modal and close the other (exclusivity).
   useEffect(() => {
     if (messages.length === 0) return;
     const latest = messages[messages.length - 1];
@@ -88,59 +76,79 @@ export function ChatSurface({
     if (latest.id === lastProcessedId) return;
     if (!latest.content) return;
 
-    const { directive } = parseWorkspaceStateMeta(latest.content);
     setLastProcessedId(latest.id);
-    if (!directive) return;
 
-    setOpen(true);
-    setLead(directive.lead);
-    setReason(directive.reason ?? null);
+    // Check for workspace-state marker first.
+    const { directive } = parseWorkspaceStateMeta(latest.content);
+    if (directive) {
+      setOnboardingOpen(false);
+      setOverviewOpen(true);
+      setOverviewLead(directive.lead);
+      setOverviewReason(directive.reason ?? null);
+      return;
+    }
+
+    // Check for onboarding marker.
+    const { present } = parseOnboardingMeta(latest.content);
+    if (present) {
+      setOverviewOpen(false);
+      setOnboardingOpen(true);
+      return;
+    }
   }, [messages, lastProcessedId]);
 
-  const handleToggle = useCallback(() => {
-    setOpen((prev) => {
+  // Manual Overview toggle — opens if closed, closes if open.
+  const handleOverviewToggle = useCallback(() => {
+    setOverviewOpen((prev) => {
       if (prev) return false;
-      // Manual open: deterministic lead, no TP call.
-      setLead(null); // null tells WorkspaceStateView to compute from data
-      setReason(null);
+      // Manual open: default tab, no TP call.
+      setOnboardingOpen(false);
+      setOverviewLead(null); // null tells WorkspaceStateView to default to 'overview'
+      setOverviewReason(null);
       return true;
     });
   }, []);
 
-  const handleClose = useCallback(() => setOpen(false), []);
+  const handleOverviewClose = useCallback(() => setOverviewOpen(false), []);
+  const handleOnboardingClose = useCallback(() => setOnboardingOpen(false), []);
 
-  // Workspace state toggle — lives in the surface header alongside the H1.
-  // Replaces the earlier `inputRowAddon` pattern where it was crammed into
-  // the chat input row.
-  const workspaceStateAction = (
+  // "Ask TP" from Overview modal flags tab — sends prompt and closes modal.
+  const handleAskTP = useCallback(
+    (prompt: string) => {
+      setOverviewOpen(false);
+      sendMessage(prompt);
+    },
+    [sendMessage],
+  );
+
+  // "Open Onboarding" from Overview modal flags tab (identity-empty card).
+  const handleOpenOnboarding = useCallback(() => {
+    setOverviewOpen(false);
+    setOnboardingOpen(true);
+  }, []);
+
+  // Onboarding form submit — sends composed message to TP and closes modal.
+  const handleOnboardingSubmit = useCallback(
+    (msg: string) => {
+      setOnboardingOpen(false);
+      onContextSubmit(msg);
+    },
+    [onContextSubmit],
+  );
+
+  // Overview toggle button — lives in the surface header.
+  const overviewAction = (
     <button
       type="button"
-      onClick={handleToggle}
+      onClick={handleOverviewToggle}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-      title="Open workspace state"
+      title="Open overview"
     >
-      <LayoutPanelTop className="w-3.5 h-3.5" />
-      Workspace state
+      <LayoutDashboard className="w-3.5 h-3.5" />
+      Overview
     </button>
   );
 
-  // Workspace is "empty" when there are no tasks yet — used by the modal's
-  // computeLead() fallback for manual opens. No frontend judgment about
-  // whether to AUTO-open; TP owns that decision.
-  const isEmpty = !dataLoading && tasks.length === 0;
-
-  // ChatSurface shape notes:
-  //   - SurfaceIdentityHeader is wrapped in the same max-w-3xl container as
-  //     the chat column below it, so the header ("⊙ Thinking Partner [⊞]")
-  //     sits directly above the chat stream, sharing its left/right margins.
-  //     This keeps the header and its content in the same reading column,
-  //     which is what the user asked for — slightly bigger than the sidebar
-  //     "TP" label, aligned with the conversation.
-  //   - Size is "md" (lighter treatment) because on /chat the title is an
-  //     intro, not the page's actual subject. The conversation itself is
-  //     the hero.
-  //   - The yarnnn circle logo is placed in the `icon` slot for parity with
-  //     the sidebar chat panel's "⊙ TP" header.
   const surfaceLogo = (
     <img
       src="/assets/logos/circleonly_yarnnn_1.svg"
@@ -157,7 +165,7 @@ export function ChatSurface({
           bordered={false}
           icon={surfaceLogo}
           title="Thinking Partner"
-          actions={workspaceStateAction}
+          actions={overviewAction}
         />
       </div>
       <div className="flex-1 min-h-0">
@@ -171,19 +179,25 @@ export function ChatSurface({
           />
         </div>
       </div>
+
+      {/* Overview modal — read-only diagnostic dashboard */}
       <WorkspaceStateView
-        open={open}
-        lead={lead}
+        open={overviewOpen}
+        lead={overviewLead}
         agents={agents}
         tasks={tasks}
         dataLoading={dataLoading}
-        isEmpty={isEmpty}
-        reason={reason}
-        onClose={handleClose}
-        onContextSubmit={(msg) => {
-          onContextSubmit(msg);
-          setOpen(false);
-        }}
+        reason={overviewReason}
+        onClose={handleOverviewClose}
+        onAskTP={handleAskTP}
+        onOpenOnboarding={handleOpenOnboarding}
+      />
+
+      {/* Onboarding modal — first-run identity capture */}
+      <OnboardingModal
+        open={onboardingOpen}
+        onClose={handleOnboardingClose}
+        onSubmit={handleOnboardingSubmit}
       />
     </div>
   );

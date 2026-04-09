@@ -1,182 +1,202 @@
 # Workspace State Surface
 
-**Status:** Implemented (ADR-165 v7)
+**Status:** Implemented (ADR-165 v8)
 **Date:** 2026-04-09
-**Governing ADR:** [ADR-165 v7](../adr/ADR-165-workspace-state-surface.md)
+**Governing ADR:** [ADR-165 v8](../adr/ADR-165-workspace-state-surface.md)
 **Extends:** [SURFACE-ARCHITECTURE](./SURFACE-ARCHITECTURE.md)
 
 ---
 
 ## Thesis
 
-`/chat` is a TP chat product. Workspace state is one single surface that opens on demand — controlled by TP via a marker directive, or by the user via the surface-header toggle. There is no permanent dashboard above the conversation.
+`/chat` is the TP workspace. It has **two structured modal surfaces**, opened independently:
 
-v4 treated workspace state as four sibling artifacts in an always-on tab strip. v5 collapsed them into **one component with four lead views**, opened only when relevant. v6 promoted the surface to a true modal. **v7 (2026-04-09)** dissolved the special `empty` lead value into a peer `context` tab and decoupled gate behavior from lens identity — there are now four peer tabs and one uniform soft gate driven by `isEmpty`.
+1. **Overview modal** — a read-only diagnostic dashboard with four peer tabs, each mirroring a slice of TP's compact index. This is the ongoing inspection surface.
+2. **Onboarding modal** — a one-time identity-capture form (wraps the existing `ContextSetup` component). This is the first-run ceremony.
+
+Neither shares state, switcher, or trigger with the other. v7 tried to unify them behind a soft gate; v8 recognizes that they are different jobs and gives them different surfaces.
 
 ```
 /chat
-  ├── PageHeader (breadcrumb chrome)
-  ├── SurfaceIdentityHeader (H1 + workspace state toggle)
+  ├── SurfaceIdentityHeader (H1 + [Overview] button in actions slot)
   ├── ChatPanel (conversation column)
   │     ├── messages
   │     └── input row (PlusMenu + textarea + submit)
-  └── WorkspaceStateView (sibling modal — only mounted while open)
+  ├── WorkspaceStateView (sibling, modal — only mounted while open)
+  │     ├── backdrop (click-outside closes)
+  │     ├── header ("Overview" + optional reason + close)
+  │     ├── tab bar — four peer tabs, always visible when modal is open
+  │     │     [Eye] What I know  [Bell] Heads up  [History] Last time  [Activity] Team activity
+  │     └── active tab content (all read-only)
+  └── OnboardingModal (sibling, modal — only mounted while open)
         ├── backdrop (click-outside closes)
-        ├── header (title + reason + close button)
-        ├── lens switcher — four peer tabs (hidden only when isEmpty === true)
-        │     [Newspaper] What changed  [ClipboardList] Running  [Compass] Coverage  [Sparkles] Add context
-        └── active lead view (one of: context, briefing, recent, gaps)
+        ├── header ("Tell me about yourself" + close)
+        └── ContextSetup (links + files + notes)
 ```
 
 ---
 
-## Surface Model
+## Overview Modal (`WorkspaceStateView`)
 
 ### Default state
 
-`/chat` loads with **no surface visible**. The page is just the TP chat conversation. The surface-header "Workspace state" button (with `LayoutPanelTop` icon) is the only persistent visual indicator that the modal exists.
+`/chat` loads with **no modal visible**. The surface header's "Overview" button is the only persistent entry point for manual open. Modal mounts only while open; close = unmounted.
 
-The two paths that open the surface are:
+### Four tabs (read-only)
 
-1. **TP directive** — TP appends a workspace-state HTML comment to its assistant message. The chat client parses it, opens `WorkspaceStateView` in the requested lead view, and strips the comment before rendering.
-2. **Manual override** — User clicks the surface-header toggle button. The component computes the lead view deterministically from current data and opens. No TP call.
+All four tabs are read-only glances at what TP already sees in `format_compact_index` (ADR-159). No write forms, no inline editors, no tool calls from the tab content. Tabs contain at most:
+- Data visualization (counts, badges, lists)
+- Link-outs to other surfaces (`/work`, `/agents`, `/context`)
+- "Ask TP" buttons that drop a pre-filled prompt into the chat input (user reviews and presses send — no auto-send, no auto-tool-call)
 
-### Soft gate (cold start, v7)
+#### 1. What I know — `overview`
 
-When the workspace has no tasks (`isEmpty === true`), the modal can still be opened via TP's marker or the manual toggle — but the lens switcher is **hidden**. The user sees only the `context` lens (ContextSetup) because the other three lenses (briefing / recent / gaps) have nothing meaningful to show against an empty workspace. This is the soft gate: one focused decision, no misleading empty tabs.
+TP answering: *"Here's everything I currently know about your workspace."*
 
-Once the workspace has any content, the switcher shows and `context` becomes a peer tab like the other three. The gate is a property of workspace state (`isEmpty`), not a property of the `context` lens value.
+Sections:
+- **Identity & Brand** — richness badges (empty / sparse / rich), link-out to `/context`
+- **Team** — agent count by class, flagged-agents callout if any
+- **Work** — active tasks count + stale tasks callout
+- **Knowledge** — canonical context domains (one row per domain, file count + health badge)
+- **Platforms** — connected integrations
+- **Budget** — credits used / limit, exhausted warning if applicable
 
-### Two namespaces, don't conflate (v7)
+**Default tab on manual open.** When the user clicks "Overview", this is what they see first.
 
-- `workspace_state.identity` (backend compact index): `empty | sparse | rich` — classifies IDENTITY.md richness. This is what TP *reads*.
-- `lead` (client marker value): `context | briefing | recent | gaps` — names the tab the client *opens*. TP never emits `lead=empty`.
+TP opens via: `<!-- workspace-state: {"lead":"overview","reason":"Here's the lay of the land"} -->`
+
+#### 2. Heads up — `flags`
+
+TP answering: *"Here are the things I want you to notice."*
+
+Aggregates all gap / flag signals TP currently holds. Each signal is a card:
+- **Identity empty** — "I don't know much about you yet" → Ask TP: opens Onboarding modal
+- **No tasks yet** — "Nothing is running yet" → Ask TP: "Help me set up my first task"
+- **Stale tasks** — "N tasks haven't run in a while" → link-out to `/work?filter=stale`
+- **Budget exhausted** — "You've used all your credits this month" → link-out to billing
+- **Agent health** — "Agent X is producing inconsistent output" (one card per flag) → link-out to `/agents?agent=X`
+- **Inference gaps** — high-severity items from `detect_inference_gaps` (ADR-162) → Ask TP: prompt matching the gap
+- **Recent uploads pending** — "N documents haven't been processed yet" → Ask TP: "Take a look at my recent uploads"
+
+Empty state (when no flags): "Nothing worth flagging right now."
+
+TP opens via: `<!-- workspace-state: {"lead":"flags","reason":"3 things worth a look"} -->`
+
+#### 3. Last time — `recap`
+
+TP answering: *"Here's what we talked about before."*
+
+Surfaces TP's cross-session memory (currently invisible in the UI):
+- **Shift notes** — AWARENESS.md preview (TP's notes written at session close)
+- **Conversation summary** — rolling compaction from `/workspace/memory/conversation.md`
+- **Recent sessions** — last 3-5 session entries (timestamp + one-line summary), click to jump back via session navigation
+
+Empty state (new workspace): "This is our first conversation."
+
+TP opens via: `<!-- workspace-state: {"lead":"recap","reason":"Picking up from last time"} -->`
+
+#### 4. Team activity — `activity`
+
+TP answering: *"Here's what your workforce has been doing lately."*
+
+Two compact sections in one scroll:
+- **Recent runs** — last 5 completed or in-progress task runs, with status icons + relative time
+- **Coming up** — next 3-5 scheduled runs
+
+Click-through to `/work` for the full view. This tab is intentionally thin — `/work` is the destination; this tab is the glance.
+
+Empty state (no activity): "Your team hasn't run anything yet."
+
+TP opens via: `<!-- workspace-state: {"lead":"activity","reason":"3 ran overnight"} -->`
 
 ---
 
-## Lead Views
+## Onboarding Modal (`OnboardingModal`)
 
-### `context` — ContextSetup (identity capture + re-entry)
+### Purpose
 
-Source: `web/components/chat-surface/ContextSetup.tsx`
+First-run ceremony. Captures raw context (links + files + notes) so TP can infer identity, brand, and domains. One form, one submit, one dismiss.
 
-Wraps `ContextSetup` in `embedded` mode. On cold start (`isEmpty === true`) this renders under a hidden switcher (soft gate). Once workspace has content, it's a peer lens like the other three — reachable via the "Add context" tab in the switcher. Submitting context closes the surface and sends the composed message to TP.
+### Opening paths
 
-Opens when:
-- TP emits `lead=context` (cold start: first turn for empty workspace; or re-entry: user explicitly wants to add more context)
-- User clicks the "Add context" peer tab in the lens switcher
+- **TP marker only.** `<!-- onboarding -->` on the first turn of a session when `workspace_state.identity == "empty"`.
+- **No manual trigger.** No Overview button entry, no plus-menu entry, no slash command.
 
-### `briefing` — What changed
+### Dismissal
 
-Source: `web/components/home/DailyBriefing.tsx`
+- Close button, Esc key, backdrop click.
+- After dismissal, returning users do not see the modal again unless TP emits the marker on a subsequent cold start (which should be rare — identity richness persists).
+- If a user needs to add bulk context later, they use chat itself ("here's a new doc about our team...") — TP handles via `UpdateContext` in the single intelligence layer.
 
-Wraps `DailyBriefing` with `forceExpanded`. Shows what changed since the user was last here (sourced from agents+tasks via `useAgentsAndTasks()`).
+### Body
 
-Auto-opens when:
-- TP detects fresh runs since last session close (TP reads its AWARENESS.md vs. current `last_run` timestamps in the workspace index)
-
-### `recent` — Running
-
-Source: top 6 tasks by `updated_at` from `useAgentsAndTasks()`
-
-Compact list with task title, mode badge, owning agent, and last-run relative time.
-
-Auto-opens when:
-- User asks "what's running" / "what's my team doing" / "show me my work"
-
-### `gaps` — Coverage
-
-Source: agents/tasks readiness check (domain agents without tasks, count of `accumulates_context` tasks)
-
-Surfaces missing work coverage. Links into `/agents` and `/work` for follow-through.
-
-Auto-opens when:
-- TP detects an empty domain feeding an active task
-- TP runs `detect_inference_gaps` (ADR-162 sub-phase A) and gets high-severity items
-- Workspace index shows `Gap: no tasks`
+Wraps the existing `ContextSetup` component unchanged. The component takes `onSubmit(message)` which closes the modal and forwards the composed message to TP via `sendMessage`.
 
 ---
 
-## TP Marker Pattern
+## TP→Client Marker Pattern
 
-### Format
+### Two markers, two parsers
 
 ```
 <!-- workspace-state: {"lead":"<lead>","reason":"<short reason>"} -->
+<!-- onboarding -->
 ```
 
-The marker MUST be the last line of TP's assistant message. The JSON must be on a single line. The `reason` must be ≤ 60 characters and human-readable.
+Parser module: `web/lib/workspace-state-meta.ts`
 
-### Parser
+- `parseWorkspaceStateMeta(content)` → `{ body, directive }` for the Overview modal
+- `parseOnboardingMeta(content)` → `{ body, present }` for the Onboarding modal
+- `stripWorkspaceStateMeta(content)` + `stripOnboardingMeta(content)` — chainable strippers for render paths
 
-`web/lib/workspace-state-meta.ts`
-
-- `parseWorkspaceStateMeta(content)` → `{ body, directive }`. Same approach as ADR-162's `parseInferenceMeta`.
-- `stripWorkspaceStateMeta(content)` → convenience wrapper for inline render sites.
-- Valid leads: `context | briefing | recent | gaps`. Invalid leads silently no-op. Legacy `empty` from pre-v7 markers is invalid and silently dropped — there is no migration shim (singular implementation).
+Valid `lead` values: `overview | flags | recap | activity`. Invalid leads silently no-op. The v7 lead values (`context | briefing | recent | gaps`) are invalid in v8 — no backwards-compat shim (singular implementation).
 
 ### Stripping
 
-The marker is stripped from displayed content at two render sites in `ChatPanel`:
+Both markers are stripped from displayed content at two render sites in `ChatPanel`:
 
-1. The `<MarkdownRenderer content={msg.content} />` path (line ~168 in `ChatPanel.tsx`)
-2. The `<MessageBlocks blocks={msg.blocks} />` path → text-block branch in `InlineToolCall.tsx`
+1. `<MarkdownRenderer content={msg.content} />` path
+2. `<MessageBlocks blocks={msg.blocks} />` path → text-block branch in `InlineToolCall.tsx`
 
-Both call `stripWorkspaceStateMeta()` on the content before passing it to `MarkdownRenderer`.
+Both call chain: `stripOnboardingMeta(stripWorkspaceStateMeta(content))` on the content before passing it to `MarkdownRenderer`.
 
-The marker is NOT stripped from persisted content (`session_messages.content` in the database) — this means reloads will re-fire the surface-open hook from the latest assistant message, which is the desired behavior for session continuity.
+Neither marker is stripped from persisted content (`session_messages.content` in the database) — this means reloads re-fire the modal-open hooks from the latest assistant message, which is the desired behavior for session continuity.
 
 ### TP prompt rules
 
-`api/agents/tp_prompts/onboarding.py`, "Workspace State Surface (ADR-165 v7)" section under `CONTEXT_AWARENESS`. See `api/prompts/CHANGELOG.md` entry `[2026.04.09.3]`.
+`api/agents/tp_prompts/onboarding.py`, "Workspace State Surface (ADR-165 v8)" section under `CONTEXT_AWARENESS`. See `api/prompts/CHANGELOG.md` for the v8 entry.
 
 Ruleset:
-- First message of session + `workspace_state.identity == "empty"` → `lead=context`
-- First message of session + fresh runs detected → `lead=briefing`
-- User asks "what's running" → `lead=recent`
-- Gap detected (empty domain feeding active task / `detect_inference_gaps` high-severity) → `lead=gaps`
-- User wants to add more context after onboarding (rare — usually routed through direct `UpdateContext` call instead) → `lead=context`
+- **First message of session, identity is empty** → emit `<!-- onboarding -->` (empty directive) plus a one-sentence text invitation
+- **First message of session, fresh runs detected** → emit `<!-- workspace-state: {"lead":"activity","reason":"..."} -->`
+- **First message of session, unread shift notes in AWARENESS.md** → emit `<!-- workspace-state: {"lead":"recap","reason":"..."} -->`
+- **User asks "what's running" / "what's my team doing"** → emit `<!-- workspace-state: {"lead":"activity"} -->`
+- **Gap detected (empty domain, stale task, inference gap, etc.)** → emit `<!-- workspace-state: {"lead":"flags","reason":"..."} -->`
+- **User asks "what do you know about me" / "show me the state of things"** → emit `<!-- workspace-state: {"lead":"overview"} -->`
 
-AT MOST ONE marker per message. Steady-state silence is the correct outcome for most messages.
+AT MOST ONE marker per message. Never both `workspace-state` and `onboarding` in the same message. Steady-state silence is the correct outcome for most messages.
 
 ---
 
 ## Manual Override
 
-### Surface-header toggle
+### Overview button
 
-The "Workspace state" button with `LayoutPanelTop` icon lives in the `SurfaceIdentityHeader` actions slot on `/chat` (ADR-167 v5 — moved here from the chat input row). Clicking it toggles the surface open/closed.
+The surface header contains a single button **"Overview"** with `LayoutDashboard` icon, positioned in `SurfaceIdentityHeader.actions`. Clicking it toggles the Overview modal. Default tab: `overview` ("What I know").
 
-### Deterministic lead computation
-
-When the user opens the surface manually, `WorkspaceStateView` computes the lead view from current data — no TP call:
-
-```ts
-function computeLead(isEmpty, agents, tasks) {
-  if (isEmpty) return 'context';              // cold-start default — only capture is meaningful
-  if (domainAgentsWithoutTasks.length > 0) return 'gaps';
-  if (tasks.length > 0) return 'briefing';
-  return 'recent';
-}
-```
-
-### No plus-menu redundancy (v7)
-
-The previous v5/v6 design added an "Update my context" action to the plus menu as a re-entry path. **v7 deleted this** — the `context` peer tab is always visible in the lens switcher when the modal is open (unless cold-start soft-gated), so plus-menu redundancy is unnecessary. One surface, one way in.
+No manual trigger for the Onboarding modal — the form is a first-run ceremony, not an ongoing interaction mode.
 
 ---
 
-## Lens Switcher
+## Tab Bar
 
-Four peer lens buttons at the top of the modal let the user reframe the same workspace state:
+Four peer tabs, always visible when the Overview modal is open (no soft gate, no `isEmpty` logic):
 
 ```
-[ Newspaper ] What changed   [ ClipboardList ] Running   [ Compass ] Coverage   [ Sparkles ] Add context
+[ Eye ] What I know   [ Bell ] Heads up   [ History ] Last time   [ Activity ] Team activity
 ```
 
-These are NOT navigation tabs. They are four lenses on the same underlying workspace state, switched client-side (no TP call). The active lens uses the same black-segment styling as ADR-163's global ToggleBar.
-
-The lens switcher is **hidden** only when `isEmpty === true` — the cold-start soft gate. Visibility is driven by workspace state, not by the active lens value (v7 decoupling).
+These are NOT navigation tabs. They are four lenses on the same underlying workspace state, switched client-side (no TP call). The active tab uses the same black-segment styling as ADR-163's global ToggleBar.
 
 ---
 
@@ -184,55 +204,57 @@ The lens switcher is **hidden** only when `isEmpty === true` — the cold-start 
 
 ```
 web/components/chat-surface/
-  ChatSurface.tsx              — page-level controller; owns open state, parses markers, renders WorkspaceStateView
-  WorkspaceStateView.tsx       — single component, all four lead views as internal state branches
+  ChatSurface.tsx              — page-level controller; owns Overview + Onboarding open state,
+                                 parses both markers, renders both modals as siblings
+  WorkspaceStateView.tsx       — Overview modal: 4 read-only tabs, no forms, no isEmpty prop
+  OnboardingModal.tsx          — Onboarding modal: thin shell wrapping ContextSetup
+  ContextSetup.tsx             — unchanged (identity capture form)
 
 web/lib/
-  workspace-state-meta.ts      — marker parser + stripper
+  workspace-state-meta.ts      — TWO parsers: parseWorkspaceStateMeta + parseOnboardingMeta
 ```
 
 ### Files Deleted
 
 ```
-web/components/chat-surface/
-  ChatArtifactCard.tsx          (legacy v4)
-  ChatArtifactTabs.tsx          (legacy v4)
-  chatArtifactTypes.ts          (legacy v4)
-  artifacts/                    (entire directory removed)
-    ContextGapsArtifact.tsx
-    DailyBriefingArtifact.tsx
-    OnboardingArtifact.tsx
-    RecentWorkArtifact.tsx
+web/components/home/DailyBriefing.tsx   — sole consumer was v7 WorkspaceStateView.
+                                          Data (recent runs + coming up) rebuilt inline in
+                                          the Team activity tab.
 ```
 
 ### Touched (not created)
 
-- `web/components/tp/ChatPanel.tsx` — strips marker before display, accepts new `inputRowAddon` prop
-- `web/components/tp/InlineToolCall.tsx` — strips marker from text-block render path
-- `web/app/(authenticated)/chat/page.tsx` — passes only first-party plus menu actions, removes the `update-context` no-op (now owned by ChatSurface)
-- `api/agents/tp_prompts/onboarding.py` — "Workspace State Surface" ruleset added to `CONTEXT_AWARENESS`
+- `web/components/tp/ChatPanel.tsx` — strips both markers before display
+- `web/components/tp/InlineToolCall.tsx` — strips both markers from text-block render path
+- `web/app/(authenticated)/chat/page.tsx` — unchanged (still passes agents, tasks, dataLoading, plusMenuActions)
+- `api/agents/tp_prompts/onboarding.py` — v8 marker ruleset
 
 ---
 
 ## Guardrails
 
 - Do not add draggable panes, docks, or floating windows.
-- Do not introduce a second concurrent structured surface — there is one `WorkspaceStateView`, opened or closed.
-- Do not use frontend heuristics to decide when to open the surface based on conversation state. TP decides. The only frontend-side opens are: cold-start gate (empty workspace, no messages) and manual override (user clicks the icon).
-- Do not write the marker to displayed message bodies — strip via `stripWorkspaceStateMeta` at every render site.
-- Do not extend the marker to non-workspace-state directives without an ADR. The marker is a behavioral artifact and adding directive types to the same channel needs explicit decision.
-- Keep richer inspection in `/work`, `/agents`, and `/context`. The workspace state surface is a glance, not a destination.
+- Do not introduce a third structured modal on `/chat` without an ADR.
+- Do not mix write forms into the Overview modal tabs. If a tab "needs" a form, that's a signal to carve out a new surface, not to add a form to an existing diagnostic tab.
+- Do not let the Overview modal call TP tools directly. All write intent routes through chat via "Ask TP" pre-fill buttons (user reviews + presses send).
+- Do not use frontend heuristics to decide when to open either modal based on conversation state. TP decides via markers.
+- Do not write markers to displayed message bodies — strip both via `stripWorkspaceStateMeta` + `stripOnboardingMeta` at every render site.
+- Do not extend either marker to non-structured directives without an ADR. The markers are behavioral artifacts per execution discipline #10.
+- Keep richer inspection in `/work`, `/agents`, and `/context`. The Overview modal is a glance, not a destination.
 
 ---
 
 ## Acceptance Criteria
 
-1. `/chat` loads with no surface visible for returning users with no marker — just the TP chat conversation.
-2. New users (empty workspace, no messages) see the `context` lens open via TP's first-turn marker as the cold-start soft gate (switcher hidden because `isEmpty`).
-3. TP emitting a `<!-- workspace-state: ... -->` marker opens the surface in the requested lead view, with the marker stripped from the displayed message body.
-4. The surface-header toggle button opens the surface; manual opens compute the lead view deterministically from data.
-5. When the workspace has any content, the lens switcher shows all four peer tabs — including "Add context" — and clicking any tab switches the lens without any TP call.
-6. The chat input column is capped to `max-w-3xl` (768px) — Claude Code parity.
-7. The lens switcher is hidden **only** when `isEmpty === true` (soft gate driven by workspace state, not by lens identity).
-8. TypeScript and production build pass.
-9. No dual implementations: `ChatArtifactCard`, `ChatArtifactTabs`, `chatArtifactTypes`, four `artifacts/*.tsx` (v4), and the plus-menu "Update my context" action (v5/v6) are all deleted.
+1. `/chat` loads with no modal visible for returning users with no marker — just the TP chat conversation.
+2. New users (identity empty) see the Onboarding modal via TP's first-turn `<!-- onboarding -->` marker.
+3. TP emitting a `<!-- workspace-state: ... -->` marker opens the Overview modal in the requested tab, with the marker stripped from the displayed message body.
+4. The "Overview" button in the surface header opens the Overview modal with the `overview` tab as default.
+5. Clicking any of the four tabs switches the lens without any TP call.
+6. The Overview modal contains no write forms — the only action affordance is "Ask TP" pre-fill buttons in the `flags` tab.
+7. The Onboarding modal has no manual trigger — TP marker is the only open path.
+8. `WorkspaceStateView` does NOT accept an `isEmpty` prop.
+9. Both modals cannot be open simultaneously.
+10. `DailyBriefing.tsx` is deleted.
+11. TypeScript and production build pass.
+12. No dual implementations: v7's `context` peer tab, `isEmpty` soft gate, `briefing/recent` redundancy, and `DailyBriefing.tsx` are all deleted. The v7 marker `lead` enum is gone — `context | briefing | recent | gaps` is no longer valid anywhere.

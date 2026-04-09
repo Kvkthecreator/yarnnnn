@@ -136,18 +136,16 @@ Pages set the breadcrumb segments via `setBreadcrumb()` in a `useEffect` (unchan
 ## 1. Chat (`/chat`, HOME_ROUTE)
 
 ### Purpose
-Dedicated TP (Thinking Partner) chat surface. The conversation column is the full surface — there is no always-on briefing side panel. Structured views (onboarding, daily briefing, recent work, context gaps) render as a TP-directed MODAL (ADR-165 v7) opened either by TP emitting a `<!-- workspace-state: ... -->` marker or by the user clicking the workspace-state button in the surface header. Four peer lens tabs: `context | briefing | recent | gaps`.
+Dedicated TP (Thinking Partner) chat surface. The conversation column is the full surface — no always-on briefing side panel. Two structured modals (ADR-165 v8) opened independently: the **Overview modal** (read-only diagnostic dashboard, four tabs: What I know / Heads up / Last time / Team activity) and the **Onboarding modal** (first-run identity capture). TP opens either via HTML-comment markers (`<!-- workspace-state: ... -->` or `<!-- onboarding -->`); the user opens the Overview modal via the "Overview" button in the surface header. Two markers, two modals, never conflated.
 
-For new users with an empty workspace, the daily-update task still runs (deterministic empty-state template from ADR-161) and TP's first response opens the workspace-state modal to the `context` lens (soft-gated — switcher hidden while `isEmpty`).
+For new users with an empty workspace, TP's first response opens the Onboarding modal (identity capture form). The daily-update task still runs (deterministic empty-state template from ADR-161).
 
-### Layout (ADR-167 v5)
+### Layout
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ Chat                                                                 │ ← PageHeader (breadcrumb chrome)
-├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
-│ Thinking Partner                            [⊞ Workspace state]      │ ← SurfaceIdentityHeader
+│ Thinking Partner                                [⊞ Overview]         │ ← SurfaceIdentityHeader
 │                                                                      │    h1 + action button
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
@@ -158,9 +156,7 @@ For new users with an empty workspace, the daily-update task still runs (determi
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Chat picks up the same two-component header pattern as /work and /agents: `<PageHeader />` as breadcrumb chrome, `<SurfaceIdentityHeader />` as the real H1 with inline actions. The surface identity H1 is "Thinking Partner" (the agent you're chatting with). The workspace-state toggle (formerly an `inputRowAddon` crammed between the + menu and the textarea inside the chat input row) moves UP into `SurfaceIdentityHeader.actions` — it sits alongside the page identity where it belongs, matching the Run/Pause/Edit pattern on /work detail.
-
-The conversation column stays centered at `max-w-3xl` beneath the headers. Both headers are surface-wide (flush to the viewport edge) so the chrome tone is uniform with the other surfaces.
+`<SurfaceIdentityHeader />` with "Thinking Partner" as the real H1 and the "Overview" button in the actions slot. The conversation column is centered at `max-w-3xl`. The Overview toggle (icon: `LayoutDashboard`) sits alongside the page identity where it belongs, matching the Run/Pause/Edit pattern on /work detail.
 
 ---
 
@@ -395,10 +391,11 @@ Currently wired for BrandSection in Settings (via `MemorySection.tsx`). A dedica
 
 ### Chat
 - `web/app/(authenticated)/chat/page.tsx` — Chat page (home). Loads scoped history, supplies first-party plus-menu actions, delegates everything else to `ChatSurface`.
-- `web/components/chat-surface/ChatSurface.tsx` — page-level controller (ADR-165 v7, ADR-167 v5). Owns surface open state, parses TP workspace-state markers, renders `WorkspaceStateView` as a sibling modal; workspace-state toggle lives in `SurfaceIdentityHeader.actions`. Plus-menu "Update my context" action deleted in v7 — the `context` peer lens is the only re-entry path.
-- `web/components/chat-surface/WorkspaceStateView.tsx` — single workspace-state component with four peer lens views (`context | briefing | recent | gaps`) as internal state branches (ADR-165 v7). Replaces the four sibling artifact files from v4.
-- `web/components/chat-surface/ContextSetup.tsx` — identity capture atom (URL inputs + file uploads + free-text). Sole consumer: `WorkspaceStateView` `context` peer lens.
-- `web/lib/workspace-state-meta.ts` — parser + stripper for TP's workspace-state HTML-comment marker (same pattern as ADR-162 inference-meta). Valid leads: `context | briefing | recent | gaps`.
+- `web/components/chat-surface/ChatSurface.tsx` — page-level controller (ADR-165 v8). Owns Overview + Onboarding modal open state, parses both TP markers, renders both modals as siblings. "Overview" toggle lives in `SurfaceIdentityHeader.actions`.
+- `web/components/chat-surface/WorkspaceStateView.tsx` — Overview modal: four read-only tabs (What I know / Heads up / Last time / Team activity). No `isEmpty` prop, no soft gate. (ADR-165 v8.)
+- `web/components/chat-surface/OnboardingModal.tsx` — Onboarding modal: wraps ContextSetup for first-run identity capture. Opened by TP `<!-- onboarding -->` marker only. (ADR-165 v8.)
+- `web/components/chat-surface/ContextSetup.tsx` — identity capture atom (URL inputs + file uploads + free-text). Sole consumer: `OnboardingModal`.
+- `web/lib/workspace-state-meta.ts` — TWO parsers + TWO strippers for TP markers (workspace-state leads: `overview | flags | recap | activity`; onboarding: presence-only). Same pattern as ADR-162 inference-meta.
 - `docs/design/WORKSPACE-STATE-SURFACE.md` — design doc for `/chat` workspace state surface (ADR-165 v7)
 
 ### Work

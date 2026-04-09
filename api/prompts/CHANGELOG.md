@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.09.6] - ADR-165 v8: Overview + Onboarding modal split
+
+### Changed
+- `api/agents/tp_prompts/onboarding.py`: "Workspace State Surface" section rewritten for v8.
+  - Marker enum changed: `empty | briefing | recent | gaps` → two separate markers:
+    - `<!-- workspace-state: {"lead":"overview|flags|recap|activity"} -->` (Overview modal)
+    - `<!-- onboarding -->` (Onboarding modal, empty directive)
+  - Cold-start first-turn rule now emits `<!-- onboarding -->` instead of `lead=empty`.
+  - Gap detection rule emits `lead=flags` (was `lead=gaps`).
+  - Fresh-runs rule and explicit-ask rule emit `lead=activity` (was `lead=briefing`/`lead=recent`).
+  - New rule: returning-user shift notes → `lead=recap`.
+  - New rule: "show me the state of things" → `lead=overview`.
+  - Tab labels documented in layperson voice (What I know / Heads up / Last time / Team activity).
+  - Both markers documented with format examples.
+- Expected behavior: TP's first message on empty workspace opens Onboarding modal (identity
+  capture form), not the Overview dashboard. Overview modal is purely diagnostic with four
+  read-only tabs. The two surfaces never share a tab switcher or a marker channel.
+
+---
+
 ## [2026.04.09.5] - ADR-168 Commit 5: Mark Implemented + final grep gate
 
 ### Changed

@@ -28,7 +28,7 @@ import {
   InlineActionCard,
   type ActionCardConfig,
 } from '@/components/tp/InlineActionCard';
-import { stripWorkspaceStateMeta } from '@/lib/workspace-state-meta';
+import { stripWorkspaceStateMeta, stripOnboardingMeta } from '@/lib/workspace-state-meta';
 
 export interface ChatPanelProps {
   /** Surface override — when set, used instead of DeskContext surface */
@@ -172,7 +172,7 @@ export function ChatPanel({
             ) : (
               <>
                 {msg.role === 'assistant' ? (
-                  <MarkdownRenderer content={stripWorkspaceStateMeta(msg.content)} compact />
+                  <MarkdownRenderer content={stripOnboardingMeta(stripWorkspaceStateMeta(msg.content))} compact />
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}

@@ -1,36 +1,38 @@
 /**
- * Workspace state surface marker parsing — ADR-165 v7.
+ * Workspace state surface marker parsing — ADR-165 v8.
  *
- * TP emits an HTML comment at the end of an assistant message when it wants
- * the chat client to open the workspace state surface with a specific lead
- * view:
+ * `/chat` has TWO structured modals with TWO independent markers:
  *
- *   <!-- workspace-state: {"lead":"context","reason":"identity is empty"} -->
+ *   <!-- workspace-state: {"lead":"overview","reason":"..."} -->   → Overview modal
+ *   <!-- onboarding -->                                             → Onboarding modal
  *
- * This module parses that comment (if present), returns the markdown body
- * with the comment stripped, and exposes the parsed directive so the chat
- * surface can react to it. Same pattern as ADR-162's inference-meta marker.
+ * TP emits at most one of these per message. Both markers are HTML comments
+ * appended as the LAST line of an assistant message. The chat client parses
+ * both on every new assistant message, opens the matching modal if present,
+ * and strips both markers from the rendered message body.
  *
- * The marker is a TP→client directive, not a tool result. TP decides when
- * the surface should open based on workspace_state signals in working memory.
- * The frontend never guesses — it just executes what TP asks for.
+ * v8 (2026-04-09): Onboarding split from workspace-state — they were the
+ * same marker in v7 (`lead=context`) but conflated diagnostic with capture.
+ * The two modals now have distinct markers, distinct parsers, and distinct
+ * lifecycles. Lead enum changed: `context | briefing | recent | gaps` →
+ * `overview | flags | recap | activity`. No backwards-compat shim — legacy
+ * markers silently no-op on parse.
  *
- * v7 (2026-04-09): `empty` lead dissolved into `context`. "Add context" is
- * a peer lens alongside briefing/recent/gaps. The gate behavior (cold-start
- * lock) is a property of workspace state (`isEmpty`), not a property of the
- * lens value. TP still emits `lead=context` on the first turn for an empty
- * workspace; the frontend renders it with the switcher hidden because
- * `isEmpty` is true, not because the lens name is special.
+ * Same parsing approach as ADR-162's inference-meta marker.
  */
 
+// =============================================================================
+// Workspace state marker (Overview modal)
+// =============================================================================
+
 export type WorkspaceStateLead =
-  | 'context'    // ContextSetup (cold-start capture on empty, peer re-entry otherwise)
-  | 'briefing'   // What changed since the user was last here
-  | 'recent'     // What's currently running
-  | 'gaps';      // Coverage gaps — domain agents without tasks, missing context
+  | 'overview'   // What I know — honest mirror of compact index
+  | 'flags'      // Heads up — gaps + signals TP wants to flag
+  | 'recap'      // Last time — cross-session memory (AWARENESS.md, summaries)
+  | 'activity';  // Team activity — recent runs + coming up
 
 export interface WorkspaceStateDirective {
-  /** Which view the surface should open in. */
+  /** Which tab the Overview modal should open in. */
   lead: WorkspaceStateLead;
   /** Optional one-liner TP can pass to explain why it opened the surface. */
   reason?: string;
@@ -43,13 +45,13 @@ export interface ParsedWorkspaceStateContent {
   directive: WorkspaceStateDirective | null;
 }
 
-const META_COMMENT_RE = /\n*<!--\s*workspace-state:\s*(\{[\s\S]*?\})\s*-->\s*$/;
+const WORKSPACE_STATE_RE = /\n*<!--\s*workspace-state:\s*(\{[\s\S]*?\})\s*-->\s*$/;
 
 const VALID_LEADS: ReadonlySet<WorkspaceStateLead> = new Set<WorkspaceStateLead>([
-  'context',
-  'briefing',
-  'recent',
-  'gaps',
+  'overview',
+  'flags',
+  'recap',
+  'activity',
 ]);
 
 /**
@@ -63,7 +65,7 @@ export function parseWorkspaceStateMeta(
 ): ParsedWorkspaceStateContent {
   if (!content) return { body: '', directive: null };
 
-  const match = content.match(META_COMMENT_RE);
+  const match = content.match(WORKSPACE_STATE_RE);
   if (!match) {
     return { body: content, directive: null };
   }
@@ -89,4 +91,46 @@ export function parseWorkspaceStateMeta(
  */
 export function stripWorkspaceStateMeta(content: string | null | undefined): string {
   return parseWorkspaceStateMeta(content).body;
+}
+
+// =============================================================================
+// Onboarding marker (Onboarding modal)
+// =============================================================================
+
+export interface ParsedOnboardingContent {
+  /** The markdown body with the onboarding comment stripped. */
+  body: string;
+  /** True if an onboarding marker was present. */
+  present: boolean;
+}
+
+// Matches `<!-- onboarding -->` on its own line at the end of a message.
+// The marker carries no JSON payload — its presence alone is the directive.
+const ONBOARDING_RE = /\n*<!--\s*onboarding\s*-->\s*$/;
+
+/**
+ * Parse and strip the onboarding HTML comment from a TP message.
+ *
+ * Returns the markdown body (comment removed) and whether the marker was present.
+ */
+export function parseOnboardingMeta(
+  content: string | null | undefined,
+): ParsedOnboardingContent {
+  if (!content) return { body: '', present: false };
+
+  const match = content.match(ONBOARDING_RE);
+  if (!match) {
+    return { body: content, present: false };
+  }
+
+  const body = content.slice(0, match.index ?? 0).trimEnd();
+  return { body, present: true };
+}
+
+/**
+ * Strip the onboarding marker from message content for display.
+ * Convenience wrapper. Chainable with stripWorkspaceStateMeta.
+ */
+export function stripOnboardingMeta(content: string | null | undefined): string {
+  return parseOnboardingMeta(content).body;
 }
