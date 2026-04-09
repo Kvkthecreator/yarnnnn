@@ -423,11 +423,15 @@ def _load_active_agents(auth) -> dict[str, dict]:
 
 
 def _load_active_tasks(auth) -> dict[str, dict]:
-    """Load active tasks keyed by slug for classifier slug matching."""
+    """Load active tasks keyed by slug for classifier slug matching.
+
+    Note: the `tasks` table has no `title` column — slug is the only
+    identifier we need for substring-based slug matching.
+    """
     try:
         result = (
             auth.client.table("tasks")
-            .select("slug, title, status")
+            .select("slug, status")
             .eq("user_id", auth.user_id)
             .eq("status", "active")
             .limit(50)

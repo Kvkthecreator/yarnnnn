@@ -201,10 +201,12 @@ async def compose_active_candidates(auth: Any) -> dict:
     candidates: list[dict] = []
 
     # --- Active tasks (direct SQL; same shape as working_memory._get_active_tasks_sync) ---
+    # Note: the `tasks` table has no `title` column — slug is the display-safe
+    # identifier. The LLM humanizes the slug when surfacing it to the user.
     try:
         result = (
             auth.client.table("tasks")
-            .select("slug, title, mode, schedule, status, next_run_at, last_run_at, essential")
+            .select("slug, mode, schedule, status, next_run_at, last_run_at")
             .eq("user_id", auth.user_id)
             .eq("status", "active")
             .order("next_run_at", desc=False, nullsfirst=False)
@@ -217,10 +219,11 @@ async def compose_active_candidates(auth: Any) -> dict:
                 reason_bits.append(str(t["schedule"]))
             if t.get("next_run_at"):
                 reason_bits.append(f"next {_short_date(t['next_run_at'])}")
+            slug = t.get("slug") or ""
             candidates.append({
-                "subject": t.get("title") or t.get("slug"),
+                "subject": slug.replace("-", " ").replace("_", " ").title() or slug,
                 "reason": " · ".join(reason_bits) or "active task",
-                "path": f"/tasks/{t.get('slug')}/",
+                "path": f"/tasks/{slug}/",
                 "kind": "task",
             })
     except Exception as e:
@@ -560,11 +563,14 @@ def _list_related_tasks(auth: Any, domain: str) -> list[dict]:
     """
     Return a thin list of tasks touching the given domain. Direct SQL query
     — there is no task-listing primitive at MCP scope.
+
+    Note: the `tasks` table has no `title` column — slug is the display-safe
+    identifier. The caller humanizes the slug when surfacing it to the user.
     """
     try:
         result = (
             auth.client.table("tasks")
-            .select("slug, title, schedule, next_run_at")
+            .select("slug, schedule, next_run_at")
             .eq("user_id", auth.user_id)
             .eq("status", "active")
             .limit(5)
@@ -575,7 +581,7 @@ def _list_related_tasks(auth: Any, domain: str) -> list[dict]:
         return [
             {
                 "slug": t.get("slug"),
-                "title": t.get("title") or t.get("slug"),
+                "display": (t.get("slug") or "").replace("-", " ").replace("_", " ").title(),
                 "next_run": _short_date(t.get("next_run_at")),
             }
             for t in (result.data or [])
