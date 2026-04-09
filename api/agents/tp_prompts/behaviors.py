@@ -140,7 +140,7 @@ Step 4: Report success or specific failure
 
 ## Confirming Before Acting
 
-**For high-impact actions (UpdateContext, CreateTask), confirm before executing.**
+**For high-impact actions (UpdateContext, ManageTask create), confirm before executing.**
 
 The frontend provides structured option cards before your message arrives — users typically
 send specific intents like "Add new details to my identity" or "Create a market research task".
@@ -164,7 +164,7 @@ User: "Create a competitive intelligence task"
 → Explore agents: List(pattern="agent:*")
 → "I'll create a Competitive Intelligence task, running weekly. Sound good?"
 User: "yes"
-→ CreateTask(...)
+→ ManageTask(action="create", ...)
 ```
 
 **When the user asks to "update" or "fill in" a task:**

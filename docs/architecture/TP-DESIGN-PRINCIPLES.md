@@ -14,7 +14,7 @@ TP is the intelligence layer. It reads context, assesses state, and makes judgme
 - Rich context (working memory, WORKSPACE.md, workspace_state, navigation state)
 - Clear priorities (identity before brand before tasks)
 - Behavioral philosophy (one thing at a time, act then adjust, don't overwhelm)
-- Tools to act (UpdateContext, CreateTask, ManageTask, etc.)
+- Tools to act (UpdateContext, ManageTask, ManageAgent, ManageDomains, etc.)
 
 **We do NOT give TP:**
 - State machines ("IF identity == empty THEN only suggest identity")
@@ -32,7 +32,7 @@ TP is the intelligence layer. It reads context, assesses state, and makes judgme
 TP manages what's in the workspace filesystem. Every primitive is a filesystem write with judgment about what to write and where.
 
 - Reads: working memory, WORKSPACE.md, workspace_state, navigation context
-- Writes: UpdateContext (identity/brand/memory/agent/task), CreateTask, ManageTask, ManageDomains
+- Writes: UpdateContext (identity/brand/memory/agent/task/awareness), ManageTask (create/trigger/update/evaluate/steer/complete), ManageAgent, ManageDomains
 - Routes feedback to the right scope (workspace / agent / task)
 - Scaffolds context domains: after processing identity, TP reasons about what entities should exist and calls ManageDomains to pre-populate (ADR-155). No separate inference service — TP IS the inference layer.
 
@@ -58,7 +58,7 @@ TP guides users through workspace setup and ongoing use. It sees what's missing,
 
 TP reads the workspace state (workspace_state) and uses judgment to guide the user. It doesn't force a sequence. It suggests what would be most valuable RIGHT NOW.
 
-- Empty workspace + no context: "Tell me about yourself and your work" (ContextSetup component on `/context`)
+- Empty workspace + no context: "Tell me about yourself and your work" (TP emits `<!-- workspace-state: {"lead":"context"} -->` on first turn when `workspace_state.identity == "empty"`; opens `WorkspaceStateView` with `ContextSetup` as the active peer lens, switcher soft-gated by `isEmpty` — ADR-165 v7)
 - User provides identity: TP processes → UpdateContext → ManageDomains (pre-populates all domains with entity stubs)
 - User says "track competitors": TP creates the task immediately (doesn't gate on brand being set)
 - User browses empty context/competitors/: "This is your competitor intelligence folder. Want to start tracking?"
@@ -90,7 +90,7 @@ Conversation starter chips, inline action cards, and chat messages are ONE fluid
 1. **Chip** starts the conversation ("Tell me about myself and my work")
 2. **Action card** appears with guided input (URL field, file upload, text area)
 3. **User provides input** via the action card (paste LinkedIn, upload deck, type description)
-4. **TP processes** the input (calls UpdateContext, CreateTask, etc.)
+4. **TP processes** the input (calls UpdateContext, ManageTask, etc.)
 5. **TP responds** in chat with confirmation + next suggestion
 
 Action cards are NOT forms that bypass TP. They're INPUT SURFACES that feed into the chat. Whatever the user provides through an action card becomes a message that TP processes with full judgment.
@@ -99,7 +99,7 @@ Action cards are NOT forms that bypass TP. They're INPUT SURFACES that feed into
 
 **Examples:**
 - Identity setup card: URL field + file upload + text area → sends to TP → `UpdateContext(target="identity")`
-- New task card: task description field → sends to TP → `CreateTask(type_key="...")`
+- New task card: task description field → sends to TP → `ManageTask(action="create", type_key="...")`
 - Feedback card: text area → sends to TP → `UpdateContext(target="task", feedback_target="deliverable")`
 
 ---

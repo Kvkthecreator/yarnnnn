@@ -53,9 +53,9 @@ User wants to create a task. Use the task type registry to match their need to a
 1. Understand what they need. Match to a type_key above.
 2. Ask for focus/topic if applicable: "What specific area should this cover?"
 3. Confirm schedule (use type's default unless they specify otherwise)
-4. Create: `CreateTask(title="...", type_key="...", focus="...")`
+4. Create: `ManageTask(action="create", title="...", type_key="...", focus="...")`
 
-If their need doesn't match any type, fall back to custom: `CreateTask(title="...", agent_slug="...", objective={...})`
+If their need doesn't match any type, fall back to custom: `ManageTask(action="create", title="...", agent_slug="...", objective={...})`
 
 Keep it simple — one question at a time. Prefer type_key over manual agent_slug.
 """,
@@ -76,8 +76,8 @@ Create a Slack or Notion recap using registered task types.
 1. Ask platform: `Clarify(question="Which platform?", options=["Slack", "Notion", "Both"])`
 2. Ask frequency: `Clarify(question="How often?", options=["Daily", "Weekly"])`
 3. Create using type_key:
-   - Slack: `CreateTask(title="Daily Slack Recap", type_key="slack-recap", schedule="daily")`
-   - Notion: `CreateTask(title="Weekly Notion Sync", type_key="notion-sync-report")`
+   - Slack: `ManageTask(action="create", title="Daily Slack Recap", type_key="slack-recap", schedule="daily")`
+   - Notion: `ManageTask(action="create", title="Weekly Notion Sync", type_key="notion-sync-report")`
    - Both: create both tasks
 
 **Note:** Slack/Notion types require the platform to be connected. If not connected, prompt user to connect first.
@@ -98,8 +98,8 @@ Create a stakeholder update or project status report using registered task types
 **Flow:**
 1. Ask audience: `Clarify(question="Who is this for?", options=["Board/Investors", "Leadership", "Team"])`
 2. Based on audience:
-   - Board/Investors/Leadership → `CreateTask(title="Monthly Stakeholder Update", type_key="stakeholder-update")`
-   - Team → `CreateTask(title="Weekly Project Status", type_key="project-status-report")` (requires Slack)
+   - Board/Investors/Leadership → `ManageTask(action="create", title="Monthly Stakeholder Update", type_key="stakeholder-update")`
+   - Team → `ManageTask(action="create", title="Weekly Project Status", type_key="project-status-report")` (requires Slack)
 3. Ask for any focus customization
 
 **Defaults:** stakeholder-update=monthly, project-status-report=weekly
@@ -117,11 +117,11 @@ Create a stakeholder update or project status report using registered task types
 
 Create a research task using registered task types. Match to the best type:
 
-- Competitive tracking → `CreateTask(title="...", type_key="competitive-intel-brief", focus="...")`
-- Market/industry research → `CreateTask(title="...", type_key="market-research-report", focus="...")`
-- Industry monitoring → `CreateTask(title="...", type_key="industry-signal-monitor", focus="...")`
-- GTM tracking → `CreateTask(title="...", type_key="gtm-tracker", focus="...")`
-- Due diligence → `CreateTask(title="...", type_key="due-diligence-summary", focus="...")`
+- Competitive tracking → `ManageTask(action="create", title="...", type_key="competitive-intel-brief", focus="...")`
+- Market/industry research → `ManageTask(action="create", title="...", type_key="market-research-report", focus="...")`
+- Industry monitoring → `ManageTask(action="create", title="...", type_key="industry-signal-monitor", focus="...")`
+- GTM tracking → `ManageTask(action="create", title="...", type_key="gtm-tracker", focus="...")`
+- Due diligence → `ManageTask(action="create", title="...", type_key="due-diligence-summary", focus="...")`
 
 **Flow:**
 1. Ask what to research: "What topic or domain?"

@@ -6,6 +6,76 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.09.4] - ADR-168 Commit 3: Fold CreateTask into ManageTask(action="create")
+
+### Changed
+- `api/services/primitives/task.py`: **DELETED**. The entire file — `CREATE_TASK_TOOL`, `handle_create_task`, `_slugify`, `_compute_next_run`, `_build_task_md` helpers. Absorbed into `manage_task.py`.
+- `api/services/primitives/manage_task.py`:
+  - `MANAGE_TASK_TOOL.input_schema.properties.action.enum` expanded from 7 to 8 values. `"create"` added as the first value (matches `ManageAgent(action="create")` convention).
+  - `input_schema.required` changed from `["task_slug", "action"]` to `["action"]`. `task_slug` is no longer top-level required because `action="create"` generates the slug from `title`. The requirement is now enforced inside `handle_manage_task()` as a conditional check for non-create actions.
+  - `input_schema.properties` extended with all CreateTask fields: `title`, `type_key`, `agent_slug`, `focus`, `objective`, `success_criteria`, `output_spec`. These were previously on `CREATE_TASK_TOOL`.
+  - Tool description extended with the full `action="create"` section (two creation paths, required/optional fields, examples), and the existing 7 action sections preserved.
+  - `handle_manage_task()` updated to dispatch `action="create"` to new `_handle_create()`, and to enforce `task_slug` conditionally (required for all non-create actions).
+  - New `_handle_create()` function: full port of the former `handle_create_task` logic — type-key resolution (ADR-145), auto-populated sources from `platform_connections` (ADR-158), custom task fallback, workspace scaffolding (TASK.md + DELIVERABLE.md + memory/feedback.md + memory/steering.md + awareness.md per ADR-149 + ADR-154), context domain scaffolding for `context_writes` (ADR-151 + entity trackers per ADR-154), `update_workspace_manifest` call. Return dict includes `action: "create"` so the frontend notification dispatcher can key on action rather than tool name.
+  - New helpers: `_slugify()` and `_build_custom_task_md()` ported from the deleted `task.py`. `_compute_next_run()` already existed in manage_task.py (identical to task.py's version).
+  - `import re` added to handle the slug regex.
+- `api/services/primitives/registry.py`:
+  - Removed `from .task import CREATE_TASK_TOOL, handle_create_task` import.
+  - Removed `CREATE_TASK_TOOL` from `CHAT_PRIMITIVES` (14 → 13 tools) and `HEADLESS_PRIMITIVES` (16 → 15 static tools).
+  - Removed `"CreateTask": handle_create_task` from `HANDLERS`. Replaced with a DELETED comment marker.
+  - Extended the deletion ledger at the top of the file to document ADR-168 Commit 3.
+- `api/services/primitives/__init__.py`: Module docstring rewritten to reflect current state — points at `primitives-matrix.md` as canonical, documents both the ADR-146 consolidations AND the ADR-168 Commits 2/3 dissolutions.
+- `api/agents/tp_prompts/tools.py`: `## Creating Tasks (primary flow)` section rewritten. `CreateTask(title, agent_slug)` → `ManageTask(action="create", title, ...)`. Added note about the two creation paths (type-keyed vs custom). Module docstring header extended to document ADR-168 Commit 3.
+- `api/agents/tp_prompts/onboarding.py`: 9 occurrences of `CreateTask(type_key="...", title="...")` updated to `ManageTask(action="create", type_key="...", title="...")` across the agent-to-task mapping section, synthesis rollup, and task type catalog.
+- `api/agents/tp_prompts/behaviors.py`: 2 references updated. High-impact action list now names "UpdateContext, ManageTask create" instead of "UpdateContext, CreateTask". Example TP flow shows `ManageTask(action="create", ...)` call.
+- `api/services/commands.py`: 7 `CreateTask` references across `/task`, `/recap`, `/summary`, `/research` slash command prompts — all updated to `ManageTask(action="create", ...)`.
+- `api/routes/chat.py`: Session summary classifier at line 373 — tuple of "decision-class" tool names updated: `("CreateTask", "ManageTask", "UpdateContext", "ManageDomains")` → `("ManageTask", "UpdateContext", "ManageDomains")`. `CreateTask` decisions now flow through `ManageTask` naturally.
+- `api/test_recent_commits.py`:
+  - `Chat has CreateTask` assertion replaced with two new assertions: `CreateTask not in chat registry` and `CreateTask not in headless registry`.
+  - `ManageTask has 7 actions` updated to `ManageTask has 8 actions` (create added).
+  - `ManageTask requires task_slug+action` updated to `ManageTask requires action only (task_slug conditional)`.
+  - Six new assertions added to validate ManageTask absorbed CreateTask's schema fields: `title`, `type_key`, `agent_slug`, `focus`, `objective` presence checks.
+  - `test_no_dangling_imports` deleted_imports list extended with `"from services.primitives.task import"`, `"from .task import"`, `"handle_create_task"`, `"CREATE_TASK_TOOL"` to catch any future regressions.
+  - Test count: 128 → 137 (9 net new assertions). All 137 pass.
+- `web/contexts/TPContext.tsx`: Notification dispatcher at line 585 rewritten. The old separate `CreateTask` branch merged into the `ManageTask` branch gated on `mtAction === 'create'`. Single-primitive dispatch. Frontend notification still shows "Task created" title.
+- `web/components/tp/InlineToolCall.tsx`: `CreateTask: Sparkles` icon mapping removed. `Execute: Play` icon mapping (orphan from Commit 2) also removed in this pass. Icon map stays clean.
+- `docs/architecture/primitives-matrix.md`:
+  - `ManageTask` row in the main matrix updated — purpose text now explicitly says "Create, trigger, update, pause, resume, evaluate, steer, complete task. ADR-168 Commit 3 folded the former `CreateTask` primitive into `action="create"` for symmetry with `ManageAgent`."
+  - Mode totals "Current state" section updated: chat 14 → 13, headless 16 → 15, with Commit 3 reason noted.
+  - `ManageTask.action` enumeration table updated: now 8-value (create added as first row), with `task_slug` conditional-requirement note prominent. Each row tagged with the ADR that introduced it (`create` → ADR-168 C3).
+  - Deleted primitives ledger — `CreateTask` row marked "*(shipped 2026-04-09)*" and extended with absorbed fields and helpers.
+- `docs/architecture/SERVICE-MODEL.md`: "How Work Gets Created" flow diagram updated (`CreateTask primitive writes TASK.md` → `ManageTask(action="create", ...) writes TASK.md`). Commit 3 no longer in the "continues to evolve" list.
+- `docs/architecture/TP-DESIGN-PRINCIPLES.md`: 4 prose references updated. "Tools to act" list, "Writes" list, action card example, and action-card-to-primitive mapping all now name `ManageTask` / `ManageTask(action="create")` instead of `CreateTask`.
+- `docs/design/SURFACE-PRIMITIVES-MAP.md`: Plus menu table, slash command table, chat-mode primitive list, agent-page plus menu, task drill-down plus menu, context-page plus menu, and navigation-map table — all `CreateTask(...)` → `ManageTask(action="create", ...)`. Added explicit drift note at the top of the file pointing out that this file has older drift from ADR-146 era (`TriggerTask`, `UpdateSharedContext`, `SaveMemory`) that wasn't swept in this commit — readers are directed to `primitives-matrix.md` as canonical. Broader sweep of this file is deferred (out of Commit 3 scope).
+- `docs/design/TP-NOTIFICATION-CHANNEL.md`: Side-effect table row `CreateTask` → `ManageTask (create)`.
+- `docs/design/ONBOARDING-TP-AWARENESS.md`: TP call sequence in the context inference flow — `CreateTask(...)` → `ManageTask(action="create", ...)`.
+- `docs/design/ONBOARDING-SCAFFOLD-AND-BRIEFING.md`: 4 flow-diagram references and 1 readiness-check table row updated.
+- `docs/design/DELIVERABLE-FIRST-USER-FLOW.md`: Catalog-cards description updated — scaffolds via `ManageTask(action="create")` instead of `CreateTask`.
+- `CLAUDE.md`:
+  - File Locations table — `Task Primitives | api/services/primitives/task.py (ADR-138: CreateTask)` row **deleted** (file no longer exists). `Task Management` row expanded to `Task Lifecycle Primitive`, documents the single-primitive model including the ADR-168 Commit 3 fold.
+  - ADR-168 entry status marker updated: "Commit 1 landed" → "Commits 1, 1.1, 2, 3 landed 2026-04-09. Commits 4–5 in progress."
+- Expected behavior: No semantic change in what TP can do. Every `CreateTask(...)` call shape becomes `ManageTask(action="create", ...)` with the same field names. `ManageAgent` and `ManageTask` now have symmetric lifecycle shapes — one primitive per entity class, with `action` discriminating intent. The 13/15 chat/headless tool counts now match ADR-168 §7 target state for non-rename shape.
+- Validation: 137/137 test_recent_commits.py assertions pass (was 128/128 after Commit 2). All 9 touched backend modules import cleanly. Backend starts. No dangling references to `services.primitives.task` anywhere in live code.
+
+---
+
+## [2026.04.09.3] - ADR-165 v7: `empty` lens dissolved into `context` peer tab
+
+### Changed
+- `api/agents/tp_prompts/onboarding.py`: "Workspace State Surface" section updated from v5 to v7. Valid `lead` enum changed from `empty | briefing | recent | gaps` to `context | briefing | recent | gaps`. Added an explicit "two namespaces" warning: `workspace_state.identity` in the compact index stays `empty | sparse | rich` (it classifies IDENTITY.md richness — what TP reads), while the marker `lead` is the lens name `context` (what the client opens). TP should never emit `lead=empty` — that value no longer exists in the frontend enum. First-turn rule updated: when `workspace_state.identity == "empty"`, emit `lead=context` (not `lead=empty`). Added a fifth rule for re-entry: when user wants to add more context after onboarding, emit `lead=context` — previously this path went through a plus-menu "Update my context" action which ADR-165 v7 deleted as redundant (the peer tab IS the entry point).
+- Expected behavior: cold-start flow is byte-identical from TP's perspective (read `identity == "empty"` → emit marker → pair with text invitation). The only user-visible change is the marker payload: `{"lead":"context"}` instead of `{"lead":"empty"}`. The modal still hides the switcher on cold start (soft gate), but now via `isEmpty` workspace-state check, not via a special `empty` lens identity. Returning users get a new peer tab labeled "Add context" in the lens switcher — discoverable without a plus-menu dive.
+- `api/prompts/CHANGELOG.md`: this entry.
+
+### Why
+The previous v5/v6 design conflated two concerns inside the `empty` lens value: (1) "render ContextSetup as the active content" and (2) "hide the lens switcher — the user cannot navigate away until they submit." Concern (1) belongs to the lens; concern (2) belongs to workspace state. Binding them meant any use of `ContextSetup` had to be a gate, which forced re-entry ("Update my context") through a plus-menu action instead of a peer tab. ADR-165 v7 decouples them: `context` is a peer lens like the other three, the gate is a property of `isEmpty`, and the plus-menu redundancy is deleted. One surface, four peer tabs, one soft gate driven by workspace state.
+
+### Validation
+- Frontend `tsc --noEmit` clean (no `'empty'` lens references remain in the type, parser, or switcher)
+- Grep gate: `lead=empty`, `lead: 'empty'`, `'empty' | 'briefing'`, `empty.{0,10}ContextSetup` all return zero active references (archive docs and historical ADR body text preserved as-is per archival discipline)
+- Backend fixture `workspace_state.identity = "empty"` in `test_recent_commits.py` is UNCHANGED — that's the dict-field namespace, not the lens-value namespace
+
+---
+
 ## [2026.04.09.2] - ADR-168 Commit 2: Dissolve Execute Primitive
 
 ### Changed

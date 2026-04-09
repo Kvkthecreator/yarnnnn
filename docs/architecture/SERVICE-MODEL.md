@@ -109,7 +109,7 @@ No hidden flag. No `task_kind` column. Task ownership (agent.role) is the only d
 ```
 User intent (chat or UI)
   → TP decomposes into task definition
-  → CreateTask primitive writes TASK.md + tasks DB row
+  → ManageTask(action="create", ...) writes TASK.md + tasks DB row
   → next_run_at calculated from schedule
 ```
 
@@ -217,7 +217,7 @@ Current surface (post-ADR-168 Commit 2):
 - **Chat mode** (~14 tools): entity-layer verbs + UpdateContext + lifecycle verbs (ManageAgent/Task/Domains) + RepurposeOutput + Clarify + WebSearch + list_integrations + GetSystemState.
 - **Headless mode** (~16 static tools + `platform_*` dynamic): entity-layer verbs + file-layer verbs (ReadWorkspace/WriteWorkspace/SearchWorkspace/ListWorkspace/QueryKnowledge) + inter-agent verbs (DiscoverAgents/ReadAgentContext) + lifecycle verbs + WebSearch + GetSystemState.
 
-The surface continues to evolve through ADR-168 Commits 3–5 (fold CreateTask, rename to `*Entity`/`*File` families).
+The surface continues to evolve through ADR-168 Commits 4–5 (rename to `*Entity`/`*File` families; Commit 3 completed the CreateTask fold).
 
 ---
 

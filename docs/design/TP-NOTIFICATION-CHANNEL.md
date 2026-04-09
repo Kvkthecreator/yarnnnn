@@ -79,7 +79,7 @@ Not every tool result is worth surfacing. Only tool results with **user-visible 
 |------|------------|-------------|
 | UpdateContext (identity + inference) | Workspace scaffolded | Domains + entity count + "View" link |
 | UpdateContext (identity/brand) | Context updated | File updated confirmation |
-| CreateTask | Task created | Task name + schedule + "View" link |
+| ManageTask (create) | Task created | Task name + schedule + "View" link |
 | ManageTask (evaluate) | Task evaluated | Quality assessment summary |
 | ManageTask (complete) | Task completed | Completion summary |
 | WriteWorkspace | File written | Path + summary (only if on context page) |

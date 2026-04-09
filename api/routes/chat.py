@@ -370,7 +370,7 @@ async def _write_conversation_summary(auth, messages: list[dict]) -> None:
             for tool in tool_history:
                 name = tool.get("name", "")
                 summary = tool.get("result_summary", "")
-                if name in ("CreateTask", "ManageTask", "UpdateContext", "ManageDomains"):
+                if name in ("ManageTask", "UpdateContext", "ManageDomains"):
                     decisions.append(f"{name}: {summary[:100]}" if summary else name)
 
         # Build summary
