@@ -23,26 +23,24 @@
  * We render it inline inside a nested card, plus link out to the domain.
  */
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, FolderOpen, Layers } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { AlertCircle, FolderOpen, Layers, Loader2, RefreshCw } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { useTaskOutputs } from '@/hooks/useTaskOutputs';
 import { CONTEXT_ROUTE } from '@/lib/routes';
-import type { Task, TaskOutput } from '@/types';
+import type { Task } from '@/types';
 
-export function TrackingMiddle({ task }: { task: Task }) {
-  const [loading, setLoading] = useState(true);
-  const [latest, setLatest] = useState<TaskOutput | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setLatest(null);
-    api.tasks.getLatestOutput(task.slug)
-      .then(result => setLatest(result))
-      .catch(() => setLatest(null))
-      .finally(() => setLoading(false));
-  }, [task.slug]);
+export function TrackingMiddle({
+  task,
+  refreshKey,
+}: {
+  task: Task;
+  refreshKey: number;
+}) {
+  const { latest, loading, error, reload } = useTaskOutputs(task.slug, {
+    includeLatest: true,
+    refreshKey,
+  });
 
   // Primary domain = first context_writes entry that isn't `signals`
   // (signals is a cross-cutting log every track-* writes to)
@@ -109,6 +107,18 @@ export function TrackingMiddle({ task }: { task: Task }) {
             {loading ? (
               <div className="flex items-center justify-center py-2">
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : error ? (
+              <div className="text-center">
+                <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive/70" />
+                <p className="text-xs text-muted-foreground">{error}</p>
+                <button
+                  onClick={() => void reload()}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Retry
+                </button>
               </div>
             ) : latest && (latest.content || latest.md_content) ? (
               <div className="prose prose-sm max-w-none dark:prose-invert">

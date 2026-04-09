@@ -20,24 +20,24 @@
  * the third-party platform; we link out where possible.
  */
 
-import { useEffect, useState } from 'react';
-import { Loader2, Send, ExternalLink, CheckCircle2, AlertCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2, RefreshCw, Send } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/formatting';
-import { api } from '@/lib/api/client';
-import type { Task, TaskOutput } from '@/types';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { useTaskOutputs } from '@/hooks/useTaskOutputs';
+import type { Task } from '@/types';
 
-export function ActionMiddle({ task }: { task: Task }) {
-  const [loading, setLoading] = useState(true);
-  const [outputs, setOutputs] = useState<TaskOutput[]>([]);
-
-  useEffect(() => {
-    setLoading(true);
-    api.tasks
-      .listOutputs(task.slug, 10)
-      .then(result => setOutputs(result.outputs ?? []))
-      .catch(() => setOutputs([]))
-      .finally(() => setLoading(false));
-  }, [task.slug]);
+export function ActionMiddle({
+  task,
+  refreshKey,
+}: {
+  task: Task;
+  refreshKey: number;
+}) {
+  const { latest, history: outputs, loading, error, reload } = useTaskOutputs(task.slug, {
+    includeLatest: true,
+    historyLimit: 10,
+    refreshKey,
+  });
 
   return (
     <>
@@ -61,6 +61,42 @@ export function ActionMiddle({ task }: { task: Task }) {
         </p>
       </div>
 
+      {/* Latest payload */}
+      <div className="px-6 py-4 border-b border-border/40">
+        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
+          Latest payload
+        </h3>
+        {loading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-2">
+            <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive/70" />
+            <p className="text-xs text-muted-foreground">{error}</p>
+            <button
+              onClick={() => void reload()}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Retry
+            </button>
+          </div>
+        ) : latest && (latest.content || latest.md_content) ? (
+          <div className="rounded-lg border border-border bg-muted/5 overflow-hidden">
+            <div className="max-h-[240px] overflow-auto p-5">
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                <MarkdownRenderer content={latest.content ?? latest.md_content ?? ''} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground/60">
+            No payload preview is available for the most recent fire.
+          </p>
+        )}
+      </div>
+
       {/* Action history */}
       <div className="px-6 py-4">
         <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
@@ -70,6 +106,11 @@ export function ActionMiddle({ task }: { task: Task }) {
           {loading ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : error ? (
+            <div className="text-center py-2">
+              <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive/70" />
+              <p className="text-xs text-muted-foreground">{error}</p>
             </div>
           ) : outputs.length === 0 ? (
             <p className="text-xs text-muted-foreground/60 py-2">

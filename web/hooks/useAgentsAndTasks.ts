@@ -22,6 +22,7 @@ interface UseAgentsAndTasksResult {
   agents: Agent[];
   tasks: Task[];
   loading: boolean;
+  error: string | null;
   reload: () => Promise<void>;
 }
 
@@ -33,6 +34,7 @@ export function useAgentsAndTasks(
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -42,9 +44,9 @@ export function useAgentsAndTasks(
       ]);
       setAgents(agentList);
       setTasks(taskList);
+      setError(null);
     } catch {
-      setAgents([]);
-      setTasks([]);
+      setError('Failed to load agents and tasks.');
     } finally {
       setLoading(false);
     }
@@ -72,5 +74,5 @@ export function useAgentsAndTasks(
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [loadData, refreshOnFocus]);
 
-  return { agents, tasks, loading, reload: loadData };
+  return { agents, tasks, loading, error, reload: loadData };
 }

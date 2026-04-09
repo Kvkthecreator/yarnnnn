@@ -9,9 +9,9 @@
  *
  * Features:
  *   - Filter chips on output_kind: All | Tracking | Reports | Actions | System
- *   - Search box (substring match on title)
+ *   - Search box across title, agent, delivery, type, objective, domains
  *   - Group-by dropdown: Output kind (default) | Agent | Status | Schedule
- *   - Status filter: active+paused (default), include archived
+ *   - Status filter: active+paused (default), optional completed+archived
  *   - Agent filter: pre-applied if `?agent={slug}` is in URL; user can clear
  *
  * Click a row → onSelect(slug) → page transitions to detail mode by updating
@@ -30,6 +30,8 @@ interface WorkListSurfaceProps {
   agents: Agent[];
   /** Pre-applied agent filter from URL `?agent={slug}` (or null) */
   agentFilter: string | null;
+  /** Non-fatal data loading error when stale list data is still available */
+  dataError?: string | null;
   /** Called when user clears the agent filter via the chip */
   onClearAgentFilter: () => void;
   onSelect: (slug: string) => void;
@@ -60,11 +62,40 @@ const GROUP_BY_LABEL: Record<GroupBy, string> = {
   schedule: 'Schedule',
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  active: 'Active',
+  paused: 'Paused',
+  completed: 'Completed',
+  archived: 'Archived',
+};
+
+const GROUP_ORDER: Record<GroupBy, string[]> = {
+  output_kind: ['Tracking', 'Reports', 'Actions', 'System', 'Other'],
+  agent: [],
+  status: ['Active', 'Paused', 'Completed', 'Archived', 'Unknown'],
+  schedule: [],
+};
+
 function agentNameFor(task: Task, agents: Agent[]): string {
   const assigned = task.agent_slugs?.[0];
   if (!assigned) return 'Unassigned';
   const agent = agents.find(a => a.slug === assigned);
   return agent?.title ?? assigned;
+}
+
+function statusRank(status: string | undefined): number {
+  switch (status) {
+    case 'active':
+      return 0;
+    case 'paused':
+      return 1;
+    case 'completed':
+      return 2;
+    case 'archived':
+      return 3;
+    default:
+      return 4;
+  }
 }
 
 function groupKeyFor(task: Task, groupBy: GroupBy, agents: Agent[]): string {
@@ -74,28 +105,78 @@ function groupKeyFor(task: Task, groupBy: GroupBy, agents: Agent[]): string {
     case 'agent':
       return agentNameFor(task, agents);
     case 'status':
-      return task.status ? task.status[0].toUpperCase() + task.status.slice(1) : 'Unknown';
+      return STATUS_LABEL[task.status] ?? 'Unknown';
     case 'schedule':
       return task.schedule || 'On-demand';
   }
+}
+
+function compareTasks(a: Task, b: Task): number {
+  const statusDiff = statusRank(a.status) - statusRank(b.status);
+  if (statusDiff !== 0) return statusDiff;
+
+  const aNext = a.next_run_at ? new Date(a.next_run_at).getTime() : Number.POSITIVE_INFINITY;
+  const bNext = b.next_run_at ? new Date(b.next_run_at).getTime() : Number.POSITIVE_INFINITY;
+  if (a.status === 'active' || a.status === 'paused' || b.status === 'active' || b.status === 'paused') {
+    if (aNext !== bNext) return aNext - bNext;
+  }
+
+  const aLast = a.last_run_at ? new Date(a.last_run_at).getTime() : 0;
+  const bLast = b.last_run_at ? new Date(b.last_run_at).getTime() : 0;
+  if (aLast !== bLast) return bLast - aLast;
+
+  return a.title.localeCompare(b.title);
+}
+
+function buildSearchText(task: Task, agents: Agent[]): string {
+  const objective = task.objective
+    ? [task.objective.deliverable, task.objective.audience, task.objective.purpose, task.objective.format]
+    : [];
+
+  return [
+    task.title,
+    agentNameFor(task, agents),
+    task.type_key,
+    task.delivery,
+    task.schedule,
+    ...(task.context_reads ?? []),
+    ...(task.context_writes ?? []),
+    ...objective,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function compareGroups(groupBy: GroupBy, a: string, b: string): number {
+  const explicitOrder = GROUP_ORDER[groupBy];
+  if (explicitOrder.length > 0) {
+    const aIndex = explicitOrder.indexOf(a);
+    const bIndex = explicitOrder.indexOf(b);
+    if (aIndex !== -1 || bIndex !== -1) {
+      return (aIndex === -1 ? explicitOrder.length : aIndex) - (bIndex === -1 ? explicitOrder.length : bIndex);
+    }
+  }
+  return a.localeCompare(b);
 }
 
 export function WorkListSurface({
   tasks,
   agents,
   agentFilter,
+  dataError,
   onClearAgentFilter,
   onSelect,
 }: WorkListSurfaceProps) {
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [search, setSearch] = useState('');
   const [groupBy, setGroupBy] = useState<GroupBy>('output_kind');
-  const [includeArchived, setIncludeArchived] = useState(false);
+  const [includeHistorical, setIncludeHistorical] = useState(false);
 
   // Apply filters in pipeline order
   const filtered = useMemo(() => {
     let result = tasks;
-    if (!includeArchived) {
+    if (!includeHistorical) {
       result = result.filter(t => t.status !== 'archived' && t.status !== 'completed');
     }
     if (kindFilter !== 'all') {
@@ -106,12 +187,12 @@ export function WorkListSurface({
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      result = result.filter(t => t.title.toLowerCase().includes(q));
+      result = result.filter(t => buildSearchText(t, agents).includes(q));
     }
     return result;
-  }, [tasks, kindFilter, agentFilter, search, includeArchived]);
+  }, [tasks, kindFilter, agentFilter, search, includeHistorical, agents]);
 
-  // Group + sort within group by next_run_at
+  // Group + sort within each group
   const grouped = useMemo(() => {
     const groups: Record<string, Task[]> = {};
     for (const task of filtered) {
@@ -119,19 +200,11 @@ export function WorkListSurface({
       if (!groups[key]) groups[key] = [];
       groups[key].push(task);
     }
-    // Sort tasks within each group: active first, then by next_run_at ascending
+    // Sort tasks within each group: active/paused first, upcoming first, then recent history.
     for (const key of Object.keys(groups)) {
-      groups[key].sort((a: Task, b: Task) => {
-        if (a.status !== b.status) {
-          if (a.status === 'active') return -1;
-          if (b.status === 'active') return 1;
-        }
-        const aRun = a.next_run_at || '9999';
-        const bRun = b.next_run_at || '9999';
-        return aRun.localeCompare(bRun);
-      });
+      groups[key].sort(compareTasks);
     }
-    return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
+    return Object.entries(groups).sort((a, b) => compareGroups(groupBy, a[0], b[0]));
   }, [filtered, groupBy, agents]);
 
   const agentLabel = agentFilter
@@ -142,6 +215,12 @@ export function WorkListSurface({
     <div className="flex flex-col h-full">
       {/* ── Header: filters + search + group-by ── */}
       <div className="px-6 py-4 border-b border-border/60 shrink-0 space-y-3">
+        {dataError && (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700">
+            Showing the last available work index. Refresh the page to retry the failed background load.
+          </div>
+        )}
+
         {/* Kind chips */}
         <div className="flex items-center gap-1 flex-wrap">
           {KIND_CHIPS.map(chip => {
@@ -171,7 +250,7 @@ export function WorkListSurface({
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search tasks..."
+              placeholder="Search tasks, agents, domains..."
               className="w-full pl-7 pr-3 py-1.5 text-xs bg-muted/40 border border-border/60 rounded-md focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
             />
           </div>
@@ -192,11 +271,11 @@ export function WorkListSurface({
           <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
             <input
               type="checkbox"
-              checked={includeArchived}
-              onChange={e => setIncludeArchived(e.target.checked)}
+              checked={includeHistorical}
+              onChange={e => setIncludeHistorical(e.target.checked)}
               className="rounded border-border"
             />
-            Include archived
+            Include completed and archived
           </label>
 
           {agentFilter && (
@@ -214,7 +293,7 @@ export function WorkListSurface({
       {/* ── List body ── */}
       <div className="flex-1 overflow-auto">
         {filtered.length === 0 ? (
-          <EmptyResult hasFilters={kindFilter !== 'all' || !!search || !!agentFilter} />
+          <EmptyResult hasFilters={kindFilter !== 'all' || !!search || !!agentFilter || includeHistorical} />
         ) : (
           <div className="px-6 py-4 space-y-6 max-w-5xl">
             {grouped.map(([groupName, items]) => (
@@ -268,11 +347,6 @@ function WorkRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium truncate">{task.title}</span>
-          {task.essential && (
-            <span className="text-[10px] text-amber-600" title="Essential task">
-              ★
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground">
           <WorkModeBadge mode={task.mode} />

@@ -15,24 +15,21 @@
  * document-within-a-page.
  */
 
-import { useEffect, useState } from 'react';
-import { Loader2, FileText } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { AlertCircle, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import type { TaskOutput } from '@/types';
+import { useTaskOutputs } from '@/hooks/useTaskOutputs';
 
-export function DeliverableMiddle({ taskSlug }: { taskSlug: string }) {
-  const [loading, setLoading] = useState(true);
-  const [latest, setLatest] = useState<TaskOutput | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setLatest(null);
-    api.tasks.getLatestOutput(taskSlug)
-      .then(result => setLatest(result))
-      .catch(() => setLatest(null))
-      .finally(() => setLoading(false));
-  }, [taskSlug]);
+export function DeliverableMiddle({
+  taskSlug,
+  refreshKey,
+}: {
+  taskSlug: string;
+  refreshKey: number;
+}) {
+  const { latest, loading, error, reload } = useTaskOutputs(taskSlug, {
+    includeLatest: true,
+    refreshKey,
+  });
 
   if (loading) {
     return (
@@ -42,7 +39,24 @@ export function DeliverableMiddle({ taskSlug }: { taskSlug: string }) {
     );
   }
 
-  if (!latest || (!latest.html_content && !latest.content)) {
+  if (error) {
+    return (
+      <div className="px-6 py-8 text-center">
+        <AlertCircle className="mx-auto mb-2 h-6 w-6 text-destructive/70" />
+        <p className="text-sm font-medium text-foreground">Failed to load output</p>
+        <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+        <button
+          onClick={() => void reload()}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <RefreshCw className="h-3 w-3" />
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!latest || (!latest.html_content && !latest.content && !latest.md_content)) {
     return (
       <div className="px-6 py-8 text-center">
         <FileText className="w-6 h-6 text-muted-foreground/15 mx-auto mb-2" />
@@ -75,7 +89,7 @@ export function DeliverableMiddle({ taskSlug }: { taskSlug: string }) {
         ) : (
           <div className="max-h-[600px] overflow-auto p-5">
             <div className="prose prose-sm max-w-none dark:prose-invert">
-              <MarkdownRenderer content={latest.content ?? ''} />
+              <MarkdownRenderer content={latest.content ?? latest.md_content ?? ''} />
             </div>
           </div>
         )}

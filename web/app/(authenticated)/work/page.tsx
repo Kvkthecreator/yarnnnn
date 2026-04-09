@@ -18,12 +18,13 @@
  * The `?agent={slug}` query param is preserved as a deep-link shortcut.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Loader2, Briefcase, MessageCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Briefcase, Loader2, MessageCircle, RefreshCw } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
+import { useTaskDetail } from '@/hooks/useTaskDetail';
 import { APIError, api } from '@/lib/api/client';
 import { WorkListSurface } from '@/components/work/WorkListSurface';
 import { WorkDetail } from '@/components/work/WorkDetail';
@@ -47,21 +48,49 @@ function getActionErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function SurfaceState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-1 items-center justify-center px-6 py-12">
+      <div className="max-w-md text-center">
+        <AlertCircle className="mx-auto mb-3 h-8 w-8 text-muted-foreground/20" />
+        <h2 className="text-base font-medium text-foreground">{title}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+        {action && <div className="mt-4 flex items-center justify-center gap-2">{action}</div>}
+      </div>
+    </div>
+  );
+}
+
 export default function WorkPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { sendMessage } = useTP();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
-  const { agents, tasks, loading, reload } = useAgentsAndTasks();
+  const { agents, tasks, loading, error, reload } = useAgentsAndTasks();
 
   const agentFilter = searchParams.get('agent');
   const taskSlugFromUrl = searchParams.get('task');
+  const {
+    task: selectedTaskDetail,
+    loading: taskDetailLoading,
+    error: taskDetailError,
+    notFound: taskNotFound,
+    reload: reloadTaskDetail,
+  } = useTaskDetail(taskSlugFromUrl);
 
-  // Detail mode is determined by URL — no auto-selection (ADR-167)
-  const selectedTask = useMemo(
+  const selectedTaskHint = useMemo(
     () => (taskSlugFromUrl ? tasks.find(t => t.slug === taskSlugFromUrl) ?? null : null),
     [taskSlugFromUrl, tasks],
   );
+  const selectedTask = selectedTaskDetail ?? selectedTaskHint;
 
   const [mutationPending, setMutationPending] = useState(false);
   const [pendingAction, setPendingAction] = useState<'run' | 'pause' | null>(null);
@@ -78,12 +107,13 @@ export default function WorkPage() {
 
   useEffect(() => {
     setActionNotice(null);
-  }, [selectedTask?.slug]);
+  }, [taskSlugFromUrl]);
 
   // Breadcrumb (segment shape from b033513; PageHeader renders inline now)
   useEffect(() => {
-    if (selectedTask) {
-      const agentSlug = agentFilter || selectedTask.agent_slugs?.[0];
+    if (taskSlugFromUrl) {
+      const breadcrumbTask = selectedTask;
+      const agentSlug = agentFilter || breadcrumbTask?.agent_slugs?.[0];
       const agent = agentSlug ? agents.find(a => a.slug === agentSlug) : null;
       setBreadcrumb([
         { label: 'Work', href: '/work', kind: 'surface' },
@@ -93,8 +123,10 @@ export default function WorkPage() {
           kind: 'agent' as const,
         }] : []),
         {
-          label: selectedTask.title,
-          href: `/work?task=${encodeURIComponent(selectedTask.slug)}`,
+          label: taskNotFound
+            ? 'Task not found'
+            : breadcrumbTask?.title ?? taskSlugFromUrl,
+          href: `/work?task=${encodeURIComponent(taskSlugFromUrl)}`,
           kind: 'task',
         },
       ]);
@@ -112,7 +144,7 @@ export default function WorkPage() {
       clearBreadcrumb();
     }
     return () => clearBreadcrumb();
-  }, [selectedTask?.slug, selectedTask?.title, selectedTask?.agent_slugs, agentFilter, agents, setBreadcrumb, clearBreadcrumb]);
+  }, [taskSlugFromUrl, selectedTask?.title, selectedTask?.agent_slugs, taskNotFound, agentFilter, agents, setBreadcrumb, clearBreadcrumb]);
 
   // Actions
   const handleRunTask = useCallback(async (slug: string) => {
@@ -122,7 +154,7 @@ export default function WorkPage() {
     try {
       await api.tasks.run(slug);
       setDetailRefreshKey((current) => current + 1);
-      await reload();
+      await Promise.all([reload(), reloadTaskDetail()]);
       setActionNotice({ kind: 'success', text: 'Task run completed. Latest task data refreshed.' });
     } catch (err) {
       console.error('[Work] Failed to trigger task:', err);
@@ -134,17 +166,17 @@ export default function WorkPage() {
       setMutationPending(false);
       setPendingAction(null);
     }
-  }, [reload]);
+  }, [reload, reloadTaskDetail]);
 
   const handlePauseTask = useCallback(async (slug: string) => {
     setMutationPending(true);
     setPendingAction('pause');
     setActionNotice(null);
     try {
-      const task = tasks.find(t => t.slug === slug);
+      const task = (selectedTaskDetail?.slug === slug ? selectedTaskDetail : null) ?? tasks.find(t => t.slug === slug);
       const newStatus = task?.status === 'active' ? 'paused' : 'active';
       await api.tasks.update(slug, { status: newStatus });
-      await reload();
+      await Promise.all([reload(), reloadTaskDetail()]);
       setActionNotice({
         kind: 'success',
         text: newStatus === 'paused' ? 'Task paused.' : 'Task resumed.',
@@ -159,7 +191,7 @@ export default function WorkPage() {
       setMutationPending(false);
       setPendingAction(null);
     }
-  }, [tasks, reload]);
+  }, [tasks, selectedTaskDetail, reload, reloadTaskDetail]);
 
   const handleOpenChatDraft = useCallback((prompt?: string) => {
     if (!prompt) return;
@@ -171,13 +203,20 @@ export default function WorkPage() {
   const handleSelect = useCallback((slug: string) => {
     const sp = new URLSearchParams(searchParams.toString());
     sp.set('task', slug);
-    router.replace(`/work?${sp.toString()}`, { scroll: false });
+    router.push(`/work?${sp.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
   // Clear agent filter chip in list mode
   const handleClearAgentFilter = useCallback(() => {
     const sp = new URLSearchParams(searchParams.toString());
     sp.delete('agent');
+    const qs = sp.toString();
+    router.replace(qs ? `/work?${qs}` : '/work', { scroll: false });
+  }, [router, searchParams]);
+
+  const handleBackToList = useCallback(() => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('task');
     const qs = sp.toString();
     router.replace(qs ? `/work?${qs}` : '/work', { scroll: false });
   }, [router, searchParams]);
@@ -209,10 +248,33 @@ export default function WorkPage() {
     </div>
   );
 
-  if (loading) {
+  if (loading && !tasks.length && !agents.length && !taskSlugFromUrl) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!taskSlugFromUrl && error && !tasks.length && !agents.length) {
+    return (
+      <div className="flex h-full">
+        <div className="flex flex-1 flex-col bg-background">
+          <PageHeader defaultLabel="Work" />
+          <SurfaceState
+            title="Failed to load work"
+            description="The work index could not be loaded right now. Retry the workspace fetch."
+            action={(
+              <button
+                onClick={() => void reload()}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry
+              </button>
+            )}
+          />
+        </div>
       </div>
     );
   }
@@ -232,11 +294,54 @@ export default function WorkPage() {
       }}
     >
       <PageHeader defaultLabel="Work" />
-      {selectedTask ? (
+      {taskSlugFromUrl ? (
+        taskDetailLoading && !selectedTaskDetail ? (
+          <div className="flex flex-1 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : taskNotFound ? (
+          <SurfaceState
+            title="Task not found"
+            description="That work item no longer exists or the link is stale."
+            action={(
+              <button
+                onClick={handleBackToList}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back to work
+              </button>
+            )}
+          />
+        ) : taskDetailError && !selectedTaskDetail ? (
+          <SurfaceState
+            title="Failed to load task"
+            description={taskDetailError}
+            action={(
+              <>
+                <button
+                  onClick={() => void reloadTaskDetail()}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Retry
+                </button>
+                <button
+                  onClick={handleBackToList}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Back to work
+                </button>
+              </>
+            )}
+          />
+        ) : selectedTaskDetail ? (
         <WorkDetail
-          key={`${selectedTask.slug}:${detailRefreshKey}`}
-          task={selectedTask}
+          key={`${selectedTaskDetail.slug}:${detailRefreshKey}`}
+          task={selectedTaskDetail}
           agents={agents}
+          refreshKey={detailRefreshKey}
           mutationPending={mutationPending}
           pendingAction={pendingAction}
           actionNotice={actionNotice}
@@ -244,11 +349,13 @@ export default function WorkPage() {
           onPauseTask={handlePauseTask}
           onOpenChat={handleOpenChatDraft}
         />
+        ) : null
       ) : (
         <WorkListSurface
           tasks={tasks}
           agents={agents}
           agentFilter={agentFilter}
+          dataError={error}
           onClearAgentFilter={handleClearAgentFilter}
           onSelect={handleSelect}
         />

@@ -18,32 +18,24 @@
  * No DELIVERABLE.md emphasis — TP owns the contract, not the user.
  */
 
-import { useEffect, useState } from 'react';
-import { Loader2, Wrench, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Wrench, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/formatting';
-import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import type { Task, TaskOutput } from '@/types';
+import { useTaskOutputs } from '@/hooks/useTaskOutputs';
+import type { Task } from '@/types';
 
-export function MaintenanceMiddle({ task }: { task: Task }) {
-  const [loading, setLoading] = useState(true);
-  const [latest, setLatest] = useState<TaskOutput | null>(null);
-  const [history, setHistory] = useState<TaskOutput[]>([]);
-
-  useEffect(() => {
-    setLoading(true);
-    setLatest(null);
-    setHistory([]);
-    Promise.all([
-      api.tasks.getLatestOutput(task.slug).catch(() => null),
-      api.tasks.listOutputs(task.slug, 10).catch(() => ({ outputs: [] as TaskOutput[], total: 0 })),
-    ])
-      .then(([l, h]) => {
-        setLatest(l);
-        setHistory(h.outputs ?? []);
-      })
-      .finally(() => setLoading(false));
-  }, [task.slug]);
+export function MaintenanceMiddle({
+  task,
+  refreshKey,
+}: {
+  task: Task;
+  refreshKey: number;
+}) {
+  const { latest, history, loading, error, reload } = useTaskOutputs(task.slug, {
+    includeLatest: true,
+    historyLimit: 10,
+    refreshKey,
+  });
 
   return (
     <>
@@ -78,6 +70,18 @@ export function MaintenanceMiddle({ task }: { task: Task }) {
             {loading ? (
               <div className="flex items-center justify-center py-2">
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : error ? (
+              <div className="text-center">
+                <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive/70" />
+                <p className="text-xs text-muted-foreground">{error}</p>
+                <button
+                  onClick={() => void reload()}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Retry
+                </button>
               </div>
             ) : latest && (latest.content || latest.md_content) ? (
               <div className="prose prose-sm max-w-none dark:prose-invert">

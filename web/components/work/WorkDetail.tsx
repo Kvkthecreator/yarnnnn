@@ -45,6 +45,7 @@ import type { Task, Agent } from '@/types';
 interface WorkDetailProps {
   task: Task;
   agents: Agent[];
+  refreshKey: number;
   mutationPending: boolean;
   pendingAction: 'run' | 'pause' | null;
   actionNotice: { kind: 'info' | 'success' | 'error'; text: string } | null;
@@ -192,19 +193,19 @@ function ObjectiveBlock({ task }: { task: Task }) {
 
 // ─── Kind dispatch (ADR-167) ───
 
-function KindMiddle({ task }: { task: Task }) {
+function KindMiddle({ task, refreshKey }: { task: Task; refreshKey: number }) {
   switch (task.output_kind) {
     case 'accumulates_context':
-      return <TrackingMiddle task={task} />;
+      return <TrackingMiddle task={task} refreshKey={refreshKey} />;
     case 'external_action':
-      return <ActionMiddle task={task} />;
+      return <ActionMiddle task={task} refreshKey={refreshKey} />;
     case 'system_maintenance':
-      return <MaintenanceMiddle task={task} />;
+      return <MaintenanceMiddle task={task} refreshKey={refreshKey} />;
     case 'produces_deliverable':
     default:
       // Default to DeliverableMiddle for unknown/missing output_kind so legacy
       // tasks with no enriched type info still render something useful.
-      return <DeliverableMiddle taskSlug={task.slug} />;
+      return <DeliverableMiddle taskSlug={task.slug} refreshKey={refreshKey} />;
   }
 }
 
@@ -215,6 +216,7 @@ function KindMiddle({ task }: { task: Task }) {
 export function WorkDetail({
   task,
   agents,
+  refreshKey,
   mutationPending,
   pendingAction,
   actionNotice,
@@ -262,7 +264,7 @@ export function WorkDetail({
         }
       />
       {showObjective && <ObjectiveBlock task={task} />}
-      <KindMiddle task={task} />
+      <KindMiddle task={task} refreshKey={refreshKey} />
       {assignedAgent && (
         <div className="px-6 py-3 border-t border-border/40">
           <Link
