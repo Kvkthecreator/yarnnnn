@@ -43,6 +43,7 @@ import {
   PauseCircle,
   AlertCircle,
 } from 'lucide-react';
+import { getAgentSlug } from '@/lib/agent-identity';
 import { ContextSetup } from './ContextSetup';
 import { DailyBriefing } from '@/components/home/DailyBriefing';
 import { taskModeLabel, type Agent, type Task } from '@/types';
@@ -83,9 +84,7 @@ function computeLead(
     (a) => (a.agent_class || 'domain-steward') === 'domain-steward',
   );
   const agentsWithoutTasks = domainAgents.filter((agent) => {
-    const slug =
-      agent.slug ||
-      agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const slug = getAgentSlug(agent);
     return !tasks.some((task) => task.agent_slugs?.includes(slug));
   });
   if (agentsWithoutTasks.length > 0) return 'gaps';
@@ -416,9 +415,7 @@ function GapsLead({
     (agent) => (agent.agent_class || 'domain-steward') === 'domain-steward',
   );
   const agentsWithoutTasks = domainAgents.filter((agent) => {
-    const slug =
-      agent.slug ||
-      agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const slug = getAgentSlug(agent);
     return !tasks.some((task) => task.agent_slugs?.includes(slug));
   });
   // ADR-166: task_class → output_kind. "context" → "accumulates_context".

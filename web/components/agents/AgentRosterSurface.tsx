@@ -27,6 +27,7 @@
 import { useMemo } from 'react';
 import { Brain, Layers, Plug, Sparkles, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getAgentSlug, roleTagline } from '@/lib/agent-identity';
 import type { Agent, Task } from '@/types';
 
 interface AgentRosterSurfaceProps {
@@ -54,10 +55,6 @@ const CLASS_LABELS: Record<string, { title: string; description: string }> = {
     description: 'Connect your tools (Slack, Notion, GitHub) so the team can see what is happening there.',
   },
 };
-
-function getAgentSlug(agent: Agent): string {
-  return agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-}
 
 function formatRelativeShort(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -172,6 +169,14 @@ function AgentCard({
   const cls = agent.agent_class || 'domain-steward';
   const isPaused = agent.status === 'paused';
   const showApproval = (agent.version_count ?? 0) >= 5 && agent.quality_score != null;
+  const subline = agent.context_domain
+    ? `owns ${agent.context_domain} context`
+    : roleTagline(agent.role) || (
+      cls === 'platform-bot' ? 'platform bridge'
+      : cls === 'meta-cognitive' ? 'orchestration and back office'
+      : cls === 'synthesizer' ? 'reads across domains'
+      : 'specialist'
+    );
 
   return (
     <button
@@ -202,26 +207,9 @@ function AgentCard({
               </span>
             )}
           </div>
-          {agent.context_domain && (
-            <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-              owns /workspace/context/{agent.context_domain}/
-            </p>
-          )}
-          {!agent.context_domain && cls === 'platform-bot' && (
-            <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5">
-              platform bridge
-            </p>
-          )}
-          {!agent.context_domain && cls === 'meta-cognitive' && (
-            <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5">
-              orchestration · back office
-            </p>
-          )}
-          {!agent.context_domain && cls === 'synthesizer' && (
-            <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5">
-              reads all domains
-            </p>
-          )}
+          <p className="text-[11px] text-muted-foreground/70 truncate mt-0.5">
+            {subline}
+          </p>
         </div>
       </div>
 

@@ -15,39 +15,44 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import {
+  Brain,
+  Bot,
   FlaskConical,
   FileText,
-  TrendingUp,
+  FolderKanban,
+  Layers3,
   Users,
   MessageCircle,
-  BookOpen,
-  Cog,
+  TrendingUp,
 } from 'lucide-react';
 import type { Agent, Task } from '@/types';
 import { AgentAvatar, TPAvatar } from '@/components/agents/AgentAvatar';
+import { avatarColor, getAgentSlug, resolveRole } from '@/lib/agent-identity';
 import { cn } from '@/lib/utils';
 
 // =============================================================================
 // Agent type → color + icon
 // =============================================================================
 
-const AGENT_STYLE: Record<string, { hex: string; icon: typeof FlaskConical }> = {
-  research:   { hex: '#3b82f6', icon: FlaskConical },
-  content:    { hex: '#a855f7', icon: FileText },
-  marketing:  { hex: '#ec4899', icon: TrendingUp },
-  crm:        { hex: '#f97316', icon: Users },
-  slack_bot:  { hex: '#14b8a6', icon: MessageCircle },
-  notion_bot: { hex: '#6366f1', icon: BookOpen },
-  briefer:    { hex: '#3b82f6', icon: FlaskConical },
-  researcher: { hex: '#3b82f6', icon: FlaskConical },
-  analyst:    { hex: '#3b82f6', icon: FlaskConical },
-  drafter:    { hex: '#a855f7', icon: FileText },
-  writer:     { hex: '#a855f7', icon: FileText },
-  custom:     { hex: '#6b7280', icon: Cog },
+const AGENT_ICON: Record<string, typeof FlaskConical> = {
+  competitive_intel: FlaskConical,
+  market_research: TrendingUp,
+  business_dev: Users,
+  operations: FolderKanban,
+  marketing: FileText,
+  executive: Layers3,
+  slack_bot: MessageCircle,
+  notion_bot: Bot,
+  github_bot: Bot,
+  thinking_partner: Brain,
 };
 
 function getStyle(role: string) {
-  return AGENT_STYLE[role] || AGENT_STYLE.custom;
+  const resolved = resolveRole(role);
+  return {
+    hex: avatarColor(resolved),
+    icon: AGENT_ICON[resolved] || FolderKanban,
+  };
 }
 
 // =============================================================================
@@ -159,7 +164,7 @@ function AgentOnTile({ agent, tasks, col, row }: {
   const style = getStyle(agent.role);
   const { x, y } = isoToScreen(col, row);
 
-  const agentSlug = agent.slug || agent.title.toLowerCase().replace(/\s+/g, '-');
+  const agentSlug = getAgentSlug(agent);
   const assignedTasks = tasks.filter(t => t.status !== 'archived' && t.agent_slugs?.includes(agentSlug));
   const activeTask = assignedTasks[0];
 
@@ -176,7 +181,7 @@ function AgentOnTile({ agent, tasks, col, row }: {
 
   return (
     <Link
-      href={`/agents/${agent.id}`}
+      href={`/agents?agent=${encodeURIComponent(agentSlug)}`}
       className="absolute flex flex-col items-center group z-10"
       style={{
         left: centerX + x - spriteWidth / 2,
@@ -246,7 +251,7 @@ function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Task[] }) {
     <div className="flex gap-5 overflow-x-auto py-3 px-4 scrollbar-hide">
       {agents.map(agent => {
         const s = getStyle(agent.role);
-        const agentSlug = agent.slug || agent.title.toLowerCase().replace(/\s+/g, '-');
+        const agentSlug = getAgentSlug(agent);
         const assignedTasks = tasks.filter(t => t.status !== 'archived' && t.agent_slugs?.includes(agentSlug));
         const activeTask = assignedTasks[0];
         const isRunning = agent.latest_version_status === 'generating';
@@ -263,7 +268,7 @@ function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Task[] }) {
           .replace('Knowledge', 'Knowl.');
 
         return (
-          <Link key={agent.id} href={`/agents/${agent.id}`} className="flex flex-col items-center shrink-0 w-16">
+          <Link key={agent.id} href={`/agents?agent=${encodeURIComponent(agentSlug)}`} className="flex flex-col items-center shrink-0 w-16">
             <AgentAvatar state={avatarState} color={s.hex} size={48} />
             <span className="text-[10px] font-medium mt-1 truncate w-full text-center text-foreground/70">
               {shortName}

@@ -44,6 +44,7 @@ Collapse `/work` and `/agents` from master-detail surfaces into single surfaces 
 | `/work?task={slug}` | detail | `<WorkDetail>` for that task (kind-aware) |
 | `/agents` | list | `<AgentRosterSurface>` — full-width roster grouped by class |
 | `/agents?agent={slug}` | detail | `<AgentDetail>` (today's `<AgentContentView>`) |
+| `/agents/{id}` | compatibility | Resolve id → redirect to `/agents?agent={slug}` |
 
 The `?agent=` query param on `/work` is preserved as a deep-link shortcut. The breadcrumb (b033513) already targets it; preserving it costs nothing and keeps the breadcrumb's "Competitive Intelligence's work" segment functional. List mode's filter UI also supports applying/removing the agent filter, so the query param is just one way to arrive at a filtered state — not the only way.
 
@@ -109,7 +110,7 @@ Click a row → URL updates to `/work?task={slug}` → surface transitions to de
 - **Per-agent card**: name, class label, domain (for stewards), active task count, approval rate (if ≥5 runs), last run, status indicator.
 - **No filters in v1** — 9 agents at signup is small enough that grouping is sufficient. Filters can come later if the roster grows.
 
-Click a card → URL updates to `/agents?agent={slug}` → surface transitions to detail mode (today's `<AgentContentView>`, lightly tidied).
+Click a card → URL updates to `/agents?agent={slug}` → surface transitions to detail mode. Legacy `/agents/{id}` links remain valid, but they redirect into the canonical surface instead of preserving a second detail implementation.
 
 ### 7. ThreePanelLayout becomes effectively two-panel-plus-FAB-chat
 
@@ -157,6 +158,7 @@ The left panel was solving the absence of a real list view. We're adding the rea
 | `web/components/shell/ThreePanelLayout.tsx` | `leftPanel` becomes optional. When omitted, center fills width and collapsed-icon strip not rendered. |
 | `web/app/(authenticated)/work/page.tsx` | Switch on `?task=` for list/detail mode. Delete auto-select-first `useEffect`. List mode renders `<WorkListSurface>`, detail mode renders `<WorkDetail>`. No `leftPanel` prop. |
 | `web/app/(authenticated)/agents/page.tsx` | Switch on `?agent=` for list/detail mode. Delete auto-select-first `useEffect`. List mode renders `<AgentRosterSurface>`, detail mode renders `<AgentContentView>`. No `leftPanel` prop. |
+| `web/app/(authenticated)/agents/[id]/page.tsx` | Compatibility route only. Resolve id/slug and redirect to `/agents?agent={slug}` so there is one canonical detail surface. |
 | `web/components/work/WorkList.tsx` | DELETED. Replaced by `WorkListSurface.tsx` (full-width with filters, search, grouping). |
 | `web/components/work/WorkListSurface.tsx` | NEW. Full-width list with filter chips, search, group-by, agent filter from URL. |
 | `web/components/work/WorkDetail.tsx` | Refactored to thin shell. Header, objective, actions row, assigned-to footer kept. `OutputPreview` extracted to `details/DeliverableMiddle.tsx`. Dispatches middle band on `task.output_kind`. |
@@ -166,7 +168,7 @@ The left panel was solving the absence of a real list view. We're adding the rea
 | `web/components/work/details/MaintenanceMiddle.tsx` | NEW. Renders hygiene log table from `outputs/{date}/output.md` + run history from `agent_runs`. |
 | `web/components/agents/AgentTreeNav.tsx` | DELETED. Replaced by `AgentRosterSurface.tsx`. |
 | `web/components/agents/AgentRosterSurface.tsx` | NEW. Full-width roster grouped by agent class with health glances per card. |
-| `web/components/agents/AgentContentView.tsx` | Lightly tidied. Surface-aware (knows it's now full-width center, not in a 3-panel context). |
+| `web/components/agents/AgentContentView.tsx` | Canonical agent detail body. Top shell varies by `agent_class`; assigned-work cards vary by task `output_kind`; `type_key` only lightly specializes labels. |
 | `docs/design/SURFACE-ARCHITECTURE.md` | Bump to v9. Document list/detail mode collapse and kind-aware detail. |
 | `docs/adr/ADR-167-list-detail-surfaces.md` | THIS FILE. New. |
 | `CLAUDE.md` | ADR-167 entry added to ADR list. |

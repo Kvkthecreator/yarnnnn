@@ -13,6 +13,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Circle, Clock, AlertCircle } from 'lucide-react';
+import { getAgentSlug } from '@/lib/agent-identity';
 import { cn } from '@/lib/utils';
 import type { Agent, Task } from '@/types';
 
@@ -38,10 +39,6 @@ function formatRelativeTime(dateStr: string): string {
   if (hours < 24) return future ? `in ${hours}h` : `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return future ? `in ${days}d` : `${days}d ago`;
-}
-
-function getAgentSlug(agent: Agent): string {
-  return agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 export function DailyBriefing({ agents, tasks, hasMessages, forceExpanded = false }: DailyBriefingProps) {

@@ -1,6 +1,6 @@
 # Surface Architecture — Chat + Work + Agents + Context
 
-**Version:** v9.1 (2026-04-08)
+**Version:** v9.5 (2026-04-09)
 **Status:** Canonical
 **Governed by:** [ADR-163](../adr/ADR-163-surface-restructure.md) — Surface Restructure
 **Active decisions:**
@@ -27,7 +27,7 @@ Every previous version of this doc was trying to cram multiple jobs into the Age
 |---|---|---|---|
 | **Chat** | `/chat` | "What should I do? What's happening?" | TP chat + one active structured artifact |
 | **Work** | `/work` | "What is my workforce doing?" | Task list + task detail (schedule, output, actions) |
-| **Agents** | `/agents` | "Who's on my team?" | Roster + identity card + health |
+| **Agents** | `/agents` | "Who's on my team?" | Roster + agent detail with class-aware context and work-shape summaries |
 | **Context** | `/context` | "What does my workspace know?" | Filesystem browser |
 
 Four destinations. Each answers exactly one question. No overlap.
@@ -44,7 +44,8 @@ The old `/activity` page is **deleted**. Its content is absorbed into the surfac
 /work?agent={slug}   → Work LIST mode with the agent filter pre-applied.
 /work?task={slug}    → Work DETAIL mode. Kind-aware detail dispatched on task.output_kind (ADR-167).
 /agents              → Agents LIST mode. Full-width team roster grouped by class.
-/agents?agent={id}   → Agents DETAIL mode. Identity + health card.
+/agents?agent={slug} → Agents DETAIL mode. Class-aware context + task-shape summaries.
+/agents/{id}         → Compatibility entry. Redirects to `/agents?agent={slug}`.
 /context             → Context. Workspace filesystem browser. (Retains left tree nav.)
 /context?domain={k}  → Context pre-filtered to a domain folder.
 /settings            → Settings. Memory, brand, system status (absorbed from /activity).
@@ -190,7 +191,7 @@ The execution layer still distinguishes three modes because `goal` has the revis
 ├──────────────────────────────────────────────────────────────────────┤
 │  REPORTS · 5                                                         │
 │  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ ● ★ Daily Update     Recurring · Reporting · daily   Next: 9h │  │
+│  │ ● Daily Update       Recurring · Reporting · daily   Next: 9h │  │
 │  │ ● Competitive Brief  Recurring · Comp Intel · weekly Next: 4d │  │
 │  │ ● Market Report      Recurring · Mkt Rsch · monthly  Next: 12d│  │
 │  └───────────────────────────────────────────────────────────────┘  │
@@ -207,13 +208,13 @@ The execution layer still distinguishes three modes because `goal` has the revis
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Filter chips** key on `output_kind` (ADR-166): `All | Tracking | Reports | Actions | System`. **Group-by dropdown** defaults to "Output kind" and supports Agent / Status / Schedule. **Search box** filters by title substring. **Agent filter chip** appears when `?agent={slug}` is in the URL or applied via the UI; click X to clear.
+**Filter chips** key on `output_kind` (ADR-166): `All | Tracking | Reports | Actions | System`. **Group-by dropdown** defaults to "Output kind" and supports Agent / Status / Schedule. **Search box** indexes title, assigned agent, task type, delivery target, objective fields, and context domains. **Status filter** defaults to active + paused, with an explicit "Include completed and archived" toggle. **Agent filter chip** appears when `?agent={slug}` is in the URL or applied via the UI; click X to clear.
 
-The list is **sorted within each group** by status (active first) then `next_run_at` ascending. Click a row → URL transitions to `/work?task={slug}` → detail mode.
+The list is **sorted within each group** by lifecycle urgency: active first, then paused, then completed/archived; upcoming runs sort ahead of older work, and historical items sort by most recent run. Clicking a row uses browser-history-friendly navigation (`push`, not `replace`) so Back returns to the prior list state.
 
 ### Detail Mode (`/work?task={slug}`) — Kind-Aware (ADR-167)
 
-In detail mode the page renders `<PageHeader />` (with the metadata strip as `subtitle` and Run/Pause/Edit-via-chat as `actions`) followed by `<WorkDetail />`. PageHeader carries the breadcrumb path, status row, and inline action buttons; WorkDetail is content-only — objective + kind-aware middle + assigned-agent footer. The middle band dispatches on `task.output_kind` because the four kinds need fundamentally different data:
+In detail mode the page renders `<PageHeader />` as breadcrumb chrome, then `<WorkDetail />` as the identity + content surface. The selected task is fetched through `GET /api/tasks/{slug}` rather than inferred from the task list payload, so stale deep links now render an explicit "Task not found" state and fetch failures render an explicit retry state instead of silently dropping back to list mode. `WorkDetail` owns the real H1, metadata strip, and Run/Pause/Edit-via-chat actions; the middle band dispatches on `task.output_kind` because the four kinds need fundamentally different data:
 
 | `output_kind` | Middle component | Renders |
 |---|---|---|
@@ -248,6 +249,7 @@ In detail mode the page renders `<PageHeader />` (with the metadata strip as `su
 - `/work?agent={slug}` — list mode with the agent filter chip pre-applied (used by the breadcrumb's "Competitive Intelligence's work" segment and by AgentContentView's "See this agent's work" link)
 - `/work?task={slug}` — detail mode for that task
 - The breadcrumb (commit b033513) is the navigation between modes; clicking the `Work` segment from a detail returns you to list mode
+- Invalid or stale `/work?task={slug}` links stay in detail mode and render an explicit not-found state with a "Back to work" action
 
 ### What Used to Live Here
 
@@ -317,19 +319,14 @@ Click a card → URL transitions to `/agents?agent={slug}` → detail mode.
 
 ### Detail Mode (`/agents?agent={slug}`) — `AgentContentView`
 
-In detail mode the page renders `<PageHeader />` (with the identity metadata strip as `subtitle`) followed by `<AgentContentView />`. PageHeader carries the breadcrumb path and the `Class · domain · N tasks · Ran Xh ago` strip; AgentContentView is content-only — IdentityCard + HealthCard. The single identity card pattern from v8/v9 is preserved; only the chrome that used to be inside `AgentContentView` (the avatar / mandate / metadata band) moves up to PageHeader.
+In detail mode the page renders `<PageHeader />` followed by `<AgentContentView />`. `<SurfaceIdentityHeader />` inside AgentContentView is the real H1. The metadata strip stays compact (`Class · domain · N tasks · Ran Xh ago`); the detail body does the actual explanatory work.
 
-### Identity Card Sections
-- **Identity block:** name, role + class, domain, origin, creation date
-- **Instructions block:** rendered AGENT.md via MarkdownRenderer
-- **Feedback block:** distilled feedback from `agent_memory.feedback` if present
+The detail body follows two routing keys:
 
-### Health Card Sections
-- **Tasks assigned:** count of active tasks
-- **Total runs:** from `version_count`
-- **Approval rate:** from `quality_score`, only shown if runs >= 5, with trend arrow
-- **Last run:** relative time
-- **Links out:** "See this agent's work" → `/work?agent={slug}`, "See this agent's context domain" → `/context?domain={domain}`, "Chat about this agent" → opens TP chat
+- **`agent.agent_class` chooses the top shell block**. Domain stewards foreground owned context, synthesizers foreground cross-domain synthesis, platform bots foreground platform-bridge behavior, and Thinking Partner foregrounds orchestration/back-office posture.
+- **`task.output_kind` chooses the assigned-work card shape**. Tracking tasks summarize context reads/writes, deliverable tasks summarize audience/deliverable, external-action tasks summarize target/delivery, and maintenance tasks summarize system purpose. `type_key` is allowed to specialize labels, but it does not fork the page architecture.
+
+This keeps the surface scalable: new agent types usually fit an existing class shell, and new task types usually fit an existing `output_kind` card.
 
 ### What Used to Live Here
 
@@ -344,7 +341,7 @@ In detail mode the page renders `<PageHeader />` (with the identity metadata str
 | **Report** | Latest synthesis task outputs | `/work?task={slug}` → `DeliverableMiddle` (ADR-167) |
 | **Data** | Domain entity dashboard | `/context?domain={key}` |
 | **Pipeline** | Task config, schedule, actions | `/work` surface |
-| **Agent** | Identity, instructions, history | Stayed here (`AgentContentView`, now the only thing on the page) |
+| **Agent** | Identity, instructions, work mix, feedback | Stayed here (`AgentContentView`, now the only thing on the page) |
 
 ---
 
@@ -405,7 +402,7 @@ Currently wired for BrandSection in Settings (via `MemorySection.tsx`). A dedica
 ### Agents
 - `web/app/(authenticated)/agents/page.tsx` — Agents page. List/detail mode switched on `?agent=` URL state (ADR-167).
 - `web/components/agents/AgentRosterSurface.tsx` — full-width roster grouped by `agent_class` with health glance cards (ADR-167; replaces deleted `AgentTreeNav.tsx`)
-- `web/components/agents/AgentContentView.tsx` — identity + health card (detail mode)
+- `web/components/agents/AgentContentView.tsx` — class-aware shell + output-kind-aware assigned-work cards (detail mode)
 
 ### Context
 - `web/app/(authenticated)/context/page.tsx` — Context page. Retains left filesystem tree nav.
@@ -438,6 +435,7 @@ When adding a new detail-mode page, prefer the list/detail collapse pattern over
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-04-09 | v9.5 | Agent detail consolidation amendment. `/agents?agent={slug}` is the single canonical detail surface; `/agents/{id}` now resolves and redirects there. `AgentContentView` no longer behaves like a generic identity card. Its top shell dispatches on `agent.agent_class`, and its assigned-work cards dispatch on task `output_kind` with optional `type_key` label specialization. This mirrors WorkDetail's kind-aware pattern and prevents bespoke per-agent page branches. |
 | 2026-04-09 | v9.4 | ADR-167 v5 amendment — Page header split into two responsibilities. `<PageHeader />` becomes pure breadcrumb chrome (no title, no metadata, no actions — deleted `subtitle` and `actions` props). New `<SurfaceIdentityHeader />` primitive lives inside the surface content and renders the real H1 + metadata + optional actions. WorkDetail and AgentContentView each render their own SurfaceIdentityHeader at the top of their content stream. Additionally introduces the **nested document pattern**: any task-produced markdown/HTML content (output iframes in DeliverableMiddle, CHANGELOG in TrackingMiddle, hygiene log in MaintenanceMiddle, AGENT.md in InstructionsBlock) is wrapped in a bordered, visually inset card (`rounded-lg border border-border bg-muted/5`) so its internal H1s are unambiguously scoped as "content inside the task/agent" rather than competing with the surface's own H1. Uniform across all four `output_kind` middles. |
 | 2026-04-09 | v9.3 | ADR-167 v4 amendment — `<PageHeader />` rewritten as pure chrome. v3 had promoted the last breadcrumb segment to a bold `h1.text-xl`, which duplicated against content that already had its own H1 (daily-update's rendered output renders `<h1>Daily Workspace Update — April 8, 2026</h1>` immediately inside the iframe). v3 also suppressed the breadcrumb entirely in list mode, making the header tone conditional. v4: (1) breadcrumb is ALWAYS present with the same muted tone across all states — list pages render the `defaultLabel` as a single-segment breadcrumb instead of suppressing the strip; (2) no bold title promotion anywhere — the last segment reads as chrome; (3) metadata + actions row stays as an optional second row but collapses when both are absent. Content's own H1 is now unambiguously the visual page title. |
 | 2026-04-09 | v9.2 | ADR-167 v3 amendment — `<PageHeader />` restructured into two visually separated bands: Band 1 is a compact nav strip (breadcrumb path, muted), Band 2 is the title header (title + metadata subtitle + inline actions), with a divider between them. Previous v2 crammed breadcrumb + metadata + actions above one divider, which made the actual page title ambiguous against the content's own H1. v3 cleanly separates navigation (Band 1) from content-anchored header (Band 2). List-mode pages suppress Band 1 when there's only one segment. Applied uniformly across `/work`, `/agents`, `/context`. |

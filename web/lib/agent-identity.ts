@@ -1,183 +1,252 @@
 /**
- * Agent Identity — shared visual identity system for agents.
+ * Agent identity and presentation helpers.
  *
- * Single source of truth for agent colors, display names, badges, and initials.
- * Used by AgentAvatar, project pages, agent lists, dashboard, and chat attribution.
+ * Single frontend source of truth for:
+ * - canonical agent type resolution
+ * - display names and taglines
+ * - avatar, badge, and author colors
+ * - agent class labels
+ * - stable slug generation
  *
- * v3 (ADR-140): 6 workforce types (4 agents + 2 bots). Two classes: agent (domain-cognitive) and bot (platform-mechanical).
- * v3.1 (ADR-158): GitHub Bot added. 3 platform bots total.
- * v3.2 (ADR-164): Thinking Partner added as meta-cognitive agent. 10 agents total.
- * Legacy role names mapped to new types via resolveRole().
+ * Backend canonical types live in `api/services/agent_framework.py`.
+ * Frontend helpers here must stay aligned with that roster.
  */
 
-// =============================================================================
-// Legacy role → new type mapping
-// =============================================================================
+type CanonicalAgentRole =
+  | 'competitive_intel'
+  | 'market_research'
+  | 'business_dev'
+  | 'operations'
+  | 'marketing'
+  | 'executive'
+  | 'slack_bot'
+  | 'notion_bot'
+  | 'github_bot'
+  | 'thinking_partner';
 
-function resolveRole(role?: string): string {
-  if (!role) return 'research';
-  switch (role) {
-    // Legacy → research
-    case 'briefer':    return 'research';
-    case 'monitor':    return 'research';
-    case 'scout':      return 'research';
-    case 'digest':     return 'research';
-    case 'researcher': return 'research';
-    case 'analyst':    return 'research';
-    case 'synthesize': return 'research';
-    case 'custom':     return 'research';
-    case 'pm':         return 'research'; // fallback
-    // Legacy → content
-    case 'drafter':    return 'content';
-    case 'writer':     return 'content';
-    case 'planner':    return 'content';
-    case 'prepare':    return 'content';
-    // Primary types pass through
-    case 'research':   return 'research';
-    case 'content':    return 'content';
-    case 'marketing':  return 'marketing';
-    case 'crm':        return 'crm';
-    case 'slack_bot':  return 'slack_bot';
-    case 'notion_bot': return 'notion_bot';
-    case 'github_bot': return 'github_bot';
-    // ADR-164: TP as meta-cognitive agent
-    case 'thinking_partner': return 'thinking_partner';
-    default:           return role;
-  }
+type AgentClass = 'domain-steward' | 'synthesizer' | 'platform-bot' | 'meta-cognitive';
+
+interface RoleMeta {
+  displayName: string;
+  shortLabel: string;
+  tagline: string;
+  avatarHex: string;
+  badgeClass: string;
+  authorClass: string;
 }
 
-// =============================================================================
-// Role → Color mapping
-// =============================================================================
+const LEGACY_ROLE_MAP: Record<string, CanonicalAgentRole> = {
+  digest: 'competitive_intel',
+  synthesize: 'executive',
+  prepare: 'marketing',
+  custom: 'competitive_intel',
+  briefer: 'competitive_intel',
+  monitor: 'operations',
+  scout: 'competitive_intel',
+  researcher: 'market_research',
+  analyst: 'competitive_intel',
+  drafter: 'marketing',
+  writer: 'marketing',
+  planner: 'operations',
+  research: 'competitive_intel',
+  content: 'marketing',
+  crm: 'business_dev',
+};
 
-/** Avatar background hex color by role — inline styles, immune to Tailwind purge */
-export function avatarColor(role?: string): string {
-  switch (resolveRole(role)) {
-    case 'research':   return '#3b82f6';  // blue-500
-    case 'content':    return '#a855f7';  // purple-500
-    case 'marketing':  return '#ec4899';  // pink-500
-    case 'crm':        return '#f97316';  // orange-500
-    case 'slack_bot':  return '#14b8a6';  // teal-500
-    case 'notion_bot': return '#6366f1';  // indigo-500
-    case 'github_bot': return '#10b981';  // emerald-500
-    case 'thinking_partner': return '#1f2937';  // gray-800 — infrastructure tone
-    default:           return '#6b7280';  // gray-500
-  }
+const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
+  competitive_intel: {
+    displayName: 'Competitive Intelligence',
+    shortLabel: 'CI',
+    tagline: 'Tracks and analyzes competitors',
+    avatarHex: '#3b82f6',
+    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    authorClass: 'text-blue-600 dark:text-blue-400',
+  },
+  market_research: {
+    displayName: 'Market Research',
+    shortLabel: 'Market',
+    tagline: 'Tracks market trends and opportunities',
+    avatarHex: '#0ea5e9',
+    badgeClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+    authorClass: 'text-sky-600 dark:text-sky-400',
+  },
+  business_dev: {
+    displayName: 'Business Development',
+    shortLabel: 'Biz Dev',
+    tagline: 'Manages relationships and deals',
+    avatarHex: '#f97316',
+    badgeClass: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+    authorClass: 'text-orange-600 dark:text-orange-400',
+  },
+  operations: {
+    displayName: 'Operations',
+    shortLabel: 'Ops',
+    tagline: 'Tracks projects and workstreams',
+    avatarHex: '#10b981',
+    badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+    authorClass: 'text-emerald-600 dark:text-emerald-400',
+  },
+  marketing: {
+    displayName: 'Marketing & Creative',
+    shortLabel: 'Marketing',
+    tagline: 'Creates content and go-to-market materials',
+    avatarHex: '#ec4899',
+    badgeClass: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
+    authorClass: 'text-pink-600 dark:text-pink-400',
+  },
+  executive: {
+    displayName: 'Reporting',
+    shortLabel: 'Reporting',
+    tagline: 'Cross-domain synthesis and reporting',
+    avatarHex: '#8b5cf6',
+    badgeClass: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+    authorClass: 'text-violet-600 dark:text-violet-400',
+  },
+  slack_bot: {
+    displayName: 'Slack Bot',
+    shortLabel: 'Slack',
+    tagline: 'Captures Slack activity',
+    avatarHex: '#14b8a6',
+    badgeClass: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+    authorClass: 'text-teal-600 dark:text-teal-400',
+  },
+  notion_bot: {
+    displayName: 'Notion Bot',
+    shortLabel: 'Notion',
+    tagline: 'Tracks Notion changes',
+    avatarHex: '#6366f1',
+    badgeClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+    authorClass: 'text-indigo-600 dark:text-indigo-400',
+  },
+  github_bot: {
+    displayName: 'GitHub Bot',
+    shortLabel: 'GitHub',
+    tagline: 'Tracks GitHub activity',
+    avatarHex: '#64748b',
+    badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300',
+    authorClass: 'text-slate-600 dark:text-slate-400',
+  },
+  thinking_partner: {
+    displayName: 'Thinking Partner',
+    shortLabel: 'TP',
+    tagline: 'Orchestrates your workforce',
+    avatarHex: '#1f2937',
+    badgeClass: 'bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100',
+    authorClass: 'text-gray-900 dark:text-gray-100',
+  },
+};
+
+const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
+  'domain-steward': {
+    label: 'Specialist',
+    description: 'Owns one context domain and accumulates judgment over time.',
+  },
+  synthesizer: {
+    label: 'Reporting',
+    description: 'Reads across domains and produces cross-domain synthesis.',
+  },
+  'platform-bot': {
+    label: 'Integration',
+    description: 'Bridges one external platform into the workspace.',
+  },
+  'meta-cognitive': {
+    label: 'Thinking Partner',
+    description: 'Owns orchestration and back office maintenance.',
+  },
+};
+
+function isCanonicalRole(role: string): role is CanonicalAgentRole {
+  return role in ROLE_META;
 }
 
-/** Role badge background + text color (light/dark variants) */
-export function roleBadgeColor(role?: string): string {
-  switch (resolveRole(role)) {
-    case 'research':   return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
-    case 'content':    return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300';
-    case 'marketing':  return 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300';
-    case 'crm':        return 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300';
-    case 'slack_bot':  return 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300';
-    case 'notion_bot': return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
-    case 'github_bot': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
-    case 'thinking_partner': return 'bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100';
-    default:           return 'bg-muted text-muted-foreground';
-  }
+export function resolveRole(role?: string | null): CanonicalAgentRole | string {
+  if (!role) return 'competitive_intel';
+  if (isCanonicalRole(role)) return role;
+  return LEGACY_ROLE_MAP[role] || role;
 }
 
-/** Chat message author accent color */
-export function authorColor(authorRole?: string): string {
-  switch (resolveRole(authorRole)) {
-    case 'research':   return 'text-blue-600 dark:text-blue-400';
-    case 'content':    return 'text-purple-600 dark:text-purple-400';
-    case 'marketing':  return 'text-pink-600 dark:text-pink-400';
-    case 'crm':        return 'text-orange-600 dark:text-orange-400';
-    case 'slack_bot':  return 'text-teal-600 dark:text-teal-400';
-    case 'notion_bot': return 'text-indigo-600 dark:text-indigo-400';
-    case 'github_bot': return 'text-emerald-600 dark:text-emerald-400';
-    case 'thinking_partner': return 'text-gray-900 dark:text-gray-100';
-    default:           return 'text-muted-foreground/70';
-  }
+function getRoleMeta(role?: string | null): RoleMeta | null {
+  const resolved = resolveRole(role);
+  return isCanonicalRole(resolved) ? ROLE_META[resolved] : null;
 }
 
-// =============================================================================
-// Display name helpers
-// =============================================================================
-
-/** Role → user-facing display name (product name) */
-export function roleDisplayName(role?: string): string {
-  switch (resolveRole(role)) {
-    case 'research':   return 'Research Agent';
-    case 'content':    return 'Content Agent';
-    case 'marketing':  return 'Marketing Agent';
-    case 'crm':        return 'CRM Agent';
-    case 'slack_bot':  return 'Slack Bot';
-    case 'notion_bot': return 'Notion Bot';
-    case 'github_bot': return 'GitHub Bot';
-    case 'thinking_partner': return 'Thinking Partner';
-    default:           return role || '';
-  }
+export function avatarColor(role?: string | null): string {
+  return getRoleMeta(role)?.avatarHex || '#6b7280';
 }
 
-/** Short role label for compact displays */
-export function roleShortLabel(role?: string): string {
-  switch (resolveRole(role)) {
-    case 'slack_bot':  return 'Slack';
-    case 'notion_bot': return 'Notion';
-    case 'github_bot': return 'GitHub';
-    case 'thinking_partner': return 'TP';
-    default:           return roleDisplayName(role);
-  }
+export function roleBadgeColor(role?: string | null): string {
+  return getRoleMeta(role)?.badgeClass || 'bg-muted text-muted-foreground';
 }
 
-/** Role → one-line tagline (what it does for the user) */
-export function roleTagline(role?: string): string {
-  switch (resolveRole(role)) {
-    case 'research':   return 'Investigates and analyzes';
-    case 'content':    return 'Creates deliverables';
-    case 'marketing':  return 'Handles go-to-market';
-    case 'crm':        return 'Manages relationships';
-    case 'slack_bot':  return 'Reads and writes Slack';
-    case 'notion_bot': return 'Reads and writes Notion';
-    case 'github_bot': return 'Reads GitHub activity';
-    case 'thinking_partner': return 'Orchestrates your workforce';
-    default:           return '';
-  }
+export function authorColor(role?: string | null): string {
+  return getRoleMeta(role)?.authorClass || 'text-muted-foreground/70';
 }
 
-/** Scope → user-facing display name */
-export function scopeDisplayName(scope?: string): string {
+export function roleDisplayName(role?: string | null): string {
+  return getRoleMeta(role)?.displayName || role || '';
+}
+
+export function roleShortLabel(role?: string | null): string {
+  return getRoleMeta(role)?.shortLabel || roleDisplayName(role);
+}
+
+export function roleTagline(role?: string | null): string {
+  return getRoleMeta(role)?.tagline || '';
+}
+
+export function agentClassLabel(agentClass?: string | null): string {
+  if (!agentClass) return 'Specialist';
+  return CLASS_META[agentClass as AgentClass]?.label || agentClass.replace(/-/g, ' ');
+}
+
+export function agentClassDescription(agentClass?: string | null): string {
+  if (!agentClass) return CLASS_META['domain-steward'].description;
+  return CLASS_META[agentClass as AgentClass]?.description || '';
+}
+
+export function scopeDisplayName(scope?: string) {
   switch (scope) {
-    case 'platform': return 'Single platform';
-    case 'cross_platform': return 'Cross-platform';
-    case 'knowledge': return 'Knowledge';
-    case 'research': return 'Research';
-    case 'autonomous': return 'Autonomous';
-    default: return scope?.replace(/_/g, ' ') || '';
+    case 'platform':
+      return 'Single platform';
+    case 'cross_platform':
+      return 'Cross-platform';
+    case 'knowledge':
+      return 'Knowledge';
+    case 'research':
+      return 'Research';
+    case 'autonomous':
+      return 'Autonomous';
+    default:
+      return scope?.replace(/_/g, ' ') || '';
   }
 }
 
-// =============================================================================
-// Status helpers
-// =============================================================================
-
-/** Status → color + label */
 export function statusIndicator(status?: string): { color: string; label: string } {
   switch (status) {
-    case 'active': return { color: 'bg-green-500', label: 'Active' };
-    case 'paused': return { color: 'bg-amber-500', label: 'Paused' };
-    case 'archived': return { color: 'bg-gray-400', label: 'Archived' };
-    default: return { color: 'bg-green-500', label: 'Active' };
+    case 'active':
+      return { color: 'bg-green-500', label: 'Active' };
+    case 'paused':
+      return { color: 'bg-amber-500', label: 'Paused' };
+    case 'archived':
+      return { color: 'bg-gray-400', label: 'Archived' };
+    default:
+      return { color: 'bg-green-500', label: 'Active' };
   }
 }
 
-// =============================================================================
-// Name + initials
-// =============================================================================
-
-/** Display name from title or slug */
 export function agentDisplayName(title?: string, slug?: string): string {
   if (title) return title;
-  if (slug) return slug.replace(/-/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+  if (slug) return slug.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
   return 'Agent';
 }
 
-/** Extract 1-2 letter initials from a display name */
 export function agentInitials(name: string): string {
-  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  return name.split(' ').map((word) => word[0]).join('').slice(0, 2).toUpperCase();
+}
+
+export function getAgentSlug(agent: { slug?: string | null; title?: string | null }): string {
+  if (agent.slug?.trim()) return agent.slug;
+  const title = (agent.title || '').toLowerCase().trim();
+  const slug = title.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return slug || 'agent';
 }

@@ -22,16 +22,12 @@ import {
 import { useTP } from '@/contexts/TPContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
-import type { Agent } from '@/types';
+import { getAgentSlug } from '@/lib/agent-identity';
 import { AgentRosterSurface } from '@/components/agents/AgentRosterSurface';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-
-function getAgentSlug(agent: Agent): string {
-  return agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-}
 
 export default function AgentsPage() {
   const searchParams = useSearchParams();

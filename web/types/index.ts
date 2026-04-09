@@ -170,13 +170,34 @@ export type Scope =
   | "autonomous";     // Full primitive set, agent-driven
 
 export type Role =
-  | "digest"      // Compress, summarize — platform recap
-  | "prepare"     // Anticipate, assemble — meeting prep
-  | "monitor"     // Track, diff, alert — domain watching
-  | "research"    // Investigate, analyze — bounded research
-  | "synthesize"  // Connect, derive insight — cross-source synthesis
-  | "act"         // Execute, respond, post — platform actions (future)
-  | "custom";     // User-defined
+  // Canonical workforce roster (ADR-140 + ADR-164)
+  | "competitive_intel"
+  | "market_research"
+  | "business_dev"
+  | "operations"
+  | "marketing"
+  | "executive"
+  | "slack_bot"
+  | "notion_bot"
+  | "github_bot"
+  | "thinking_partner"
+  // Legacy roles kept for backward-compat reads
+  | "digest"
+  | "prepare"
+  | "monitor"
+  | "research"
+  | "synthesize"
+  | "act"
+  | "custom"
+  | "briefer"
+  | "scout"
+  | "researcher"
+  | "analyst"
+  | "drafter"
+  | "writer"
+  | "planner"
+  | "content"
+  | "crm";
 
 // =============================================================================
 // ADR-109: Role Configurations
