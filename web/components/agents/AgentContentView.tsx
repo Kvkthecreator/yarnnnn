@@ -47,9 +47,6 @@
 
 import Link from 'next/link';
 import {
-  Briefcase,
-  FolderOpen,
-  MessageSquare,
   Sparkles,
   TrendingUp,
   TrendingDown,
@@ -76,7 +73,6 @@ const CLASS_LABELS: Record<string, string> = {
 interface AgentContentViewProps {
   agent: Agent;
   tasks: Task[];
-  onOpenChat: (prompt?: string) => void;
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -147,7 +143,23 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
 
   const segments: React.ReactNode[] = [];
   if (showClassLabel) segments.push(<span key="class">{classLabel}</span>);
-  if (domain) segments.push(<span key="domain">{domain}/</span>);
+  // Domain segment is clickable — takes you to the context domain folder.
+  // This replaces the old "Open /domain/" button in StatsStrip; putting the
+  // link here means the metadata segment is both identification and
+  // navigation, matching the pattern where the breadcrumb's last segment is
+  // also where you are AND a click target. Plain text for synthesizers
+  // (no domain) and platform-bots.
+  if (domain) {
+    segments.push(
+      <Link
+        key="domain"
+        href={`${CONTEXT_ROUTE}?domain=${domain}`}
+        className="hover:text-foreground hover:underline"
+      >
+        {domain}/
+      </Link>,
+    );
+  }
   segments.push(
     <span key="tasks">
       {activeTaskCount} active {activeTaskCount === 1 ? 'task' : 'tasks'}
@@ -284,7 +296,29 @@ function InstructionsBlock({ agent }: { agent: Agent }) {
   );
 }
 
-function StatsStrip({ agent, tasks, onOpenChat }: { agent: Agent; tasks: Task[]; onOpenChat: (prompt?: string) => void }) {
+/**
+ * StatsStrip — Quiet performance footer, information only.
+ *
+ * Previously also rendered three action buttons ("See full work list",
+ * "Open /{domain}/", "Ask about this agent") but they were all ambiguous:
+ *
+ *   - "See full work list" → sent the user to /work?agent={slug}, which
+ *     shows the SAME list of tasks already rendered directly above in
+ *     TasksBlock. A redirect to a page showing the same content.
+ *   - "Open /{domain}/" → the same destination is now reachable by
+ *     clicking the domain segment in the metadata strip under the H1,
+ *     which is where users scanning identity naturally look. Keeping the
+ *     footer button meant two entry points for one destination.
+ *   - "Ask about this agent" → just pre-filled "Tell me about X" into
+ *     the TP chat panel, which is ALREADY open on /agents detail
+ *     (defaultOpen=true in agents/page.tsx). Users can type anything
+ *     they want into the input that's already in front of them.
+ *
+ * A footer is the right place for quiet performance numbers, not action
+ * bars. Actions belong where content invites them — in the surface
+ * header, inline with content, or in the always-open chat panel.
+ */
+function StatsStrip({ agent }: { agent: Agent }) {
   const totalRuns = agent.version_count ?? 0;
   // quality_score is "edit burden" (0=clean, 1=heavy). Approval = 1 - score.
   const approvalPct = agent.quality_score != null
@@ -292,62 +326,37 @@ function StatsStrip({ agent, tasks, onOpenChat }: { agent: Agent; tasks: Task[];
     : null;
   const trend = agent.quality_trend;
   const avgEdit = agent.avg_edit_distance;
-  const domain = agent.context_domain;
 
   const hasStats = totalRuns > 0 || approvalPct != null || avgEdit != null;
 
-  return (
-    <div className="px-6 py-5 border-t border-border/40 space-y-4">
-      {hasStats && (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-          {totalRuns > 0 && (
-            <span>
-              <span className="font-medium text-foreground">{totalRuns}</span> {totalRuns === 1 ? 'run' : 'runs'}
-            </span>
-          )}
-          {approvalPct != null && totalRuns >= 5 && (
-            <span className="inline-flex items-center gap-1">
-              <span className="font-medium text-foreground">{approvalPct}%</span> approved
-              {trend === 'improving' && <TrendingUp className="w-3 h-3 text-green-500" />}
-              {trend === 'declining' && <TrendingDown className="w-3 h-3 text-red-500" />}
-              {trend === 'stable' && <Minus className="w-3 h-3 text-muted-foreground/50" />}
-            </span>
-          )}
-          {avgEdit != null && totalRuns >= 5 && (
-            <span>
-              avg edit distance <span className="font-medium text-foreground">{avgEdit.toFixed(2)}</span>
-            </span>
-          )}
-          <span className="text-muted-foreground/40">
-            Created {new Date(agent.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-          </span>
-        </div>
-      )}
+  // If there are no stats worth showing AND no creation date to lead with,
+  // render nothing — a blank footer is worse than no footer.
+  if (!hasStats && !agent.created_at) return null;
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Link
-          href={`${WORK_ROUTE}?agent=${agent.slug}`}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-        >
-          <Briefcase className="w-4 h-4" />
-          See full work list
-        </Link>
-        {domain && (
-          <Link
-            href={`${CONTEXT_ROUTE}?domain=${domain}`}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-          >
-            <FolderOpen className="w-4 h-4" />
-            Open /{domain}/
-          </Link>
+  return (
+    <div className="px-6 py-5 border-t border-border/40">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+        {totalRuns > 0 && (
+          <span>
+            <span className="font-medium text-foreground">{totalRuns}</span> {totalRuns === 1 ? 'run' : 'runs'}
+          </span>
         )}
-        <button
-          onClick={() => onOpenChat(`Tell me about ${agent.title}`)}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-        >
-          <MessageSquare className="w-4 h-4" />
-          Ask about this agent
-        </button>
+        {approvalPct != null && totalRuns >= 5 && (
+          <span className="inline-flex items-center gap-1">
+            <span className="font-medium text-foreground">{approvalPct}%</span> approved
+            {trend === 'improving' && <TrendingUp className="w-3 h-3 text-green-500" />}
+            {trend === 'declining' && <TrendingDown className="w-3 h-3 text-red-500" />}
+            {trend === 'stable' && <Minus className="w-3 h-3 text-muted-foreground/50" />}
+          </span>
+        )}
+        {avgEdit != null && totalRuns >= 5 && (
+          <span>
+            avg edit distance <span className="font-medium text-foreground">{avgEdit.toFixed(2)}</span>
+          </span>
+        )}
+        <span className="text-muted-foreground/40">
+          Created {new Date(agent.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+        </span>
       </div>
     </div>
   );
@@ -360,7 +369,6 @@ function StatsStrip({ agent, tasks, onOpenChat }: { agent: Agent; tasks: Task[];
 export function AgentContentView({
   agent,
   tasks,
-  onOpenChat,
 }: AgentContentViewProps) {
   return (
     <div className="flex-1 overflow-auto">
@@ -374,8 +382,8 @@ export function AgentContentView({
         <LearnedBlock agent={agent} />
         {/* Reference second — how it works */}
         <InstructionsBlock agent={agent} />
-        {/* Quiet footer — performance summary + affordances */}
-        <StatsStrip agent={agent} tasks={tasks} onOpenChat={onOpenChat} />
+        {/* Quiet information footer — performance numbers only */}
+        <StatsStrip agent={agent} />
       </div>
     </div>
   );

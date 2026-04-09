@@ -138,7 +138,6 @@ export default function AgentsPage() {
         <AgentContentView
           agent={selectedAgent}
           tasks={agentTasks}
-          onOpenChat={(prompt) => sendMessage(prompt || '')}
         />
       ) : (
         <AgentRosterSurface
