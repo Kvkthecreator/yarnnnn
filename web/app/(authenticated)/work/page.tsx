@@ -1,41 +1,34 @@
 'use client';
 
 /**
- * Work Page — List/detail surface (ADR-167 + v2 amendment).
+ * Work Page — List/detail surface (ADR-167 v5).
  *
- * SURFACE-ARCHITECTURE.md v9.1: /work is a single surface with two modes:
+ * SURFACE-ARCHITECTURE.md v9.4: /work is a single surface with two modes:
  *   - List mode (no `?task=` param): full-width WorkListSurface with filter
  *     chips, search, group-by, agent filter
  *   - Detail mode (`?task={slug}`): kind-aware WorkDetail dispatching the
  *     middle band on task.output_kind (ADR-166)
  *
- * The breadcrumb is rendered in-page via <PageHeader /> as the first row of
- * the center surface — no separate floating bar (ADR-167 v2). In detail mode,
- * the page composes PageHeader + WorkDetail as siblings inside ThreePanelLayout
- * children: PageHeader carries the breadcrumb path, the metadata strip
- * (subtitle), and the inline action buttons. WorkDetail renders only the
- * objective + kind-aware middle + assigned-agent footer — its old internal
- * header band and ActionsRow are dissolved into PageHeader.
+ * The breadcrumb is rendered as chrome via <PageHeader /> — pure navigation,
+ * no title, no metadata, no actions. The task's visual identity (title +
+ * metadata + actions) lives inside WorkDetail via <SurfaceIdentityHeader />
+ * where it belongs alongside the task content. v5 undoes the v2-v4 pattern
+ * of plumbing task-shaped data through the chrome layer.
  *
  * The `?agent={slug}` query param is preserved as a deep-link shortcut.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Loader2, Briefcase, MessageCircle, Play, Pause, MessageSquare } from 'lucide-react';
+import { Loader2, Briefcase, MessageCircle } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
 import { api } from '@/lib/api/client';
 import { WorkListSurface } from '@/components/work/WorkListSurface';
 import { WorkDetail } from '@/components/work/WorkDetail';
-import { WorkModeBadge } from '@/components/work/WorkModeBadge';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
-import { formatRelativeTime } from '@/lib/formatting';
-import { AGENTS_ROUTE } from '@/lib/routes';
-import { cn } from '@/lib/utils';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
 export default function WorkPage() {
@@ -53,13 +46,6 @@ export default function WorkPage() {
     () => (taskSlugFromUrl ? tasks.find(t => t.slug === taskSlugFromUrl) ?? null : null),
     [taskSlugFromUrl, tasks],
   );
-
-  const assignedAgent = useMemo(() => {
-    if (!selectedTask) return null;
-    const slug = selectedTask.agent_slugs?.[0];
-    if (!slug) return null;
-    return agents.find(a => a.slug === slug) ?? null;
-  }, [selectedTask, agents]);
 
   const [mutationPending, setMutationPending] = useState(false);
 
@@ -178,86 +164,6 @@ export default function WorkPage() {
     </div>
   );
 
-  // ─── Detail-mode subtitle: compact metadata strip (ADR-167 v2) ───
-  // Replaces the old WorkHeader band inside WorkDetail. Lives in PageHeader so
-  // the breadcrumb + status row form one cohesive header zone.
-  const detailSubtitle = selectedTask ? (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      <WorkModeBadge mode={selectedTask.mode} />
-      <span className="text-muted-foreground/30">·</span>
-      <span className="capitalize">{selectedTask.status}</span>
-      {assignedAgent && (
-        <>
-          <span className="text-muted-foreground/30">·</span>
-          <Link
-            href={`${AGENTS_ROUTE}?agent=${assignedAgent.slug}`}
-            className="hover:text-foreground hover:underline"
-          >
-            {assignedAgent.title}
-          </Link>
-        </>
-      )}
-      {selectedTask.schedule && (
-        <>
-          <span className="text-muted-foreground/30">·</span>
-          <span className="capitalize">{selectedTask.schedule}</span>
-        </>
-      )}
-      {selectedTask.next_run_at && (
-        <>
-          <span className="text-muted-foreground/30">·</span>
-          <span>Next: {formatRelativeTime(selectedTask.next_run_at)}</span>
-        </>
-      )}
-      {!selectedTask.next_run_at && selectedTask.last_run_at && (
-        <>
-          <span className="text-muted-foreground/30">·</span>
-          <span>Last: {formatRelativeTime(selectedTask.last_run_at)}</span>
-        </>
-      )}
-      {!selectedTask.next_run_at && !selectedTask.last_run_at && (
-        <>
-          <span className="text-muted-foreground/30">·</span>
-          <span>Never run</span>
-        </>
-      )}
-    </div>
-  ) : undefined;
-
-  // ─── Detail-mode actions (ADR-167 v2) ───
-  // Pulled up from WorkDetail's old ActionsRow. One inline cluster in PageHeader.
-  const detailActions = selectedTask ? (
-    <>
-      <button
-        onClick={() => handleRunTask(selectedTask.slug)}
-        disabled={mutationPending || selectedTask.status !== 'active'}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
-      >
-        <Play className="w-3 h-3" /> Run now
-      </button>
-      <button
-        onClick={() => handlePauseTask(selectedTask.slug)}
-        disabled={mutationPending}
-        className={cn(
-          'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border',
-          'text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50',
-        )}
-      >
-        {selectedTask.status === 'active' ? (
-          <><Pause className="w-3 h-3" /> Pause</>
-        ) : (
-          <><Play className="w-3 h-3" /> Resume</>
-        )}
-      </button>
-      <button
-        onClick={() => sendMessage(`I want to update the task "${selectedTask.title}"`)}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-      >
-        <MessageSquare className="w-3 h-3" /> Edit via chat
-      </button>
-    </>
-  ) : undefined;
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -277,15 +183,14 @@ export default function WorkPage() {
         defaultOpen: true,
       }}
     >
-      <PageHeader
-        defaultLabel="Work"
-        subtitle={detailSubtitle}
-        actions={detailActions}
-      />
+      <PageHeader defaultLabel="Work" />
       {selectedTask ? (
         <WorkDetail
           task={selectedTask}
           agents={agents}
+          mutationPending={mutationPending}
+          onRunTask={handleRunTask}
+          onPauseTask={handlePauseTask}
           onOpenChat={(prompt) => sendMessage(prompt || '')}
         />
       ) : (

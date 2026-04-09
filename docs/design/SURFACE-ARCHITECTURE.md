@@ -76,23 +76,44 @@ The global header is **just** logo + toggle bar + avatar. There is no separate b
 
 **Toggle bar** (`web/components/shell/ToggleBar.tsx`): four-segment pill `Chat | Work | Agents | Context`. Icons: `MessageCircle`, `Briefcase`, `Users`, `FolderOpen`. `HOME_ROUTE` is `/chat` — both new and returning users land there.
 
-### Page header (ADR-167 v4)
+### Page header (ADR-167 v5)
 
-Every surface renders `<PageHeader />` as the first row of its center content area. The PageHeader consumes `BreadcrumbContext` (commit b033513) and is **chrome, not content**. It is always present with the same muted tone in every state, and it never promotes the last segment to a bold title — the content below owns the real H1.
+Every surface renders `<PageHeader />` as the first row of its center content area. It is **pure navigation chrome** — the breadcrumb and nothing else. No title, no metadata, no actions. Those all live inside the surface content as a separate `<SurfaceIdentityHeader />` block where they belong alongside the content they describe.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ Work › reporting's work › Daily Update                               │ ← always present, muted (breadcrumb chrome)
+│ Work › reporting's work › Daily Update                               │ ← PageHeader: breadcrumb chrome
 ├──────────────────────────────────────────────────────────────────────┤
-│ Recurring · Active · Reporting · daily · Next: 9h   [Run][Pause][Ed] │ ← metadata + actions (detail only; collapses in list mode)
-├──────────────────────────────────────────────────────────────────────┤
-│ (page content — content's own H1 is the visual hero)                 │
+│                                                                      │
+│ Daily Update                                 [Run] [Pause] [Edit]    │ ← SurfaceIdentityHeader: the real H1
+│ Recurring · Active · Reporting · daily · Next: 9h                    │    metadata strip under title
+│                                                                      │
+│ ─────────                                                            │
+│ OBJECTIVE                                                            │
+│ · Deliverable: Daily workspace update                                │
+│ · Audience: You — quick morning scan                                 │
+│                                                                      │
+│ ─────────                                                            │
+│ LATEST OUTPUT · 2026-04-08                                           │
+│ ┌─────────────────────────────────────────────────────────┐          │
+│ │                                                         │          │ ← nested card: bordered,
+│ │   Daily Workspace Update — April 8, 2026                │          │    visually inset, muted
+│ │                                                         │          │    background. The output's
+│ │   System Status                                         │          │    own H1 is clearly scoped
+│ │   ✅ All systems operational                             │          │    as "content inside the
+│ │   …                                                     │          │    task," not as the page.
+│ │                                                         │          │
+│ └─────────────────────────────────────────────────────────┘          │
+│                                                                      │
+│ → Assigned to Reporting                                              │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Why chrome, not title.** v3 rendered the last breadcrumb segment as a large promoted `h1.text-xl`, which created a visual duplicate against content that already has its own H1. The daily-update task renders `<h1>Daily Workspace Update — April 8, 2026</h1>` as the first thing inside its output iframe, stacking it against PageHeader's big "Daily Update" title — two headers doing the same job. v3 also suppressed the breadcrumb entirely in list mode, so the header's tone was conditional (sometimes there was a nav strip, sometimes there wasn't). v4 fixes both: the breadcrumb is always rendered with the same muted tone, the last segment reads as chrome not content, and the content's own H1 is unambiguously the page title.
+**Two components, two responsibilities.** `<PageHeader />` answers "where am I?" It is chrome, always present with the same muted tone across every state (list and detail). `<SurfaceIdentityHeader />` answers "what is this page ABOUT?" It is content — rendered inside the surface's scroll area as a proper `h1.text-2xl` with metadata directly under it and optional actions inline on the right. WorkDetail and AgentContentView both render their own `<SurfaceIdentityHeader />` at the top of their content stream. No more plumbing task-shaped data through the chrome layer.
 
-**List-mode behavior.** When no breadcrumb segments are set (list pages), PageHeader falls back to the `defaultLabel` and renders it as a single-segment breadcrumb with the same muted treatment. Same tone, same chrome, just shorter path. The metadata + actions row collapses when neither `subtitle` nor `actions` is passed.
+**Nested document pattern.** Any task-produced content (output iframes, CHANGELOG markdown, hygiene logs, AGENT.md) is wrapped in a bordered, visually inset card (`rounded-lg border border-border bg-muted/5`). This tells the user "this is a document the task produced." The card frame makes whatever H1s live inside that content clearly subordinate to the surface's own H1 above. Applied consistently across `DeliverableMiddle`, `TrackingMiddle`, `MaintenanceMiddle`, and `InstructionsBlock` (AGENT.md in AgentContentView).
+
+**List-mode behavior.** `<PageHeader />` falls back to `defaultLabel` and renders a single-segment breadcrumb (`Work`, `Agents`, `Context`) with the exact same muted treatment — uniform tone across all states. List-mode pages don't render `<SurfaceIdentityHeader />` at all since there's no single "page subject" to introduce; the list surface itself owns the visual hierarchy (filter chips on /work, grouped roster on /agents, file tree on /context).
 
 | Surface state | Breadcrumb / page title |
 |---|---|
@@ -198,9 +219,10 @@ In detail mode the page renders `<PageHeader />` (with the metadata strip as `su
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Work › reporting's work › Daily Update                              │ ← breadcrumb chrome (always present)
+│  Work › reporting's work › Daily Update                              │ ← PageHeader (chrome)
 ├──────────────────────────────────────────────────────────────────────┤
-│  Recurring · active · Reporting · daily · Next: 9h  [Run][Pause][Ed] │ ← metadata + actions row
+│  Daily Update                           [Run] [Pause] [Edit]         │ ← SurfaceIdentityHeader h1
+│  Recurring · active · Reporting · daily · Next: 9h                   │    metadata under title
 ├──────────────────────────────────────────────────────────────────────┤
 │  Objective                                                           │
 │  · Deliverable: Daily workspace update                               │
@@ -410,6 +432,7 @@ When adding a new detail-mode page, prefer the list/detail collapse pattern over
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-04-09 | v9.4 | ADR-167 v5 amendment — Page header split into two responsibilities. `<PageHeader />` becomes pure breadcrumb chrome (no title, no metadata, no actions — deleted `subtitle` and `actions` props). New `<SurfaceIdentityHeader />` primitive lives inside the surface content and renders the real H1 + metadata + optional actions. WorkDetail and AgentContentView each render their own SurfaceIdentityHeader at the top of their content stream. Additionally introduces the **nested document pattern**: any task-produced markdown/HTML content (output iframes in DeliverableMiddle, CHANGELOG in TrackingMiddle, hygiene log in MaintenanceMiddle, AGENT.md in InstructionsBlock) is wrapped in a bordered, visually inset card (`rounded-lg border border-border bg-muted/5`) so its internal H1s are unambiguously scoped as "content inside the task/agent" rather than competing with the surface's own H1. Uniform across all four `output_kind` middles. |
 | 2026-04-09 | v9.3 | ADR-167 v4 amendment — `<PageHeader />` rewritten as pure chrome. v3 had promoted the last breadcrumb segment to a bold `h1.text-xl`, which duplicated against content that already had its own H1 (daily-update's rendered output renders `<h1>Daily Workspace Update — April 8, 2026</h1>` immediately inside the iframe). v3 also suppressed the breadcrumb entirely in list mode, making the header tone conditional. v4: (1) breadcrumb is ALWAYS present with the same muted tone across all states — list pages render the `defaultLabel` as a single-segment breadcrumb instead of suppressing the strip; (2) no bold title promotion anywhere — the last segment reads as chrome; (3) metadata + actions row stays as an optional second row but collapses when both are absent. Content's own H1 is now unambiguously the visual page title. |
 | 2026-04-09 | v9.2 | ADR-167 v3 amendment — `<PageHeader />` restructured into two visually separated bands: Band 1 is a compact nav strip (breadcrumb path, muted), Band 2 is the title header (title + metadata subtitle + inline actions), with a divider between them. Previous v2 crammed breadcrumb + metadata + actions above one divider, which made the actual page title ambiguous against the content's own H1. v3 cleanly separates navigation (Band 1) from content-anchored header (Band 2). List-mode pages suppress Band 1 when there's only one segment. Applied uniformly across `/work`, `/agents`, `/context`. |
 | 2026-04-08 | v9.1 | ADR-167 v2 amendment — Breadcrumb collapses into in-page `<PageHeader />`. `<GlobalBreadcrumb />` floating bar DELETED. `WorkDetail`'s internal `<WorkHeader>` and `<ActionsRow>` DELETED — title moves to PageHeader breadcrumb (last segment), metadata moves to PageHeader `subtitle`, Run/Pause/Edit-via-chat moves to PageHeader `actions`. `AgentContentView`'s internal `<AgentHeader>` band DELETED for the same reason. `★ Essential` visual badge removed (the flag stays — it's load-bearing for archive guard). `meta-cognitive` class label added (TP was rendering as raw key). |

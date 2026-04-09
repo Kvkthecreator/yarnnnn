@@ -3,8 +3,15 @@
 /**
  * TrackingMiddle — Detail middle band for `output_kind: accumulates_context`.
  *
- * ADR-167: For tasks like track-competitors, slack-digest, github-digest —
- * the artifact is NOT a rendered output. It's the context domain folder the
+ * ADR-167 v5: the last-run CHANGELOG markdown is wrapped in a bordered,
+ * inset card for consistency with DeliverableMiddle. The "nested document"
+ * pattern applies to any task-produced markdown content — the card frame
+ * visually scopes the content as "a document the task produced," keeping
+ * its internal headers subordinate to the task's real H1 in
+ * SurfaceIdentityHeader above.
+ *
+ * For tasks like track-competitors, slack-digest, github-digest — the
+ * artifact is NOT a rendered output. It's the context domain folder the
  * task writes to. The user wants to know:
  *
  *   1. Which domain(s) does this task feed?
@@ -12,9 +19,8 @@
  *   3. What changed in the last run? (CHANGELOG from outputs/{date}/output.md)
  *   4. Take me to the domain itself.
  *
- * The "latest output" for a context task is a CHANGELOG of what was added —
- * which entities were created, which signals were appended. We render that
- * inline if it exists, plus link out to the domain folder in /context.
+ * The "latest output" for a context task is a CHANGELOG of what was added.
+ * We render it inline inside a nested card, plus link out to the domain.
  */
 
 import { useEffect, useState } from 'react';
@@ -45,9 +51,9 @@ export function TrackingMiddle({ task }: { task: Task }) {
   const otherDomains = writes.filter(d => d !== primaryDomain);
 
   return (
-    <div className="border-b border-border/40">
+    <>
       {/* Domain status block */}
-      <div className="px-5 py-4">
+      <div className="px-6 py-4 border-b border-border/40">
         <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
           Context Domain
         </h3>
@@ -87,33 +93,35 @@ export function TrackingMiddle({ task }: { task: Task }) {
         )}
       </div>
 
-      {/* Last-run CHANGELOG (if any) */}
-      <div className="border-t border-border/40">
-        <div className="px-5 py-2 text-[11px] text-muted-foreground/60 flex items-center gap-2">
-          <span>Last run summary</span>
+      {/* Last-run CHANGELOG in a nested card */}
+      <div className="px-6 py-4">
+        <div className="flex items-center gap-2 mb-2">
+          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Last run summary</h3>
           {latest?.date && (
             <>
-              <span className="text-muted-foreground/30">·</span>
-              <span>{latest.date}</span>
+              <span className="text-muted-foreground/30 text-[10px]">·</span>
+              <span className="text-[10px] text-muted-foreground/60">{latest.date}</span>
             </>
           )}
         </div>
-        <div className="px-5 pb-4 max-h-[400px] overflow-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : latest && (latest.content || latest.md_content) ? (
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <MarkdownRenderer content={latest.content ?? latest.md_content ?? ''} />
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground/60 py-2">
-              No run summary yet. After the first run, you'll see what was added or updated here.
-            </p>
-          )}
+        <div className="rounded-lg border border-border bg-muted/5 overflow-hidden">
+          <div className="max-h-[400px] overflow-auto p-5">
+            {loading ? (
+              <div className="flex items-center justify-center py-2">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : latest && (latest.content || latest.md_content) ? (
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                <MarkdownRenderer content={latest.content ?? latest.md_content ?? ''} />
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground/60">
+                No run summary yet. After the first run, you'll see what was added or updated here.
+              </p>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

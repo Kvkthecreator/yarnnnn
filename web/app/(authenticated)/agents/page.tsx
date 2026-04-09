@@ -1,13 +1,12 @@
 'use client';
 
 /**
- * Agents Page — List/detail surface (ADR-167 + v2 amendment).
+ * Agents Page — List/detail surface (ADR-167 v5).
  *
- * SURFACE-ARCHITECTURE.md v9.1: /agents is a single surface with two modes
- * selected by URL state. PageHeader is rendered as the first row of the
- * center surface, replacing the floating breadcrumb bar AND the per-page
- * AgentHeader inside AgentContentView. The breadcrumb's last segment IS the
- * page title — no duplication.
+ * SURFACE-ARCHITECTURE.md v9.4: /agents is a single surface with two modes
+ * selected by URL state. PageHeader is the breadcrumb chrome strip (no title,
+ * no metadata) — the agent's visual identity lives inside AgentContentView
+ * via <SurfaceIdentityHeader /> alongside the agent content it describes.
  */
 
 import { useEffect, useMemo } from 'react';
@@ -28,18 +27,7 @@ import { AgentRosterSurface } from '@/components/agents/AgentRosterSurface';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
-import { formatRelativeTime } from '@/lib/formatting';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-
-// Singular, user-facing class labels. Must stay in sync with the section
-// titles in AgentRosterSurface.tsx. "Thinking Partner" matches the agent
-// title itself so is intentionally omitted when rendering alongside it.
-const CLASS_LABELS: Record<string, string> = {
-  'domain-steward': 'Specialist',
-  'synthesizer': 'Reporting',
-  'platform-bot': 'Integration',
-  'meta-cognitive': 'Thinking Partner',
-};
 
 function getAgentSlug(agent: Agent): string {
   return agent.slug || agent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -125,40 +113,6 @@ export default function AgentsPage() {
     </div>
   );
 
-  // ─── Detail-mode subtitle: identity metadata strip (ADR-167 v2) ───
-  // Replaces the AgentHeader band that used to live inside AgentContentView.
-  const detailSubtitle = selectedAgent ? (() => {
-    const cls = selectedAgent.agent_class || 'domain-steward';
-    const classLabel = CLASS_LABELS[cls] || cls;
-    const domain = selectedAgent.context_domain;
-    const activeTaskCount = agentTasks.filter(t => t.status === 'active').length;
-    const lastRun = agentTasks
-      .map(t => t.last_run_at)
-      .filter(Boolean)
-      .sort()
-      .reverse()[0] || selectedAgent.last_run_at || null;
-
-    return (
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span>{classLabel}</span>
-        {domain && (
-          <>
-            <span className="text-muted-foreground/30">·</span>
-            <span>{domain}/</span>
-          </>
-        )}
-        <span className="text-muted-foreground/30">·</span>
-        <span>{activeTaskCount} active {activeTaskCount === 1 ? 'task' : 'tasks'}</span>
-        {lastRun && (
-          <>
-            <span className="text-muted-foreground/30">·</span>
-            <span>Ran {formatRelativeTime(lastRun)}</span>
-          </>
-        )}
-      </div>
-    );
-  })() : undefined;
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -179,10 +133,7 @@ export default function AgentsPage() {
         defaultOpen: true,
       }}
     >
-      <PageHeader
-        defaultLabel="Agents"
-        subtitle={detailSubtitle}
-      />
+      <PageHeader defaultLabel="Agents" />
       {selectedAgent ? (
         <AgentContentView
           agent={selectedAgent}

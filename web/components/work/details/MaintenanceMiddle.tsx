@@ -3,20 +3,19 @@
 /**
  * MaintenanceMiddle — Detail middle band for `output_kind: system_maintenance`.
  *
- * ADR-167: For TP-owned back office tasks (back-office-agent-hygiene,
+ * ADR-167 v5: the latest hygiene log markdown is wrapped in a bordered,
+ * inset card for consistency with DeliverableMiddle and TrackingMiddle.
+ * The nested-document pattern keeps the log's internal headers subordinate
+ * to the task's real H1 in SurfaceIdentityHeader above.
+ *
+ * For TP-owned back office tasks (back-office-agent-hygiene,
  * back-office-workspace-cleanup) — these run deterministic Python (no LLM,
  * no playbooks). The user wants to know:
  *
  *   1. Did it run? (run history)
  *   2. What did it touch? (hygiene log markdown from output)
- *   3. When next? (already in WorkHeader; this view focuses on history)
  *
- * Data sources:
- *   - api.tasks.listOutputs(slug) → run history with manifests
- *   - api.tasks.getLatestOutput(slug) → latest hygiene log markdown
- *
- * No iframe — back office output is plain markdown summarizing what was acted
- * on. No DELIVERABLE.md emphasis — TP owns the contract, not the user.
+ * No DELIVERABLE.md emphasis — TP owns the contract, not the user.
  */
 
 import { useEffect, useState } from 'react';
@@ -47,9 +46,9 @@ export function MaintenanceMiddle({ task }: { task: Task }) {
   }, [task.slug]);
 
   return (
-    <div className="border-b border-border/40">
+    <>
       {/* Maintenance framing */}
-      <div className="px-5 py-4">
+      <div className="px-6 py-4 border-b border-border/40">
         <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
           Back Office Task
         </h3>
@@ -63,42 +62,42 @@ export function MaintenanceMiddle({ task }: { task: Task }) {
         </div>
       </div>
 
-      {/* Latest hygiene log */}
-      <div className="border-t border-border/40">
-        <div className="px-5 py-2 text-[11px] text-muted-foreground/60 flex items-center gap-2">
-          <span>Latest hygiene log</span>
+      {/* Latest hygiene log in a nested card */}
+      <div className="px-6 py-4">
+        <div className="flex items-center gap-2 mb-2">
+          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Latest hygiene log</h3>
           {latest?.date && (
             <>
-              <span className="text-muted-foreground/30">·</span>
-              <span>{latest.date}</span>
+              <span className="text-muted-foreground/30 text-[10px]">·</span>
+              <span className="text-[10px] text-muted-foreground/60">{latest.date}</span>
             </>
           )}
         </div>
-        <div className="px-5 pb-4 max-h-[400px] overflow-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : latest && (latest.content || latest.md_content) ? (
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <MarkdownRenderer content={latest.content ?? latest.md_content ?? ''} />
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground/60 py-2">
-              No log yet. After the first run, you'll see what was cleaned up,
-              paused, or otherwise acted on here.
-            </p>
-          )}
+        <div className="rounded-lg border border-border bg-muted/5 overflow-hidden">
+          <div className="max-h-[400px] overflow-auto p-5">
+            {loading ? (
+              <div className="flex items-center justify-center py-2">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : latest && (latest.content || latest.md_content) ? (
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                <MarkdownRenderer content={latest.content ?? latest.md_content ?? ''} />
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground/60">
+                No log yet. After the first run, you'll see what was cleaned up,
+                paused, or otherwise acted on here.
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Run history */}
       {history.length > 1 && (
-        <div className="border-t border-border/40">
-          <div className="px-5 py-2 text-[11px] text-muted-foreground/60">
-            Run history
-          </div>
-          <ul className="px-5 pb-4 divide-y divide-border/40">
+        <div className="px-6 py-4 border-t border-border/40">
+          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">Run history</h3>
+          <ul className="divide-y divide-border/40">
             {history.map(o => {
               const ok =
                 o.status === 'active' ||
@@ -124,6 +123,6 @@ export function MaintenanceMiddle({ task }: { task: Task }) {
           </ul>
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -3,13 +3,16 @@
 /**
  * DeliverableMiddle — Detail middle band for `output_kind: produces_deliverable`.
  *
- * ADR-167: This is the original WorkDetail.OutputPreview, extracted unchanged.
- * It renders the latest `/tasks/{slug}/outputs/{date}/output.html` (iframe) or
- * `output.md` (markdown). For tasks like daily-update, market-report, and
- * competitive-brief — the artifact IS the rendered output.
+ * ADR-167 v5: the output (iframe or rendered markdown) is wrapped in a
+ * bordered, visually inset card. This is the "nested document" pattern —
+ * the card frame tells the user "this is a document the task produced,"
+ * which keeps whatever H1 lives inside the output (e.g. daily-update's
+ * `<h1>Daily Workspace Update — April 8, 2026</h1>`) from competing with
+ * the task's real H1 above (SurfaceIdentityHeader's `task.title`).
  *
- * The other three output kinds get their own middle components because their
- * centerpiece data lives elsewhere (context domains, agent_runs, hygiene logs).
+ * For tasks like daily-update, market-report, and competitive-brief — the
+ * artifact IS the rendered output. This middle renders it framed as a
+ * document-within-a-page.
  */
 
 import { useEffect, useState } from 'react';
@@ -41,7 +44,7 @@ export function DeliverableMiddle({ taskSlug }: { taskSlug: string }) {
 
   if (!latest || (!latest.html_content && !latest.content)) {
     return (
-      <div className="px-5 py-8 text-center">
+      <div className="px-6 py-8 text-center">
         <FileText className="w-6 h-6 text-muted-foreground/15 mx-auto mb-2" />
         <p className="text-xs text-muted-foreground/60">
           No output yet. This task will produce its first output on its next run.
@@ -51,17 +54,17 @@ export function DeliverableMiddle({ taskSlug }: { taskSlug: string }) {
   }
 
   return (
-    <div className="border-b border-border/40">
-      <div className="px-5 py-2 text-[11px] text-muted-foreground/60 flex items-center gap-2">
-        <span>Latest output</span>
+    <div className="px-6 py-4">
+      <div className="flex items-center gap-2 mb-2">
+        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Latest output</h3>
         {latest.date && (
           <>
-            <span className="text-muted-foreground/30">·</span>
-            <span>{latest.date}</span>
+            <span className="text-muted-foreground/30 text-[10px]">·</span>
+            <span className="text-[10px] text-muted-foreground/60">{latest.date}</span>
           </>
         )}
       </div>
-      <div className="min-h-[300px] max-h-[600px] overflow-auto">
+      <div className="rounded-lg border border-border bg-muted/5 overflow-hidden">
         {latest.html_content ? (
           <iframe
             srcDoc={latest.html_content}
@@ -70,7 +73,7 @@ export function DeliverableMiddle({ taskSlug }: { taskSlug: string }) {
             title={`${taskSlug} output`}
           />
         ) : (
-          <div className="p-5">
+          <div className="max-h-[600px] overflow-auto p-5">
             <div className="prose prose-sm max-w-none dark:prose-invert">
               <MarkdownRenderer content={latest.content ?? ''} />
             </div>

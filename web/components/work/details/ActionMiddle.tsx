@@ -40,9 +40,9 @@ export function ActionMiddle({ task }: { task: Task }) {
   }, [task.slug]);
 
   return (
-    <div className="border-b border-border/40">
+    <>
       {/* Action target block */}
-      <div className="px-5 py-4">
+      <div className="px-6 py-4 border-b border-border/40">
         <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
           Action Target
         </h3>
@@ -62,11 +62,11 @@ export function ActionMiddle({ task }: { task: Task }) {
       </div>
 
       {/* Action history */}
-      <div className="border-t border-border/40">
-        <div className="px-5 py-2 text-[11px] text-muted-foreground/60">
-          Action history (most recent first)
-        </div>
-        <div className="px-5 pb-4 max-h-[400px] overflow-auto">
+      <div className="px-6 py-4">
+        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
+          Action history <span className="text-muted-foreground/30">· most recent first</span>
+        </h3>
+        <div className="max-h-[400px] overflow-auto">
           {loading ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
@@ -116,6 +116,6 @@ export function ActionMiddle({ task }: { task: Task }) {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -3,23 +3,27 @@
 /**
  * AgentContentView — Center panel content for a selected agent.
  *
- * ADR-167 v3 (2026-04-08): Full revamp. The previous version was two
- * disconnected cards (Identity metadata dump + Health stats + link-outs)
- * that read like a debug panel. This version is a single cohesive stream
- * top-to-bottom showing WHAT the agent knows and WHAT it is doing:
+ * ADR-167 v5 (2026-04-09): Owns the agent's visual identity via
+ * <SurfaceIdentityHeader /> — agent title as the real H1, identity metadata
+ * (class · domain · active tasks · last run) directly under it. The v3
+ * stream of blocks (Mandate → Instructions → Learned → Tasks → Stats) is
+ * preserved; only the chrome that used to live up in PageHeader moves down
+ * into this component's SurfaceIdentityHeader at the top.
  *
- *   1. Mandate          — first meaningful line of AGENT.md as a tagline
- *   2. Instructions     — full AGENT.md body, the primary content
- *   3. What it learned  — distilled feedback + recent reflections
- *   4. Assigned work    — inline list of this agent's tasks (not a link-out)
- *   5. Stats strip      — quiet bottom row: runs / approval / edit distance
+ * The resulting structure reads top-to-bottom as:
  *
- * Page-level header (title, class, domain, task count, last run) already
- * lives in <PageHeader /> rendered by app/(authenticated)/agents/page.tsx —
- * this component does NOT repeat any of that metadata.
+ *   1. Identity header  — title, metadata, (no actions yet — just chrome)
+ *   2. Mandate          — one-line tagline from AGENT.md, sits right under
+ *                         the header to introduce the agent's role
+ *   3. Instructions     — full AGENT.md body in a nested card
+ *   4. What it learned  — distilled feedback + recent reflections
+ *   5. Assigned work    — inline list of this agent's tasks
+ *   6. Stats strip      — quiet bottom row: runs / approval / edit distance
  *
- * Class labels are the same singular forms used in agents/page.tsx
- * (Specialist / Reporting / Integration) to match the roster rename.
+ * Class labels (Specialist / Reporting / Integration / Thinking Partner)
+ * live here since this is the only place they're rendered now. Previously
+ * duplicated in agents/page.tsx for the PageHeader subtitle — that
+ * duplication is deleted in v5 along with the PageHeader subtitle slot.
  */
 
 import Link from 'next/link';
@@ -36,9 +40,19 @@ import {
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { WorkModeBadge } from '@/components/work/WorkModeBadge';
+import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
 import { WORK_ROUTE, CONTEXT_ROUTE } from '@/lib/routes';
 import type { Agent, Task } from '@/types';
+
+// Singular, user-facing class labels. Must stay in sync with the section
+// titles in AgentRosterSurface.tsx.
+const CLASS_LABELS: Record<string, string> = {
+  'domain-steward': 'Specialist',
+  'synthesizer': 'Reporting',
+  'platform-bot': 'Integration',
+  'meta-cognitive': 'Thinking Partner',
+};
 
 interface AgentContentViewProps {
   agent: Agent;
@@ -85,10 +99,44 @@ function Mandate({ agent }: { agent: Agent }) {
   const mandate = extractMandate(agent.agent_instructions) || agent.description;
   if (!mandate) return null;
   return (
-    <div className="px-6 pt-6 pb-4">
+    <div className="px-6 py-4">
       <p className="text-base leading-relaxed text-foreground/90">
         {mandate}
       </p>
+    </div>
+  );
+}
+
+// ─── Identity metadata (under H1) ───
+
+function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+  const cls = agent.agent_class || 'domain-steward';
+  const classLabel = CLASS_LABELS[cls] || cls;
+  const domain = agent.context_domain;
+  const activeTaskCount = tasks.filter(t => t.status === 'active').length;
+  const lastRun = tasks
+    .map(t => t.last_run_at)
+    .filter(Boolean)
+    .sort()
+    .reverse()[0] || agent.last_run_at || null;
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span>{classLabel}</span>
+      {domain && (
+        <>
+          <span className="text-muted-foreground/30">·</span>
+          <span>{domain}/</span>
+        </>
+      )}
+      <span className="text-muted-foreground/30">·</span>
+      <span>{activeTaskCount} active {activeTaskCount === 1 ? 'task' : 'tasks'}</span>
+      {lastRun && (
+        <>
+          <span className="text-muted-foreground/30">·</span>
+          <span>Ran {formatRelativeTime(lastRun)}</span>
+        </>
+      )}
     </div>
   );
 }
@@ -283,6 +331,10 @@ export function AgentContentView({
 }: AgentContentViewProps) {
   return (
     <div className="flex-1 overflow-auto">
+      <SurfaceIdentityHeader
+        title={agent.title}
+        metadata={<AgentMetadata agent={agent} tasks={tasks} />}
+      />
       <div className="max-w-3xl">
         <Mandate agent={agent} />
         <InstructionsBlock agent={agent} />
