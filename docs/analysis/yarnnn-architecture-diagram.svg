@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 1060" font-family="'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace" font-size="12">
+  <defs>
+    <style>
+      .box { fill: #161b22; stroke: #8b949e; stroke-width: 1.5; rx: 3; }
+      .title { fill: #e6edf3; font-weight: bold; font-size: 14px; }
+      .item { fill: #8b949e; font-size: 12px; }
+      .dash { fill: #7d8590; font-size: 12px; }
+      .sub { fill: #6e7681; font-size: 11px; font-style: italic; }
+      .line { stroke: #8b949e; stroke-width: 1.5; fill: none; }
+      .arrow { fill: #8b949e; stroke: none; }
+      .bg { fill: #0d1117; }
+    </style>
+    <marker id="arrowDown" markerWidth="8" markerHeight="6" refX="4" refY="6" orient="auto">
+      <path d="M0,0 L4,6 L8,0" class="line" fill="none"/>
+    </marker>
+    <marker id="arrowRight" markerWidth="6" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L6,4 L0,8" class="line" fill="none"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect class="bg" width="760" height="1060"/>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- ROW 1: YARNNN Platform (top-level orchestrator) -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <rect class="box" x="160" y="24" width="440" height="110"/>
+  <text class="title" x="380" y="52" text-anchor="middle">YARNNN Platform (Orchestrator)</text>
+  <line x1="180" y1="62" x2="580" y2="62" stroke="#30363d" stroke-width="1"/>
+  <text class="item" x="180" y="82">ManageAgent()   CreateTask()   ManageTask()</text>
+  <text class="item" x="180" y="100">UpdateContext()  WebSearch()   Search()</text>
+  <text class="item" x="180" y="118">GetSystemState()            Clarify()</text>
+
+  <!-- Vertical lines down from Orchestrator -->
+  <line class="line" x1="290" y1="134" x2="290" y2="190" marker-end="url(#arrowDown)"/>
+  <line class="line" x1="470" y1="134" x2="470" y2="190" marker-end="url(#arrowDown)"/>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- ROW 2: Agent Roster | Task Type Registry   -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <!-- Agent Roster -->
+  <rect class="box" x="80" y="196" width="280" height="124"/>
+  <text class="title" x="220" y="222" text-anchor="middle">AgentRoster</text>
+  <line x1="100" y1="230" x2="340" y2="230" stroke="#30363d" stroke-width="1"/>
+  <text class="sub" x="100" y="248">Pre-scaffolded (8 agents/workspace)</text>
+  <text class="dash" x="100" y="268">- AGENT.md      (identity, evolves)</text>
+  <text class="dash" x="100" y="286">- Capabilities  (type, fixed)</text>
+  <text class="dash" x="100" y="304">- Tasks         (assigned, come+go)</text>
+
+  <!-- Task Type Registry -->
+  <rect class="box" x="396" y="196" width="280" height="124"/>
+  <text class="title" x="536" y="222" text-anchor="middle">TaskTypeRegistry</text>
+  <line x1="416" y1="230" x2="656" y2="230" stroke="#30363d" stroke-width="1"/>
+  <text class="sub" x="416" y="248">Multi-step process templates</text>
+  <text class="dash" x="416" y="268">- TASK.md         (objective, mode)</text>
+  <text class="dash" x="416" y="286">- DELIVERABLE.md  (output spec)</text>
+  <text class="dash" x="416" y="304">- process[]       (step sequence)</text>
+
+  <!-- Horizontal connector between the two -->
+  <line class="line" x1="360" y1="258" x2="396" y2="258" marker-end="url(#arrowRight)"/>
+
+  <!-- Vertical lines down to Scheduler -->
+  <line class="line" x1="220" y1="320" x2="220" y2="358"/>
+  <line class="line" x1="536" y1="320" x2="536" y2="358"/>
+  <!-- Merge into single line -->
+  <line class="line" x1="220" y1="358" x2="536" y2="358"/>
+  <line class="line" x1="380" y1="358" x2="380" y2="390" marker-end="url(#arrowDown)"/>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- ROW 3: Unified Scheduler                   -->
+  <!-- ═══════════════════════════════════════════ -->
+  <rect class="box" x="170" y="396" width="420" height="94"/>
+  <text class="title" x="380" y="422" text-anchor="middle">UnifiedScheduler</text>
+  <line x1="190" y1="430" x2="570" y2="430" stroke="#30363d" stroke-width="1"/>
+  <text class="sub" x="190" y="448">Cron every 5 min, zero LLM cost</text>
+  <text class="dash" x="190" y="468">- tasks WHERE next_run_at &lt;= NOW()</text>
+  <text class="dash" x="190" y="484">- atomic claim    lifecycle hygiene</text>
+
+  <!-- Vertical line down to Pipeline -->
+  <line class="line" x1="380" y1="490" x2="380" y2="530" marker-end="url(#arrowDown)"/>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- ROW 4: Task Pipeline                       -->
+  <!-- ═══════════════════════════════════════════ -->
+  <rect class="box" x="100" y="536" width="560" height="130"/>
+  <text class="title" x="380" y="562" text-anchor="middle">TaskPipeline  (execute_task)</text>
+  <line x1="120" y1="570" x2="640" y2="570" stroke="#30363d" stroke-width="1"/>
+  <text class="dash" x="120" y="590">1. Read TASK.md + DELIVERABLE.md + feedback.md</text>
+  <text class="dash" x="120" y="608">2. Resolve agent(s) from process definition</text>
+  <text class="dash" x="120" y="626">3. Gather context (tracker-driven, per domain)</text>
+  <text class="dash" x="120" y="644">4. Generate → render → compose → deliver</text>
+  <text class="dash" x="120" y="660">5. Write-back: reflections + domain entities</text>
+
+  <!-- Vertical lines down to three service boxes -->
+  <line class="line" x1="195" y1="666" x2="195" y2="720" marker-end="url(#arrowDown)"/>
+  <line class="line" x1="380" y1="666" x2="380" y2="720" marker-end="url(#arrowDown)"/>
+  <line class="line" x1="565" y1="666" x2="565" y2="720" marker-end="url(#arrowDown)"/>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- ROW 5: Three bottom service boxes          -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <!-- WorkspaceFS -->
+  <rect class="box" x="50" y="726" width="250" height="148"/>
+  <text class="title" x="175" y="752" text-anchor="middle">WorkspaceFS</text>
+  <line x1="70" y1="760" x2="280" y2="760" stroke="#30363d" stroke-width="1"/>
+  <text class="sub" x="70" y="778">Virtual filesystem over Postgres</text>
+  <text class="dash" x="70" y="798">/workspace/context/{domain}/</text>
+  <text class="dash" x="70" y="816">/agents/{slug}/AGENT.md</text>
+  <text class="dash" x="70" y="834">/tasks/{slug}/outputs/</text>
+  <text class="dash" x="70" y="854">read()  write()  search()</text>
+  <text class="dash" x="70" y="868">_tracker.md  _landscape.md</text>
+
+  <!-- AgentGeneration -->
+  <rect class="box" x="316" y="726" width="200" height="148"/>
+  <text class="title" x="416" y="752" text-anchor="middle">AgentGeneration</text>
+  <line x1="336" y1="760" x2="496" y2="760" stroke="#30363d" stroke-width="1"/>
+  <text class="sub" x="336" y="778">Headless (Claude Sonnet)</text>
+  <text class="dash" x="336" y="798">- 17 tool primitives</text>
+  <text class="dash" x="336" y="816">- max 12 tool rounds</text>
+  <text class="dash" x="336" y="834">- self-reflection</text>
+  <text class="dash" x="336" y="854">- domain write-back</text>
+  <text class="dash" x="336" y="868">- feedback injection</text>
+
+  <!-- Horizontal arrow: AgentGeneration → WorkspaceFS -->
+  <line class="line" x1="316" y1="798" x2="300" y2="798" marker-end="url(#arrowRight)"/>
+
+  <!-- OutputGateway -->
+  <rect class="box" x="532" y="726" width="186" height="148"/>
+  <text class="title" x="625" y="752" text-anchor="middle">OutputGateway</text>
+  <line x1="552" y1="760" x2="698" y2="760" stroke="#30363d" stroke-width="1"/>
+  <text class="sub" x="552" y="778">Docker (yarnnn-render)</text>
+  <text class="dash" x="552" y="798">- chart    mermaid</text>
+  <text class="dash" x="552" y="816">- pdf      pptx    xlsx</text>
+  <text class="dash" x="552" y="834">- html composition</text>
+  <text class="dash" x="552" y="854">- image    fetch-asset</text>
+  <text class="dash" x="552" y="868">- 8 SKILL.md skills</text>
+
+  <!-- Horizontal arrow: AgentGeneration → OutputGateway -->
+  <line class="line" x1="516" y1="798" x2="532" y2="798" marker-end="url(#arrowRight)"/>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- ROW 6: Storage Layer                       -->
+  <!-- ═══════════════════════════════════════════ -->
+  <line class="line" x1="175" y1="874" x2="175" y2="920" marker-end="url(#arrowDown)"/>
+  <line class="line" x1="416" y1="874" x2="416" y2="920" marker-end="url(#arrowDown)"/>
+  <line class="line" x1="625" y1="874" x2="625" y2="920" marker-end="url(#arrowDown)"/>
+
+  <rect class="box" x="80" y="926" width="600" height="84"/>
+  <text class="title" x="380" y="952" text-anchor="middle">Supabase (Postgres) + S3</text>
+  <line x1="100" y1="960" x2="660" y2="960" stroke="#30363d" stroke-width="1"/>
+  <text class="dash" x="100" y="980">workspace_files   tasks   agents   agent_runs</text>
+  <text class="dash" x="100" y="998">platform_connections   user_memory   render_usage</text>
+
+  <!-- Left side label: Three Layers annotation -->
+  <text fill="#484f58" font-size="10" transform="rotate(-90, 26, 540)" x="26" y="540" text-anchor="middle">Intelligence</text>
+  <line x1="40" y1="24" x2="40" y2="134" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <text fill="#484f58" font-size="10" transform="rotate(-90, 26, 258)" x="26" y="258" text-anchor="middle">Registries</text>
+  <line x1="40" y1="196" x2="40" y2="320" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <text fill="#484f58" font-size="10" transform="rotate(-90, 26, 600)" x="26" y="600" text-anchor="middle">Execution</text>
+  <line x1="40" y1="396" x2="40" y2="666" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <text fill="#484f58" font-size="10" transform="rotate(-90, 26, 806)" x="26" y="806" text-anchor="middle">Services</text>
+  <line x1="40" y1="726" x2="40" y2="874" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <text fill="#484f58" font-size="10" transform="rotate(-90, 26, 968)" x="26" y="968" text-anchor="middle">Storage</text>
+  <line x1="40" y1="926" x2="40" y2="1010" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4"/>
+
+</svg>

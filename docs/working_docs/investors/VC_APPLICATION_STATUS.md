@@ -21,7 +21,7 @@
 | 8 | P2S (Pre-Seed to Succeed) | Pre-seed | 2026-03-06 | Submitted | Edda Dealflow form via p2s.vc/apply; AI/B2B/SaaS focus, deck uploaded (IR Deck v16). Confirmation: "Looking forward to meet your project" |
 | 9 | Sazze Partners | Pre-seed | 2026-03-13 | **Rejected** | LinkedIn outreach → Kathy Ku meeting 2026-03-17 → deck sent for team review → rejected 2026-03-24: portfolio conflict with existing fund company. Korean-American founder thesis was a perfect fit but conflict is a non-negotiable blocker. |
 | 10 | Fortitude Ventures | Pre-seed | 2026-03-18 | **Rejected** | Cold email to Joan Kim → meeting 2026-03-31 (3pm PT). New firm (~$20M AUM), $200K–$1M checks, focus on "Autonomy." Team: Sung Joon (2008 co-founder, AVC Eclipse), Lian Kim (Samsung NEXT). **Passed — feedback: (1) "too early" (pre-revenue), (2) "not very defensible — first time founder", (3) "redundant, similar to what you can do with OpenClaw."** Suggested Kevin read emcap.com AI-native services playbook to strengthen positioning. Most substantive feedback received to date — defensibility and differentiation concerns worth addressing. |
-| 11 | Founders Inc / Canopy | Builder program | 2026-03-31 | **In Progress** | 5-week builder program (Apr 15 – May 22). Up to $250K funding + $500K credits for top performers. Application ~90% complete — **BLOCKED: needs 30-60s intro video link + optional demo video.** Deadline: **April 4, 2026.** |
+| 11 | Founders Inc / Canopy | Builder program | 2026-03-31 | **Submitted** | 5-week builder program (Apr 15 – May 22, SF campus + online). Up to $250K funding + $500K credits for top performers. Application submitted 2026-04-05. **Decision expected by April 10, 2026.** Referral: Hubert Thielbot. |
 
 ---
 
@@ -76,7 +76,7 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - [x] **Sazze Partners**: **CLOSED — passed due to portfolio conflict (2026-03-24).** Kathy Ku meeting held 2026-03-17, deck reviewed by team. Clean no — conflict in existing fund/portfolio, not a fit issue.
 - [x] **Lorimer Ventures (Zach Magdovitz @magdovitz)**: He followed Kevin on X. Operator-investor, $50K–$300K checks, seed-stage, B2B/SaaS. Built tools at Attentive, Yext, Mailchimp. **DM sent 2026-03-17 — awaiting reply.**
 - [x] **Fortitude Ventures (Joan Kim)**: Cold email sent 2026-03-18. Joan replied 2026-03-19. **Meeting held 2026-03-31.** Passed — "too early", "not defensible", "redundant/OpenClaw." Most actionable feedback yet. Suggested reading: emcap.com AI-native services playbook. See Submitted #10.
-- [ ] **Founders Inc / Canopy**: Application 90% filled (2026-03-31). **NEEDS: (1) record 30-60s intro video, upload to YouTube/Loom, paste link. (2) Optional demo video. (3) Submit. Deadline: April 4.**
+- [x] **Founders Inc / Canopy**: Application submitted 2026-04-05. Decision by April 10. See Submitted #11.
 - [ ] **Mischief VC**: Researched 2026-03-17. Jack Altman's fund, SF, $1–5M checks, seed/Series A, AI/software focus. Strong sector fit — finding contact method to pitch
 - [ ] **NVIDIA Inception**: Free startup program (no equity). Benefits: cloud credits ($25K–$100K AWS), hardware pricing, VC networking events, co-marketing badges. Application started 2026-03-17 — **BLOCKED: requires secondary contact (different person with @yarnnn.com email).** Need to recruit an advisor/friend to list. URL: programs.nvidia.com/phoenix/application. No deadline, rolling.
 - [ ] **Techstars Fall '26**: Watch for application opening (May–June 2026). Apply after traction sprint with updated metrics
@@ -89,35 +89,39 @@ These VCs were researched on 2026-03-05. They do not have public web application
 
 ## Network / Strategic Opportunities
 
-### Memento AI (m24ai.com) — Coffee Chat April 7, 3pm, Gangnam
+### Memento AI (m24ai.com) — Active Conversation
 
 **Origin**: Kathy Ku (Sazze Partners) intro on 2026-03-22. Sazze passed on yarnnn (portfolio conflict) but connected Kevin with Erick as "building in similar spaces."
 
 **Contact**: Erick Jisan Kim (김지산), CEO & Co-Founder. erick@m24ai.com · +82-10-2944-8706
 
-**Their product**: M24 — voice-first AI journaling app. Record voice → AI transcribes (95%+ accuracy, KR/EN/JP) → searchable text → conversational AI over your own recordings. "Second brain" from personal capture. Live on Google Play. Seoul-based, targeting US market.
+**Their product**: M24 — voice-first AI journaling app. "Second brain" from personal capture. Live on Google Play. Seoul-based, targeting US market.
 
-**How they relate to yarnnn**: Same 30,000-foot thesis (AI that accumulates personal/work context over time), opposite approach. Memento = consumer, voice-first, personal capture (bottom-up). yarnnn = B2B, platform integrations, autonomous agents, work output (top-down). Not competitors — adjacent.
+**Status update — 2026-04-07 meeting held**:
+- Kevin met Erick for coffee in Gangnam. Disclosed honestly: not giving up on yarnnn, but **open to joining Memento** in a role that lets both move forward.
+- **Key team reality surfaced**: Aside from Erick, the entire Memento team is fully Korean and barely speaks English — but they're targeting the US market. They need someone bilingual who can own **either product or GTM** for the English/US audience.
+- Erick thinks there **may genuinely be a fit** for Kevin in that English/US-facing role (product or GTM lead).
+- **Next steps from Erick's side**: needs to discuss internally with the team, and resolve some pending HR issues before formalizing anything.
+- **Next step from Kevin's side**: grab a beer with Erick **and the CTO** soon — Kevin wants to dig into the technical side of yesterday's discussion directly with the CTO. Informal, founder-to-founder.
 
-**Kevin's strategic play**: Explore a hybrid working arrangement — employment at Memento AI while maintaining yarnnn as own venture. Possible mirror equity structure (vesting on both sides).
+**What's now on the table**:
+- A potential bilingual product/GTM role at Memento covering the US market
+- Kevin maintains yarnnn in parallel (the explicit precondition Kevin set)
+- Equity arrangement TBD — original "mirror equity" idea still in Kevin's back pocket but not yet pitched
+- Timeline: gated by Memento's internal HR resolution, not Kevin
 
-**Why this matters for Kevin**:
-1. **Paycheck** — personal/family expenses need covering while VC fundraise is slow
-2. **US pathway** — Memento targeting LA/SF; riding that wave gets Kevin to his end-goal geography
-3. **Legitimacy signal** — "working at a funded AI startup" changes how future VCs perceive Kevin vs. "solo founder, pre-revenue"
-4. **Domain cross-pollination** — voice capture + platform sensing could genuinely inform each other
+**Open questions for the CTO beer**:
+- Their current architecture, scale, and where the technical bottlenecks are
+- How they think about voice → structured memory (overlap with yarnnn's accumulation thesis)
+- Where a US-facing product/GTM hire would actually plug in technically — feature ownership vs. coordination
+- Whether they have any existing english-language users or it's a true cold start
+- Team dynamics — who reports to whom, where the new hire would sit
 
-**How to play the April 7 meeting**:
-- **First 30-40 min: discovery only.** Learn about them — funding status, team size, current struggles, US market entry plan, hiring needs. Don't pitch the arrangement yet.
-- **Key questions to ask**: How big is the team? Are they funded (and by whom)? What's their US expansion timeline? What roles are they hiring for? What's their biggest bottleneck?
-- **If they're a 2-person team burning savings**: paycheck angle doesn't work. Keep it as a peer founder relationship.
-- **If they have seed money and are actively hiring/growing**: toward end of meeting, float the idea: *"I'm building something adjacent, not competitive — would you ever consider a hybrid arrangement where I contribute to Memento while maintaining my own venture? I've seen mirror equity structures work for early-stage founders in overlapping spaces."*
-- **Feel the room before pitching the structure.** This meeting is discovery, not negotiation.
-
-**Risks to manage if it progresses**:
-- **IP separation**: Must be crystal clear in writing — yarnnn IP is Kevin's, Memento work is theirs. Any investor looking at yarnnn later will ask who owns what.
-- **Non-compete**: Get explicit carve-out for yarnnn in any employment agreement. Korean labor law is more founder-friendly on side ventures than US, but still get it written.
-- **Time**: Full-time at Memento means yarnnn dev slows. The traction sprint for YC/a16z (late April) gets harder. May need to negotiate part-time or flexible hours.
+**Risks to keep tracking** (carry forward from prep notes):
+- **IP separation**: yarnnn IP must stay Kevin's in writing. This becomes existential the moment any agreement is signed.
+- **Non-compete carve-out** for yarnnn — get explicit before signing anything
+- **Time allocation**: a US-facing product/GTM role at a non-English-speaking startup will be heavier than it sounds. Realistic about how much yarnnn dev velocity survives.
+- **Reverse risk**: if Kevin becomes the only English speaker on the team, he becomes a single point of failure for everything customer-facing — that's leverage for him but also a trap if not scoped.
 
 ---
 
