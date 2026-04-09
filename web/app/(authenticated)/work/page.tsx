@@ -24,12 +24,28 @@ import { Loader2, Briefcase, MessageCircle } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
-import { api } from '@/lib/api/client';
+import { APIError, api } from '@/lib/api/client';
 import { WorkListSurface } from '@/components/work/WorkListSurface';
 import { WorkDetail } from '@/components/work/WorkDetail';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
+import type { DeskSurface } from '@/types/desk';
+
+type ActionNotice = { kind: 'info' | 'success' | 'error'; text: string } | null;
+
+function getActionErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof APIError) {
+    const detail = (error.data as { detail?: unknown } | null)?.detail;
+    if (typeof detail === 'string' && detail.trim()) {
+      return detail;
+    }
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
 
 export default function WorkPage() {
   const searchParams = useSearchParams();
@@ -48,6 +64,21 @@ export default function WorkPage() {
   );
 
   const [mutationPending, setMutationPending] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'run' | 'pause' | null>(null);
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0);
+  const [actionNotice, setActionNotice] = useState<ActionNotice>(null);
+  const [chatDraftSeed, setChatDraftSeed] = useState<{ id: string; text: string } | null>(null);
+  const [chatOpenSignal, setChatOpenSignal] = useState(0);
+
+  useEffect(() => {
+    if (!actionNotice) return;
+    const timeout = window.setTimeout(() => setActionNotice(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [actionNotice]);
+
+  useEffect(() => {
+    setActionNotice(null);
+  }, [selectedTask?.slug]);
 
   // Breadcrumb (segment shape from b033513; PageHeader renders inline now)
   useEffect(() => {
@@ -86,29 +117,55 @@ export default function WorkPage() {
   // Actions
   const handleRunTask = useCallback(async (slug: string) => {
     setMutationPending(true);
+    setPendingAction('run');
+    setActionNotice({ kind: 'info', text: 'Running task now. This can take up to a minute.' });
     try {
       await api.tasks.run(slug);
+      setDetailRefreshKey((current) => current + 1);
       await reload();
+      setActionNotice({ kind: 'success', text: 'Task run completed. Latest task data refreshed.' });
     } catch (err) {
       console.error('[Work] Failed to trigger task:', err);
+      setActionNotice({
+        kind: 'error',
+        text: getActionErrorMessage(err, 'Failed to run task.'),
+      });
     } finally {
       setMutationPending(false);
+      setPendingAction(null);
     }
   }, [reload]);
 
   const handlePauseTask = useCallback(async (slug: string) => {
     setMutationPending(true);
+    setPendingAction('pause');
+    setActionNotice(null);
     try {
       const task = tasks.find(t => t.slug === slug);
       const newStatus = task?.status === 'active' ? 'paused' : 'active';
       await api.tasks.update(slug, { status: newStatus });
       await reload();
+      setActionNotice({
+        kind: 'success',
+        text: newStatus === 'paused' ? 'Task paused.' : 'Task resumed.',
+      });
     } catch (err) {
       console.error('[Work] Failed to update task:', err);
+      setActionNotice({
+        kind: 'error',
+        text: getActionErrorMessage(err, 'Failed to update task.'),
+      });
     } finally {
       setMutationPending(false);
+      setPendingAction(null);
     }
   }, [tasks, reload]);
+
+  const handleOpenChatDraft = useCallback((prompt?: string) => {
+    if (!prompt) return;
+    setChatDraftSeed({ id: crypto.randomUUID(), text: prompt });
+    setChatOpenSignal((current) => current + 1);
+  }, []);
 
   // Click row in list mode → URL transition to detail mode
   const handleSelect = useCallback((slug: string) => {
@@ -126,24 +183,7 @@ export default function WorkPage() {
   }, [router, searchParams]);
 
   const plusMenuActions: PlusMenuAction[] = useMemo(() => {
-    if (selectedTask) {
-      return [
-        {
-          id: 'run-now',
-          label: 'Run now',
-          icon: Briefcase,
-          verb: 'prompt' as const,
-          onSelect: () => { handleRunTask(selectedTask.slug); },
-        },
-        {
-          id: 'edit-via-tp',
-          label: 'Edit via chat',
-          icon: MessageCircle,
-          verb: 'prompt' as const,
-          onSelect: () => { sendMessage(`I want to update the task "${selectedTask.title}"`); },
-        },
-      ];
-    }
+    if (selectedTask) return [];
     return [
       {
         id: 'create-task',
@@ -153,7 +193,12 @@ export default function WorkPage() {
         onSelect: () => { sendMessage('I want to set up new work. What do you suggest based on my context?'); },
       },
     ];
-  }, [selectedTask, handleRunTask, sendMessage]);
+  }, [selectedTask, sendMessage]);
+
+  const chatSurfaceOverride = useMemo<DeskSurface | undefined>(() => {
+    if (!selectedTask) return undefined;
+    return { type: 'task-detail', taskSlug: selectedTask.slug };
+  }, [selectedTask]);
 
   const chatEmptyState = (
     <div className="py-2 text-center">
@@ -175,23 +220,29 @@ export default function WorkPage() {
   return (
     <ThreePanelLayout
       chat={{
+        surfaceOverride: chatSurfaceOverride,
+        draftSeed: chatDraftSeed,
         plusMenuActions,
         placeholder: selectedTask ? `Ask about "${selectedTask.title}"...` : 'Ask anything or type / ...',
         emptyState: chatEmptyState,
         showCommandPicker: !selectedTask,
         contextLabel: selectedTask ? `viewing ${selectedTask.title}` : undefined,
         defaultOpen: true,
+        openSignal: chatOpenSignal,
       }}
     >
       <PageHeader defaultLabel="Work" />
       {selectedTask ? (
         <WorkDetail
+          key={`${selectedTask.slug}:${detailRefreshKey}`}
           task={selectedTask}
           agents={agents}
           mutationPending={mutationPending}
+          pendingAction={pendingAction}
+          actionNotice={actionNotice}
           onRunTask={handleRunTask}
           onPauseTask={handlePauseTask}
-          onOpenChat={(prompt) => sendMessage(prompt || '')}
+          onOpenChat={handleOpenChatDraft}
         />
       ) : (
         <WorkListSurface

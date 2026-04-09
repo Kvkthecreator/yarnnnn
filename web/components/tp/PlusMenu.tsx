@@ -30,6 +30,10 @@ interface PlusMenuProps {
 }
 
 export function PlusMenu({ actions, disabled }: PlusMenuProps) {
+  if (actions.length === 0) {
+    return null;
+  }
+
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);

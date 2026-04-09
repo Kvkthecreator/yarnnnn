@@ -66,6 +66,8 @@ export interface ThreePanelLayoutProps {
   chat?: {
     /** Surface override for TP context */
     surfaceOverride?: ChatPanelProps['surfaceOverride'];
+    /** Prefill the chat input from the parent surface without auto-sending */
+    draftSeed?: ChatPanelProps['draftSeed'];
     /** Plus menu actions */
     plusMenuActions: ChatPanelProps['plusMenuActions'];
     /** Placeholder text for chat input */
@@ -78,6 +80,8 @@ export interface ThreePanelLayoutProps {
     contextLabel?: string;
     /** Initial open state (default: false — FAB only) */
     defaultOpen?: boolean;
+    /** Increment to force the chat panel open from the parent surface */
+    openSignal?: number;
     /** Chat panel width in px (default: 380) */
     width?: number;
   };
@@ -94,6 +98,7 @@ export function ThreePanelLayout({
   // Width state — hydrated from localStorage on mount to avoid SSR mismatch.
   const [leftWidth, setLeftWidth] = useState(leftPanel?.width ?? 280);
   const [chatWidth, setChatWidth] = useState(chat?.width ?? 380);
+  const previousChatOpenSignal = useRef<number | undefined>(chat?.openSignal);
 
   useEffect(() => {
     setLeftWidth(loadStoredWidth(LEFT_WIDTH_KEY, leftPanel?.width ?? 280, LEFT_MIN, LEFT_MAX));
@@ -101,6 +106,21 @@ export function ThreePanelLayout({
     // Read once on mount — defaults are stable per page render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (chat?.openSignal === undefined) {
+      previousChatOpenSignal.current = undefined;
+      return;
+    }
+    if (previousChatOpenSignal.current === undefined) {
+      previousChatOpenSignal.current = chat.openSignal;
+      return;
+    }
+    if (chat.openSignal !== previousChatOpenSignal.current) {
+      previousChatOpenSignal.current = chat.openSignal;
+      setChatOpen(true);
+    }
+  }, [chat?.openSignal]);
 
   // Drag-to-resize for left panel (drag right edge → width grows)
   const leftDragging = useRef(false);
@@ -234,6 +254,7 @@ export function ThreePanelLayout({
             <div className="flex-1 min-h-0">
               <ChatPanel
                 surfaceOverride={chat.surfaceOverride}
+                draftSeed={chat.draftSeed}
                 plusMenuActions={chat.plusMenuActions}
                 placeholder={chat.placeholder}
                 emptyState={chat.emptyState}

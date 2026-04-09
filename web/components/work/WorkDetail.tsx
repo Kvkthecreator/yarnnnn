@@ -30,7 +30,7 @@
  */
 
 import Link from 'next/link';
-import { ExternalLink, Briefcase, Play, Pause, MessageSquare } from 'lucide-react';
+import { ExternalLink, Briefcase, Play, Pause, MessageSquare, Loader2 } from 'lucide-react';
 import { DeliverableMiddle } from './details/DeliverableMiddle';
 import { TrackingMiddle } from './details/TrackingMiddle';
 import { ActionMiddle } from './details/ActionMiddle';
@@ -46,6 +46,8 @@ interface WorkDetailProps {
   task: Task;
   agents: Agent[];
   mutationPending: boolean;
+  pendingAction: 'run' | 'pause' | null;
+  actionNotice: { kind: 'info' | 'success' | 'error'; text: string } | null;
   onRunTask: (slug: string) => void;
   onPauseTask: (slug: string) => void;
   onOpenChat: (prompt?: string) => void;
@@ -107,39 +109,57 @@ function TaskMetadata({ task, assignedAgent }: { task: Task; assignedAgent: Agen
 function TaskActions({
   task,
   mutationPending,
+  pendingAction,
   onRun,
   onPause,
   onEdit,
 }: {
   task: Task;
   mutationPending: boolean;
+  pendingAction: 'run' | 'pause' | null;
   onRun: () => void;
   onPause: () => void;
   onEdit: () => void;
 }) {
+  const isRunPending = mutationPending && pendingAction === 'run';
+  const isTerminal = task.status === 'completed' || task.status === 'archived';
+  const runDisabledReason = mutationPending
+    ? 'Another task action is already in progress.'
+    : task.status === 'paused'
+      ? 'Resume this task before running it.'
+      : task.status === 'completed'
+        ? 'Completed tasks cannot be run from this view.'
+        : task.status === 'archived'
+          ? 'Archived tasks cannot be run from this view.'
+          : undefined;
+
   return (
     <>
       <button
         onClick={onRun}
         disabled={mutationPending || task.status !== 'active'}
+        title={runDisabledReason}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
       >
-        <Play className="w-3 h-3" /> Run now
+        {isRunPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+        Run now
       </button>
-      <button
-        onClick={onPause}
-        disabled={mutationPending}
-        className={cn(
-          'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border',
-          'text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50',
-        )}
-      >
-        {task.status === 'active' ? (
-          <><Pause className="w-3 h-3" /> Pause</>
-        ) : (
-          <><Play className="w-3 h-3" /> Resume</>
-        )}
-      </button>
+      {!isTerminal && (
+        <button
+          onClick={onPause}
+          disabled={mutationPending}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border',
+            'text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50',
+          )}
+        >
+          {task.status === 'active' ? (
+            <><Pause className="w-3 h-3" /> Pause</>
+          ) : (
+            <><Play className="w-3 h-3" /> Resume</>
+          )}
+        </button>
+      )}
       <button
         onClick={onEdit}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -196,6 +216,8 @@ export function WorkDetail({
   task,
   agents,
   mutationPending,
+  pendingAction,
+  actionNotice,
   onRunTask,
   onPauseTask,
   onOpenChat,
@@ -209,14 +231,33 @@ export function WorkDetail({
     <div className="flex-1 overflow-auto">
       <SurfaceIdentityHeader
         title={task.title}
-        metadata={<TaskMetadata task={task} assignedAgent={assignedAgent} />}
+        metadata={(
+          <div className="space-y-1">
+            <TaskMetadata task={task} assignedAgent={assignedAgent} />
+            {actionNotice && (
+              <p
+                className={cn(
+                  'text-[11px]',
+                  actionNotice.kind === 'error'
+                    ? 'text-destructive'
+                    : actionNotice.kind === 'success'
+                      ? 'text-primary'
+                      : 'text-muted-foreground',
+                )}
+              >
+                {actionNotice.text}
+              </p>
+            )}
+          </div>
+        )}
         actions={
           <TaskActions
             task={task}
             mutationPending={mutationPending}
+            pendingAction={pendingAction}
             onRun={() => onRunTask(task.slug)}
             onPause={() => onPauseTask(task.slug)}
-            onEdit={() => onOpenChat(`I want to update the task "${task.title}"`)}
+            onEdit={() => onOpenChat(`Help me edit the task "${task.title}". Ask me what I want to change before making any updates.`)}
           />
         }
       />

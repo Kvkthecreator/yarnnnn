@@ -33,6 +33,8 @@ import { stripWorkspaceStateMeta } from '@/lib/workspace-state-meta';
 export interface ChatPanelProps {
   /** Surface override — when set, used instead of DeskContext surface */
   surfaceOverride?: any;
+  /** Prefill the input from a parent surface without auto-sending */
+  draftSeed?: { id: string; text: string } | null;
   /** Plus menu actions for the input bar */
   plusMenuActions: PlusMenuAction[];
   /** Action card pushed from parent (e.g., panel header buttons) */
@@ -54,6 +56,7 @@ export interface ChatPanelProps {
 
 export function ChatPanel({
   surfaceOverride,
+  draftSeed,
   plusMenuActions,
   pendingActionConfig,
   placeholder = 'Ask anything or type / ...',
@@ -85,6 +88,14 @@ export function ChatPanel({
       setActionCard(pendingActionConfig);
     }
   }, [pendingActionConfig]);
+
+  // Parent surfaces can seed the input without sending immediately.
+  useEffect(() => {
+    if (!draftSeed?.text) return;
+    setInput(draftSeed.text);
+    setActionCard(null);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [draftSeed?.id, draftSeed?.text]);
 
   const handleActionSelect = (message: string) => {
     if (message.endsWith(' ')) {
