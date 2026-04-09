@@ -3,27 +3,46 @@
 /**
  * AgentContentView — Center panel content for a selected agent.
  *
- * ADR-167 v5 (2026-04-09): Owns the agent's visual identity via
- * <SurfaceIdentityHeader /> — agent title as the real H1, identity metadata
- * (class · domain · active tasks · last run) directly under it. The v3
- * stream of blocks (Mandate → Instructions → Learned → Tasks → Stats) is
- * preserved; only the chrome that used to live up in PageHeader moves down
- * into this component's SurfaceIdentityHeader at the top.
+ * ADR-167 v5 continued (2026-04-09): refactored block stream for
+ * clarity. The v5 intro shipped with three residual problems caught in a
+ * screenshot of /agents?agent=thinking-partner:
  *
- * The resulting structure reads top-to-bottom as:
+ *   1. Duplicate titles. "Thinking Partner" appeared three times —
+ *      breadcrumb chrome, SurfaceIdentityHeader h1, AND the first H1 of
+ *      AGENT.md inside the nested instructions card. The nested-card
+ *      framing wasn't enough to scope the third one because its text was
+ *      literally identical to the surface H1.
+ *   2. Mandate block was a duplicate of AGENT.md's first prose line. The
+ *      full AGENT.md was rendered immediately below, including that same
+ *      line. Dead weight.
+ *   3. Metadata strip redundancy on agents where the class label equals
+ *      the title (Thinking Partner → "Thinking Partner", Reporting →
+ *      "Reporting"). The class segment was saying the same thing the h1
+ *      was saying.
+ *   4. `AGENT.MD` section label leaked the filesystem abstraction into
+ *      the UI. Users shouldn't need to know the file exists.
+ *   5. Block order was reference-first (instructions) then state (tasks),
+ *      but the user's actual first question on an agent page is "what's
+ *      this agent doing for me?" — which is state.
  *
- *   1. Identity header  — title, metadata, (no actions yet — just chrome)
- *   2. Mandate          — one-line tagline from AGENT.md, sits right under
- *                         the header to introduce the agent's role
- *   3. Instructions     — full AGENT.md body in a nested card
- *   4. What it learned  — distilled feedback + recent reflections
- *   5. Assigned work    — inline list of this agent's tasks
- *   6. Stats strip      — quiet bottom row: runs / approval / edit distance
+ * Fixes applied in this rewrite:
  *
- * Class labels (Specialist / Reporting / Integration / Thinking Partner)
- * live here since this is the only place they're rendered now. Previously
- * duplicated in agents/page.tsx for the PageHeader subtitle — that
- * duplication is deleted in v5 along with the PageHeader subtitle slot.
+ *   - Mandate block DELETED entirely (with its `extractMandate` helper).
+ *   - New `stripLeadingH1IfMatchesTitle()` helper preprocesses AGENT.md
+ *     content: if the first non-blank line is an H1 whose text matches
+ *     the agent title (case-insensitive), strip it plus any trailing
+ *     blank lines. Safely handles both rich AGENT.md (with H1) and
+ *     default one-paragraph content (no H1) — the latter is a no-op.
+ *   - Instructions section label changed from `AGENT.md` to `How I work`.
+ *   - Block order changed to state-first: AssignedWork → LearnedFromYou
+ *     → HowIWork → footer stats.
+ *   - `AgentMetadata` now skips the class-label segment when it equals
+ *     the agent title (case-insensitive). TP and Reporting no longer
+ *     self-duplicate.
+ *
+ * The overall shape is still: SurfaceIdentityHeader at top, stream of
+ * blocks below, quiet stats + affordances at the footer. ADR-167 v5 is
+ * unchanged; this is a content-model fix, not a layout change.
  */
 
 import Link from 'next/link';
@@ -65,22 +84,38 @@ interface AgentContentViewProps {
 // ───────────────────────────────────────────────────────────────
 
 /**
- * Extract a one-liner mandate from AGENT.md. Skips H1/H2 headers and
- * section markers so we get real prose. Returns null if nothing usable.
+ * Strip the leading H1 from AGENT.md if its text matches the agent title
+ * (case-insensitive exact match). This handles the "rich AGENT.md" case
+ * where the authored content starts with `# Thinking Partner\n\n## Domain`
+ * and would otherwise duplicate the SurfaceIdentityHeader h1 directly
+ * above it. For the default-instructions case (no leading H1), returns
+ * the content unchanged.
+ *
+ * Preserves everything else: if the leading H1 is DIFFERENT from the
+ * title (unusual but possible — an agent renamed after AGENT.md was
+ * authored), the H1 stays so the reader doesn't lose context. We only
+ * strip when it's provably redundant.
  */
-function extractMandate(instructions: string | undefined | null): string | null {
-  if (!instructions) return null;
-  const lines = instructions.split('\n').map(l => l.trim());
-  for (const line of lines) {
-    if (!line) continue;
-    if (line.startsWith('#')) continue;
-    if (line.startsWith('>')) continue;
-    if (line.startsWith('-') || line.startsWith('*')) continue;
-    if (line.startsWith('```')) continue;
-    // first line of prose
-    return line.length > 240 ? line.slice(0, 237) + '…' : line;
-  }
-  return null;
+function stripLeadingH1IfMatchesTitle(
+  content: string,
+  title: string,
+): string {
+  const lines = content.split('\n');
+  // Skip any leading blank lines
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === '') i++;
+  if (i >= lines.length) return content;
+
+  const firstLine = lines[i].trim();
+  if (!firstLine.startsWith('# ') || firstLine.startsWith('## ')) return content;
+
+  const h1Text = firstLine.slice(2).trim();
+  if (h1Text.toLowerCase() !== title.toLowerCase()) return content;
+
+  // H1 matches title — strip it plus any trailing blank lines after it.
+  let j = i + 1;
+  while (j < lines.length && lines[j].trim() === '') j++;
+  return lines.slice(j).join('\n');
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -92,26 +127,16 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 // ───────────────────────────────────────────────────────────────
-// Blocks
+// Identity metadata (under SurfaceIdentityHeader h1)
 // ───────────────────────────────────────────────────────────────
-
-function Mandate({ agent }: { agent: Agent }) {
-  const mandate = extractMandate(agent.agent_instructions) || agent.description;
-  if (!mandate) return null;
-  return (
-    <div className="px-6 py-4">
-      <p className="text-base leading-relaxed text-foreground/90">
-        {mandate}
-      </p>
-    </div>
-  );
-}
-
-// ─── Identity metadata (under H1) ───
 
 function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const cls = agent.agent_class || 'domain-steward';
   const classLabel = CLASS_LABELS[cls] || cls;
+  // Skip the class-label segment if it would duplicate the h1 above
+  // (happens for Thinking Partner and Reporting where the class label
+  // equals the agent title by design).
+  const showClassLabel = classLabel.toLowerCase() !== agent.title.toLowerCase();
   const domain = agent.context_domain;
   const activeTaskCount = tasks.filter(t => t.status === 'active').length;
   const lastRun = tasks
@@ -120,76 +145,31 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
     .sort()
     .reverse()[0] || agent.last_run_at || null;
 
+  const segments: React.ReactNode[] = [];
+  if (showClassLabel) segments.push(<span key="class">{classLabel}</span>);
+  if (domain) segments.push(<span key="domain">{domain}/</span>);
+  segments.push(
+    <span key="tasks">
+      {activeTaskCount} active {activeTaskCount === 1 ? 'task' : 'tasks'}
+    </span>,
+  );
+  if (lastRun) segments.push(<span key="last-run">Ran {formatRelativeTime(lastRun)}</span>);
+
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <span>{classLabel}</span>
-      {domain && (
-        <>
-          <span className="text-muted-foreground/30">·</span>
-          <span>{domain}/</span>
-        </>
-      )}
-      <span className="text-muted-foreground/30">·</span>
-      <span>{activeTaskCount} active {activeTaskCount === 1 ? 'task' : 'tasks'}</span>
-      {lastRun && (
-        <>
-          <span className="text-muted-foreground/30">·</span>
-          <span>Ran {formatRelativeTime(lastRun)}</span>
-        </>
-      )}
+      {segments.map((seg, i) => (
+        <span key={i} className="flex items-center gap-1.5">
+          {i > 0 && <span className="text-muted-foreground/30">·</span>}
+          {seg}
+        </span>
+      ))}
     </div>
   );
 }
 
-function InstructionsBlock({ agent }: { agent: Agent }) {
-  if (!agent.agent_instructions) return null;
-  return (
-    <div className="px-6 py-5 border-t border-border/40">
-      <SectionLabel>AGENT.md</SectionLabel>
-      <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
-        <div className="prose prose-sm max-w-none dark:prose-invert">
-          <MarkdownRenderer content={agent.agent_instructions} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LearnedBlock({ agent }: { agent: Agent }) {
-  const feedback = agent.agent_memory?.feedback;
-  const reflections = agent.agent_memory?.reflections;
-  if (!feedback && !reflections) return null;
-
-  return (
-    <div className="px-6 py-5 border-t border-border/40 space-y-5">
-      {feedback && (
-        <div>
-          <SectionLabel>
-            <span className="inline-flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3" />
-              Learned from your feedback
-            </span>
-          </SectionLabel>
-          <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
-            <div className="prose prose-sm max-w-none dark:prose-invert text-sm">
-              <MarkdownRenderer content={feedback} />
-            </div>
-          </div>
-        </div>
-      )}
-      {reflections && (
-        <div>
-          <SectionLabel>Recent reflections</SectionLabel>
-          <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
-            <div className="prose prose-sm max-w-none dark:prose-invert text-sm">
-              <MarkdownRenderer content={reflections} />
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// ───────────────────────────────────────────────────────────────
+// Blocks
+// ───────────────────────────────────────────────────────────────
 
 function TasksBlock({ tasks }: { tasks: Task[] }) {
   if (tasks.length === 0) {
@@ -246,6 +226,59 @@ function TasksBlock({ tasks }: { tasks: Task[] }) {
             <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground/70 shrink-0" />
           </Link>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function LearnedBlock({ agent }: { agent: Agent }) {
+  const feedback = agent.agent_memory?.feedback;
+  const reflections = agent.agent_memory?.reflections;
+  if (!feedback && !reflections) return null;
+
+  return (
+    <div className="px-6 py-5 border-t border-border/40 space-y-5">
+      {feedback && (
+        <div>
+          <SectionLabel>
+            <span className="inline-flex items-center gap-1.5">
+              <Sparkles className="w-3 h-3" />
+              Learned from your feedback
+            </span>
+          </SectionLabel>
+          <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
+            <div className="prose prose-sm max-w-none dark:prose-invert text-sm">
+              <MarkdownRenderer content={feedback} />
+            </div>
+          </div>
+        </div>
+      )}
+      {reflections && (
+        <div>
+          <SectionLabel>Recent reflections</SectionLabel>
+          <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
+            <div className="prose prose-sm max-w-none dark:prose-invert text-sm">
+              <MarkdownRenderer content={reflections} />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InstructionsBlock({ agent }: { agent: Agent }) {
+  if (!agent.agent_instructions) return null;
+  const content = stripLeadingH1IfMatchesTitle(agent.agent_instructions, agent.title);
+  if (!content.trim()) return null;
+
+  return (
+    <div className="px-6 py-5 border-t border-border/40">
+      <SectionLabel>How I work</SectionLabel>
+      <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
+        <div className="prose prose-sm max-w-none dark:prose-invert">
+          <MarkdownRenderer content={content} />
+        </div>
       </div>
     </div>
   );
@@ -336,10 +369,12 @@ export function AgentContentView({
         metadata={<AgentMetadata agent={agent} tasks={tasks} />}
       />
       <div className="max-w-3xl">
-        <Mandate agent={agent} />
-        <InstructionsBlock agent={agent} />
-        <LearnedBlock agent={agent} />
+        {/* State first — what this agent is doing for you right now */}
         <TasksBlock tasks={tasks} />
+        <LearnedBlock agent={agent} />
+        {/* Reference second — how it works */}
+        <InstructionsBlock agent={agent} />
+        {/* Quiet footer — performance summary + affordances */}
         <StatsStrip agent={agent} tasks={tasks} onOpenChat={onOpenChat} />
       </div>
     </div>
