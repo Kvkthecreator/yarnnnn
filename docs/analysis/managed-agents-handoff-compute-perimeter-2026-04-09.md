@@ -136,12 +136,45 @@ Keep `yarnnn-render` as internalized compute for document-shaped outputs. Do not
 **Move B — HTML-native output substrate (larger, strategic).**
 Introduce HTML-native task outputs as a first-class output kind, rendered by the main web app rather than a render service. Render service narrows to *exports*. This is a new architectural move, probably an ADR, and it expands what YARNNN can produce into page-shaped artifacts (dashboards, IR decks, living reports). **This is closer to the moat story** — accumulating intelligence → outputs that compound, with pages that update as underlying context domains accumulate, and PDFs as downloadable snapshots. A document is a point-in-time snapshot; a page is a window onto the substrate.
 
+### 5a. What the recent commits suggest the real "render HTML" discussion is
+
+Recent commits make the repo's actual discussion much clearer:
+
+- **The backend is already committed to `output.html` as a first-class artifact.** `task_pipeline.py` now composes HTML in both single-step and multi-step paths after generation, copies `output.html` into the task workspace, and uses task-type `layout_mode` to choose the composition strategy. That's the ADR-130/148 line made real in code.
+- **The frontend still treats composed HTML as the primary deliverable surface.** `DeliverableMiddle.tsx` renders `latest.html_content` in a sandboxed `iframe` and only falls back to markdown when HTML is missing.
+- **The newest UI commits are not reopening the HTML bet.** The `7704fdf` and `f7cc99b` ADR-167 amendments are about *containment and hierarchy*: the rendered output often has its own internal `<h1>`, so the surface chrome cannot also behave like a competing title. Hence PageHeader becomes pure breadcrumb chrome, SurfaceIdentityHeader becomes the real page title, and the HTML output gets framed as a nested document.
+
+So the live question is not "should YARNNN render HTML?" That's already answered. The live question is **"what kind of thing is that HTML inside the surface?"** The recent answer is: a task-produced document embedded inside a higher-order application surface.
+
+### 5b. The useful distinction: compose-time HTML vs. view-time page rendering
+
+There are actually **two different ideas** getting conflated under "render HTML":
+
+**1. Compose-time HTML (current system).** Agent writes `output.md` + assets. YARNNN composes that into `output.html` in `yarnnn-render`. The web app displays that finished artifact in an iframe. This is the current document-shaped pipeline.
+
+**2. View-time page rendering (future rich-page idea).** Task writes a typed page spec or structured payload. The web app renders React components directly at view time. HTML is no longer a stored finished document; it's the browser result of the web app interpreting structured task output.
+
+This distinction matters because Managed Agents only threatens the first half of the flow differently than the second:
+
+- For **compose-time HTML**, the handoff seam is clean: Managed Agent can generate the structured source, while YARNNN keeps post-generation compose + export.
+- For **view-time page rendering**, the main web app is itself part of the compute perimeter. That is even less portable to Anthropic-managed infrastructure, because the contract now lives in YARNNN's component library and routing/UI model, not just in a render container.
+
+### 5c. One repo tension worth naming explicitly
+
+The docs currently describe a stronger "singular rendering path" than the code quite enforces.
+
+- ADR-148 and `SERVICE-MODEL.md` say the app "always" shows `output.html` and that markdown fallback is gone.
+- The actual surface implementation still has a markdown fallback when `output.html` is absent.
+
+That means the current truth is **HTML-primary, not HTML-exclusive**. That's probably the correct operational stance today, but it's worth naming because any future ADR about Managed Agents or `rich_page` outputs should not assume the stricter invariant has already been fully enforced.
+
 ## 6. Recommended next steps
 
 1. **Confirm Move A explicitly.** Document in an ADR that `yarnnn-render` stays internalized for the reasons in §4. This is cheap and closes an open question.
 2. **Read Managed Agents Environment + Tools docs.** 1-hour research task. Determines whether the reasoning loop can move while `yarnnn-render` stays, and which skills (if any) can port.
-3. **Decide on Move B framing.** Is YARNNN's long-term output substrate document-shaped or page-shaped? This is a product question as much as an architecture question. If page-shaped, draft an ADR for `rich_page` output_kind + page spec format + web app rendering contract + export flattening strategy.
-4. **Rewrite the positioning.** Independent of architecture: the pitch is no longer "we build agents." It is "we are the accumulating knowledge substrate that makes agents get better with tenure." Managed Agents' existence makes this *easier* to tell by providing the named contrast case.
+3. **Decide on Move B framing.** Is YARNNN's long-term output substrate document-shaped or page-shaped? This is a product question as much as an architecture question. If page-shaped, draft an ADR for `rich_page` output_kind + page spec format + web app rendering contract + export flattening strategy. Explicitly separate compose-time HTML from view-time page rendering so the discussion doesn't collapse them into one phrase.
+4. **Tighten doc/code alignment on the rendering contract.** Either fully enforce `output.html` as mandatory for deliverable tasks, or update the prose to state the real invariant: HTML-primary with markdown fallback. This matters for future handoff decisions because fallback semantics change where failures are tolerated.
+5. **Rewrite the positioning.** Independent of architecture: the pitch is no longer "we build agents." It is "we are the accumulating knowledge substrate that makes agents get better with tenure." Managed Agents' existence makes this *easier* to tell by providing the named contrast case.
 
 ## 7. Related ADRs
 

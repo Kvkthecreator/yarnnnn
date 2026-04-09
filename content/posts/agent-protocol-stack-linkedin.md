@@ -6,7 +6,7 @@ format: native-post
 date: 2026-03-16
 author: kvk
 voice: kevin
-status: ready
+status: published
 ---
 
 MCP connects agents to tools. A2A connects agents to each other. But no protocol exists for how agents transfer understanding.

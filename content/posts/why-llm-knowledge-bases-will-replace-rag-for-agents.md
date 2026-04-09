@@ -12,7 +12,7 @@ tags: [llm-knowledge-bases, rag, context-accumulation, ai-agents, agent-architec
 concept: LLM Knowledge Bases vs RAG
 geoTier: 1
 canonicalUrl: https://www.yarnnn.com/blog/why-llm-knowledge-bases-will-replace-rag-for-agents
-status: draft
+status: published
 ---
 
 > **What this article answers (plain language):** RAG works for chatbots that answer questions. But AI agents that produce autonomous, recurring output — competitive briefs, status reports, market analyses — need a different architecture. LLM-maintained knowledge bases, where context accumulates and improves over time, are that architecture.

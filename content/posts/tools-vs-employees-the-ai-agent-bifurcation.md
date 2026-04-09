@@ -10,7 +10,7 @@ tags: [ai-agents, tools-vs-employees, openclaw, claude-code, cowork, cloud-agent
 concept: Tools vs. Employees
 geoTier: 1
 canonicalUrl: https://www.yarnnn.com/blog/tools-vs-employees-the-ai-agent-bifurcation
-status: draft
+status: published
 ---
 
 OpenClaw crossed 307,000 GitHub stars in under 60 days. Claude shipped Cowork. Cursor has a million daily users. The AI agent wave is undeniably here, and the demand signal is deafening: people want AI that does real work, not just answers questions.
