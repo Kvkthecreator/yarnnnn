@@ -11,19 +11,18 @@ import { MockPDF, MockEmail, MockBrief } from "@/components/landing/MockOutputs"
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "Your AI Workforce — Ready on Day 1",
+  title: "Autonomous Agents for Recurring Knowledge Work",
   description:
-    "Sign up and meet your team: Research, Content, Marketing, and CRM agents plus Slack and Notion bots. Assign tasks. They execute on schedule and get better every cycle.",
+    "Persistent agents, Thinking Partner, and recurring tasks that run from shared workspace context. Supervise the system instead of rebuilding the same work every cycle.",
   path: "/",
   keywords: [
     "autonomous ai",
     "ai agent platform",
-    "ai workforce",
-    "ai work agent",
+    "recurring knowledge work",
+    "persistent agents",
     "slack ai summary",
     "notion ai summary",
     "autonomous workflow",
-    "ai employee",
     "agent automation",
     "recurring ai work",
     "ai task automation",
@@ -60,22 +59,22 @@ export default function LandingPage() {
                 <div className="font-brand text-4xl md:text-5xl mb-8 text-[#1a1a1a]">yarnnn</div>
 
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-wide text-[#1a1a1a]/90 mb-6">
-                  Your AI workforce
+                  Recurring work,
                   <br />
-                  <span className="text-[#1a1a1a]">is ready on day 1.</span>
+                  <span className="text-[#1a1a1a]">without re-prompting.</span>
                 </h1>
 
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto lg:mx-0 font-light">
-                  Sign up and meet your team — Research, Content, Marketing, and CRM
-                  agents ready to work. Share context through conversation, documents,
-                  or connected tools. They get better every cycle.
+                  Connect your workspace, define recurring tasks, and let persistent
+                  agents execute on schedule. Thinking Partner orchestrates. Your
+                  feedback compounds instead of disappearing with the tab.
                 </p>
 
                 <Link
                   href="/auth/login"
                   className="inline-block px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
                 >
-                  Meet your team
+                  Start free
                 </Link>
               </div>
 
@@ -105,14 +104,14 @@ export default function LandingPage() {
               </div>
               <div>
                 <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">What yarnnn does</div>
-                <h3 className="text-xl font-medium mb-4 text-[#1a1a1a]">Hire the team. Assign the tasks.</h3>
+                <h3 className="text-xl font-medium mb-4 text-[#1a1a1a]">Keep the system running.</h3>
                 <p className="text-[#1a1a1a]/50 leading-relaxed mb-4">
-                  A team of specialist agents — ready from sign-up. You assign recurring
-                  tasks and they execute on schedule. They learn from your feedback and
-                  deliver better output every cycle.
+                  yarnnn keeps shared context, a persistent workforce, and recurring
+                  tasks in one system. You define the work. Agents execute it. TP
+                  explains what happened and adjusts what should happen next.
                 </p>
                 <p className="text-[#1a1a1a] text-sm font-medium">
-                  You supervise — they operate.
+                  Agents are who. Tasks are what.
                 </p>
               </div>
             </div>
@@ -124,10 +123,10 @@ export default function LandingPage() {
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
-                Three steps. Then it runs itself.
+                Connect context. Define tasks. Supervise the loop.
               </h2>
               <p className="text-[#1a1a1a]/50 max-w-md mx-auto">
-                Agents are who. Tasks are what. You supervise from there.
+                Persistent agents, shared workspace context, and recurring work that compounds.
               </p>
             </div>
 
@@ -147,21 +146,25 @@ export default function LandingPage() {
                 <div className="p-6 md:p-8 h-full">
                   <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-4">Your team</div>
                   <h3 className="text-xl md:text-2xl font-medium mb-2 text-[#1a1a1a]">
-                    Six specialists, ready at sign-up
+                    Ten agents, one workforce
                   </h3>
                   <p className="text-[#1a1a1a]/50 text-sm mb-8 max-w-md">
-                    Four domain-cognitive agents that reason and accumulate expertise,
-                    plus two platform bots that sync your tools.
+                    Five domain stewards, one reporting synthesizer, three platform
+                    bots, and Thinking Partner as the meta-cognitive agent.
                   </p>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {([
-                      { name: "Research", letter: "R", color: "#6366f1", desc: "Web research, intelligence" },
-                      { name: "Content", letter: "C", color: "#0ea5e9", desc: "Drafts, reports, briefs" },
-                      { name: "Marketing", letter: "M", color: "#f59e0b", desc: "Market signals, positioning" },
-                      { name: "CRM", letter: "CR", color: "#10b981", desc: "Relationships, clients" },
+                      { name: "Competitive Intel", letter: "CI", color: "#6366f1", desc: "Competitors, external signals" },
+                      { name: "Market Research", letter: "MR", color: "#0ea5e9", desc: "Research, market context" },
+                      { name: "Business Dev", letter: "BD", color: "#10b981", desc: "Relationships, opportunities" },
+                      { name: "Operations", letter: "OP", color: "#f59e0b", desc: "Process, execution health" },
+                      { name: "Marketing", letter: "M", color: "#ef4444", desc: "Positioning, creative context" },
+                      { name: "Reporting", letter: "RP", color: "#8b5cf6", desc: "Cross-domain synthesis" },
                       { name: "Slack Bot", letter: "S", color: "#E01E5A", desc: "Channels & threads" },
                       { name: "Notion Bot", letter: "N", color: "#191919", desc: "Pages & databases" },
+                      { name: "GitHub Bot", letter: "G", color: "#111827", desc: "Repos & code context" },
+                      { name: "Thinking Partner", letter: "TP", color: "#374151", desc: "System orchestration" },
                     ] as const).map((agent) => (
                       <div key={agent.name} className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#1a1a1a]/[0.02] transition-colors">
                         <div
@@ -188,14 +191,14 @@ export default function LandingPage() {
                 <div className="p-6 h-full flex flex-col">
                   <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Example task</div>
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-5 h-5 rounded-full bg-sky-500 flex items-center justify-center">
-                      <span className="text-[8px] text-white font-bold">C</span>
+                    <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center">
+                      <span className="text-[8px] text-white font-bold">RP</span>
                     </div>
-                    <span className="text-sm font-medium text-[#1a1a1a]">Weekly team recap</span>
+                    <span className="text-sm font-medium text-[#1a1a1a]">Weekly leadership brief</span>
                   </div>
                   <p className="text-[#1a1a1a]/40 text-xs leading-relaxed flex-1">
-                    Content Agent synthesizes Slack activity — highlights, decisions,
-                    and action items. Delivered every Monday.
+                    Reporting turns fresh workspace context into an executive brief:
+                    key updates, blockers, decisions, and what changed across the week.
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#1a1a1a]/[0.04] text-[#1a1a1a]/40">Recurring</span>
@@ -301,19 +304,19 @@ export default function LandingPage() {
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
-              Your team is waiting.
+              Start with one task.
             </h2>
             <p className="text-[#1a1a1a]/50 mb-4">
-              Free: 2 active agents, 60 task runs/month, daily sync
+              Free: 2 active tasks, 20 work credits/month, daily sync
             </p>
             <p className="text-[#1a1a1a]/50 mb-10">
-              Pro: 10 active agents, 1,000 task runs/month, hourly sync — $19/mo
+              Pro: 10 active tasks, 500 work credits/month, hourly sync — $19/mo
             </p>
             <Link
               href="/auth/login"
               className="inline-block px-8 py-4 bg-[#1a1a1a] text-white text-lg font-medium rounded-full hover:bg-[#1a1a1a]/90 transition-all"
             >
-              Meet your team
+              Start free
             </Link>
           </div>
         </section>

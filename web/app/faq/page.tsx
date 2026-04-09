@@ -22,7 +22,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What is yarnnn?",
         answer:
-          "yarnnn is an AI workforce platform for recurring knowledge work. You sign up and get a pre-built team of specialist agents — Research, Content, Marketing, CRM — plus Slack and Notion bots. You assign tasks, they execute on schedule, and they get better every cycle.",
+          "yarnnn is an autonomous agent platform for recurring knowledge work. It keeps shared workspace context, a scaffolded workforce, Thinking Partner, and recurring task execution inside one system.",
       },
       {
         question: "How is yarnnn different from ChatGPT or Claude?",
@@ -32,27 +32,27 @@ const faqSections: FaqSection[] = [
       {
         question: "What does \"autonomous\" mean here?",
         answer:
-          "Tasks run on schedule without you. Your agents pull fresh context from connected tools, execute the task, and deliver the output. You review and redirect when needed. Over time, they require less supervision as they learn your preferences.",
+          "Tasks run on schedule or by trigger without you re-prompting from zero. Agents pull fresh context, execute the work, and deliver outputs. You review and redirect when needed.",
       },
       {
         question: "What's the difference between agents, bots, and tasks?",
         answer:
-          "Agents are persistent specialists (Research, Content, Marketing, CRM) — they reason across multiple steps and accumulate domain expertise. Bots are platform-mechanical (Slack Bot, Notion Bot) — they read and sync data from one platform. Tasks are defined work units — an objective, schedule, delivery format, and success criteria assigned to the right agent.",
+          "Agents are persistent specialists that deepen over time. Platform bots are agents shaped around a specific system such as Slack, Notion, or GitHub. Tasks are the work units: an objective, cadence, delivery target, and assignment. Thinking Partner is the meta-cognitive agent that manages the system.",
       },
     ],
   },
   {
-    category: "Your Team",
+    category: "Workforce",
     items: [
       {
         question: "Do I have to create agents manually?",
         answer:
-          "No. When you sign up, your team is already built — 4 specialist agents and 2 platform bots. You don't need to configure anything. Just describe the work you need done and yarnnn assigns it as a task to the right agent.",
+          "No. yarnnn scaffolds a workforce at signup. Most of the time you create tasks, not agents. Thinking Partner turns plain-language requests into recurring work.",
       },
       {
         question: "What agents do I get?",
         answer:
-          "Research Agent (web research, competitive intelligence, topic monitoring), Content Agent (drafts, reports, briefs, summaries), Marketing Agent (market signals, positioning, campaigns), CRM Agent (relationships, clients, stakeholders), Slack Bot (syncs channels and threads), and Notion Bot (syncs pages and databases).",
+          "The current scaffolded roster includes five domain stewards (Competitive Intelligence, Market Research, Business Development, Operations, Marketing), one synthesizer (Reporting), three platform bots (Slack, Notion, GitHub), and Thinking Partner.",
       },
       {
         question: "How do agents improve over time?",
@@ -62,12 +62,12 @@ const faqSections: FaqSection[] = [
       {
         question: "Can multiple agents work together on a task?",
         answer:
-          "Yes. Most tasks need one agent handling the full chain — gather context, reason about it, produce output. For bigger jobs, multiple agents contribute their domain expertise to a single task. For example, Research Agent investigates competitors while Content Agent synthesizes Slack activity, and the task combines their work into one deliverable.",
+          "Yes. Most tasks use one agent. For bigger jobs, multiple agents contribute domain expertise to a single task. For example, Slack Bot can keep internal context fresh, Competitive Intelligence can add external signals, and Reporting can synthesize one deliverable.",
       },
       {
-        question: "Can I talk to agents directly?",
+        question: "How do I steer the system?",
         answer:
-          "Yes. Each agent can receive direction from you — adjust focus, change tone, redirect priorities. Your instructions persist across sessions and carry forward to every task that agent runs.",
+          "Thinking Partner is the main control surface. Use it to create work, change priorities, refine objectives, and ask why something ran. The Work and Agents surfaces let you inspect outputs, history, and the specialists involved.",
       },
     ],
   },
@@ -87,7 +87,7 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I create a task?",
         answer:
-          "Describe what you need in plain language — \"Give me a weekly competitor brief\" or \"Summarize #engineering every Friday as a PDF.\" yarnnn creates the task, assigns the right agent, sets the cadence, and starts executing.",
+          "Describe what you need in plain language — for example, \"Give me a weekly competitor brief\" or \"Summarize #engineering every Friday as a PDF.\" TP creates the task definition, assigns the right agent or process, sets the cadence, and starts executing.",
       },
     ],
   },
@@ -97,7 +97,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Which platforms does yarnnn connect to?",
         answer:
-          "Slack and Notion. You authorize via OAuth and choose which channels or pages to include — or let yarnnn auto-select based on your activity. Bots activate automatically when you connect a platform.",
+          "Slack and Notion are the main public integrations today, with GitHub also represented in the scaffolded workforce model. You authorize via OAuth and choose which sources to include, or let yarnnn start with sensible defaults.",
       },
       {
         question: "Do I need to connect a platform to start?",
@@ -117,17 +117,17 @@ const faqSections: FaqSection[] = [
       {
         question: "What plans are available?",
         answer:
-          "yarnnn has Free and Pro plans. Both include the full 6-agent roster and all platform integrations. Free gives you 2 active agents, 60 task runs/month, 50 messages/month, and daily sync. Pro gives you 10 active agents, 1,000 task runs/month, unlimited messages, hourly sync, and unlimited sources — $19/mo (Early Bird: $9/mo).",
+          "yarnnn has Free and Pro plans. Both include the scaffolded workforce, Thinking Partner, and platform integrations. Free gives you 2 active tasks, 20 work credits/month, 150 messages/month, and daily sync. Pro gives you 10 active tasks, 500 work credits/month, unlimited messages, hourly sync, and unlimited sources — $19/mo (Early Bird: $9/mo).",
       },
       {
-        question: "What does \"active agents\" mean?",
+        question: "What does \"active tasks\" mean?",
         answer:
-          "Your full roster (4 agents + 2 bots) is always available. \"Active agents\" means agents that have tasks assigned to them. Free lets you have 2 agents actively running tasks. Pro lets you have up to 10 — including new agents you create beyond the default roster.",
+          "Tasks are the recurring work contracts the system keeps alive at once. Your scaffolded workforce is still there, but the tier determines how many active loops you can keep running simultaneously.",
       },
       {
-        question: "What are task runs?",
+        question: "What are work credits?",
         answer:
-          "Task runs measure the autonomous work your agents do — each scheduled task execution and rendered output (PDF, slides, etc.) costs one run. This is separate from messages (your conversations with agents). Free includes 60 runs/month, Pro includes 1,000.",
+          "Work credits meter autonomous execution and rendering. They are separate from messages with Thinking Partner. Free includes 20 credits/month, Pro includes 500.",
       },
       {
         question: "How does sync frequency differ by plan?",
@@ -142,12 +142,12 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I get started?",
         answer:
-          "Sign up and your team is ready immediately — 4 specialist agents and 2 platform bots. Describe your first task, connect a platform if you want richer context, and your agents start working. No configuration required.",
+          "Sign up, connect context if you want it, and describe the first recurring task. TP turns that into a standing loop and the rest of the system starts compounding from there.",
       },
       {
         question: "What's the best first task?",
         answer:
-          "A weekly Slack recap is the fastest way to see value — connect Slack, assign a \"weekly team recap\" task, and your Content Agent delivers a synthesized summary on your schedule. Quick feedback signal, immediate utility.",
+          "A weekly team recap or stakeholder brief is usually the fastest way to see value. It creates an obvious review loop, gives TP something concrete to refine, and quickly shows whether the system is grounding itself well.",
       },
       {
         question: "How quickly do I see results?",
@@ -163,7 +163,7 @@ const allFaqItems = faqSections.flatMap((s) => s.items);
 export const metadata = getMarketingMetadata({
   title: "FAQ",
   description:
-    "Frequently asked questions about yarnnn: your AI workforce, agents and bots, task modes, platform integrations, pricing, and getting started.",
+    "Frequently asked questions about yarnnn: persistent agents, Thinking Partner, recurring tasks, platform integrations, pricing, and getting started.",
   path: "/faq",
   keywords: [
     "yarnnn faq",
@@ -202,7 +202,7 @@ export default function FaqPage() {
               Frequently asked questions
             </h1>
             <p className="text-white/50 mb-16 max-w-xl">
-              Your AI workforce, agents and tasks, platforms, pricing, and how to get started.
+              Persistent agents, Thinking Partner, tasks, integrations, pricing, and how to get started.
             </p>
 
             <div className="space-y-16">
@@ -224,13 +224,13 @@ export default function FaqPage() {
 
             <div className="mt-24 text-center">
               <h2 className="text-2xl font-medium mb-4">Still have questions?</h2>
-              <p className="text-white/50 mb-8">Your team is ready — assign your first task in minutes.</p>
+              <p className="text-white/50 mb-8">Start with one recurring task and let the system show you how it compounds.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
                   href="/auth/login"
                   className="inline-block px-8 py-3 bg-white text-black font-medium rounded-full hover:bg-white/90 transition-colors"
                 >
-                  Meet your team
+                  Start free
                 </Link>
                 <a
                   href="mailto:admin@yarnnn.com"

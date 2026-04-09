@@ -12,9 +12,9 @@ import type { Metadata } from "next";
 
 export const BRAND = {
   name: "yarnnn",
-  tagline: "Your AI Workforce — Ready on Day 1",
+  tagline: "Autonomous Agents for Recurring Knowledge Work",
   description:
-    "Sign up and meet your team: Research, Content, Marketing, and CRM agents plus Slack and Notion bots. Assign recurring tasks. They execute on schedule and get better every cycle.",
+    "Persistent agents, shared workspace context, and recurring tasks that run on schedule. Supervise the system instead of rebuilding the same work every cycle.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
   ogImage: "/assets/logos/og-card.png",
 };

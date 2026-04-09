@@ -47,7 +47,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Content:</strong> Documents you upload, text blocks you
-            create, and projects you manage
+            create, workspace files you store, and tasks you manage
           </li>
           <li>
             <strong>Usage Data:</strong> How you interact with our services,
@@ -55,15 +55,15 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Work Outputs:</strong> AI-generated content created through
-            our agents
+            our agents and recurring tasks
           </li>
         </ul>
 
         <h2 className="text-xl font-semibold mt-8 mb-4">2. How We Use Your Data</h2>
         <ul className="list-disc pl-6 space-y-2">
           <li>Provide and improve our AI work platform services</li>
-          <li>Generate context-aware outputs through AI agents</li>
-          <li>Send service-related communications (e.g., weekly digests)</li>
+          <li>Generate context-aware outputs through autonomous agents and tasks</li>
+          <li>Send service-related communications (e.g., daily updates or account notices)</li>
           <li>Maintain security and prevent abuse</li>
         </ul>
         <p>

@@ -12,7 +12,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "How yarnnn works",
   description:
-    "Sign up and your AI workforce is ready. Assign tasks to specialist agents — Research, Content, Marketing, CRM. They execute on schedule and learn from your feedback.",
+    "Connect workspace context, define recurring tasks, and let persistent agents execute on schedule. Thinking Partner orchestrates and feedback compounds over time.",
   path: "/how-it-works",
   keywords: [
     "how yarnnn works",
@@ -36,19 +36,19 @@ export default function HowItWorksPage() {
     step: [
       {
         "@type": "HowToStep",
-        name: "Sign up and meet your pre-built AI team",
+        name: "Connect workspace context",
       },
       {
         "@type": "HowToStep",
-        name: "Assign recurring tasks to specialist agents",
+        name: "Define recurring tasks with Thinking Partner",
       },
       {
         "@type": "HowToStep",
-        name: "Share context through conversation, documents, or connected tools",
+        name: "Let persistent agents execute and deliver",
       },
       {
         "@type": "HowToStep",
-        name: "Review output and watch quality compound over time",
+        name: "Review output and let feedback compound over time",
       },
     ],
   };
@@ -66,14 +66,14 @@ export default function HowItWorksPage() {
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <p className="text-white/40 text-sm uppercase tracking-widest mb-4">How It Works</p>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              Agents are who.
+              Shared context.
               <br />
-              <span className="text-white/50">Tasks are what.</span>
+              <span className="text-white/50">Persistent agents. Recurring tasks.</span>
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              yarnnn gives you a team of specialist agents the moment you sign up.
-              You assign recurring tasks — they execute on schedule, learn from your
-              feedback, and deliver better output every cycle.
+              yarnnn keeps workspace context, a scaffolded workforce, and recurring
+              task execution inside one system. TP orchestrates. Domain agents deepen.
+              Your feedback compounds instead of resetting every session.
             </p>
           </section>
 
@@ -85,17 +85,17 @@ export default function HowItWorksPage() {
                   Four steps. Then it runs itself.
                 </h2>
                 <p className="text-white/50 max-w-md mx-auto">
-                  From sign-up to compounding output.
+                  From first context to a running system.
                 </p>
               </div>
 
               <AnimatedTimeline
                 variant="dark"
                 steps={[
-                  { number: "01", title: "Meet your team", description: "Sign up and your 6-agent roster is ready — 4 specialists and 2 platform bots." },
-                  { number: "02", title: "Assign tasks", description: "Describe the work. yarnnn creates a task and assigns the right agent." },
-                  { number: "03", title: "Share context", description: "Chat, upload docs, or connect Slack and Notion. Every source makes output richer." },
-                  { number: "04", title: "Review & learn", description: "Edit or redirect. Feedback becomes learned preferences that compound every cycle." },
+                  { number: "01", title: "Accumulate context", description: "Connect tools, upload docs, or start from chat. The workspace becomes the shared operating substrate." },
+                  { number: "02", title: "Define tasks", description: "Describe recurring work in plain language. TP turns it into a standing task definition." },
+                  { number: "03", title: "Agents execute", description: "Persistent agents run tasks on schedule, gather context, and deliver outputs." },
+                  { number: "04", title: "Supervise & compound", description: "Review what changed. Feedback sharpens future runs instead of disappearing." },
                 ]}
               />
             </div>
@@ -107,9 +107,10 @@ export default function HowItWorksPage() {
               <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6 mb-12">
                 <div className="text-4xl font-light text-white/20">01</div>
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-medium mb-4">Meet your team</h2>
+                  <h2 className="text-2xl md:text-3xl font-medium mb-4">A workforce is scaffolded at signup</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl">
-                    When you sign up, your workforce is already built. No setup, no configuration.
+                    The system does not start empty. Domain agents, platform bots,
+                    Reporting, and TP are scaffolded from day one.
                   </p>
                 </div>
               </div>
@@ -123,20 +124,24 @@ export default function HowItWorksPage() {
                 >
                   <div className="p-6 md:p-8 h-full">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Your roster</div>
-                    <h3 className="text-xl font-medium mb-2">Six specialists, ready at sign-up</h3>
+                    <h3 className="text-xl font-medium mb-2">Ten agents across four classes</h3>
                     <p className="text-white/50 text-sm mb-8 max-w-md">
-                      Four domain-cognitive agents that reason and accumulate expertise,
-                      plus two platform bots that sync your tools.
+                      Five domain stewards, one reporting synthesizer, three platform
+                      bots, and Thinking Partner as the meta-cognitive agent.
                     </p>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {([
-                        { name: "Research", letter: "R", color: "#6366f1", desc: "Web research, intelligence" },
-                        { name: "Content", letter: "C", color: "#0ea5e9", desc: "Drafts, reports, briefs" },
-                        { name: "Marketing", letter: "M", color: "#f59e0b", desc: "Market signals, positioning" },
-                        { name: "CRM", letter: "CR", color: "#10b981", desc: "Relationships, clients" },
+                        { name: "Competitive Intel", letter: "CI", color: "#6366f1", desc: "Competitors, external signals" },
+                        { name: "Market Research", letter: "MR", color: "#0ea5e9", desc: "Research, market context" },
+                        { name: "Business Dev", letter: "BD", color: "#10b981", desc: "Relationships, opportunities" },
+                        { name: "Operations", letter: "OP", color: "#f59e0b", desc: "Process, operational health" },
+                        { name: "Marketing", letter: "M", color: "#ef4444", desc: "Positioning, creative context" },
+                        { name: "Reporting", letter: "RP", color: "#8b5cf6", desc: "Cross-domain synthesis" },
                         { name: "Slack Bot", letter: "S", color: "#E01E5A", desc: "Channels & threads" },
                         { name: "Notion Bot", letter: "N", color: "#191919", desc: "Pages & databases" },
+                        { name: "GitHub Bot", letter: "G", color: "#111827", desc: "Repos & code context" },
+                        { name: "Thinking Partner", letter: "TP", color: "#374151", desc: "System orchestration" },
                       ] as const).map((agent) => (
                         <div key={agent.name} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/[0.03] transition-colors">
                           <div
@@ -158,18 +163,30 @@ export default function HowItWorksPage() {
                 {/* Agent vs Bot explainer */}
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(99,102,241,0.05)">
                   <div className="p-6 h-full flex flex-col">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Two classes</div>
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Four classes</div>
                     <div className="flex-1 space-y-4">
                       <div>
-                        <div className="text-sm font-medium mb-1">Agents</div>
+                        <div className="text-sm font-medium mb-1">Domain stewards</div>
                         <p className="text-white/40 text-xs leading-relaxed">
-                          Domain-cognitive. Reason across multiple steps. Accumulate expertise over time.
+                          Specialists that keep a context domain fresh and useful over time.
                         </p>
                       </div>
                       <div>
-                        <div className="text-sm font-medium mb-1">Bots</div>
+                        <div className="text-sm font-medium mb-1">Reporting</div>
                         <p className="text-white/40 text-xs leading-relaxed">
-                          Platform-mechanical. Scoped to one API. Activate when you connect a tool.
+                          The synthesizer that turns multiple inputs into one deliverable.
+                        </p>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium mb-1">Platform bots</div>
+                        <p className="text-white/40 text-xs leading-relaxed">
+                          Platform-shaped specialists for Slack, Notion, and GitHub context.
+                        </p>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium mb-1">Thinking Partner</div>
+                        <p className="text-white/40 text-xs leading-relaxed">
+                          The meta-cognitive agent that manages tasks, explains behavior, and keeps the system coherent.
                         </p>
                       </div>
                     </div>
@@ -180,10 +197,10 @@ export default function HowItWorksPage() {
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(16,185,129,0.05)">
                   <div className="p-6 h-full flex flex-col justify-center">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Identity</div>
-                    <h3 className="text-lg font-medium mb-2">Agents develop inward</h3>
+                    <h3 className="text-lg font-medium mb-2">Agents deepen. TP orchestrates.</h3>
                     <p className="text-white/40 text-xs leading-relaxed">
-                      Your Research Agent becomes a better researcher — not a Content Agent.
-                      Capabilities are fixed by type. Knowledge is what grows.
+                      Capability breadth is stable. Knowledge and judgment are what
+                      compound with tenure and repeated work.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -199,8 +216,8 @@ export default function HowItWorksPage() {
                 <div>
                   <h2 className="text-2xl md:text-3xl font-medium mb-4">Assign tasks</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl">
-                    Describe what you need in plain language. yarnnn creates a task, assigns
-                    it to the right agent, and sets the cadence.
+                    Describe what you need in plain language. TP turns that into a
+                    task definition with objective, cadence, delivery, and assignment.
                   </p>
                 </div>
               </div>
@@ -211,15 +228,15 @@ export default function HowItWorksPage() {
                   <div className="p-6 md:p-8">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Example task</div>
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-7 h-7 rounded-full bg-sky-500 flex items-center justify-center">
-                        <span className="text-[9px] text-white font-bold">C</span>
+                      <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center">
+                        <span className="text-[9px] text-white font-bold">RP</span>
                       </div>
-                      <span className="text-lg font-medium">Weekly team recap</span>
+                      <span className="text-lg font-medium">Weekly leadership brief</span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.06] text-white/40 ml-auto">Recurring · Weekly</span>
                     </div>
                     <p className="text-white/50 text-sm leading-relaxed max-w-lg">
-                      Slack Bot syncs your channels. Content Agent synthesizes highlights,
-                      decisions, and action items. Delivered every Monday morning as a PDF.
+                      Slack and Notion keep the workspace fresh. Reporting assembles the
+                      week's changes, decisions, and risks into one Monday morning brief.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -245,9 +262,9 @@ export default function HowItWorksPage() {
 
                 {/* More task examples */}
                 {([
-                  { title: "Competitor intelligence", agent: "Research Agent", mode: "Recurring" },
-                  { title: "Market research deep dive", agent: "Research Agent", mode: "Goal" },
-                  { title: "Meeting prep brief", agent: "Content Agent", mode: "Reactive" },
+                  { title: "Competitor intelligence brief", agent: "Competitive Intelligence", mode: "Recurring" },
+                  { title: "Market research deep dive", agent: "Market Research", mode: "Goal" },
+                  { title: "Meeting prep brief", agent: "Reporting", mode: "Reactive" },
                 ] as const).map((task) => (
                   <SpotlightCard key={task.title} variant="dark" className="md:col-span-2">
                     <div className="p-5">
@@ -271,8 +288,8 @@ export default function HowItWorksPage() {
                 <div>
                   <h2 className="text-2xl md:text-3xl font-medium mb-4">Share context</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl">
-                    Agents learn from everything you share. No source is required — each one
-                    you add makes the output richer.
+                    The workspace is the shared substrate. Every source you add gives
+                    TP and the agents more grounded material to work with.
                   </p>
                 </div>
               </div>
@@ -294,8 +311,8 @@ export default function HowItWorksPage() {
               </div>
 
               <p className="text-white/30 text-xs mt-6 max-w-xl">
-                No context source is required. Agents can start working immediately
-                with just a conversation. Each source you add makes the output richer.
+                No one source is required. The system can start from conversation
+                alone, then get more grounded as documents and connected tools accumulate.
               </p>
             </div>
           </section>
@@ -336,8 +353,8 @@ export default function HowItWorksPage() {
                     <div className="flex justify-start">
                       <div className="bg-white/[0.04] border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
                         <p className="text-white/70 text-sm">
-                          Got it. I&apos;ll restructure to lead with risks and cap at 500 words.
-                          This preference will carry forward to all future runs of this task.
+                          Got it. I&apos;ll update this task to lead with risks and cap
+                          at 500 words. That preference will carry forward to future runs.
                         </p>
                       </div>
                     </div>
@@ -361,16 +378,22 @@ export default function HowItWorksPage() {
                   <div className="text-xs text-white/30 uppercase tracking-wider mb-6">Example: Weekly leadership brief</div>
                   <div className="space-y-4">
                     <div className="flex items-start gap-4">
-                      <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center shrink-0">
-                        <span className="text-[8px] text-white font-bold">R</span>
+                      <div className="w-7 h-7 rounded-full bg-pink-500 flex items-center justify-center shrink-0">
+                        <span className="text-[8px] text-white font-bold">S</span>
                       </div>
-                      <p className="text-white/70 text-sm pt-1">Research Agent investigates competitor moves and market shifts</p>
+                      <p className="text-white/70 text-sm pt-1">Slack Bot keeps fresh internal discussion and decision context available</p>
                     </div>
                     <div className="flex items-start gap-4">
-                      <div className="w-7 h-7 rounded-full bg-sky-500 flex items-center justify-center shrink-0">
-                        <span className="text-[8px] text-white font-bold">C</span>
+                      <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center shrink-0">
+                        <span className="text-[8px] text-white font-bold">CI</span>
                       </div>
-                      <p className="text-white/70 text-sm pt-1">Content Agent synthesizes Slack and Notion activity into highlights</p>
+                      <p className="text-white/70 text-sm pt-1">Competitive Intelligence adds external moves and market shifts</p>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center shrink-0">
+                        <span className="text-[8px] text-white font-bold">RP</span>
+                      </div>
+                      <p className="text-white/70 text-sm pt-1">Reporting synthesizes it into one brief for leadership</p>
                     </div>
                     <div className="flex items-start gap-4 pt-2 border-t border-white/[0.06]">
                       <div className="w-7 h-7 rounded-full bg-white/[0.1] flex items-center justify-center shrink-0">
@@ -407,9 +430,9 @@ export default function HowItWorksPage() {
                 <SpotlightCard variant="dark" className="md:col-span-3" spotlightColor="rgba(14,165,233,0.05)">
                   <div className="p-6">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Patterns</div>
-                    <h3 className="text-base font-medium mb-2">Cross-platform understanding</h3>
+                    <h3 className="text-base font-medium mb-2">Shared workspace context</h3>
                     <p className="text-white/40 text-xs leading-relaxed">
-                      Who talks to whom, what matters, what&apos;s stuck — built from weeks of Slack and Notion context.
+                      Fresh material from tools, files, and prior outputs keeps every task grounded instead of cold-started.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -468,16 +491,16 @@ export default function HowItWorksPage() {
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Your team is ready. Assign the first task.
+                Start with one task.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Sign up, meet your agents, and give them something to do. First output in minutes.
+                Sign up, connect context, and let TP set the first recurring loop in motion.
               </p>
               <Link
                 href="/auth/login"
                 className="inline-block px-8 py-4 bg-white text-black text-lg font-medium rounded-full hover:bg-white/90 transition-colors"
               >
-                Meet your team
+                Start free
               </Link>
             </div>
           </section>

@@ -10,7 +10,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata = getMarketingMetadata({
   title: "Pricing",
   description:
-    "Free and Pro plans for your AI workforce. Every plan includes all 6 agents, Slack, and Notion. Start free, upgrade when you need more task capacity.",
+    "Free and Pro plans for autonomous recurring work. Every plan includes the scaffolded workforce, Thinking Partner, and platform integrations. Upgrade for more active tasks and work credits.",
   path: "/pricing",
   keywords: ["yarnnn pricing", "autonomous AI pricing", "AI workforce plans", "agent pricing", "ai task pricing"],
 });
@@ -22,10 +22,10 @@ interface PricingFeature {
 }
 
 const features: PricingFeature[] = [
-  { name: "Pre-built agents", free: "6 (full roster)", pro: "6 (full roster)" },
-  { name: "Active agents (with tasks)", free: "2", pro: "10" },
-  { name: "Task runs / month", free: "60", pro: "1,000" },
-  { name: "Monthly messages", free: "50", pro: "Unlimited" },
+  { name: "Scaffolded workforce", free: "Included", pro: "Included" },
+  { name: "Active tasks", free: "2", pro: "10" },
+  { name: "Work credits / month", free: "20", pro: "500" },
+  { name: "Monthly messages", free: "150", pro: "Unlimited" },
   { name: "Platforms available", free: "All", pro: "All" },
   { name: "Slack sources", free: "5", pro: "Unlimited" },
   { name: "Notion pages", free: "10", pro: "Unlimited" },
@@ -89,8 +89,9 @@ export default function PricingPage() {
                 Simple, honest pricing
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
-                Your full team is ready on every plan. Upgrade when your agents
-                need more task capacity and faster sync.
+                Every plan includes the scaffolded workforce, Thinking Partner,
+                and platform integrations. Upgrade when you need more active
+                tasks, work credits, and fresher sync.
               </p>
             </div>
 
@@ -100,7 +101,7 @@ export default function PricingPage() {
                 <div className="p-8 flex flex-col flex-1">
                   <div className="mb-8">
                     <h2 className="text-2xl font-medium mb-2">Free</h2>
-                    <p className="text-white/50 text-sm mb-6">See what an AI workforce feels like</p>
+                    <p className="text-white/50 text-sm mb-6">See the system run</p>
                     <div className="flex items-baseline gap-1">
                       <span className="text-4xl font-medium">$0</span>
                       <span className="text-white/50">/month</span>
@@ -110,19 +111,19 @@ export default function PricingPage() {
                   <ul className="space-y-3 flex-1 mb-8">
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>Full 6-agent roster</span>
+                      <span>Scaffolded workforce + TP</span>
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>2 active agents with tasks</span>
+                      <span>2 active tasks</span>
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>60 task runs / month</span>
+                      <span>20 work credits / month</span>
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>50 messages / month</span>
+                      <span>150 messages / month</span>
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -154,7 +155,7 @@ export default function PricingPage() {
                 <div className="p-8 flex flex-col">
                   <div className="mb-8">
                     <h2 className="text-2xl font-medium mb-2">Pro</h2>
-                    <p className="text-white/50 text-sm mb-6">Full autonomous workforce</p>
+                    <p className="text-white/50 text-sm mb-6">For a higher-throughput system</p>
                     <div className="flex items-baseline gap-1">
                       <span className="text-4xl font-medium">$19</span>
                       <span className="text-white/50">/month</span>
@@ -167,15 +168,15 @@ export default function PricingPage() {
                   <ul className="space-y-3 flex-1 mb-8">
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>Full 6-agent roster</span>
+                      <span>Scaffolded workforce + TP</span>
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>10 active agents with tasks</span>
+                      <span>10 active tasks</span>
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>1,000 task runs / month</span>
+                      <span>500 work credits / month</span>
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -211,19 +212,19 @@ export default function PricingPage() {
                 <div className="p-6">
                 <h3 className="text-lg font-medium mb-3">How pricing works</h3>
                 <p className="text-white/50 text-sm leading-relaxed mb-4">
-                  Every plan includes your full 6-agent roster (4 agents + 2 bots).
-                  <strong className="text-white/70"> Active agents</strong> are agents with assigned tasks —
-                  Free lets you activate 2, Pro lets you activate up to 10 (create additional
-                  agents beyond the default roster as your needs grow).
+                  Every plan includes the same scaffolded workforce and Thinking
+                  Partner. What changes by tier is how much autonomous work the
+                  system can keep active at once.
                 </p>
                 <p className="text-white/50 text-sm leading-relaxed mb-4">
-                  <strong className="text-white/70">Task runs</strong> measure the autonomous work your agents
-                  do — each scheduled task execution and rendered output (PDF, slides, etc.) costs
-                  one run. Messages (your conversations with agents) are counted separately.
+                  <strong className="text-white/70">Active tasks</strong> are recurring
+                  work contracts the system keeps running. <strong className="text-white/70">Work credits</strong>
+                  {" "}meter autonomous execution and rendering. Messages with Thinking Partner
+                  are counted separately.
                 </p>
                 <p className="text-white/40 text-xs">
-                  Free: 60 runs/month covers daily tasks for 2 agents. Pro: 1,000 runs/month
-                  covers a full workforce running multiple tasks per day.
+                  Free is enough to feel the loop. Pro is for a system that runs
+                  with more active tasks, more credits, and faster sync.
                 </p>
                 </div>
               </SpotlightCard>
@@ -265,9 +266,9 @@ export default function PricingPage() {
             </div>
 
             <div className="text-center mt-16 mb-8">
-              <p className="text-white/70 text-lg mb-2">All plans include your full agent roster and all platforms.</p>
+              <p className="text-white/70 text-lg mb-2">All plans include the scaffolded workforce, TP, and all platforms.</p>
               <p className="text-white/40 text-sm">
-                Slack, Notion, rich output formats, and learning from feedback — included on every plan.
+                Slack, Notion, rich output formats, and feedback-driven learning are included on every plan.
               </p>
             </div>
 

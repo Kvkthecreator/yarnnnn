@@ -9,13 +9,13 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "Invest — Pre-Seed",
   description:
-    "yarnnn is raising $500K pre-seed to build AI employees — persistent agents that run autonomously, accumulate domain expertise, and deliver compounding work products. Not tools. Employees.",
+    "yarnnn is raising $500K pre-seed to build persistent agent systems for recurring knowledge work — shared context, recurring tasks, and compounding outputs instead of session-only tools.",
   path: "/invest",
   keywords: [
     "yarnnn invest",
     "pre-seed",
     "ai startup fundraise",
-    "ai employees",
+    "persistent agents",
     "autonomous ai investment",
     "ai workforce platform",
     "ai agent startup",
@@ -48,22 +48,21 @@ export default function InvestPage() {
           {/* Hero */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              AI employees,
+              Persistent systems,
               <br />
-              <span className="text-white/50">not AI tools.</span>
+              <span className="text-white/50">not session tools.</span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
                 The AI agent industry is bifurcating. One side builds tools &mdash;
-                session-scoped, user-present, interactive. The other side builds employees &mdash;
-                persistent, autonomous, accumulating. Tools reset when you close the tab.
-                Employees show up every day, do the work, and get better with tenure.
+                session-scoped, user-present, interactive. The other side builds
+                systems that keep context, run recurring work, and compound.
+                Tools reset when you close the tab. Systems do not.
               </p>
               <p>
-                yarnnn builds AI employees. A pre-built workforce of specialist agents
-                that runs your recurring knowledge work on schedule, learns from your
-                feedback, and compounds quality with every cycle &mdash; whether you open the
-                app or not.
+                yarnnn builds the second category: persistent agents, shared workspace
+                context, TP orchestration, and recurring task execution for knowledge work
+                that repeats every week whether the user is present or not.
               </p>
               <p className="text-white font-medium">
                 We&apos;re raising $500K pre-seed at $5M post-money.
@@ -167,11 +166,11 @@ export default function InvestPage() {
                 <SpotlightCard variant="dark" spotlightColor="rgba(99,102,241,0.08)" spotlightSize={400}>
                   <div className="p-6 md:p-8">
                     <div className="text-xs text-indigo-400/60 uppercase tracking-wider mb-4">Category 2</div>
-                    <h3 className="text-xl font-medium mb-4">AI Employees</h3>
+                    <h3 className="text-xl font-medium mb-4">Persistent agent systems</h3>
                     <div className="space-y-3 text-white/50 text-sm">
-                      <p>Persistent. Autonomous. Run on schedule without the user. Feedback becomes learned behavior. Quality compounds with tenure. Day 90 output is irreplaceable.</p>
+                      <p>Persistent. Autonomous. Run recurring tasks without the user. Feedback becomes learned behavior. Quality compounds with tenure. Day 90 output is irreplaceable.</p>
                       <div className="pt-3 border-t border-white/[0.06] space-y-1.5 text-xs">
-                        <p className="text-white/60 font-medium">yarnnn &mdash; pre-built AI workforce</p>
+                        <p className="text-white/60 font-medium">yarnnn &mdash; workspace, agents, TP, tasks</p>
                         <p className="text-white/30">Cloud-native by structural necessity, not preference</p>
                       </div>
                     </div>
@@ -184,7 +183,7 @@ export default function InvestPage() {
                   The local-first wave proves the demand. Every OpenClaw user who automates
                   recurring tasks locally will eventually want those tasks to run without them,
                   accumulate learning, and deliver on schedule. That graduation path &mdash; from
-                  tools to employees &mdash; is yarnnn&apos;s market.
+                  tools to systems &mdash; is yarnnn&apos;s market.
                 </p>
               </div>
             </div>
@@ -193,7 +192,7 @@ export default function InvestPage() {
           {/* Why Cloud Is Structural */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-8">Why employees require cloud</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-8">Why persistent systems require cloud</h2>
               <p className="text-white/50 mb-12 max-w-2xl">
                 This isn&apos;t a preference. It&apos;s the structural requirement of
                 the problem space.
@@ -228,14 +227,15 @@ export default function InvestPage() {
                 <SpotlightCard variant="dark" className="md:col-span-4" spotlightColor="rgba(99,102,241,0.05)">
                   <div className="p-6 md:p-8">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Core product</div>
-                    <h3 className="text-xl font-medium mb-3">Pre-built AI workforce</h3>
+                    <h3 className="text-xl font-medium mb-3">Scaffolded workforce + TP</h3>
                     <p className="text-white/50 text-sm leading-relaxed mb-6">
-                      Every user gets a 6-agent roster at sign-up: Research, Content, Marketing,
-                      and CRM specialist agents plus Slack and Notion bots. No setup, no configuration.
-                      Agents are employees &mdash; they persist, accumulate, and develop expertise.
+                      Every user gets the current 10-agent scaffold at sign-up: five domain
+                      stewards, Reporting, three platform bots, and Thinking Partner.
+                      The point is not the list itself. The point is that the system
+                      starts with persistent workers and a meta-cognitive controller.
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {["Research", "Content", "Marketing", "CRM", "Slack Bot", "Notion Bot"].map((a) => (
+                      {["Competitive Intelligence", "Market Research", "Business Development", "Operations", "Marketing", "Reporting", "Slack Bot", "Notion Bot", "GitHub Bot", "Thinking Partner"].map((a) => (
                         <span key={a} className="text-[10px] px-2.5 py-1 rounded-full bg-white/[0.06] text-white/50 font-medium">{a}</span>
                       ))}
                     </div>
@@ -304,18 +304,18 @@ export default function InvestPage() {
                   resets between uses. The structural requirements of recurring knowledge work
                   (persistence, scheduling, cross-platform sync, feedback loops) can only be met
                   by cloud-native architecture. This creates a natural bifurcation: tools for
-                  interactive work, employees for autonomous work.
+                  interactive work, systems for autonomous work.
                 </p>
                 <p>
-                  yarnnn is building the employee layer. A pre-built workforce of persistent
-                  agents that accumulates domain expertise and delivers compounding work products.
-                  The subscription model is self-evident: you pay employees. $19/month for a team
-                  that works while you sleep.
+                  yarnnn is building the system layer: persistent agents, a shared workspace,
+                  TP orchestration, and recurring tasks that accumulate domain expertise and
+                  deliver compounding work products. The subscription model is straightforward:
+                  pay for a system that keeps running while you sleep.
                 </p>
                 <p className="text-white font-medium">
                   The local-first wave isn&apos;t competition &mdash; it&apos;s demand validation.
                   Every user who automates recurring work with a local tool will eventually need it
-                  to run without them. That graduation from tools to employees is yarnnn&apos;s market.
+                  to run without them. That graduation from tools to systems is yarnnn&apos;s market.
                 </p>
               </div>
             </div>
@@ -345,7 +345,7 @@ export default function InvestPage() {
                 Entry wedge: solo consultants managing multiple clients with recurring tasks
                 across 3+ tools. Clearest pain, shortest sales cycle, highest willingness to pay.
                 Expansion: founders, executives, teams, then every knowledge worker who wants
-                to supervise AI employees instead of operating AI tools.
+                to supervise recurring work instead of rebuilding it in chat tools.
               </p>
             </div>
           </section>

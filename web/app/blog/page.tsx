@@ -9,7 +9,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata = getMarketingMetadata({
   title: "Blog",
   description:
-    "Practical ideas on AI workforce design, agent intelligence, task automation, context accumulation, and supervised autonomy.",
+    "Practical ideas on autonomous agent systems, task design, context accumulation, and supervised autonomy.",
   path: "/blog",
   keywords: [
     "ai agent blog",
@@ -27,7 +27,7 @@ export default function BlogPage() {
     "@type": "Blog",
     name: `${BRAND.name} Blog`,
     description:
-      "Practical ideas on AI workforce design, agent intelligence, task automation, context accumulation, and supervised autonomy.",
+      "Practical ideas on autonomous agent systems, task design, context accumulation, and supervised autonomy.",
     url: `${BRAND.url}/blog`,
     blogPost: posts.slice(0, 20).map((post) => ({
       "@type": "BlogPosting",
@@ -51,7 +51,7 @@ export default function BlogPage() {
           <section className="max-w-2xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl font-medium mb-4 tracking-tight leading-[1.1]">Blog</h1>
             <p className="text-muted-foreground mb-16 max-w-lg">
-              Notes on building an AI workforce — agent identity, task design, context accumulation,
+              Notes on building autonomous agent systems: task design, context accumulation,
               and what it means to supervise instead of execute.
             </p>
 
