@@ -109,7 +109,7 @@ No hidden flag. No `task_kind` column. Task ownership (agent.role) is the only d
 ```
 User intent (chat or UI)
   → TP decomposes into task definition
-  → CreateTask primitive writes TASK.md + tasks DB row
+  → ManageTask(action="create", ...) writes TASK.md + tasks DB row
   → next_run_at calculated from schedule
 ```
 
@@ -213,11 +213,11 @@ Primitives are the operations available to agents. Two explicit registries (ADR-
 
 **Canonical reference:** [primitives-matrix.md](primitives-matrix.md) — the full substrate × mode × capability-tag matrix, the target/action enums, the perception channel (working memory), the rename protocol, and the deleted primitives ledger. This section used to duplicate a smaller inline table that drifted through ADR-146 → ADR-168; the matrix doc is the single source of truth going forward.
 
-Current surface (post-ADR-168 Commit 2):
-- **Chat mode** (~14 tools): entity-layer verbs + UpdateContext + lifecycle verbs (ManageAgent/Task/Domains) + RepurposeOutput + Clarify + WebSearch + list_integrations + GetSystemState.
-- **Headless mode** (~16 static tools + `platform_*` dynamic): entity-layer verbs + file-layer verbs (ReadWorkspace/WriteWorkspace/SearchWorkspace/ListWorkspace/QueryKnowledge) + inter-agent verbs (DiscoverAgents/ReadAgentContext) + lifecycle verbs + WebSearch + GetSystemState.
+Current surface (post-ADR-168 Commit 3):
+- **Chat mode** (~13 tools): entity-layer verbs + UpdateContext + lifecycle verbs (ManageAgent/Task/Domains) + RepurposeOutput + Clarify + WebSearch + list_integrations + GetSystemState.
+- **Headless mode** (~15 static tools + `platform_*` dynamic): entity-layer verbs + file-layer verbs (ReadWorkspace/WriteWorkspace/SearchWorkspace/ListWorkspace/QueryKnowledge) + inter-agent verbs (DiscoverAgents/ReadAgentContext) + lifecycle verbs + WebSearch + GetSystemState.
 
-The surface continues to evolve through ADR-168 Commits 3–5 (fold CreateTask, rename to `*Entity`/`*File` families).
+The surface continues to evolve through ADR-168 Commits 4–5 (rename to `*Entity`/`*File` families; Commit 3 completed the CreateTask fold).
 
 ---
 

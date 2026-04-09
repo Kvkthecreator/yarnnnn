@@ -26,7 +26,6 @@ from .list import LIST_TOOL, handle_list
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import MANAGE_AGENT_TOOL, handle_manage_agent
-from .task import CREATE_TASK_TOOL, handle_create_task
 from .manage_task import MANAGE_TASK_TOOL, handle_manage_task
 from .update_context import UPDATE_CONTEXT_TOOL, handle_update_context
 from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
@@ -62,6 +61,12 @@ from services.platform_tools import (
 #     agent.acknowledge → UpdateContext(target="agent", agent_slug=..., text=...)
 #     platform.publish  → delivery is a task property (ManageTask update)
 #     agent.schedule    → ManageTask(task_slug=..., action="update", schedule=...)
+#
+# Deleted imports (ADR-168 Commit 3 — CreateTask folded into ManageTask):
+# - task.py → CreateTask primitive dissolved entirely
+#     CreateTask(title=..., type_key=..., ...) →
+#       ManageTask(action="create", title=..., type_key=..., ...)
+#   Symmetric with ManageAgent which already covers agent creation.
 # ---------------------------------------------------------------------------
 
 
@@ -178,15 +183,14 @@ CHAT_PRIMITIVES = [
     UPDATE_CONTEXT_TOOL,
     # ADR-155: Domain scaffolding (TP-driven)
     MANAGE_DOMAINS_TOOL,
-    # Agent/Task lifecycle (3, was 6)
+    # Agent/Task lifecycle (2, was 3)
     MANAGE_AGENT_TOOL,
-    CREATE_TASK_TOOL,
     MANAGE_TASK_TOOL,
     # Repurpose (ADR-148 Phase 4)
     REPURPOSE_OUTPUT_TOOL,
     # Interaction (1)
     CLARIFY_TOOL,
-]  # 14 tools — ADR-168 Commit 2 removed EXECUTE_TOOL (was at P5 budget of 15)
+]  # 13 tools — ADR-168 Commit 3 folded CreateTask into ManageTask(action="create")
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per
@@ -208,14 +212,13 @@ HEADLESS_PRIMITIVES = [
     # Inter-agent (2)
     DISCOVER_AGENTS_TOOL,
     READ_AGENT_CONTEXT_TOOL,
-    # Lifecycle (3) + Domain management (1)
+    # Lifecycle (2, was 3) + Domain management (1)
     MANAGE_AGENT_TOOL,
-    CREATE_TASK_TOOL,
     MANAGE_TASK_TOOL,
     MANAGE_DOMAINS_TOOL,
     # ADR-148: RuntimeDispatch removed from headless — assets rendered post-generation
     # RuntimeDispatch kept in HANDLERS for TP chat usage (explicit user requests)
-]  # 16 tools
+]  # 15 tools — ADR-168 Commit 3 folded CreateTask into ManageTask(action="create")
 
 # Combined list — for handler registration and backwards compatibility
 PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
@@ -237,7 +240,7 @@ HANDLERS: dict[str, Callable] = {
     "Clarify": handle_clarify,
     "list_integrations": handle_list_integrations,
     "ManageAgent": handle_manage_agent,
-    "CreateTask": handle_create_task,
+    # "CreateTask": DELETED (ADR-168 Commit 3 — folded into ManageTask action="create")
     "ManageTask": handle_manage_task,
     "UpdateContext": handle_update_context,
     "ManageDomains": handle_manage_domains,

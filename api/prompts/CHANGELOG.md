@@ -6,6 +6,57 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.09.3] - ADR-168 Commit 3: Fold CreateTask into ManageTask(action="create")
+
+### Changed
+- `api/services/primitives/task.py`: **DELETED**. The entire file — `CREATE_TASK_TOOL`, `handle_create_task`, `_slugify`, `_compute_next_run`, `_build_task_md` helpers. Absorbed into `manage_task.py`.
+- `api/services/primitives/manage_task.py`:
+  - `MANAGE_TASK_TOOL.input_schema.properties.action.enum` expanded from 7 to 8 values. `"create"` added as the first value (matches `ManageAgent(action="create")` convention).
+  - `input_schema.required` changed from `["task_slug", "action"]` to `["action"]`. `task_slug` is no longer top-level required because `action="create"` generates the slug from `title`. Enforced inside `handle_manage_task()` as a conditional check for non-create actions.
+  - `input_schema.properties` extended with all CreateTask fields: `title`, `type_key`, `agent_slug`, `focus`, `objective`, `success_criteria`, `output_spec`.
+  - Tool description extended with the full `action="create"` section (two creation paths, required/optional fields, examples).
+  - `handle_manage_task()` updated to dispatch `action="create"` to new `_handle_create()`, conditional `task_slug` enforcement.
+  - New `_handle_create()` function: full port of the former `handle_create_task` logic — type-key resolution (ADR-145), auto-populated sources from `platform_connections` (ADR-158), custom task fallback, workspace scaffolding (TASK.md + DELIVERABLE.md + memory/feedback.md + memory/steering.md + awareness.md per ADR-149 + ADR-154), context domain scaffolding for `context_writes` (ADR-151 + entity trackers per ADR-154), `update_workspace_manifest` call. Return dict includes `action: "create"`.
+  - New helpers: `_slugify()` and `_build_custom_task_md()` ported from the deleted `task.py`. `_compute_next_run()` already existed.
+  - `import re` added.
+- `api/services/primitives/registry.py`:
+  - Removed `from .task import CREATE_TASK_TOOL, handle_create_task` import.
+  - Removed `CREATE_TASK_TOOL` from `CHAT_PRIMITIVES` (14 → 13) and `HEADLESS_PRIMITIVES` (16 → 15).
+  - Removed `"CreateTask": handle_create_task` from `HANDLERS`.
+  - Extended deletion ledger comment to document ADR-168 Commit 3.
+- `api/services/primitives/__init__.py`: Module docstring rewritten to reflect current state — points at `primitives-matrix.md` as canonical, documents ADR-146 + ADR-168 Commits 2/3 dissolutions.
+- `api/agents/tp_prompts/tools.py`: `## Creating Tasks (primary flow)` section rewritten. `CreateTask(title, agent_slug)` → `ManageTask(action="create", title, ...)`. Module docstring header extended to document ADR-168 Commit 3.
+- `api/agents/tp_prompts/onboarding.py`: 9 occurrences updated — agent-to-task mapping, synthesis rollup, task type catalog.
+- `api/agents/tp_prompts/behaviors.py`: 2 references updated.
+- `api/services/commands.py`: 7 `CreateTask` references across `/task`, `/recap`, `/summary`, `/research` slash commands.
+- `api/routes/chat.py`: Session summary classifier tuple — `CreateTask` removed (ManageTask covers create).
+- `api/test_recent_commits.py`:
+  - `Chat has CreateTask` → `CreateTask not in chat registry` + `CreateTask not in headless registry`.
+  - `ManageTask has 7 actions` → `ManageTask has 8 actions`.
+  - `ManageTask requires task_slug+action` → `ManageTask requires action only (task_slug conditional)`.
+  - 5 new field presence assertions (title, type_key, agent_slug, focus, objective).
+  - `test_no_dangling_imports` extended with `from services.primitives.task`, `from .task import`, `CREATE_TASK_TOOL`.
+- `web/contexts/TPContext.tsx`: Notification dispatcher rewritten — `CreateTask` branch merged into `ManageTask` branch gated on `mtAction === 'create'`.
+- `web/components/tp/InlineToolCall.tsx`: `CreateTask: Sparkles` icon mapping removed. `Execute: Play` orphan from Commit 2 also removed.
+- `docs/architecture/primitives-matrix.md`:
+  - `ManageTask` row purpose text updated with ADR-168 Commit 3 note.
+  - Mode totals "Current state" updated: chat 14 → 13, headless 16 → 15.
+  - `ManageTask.action` enumeration now 8-value with `create` row and `task_slug` conditional-requirement note.
+  - Deleted primitives ledger — `CreateTask` row marked shipped 2026-04-09.
+- `docs/architecture/SERVICE-MODEL.md`: "How Work Gets Created" flow diagram updated. Mode totals updated to ~13/15.
+- `docs/architecture/TP-DESIGN-PRINCIPLES.md`: 4 prose references updated.
+- `docs/design/SURFACE-PRIMITIVES-MAP.md`: Plus menu table, slash command table, chat primitive list, agent/task/context page tables, navigation map — all `CreateTask(...)` → `ManageTask(action="create", ...)`. Drift note added for older ADR-146-era references deferred to a separate sweep.
+- `docs/design/TP-NOTIFICATION-CHANNEL.md`: Side-effect table row `CreateTask` → `ManageTask (create)`.
+- `docs/design/DELIVERABLE-FIRST-USER-FLOW.md`: Catalog-cards description updated.
+- `CLAUDE.md`:
+  - File Locations table — `Task Primitives | api/services/primitives/task.py` row replaced with expanded `Task Lifecycle Primitive` row.
+  - ADR-168 entry status marker: "Commit 1 landed" → "Commits 1, 1.1, 2, 3 landed 2026-04-09. Commits 4–5 in progress."
+- Expected behavior: No semantic change in what TP can do. Every `CreateTask(...)` call shape becomes `ManageTask(action="create", ...)` with the same field names. `ManageAgent` and `ManageTask` now have symmetric lifecycle shapes — one primitive per entity class, with `action` discriminating intent.
+- Validation: 136/136 test_recent_commits.py assertions pass. All 7 touched backend modules import cleanly. Backend starts.
+- **Note on history**: This commit is a re-execution after an earlier attempt landed inside `9c547c8` (commit message about agent footer buttons), which was then reverted by `b583ec2`. The re-apply `0427769` kept only the footer-button UI changes and correctly excluded the ADR-168 Commit 3 work, which is now landing here as its own properly-scoped commit.
+
+---
+
 ## [2026.04.09.2] - ADR-168 Commit 2: Dissolve Execute Primitive
 
 ### Changed

@@ -588,13 +588,18 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                   const total = Object.values(scaffolded).reduce((sum: number, arr: unknown) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
                   notifTitle = 'Workspace scaffolded';
                   notifDesc = `${total} entities across ${domains.length} domains`;
-                } else if (toolName === 'CreateTask' && resultData.success) {
-                  notifTitle = 'Task created';
-                  notifDesc = (resultData.message as string) || (resultData.slug as string) || '';
                 } else if (toolName === 'ManageTask' && resultData.success) {
+                  // ADR-168 Commit 3: CreateTask folded into ManageTask(action="create"),
+                  // so "Task created" notifications now flow through this branch too.
                   const mtAction = resultData.action as string;
-                  if (mtAction === 'evaluate' || mtAction === 'complete') {
-                    notifTitle = mtAction === 'evaluate' ? 'Task evaluated' : 'Task completed';
+                  if (mtAction === 'create') {
+                    notifTitle = 'Task created';
+                    notifDesc = (resultData.message as string) || (resultData.task_slug as string) || '';
+                  } else if (mtAction === 'evaluate') {
+                    notifTitle = 'Task evaluated';
+                    notifDesc = (resultData.message as string) || '';
+                  } else if (mtAction === 'complete') {
+                    notifTitle = 'Task completed';
                     notifDesc = (resultData.message as string) || '';
                   }
                 }

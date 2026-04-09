@@ -163,48 +163,53 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 
 **Legend:** ● available, ○ not available in this mode.
 
-| Primitive | Substrate | Chat | Headless | Capability tags | Handler file | Purpose |
-|---|---|:---:|:---:|---|---|---|
-| `LookupEntity` | entity | ● | ● | entity-layer | [read.py](../../api/services/primitives/read.py) | Look up entity by typed ref (`agent:uuid`, `document:uuid`). |
-| `ListEntities` | entity | ● | ● | entity-layer | [list.py](../../api/services/primitives/list.py) | Enumerate entities by type and filter. |
-| `SearchEntities` | entity | ● | ● | entity-layer | [search.py](../../api/services/primitives/search.py) | Search entities by content or metadata. |
-| `EditEntity` | entity | ● | ○ | entity-layer, user-authorized | [edit.py](../../api/services/primitives/edit.py) | Mutate entity fields under user direction. Chat only — headless has no user authorization path. |
-| `ReadFile` | file | ○ | ● | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Read a file from the agent's own workspace. |
-| `WriteFile` | file | ○ | ● | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Write a file to the agent's workspace or (with `scope="context"`) to a shared context domain. |
-| `SearchFiles` | file | ○ | ● | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Full-text search within the agent's workspace. |
-| `ListFiles` | file | ○ | ● | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | List files in the agent's workspace. |
-| `QueryKnowledge` | file | ○ | ● | semantic-query | [workspace.py](../../api/services/primitives/workspace.py) | Semantic ranked query over accumulated `/workspace/context/` domains (ADR-151). Distinct from `SearchFiles` — returns ranked results with domain/metadata filters. |
-| `ReadAgentFile` | file | ○ | ● | file-layer, inter-agent | [workspace.py](../../api/services/primitives/workspace.py) | Read a file from another agent's workspace (read-only, ADR-116). |
-| `DiscoverAgents` | lifecycle | ○ | ● | inter-agent | [workspace.py](../../api/services/primitives/workspace.py) | Find other agents in the workspace by role/scope/status (ADR-116 Phase 2). |
-| `UpdateContext` | context | ● | ○ | context-mutation | [update_context.py](../../api/services/primitives/update_context.py) | Single verb for all context mutations. Targets: `identity`, `brand`, `memory`, `agent`, `task`, `deliverable`. Chat only today; may extend to headless in future. |
-| `ManageAgent` | lifecycle | ● | ● | lifecycle | [coordinator.py](../../api/services/primitives/coordinator.py) | Create, update, pause, resume, archive agent. |
-| `ManageTask` | lifecycle | ● | ● | lifecycle | [manage_task.py](../../api/services/primitives/manage_task.py) | Create, trigger, update, pause, resume, evaluate, steer, complete task. (Folds former `CreateTask` as `action="create"`.) |
-| `ManageDomains` | lifecycle | ● | ● | lifecycle | [scaffold.py](../../api/services/primitives/scaffold.py) | Scaffold, add, remove, list entities in workspace context domains (ADR-155/157). |
-| `RepurposeOutput` | action | ● | ○ | user-authorized | [repurpose.py](../../api/services/primitives/repurpose.py) | Adapt an existing task output to a different format or channel (ADR-148). |
-| `RuntimeDispatch` | action | ● | ○ (via type capability) | asset-render | [runtime_dispatch.py](../../api/services/primitives/runtime_dispatch.py) | Dispatch to output gateway for asset rendering (ADR-118). Chat exposure for explicit user requests. Headless agents with asset capabilities invoke it as a post-generation step, not as a mid-task tool. |
-| `Clarify` | interaction | ● | ○ | user-channel | [registry.py](../../api/services/primitives/registry.py) | Ask the user a question. Requires live user channel — impossible in headless. |
-| `WebSearch` | external | ● | ● | external | [web_search.py](../../api/services/primitives/web_search.py) | Search the public web. |
-| `list_integrations` | introspection | ● | ○ | introspection | [registry.py](../../api/services/primitives/registry.py) | List the user's connected platforms. |
-| `GetSystemState` | introspection | ● | ● | introspection | [system_state.py](../../api/services/primitives/system_state.py) | Report system state (tier, limits, health flags). |
-| `platform_*` | external | ○ | ● (capability-gated) | external | [platform_tools.py](../../api/services/platform_tools.py) | Dynamic set resolved per agent capability bundle. Routed through `handle_platform_tool`. Not in static registries. |
+**MCP mode** was added by ADR-169 as a third runtime mode alongside Chat and Headless. MCP is the foreign-LLM surface — tools are invoked by Claude.ai, ChatGPT, Gemini, and other LLM hosts on behalf of the user. The MCP tool surface itself is three intent-shaped tools (`work_on_this`, `pull_context`, `remember_this`) that compose over a curated subset of the primitives below. See [docs/features/mcp/architecture.md](../features/mcp/architecture.md) for the tool-to-primitive mapping.
+
+| Primitive | Substrate | Chat | Headless | MCP | Capability tags | Handler file | Purpose |
+|---|---|:---:|:---:|:---:|---|---|---|
+| `LookupEntity` | entity | ● | ● | ○ | entity-layer | [read.py](../../api/services/primitives/read.py) | Look up entity by typed ref (`agent:uuid`, `document:uuid`). |
+| `ListEntities` | entity | ● | ● | ○ | entity-layer | [list.py](../../api/services/primitives/list.py) | Enumerate entities by type and filter. |
+| `SearchEntities` | entity | ● | ● | ○ | entity-layer | [search.py](../../api/services/primitives/search.py) | Search entities by content or metadata. |
+| `EditEntity` | entity | ● | ○ | ○ | entity-layer, user-authorized | [edit.py](../../api/services/primitives/edit.py) | Mutate entity fields under user direction. Chat only — headless has no user authorization path. |
+| `ReadFile` | file | ○ | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Read a file from the agent's own workspace. MCP reads workspace files via `pull_context` → `QueryKnowledge` (user-scoped), not via `ReadFile` (agent-scoped). |
+| `WriteFile` | file | ○ | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Write a file to the agent's workspace or (with `scope="context"`) to a shared context domain. |
+| `SearchFiles` | file | ○ | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Full-text search within the agent's workspace. |
+| `ListFiles` | file | ○ | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | List files in the agent's workspace. |
+| `QueryKnowledge` | file | ○ | ● | ● | semantic-query | [workspace.py](../../api/services/primitives/workspace.py) | Semantic ranked query over accumulated `/workspace/context/` domains (ADR-151). Distinct from `SearchFiles` — returns ranked results with domain/metadata filters. **MCP's primary primitive**: `pull_context` is a thin wrapper, `work_on_this` composes over it. |
+| `ReadAgentFile` | file | ○ | ● | ○ | file-layer, inter-agent | [workspace.py](../../api/services/primitives/workspace.py) | Read a file from another agent's workspace (read-only, ADR-116). |
+| `DiscoverAgents` | lifecycle | ○ | ● | ○ | inter-agent | [workspace.py](../../api/services/primitives/workspace.py) | Find other agents in the workspace by role/scope/status (ADR-116 Phase 2). |
+| `UpdateContext` | context | ● | ○ | ● | context-mutation | [update_context.py](../../api/services/primitives/update_context.py) | Single verb for all context mutations. Targets: `identity`, `brand`, `memory`, `agent`, `task`, `awareness`. **MCP `remember_this`** dispatches here with a two-branch classifier (workspace-level targets default safely to `memory`, operational feedback uses slug disambiguation). ADR-169 decision: all UpdateContext targets available via MCP *except `awareness`* (TP-only). Safety via ADR-162 provenance stamping, not pre-write guards. |
+| `ManageAgent` | lifecycle | ● | ● | ○ | lifecycle | [coordinator.py](../../api/services/primitives/coordinator.py) | Create, update, pause, resume, archive agent. |
+| `ManageTask` | lifecycle | ● | ● | ○ | lifecycle | [manage_task.py](../../api/services/primitives/manage_task.py) | Create, trigger, update, pause, resume, evaluate, steer, complete task. ADR-168 Commit 3 folded the former `CreateTask` primitive into `action="create"` for symmetry with `ManageAgent`. |
+| `ManageDomains` | lifecycle | ● | ● | ○ | lifecycle | [scaffold.py](../../api/services/primitives/scaffold.py) | Scaffold, add, remove, list entities in workspace context domains (ADR-155/157). |
+| `RepurposeOutput` | action | ● | ○ | ○ | user-authorized | [repurpose.py](../../api/services/primitives/repurpose.py) | Adapt an existing task output to a different format or channel (ADR-148). |
+| `RuntimeDispatch` | action | ● | ○ (via type capability) | ○ | asset-render | [runtime_dispatch.py](../../api/services/primitives/runtime_dispatch.py) | Dispatch to output gateway for asset rendering (ADR-118). Chat exposure for explicit user requests. Headless agents with asset capabilities invoke it as a post-generation step, not as a mid-task tool. |
+| `Clarify` | interaction | ● | ○ | ○ | user-channel | [registry.py](../../api/services/primitives/registry.py) | Ask the user a question. Requires live user channel — impossible in headless. MCP does not have a clarify path; the LLM host disambiguates via the tool's `ambiguous` response shape instead. |
+| `WebSearch` | external | ● | ● | ○ | external | [web_search.py](../../api/services/primitives/web_search.py) | Search the public web. |
+| `list_integrations` | introspection | ● | ○ | ○ | introspection | [registry.py](../../api/services/primitives/registry.py) | List the user's connected platforms. |
+| `GetSystemState` | introspection | ● | ● | ○ | introspection | [system_state.py](../../api/services/primitives/system_state.py) | Report system state (tier, limits, health flags). |
+| `platform_*` | external | ○ | ● (capability-gated) | ○ | external | [platform_tools.py](../../api/services/platform_tools.py) | Dynamic set resolved per agent capability bundle. Routed through `handle_platform_tool`. Not in static registries. |
 
 ### Mode totals
 
-**Current state (post-ADR-168 Commit 2, as of 2026-04-09):**
+**Current state (post-ADR-168 Commit 3 + ADR-169, as of 2026-04-09):**
 
-- **Chat mode:** 14 tools (was 15). `Execute` dissolved in Commit 2. Current set: `Read`, `List`, `Search`, `Edit`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `CreateTask`, `ManageTask`, `RepurposeOutput`, `Clarify`. *(Names still in pre-Commit-4 form.)*
-- **Headless mode:** 16 static tools + `platform_*` dynamic. Unchanged by Commit 2. Set: `Read`, `List`, `Search`, `GetSystemState`, `WebSearch`, `ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, `QueryKnowledge`, `ListWorkspace`, `DiscoverAgents`, `ReadAgentContext`, `ManageAgent`, `CreateTask`, `ManageTask`, `ManageDomains`.
+- **Chat mode:** 13 tools (was 15). `Execute` dissolved in Commit 2; `CreateTask` folded into `ManageTask(action="create")` in Commit 3. Current set: `Read`, `List`, `Search`, `Edit`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`. *(Names still in pre-Commit-4 form.)*
+- **Headless mode:** 15 static tools + `platform_*` dynamic (was 16). `CreateTask` folded in Commit 3. Set: `Read`, `List`, `Search`, `GetSystemState`, `WebSearch`, `ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, `QueryKnowledge`, `ListWorkspace`, `DiscoverAgents`, `ReadAgentContext`, `ManageAgent`, `ManageTask`, `ManageDomains`.
+- **MCP mode (ADR-169):** 2 primitives — `QueryKnowledge` and `UpdateContext`. The MCP tool surface itself is three intent-shaped tools (`work_on_this`, `pull_context`, `remember_this`) that compose over these two primitives. MCP is the foreign-LLM surface — fifth caller of `execute_primitive()` per ADR-164 runtime-agnostic principle. See [docs/features/mcp/architecture.md](../features/mcp/architecture.md) for the composition layer (`api/services/mcp_composition.py`).
 
 **Target state (post-ADR-168 Commit 5):**
 
-- **Chat mode:** 13 static primitives (`LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`). `CreateTask` folded into `ManageTask(action="create")`, entity verbs renamed.
-- **Headless mode:** 14 static primitives + `platform_*` dynamic. The static set: `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`, `QueryKnowledge`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`. *Note: 15 entries, not 14 — the count reflects CreateTask folding (−1) and ReadAgentContext rename (no count change). Final tally confirmed in Commit 5.*
+- **Chat mode:** 13 static primitives (`LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`). Entity verbs renamed (no count change from current).
+- **Headless mode:** 15 static primitives + `platform_*` dynamic. The static set: `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`, `QueryKnowledge`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`. Entity + file verbs renamed; no count change from current.
+- **MCP mode:** 2 primitives unchanged by Commit 4 rename (`QueryKnowledge` keeps its name; `UpdateContext` keeps its name). The three intent-shaped MCP tools remain `work_on_this`, `pull_context`, `remember_this`.
 
 **Hard boundaries (enforced by [api/test_recent_commits.py](../../api/test_recent_commits.py)):**
 
 - Chat does NOT have file-layer primitives (`ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`). TP operates on task/agent paths through `EditEntity` on typed refs, not through agent-scoped file I/O.
 - Chat does NOT have `RuntimeDispatch` as a general-purpose tool (only as an opt-in for explicit user requests).
 - Headless does NOT have `EditEntity`, `Clarify`, `UpdateContext`, `RepurposeOutput`, or `list_integrations`. No user-authorization path in headless mode, no user channel, no user-facing mutations, no platform metadata needs that aren't already resolved at capability-bundle time.
+- **MCP does NOT have any lifecycle, entity-layer, or agent-scoped file-layer primitives.** MCP callers (foreign LLMs acting on behalf of the user) are consultation-shaped, not operator-shaped. The user in a foreign LLM is in thinking mode, not workforce-management mode — the MCP surface reflects that. Specifically: no `ManageAgent`/`ManageTask`/`ManageDomains` (no workforce control from foreign LLMs), no `LookupEntity`/`ListEntities`/`SearchEntities`/`EditEntity` (entity layer is TP-chat-only), no `ReadFile`/`WriteFile`/`SearchFiles`/`ListFiles`/`ReadAgentFile` (agent-scoped file layer is headless-only), no `RuntimeDispatch`/`RepurposeOutput` (output generation lives on YARNNN's own runtime), no `Clarify` (MCP uses the structured `ambiguous` return shape instead). The two permitted primitives (`QueryKnowledge` + `UpdateContext`) are the exact surface needed for "consult accumulated context + contribute back" and nothing more. ADR-169 decision; see [docs/features/mcp/architecture.md](../features/mcp/architecture.md).
 
 ---
 
@@ -239,10 +244,13 @@ The `feedback_target` sub-parameter on `target="task"` has its own 5-value enum:
 
 ### `ManageTask.action`
 
-Current: 7-value enum. Source of truth: `MANAGE_TASK_TOOL.input_schema.properties.action.enum` in `api/services/primitives/manage_task.py`. ADR-168 Commit 3 will fold `CreateTask` into this enum as `"create"`, making it 8-value.
+8-value enum. Source of truth: `MANAGE_TASK_TOOL.input_schema.properties.action.enum` in `api/services/primitives/manage_task.py`. ADR-168 Commit 3 folded the former `CreateTask` primitive into this enum as `"create"` for symmetry with `ManageAgent`.
+
+Note: `task_slug` is required for all actions EXCEPT `create` (which generates the slug from `title`). The top-level `required` field in the tool schema is `["action"]`; the `task_slug` requirement is enforced inside `handle_manage_task()` for non-create actions.
 
 | Action | Effect | Mode availability | Introduced |
 |---|---|---|---|
+| `create` | Scaffold a new task from a task type (or custom `agent_slug` + `objective`), generate slug from `title`, write TASK.md + DELIVERABLE.md + memory scaffolds, create `tasks` row. | both | ADR-168 C3 |
 | `trigger` | Fire the task immediately (dispatch to task pipeline via `_handle_trigger` → `execute_task()`) | both | ADR-146 |
 | `update` | Patch task fields (schedule, objective, sources, delivery) | both | ADR-146 |
 | `pause` | Set `tasks.status = 'paused'` | both | ADR-146 |
@@ -250,7 +258,6 @@ Current: 7-value enum. Source of truth: `MANAGE_TASK_TOOL.input_schema.propertie
 | `evaluate` | Write TP evaluation to `memory/feedback.md` (goal-mode steering) | chat | ADR-149 |
 | `steer` | Write TP steering note to `memory/steering.md` | chat | ADR-149 |
 | `complete` | Mark goal-mode task complete | chat | ADR-149 |
-| `create` *(pending Commit 3)* | Scaffold a new task from a task type, assign to an agent, write TASK.md. Currently lives on the separate `CreateTask` primitive; will fold into `ManageTask` in ADR-168 Commit 3 for symmetry with `ManageAgent`. | both | ADR-168 C3 |
 
 ### `ManageDomains.action`
 
@@ -350,7 +357,7 @@ Any primitive change (rename, add, remove, mode change, enum extension) writes a
 | `Write` | Specialized primitives (ManageAgent, ManageTask, UpdateContext) | ADR-146 | P1: no remaining unique purpose |
 | `RefreshPlatformContent` | (none — flow dissolved) | ADR-153 | Platform sync removed; data flows through tracking tasks |
 | `Execute` | `ManageTask(action="trigger")` / `UpdateContext(target="agent")` / `ManageTask(action="update")` | ADR-168 Commit 2 *(shipped 2026-04-09)* | Actions dissolve into typed verbs. Also removed: `action` + `system` entity types from `refs.py` (vestigial — only served Execute's action-discovery surface). |
-| `CreateTask` | `ManageTask(action="create")` | ADR-168 Commit 3 | Symmetry with ManageAgent |
+| `CreateTask` | `ManageTask(action="create", title="...", type_key="..."\|agent_slug="...")` | ADR-168 Commit 3 *(shipped 2026-04-09)* | Symmetry with ManageAgent. Absorbed `title`, `type_key`, `agent_slug`, `focus`, `objective`, `success_criteria`, `output_spec` fields into `MANAGE_TASK_TOOL.input_schema`. Helpers (`_slugify`, `_build_custom_task_md`) moved into `manage_task.py`. File `primitives/task.py` deleted. |
 | `Read` | `LookupEntity` | ADR-168 Commit 4 | Name was ambiguous with file-layer read |
 | `List` | `ListEntities` | ADR-168 Commit 4 | Name was ambiguous |
 | `Search` | `SearchEntities` | ADR-168 Commit 4 | Name was ambiguous |

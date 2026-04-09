@@ -20,10 +20,12 @@ on the agents page. TP receives surface context and should respect these boundar
 
 ### Plus Menu Actions
 
+**Note (ADR-168 Commit 3, 2026-04-09):** `CreateTask` primitive folded into `ManageTask(action="create")`. The entries below reflect the new call shape. Other references to removed primitives in this file (`TriggerTask`, `UpdateSharedContext`, `SaveMemory`) are older drift from the ADR-146 era — the canonical source is `primitives-matrix.md`.
+
 | Action | Prompt | Maps to Primitive |
 |--------|--------|-------------------|
-| Create a task | "Create a task for " | `CreateTask(...)` |
-| Update my context | "Update my context" | `UpdateSharedContext(target=...)` |
+| Create a task | "Create a task for " | `ManageTask(action="create", ...)` |
+| Update my context | "Update my context" | `UpdateContext(target=...)` |
 | Web search | "Search the web for " | `WebSearch(query=...)` |
 | Upload file | (file dialog) | Attachment flow |
 
@@ -31,13 +33,13 @@ on the agents page. TP receives surface context and should respect these boundar
 
 | Command | Trigger | Flow |
 |---------|---------|------|
-| `/task` | "create a task" | Clarify → CreateTask |
-| `/recap` | "slack recap" | Clarify → CreateTask (digest) |
-| `/summary` | "work summary" | Clarify → CreateTask (report) |
-| `/research` | "research this" | Clarify → CreateTask (research) |
+| `/task` | "create a task" | Clarify → ManageTask(action="create") |
+| `/recap` | "slack recap" | Clarify → ManageTask(action="create", type_key=digest) |
+| `/summary` | "work summary" | Clarify → ManageTask(action="create", type_key=report) |
+| `/research` | "research this" | Clarify → ManageTask(action="create", type_key=research) |
 | `/create` | "create agent" | ManageAgent |
 | `/search` | "search my workspace" | Search |
-| `/memory` | "remember that" | SaveMemory |
+| `/memory` | "remember that" | UpdateContext(target="memory") |
 | `/web` | "search the web" | WebSearch |
 
 ### Cold Start Suggestion Chips
@@ -52,11 +54,11 @@ Chips disappear once user sends any message.
 
 ### TP Primitives Available (chat mode)
 
-All chat-mode primitives are available. Workspace-relevant:
-- `UpdateSharedContext` — identity/brand mutations
-- `CreateTask`, `TriggerTask` — task lifecycle (with auto-navigate)
+All chat-mode primitives are available. Canonical reference: [primitives-matrix.md](../architecture/primitives-matrix.md). Workspace-relevant summary:
+- `UpdateContext` — identity/brand/memory/agent/task/awareness mutations (ADR-146 unified)
+- `ManageTask` — full task lifecycle (create/trigger/update/pause/resume/evaluate/steer/complete) (ADR-168 unified)
 - `ManageAgent` — agent management
-- `SaveMemory` — store user preferences/facts
+- `ManageDomains` — context domain scaffolding
 - `WebSearch`, `Search`, `Read`, `List` — information retrieval
 - `Clarify` — ask user for input
 
@@ -73,7 +75,7 @@ All chat-mode primitives are available. Workspace-relevant:
 | Action | Prompt | Maps to Primitive |
 |--------|--------|-------------------|
 | Run [task] now | "Run the task \"{title}\" now" | `TriggerTask(task_slug)` |
-| Assign a new task | "Assign a new task to this agent" | `CreateTask(agent_slug=...)` |
+| Assign a new task | "Assign a new task to this agent" | `ManageTask(action="create", agent_slug=...)` |
 | Review domain health | "How is this agent's domain?" | Conversational (read + assess) |
 | Web research | "Search the web for..." | `WebSearch(...)` |
 | Give feedback | "For the latest output..." | `UpdateContext(feedback_target=...)` |
@@ -82,7 +84,7 @@ All chat-mode primitives are available. Workspace-relevant:
 
 Same set as chat page, but TP receives agent surface context that scopes behavior:
 - `TriggerTask` — run any of this agent's tasks
-- `CreateTask` — assign new work to this agent
+- `ManageTask(action="create")` — assign new work to this agent
 - `WebSearch`, `Search` — research scoped to agent's domain
 - `Read`, `List` — information retrieval
 
@@ -117,7 +119,7 @@ Narrowed to task-relevant:
 - `Clarify`
 
 **Not intended for task drill-down** (agent/workspace-level):
-- `CreateTask` — go back to agent view or chat page
+- `ManageTask(action="create")` — go back to agent view or chat page
 - `ManageAgent` — agent-level, not task-level
 
 ---
@@ -135,7 +137,7 @@ Narrowed to task-relevant:
 | Update my context | "Update my context" | `UpdateSharedContext(target=...)` |
 | Upload file | (file dialog) | Attachment flow |
 | Web search | "Search the web for " | `WebSearch(query=...)` |
-| Create a task | "Create a task" | `CreateTask(...)` |
+| Create a task | "Create a task" | `ManageTask(action="create", ...)` |
 
 ### TP Primitives Available
 
@@ -173,8 +175,8 @@ The frontend auto-navigates on success (600ms delay). Current navigating primiti
 
 | Primitive | Navigates to |
 |-----------|-------------|
-| `CreateTask` | `/agents?agent={agent_slug}&task={task_slug}` |
-| `TriggerTask` | `/agents?agent={agent_slug}&task={task_slug}` |
+| `ManageTask(action="create")` | `/agents?agent={agent_slug}&task={task_slug}` |
+| `ManageTask(action="trigger")` | `/agents?agent={agent_slug}&task={task_slug}` |
 | `ManageAgent` | `/agents?agent={agent_slug}` |
 
 ---

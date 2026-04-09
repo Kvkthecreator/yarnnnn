@@ -61,10 +61,10 @@ The product is "hiring a team." A hired team arrives with a plan, learns your co
 TP uses existing primitives in sequence. No new pipeline mechanism:
 
 ```
-CreateTask(type_key="track-competitors", ...) × N context tasks
+ManageTask(action="create", type_key="track-competitors", ...) × N context tasks
   → ManageTask(action="trigger") × N
   → [wait for completion — TP checks working memory on next turn]
-  → CreateTask(type_key="executive-summary", ...)
+  → ManageTask(action="create", type_key="executive-summary", ...)
   → ManageTask(action="trigger")
   → [delivery fires automatically]
 ```
@@ -81,8 +81,8 @@ Add to `api/agents/tp_prompts/onboarding.py` CONTEXT_AWARENESS section:
 Once the user confirms the scaffolded entities, proceed to task activation:
 
 1. For each domain with entities, create the default context task:
-   - CreateTask(type_key="track-competitors", title="Track Competitors") for competitors/
-   - CreateTask(type_key="track-market", title="Track Market") for market/
+   - ManageTask(action="create", type_key="track-competitors", title="Track Competitors") for competitors/
+   - ManageTask(action="create", type_key="track-market", title="Track Market") for market/
    - etc. (see agent-to-task mapping in your knowledge)
 
 2. Trigger all created context tasks immediately:
@@ -287,7 +287,7 @@ When TP auto-scaffolds tasks during onboarding, it uses the registry defaults:
 | Mechanism | Exists? | Consistent? |
 |-----------|---------|-------------|
 | Playbook loading (selective by task class) | Yes | N/A — this is TP prompt, not agent playbook |
-| CreateTask primitive | Yes | Uses type_key → auto-pipeline |
+| ManageTask(action="create") primitive | Yes | Uses type_key → auto-pipeline. ADR-168 Commit 3 folded CreateTask into ManageTask. |
 | ManageTask trigger action | Yes | Existing, fully functional |
 | ManageDomains scaffold action | Yes | Existing, used in onboarding |
 | Working memory (agent health, task status) | Yes | Already injected into TP prompt |

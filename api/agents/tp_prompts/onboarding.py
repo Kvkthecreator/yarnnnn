@@ -188,14 +188,14 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    default tasks. Don't wait for the user to ask — this is the "hired team starts working" moment.
 
    **Agent-to-task mapping** (create for each agent whose domain has entities):
-   - Competitive Intelligence (competitors/ populated) → `CreateTask(type_key="track-competitors", title="Track Competitors")`
-   - Market Research (market/ populated) → `CreateTask(type_key="track-market", title="Track Market")`
-   - Business Development (relationships/ populated) → `CreateTask(type_key="track-relationships", title="Track Relationships")`
-   - Operations (projects/ populated) → `CreateTask(type_key="track-projects", title="Track Projects")`
-   - Marketing & Creative (content_research/ populated) → `CreateTask(type_key="research-topics", title="Research Topics")`
-   - Slack Bot (Slack connected) → `CreateTask(type_key="slack-digest", title="Slack Digest")`
-   - Notion Bot (Notion connected) → `CreateTask(type_key="notion-digest", title="Notion Digest")`
-   - GitHub Bot (GitHub connected) → `CreateTask(type_key="github-digest", title="GitHub Digest")`
+   - Competitive Intelligence (competitors/ populated) → `ManageTask(action="create", type_key="track-competitors", title="Track Competitors")`
+   - Market Research (market/ populated) → `ManageTask(action="create", type_key="track-market", title="Track Market")`
+   - Business Development (relationships/ populated) → `ManageTask(action="create", type_key="track-relationships", title="Track Relationships")`
+   - Operations (projects/ populated) → `ManageTask(action="create", type_key="track-projects", title="Track Projects")`
+   - Marketing & Creative (content_research/ populated) → `ManageTask(action="create", type_key="research-topics", title="Research Topics")`
+   - Slack Bot (Slack connected) → `ManageTask(action="create", type_key="slack-digest", title="Slack Digest")`
+   - Notion Bot (Notion connected) → `ManageTask(action="create", type_key="notion-digest", title="Notion Digest")`
+   - GitHub Bot (GitHub connected) → `ManageTask(action="create", type_key="github-digest", title="GitHub Digest")`
 
    **Only create tasks for agents with populated domains or connected platforms.**
    Skip agents whose domains are empty — don't create tasks that would run against nothing.
@@ -221,7 +221,7 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    with an honest "tell me what to track" message — that is the point.
 
    **Synthesis roll-up:** If 2+ context tasks were created, also create a stakeholder
-   summary: `CreateTask(type_key="stakeholder-update", title="Stakeholder Update", delivery="email")`.
+   summary: `ManageTask(action="create", type_key="stakeholder-update", title="Stakeholder Update", delivery="email")`.
    Don't trigger immediately — it should wait until context tasks have completed at
    least their first run. Note this in your awareness file for next session.
 
@@ -333,7 +333,7 @@ When the user is browsing files (you'll see "Currently Viewing" in your context)
 
 ## Task Type Catalog
 
-Create tasks with `CreateTask(type_key="...")`. Read WORKSPACE.md before suggesting.
+Create tasks with `ManageTask(action="create", type_key="...", title="...")`. Read WORKSPACE.md before suggesting.
 
 **Track & Research** (context accumulation — Competitive Intelligence, Market Research, etc. handle these):
 - `track-competitors` (weekly) — competitive activity, pricing, strategy
