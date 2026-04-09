@@ -6,6 +6,36 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.09.5] - ADR-168 Commit 5: Mark Implemented + final grep gate
+
+### Changed
+Final commit in the ADR-168 sequence. Marks the ADR as Implemented, runs the final grep gate, and tidies residual stale references.
+
+- `docs/adr/ADR-168-primitive-matrix.md`: Status header `Proposed` → `Implemented (2026-04-09)`. New "## Implementation" section added at top with a commit table (1 / 1.1 / 2 / 3 / 4 / 5 with hashes and scope), validation outcomes, and the final surface description. `Related:` header adds ADR-169 (MCP as third caller).
+- `docs/architecture/primitives-matrix.md`:
+  - Status header rewritten — `Last updated: 2026-04-09 (ADR-168 Commit 5 — marked Implemented)`, `Governing ADRs` section added listing ADR-146 / ADR-168 / ADR-169 as the three primary references.
+  - Mode totals section simplified — removed the Commit 4 "Current state" / "Target state" bifurcation (both collapsed to the same content post-Commit-4, so the split was carrying no information). Now one "Mode totals (current state, post-ADR-168 + ADR-169)" section with the 13 chat / 15 headless + dynamic / 2 MCP breakdown.
+- `CLAUDE.md`: ADR-168 entry status marker updated from "Proposed — Commits 1, 1.1, 2, 3, 4 landed" to "**Implemented** 2026-04-09 — Commits 1, 1.1, 2, 3, 4, 5 all landed. 144/144 test_recent_commits.py assertions pass. Final grep gate confirmed zero live-code references to old primitive names."
+
+### Stale references caught in the Commit 5 sweep (fixed)
+The final grep gate caught four stale references I missed in Commit 4 that would have broken test runs or carried stale examples:
+- `api/test_structural_overhaul.py`: 5 `execute_primitive(auth, "Read", ...)` calls, 1 `execute_primitive(auth, "Search", ...)` call, 5 `execute_primitive(auth, "Edit", ...)` calls. All updated to `LookupEntity` / `SearchEntities` / `EditEntity`. Includes one at line 241 that used `fake_auth` instead of `auth`, which the earlier replace_all missed. *(Note: this file still contains Phase 4 tests that call a deleted `Write` primitive — those have been dead since ADR-146 and are pre-existing drift, not caused or resolved by ADR-168.)*
+- `api/test_adr049_freshness.py`: 1 fixture `{"name": "Read", "input": {"file_path": "..."}}` in a token-counting test → `{"name": "LookupEntity", "input": {"ref": "document:test-uuid"}}`. Semantic-only cleanup; the test just counts tokens and wouldn't have broken at runtime, but the fixture shape now matches the real primitive contract.
+- `docs/integrations/TESTING-RUNBOOK.md`: One-liner assertion block that checked `headless tools == {'Read', 'Search', 'List', 'WebSearch', 'GetSystemState'}` and `len == 5`. Both the set AND the count had been stale since way before ADR-168 (headless now has 15 static tools, not 5). Updated to the current shape — asserts `len == 15` and membership checks on `LookupEntity`, `ReadFile`, `WriteFile`, `QueryKnowledge`.
+
+### Validation
+- **Grep gate result:** Zero live-code references to old primitive names (`Read`/`List`/`Search`/`Edit`/`ReadWorkspace`/`WriteWorkspace`/`SearchWorkspace`/`ListWorkspace`/`ReadAgentContext` as primitive names). Only remaining references are intentional historical markers: "renamed from X" handler docstrings, deleted-primitives ledger rows, and the "old name not in registry" assertions in the contract test file.
+- **Test suite:** 144/144 `test_recent_commits.py` assertions pass.
+- **Backend imports:** All touched modules import cleanly.
+
+### ADR-168 retrospective (all five commits)
+- **Starting state (pre-Commit-1):** Chat 15 / Headless 16 static tools. Primitive surface had drifted for ~6 weeks since ADR-146 shipped Phase 1+2 but left Phase 3 (Execute retirement) and Phase 5 (canonical primitives doc) deferred. `Read`/`ReadWorkspace` naming collision was a standing source of confusion every time the primitive layer was touched.
+- **Ending state (post-Commit-5):** Chat 13 / Headless 15 static + `platform_*` dynamic / MCP 2. Canonical `primitives-matrix.md` shipped. ADR-146 Phase 3+5 finished. `Execute` dissolved. `CreateTask` folded into `ManageTask(action="create")` for symmetry with `ManageAgent`. 9 primitives renamed to substrate-explicit `*Entity` / `*File` families. Perception channel documented as a first-class section so the matrix isn't misread as TP's entire input surface.
+- **Total delta:** 5 primary commits + 1 amendment. 4 primitives deleted (`Execute`, `CreateTask`, and the vestigial `action`/`system` entity types in refs.py). 9 primitives renamed. One new canonical doc. Test count grew from ~121 to 144.
+- **Governing discipline:** Singular implementation throughout — no parallel naming shims, no fallback registries, no backward-compat handlers. Every commit landed in a green state (tests pass, backend imports, frontend builds).
+
+---
+
 ## [2026.04.09.4] - ADR-168 Commit 4: Rename to *Entity / *File families
 
 ### Changed

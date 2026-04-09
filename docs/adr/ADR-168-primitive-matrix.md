@@ -1,11 +1,34 @@
 # ADR-168: Primitive Matrix — Two Axes, Entity/File/Action Families, Finish ADR-146
 
-**Status:** Proposed
+**Status:** Implemented (2026-04-09)
 **Date:** 2026-04-09
 **Authors:** KVK, Claude
 **Extends:** ADR-146 (Primitive Hardening), ADR-154 (Execution Boundary Reform), ADR-080 (Unified Agent Modes)
 **Supersedes:** ADR-146 Phase 3 (Execute retirement, Write/Edit audit — previously deferred) and ADR-146 Phase 5 (canonical primitives doc — never shipped)
-**Related:** ADR-164 (TP as Agent), ADR-166 (Registry Coherence Pass — precedent for two-axis cleanup)
+**Related:** ADR-164 (TP as Agent), ADR-166 (Registry Coherence Pass — precedent for two-axis cleanup), ADR-169 (MCP as third caller of primitive layer)
+
+## Implementation
+
+Shipped in five commits on 2026-04-09:
+
+| Commit | Hash | Scope |
+|---|---|---|
+| 1 — Docs foundation | `7898dc7` | ADR + canonical `primitives-matrix.md` + CLAUDE.md + architecture README + CHANGELOG entry |
+| 1.1 — Perception channel amendment | `57dab1c` | Matrix doc section documenting working-memory injection as TP's precomputed perception channel (not a primitive) — prompted by a sanity framing check |
+| 2 — Dissolve `Execute` | `fbf5d40` | Finishes ADR-146 Phase 3. Deletes `execute.py`, `_resolve_action_ref`, and the vestigial `action`/`system` entity types. Migrates callers to `ManageTask`/`UpdateContext` |
+| 3 — Fold `CreateTask` into `ManageTask(action="create")` | `033b9bc` | Symmetry with `ManageAgent`. Deletes `task.py`, absorbs schema fields and helpers into `manage_task.py`, expands action enum 7→8 |
+| 4 — `*Entity` / `*File` naming reform | `a6e9b8c` | 9 primitive renames across backend + frontend + docs. Resolves the standing `Read`/`ReadWorkspace` ambiguity. |
+| 5 — Mark Implemented + final grep gate | *(this commit)* | ADR status → Implemented; matrix doc status header updated; final grep sweep confirmed zero live-code references to old names |
+
+**Validation outcomes:**
+- `api/test_recent_commits.py`: 144/144 assertions pass (grew from 121/127 pre-ADR-168 to 144/144 after, with +8 for the rename and +9 for the CreateTask fold)
+- Backend imports cleanly across every touched module
+- No live-code dangling references to old primitive names (ADRs and historical CHANGELOG entries excluded per "CHANGELOG is history" rule)
+
+**Surface after ADR-168:**
+- **Chat mode:** 13 static primitives — `LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`
+- **Headless mode:** 15 static primitives + `platform_*` dynamic — `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `QueryKnowledge`, `ListFiles`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`
+- **MCP mode** (added by ADR-169 during the sequence): 2 primitives — `QueryKnowledge` and `UpdateContext` — exposed via three intent-shaped tools (`work_on_this`, `pull_context`, `remember_this`)
 
 ---
 

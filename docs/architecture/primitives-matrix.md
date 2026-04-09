@@ -1,8 +1,9 @@
 # Primitives Matrix — Substrate × Mode × Capability
 
-**Status:** Canonical
-**Date:** 2026-04-09 (ADR-168)
-**Related:** ADR-146 (Primitive Hardening), ADR-154 (Who/What/How), ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-164 (TP as Agent), ADR-166 (precedent for two-axis registry cleanup)
+**Status:** Canonical — reflects post-ADR-168 state
+**Last updated:** 2026-04-09 (ADR-168 Commit 5 — marked Implemented)
+**Governing ADRs:** ADR-146 (Primitive Hardening), ADR-168 (this matrix — substrate/mode/capability axes + entity/file naming reform), ADR-169 (MCP as third caller)
+**Related:** ADR-154 (Who/What/How), ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-164 (TP as Agent), ADR-166 (precedent for two-axis registry cleanup)
 **Sibling reference:** [registry-matrix.md](registry-matrix.md) — for domains × tasks × agents
 **Source of truth:** [api/services/primitives/registry.py](../../api/services/primitives/registry.py)
 
@@ -190,19 +191,11 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 | `GetSystemState` | introspection | ● | ● | ○ | introspection | [system_state.py](../../api/services/primitives/system_state.py) | Report system state (tier, limits, health flags). |
 | `platform_*` | external | ○ | ● (capability-gated) | ○ | external | [platform_tools.py](../../api/services/platform_tools.py) | Dynamic set resolved per agent capability bundle. Routed through `handle_platform_tool`. Not in static registries. |
 
-### Mode totals
+### Mode totals (current state, post-ADR-168 + ADR-169)
 
-**Current state (post-ADR-168 Commit 4 + ADR-169, as of 2026-04-09):**
-
-- **Chat mode:** 13 tools. Entity layer renamed in Commit 4. Current set: `LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`.
-- **Headless mode:** 15 static tools + `platform_*` dynamic. Entity + file layers renamed in Commit 4. Set: `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `QueryKnowledge`, `ListFiles`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`.
-- **MCP mode (ADR-169):** 2 primitives — `QueryKnowledge` and `UpdateContext`. The MCP tool surface itself is three intent-shaped tools (`work_on_this`, `pull_context`, `remember_this`) that compose over these two primitives. MCP is the foreign-LLM surface — fifth caller of `execute_primitive()` per ADR-164 runtime-agnostic principle. See [docs/features/mcp/architecture.md](../features/mcp/architecture.md) for the composition layer (`api/services/mcp_composition.py`).
-
-**Target state (post-ADR-168 Commit 5):**
-
-- **Chat mode:** 13 static primitives (`LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`). Entity verbs renamed (no count change from current).
-- **Headless mode:** 15 static primitives + `platform_*` dynamic. The static set: `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`, `QueryKnowledge`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`. Entity + file verbs renamed; no count change from current.
-- **MCP mode:** 2 primitives unchanged by Commit 4 rename (`QueryKnowledge` keeps its name; `UpdateContext` keeps its name). The three intent-shaped MCP tools remain `work_on_this`, `pull_context`, `remember_this`.
+- **Chat mode:** 13 static primitives — `LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`.
+- **Headless mode:** 15 static primitives + `platform_*` dynamic — `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `QueryKnowledge`, `ListFiles`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`.
+- **MCP mode (ADR-169):** 2 primitives — `QueryKnowledge` and `UpdateContext`. The MCP tool surface itself is three intent-shaped tools (`work_on_this`, `pull_context`, `remember_this`) that compose over these two primitives. MCP is the foreign-LLM surface — third caller of `execute_primitive()` per ADR-164 runtime-agnostic principle. See [docs/features/mcp/architecture.md](../features/mcp/architecture.md) for the composition layer (`api/services/mcp_composition.py`).
 
 **Hard boundaries (enforced by [api/test_recent_commits.py](../../api/test_recent_commits.py)):**
 

@@ -199,7 +199,7 @@ async def phase_1_version_access(auth: MockAuth) -> PhaseResult:
     }).execute()
 
     # 1e: Read(ref="version:latest?agent_id=X")
-    result = await execute_primitive(auth, "Read", {
+    result = await execute_primitive(auth, "LookupEntity", {
         "ref": f"version:latest?agent_id={del_id}"
     })
     assert_true(r, "Read version:latest success", result.get("success", False),
@@ -210,14 +210,14 @@ async def phase_1_version_access(auth: MockAuth) -> PhaseResult:
         assert_eq(r, "Read version:latest status", data.get("status"), "approved")
 
     # 1f: Read(ref="version:<uuid>")
-    result = await execute_primitive(auth, "Read", {
+    result = await execute_primitive(auth, "LookupEntity", {
         "ref": f"version:{ver_id}"
     })
     assert_true(r, "Read version:uuid success", result.get("success", False),
                 f"Read failed: {result.get('message', '')}")
 
     # 1g: Search(scope="version")
-    result = await execute_primitive(auth, "Search", {
+    result = await execute_primitive(auth, "SearchEntities", {
         "query": "structural overhaul",
         "scope": "version",
         "agent_id": del_id,
@@ -229,7 +229,7 @@ async def phase_1_version_access(auth: MockAuth) -> PhaseResult:
                 f"Expected results, got {len(results)}")
 
     # 1h: Read(ref="version:*?agent_id=X") — list all versions
-    result = await execute_primitive(auth, "Read", {
+    result = await execute_primitive(auth, "LookupEntity", {
         "ref": f"version:*?agent_id={del_id}"
     })
     assert_true(r, "Read version:* returns list", isinstance(result.get("data"), list),
@@ -238,7 +238,7 @@ async def phase_1_version_access(auth: MockAuth) -> PhaseResult:
     # 1i: Security — version scoping through agent ownership
     # Create a fake auth with different user_id
     fake_auth = MockAuth("00000000-0000-0000-0000-000000000000", auth.client)
-    result = await execute_primitive(fake_auth, "Read", {
+    result = await execute_primitive(fake_auth, "LookupEntity", {
         "ref": f"version:latest?agent_id={del_id}"
     })
     # Should return not_found (not_error) because fake user doesn't own the agent
@@ -575,7 +575,7 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
     del_id = dels.data[0]["id"]
 
     # 6a: Update agent_instructions via Edit
-    result = await execute_primitive(auth, "Edit", {
+    result = await execute_primitive(auth, "EditEntity", {
         "ref": f"agent:{del_id}",
         "changes": {
             "agent_instructions": "Keep it under 300 words. Use bullet points. Focus on blockers."
@@ -594,7 +594,7 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
                   "300 words", check.data[0].get("agent_instructions", ""))
 
     # 6b: Append observation via Edit
-    result = await execute_primitive(auth, "Edit", {
+    result = await execute_primitive(auth, "EditEntity", {
         "ref": f"agent:{del_id}",
         "changes": {
             "append_observation": {
@@ -622,7 +622,7 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
                       "too verbose", observations[-1].get("note", ""))
 
     # 6c: Second observation appends (doesn't replace)
-    result2 = await execute_primitive(auth, "Edit", {
+    result2 = await execute_primitive(auth, "EditEntity", {
         "ref": f"agent:{del_id}",
         "changes": {
             "append_observation": {
@@ -641,7 +641,7 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
         assert_eq(r, "Two observations accumulated", len(observations2), 2)
 
     # 6d: Set goal via Edit
-    result = await execute_primitive(auth, "Edit", {
+    result = await execute_primitive(auth, "EditEntity", {
         "ref": f"agent:{del_id}",
         "changes": {
             "set_goal": {
@@ -670,7 +670,7 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
                   len(observations3), 2)
 
     # 6e: Invalid append_observation (missing note) returns error
-    result = await execute_primitive(auth, "Edit", {
+    result = await execute_primitive(auth, "EditEntity", {
         "ref": f"agent:{del_id}",
         "changes": {
             "append_observation": {"source": "user"}  # Missing required 'note'
@@ -683,7 +683,7 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
               result.get("error"), "invalid_observation")
 
     # 6f: Invalid set_goal (missing description) returns error
-    result = await execute_primitive(auth, "Edit", {
+    result = await execute_primitive(auth, "EditEntity", {
         "ref": f"agent:{del_id}",
         "changes": {
             "set_goal": {"status": "done"}  # Missing required 'description'
@@ -696,7 +696,7 @@ async def phase_6_workspace_primitives(auth: MockAuth) -> PhaseResult:
               result.get("error"), "invalid_goal")
 
     # 6g: Raw agent_memory write blocked
-    result = await execute_primitive(auth, "Edit", {
+    result = await execute_primitive(auth, "EditEntity", {
         "ref": f"agent:{del_id}",
         "changes": {
             "agent_memory": {"observations": []}  # Should be blocked

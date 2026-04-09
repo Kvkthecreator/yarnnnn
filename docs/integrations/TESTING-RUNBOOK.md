@@ -176,8 +176,10 @@ cd api && python -c "
 from services.primitives.registry import get_tools_for_mode, create_headless_executor
 tools = get_tools_for_mode('headless')
 print('Headless tools:', [t['name'] for t in tools])
-assert len(tools) == 5, f'Expected 5 headless tools, got {len(tools)}'
-assert set(t['name'] for t in tools) == {'Read', 'Search', 'List', 'WebSearch', 'GetSystemState'}
+# ADR-168 post-Commit-4: 15 headless tools, entity/file layer names
+assert len(tools) == 15, f'Expected 15 headless tools, got {len(tools)}'
+names = set(t['name'] for t in tools)
+assert 'LookupEntity' in names and 'ReadFile' in names and 'WriteFile' in names and 'QueryKnowledge' in names
 print('Mode gate: PASS')
 
 from services.agent_execution import _build_headless_system_prompt, HEADLESS_MAX_TOOL_ROUNDS

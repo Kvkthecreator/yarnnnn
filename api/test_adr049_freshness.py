@@ -55,7 +55,7 @@ def test_token_estimation():
         "role": "assistant",
         "content": [
             {"type": "text", "text": "Let me check that."},
-            {"type": "tool_use", "id": "abc123", "name": "Read", "input": {"file_path": "/test.py"}},
+            {"type": "tool_use", "id": "abc123", "name": "LookupEntity", "input": {"ref": "document:test-uuid"}},
         ]
     }
     tokens = estimate_message_tokens(structured_msg)
