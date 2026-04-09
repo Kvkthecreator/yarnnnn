@@ -324,14 +324,14 @@ In detail mode the page renders `<PageHeader />` followed by `<AgentContentView 
 
 The detail body follows two routing keys:
 
-- **`agent.agent_class` chooses the top shell block**. Domain stewards foreground owned domain responsibility, synthesizers foreground cross-domain reporting responsibility, platform bots foreground platform connection plus source selection, and Thinking Partner foregrounds orchestration responsibility. Agent role and operating instructions render as one combined top block.
-- **`task.output_kind` chooses the assigned-work card shape**. Tracking tasks summarize context reads/writes, deliverable tasks summarize audience/deliverable, external-action tasks summarize target/delivery, and maintenance tasks summarize system purpose. `type_key` is allowed to specialize labels, but it does not fork the page architecture.
+- **`agent.agent_class` chooses the top shell block**. Domain stewards foreground owned folder responsibility, synthesizers foreground cross-domain reporting responsibility, platform bots foreground platform connection plus source selection, and Thinking Partner foregrounds orchestration responsibility. Agent role and operating instructions render as one combined top block.
+- **`task.output_kind` chooses the assigned-work card shape**. Tracking tasks say which folder they are working in, deliverable tasks say which folder they read from, external-action tasks summarize target/delivery, and maintenance tasks summarize system purpose. `type_key` is allowed to specialize labels, but it does not fork the page architecture.
 
 This keeps the surface scalable: new agent types usually fit an existing class shell, and new task types usually fit an existing `output_kind` card.
 
 No-task states also vary by `agent_class`, but they stay short:
 
-- specialists name the missing tracker
+- specialists name the missing tracker while still showing the owned folder on-page
 - reporting names the missing reporting task
 - integration bots point the user to connection/source setup above
 - Thinking Partner names the missing maintenance work

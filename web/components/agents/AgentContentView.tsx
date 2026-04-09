@@ -212,10 +212,9 @@ const TASK_CARD_REGISTRY: Record<TaskOutputKind, TaskCardDescriptor> = {
   accumulates_context: {
     label: 'Tracking',
     badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-    summary: (task) => readableDomainSummary(task.context_writes || task.context_reads, 'Maintains context'),
+    summary: (task) => trackingTaskSummary(task),
     details: (task) => [
-      ...(task.context_writes?.length ? [`Writes ${readableDomainSummary(task.context_writes, '')}`] : []),
-      ...(task.context_reads?.length ? [`Reads ${readableDomainSummary(task.context_reads, '')}`] : []),
+      ...taskFolderDetails(task),
       ...(task.objective?.purpose ? [task.objective.purpose] : []),
     ].filter(Boolean),
   },
@@ -228,6 +227,7 @@ const TASK_CARD_REGISTRY: Record<TaskOutputKind, TaskCardDescriptor> = {
       'Produces a user-facing deliverable'
     ),
     details: (task) => [
+      ...taskFolderDetails(task),
       ...(task.objective?.audience ? [`Audience: ${task.objective.audience}`] : []),
       ...(task.objective?.purpose ? [task.objective.purpose] : []),
       ...(task.delivery ? [`Delivery: ${task.delivery}`] : []),
@@ -243,6 +243,7 @@ const TASK_CARD_REGISTRY: Record<TaskOutputKind, TaskCardDescriptor> = {
       'Takes action on an external platform'
     ),
     details: (task) => [
+      ...taskFolderDetails(task),
       ...(task.objective?.purpose ? [task.objective.purpose] : []),
       ...(inferActionTarget(task) ? [`Target: ${inferActionTarget(task)}`] : []),
     ].filter(Boolean),
@@ -252,6 +253,7 @@ const TASK_CARD_REGISTRY: Record<TaskOutputKind, TaskCardDescriptor> = {
     badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
     summary: (task) => task.objective?.purpose || 'Keeps the workspace and workforce coherent',
     details: (task) => [
+      ...taskFolderDetails(task),
       ...(task.essential ? ['Essential anchor task'] : []),
       ...(task.objective?.deliverable ? [`Output: ${task.objective.deliverable}`] : []),
     ].filter(Boolean),
@@ -304,6 +306,36 @@ function inferActionTarget(task: Task): string | null {
   if (task.type_key?.startsWith('slack-')) return 'Slack';
   if (task.type_key?.startsWith('notion-')) return 'Notion';
   return task.delivery || null;
+}
+
+function trackingTaskSummary(task: Task): string {
+  if (task.context_writes?.length) {
+    return `Working in ${readableDomainSummary(task.context_writes, 'this folder')}`;
+  }
+  if (task.context_reads?.length) {
+    return `Working from ${readableDomainSummary(task.context_reads, 'this folder')}`;
+  }
+  return 'Maintains context';
+}
+
+function taskFolderDetails(task: Task): string[] {
+  const details: string[] = [];
+  const writes = task.context_writes || [];
+  const reads = task.context_reads || [];
+
+  if (task.output_kind === 'accumulates_context' && writes.length > 0) {
+    details.push(`Working in folder: ${readableDomainSummary(writes, '')}`);
+  } else if (task.output_kind === 'produces_deliverable' && reads.length > 0) {
+    details.push(`Reads from folder: ${readableDomainSummary(reads, '')}`);
+  } else if (reads.length > 0) {
+    details.push(`Uses folder: ${readableDomainSummary(reads, '')}`);
+  }
+
+  if (writes.length > 0 && task.output_kind !== 'accumulates_context') {
+    details.push(`Writes to folder: ${readableDomainSummary(writes, '')}`);
+  }
+
+  return details;
 }
 
 function getTaskKindCounts(tasks: Task[]): TaskKindCounts {
@@ -390,15 +422,6 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h4 className="text-sm font-medium text-foreground">{descriptor.title(agent)}</h4>
-              {agent.context_domain && (
-                <Link
-                  href={`${CONTEXT_ROUTE}?domain=${agent.context_domain}`}
-                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-                >
-                  Open context
-                  <ArrowUpRight className="w-3 h-3" />
-                </Link>
-              )}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
               {descriptor.description(agent)}
@@ -425,6 +448,50 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+  if (agent.agent_class !== 'domain-steward' || !agent.context_domain) return null;
+
+  const activeTrackingTasks = tasks.filter((task) => task.status === 'active' && task.output_kind === 'accumulates_context');
+  const domainLabel = formatKeyLabel(agent.context_domain);
+  const helperText = activeTrackingTasks.length > 0
+    ? `${activeTrackingTasks.length} active ${activeTrackingTasks.length === 1 ? 'task is' : 'tasks are'} currently working in this folder.`
+    : 'No task is working in this folder yet.';
+
+  return (
+    <div className="px-6 py-5 border-t border-border/40">
+      <SectionLabel>Folder</SectionLabel>
+      <div className="rounded-lg border border-border/60 bg-background overflow-hidden">
+        <div className="flex items-center gap-1.5 border-b border-border/50 bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
+          <span>Context</span>
+          <ChevronRight className="w-3 h-3" />
+          <span>{domainLabel}</span>
+        </div>
+        <div className="flex items-start gap-3 px-4 py-4">
+          <div className="w-9 h-9 rounded-lg bg-muted/30 border border-border/60 flex items-center justify-center shrink-0">
+            <FolderKanban className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h4 className="text-sm font-medium text-foreground">Responsible for this folder</h4>
+            <p className="text-sm text-muted-foreground mt-1">{helperText}</p>
+            <div className="flex items-center gap-2 mt-3 text-[12px] text-muted-foreground flex-wrap">
+              <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/10 px-2 py-1">
+                {domainLabel}/
+              </span>
+              <Link
+                href={`${CONTEXT_ROUTE}?domain=${agent.context_domain}`}
+                className="inline-flex items-center gap-1 hover:text-foreground"
+              >
+                View folder
+                <ArrowUpRight className="w-3 h-3" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -785,15 +852,6 @@ function EmptyAssignedWork({ agent }: { agent: Agent }) {
             <ArrowUpRight className="w-3 h-3" />
           </Link>
         )}
-        {agent.context_domain && (
-          <Link
-            href={`${CONTEXT_ROUTE}?domain=${agent.context_domain}`}
-            className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
-          >
-            Open context
-            <ArrowUpRight className="w-3 h-3" />
-          </Link>
-        )}
       </div>
     </div>
   );
@@ -920,6 +978,7 @@ export function AgentContentView({ agent, tasks, onCreateTask }: AgentContentVie
       />
       <div className="max-w-3xl">
         <AgentRoleBlock agent={agent} tasks={tasks} />
+        <SpecialistFolderBlock agent={agent} tasks={tasks} />
         {agent.agent_class === 'platform-bot' && <PlatformConnectionBlock agent={agent} />}
         {agent.agent_class === 'platform-bot' && <PlatformSourcesBlock agent={agent} />}
         <TasksBlock agent={agent} tasks={tasks} />

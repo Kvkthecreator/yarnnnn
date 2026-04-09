@@ -129,7 +129,7 @@ The four classes get distinct top-of-page interpretation:
 
 | Class | User question | Shell emphasis |
 |---|---|---|
-| `domain-steward` | "What domain does this specialist own and what does it produce from that domain?" | Owned domain, working style, downstream deliverable responsibility |
+| `domain-steward` | "What folder does this specialist own and what does it produce from that folder?" | Owned folder, working style, downstream deliverable responsibility |
 | `synthesizer` | "What cross-domain output is this reporter responsible for?" | Upstream inputs, reporting role, output cadence |
 | `platform-bot` | "Is this platform connected, what sources are selected, and what work runs on top of them?" | Connection state, source selection, connect/manage path, platform task setup |
 | `meta-cognitive` | "What system-level responsibility does TP own?" | Orchestration role, back-office tasks, essential maintenance |
@@ -157,6 +157,8 @@ Examples:
   Add upstream-readiness and cross-domain input modules.
 - `thinking_partner`
   Add workforce-health and essential-task modules.
+- `domain-steward`
+  Add an owned-folder block that keeps the folder visible on the agent page instead of sending the user away to `/context` just to understand what the specialist owns.
 
 ## No-Task States Must Differ By Class
 
@@ -168,13 +170,14 @@ Use one shared pattern:
 - one sentence only
 - no step list inside the card
 - one common header CTA: `Create Task`
-- keep local operational links only when the agent has a real setup dependency, such as `Connect platform` or `Open context`
+- keep local operational links only when the agent has a real setup dependency, such as `Connect platform`
 
 ### Specialists (`domain-steward`)
 
 No tasks means the specialist has an owned domain but no active work keeping it fresh.
 
 The empty state should name the missing tracker in plain language.
+The owned folder should still remain visible as its own block on the page.
 
 ### Reporting (`synthesizer`)
 
@@ -218,6 +221,7 @@ AgentContentView
 ├── AgentShellRegistry[agent_class]
 │   ├── class-aware top block
 │   └── class-aware add-on block
+├── DomainOwnershipBlock (for specialists)
 ├── AssignedWork
 │   ├── if tasks.length === 0 → AgentEmptyStateRegistry[agent_class]
 │   └── else TaskCardRegistry[output_kind]
