@@ -20,8 +20,11 @@ import {
   Brain,
   ChevronRight,
   ClipboardList,
+  FileText,
   FolderKanban,
+  Hash,
   Link2,
+  Loader2,
   Sparkles,
   Target,
   TrendingDown,
@@ -42,7 +45,10 @@ import {
   roleTagline,
 } from '@/lib/agent-identity';
 import { api } from '@/lib/api/client';
-import type { Agent, Task } from '@/types';
+import { usePlatformData } from '@/hooks/usePlatformData';
+import { useSourceSelection } from '@/hooks/useSourceSelection';
+import { ResourceList } from '@/components/context/ResourceList';
+import type { Agent, Task, LandscapeResource, PlatformProvider, NumericLimitField } from '@/types';
 
 interface AgentContentViewProps {
   agent: Agent;
@@ -567,25 +573,89 @@ function AgentPostureBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
 }
 
 function platformManagementHref(provider: string | null): string {
-  switch (provider) {
-    case 'slack':
-      return '/context/slack';
-    case 'notion':
-      return '/context/notion';
-    default:
-      return '/settings?tab=connectors';
-  }
+  return '/settings?tab=connectors';
 }
 
 function platformManagementLabel(provider: string | null, connected: boolean): string {
   switch (provider) {
     case 'slack':
     case 'notion':
-      return connected ? 'Manage sources' : 'Open connectors';
+      return connected ? 'Open connectors' : 'Open connectors';
     case 'github':
       return connected ? 'Open connectors' : 'Connect platform';
     default:
       return 'Open connectors';
+  }
+}
+
+function renderSlackMetadata(resource: LandscapeResource) {
+  const memberCount =
+    (resource.metadata?.member_count as number | undefined)
+    ?? (resource.metadata?.num_members as number | undefined);
+  if (memberCount === undefined && !resource.last_extracted_at && resource.items_extracted === 0) return null;
+
+  return (
+    <div className="text-xs text-muted-foreground">
+      {memberCount !== undefined && <span>{memberCount.toLocaleString()} members</span>}
+      {memberCount !== undefined && (resource.items_extracted > 0 || !!resource.last_extracted_at) && <span> • </span>}
+      {(resource.items_extracted > 0 || !!resource.last_extracted_at) && (
+        <span>
+          {resource.items_extracted > 0 ? `${resource.items_extracted} items` : '0 new items'}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function renderNotionMetadata(resource: LandscapeResource) {
+  const parentType = resource.metadata?.parent_type as string | undefined;
+  if (!parentType && resource.items_extracted === 0 && !resource.last_extracted_at) return null;
+
+  return (
+    <div className="text-xs text-muted-foreground">
+      {parentType && (
+        <span>
+          {parentType === 'workspace' && 'Top-level page'}
+          {parentType === 'page' && 'Nested page'}
+          {parentType === 'database' && 'Database item'}
+        </span>
+      )}
+      {parentType && (resource.items_extracted > 0 || !!resource.last_extracted_at) && <span> • </span>}
+      {(resource.items_extracted > 0 || !!resource.last_extracted_at) && (
+        <span>
+          {resource.items_extracted > 0 ? `${resource.items_extracted} items` : '0 new items'}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function platformSourceConfig(provider: PlatformProvider): {
+  resourceLabel: string;
+  resourceLabelSingular: string;
+  resourceIcon: React.ReactNode;
+  limitField: NumericLimitField;
+  renderMetadata?: (resource: LandscapeResource) => React.ReactNode;
+} | null {
+  switch (provider) {
+    case 'slack':
+      return {
+        resourceLabel: 'Channels',
+        resourceLabelSingular: 'channel',
+        resourceIcon: <Hash className="w-4 h-4" />,
+        limitField: 'slack_channels',
+        renderMetadata: renderSlackMetadata,
+      };
+    case 'notion':
+      return {
+        resourceLabel: 'Pages',
+        resourceLabelSingular: 'page',
+        resourceIcon: <FileText className="w-4 h-4" />,
+        limitField: 'notion_pages',
+        renderMetadata: renderNotionMetadata,
+      };
+    default:
+      return null;
   }
 }
 
@@ -704,6 +774,67 @@ function PlatformConnectionBlock({ agent }: { agent: Agent }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PlatformSourcesBlock({ agent }: { agent: Agent }) {
+  const provider = platformProviderForRole(agent.role) as PlatformProvider | null;
+  const config = provider ? platformSourceConfig(provider) : null;
+  const data = usePlatformData(provider || 'slack', { skipResources: !config });
+  const sourceSelection = useSourceSelection({
+    platform: provider || 'slack',
+    resources: data.resources,
+    tierLimits: data.tierLimits,
+    limitField: config?.limitField || 'slack_channels',
+    selectedIds: data.selectedIds,
+    originalIds: data.originalIds,
+    setSelectedIds: data.setSelectedIds,
+    setOriginalIds: data.setOriginalIds,
+    reload: data.reload,
+  });
+
+  if (!provider || !config) return null;
+
+  if (data.loading) {
+    return (
+      <div className="px-6 py-5 border-t border-border/40">
+        <SectionLabel>Source selection</SectionLabel>
+        <div className="rounded-lg border border-border/60 bg-background px-4 py-6 flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading available sources...
+        </div>
+      </div>
+    );
+  }
+
+  if (!data.integration) return null;
+
+  return (
+    <div className="px-6 py-5 border-t border-border/40">
+      <SectionLabel>Source selection</SectionLabel>
+      <p className="text-sm text-muted-foreground mb-3 px-1">
+        Choose which {config.resourceLabel.toLowerCase()} should feed this bot. This is the canonical management surface for platform-source selection.
+      </p>
+      <ResourceList
+        resourceLabel={config.resourceLabel}
+        resourceLabelSingular={config.resourceLabelSingular}
+        resourceIcon={config.resourceIcon}
+        workspaceName={data.integration.workspace_name}
+        resources={data.resources}
+        tierLimits={data.tierLimits}
+        selectedIds={data.selectedIds}
+        hasChanges={sourceSelection.hasChanges}
+        atLimit={sourceSelection.atLimit}
+        limit={sourceSelection.limit}
+        saving={sourceSelection.saving}
+        error={sourceSelection.error || data.error}
+        onToggle={sourceSelection.handleToggle}
+        onSave={sourceSelection.handleSave}
+        onDiscard={sourceSelection.handleDiscard}
+        renderMetadata={config.renderMetadata}
+        platformLabel={roleDisplayName(agent.role).replace(' Bot', '')}
+      />
     </div>
   );
 }
@@ -956,6 +1087,7 @@ export function AgentContentView({ agent, tasks }: AgentContentViewProps) {
       <div className="max-w-3xl">
         <AgentRoleBlock agent={agent} tasks={tasks} />
         {agent.agent_class === 'platform-bot' && <PlatformConnectionBlock agent={agent} />}
+        {agent.agent_class === 'platform-bot' && <PlatformSourcesBlock agent={agent} />}
         <AgentPostureBlock agent={agent} tasks={tasks} />
         <TasksBlock agent={agent} tasks={tasks} />
         <LearnedBlock agent={agent} />

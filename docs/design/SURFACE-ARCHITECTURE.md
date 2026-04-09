@@ -324,7 +324,7 @@ In detail mode the page renders `<PageHeader />` followed by `<AgentContentView 
 
 The detail body follows two routing keys:
 
-- **`agent.agent_class` chooses the top shell block**. Domain stewards foreground owned context, synthesizers foreground cross-domain synthesis, platform bots foreground platform connection plus observation/write-back task mix, and Thinking Partner foregrounds orchestration/back-office posture.
+- **`agent.agent_class` chooses the top shell block**. Domain stewards foreground owned context, synthesizers foreground cross-domain synthesis, platform bots foreground platform connection plus source selection plus observation/write-back task mix, and Thinking Partner foregrounds orchestration/back-office posture.
 - **`task.output_kind` chooses the assigned-work card shape**. Tracking tasks summarize context reads/writes, deliverable tasks summarize audience/deliverable, external-action tasks summarize target/delivery, and maintenance tasks summarize system purpose. `type_key` is allowed to specialize labels, but it does not fork the page architecture.
 
 This keeps the surface scalable: new agent types usually fit an existing class shell, and new task types usually fit an existing `output_kind` card.
@@ -335,6 +335,8 @@ No-task states also vary by `agent_class`, not just copy:
 - reporting explains upstream dependency on specialists
 - integration bots surface actual connection state first, then explain observation vs write-back task mix
 - Thinking Partner explains missing orchestration/back-office work
+
+For platform bots specifically, `/agents?agent={slug}` is also the canonical management surface for source selection. Legacy `/context/slack` and `/context/notion` routes are compatibility redirects into the corresponding bot detail pages so `/context` stays the single filesystem browser.
 
 ### What Used to Live Here
 
@@ -357,6 +359,8 @@ No-task states also vary by `agent_class`, not just copy:
 
 ### Purpose
 The only filesystem browser. Shows the workspace tree with domains, output folders, uploads, and IDENTITY/BRAND files. Unchanged from v7.2 structurally. ADR-163 adds one enhancement: inference-meta rendering.
+
+Platform connection management and source selection do not live here anymore. Those belong to Settings > Connectors for connection lifecycle and the platform-bot agent detail surface for source scope.
 
 ### Inference Visibility (ADR-162 + ADR-163)
 

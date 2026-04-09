@@ -130,7 +130,7 @@ The four classes get distinct top-of-page interpretation:
 |---|---|---|
 | `domain-steward` | "What domain does this specialist own, and how fresh is it?" | Owned domain, tracking posture, downstream deliverable posture |
 | `synthesizer` | "What cross-domain outputs is this reporter responsible for?" | Upstream domain inputs, synthesis posture, reporting cadence |
-| `platform-bot` | "What platform does this integration cover, is it connected, and is it observing or acting?" | Connection state, provider management path, observation vs write-back task mix |
+| `platform-bot` | "What platform does this integration cover, is it connected, which sources are selected, and is it observing or acting?" | Connection state, source selection, connect/manage path, observation vs write-back task mix |
 | `meta-cognitive` | "How is TP keeping the workforce coherent?" | Orchestration posture, back-office tasks, essential maintenance |
 
 ### 2. `task.output_kind` owns assigned-work cards
@@ -151,7 +151,7 @@ Role-specific UI should only exist when the primary data model differs enough to
 Examples:
 
 - `slack_bot`, `notion_bot`, `github_bot`
-  Add connection/source-selection or platform-specific activity modules. When disconnected, the UI should say so directly and route to the correct provider surface or Settings > Connectors.
+  Add connection/source-selection or platform-specific activity modules. When disconnected, the UI should say so directly and route to Settings > Connectors. Source selection belongs on the bot's agent detail surface, not under `/context`.
 - `executive`
   Add upstream-readiness and cross-domain input modules.
 - `thinking_partner`
@@ -189,7 +189,7 @@ The empty state should:
 
 - explain which platform this bot bridges
 - surface whether that platform is connected
-- route to the correct provider surface or Settings > Connectors
+- route to Settings > Connectors when disconnected
 - distinguish observation work from outbound actions
 - suggest starting with a digest/observation task before write-back
 

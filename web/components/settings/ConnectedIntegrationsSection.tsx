@@ -35,7 +35,7 @@ interface ConnectedIntegrationsSectionProps {
 
 export function ConnectedIntegrationsSection({
   title = "Connected Platforms",
-  description = "Connect platforms to sync context. Manage sources in each platform's context page.",
+  description = "Connect platforms to sync context. Manage source scope from each platform bot's agent page.",
   className,
   children,
   redirectTo,
@@ -169,7 +169,7 @@ export function ConnectedIntegrationsSection({
                             )}
                           </button>
                           <button
-                            onClick={() => router.push("/context/slack")}
+                            onClick={() => router.push("/agents?agent=slack-bot")}
                             className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
                           >
                             Manage
@@ -247,7 +247,7 @@ export function ConnectedIntegrationsSection({
                             )}
                           </button>
                           <button
-                            onClick={() => router.push("/context/notion")}
+                            onClick={() => router.push("/agents?agent=notion-bot")}
                             className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
                           >
                             Manage
@@ -314,6 +314,12 @@ export function ConnectedIntegrationsSection({
                             )}
                           </button>
                           <button
+                            onClick={() => router.push("/agents?agent=github-bot")}
+                            className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
+                          >
+                            Manage
+                          </button>
+                          <button
                             onClick={() => handleDisconnectIntegration(githubIntegration.provider)}
                             disabled={disconnectingProvider === githubIntegration.provider}
                             className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
@@ -352,8 +358,8 @@ export function ConnectedIntegrationsSection({
 
           <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">
             <p>
-              <strong>How it works:</strong> After connecting, select sources on each platform&apos;s context page.
-              Context syncs automatically based on your tier — used in conversations and agents.
+              <strong>How it works:</strong> After connecting, manage each platform from its bot agent page.
+              Source selection and task setup live there; connectors here stay focused on connect, reconnect, and disconnect.
             </p>
           </div>
         </div>

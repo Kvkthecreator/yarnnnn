@@ -77,7 +77,7 @@ export function useSourceSelection({
     setError(null);
 
     try {
-      const apiProvider = getApiProvider(platform) as "slack" | "notion";
+      const apiProvider = getApiProvider(platform) as "slack" | "notion" | "github";
       const result = await api.integrations.updateSources(
         apiProvider,
         Array.from(selectedIds)

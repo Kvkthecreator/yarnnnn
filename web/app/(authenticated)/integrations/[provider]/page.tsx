@@ -1,30 +1,21 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-/**
- * ADR-039: Redirect to platform detail page
- *
- * Legacy /integrations/[provider] route now redirects to /context/[provider]
- */
+interface IntegrationProviderRedirectProps {
+  params: {
+    provider: string;
+  };
+}
 
-import { useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+const AGENT_BY_PROVIDER: Record<string, string> = {
+  slack: 'slack-bot',
+  notion: 'notion-bot',
+  github: 'github-bot',
+};
 
-export default function IntegrationProviderRedirect() {
-  const params = useParams<{ provider: string }>();
-  const provider = params.provider;
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace(`/context/${provider}`);
-  }, [router, provider]);
-
-  return (
-    <div className="h-full flex items-center justify-center">
-      <div className="text-center">
-        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Redirecting to Context...</p>
-      </div>
-    </div>
-  );
+export default function IntegrationProviderRedirect({ params }: IntegrationProviderRedirectProps) {
+  const agent = AGENT_BY_PROVIDER[params.provider];
+  if (agent) {
+    redirect(`/agents?agent=${encodeURIComponent(agent)}`);
+  }
+  redirect('/settings?tab=connectors');
 }
