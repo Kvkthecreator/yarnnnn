@@ -7,6 +7,7 @@ Track changes to design documentation structure and active principles.
 ## 2026-04-09 — Agent surface patterns: broader shell / empty-state rules
 
 - **New design doc**: `AGENT-AND-TASK-SURFACE-PATTERNS.md` — broader-scoped surface guidance layered on top of ADR-167. Defines the rendering split: `agent_class` chooses the agent shell, `output_kind` chooses the task shell, assigned-work cards stay shared, and `role` is limited to bounded add-on modules when the data genuinely differs.
+- **New proposed design doc**: `TASK-OUTPUT-SURFACE-CONTRACT.md` — defines the next data-layer step for `/work`: one normalized run-centric packet per output folder, returned from existing task output routes, so the frontend stops parsing raw manifests and starts rendering from typed `output_kind`-aware surface data.
 - Documents that **no-task states must differ by class**: specialists, reporting, integration bots, and Thinking Partner each have different absence semantics and should not share a generic empty card.
 - Clarifies the implementation boundary: **do not build one page per agent type**. Use class-specific shells + empty states, then add role-specific modules only when the data model warrants it.
 - `SURFACE-ARCHITECTURE.md` updated to reference the new doc and note class-specific no-task states on the canonical `/agents?agent={slug}` surface.
