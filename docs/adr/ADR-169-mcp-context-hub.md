@@ -189,3 +189,72 @@ This ADR changes the MCP tool surface. It does not touch any of the infrastructu
 - `QueryKnowledge` ranking quality validation against 10 real seeded subjects. If ranking is insufficient, embedding-based reranker lands before the MCP Render service is redeployed. This is the one explicit quality gate called out in the Risks section.
 
 **Unchanged** (intentionally preserved from ADR-075 Phase 1): OAuth 2.1, static bearer fallback, two-layer auth, FastMCP transport selection, `api/mcp_server/{auth,oauth_provider,__main__}.py` module contents, Render service `yarnnn-mcp-server` container and env vars, OAuth storage tables (`mcp_oauth_clients`, `mcp_oauth_codes`, `mcp_oauth_access_tokens`, `mcp_oauth_refresh_tokens`).
+
+---
+
+## Session Handoff — where things stand as of 2026-04-09
+
+**For any future session picking up ADR-169 work: read this section first.** It exists to prevent the repeated re-discovery that happens when a design lands incrementally across bundled commits and multi-session context.
+
+### Shipped and on `origin/main`
+
+The full ADR-169 design and implementation is live on `main` across these commits (in order):
+
+| Commit | What it carries | Notes |
+|---|---|---|
+| `1171d66` | Initial ADR-169 + 4 feature docs in `docs/features/mcp/` | Commit message is about an unrelated agent refactor — the MCP docs were bundled in by an external session. Searching for "ADR-169" in git log will miss this unless you grep by file path. |
+| `033b9bc` | Primitives matrix MCP column + CLAUDE.md ADR-168 notes | Commit message describes `CreateTask` folding. MCP column was bundled in the same commit. |
+| `cc743b8` | **Clean implementation commit** — `api/services/mcp_composition.py` (new), `api/mcp_server/server.py` (rewrite, 9 → 3 tools), all supersede notes, status updates, CLAUDE.md entries | This is the canonical landmark for "when was ADR-169 implemented." Grep `ADR-169` in commit messages and this is what you find. |
+| `a6e9b8c` | ADR-168 Commit 4 rename sweep — incidentally updated MCP docstring references (`ReadWorkspace` → `ReadFile`) | No behavior change to MCP tools. `QueryKnowledge` and `UpdateContext` names were preserved through the rename. |
+| `ee23a6e` | **Test suite follow-up** — `api/test_adr169_mcp_context_hub.py` (24 tests) + bug fix for silent `tasks.title` schema error in `compose_active_candidates`, `_list_related_tasks`, `_load_active_tasks` | Tests uncovered the bug. All 24 tests pass against live Supabase. |
+
+### What is production-ready
+
+- **Code path**: The 3-tool MCP surface (`work_on_this`, `pull_context`, `remember_this`) routes through `execute_primitive()` per ADR-164. No direct service imports in `server.py` beyond `primitives.registry` and `mcp_composition`. AST-verified and test-guarded.
+- **Classifier**: Two-branch logic (workspace-level vs operational-feedback) is tested across identity/brand/memory/agent/task/ambiguous/fallback cases. `awareness` is unreachable from MCP by design.
+- **Provenance**: ADR-162 source-provenance HTML comments stamp every MCP write with `source: mcp:<client>`. Round-trip (stamp → extract) verified across 5 client names. Cross-LLM integration test writes via one simulated client and reads back with correct provenance preserved.
+- **Schema alignment**: `tasks` table queries no longer select the non-existent `title` column. Regression test in place.
+- **Infrastructure**: OAuth 2.1, static bearer, transport, auth module, Render config, storage tables all unchanged from ADR-075 Phase 1.
+
+### What is NOT yet done — the gate before MCP Render redeploy
+
+**1. `QueryKnowledge` ranking quality eyeball (BLOCKING redeploy).** The test suite simulates retrieval against the live `search_workspace` RPC but cannot judge ranking quality — only a human looking at real workspace data can. Before the MCP Render service is redeployed from `ee23a6e`:
+
+- Pick 10 real entities the user has accumulated context on (competitors, relationships, projects, whatever domains are populated)
+- Call `QueryKnowledge` directly against each subject via a REPL or one-shot script
+- Eyeball: does the top-ranked chunk match what you'd want the LLM to see?
+- **Pass threshold**: ≥8/10 subjects return relevant top chunks → deploy as-is
+- **Fail action**: add embedding-based reranking to `pull_context`'s format step in `server.py` (~30 lines wrapping `QueryKnowledge` results with cosine-similarity rerank against the query embedding). No Haiku call, zero cost.
+
+This is the one item the current session did not complete because it requires production workspace data. A future session picking this up should either ask the user to run the eyeball manually, or write a one-shot validation script (`api/validate_adr169_ranking.py`) that prompts the user interactively through the 10-subject check.
+
+**2. Live cross-LLM smoke test (BLOCKING user rollout).** After the Render redeploy, manually verify the end-to-end dynamic with real MCP clients:
+
+- Install the MCP connector in Claude Desktop (stdio + static bearer)
+- Install the MCP connector in Claude.ai (HTTP + OAuth 2.1)
+- Write via one: *"I just learned that Acme is pivoting to enterprise. Remember this."* → `remember_this` call
+- Switch clients, read via the other: *"What does YARNNN know about Acme?"* → `pull_context` call
+- Verify (a) same content is returned, (b) `source_tag` shows `mcp:<first-client>` (c) the second LLM attributes the source in its response
+
+If this works end-to-end, the load-bearing cross-LLM narrative is validated and ADR-169 can be considered fully production-ready.
+
+### What is downstream polish — NOT blocking deploy
+
+**3. Daily-update provenance attribution.** The ADR-169 decision said "daily-update attributes MCP-contributed material in the morning briefing." Current daily-update pipeline does not do this. Scope: ~100 lines in `api/services/task_pipeline.py` (or wherever the daily-update composition step lives) that reads provenance tags on recently-written workspace files, groups by `source: mcp:*`, and adds attribution phrasing to the briefing. Not blocking MCP deploy; blocking the full marketing story about cross-LLM loop-closing.
+
+**4. Rate limiting.** ADR-169 decided on 1000 calls/day/user unified cap. Not implemented. Scope: ~50 lines + 1 migration for an `mcp_usage` counter table with `(user_id, date)` primary key, incremented in a middleware step before tool dispatch in `server.py`. Not urgent with one user (KVK); should land before opening to more users.
+
+### Known minor quirks that are NOT bugs
+
+- `pull_context` returns `relevance: null` in chunks because `QueryKnowledge` doesn't expose a score field. Foreign LLMs may or may not handle this gracefully. If observed to cause problems during live validation, plumb through the FTS `rank` field from the RPC. Not blocking.
+- `_feedback_flavor` regex in the classifier requires whitespace between determiner and agent noun (e.g., "the research agent", not "the research-agent"). LLMs generally phrase things with spaces, so this is fine in practice, but worth knowing if a bug report mentions feedback being mis-routed on hyphenated phrasings.
+- Pre-existing inconsistency in `api/services/workspace.py` between `add_note()` (writes to `/workspace/notes.md`) and `read_all()` (reads from `/memory/notes.md`). Not introduced by ADR-169, not fixed by ADR-169. The MCP test suite works around it by reading from `/workspace/notes.md` directly. If this bites something, fix it as a separate workspace-layer PR, not under ADR-169.
+- `CLAUDE.md` entry for ADR-169 says "Pre-ship validation of QueryKnowledge ranking pending before MCP Render redeploy" — this is still accurate. Leave it until the eyeball passes, then update to "Shipped and deployed."
+
+### How to resume cleanly in a new session
+
+1. Read this section first — the commit chain is messy because of bundled external commits, but the current state on `origin/main` at `ee23a6e` is clean and coherent
+2. Run `cd api && python test_adr169_mcp_context_hub.py` as a sanity check — should show 24 passed
+3. If the goal is to finish production-readiness: start with the `QueryKnowledge` ranking eyeball (item 1 above). This is the only item that blocks redeploy
+4. After eyeball + redeploy + live smoke test pass, update this Status section to "Shipped and deployed on YYYY-MM-DD" with the commit SHA, and update CLAUDE.md's ADR-169 summary entry to reflect the shipped state
+5. Downstream polish items (3, 4) are independent and can land anytime
