@@ -19,21 +19,28 @@
  * This matches /work detail's pattern where Run/Pause/Edit live in the
  * surface header, not in the chat input.
  *
+ * ADR-165 v7 (2026-04-09): The `empty` lens value dissolved into a peer
+ * `context` tab. "Add context" is now always reachable from the lens
+ * switcher (except on cold start where the switcher is soft-gated by
+ * `isEmpty`), so the plus-menu "Update my context" redundancy was deleted —
+ * the tab IS the entry point for context re-entry. Singular implementation:
+ * one surface, one way in.
+ *
  * ADR-165 v6 (2026-04-08): The workspace state surface is rendered as a
  * MODAL, not an inline overlay. TP is the single source of intent for when
  * it appears — frontend never auto-opens. The user can manually toggle via
  * the surface header button as an escape hatch.
  *
  * Marker pattern (modeled on ADR-162 inference-meta, unchanged from v5):
- *   <!-- workspace-state: {"lead":"empty","reason":"..."} -->
+ *   <!-- workspace-state: {"lead":"context","reason":"..."} -->
  *
  * The marker is parsed from the latest assistant message. When TP emits one,
  * the modal opens to the requested lead view. The marker is stripped from
  * the displayed message body in ChatPanel.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { LayoutPanelTop, Settings2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { LayoutPanelTop } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
@@ -101,26 +108,7 @@ export function ChatSurface({
     });
   }, []);
 
-  const openWithLead = useCallback((nextLead: WorkspaceStateLead, nextReason?: string) => {
-    setOpen(true);
-    setLead(nextLead);
-    setReason(nextReason ?? null);
-  }, []);
-
   const handleClose = useCallback(() => setOpen(false), []);
-
-  // Inject "Update my context" as the first plus-menu action — owned by the
-  // surface, since ContextSetup is the modal's empty-lead view.
-  const augmentedPlusMenuActions: PlusMenuAction[] = useMemo(() => {
-    const updateAction: PlusMenuAction = {
-      id: 'update-context',
-      label: 'Update my context',
-      icon: Settings2,
-      verb: 'show',
-      onSelect: () => openWithLead('empty', 'Add to your workspace context'),
-    };
-    return [updateAction, ...plusMenuActions];
-  }, [plusMenuActions, openWithLead]);
 
   // Workspace state toggle — lives in the surface header alongside the H1.
   // Replaces the earlier `inputRowAddon` pattern where it was crammed into
@@ -180,7 +168,7 @@ export function ChatSurface({
         <div className="mx-auto h-full w-full max-w-3xl px-4 py-5">
           <ChatPanel
             surfaceOverride={{ type: 'chat' }}
-            plusMenuActions={augmentedPlusMenuActions}
+            plusMenuActions={plusMenuActions}
             placeholder="Ask anything or type / ..."
             showCommandPicker={true}
             showInputDivider={false}

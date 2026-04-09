@@ -1,11 +1,11 @@
 /**
- * Workspace state surface marker parsing — ADR-165 v5.
+ * Workspace state surface marker parsing — ADR-165 v7.
  *
  * TP emits an HTML comment at the end of an assistant message when it wants
  * the chat client to open the workspace state surface with a specific lead
  * view:
  *
- *   <!-- workspace-state: {"lead":"empty","reason":"identity is empty"} -->
+ *   <!-- workspace-state: {"lead":"context","reason":"identity is empty"} -->
  *
  * This module parses that comment (if present), returns the markdown body
  * with the comment stripped, and exposes the parsed directive so the chat
@@ -14,10 +14,17 @@
  * The marker is a TP→client directive, not a tool result. TP decides when
  * the surface should open based on workspace_state signals in working memory.
  * The frontend never guesses — it just executes what TP asks for.
+ *
+ * v7 (2026-04-09): `empty` lead dissolved into `context`. "Add context" is
+ * a peer lens alongside briefing/recent/gaps. The gate behavior (cold-start
+ * lock) is a property of workspace state (`isEmpty`), not a property of the
+ * lens value. TP still emits `lead=context` on the first turn for an empty
+ * workspace; the frontend renders it with the switcher hidden because
+ * `isEmpty` is true, not because the lens name is special.
  */
 
 export type WorkspaceStateLead =
-  | 'empty'      // ContextSetup gate — workspace has no identity yet
+  | 'context'    // ContextSetup (cold-start capture on empty, peer re-entry otherwise)
   | 'briefing'   // What changed since the user was last here
   | 'recent'     // What's currently running
   | 'gaps';      // Coverage gaps — domain agents without tasks, missing context
@@ -39,7 +46,7 @@ export interface ParsedWorkspaceStateContent {
 const META_COMMENT_RE = /\n*<!--\s*workspace-state:\s*(\{[\s\S]*?\})\s*-->\s*$/;
 
 const VALID_LEADS: ReadonlySet<WorkspaceStateLead> = new Set<WorkspaceStateLead>([
-  'empty',
+  'context',
   'briefing',
   'recent',
   'gaps',

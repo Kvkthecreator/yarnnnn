@@ -134,9 +134,9 @@ Pages set the breadcrumb segments via `setBreadcrumb()` in a `useEffect` (unchan
 ## 1. Chat (`/chat`, HOME_ROUTE)
 
 ### Purpose
-Dedicated TP (Thinking Partner) chat surface. The conversation column is the full surface — there is no always-on briefing side panel. Structured views (onboarding, daily briefing, recent work, context gaps) render as a TP-directed MODAL (ADR-165 v6) opened either by TP emitting a `<!-- workspace-state: ... -->` marker or by the user clicking the workspace-state button in the surface header.
+Dedicated TP (Thinking Partner) chat surface. The conversation column is the full surface — there is no always-on briefing side panel. Structured views (onboarding, daily briefing, recent work, context gaps) render as a TP-directed MODAL (ADR-165 v7) opened either by TP emitting a `<!-- workspace-state: ... -->` marker or by the user clicking the workspace-state button in the surface header. Four peer lens tabs: `context | briefing | recent | gaps`.
 
-For new users with an empty workspace, the daily-update task still runs (deterministic empty-state template from ADR-161) and TP's first response opens the workspace-state modal to the "empty" lead view.
+For new users with an empty workspace, the daily-update task still runs (deterministic empty-state template from ADR-161) and TP's first response opens the workspace-state modal to the `context` lens (soft-gated — switcher hidden while `isEmpty`).
 
 ### Layout (ADR-167 v5)
 
@@ -386,10 +386,11 @@ Currently wired for BrandSection in Settings (via `MemorySection.tsx`). A dedica
 
 ### Chat
 - `web/app/(authenticated)/chat/page.tsx` — Chat page (home). Loads scoped history, supplies first-party plus-menu actions, delegates everything else to `ChatSurface`.
-- `web/components/chat-surface/ChatSurface.tsx` — page-level controller (ADR-165 v5). Owns surface open state, parses TP workspace-state markers, injects "Update my context" plus-menu action, renders `WorkspaceStateView` as `ChatPanel`'s `topContent` only when open.
-- `web/components/chat-surface/WorkspaceStateView.tsx` — single workspace-state component with four lead views (`empty | briefing | recent | gaps`) as internal state branches (ADR-165 v5). Replaces the four sibling artifact files from v4.
-- `web/lib/workspace-state-meta.ts` — parser + stripper for TP's workspace-state HTML-comment marker (same pattern as ADR-162 inference-meta).
-- `docs/design/WORKSPACE-STATE-SURFACE.md` — design doc for `/chat` workspace state surface (ADR-165 v5)
+- `web/components/chat-surface/ChatSurface.tsx` — page-level controller (ADR-165 v7, ADR-167 v5). Owns surface open state, parses TP workspace-state markers, renders `WorkspaceStateView` as a sibling modal; workspace-state toggle lives in `SurfaceIdentityHeader.actions`. Plus-menu "Update my context" action deleted in v7 — the `context` peer lens is the only re-entry path.
+- `web/components/chat-surface/WorkspaceStateView.tsx` — single workspace-state component with four peer lens views (`context | briefing | recent | gaps`) as internal state branches (ADR-165 v7). Replaces the four sibling artifact files from v4.
+- `web/components/chat-surface/ContextSetup.tsx` — identity capture atom (URL inputs + file uploads + free-text). Sole consumer: `WorkspaceStateView` `context` peer lens.
+- `web/lib/workspace-state-meta.ts` — parser + stripper for TP's workspace-state HTML-comment marker (same pattern as ADR-162 inference-meta). Valid leads: `context | briefing | recent | gaps`.
+- `docs/design/WORKSPACE-STATE-SURFACE.md` — design doc for `/chat` workspace state surface (ADR-165 v7)
 
 ### Work
 - `web/app/(authenticated)/work/page.tsx` — Work page. List/detail mode switched on `?task=` URL state (ADR-167).

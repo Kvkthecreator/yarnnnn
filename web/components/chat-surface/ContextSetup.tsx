@@ -1,15 +1,22 @@
 'use client';
 
 /**
- * ContextSetup — Unified onboarding + context update surface.
+ * ContextSetup — Identity capture atom for the workspace state modal.
  *
- * Replaces the 3 cold-start chips + IDENTITY_SETUP_CARD + BRAND_SETUP_CARD.
- * A self-contained component with URL inputs, file uploads, and free-text.
- * When submitted, composes a single message to TP with all inputs.
+ * URL inputs + file uploads + free-text notes composed into a single TP
+ * message. On submit, TP handles inference via UpdateContext + ManageDomains.
  *
- * Used in two contexts:
- * - Cold start empty state (replaces chips)
- * - Plus menu "Update my info" (replaces "Update identity" action card)
+ * ADR-165 v7 (2026-04-09): Sole consumer is `WorkspaceStateView` as the
+ * `context` lead view — a peer lens alongside briefing/recent/gaps. Cold
+ * start renders this component under a hidden switcher (soft gate via
+ * `isEmpty`); returning users reach the same component via the "Add context"
+ * tab. One component, two moments. Co-located under `chat-surface/` because
+ * it is structurally a private component of the modal — not imported
+ * anywhere else in the frontend.
+ *
+ * See: docs/design/ONBOARDING-TP-AWARENESS.md
+ *      docs/design/WORKSPACE-STATE-SURFACE.md
+ *      docs/adr/ADR-165-workspace-state-surface.md
  */
 
 import { useState, useRef, useCallback } from 'react';

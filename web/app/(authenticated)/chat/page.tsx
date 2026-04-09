@@ -1,15 +1,18 @@
 'use client';
 
 /**
- * Chat Page — TP chat surface (ADR-165 v6).
+ * Chat Page — TP chat surface (ADR-165 v7, ADR-167 v5).
  *
  * The page is the dedicated TP chat product. The workspace state surface
  * is a TP-directed modal — TP opens it via the workspace-state marker, the
- * user opens it via the input-row icon. No always-on artifact strip, no
- * cold-start auto-open from the frontend.
+ * user opens it via the toggle in the surface header. No always-on artifact
+ * strip, no cold-start auto-open from the frontend.
  *
- * The "Update my context" plus-menu action is owned by ChatSurface itself,
- * since ContextSetup is the modal's empty-lead view.
+ * Context capture lives inside the modal as the `context` peer lens (one of
+ * four peer tabs: context | briefing | recent | gaps). Cold-start acts as a
+ * soft gate via `isEmpty` — the switcher is hidden until the workspace has
+ * any content, after which "Add context" becomes a reachable peer tab for
+ * re-entry. No separate plus-menu action.
  */
 
 import { useEffect, useMemo } from 'react';

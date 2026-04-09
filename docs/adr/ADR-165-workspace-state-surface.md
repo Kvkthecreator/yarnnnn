@@ -1,11 +1,18 @@
 # ADR-165: Workspace State Surface
 
-**Status:** Accepted (v6)
-**Date:** 2026-04-08
+**Status:** Accepted (v7)
+**Date:** 2026-04-08 (v6), amended 2026-04-09 (v7)
 **Authors:** KVK, Claude
 **Extends:** ADR-163 (Surface Restructure), ADR-164 (Back Office Tasks - TP as Agent)
 **Related:** ADR-156 (Single Intelligence Layer), ADR-159 (Filesystem-as-Memory), ADR-161 (Daily Update Anchor), ADR-162 (Inference Hardening)
 **Implementation:** `web/components/chat-surface/` and `/chat`
+
+> **v7 (2026-04-09):** The `empty` lens value dissolved into a peer `context` tab.
+> The gate behavior (cold-start lock) is decoupled from the lens name — it is now
+> driven by the workspace-state boolean `isEmpty`, not by the lens identity. Four
+> peer tabs, one uniform component, one soft gate. Plus-menu "Update my context"
+> action deleted — the `context` peer tab IS the entry point for re-entry.
+> Singular implementation. See v7 delta at bottom of Revision History.
 
 ---
 
@@ -48,34 +55,39 @@ The user-correct anchor is: **one single surface for the multitude of scenarios 
 - **Modal, not overlay.** The surface renders as a true modal: backdrop, Esc key, body scroll lock, click-outside dismiss. Closed = gone. The user is never confused about whether the surface is "still there" stuck above stale messages.
 - **The marker pattern reuses ADR-162's HTML-comment precedent.** Same parser approach (`parseInferenceMeta` → `parseWorkspaceStateMeta`), same rendering convention (strip from displayed body), same philosophy (inline metadata in TP's stream is the right channel for TP→client directives).
 
-### Surface Model
+### Surface Model (v7, ADR-167 v5 layout)
 
 ```
 /chat page
-  ├── ChatPanel (full height, max-w-3xl)
+  ├── PageHeader (breadcrumb chrome)
+  ├── SurfaceIdentityHeader (H1 + workspace state toggle in actions slot)
+  ├── ChatPanel (conversation column, max-w-3xl)
   │    ├── messages (rolling window — the page IS the conversation)
-  │    └── input row
-  │          ├── PlusMenu (+) — owns "Update my context" action
-  │          ├── textarea
-  │          ├── inputRowAddon — workspace state toggle icon
-  │          └── submit
+  │    └── input row (PlusMenu + textarea + submit)
   └── WorkspaceStateView (sibling, modal — only mounted while open)
        ├── backdrop (click-outside closes)
        ├── header (title + reason + close button)
-       ├── lens switcher (briefing | recent | gaps — hidden in empty/gate state)
-       └── active lead view content
+       ├── lens switcher — four peer tabs (hidden only when isEmpty, soft gate)
+       │     [Newspaper] What changed  [ClipboardList] Running  [Compass] Coverage  [Sparkles] Add context
+       └── active lead view content (context | briefing | recent | gaps)
 ```
 
-### Lead Views
+### Lead Views (v7 — four peer tabs)
 
 | Lead | Purpose | Opens when |
 |---|---|---|
-| `empty` | ContextSetup gate — workspace has no identity yet | TP emits `lead=empty` on the first turn for an empty workspace, OR user clicks "Update my context" in plus menu |
+| `context` | ContextSetup — identity capture on cold start, re-entry thereafter | TP emits `lead=context` on the first turn when `workspace_state.identity == "empty"`, OR user clicks the "Add context" peer tab in the lens switcher |
 | `briefing` | What changed since the user was last here | TP detects fresh runs since last session close and emits `lead=briefing` |
 | `recent` | What tasks are currently running | User asks "what's running" / "show me my work" → TP emits `lead=recent` |
 | `gaps` | Coverage gaps — domain agents without tasks, missing context | TP detects empty domains feeding active tasks, OR `detect_inference_gaps` returns high-severity items, and emits `lead=gaps` |
 
-**There is no frontend cold-start auto-open in v6.** Every modal open is either a TP marker or a user action. New-user discovery happens through TP's first response — TP's onboarding prompt (`api/agents/tp_prompts/onboarding.py`, "Workspace State Surface" section) already includes the rule "First message of a session, identity is empty → emit `lead=empty`."
+**Two namespaces, don't conflate (v7):**
+- `workspace_state.identity` in the backend compact index is `empty | sparse | rich` — classifies IDENTITY.md richness. This is what TP *reads* to decide.
+- `lead` in the client marker is `context | briefing | recent | gaps` — names the tab the client *opens*. "context" is the lens name the user interacts with. TP never emits `lead=empty` — that value does not exist in the frontend enum.
+
+**Soft gate (v7):** On cold start (`isEmpty === true`), the lens switcher is hidden so the new user has a single focused decision. This is a property of workspace state, not of the `context` lens value. Once workspace has any content, the switcher shows and `context` becomes a reachable peer tab for re-entry.
+
+**There is no frontend cold-start auto-open in v6.** Every modal open is either a TP marker or a user action. New-user discovery happens through TP's first response — TP's onboarding prompt (`api/agents/tp_prompts/onboarding.py`, "Workspace State Surface" section) already includes the rule "First message of a session, `workspace_state.identity == "empty"` → emit `lead=context`."
 
 ### TP→Client Marker
 
@@ -208,7 +220,7 @@ Total deletion: ~2,100 lines. No content was folded into the modal — none of i
 
 - Marker ruleset is owned by `api/agents/tp_prompts/onboarding.py` — version-controlled and tracked in `api/prompts/CHANGELOG.md` like every other prompt change.
 - The marker JSON is validated by `parseWorkspaceStateMeta()`; invalid leads silently no-op (the modal stays closed).
-- New-user discovery is now TP's responsibility — the prompt rule "first message of a session, identity is empty → emit `lead=empty`" ensures every cold-start user sees the modal on their very first turn, even though the frontend no longer auto-opens. The discovery moment moved from "page mount" to "TP's first reply," which is the correct seam: TP greets, TP opens the gate.
+- New-user discovery is now TP's responsibility — the prompt rule "first message of a session, `workspace_state.identity == "empty"` → emit `lead=context`" ensures every cold-start user sees the modal on their very first turn, even though the frontend no longer auto-opens. The discovery moment moved from "page mount" to "TP's first reply," which is the correct seam: TP greets, TP opens the surface. (v6 used `lead=empty`; v7 renamed the lens value to `context` and decoupled the gate from the lens identity.)
 
 ---
 
@@ -216,6 +228,7 @@ Total deletion: ~2,100 lines. No content was folded into the modal — none of i
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-04-09 | **v7** | **`empty` lens value dissolved into `context` peer tab. Gate behavior decoupled from lens identity — the cold-start switcher-hide is now driven by `isEmpty` (workspace-state boolean) alone, not by a special lens value. Four peer tabs in the switcher: What changed / Running / Coverage / Add context (`Sparkles` icon). `WorkspaceStateLead` union updated in `workspace-state-meta.ts` and `WorkspaceStateView.tsx` — `'empty'` removed, `'context'` added. `VALID_LEADS` set updated. `computeLead()` cold-start branch returns `'context'` instead of `'empty'`. `EmptyLead` component renamed to `ContextLead`. Soft-gate expression changed from `activeLens !== 'empty' && !isEmpty` to just `!isEmpty`. Plus-menu "Update my context" action deleted in `ChatSurface.tsx` (along with the `openWithLead` callback and `Settings2` import) — the peer tab is the only re-entry path now. Singular implementation: one surface, one way in, one uniform component. TP prompt updated in `api/agents/tp_prompts/onboarding.py`: marker `lead` enum changed, "two namespaces" explainer added to prevent conflation between the backend `workspace_state.identity` dict field (`empty | sparse | rich` — stays) and the client lens value (`context` — new). Fifth marker rule added: user wants to add more context after onboarding → emit `lead=context`. Prompt version note bumped v5 → v7. Backend fixtures in `test_recent_commits.py` UNCHANGED (they reference `workspace_state.identity = "empty"` which is the dict-field namespace, unrelated to the lens rename). See `api/prompts/CHANGELOG.md` entry `[2026.04.09.3]`.** |
 | 2026-04-08 | **v6** | **Surface promoted to a true modal (backdrop, Esc, body scroll lock, click-outside dismiss). Frontend cold-start auto-open removed — discovery is TP's job, the prompt's existing "first turn, empty identity → emit `lead=empty`" rule handles new users on TP's first reply instead of on page mount. `CHAT_EMPTY_STATE` stub deleted (TP's greeting is the empty state on `/chat`). `isNewUser` prop dropped from ChatSurface. `topContent` prop deleted from ChatPanel (was only used by the v5 inline overlay). `emptyState` prop preserved on ChatPanel for `/work` and `/agents` slide-in chat use cases. Toggle icon repositioned to immediately right of the `+` button (left-side affordance group), not next to the submit button. Marker schema, parser, and TP prompt unchanged. No new dependencies (modal built with plain fixed-position div + ARIA dialog attributes). Singular-implementation purge: deleted ~2,100 lines of pre-ADR-163 orphan code — `web/components/desk/` (6 files), `web/components/surfaces/` (3 files), `web/components/PlatformOnboardingPrompt.tsx`, `web/hooks/usePlatformOnboardingState.ts`, plus the matching barrel export — none of which were reachable from any live route after the four-surface restructure.** |
 | 2026-04-08 | v5 | Single workspace state surface, TP-directed open via HTML-comment marker. Four lead views as internal state of one component. Chat column capped to max-w-3xl. Legacy artifact files deleted. ADR + design doc renamed from "chat artifact surface" → "workspace state surface". |
 | 2026-04-08 | v4 | Clarifies that artifacts and artifact tabs render inside the TP chat surface, not above a separate bordered chat panel. |

@@ -1,32 +1,31 @@
 # Workspace State Surface
 
-**Status:** Implemented (ADR-165 v5)
-**Date:** 2026-04-08
-**Governing ADR:** [ADR-165 v5](../adr/ADR-165-workspace-state-surface.md)
-**Extends:** [SURFACE-ARCHITECTURE v8](./SURFACE-ARCHITECTURE.md)
+**Status:** Implemented (ADR-165 v7)
+**Date:** 2026-04-09
+**Governing ADR:** [ADR-165 v7](../adr/ADR-165-workspace-state-surface.md)
+**Extends:** [SURFACE-ARCHITECTURE](./SURFACE-ARCHITECTURE.md)
 
 ---
 
 ## Thesis
 
-`/chat` is a TP chat product. Workspace state is one single surface that opens on demand — controlled by TP via a marker directive, or by the user via the input-row icon. There is no permanent dashboard above the conversation.
+`/chat` is a TP chat product. Workspace state is one single surface that opens on demand — controlled by TP via a marker directive, or by the user via the surface-header toggle. There is no permanent dashboard above the conversation.
 
-This is the inversion of v4. v4 treated workspace state as four sibling artifacts in an always-on tab strip. v5 treats it as **one component with four lead views**, opened only when relevant.
+v4 treated workspace state as four sibling artifacts in an always-on tab strip. v5 collapsed them into **one component with four lead views**, opened only when relevant. v6 promoted the surface to a true modal. **v7 (2026-04-09)** dissolved the special `empty` lead value into a peer `context` tab and decoupled gate behavior from lens identity — there are now four peer tabs and one uniform soft gate driven by `isEmpty`.
 
 ```
 /chat
-  └── ChatPanel
-        ├── topContent (rendered ONLY when surface.open === true)
-        │     └── WorkspaceStateView
-        │           ├── header (title + reason + close button)
-        │           ├── lens switcher (briefing | recent | gaps — hidden in empty/gate state)
-        │           └── active lead view (one of: empty, briefing, recent, gaps)
-        ├── messages
-        └── input row
-              ├── PlusMenu (+) — owns "Update my context" action
-              ├── textarea (capped at max-w-3xl by parent)
-              ├── inputRowAddon — workspace state toggle icon
-              └── submit
+  ├── PageHeader (breadcrumb chrome)
+  ├── SurfaceIdentityHeader (H1 + workspace state toggle)
+  ├── ChatPanel (conversation column)
+  │     ├── messages
+  │     └── input row (PlusMenu + textarea + submit)
+  └── WorkspaceStateView (sibling modal — only mounted while open)
+        ├── backdrop (click-outside closes)
+        ├── header (title + reason + close button)
+        ├── lens switcher — four peer tabs (hidden only when isEmpty === true)
+        │     [Newspaper] What changed  [ClipboardList] Running  [Compass] Coverage  [Sparkles] Add context
+        └── active lead view (one of: context, briefing, recent, gaps)
 ```
 
 ---
@@ -35,31 +34,37 @@ This is the inversion of v4. v4 treated workspace state as four sibling artifact
 
 ### Default state
 
-`/chat` loads with **no surface visible**. The page is just the TP chat conversation. The input row has a small icon (`LayoutPanelTop`) next to the submit button — the only persistent visual indicator that the surface exists.
+`/chat` loads with **no surface visible**. The page is just the TP chat conversation. The surface-header "Workspace state" button (with `LayoutPanelTop` icon) is the only persistent visual indicator that the modal exists.
 
 The two paths that open the surface are:
 
 1. **TP directive** — TP appends a workspace-state HTML comment to its assistant message. The chat client parses it, opens `WorkspaceStateView` in the requested lead view, and strips the comment before rendering.
-2. **Manual override** — User clicks the input-row icon. The component computes the lead view deterministically from current data and opens. No TP call.
+2. **Manual override** — User clicks the surface-header toggle button. The component computes the lead view deterministically from current data and opens. No TP call.
 
-### Cold-start gate
+### Soft gate (cold start, v7)
 
-For new users (no tasks, no messages), the surface auto-opens on page load with `lead='empty'`. This is the only frontend-driven open — TP hasn't had a chance to emit a marker yet because no message has been sent. Once TP responds to the user's first message, TP owns the surface from then on.
+When the workspace has no tasks (`isEmpty === true`), the modal can still be opened via TP's marker or the manual toggle — but the lens switcher is **hidden**. The user sees only the `context` lens (ContextSetup) because the other three lenses (briefing / recent / gaps) have nothing meaningful to show against an empty workspace. This is the soft gate: one focused decision, no misleading empty tabs.
+
+Once the workspace has any content, the switcher shows and `context` becomes a peer tab like the other three. The gate is a property of workspace state (`isEmpty`), not a property of the `context` lens value.
+
+### Two namespaces, don't conflate (v7)
+
+- `workspace_state.identity` (backend compact index): `empty | sparse | rich` — classifies IDENTITY.md richness. This is what TP *reads*.
+- `lead` (client marker value): `context | briefing | recent | gaps` — names the tab the client *opens*. TP never emits `lead=empty`.
 
 ---
 
 ## Lead Views
 
-### `empty` — ContextSetup gate
+### `context` — ContextSetup (identity capture + re-entry)
 
-Source: `web/components/tp/ContextSetup.tsx`
+Source: `web/components/chat-surface/ContextSetup.tsx`
 
-Wraps `ContextSetup` in `embedded` mode. Hides the lens switcher (gates the user on identity capture). Submitting context closes the surface and sends the composed message to TP.
+Wraps `ContextSetup` in `embedded` mode. On cold start (`isEmpty === true`) this renders under a hidden switcher (soft gate). Once workspace has content, it's a peer lens like the other three — reachable via the "Add context" tab in the switcher. Submitting context closes the surface and sends the composed message to TP.
 
-Auto-opens when:
-- Workspace is empty AND no messages yet (cold start)
-- TP emits `lead=empty`
-- User clicks "Update my context" in the plus menu
+Opens when:
+- TP emits `lead=context` (cold start: first turn for empty workspace; or re-entry: user explicitly wants to add more context)
+- User clicks the "Add context" peer tab in the lens switcher
 
 ### `briefing` — What changed
 
@@ -108,7 +113,7 @@ The marker MUST be the last line of TP's assistant message. The JSON must be on 
 
 - `parseWorkspaceStateMeta(content)` → `{ body, directive }`. Same approach as ADR-162's `parseInferenceMeta`.
 - `stripWorkspaceStateMeta(content)` → convenience wrapper for inline render sites.
-- Valid leads: `empty | briefing | recent | gaps`. Invalid leads silently no-op.
+- Valid leads: `context | briefing | recent | gaps`. Invalid leads silently no-op. Legacy `empty` from pre-v7 markers is invalid and silently dropped — there is no migration shim (singular implementation).
 
 ### Stripping
 
@@ -123,13 +128,14 @@ The marker is NOT stripped from persisted content (`session_messages.content` in
 
 ### TP prompt rules
 
-`api/agents/tp_prompts/onboarding.py`, "Workspace State Surface (ADR-165 v5)" section under `CONTEXT_AWARENESS`. See `api/prompts/CHANGELOG.md` entry `[2026.04.08.3]`.
+`api/agents/tp_prompts/onboarding.py`, "Workspace State Surface (ADR-165 v7)" section under `CONTEXT_AWARENESS`. See `api/prompts/CHANGELOG.md` entry `[2026.04.09.3]`.
 
-Tight initial ruleset:
-- First message of session + identity empty → `lead=empty`
+Ruleset:
+- First message of session + `workspace_state.identity == "empty"` → `lead=context`
 - First message of session + fresh runs detected → `lead=briefing`
 - User asks "what's running" → `lead=recent`
 - Gap detected (empty domain feeding active task / `detect_inference_gaps` high-severity) → `lead=gaps`
+- User wants to add more context after onboarding (rare — usually routed through direct `UpdateContext` call instead) → `lead=context`
 
 AT MOST ONE marker per message. Steady-state silence is the correct outcome for most messages.
 
@@ -137,9 +143,9 @@ AT MOST ONE marker per message. Steady-state silence is the correct outcome for 
 
 ## Manual Override
 
-### Input-row icon
+### Surface-header toggle
 
-A small icon (`LayoutPanelTop` from lucide-react) lives in the chat input row, between the textarea and the submit button. Clicking it toggles the surface open/closed.
+The "Workspace state" button with `LayoutPanelTop` icon lives in the `SurfaceIdentityHeader` actions slot on `/chat` (ADR-167 v5 — moved here from the chat input row). Clicking it toggles the surface open/closed.
 
 ### Deterministic lead computation
 
@@ -147,30 +153,30 @@ When the user opens the surface manually, `WorkspaceStateView` computes the lead
 
 ```ts
 function computeLead(isEmpty, agents, tasks) {
-  if (isEmpty) return 'empty';
+  if (isEmpty) return 'context';              // cold-start default — only capture is meaningful
   if (domainAgentsWithoutTasks.length > 0) return 'gaps';
   if (tasks.length > 0) return 'briefing';
   return 'recent';
 }
 ```
 
-### Plus-menu "Update my context"
+### No plus-menu redundancy (v7)
 
-The plus-menu action is owned by `ChatSurface` itself (not the page), since `ContextSetup` is the surface's empty-lead view. Clicking it opens the surface with `lead=empty` regardless of current workspace state — useful for adding to context after onboarding is complete.
+The previous v5/v6 design added an "Update my context" action to the plus menu as a re-entry path. **v7 deleted this** — the `context` peer tab is always visible in the lens switcher when the modal is open (unless cold-start soft-gated), so plus-menu redundancy is unnecessary. One surface, one way in.
 
 ---
 
 ## Lens Switcher
 
-Once the surface is open in `briefing`, `recent`, or `gaps`, three lens buttons at the top let the user reframe the same workspace state:
+Four peer lens buttons at the top of the modal let the user reframe the same workspace state:
 
 ```
-[ Newspaper ] What changed   [ ClipboardList ] Running   [ Compass ] Coverage
+[ Newspaper ] What changed   [ ClipboardList ] Running   [ Compass ] Coverage   [ Sparkles ] Add context
 ```
 
-These are NOT navigation tabs. They are three lenses on the same underlying workspace state, switched client-side (no TP call). The active lens uses the same black-segment styling as ADR-163's global ToggleBar.
+These are NOT navigation tabs. They are four lenses on the same underlying workspace state, switched client-side (no TP call). The active lens uses the same black-segment styling as ADR-163's global ToggleBar.
 
-The lens switcher is **hidden** in the `empty` lead view — the gate behavior is exclusive.
+The lens switcher is **hidden** only when `isEmpty === true` — the cold-start soft gate. Visibility is driven by workspace state, not by the active lens value (v7 decoupling).
 
 ---
 
@@ -222,11 +228,11 @@ web/components/chat-surface/
 ## Acceptance Criteria
 
 1. `/chat` loads with no surface visible for returning users with no marker — just the TP chat conversation.
-2. New users (empty workspace, no messages) see the `empty` lead view auto-open as the cold-start gate.
+2. New users (empty workspace, no messages) see the `context` lens open via TP's first-turn marker as the cold-start soft gate (switcher hidden because `isEmpty`).
 3. TP emitting a `<!-- workspace-state: ... -->` marker opens the surface in the requested lead view, with the marker stripped from the displayed message body.
-4. The input-row icon toggles the surface open/closed; manual opens compute the lead view deterministically.
-5. The plus menu's "Update my context" action opens the surface in the `empty` lead view regardless of workspace state.
+4. The surface-header toggle button opens the surface; manual opens compute the lead view deterministically from data.
+5. When the workspace has any content, the lens switcher shows all four peer tabs — including "Add context" — and clicking any tab switches the lens without any TP call.
 6. The chat input column is capped to `max-w-3xl` (768px) — Claude Code parity.
-7. The lens switcher is hidden in the `empty` lead view and visible in the other three.
+7. The lens switcher is hidden **only** when `isEmpty === true` (soft gate driven by workspace state, not by lens identity).
 8. TypeScript and production build pass.
-9. ADR-165 v4 artifact files (`ChatArtifactCard`, `ChatArtifactTabs`, `chatArtifactTypes`, four `artifacts/*.tsx`) are deleted in the same commit. No dual implementations.
+9. No dual implementations: `ChatArtifactCard`, `ChatArtifactTabs`, `chatArtifactTypes`, four `artifacts/*.tsx` (v4), and the plus-menu "Update my context" action (v5/v6) are all deleted.

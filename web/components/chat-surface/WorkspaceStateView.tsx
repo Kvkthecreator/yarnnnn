@@ -3,39 +3,52 @@
 /**
  * WorkspaceStateView — single modal surface for every workspace-state scenario.
  *
+ * ADR-165 v7 (2026-04-09): The `empty` lens value dissolved. "Add context" is
+ * now a peer lens (`context`) alongside briefing/recent/gaps, and the gate
+ * behavior (cold-start lock) is decoupled from the lens name — it is driven
+ * by `isEmpty` (the workspace-state boolean) alone. Four peer tabs, one
+ * uniform component. The old "empty is exclusive" conflation is gone.
+ *
+ * Soft gate: on cold start (`isEmpty === true`), the switcher is still
+ * hidden so the new user has a single focused decision to make, but the
+ * lens value is just `context` like any other — not a special "empty" state.
+ * The gate is a property of workspace state, not a property of the tab.
+ *
  * ADR-165 v6 (2026-04-08): Rendered as a TP-directed MODAL, not an inline
  * topContent overlay. TP opens it via the workspace-state marker; the user
  * opens it via the input-row icon. Closed = gone (backdrop + Esc + close
  * button all dismiss). Discovery responsibility moves entirely to TP — no
  * cold-start auto-open from the frontend.
  *
- * One component, state-driven lead view. Onboarding, briefing, recent work,
- * and context gaps are facets of the same surface — not sibling artifacts.
- *
  * The component picks its lead view from `lead` (passed in) when TP opens
  * it via the workspace-state marker, OR computes a deterministic lead from
  * agents+tasks when the user opens it manually via the input-row icon.
  *
- * Lead views:
- *   - empty    → ContextSetup gate (workspace has no identity yet)
+ * Lead views (all peers):
+ *   - context  → ContextSetup (onboarding on cold start, re-entry thereafter)
  *   - briefing → What changed (DailyBriefing)
  *   - recent   → What's running (top tasks by updated_at)
  *   - gaps     → Coverage gaps (domain agents without tasks)
- *
- * The user can switch between facets via lens links once the modal is open.
- * Lens links are NOT navigation tabs — they reframe the same workspace state
- * through a different lens.
  */
 
 import { useMemo, useState, useEffect } from 'react';
-import { X, ClipboardList, Compass, Newspaper } from 'lucide-react';
-import { ContextSetup } from '@/components/tp/ContextSetup';
+import {
+  X,
+  ClipboardList,
+  Compass,
+  Newspaper,
+  Sparkles,
+  CheckCircle2,
+  Clock3,
+  PauseCircle,
+  AlertCircle,
+} from 'lucide-react';
+import { ContextSetup } from './ContextSetup';
 import { DailyBriefing } from '@/components/home/DailyBriefing';
-import { CheckCircle2, Clock3, PauseCircle, AlertCircle } from 'lucide-react';
 import { taskModeLabel, type Agent, type Task } from '@/types';
 import { cn } from '@/lib/utils';
 
-export type WorkspaceStateLead = 'empty' | 'briefing' | 'recent' | 'gaps';
+export type WorkspaceStateLead = 'context' | 'briefing' | 'recent' | 'gaps';
 
 interface WorkspaceStateViewProps {
   open: boolean;
@@ -55,13 +68,16 @@ interface WorkspaceStateViewProps {
 /**
  * Compute a deterministic lead view from current workspace state.
  * Used when the user opens the surface manually (no TP directive).
+ *
+ * `context` is the cold-start default — an empty workspace has nothing
+ * meaningful in briefing/recent/gaps, so capture is the only useful view.
  */
 function computeLead(
   isEmpty: boolean,
   agents: Agent[],
   tasks: Task[],
 ): WorkspaceStateLead {
-  if (isEmpty) return 'empty';
+  if (isEmpty) return 'context';
 
   const domainAgents = agents.filter(
     (a) => (a.agent_class || 'domain-steward') === 'domain-steward',
@@ -115,7 +131,11 @@ export function WorkspaceStateView({
 
   if (!open) return null;
 
-  const showLensSwitcher = activeLens !== 'empty' && !isEmpty;
+  // Soft gate: switcher visibility is driven by workspace state ONLY, not by
+  // the active lens. On cold start we hide the switcher so the new user has a
+  // single focused decision (capture context). Once workspace has any content,
+  // all four tabs are reachable — including `context` as a peer for re-entry.
+  const showLensSwitcher = !isEmpty;
 
   return (
     <div
@@ -153,7 +173,7 @@ export function WorkspaceStateView({
             </button>
           </header>
 
-          {/* Lens switcher — hidden in empty/gate state */}
+          {/* Lens switcher — hidden only on cold start (soft gate via isEmpty) */}
           {showLensSwitcher && (
             <nav
               aria-label="Workspace state lenses"
@@ -177,13 +197,19 @@ export function WorkspaceStateView({
                 label="Coverage"
                 onClick={() => setActiveLens('gaps')}
               />
+              <LensButton
+                active={activeLens === 'context'}
+                icon={Sparkles}
+                label="Add context"
+                onClick={() => setActiveLens('context')}
+              />
             </nav>
           )}
 
           {/* Active lens content */}
           <div className="max-h-[60vh] overflow-y-auto">
-            {activeLens === 'empty' ? (
-              <EmptyLead onSubmit={onContextSubmit} />
+            {activeLens === 'context' ? (
+              <ContextLead onSubmit={onContextSubmit} />
             ) : activeLens === 'briefing' ? (
               <BriefingLead agents={agents} tasks={tasks} />
             ) : activeLens === 'recent' ? (
@@ -228,10 +254,14 @@ function LensButton({ active, icon: Icon, label, onClick }: LensButtonProps) {
 }
 
 // =============================================================================
-// Lead view: Empty (gate)
+// Lead view: Context (identity capture + re-entry)
 // =============================================================================
+// On cold start this renders under a hidden switcher (the soft gate — driven
+// by `isEmpty` in the parent, not by this lens value). Once workspace has
+// any content, the switcher shows and this tab becomes a peer lens for
+// re-entry. Same component, two moments — the lens value is uniform.
 
-function EmptyLead({ onSubmit }: { onSubmit: (message: string) => void }) {
+function ContextLead({ onSubmit }: { onSubmit: (message: string) => void }) {
   return (
     <div className="p-3">
       <ContextSetup onSubmit={onSubmit} embedded />
