@@ -56,8 +56,4 @@ GitHub Bot can track ANY public repo — not just the user's own.
 - The bot writes the same 4 files (latest.md, readme.md, releases.md, metadata.md) for all repos
 - Use full `owner/repo` format for external repos in the sources parameter
 - GitHub tools work on any public repo the token can access (public repos don't need special auth)
-
-### Notifications
-
-`Execute(action="notification.send", message="...", urgency="normal")` — lightweight email alert to user. For recurring content, use agents instead.
 """

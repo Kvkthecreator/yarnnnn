@@ -54,8 +54,8 @@ The hybrid is correct: mechanical cadence for scheduled work, instant execution 
 ### How TP "moves up the queue"
 
 When a user says "run my research briefing now":
-1. TP can call `execute_task()` directly → instant (current implementation via Execute primitive)
-2. TP can set `tasks.next_run_at = now()` → scheduler picks it up within 5 min
+1. TP can call `ManageTask(task_slug=..., action="trigger")` → routes through `_handle_trigger` → `execute_task()` → instant
+2. TP can set `tasks.next_run_at = now()` via `ManageTask(action="update")` → scheduler picks it up within 5 min
 
 Both are valid. Option 1 is the default for interactive "run now" semantics.
 
@@ -113,7 +113,7 @@ execute_task(client, user_id, task_slug)
 
 ### Agent-first entry: `execute_agent_run(client, user_id, agent, trigger_context)`
 
-Used by manual runs (POST /agents/{id}/run), MCP, Execute primitive, event triggers.
+Used by manual runs (POST /agents/{id}/run), MCP, and `trigger_dispatch.py` (event triggers). The ADR-168 Commit 2 cleanup removed the `Execute` primitive as a caller — TP-initiated triggers now flow through `ManageTask(action="trigger")` instead.
 
 ```
 execute_agent_run(client, user_id, agent)
@@ -182,15 +182,9 @@ result = await execute_task(client, user_id, task_slug)
 
 ## Mode-Gated Primitives
 
-Primitives declare which modes they are available in. One registry.
+Primitives declare which modes they are available in via two explicit registries (`CHAT_PRIMITIVES`, `HEADLESS_PRIMITIVES`) in `api/services/primitives/registry.py`.
 
-| Primitive | Chat | Headless |
-|-----------|------|----------|
-| Search, Read, List, GetSystemState, WebSearch | ✓ | ✓ |
-| RefreshPlatformContent | ✓ | ✓ |
-| Write, Edit, Execute, Clarify, SaveMemory | ✓ | |
-| CreateTask, ReadTask, UpdateTask | ✓ | |
-| RuntimeDispatch | | ✓ |
+**Canonical reference:** [primitives-matrix.md](primitives-matrix.md) — substrate × mode × capability-tag matrix for the full primitive surface. That doc is maintained alongside code (ADR-168). This file used to duplicate a smaller version of the matrix and drifted by ~6 weeks across ADR-146, ADR-148, ADR-149, ADR-151, ADR-153, ADR-155, and ADR-168. Point new readers at the matrix doc, not this paragraph.
 
 ---
 

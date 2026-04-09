@@ -75,9 +75,11 @@ ENTITY_TYPES = {
     "session",
     "domain",
     "document",
-    "action",  # For action discovery
-    "system",  # System-level targets (for Execute actions)
     "task",  # ADR-138: work units
+    # ADR-168 Commit 2: "action" and "system" removed. They only existed to
+    # serve the Execute primitive's action discovery surface (`List(pattern="action:*")`).
+    # Execute was dissolved into ManageTask/UpdateContext; these entity types
+    # had no other callers.
 }
 
 # Special identifiers
@@ -189,13 +191,7 @@ async def resolve_ref(
             return None  # Signal to create new
         raise ValueError("Cannot read from 'new' reference")
 
-    # Handle action type specially (no table)
-    if ref.entity_type == "action":
-        return await _resolve_action_ref(ref)
-
-    # Handle system type specially (no table — represents system-level targets)
-    if ref.entity_type == "system":
-        return {"type": "system", "scope": ref.identifier}
+    # ADR-168 Commit 2: "action" and "system" branches removed along with Execute.
 
     # Handle version type specially — scoped through agent, no direct user_id
     if ref.entity_type == "version":
@@ -504,28 +500,6 @@ def _extract_subpath(entity: dict, subpath: str) -> Any:
     return current
 
 
-async def _resolve_action_ref(ref: EntityRef) -> Union[Dict, List[Dict]]:
-    """Resolve action references for discovery."""
-    from .execute import ACTION_CATALOG
-
-    if ref.identifier == "*":
-        # Return all actions
-        return [
-            {"name": name, **action}
-            for name, action in ACTION_CATALOG.items()
-        ]
-    else:
-        # Return specific action or filtered
-        if ref.identifier in ACTION_CATALOG:
-            return {"name": ref.identifier, **ACTION_CATALOG[ref.identifier]}
-
-        # Try prefix match (e.g., "platform.*")
-        prefix = ref.identifier.rstrip("*")
-        if prefix:
-            return [
-                {"name": name, **action}
-                for name, action in ACTION_CATALOG.items()
-                if name.startswith(prefix)
-            ]
-
-        return []
+# ADR-168 Commit 2: _resolve_action_ref removed along with Execute primitive.
+# Its only use was List(pattern="action:*") for Execute action discovery.
+# No replacement — actions are now named typed parameters on ManageTask/UpdateContext.

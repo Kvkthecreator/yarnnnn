@@ -176,23 +176,32 @@ async def test_latest_output_fallback():
 # =============================================================================
 
 def test_plus_menu_actions_restored():
-    """Verify context + task actions exist in the plus menu component."""
-    # Read the workfloor page to check for plus menu actions
-    workfloor_path = Path(__file__).parent.parent / "web" / "app" / "(authenticated)" / "workfloor" / "page.tsx"
-    if not workfloor_path.exists():
-        # Try orchestrator as alternative
-        workfloor_path = Path(__file__).parent.parent / "web" / "app" / "(authenticated)" / "orchestrator" / "page.tsx"
+    """Verify context + task actions exist in the chat surface.
 
-    if workfloor_path.exists():
-        content = workfloor_path.read_text()
-        record("plus menu has create-task action",
-               "create-task" in content or "CreateTask" in content or "task" in content.lower())
-        record("plus menu has identity action",
-               "identity" in content.lower() or "update-identity" in content)
-        record("plus menu has brand action",
-               "brand" in content.lower() or "update-brand" in content)
-    else:
-        record("workfloor/orchestrator page found", False, "Could not locate page file")
+    Surface evolution:
+    - Pre-ADR-163: plus menu in /workfloor page
+    - ADR-163: /workfloor → /chat surface restructure
+    - ADR-165 v6: identity/brand actions moved from plus menu to workspace
+      state modal (ContextSetup component opened via + button + modal)
+    - ADR-168 Commit 2: test fixtures retargeted to the current locations.
+
+    The assertion's intent is still "the chat surface has hooks to capture
+    identity, brand, and tasks." Just the source of truth moved from a
+    single file to a file pair.
+    """
+    chat_path = Path(__file__).parent.parent / "web" / "app" / "(authenticated)" / "chat" / "page.tsx"
+    context_setup_path = Path(__file__).parent.parent / "web" / "components" / "chat-surface" / "ContextSetup.tsx"
+
+    chat_content = chat_path.read_text() if chat_path.exists() else ""
+    setup_content = context_setup_path.read_text() if context_setup_path.exists() else ""
+    combined = chat_content + "\n" + setup_content
+
+    record("plus menu has create-task action",
+           "create-task" in combined or "CreateTask" in combined or "task" in combined.lower())
+    record("plus menu has identity action",
+           "identity" in combined.lower() or "update-identity" in combined)
+    record("plus menu has brand action",
+           "brand" in combined.lower() or "update-brand" in combined)
 
 
 # =============================================================================
@@ -324,7 +333,11 @@ def test_registry_tool_counts():
     # Headless has workspace tools
     record("Headless has ReadWorkspace", "ReadWorkspace" in headless_names)
     record("Headless has WriteWorkspace", "WriteWorkspace" in headless_names)
-    record("Headless has RuntimeDispatch", "RuntimeDispatch" in headless_names)
+    # ADR-168 Commit 2: stale assertion updated. ADR-148 removed RuntimeDispatch
+    # from headless static registry — assets are rendered post-generation, not
+    # via mid-task tool calls. RuntimeDispatch is retained in chat mode only
+    # for explicit user requests. Drift-catching update while we're in the file.
+    record("RuntimeDispatch not in headless (ADR-148)", "RuntimeDispatch" not in headless_names)
 
     # Chat should NOT have workspace tools
     record("Chat does NOT have ReadWorkspace", "ReadWorkspace" not in chat_names)
@@ -333,7 +346,10 @@ def test_registry_tool_counts():
     # Headless should NOT have chat-only tools
     record("Headless does NOT have Edit", "Edit" not in headless_names)
     record("Headless does NOT have Clarify", "Clarify" not in headless_names)
-    record("Headless does NOT have Execute", "Execute" not in headless_names)
+
+    # ADR-168 Commit 2: Execute primitive dissolved entirely (not just mode-scoped)
+    record("Execute not in chat registry", "Execute" not in chat_names)
+    record("Execute not in headless registry", "Execute" not in headless_names)
 
 
 def test_handler_registry_complete():
@@ -355,8 +371,11 @@ def test_update_context_tool_schema():
     required = schema["required"]
 
     targets = props["target"]["enum"]
-    record("UpdateContext has 5 targets",
-           set(targets) == {"identity", "brand", "memory", "agent", "task"})
+    # ADR-168 Commit 2: stale assertion updated. ADR-144 added "awareness" as
+    # a 6th target for TP situational notes (shift handoff). Not a primitive-
+    # level change, just a drift-catching update while we're in the file.
+    record("UpdateContext has 6 targets",
+           set(targets) == {"identity", "brand", "memory", "agent", "task", "awareness"})
     record("UpdateContext requires target+text",
            set(required) == {"target", "text"})
     record("UpdateContext has agent_slug field", "agent_slug" in props)
@@ -367,7 +386,7 @@ def test_update_context_tool_schema():
 
 
 def test_manage_task_tool_schema():
-    """ManageTask schema has all 4 actions and correct fields."""
+    """ManageTask schema has all 7 actions (ADR-149 added evaluate/steer/complete)."""
     from services.primitives.manage_task import MANAGE_TASK_TOOL
 
     schema = MANAGE_TASK_TOOL["input_schema"]
@@ -375,8 +394,12 @@ def test_manage_task_tool_schema():
     required = schema["required"]
 
     actions = props["action"]["enum"]
-    record("ManageTask has 4 actions",
-           set(actions) == {"trigger", "update", "pause", "resume"})
+    # ADR-168 Commit 2: stale assertion updated. ADR-149 added "evaluate",
+    # "steer", "complete" for goal-mode task lifecycle (TP as task context
+    # manager). Drift-catching update while we're in the file.
+    # Commit 3 will add "create" as an 8th action (folding CreateTask).
+    record("ManageTask has 7 actions",
+           set(actions) == {"trigger", "update", "pause", "resume", "evaluate", "steer", "complete"})
     record("ManageTask requires task_slug+action",
            set(required) == {"task_slug", "action"})
     record("ManageTask has context field", "context" in props)
@@ -471,9 +494,6 @@ def test_headless_executor_blocks_chat_only_tools():
         result = await executor("Clarify", {"question": "test"})
         record("headless blocks Clarify", not result["success"] and result.get("error") == "not_available")
 
-        result = await executor("Execute", {})
-        record("headless blocks Execute", not result["success"] and result.get("error") == "not_available")
-
     asyncio.get_event_loop().run_until_complete(_test())
 
 
@@ -489,6 +509,9 @@ def test_no_dangling_imports():
         "import shared_context",
         "from .save_memory",
         "from .shared_context",
+        # ADR-168 Commit 2: Execute primitive dissolved
+        "from services.primitives.execute",
+        "from .execute import",
     ]
 
     api_dir = Path(__file__).parent

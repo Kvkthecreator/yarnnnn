@@ -209,24 +209,15 @@ Agents produce structured markdown with inline data tables and mermaid diagrams.
 
 ## Primitives (Agent Tools)
 
-Primitives are the operations available to agents. Two explicit registries (ADR-146):
+Primitives are the operations available to agents. Two explicit registries (ADR-146, ADR-168): `CHAT_PRIMITIVES` and `HEADLESS_PRIMITIVES` in `api/services/primitives/registry.py`.
 
-**Chat mode** (14 tools — TP in conversation):
-- Discovery: Read, List, Search, Edit, GetSystemState
-- External: RefreshPlatformContent, WebSearch, ListIntegrations
-- Context: UpdateContext (unified — identity, brand, memory, agent feedback, task feedback)
-- Lifecycle: ManageAgent (create/update/pause/resume/archive), CreateTask, ManageTask (trigger/update/pause/resume/evaluate/steer/complete), ManageDomains (scaffold/add/remove/list)
-- Execution: Execute
-- Interaction: Clarify
+**Canonical reference:** [primitives-matrix.md](primitives-matrix.md) — the full substrate × mode × capability-tag matrix, the target/action enums, the perception channel (working memory), the rename protocol, and the deleted primitives ledger. This section used to duplicate a smaller inline table that drifted through ADR-146 → ADR-168; the matrix doc is the single source of truth going forward.
 
-**Headless mode** (17 tools — background agent execution):
-- Discovery: Read, List, Search, GetSystemState
-- External: WebSearch
-- Workspace: ReadWorkspace, WriteWorkspace, SearchWorkspace, QueryKnowledge, ListWorkspace
-- Inter-agent: DiscoverAgents, ReadAgentContext
-- Lifecycle: ManageAgent, CreateTask, ManageTask, ManageDomains
+Current surface (post-ADR-168 Commit 2):
+- **Chat mode** (~14 tools): entity-layer verbs + UpdateContext + lifecycle verbs (ManageAgent/Task/Domains) + RepurposeOutput + Clarify + WebSearch + list_integrations + GetSystemState.
+- **Headless mode** (~16 static tools + `platform_*` dynamic): entity-layer verbs + file-layer verbs (ReadWorkspace/WriteWorkspace/SearchWorkspace/ListWorkspace/QueryKnowledge) + inter-agent verbs (DiscoverAgents/ReadAgentContext) + lifecycle verbs + WebSearch + GetSystemState.
 
-See `api/services/primitives/registry.py` for the canonical source.
+The surface continues to evolve through ADR-168 Commits 3–5 (fold CreateTask, rename to `*Entity`/`*File` families).
 
 ---
 

@@ -2930,7 +2930,7 @@ async def _execute_daily_update_empty_state(
 
 
 # =============================================================================
-# Agent-first entry point (for manual runs, MCP, Execute primitive)
+# Agent-first entry point (for manual runs, MCP, event triggers)
 # =============================================================================
 
 async def execute_agent_run(
@@ -2942,7 +2942,10 @@ async def execute_agent_run(
     """Execute an agent run — finds the agent's task and routes through execute_task().
 
     This is the replacement for execute_agent_generation(). Callers that have
-    an agent dict (manual run, MCP, Execute primitive, event triggers) use this.
+    an agent dict (manual run via POST /agents/{id}/run, MCP, trigger_dispatch.py
+    for event triggers) use this. ADR-168 Commit 2 removed the Execute primitive
+    as a caller — TP-initiated triggers now flow through
+    ManageTask(action="trigger") → _handle_trigger → execute_task() instead.
 
     If the agent has an assigned task, routes through execute_task().
     If no task exists, runs a direct generation (taskless — agent identity only).

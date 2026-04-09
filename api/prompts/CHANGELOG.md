@@ -6,6 +6,45 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.09.2] - ADR-168 Commit 2: Dissolve Execute Primitive
+
+### Changed
+- `api/services/primitives/execute.py`: **DELETED**. Full removal of `EXECUTE_TOOL`, `handle_execute`, `ACTION_CATALOG`, and the 3 action handlers (`_handle_platform_publish`, `_handle_agent_generate`, `_handle_agent_acknowledge`). Finishes ADR-146 Phase 3 which was deferred for ~6 weeks.
+- `api/services/primitives/registry.py`: Removed `EXECUTE_TOOL` import, removed from `CHAT_PRIMITIVES` (15 → 14 tools), removed from `HANDLERS` dict. Added deletion ledger comment documenting ADR-168 Commit 2 migration map (agent.generate → ManageTask trigger; agent.acknowledge → UpdateContext target=agent; platform.publish → task delivery property; agent.schedule → ManageTask update).
+- `api/services/primitives/refs.py`: Removed `"action"` and `"system"` from `ENTITY_TYPES` — vestigial entity types that only existed to serve `List(pattern="action:*")` for Execute action discovery. Removed the `entity_type == "action"` and `entity_type == "system"` branches in `resolve_ref()`. Deleted `_resolve_action_ref()` function (imported from the now-deleted `execute.py`). Singular implementation: no fallback, no compat shim.
+- `api/services/primitives/list.py`: Removed `List(pattern="action:platform.*")` example from module docstring and tool description. Removed `elif entity_type == "action"` label branch in `_format_list_message()`. Replaced example with `task:?status=active`.
+- `api/services/agent_execution.py`: Docstring flow diagram updated — removed `Execute(action="agent.generate", target="agent:uuid")` as the entry point. Entry points are now `task_pipeline.execute_task()` for task-scoped runs and `task_pipeline.execute_agent_run()` for agent-scoped runs (MCP, routes, trigger_dispatch).
+- `api/services/task_pipeline.py`: `execute_agent_run()` docstring and section header updated to remove Execute as a listed caller. Added explicit note that ADR-168 Commit 2 removed the Execute primitive path; TP-initiated triggers flow through `ManageTask(action="trigger")` → `_handle_trigger` → `execute_task()` instead.
+- `api/integrations/validation.py`: `quick_validate_send_params()` docstring updated — "Use this in Execute primitive before attempting to send" → "Use this before attempting to send via platform_* tools".
+- `api/agents/tp_prompts/tools.py`: `### External Operations` section deleted entirely. Four `Execute(action=...)` example lines removed (`agent.generate`, `agent.acknowledge`, `platform.publish`). Docstring header extended to document the ADR-168 migration map for future readers. `action` removed from the Reference Syntax "Types" list (it referenced Execute's action namespace).
+- `api/agents/tp_prompts/platforms.py`: `### Notifications` section with the stale `Execute(action="notification.send", ...)` instruction **deleted** — this action was a ghost, never had a handler in `ACTION_CATALOG`, and TP was being told to call a non-existent action. Latent bug resolved.
+- `api/agents/tp_prompts/behaviors.py`: Two stale prose references updated. "Execute action (Write, Edit, Execute)" → "Call tool (Edit, ManageTask, UpdateContext, etc.)". "Answer questions using Search, Read, Execute primitives" + "Execute one-time platform actions" → "Answer questions using Search, Read, and platform tools" + "Take one-time platform actions via platform_* tools".
+- `api/test_recent_commits.py`:
+  - Removed obsolete assertion `record("Headless does NOT have Execute", ...)` (Execute was chat-only; this assertion was about a boundary that pre-existed).
+  - Added two new assertions: `"Execute not in chat registry"` and `"Execute not in headless registry"` — direct verification that the primitive is fully dissolved.
+  - Removed the `executor("Execute", {})` test in `test_headless_blocks_write_tools()` (nothing to block anymore).
+  - Added `"from services.primitives.execute"` and `"from .execute import"` to `test_no_dangling_imports()` deleted-imports list.
+  - **Drift-catching updates while we were in the file** (not caused by this commit, just fixed in-place):
+    - `UpdateContext has 5 targets` → `UpdateContext has 6 targets` (ADR-144 added `awareness`).
+    - `ManageTask has 4 actions` → `ManageTask has 7 actions` (ADR-149 added `evaluate`, `steer`, `complete`).
+    - `Headless has RuntimeDispatch` → `RuntimeDispatch not in headless (ADR-148)` (ADR-148 moved RuntimeDispatch out of headless static registry).
+    - `test_plus_menu_actions_restored()` — retargeted fixture paths from deleted `/workfloor` and `/orchestrator` page routes to current `/chat` + `ContextSetup.tsx` (ADR-163 surface restructure + ADR-165 v6 workspace state modal).
+  - All 128 assertions now pass (was 121/127, then 122/128 after Execute cleanup, now 128/128 after drift fixes).
+- `docs/architecture/primitives-matrix.md`:
+  - **`UpdateContext.target` enum corrected** — I originally documented 5 targets + a `deliverable` entry, but the actual code enum is 6: `identity`, `brand`, `memory`, `agent`, `task`, `awareness`. `deliverable` is a value of the `feedback_target` SUB-parameter when `target="task"`, not a top-level target. Now documented correctly with the sub-parameter explained.
+  - **`ManageTask.action` enum documented as 7-value current state + `create` pending Commit 3**, with per-action introduction provenance (ADR-146 baseline, ADR-149 extensions, ADR-168 Commit 3 pending fold).
+  - **Mode totals section** split into "Current state (post-Commit 2)" showing the actual 14/16 count with current names, and "Target state (post-Commit 5)" showing the final 13/14+ count with post-rename names. Removes ambiguity about "which version is this?" during the migration.
+  - **Deleted primitives ledger** — `Execute` row updated to "*(shipped 2026-04-09)*" and extended with the note that `action` + `system` entity types were also removed as Execute vestiges.
+- `docs/architecture/agent-execution-model.md`:
+  - Fixed the "How TP moves up the queue" section — the stale "via Execute primitive" reference becomes "via `ManageTask(task_slug=..., action='trigger')` → `_handle_trigger` → `execute_task()`".
+  - Fixed the `execute_agent_run` entry-point description — removed "Execute primitive" from the caller list, replaced with `trigger_dispatch.py`.
+  - **Deleted the duplicate stale primitives table** (lines 187-193) that listed `Write, Edit, Execute, Clarify, SaveMemory, CreateTask, ReadTask, UpdateTask, RuntimeDispatch` — a pre-ADR-146 snapshot that had been drifting for ~6 weeks. Replaced with a one-paragraph pointer to `primitives-matrix.md` as the canonical source. No more two-matrices-out-of-sync.
+- `docs/architecture/SERVICE-MODEL.md`: Same treatment — the inline "Primitives (Agent Tools)" section used to enumerate `Execution: Execute` in its chat-mode bullet list and a full headless breakdown. Deleted the enumeration, replaced with a pointer to `primitives-matrix.md`. Kept a brief "current surface" note for at-a-glance context, with an explicit note that the surface continues to evolve through Commits 3–5.
+- Expected behavior: No semantic change in what TP can do — every former Execute action has a direct replacement verb TP was already using. TP prompts no longer reference `Execute(action=...)` at all. The backend handler is gone, so any surviving caller (none found in the sweep, but as insurance) now receives `{"success": False, "error": "unknown_primitive", ...}` from `execute_primitive()` — loud failure over silent no-op. The `action`/`system` entity types no longer parse, so any accidental `Read(ref="action:*")` or similar returns `ValueError: Unknown entity type: action`.
+- Validation: 128/128 test_recent_commits.py assertions pass. All 9 touched modules import cleanly (primitives.registry, primitives.refs, primitives.list, task_pipeline, agent_execution, integrations.validation, tp_prompts.tools, tp_prompts.behaviors, tp_prompts.platforms). Backend starts.
+
+---
+
 ## [2026.04.09.1b] - ADR-168 Commit 1.1: Perception Channel Amendment
 
 ### Changed

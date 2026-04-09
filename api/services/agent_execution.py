@@ -1,10 +1,11 @@
 """
 Agent Execution Service - ADR-042 Simplified Flow + ADR-066 Delivery-First
 
-Single Execute call for agent generation with immediate delivery (no approval gate).
+Helper functions for agent generation with immediate delivery (no approval gate).
 
-Flow:
-  Execute(action="agent.generate", target="agent:uuid")
+Flow (ADR-168: Execute primitive dissolved; entry points are now
+task_pipeline.execute_task() for task-scoped runs and
+task_pipeline.execute_agent_run() for agent-scoped runs from MCP/routes/triggers):
     → check_agent_freshness() (ADR-049)
     → strategy.gather_context() (ADR-045 + ADR-073)
     → generate_draft_inline()

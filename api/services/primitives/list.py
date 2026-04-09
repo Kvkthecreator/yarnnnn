@@ -6,7 +6,7 @@ Find entities by structure/pattern.
 Usage:
   List(pattern="agent:*")
   List(pattern="memory:?type=fact")
-  List(pattern="action:platform.*")
+  List(pattern="task:?status=active")
 """
 
 from typing import Any
@@ -23,7 +23,7 @@ Examples:
 - List(pattern="agent:?status=active") - active agents
 - List(pattern="memory:?type=fact&limit=20") - fact memories
 - List(pattern="platform:*") - all connected platforms
-- List(pattern="action:platform.*") - all platform actions
+- List(pattern="task:?status=active") - active tasks
 
 Pattern format: <type>:<identifier|*>[?<filters>]""",
     "input_schema": {
@@ -145,9 +145,6 @@ def _format_list_message(entity_type: str, items: list) -> str:
 
     elif entity_type == "memory":
         return f"Found {count} memory/memories"
-
-    elif entity_type == "action":
-        return f"Found {count} available action(s)"
 
     elif entity_type == "task":
         active = sum(1 for i in items if i.get("status") == "active")

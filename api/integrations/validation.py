@@ -340,9 +340,10 @@ def _generate_recommendations(health: IntegrationHealth, config: dict) -> list[s
 
 def quick_validate_send_params(provider: str, params: dict) -> tuple[bool, list[str]]:
     """
-    Quick validation of platform.send parameters.
+    Quick validation of platform send parameters.
 
-    Use this in Execute primitive before attempting to send.
+    Use this before attempting to send via platform_* tools (previously used
+    in the Execute primitive before ADR-168 Commit 2 dissolved it).
 
     Returns:
         (is_valid, list_of_errors)

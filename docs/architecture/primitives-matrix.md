@@ -188,10 +188,17 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 | `GetSystemState` | introspection | ● | ● | introspection | [system_state.py](../../api/services/primitives/system_state.py) | Report system state (tier, limits, health flags). |
 | `platform_*` | external | ○ | ● (capability-gated) | external | [platform_tools.py](../../api/services/platform_tools.py) | Dynamic set resolved per agent capability bundle. Routed through `handle_platform_tool`. Not in static registries. |
 
-### Mode totals (post-ADR-168 implementation)
+### Mode totals
 
-- **Chat mode:** 13 static primitives (`LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`). +`RuntimeDispatch` as an explicit-user-request escape hatch.
-- **Headless mode:** 14 static primitives + `platform_*` dynamic tools. The static set: `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`, `QueryKnowledge`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`.
+**Current state (post-ADR-168 Commit 2, as of 2026-04-09):**
+
+- **Chat mode:** 14 tools (was 15). `Execute` dissolved in Commit 2. Current set: `Read`, `List`, `Search`, `Edit`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `CreateTask`, `ManageTask`, `RepurposeOutput`, `Clarify`. *(Names still in pre-Commit-4 form.)*
+- **Headless mode:** 16 static tools + `platform_*` dynamic. Unchanged by Commit 2. Set: `Read`, `List`, `Search`, `GetSystemState`, `WebSearch`, `ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, `QueryKnowledge`, `ListWorkspace`, `DiscoverAgents`, `ReadAgentContext`, `ManageAgent`, `CreateTask`, `ManageTask`, `ManageDomains`.
+
+**Target state (post-ADR-168 Commit 5):**
+
+- **Chat mode:** 13 static primitives (`LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`). `CreateTask` folded into `ManageTask(action="create")`, entity verbs renamed.
+- **Headless mode:** 14 static primitives + `platform_*` dynamic. The static set: `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`, `QueryKnowledge`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`. *Note: 15 entries, not 14 — the count reflects CreateTask folding (−1) and ReadAgentContext rename (no count change). Final tally confirmed in Commit 5.*
 
 **Hard boundaries (enforced by [api/test_recent_commits.py](../../api/test_recent_commits.py)):**
 
@@ -207,14 +214,18 @@ For verbs that carry a typed sub-action, the enum is load-bearing. Single source
 
 ### `UpdateContext.target`
 
+6-value enum. Source of truth: `UPDATE_CONTEXT_TOOL.input_schema.properties.target.enum` in `api/services/primitives/update_context.py`.
+
 | Target | Writes to | Typical caller |
 |---|---|---|
-| `identity` | `/workspace/context/_identity.md` or memory substrate | TP during context inference |
-| `brand` | `/workspace/context/_brand.md` | TP during context inference |
-| `memory` | `user_memory` KV store | TP in-session fact capture (ADR-156) |
-| `agent` | Agent's workspace `memory/feedback.md` | TP routing user feedback |
-| `task` | Task's `memory/feedback.md` | TP routing user feedback on a task |
-| `deliverable` | Task's `DELIVERABLE.md` preference trail | TP routing user feedback on output format/content (ADR-149) |
+| `identity` | Identity substrate (IDENTITY.md + inference merge) | TP during context inference |
+| `brand` | Brand substrate (BRAND.md + inference merge) | TP during context inference |
+| `memory` | `user_memory` KV store — appends (deduped) | TP in-session fact capture (ADR-156) |
+| `agent` | Agent's workspace `memory/feedback.md` — appends feedback entry | TP routing user feedback about an agent |
+| `task` | Task's `memory/feedback.md` by default; `feedback_target` sub-parameter can route to `DELIVERABLE.md` preference trail (ADR-149) or patch TASK.md sections directly (`criteria`, `objective`, `output_spec`, `run_log`) | TP routing user feedback on a task's output |
+| `awareness` | TP's situational notes (shift handoff) — full replacement, living document | TP updating its own working awareness |
+
+The `feedback_target` sub-parameter on `target="task"` has its own 5-value enum: `deliverable` (default, writes to `memory/feedback.md` for DELIVERABLE.md inference), `criteria`, `objective`, `output_spec`, `run_log`. It's a refinement of where within a task's substrate the feedback lands, not a top-level target.
 
 ### `ManageAgent.action`
 
@@ -226,18 +237,20 @@ For verbs that carry a typed sub-action, the enum is load-bearing. Single source
 | `resume` | Reactivate agent |
 | `archive` | Soft-delete agent |
 
-### `ManageTask.action` (post-ADR-168 Commit 3)
+### `ManageTask.action`
 
-| Action | Effect | Mode availability |
-|---|---|---|
-| `create` | Scaffold a new task from a task type, assign to an agent, write TASK.md | both |
-| `trigger` | Fire the task immediately (dispatch to task pipeline) | both |
-| `update` | Patch task fields (schedule, objective, sources, delivery) | both |
-| `pause` | Set `tasks.status = 'paused'` | both |
-| `resume` | Set `tasks.status = 'active'`, recompute `next_run_at` | both |
-| `evaluate` | Write TP evaluation to `memory/feedback.md` (goal-mode steering) | chat |
-| `steer` | Write TP steering note to `memory/steering.md` | chat |
-| `complete` | Mark goal-mode task complete | chat |
+Current: 7-value enum. Source of truth: `MANAGE_TASK_TOOL.input_schema.properties.action.enum` in `api/services/primitives/manage_task.py`. ADR-168 Commit 3 will fold `CreateTask` into this enum as `"create"`, making it 8-value.
+
+| Action | Effect | Mode availability | Introduced |
+|---|---|---|---|
+| `trigger` | Fire the task immediately (dispatch to task pipeline via `_handle_trigger` → `execute_task()`) | both | ADR-146 |
+| `update` | Patch task fields (schedule, objective, sources, delivery) | both | ADR-146 |
+| `pause` | Set `tasks.status = 'paused'` | both | ADR-146 |
+| `resume` | Set `tasks.status = 'active'`, recompute `next_run_at` | both | ADR-146 |
+| `evaluate` | Write TP evaluation to `memory/feedback.md` (goal-mode steering) | chat | ADR-149 |
+| `steer` | Write TP steering note to `memory/steering.md` | chat | ADR-149 |
+| `complete` | Mark goal-mode task complete | chat | ADR-149 |
+| `create` *(pending Commit 3)* | Scaffold a new task from a task type, assign to an agent, write TASK.md. Currently lives on the separate `CreateTask` primitive; will fold into `ManageTask` in ADR-168 Commit 3 for symmetry with `ManageAgent`. | both | ADR-168 C3 |
 
 ### `ManageDomains.action`
 
@@ -336,7 +349,7 @@ Any primitive change (rename, add, remove, mode change, enum extension) writes a
 | `ResumeTask` | `ManageTask(action="resume")` | ADR-146 | One verb, typed action |
 | `Write` | Specialized primitives (ManageAgent, ManageTask, UpdateContext) | ADR-146 | P1: no remaining unique purpose |
 | `RefreshPlatformContent` | (none — flow dissolved) | ADR-153 | Platform sync removed; data flows through tracking tasks |
-| `Execute` | `ManageTask(action="trigger")` / `UpdateContext(target="agent")` / `ManageTask(action="update")` | ADR-168 Commit 2 | Actions dissolve into typed verbs |
+| `Execute` | `ManageTask(action="trigger")` / `UpdateContext(target="agent")` / `ManageTask(action="update")` | ADR-168 Commit 2 *(shipped 2026-04-09)* | Actions dissolve into typed verbs. Also removed: `action` + `system` entity types from `refs.py` (vestigial — only served Execute's action-discovery surface). |
 | `CreateTask` | `ManageTask(action="create")` | ADR-168 Commit 3 | Symmetry with ManageAgent |
 | `Read` | `LookupEntity` | ADR-168 Commit 4 | Name was ambiguous with file-layer read |
 | `List` | `ListEntities` | ADR-168 Commit 4 | Name was ambiguous |

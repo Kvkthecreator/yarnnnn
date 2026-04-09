@@ -23,7 +23,6 @@ from .read import READ_TOOL, handle_read
 from .edit import EDIT_TOOL, handle_edit
 from .search import SEARCH_TOOL, handle_search
 from .list import LIST_TOOL, handle_list
-from .execute import EXECUTE_TOOL, handle_execute
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import MANAGE_AGENT_TOOL, handle_manage_agent
@@ -56,6 +55,13 @@ from services.platform_tools import (
 # - task.py: UPDATE_TASK_TOOL → ManageTask(action="update")
 # - task.py: PAUSE_TASK_TOOL → ManageTask(action="pause")
 # - task.py: RESUME_TASK_TOOL → ManageTask(action="resume")
+#
+# Deleted imports (ADR-168 Commit 2 — finish ADR-146 Phase 3):
+# - execute.py → Execute primitive dissolved entirely
+#     agent.generate    → ManageTask(task_slug=..., action="trigger")
+#     agent.acknowledge → UpdateContext(target="agent", agent_slug=..., text=...)
+#     platform.publish  → delivery is a task property (ManageTask update)
+#     agent.schedule    → ManageTask(task_slug=..., action="update", schedule=...)
 # ---------------------------------------------------------------------------
 
 
@@ -176,13 +182,11 @@ CHAT_PRIMITIVES = [
     MANAGE_AGENT_TOOL,
     CREATE_TASK_TOOL,
     MANAGE_TASK_TOOL,
-    # Execution
-    EXECUTE_TOOL,
     # Repurpose (ADR-148 Phase 4)
     REPURPOSE_OUTPUT_TOOL,
     # Interaction (1)
     CLARIFY_TOOL,
-]  # 15 tools — at P5 budget
+]  # 14 tools — ADR-168 Commit 2 removed EXECUTE_TOOL (was at P5 budget of 15)
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per
@@ -226,7 +230,7 @@ HANDLERS: dict[str, Callable] = {
     "Edit": handle_edit,
     "Search": handle_search,
     "List": handle_list,
-    "Execute": handle_execute,
+    # "Execute": DELETED (ADR-168 Commit 2 — finish ADR-146 Phase 3)
     # "RefreshPlatformContent": DELETED (ADR-153)
     "WebSearch": handle_web_search,
     "GetSystemState": handle_get_system_state,

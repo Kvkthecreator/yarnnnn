@@ -4,6 +4,12 @@ Tool Documentation - Core YARNNN primitives.
 ADR-146: Consolidated primitive set.
 - UpdateContext replaces UpdateSharedContext, SaveMemory, WriteAgentFeedback, WriteTaskFeedback
 - ManageTask replaces TriggerTask, UpdateTask, PauseTask, ResumeTask
+
+ADR-168: Execute primitive dissolved.
+- agent.generate → ManageTask(task_slug=..., action="trigger")
+- agent.acknowledge → UpdateContext(target="agent", agent_slug=..., text=...)
+- platform.publish → delivery is a task property, configured via ManageTask update
+- agent.schedule → ManageTask(task_slug=..., action="update", schedule=...)
 """
 
 TOOLS_SECTION = """---
@@ -30,13 +36,6 @@ TOOLS_SECTION = """---
 - `Search(query="weekly report", scope="agent")` - search agents
 - `Search(query="competitor analysis", scope="all")` - search everything
 
-### External Operations
-
-**Execute(action, target, params?)** - Trigger YARNNN orchestration operations
-- `Execute(action="agent.generate", target="agent:uuid")` - generate content
-- `Execute(action="agent.acknowledge", target="agent:uuid", params={note: "..."})` - lightweight observation
-- `Execute(action="platform.publish", target="agent:uuid", via="platform:slack")` - publish agent
-
 ### Web Operations
 
 **WebSearch(query?, url?, context?, max_results?)** - Search the web OR fetch a specific URL
@@ -60,7 +59,7 @@ Examples:
 
 Format: `<type>:<identifier>`
 
-**Types:** agent, version, platform, document, action
+**Types:** agent, version, platform, document, task
 
 **Special:** `new` (create), `latest` (most recent), `*` (all), `?key=val` (filter)
 
