@@ -1,6 +1,6 @@
 # Architecture Documentation Index
 
-> **Last updated**: 2026-04-01 (cleanup sweep — stale docs archived, ADR-153 updates)
+> **Last updated**: 2026-04-09 (ADR-168 — primitives-matrix.md added as canonical)
 
 ---
 
@@ -17,9 +17,12 @@ Start with SERVICE-MODEL.md — it's the single entry point for how the system w
 | [backend-orchestration.md](backend-orchestration.md) | 4 Render services, scheduler phase map, LLM cost surface, env var matrix |
 | [workspace-conventions.md](workspace-conventions.md) | Filesystem layout, directory registry, lifecycle conventions |
 | [registry-matrix.md](registry-matrix.md) | Agent types × task types × output categories — the full registry catalog |
+| [primitives-matrix.md](primitives-matrix.md) | Primitives × substrate × mode × capability — the full primitive surface (ADR-168) |
 | [task-type-orchestration.md](task-type-orchestration.md) | Task type registry, mode semantics, pipeline integration |
 | [output-substrate.md](output-substrate.md) | Three-registry architecture (ADR-130), HTML-native output, compose engine |
 | [naming-conventions.md](naming-conventions.md) | Naming strategy: user-facing → developer → architecture tiers |
+
+`registry-matrix.md` and `primitives-matrix.md` are siblings: the former describes **what** the system works on (domains, tasks, agents); the latter describes **how** the system acts on it (primitives, dispatch paths, permission modes).
 
 ## Reading Order
 
@@ -31,6 +34,7 @@ For someone new to the codebase:
 4. **[workspace-conventions.md](workspace-conventions.md)** — the filesystem model
 5. **[backend-orchestration.md](backend-orchestration.md)** — how everything runs
 6. **[registry-matrix.md](registry-matrix.md)** — the full type catalog
+7. **[primitives-matrix.md](primitives-matrix.md)** — the full primitive surface
 
 ## Archived (`docs/architecture/previous_versions/`)
 

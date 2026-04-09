@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.09.1] - ADR-168 Commit 1: Primitive Matrix — Direction Declared
+
+### Changed
+- `docs/adr/ADR-168-primitive-matrix.md`: New ADR. Establishes the primitive matrix as canonical, finishes ADR-146 Phase 3 (dissolve `Execute`) and Phase 5 (canonical primitives doc). Two axes: **substrate family** (entity / file / context / lifecycle / action / interaction / external / introspection) and **permission mode** (chat / headless / both). Plus orthogonal **capability tags** (user-channel, user-authorized, entity-layer, file-layer, semantic-query, context-mutation, lifecycle, external, introspection, asset-render, inter-agent). Naming reform specified: `Read → LookupEntity`, `List → ListEntities`, `Search → SearchEntities`, `Edit → EditEntity` (entity layer); `ReadWorkspace → ReadFile`, `WriteWorkspace → WriteFile`, `SearchWorkspace → SearchFiles`, `ListWorkspace → ListFiles`, `ReadAgentContext → ReadAgentFile` (file layer). `QueryKnowledge` kept — distinct semantic-query mental model (ADR-151). No caller-identity prefix (e.g., `TP*`) — rejected because TP is an agent now (ADR-164) and the real distinction is capability, not identity. Five-commit plan: (1) docs foundation (this commit), (2) dissolve Execute, (3) fold CreateTask into ManageTask(action="create"), (4) rename to *Entity/*File families, (5) mark Implemented.
+- `docs/architecture/primitives-matrix.md`: New canonical doc. Sibling to `registry-matrix.md`. Documents every primitive with substrate, mode, capability tags, handler file, and purpose. Target/action enumerations for UpdateContext, ManageAgent, ManageTask, ManageDomains, RepurposeOutput. Rename protocol pinning CLAUDE.md rule 7b grep sweep list in one discoverable place. Deleted primitives migration ledger.
+- `docs/architecture/README.md`: Added `primitives-matrix.md` to Canonical Docs table and Reading Order (position 7). Explicit note that `registry-matrix.md` and `primitives-matrix.md` are siblings.
+- `CLAUDE.md`: Added ADR-168 entry after ADR-167. Expanded Tool Primitives row in File Locations table to two rows (code + canonical doc).
+- Expected behavior: No runtime change. No tool definitions touched. No prompts modified. This commit is a pure docs foundation — subsequent commits (2–5) execute the direction the ADR declares. After this commit, the primitive surface has a canonical reference for the first time since ADR-146 Phase 5 was deferred (~six weeks).
+
+---
+
 ## [2026.04.08.3] - ADR-165 v5: Workspace State Surface Marker
 
 ### Changed
