@@ -17,9 +17,14 @@ import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 interface ContentViewerProps {
   selectedNode: WorkspaceTreeNode | null;
   onNavigate: (node: WorkspaceTreeNode) => void;
+  showHeader?: boolean;
 }
 
-export function ContentViewer({ selectedNode, onNavigate }: ContentViewerProps) {
+export function ContentViewer({
+  selectedNode,
+  onNavigate,
+  showHeader = true,
+}: ContentViewerProps) {
   if (!selectedNode) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -29,18 +34,26 @@ export function ContentViewer({ selectedNode, onNavigate }: ContentViewerProps) 
   }
 
   if (selectedNode.type === 'folder') {
-    return <DirectoryView node={selectedNode} onNavigate={onNavigate} />;
+    return (
+      <DirectoryView
+        node={selectedNode}
+        onNavigate={onNavigate}
+        showHeader={showHeader}
+      />
+    );
   }
 
-  return <FileView path={selectedNode.path} />;
+  return <FileView path={selectedNode.path} showHeader={showHeader} />;
 }
 
 function DirectoryView({
   node,
   onNavigate,
+  showHeader,
 }: {
   node: WorkspaceTreeNode;
   onNavigate: (node: WorkspaceTreeNode) => void;
+  showHeader: boolean;
 }) {
   const children = useMemo(
     () =>
@@ -64,15 +77,16 @@ function DirectoryView({
 
   return (
     <div className="h-full overflow-auto">
-      <div className="border-b border-border bg-muted/20 px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-medium">{node.name}</h2>
-            <p className="text-xs text-muted-foreground">{children.length} items</p>
+      {showHeader && (
+        <div className="border-b border-border bg-muted/20 px-4 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-medium">{node.name}</h2>
+              <p className="text-xs text-muted-foreground">{children.length} items</p>
+            </div>
           </div>
-          <p className="text-[11px] text-muted-foreground truncate">{node.path}</p>
         </div>
-      </div>
+      )}
 
       <div className="px-2 py-2">
         <div className="grid grid-cols-[minmax(0,1fr)_140px_120px] gap-3 px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/60">
@@ -114,7 +128,13 @@ function DirectoryView({
   );
 }
 
-function FileView({ path }: { path: string }) {
+function FileView({
+  path,
+  showHeader,
+}: {
+  path: string;
+  showHeader: boolean;
+}) {
   const [file, setFile] = useState<WorkspaceFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -160,42 +180,30 @@ function FileView({ path }: { path: string }) {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="border-b border-border bg-muted/20 px-4 py-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <FileIcon filename={filename} size="md" />
-              <h2 className="text-lg font-medium truncate">{filename}</h2>
+      {showHeader ? (
+        <div className="border-b border-border bg-muted/20 px-4 py-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileIcon filename={filename} size="md" />
+                <h2 className="text-lg font-medium truncate">{filename}</h2>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>{describeFileKind(file.path, file.content_type)}</span>
+                {file.updated_at && <span>{formatTimestamp(file.updated_at, true)}</span>}
+                {file.content_type && <span>{file.content_type}</span>}
+              </div>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span>{describeFileKind(file.path, file.content_type)}</span>
-              {file.updated_at && <span>{formatTimestamp(file.updated_at, true)}</span>}
-              {file.content_type && <span>{file.content_type}</span>}
-            </div>
+            {file.content_url && (
+              <FileActions contentUrl={file.content_url} />
+            )}
           </div>
-          {file.content_url && (
-            <div className="flex items-center gap-2 shrink-0">
-              <a
-                href={file.content_url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Open
-              </a>
-              <a
-                href={file.content_url}
-                download
-                className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Download
-              </a>
-            </div>
-          )}
         </div>
-      </div>
+      ) : file.content_url ? (
+        <div className="flex justify-end px-4 pt-4">
+          <FileActions contentUrl={file.content_url} />
+        </div>
+      ) : null}
 
       <div className="p-4">
         {kind === 'markdown' && file.content && (
@@ -251,6 +259,30 @@ function FileView({ path }: { path: string }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function FileActions({ contentUrl }: { contentUrl: string }) {
+  return (
+    <div className="flex items-center gap-2 shrink-0">
+      <a
+        href={contentUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+      >
+        <ExternalLink className="w-3.5 h-3.5" />
+        Open
+      </a>
+      <a
+        href={contentUrl}
+        download
+        className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+      >
+        <Download className="w-3.5 h-3.5" />
+        Download
+      </a>
     </div>
   );
 }

@@ -28,6 +28,7 @@ import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
+import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
@@ -124,6 +125,38 @@ function buildContextNodes(input: {
       })),
     },
   ];
+}
+
+function getNodeMetadata(node: TreeNode): string {
+  const parts: string[] = [node.type === 'folder' ? 'Folder' : 'File'];
+
+  if (node.type === 'folder') {
+    const childCount = node.children?.length;
+    if (typeof childCount === 'number') {
+      parts.push(`${childCount} ${childCount === 1 ? 'item' : 'items'}`);
+    } else if (node.summary) {
+      parts.push(node.summary);
+    }
+  } else if (node.summary) {
+    parts.push(node.summary);
+  }
+
+  if (node.updated_at) {
+    parts.push(`Updated ${formatNodeTimestamp(node.updated_at)}`);
+  }
+
+  return parts.join(' · ');
+}
+
+function formatNodeTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 // =============================================================================
@@ -326,8 +359,16 @@ export default function ContextPage() {
       <PageHeader defaultLabel="Context" />
       {selectedNode ? (
         <div className="flex-1 overflow-auto bg-background flex flex-col">
+          <SurfaceIdentityHeader
+            title={selectedNode.name}
+            metadata={getNodeMetadata(selectedNode)}
+          />
           <div className="flex-1 overflow-auto">
-            <ContentViewer selectedNode={selectedNode} onNavigate={handleExplorerSelect} />
+            <ContentViewer
+              selectedNode={selectedNode}
+              onNavigate={handleExplorerSelect}
+              showHeader={false}
+            />
           </div>
         </div>
       ) : (
