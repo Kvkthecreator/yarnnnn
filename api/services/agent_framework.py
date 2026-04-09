@@ -873,7 +873,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
 
     # -- Tool-backed (internal primitives) --
     "web_search":        {"category": "tool", "runtime": "internal", "tool": "WebSearch"},
-    "read_workspace":    {"category": "tool", "runtime": "internal", "tool": "ReadWorkspace"},
+    "read_workspace":    {"category": "tool", "runtime": "internal", "tool": "ReadFile"},
     "search_knowledge":  {"category": "tool", "runtime": "internal", "tool": "QueryKnowledge"},
 
     # -- Platform runtime (provider-native external capabilities) --

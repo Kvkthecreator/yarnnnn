@@ -340,7 +340,7 @@ async def _write_conversation_summary(auth, messages: list[dict]) -> None:
 
     Called every 5 user messages. Extracts key decisions, corrections, and focus
     from the full message history. Written as a workspace file that TP can read
-    on demand via ReadWorkspace.
+    on demand via ReadFile (ADR-168).
 
     Uses a simple extraction (no LLM) — last 20 messages summarized by role.
     """

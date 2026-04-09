@@ -6,7 +6,7 @@ ADR-124: Project Meeting Room — agents as chat participants.
 Unlike ThinkingPartnerAgent (full meta-cognitive, all primitives), ChatAgent is:
 - Domain-scoped: has agent identity, instructions, workspace context
 - Read-heavy primitives: workspace read, search, query knowledge
-- Limited write: WriteWorkspace for own workspace only
+- Limited write: WriteFile for own workspace only
 - Streaming: SSE, same transport as TP
 - Role-aware: PM agents get project execution primitives; contributors get domain-only
 
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # PM Chat Prompt v4.0 — directive persistence + layered cognitive model
 # v2.0: live project context injection (ADR-124 Phase 3)
 # v3.0: prerequisite-layer reasoning, context-objective fitness, opinionated stance
-# v4.0: ADR-128 — persist project-level decisions to memory/decisions.md via WriteWorkspace
+# v4.0: ADR-128 — persist project-level decisions to memory/decisions.md via WriteFile
 PM_CHAT_PROMPT = """You are {agent_name}, the Project Manager for "{project_title}".
 
 You reason through prerequisite layers. Each layer must be satisfied before the next matters. Stop at the first broken layer — that IS your assessment.
@@ -92,7 +92,7 @@ You have access to your workspace files, the project's knowledge base, and PM-sp
 
 ## Directive Persistence (ADR-128)
 
-When the user makes a **project-level decision** during this conversation — objective refinements, structural changes, delivery adjustments, priority shifts — persist it immediately using WriteWorkspace to append to `memory/decisions.md`. This ensures the decision survives session rotation and compaction.
+When the user makes a **project-level decision** during this conversation — objective refinements, structural changes, delivery adjustments, priority shifts — persist it immediately using WriteFile to append to `memory/decisions.md`. This ensures the decision survives session rotation and compaction.
 
 **What to persist**: Decisions that affect future work — "focus on action items not summaries", "switch to weekly delivery", "add a research contributor", "deprioritize calendar data". NOT ephemeral discussion, questions, or status inquiries.
 
@@ -103,7 +103,7 @@ When the user makes a **project-level decision** during this conversation — ob
 
 # Contributor Chat Prompt v3.0 — adds directive persistence (ADR-128)
 # v2.0: project objective + own contribution context (ADR-124 Phase 3)
-# v3.0: ADR-128 — persist user directives to memory/directives.md via WriteWorkspace
+# v3.0: ADR-128 — persist user directives to memory/directives.md via WriteFile
 CONTRIBUTOR_CHAT_PROMPT = """You are {agent_name}, a {role} agent contributing to project "{project_title}".
 
 ## Project Objective
@@ -124,7 +124,7 @@ When the user talks to you:
 
 ## Directive Persistence (ADR-128)
 
-When the user gives you a **durable directive** — focus areas, style preferences, priorities, scope adjustments — persist it immediately using WriteWorkspace to append to `memory/directives.md`. This ensures the guidance survives session rotation and shapes all your future runs.
+When the user gives you a **durable directive** — focus areas, style preferences, priorities, scope adjustments — persist it immediately using WriteFile to append to `memory/directives.md`. This ensures the guidance survives session rotation and shapes all your future runs.
 
 **What to persist**: Guidance that affects your future work — "focus on action items", "keep it under 500 words", "ignore the #random channel", "always include a TL;DR". NOT ephemeral questions, one-off requests, or status inquiries.
 

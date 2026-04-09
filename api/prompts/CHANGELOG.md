@@ -6,6 +6,81 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.09.4] - ADR-168 Commit 4: Rename to *Entity / *File families
+
+### Changed
+Big rename sweep — the one ADR-168 was really about. Resolves the standing
+`Read`/`ReadWorkspace` ambiguity by giving every primitive a substrate-explicit
+name. Entity layer verbs end in `Entity` or `Entities`, file layer verbs end
+in `File` or `Files`. No semantic changes — TP can do exactly what it could
+before, just with names that tell you which substrate the verb operates on.
+
+**Renames (9 primitives):**
+
+| Old | New | Layer |
+|---|---|---|
+| `Read` | `LookupEntity` | entity (relational refs via parse_ref/resolve_ref) |
+| `List` | `ListEntities` | entity |
+| `Search` | `SearchEntities` | entity |
+| `Edit` | `EditEntity` | entity (chat-only, user-authorized) |
+| `ReadWorkspace` | `ReadFile` | file (virtual filesystem) |
+| `WriteWorkspace` | `WriteFile` | file |
+| `SearchWorkspace` | `SearchFiles` | file |
+| `ListWorkspace` | `ListFiles` | file |
+| `ReadAgentContext` | `ReadAgentFile` | file, inter-agent |
+
+**Kept as-is:** `QueryKnowledge` (distinct semantic-query mental model, ADR-151), `DiscoverAgents`, `UpdateContext`, `ManageAgent`, `ManageTask`, `ManageDomains`, `RuntimeDispatch`, `RepurposeOutput`, `Clarify`, `GetSystemState`, `WebSearch`, `list_integrations`, `platform_*`.
+
+**Backend primitive files (tool dicts + handlers + constants):**
+- `api/services/primitives/read.py`: `READ_TOOL` → `LOOKUP_ENTITY_TOOL`, `handle_read` → `handle_lookup_entity`. Tool description rewritten to explicitly call out the entity layer vs file layer distinction, cross-reference ReadFile. Module docstring updated.
+- `api/services/primitives/list.py`: `LIST_TOOL` → `LIST_ENTITIES_TOOL`, `handle_list` → `handle_list_entities`. Tool description + examples updated (cross-references ListFiles).
+- `api/services/primitives/search.py`: `SEARCH_TOOL` → `SEARCH_ENTITIES_TOOL`, `handle_search` → `handle_search_entities`. Tool description cross-references SearchFiles (filesystem search) and QueryKnowledge (semantic search) to help TP pick the right tool.
+- `api/services/primitives/edit.py`: `EDIT_TOOL` → `EDIT_ENTITY_TOOL`, `handle_edit` → `handle_edit_entity`. Tool description cross-references WriteFile.
+- `api/services/primitives/workspace.py`: `READ_WORKSPACE_TOOL` → `READ_FILE_TOOL`, `WRITE_WORKSPACE_TOOL` → `WRITE_FILE_TOOL`, `SEARCH_WORKSPACE_TOOL` → `SEARCH_FILES_TOOL`, `LIST_WORKSPACE_TOOL` → `LIST_FILES_TOOL`, `READ_AGENT_CONTEXT_TOOL` → `READ_AGENT_FILE_TOOL`. Handler functions: `handle_read_workspace` → `handle_read_file`, `handle_write_workspace` → `handle_write_file`, `handle_search_workspace` → `handle_search_files`, `handle_list_workspace` → `handle_list_files`, `handle_read_agent_context` → `handle_read_agent_file`. Runtime error messages updated ("ReadFile requires agent context" etc.). Tool descriptions cross-reference LookupEntity and QueryKnowledge.
+
+**Registry (`api/services/primitives/registry.py`):**
+- Imports updated to new names.
+- `CHAT_PRIMITIVES` reordered with "Entity layer (4)" comment header.
+- `HEADLESS_PRIMITIVES` reordered with "Entity layer (3)" and "File layer (5)" comment headers.
+- `HANDLERS` dict keys and values all updated.
+
+**Backend prompts + services:**
+- `api/agents/tp_prompts/tools.py`: "Data Operations" section rewritten. `Read(ref=...)` → `LookupEntity(ref=...)`, same for List/Search/Edit. Added note explicitly calling out the entity layer vs file layer distinction so TP knows these don't work on paths. Module docstring extended to document ADR-168 Commit 4.
+- `api/agents/tp_prompts/behaviors.py`: All `Read(ref=)`, `List(pattern=)`, `Search(query=)`, `Edit(ref=)` call patterns updated to new names via replace_all. Prose references to "Search → Read → Act" workflow updated to "SearchEntities → LookupEntity → Act". "Use the Ref for all Edit calls" → "all EditEntity calls".
+- `api/agents/tp_prompts/onboarding.py`: No matching patterns (already prose-based).
+- `api/services/commands.py`: `List(pattern="agent:*")` → `ListEntities(pattern="agent:*")`. `Search(query="...", scope="workspace")` → guidance updated to reference SearchEntities AND QueryKnowledge (the ADR-168 distinction between entity search and semantic context query).
+- `api/services/task_types.py`: `WriteWorkspace` → `WriteFile` across all 10 task type prompt instructions (replace_all). These are the literal strings that task pipeline injects into headless agent prompts.
+- `api/services/workspace.py`: Playbook load_context docstring and indexing prose reference updated ("Read them via ReadFile").
+- `api/services/working_memory.py`: Compact index format docstring + the "read with ReadFile if you need detail" line in the memory files section.
+- `api/services/task_pipeline.py`: 3 references in context-loading comments updated to `ReadFile`.
+- `api/services/agent_framework.py`: `capabilities["read_workspace"]["tool"]` → `"ReadFile"` (the capability-to-tool mapping that agent execution uses to resolve what primitive a given capability name maps to).
+- `api/agents/chat_agent.py`: All `WriteWorkspace` prose references (module docstring, directive persistence prompt sections) → `WriteFile`.
+- `api/routes/chat.py`: `summarize_messages` docstring reference updated.
+- `api/mcp_server/server.py`: Stale comment `"current primitive name is ReadWorkspace/SearchWorkspace"` replaced with the post-rename comment acknowledging the file layer is now named consistently.
+- `api/services/mcp_composition.py`: Module docstring primitive-name note updated. The actual `execute_primitive()` calls only use `QueryKnowledge` and `UpdateContext` (both unchanged), so no call-site changes needed.
+- `api/test_recent_commits.py`:
+  - Old `"Headless has ReadWorkspace"`/`"Headless has WriteWorkspace"` assertions replaced with five new `"Headless has ReadFile"`/`"...WriteFile"`/`"...SearchFiles"`/`"...ListFiles"`/`"...ReadAgentFile"` assertions plus two "old names not in registry" assertions.
+  - `"Chat does NOT have ReadWorkspace"` assertion expanded to 4 assertions covering all file-layer names.
+  - `"Headless does NOT have Edit"` → `"Headless does NOT have EditEntity"`.
+  - `_test` helper's `executor("Edit", ...)` → `executor("EditEntity", ...)` so the "headless blocks mutation" test still catches the right symbol.
+  - Test count: 136 → 144 (+8 new assertions for the rename).
+
+**Frontend:**
+- `web/lib/utils.ts`: `TOOL_DISPLAY_NAMES` dict rewritten. Old entries deleted (`Read: "Reading content"`, `Write`, `Edit`, `List`, `Search`, `Execute`, `CreateTask`, `ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, `ListWorkspace`, `ReadAgentContext`). New entries added (`LookupEntity: "Looking up entity"`, `ListEntities`, `SearchEntities`, `EditEntity`, `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`, `ReadAgentFile`). Section comments updated to "Entity layer" and "File layer" to match backend organization.
+- `web/components/tp/InlineToolCall.tsx`: `TOOL_ICONS` icon map updated for the new names. Icon choices preserved where sensible (LookupEntity: Eye, ListEntities: List, SearchEntities: Search, EditEntity: Pencil; ReadFile: Eye, WriteFile: Plus, etc.).
+
+**Docs:**
+- `docs/architecture/primitives-matrix.md`: Mode totals "Current state" section updated from pre-Commit-4 to post-Commit-4 form — chat set now uses new names, headless set now uses new names. Deleted primitives ledger rows (9 rename entries) marked *(shipped 2026-04-09)*.
+- `CLAUDE.md`: ADR-168 entry status marker updated from "Commits 1, 1.1, 2, 3 landed" → "Commits 1, 1.1, 2, 3, 4 landed. Commit 5 pending."
+
+**Validation:** 144/144 `test_recent_commits.py` assertions pass (was 136/136 before Commit 4, +8 from the rename assertions). All touched backend modules import cleanly. Backend starts.
+
+**Expected behavior:** Zero semantic change. Every primitive TP could call before, it can still call — just with a name that makes the substrate explicit. The `Read`/`ReadWorkspace` ambiguity that was the standing source of "wait, which Read does what?" confusion is resolved: `LookupEntity(ref="agent:uuid")` is clearly the entity-layer lookup by typed ref, `ReadFile(path="AGENT.md")` is clearly the file-layer read by path.
+
+**Next:** Commit 5 marks ADR-168 Implemented, runs the final grep gate (no live references to old names), and updates the primitives matrix status header.
+
+---
+
 ## [2026.04.09.3] - ADR-168 Commit 3: Fold CreateTask into ManageTask(action="create")
 
 ### Changed

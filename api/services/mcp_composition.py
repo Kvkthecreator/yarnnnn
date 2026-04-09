@@ -3,7 +3,7 @@ MCP Composition Layer — ADR-169
 
 Thin composition module for the three MCP tools (work_on_this, pull_context,
 remember_this). Each tool is an intent-shaped wrapper over existing primitives
-from the ADR-168 matrix (QueryKnowledge, ReadWorkspace, UpdateContext).
+from the ADR-168 matrix (QueryKnowledge, ReadFile, UpdateContext).
 
 Design invariants:
     1. No new primitives — this module is composition over execute_primitive()
@@ -17,10 +17,10 @@ Canonical product framing:
     docs/features/mcp/README.md and sibling docs (tool-contracts.md,
     workflows.md, architecture.md) — this module is their implementation.
 
-Primitive name note:
-    This module uses current primitive names (ReadWorkspace, SearchWorkspace).
-    ADR-168 Commit 4 will rename these to ReadFile/SearchFiles. When that
-    commit lands, update the execute_primitive() call sites in this module.
+Primitive naming (ADR-168 Commit 4):
+    File-layer primitives: ReadFile, WriteFile, SearchFiles, ListFiles.
+    Semantic-query primitive: QueryKnowledge (unchanged, distinct mental model).
+    Context-mutation primitive: UpdateContext (unchanged).
 """
 
 from __future__ import annotations

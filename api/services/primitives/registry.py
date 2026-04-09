@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Imports — only live primitives
 # ---------------------------------------------------------------------------
-from .read import READ_TOOL, handle_read
-from .edit import EDIT_TOOL, handle_edit
-from .search import SEARCH_TOOL, handle_search
-from .list import LIST_TOOL, handle_list
+from .read import LOOKUP_ENTITY_TOOL, handle_lookup_entity
+from .edit import EDIT_ENTITY_TOOL, handle_edit_entity
+from .search import SEARCH_ENTITIES_TOOL, handle_search_entities
+from .list import LIST_ENTITIES_TOOL, handle_list_entities
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import MANAGE_AGENT_TOOL, handle_manage_agent
@@ -30,13 +30,13 @@ from .manage_task import MANAGE_TASK_TOOL, handle_manage_task
 from .update_context import UPDATE_CONTEXT_TOOL, handle_update_context
 from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
 from .workspace import (
-    READ_WORKSPACE_TOOL, handle_read_workspace,
-    WRITE_WORKSPACE_TOOL, handle_write_workspace,
-    SEARCH_WORKSPACE_TOOL, handle_search_workspace,
+    READ_FILE_TOOL, handle_read_file,
+    WRITE_FILE_TOOL, handle_write_file,
+    SEARCH_FILES_TOOL, handle_search_files,
     QUERY_KNOWLEDGE_TOOL, handle_query_knowledge,
-    LIST_WORKSPACE_TOOL, handle_list_workspace,
+    LIST_FILES_TOOL, handle_list_files,
     DISCOVER_AGENTS_TOOL, handle_discover_agents,
-    READ_AGENT_CONTEXT_TOOL, handle_read_agent_context,
+    READ_AGENT_FILE_TOOL, handle_read_agent_file,
 )
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
 from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
@@ -170,11 +170,11 @@ async def handle_list_integrations(auth: Any, input: dict) -> dict:
 
 # Chat mode: TP in user-facing conversation. ≤15 tools (P5 budget).
 CHAT_PRIMITIVES = [
-    # Discovery (5)
-    READ_TOOL,
-    LIST_TOOL,
-    SEARCH_TOOL,
-    EDIT_TOOL,
+    # Entity layer (4) + Introspection (1)
+    LOOKUP_ENTITY_TOOL,
+    LIST_ENTITIES_TOOL,
+    SEARCH_ENTITIES_TOOL,
+    EDIT_ENTITY_TOOL,
     GET_SYSTEM_STATE_TOOL,
     # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
@@ -196,22 +196,22 @@ CHAT_PRIMITIVES = [
 # Base registry only. Provider-native platform tools are added dynamically per
 # agent capability bundle via `get_headless_tools_for_agent()`.
 HEADLESS_PRIMITIVES = [
-    # Discovery (4)
-    READ_TOOL,
-    LIST_TOOL,
-    SEARCH_TOOL,
+    # Entity layer (3) + Introspection (1)
+    LOOKUP_ENTITY_TOOL,
+    LIST_ENTITIES_TOOL,
+    SEARCH_ENTITIES_TOOL,
     GET_SYSTEM_STATE_TOOL,
     # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
-    # Workspace (5)
-    READ_WORKSPACE_TOOL,
-    WRITE_WORKSPACE_TOOL,
-    SEARCH_WORKSPACE_TOOL,
+    # File layer (5)
+    READ_FILE_TOOL,
+    WRITE_FILE_TOOL,
+    SEARCH_FILES_TOOL,
     QUERY_KNOWLEDGE_TOOL,
-    LIST_WORKSPACE_TOOL,
+    LIST_FILES_TOOL,
     # Inter-agent (2)
     DISCOVER_AGENTS_TOOL,
-    READ_AGENT_CONTEXT_TOOL,
+    READ_AGENT_FILE_TOOL,
     # Lifecycle (2, was 3) + Domain management (1)
     MANAGE_AGENT_TOOL,
     MANAGE_TASK_TOOL,
@@ -229,10 +229,11 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 # =============================================================================
 
 HANDLERS: dict[str, Callable] = {
-    "Read": handle_read,
-    "Edit": handle_edit,
-    "Search": handle_search,
-    "List": handle_list,
+    # Entity layer (ADR-168 Commit 4: renamed from Read/List/Search/Edit)
+    "LookupEntity": handle_lookup_entity,
+    "EditEntity": handle_edit_entity,
+    "SearchEntities": handle_search_entities,
+    "ListEntities": handle_list_entities,
     # "Execute": DELETED (ADR-168 Commit 2 — finish ADR-146 Phase 3)
     # "RefreshPlatformContent": DELETED (ADR-153)
     "WebSearch": handle_web_search,
@@ -244,13 +245,14 @@ HANDLERS: dict[str, Callable] = {
     "ManageTask": handle_manage_task,
     "UpdateContext": handle_update_context,
     "ManageDomains": handle_manage_domains,
-    "ReadWorkspace": handle_read_workspace,
-    "WriteWorkspace": handle_write_workspace,
-    "SearchWorkspace": handle_search_workspace,
+    # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
+    "ReadFile": handle_read_file,
+    "WriteFile": handle_write_file,
+    "SearchFiles": handle_search_files,
     "QueryKnowledge": handle_query_knowledge,
-    "ListWorkspace": handle_list_workspace,
+    "ListFiles": handle_list_files,
     "DiscoverAgents": handle_discover_agents,
-    "ReadAgentContext": handle_read_agent_context,
+    "ReadAgentFile": handle_read_agent_file,
     "RuntimeDispatch": handle_runtime_dispatch,
     "RepurposeOutput": handle_repurpose_output,
 }

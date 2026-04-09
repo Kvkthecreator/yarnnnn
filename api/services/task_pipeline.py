@@ -144,7 +144,7 @@ async def _gather_context_domains(
       2. If task objective mentions specific entities → load those entities' full files
       3. If objective is general → load only the primary summary file per entity
          (profile.md, analysis.md, status.md, etc.)
-      4. Agent can use ReadWorkspace/QueryKnowledge tools for deeper retrieval during
+      4. Agent can use ReadFile/QueryKnowledge tools for deeper retrieval during
          tool rounds (Option C — agent-driven deep retrieval)
 
     Rationale: As workspaces grow (30+ entities × 4 files each = 120+ files),
@@ -311,7 +311,7 @@ async def _gather_context_domains(
             elif has_entities:
                 # GENERAL: No specific entity match → load the domain's primary
                 # entity summary file (summary-level, not full entity files).
-                # Agent can use ReadWorkspace
+                # Agent can use ReadFile (ADR-168)
                 # to pull specific entity files during tool rounds if needed.
                 if primary_entity_file:
                     try:
@@ -3058,7 +3058,7 @@ async def _execute_direct(
         )
 
         # Skill reference — compact index, not full SKILL.md injection (~50t vs ~1500t)
-        # Agent can read full specs via ReadWorkspace if needed
+        # Agent can read full specs via ReadFile (ADR-168) if needed
         if has_asset_capabilities(role):
             from services.agent_framework import get_type_capabilities, CAPABILITIES
             asset_caps = [

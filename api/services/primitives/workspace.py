@@ -1,13 +1,19 @@
 """
-Workspace & Inter-Agent Primitives — ADR-106 / ADR-107 / ADR-116
+Workspace & Inter-Agent Primitives — ADR-106 / ADR-107 / ADR-116 / ADR-168
 
 Headless-only primitives that let reasoning agents interact with their
 workspace, the shared knowledge base, and other agents.
 
-- ReadWorkspace: read from agent's workspace
-- WriteWorkspace: write to agent's workspace (thesis, observations, working notes)
-- SearchWorkspace: full-text search within agent's workspace
-- QueryKnowledge: search workspace context domains with metadata filters
+ADR-168 Commit 4: Workspace-prefixed names renamed to File-suffixed names
+to make the file-layer substrate explicit. No behavior change — the file
+layer was always distinct from the entity layer, the names now reflect it.
+
+- ReadFile (was ReadWorkspace): read from agent's workspace
+- WriteFile (was WriteWorkspace): write to agent's workspace or shared context domain
+- SearchFiles (was SearchWorkspace): full-text search within agent's workspace
+- ListFiles (was ListWorkspace): list files in agent's workspace
+- QueryKnowledge: semantic query over accumulated context domains (name preserved — distinct mental model)
+- ReadAgentFile (was ReadAgentContext): read a file from another agent's workspace
 - DiscoverAgents: find other agents by role/scope/status (ADR-116 Phase 2)
 """
 
@@ -23,9 +29,12 @@ logger = logging.getLogger(__name__)
 # Tool Definitions
 # =============================================================================
 
-READ_WORKSPACE_TOOL = {
-    "name": "ReadWorkspace",
-    "description": """Read a file from your workspace.
+READ_FILE_TOOL = {
+    "name": "ReadFile",
+    "description": """Read a file from your workspace (file layer, path-based).
+
+This is a FILE LAYER primitive — it reads a path within your workspace filesystem.
+For entity lookups by typed ref (agent:uuid, document:uuid), use LookupEntity.
 
 Your workspace contains your identity and methodology:
 - AGENT.md — your identity and behavioral instructions
@@ -45,14 +54,17 @@ Use this to review your identity. For domain context, use QueryKnowledge or read
 }
 
 
-WRITE_WORKSPACE_TOOL = {
-    "name": "WriteWorkspace",
-    "description": """Write a file to shared context domains or your agent workspace.
+WRITE_FILE_TOOL = {
+    "name": "WriteFile",
+    "description": """Write a file to shared context domains or your agent workspace (file layer, path-based).
+
+This is a FILE LAYER primitive — it writes to a path within the workspace filesystem.
+For entity mutations by typed ref, use EditEntity.
 
 **Shared context** (scope="context") — PRIMARY USE:
 - Write to /workspace/context/{domain}/ — accumulated intelligence shared across all tasks
 - Use during "update-context" steps to persist research findings
-- Example: WriteWorkspace(path="acme-corp/signals.md", content="...", scope="context", domain="competitors")
+- Example: WriteFile(path="acme-corp/signals.md", content="...", scope="context", domain="competitors")
 - Entity files: {entity-slug}/profile.md, signals.md, product.md, strategy.md
 - Synthesis files: landscape.md, overview.md, portfolio.md
 
@@ -91,9 +103,13 @@ What you write to context domains persists between runs and is readable by all t
 }
 
 
-SEARCH_WORKSPACE_TOOL = {
-    "name": "SearchWorkspace",
-    "description": """Search your workspace for relevant content.
+SEARCH_FILES_TOOL = {
+    "name": "SearchFiles",
+    "description": """Search your workspace filesystem for relevant content (file layer).
+
+This is a FILE LAYER primitive — it searches filesystem content in your workspace.
+For entity search by database table, use SearchEntities. For semantic search over
+accumulated context domains, use QueryKnowledge.
 
 Searches across all your files: thesis, memory, outputs.
 Ephemeral scratch files (working/) are excluded from search by default.
@@ -153,9 +169,12 @@ Optionally filter by domain to narrow results.""",
 }
 
 
-LIST_WORKSPACE_TOOL = {
-    "name": "ListWorkspace",
-    "description": """List files in your workspace.
+LIST_FILES_TOOL = {
+    "name": "ListFiles",
+    "description": """List files in your workspace (file layer, path-based).
+
+This is a FILE LAYER primitive — it enumerates paths in your workspace filesystem.
+For entity listing by database table, use ListEntities.
 
 See what's in your workspace: thesis, memory, working notes, outputs.
 Call with no arguments to see top-level files, or pass a path to list a subdirectory.
@@ -219,13 +238,13 @@ async def _log_cross_agent_reference(auth: Any, referenced_agent_ids: list[str])
         logger.debug(f"[WORKSPACE] Reference logging failed (non-fatal): {e}")
 
 
-async def handle_read_workspace(auth: Any, input: dict) -> dict:
-    """Handle ReadWorkspace primitive."""
+async def handle_read_file(auth: Any, input: dict) -> dict:
+    """Handle ReadFile primitive (ADR-168: renamed from ReadWorkspace)."""
     from services.workspace import AgentWorkspace, get_agent_slug
 
     agent = getattr(auth, "agent", None)
     if not agent:
-        return {"success": False, "error": "no_agent_context", "message": "ReadWorkspace requires agent context"}
+        return {"success": False, "error": "no_agent_context", "message": "ReadFile requires agent context"}
 
     ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
     path = input.get("path", "")
@@ -235,7 +254,7 @@ async def handle_read_workspace(auth: Any, input: dict) -> dict:
         return {
             "success": True,
             "found": False,
-            "message": f"File not found: {path}. Use ListWorkspace to see available files.",
+            "message": f"File not found: {path}. Use ListFiles to see available files.",
         }
 
     return {
@@ -246,8 +265,8 @@ async def handle_read_workspace(auth: Any, input: dict) -> dict:
     }
 
 
-async def handle_write_workspace(auth: Any, input: dict) -> dict:
-    """Handle WriteWorkspace primitive — agent workspace or shared context domains."""
+async def handle_write_file(auth: Any, input: dict) -> dict:
+    """Handle WriteFile primitive (ADR-168: renamed from WriteWorkspace) — agent workspace or shared context domains."""
     path = input.get("path", "")
     content = input.get("content", "")
     mode = input.get("mode", "overwrite")
@@ -289,7 +308,7 @@ async def handle_write_workspace(auth: Any, input: dict) -> dict:
 
         agent = getattr(auth, "agent", None)
         if not agent:
-            return {"success": False, "error": "no_agent_context", "message": "WriteWorkspace requires agent context"}
+            return {"success": False, "error": "no_agent_context", "message": "WriteFile requires agent context"}
 
         ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
 
@@ -303,13 +322,13 @@ async def handle_write_workspace(auth: Any, input: dict) -> dict:
         return {"success": False, "error": "write_failed", "message": f"Failed to write: {path}"}
 
 
-async def handle_search_workspace(auth: Any, input: dict) -> dict:
-    """Handle SearchWorkspace primitive."""
+async def handle_search_files(auth: Any, input: dict) -> dict:
+    """Handle SearchFiles primitive (ADR-168: renamed from SearchWorkspace)."""
     from services.workspace import AgentWorkspace, get_agent_slug
 
     agent = getattr(auth, "agent", None)
     if not agent:
-        return {"success": False, "error": "no_agent_context", "message": "SearchWorkspace requires agent context"}
+        return {"success": False, "error": "no_agent_context", "message": "SearchFiles requires agent context"}
 
     ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
     query = input.get("query", "")
@@ -401,13 +420,13 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
         return {"success": True, "query": query, "count": 0, "results": []}
 
 
-async def handle_list_workspace(auth: Any, input: dict) -> dict:
-    """Handle ListWorkspace primitive."""
+async def handle_list_files(auth: Any, input: dict) -> dict:
+    """Handle ListFiles primitive (ADR-168: renamed from ListWorkspace)."""
     from services.workspace import AgentWorkspace, get_agent_slug
 
     agent = getattr(auth, "agent", None)
     if not agent:
-        return {"success": False, "error": "no_agent_context", "message": "ListWorkspace requires agent context"}
+        return {"success": False, "error": "no_agent_context", "message": "ListFiles requires agent context"}
 
     ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
     path = input.get("path", "")
@@ -546,12 +565,15 @@ async def handle_discover_agents(auth: Any, input: dict) -> dict:
 
 
 # =============================================================================
-# ADR-116 Phase 3: ReadAgentContext
+# ADR-116 Phase 3 + ADR-168 Commit 4: ReadAgentFile (renamed from ReadAgentContext)
 # =============================================================================
 
-READ_AGENT_CONTEXT_TOOL = {
-    "name": "ReadAgentContext",
-    "description": """Read another agent's identity and domain understanding.
+READ_AGENT_FILE_TOOL = {
+    "name": "ReadAgentFile",
+    "description": """Read files from another agent's workspace — identity and domain understanding.
+
+This is a FILE LAYER primitive, cross-agent variant. Distinct from ReadFile
+(own workspace) and LookupEntity (entity layer).
 
 Use after DiscoverAgents to deeply understand a specific agent's perspective
 before synthesizing or building on its work.
@@ -581,11 +603,11 @@ Working notes (working/) and past runs (runs/) are excluded — those are proces
 }
 
 
-async def handle_read_agent_context(auth: Any, input: dict) -> dict:
-    """Handle ReadAgentContext primitive — ADR-116 Phase 3.
+async def handle_read_agent_file(auth: Any, input: dict) -> dict:
+    """Handle ReadAgentFile primitive — ADR-116 Phase 3 + ADR-168 Commit 4.
 
     Read-only cross-agent workspace access for identity files.
-    Restricted to synthesize, research roles (enforced by PRIMITIVE_MODES).
+    Restricted to synthesize, research roles (enforced by headless registry).
     """
     from services.workspace import AgentWorkspace, get_agent_slug
 

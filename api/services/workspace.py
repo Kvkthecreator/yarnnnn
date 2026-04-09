@@ -504,7 +504,7 @@ class AgentWorkspace:
 
         ADR-157: Referential playbook injection (Claude Code pattern).
         System prompt gets compact index + critical rules (~100 tokens).
-        Full playbook content readable on demand via ReadWorkspace.
+        Full playbook content readable on demand via ReadFile (ADR-168).
 
         ADR-166: Routing key is task `output_kind`, not `task_class`.
 
@@ -545,7 +545,7 @@ class AgentWorkspace:
 
             index_lines = [
                 "## Agent Methodology",
-                "Your playbooks are in memory/. Read them via ReadWorkspace when making methodology decisions.",
+                "Your playbooks are in memory/. Read them via ReadFile when making methodology decisions.",
             ]
             for filename in playbook_files:
                 meta = PLAYBOOK_METADATA.get(filename, {})

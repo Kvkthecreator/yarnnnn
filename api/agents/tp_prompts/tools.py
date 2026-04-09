@@ -13,6 +13,13 @@ ADR-168 Commit 2: Execute primitive dissolved.
 
 ADR-168 Commit 3: CreateTask folded into ManageTask(action="create") for
 symmetry with ManageAgent. Single lifecycle verb per entity class.
+
+ADR-168 Commit 4: Entity/file layer naming reform.
+- Read → LookupEntity, List → ListEntities, Search → SearchEntities, Edit → EditEntity
+- ReadWorkspace → ReadFile, WriteWorkspace → WriteFile,
+  SearchWorkspace → SearchFiles, ListWorkspace → ListFiles
+- ReadAgentContext → ReadAgentFile
+- QueryKnowledge kept (distinct semantic-query mental model, ADR-151)
 """
 
 TOOLS_SECTION = """---
@@ -21,23 +28,28 @@ TOOLS_SECTION = """---
 
 ### Data Operations
 
-**Read(ref)** - Retrieve entity by reference
-- `Read(ref="agent:uuid-123")` - specific agent
-- `Read(ref="platform:slack")` - platform by provider
+**LookupEntity(ref)** - Retrieve entity by typed reference (entity layer)
+- `LookupEntity(ref="agent:uuid-123")` - specific agent
+- `LookupEntity(ref="platform:slack")` - platform by provider
 
-**Edit(ref, changes)** - Modify existing entity
-- `Edit(ref="agent:uuid", changes={status: "paused"})`
+**EditEntity(ref, changes)** - Modify existing entity (chat-only, user-authorized)
+- `EditEntity(ref="agent:uuid", changes={status: "paused"})`
 
-**List(pattern)** - Find entities by pattern
-- `List(pattern="agent:*")` - all agents
-- `List(pattern="agent:?status=active")` - filtered
-- `List(pattern="platform:*")` - connected platforms
-- `List(pattern="task:*")` - all tasks
+**ListEntities(pattern)** - Find entities by pattern (entity layer)
+- `ListEntities(pattern="agent:*")` - all agents
+- `ListEntities(pattern="agent:?status=active")` - filtered
+- `ListEntities(pattern="platform:*")` - connected platforms
+- `ListEntities(pattern="task:*")` - all tasks
 
-**Search(query, scope?)** - Search documents, agents, versions
-- `Search(query="roadmap", scope="document")` - search uploaded documents
-- `Search(query="weekly report", scope="agent")` - search agents
-- `Search(query="competitor analysis", scope="all")` - search everything
+**SearchEntities(query, scope?)** - Search documents, agents, versions (entity layer)
+- `SearchEntities(query="roadmap", scope="document")` - search uploaded documents
+- `SearchEntities(query="weekly report", scope="agent")` - search agents
+- `SearchEntities(query="competitor analysis", scope="all")` - search everything
+
+Note (ADR-168 Commit 4): these are ENTITY LAYER primitives — they operate on
+typed refs via the relational abstraction. For file-layer operations (paths in
+the workspace filesystem), agents use ReadFile/WriteFile/SearchFiles/ListFiles
+in headless mode.
 
 ### Web Operations
 

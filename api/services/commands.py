@@ -149,7 +149,7 @@ User wants to create a new agent. Most users already have a full roster of 10 pr
 (5 domain stewards + 1 synthesizer + 3 platform bots + Thinking Partner as meta-cognitive).
 Check their roster first — they probably just need a task on an existing agent.
 
-1. Check roster: `List(pattern="agent:*")`
+1. Check roster: `ListEntities(pattern="agent:*")`
 2. If the roster is complete, suggest creating a task instead: "You already have a full team. Want me to assign a task to one of them?"
 3. If they insist on a new agent: `Clarify(question="What type?", options=["Competitive Intelligence", "Market Research", "Business Development", "Operations", "Marketing & Creative"])`
 4. Create: `ManageAgent(action="create", title=..., role=...)`
@@ -170,7 +170,7 @@ Check their roster first — they probably just need a task on an existing agent
 
 User wants to search their workspace data.
 
-Use `Search(query="...", scope="workspace")` to find relevant content across context domains.
+Use `SearchEntities(query="...", scope="all")` to find relevant content across entities, or `QueryKnowledge(query="...")` for semantic search over accumulated context domains.
 Use `QueryKnowledge(query="...")` for semantic search across accumulated knowledge.
 
 Ask the user what they're looking for if not clear from context.

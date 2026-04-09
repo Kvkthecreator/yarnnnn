@@ -214,8 +214,8 @@ async def pull_context(
     ) if domain else None
 
     # Dispatch through the primitive layer (ADR-164 runtime-agnostic)
-    # Note: current primitive name is ReadWorkspace/SearchWorkspace/QueryKnowledge.
-    # ADR-168 Commit 4 will rename to ReadFile/SearchFiles; update here when it lands.
+    # ADR-168 Commit 4: file-layer primitives now named ReadFile/WriteFile/
+    # SearchFiles/ListFiles. QueryKnowledge kept (distinct semantic-query layer).
     result = await execute_primitive(auth, "QueryKnowledge", {
         "query": question or subject,
         "domain": normalized_domain,

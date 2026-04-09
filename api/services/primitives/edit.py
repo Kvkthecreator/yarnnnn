@@ -1,16 +1,22 @@
 """
-Edit Primitive
+EditEntity Primitive (ADR-168 Commit 4: renamed from Edit)
 
-Modify existing entity.
+Modify existing entity by typed reference. Entity layer — operates on the
+relational abstraction, NOT on the filesystem.
+
+Distinct from WriteFile (file layer, path-based, agent-scoped).
+
+Chat-only — mutates entities under explicit user direction. Headless has
+no user-authorization path.
 
 Usage:
-  Edit(ref="agent:uuid-123", changes={status: "paused"})
-  Edit(ref="agent:uuid-123", changes={agent_instructions: "Use formal tone."})
-  Edit(ref="memory:uuid-456", changes={content: "Updated content"})
+  EditEntity(ref="agent:uuid-123", changes={status: "paused"})
+  EditEntity(ref="agent:uuid-123", changes={agent_instructions: "Use formal tone."})
+  EditEntity(ref="memory:uuid-456", changes={content: "Updated content"})
 
 For agent_memory, use append_observation or set_goal keys (scoped writes, not replace):
-  Edit(ref="agent:uuid-123", changes={append_observation: {note: "Q4 data finalized"}})
-  Edit(ref="agent:uuid-123", changes={set_goal: {description: "...", status: "in_progress"}})
+  EditEntity(ref="agent:uuid-123", changes={append_observation: {note: "Q4 data finalized"}})
+  EditEntity(ref="agent:uuid-123", changes={set_goal: {description: "...", status: "in_progress"}})
 """
 
 from typing import Any
@@ -19,16 +25,19 @@ from datetime import datetime, timezone
 from .refs import parse_ref, resolve_ref, TABLE_MAP
 
 
-EDIT_TOOL = {
-    "name": "Edit",
-    "description": """Modify an existing entity.
+EDIT_ENTITY_TOOL = {
+    "name": "EditEntity",
+    "description": """Modify an existing entity by typed ref.
+
+This is the ENTITY LAYER primitive — it mutates database-backed entities
+(agents, memories, tasks). For filesystem writes, use WriteFile.
 
 Examples:
-- Edit(ref="agent:uuid-123", changes={status: "paused"})
-- Edit(ref="agent:uuid-123", changes={agent_instructions: "Always use bullet points."})
-- Edit(ref="agent:uuid-123", changes={append_observation: {note: "Q4 data is now finalized"}})
-- Edit(ref="agent:uuid-123", changes={set_goal: {description: "...", status: "in_progress", milestones: [...]}})
-- Edit(ref="memory:uuid-456", changes={content: "Updated preference"})
+- EditEntity(ref="agent:uuid-123", changes={status: "paused"})
+- EditEntity(ref="agent:uuid-123", changes={agent_instructions: "Always use bullet points."})
+- EditEntity(ref="agent:uuid-123", changes={append_observation: {note: "Q4 data is now finalized"}})
+- EditEntity(ref="agent:uuid-123", changes={set_goal: {description: "...", status: "in_progress", milestones: [...]}})
+- EditEntity(ref="memory:uuid-456", changes={content: "Updated preference"})
 
 For agent_memory, use append_observation or set_goal (scoped writes — do not pass raw agent_memory JSONB).
 Only specified fields are updated; others remain unchanged.""",
@@ -53,9 +62,9 @@ Only specified fields are updated; others remain unchanged.""",
 IMMUTABLE_FIELDS = {"id", "user_id", "created_at"}
 
 
-async def handle_edit(auth: Any, input: dict) -> dict:
+async def handle_edit_entity(auth: Any, input: dict) -> dict:
     """
-    Handle Edit primitive.
+    Handle EditEntity primitive (ADR-168: renamed from handle_edit).
 
     Args:
         auth: Auth context with user_id and client

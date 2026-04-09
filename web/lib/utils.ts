@@ -19,13 +19,11 @@ export function cn(...inputs: ClassValue[]) {
  * - Brief and scannable
  */
 const TOOL_DISPLAY_NAMES: Record<string, string> = {
-  // Core primitives (ADR-080)
-  Read: "Reading content",
-  Write: "Writing content",
-  Edit: "Editing content",
-  List: "Listing resources",
-  Search: "Searching",
-  Execute: "Executing action",
+  // Entity layer (ADR-168 Commit 4: renamed from Read/List/Search/Edit)
+  LookupEntity: "Looking up entity",
+  ListEntities: "Listing entities",
+  SearchEntities: "Searching entities",
+  EditEntity: "Editing entity",
   Todo: "Tracking progress",
   Respond: "Responding",
   Clarify: "Asking for clarification",
@@ -33,8 +31,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   // Agent lifecycle (ADR-156)
   ManageAgent: "Managing agent",
 
-  // Task primitives (ADR-138, ADR-146)
-  CreateTask: "Creating task",
+  // Task lifecycle (ADR-138, ADR-146, ADR-168: CreateTask folded into ManageTask)
   ManageTask: "Managing task",
 
   // Domain management (ADR-155)
@@ -52,14 +49,14 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   sync_platform_resource: "Syncing data",
   get_sync_status: "Checking sync status",
 
-  // Workspace primitives (ADR-106)
-  ReadWorkspace: "Reading workspace",
-  WriteWorkspace: "Writing to workspace",
-  SearchWorkspace: "Searching workspace",
+  // File layer (ADR-106, ADR-168 Commit 4: renamed from ReadWorkspace/etc.)
+  ReadFile: "Reading file",
+  WriteFile: "Writing file",
+  SearchFiles: "Searching files",
   QueryKnowledge: "Querying knowledge base",
-  ListWorkspace: "Listing workspace files",
+  ListFiles: "Listing files",
   DiscoverAgents: "Discovering agents",
-  ReadAgentContext: "Reading agent context",
+  ReadAgentFile: "Reading agent file",
 
   // Notification
   send_notification: "Sending notification",
@@ -128,7 +125,7 @@ export function getToolDisplayMessage(
  * Converts PascalCase or snake_case to readable format.
  */
 function formatToolName(toolName: string): string {
-  // Handle PascalCase (e.g., "ReadWorkspace" → "Read workspace")
+  // Handle PascalCase (e.g., "LookupEntity" → "Lookup entity")
   if (toolName.includes("_")) {
     return toolName
       .split("_")

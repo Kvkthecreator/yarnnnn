@@ -1,12 +1,15 @@
 """
-Read Primitive
+LookupEntity Primitive (ADR-168 Commit 4: renamed from Read)
 
-Retrieve entity by reference.
+Retrieve entity by typed reference. Entity layer — operates on the relational
+abstraction via parse_ref/resolve_ref, NOT on the filesystem.
+
+Distinct from ReadFile (file layer, path-based, agent-scoped).
 
 Usage:
-  Read(ref="agent:uuid-123")
-  Read(ref="platform:twitter")
-  Read(refs=["memory:uuid-1", "memory:uuid-2"])  # Batch
+  LookupEntity(ref="agent:uuid-123")
+  LookupEntity(ref="platform:twitter")
+  LookupEntity(refs=["memory:uuid-1", "memory:uuid-2"])  # Batch
 """
 
 from typing import Any
@@ -14,46 +17,50 @@ from typing import Any
 from .refs import parse_ref, resolve_ref
 
 
-READ_TOOL = {
-    "name": "Read",
-    "description": """Retrieve any entity by reference. Returns full content.
+LOOKUP_ENTITY_TOOL = {
+    "name": "LookupEntity",
+    "description": """Look up any entity by reference. Returns full content.
 
-IMPORTANT: Use the exact `ref` value returned by Search or List. The ref contains a UUID, not a filename.
+This is the ENTITY LAYER primitive — it operates on the relational abstraction
+(typed refs like agent:uuid, document:uuid), not on the filesystem. For file
+reads, use ReadFile (path-based, agent-scoped).
+
+IMPORTANT: Use the exact `ref` value returned by SearchEntities or ListEntities. The ref contains a UUID, not a filename.
 
 Examples:
-- Read(ref="document:abc12345-def6-7890-ghij-klmnopqrstuv") - document by UUID from Search results
-- Read(ref="agent:latest") - most recent agent
-- Read(ref="platform:slack") - platform by provider name
-- Read(ref="memory:uuid-123") - specific memory
+- LookupEntity(ref="document:abc12345-def6-7890-ghij-klmnopqrstuv") - document by UUID from SearchEntities results
+- LookupEntity(ref="agent:latest") - most recent agent
+- LookupEntity(ref="platform:slack") - platform by provider name
+- LookupEntity(ref="memory:uuid-123") - specific memory
 
 For documents: Returns full content from all pages, not just metadata.
 
 Reference format: <type>:<UUID>
-Types: agent, platform, memory, session, domain, document, work
+Types: agent, platform, memory, session, domain, document, task, version
 
 Workflow:
-1. Search(query="...", scope="document") → returns results with `ref` field
-2. Read(ref="document:<UUID from search>") → returns full document content""",
+1. SearchEntities(query="...", scope="document") → returns results with `ref` field
+2. LookupEntity(ref="document:<UUID from search>") → returns full document content""",
     "input_schema": {
         "type": "object",
         "properties": {
             "ref": {
                 "type": "string",
-                "description": "Entity reference from Search/List results (e.g., 'document:abc12345-uuid'). Must use UUID, not filename."
+                "description": "Entity reference from SearchEntities/ListEntities results (e.g., 'document:abc12345-uuid'). Must use UUID, not filename."
             },
             "refs": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Multiple refs for batch read"
+                "description": "Multiple refs for batch lookup"
             }
         }
     }
 }
 
 
-async def handle_read(auth: Any, input: dict) -> dict:
+async def handle_lookup_entity(auth: Any, input: dict) -> dict:
     """
-    Handle Read primitive.
+    Handle LookupEntity primitive (ADR-168: renamed from handle_read).
 
     Args:
         auth: Auth context with user_id and client

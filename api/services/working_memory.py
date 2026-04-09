@@ -805,16 +805,16 @@ def estimate_working_memory_tokens(working_memory: dict) -> int:
 
 def format_compact_index(working_memory: dict, surface_context: Optional[dict] = None) -> str:
     """
-    ADR-159: Compact index for TP system prompt (~200-500 tokens).
+    ADR-159 + ADR-168: Compact index for TP system prompt (~200-500 tokens).
 
     Replaces the full working memory dump. TP reads workspace files on demand
-    via ReadWorkspace when it needs detail. This index tells TP what exists
-    and provides just enough signal to guide judgment.
+    via ReadFile (file layer) when it needs detail. This index tells TP what
+    exists and provides just enough signal to guide judgment.
 
     Three tiers:
       1. This compact index (always in prompt)
       2. Last 5 messages (rolling window, handled by chat.py)
-      3. On-demand files (TP reads via ReadWorkspace)
+      3. On-demand files (TP reads via ReadFile — or LookupEntity for entity-layer refs)
     """
     lines = ["## Workspace Index\n"]
 
@@ -933,7 +933,7 @@ def format_compact_index(working_memory: dict, surface_context: Optional[dict] =
             lines.append(f"\nPrior conversation: {preview}")
 
     # --- File references (TP reads on demand) ---
-    lines.append("\n### Memory files (read with ReadWorkspace if you need detail)")
+    lines.append("\n### Memory files (read with ReadFile if you need detail)")
     lines.append("- `/workspace/IDENTITY.md` — who the user is")
     lines.append("- `/workspace/BRAND.md` — visual style and voice")
     lines.append("- `/workspace/AWARENESS.md` — your shift notes from prior sessions")

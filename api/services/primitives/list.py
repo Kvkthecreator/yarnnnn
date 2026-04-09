@@ -1,12 +1,15 @@
 """
-List Primitive
+ListEntities Primitive (ADR-168 Commit 4: renamed from List)
 
-Find entities by structure/pattern.
+Find entities by structure/pattern. Entity layer — operates on the relational
+abstraction via typed refs, NOT on the filesystem.
+
+Distinct from ListFiles (file layer, path-based, agent-scoped).
 
 Usage:
-  List(pattern="agent:*")
-  List(pattern="memory:?type=fact")
-  List(pattern="task:?status=active")
+  ListEntities(pattern="agent:*")
+  ListEntities(pattern="memory:?type=fact")
+  ListEntities(pattern="task:?status=active")
 """
 
 from typing import Any
@@ -14,16 +17,19 @@ from typing import Any
 from .refs import parse_ref, resolve_ref, ENTITY_TYPES
 
 
-LIST_TOOL = {
-    "name": "List",
+LIST_ENTITIES_TOOL = {
+    "name": "ListEntities",
     "description": """Find entities by pattern (structural navigation).
 
+This is the ENTITY LAYER primitive — it enumerates database-backed entities
+by typed pattern. For filesystem listings, use ListFiles.
+
 Examples:
-- List(pattern="agent:*") - all agents
-- List(pattern="agent:?status=active") - active agents
-- List(pattern="memory:?type=fact&limit=20") - fact memories
-- List(pattern="platform:*") - all connected platforms
-- List(pattern="task:?status=active") - active tasks
+- ListEntities(pattern="agent:*") - all agents
+- ListEntities(pattern="agent:?status=active") - active agents
+- ListEntities(pattern="memory:?type=fact&limit=20") - fact memories
+- ListEntities(pattern="platform:*") - all connected platforms
+- ListEntities(pattern="task:?status=active") - active tasks
 
 Pattern format: <type>:<identifier|*>[?<filters>]""",
     "input_schema": {
@@ -51,9 +57,9 @@ Pattern format: <type>:<identifier|*>[?<filters>]""",
 }
 
 
-async def handle_list(auth: Any, input: dict) -> dict:
+async def handle_list_entities(auth: Any, input: dict) -> dict:
     """
-    Handle List primitive.
+    Handle ListEntities primitive (ADR-168: renamed from handle_list).
 
     Args:
         auth: Auth context with user_id and client

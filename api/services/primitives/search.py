@@ -1,11 +1,15 @@
 """
-Search Primitive
+SearchEntities Primitive (ADR-168 Commit 4: renamed from Search)
 
-Find entities by content using text search.
+Find entities by content using text search. Entity layer — operates on the
+relational abstraction, NOT on filesystem content.
+
+Distinct from SearchFiles (file layer, workspace-scoped, agent filesystem).
+Distinct from QueryKnowledge (semantic-query layer, accumulated context domains).
 
 Usage:
-  Search(query="weekly report", scope="agent")
-  Search(query="competitor analysis", scope="document")
+  SearchEntities(query="weekly report", scope="agent")
+  SearchEntities(query="competitor analysis", scope="document")
 
 scope="memory" is NOT a valid search scope. Memory is injected into the
 TP system prompt at session start via working memory. TP already has it.
@@ -16,20 +20,24 @@ from typing import Any, Optional
 from .refs import TABLE_MAP
 
 
-SEARCH_TOOL = {
-    "name": "Search",
-    "description": """Find entities by content using text search. Returns refs for use with Read.
+SEARCH_ENTITIES_TOOL = {
+    "name": "SearchEntities",
+    "description": """Find entities by content using text search. Returns refs for use with LookupEntity.
+
+This is the ENTITY LAYER primitive — it searches database-backed entities
+(documents, agents, versions). For filesystem search, use SearchFiles. For
+semantic search over accumulated context domains, use QueryKnowledge.
 
 Examples:
-- Search(query="weekly status", scope="agent") - search agents
-- Search(query="competitor analysis", scope="document") - search uploaded documents
-- Search(query="competitor analysis") - search all scopes (excludes memory — already in working memory)
+- SearchEntities(query="weekly status", scope="agent") - search agents
+- SearchEntities(query="competitor analysis", scope="document") - search uploaded documents
+- SearchEntities(query="competitor analysis") - search all scopes (excludes memory — already in working memory)
 
-Results include a `ref` field (e.g., "document:abc123-uuid"). Use this ref with Read() to get full content.
+Results include a `ref` field (e.g., "document:abc123-uuid"). Use this ref with LookupEntity() to get full content.
 
 Workflow for documents:
-1. Search(query="topic", scope="document") → returns matches with `ref` and snippet
-2. Read(ref="document:<UUID>") → returns full document content
+1. SearchEntities(query="topic", scope="document") → returns matches with `ref` and snippet
+2. LookupEntity(ref="document:<UUID>") → returns full document content
 
 Scopes:
 - document: Uploaded documents (PDF, DOCX, TXT, MD) - searches actual content, not just filenames
@@ -72,9 +80,9 @@ SEARCH_FIELDS = {
 }
 
 
-async def handle_search(auth: Any, input: dict) -> dict:
+async def handle_search_entities(auth: Any, input: dict) -> dict:
     """
-    Handle Search primitive.
+    Handle SearchEntities primitive (ADR-168: renamed from handle_search).
 
     Args:
         auth: Auth context with user_id and client

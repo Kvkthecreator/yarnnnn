@@ -45,12 +45,11 @@ interface InlineToolCallProps {
 }
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
-  // Core primitives (ADR-080)
-  Read: Eye,
-  Write: Plus,
-  Edit: Pencil,
-  List: List,
-  Search: Search,
+  // Entity layer (ADR-168 Commit 4: renamed from Read/List/Search/Edit)
+  LookupEntity: Eye,
+  ListEntities: List,
+  SearchEntities: Search,
+  EditEntity: Pencil,
   Todo: ListTodo,
   Respond: FileText,
   Clarify: FileText,
@@ -70,14 +69,14 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   list_platform_resources: List,
   sync_platform_resource: Play,
   get_sync_status: Eye,
-  // Workspace primitives (ADR-106)
-  ReadWorkspace: Eye,
-  WriteWorkspace: Plus,
-  SearchWorkspace: FolderSearch,
+  // File layer (ADR-106, ADR-168 Commit 4: renamed from ReadWorkspace/etc.)
+  ReadFile: Eye,
+  WriteFile: Plus,
+  SearchFiles: FolderSearch,
   QueryKnowledge: Brain,
-  ListWorkspace: List,
+  ListFiles: List,
   DiscoverAgents: Search,
-  ReadAgentContext: Eye,
+  ReadAgentFile: Eye,
   // Notification
   send_notification: Bell,
   todo_write: ListTodo,

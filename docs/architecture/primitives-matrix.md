@@ -192,10 +192,10 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 
 ### Mode totals
 
-**Current state (post-ADR-168 Commit 3 + ADR-169, as of 2026-04-09):**
+**Current state (post-ADR-168 Commit 4 + ADR-169, as of 2026-04-09):**
 
-- **Chat mode:** 13 tools (was 15). `Execute` dissolved in Commit 2; `CreateTask` folded into `ManageTask(action="create")` in Commit 3. Current set: `Read`, `List`, `Search`, `Edit`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`. *(Names still in pre-Commit-4 form.)*
-- **Headless mode:** 15 static tools + `platform_*` dynamic (was 16). `CreateTask` folded in Commit 3. Set: `Read`, `List`, `Search`, `GetSystemState`, `WebSearch`, `ReadWorkspace`, `WriteWorkspace`, `SearchWorkspace`, `QueryKnowledge`, `ListWorkspace`, `DiscoverAgents`, `ReadAgentContext`, `ManageAgent`, `ManageTask`, `ManageDomains`.
+- **Chat mode:** 13 tools. Entity layer renamed in Commit 4. Current set: `LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `Clarify`.
+- **Headless mode:** 15 static tools + `platform_*` dynamic. Entity + file layers renamed in Commit 4. Set: `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `QueryKnowledge`, `ListFiles`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`.
 - **MCP mode (ADR-169):** 2 primitives — `QueryKnowledge` and `UpdateContext`. The MCP tool surface itself is three intent-shaped tools (`work_on_this`, `pull_context`, `remember_this`) that compose over these two primitives. MCP is the foreign-LLM surface — fifth caller of `execute_primitive()` per ADR-164 runtime-agnostic principle. See [docs/features/mcp/architecture.md](../features/mcp/architecture.md) for the composition layer (`api/services/mcp_composition.py`).
 
 **Target state (post-ADR-168 Commit 5):**
@@ -358,15 +358,15 @@ Any primitive change (rename, add, remove, mode change, enum extension) writes a
 | `RefreshPlatformContent` | (none — flow dissolved) | ADR-153 | Platform sync removed; data flows through tracking tasks |
 | `Execute` | `ManageTask(action="trigger")` / `UpdateContext(target="agent")` / `ManageTask(action="update")` | ADR-168 Commit 2 *(shipped 2026-04-09)* | Actions dissolve into typed verbs. Also removed: `action` + `system` entity types from `refs.py` (vestigial — only served Execute's action-discovery surface). |
 | `CreateTask` | `ManageTask(action="create", title="...", type_key="..."\|agent_slug="...")` | ADR-168 Commit 3 *(shipped 2026-04-09)* | Symmetry with ManageAgent. Absorbed `title`, `type_key`, `agent_slug`, `focus`, `objective`, `success_criteria`, `output_spec` fields into `MANAGE_TASK_TOOL.input_schema`. Helpers (`_slugify`, `_build_custom_task_md`) moved into `manage_task.py`. File `primitives/task.py` deleted. |
-| `Read` | `LookupEntity` | ADR-168 Commit 4 | Name was ambiguous with file-layer read |
-| `List` | `ListEntities` | ADR-168 Commit 4 | Name was ambiguous |
-| `Search` | `SearchEntities` | ADR-168 Commit 4 | Name was ambiguous |
-| `Edit` | `EditEntity` | ADR-168 Commit 4 | Name was ambiguous |
-| `ReadWorkspace` | `ReadFile` | ADR-168 Commit 4 | Substrate-first naming |
-| `WriteWorkspace` | `WriteFile` | ADR-168 Commit 4 | Substrate-first naming |
-| `SearchWorkspace` | `SearchFiles` | ADR-168 Commit 4 | Substrate-first naming |
-| `ListWorkspace` | `ListFiles` | ADR-168 Commit 4 | Substrate-first naming |
-| `ReadAgentContext` | `ReadAgentFile` | ADR-168 Commit 4 | Name was vague; it's a file read with `agent_slug` + `path` |
+| `Read` | `LookupEntity` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Name was ambiguous with file-layer read |
+| `List` | `ListEntities` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Name was ambiguous |
+| `Search` | `SearchEntities` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Name was ambiguous |
+| `Edit` | `EditEntity` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Name was ambiguous |
+| `ReadWorkspace` | `ReadFile` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Substrate-first naming |
+| `WriteWorkspace` | `WriteFile` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Substrate-first naming |
+| `SearchWorkspace` | `SearchFiles` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Substrate-first naming |
+| `ListWorkspace` | `ListFiles` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Substrate-first naming |
+| `ReadAgentContext` | `ReadAgentFile` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Name was vague; it's a file read with `agent_slug` + `path` |
 
 ---
 

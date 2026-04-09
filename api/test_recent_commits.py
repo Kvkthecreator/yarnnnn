@@ -333,8 +333,16 @@ def test_registry_tool_counts():
     record("CreateTask not in headless registry", "CreateTask" not in headless_names)
 
     # Headless has workspace tools
-    record("Headless has ReadWorkspace", "ReadWorkspace" in headless_names)
-    record("Headless has WriteWorkspace", "WriteWorkspace" in headless_names)
+    # ADR-168 Commit 4: renamed ReadWorkspace/WriteWorkspace/SearchWorkspace/ListWorkspace
+    # to ReadFile/WriteFile/SearchFiles/ListFiles (file layer, substrate-first naming)
+    record("Headless has ReadFile", "ReadFile" in headless_names)
+    record("Headless has WriteFile", "WriteFile" in headless_names)
+    record("Headless has SearchFiles", "SearchFiles" in headless_names)
+    record("Headless has ListFiles", "ListFiles" in headless_names)
+    record("Headless has ReadAgentFile", "ReadAgentFile" in headless_names)
+    # Old names should be gone
+    record("Old ReadWorkspace not in registry", "ReadWorkspace" not in headless_names and "ReadWorkspace" not in chat_names)
+    record("Old WriteWorkspace not in registry", "WriteWorkspace" not in headless_names and "WriteWorkspace" not in chat_names)
     # ADR-168 Commit 2: stale assertion updated. ADR-148 removed RuntimeDispatch
     # from headless static registry — assets are rendered post-generation, not
     # via mid-task tool calls. RuntimeDispatch is retained in chat mode only
@@ -342,11 +350,16 @@ def test_registry_tool_counts():
     record("RuntimeDispatch not in headless (ADR-148)", "RuntimeDispatch" not in headless_names)
 
     # Chat should NOT have workspace tools
-    record("Chat does NOT have ReadWorkspace", "ReadWorkspace" not in chat_names)
+    # ADR-168 Commit 4: Chat doesn't have file-layer primitives (ReadFile, WriteFile, etc.)
+    # TP operates on entities by typed ref via LookupEntity/EditEntity, not on paths.
+    record("Chat does NOT have ReadFile", "ReadFile" not in chat_names)
+    record("Chat does NOT have WriteFile", "WriteFile" not in chat_names)
+    record("Chat does NOT have ListFiles", "ListFiles" not in chat_names)
+    record("Chat does NOT have SearchFiles", "SearchFiles" not in chat_names)
     record("Chat does NOT have RuntimeDispatch", "RuntimeDispatch" not in chat_names)
 
     # Headless should NOT have chat-only tools
-    record("Headless does NOT have Edit", "Edit" not in headless_names)
+    record("Headless does NOT have EditEntity", "EditEntity" not in headless_names)
     record("Headless does NOT have Clarify", "Clarify" not in headless_names)
 
     # ADR-168 Commit 2: Execute primitive dissolved entirely (not just mode-scoped)
@@ -496,8 +509,8 @@ def test_headless_executor_blocks_chat_only_tools():
     executor = create_headless_executor(None, "fake-user-id")
 
     async def _test():
-        result = await executor("Edit", {"path": "/test"})
-        record("headless blocks Edit", not result["success"] and result.get("error") == "not_available")
+        result = await executor("EditEntity", {"path": "/test"})
+        record("headless blocks EditEntity", not result["success"] and result.get("error") == "not_available")
 
         result = await executor("Clarify", {"question": "test"})
         record("headless blocks Clarify", not result["success"] and result.get("error") == "not_available")
