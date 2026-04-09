@@ -28,6 +28,11 @@
  *   - No title promotion — the last segment is chrome, not a bold h1.
  *   - No subtitle or actions props — those moved to SurfaceIdentityHeader.
  *   - List pages render `defaultLabel` as a single-segment breadcrumb.
+ *   - No bottom divider. The breadcrumb is a lightweight locator, not a
+ *     "bar" — a divider would make it read as a chrome zone rather than a
+ *     label. Typography (muted tone, tiny text, chevron path) is enough
+ *     to distinguish it from the content below. Linear/Notion/GitHub do
+ *     the same — naked breadcrumb, no divider.
  *
  * Reads from BreadcrumbContext (commit b033513) — pages still call
  * `setBreadcrumb()` with the same segment shape.
@@ -59,7 +64,7 @@ export function PageHeader({ defaultLabel }: PageHeaderProps) {
   return (
     <nav
       aria-label="Breadcrumb"
-      className="shrink-0 flex items-center gap-1.5 px-6 py-2 text-xs text-muted-foreground bg-background border-b border-border/60"
+      className="shrink-0 flex items-center gap-1.5 px-6 pt-3 pb-2 text-xs text-muted-foreground bg-background"
     >
       {trail.map((seg, i) => {
         const isLast = i === trail.length - 1;
