@@ -336,7 +336,7 @@ No-task states also vary by `agent_class`, not just copy:
 - integration bots surface actual connection state first, then explain observation vs write-back task mix
 - Thinking Partner explains missing orchestration/back-office work
 
-For platform bots specifically, `/agents?agent={slug}` is also the canonical management surface for source selection. Legacy `/context/slack` and `/context/notion` routes are compatibility redirects into the corresponding bot detail pages so `/context` stays the single filesystem browser.
+For platform bots specifically, `/agents?agent={slug}` is the canonical management surface for source selection. `/context` stays the single filesystem browser and no longer owns per-platform management pages.
 
 ### What Used to Live Here
 
