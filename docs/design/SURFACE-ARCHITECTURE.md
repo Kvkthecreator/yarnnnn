@@ -117,7 +117,7 @@ Every surface renders `<PageHeader />` as the first row of its center content ar
 
 | Surface state | Breadcrumb / page title |
 |---|---|
-| Chat | _(no PageHeader on Chat surface — Chat is its own thing)_ |
+| Chat | `Chat` (breadcrumb chrome) + `Thinking Partner` surface identity header with workspace-state toggle action |
 | Work (list) | `Work` |
 | Work (task selected) | `Work › reporting's work › Daily Update` (with metadata subtitle and inline actions) |
 | Work (filtered by agent) | `Work › Competitive Intelligence's work` |
@@ -134,26 +134,31 @@ Pages set the breadcrumb segments via `setBreadcrumb()` in a `useEffect` (unchan
 ## 1. Chat (`/chat`, HOME_ROUTE)
 
 ### Purpose
-Dedicated TP chat surface. Structured renderings such as onboarding, daily briefing, recent work, and context gaps render as one active artifact above the persistent TP console.
+Dedicated TP (Thinking Partner) chat surface. The conversation column is the full surface — there is no always-on briefing side panel. Structured views (onboarding, daily briefing, recent work, context gaps) render as a TP-directed MODAL (ADR-165 v6) opened either by TP emitting a `<!-- workspace-state: ... -->` marker or by the user clicking the workspace-state button in the surface header.
 
-For new users with an empty workspace, the daily-update task still runs (deterministic empty-state template from ADR-161) and the briefing dashboard shows its honest "tell me what to track" message.
+For new users with an empty workspace, the daily-update task still runs (deterministic empty-state template from ADR-161) and TP's first response opens the workspace-state modal to the "empty" lead view.
 
-### Layout
+### Layout (ADR-167 v5)
 
 ```
-┌──────────────────┬──────────────────────────────────┐
-│  Briefing        │  TP Chat                         │
-│                  │                                  │
-│  Daily update    │  (conversation thread)           │
-│  output (hero)   │                                  │
-│                  │                                  │
-│  Recent activity │                                  │
-│  feed (last 72h) │                                  │
-│                  │  [input ───────────────────────] │
-└──────────────────┴──────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│ Chat                                                                 │ ← PageHeader (breadcrumb chrome)
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│ Thinking Partner                            [⊞ Workspace state]      │ ← SurfaceIdentityHeader
+│                                                                      │    h1 + action button
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│                    (conversation thread)                             │
+│                                                                      │
+│                    [ input row ──────── → ]                          │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-The daily-update task is the intellectual center of the briefing. Its output is always fresh (recomputed daily), always honest (empty-state template for dormant workspaces), and always visible.
+Chat picks up the same two-component header pattern as /work and /agents: `<PageHeader />` as breadcrumb chrome, `<SurfaceIdentityHeader />` as the real H1 with inline actions. The surface identity H1 is "Thinking Partner" (the agent you're chatting with). The workspace-state toggle (formerly an `inputRowAddon` crammed between the + menu and the textarea inside the chat input row) moves UP into `SurfaceIdentityHeader.actions` — it sits alongside the page identity where it belongs, matching the Run/Pause/Edit pattern on /work detail.
+
+The conversation column stays centered at `max-w-3xl` beneath the headers. Both headers are surface-wide (flush to the viewport edge) so the chrome tone is uniform with the other surfaces.
 
 ---
 

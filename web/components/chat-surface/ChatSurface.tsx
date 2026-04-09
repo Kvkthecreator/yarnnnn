@@ -3,10 +3,26 @@
 /**
  * ChatSurface — TP chat surface with TP-directed workspace state modal.
  *
+ * ADR-167 v5 (2026-04-09) — layout restructured to match the surface shape
+ * used by /work and /agents detail pages:
+ *
+ *   <PageHeader defaultLabel="Chat" />         — breadcrumb chrome
+ *   <SurfaceIdentityHeader                     — the real h1 + actions
+ *     title="Thinking Partner"
+ *     actions={workspace-state toggle}
+ *   />
+ *   <ChatPanel />                              — conversation column
+ *
+ * The workspace-state toggle button (formerly an `inputRowAddon` crammed
+ * inside the input row between the + menu and the textarea) moves up into
+ * SurfaceIdentityHeader.actions where it sits alongside the page identity.
+ * This matches /work detail's pattern where Run/Pause/Edit live in the
+ * surface header, not in the chat input.
+ *
  * ADR-165 v6 (2026-04-08): The workspace state surface is rendered as a
  * MODAL, not an inline overlay. TP is the single source of intent for when
  * it appears — frontend never auto-opens. The user can manually toggle via
- * the input-row icon as an escape hatch.
+ * the surface header button as an escape hatch.
  *
  * Marker pattern (modeled on ADR-162 inference-meta, unchanged from v5):
  *   <!-- workspace-state: {"lead":"empty","reason":"..."} -->
@@ -14,21 +30,13 @@
  * The marker is parsed from the latest assistant message. When TP emits one,
  * the modal opens to the requested lead view. The marker is stripped from
  * the displayed message body in ChatPanel.
- *
- * Manual override: the input-row icon toggles the modal. On manual open the
- * lead is computed deterministically from current data — TP is not called.
- *
- * v5 → v6 deltas:
- *   - Inline `topContent` overlay → modal (backdrop, Esc, body scroll lock)
- *   - Cold-start auto-open removed — TP's onboarding prompt already emits
- *     `lead=empty` on the first turn for empty workspaces
- *   - `CHAT_EMPTY_STATE` stub deleted — TP's first response is the greeting
- *   - `isNewUser` prop removed — discovery is TP's responsibility
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LayoutPanelTop, Settings2 } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
+import { PageHeader } from '@/components/shell/PageHeader';
+import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { Agent, Task } from '@/types';
 import { useTP } from '@/contexts/TPContext';
@@ -114,19 +122,19 @@ export function ChatSurface({
     return [updateAction, ...plusMenuActions];
   }, [plusMenuActions, openWithLead]);
 
-  const inputRowAddon = useMemo(
-    () => (
-      <button
-        type="button"
-        onClick={handleToggle}
-        className="shrink-0 p-2.5 text-muted-foreground hover:text-foreground transition-colors"
-        aria-label="Toggle workspace state"
-        title="Workspace state"
-      >
-        <LayoutPanelTop className="h-4 w-4" />
-      </button>
-    ),
-    [handleToggle],
+  // Workspace state toggle — lives in the surface header alongside the H1.
+  // Replaces the earlier `inputRowAddon` pattern where it was crammed into
+  // the chat input row.
+  const workspaceStateAction = (
+    <button
+      type="button"
+      onClick={handleToggle}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      title="Open workspace state"
+    >
+      <LayoutPanelTop className="w-3.5 h-3.5" />
+      Workspace state
+    </button>
   );
 
   // Workspace is "empty" when there are no tasks yet — used by the modal's
@@ -135,16 +143,22 @@ export function ChatSurface({
   const isEmpty = !dataLoading && tasks.length === 0;
 
   return (
-    <div className="h-full bg-background">
-      <div className="mx-auto h-full w-full max-w-3xl px-4 py-5">
-        <ChatPanel
-          surfaceOverride={{ type: 'chat' }}
-          plusMenuActions={augmentedPlusMenuActions}
-          placeholder="Ask anything or type / ..."
-          showCommandPicker={true}
-          showInputDivider={false}
-          inputRowAddon={inputRowAddon}
-        />
+    <div className="flex h-full flex-col bg-background">
+      <PageHeader defaultLabel="Chat" />
+      <SurfaceIdentityHeader
+        title="Thinking Partner"
+        actions={workspaceStateAction}
+      />
+      <div className="flex-1 min-h-0">
+        <div className="mx-auto h-full w-full max-w-3xl px-4 py-5">
+          <ChatPanel
+            surfaceOverride={{ type: 'chat' }}
+            plusMenuActions={augmentedPlusMenuActions}
+            placeholder="Ask anything or type / ..."
+            showCommandPicker={true}
+            showInputDivider={false}
+          />
+        </div>
       </div>
       <WorkspaceStateView
         open={open}

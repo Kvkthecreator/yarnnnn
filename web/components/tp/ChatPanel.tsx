@@ -50,13 +50,6 @@ export interface ChatPanelProps {
   showCommandPicker?: boolean;
   /** Whether to render a divider above the input */
   showInputDivider?: boolean;
-  /**
-   * Optional addon rendered inside the input row, immediately to the right
-   * of the PlusMenu (+) button. Used by ChatSurface (ADR-165 v6) for the
-   * workspace state toggle icon — sits with the other left-side affordances,
-   * not next to the submit button.
-   */
-  inputRowAddon?: React.ReactNode;
 }
 
 export function ChatPanel({
@@ -67,7 +60,6 @@ export function ChatPanel({
   emptyState,
   showCommandPicker = true,
   showInputDivider = true,
-  inputRowAddon,
 }: ChatPanelProps) {
   const {
     messages,
@@ -252,7 +244,6 @@ export function ChatPanel({
           <div className="flex items-end gap-1.5 border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
             <PlusMenu actions={plusMenuActions} disabled={isLoading} />
-            {inputRowAddon}
             <textarea
               ref={textareaRef}
               value={input}

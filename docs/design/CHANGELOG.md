@@ -4,6 +4,18 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-09 — ADR-167 v5 follow-up: Chat surface adopts the pattern
+
+Extending v5 to /chat for consistency with /work, /agents, /context. Previously /chat had no PageHeader at all and the workspace-state toggle button was an `inputRowAddon` crammed into the chat input row between the + menu and the textarea (per ADR-165 v5/v6). The user flagged this inconsistency: the header pattern should apply to /chat too, and the stage button belongs in the header alongside the page identity, not in the input row.
+
+- **`web/components/chat-surface/ChatSurface.tsx`** — now renders `<PageHeader defaultLabel="Chat" />` + `<SurfaceIdentityHeader title="Thinking Partner" actions={workspaceStateAction} />` as the first two rows of the surface, matching /work and /agents. The workspace-state toggle moves from `inputRowAddon` to `SurfaceIdentityHeader.actions`. The chat conversation column stays centered at `max-w-3xl` beneath the headers.
+- **`web/components/tp/ChatPanel.tsx`** — deleted the `inputRowAddon` prop entirely (it had exactly one caller, now removed). Singular implementation: no dead props. The `+` menu and textarea are now the only elements in the input row's left cluster.
+- **`web/app/(authenticated)/chat/page.tsx`** — unchanged. ChatSurface handles everything internally.
+- **`SURFACE-ARCHITECTURE.md`** — Chat section rewritten with the v5 header pattern and an updated ASCII diagram showing the PageHeader + SurfaceIdentityHeader stack. Replaced the stale two-panel "Briefing + TP Chat" diagram that predated ADR-165 v5/v6. Updated the breadcrumb lookup table row for Chat.
+- **No ADR renumbering** — this is a scope extension of the v5 amendment applied the same day, not a new version.
+
+---
+
 ## 2026-04-09 — ADR-167 v5: PageHeader split — chrome vs. surface identity, nested document pattern
 
 User flagged that even v4's chrome-only PageHeader still had metadata + actions inside it, and that the metadata "sitting above the real H1" felt structurally wrong — task metadata and actions describe the task, not the navigation, so they should live with the task content. Plus the output iframe's own H1 was still visually competing with whatever PageHeader showed as the last breadcrumb segment. v5 is the cleanest resolution:
