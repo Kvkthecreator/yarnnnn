@@ -4,6 +4,15 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-09 — Agent surface patterns: broader shell / empty-state rules
+
+- **New design doc**: `AGENT-SURFACE-PATTERNS.md` — broader-scoped agent-surface guidance layered on top of ADR-167. Defines the rendering split: `agent_class` chooses the shell, `task.output_kind` chooses assigned-work cards, and `role` is limited to bounded add-on modules when the data genuinely differs.
+- Documents that **no-task states must differ by class**: specialists, reporting, integration bots, and Thinking Partner each have different absence semantics and should not share a generic empty card.
+- Clarifies the implementation boundary: **do not build one page per agent type**. Use class-specific shells + empty states, then add role-specific modules only when the data model warrants it.
+- `SURFACE-ARCHITECTURE.md` updated to reference the new doc and note class-specific no-task states on the canonical `/agents?agent={slug}` surface.
+
+---
+
 ## 2026-04-09 — ADR-167 v5 follow-up: Chat surface adopts the pattern
 
 Extending v5 to /chat for consistency with /work, /agents, /context. Previously /chat had no PageHeader at all and the workspace-state toggle button was an `inputRowAddon` crammed into the chat input row between the + menu and the textarea (per ADR-165 v5/v6). The user flagged this inconsistency: the header pattern should apply to /chat too, and the stage button belongs in the header alongside the page identity, not in the input row.

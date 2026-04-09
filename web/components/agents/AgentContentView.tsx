@@ -18,7 +18,9 @@ import {
   Bot,
   Brain,
   ChevronRight,
+  ClipboardList,
   FolderKanban,
+  Link2,
   Sparkles,
   Target,
   TrendingDown,
@@ -59,6 +61,19 @@ interface TaskCardDescriptor {
   badgeClass: string;
   summary: (task: Task) => string;
   details: (task: Task) => string[];
+}
+
+interface AgentEmptyStateDescriptor {
+  title: (agent: Agent) => string;
+  description: (agent: Agent) => string;
+  nextSteps: (agent: Agent) => string[];
+}
+
+interface AgentPostureDescriptor {
+  label: string;
+  title: (agent: Agent, tasks: Task[]) => string;
+  description: (agent: Agent, tasks: Task[]) => string;
+  bullets: (agent: Agent, tasks: Task[], counts: TaskKindCounts) => string[];
 }
 
 type TaskKindCounts = Record<TaskOutputKind, number>;
@@ -150,6 +165,145 @@ const AGENT_SHELL_REGISTRY: Record<AgentClass, AgentShellDescriptor> = {
       }
       return highlights;
     },
+  },
+};
+
+const AGENT_POSTURE_REGISTRY: Record<AgentClass, AgentPostureDescriptor> = {
+  'domain-steward': {
+    label: 'Domain posture',
+    title: (agent) => (
+      agent.context_domain
+        ? `${agent.context_domain} becomes more valuable when it stays warm`
+        : 'This specialist needs recurring work to accumulate judgment'
+    ),
+    description: () => 'Specialists own a domain first, then produce downstream work from that accumulated context.',
+    bullets: (agent, _, counts) => {
+      const bullets = [];
+      if (agent.context_domain) bullets.push(`Owned domain: ${agent.context_domain}`);
+      bullets.push(
+        counts.accumulates_context > 0
+          ? `${counts.accumulates_context} tracking ${counts.accumulates_context === 1 ? 'task keeps' : 'tasks keep'} this domain fresh`
+          : 'No tracking task is currently keeping this domain fresh',
+      );
+      bullets.push(
+        counts.produces_deliverable > 0
+          ? `${counts.produces_deliverable} deliverable ${counts.produces_deliverable === 1 ? 'task draws' : 'tasks draw'} from this context`
+          : 'No deliverable task is currently drawing from this domain',
+      );
+      return bullets;
+    },
+  },
+  synthesizer: {
+    label: 'Reporting posture',
+    title: () => 'Reporting gets stronger as upstream domains stay current',
+    description: () => 'The reporting class does not own one domain. It synthesizes across specialist context into cross-domain outputs.',
+    bullets: (_, tasks, counts) => {
+      const upstreamDomains = Array.from(new Set(
+        tasks.flatMap((task) => task.context_reads || []).filter(Boolean),
+      ));
+      const bullets = [
+        counts.produces_deliverable > 0
+          ? `${counts.produces_deliverable} reporting ${counts.produces_deliverable === 1 ? 'task is' : 'tasks are'} assigned`
+          : 'No reporting task is currently assigned',
+      ];
+      bullets.push(
+        upstreamDomains.length > 0
+          ? `Reads across ${upstreamDomains.join(', ')}`
+          : 'Needs upstream specialist context to synthesize from',
+      );
+      bullets.push(
+        counts.accumulates_context > 0
+          ? `${counts.accumulates_context} supporting tracking input ${counts.accumulates_context === 1 ? 'task is' : 'tasks are'} also attached`
+          : 'This class should usually read from specialist work more than maintain its own domain',
+      );
+      return bullets;
+    },
+  },
+  'platform-bot': {
+    label: 'Platform posture',
+    title: (agent) => `${roleDisplayName(agent.role)} is a bridge, not a generic specialist`,
+    description: () => 'Integration bots usually split into observation work and write-back work. Those two postures should be visible separately.',
+    bullets: (agent, _, counts) => {
+      const bullets = [];
+      if (agent.context_domain) bullets.push(`Platform bridge: ${agent.context_domain}`);
+      bullets.push(
+        counts.accumulates_context > 0
+          ? `${counts.accumulates_context} observation ${counts.accumulates_context === 1 ? 'task watches' : 'tasks watch'} the platform`
+          : 'No observation task is currently assigned',
+      );
+      bullets.push(
+        counts.external_action > 0
+          ? `${counts.external_action} write-back ${counts.external_action === 1 ? 'task can act' : 'tasks can act'} on the platform`
+          : 'No write-back task is currently assigned',
+      );
+      return bullets;
+    },
+  },
+  'meta-cognitive': {
+    label: 'Orchestration posture',
+    title: () => 'Thinking Partner should supervise the workforce, not act like another specialist',
+    description: () => 'TP-owned tasks are about coherence: maintenance, workspace hygiene, and system-level reporting.',
+    bullets: (_, tasks, counts) => {
+      const essentialCount = tasks.filter((task) => task.essential).length;
+      return [
+        counts.system_maintenance > 0
+          ? `${counts.system_maintenance} maintenance ${counts.system_maintenance === 1 ? 'task is' : 'tasks are'} keeping the system coherent`
+          : 'No maintenance task is currently assigned',
+        essentialCount > 0
+          ? `${essentialCount} essential ${essentialCount === 1 ? 'task is' : 'tasks are'} attached to TP`
+          : 'No essential TP task is currently attached',
+        counts.produces_deliverable > 0
+          ? `${counts.produces_deliverable} orchestration-facing ${counts.produces_deliverable === 1 ? 'report is' : 'reports are'} assigned`
+          : 'No orchestration-facing report is currently assigned',
+      ];
+    },
+  },
+};
+
+const AGENT_EMPTY_STATE_REGISTRY: Record<AgentClass, AgentEmptyStateDescriptor> = {
+  'domain-steward': {
+    title: (agent) => (
+      agent.context_domain
+        ? `No work is keeping ${agent.context_domain} fresh yet`
+        : 'No specialist work assigned yet'
+    ),
+    description: () => 'A specialist with no tasks has an owned domain but no standing work accumulating judgment or producing outputs from it.',
+    nextSteps: (agent) => [
+      agent.context_domain
+        ? `Start with one tracking task for ${agent.context_domain}`
+        : 'Start with one recurring tracking task in the owned domain',
+      'Add deliverable work only after context starts accumulating',
+      `Ask TP to suggest the first job for ${agent.title}`,
+    ],
+  },
+  synthesizer: {
+    title: () => 'No reporting work assigned yet',
+    description: () => 'Reporting is most useful when specialists are already producing fresh context and the synthesizer has a clear output to assemble from it.',
+    nextSteps: () => [
+      'Create a daily update, stakeholder update, or project status report',
+      'Make sure upstream specialist tracking is active first',
+      'Use reporting when you need cross-domain synthesis, not raw domain maintenance',
+    ],
+  },
+  'platform-bot': {
+    title: (agent) => `${roleDisplayName(agent.role)} has no platform work yet`,
+    description: () => 'Integration bots usually start by observing platform activity. Write-back tasks come later when you want the bot to take outbound actions.',
+    nextSteps: (agent) => [
+      `Start with one digest or observation task for ${roleDisplayName(agent.role)}`,
+      'Add write-back work only when you want outbound actions on the platform',
+      agent.context_domain
+        ? `Review the ${agent.context_domain} context domain after the first observation cycle`
+        : 'Review the platform context after the first observation cycle',
+    ],
+  },
+  'meta-cognitive': {
+    title: () => 'Thinking Partner has no orchestration work attached',
+    description: () => 'For TP, no tasks usually means the back-office or orchestration layer is missing, not that the agent is simply idle.',
+    nextSteps: () => [
+      'Restore or create maintenance tasks first',
+      'Keep TP focused on orchestration and workforce coherence, not domain production',
+      'Use TP to create and supervise work across the rest of the roster',
+    ],
   },
 };
 
@@ -357,6 +511,45 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   );
 }
 
+function AgentPostureBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+  const counts = getTaskKindCounts(tasks);
+  const descriptor = AGENT_POSTURE_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
+  const Icon = agent.agent_class === 'platform-bot'
+    ? Link2
+    : agent.agent_class === 'meta-cognitive'
+      ? Brain
+      : agent.agent_class === 'synthesizer'
+        ? ClipboardList
+        : FolderKanban;
+  const bullets = descriptor.bullets(agent, tasks, counts);
+
+  return (
+    <div className="px-6 py-5 border-t border-border/40">
+      <SectionLabel>{descriptor.label}</SectionLabel>
+      <div className="rounded-lg border border-border/60 bg-background px-4 py-4">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-muted/30 border border-border/60 flex items-center justify-center shrink-0">
+            <Icon className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h4 className="text-sm font-medium text-foreground">{descriptor.title(agent, tasks)}</h4>
+            <p className="text-sm text-muted-foreground mt-1">
+              {descriptor.description(agent, tasks)}
+            </p>
+            <div className="mt-3 space-y-1.5">
+              {bullets.map((bullet) => (
+                <p key={bullet} className="text-[12px] text-muted-foreground">
+                  {bullet}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TaskCard({ task }: { task: Task }) {
   const descriptor = TASK_CARD_REGISTRY[task.output_kind as TaskOutputKind] || TASK_CARD_REGISTRY.produces_deliverable;
   const typeLabel = taskTypeLabel(task.type_key);
@@ -428,14 +621,44 @@ function TaskCard({ task }: { task: Task }) {
   );
 }
 
-function TasksBlock({ tasks }: { tasks: Task[] }) {
+function EmptyAssignedWork({ agent }: { agent: Agent }) {
+  const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
+  const nextSteps = descriptor.nextSteps(agent);
+
+  return (
+    <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-4">
+      <h4 className="text-sm font-medium text-foreground">{descriptor.title(agent)}</h4>
+      <p className="text-sm text-muted-foreground mt-1">
+        {descriptor.description(agent)}
+      </p>
+      <div className="mt-3 space-y-1.5">
+        {nextSteps.map((step) => (
+          <p key={step} className="text-[12px] text-muted-foreground">
+            {step}
+          </p>
+        ))}
+      </div>
+      {agent.context_domain && (
+        <div className="mt-4">
+          <Link
+            href={`${CONTEXT_ROUTE}?domain=${agent.context_domain}`}
+            className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+          >
+            Open context
+            <ArrowUpRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   if (tasks.length === 0) {
     return (
       <div className="px-6 py-5 border-t border-border/40">
         <SectionLabel>Assigned work</SectionLabel>
-        <p className="text-sm text-muted-foreground/70">
-          No tasks assigned yet.
-        </p>
+        <EmptyAssignedWork agent={agent} />
       </div>
     );
   }
@@ -563,7 +786,8 @@ export function AgentContentView({ agent, tasks }: AgentContentViewProps) {
       />
       <div className="max-w-3xl">
         <AgentRoleBlock agent={agent} tasks={tasks} />
-        <TasksBlock tasks={tasks} />
+        <AgentPostureBlock agent={agent} tasks={tasks} />
+        <TasksBlock agent={agent} tasks={tasks} />
         <LearnedBlock agent={agent} />
         <InstructionsBlock agent={agent} />
         <StatsStrip agent={agent} />

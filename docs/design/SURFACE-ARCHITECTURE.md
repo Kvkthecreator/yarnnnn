@@ -7,6 +7,7 @@
 - [ADR-165 v5](../adr/ADR-165-workspace-state-surface.md) — `/chat` workspace state surface (TP-directed, single component, four lead views)
 - [ADR-166](../adr/ADR-166-registry-coherence-pass.md) — task `output_kind` enum (4 values)
 - [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — `/work` and `/agents` collapse from master-detail into list/detail mode with kind-aware detail. **v2 amendment**: breadcrumb collapses into in-page `<PageHeader />`, replacing the floating bar AND the per-page title bands inside `WorkDetail`/`AgentContentView`.
+- [AGENT-SURFACE-PATTERNS](./AGENT-SURFACE-PATTERNS.md) — broader agent-shell and no-task-state rules layered on top of ADR-167
 
 **Supersedes:**
 - v9 (2026-04-08) — list/detail collapse with separate `<GlobalBreadcrumb />` floating bar
@@ -327,6 +328,13 @@ The detail body follows two routing keys:
 - **`task.output_kind` chooses the assigned-work card shape**. Tracking tasks summarize context reads/writes, deliverable tasks summarize audience/deliverable, external-action tasks summarize target/delivery, and maintenance tasks summarize system purpose. `type_key` is allowed to specialize labels, but it does not fork the page architecture.
 
 This keeps the surface scalable: new agent types usually fit an existing class shell, and new task types usually fit an existing `output_kind` card.
+
+No-task states also vary by `agent_class`, not just copy:
+
+- specialists explain missing domain-tracking work
+- reporting explains upstream dependency on specialists
+- integration bots explain observation vs write-back posture
+- Thinking Partner explains missing orchestration/back-office work
 
 ### What Used to Live Here
 
