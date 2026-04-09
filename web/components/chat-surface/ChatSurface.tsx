@@ -142,13 +142,40 @@ export function ChatSurface({
   // whether to AUTO-open; TP owns that decision.
   const isEmpty = !dataLoading && tasks.length === 0;
 
+  // ChatSurface shape notes:
+  //   - PageHeader stays flush to the viewport edge (surface-wide chrome,
+  //     matches /work and /agents).
+  //   - SurfaceIdentityHeader is wrapped in the same max-w-3xl container as
+  //     the chat column below it, so the header ("⊙ Thinking Partner [⊞]")
+  //     sits directly above the chat stream, sharing its left/right margins.
+  //     This keeps the header and its content in the same reading column,
+  //     which is what the user asked for — slightly bigger than the sidebar
+  //     "TP" label, aligned with the conversation.
+  //   - Size is "md" (lighter treatment) because on /chat the title is an
+  //     intro, not the page's actual subject. The conversation itself is
+  //     the hero.
+  //   - The yarnnn circle logo is placed in the `icon` slot for parity with
+  //     the sidebar chat panel's "⊙ TP" header.
+  const surfaceLogo = (
+    <img
+      src="/assets/logos/circleonly_yarnnn_1.svg"
+      alt=""
+      className="w-5 h-5"
+    />
+  );
+
   return (
     <div className="flex h-full flex-col bg-background">
       <PageHeader defaultLabel="Chat" />
-      <SurfaceIdentityHeader
-        title="Thinking Partner"
-        actions={workspaceStateAction}
-      />
+      <div className="mx-auto w-full max-w-3xl px-4">
+        <SurfaceIdentityHeader
+          size="md"
+          bordered={false}
+          icon={surfaceLogo}
+          title="Thinking Partner"
+          actions={workspaceStateAction}
+        />
+      </div>
       <div className="flex-1 min-h-0">
         <div className="mx-auto h-full w-full max-w-3xl px-4 py-5">
           <ChatPanel
