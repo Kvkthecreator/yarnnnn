@@ -103,6 +103,62 @@ Verbs: `GetSystemState`, `list_integrations`.
 
 ---
 
+## Perception channel: how TP senses state before it acts
+
+**The matrix below is TP's action vocabulary. It is not TP's entire input surface.** Before TP reaches for a primitive, it reads a precomputed perception channel that is injected into its system prompt on every turn. This section documents that channel so the matrix isn't misread as the only way TP knows about workspace state.
+
+### Two input channels
+
+| Channel | What it carries | When it runs | Who produces it | Primitive cost |
+|---|---|---|---|---|
+| **Perception** (working memory) | Workspace state snapshot: identity/brand richness, task counts, stale tasks, budget, agent health, context domain fullness, recent uploads, active tasks, recent sessions, system summary | Once per TP turn, before tool dispatch | [api/services/working_memory.py](../../api/services/working_memory.py) `format_compact_index()` | Zero LLM, zero primitives — pure SQL precompute |
+| **Action** (primitives) | Mutations + lookups TP initiates in response to what it read from perception | During tool rounds | The primitives in the matrix below | One tool call per verb |
+
+TP **reads perception → decides → acts through primitives**. It does not call primitives to reconstruct state that the perception channel already carries.
+
+### What working memory injects into TP's prompt
+
+Single source of truth: [api/services/working_memory.py:format_compact_index()](../../api/services/working_memory.py). Key fields in the injected dict:
+
+- **`workspace_state`** (ADR-156) — the meta-awareness signal. Identity/brand richness classification (empty / partial / rich), document count, context domain count with content, active task count, stale task count, credits used/limit, budget-exhausted flag, flagged-agent list.
+- **`active_tasks`** — currently active task summaries with last run / next run freshness.
+- **`context_domains`** — per-domain health: file count, temporal flag, entity count.
+- **`recent_uploads`** (ADR-162 Sub-phase B) — documents uploaded in last 7 days that TP may want to process.
+- **`recent_sessions`** — prior session continuity markers.
+- **`system_summary`** + **`system_reference`** — tier, limits, connected platforms.
+- **`user_shared_files`** — shared uploads available as context.
+- **`identity`**, **`brand`**, **`awareness`**, **`conversation_summary`** — the narrative layer of workspace memory (ADR-159 filesystem-as-memory).
+
+All of this is precomputed from SQL and file reads — **zero LLM calls** produced it. TP receives it as a compact index (~500 tokens after ADR-159) and reads deeper on demand via file-layer primitives when it needs detail.
+
+### Why perception is not a primitive
+
+This is deliberate, not drift. Two ADRs govern it:
+
+1. **ADR-156 (Composer Sunset / Single Intelligence Layer)**. Making TP call `GetSystemState` + `ListEntities(type=task)` + `QueryKnowledge(domain=…)` + `ListFiles(…)` on every turn to reconstruct workspace state would reintroduce exactly the pattern ADR-156 deleted Composer to avoid — a second reasoning loop judging state that SQL can compute deterministically. Primitives are for actions, not for waste-motion sensing.
+
+2. **ADR-159 (Filesystem-as-Memory)**. TP's prompt is a compact index (~500 tokens) plus on-demand file reads. The compact index *is* the meta-awareness layer. A `GetWorkspaceState` primitive would duplicate what the compact index already carries, burn a tool round to get it, and cost ~70% of the token savings ADR-159 delivered.
+
+Consequence: **there is no `GetWorkspaceState` primitive and there will not be one.** If a state signal is missing from TP's perception, the fix is to add it to `working_memory.format_compact_index()`, not to create a primitive.
+
+### A realistic meta-awareness loop
+
+Concrete example of how perception and action compose during a cold-start onboarding conversation:
+
+| Turn | Perception TP reads (from working memory) | TP decides | Primitive TP calls |
+|---|---|---|---|
+| 1 | `workspace_state.identity = "empty"`, `tasks_active = 1` (daily-update), `documents = 0` | Cold start. Need context input. | `Clarify(question="Tell me about your work — paste docs, URLs, or describe it in chat?")` |
+| 2 | User pastes material → `recent_uploads` populated, user message has text | Run inference. | `UpdateContext(target="identity", text=…)` (context inference) |
+| 3 | `workspace_state.identity = "rich"`, `context_domains = 0` | Scaffold domain entities so `track-*` tasks have substrate. | `ManageDomains(action="scaffold", entities=[…])` |
+| 4 | `context_domains = 3`, `tasks_active = 1` | Suggest a first recurring deliverable. | `ManageTask(action="create", task_type="competitive-brief", …)` (post-Commit 3) |
+| 5 | User: "show me what's running" → `active_tasks` already in compact index | Answer from perception; no primitive needed. | *(no tool call — compose answer from working memory)* |
+
+Four primitives touched in five turns, across four different substrate families (`interaction`, `context`, `lifecycle`, `lifecycle`). Turn 5 uses zero primitives because perception already carries the answer. This is the intended shape: **perception surfaces state, primitives change it.**
+
+Every verb in that loop is in the matrix below. The decision loop ("read perception, pick next action") lives in TP's system prompt, not in any primitive.
+
+---
+
 ## The Full Matrix
 
 **Legend:** ● available, ○ not available in this mode.

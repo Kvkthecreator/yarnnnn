@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.09.1b] - ADR-168 Commit 1.1: Perception Channel Amendment
+
+### Changed
+- `docs/architecture/primitives-matrix.md`: New "Perception channel: how TP senses state before it acts" section added before the Full Matrix table. Documents the two input channels to TP (perception = precomputed working memory, action = primitives) and the fields `format_compact_index()` injects (`workspace_state`, `active_tasks`, `context_domains`, `recent_uploads`, `recent_sessions`, `system_summary`, `user_shared_files`, narrative layer). Explicitly states there is **no** `GetWorkspaceState` primitive and there will not be one — ADR-156 (single intelligence layer) and ADR-159 (filesystem-as-memory) keep meta-awareness out of the primitive layer. Includes a concrete cold-start onboarding loop (5 turns, 4 primitives across 4 substrate families) to ground the perception-vs-action split in real TP behavior.
+- `docs/adr/ADR-168-primitive-matrix.md`: New §6 "Scope clarification — matrix is the action vocabulary, not the perception channel" inserted. Former §6 "Resulting surface" renumbered to §7. Documents that the matrix describes what TP can *do*, not everything TP can *see*, and points readers to the perception section in `primitives-matrix.md`.
+- Expected behavior: No runtime change. Doc-only amendment prompted by a sanity framing check — the question "does TP run a combination of primitives for meta-awareness?" revealed that the matrix as originally shipped could be misread as TP's entire input surface. The amendment closes that gap by making the precomputed perception channel a first-class part of the primitives doc, so future contributors (and future Claude sessions) don't misread the matrix and propose a redundant `GetWorkspaceState` primitive.
+
+---
+
 ## [2026.04.09.1] - ADR-168 Commit 1: Primitive Matrix — Direction Declared
 
 ### Changed

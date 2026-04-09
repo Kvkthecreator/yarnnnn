@@ -147,7 +147,15 @@ Each primitive gets one or more capability tags in the matrix doc. Tags describe
 
 Tags are metadata on the matrix table. They do not appear in primitive names. They enable matrix-level queries ("which primitives need a user channel?" → grep `user-channel` in the matrix doc) without coupling naming to caller identity.
 
-### 6. Resulting surface (post-commits 2–4)
+### 6. Scope clarification — matrix is the action vocabulary, not the perception channel
+
+The matrix is TP's **action** vocabulary. It is not TP's entire input surface. TP also receives a precomputed **perception** channel via `working_memory.format_compact_index()` — `workspace_state` (identity/brand richness, task counts, budget, agent health), `active_tasks`, `context_domains`, `recent_uploads`, `system_summary`, and more — injected into every TP turn before tool dispatch. Zero LLM produced it, zero primitives fetched it.
+
+This is deliberate per ADR-156 (single intelligence layer) and ADR-159 (filesystem-as-memory): meta-awareness is precomputed SQL, not LLM-driven tool rounds. There is **no `GetWorkspaceState` primitive and there will not be one**. If a state signal is missing from TP's perception, the fix is to extend `format_compact_index()`, not to add a primitive.
+
+Consequence for this ADR: the matrix describes what TP can *do*, not everything TP can *see*. `primitives-matrix.md` includes a "Perception channel" section positioned before the Full Matrix table that documents the working-memory injection, a realistic meta-awareness loop (cold-start onboarding → 4 primitives across 5 turns), and the ADR-156/159 rationale for keeping perception out of the primitive layer.
+
+### 7. Resulting surface (post-commits 2–4)
 
 **Chat mode (13 tools, was 15):**
 
