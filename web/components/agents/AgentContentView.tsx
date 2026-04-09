@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { WorkModeBadge } from '@/components/work/WorkModeBadge';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
+import { Button } from '@/components/ui/button';
 import { formatRelativeTime } from '@/lib/formatting';
 import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
 import {
@@ -52,6 +53,7 @@ import type { Agent, Task, LandscapeResource, PlatformProvider, NumericLimitFiel
 interface AgentContentViewProps {
   agent: Agent;
   tasks: Task[];
+  onCreateTask?: () => void;
 }
 
 type AgentClass = NonNullable<Agent['agent_class']>;
@@ -74,7 +76,6 @@ interface TaskCardDescriptor {
 interface AgentEmptyStateDescriptor {
   title: (agent: Agent) => string;
   description: (agent: Agent) => string;
-  nextSteps: (agent: Agent) => string[];
 }
 
 interface PlatformSummary {
@@ -123,11 +124,11 @@ const AGENT_SHELL_REGISTRY: Record<AgentClass, AgentShellDescriptor> = {
   'domain-steward': {
     label: 'Role',
     title: (agent) => (
-      agent.context_domain ? `${roleDisplayName(agent.role)} owns ${agent.context_domain}` : roleDisplayName(agent.role)
+      agent.context_domain ? `${roleDisplayName(agent.role)} owns ${formatKeyLabel(agent.context_domain, false)}` : roleDisplayName(agent.role)
     ),
     description: (agent) => (
       agent.context_domain
-        ? `Keeps ${agent.context_domain} current and turns that context into specialist output.`
+        ? `Keeps ${formatKeyLabel(agent.context_domain, false)} current and turns that context into specialist output.`
         : roleTagline(agent.role) || agentClassDescription(agent.agent_class)
     ),
     highlights: (agent, counts) => {
@@ -137,7 +138,7 @@ const AGENT_SHELL_REGISTRY: Record<AgentClass, AgentShellDescriptor> = {
       if (counts.produces_deliverable > 0) {
         highlights.push(`${counts.produces_deliverable} deliverable ${counts.produces_deliverable === 1 ? 'task' : 'tasks'}`);
       }
-      if (agent.context_domain) highlights.push(`Domain: ${agent.context_domain}`);
+      if (agent.context_domain) highlights.push(`Domain: ${formatKeyLabel(agent.context_domain)}`);
       return highlights;
     },
   },
@@ -186,46 +187,24 @@ const AGENT_SHELL_REGISTRY: Record<AgentClass, AgentShellDescriptor> = {
 
 const AGENT_EMPTY_STATE_REGISTRY: Record<AgentClass, AgentEmptyStateDescriptor> = {
   'domain-steward': {
-    title: (agent) => (
+    title: () => 'No task yet',
+    description: (agent) => (
       agent.context_domain
-        ? `No ${agent.context_domain} work is running yet`
-        : 'No specialist work is running yet'
+        ? `Start one recurring tracker for ${formatKeyLabel(agent.context_domain, false)}.`
+        : 'Start one recurring tracker in this domain.'
     ),
-    description: () => 'This specialist needs one recurring tracker before it can produce useful downstream work.',
-    nextSteps: (agent) => [
-      agent.context_domain
-        ? `Start one recurring tracker for ${agent.context_domain}.`
-        : 'Start one recurring tracker in the owned domain.',
-      'Let it build context before adding deliverable work.',
-      `Then add briefs or reports for ${agent.title} to produce.`,
-    ],
   },
   synthesizer: {
-    title: () => 'No reporting task is running yet',
-    description: () => 'Reporting is only useful when it has fresh specialist input and a clear output to produce.',
-    nextSteps: () => [
-      'Make sure specialist tracking tasks are active first.',
-      'Then add one reporting task, such as a daily update or stakeholder report.',
-      'Use this agent for synthesis, not raw domain maintenance.',
-    ],
+    title: () => 'No task yet',
+    description: () => 'Start one reporting task that turns active specialist work into an update.',
   },
   'platform-bot': {
-    title: (agent) => `No ${roleDisplayName(agent.role).replace(' Bot', '')} task is running yet`,
-    description: () => 'Set up the connection first, choose the sources this bot should watch, then add the first recurring observation task.',
-    nextSteps: (agent) => [
-      `Connect or confirm ${roleDisplayName(agent.role)} in Settings > Connectors.`,
-      `If connected, select the ${agent.context_domain || 'platform'} sources this bot should cover.`,
-      `Then add one recurring digest or monitoring task for ${roleDisplayName(agent.role)}.`,
-    ],
+    title: () => 'No task yet',
+    description: (agent) => `Use the connection and source sections above, then create the first recurring ${roleDisplayName(agent.role).replace(' Bot', '')} task.`,
   },
   'meta-cognitive': {
-    title: () => 'Thinking Partner has no maintenance work yet',
-    description: () => 'TP should own the system-level jobs that keep the workspace and workforce coherent.',
-    nextSteps: () => [
-      'Create or restore the maintenance tasks first.',
-      'Keep TP focused on orchestration and shared-state hygiene.',
-      'Use specialist and reporting agents for domain and deliverable work.',
-    ],
+    title: () => 'No task yet',
+    description: () => 'Create the core maintenance tasks that keep the workspace and workforce coherent.',
   },
 };
 
@@ -306,12 +285,19 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function readableDomainSummary(domains: string[] | undefined, fallback: string): string {
   if (!domains || domains.length === 0) return fallback;
-  return domains.join(', ');
+  return domains.map((domain) => formatKeyLabel(domain, false)).join(', ');
 }
 
 function taskTypeLabel(typeKey?: string | null): string | null {
   if (!typeKey) return null;
   return TASK_TYPE_LABELS[typeKey] || typeKey.replace(/-/g, ' ');
+}
+
+function formatKeyLabel(value?: string | null, capitalize = true): string {
+  if (!value) return '';
+  const formatted = value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!formatted) return '';
+  return capitalize ? formatted.charAt(0).toUpperCase() + formatted.slice(1) : formatted;
 }
 
 function inferActionTarget(task: Task): string | null {
@@ -361,7 +347,7 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
         href={`${CONTEXT_ROUTE}?domain=${domain}`}
         className="hover:text-foreground hover:underline"
       >
-        {domain}/
+        {formatKeyLabel(domain)}/
       </Link>,
     );
   }
@@ -780,7 +766,6 @@ function TaskCard({ task }: { task: Task }) {
 
 function EmptyAssignedWork({ agent }: { agent: Agent }) {
   const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
-  const nextSteps = descriptor.nextSteps(agent);
   const platformProvider = agent.agent_class === 'platform-bot' ? platformProviderForRole(agent.role) : null;
   const managementHref = platformManagementHref(platformProvider);
 
@@ -790,18 +775,6 @@ function EmptyAssignedWork({ agent }: { agent: Agent }) {
       <p className="text-sm text-muted-foreground mt-1">
         {descriptor.description(agent)}
       </p>
-      <div className="mt-4">
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground/50 mb-2">
-          Next steps
-        </p>
-        <div className="space-y-2">
-          {nextSteps.map((step) => (
-            <p key={step} className="text-[13px] text-muted-foreground">
-              {step}
-            </p>
-          ))}
-        </div>
-      </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {platformProvider && (
           <Link
@@ -933,12 +906,17 @@ function StatsStrip({ agent }: { agent: Agent }) {
   );
 }
 
-export function AgentContentView({ agent, tasks }: AgentContentViewProps) {
+export function AgentContentView({ agent, tasks, onCreateTask }: AgentContentViewProps) {
   return (
     <div className="flex-1 overflow-auto">
       <SurfaceIdentityHeader
         title={agent.title}
         metadata={<AgentMetadata agent={agent} tasks={tasks} />}
+        actions={onCreateTask ? (
+          <Button size="sm" onClick={onCreateTask}>
+            Create Task
+          </Button>
+        ) : undefined}
       />
       <div className="max-w-3xl">
         <AgentRoleBlock agent={agent} tasks={tasks} />

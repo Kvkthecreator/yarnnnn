@@ -320,7 +320,7 @@ Click a card → URL transitions to `/agents?agent={slug}` → detail mode.
 
 ### Detail Mode (`/agents?agent={slug}`) — `AgentContentView`
 
-In detail mode the page renders `<PageHeader />` followed by `<AgentContentView />`. `<SurfaceIdentityHeader />` inside AgentContentView is the real H1. The metadata strip stays compact (`Class · domain · N tasks · Ran Xh ago`); the detail body does the actual explanatory work.
+In detail mode the page renders `<PageHeader />` followed by `<AgentContentView />`. `<SurfaceIdentityHeader />` inside AgentContentView is the real H1. The metadata strip stays compact (`Class · domain · N tasks · Ran Xh ago`); the header action area carries the single primary CTA (`Create Task`), and the detail body does the actual explanatory work.
 
 The detail body follows two routing keys:
 
@@ -329,12 +329,12 @@ The detail body follows two routing keys:
 
 This keeps the surface scalable: new agent types usually fit an existing class shell, and new task types usually fit an existing `output_kind` card.
 
-No-task states also vary by `agent_class`, not just copy:
+No-task states also vary by `agent_class`, but they stay short:
 
-- specialists explain missing domain-tracking work
-- reporting explains upstream dependency on specialists
-- integration bots surface connection status and source-selection setup before any task guidance
-- Thinking Partner explains missing orchestration/back-office work
+- specialists name the missing tracker
+- reporting names the missing reporting task
+- integration bots point the user to connection/source setup above
+- Thinking Partner names the missing maintenance work
 
 For platform bots specifically, `/agents?agent={slug}` is the canonical management surface for source selection. `/context` stays the single filesystem browser and no longer owns per-platform management pages.
 

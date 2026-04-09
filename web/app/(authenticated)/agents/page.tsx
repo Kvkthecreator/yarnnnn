@@ -28,6 +28,27 @@ import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
+import type { Agent } from '@/types';
+
+function buildCreateTaskPrompt(agent: Agent, hasExistingTasks: boolean): string {
+  if (hasExistingTasks) {
+    return `Create another task for ${agent.title} that fits this agent's role and current workload.`;
+  }
+
+  switch (agent.agent_class) {
+    case 'platform-bot':
+      return `Set up ${agent.title} and create its first recurring task. If the platform or sources are not ready, tell me what needs to be configured first.`;
+    case 'synthesizer':
+      return `Create the first reporting task for ${agent.title}, using active specialist inputs.`;
+    case 'meta-cognitive':
+      return `Create the core maintenance tasks for ${agent.title}.`;
+    case 'domain-steward':
+    default:
+      return agent.context_domain
+        ? `Create the first recurring tracking task for ${agent.title} in ${agent.context_domain}.`
+        : `Create the first recurring tracking task for ${agent.title}.`;
+  }
+}
 
 export default function AgentsPage() {
   const searchParams = useSearchParams();
@@ -74,8 +95,12 @@ export default function AgentsPage() {
 
   // Chat config
   const surfaceOverride = selectedAgent
-    ? { type: 'agent-detail' as const, agentSlug: getAgentSlug(selectedAgent) }
+    ? { type: 'agent-detail' as const, agentId: selectedAgent.id }
     : undefined;
+
+  const createTaskPrompt = selectedAgent
+    ? buildCreateTaskPrompt(selectedAgent, agentTasks.length > 0)
+    : null;
 
   const plusMenuActions: PlusMenuAction[] = useMemo(() => {
     if (selectedAgent) {
@@ -86,9 +111,9 @@ export default function AgentsPage() {
           label: `Run ${activeTasks[0]?.title || 'task'}`,
           icon: Play,
           verb: 'prompt' as const,
-          onSelect: () => { sendMessage(`Run the task "${activeTasks[0]?.title}" now`); },
+          onSelect: () => { sendMessage(`Run the task "${activeTasks[0]?.title}" now`, { surface: surfaceOverride }); },
         }] : []),
-        { id: 'assign-task', label: 'Assign a new task', icon: ListChecks, verb: 'prompt' as const, onSelect: () => { sendMessage(`Create a new task for ${selectedAgent.title}`); } },
+        { id: 'assign-task', label: 'Assign a new task', icon: ListChecks, verb: 'prompt' as const, onSelect: () => { sendMessage(createTaskPrompt || `Create a new task for ${selectedAgent.title}`, { surface: surfaceOverride }); } },
         { id: 'web-search', label: 'Web research', icon: Globe, verb: 'prompt' as const, onSelect: () => {} },
         { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach' as const, onSelect: () => {} },
       ];
@@ -98,7 +123,7 @@ export default function AgentsPage() {
       { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt' as const, onSelect: () => {} },
       { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach' as const, onSelect: () => {} },
     ];
-  }, [selectedAgent, agentTasks, sendMessage]);
+  }, [selectedAgent, agentTasks, createTaskPrompt, sendMessage, surfaceOverride]);
 
   const chatEmptyState = (
     <div className="py-2 text-center">
@@ -134,6 +159,9 @@ export default function AgentsPage() {
         <AgentContentView
           agent={selectedAgent}
           tasks={agentTasks}
+          onCreateTask={createTaskPrompt
+            ? () => { sendMessage(createTaskPrompt, { surface: surfaceOverride }); }
+            : undefined}
         />
       ) : (
         <AgentRosterSurface
