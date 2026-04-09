@@ -1,10 +1,13 @@
 # ADR-075: MCP Connector — Technical Architecture
 
 **Date**: 2026-02-25
-**Status**: Implemented (Phase 1 — full tool surface + OAuth 2.1)
+**Status**: Implemented — **tool surface superseded by [ADR-169](ADR-169-mcp-context-hub.md) (2026-04-09).** Infrastructure (OAuth 2.1, transport, two-layer auth, FastMCP module layout, Render service config, OAuth storage tables) remains canonical and unchanged.
 **Supersedes**: ADR-041 (MCP Server Exposure — deferred, scope replaced)
 **Extends**: ADR-050 (MCP Gateway Architecture — now superseded by ADR-076)
-**Related**: ADR-072 (Unified Content Layer), ADR-066 (Delivery-First Model)
+**Superseded in part by**: ADR-169 (MCP as Context Hub — tool surface reshaped from 9 data-shaped tools to 3 intent-shaped tools: `work_on_this`, `pull_context`, `remember_this`. Infrastructure sections below are preserved.)
+**Related**: ADR-072 (Unified Content Layer — now superseded by ADR-153), ADR-066 (Delivery-First Model), ADR-169 (MCP Context Hub — current tool surface)
+
+> **Tool surface reference**: For the current three-tool surface, read [ADR-169](ADR-169-mcp-context-hub.md) and [docs/features/mcp/README.md](../features/mcp/README.md). The 9-tool list described in this ADR's "Tools" / "Phase 1" sections is historical — those tools were deleted as a singular implementation per ADR-169. What remains canonical in this ADR: OAuth 2.1, transport (stdio + HTTP), two-layer auth model, `api/mcp_server/` module layout, `yarnnn-mcp-server` Render service config, and `mcp_oauth_*` storage tables.
 
 ---
 

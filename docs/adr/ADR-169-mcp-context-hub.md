@@ -1,6 +1,6 @@
 # ADR-169: MCP as Context Hub — Three-Tool Surface for Cross-LLM Continuity
 
-**Status:** Proposed
+**Status:** Implemented (2026-04-09) — `api/services/mcp_composition.py` shipped, `api/mcp_server/server.py` rewritten to 3 tools, 9 legacy tools deleted, primitives matrix updated with MCP mode column, ADR-075 tool surface marked superseded, `docs/integrations/MCP-CONNECTORS.md` marked superseded. Pre-ship validation of `QueryKnowledge` ranking quality still pending before the MCP Render service is redeployed — see Risks section.
 **Date:** 2026-04-09
 **Authors:** KVK, Claude
 **Supersedes:** The 9-tool MCP surface shipped in ADR-075 Phase 1 (`get_status`, `list_agents`, `run_agent`, `get_agent_output`, `get_context`, `search_content`, `get_agent_card`, `search_knowledge`, `discover_agents`)
@@ -174,6 +174,18 @@ This ADR changes the MCP tool surface. It does not touch any of the infrastructu
 
 ## Status
 
-**Proposed** — ready for implementation. All open questions decided. No deferred items.
+**Implemented (2026-04-09)**. Code changes landed in a single commit:
 
-When implementation lands, the status updates to **Implemented** with a line noting the commit SHA and deployment date.
+- `api/services/mcp_composition.py` — new module with `compose_subject_context`, `compose_active_candidates`, `classify_memory_target` (two-branch), and provenance helpers (`stamp_provenance`, `derive_client_name`, `extract_domain_from_path`, `_extract_provenance_tag`, `_normalize_client_id`)
+- `api/mcp_server/server.py` — rewritten. 9 legacy tools deleted (`get_status`, `list_agents`, `run_agent`, `get_agent_output`, `get_context`, `search_content`, `get_agent_card`, `search_knowledge`, `discover_agents`) plus all direct service imports (`execute_agent_run`, `build_working_memory`, `handle_get_system_state`, `AgentWorkspace`, `get_agent_slug`, `get_domain_folder`). Three new tools registered (`work_on_this`, `pull_context`, `remember_this`). Only `services.mcp_composition` and `services.primitives.registry.execute_primitive` are imported from the services layer — ADR-164 runtime-agnostic invariant satisfied.
+- `api/mcp_server/__init__.py` — module docstring updated to reflect the three-tool surface and ADR-169 reference
+- `docs/architecture/primitives-matrix.md` — new MCP mode column added to the full matrix, mode totals section updated with MCP entry, hard boundaries section updated with MCP-specific rules
+- `docs/adr/ADR-075-mcp-connector-architecture.md` — status line updated to mark tool surface superseded; infrastructure (OAuth 2.1, transport, auth layers, module layout, Render config, OAuth storage tables) remains canonical
+- `docs/integrations/MCP-CONNECTORS.md` — superseded banner added at the top pointing to `docs/features/mcp/` and ADR-169; historical content preserved
+- `CLAUDE.md` — File Locations table updated with three MCP entries (`MCP Server`, `MCP Composition`, `MCP Feature Docs`)
+
+**Deferred to pre-ship validation**:
+
+- `QueryKnowledge` ranking quality validation against 10 real seeded subjects. If ranking is insufficient, embedding-based reranker lands before the MCP Render service is redeployed. This is the one explicit quality gate called out in the Risks section.
+
+**Unchanged** (intentionally preserved from ADR-075 Phase 1): OAuth 2.1, static bearer fallback, two-layer auth, FastMCP transport selection, `api/mcp_server/{auth,oauth_provider,__main__}.py` module contents, Render service `yarnnn-mcp-server` container and env vars, OAuth storage tables (`mcp_oauth_clients`, `mcp_oauth_codes`, `mcp_oauth_access_tokens`, `mcp_oauth_refresh_tokens`).

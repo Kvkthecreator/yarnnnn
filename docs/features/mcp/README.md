@@ -1,6 +1,6 @@
 # MCP Connector — The Context Hub Across LLMs
 
-> **Status**: Proposed — ADR-169 written ([docs/adr/ADR-169-mcp-context-hub.md](../../adr/ADR-169-mcp-context-hub.md)), implementation pending. Current code (`api/mcp_server/server.py`, 9 tools) is pre-this-design and will be replaced as a singular implementation per CLAUDE.md discipline.
+> **Status**: Implemented (2026-04-09) — ADR-169 written and code landed. `api/services/mcp_composition.py` ships the composition layer; `api/mcp_server/server.py` is rewritten to three tools with 9 legacy tools deleted. `QueryKnowledge` ranking quality validation is the one pre-ship gate remaining before the MCP Render service is redeployed.
 > **Date**: 2026-04-09
 > **Authors**: KVK, Claude
 > **Related ADRs**: ADR-075 (MCP technical architecture, OAuth + transport — preserved), ADR-164 (TP as agent, primitives runtime-agnostic), ADR-168 (primitives matrix — canonical primitive surface), ADR-159 (filesystem-as-memory), ADR-151 (context domains — `QueryKnowledge` substrate), ADR-152 (unified directory registry), ADR-156 (Composer sunset — TP is single intelligence layer)

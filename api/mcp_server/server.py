@@ -1,32 +1,45 @@
 """
-YARNNN MCP Server — ADR-075
+YARNNN MCP Server — ADR-169 (tool surface) + ADR-075 (infrastructure)
 
-FastMCP server exposing YARNNN backend services as MCP tools.
-9 tools: 6 core (ADR-075) + 3 agent identity & knowledge (ADR-116 Phase 4).
+Three intent-shaped tools expose YARNNN as a cross-LLM context hub:
 
-Two-layer auth:
-- Transport: OAuth 2.1 (Claude.ai, ChatGPT) + static bearer token (Claude Desktop)
-- Data: Service key + MCP_USER_ID (all queries scoped by user_id)
+    work_on_this    — curated start-of-session bundle for a subject
+    pull_context    — ranked chunks of accumulated material (primary cross-LLM tool)
+    remember_this   — write observations back to the workspace
 
-Tool handlers call service functions directly (same layer REST routes use).
+Design invariants (ADR-169):
+    1. Three tools, not nine — the old data-shaped surface is DELETED
+    2. Zero YARNNN-internal LLM calls on the serving path
+    3. MCP is the fifth caller of execute_primitive() — no direct service imports
+    4. Every write carries ADR-162 provenance (source: mcp:<client>)
+    5. Cross-LLM consistency is the load-bearing property — every LLM sees
+       the same substrate via identical QueryKnowledge retrieval
+
+Two-layer auth (ADR-075, unchanged):
+    Transport: OAuth 2.1 (Claude.ai, ChatGPT) + static bearer (Claude Desktop)
+    Data:      Service key + MCP_USER_ID (all queries scoped by user_id)
+
+Canonical framing: docs/features/mcp/README.md
 """
 
-import os
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from pydantic import AnyHttpUrl
-from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.auth.settings import (
     AuthSettings,
     ClientRegistrationOptions,
     RevocationOptions,
 )
+from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import AnyHttpUrl
 
 from mcp_server.auth import get_authenticated_client
 from mcp_server.oauth_provider import YarnnnOAuthProvider
+from services import mcp_composition
+from services.primitives.registry import execute_primitive
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +47,14 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(server: FastMCP):
     """Initialize auth context at server startup."""
-    logger.info("[MCP Server] Initializing...")
+    logger.info("[MCP Server] Initializing ADR-169 three-tool surface…")
     auth = get_authenticated_client()
     logger.info(f"[MCP Server] Ready — user: {auth.user_id}")
     yield {"auth": auth}
     logger.info("[MCP Server] Shutting down")
 
 
-# Determine server URL for OAuth issuer
+# Server URL for OAuth issuer
 _server_url = os.environ.get(
     "MCP_SERVER_URL", "https://yarnnn-mcp-server.onrender.com"
 )
@@ -49,12 +62,23 @@ _server_url = os.environ.get(
 mcp = FastMCP(
     "yarnnn",
     instructions=(
-        "Access YARNNN context, agents, and accumulated platform knowledge. "
-        "YARNNN syncs your Slack, Gmail, Notion, and Calendar — this server "
-        "lets you query that accumulated context and trigger agents."
+        "YARNNN is the context hub across the LLMs you already use. "
+        "It is not a connector for static data — it is a living workspace "
+        "grown by an autonomous agent workforce in the background.\n\n"
+        "Three tools expose that workspace to whichever LLM the user is in:\n"
+        "  • work_on_this — call at the START of a work session on a subject\n"
+        "  • pull_context — call MID-SESSION when the user mentions something\n"
+        "                    that might live in their accumulated context\n"
+        "  • remember_this — call whenever the user shares an observation,\n"
+        "                    decision, or insight worth keeping\n\n"
+        "Whatever you write via remember_this is IMMEDIATELY visible to any "
+        "other LLM the user switches to. This is how the user's thinking stays "
+        "coherent across rooms.\n\n"
+        "Use these proactively — YARNNN is supposed to be ambient. Do not wait "
+        "for the user to ask you to consult it."
     ),
     lifespan=lifespan,
-    # OAuth 2.1 provider — enables Claude.ai connectors + ChatGPT developer mode
+    # OAuth 2.1 provider — Claude.ai connectors + ChatGPT developer mode
     auth_server_provider=YarnnnOAuthProvider(),
     auth=AuthSettings(
         issuer_url=AnyHttpUrl(_server_url),
@@ -67,424 +91,364 @@ mcp = FastMCP(
         revocation_options=RevocationOptions(enabled=True),
         required_scopes=["read"],
     ),
-    # Disable DNS rebinding protection — Render/Cloudflare reverse proxy
-    # changes the Host header. Security handled by OAuth + Render's edge.
+    # Render/Cloudflare reverse proxy changes Host; security handled by OAuth + edge
     transport_security=TransportSecuritySettings(
         enable_dns_rebinding_protection=False,
     ),
 )
 
 
-# --- Tools ---
+# =============================================================================
+# Tool 1: work_on_this
+# =============================================================================
 
 
 @mcp.tool()
-async def get_status(
+async def work_on_this(
     ctx: Context,
-    scope: Optional[str] = None,
-    platform: Optional[str] = None,
+    context: str,
+    subject_hint: Optional[str] = None,
 ) -> dict:
-    """Get YARNNN system status: connected platforms, resource coverage, recent activity, and active agents.
+    """Prime yourself with a curated starting bundle from the user's YARNNN workspace for a subject they're about to work on.
 
-    Use this to check what platforms are connected, what resources are covered,
-    whether the scheduler is running, and if there are any issues.
+    Call this when the user says "help me work on this," "let's think through
+    this," "I'm drafting X," or otherwise indicates they're about to ENGAGE
+    with a subject that might live in their YARNNN workspace (people,
+    companies, markets, projects, deliverables, decisions).
+
+    BEFORE CALLING, compress what you and the user have been discussing into
+    one or two sentences and pass it as `context`. If you can identify a
+    specific subject name (a person, company, project, or topic), pass it as
+    `subject_hint`. DO NOT ask the user to clarify what they mean — infer
+    from your conversation.
+
+    If YARNNN cannot confidently resolve the subject, it will return a set of
+    candidates from currently-active workspace state. Surface those to the
+    user naturally ("You've got a few things in flight — which one?") and
+    call again with a clearer subject.
+
+    This tool returns a COMPACT curated bundle designed for starting a work
+    session. If you need deeper or broader material about the subject later
+    in the conversation, use `pull_context` instead — that tool returns
+    ranked chunks rather than a curated bundle.
+
+    Use this proactively when the user is starting work on something. YARNNN
+    is supposed to be ambient — the user should not have to ask you to
+    consult it.
 
     Args:
-        scope: What to check. Options: "full" (default), "sync", "scheduler", "jobs"
-        platform: Optional filter to a specific platform (slack, notion, github)
+        context: 1-2 sentence compression of the current conversation and
+                 what the user is trying to do. Required. Generated silently
+                 by you at call time — never asked from the user.
+        subject_hint: Optional specific subject name (company, person,
+                 project) if the conversation named one clearly.
     """
     auth = ctx.request_context.lifespan_context["auth"]
-
-    from services.primitives.system_state import handle_get_system_state
-
-    result = await handle_get_system_state(auth, {
-        "scope": scope or "full",
-        "platform": platform,
-    })
-
-    return result
-
-
-@mcp.tool()
-async def list_agents(
-    ctx: Context,
-    status: Optional[str] = None,
-) -> dict:
-    """List your configured agents and their status.
-
-    Returns agent titles, roles, scopes, and status.
-    Use this to discover what agents exist before triggering or reading output.
-
-    Args:
-        status: Filter by status. Options: "active" (default), "paused", "archived"
-    """
-    auth = ctx.request_context.lifespan_context["auth"]
-
-    query = (
-        auth.client.table("agents")
-        .select("id, title, scope, role, status")
-        .eq("user_id", auth.user_id)
+    return await mcp_composition.compose_subject_context(
+        auth=auth,
+        context=context or "",
+        subject_hint=subject_hint,
     )
-    if status:
-        query = query.eq("status", status)
-    else:
-        query = query.eq("status", "active")
-
-    result = query.order("created_at", desc=True).limit(20).execute()
-
-    return {"agents": result.data or [], "count": len(result.data or [])}
-
-
-@mcp.tool()
-async def run_agent(
-    ctx: Context,
-    agent_id: str,
-) -> dict:
-    """Trigger an agent to execute now and deliver its output.
-
-    Runs the full pipeline: gather context from synced platforms, generate content,
-    and deliver to the configured destination (Slack, email, etc.).
-    Use list_agents first to find the agent ID.
-
-    Args:
-        agent_id: The UUID of the agent to run
-    """
-    auth = ctx.request_context.lifespan_context["auth"]
-
-    # Fetch the agent (with ownership check)
-    try:
-        agent_result = (
-            auth.client.table("agents")
-            .select("*")
-            .eq("id", agent_id)
-            .eq("user_id", auth.user_id)
-            .single()
-            .execute()
-        )
-    except Exception:
-        return {"success": False, "error": "Agent not found"}
-
-    if not agent_result.data:
-        return {"success": False, "error": "Agent not found"}
-
-    from services.task_pipeline import execute_agent_run
-    from services.supabase import get_service_client
-
-    result = await execute_agent_run(
-        client=get_service_client(),
-        user_id=auth.user_id,
-        agent=agent_result.data,
-        trigger_context={"type": "mcp"},
-    )
-
-    return result
-
-
-@mcp.tool()
-async def get_agent_output(
-    ctx: Context,
-    agent_id: str,
-    version: Optional[int] = None,
-) -> dict:
-    """Get the generated content from an agent's most recent (or specific) version.
-
-    Returns the actual text output that was generated and delivered.
-    Use list_agents first to find the agent ID.
-
-    Args:
-        agent_id: The UUID of the agent
-        version: Specific version number to retrieve. If omitted, returns the latest.
-    """
-    auth = ctx.request_context.lifespan_context["auth"]
-
-    # Verify ownership
-    try:
-        agent_check = (
-            auth.client.table("agents")
-            .select("id")
-            .eq("id", agent_id)
-            .eq("user_id", auth.user_id)
-            .single()
-            .execute()
-        )
-    except Exception:
-        return {"success": False, "error": "Agent not found"}
-
-    if not agent_check.data:
-        return {"success": False, "error": "Agent not found"}
-
-    # Fetch version(s)
-    query = (
-        auth.client.table("agent_runs")
-        .select("id, version_number, status, draft_content, final_content, created_at, delivered_at")
-        .eq("agent_id", agent_id)
-    )
-    if version:
-        query = query.eq("version_number", version)
-    else:
-        query = query.order("version_number", desc=True).limit(1)
-
-    result = query.execute()
-
-    if not result.data:
-        return {"success": False, "error": "No versions found"}
-
-    v = result.data[0]
-    return {
-        "success": True,
-        "version_number": v.get("version_number"),
-        "status": v.get("status"),
-        "content": v.get("final_content") or v.get("draft_content"),
-        "delivered_at": v.get("delivered_at"),
-    }
-
-
-@mcp.tool()
-async def get_context(ctx: Context) -> dict:
-    """Get YARNNN's accumulated knowledge about you: profile, preferences, memories, and platform status.
-
-    Returns your working memory — what YARNNN has learned from synced platforms
-    and past conversations. Includes your profile, known facts, active agents,
-    and connected platform status.
-    """
-    auth = ctx.request_context.lifespan_context["auth"]
-
-    from services.working_memory import build_working_memory
-
-    memory = await build_working_memory(auth.user_id, auth.client)
-
-    return {"success": True, "context": memory}
-
-
-@mcp.tool()
-async def search_content(
-    ctx: Context,
-    query: str,
-    platform: Optional[str] = None,
-) -> dict:
-    """Search YARNNN's workspace content (context files, agent outputs, documents).
-
-    Searches across all workspace files using full-text search.
-    Results include workspace context, task outputs, and shared documents.
-
-    Args:
-        query: What to search for (e.g., "project Acme decisions", "budget discussion")
-        platform: Legacy compatibility parameter. Platform-root filtering is not
-            applied because the old `/platforms/` workspace root no longer exists.
-    """
-    auth = ctx.request_context.lifespan_context["auth"]
-
-    path_prefix = None
-
-    result = auth.client.rpc("search_workspace", {
-        "p_user_id": auth.user_id,
-        "p_query": query,
-        "p_path_prefix": path_prefix,
-        "p_limit": 20,
-    }).execute()
-
-    items = []
-    for r in (result.data or []):
-        items.append({
-            "path": r["path"],
-            "content": r["content"][:500] if r.get("content") else None,
-            "summary": r.get("summary"),
-            "updated_at": r.get("updated_at"),
-        })
-
-    return {"success": True, "results": items, "count": len(items)}
 
 
 # =============================================================================
-# ADR-116 Phase 4: Agent Identity & Knowledge MCP Tools
+# Tool 2: pull_context
 # =============================================================================
 
-@mcp.tool()
-async def get_agent_card(
-    ctx: Context,
-    agent_id: str,
-) -> dict:
-    """Get an agent's identity card — who it is, what it does, how mature it is.
-
-    Returns structured agent identity including description, thesis summary,
-    and maturity signals. Use discover_agents() first to find agent IDs.
-
-    Args:
-        agent_id: UUID of the agent
-    """
-    auth = ctx.request_context.lifespan_context["auth"]
-    import json
-    from services.workspace import AgentWorkspace, get_agent_slug
-
-    # Verify ownership
-    result = (
-        auth.client.table("agents")
-        .select("id, title, role, scope, status, created_at")
-        .eq("user_id", auth.user_id)
-        .eq("id", agent_id)
-        .limit(1)
-        .execute()
-    )
-    agents = result.data or []
-    if not agents:
-        return {"success": False, "error": "Agent not found or not accessible"}
-
-    agent = agents[0]
-    slug = get_agent_slug(agent)
-    ws = AgentWorkspace(auth.client, auth.user_id, slug)
-
-    # Try to read pre-generated card first
-    card_content = await ws.read("agent-card.json")
-    if card_content:
-        try:
-            return {"success": True, "agent_card": json.loads(card_content)}
-        except json.JSONDecodeError:
-            pass
-
-    # Fallback: build card on the fly from workspace
-    agent_md = await ws.read("AGENT.md")
-    thesis = await ws.read("thesis.md")
-
-    description = None
-    if agent_md:
-        for p in agent_md.strip().split("\n\n"):
-            stripped = p.strip()
-            if stripped and not stripped.startswith("#") and not stripped.startswith("---"):
-                description = stripped[:300]
-                break
-
-    return {
-        "success": True,
-        "agent_card": {
-            "agent_id": agent["id"],
-            "title": agent["title"],
-            "slug": slug,
-            "role": agent.get("role"),
-            "scope": agent.get("scope"),
-            "status": agent.get("status"),
-            "description": description,
-            "thesis_summary": thesis[:300] if thesis else None,
-        },
-    }
-
 
 @mcp.tool()
-async def search_knowledge(
+async def pull_context(
     ctx: Context,
-    query: Optional[str] = None,
+    subject: str,
+    question: Optional[str] = None,
     domain: Optional[str] = None,
     limit: int = 10,
 ) -> dict:
-    """Search YARNNN's accumulated workspace context (ADR-151).
+    """Pull YARNNN's accumulated context about a subject.
 
-    Searches shared context domains: competitors, market, relationships,
-    projects, content, signals. Optionally filter by domain.
+    Call this whenever the user references something mid-conversation that
+    might live in their YARNNN workspace — a person, company, market,
+    project, topic, or domain they track — and you need the underlying
+    material to reason about it.
+
+    Pass the subject name as `subject`. Optionally pass a `question` to
+    narrow the retrieval (YARNNN will rank chunks by relevance to the
+    question). Optionally pass a `domain` filter (competitors, market,
+    relationships, projects, content, signals, slack, notion, github) if
+    you know which context domain the subject lives in.
+
+    The tool returns RANKED CHUNKS from the user's accumulated workspace
+    context, with paths and timestamps. YARNNN does not compose an answer
+    for you — you are expected to reason over the chunks and synthesize in
+    your own voice, using the surrounding conversation as context.
+
+    THIS IS THE CROSS-LLM CONSISTENCY TOOL. The user may be in a different
+    LLM tomorrow than they are today. Every LLM calling `pull_context` on
+    the same subject sees the same chunks from the same Postgres-backed
+    substrate. This is how the user's thinking stays coherent across
+    whichever LLM they happen to be in.
+
+    If no chunks match (empty results), tell the user YARNNN has no
+    accumulated context for that subject and answer from your own
+    knowledge if you can.
+
+    Use this proactively. YARNNN is supposed to be ambient — if the user
+    mentions something they might track, pull the context first and weave
+    it into your response. Do not wait for the user to ask you to consult
+    YARNNN.
 
     Args:
-        query: Optional text search (topic, entity, keyword)
-        domain: Optional filter: competitors, market, relationships, projects, content, signals
-        limit: Max results (default 10, max 30)
+        subject: What to pull context about (entity, topic, keyword). Required.
+        question: Optional specific question to narrow the retrieval.
+        domain: Optional context domain filter. One of: competitors, market,
+                relationships, projects, content, signals, slack, notion, github.
+        limit: Max chunks to return (default 10, hard cap 30).
     """
     auth = ctx.request_context.lifespan_context["auth"]
-    limit = min(limit, 30)
+    limit = max(1, min(int(limit or 10), 30))
 
-    prefix = "/workspace/context/"
-    if domain:
-        from services.directory_registry import get_domain_folder
-        domain_folder = get_domain_folder(domain)
-        if domain_folder:
-            prefix = f"/workspace/{domain_folder}/"
+    # Normalize domain alias → registry key
+    normalized_domain = mcp_composition.DOMAIN_ALIASES.get(
+        (domain or "").lower().strip(),
+        domain,
+    ) if domain else None
 
-    try:
-        if query:
-            result = (
-                auth.client.rpc("search_workspace", {
-                    "p_user_id": auth.user_id,
-                    "p_query": query,
-                    "p_path_prefix": prefix,
-                    "p_limit": limit,
-                }).execute()
-            )
-            rows = result.data or []
-        else:
-            result = (
-                auth.client.table("workspace_files")
-                .select("path, content, summary, updated_at")
-                .eq("user_id", auth.user_id)
-                .like("path", f"{prefix}%")
-                .order("updated_at", desc=True)
-                .limit(limit)
-                .execute()
-            )
-            rows = result.data or []
+    # Dispatch through the primitive layer (ADR-164 runtime-agnostic)
+    # Note: current primitive name is ReadWorkspace/SearchWorkspace/QueryKnowledge.
+    # ADR-168 Commit 4 will rename to ReadFile/SearchFiles; update here when it lands.
+    result = await execute_primitive(auth, "QueryKnowledge", {
+        "query": question or subject,
+        "domain": normalized_domain,
+        "limit": limit,
+    })
 
-        items = []
-        for r in rows:
-            items.append({
-                "path": r.get("path", ""),
-                "summary": r.get("summary", ""),
-                "content_preview": (r.get("content") or "")[:500],
-                "updated_at": r.get("updated_at"),
-            })
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "query_failed"),
+            "message": result.get("message", "QueryKnowledge dispatch failed"),
+            "subject": subject,
+        }
 
-        return {"success": True, "results": items, "count": len(items), "domain": domain}
+    raw_results = result.get("results") or []
 
-    except Exception as e:
-        return {"success": False, "error": str(e), "results": [], "count": 0}
+    chunks = []
+    for r in raw_results:
+        path = r.get("path", "")
+        excerpt = (r.get("content_preview") or r.get("summary") or "")[:500]
+        chunks.append({
+            "path": path,
+            "excerpt": excerpt,
+            "relevance": None,  # QueryKnowledge doesn't currently expose a score
+            "last_updated": r.get("updated_at"),
+            "domain": r.get("domain") or mcp_composition.extract_domain_from_path(path),
+            "source_tag": mcp_composition._extract_provenance_tag(r.get("content_preview")),
+        })
+
+    if not chunks:
+        return {
+            "success": True,
+            "subject": subject,
+            "chunks": [],
+            "total_matches": 0,
+            "returned": 0,
+            "citations": [],
+            "explanation": (
+                f"YARNNN has no accumulated context about '{subject}'. "
+                "The user has not tracked this in any context domain yet. "
+                "Answer from your own knowledge if you can."
+            ),
+        }
+
+    return {
+        "success": True,
+        "subject": subject,
+        "chunks": chunks,
+        "total_matches": result.get("count", len(chunks)),
+        "returned": len(chunks),
+        "citations": [c["path"] for c in chunks],
+    }
+
+
+# =============================================================================
+# Tool 3: remember_this
+# =============================================================================
 
 
 @mcp.tool()
-async def discover_agents(
+async def remember_this(
     ctx: Context,
-    role: Optional[str] = None,
-    scope: Optional[str] = None,
-    status: Optional[str] = None,
+    content: str,
+    about: Optional[str] = None,
 ) -> dict:
-    """Discover available agents by capability.
+    """Write an observation, decision, or insight the user just shared back into their YARNNN workspace.
 
-    Returns agent cards for YARNNN's agent fleet. Use this to understand
-    what agents exist, what domains they cover, and what knowledge they produce.
+    Call this when the user says "remember this," "save that," "note that,"
+    "YARNNN should know," or otherwise indicates something worth persisting.
+
+    Pass the content as `content` — this can be the user's own words, a
+    summary of a conclusion you and the user just reached together, or a
+    paraphrase of an artifact you just drafted. Be concise but preserve
+    the specific claim being made.
+
+    If the content is clearly about a specific entity (a company, person,
+    project, or topic), pass it as `about`. If not, leave `about` empty
+    and YARNNN will classify from the content.
+
+    YARNNN routes the content to the correct context target automatically:
+        • identity — facts about the user's role, company, or work context
+        • brand    — voice/tone/style preferences
+        • memory   — general facts, preferences, standing instructions
+        • agent    — feedback about a specific agent's work (slug-disambiguated)
+        • task     — feedback about a specific task's output (slug-disambiguated)
+
+    If it cannot classify confidently, it returns candidates — surface them
+    and let the user choose.
+
+    THIS IS THE CROSS-LLM CONTRIBUTION PATH. Whatever you write here is
+    immediately visible to any other LLM the user might switch to. A user
+    who tells you something at 3pm and then opens a different LLM at 4pm
+    will find the material already there via pull_context. The write is
+    synchronous — it commits before this tool returns.
+
+    Use this proactively whenever the user shares something worth keeping.
+    Do not wait for an explicit "remember this" — if the user shares a
+    decision, an insight, a fact they want to act on, or an observation
+    about something they track, call this tool.
 
     Args:
-        role: Optional filter: briefer, monitor, researcher, drafter, analyst, writer, planner, scout
-        scope: Optional filter: platform, cross_platform, knowledge, research, autonomous
-        status: Optional filter: active (default), paused
+        content: The observation, decision, or fact to remember. Required.
+        about: Optional scope hint — an entity, subject, or target name if
+               clear from the conversation.
     """
     auth = ctx.request_context.lifespan_context["auth"]
-    from services.workspace import AgentWorkspace, get_agent_slug
+    content = (content or "").strip()
+    if not content:
+        return {"success": False, "error": "empty_content", "message": "content is required"}
 
-    query = (
-        auth.client.table("agents")
-        .select("id, title, role, scope, status, created_at")
-        .eq("user_id", auth.user_id)
-        .eq("status", status or "active")
+    # --- Load slug pools for operational-feedback classification ---
+    agents_by_slug = _load_active_agents(auth)
+    tasks_by_slug = _load_active_tasks(auth)
+
+    classification = mcp_composition.classify_memory_target(
+        content=content,
+        about=about,
+        agents_by_slug=agents_by_slug,
+        tasks_by_slug=tasks_by_slug,
     )
-    if role:
-        query = query.eq("role", role)
-    if scope:
-        query = query.eq("scope", scope)
 
-    result = query.order("created_at", desc=True).limit(20).execute()
-    agents = result.data or []
+    # --- Ambiguous classification → return candidates for LLM to surface ---
+    if classification.get("ambiguous"):
+        return {
+            "success": True,
+            "ambiguous": {
+                "candidates": classification.get("candidates", []),
+                "clarification": (
+                    "I can route this feedback to multiple targets. Which did you mean?"
+                ),
+            },
+        }
 
-    agent_cards = []
-    for agent in agents:
-        slug = get_agent_slug(agent)
-        thesis_summary = None
-        try:
-            ws = AgentWorkspace(auth.client, auth.user_id, slug)
-            thesis = await ws.read("thesis.md")
-            if thesis:
-                thesis_summary = thesis[:300]
-        except Exception:
-            pass
+    target = classification["target"]
 
-        agent_cards.append({
-            "agent_id": agent["id"],
-            "title": agent["title"],
-            "role": agent.get("role"),
-            "scope": agent.get("scope"),
-            "thesis_summary": thesis_summary,
-        })
+    # --- Stamp ADR-162 provenance on the content before UpdateContext ---
+    client_name = mcp_composition.derive_client_name(
+        getattr(ctx.request_context, "request", None)
+    )
+    stamped_text = mcp_composition.stamp_provenance(
+        content=content,
+        client_name=client_name,
+        user_context=about,
+    )
 
-    return {"success": True, "agents": agent_cards, "count": len(agent_cards)}
+    # --- Build UpdateContext input ---
+    uc_input: dict = {"target": target, "text": stamped_text}
+    if target == "agent":
+        uc_input["agent_slug"] = classification.get("slug")
+    elif target == "task":
+        uc_input["task_slug"] = classification.get("slug")
+
+    # --- Dispatch through the primitive layer (ADR-164 runtime-agnostic) ---
+    result = await execute_primitive(auth, "UpdateContext", uc_input)
+
+    if not result.get("success"):
+        return {
+            "success": False,
+            "error": result.get("error", "update_failed"),
+            "message": result.get("message", "UpdateContext dispatch failed"),
+            "attempted_target": target,
+        }
+
+    return {
+        "success": True,
+        "target": target,
+        "slug": classification.get("slug"),
+        "written_to": result.get("filename") or result.get("path"),
+        "provenance": {
+            "source": f"mcp:{client_name}",
+            "date": _today_iso(),
+            "original_context": (about or content[:80]),
+        },
+        "note": classification.get("note"),
+    }
+
+
+# =============================================================================
+# Slug pool loaders (for remember_this classification)
+# =============================================================================
+
+
+def _load_active_agents(auth) -> dict[str, dict]:
+    """Load active agents keyed by slug for classifier slug matching."""
+    try:
+        result = (
+            auth.client.table("agents")
+            .select("id, title, role, scope, status")
+            .eq("user_id", auth.user_id)
+            .eq("status", "active")
+            .limit(50)
+            .execute()
+        )
+        pool: dict[str, dict] = {}
+        for a in (result.data or []):
+            # Derive slug from title (mirrors services.workspace.get_agent_slug)
+            title = a.get("title") or ""
+            slug = _simple_slug(title)
+            if slug:
+                pool[slug] = a
+        return pool
+    except Exception as e:
+        logger.warning(f"[MCP] _load_active_agents failed: {e}")
+        return {}
+
+
+def _load_active_tasks(auth) -> dict[str, dict]:
+    """Load active tasks keyed by slug for classifier slug matching."""
+    try:
+        result = (
+            auth.client.table("tasks")
+            .select("slug, title, status")
+            .eq("user_id", auth.user_id)
+            .eq("status", "active")
+            .limit(50)
+            .execute()
+        )
+        return {
+            t["slug"]: t
+            for t in (result.data or [])
+            if t.get("slug")
+        }
+    except Exception as e:
+        logger.warning(f"[MCP] _load_active_tasks failed: {e}")
+        return {}
+
+
+def _simple_slug(text: str) -> str:
+    """Simple slug derivation — lowercase, hyphenate. Matches get_agent_slug shape."""
+    import re
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+
+
+def _today_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")

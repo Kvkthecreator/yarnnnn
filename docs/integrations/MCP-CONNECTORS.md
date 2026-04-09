@@ -1,8 +1,23 @@
 # MCP Connectors: Conceptual Framework
 
-**Last Updated:** 2026-02-25
-**Status:** Phase 1 live — 6 tools with OAuth 2.1 auth. Product questions still open.
-**Technical Implementation:** [ADR-075](../adr/ADR-075-mcp-connector-architecture.md)
+> **⚠️ SUPERSEDED 2026-04-09 by [docs/features/mcp/README.md](../features/mcp/README.md) + [ADR-169](../adr/ADR-169-mcp-context-hub.md).**
+>
+> This document is frozen at its 2026-02-25 snapshot and references concepts that have since been deleted or renamed: `platform_content` (removed by ADR-153), `signal-emergent` agents (dissolved by ADR-092/ADR-138), `cross_platform binding` (collapsed into context domains by ADR-151), Gmail/Calendar integrations (removed by ADR-131), and the 6/9-tool MCP surface (replaced by the three-tool surface in ADR-169).
+>
+> For the canonical MCP product framing, read:
+> - **[docs/features/mcp/README.md](../features/mcp/README.md)** — entry point
+> - **[docs/features/mcp/tool-contracts.md](../features/mcp/tool-contracts.md)** — the three tools (`work_on_this`, `pull_context`, `remember_this`)
+> - **[docs/features/mcp/workflows.md](../features/mcp/workflows.md)** — dialogue walkthroughs including the load-bearing cross-LLM continuity case
+> - **[docs/features/mcp/architecture.md](../features/mcp/architecture.md)** — primitive mapping, cost model, implementation plan
+> - **[ADR-169](../adr/ADR-169-mcp-context-hub.md)** — decision record
+>
+> The material below is preserved only as historical context for how the MCP framing evolved. Do not act on it.
+
+---
+
+**Last Updated:** 2026-02-25 (frozen — do not edit)
+**Status:** SUPERSEDED by ADR-169 (2026-04-09) — see banner above
+**Technical Implementation:** [ADR-075](../adr/ADR-075-mcp-connector-architecture.md) (infrastructure only; tool surface is now ADR-169)
 
 ---
 
