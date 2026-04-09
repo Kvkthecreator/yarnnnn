@@ -120,7 +120,7 @@ When a user uploads a PDF/DOCX/TXT/MD via the "Upload file" action:
 3. Creates chunks + embeddings in `filesystem_chunks` (for search)
 4. Optionally triggers inference to update CONTEXT.md
 
-**TP always knows** about uploaded documents — they're listed in working memory with filenames and upload dates. TP can read them via `Read(ref="workspace:uploads/{name}.md")`.
+**TP always knows** about uploaded documents — they're listed in working memory with filenames and upload dates. TP can read them as entities via `LookupEntity(ref="document:<uuid>")` (the ref comes from the working-memory upload listing or from a `SearchEntities(scope="document")` call).
 
 **Distinction from chat uploads:** Pasting/dropping files directly in the chat input creates ephemeral session attachments (inline images, temporary text extraction). These never persist to `/workspace/`. "Upload file" via the plus menu = permanent shared document. Paste in chat = ephemeral session context.
 
