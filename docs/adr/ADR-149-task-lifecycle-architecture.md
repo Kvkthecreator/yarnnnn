@@ -518,6 +518,26 @@ Pre-users, we are aggressive about terminology purity. DB data wipe is acceptabl
 - Asset coverage indicator from asset-manifest.json
 - Steering notes visible
 
+### Phase 7: Accumulation-First Execution (ADR-173)
+
+Phase 7 extends the prior-output injection model from goal mode to all task modes. Currently `prior_output` is injected only for goal tasks ("You are revising this deliverable"). Phases 7a-7c generalize this to recurring and reactive tasks using `sys_manifest.json` as the mediating artifact.
+
+**Phase 7a (Prompt layer — implemented 2026-04-10):**
+- Task pipeline system prompt gains explicit "Accumulation-First Execution" section stating: read workspace before generating, check `outputs/latest/` before calling RuntimeDispatch, produce the delta not the full regeneration.
+- TP gains search-first posture: scan workspace before proposing task triggers or generating content.
+- See: `api/services/task_pipeline.py` (`build_task_execution_prompt`), `api/agents/tp_prompts/tools.py`, `api/agents/tp_prompts/base.py`.
+
+**Phase 7b (Manifest injection — proposed):**
+- `_build_prior_output_brief()` in `task_pipeline.py` reads `outputs/latest/sys_manifest.json`, calls staleness detection from compose substrate, formats a ~800-token generation brief summarizing: what sections exist, which are stale, what assets are present.
+- Brief injected into `build_task_execution_prompt()` for ALL task modes (not just goal).
+- `TaskWorkspace.get_latest_manifest()` helper for structured manifest access.
+- Graceful degradation: no manifest = fall back to current full-generation behavior.
+
+**Phase 7c (Forward-looking handoff — proposed):**
+- `sys_manifest.json` gains `generation_gaps` field: what DELIVERABLE.md declared that wasn't produced, with reasons (asset-already-exists, section-current, skipped-no-source-data).
+- This is the handoff note to the next run — the next cycle reads it to understand what its predecessor decided to skip and why.
+- `awareness.md` references the manifest path, so the agent locates it without folder scanning.
+
 ---
 
 ## Documentation Impact

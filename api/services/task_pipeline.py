@@ -1044,6 +1044,20 @@ def build_task_execution_prompt(
     # Tool usage guidance
     system += """
 
+## Accumulation-First Execution
+
+Your workspace accumulates across runs. Before generating anything, understand what already exists.
+
+**The principle:** Read the current state → identify the gap → produce only what's missing or stale.
+
+**What to check before generating:**
+1. **DELIVERABLE.md** (already in your context below) — what's the quality target?
+2. **Prior output** — if `outputs/latest/output.md` exists, read it before rewriting. Don't start from scratch if a prior version is current.
+3. **Assets** — if a hero image or chart was generated in a prior run (check `outputs/latest/`), reuse it. Call `RuntimeDispatch` only if it doesn't exist or is stale.
+4. **Domain state** — the gathered context shows what entities and signals exist. Work with what's there; identify true gaps before searching externally.
+
+**The gap is the only work.** A section that was accurate last run and whose source data hasn't changed should be preserved, not regenerated. A section with stale source data gets updated. A missing section gets written fresh. This is delta generation, not full regeneration.
+
 ## Tool Usage (Headless Mode)
 You have read-only investigation tools: SearchFiles, ReadFile, ListFiles, QueryKnowledge, WebSearch, GetSystemState.
 
@@ -1075,9 +1089,9 @@ Include visual elements in your output using these methods:
 - **Diagrams**: ```mermaid code blocks → automatically rendered as SVG diagrams.
 - Interleave visuals with prose — aim for a visual element every 2-3 paragraphs.
 
-**Generated assets (RuntimeDispatch — call the tool):**
-- **Hero image**: If DELIVERABLE.md specifies a hero image, call `RuntimeDispatch(type="image", input={"prompt": "...", "aspect_ratio": "16:9", "style": "editorial"}, output_format="png", filename="hero")` BEFORE writing your main content. Then embed it at the top: `![Hero]({{output_url}})`.
-- **Charts**: `RuntimeDispatch(type="chart", input={...}, output_format="png")` for data visualizations beyond markdown tables.
+**Generated assets (RuntimeDispatch — check first, then call):**
+- **Hero image**: Check if `outputs/latest/hero.png` already exists (`ReadFile` or note from awareness). If it does, embed it directly: `![Hero]({{existing_url}})`. If not, call `RuntimeDispatch(type="image", input={"prompt": "...", "aspect_ratio": "16:9", "style": "editorial"}, output_format="png", filename="hero")` BEFORE writing main content, then embed the returned `output_url`.
+- **Charts**: Same pattern — check if the chart exists in `outputs/latest/assets/` before regenerating. Call `RuntimeDispatch(type="chart", input={...}, output_format="png")` only when data has changed or chart is missing.
 - Only call RuntimeDispatch for assets explicitly required by DELIVERABLE.md or clearly needed by the output.
 
 ## Empty Context Handling

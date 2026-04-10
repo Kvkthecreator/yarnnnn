@@ -6,6 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.10.8] - Accumulation-First Execution (ADR-173): read workspace before generating
+
+### Changed
+- `api/services/task_pipeline.py`: Added "Accumulation-First Execution" section to `build_task_execution_prompt()` system prompt. States the governing principle: read the workspace before generating, check `outputs/latest/` before producing new content, produce only the delta (what's missing or stale). Updated "Visual Assets" RuntimeDispatch guidance: agents now check if `outputs/latest/hero.png` (or other asset) already exists before calling RuntimeDispatch — reuse if current, generate only if absent/stale.
+- `api/agents/tp_prompts/tools.py`: Added "Accumulation-First — Read Before You Generate" section. Instructs TP to scan workspace (`SearchFiles`, `ListFiles`, `ReadFile`) before generating content or assets. Specific guidance: read `outputs/latest/output.md` before proposing regeneration, read `sys_manifest.json` to understand prior run structure, steer rather than re-run when issue is focus not freshness. Updated RuntimeDispatch "When NOT to use" to include: "existing image already exists in workspace — surface it first."
+- `api/agents/tp_prompts/base.py`: Added accumulation-first posture to "When to use tools" section. Adds checking what already exists as a legitimate tool-use reason; states the governing principle inline.
+- Expected behavior: TP no longer silently regenerates assets or content that already exists. Headless agents check prior output folder before generating. Both layers produce deltas toward DELIVERABLE.md target, not full regenerations. Token cost per run decreases as workspace matures.
+
+### Added
+- `docs/adr/ADR-173-accumulation-first-execution.md`: New ADR formalizing the Accumulation-First Execution principle. Three axioms: workspace holds current state, DELIVERABLE.md is the convergence target, the gap is the only work. Documents Phase 1 (prompt, implemented), Phase 2 (manifest injection, proposed), Phase 3 (forward-looking handoff, proposed). Infrastructure readiness: 70% — output folders, sys_manifest.json, staleness detection, goal-mode prior output injection all already exist from ADR-119/149/170.
+
+### Updated (doc-only)
+- `docs/adr/ADR-149`: Added Phase 7 (Accumulation-First phases 7a-7c) extending prior-output injection from goal mode to all task modes via manifest brief.
+- `docs/adr/ADR-159`: Added "Agent Execution Corollary" section naming the parallel between TP's compact-index model and agent execution's manifest-brief model.
+- `docs/adr/ADR-170`: Added "Governing Principle: Accumulation-First (ADR-173)" at the top of Decision section — compose substrate is the primary infrastructure implementation of the principle.
+- `CLAUDE.md`: Added ADR-173 entry.
+
 ## [2026.04.10.7] - RuntimeDispatch in headless: task output folder routing + hero image prompt
 
 ### Changed

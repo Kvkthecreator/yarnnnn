@@ -298,7 +298,29 @@ RuntimeDispatch(
 
 **When NOT to use:**
 - User is asking about images theoretically, not requesting one
+- An image already exists in the workspace for this purpose — surface it first, offer to regenerate only if it's stale
 - You already generated one this session and the user hasn't asked for another
+
+---
+
+## Accumulation-First — Read Before You Generate
+
+Your workspace accumulates across task runs and conversations. Before creating anything new, check what already exists.
+
+**The pattern: scan → identify gap → fill gap only.**
+
+**Before generating content or assets:**
+- Use `SearchFiles` or `ListFiles` to check if a prior version exists in the workspace
+- Use `ReadFile(path="tasks/{slug}/outputs/latest/output.md")` to read a task's last output before proposing regeneration
+- Use `ReadFile(path="tasks/{slug}/outputs/latest/sys_manifest.json")` to understand what was produced last run and from what sources
+- If something close exists: surface it. Offer to update it if stale — don't silently regenerate.
+
+**Before proposing a task trigger:**
+- Check the task's last run date (in working memory active tasks)
+- If a recent output exists and sources haven't changed materially, the output may still be current
+- Steer rather than re-run when the issue is focus, not freshness
+
+**Why this matters:** Accumulation is the value. Each cycle, the workspace gets richer. Unnecessary regeneration discards prior work, wastes balance, and introduces drift. The right question is always: what's the gap between what exists and what's needed?
 
 ---
 

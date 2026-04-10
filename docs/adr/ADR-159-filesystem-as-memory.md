@@ -231,10 +231,35 @@ This ADR assumes the unified session model (implemented in fc4302b):
 
 ---
 
+## Agent Execution Corollary (ADR-173)
+
+This ADR establishes the filesystem-as-memory principle for TP's conversational context. ADR-173 (Accumulation-First Execution) extends the same principle to generative actions — both TP in conversation and headless agents during task execution.
+
+**The corollary:** Agents read the workspace before generating, for the same reason TP reads workspace files before answering. The filesystem holds current state. Generation without reading current state is regeneration from scratch — unnecessary cost and quality drift.
+
+**Concretely for task execution:**
+- Before generating output, agents check `outputs/latest/` to understand what was produced last run
+- Before generating an asset, agents check if it already exists at `outputs/latest/{asset}.{ext}`
+- `sys_manifest.json` is the compact index equivalent for task runs — it tells the agent what sections exist, what sources they were derived from, and (via timestamp comparison) which are stale
+- `awareness.md` is the conversation.md equivalent — cycle-to-cycle execution state
+
+**The parallel is exact:**
+| TP in conversation | Agent in task execution |
+|---|---|
+| Compact index (always in prompt) | DELIVERABLE.md + awareness.md (always gathered) |
+| `ReadFile` on demand | `ReadFile(path="outputs/latest/...")` to check prior output |
+| Conversation window (last 5 messages) | Prior run manifest brief (Phase 7b of ADR-149) |
+| `conversation.md` (session → file compaction) | `run_log.md` (run → log compaction) |
+
+The consistency is intentional. Filesystem-as-memory is not a TP-specific optimization — it's a platform-wide execution model.
+
+---
+
 ## Revision History
 
 | Date | Change |
 |------|--------|
 | 2026-04-06 | v1 — Initial proposal. Compact index, message window, conversation.md, stress test findings. |
+| 2026-04-10 | Added "Agent Execution Corollary" section linking to ADR-173 (Accumulation-First Execution). |
 | 2026-04-06 | Phase 1 Implemented — `format_compact_index()` in working_memory.py, 10-message rolling window in chat.py, `_write_conversation_summary()` writes conversation.md every 5 user messages, thinking_partner.py switched to compact index. Unified session model (fc4302b). Prompt CHANGELOG [2026.04.06.5]. |
 | 2026-04-06 | Phases 2+3 Implemented — Phase 2: final conversation.md written on session close (4h inactivity), conversation_summary fetched in build_working_memory and previewed in compact index. Phase 3: surface-aware agent detail — when viewing an agent, compact index includes AGENT.md preview and file path reference. |

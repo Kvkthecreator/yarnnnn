@@ -26,6 +26,17 @@ The compose substrate is the architectural domain that addresses all four gaps.
 
 ## Decision
 
+### Governing Principle: Accumulation-First (ADR-173)
+
+The compose substrate is the primary infrastructure implementation of the **Accumulation-First Execution** principle (ADR-173): before producing anything, read the workspace; the gap between what exists and what DELIVERABLE.md requires is the only work to do.
+
+Concretely in the compose layer:
+- **Pre-generation ASSEMBLE** reads `sys_manifest.json` + current domain state, detects stale sections (source file `updated_at` > manifest `created_at`), and produces a generation brief telling the LLM: "these sections exist and are current, these are stale and need regeneration, these are absent."
+- **Post-generation ASSEMBLE** binds the LLM output into the folder structure — sections into `sections/`, assets into `assets/`, `index.html` assembled from section partials.
+- **Revision routing** by `output_kind` (ADR-166) determines minimum regeneration scope: presentation, section, asset, or root-context revision. Full regeneration is always a fallback, never the default.
+
+The compose substrate makes delta generation structurally enforced, not just prompted. The generation brief is a deterministic artifact, not a suggestion. See ADR-173 for the platform-wide behavioral principle; this ADR covers the structural layer that implements it for `produces_deliverable` tasks.
+
 ### The Compose Substrate is a distinct architectural domain
 
 The compose substrate is the **binding layer** between the accumulating filesystem and rendered output. It sits between generation (LLM) and rendering (mechanical), and its job is to answer: *given this task's compose playbook and the current filesystem state, what is the structure of the deliverable, what goes where, and what references need resolving?*
