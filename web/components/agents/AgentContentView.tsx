@@ -16,8 +16,6 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   ArrowUpRight,
-  Bot,
-  Brain,
   ChevronRight,
   FileText,
   FolderKanban,
@@ -25,11 +23,11 @@ import {
   Link2,
   Loader2,
   Sparkles,
-  Target,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { WorkModeBadge } from '@/components/work/WorkModeBadge';
+import { AgentIcon } from './AgentIcon';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { Button } from '@/components/ui/button';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -389,7 +387,6 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
 
 function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const descriptor = AGENT_SHELL_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
-  const Icon = shellIcon(agent.agent_class);
   const counts = getTaskKindCounts(tasks);
   const highlights = descriptor.highlights(agent, counts);
   const instructions = agent.agent_instructions
@@ -402,7 +399,7 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
       <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-4">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-lg bg-background border border-border/60 flex items-center justify-center shrink-0">
-            <Icon className="w-4 h-4 text-muted-foreground" />
+            <AgentIcon role={agent.role} className="w-4 h-4 text-muted-foreground" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">

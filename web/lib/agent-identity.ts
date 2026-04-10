@@ -34,6 +34,8 @@ interface RoleMeta {
   avatarHex: string;
   badgeClass: string;
   authorClass: string;
+  /** Lucide icon name for this role — used by AgentIcon component */
+  iconName: string;
 }
 
 const LEGACY_ROLE_MAP: Record<string, CanonicalAgentRole> = {
@@ -62,6 +64,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     avatarHex: '#3b82f6',
     badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
     authorClass: 'text-blue-600 dark:text-blue-400',
+    iconName: 'Crosshair',
   },
   market_research: {
     displayName: 'Market Research',
@@ -70,6 +73,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     avatarHex: '#0ea5e9',
     badgeClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
     authorClass: 'text-sky-600 dark:text-sky-400',
+    iconName: 'TrendingUp',
   },
   business_dev: {
     displayName: 'Business Development',
@@ -78,6 +82,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     avatarHex: '#f97316',
     badgeClass: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
     authorClass: 'text-orange-600 dark:text-orange-400',
+    iconName: 'Handshake',
   },
   operations: {
     displayName: 'Operations',
@@ -86,6 +91,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     avatarHex: '#10b981',
     badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
     authorClass: 'text-emerald-600 dark:text-emerald-400',
+    iconName: 'Settings2',
   },
   marketing: {
     displayName: 'Marketing & Creative',
@@ -94,6 +100,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     avatarHex: '#ec4899',
     badgeClass: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
     authorClass: 'text-pink-600 dark:text-pink-400',
+    iconName: 'Megaphone',
   },
   executive: {
     displayName: 'Reporting',
@@ -102,6 +109,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     avatarHex: '#8b5cf6',
     badgeClass: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
     authorClass: 'text-violet-600 dark:text-violet-400',
+    iconName: 'BarChart3',
   },
   slack_bot: {
     displayName: 'Slack Bot',
@@ -110,6 +118,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     avatarHex: '#14b8a6',
     badgeClass: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
     authorClass: 'text-teal-600 dark:text-teal-400',
+    iconName: 'Hash',
   },
   notion_bot: {
     displayName: 'Notion Bot',
@@ -118,6 +127,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     avatarHex: '#6366f1',
     badgeClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
     authorClass: 'text-indigo-600 dark:text-indigo-400',
+    iconName: 'BookOpen',
   },
   github_bot: {
     displayName: 'GitHub Bot',
@@ -126,6 +136,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     avatarHex: '#64748b',
     badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300',
     authorClass: 'text-slate-600 dark:text-slate-400',
+    iconName: 'GitBranch',
   },
   thinking_partner: {
     displayName: 'Thinking Partner',
@@ -134,6 +145,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     avatarHex: '#1f2937',
     badgeClass: 'bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100',
     authorClass: 'text-gray-900 dark:text-gray-100',
+    iconName: 'MessageCircle',
   },
 };
 
@@ -250,6 +262,10 @@ export function getAgentSlug(agent: { slug?: string | null; title?: string | nul
   const title = (agent.title || '').toLowerCase().trim();
   const slug = title.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   return slug || 'agent';
+}
+
+export function roleIconName(role?: string | null): string {
+  return getRoleMeta(role)?.iconName || 'Brain';
 }
 
 export function platformProviderForRole(role?: string | null): PlatformBotProvider | null {

@@ -25,9 +25,10 @@
  */
 
 import { useMemo } from 'react';
-import { Brain, Layers, Plug, Sparkles, MessageCircle } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getAgentSlug, roleTagline } from '@/lib/agent-identity';
+import { AgentIcon } from './AgentIcon';
 import type { Agent, Task } from '@/types';
 
 interface AgentRosterSurfaceProps {
@@ -77,19 +78,6 @@ function freshnessColor(dateStr: string | null): string {
   return 'text-amber-600 dark:text-amber-400';
 }
 
-function ClassIcon({ agentClass, className }: { agentClass: string; className?: string }) {
-  const cls = cn('w-5 h-5', className);
-  switch (agentClass) {
-    case 'synthesizer':
-      return <Layers className={cls} />;
-    case 'platform-bot':
-      return <Plug className={cls} />;
-    case 'meta-cognitive':
-      return <MessageCircle className={cls} />;
-    default:
-      return <Brain className={cls} />;
-  }
-}
 
 export function AgentRosterSurface({ agents, tasks, onSelect }: AgentRosterSurfaceProps) {
   const grouped = useMemo(() => {
@@ -196,7 +184,7 @@ function AgentCard({
             'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
           )}
         >
-          <ClassIcon agentClass={cls} />
+          <AgentIcon role={agent.role} className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
