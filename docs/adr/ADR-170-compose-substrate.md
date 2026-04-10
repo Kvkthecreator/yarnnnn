@@ -363,11 +363,9 @@ Tasks with `output_kind: accumulates_context` have simple page structures (singl
 - ✓ Wired into single-step execute path (step 6d) and `_execute_pipeline` derive-output step; revision preamble prepended to generation brief for section-scoped runs
 - ✓ Logged: `[COMPOSE] {task_slug}: revision_type=section stale=[...] current=[...]` on every produces_deliverable run
 
-### Phase 5: Asset Lifecycle
-- Root vs derivative asset tracking in `sys_manifest.json`
-- Staleness detection (asset produced_at vs source data updated_at)
-- Cross-run asset continuity (root assets persist, derivative assets cached until source changes)
-- Static vs live derivative distinction (render at compose time vs render at view time)
+### Phase 5: Asset Lifecycle — **DROPPED (2026-04-10)**
+
+Dropped indefinitely. Root asset provenance is already tracked in `sys_manifest.json` (`AssetRecord` with `content_url`, `fetched_at`). The `fetch-asset` render skill (ADR-157) already exists for manual use. Automated re-fetch adds complexity to an unvalidated code path. Revisit if user demand surfaces.
 
 ### Phase 6: View-Time Rendering (deferred — separate ADR)
 - Frontend interprets output folder structure directly

@@ -1,6 +1,6 @@
 # Architecture: Compose Substrate
 
-> **Status:** Canonical (ADR-170). Proposed — not yet implemented.
+> **Status:** Canonical (ADR-170). Phases 2–4 implemented 2026-04-10.
 > **Date:** 2026-04-10
 > **Rule:** All output assembly, filesystem-to-output binding, and revision routing decisions should be consistent with this document.
 > **Related:**
@@ -80,26 +80,43 @@ DELIVERABLE.md can override or extend the task type's `page_structure` when user
 
 ## Output as Folder
 
-The output is not a single `output.html` file. It is a **folder** — an `index.html` entry point that includes section partials, references assets, and can in theory be served as a standalone page.
+The output is not a single `output.html` file. It is a **folder** — a collection of section partials, a composed HTML file, and a provenance manifest.
+
+**Current state (Phases 2–4 implemented):**
 
 ```
 /tasks/{slug}/outputs/{date}/
-├── index.html                 # entry point — assembles partials + assets
-├── sections/                  # section partials (one per compose playbook section)
-│   ├── executive-summary.html
-│   ├── competitor-cards.html
-│   └── signal-timeline.html
-├── assets/                    # bound assets (root + derivative)
-│   ├── tam-chart.svg          # derivative: rendered from data
-│   ├── acme-favicon.png       # root: scraped, durable
-│   └── market-pos.png         # derivative: rendered chart
-├── data/                      # structured data backing derivative assets
-│   └── metrics.json
-├── output.md                  # source markdown (preserved for reference)
-└── sys_manifest.json          # provenance, asset status, run metadata
+├── output.md                  # source markdown (full draft, agent-authored)
+├── output.html                # composed HTML (surface-type-aware, from render service)
+├── sections/                  # section partials (one per page_structure section)
+│   ├── executive-summary.md   # markdown content for this section
+│   ├── competitor-profiles.md
+│   └── recent-signals.md
+├── manifest.json              # run metadata: version_id, tokens, agent_slug
+└── sys_manifest.json          # compose provenance: produced_at, source_files,
+                               #   source_updated_at per section; domain_freshness;
+                               #   root asset records (content_url, fetched_at)
 ```
 
-The output folder IS the deliverable. The frontend renders from it. Email delivery packages it. Export flattens it.
+**Target state (Phase 6 — view-time rendering, future ADR):**
+
+```
+/tasks/{slug}/outputs/{date}/
+├── output.md
+├── output.html                # flat composed HTML (current — iframe target)
+├── index.html                 # section-aware entry point (Phase 6 — assembles partials)
+├── sections/
+│   ├── executive-summary.md   # markdown partial (current)
+│   └── executive-summary.html # rendered HTML partial (Phase 6)
+├── assets/
+│   ├── acme-favicon.png       # root: from domain assets/ folder
+│   └── market-pos.svg         # derivative: rendered chart (Phase 6)
+├── data/
+│   └── metrics.json           # structured data backing derivative assets (Phase 6)
+└── sys_manifest.json
+```
+
+The frontend currently renders `output.html` via iframe. Phase 6 will consume the folder structure directly with React components per section kind.
 
 ---
 
@@ -109,19 +126,13 @@ The output folder IS the deliverable. The frontend renders from it. Email delive
 |---|---|---|
 | **What** | Durable entities fetched/created independently | Generated from source data during render |
 | **Examples** | Logos, screenshots, user-uploaded images | Charts, diagrams, mermaid SVGs |
-| **Where they live (source)** | `/workspace/context/{domain}/assets/` | Generated fresh into output folder `assets/` |
-| **Change frequency** | Rarely — fetched once, updated on re-scrape | Every render when source data changes |
-| **Revision** | Re-fetch/re-scrape (external operation) | Re-render from updated source data (mechanical) |
+| **Where they live (source)** | `/workspace/context/{domain}/assets/` | Generated into output folder `assets/` |
+| **Tracked in** | `sys_manifest.json` → `AssetRecord(kind="root", content_url, fetched_at)` | `sys_manifest.json` → `AssetRecord(kind="derivative", render_skill, produced_at)` |
 | **Can refresh without prose regen?** | Yes | Yes |
 
-### Static vs live derivative assets
+**Current state:** Root assets are discovered from domain `assets/` folders and recorded in `sys_manifest.json` with their `content_url`. The LLM is told about them in the generation brief ("embed using their content_url"). Derivative assets are rendered inline by `render_inline_assets()` (tables → charts, mermaid → SVGs) as part of the existing render pipeline.
 
-The spectrum from static document to live dashboard:
-
-- **Static:** derivative assets are rendered images (SVG/PNG), frozen at compose time. The output folder is a complete snapshot.
-- **Live:** derivative assets are data specs (JSON) + render instructions. The frontend interprets them client-side. Like a BI dashboard — the output folder contains data + instructions, not finished images.
-
-The compose playbook declares per-asset whether it's `static` (default, compose-time render) or `live` (view-time render). Phase 6 implementation.
+**Phase 5 (dropped — decision recorded below):** Automated re-fetch of stale root assets and cross-run derivative asset caching were planned here. Deferred indefinitely — no production evidence of this being a pain point, and the `fetch-asset` skill already exists for manual agent use when needed.
 
 ---
 
@@ -129,45 +140,41 @@ The compose playbook declares per-asset whether it's `static` (default, compose-
 
 ### 1. Scaffold
 
-**When:** First run of a task (or task creation for pre-computation).
 **Input:** Task type `page_structure` + `surface_type` from `task_types.py`.
-**Output:** Internal structural plan (in-memory, not persisted as a file). Determines what sections to generate, what directory scopes to query, what assets to look for.
+**Output:** In-memory structural plan. Determines what sections to generate, what directory scopes to query, what assets to look for. Happens at the start of every `execute_task()` call — no file persisted (ADR-170 RD-1).
 
-### 2. Assemble
+### 2. Assemble ✓ Implemented
 
-**When:** Before and after generation in `execute_task()`.
+**Pre-generation — `build_generation_brief()` in `assembly.py`:**
+- Reads task type `page_structure` + `surface_type` from registry.
+- Reads `outputs/latest/sys_manifest.json` for prior provenance (first run: none).
+- Calls `classify_revision_scope()` (revision.py) — determines full/section/none scope.
+- Queries `workspace_files` for each domain in `context_reads`: entities, synthesis files, assets.
+- Builds per-section briefs: entity counts, data sources with freshness dates, asset inventory, kind output contracts, staleness signals.
+- For section-scoped re-runs: prepends revision preamble (which sections to rewrite, which to preserve verbatim).
+- Injects into `build_task_execution_prompt()` user message.
 
-**Pre-generation assembly:**
-- Read task type's `page_structure` — resolve section kinds and scopes.
-- Resolve `surface_type` — determines how section kinds will be arranged.
-- Query filesystem for scoped directories — list entities, list assets.
-- Detect new entities (not in previous output), updated entities (content changed since last run).
-- Flag stale sections (source `updated_at` > section `produced_at` in `sys_manifest.json`).
-- Build **generation brief**: "write these sections; these entities exist; these assets are available; these sections are stale." (ADR-170 RD-2: the generation brief is the compose function's highest-value output.)
+**Post-generation — `parse_draft_into_sections()` + `build_post_generation_manifest()` in `assembly.py`:**
+- Splits LLM draft on `##` headers → per-section content partials.
+- Writes `outputs/{date}/sections/{slug}.md` for each section.
+- Queries domain state for provenance: which source files each section drew from, their `updated_at`.
+- Writes `sys_manifest.json` to `outputs/{date}/` and `outputs/latest/` (for next-run reads).
+- Root assets discovered from domain state → recorded in manifest `AssetRecord` entries.
 
-**Post-generation assembly:**
-- Parse LLM output → write section partials to `output/sections/`.
-- Copy root assets from domain `assets/` folders → `output/assets/`.
-- Trigger derivative asset rendering (data → charts, mermaid → SVGs) → `output/assets/`.
-- Render each section partial with surface-type-appropriate HTML treatment per its section kind.
-- Compose `index.html` from rendered partials + asset references, arranged per surface type.
-- Write `sys_manifest.json` with provenance per section and asset status.
+### 3. Revise ✓ Implemented
 
-### 3. Revise
+**When:** Every `execute_task()` re-run reads `outputs/latest/sys_manifest.json` and classifies scope before generating.
 
-**When:** TP steers (`ManageTask(action="steer")`), user feedback arrives, or TP evaluates output.
-**Input:** Revision signal + task type's `page_structure` + current output folder + `sys_manifest.json`.
+Revision is composition with diff — same function, richer input (ADR-170 RD-3). `classify_revision_scope()` in `revision.py` compares manifest provenance against current domain state:
 
-Revision is composition with diff — the same function, richer input (ADR-170 RD-3). The compose function detects staleness by comparing `sys_manifest.json` provenance (which run produced each section, from what source files, when) against current filesystem state.
+| Scope | When | Action | LLM cost |
+|-------|------|--------|----------|
+| `none` | All sections current, domain freshness unchanged | Skip generation entirely | Zero |
+| `section` | 1..N sections stale, rest current | Regenerate stale partials; LLM told to preserve current verbatim | Sonnet (scoped) |
+| `full` | No manifest, or all sections stale | Full regeneration | Sonnet (full) |
+| `asset` | Asset stale but no section prose change | Re-render/re-fetch only | Zero (future Phase 6) |
 
-**Revision classification:**
-
-| Type | Signal pattern | Action | LLM cost |
-|------|---------------|--------|----------|
-| **Surface** | "reorder sections", "change layout" | Recompose `index.html` — rearrange partials | Zero |
-| **Section** | "competitive section is weak", feedback targets specific content | Regenerate affected partial(s) only | Sonnet (scoped) |
-| **Asset** | "chart is outdated", "logo is wrong" | Re-render derivative or re-fetch root | Zero (mechanical) |
-| **Root context** | "data is stale", "missing competitor" | Route upstream to domain re-sync → cascade to sections (ADR-170 RD-5: TP handles upstream orchestration) | Sonnet (upstream gather) |
+**TP → compose revision loop (pending — see gaps below):** TP steering notes currently contain free-text instructions. The loop will be complete when TP can target a specific section slug in steering, and the compose function routes that to section-scoped regeneration without a full re-run.
 
 ---
 
@@ -191,14 +198,15 @@ execute_task(slug)
 
 ```
 api/services/compose/
-├── __init__.py
-├── scaffold.py      # structural plan from task type page_structure + surface_type
-├── assembly.py      # filesystem query, asset discovery, generation brief, folder build
-├── revision.py      # revision classification + routing (staleness detection via manifest)
-├── surfaces.py      # surface type arrangement rules (section layout per paradigm)
-├── sections.py      # section kind rendering (HTML templates per kind per surface type)
-└── manifest.py      # sys_manifest.json schema, provenance, asset status
+├── __init__.py      # exports: build_generation_brief, parse_draft_into_sections,
+│                   #   build_post_generation_manifest, classify_revision_scope,
+│                   #   build_revision_brief, read_manifest, make_manifest, SysManifest
+├── assembly.py      # filesystem query, generation brief, section parsing, manifest build
+├── revision.py      # revision classification (full/section/none) + LLM revision preamble
+└── manifest.py      # sys_manifest.json schema: SysManifest, SectionProvenance, AssetRecord
 ```
+
+**Test coverage:** `api/test_compose.py` — 24 tests covering section parsing, manifest round-trip, staleness detection, revision classification (full/section/none/domain-freshness-triggered), revision brief generation.
 
 ---
 
@@ -236,7 +244,7 @@ Steps 1–3 and 5 are the compose substrate. Step 4 is the LLM. The render servi
 | Component | Relationship |
 |---|---|
 | **Output Pipeline (ADR-148)** | Extended — SCAFFOLD + ASSEMBLE steps added; output evolves from single file to folder |
-| **Output Surfaces (ADR-170 RD-6/7/8/9)** | Defines the vocabulary — surface types + section kinds + export pipeline. Compose function operates on this vocabulary. See [output-surfaces.md](output-surfaces.md). |
+| **Output Surfaces (ADR-170 RD-6/7/8/9)** | Defines the vocabulary — surface types + section kinds + export pipeline. See [output-surfaces.md](output-surfaces.md). |
 | **Task Lifecycle (ADR-149)** | Extended — DELIVERABLE.md (quality) + task type `page_structure` (structure) as complementary sources. Evaluation remains ADR-149, compose consumes its signals. |
 | **Context Domains (ADR-151/152)** | Extended — `context_reads`/`context_writes` become compose substrate's scope index |
 | **Fetch-Asset Skill (ADR-157)** | Absorbed — asset discovery is first-class compose operation; root/derivative distinction formalized |
@@ -244,3 +252,39 @@ Steps 1–3 and 5 are the compose substrate. Step 4 is the LLM. The render servi
 | **Workspace Conventions** | Extended — `sys_` naming convention; output-as-folder structure |
 | **Service Model** | Extended — compose substrate is a named domain within Layer 2 |
 | **FOUNDATIONS Axiom 2** | Extended — composition is the corollary that makes accumulation manifest |
+
+---
+
+## Open Gaps (as of 2026-04-10)
+
+### Gap 1: TP section-level steering awareness
+
+**Current state:** TP steers via free-text notes written to `memory/steering.md`. The compose substrate reads these notes and injects them into the LLM prompt, but it cannot route them to specific section partials. TP has no knowledge of what sections exist for a given task type.
+
+**What's needed:**
+- TP working memory injection should include the task's `page_structure` section titles when a `produces_deliverable` task is in context (compact index addition in `working_memory.py`).
+- `ManageTask(action="steer")` should optionally accept a `target_section` field (slug or title) alongside the existing `steering_notes` string.
+- When `target_section` is set, the revision preamble marks only that section as stale (`revision_type=section`, `stale_sections=[target_section]`), bypassing the manifest-based staleness check.
+- This closes the ADR-149 evaluate → steer → compose revision loop end-to-end.
+
+**Files:** `api/services/working_memory.py`, `api/services/primitives/manage_task.py`, `api/services/compose/revision.py`.
+
+### Gap 2: Frontend view-time rendering (Phase 6)
+
+**Current state:** `DeliverableMiddle.tsx` renders `output.html` in an iframe. The section partials (`sections/{slug}.md`) and `sys_manifest.json` written by the compose substrate are invisible to the frontend.
+
+**What's needed (future ADR):**
+- Read `sys_manifest.json` from the task's latest output folder via a new API endpoint or workspace file read.
+- Render each section partial with a React component per `kind` (narrative, entity-grid, metric-cards, timeline, comparison-table, etc.) rather than a monolithic iframe.
+- `index.html` (current single output) either becomes the fallback or is deprecated in favor of section-component rendering.
+- Surface type determines layout (report = scroll, deck = full-screen slides, dashboard = grid, digest = list).
+
+**Prerequisite:** Real users using the product and generating output. The iframe is a valid interim. Don't build the component library before there's production output to validate it against.
+
+**Files:** `web/components/work/details/DeliverableMiddle.tsx`, new `web/components/work/sections/` directory.
+
+### Gap 3: Phase 5 dropped (decision record)
+
+**Decision (2026-04-10):** Phase 5 (asset lifecycle — automated stale root asset re-fetch, cross-run derivative asset caching, static vs live derivative distinction) is **dropped indefinitely**.
+
+**Rationale:** The `fetch-asset` render skill (ADR-157) already exists for manual agent use when needed. Root assets (favicons, logos) change rarely. Automated re-fetch adds complexity to a code path that hasn't been exercised in production yet. The manifest already records asset provenance — if automated re-fetch becomes a pain point, that record is sufficient to build on. Revisit when there's a concrete user complaint.
