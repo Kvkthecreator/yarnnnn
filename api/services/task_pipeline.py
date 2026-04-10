@@ -918,12 +918,30 @@ async def gather_task_context(
 
     # 2. Accumulated context domains — PRIMARY CONTEXT (ADR-151/152)
     # ADR-154 Phase 2: pass task_info for objective-driven entity selection
+    #
+    # Budget-driven per-domain cap: instead of a fixed 20-files-per-domain default
+    # that doesn't account for how many domains a task reads, we derive the cap from
+    # a total file budget divided by domain count. One domain gets the full budget;
+    # five domains each get a proportionally smaller slice. This keeps total context
+    # volume predictable regardless of how many domains a task declares.
+    # Budget: 40 files total (roughly ~120K chars / ~30K tokens for the context block).
+    # Per-domain floor: 3 (always enough for synthesis + 2 entities).
+    # Per-domain ceiling: 15 (prevents single-domain tasks from loading unbounded files).
+    _TOTAL_FILE_BUDGET = 40
+    _PER_DOMAIN_FLOOR = 3
+    _PER_DOMAIN_CEILING = 15
     context_domains_text = ""
     if task_info:
         context_reads = task_info.get("context_reads", [])
         if context_reads:
+            _domain_count = max(len(context_reads), 1)
+            _files_per_domain = max(
+                _PER_DOMAIN_FLOOR,
+                min(_PER_DOMAIN_CEILING, _TOTAL_FILE_BUDGET // _domain_count),
+            )
             context_domains_text = await _gather_context_domains(
                 client, user_id, context_reads, task_info=task_info,
+                max_files_per_domain=_files_per_domain,
             )
     if context_domains_text:
         sections.append(context_domains_text)
@@ -2609,7 +2627,30 @@ async def _generate(
         dynamic_tools=headless_tools,
     )
 
-    messages = [{"role": "user", "content": user_message}]
+    # Split user_message into task-instructions + context blocks so Anthropic prompt
+    # caching can cache the large context section across tool rounds within this
+    # execution and across repeated runs of the same task (context is stable until
+    # a new cycle writes to /workspace/context/). Without this, 100-200K tokens of
+    # domain context are re-billed as fresh input on every tool round.
+    #
+    # Split point: "## Gathered Context" is always the last section of user_message.
+    # Everything before it is task-specific (objective, criteria, steering) — small
+    # and changes each run. Everything from it onward is accumulated workspace
+    # context — large, stable, and the primary caching target.
+    _CONTEXT_MARKER = "\n## Gathered Context\n"
+    _split_idx = user_message.find(_CONTEXT_MARKER)
+    if _split_idx != -1:
+        _instructions_part = user_message[:_split_idx]
+        _context_part = user_message[_split_idx:]
+        _initial_content: list[dict] = [
+            {"type": "text", "text": _instructions_part},
+            {"type": "text", "text": _context_part, "cache_control": {"type": "ephemeral"}},
+        ]
+    else:
+        # No context section found — send as single block (shouldn't happen in normal flow)
+        _initial_content = [{"type": "text", "text": user_message}]
+
+    messages = [{"role": "user", "content": _initial_content}]
     tools_used = []
     total_input_tokens = 0
     total_output_tokens = 0
