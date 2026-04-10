@@ -756,47 +756,42 @@ function TaskCard({ task, agentSlug }: { task: Task; agentSlug: string }) {
         task.status !== 'active' && 'opacity-70',
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={cn('inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium', descriptor.badgeClass)}>
+          {descriptor.label}
+        </span>
+        {typeLabel && (
+          <span className="inline-flex rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            {typeLabel}
+          </span>
+        )}
+        <WorkModeBadge mode={task.mode} />
+        {task.essential && (
+          <span className="inline-flex rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">
+            essential
+          </span>
+        )}
+        {task.status === 'paused' && (
+          <span className="inline-flex rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">
+            paused
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-start justify-between gap-3 mt-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={cn('inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium', descriptor.badgeClass)}>
-              {descriptor.label}
-            </span>
-            {typeLabel && (
-              <span className="inline-flex rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                {typeLabel}
-              </span>
-            )}
-            <WorkModeBadge mode={task.mode} />
-            {task.essential && (
-              <span className="inline-flex rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">
-                essential
-              </span>
-            )}
-            {task.status === 'paused' && (
-              <span className="inline-flex rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">
-                paused
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-sm font-medium truncate">{task.title}</span>
-          </div>
-
-          <p className="text-[12px] text-muted-foreground mt-1">
+          <span className="text-sm font-medium">{task.title}</span>
+          <p className="text-[12px] text-muted-foreground mt-0.5">
             {descriptor.summary(task)}
           </p>
-
-          <div className="flex items-center gap-2 mt-2 text-[11px] text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-muted-foreground flex-wrap">
             {task.schedule && <span className="truncate">{task.schedule}</span>}
             {task.schedule && task.last_run_at && <span className="text-muted-foreground/30">·</span>}
             {task.last_run_at && <span>Ran {formatRelativeTime(task.last_run_at)}</span>}
             {!task.last_run_at && !task.schedule && <span>Never run</span>}
           </div>
-
           {details.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-3">
+            <div className="flex flex-wrap gap-1.5 mt-2">
               {details.map((detail) => (
                 <span
                   key={detail}
@@ -808,14 +803,11 @@ function TaskCard({ task, agentSlug }: { task: Task; agentSlug: string }) {
             </div>
           )}
         </div>
-      </div>
-
-      <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-end">
         <Link
           href={manageHref}
-          className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+          className="shrink-0 inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
         >
-          Manage task
+          Manage
           <ArrowUpRight className="w-3 h-3" />
         </Link>
       </div>
