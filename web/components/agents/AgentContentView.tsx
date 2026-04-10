@@ -62,6 +62,13 @@ interface AgentShellDescriptor {
   highlights: (agent: Agent, counts: TaskKindCounts) => string[];
 }
 
+interface RoleGuidanceDescriptor {
+  bestFor: (agent: Agent) => string;
+  does: (agent: Agent) => string[];
+  doesnt: (agent: Agent) => string[];
+  examples: (agent: Agent) => string[];
+}
+
 interface TaskCardDescriptor {
   label: string;
   badgeClass: string;
@@ -207,6 +214,94 @@ const AGENT_EMPTY_STATE_REGISTRY: Record<AgentClass, AgentEmptyStateDescriptor> 
   'meta-cognitive': {
     title: () => 'No maintenance tasks yet',
     description: () => 'Ask your thinking partner to set up the core workspace maintenance tasks.',
+  },
+};
+
+const ROLE_GUIDANCE_REGISTRY: Record<AgentClass, RoleGuidanceDescriptor> = {
+  'domain-steward': {
+    bestFor: (agent) => (
+      agent.context_domain
+        ? `Keeping ${formatKeyLabel(agent.context_domain, false)} current and turning it into useful updates.`
+        : 'Owning one topic deeply and keeping that context current over time.'
+    ),
+    does: (agent) => [
+      `Maintains ${formatKeyLabel(agent.context_domain || 'the assigned domain', false)} context files`,
+      'Tracks changes, trends, and notable signals',
+      'Produces domain-specific briefs when a task asks for one',
+    ],
+    doesnt: () => [
+      'Manage platform connection settings',
+      'Own cross-domain synthesis for the whole workspace',
+      'Run workspace-wide maintenance policy',
+    ],
+    examples: (agent) => [
+      `What changed in ${formatKeyLabel(agent.context_domain || 'this domain', false)} since last week?`,
+      'Draft a concise brief with implications and recommended actions.',
+      'Highlight the top 3 signals worth escalating this week.',
+    ],
+  },
+  synthesizer: {
+    bestFor: () => 'Combining specialist inputs into one coherent cross-domain readout.',
+    does: () => [
+      'Reads across multiple specialist domains',
+      'Builds executive summaries and strategic updates',
+      'Connects signals into one decision-ready narrative',
+    ],
+    doesnt: () => [
+      'Own raw source harvesting from platforms',
+      'Maintain a single domain folder as primary responsibility',
+      'Run system maintenance and orchestration policy',
+    ],
+    examples: () => [
+      'Create a weekly cross-domain executive update.',
+      'Summarize risks and opportunities across all active domains.',
+      'Draft a stakeholder-ready report using this week’s specialist outputs.',
+    ],
+  },
+  'platform-bot': {
+    bestFor: (agent) => {
+      const platform = roleDisplayName(agent.role).replace(' Bot', '');
+      return `Watching selected ${platform} sources and producing platform-specific digests or actions.`;
+    },
+    does: (agent) => {
+      const platform = roleDisplayName(agent.role).replace(' Bot', '');
+      return [
+        `Monitors selected ${platform} sources`,
+        'Extracts notable items into structured updates',
+        'Runs platform-targeted tasks (digest or write-back)',
+      ];
+    },
+    doesnt: () => [
+      'Decide global workspace strategy',
+      'Own broad cross-domain synthesis by itself',
+      'Maintain unrelated domains outside its platform feed',
+    ],
+    examples: (agent) => {
+      const platform = roleDisplayName(agent.role).replace(' Bot', '');
+      return [
+        `Summarize the top items from selected ${platform} sources this week.`,
+        'Flag the most urgent signal and why it matters now.',
+        'Draft a concise action update for the latest high-priority thread.',
+      ];
+    },
+  },
+  'meta-cognitive': {
+    bestFor: () => 'Coordinating the workforce, task hygiene, and system-level upkeep.',
+    does: () => [
+      'Monitors task health and freshness across the workspace',
+      'Runs back-office maintenance tasks and orchestrations',
+      'Surfaces operational signals for decision-making',
+    ],
+    doesnt: () => [
+      'Own any single domain as a content specialist',
+      'Produce domain reports as primary output',
+      'Replace specialist analysis on domain topics',
+    ],
+    examples: () => [
+      'Which tasks are stale or at risk right now?',
+      'What maintenance work should run next to keep things healthy?',
+      'Give me a short operational status of the workforce.',
+    ],
   },
 };
 
@@ -369,6 +464,81 @@ function getTaskKindCounts(tasks: Task[]): TaskKindCounts {
   }, { ...EMPTY_TASK_COUNTS });
 }
 
+function normalizeCadenceLabel(schedule?: string | null): string {
+  if (!schedule) return '';
+  const raw = schedule.trim();
+  if (!raw) return '';
+  if (/^[a-z-]+$/i.test(raw)) return formatKeyLabel(raw);
+  if (/^(\*|[\d\/,-]+)(\s+(\*|[\d\/,-]+)){4}$/.test(raw)) return 'Custom';
+  return raw;
+}
+
+function summarizeRoleContract(agent: Agent, tasks: Task[]) {
+  const cls = (agent.agent_class || 'domain-steward') as AgentClass;
+  const liveTasks = tasks.filter((task) => task.status !== 'archived');
+  const activeTasks = liveTasks.filter((task) => task.status === 'active');
+
+  const readDomains = Array.from(new Set(
+    liveTasks.flatMap((task) => task.context_reads || []).map((d) => formatKeyLabel(d, false)),
+  )).filter(Boolean);
+  const writeDomains = Array.from(new Set(
+    liveTasks.flatMap((task) => task.context_writes || []).map((d) => formatKeyLabel(d, false)),
+  )).filter(Boolean);
+
+  const inputs = (() => {
+    const parts: string[] = [];
+    if (readDomains.length > 0) parts.push(`Reads: ${readDomains.join(', ')}`);
+    if (writeDomains.length > 0) parts.push(`Writes: ${writeDomains.join(', ')}`);
+    if (parts.length > 0) return parts.join(' · ');
+
+    if (cls === 'platform-bot') {
+      const platform = roleDisplayName(agent.role).replace(' Bot', '');
+      return `Selected ${platform} sources`;
+    }
+    if (cls === 'meta-cognitive') return 'Workspace state, task health, and orchestration signals';
+    if (cls === 'synthesizer') return 'Specialist domain outputs';
+    return agent.context_domain
+      ? `${formatKeyLabel(agent.context_domain, false)} context folder`
+      : 'Assigned context domain';
+  })();
+
+  const outputKindLabels: Record<string, string> = {
+    accumulates_context: 'Context updates',
+    produces_deliverable: 'Reports and briefs',
+    external_action: 'Platform actions',
+    system_maintenance: 'Operational signals',
+  };
+  const outputs = (() => {
+    const kinds = Array.from(new Set(liveTasks.map((task) => task.output_kind).filter(Boolean)));
+    if (kinds.length > 0) return kinds.map((kind) => outputKindLabels[kind as string] || formatKeyLabel(kind as string)).join(', ');
+    if (cls === 'platform-bot') return 'Platform digest and action outputs';
+    if (cls === 'meta-cognitive') return 'Workforce and maintenance status outputs';
+    if (cls === 'synthesizer') return 'Cross-domain reports';
+    return 'Domain tracking updates and briefs';
+  })();
+
+  const triggers = (() => {
+    const triggerSet = new Set<string>();
+    if (cls === 'meta-cognitive') triggerSet.add('Chat');
+    if (activeTasks.some((task) => task.mode === 'recurring')) triggerSet.add('Schedule');
+    if (activeTasks.some((task) => task.mode === 'reactive')) triggerSet.add('Events');
+    if (activeTasks.some((task) => task.mode === 'goal')) triggerSet.add('On demand');
+    if (triggerSet.size === 0) triggerSet.add('On demand');
+    return Array.from(triggerSet).join(', ');
+  })();
+
+  const cadence = (() => {
+    const schedules = Array.from(new Set(
+      activeTasks.map((task) => normalizeCadenceLabel(task.schedule)).filter(Boolean),
+    ));
+    if (schedules.length === 0) return activeTasks.length === 0 ? 'Not scheduled' : 'As needed';
+    if (schedules.length === 1) return schedules[0];
+    return `Mixed (${schedules.length})`;
+  })();
+
+  return { inputs, outputs, triggers, cadence };
+}
+
 function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const classLabel = agentClassLabel(agent.agent_class);
   const showClassLabel = classLabel.toLowerCase() !== agent.title.toLowerCase();
@@ -414,8 +584,8 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
 
 function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const descriptor = AGENT_SHELL_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
-  const counts = getTaskKindCounts(tasks);
-  const highlights = descriptor.highlights(agent, counts);
+  const guidance = ROLE_GUIDANCE_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
+  const contract = summarizeRoleContract(agent, tasks);
   const instructions = agent.agent_instructions
     ? stripLeadingH1IfMatchesTitle(agent.agent_instructions, agent.title).trim()
     : '';
@@ -432,30 +602,79 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
             <div className="flex items-center gap-2 flex-wrap">
               <h4 className="text-sm font-medium text-foreground">{descriptor.title(agent)}</h4>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {descriptor.description(agent)}
-            </p>
-            {highlights.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {highlights.map((highlight) => (
-                  <span
-                    key={highlight}
-                    className="inline-flex items-center rounded-full bg-background px-2 py-1 text-[11px] text-muted-foreground border border-border/50"
-                  >
-                    {highlight}
-                  </span>
-                ))}
-              </div>
-            )}
-            {instructions && (
-              <div className="mt-4 pt-4 border-t border-border/50">
-                <p className="text-[11px] font-medium text-muted-foreground/60 mb-2">
-                  How I work
-                </p>
-                <div className="prose prose-sm max-w-none dark:prose-invert text-sm">
-                  <MarkdownRenderer content={instructions} />
+            <div className="mt-2 space-y-1 text-sm">
+              <p className="text-muted-foreground">
+                <span className="text-muted-foreground/70 font-medium">Purpose:</span>{' '}
+                {descriptor.description(agent)}
+              </p>
+              <p className="text-muted-foreground">
+                <span className="text-muted-foreground/70 font-medium">Best for:</span>{' '}
+                {guidance.bestFor(agent)}
+              </p>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-border/50">
+              <p className="text-[11px] font-medium text-muted-foreground/60 mb-2">Operating contract</p>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt className="text-[11px] text-muted-foreground/60">Inputs</dt>
+                  <dd className="text-muted-foreground mt-0.5">{contract.inputs}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] text-muted-foreground/60">Outputs</dt>
+                  <dd className="text-muted-foreground mt-0.5">{contract.outputs}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] text-muted-foreground/60">Triggers</dt>
+                  <dd className="text-muted-foreground mt-0.5">{contract.triggers}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] text-muted-foreground/60">Cadence</dt>
+                  <dd className="text-muted-foreground mt-0.5">{contract.cadence}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-border/50">
+              <p className="text-[11px] font-medium text-muted-foreground/60 mb-2">Scope guardrails</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-[11px] text-muted-foreground/60 mb-1">Does</p>
+                  <ul className="space-y-1.5 text-muted-foreground list-disc pl-4">
+                    {guidance.does(agent).slice(0, 3).map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground/60 mb-1">Doesn’t</p>
+                  <ul className="space-y-1.5 text-muted-foreground list-disc pl-4">
+                    {guidance.doesnt(agent).slice(0, 3).map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-border/50">
+              <p className="text-[11px] font-medium text-muted-foreground/60 mb-2">Try asking</p>
+              <ul className="space-y-1.5 text-sm text-muted-foreground list-disc pl-4">
+                {guidance.examples(agent).slice(0, 3).map((example) => (
+                  <li key={example}>{example}</li>
+                ))}
+              </ul>
+            </div>
+
+            {instructions && (
+              <details className="mt-4 pt-4 border-t border-border/50">
+                <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground/60">
+                  Technical details
+                </summary>
+                <div className="mt-3 prose prose-sm max-w-none dark:prose-invert text-sm">
+                  <MarkdownRenderer content={instructions} />
+                </div>
+              </details>
             )}
           </div>
         </div>

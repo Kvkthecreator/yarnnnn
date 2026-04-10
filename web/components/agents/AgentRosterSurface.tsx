@@ -245,24 +245,7 @@ function AgentCard({
 
       {/* Status row */}
       <div className="flex items-start justify-between gap-3 mt-3 pt-3 border-t border-border/40">
-        {hasNoTasks ? (
-          <span className="text-[11px] text-muted-foreground/40 italic">No tasks assigned yet</span>
-        ) : (
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[11px] text-muted-foreground/60 shrink-0">
-              {activeTasks.length} active {activeTasks.length === 1 ? 'task' : 'tasks'}
-            </span>
-            {mostRecentTask && (
-              <>
-                <span className="text-muted-foreground/20">·</span>
-                <span className="text-[11px] text-muted-foreground/50 truncate">
-                  {mostRecentTask.title}
-                </span>
-              </>
-            )}
-          </div>
-        )}
-        <div className="flex flex-wrap items-center justify-end gap-2 ml-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <span
             className={cn(
               'inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/10 px-2 py-0.5 text-[10px]',
@@ -282,6 +265,25 @@ function AgentCard({
             Next: {nextRun ? formatRelativeUntil(nextRun.toISOString()) : 'not scheduled'}
           </span>
         </div>
+        {hasNoTasks ? (
+          <span className="text-[11px] text-muted-foreground/40 italic shrink-0 ml-2">
+            No tasks assigned yet
+          </span>
+        ) : (
+          <div className="flex items-center justify-end gap-2 min-w-0 ml-2">
+            <span className="text-[11px] text-muted-foreground/60 shrink-0">
+              {activeTasks.length} active {activeTasks.length === 1 ? 'task' : 'tasks'}
+            </span>
+            {mostRecentTask && (
+              <>
+                <span className="text-muted-foreground/20">·</span>
+                <span className="text-[11px] text-muted-foreground/50 truncate text-right">
+                  {mostRecentTask.title}
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </button>
   );
