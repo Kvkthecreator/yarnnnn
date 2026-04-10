@@ -32,64 +32,15 @@ logger = logging.getLogger(__name__)
 
 MANAGE_TASK_TOOL = {
     "name": "ManageTask",
-    "description": """Manage a task — create, trigger, update, pause, resume, evaluate, steer, or complete.
+    "description": """Manage task lifecycle: create, trigger, update, pause, resume, evaluate, steer, or complete.
 
-**action="create"** — Scaffold a new task from a task type and assign to an agent (ADR-168).
-
-  Two creation paths:
-  1. From type registry (preferred): provide title + type_key. Pipeline, schedule,
-     agent, and objective are auto-populated from the registry.
-  2. Custom: provide title + agent_slug + objective manually.
-
-  type_key values: competitive-intel-brief, market-research-report, industry-signal-monitor,
-  due-diligence-summary, meeting-prep-brief, stakeholder-update, relationship-health-digest,
-  project-status-report, slack-recap, notion-sync-report, content-brief, launch-material,
-  gtm-tracker
-
-  Required: title, action="create". Plus one of: type_key OR agent_slug.
-  Optional: mode, objective, schedule, delivery, success_criteria, output_spec, focus, sources.
-
-  Examples:
-  - ManageTask(action="create", title="Weekly Competitive Briefing", type_key="competitive-intel-brief", focus="AI agent platforms")
-  - ManageTask(action="create", title="Daily Slack Recap", type_key="slack-recap", delivery="user@example.com")
-  - ManageTask(action="create", title="Custom Research", agent_slug="research-agent", objective={...})
-
-**action="trigger"** — Run the task immediately, outside normal cadence.
-  ManageTask(task_slug="weekly-briefing", action="trigger")
-  ManageTask(task_slug="daily-recap", action="trigger", context="Focus on the product launch discussion")
-
-**action="update"** — Change schedule, delivery, mode, type, or sources.
-  ManageTask(task_slug="weekly-briefing", action="update", schedule="daily")
-  ManageTask(task_slug="weekly-briefing", action="update", delivery="user@example.com")
-  ManageTask(task_slug="weekly-briefing", action="update", mode="goal")
-  ManageTask(task_slug="weekly-briefing", action="update", type_key="competitive-intel-brief")
-  ManageTask(task_slug="slack-digest", action="update", sources={"slack": ["C123", "C456"]})
-
-  type_key assigns a task type from the registry, which defines the execution process
-  (multi-step pipeline, agent assignments). Use when a task was created generically
-  and needs a proper process definition. Same type_key values as action="create".
-
-**action="pause"** — Stop future scheduled runs (can be resumed later).
-  ManageTask(task_slug="weekly-briefing", action="pause")
-
-**action="resume"** — Restore scheduled runs for a paused task.
-  ManageTask(task_slug="weekly-briefing", action="resume")
-
-**action="evaluate"** — Assess the latest output against DELIVERABLE.md quality spec (ADR-149).
-  ManageTask(task_slug="weekly-briefing", action="evaluate")
-  Returns: criteria_met, gaps, context_health, quality_assessment. Auto-writes evaluation to memory/feedback.md.
-  Use after runs complete (mandatory for goal mode, periodic for recurring, skip for reactive).
-
-**action="steer"** — Write cycle-specific guidance for the next run (ADR-149, ADR-170).
-  ManageTask(task_slug="weekly-briefing", action="steer", steering="Focus on Acme Corp pricing changes next cycle")
-  ManageTask(task_slug="competitive-brief", action="steer", steering="Rewrite with Q1 data", target_section="executive-summary")
-  Writes to memory/steering.md — read by pipeline on next execution.
-  Optional target_section: slug of a declared page_structure section (produces_deliverable tasks only).
-  When target_section is set, forces that section to regenerate even if domain data has not changed.
-
-**action="complete"** — Mark task as completed, stop all future runs (ADR-149).
-  ManageTask(task_slug="due-diligence-report", action="complete")
-  Sets status=completed, clears next_run_at. Use when goal task criteria are met.""",
+- create: scaffold from type_key (preferred, auto-populates pipeline/agent/schedule) or agent_slug + objective
+- trigger: run immediately; pass context= to focus this run only
+- update: change schedule, delivery, mode, type_key, or sources
+- pause/resume: stop or restore scheduled runs
+- evaluate: assess latest output against DELIVERABLE.md; returns criteria_met, gaps, recommendation
+- steer: write guidance for next run (steering=); pass target_section= to force one section to regenerate
+- complete: mark goal task done, clear scheduling""",
     "input_schema": {
         "type": "object",
         "properties": {

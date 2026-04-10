@@ -283,14 +283,16 @@ async def _editorial_repurpose(auth, task_slug, output_date, output_md, target):
 
     user_message = f"## Original Output\n\n{output_md}"
 
-    # Generate via simple completion (no tools needed for repurpose)
+    # Generate via simple completion (no tools needed for repurpose).
+    # Haiku is sufficient — editorial repurpose is format transformation
+    # (restructure, condense, reframe), not open-ended reasoning.
     from services.anthropic import chat_completion
-    from services.agent_execution import SONNET_MODEL
+    _REPURPOSE_MODEL = "claude-haiku-4-5-20251001"
 
     response = await chat_completion(
         messages=[{"role": "user", "content": user_message}],
         system=system_prompt,
-        model=SONNET_MODEL,
+        model=_REPURPOSE_MODEL,
     )
 
     repurposed_content = response.text.strip() if response.text else ""

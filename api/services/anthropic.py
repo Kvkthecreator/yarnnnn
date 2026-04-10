@@ -482,7 +482,9 @@ async def chat_completion_stream_with_tools(
                     truncated_result = _truncate_tool_result(
                         result, max_items=100, max_content_len=1000, max_depth=6
                     )
-                elif tool_use.name == "WebSearch":
+                elif tool_use.name in ("WebSearch", "SearchEntities", "QueryKnowledge", "SearchFiles"):
+                    # These primitives already cap snippets at 500 chars internally.
+                    # Default 200 would double-truncate them — match the primitive's own cap.
                     truncated_result = _truncate_tool_result(
                         result, max_items=10, max_content_len=500, max_depth=4
                     )

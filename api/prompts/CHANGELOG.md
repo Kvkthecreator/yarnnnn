@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.10.5] - Tool description trim + search truncation fix + repurpose model downgrade
+
+### Changed
+- `api/services/primitives/manage_task.py`: Reduced MANAGE_TASK_TOOL description from 57 lines
+  to 8 lines. Removed inline examples and per-action walkthroughs — these duplicate input_schema
+  parameter descriptions and were sent as tokens on every ManageTask call (~900 tokens saved/call).
+- `api/services/primitives/search.py`: Reduced SEARCH_ENTITIES_TOOL description from 25 lines
+  to 3 lines. Removed workflow example, scope table, redundant memory-scope note (~300 tokens saved/call).
+- `api/services/anthropic.py`: Extended search-tool truncation branch in
+  `chat_completion_stream_with_tools` to cover SearchEntities, QueryKnowledge, and SearchFiles
+  alongside WebSearch. All four cap snippets at 500 chars internally; default 200 was
+  double-truncating them in TP conversation history.
+- `api/services/primitives/repurpose.py`: Editorial repurpose (linkedin, slides, summary,
+  medium, twitter) switched from SONNET_MODEL to claude-haiku-4-5-20251001. Format
+  transformation needs instruction-following not reasoning — ~4x cost reduction per call.
+- Expected behavior: TP receives full 500-char snippets from all search primitives.
+  ManageTask + SearchEntities description overhead ~80% smaller per call.
+
 ## [2026.04.10.4] - RuntimeDispatch added to CHAT_PRIMITIVES; image skill description updated
 
 ### Changed

@@ -22,30 +22,10 @@ from .refs import TABLE_MAP
 
 SEARCH_ENTITIES_TOOL = {
     "name": "SearchEntities",
-    "description": """Find entities by content using text search. Returns refs for use with LookupEntity.
+    "description": """Find database-backed entities by content (entity layer). Returns refs for LookupEntity.
 
-This is the ENTITY LAYER primitive — it searches database-backed entities
-(documents, agents, versions). For filesystem search, use SearchFiles. For
-semantic search over accumulated context domains, use QueryKnowledge.
-
-Examples:
-- SearchEntities(query="weekly status", scope="agent") - search agents
-- SearchEntities(query="competitor analysis", scope="document") - search uploaded documents
-- SearchEntities(query="competitor analysis") - search all scopes (excludes memory — already in working memory)
-
-Results include a `ref` field (e.g., "document:abc123-uuid"). Use this ref with LookupEntity() to get full content.
-
-Workflow for documents:
-1. SearchEntities(query="topic", scope="document") → returns matches with `ref` and snippet
-2. LookupEntity(ref="document:<UUID>") → returns full document content
-
-Scopes:
-- document: Uploaded documents (PDF, DOCX, TXT, MD) - searches actual content, not just filenames
-- agent: Your recurring agents
-- version: Generated agent content (versions). Filter by agent_id to see versions for a specific agent.
-- all: Search everything (document + agent)
-
-Note: Memory is NOT a search scope — it is already in your working memory context at session start.""",
+Scopes: document (uploaded files), agent, version, all. Memory is not a scope — already in working memory.
+For workspace filesystem search use SearchFiles. For accumulated context domains use QueryKnowledge.""",
     "input_schema": {
         "type": "object",
         "properties": {
