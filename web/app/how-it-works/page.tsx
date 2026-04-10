@@ -12,7 +12,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "How yarnnn works",
   description:
-    "Connect workspace context, define recurring tasks, and let persistent agents execute on schedule. Thinking Partner orchestrates and feedback compounds over time.",
+    "Connect your tools, describe the work, and let your AI team execute on schedule. Agents accumulate knowledge of your business and get better every week.",
   path: "/how-it-works",
   keywords: [
     "how yarnnn works",
@@ -36,19 +36,19 @@ export default function HowItWorksPage() {
     step: [
       {
         "@type": "HowToStep",
-        name: "Connect workspace context",
+        name: "Connect your tools and share context",
       },
       {
         "@type": "HowToStep",
-        name: "Define recurring tasks with Thinking Partner",
+        name: "Describe the work you need done",
       },
       {
         "@type": "HowToStep",
-        name: "Let persistent agents execute and deliver",
+        name: "Your agents execute and deliver on schedule",
       },
       {
         "@type": "HowToStep",
-        name: "Review output and let feedback compound over time",
+        name: "Review output and watch quality compound over time",
       },
     ],
   };
@@ -66,14 +66,14 @@ export default function HowItWorksPage() {
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <p className="text-white/40 text-sm uppercase tracking-widest mb-4">How It Works</p>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              Shared context.
+              Your tools. Your context.
               <br />
-              <span className="text-white/50">Persistent agents. Recurring tasks.</span>
+              <span className="text-white/50">Their work. Your review.</span>
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              yarnnn keeps workspace context, a scaffolded workforce, and recurring
-              task execution inside one system. TP orchestrates. Domain agents deepen.
-              Your feedback compounds instead of resetting every session.
+              yarnnn connects to your tools, keeps a shared knowledge base, and runs
+              recurring work on schedule. Your agents accumulate context continuously.
+              Your feedback sharpens future output instead of resetting every session.
             </p>
           </section>
 
@@ -92,10 +92,10 @@ export default function HowItWorksPage() {
               <AnimatedTimeline
                 variant="dark"
                 steps={[
-                  { number: "01", title: "Accumulate context", description: "Connect tools, upload docs, or start from chat. The workspace becomes the shared operating substrate." },
-                  { number: "02", title: "Define tasks", description: "Describe recurring work in plain language. TP turns it into a standing task definition." },
-                  { number: "03", title: "Agents execute", description: "Persistent agents run tasks on schedule, gather context, and deliver outputs." },
-                  { number: "04", title: "Supervise & compound", description: "Review what changed. Feedback sharpens future runs instead of disappearing." },
+                  { number: "01", title: "Connect your tools", description: "Link Slack, Notion, or GitHub. Upload docs. Or just start talking — your agents learn from every source." },
+                  { number: "02", title: "Describe the work", description: "Tell yarnnn what you need in plain language. It assigns the right agent and sets the schedule." },
+                  { number: "03", title: "Agents deliver", description: "Your team runs on schedule — daily, weekly, monthly — whether you're online or not." },
+                  { number: "04", title: "Review & improve", description: "Check the output. Edit what needs changing. Your corrections teach the agents what you actually want." },
                 ]}
               />
             </div>
@@ -107,10 +107,11 @@ export default function HowItWorksPage() {
               <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6 mb-12">
                 <div className="text-4xl font-light text-white/20">01</div>
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-medium mb-4">A workforce is scaffolded at signup</h2>
+                  <h2 className="text-2xl md:text-3xl font-medium mb-4">Your team is ready at signup</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl">
-                    The system does not start empty. Domain agents, platform bots,
-                    Reporting, and TP are scaffolded from day one.
+                    You don&apos;t build agents from scratch. Five domain experts,
+                    a reporting synthesizer, platform connectors, and an orchestrator
+                    are waiting when you sign up.
                   </p>
                 </div>
               </div>
@@ -124,24 +125,25 @@ export default function HowItWorksPage() {
                 >
                   <div className="p-6 md:p-8 h-full">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Your roster</div>
-                    <h3 className="text-xl font-medium mb-2">Ten agents across four classes</h3>
+                    <h3 className="text-xl font-medium mb-2">Ten agents, each with a specialty</h3>
                     <p className="text-white/50 text-sm mb-8 max-w-md">
-                      Five domain stewards, one reporting synthesizer, three platform
-                      bots, and Thinking Partner as the meta-cognitive agent.
+                      Five domain experts, a synthesizer for cross-cutting reports,
+                      platform connectors for your tools, and an orchestrator that
+                      manages the whole team.
                     </p>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {([
-                        { name: "Competitive Intel", letter: "CI", color: "#6366f1", desc: "Competitors, external signals" },
-                        { name: "Market Research", letter: "MR", color: "#0ea5e9", desc: "Research, market context" },
-                        { name: "Business Dev", letter: "BD", color: "#10b981", desc: "Relationships, opportunities" },
-                        { name: "Operations", letter: "OP", color: "#f59e0b", desc: "Process, operational health" },
-                        { name: "Marketing", letter: "M", color: "#ef4444", desc: "Positioning, creative context" },
-                        { name: "Reporting", letter: "RP", color: "#8b5cf6", desc: "Cross-domain synthesis" },
-                        { name: "Slack Bot", letter: "S", color: "#E01E5A", desc: "Channels & threads" },
-                        { name: "Notion Bot", letter: "N", color: "#191919", desc: "Pages & databases" },
-                        { name: "GitHub Bot", letter: "G", color: "#111827", desc: "Repos & code context" },
-                        { name: "Thinking Partner", letter: "TP", color: "#374151", desc: "System orchestration" },
+                        { name: "Competitive Intel", letter: "CI", color: "#6366f1", desc: "Tracks your competitors for you" },
+                        { name: "Market Research", letter: "MR", color: "#0ea5e9", desc: "Monitors your market continuously" },
+                        { name: "Business Dev", letter: "BD", color: "#10b981", desc: "Surfaces relationships & opportunities" },
+                        { name: "Operations", letter: "OP", color: "#f59e0b", desc: "Keeps pulse on execution health" },
+                        { name: "Marketing", letter: "M", color: "#ef4444", desc: "Watches positioning & creative" },
+                        { name: "Reporting", letter: "RP", color: "#8b5cf6", desc: "Connects dots across all domains" },
+                        { name: "Slack Bot", letter: "S", color: "#E01E5A", desc: "Reads your channels & threads" },
+                        { name: "Notion Bot", letter: "N", color: "#191919", desc: "Reads your pages & databases" },
+                        { name: "GitHub Bot", letter: "G", color: "#111827", desc: "Follows repos & activity" },
+                        { name: "Thinking Partner", letter: "TP", color: "#374151", desc: "Manages and orchestrates the team" },
                       ] as const).map((agent) => (
                         <div key={agent.name} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/[0.03] transition-colors">
                           <div
@@ -163,30 +165,30 @@ export default function HowItWorksPage() {
                 {/* Agent vs Bot explainer */}
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(99,102,241,0.05)">
                   <div className="p-6 h-full flex flex-col">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Four classes</div>
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">How they work together</div>
                     <div className="flex-1 space-y-4">
                       <div>
-                        <div className="text-sm font-medium mb-1">Domain stewards</div>
+                        <div className="text-sm font-medium mb-1">Domain experts</div>
                         <p className="text-white/40 text-xs leading-relaxed">
-                          Specialists that keep a context domain fresh and useful over time.
+                          Five specialists that each own a knowledge area and get deeper over time.
                         </p>
                       </div>
                       <div>
                         <div className="text-sm font-medium mb-1">Reporting</div>
                         <p className="text-white/40 text-xs leading-relaxed">
-                          The synthesizer that turns multiple inputs into one deliverable.
+                          Reads across the whole team and assembles cross-cutting reports and briefs.
                         </p>
                       </div>
                       <div>
-                        <div className="text-sm font-medium mb-1">Platform bots</div>
+                        <div className="text-sm font-medium mb-1">Platform connectors</div>
                         <p className="text-white/40 text-xs leading-relaxed">
-                          Platform-shaped specialists for Slack, Notion, and GitHub context.
+                          Read your Slack, Notion, and GitHub so the team always has fresh context.
                         </p>
                       </div>
                       <div>
-                        <div className="text-sm font-medium mb-1">Thinking Partner</div>
+                        <div className="text-sm font-medium mb-1">Orchestrator</div>
                         <p className="text-white/40 text-xs leading-relaxed">
-                          The meta-cognitive agent that manages tasks, explains behavior, and keeps the system coherent.
+                          The agent you talk to. Manages tasks, coordinates the team, and explains what&apos;s happening.
                         </p>
                       </div>
                     </div>
@@ -197,10 +199,10 @@ export default function HowItWorksPage() {
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(16,185,129,0.05)">
                   <div className="p-6 h-full flex flex-col justify-center">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Identity</div>
-                    <h3 className="text-lg font-medium mb-2">Agents deepen. TP orchestrates.</h3>
+                    <h3 className="text-lg font-medium mb-2">They get smarter, not wider.</h3>
                     <p className="text-white/40 text-xs leading-relaxed">
-                      Capability breadth is stable. Knowledge and judgment are what
-                      compound with tenure and repeated work.
+                      Each agent deepens its knowledge of your business over time.
+                      The more they work, the better the output.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -216,8 +218,8 @@ export default function HowItWorksPage() {
                 <div>
                   <h2 className="text-2xl md:text-3xl font-medium mb-4">Assign tasks</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl">
-                    Describe what you need in plain language. TP turns that into a
-                    task definition with objective, cadence, delivery, and assignment.
+                    Describe what you need in plain language. yarnnn assigns the right
+                    agent, sets the schedule, and starts delivering.
                   </p>
                 </div>
               </div>
@@ -288,8 +290,8 @@ export default function HowItWorksPage() {
                 <div>
                   <h2 className="text-2xl md:text-3xl font-medium mb-4">Share context</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl">
-                    The workspace is the shared substrate. Every source you add gives
-                    TP and the agents more grounded material to work with.
+                    Everything your agents know lives in a shared knowledge base.
+                    Every source you add makes their work more specific to your business.
                   </p>
                 </div>
               </div>
@@ -430,9 +432,9 @@ export default function HowItWorksPage() {
                 <SpotlightCard variant="dark" className="md:col-span-3" spotlightColor="rgba(14,165,233,0.05)">
                   <div className="p-6">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Patterns</div>
-                    <h3 className="text-base font-medium mb-2">Shared workspace context</h3>
+                    <h3 className="text-base font-medium mb-2">Shared knowledge base</h3>
                     <p className="text-white/40 text-xs leading-relaxed">
-                      Fresh material from tools, files, and prior outputs keeps every task grounded instead of cold-started.
+                      Fresh material from your tools, files, and prior outputs keeps every task grounded instead of starting from scratch.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -452,7 +454,7 @@ export default function HowItWorksPage() {
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">History</div>
                     <h3 className="text-base font-medium mb-2">Every output feeds better output</h3>
                     <p className="text-white/40 text-xs leading-relaxed">
-                      Task history, past deliverables, and feedback distillation compound into an irreplaceable context moat.
+                      Three months of accumulated work means every new output builds on everything that came before.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -494,13 +496,13 @@ export default function HowItWorksPage() {
                 Start with one task.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Sign up, connect context, and let TP set the first recurring loop in motion.
+                Sign up, connect your tools, and assign your first piece of recurring work.
               </p>
               <Link
                 href="/auth/login"
                 className="inline-block px-8 py-4 bg-white text-black text-lg font-medium rounded-full hover:bg-white/90 transition-colors"
               >
-                Start free
+                Meet your AI team
               </Link>
             </div>
           </section>

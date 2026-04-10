@@ -10,7 +10,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata: Metadata = getMarketingMetadata({
   title: "About — Why we built yarnnn",
   description:
-    "Chat resets. Systems compound. yarnnn is an autonomous agent platform for recurring knowledge work built around persistent agents, tasks, and supervision.",
+    "Chat resets. Systems compound. yarnnn is an AI team for recurring knowledge work — persistent agents that learn your business and deliver on schedule.",
   path: "/about",
   keywords: [
     "about yarnnn",
@@ -65,9 +65,9 @@ export default function AboutPage() {
                 context, runs on schedule, and gets sharper every cycle.
               </p>
               <p className="text-white font-medium">
-                yarnnn is what we built: an autonomous agent platform for recurring
-                knowledge work. Persistent agents, shared workspace context, TP
-                orchestration, and recurring tasks that compound through supervision.
+                yarnnn is what we built: an AI team for recurring knowledge work.
+                Persistent agents that connect to your tools, accumulate knowledge
+                of your business, and deliver work on schedule. You supervise. They improve.
               </p>
             </div>
           </section>
@@ -106,7 +106,7 @@ export default function AboutPage() {
                       split lets one agent deepen over time while tasks come and go.
                     </p>
                     <p className="text-white/30 text-sm">
-                      TP manages the system. Domain agents deepen inside their domains.
+                      Agents deepen their knowledge. Tasks come and go. The system keeps learning.
                     </p>
                   </div>
                 </div>
@@ -134,9 +134,10 @@ export default function AboutPage() {
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      The moat is accumulated context: workspace files, platform data,
-                      prior outputs, user feedback, and domain knowledge built across cycles.
-                      That is what turns future work from generic to specific.
+                      The moat is accumulated knowledge: what your competitors are doing,
+                      how your market is shifting, what your team decided last month,
+                      and what you corrected last week. That&apos;s what turns future work
+                      from generic to specific.
                     </p>
                     <p className="text-white/30 text-sm">
                       Agent identity is persistent. Task history stays inspectable. Quality compounds with tenure.
@@ -219,14 +220,14 @@ export default function AboutPage() {
                 Start with one recurring task.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                The scaffold is there from day one. The value comes from putting
-                a real loop into motion and supervising it.
+                Your team is ready from day one. The value comes from putting
+                real work into motion and watching it improve.
               </p>
               <Link
                 href="/auth/login"
                 className="inline-block px-8 py-4 bg-white text-black text-lg font-medium rounded-full hover:bg-white/90 transition-colors"
               >
-                Start free
+                Meet your AI team
               </Link>
             </div>
           </section>

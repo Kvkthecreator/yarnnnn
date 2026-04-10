@@ -10,20 +10,20 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata = getMarketingMetadata({
   title: "Pricing",
   description:
-    "Usage-based pricing. Start with $3 free, top up when you need more, or subscribe for $20/month auto-refill. Every feature available on every plan.",
+    "Start with $3 free. Top up when you need more, or go Pro at $19/month. Every feature available on every plan — no capability tiers.",
   path: "/pricing",
   keywords: ["yarnnn pricing", "autonomous AI pricing", "AI workforce pricing", "usage-based AI", "agent pricing"],
 });
 
 const everythingIncluded = [
-  "Scaffolded 10-agent workforce",
-  "Thinking Partner (TP)",
+  "Full 10-agent team",
+  "Chat with your orchestrator",
   "Unlimited tasks",
   "Slack, Notion, GitHub integrations",
-  "Rich output — PDF, PPTX, XLSX",
-  "Learning from your edits",
-  "Multi-agent orchestration",
-  "MCP context hub",
+  "Real deliverables — PDF, PPTX, XLSX",
+  "Agents learn from your edits",
+  "Scheduled delivery to your inbox",
+  "Connect from any AI tool via MCP",
 ];
 
 const topups = [
@@ -119,7 +119,7 @@ export default function PricingPage() {
                 <div className="p-8 flex flex-col flex-1">
                   <div className="mb-8">
                     <h2 className="text-2xl font-medium mb-2">Pro</h2>
-                    <p className="text-white/50 text-sm mb-6">For high-throughput workflows</p>
+                    <p className="text-white/50 text-sm mb-6">For teams that run daily</p>
                     <div className="flex items-baseline gap-1">
                       <span className="text-4xl font-medium">$19</span>
                       <span className="text-white/50">/month</span>

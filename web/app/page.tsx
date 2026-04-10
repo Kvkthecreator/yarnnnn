@@ -11,21 +11,21 @@ import { MockPDF, MockEmail, MockBrief } from "@/components/landing/MockOutputs"
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "Autonomous Agents for Recurring Knowledge Work",
+  title: "AI Team That Learns Your Business | yarnnn",
   description:
-    "Persistent agents, Thinking Partner, and recurring tasks that run from shared workspace context. Supervise the system instead of rebuilding the same work every cycle.",
+    "Five domain experts that connect to your Slack and Notion, accumulate knowledge of your business, and deliver work on schedule. Your agents get smarter every week.",
   path: "/",
   keywords: [
-    "autonomous ai",
-    "ai agent platform",
-    "recurring knowledge work",
-    "persistent agents",
-    "slack ai summary",
-    "notion ai summary",
-    "autonomous workflow",
-    "agent automation",
+    "ai agents",
+    "ai team",
+    "autonomous ai agents",
+    "ai that learns",
+    "ai competitive intelligence",
+    "ai market research",
+    "slack ai agent",
+    "notion ai agent",
     "recurring ai work",
-    "ai task automation",
+    "ai business intelligence",
   ],
 });
 
@@ -59,22 +59,21 @@ export default function LandingPage() {
                 <div className="font-brand text-4xl md:text-5xl mb-8 text-[#1a1a1a]">yarnnn</div>
 
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-wide text-[#1a1a1a]/90 mb-6">
-                  Recurring work,
+                  Your AI team delivered
                   <br />
-                  <span className="text-[#1a1a1a]">without re-prompting.</span>
+                  <span className="text-[#1a1a1a]">while you were offline.</span>
                 </h1>
 
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto lg:mx-0 font-light">
-                  Connect your workspace, define recurring tasks, and let persistent
-                  agents execute on schedule. Thinking Partner orchestrates. Your
-                  feedback compounds instead of disappearing with the tab.
+                  Connect Slack and Notion. Tell it what you need. Your agents
+                  run on schedule, learn from your edits, and get better every week.
                 </p>
 
                 <Link
                   href="/auth/login"
                   className="inline-block px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
                 >
-                  Start free
+                  Meet your AI team
                 </Link>
               </div>
 
@@ -92,26 +91,27 @@ export default function LandingPage() {
               <div>
                 <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">The problem</div>
                 <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
-                  Every Monday, same work.
+                  You know what you should be tracking.
                   <br />
-                  <span className="text-[#1a1a1a]/50">Still doing it yourself.</span>
+                  <span className="text-[#1a1a1a]/50">You just can&apos;t sustain it.</span>
                 </h2>
                 <p className="text-[#1a1a1a]/50 leading-relaxed">
-                  You spend hours pulling updates, summarizing docs, and stitching context
-                  across tools. AI chat tools help in the moment — but close the tab and
-                  everything resets. You&apos;re still the one rebuilding context from scratch.
+                  Competitors, market shifts, operational signals — you&apos;ve tried tracking them.
+                  The Notion database went stale. The weekly scan habit died. ChatGPT helps
+                  in the moment, but it forgets everything by next session. You&apos;re back to
+                  instinct and stale information.
                 </p>
               </div>
               <div>
                 <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">What yarnnn does</div>
-                <h3 className="text-xl font-medium mb-4 text-[#1a1a1a]">Keep the system running.</h3>
+                <h3 className="text-xl font-medium mb-4 text-[#1a1a1a]">Your intelligence team, always running.</h3>
                 <p className="text-[#1a1a1a]/50 leading-relaxed mb-4">
-                  yarnnn keeps shared context, a persistent workforce, and recurring
-                  tasks in one system. You define the work. Agents execute it. TP
-                  explains what happened and adjusts what should happen next.
+                  Five domain experts that connect to your tools, accumulate knowledge
+                  of your business continuously, and produce work on schedule. You assign
+                  the work. They execute, learn, and improve. You review what matters.
                 </p>
                 <p className="text-[#1a1a1a] text-sm font-medium">
-                  Agents are who. Tasks are what.
+                  Day 1 is useful. Day 90 is irreplaceable.
                 </p>
               </div>
             </div>
@@ -146,25 +146,26 @@ export default function LandingPage() {
                 <div className="p-6 md:p-8 h-full">
                   <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-4">Your team</div>
                   <h3 className="text-xl md:text-2xl font-medium mb-2 text-[#1a1a1a]">
-                    Ten agents, one workforce
+                    Ready at signup. No configuration.
                   </h3>
                   <p className="text-[#1a1a1a]/50 text-sm mb-8 max-w-md">
-                    Five domain stewards, one reporting synthesizer, three platform
-                    bots, and Thinking Partner as the meta-cognitive agent.
+                    Five domain experts, a synthesizer for cross-cutting reports,
+                    platform connectors for your tools, and an orchestrator that
+                    manages the whole team.
                   </p>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {([
-                      { name: "Competitive Intel", letter: "CI", color: "#6366f1", desc: "Competitors, external signals" },
-                      { name: "Market Research", letter: "MR", color: "#0ea5e9", desc: "Research, market context" },
-                      { name: "Business Dev", letter: "BD", color: "#10b981", desc: "Relationships, opportunities" },
-                      { name: "Operations", letter: "OP", color: "#f59e0b", desc: "Process, execution health" },
-                      { name: "Marketing", letter: "M", color: "#ef4444", desc: "Positioning, creative context" },
-                      { name: "Reporting", letter: "RP", color: "#8b5cf6", desc: "Cross-domain synthesis" },
-                      { name: "Slack Bot", letter: "S", color: "#E01E5A", desc: "Channels & threads" },
-                      { name: "Notion Bot", letter: "N", color: "#191919", desc: "Pages & databases" },
-                      { name: "GitHub Bot", letter: "G", color: "#111827", desc: "Repos & code context" },
-                      { name: "Thinking Partner", letter: "TP", color: "#374151", desc: "System orchestration" },
+                      { name: "Competitive Intel", letter: "CI", color: "#6366f1", desc: "Tracks your competitors for you" },
+                      { name: "Market Research", letter: "MR", color: "#0ea5e9", desc: "Monitors your market continuously" },
+                      { name: "Business Dev", letter: "BD", color: "#10b981", desc: "Surfaces relationships & opportunities" },
+                      { name: "Operations", letter: "OP", color: "#f59e0b", desc: "Keeps pulse on execution health" },
+                      { name: "Marketing", letter: "M", color: "#ef4444", desc: "Watches positioning & creative" },
+                      { name: "Reporting", letter: "RP", color: "#8b5cf6", desc: "Connects dots across all domains" },
+                      { name: "Slack Bot", letter: "S", color: "#E01E5A", desc: "Reads your channels & threads" },
+                      { name: "Notion Bot", letter: "N", color: "#191919", desc: "Reads your pages & databases" },
+                      { name: "GitHub Bot", letter: "G", color: "#111827", desc: "Follows repos & activity" },
+                      { name: "Thinking Partner", letter: "TP", color: "#374151", desc: "Manages and orchestrates the team" },
                     ] as const).map((agent) => (
                       <div key={agent.name} className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#1a1a1a]/[0.02] transition-colors">
                         <div
@@ -197,8 +198,9 @@ export default function LandingPage() {
                     <span className="text-sm font-medium text-[#1a1a1a]">Weekly leadership brief</span>
                   </div>
                   <p className="text-[#1a1a1a]/40 text-xs leading-relaxed flex-1">
-                    Reporting turns fresh workspace context into an executive brief:
-                    key updates, blockers, decisions, and what changed across the week.
+                    Every Monday, your Reporting agent reads what happened across
+                    the team — updates, blockers, decisions — and delivers a brief
+                    before you open your laptop.
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#1a1a1a]/[0.04] text-[#1a1a1a]/40">Recurring</span>
@@ -239,7 +241,7 @@ export default function LandingPage() {
                 spotlightColor="rgba(16,185,129,0.06)"
               >
                 <div className="p-6 h-full">
-                  <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Output formats</div>
+                  <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Real deliverables</div>
                   <div className="flex flex-wrap gap-2">
                     {["PDF", "PPTX", "XLSX", "Email", "HTML", "Charts"].map((fmt) => (
                       <span
@@ -251,7 +253,8 @@ export default function LandingPage() {
                     ))}
                   </div>
                   <p className="text-[#1a1a1a]/40 text-xs mt-4 leading-relaxed">
-                    Agents produce rich output. Format depends on the task.
+                    Not chat responses. Formatted reports, briefs, and emails
+                    delivered to your inbox on schedule.
                   </p>
                 </div>
               </SpotlightCard>
@@ -270,8 +273,9 @@ export default function LandingPage() {
                     Day 90 is irreplaceable.
                   </h3>
                   <p className="text-[#1a1a1a]/40 text-xs leading-relaxed">
-                    3 months of context, feedback, and domain knowledge can&apos;t be
-                    replicated by switching tools. That&apos;s the whole point.
+                    Three months of accumulated knowledge about your competitors,
+                    your market, and your business can&apos;t be replicated by starting
+                    over with a new tool.
                   </p>
                 </div>
               </SpotlightCard>
@@ -300,23 +304,64 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* ─── Why not just use X? ─────────────────────────────────── */}
+        <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
+                Not another chatbot.
+              </h2>
+              <p className="text-[#1a1a1a]/50 max-w-lg mx-auto">
+                You already have great AI tools. Here&apos;s what they can&apos;t do.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="p-6 rounded-2xl bg-[#1a1a1a]/[0.02] border border-[#1a1a1a]/[0.06]">
+                <div className="text-sm font-medium text-[#1a1a1a]/40 mb-3">vs ChatGPT</div>
+                <p className="text-sm text-[#1a1a1a]/70 leading-relaxed">
+                  ChatGPT forgets your work between sessions. yarnnn&apos;s agents
+                  accumulate six months of your competitive landscape, market
+                  context, and business knowledge.
+                </p>
+              </div>
+              <div className="p-6 rounded-2xl bg-[#1a1a1a]/[0.02] border border-[#1a1a1a]/[0.06]">
+                <div className="text-sm font-medium text-[#1a1a1a]/40 mb-3">vs Claude / Cowork</div>
+                <p className="text-sm text-[#1a1a1a]/70 leading-relaxed">
+                  Claude stops when your laptop closes. yarnnn&apos;s agents run
+                  on your schedule — mornings, weekdays, monthly — whether
+                  you&apos;re online or not.
+                </p>
+              </div>
+              <div className="p-6 rounded-2xl bg-[#1a1a1a]/[0.02] border border-[#1a1a1a]/[0.06]">
+                <div className="text-sm font-medium text-[#1a1a1a]/40 mb-3">vs OpenClaw</div>
+                <p className="text-sm text-[#1a1a1a]/70 leading-relaxed">
+                  OpenClaw needs a server, manual setup, and has known security
+                  risks. yarnnn is ready at signup with a curated, secure
+                  agent team.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ─── CTA ─────────────────────────────────────────────────── */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-3xl mx-auto text-center">
-            <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
-              Start with one task.
+            <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
+              Your team is ready.
             </h2>
-            <p className="text-[#1a1a1a]/50 mb-4">
-              Free: 2 active tasks, 20 work credits/month, daily sync
+            <p className="text-[#1a1a1a]/50 mb-2">
+              Sign up, connect Slack or Notion, and assign your first task.
             </p>
             <p className="text-[#1a1a1a]/50 mb-10">
-              Pro: 10 active tasks, 500 work credits/month, hourly sync — $19/mo
+              Free to start. Pro at $19/mo for the full team.
             </p>
             <Link
               href="/auth/login"
               className="inline-block px-8 py-4 bg-[#1a1a1a] text-white text-lg font-medium rounded-full hover:bg-[#1a1a1a]/90 transition-all"
             >
-              Start free
+              Meet your AI team
             </Link>
           </div>
         </section>

@@ -102,7 +102,7 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - **Key team reality surfaced**: Aside from Erick, the entire Memento team is fully Korean and barely speaks English — but they're targeting the US market. They need someone bilingual who can own **either product or GTM** for the English/US audience.
 - Erick thinks there **may genuinely be a fit** for Kevin in that English/US-facing role (product or GTM lead).
 - **Next steps from Erick's side**: needs to discuss internally with the team, and resolve some pending HR issues before formalizing anything.
-- **Next step from Kevin's side**: grab a beer with Erick **and the CTO** soon — Kevin wants to dig into the technical side of yesterday's discussion directly with the CTO. Informal, founder-to-founder.
+- **Next step confirmed**: Beers with Erick **Friday April 17**. CTO likely joining (Erick mentioned it) — not confirmed yet. Informal, founder-to-founder.
 
 **What's now on the table**:
 - A potential bilingual product/GTM role at Memento covering the US market
