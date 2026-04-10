@@ -1045,10 +1045,27 @@ def build_task_execution_prompt(
     system += """
 
 ## Tool Usage (Headless Mode)
-You have read-only investigation tools: Search, Read, List, WebSearch, GetSystemState.
-- Use tools ONLY if the gathered context is clearly insufficient.
-- Prefer generating from the provided context — most tasks have enough.
-- NEVER narrate your tool usage in the final output.
+You have read-only investigation tools: SearchFiles, ReadFile, ListFiles, QueryKnowledge, WebSearch, GetSystemState.
+
+**Decision order — follow this sequence:**
+1. Read the gathered context below first. Most tasks have enough to generate from.
+2. Identify a specific gap ("I have Q1 data but no Q2", "I see company names but no pricing").
+3. Call ONE tool to fill that specific gap. Check the result.
+4. If still insufficient and a second gap is clear, call ONE more. Stop there unless critical.
+
+**WebSearch principles:**
+- Call WebSearch only when gathered context is genuinely stale or missing external data.
+- Be specific: `WebSearch(query="Acme Corp pricing 2025")` not `WebSearch(query="Acme")`.
+- Use `context=` to narrow scope: `WebSearch(query="latest releases", context="AI coding tools")`.
+- Do not repeat a search you already made — if round 2 has results, use them in round 3.
+- Stop when you have enough. Three web searches with diminishing returns means stop, not search more.
+
+**Stopping criteria — stop calling tools when:**
+- The gathered context + results answer the task objective
+- Two consecutive tool calls returned nothing new
+- You have reached a clear answer and are filling in edges, not gaps
+
+**Never narrate tool usage in the final output.** The reader sees only your generated content.
 
 ## Visual Assets
 Include visual elements inline — they are automatically rendered by the platform:

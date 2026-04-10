@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.10.2] - Tool calling principles: headless + TP WebSearch guidance
+
+### Changed
+- `api/services/task_pipeline.py`: Replaced 3-bullet "Tool Usage (Headless Mode)" section
+  with explicit decision-order principles (read context first → identify gap → one tool call
+  → stop criteria). Fixed stale tool names (Search/Read/List → SearchFiles/ReadFile/ListFiles,
+  ADR-168). Added WebSearch specificity principles (specific queries, use context=, don't repeat).
+  Added explicit stopping criteria (two consecutive empty calls = stop).
+- `api/agents/tp_prompts/tools.py`: Expanded WebSearch guidance from "what it does" into
+  "when to use / when not to / query principles". Added: don't search what's in context,
+  don't repeat recent searches, use context= parameter, stop at diminishing returns.
+  Renamed "Search" → "SearchEntities" in the WebSearch-vs-Search guidance to match ADR-168.
+- Expected behavior: headless agents should make fewer, more targeted tool calls and stop
+  earlier. TP should check gathered context before searching and avoid redundant searches.
+
 ## [2026.04.10.1] - ADR-170 Phase 2 start: layout_mode → surface_type
 
 ### Changed

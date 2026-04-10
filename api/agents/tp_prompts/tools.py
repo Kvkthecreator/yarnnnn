@@ -64,9 +64,25 @@ Examples:
 - `WebSearch(url="https://acme.com/about")` - fetch and read a specific page
 - If user pastes a URL, use `url` param to fetch it directly
 
-**When to use WebSearch vs Search:**
+**When to use WebSearch:**
+- External/internet info the user doesn't already have in their workspace
+- Current events, pricing, announcements — when recency matters
+- URLs the user shares — always fetch before extracting context
+
+**When NOT to use WebSearch:**
+- Information you can already see in gathered context — check first
+- You just called WebSearch with a similar query — reuse results, don't repeat
+- Exploring what's available — use SearchEntities or QueryKnowledge first (cheaper)
+
+**Query principles:**
+- Be specific. `"Acme Corp Series C 2024"` beats `"Acme funding"`
+- Use `context=` to narrow: `WebSearch(query="latest models", context="AI coding tools")`
+- If a result mentions something new and relevant, ONE follow-up search is fine — don't spiral
+- Stop when you have enough to answer. Don't burn calls for diminishing returns.
+
+**When to use SearchEntities vs WebSearch:**
+- **SearchEntities**: User's own data (uploaded documents, agents, generated content)
 - **WebSearch**: External/internet info (news, docs, research, competitors, URLs)
-- **Search**: User's own data (uploaded documents, agents, generated content)
 
 ---
 
