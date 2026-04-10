@@ -78,9 +78,12 @@ MANAGE_TASK_TOOL = {
   Returns: criteria_met, gaps, context_health, quality_assessment. Auto-writes evaluation to memory/feedback.md.
   Use after runs complete (mandatory for goal mode, periodic for recurring, skip for reactive).
 
-**action="steer"** — Write cycle-specific guidance for the next run (ADR-149).
+**action="steer"** — Write cycle-specific guidance for the next run (ADR-149, ADR-170).
   ManageTask(task_slug="weekly-briefing", action="steer", steering="Focus on Acme Corp pricing changes next cycle")
+  ManageTask(task_slug="competitive-brief", action="steer", steering="Rewrite with Q1 data", target_section="executive-summary")
   Writes to memory/steering.md — read by pipeline on next execution.
+  Optional target_section: slug of a declared page_structure section (produces_deliverable tasks only).
+  When target_section is set, forces that section to regenerate even if domain data has not changed.
 
 **action="complete"** — Mark task as completed, stop all future runs (ADR-149).
   ManageTask(task_slug="due-diligence-report", action="complete")
@@ -142,6 +145,10 @@ MANAGE_TASK_TOOL = {
             "steering": {
                 "type": "string",
                 "description": "For action='steer': guidance for the next execution cycle"
+            },
+            "target_section": {
+                "type": "string",
+                "description": "For action='steer': optional section slug to force regeneration of (produces_deliverable tasks only, ADR-170). E.g. 'executive-summary'. Forces that section stale regardless of domain freshness."
             },
             "schedule": {
                 "type": "string",
@@ -637,6 +644,22 @@ Return ONLY the JSON object, no other text."""
             messages=[{"role": "user", "content": eval_prompt}],
         )
         eval_text = response.content[0].text.strip()
+
+        # ADR-171: Record token spend for this evaluation
+        try:
+            from services.platform_limits import record_token_usage
+            from services.supabase import get_service_client
+            record_token_usage(
+                get_service_client(),
+                user_id=auth.user_id,
+                caller="evaluation",
+                model=EVALUATE_MODEL,
+                input_tokens=getattr(response.usage, "input_tokens", 0),
+                output_tokens=getattr(response.usage, "output_tokens", 0),
+                metadata={"task_slug": task_slug},
+            )
+        except Exception as _e:
+            logger.warning(f"[TOKEN_USAGE] evaluation record failed: {_e}")
 
         # Parse JSON response
         try:

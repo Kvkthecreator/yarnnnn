@@ -91,6 +91,8 @@ class WebSearchResult:
     results: list[dict]  # [{title, url, snippet}]
     success: bool
     error: Optional[str] = None
+    input_tokens: int = 0   # ADR-171: accumulated across all rounds
+    output_tokens: int = 0
 
 
 @dataclass
@@ -275,6 +277,9 @@ Be factual and cite your sources."""
         sources = []
         search_results = []
         content_parts = []
+        # ADR-171: accumulate tokens across all rounds
+        total_input_tokens = 0
+        total_output_tokens = 0
 
         # Initial API call with web_search tool
         response = await client.messages.create(
@@ -285,6 +290,9 @@ Be factual and cite your sources."""
             tools=[WEB_SEARCH_TOOL],
             messages=messages,
         )
+        if response.usage:
+            total_input_tokens += getattr(response.usage, "input_tokens", 0)
+            total_output_tokens += getattr(response.usage, "output_tokens", 0)
 
         # Process response - track searches and results
         for block in response.content:
@@ -315,6 +323,9 @@ Be factual and cite your sources."""
                 tools=[WEB_SEARCH_TOOL],
                 messages=messages,
             )
+            if response.usage:
+                total_input_tokens += getattr(response.usage, "input_tokens", 0)
+                total_output_tokens += getattr(response.usage, "output_tokens", 0)
 
             for block in response.content:
                 if block.type == "text":
@@ -343,6 +354,8 @@ Be factual and cite your sources."""
             query=query,
             results=unique_results[:max_results],
             success=True,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
         )
 
     except Exception as e:
@@ -416,6 +429,23 @@ async def handle_web_search(auth: Any, input: dict) -> dict:
         }
 
     result = await _execute_web_search(query, context, max_results)
+
+    # ADR-171: Record token spend for this search
+    if result.input_tokens or result.output_tokens:
+        try:
+            from services.platform_limits import record_token_usage
+            from services.supabase import get_service_client
+            record_token_usage(
+                get_service_client(),
+                user_id=auth.user_id,
+                caller="web_search",
+                model="claude-sonnet-4-20250514",
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                metadata={"query": query[:200]},
+            )
+        except Exception as _e:
+            logger.warning(f"[TOKEN_USAGE] web_search record failed: {_e}")
 
     if not result.success:
         return {

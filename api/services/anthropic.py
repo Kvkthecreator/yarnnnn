@@ -186,6 +186,36 @@ async def chat_completion(
     return response.content[0].text
 
 
+async def chat_completion_with_usage(
+    messages: list[dict],
+    system: str | list[dict],
+    model: str = "claude-sonnet-4-20250514",
+    max_tokens: int = 4096,
+) -> tuple[str, dict]:
+    """Non-streaming chat completion returning (text, usage).
+
+    ADR-171: Use this instead of chat_completion() when the caller needs to
+    record token spend to token_usage. Usage dict has input_tokens + output_tokens.
+    """
+    client = get_anthropic_client()
+
+    response = await client.messages.create(
+        model=model,
+        max_tokens=max_tokens,
+        system=_prepare_system(system),
+        messages=messages,
+        extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+    )
+
+    usage = {}
+    if response.usage:
+        usage = {
+            "input_tokens": getattr(response.usage, "input_tokens", 0),
+            "output_tokens": getattr(response.usage, "output_tokens", 0),
+        }
+    return response.content[0].text, usage
+
+
 async def chat_completion_with_tools(
     messages: list[dict],
     system: str | list[dict],

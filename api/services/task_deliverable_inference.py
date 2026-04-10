@@ -87,14 +87,30 @@ async def infer_task_deliverable_preferences(
     )
 
     try:
-        anthropic = get_anthropic_client()
-        response = anthropic.messages.create(
+        anthropic_client = get_anthropic_client()
+        response = await anthropic_client.messages.create(
             model=INFERENCE_MODEL,
             max_tokens=2000,
             system=DELIVERABLE_INFERENCE_PROMPT,
             messages=[{"role": "user", "content": user_message}],
         )
         updated_content = response.content[0].text.strip()
+
+        # ADR-171: Record token spend
+        try:
+            from services.platform_limits import record_token_usage
+            from services.supabase import get_service_client
+            record_token_usage(
+                get_service_client(),
+                user_id=user_id,
+                caller="inference",
+                model=INFERENCE_MODEL,
+                input_tokens=getattr(response.usage, "input_tokens", 0),
+                output_tokens=getattr(response.usage, "output_tokens", 0),
+                metadata={"task_slug": task_slug, "inference_type": "deliverable"},
+            )
+        except Exception as _e:
+            logger.warning(f"[TOKEN_USAGE] deliverable_inference record failed: {_e}")
 
         if not updated_content or len(updated_content) < 50:
             logger.warning(f"[DELIVERABLE_INFERENCE] Inference produced insufficient content")

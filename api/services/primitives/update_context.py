@@ -153,13 +153,30 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
         um = UserMemory(auth.client, auth.user_id)
         existing = await um.read(filename)
 
-        new_content = await infer_shared_context(
+        new_content, inference_usage = await infer_shared_context(
             target=target,
             text=text,
             document_contents=document_contents,
             url_contents=url_contents,
             existing_content=existing or "",
         )
+
+        # ADR-171: Record token spend for this inference call
+        if inference_usage.get("input_tokens") or inference_usage.get("output_tokens"):
+            try:
+                from services.platform_limits import record_token_usage
+                from services.supabase import get_service_client
+                record_token_usage(
+                    get_service_client(),
+                    user_id=auth.user_id,
+                    caller="inference",
+                    model="claude-sonnet-4-20250514",
+                    input_tokens=inference_usage.get("input_tokens", 0),
+                    output_tokens=inference_usage.get("output_tokens", 0),
+                    metadata={"target": target},
+                )
+            except Exception as _e:
+                logger.warning(f"[TOKEN_USAGE] inference record failed: {_e}")
 
         if not new_content or not new_content.strip():
             return {"success": False, "error": "inference_empty", "message": "Inference produced no content — try providing more detail"}

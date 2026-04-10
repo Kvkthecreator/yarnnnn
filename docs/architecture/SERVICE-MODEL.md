@@ -288,10 +288,18 @@ Three distinct mechanisms drive agent development:
 
 ## Revenue Model
 
-- **Chat is free** — TP conversation is the onramp
-- **Work is metered** — autonomous task runs consume credits
-- **Two tiers**: Free (limited runs/month) and Pro ($19/mo, generous allocation)
-- **Three platforms**: Slack, Notion, and GitHub (Gmail/Calendar sunset per ADR-131, GitHub added per ADR-147)
+> **ADR-171 (Proposed)**: Moving to universal token spend metering. The credits model below is current implementation; the direction is documented in [ADR-171](../adr/ADR-171-token-spend-metering.md).
+
+**Current (work credits)**:
+- Chat is free — TP conversation is the onramp
+- Work is metered — autonomous task runs consume credits (3 credits/run)
+- Two tiers: Free (20 credits/mo) and Pro ($19/mo, 500 credits/mo)
+
+**Direction (ADR-171)**:
+- Single meter: `cost_usd` across all LLM surfaces — chat, task execution, web search, inference
+- No surface carveouts, no fictional credit currency
+- Free tier: ~$3 of tokens/mo. Pro: ~$X of tokens/mo (allocation TBD post-metering data)
+- Three platforms: Slack, Notion, and GitHub (Gmail/Calendar sunset per ADR-131, GitHub added per ADR-147)
 
 ---
 

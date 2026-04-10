@@ -27,12 +27,16 @@ from services.admin_auth import AdminAuth
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Anthropic pricing per 1K tokens (Sonnet 4 / Haiku 4.5)
-PRICING = {
-    "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
-    "claude-haiku-4-5-20251001": {"input": 0.0008, "output": 0.004},
+# ADR-171: Use BILLING_RATES from platform_limits as single source of truth.
+# Admin dashboard uses Anthropic cost (not user-facing markup) for internal analytics.
+# Anthropic rates = BILLING_RATES / 2 (2x markup).
+from services.platform_limits import BILLING_RATES as _BILLING_RATES
+
+_ANTHROPIC_RATES = {
+    model: {"input": r["input_per_mtok"] / 2 / 1000, "output": r["output_per_mtok"] / 2 / 1000}
+    for model, r in _BILLING_RATES.items()
 }
-DEFAULT_PRICING = {"input": 0.003, "output": 0.015}  # Assume Sonnet if unknown
+_DEFAULT_ANTHROPIC_RATE = _ANTHROPIC_RATES.get("claude-sonnet-4-20250514", {"input": 0.003, "output": 0.015})
 
 
 # =============================================================================
@@ -126,8 +130,8 @@ def _get_date_threshold(days: int) -> str:
 
 
 def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    """Estimate USD cost from token counts and model."""
-    pricing = PRICING.get(model, DEFAULT_PRICING)
+    """Estimate Anthropic cost (not user-facing rate) from token counts and model."""
+    pricing = _ANTHROPIC_RATES.get(model, _DEFAULT_ANTHROPIC_RATE)
     return (input_tokens / 1000 * pricing["input"]) + (output_tokens / 1000 * pricing["output"])
 
 

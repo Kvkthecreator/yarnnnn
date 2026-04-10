@@ -1840,12 +1840,20 @@ async def execute_task(
         # =====================================================================
         duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
 
-        if final_status == "delivered":
-            try:
-                from services.platform_limits import record_credits
-                record_credits(client, user_id, "task_execution", agent_id=str(agent_id), metadata={"task_slug": task_slug})
-            except Exception:
-                pass
+        # ADR-171: Record token spend for this task run
+        try:
+            from services.platform_limits import record_token_usage
+            record_token_usage(
+                client, user_id,
+                caller="task_pipeline",
+                model=SONNET_MODEL,
+                input_tokens=version_metadata.get("input_tokens", 0),
+                output_tokens=version_metadata.get("output_tokens", 0),
+                ref_id=str(version_id),
+                metadata={"task_slug": task_slug},
+            )
+        except Exception:
+            pass
 
         logger.info(
             f"[TASK_EXEC] Complete: {task_slug} → {agent_slug} v{next_version} "
@@ -1919,7 +1927,7 @@ async def _execute_pipeline(
         update_version_for_delivery, SONNET_MODEL,
         _extract_agent_reflection, _compose_output_html,
     )
-    from services.platform_limits import check_credits, record_credits
+    from services.platform_limits import check_spend_budget, record_token_usage
 
     steps = process_steps  # ADR-152: from TASK.md, not registry
     title = task_info.get("title") or task_slug
@@ -2156,11 +2164,16 @@ async def _execute_pipeline(
         except Exception as e:
             logger.warning(f"[PIPELINE] Step output save failed: {e}")
 
-        # Record credit per step
+        # ADR-171: Record token spend for this step
         try:
-            record_credits(client, user_id, "task_execution", agent_id=str(agent_id), metadata={
-                "task_slug": task_slug, "step": step_num, "step_name": step_name,
-            })
+            record_token_usage(
+                client, user_id,
+                caller="task_pipeline",
+                model=SONNET_MODEL,
+                input_tokens=usage.get("input_tokens", 0),
+                output_tokens=usage.get("output_tokens", 0),
+                metadata={"task_slug": task_slug, "step": step_num, "step_name": step_name},
+            )
         except Exception:
             pass
 
@@ -3353,10 +3366,18 @@ async def _execute_direct(
         # row is the authoritative record.
         duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
 
-        # Work credits
+        # ADR-171: Record token spend
         try:
-            from services.platform_limits import record_credits
-            record_credits(client, user_id, "task_execution", agent_id=str(agent_id))
+            from services.platform_limits import record_token_usage
+            record_token_usage(
+                client, user_id,
+                caller="task_pipeline",
+                model=SONNET_MODEL,
+                input_tokens=version_metadata.get("input_tokens", 0) if "version_metadata" in dir() else 0,
+                output_tokens=version_metadata.get("output_tokens", 0) if "version_metadata" in dir() else 0,
+                ref_id=str(version_id),
+                metadata={"task_slug": task_slug},
+            )
         except Exception:
             pass
 

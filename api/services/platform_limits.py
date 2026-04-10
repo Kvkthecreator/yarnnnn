@@ -1,17 +1,20 @@
 """
-Platform Limits Service — Subscription + Work Credits Model
+Platform Limits Service — ADR-171: Token Spend Metering
 
-Subscription buys access + unlimited chat (Pro). Work credits meter autonomous work.
+Universal meter: cost_usd across all LLM call surfaces (chat, task_pipeline,
+web_search, inference, evaluation, session_summary). One number per user per month.
 
-Tier Structure:
-- Free: 150 messages/mo, 20 work credits/mo, 2 active tasks, 5 slack/10 notion, daily sync
-- Pro ($19/mo): unlimited chat, 500 work credits/mo, 10 active tasks, unlimited sources, hourly sync
+User-facing billing rates: 2x Anthropic API rates.
+  Sonnet: $6.00/MTok input, $30.00/MTok output (Anthropic: $3/$15)
+  Opus:   $30.00/MTok input, $150.00/MTok output (Anthropic: $15/$75)
+  Haiku:  $1.60/MTok input, $8.00/MTok output (Anthropic: $0.80/$4) — internal only
 
-Work credit costs:
-- Task execution: 3 credits (full Sonnet pipeline)
-- Render: 1 credit (output gateway)
+Cache discount not passed through — platform margin.
+Overage model: hard stop at monthly limit.
 
-All numbers configurable via TIER_LIMITS and CREDIT_COSTS below.
+Tier allocations:
+  Free:  $3.00/mo included token spend
+  Pro:   $20.00/mo included token spend ($19/mo subscription)
 """
 
 import logging
@@ -27,14 +30,32 @@ SyncFrequency = Literal["1x_daily", "2x_daily", "4x_daily", "hourly"]
 
 
 # =============================================================================
-# Credit costs — single place to tune pricing ratios
+# Billing rates — user-facing rates at 2x Anthropic API rates (April 2026)
+# Keys match model strings used in API calls.
+# Rates are decoupled from Anthropic's rates — update at our discretion.
+# Haiku is internal only — never shown in user-facing billing UI.
 # =============================================================================
 
-CREDIT_COSTS = {
-    "task_execution": 3,   # Full pipeline: context → Sonnet → save → deliver
-    "render": 1,           # Output gateway compute (PDF, chart, PPTX)
-    "agent_run": 3,        # Legacy alias for task_execution
+BILLING_RATES: dict[str, dict[str, float]] = {
+    "claude-sonnet-4-20250514":  {"input_per_mtok": 6.00,  "output_per_mtok": 30.00},
+    "claude-opus-4-6":           {"input_per_mtok": 30.00, "output_per_mtok": 150.00},
+    "claude-haiku-4-5-20251001": {"input_per_mtok": 1.60,  "output_per_mtok": 8.00},
 }
+_DEFAULT_BILLING_RATE = BILLING_RATES["claude-sonnet-4-20250514"]
+
+
+def compute_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
+    """Compute cost_usd at user-facing billing rates. Cache-agnostic (no cache discount).
+
+    All internal models (Haiku) are billed at their published rate even though
+    they are not user-selectable — ensures accurate cost accounting.
+    """
+    rate = BILLING_RATES.get(model, _DEFAULT_BILLING_RATE)
+    cost = (
+        (input_tokens  / 1_000_000) * rate["input_per_mtok"]
+        + (output_tokens / 1_000_000) * rate["output_per_mtok"]
+    )
+    return round(cost, 6)
 
 
 # =============================================================================
@@ -44,36 +65,36 @@ CREDIT_COSTS = {
 @dataclass
 class PlatformLimits:
     """Resource limits for a user tier."""
-    slack_channels: int       # -1 for unlimited
-    notion_pages: int         # -1 for unlimited
-    github_repos: int         # -1 for unlimited (ADR-147)
+    slack_channels: int           # -1 for unlimited
+    notion_pages: int             # -1 for unlimited
+    github_repos: int             # -1 for unlimited (ADR-147)
     total_platforms: int
     sync_frequency: SyncFrequency
-    monthly_messages: int     # -1 for unlimited (Pro)
-    active_tasks: int         # -1 for unlimited
-    monthly_credits: int      # -1 for unlimited
+    monthly_messages: int         # -1 for unlimited (Pro)
+    active_tasks: int             # -1 for unlimited
+    monthly_spend_usd_limit: float  # ADR-171: monthly token spend cap in USD
 
 
 TIER_LIMITS = {
     "free": PlatformLimits(
         slack_channels=5,
         notion_pages=10,
-        github_repos=3,       # ADR-147: 3 repos for free tier
+        github_repos=3,
         total_platforms=3,
         sync_frequency="1x_daily",
         monthly_messages=150,
         active_tasks=2,
-        monthly_credits=20,
+        monthly_spend_usd_limit=3.00,   # ADR-171: $3/mo included
     ),
     "pro": PlatformLimits(
         slack_channels=-1,
         notion_pages=-1,
-        github_repos=-1,      # ADR-147: unlimited repos for pro
+        github_repos=-1,
         total_platforms=3,
         sync_frequency="hourly",
-        monthly_messages=-1,        # Unlimited chat for Pro
+        monthly_messages=-1,            # Unlimited chat for Pro
         active_tasks=10,
-        monthly_credits=500,
+        monthly_spend_usd_limit=20.00,  # ADR-171: $20/mo included
     ),
 }
 
@@ -329,59 +350,73 @@ def check_monthly_message_limit(client, user_id: str) -> tuple[bool, int, int]:
 
 
 # =============================================================================
-# Work Credits — unified metering for autonomous work
+# Token spend metering — ADR-171
+# Universal meter: cost_usd across all LLM surfaces.
 # =============================================================================
 
-def get_monthly_credits_used(client, user_id: str) -> int:
-    """Get total work credits consumed this month."""
+def get_monthly_spend_usd(client, user_id: str) -> float:
+    """Total token spend in USD for the current calendar month."""
     try:
         result = client.rpc(
-            "get_monthly_credits",
+            "get_monthly_spend_usd",
             {"p_user_id": user_id}
         ).execute()
-        return result.data if isinstance(result.data, int) else 0
+        val = result.data
+        return float(val) if val is not None else 0.0
     except Exception:
-        return 0
+        return 0.0
 
 
-def check_credits(client, user_id: str) -> tuple[bool, int, int]:
-    """
-    Check if user has remaining work credits.
+def check_spend_budget(client, user_id: str) -> tuple[bool, float, float]:
+    """Check if user is within monthly token spend limit.
 
-    Returns: (allowed, credits_used, credits_limit)
+    Returns: (allowed, spent_usd, limit_usd)
+    Hard stop — no soft overage (ADR-171).
     """
     limits = get_limits_for_user(client, user_id)
-    if limits.monthly_credits == -1:
-        return True, 0, -1
-
-    credits_used = get_monthly_credits_used(client, user_id)
-    if credits_used >= limits.monthly_credits:
-        return False, credits_used, limits.monthly_credits
-    return True, credits_used, limits.monthly_credits
+    limit = limits.monthly_spend_usd_limit
+    spent = get_monthly_spend_usd(client, user_id)
+    if spent >= limit:
+        return False, spent, limit
+    return True, spent, limit
 
 
-def record_credits(
+def record_token_usage(
     client,
     user_id: str,
-    action_type: str,
-    agent_id: str = None,
+    caller: str,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    ref_id: str = None,
     metadata: dict = None,
 ) -> None:
-    """Record work credits consumed. Cost looked up from CREDIT_COSTS."""
-    credits = CREDIT_COSTS.get(action_type, 1)
+    """Record one LLM call to token_usage. Called at every call site.
+
+    caller: 'chat' | 'task_pipeline' | 'web_search' | 'inference' |
+            'evaluation' | 'session_summary'
+    cost_usd computed at user-facing billing rates (cache-agnostic).
+    """
+    cost = compute_cost_usd(model, input_tokens, output_tokens)
     try:
         row = {
             "user_id": user_id,
-            "action_type": action_type,
-            "credits_consumed": credits,
+            "caller": caller,
+            "model": model,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd": cost,
         }
-        if agent_id:
-            row["agent_id"] = agent_id
+        if ref_id:
+            row["ref_id"] = str(ref_id)
         if metadata:
             row["metadata"] = metadata
-        client.table("work_credits").insert(row).execute()
+        client.table("token_usage").insert(row).execute()
     except Exception as e:
-        logger.warning(f"[CREDITS] Failed to record {action_type} ({credits} credits): {e}")
+        logger.warning(
+            f"[TOKEN_USAGE] Failed to record {caller} "
+            f"({input_tokens}in/{output_tokens}out tokens, ${cost:.4f}): {e}"
+        )
 
 
 # =============================================================================
@@ -397,7 +432,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
     if limits.monthly_messages != -1:
         monthly_messages_used = get_monthly_message_count(client, user_id)
 
-    credits_used = get_monthly_credits_used(client, user_id)
+    spend_usd = get_monthly_spend_usd(client, user_id)
 
     return {
         "tier": tier,
@@ -408,7 +443,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "sync_frequency": limits.sync_frequency,
             "monthly_messages": limits.monthly_messages,
             "active_tasks": limits.active_tasks,
-            "monthly_credits": limits.monthly_credits,
+            "monthly_spend_usd_limit": limits.monthly_spend_usd_limit,
         },
         "usage": {
             "slack_channels": get_source_count(client, user_id, "slack"),
@@ -416,7 +451,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "platforms_connected": get_platform_count(client, user_id),
             "monthly_messages_used": monthly_messages_used,
             "active_tasks": get_active_task_count(client, user_id),
-            "credits_used": credits_used,
+            "spend_usd": round(spend_usd, 4),
         },
         "next_sync": get_next_sync_time(limits.sync_frequency, user_timezone),
     }

@@ -149,28 +149,23 @@ async def infer_shared_context(
     system = IDENTITY_SYSTEM if target == "identity" else BRAND_SYSTEM
 
     try:
-        response = await chat_completion(
+        from services.anthropic import chat_completion_with_usage
+        result_text, usage = await chat_completion_with_usage(
             messages=[{"role": "user", "content": f"Update the {target} file from these sources:\n\n{source_material}"}],
             system=system,
             model=INFERENCE_MODEL,
             max_tokens=2048,
         )
-        result = response.strip()
+        result = result_text.strip()
         if result:
             logger.info(f"[INFERENCE] Generated {target} ({len(result)} chars)")
-            # ADR-162 Sub-phase D: Append source provenance HTML comment.
-            # Frontend parses this to render "Last updated from: ..." captions.
-            # The comment is at the bottom and parseable without breaking markdown.
-            # ADR-163 extends this comment to also embed the gap report so the
-            # Context tab can render "needs more info" markers without a
-            # separate API call.
             gap_report = detect_inference_gaps(target=target, inferred_content=result)
             result = _append_inference_meta(result, target, source_summary, gap_report=gap_report)
-            return result
+            return result, usage
     except Exception as e:
         logger.error(f"[INFERENCE] Failed for {target}: {e}")
 
-    return existing_content or ""
+    return existing_content or "", {}
 
 
 def _append_inference_meta(

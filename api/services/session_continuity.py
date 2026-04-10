@@ -81,6 +81,7 @@ def _format_conversation_author_aware(messages: list[dict]) -> str:
 async def generate_session_summary(
     messages: list[dict],
     session_date: str,
+    user_id: Optional[str] = None,
 ) -> Optional[str]:
     """
     Generate a prose summary of a completed session for cross-session continuity.
@@ -135,7 +136,23 @@ CONVERSATION:
         summary_text = response.content[0].text.strip()
         if not summary_text:
             return None
-        # Prefix with date for working memory rendering
+
+        # ADR-171: Record token spend (non-critical — Haiku, ~$0.003/call)
+        if user_id:
+            try:
+                from services.platform_limits import record_token_usage
+                from services.supabase import get_service_client
+                record_token_usage(
+                    get_service_client(),
+                    user_id=user_id,
+                    caller="session_summary",
+                    model=SUMMARY_MODEL,
+                    input_tokens=getattr(response.usage, "input_tokens", 0),
+                    output_tokens=getattr(response.usage, "output_tokens", 0),
+                )
+            except Exception:
+                pass
+
         return f"[{session_date}] {summary_text}"
 
     except Exception as e:

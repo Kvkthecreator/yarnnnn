@@ -455,7 +455,7 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
 
         # ADR-138: Project sessions removed. Always use standard summary.
         from services.session_continuity import generate_session_summary
-        summary = await generate_session_summary(messages.data, session_date)
+        summary = await generate_session_summary(messages.data, session_date, user_id=auth.user_id)
 
         if summary:
             client.table("chat_sessions")\
@@ -1058,6 +1058,32 @@ async def _load_task_context(
         except Exception as e:
             logger.debug(f"[TASK_CONTEXT] Failed to fetch agent: {e}")
 
+    # 5. ADR-170: Section steering hint for produces_deliverable tasks.
+    # Parse type_key from TASK.md, resolve page_structure from registry,
+    # inject section slugs so TP can use ManageTask(action="steer", target_section=...).
+    section_steering_hint = ""
+    type_key_match = re.search(r"\*\*Type:\*\*\s*(\S+)", task_md)
+    if type_key_match:
+        from services.task_types import get_task_type
+        from services.compose.assembly import _slug as _section_slug
+        task_type_def = get_task_type(type_key_match.group(1).strip())
+        if task_type_def and task_type_def.get("output_kind") == "produces_deliverable":
+            page_structure = task_type_def.get("page_structure", [])
+            if page_structure:
+                slugs = [_section_slug(s["title"]) for s in page_structure]
+                titles = [s["title"] for s in page_structure]
+                section_lines = [
+                    f"  - `{slug}` — {title}"
+                    for slug, title in zip(slugs, titles)
+                ]
+                section_steering_hint = (
+                    "\n\nThis is a deliverable task with declared sections. "
+                    "You can steer a specific section with:\n"
+                    "  ManageTask(task_slug=\"" + task_slug + "\", action=\"steer\", "
+                    "steering=\"...\", target_section=\"<section-slug>\")\n"
+                    "Available sections:\n" + "\n".join(section_lines)
+                )
+
     # Build formatted context
     parts = [f'You are helping the user manage the task "{task_title}".']
     parts.append(f"\nTask definition:\n{task_md}")
@@ -1070,6 +1096,9 @@ async def _load_task_context(
 
     if agent_info:
         parts.append(f"\nAssigned agent: {agent_info}")
+
+    if section_steering_hint:
+        parts.append(section_steering_hint)
 
     return "\n".join(parts)
 
@@ -1360,6 +1389,22 @@ async def global_chat(
 
             done_payload = {'done': True, 'session_id': session_id, 'tools_used': tools_used}
             yield f"data: {json.dumps(done_payload)}\n\n"
+
+            # ADR-171: Record token spend for this chat turn
+            try:
+                from services.platform_limits import record_token_usage
+                from services.supabase import get_service_client
+                record_token_usage(
+                    get_service_client(),
+                    user_id=auth.user_id,
+                    caller="chat",
+                    model=agent.model,
+                    input_tokens=last_token_usage.get("input_tokens", 0),
+                    output_tokens=last_token_usage.get("output_tokens", 0),
+                    metadata={"session_id": session_id},
+                )
+            except Exception as _e:
+                logger.warning(f"[TOKEN_USAGE] chat record failed: {_e}")
 
             # Activity log: record chat turn completion (ADR-063)
             # Must use service client — activity_log RLS blocks INSERT from user JWT
