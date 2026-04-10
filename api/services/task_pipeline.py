@@ -1658,12 +1658,23 @@ async def execute_task(
                 )
                 agent_html = await ws.read(f"{agent_output_folder}/output.html")
                 if agent_html and task_output_folder:
+                    _task_output_folder = task_output_folder.removeprefix("outputs/")
                     await tw.write(
-                        f"outputs/{task_output_folder}/output.html",
+                        f"outputs/{_task_output_folder}/output.html",
                         agent_html,
                         summary=f"Composed HTML for {title}",
                         tags=["output", "html"],
                     )
+                    # Keep latest/ in sync with output.md latest alias for /outputs/latest endpoint reads.
+                    try:
+                        await tw.write(
+                            "outputs/latest/output.html",
+                            agent_html,
+                            summary=f"Latest composed HTML for {title}",
+                            tags=["output", "html", "latest"],
+                        )
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.warning(f"[TASK_EXEC] Compose HTML failed (non-fatal): {e}")
 
@@ -2341,14 +2352,15 @@ async def _execute_pipeline(
     if agent_output_folder:
         try:
             _surface = task_info.get("surface_type") or task_type_def.get("surface_type", "report")
+            _compose_folder = agent_output_folder.removeprefix("outputs/")
             await _compose_output_html(
-                client, user_id, final_agent_slug, agent_output_folder,
+                client, user_id, final_agent_slug, _compose_folder,
                 title=title, pending_renders=all_renders,
                 surface_type=_surface,
             )
             # Sync composed HTML from agent workspace to task workspace
             agent_ws = AgentWorkspace(client, user_id, final_agent_slug)
-            agent_html = await agent_ws.read(f"outputs/{agent_output_folder}/output.html")
+            agent_html = await agent_ws.read(f"outputs/{_compose_folder}/output.html")
             if agent_html:
                 await tw.write(
                     f"outputs/{date_folder}/output.html",
@@ -2356,6 +2368,16 @@ async def _execute_pipeline(
                     summary=f"Composed HTML for {title}",
                     tags=["output", "html"],
                 )
+                # Keep latest/ in sync with output.md latest alias for /outputs/latest endpoint reads.
+                try:
+                    await tw.write(
+                        "outputs/latest/output.html",
+                        agent_html,
+                        summary=f"Latest composed HTML for {title}",
+                        tags=["output", "html", "latest"],
+                    )
+                except Exception:
+                    pass
         except Exception as e:
             logger.warning(f"[PIPELINE] Compose HTML failed: {e}")
 

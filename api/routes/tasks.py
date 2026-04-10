@@ -873,12 +873,25 @@ async def get_latest_task_output(
 
     rows = result.data or []
 
-    # ADR-145: Skip pipeline step outputs — find first non-step output
+    # ADR-145: Skip pipeline step outputs. Prefer newest dated folder over
+    # outputs/latest so html/content stays aligned to a concrete run artifact.
     chosen = None
     for row in rows:
-        if "/step-" not in row["path"]:
+        path = row["path"]
+        if "/step-" in path:
+            continue
+        relative = path[len(prefix):]
+        folder = relative.split("/")[0] if "/" in relative else relative
+        if folder != "latest":
             chosen = row
             break
+
+    # Fallback: use /outputs/latest if no dated output exists.
+    if not chosen:
+        for row in rows:
+            if "/step-" not in row["path"]:
+                chosen = row
+                break
 
     # Fallback: if no non-step output, use the latest step output
     if not chosen and rows:
