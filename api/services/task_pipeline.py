@@ -946,6 +946,7 @@ def build_task_execution_prompt(
     task_mode: str = "recurring",
     prior_output: str = "",
     task_phase: str = "steady",
+    generation_brief: str = "",
 ) -> tuple[list[dict], str]:
     """Build system prompt (as cached content blocks) and user message.
 
@@ -1089,6 +1090,12 @@ If context says "(No context available)" or tools return no results:
         user_parts.append("\n## Output Format")
         for s in output_spec:
             user_parts.append(f"- {s}")
+
+    # ADR-170: Generation brief (produces_deliverable tasks with page_structure)
+    # Replaces flat output_spec for structured tasks — tells LLM which sections to write,
+    # what data exists per section, what assets are available, what is stale.
+    if generation_brief:
+        user_parts.append(f"\n{generation_brief}")
 
     # ADR-149: Goal mode — prior output as primary context
     if task_mode == "goal" and prior_output:
@@ -1425,6 +1432,30 @@ async def execute_task(
             pass
 
         # =====================================================================
+        # 6d. ADR-170: Generation brief (produces_deliverable tasks only)
+        # =====================================================================
+        generation_brief = ""
+        if output_kind == "produces_deliverable":
+            from services.task_types import get_task_type
+            type_key = task_info.get("type_key", "")
+            task_type_def = get_task_type(type_key) if type_key else None
+            if task_type_def and task_type_def.get("page_structure"):
+                # Read prior manifest for staleness detection
+                prior_manifest_content = await tw.read("outputs/latest/sys_manifest.json") or ""
+                prior_manifest = None
+                if prior_manifest_content:
+                    from services.compose.manifest import read_manifest
+                    prior_manifest = read_manifest(prior_manifest_content)
+                from services.compose.assembly import build_generation_brief
+                generation_brief = await build_generation_brief(
+                    client=client,
+                    user_id=user_id,
+                    task_slug=task_slug,
+                    task_info=task_info,
+                    prior_manifest=prior_manifest,
+                )
+
+        # =====================================================================
         # 7. Build prompt and generate
         # =====================================================================
         system_prompt, user_message = build_task_execution_prompt(
@@ -1439,6 +1470,7 @@ async def execute_task(
             task_mode=task_mode,
             prior_output=prior_output,
             task_phase=task_phase,
+            generation_brief=generation_brief,
         )
 
         # ADR-148: No SKILL.md injection, no RuntimeDispatch during headless generation.
@@ -1902,6 +1934,27 @@ async def _execute_pipeline(
         step_objective["step_instruction"] = step_instruction
         step_task_info["objective"] = step_objective
 
+        # ADR-170: Generation brief on derive-output step only (produces_deliverable tasks)
+        step_generation_brief = ""
+        if step_name == "derive-output" and task_info.get("output_kind") == "produces_deliverable":
+            from services.task_types import get_task_type
+            type_key = task_info.get("type_key", "")
+            task_type_def = get_task_type(type_key) if type_key else None
+            if task_type_def and task_type_def.get("page_structure"):
+                prior_manifest_content = await tw.read("outputs/latest/sys_manifest.json") or ""
+                prior_manifest = None
+                if prior_manifest_content:
+                    from services.compose.manifest import read_manifest
+                    prior_manifest = read_manifest(prior_manifest_content)
+                from services.compose.assembly import build_generation_brief
+                step_generation_brief = await build_generation_brief(
+                    client=client,
+                    user_id=user_id,
+                    task_slug=task_slug,
+                    task_info=task_info,
+                    prior_manifest=prior_manifest,
+                )
+
         system_prompt, user_message = build_task_execution_prompt(
             task_info=step_task_info,
             agent=agent,
@@ -1912,6 +1965,7 @@ async def _execute_pipeline(
             steering_notes=steering_notes if step_num == len(steps) else "",  # Only last step gets steering
             task_feedback=task_feedback if step_num == len(steps) else "",    # Only last step gets feedback
             task_mode=task_mode,
+            generation_brief=step_generation_brief,
         )
 
         # Inject step-specific preamble — BEFORE gathered context for visibility
