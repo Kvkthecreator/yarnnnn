@@ -180,7 +180,7 @@ function ObjectiveBlock({ task }: { task: Task }) {
 
   return (
     <div className="px-6 py-4 border-b border-border/40">
-      <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">Objective</h3>
+      <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">Objective</h3>
       <div className="text-xs text-muted-foreground space-y-0.5">
         {deliverable && <p>· Deliverable: {deliverable}</p>}
         {audience && <p>· Audience: {audience}</p>}

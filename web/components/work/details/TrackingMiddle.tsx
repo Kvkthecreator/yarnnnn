@@ -52,7 +52,7 @@ export function TrackingMiddle({
     <>
       {/* Domain status block */}
       <div className="px-6 py-4 border-b border-border/40">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
+        <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">
           Context Domain
         </h3>
         {primaryDomain ? (
@@ -94,7 +94,7 @@ export function TrackingMiddle({
       {/* Last-run CHANGELOG in a nested card */}
       <div className="px-6 py-4">
         <div className="flex items-center gap-2 mb-2">
-          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Last run summary</h3>
+          <h3 className="text-[11px] font-medium text-muted-foreground/60">Last run summary</h3>
           {latest?.date && (
             <>
               <span className="text-muted-foreground/30 text-[10px]">·</span>

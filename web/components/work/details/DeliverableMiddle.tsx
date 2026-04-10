@@ -156,7 +156,7 @@ export function DeliverableMiddle({
   return (
     <div className="py-4">
       <div className="flex items-center gap-2 mb-2 px-6">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Latest output</h3>
+        <h3 className="text-[11px] font-medium text-muted-foreground/60">Latest output</h3>
         {latest.date && (
           <>
             <span className="text-muted-foreground/30 text-[10px]">·</span>

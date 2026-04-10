@@ -41,7 +41,7 @@ export function MaintenanceMiddle({
     <>
       {/* Maintenance framing */}
       <div className="px-6 py-4 border-b border-border/40">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
+        <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">
           Back Office Task
         </h3>
         <div className="flex items-start gap-2">
@@ -57,7 +57,7 @@ export function MaintenanceMiddle({
       {/* Latest hygiene log in a nested card */}
       <div className="px-6 py-4">
         <div className="flex items-center gap-2 mb-2">
-          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40">Latest hygiene log</h3>
+          <h3 className="text-[11px] font-medium text-muted-foreground/60">Latest hygiene log</h3>
           {latest?.date && (
             <>
               <span className="text-muted-foreground/30 text-[10px]">·</span>
@@ -100,7 +100,7 @@ export function MaintenanceMiddle({
       {/* Run history */}
       {history.length > 1 && (
         <div className="px-6 py-4 border-t border-border/40">
-          <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">Run history</h3>
+          <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">Run history</h3>
           <ul className="divide-y divide-border/40">
             {history.map(o => {
               const ok =

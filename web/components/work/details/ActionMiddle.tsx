@@ -43,7 +43,7 @@ export function ActionMiddle({
     <>
       {/* Action target block */}
       <div className="px-6 py-4 border-b border-border/40">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
+        <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">
           Action Target
         </h3>
         <div className="flex items-center gap-2 text-sm">
@@ -63,7 +63,7 @@ export function ActionMiddle({
 
       {/* Latest payload */}
       <div className="px-6 py-4 border-b border-border/40">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
+        <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">
           Latest payload
         </h3>
         {loading ? (
@@ -99,7 +99,7 @@ export function ActionMiddle({
 
       {/* Action history */}
       <div className="px-6 py-4">
-        <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
+        <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">
           Action history <span className="text-muted-foreground/30">· most recent first</span>
         </h3>
         <div className="max-h-[400px] overflow-auto">

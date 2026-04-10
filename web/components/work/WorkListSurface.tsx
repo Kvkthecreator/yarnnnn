@@ -298,7 +298,7 @@ export function WorkListSurface({
           <div className="px-6 py-4 space-y-6 max-w-5xl">
             {grouped.map(([groupName, items]) => (
               <section key={groupName}>
-                <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/50 mb-2">
+                <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">
                   {groupName} <span className="text-muted-foreground/30 normal-case">· {items.length}</span>
                 </h3>
                 <div className="rounded-md border border-border/60 divide-y divide-border/40 overflow-hidden">
