@@ -320,17 +320,23 @@ In detail mode the page renders `<PageHeader />` followed by `<AgentContentView 
 
 The detail body follows two routing keys:
 
-- **`agent.agent_class` chooses the top shell block**. Domain stewards foreground owned folder responsibility, synthesizers foreground cross-domain reporting responsibility, platform bots foreground platform connection plus source selection, and Thinking Partner foregrounds orchestration responsibility. Agent role and operating instructions render as one combined top block.
+- **`agent.agent_class` chooses the component order and shell block**. Each class follows a different layout rationale:
+  - **domain-steward**: Role → Tasks → Context folder. Tasks come first because the work is the point; the folder is contextual infrastructure that explains where the work lives.
+  - **synthesizer**: Role → Tasks. No folder, no connection — cleanest layout.
+  - **platform-bot**: Role → Connection → Source selection → Tasks. Connection state and source selection *enable* tasks, so they surface above the task list.
+  - **meta-cognitive (TP)**: Role (no highlights, no "Create Task" CTA) → Tasks. TP page is minimal — no feedback distillation, no chip noise.
 - **`task.output_kind` chooses the assigned-work card shape**. Tracking tasks say which folder they are working in, deliverable tasks say which folder they read from, external-action tasks summarize target/delivery, and maintenance tasks summarize system purpose. `type_key` is allowed to specialize labels, but it does not fork the page architecture.
 
 This keeps the surface scalable: new agent types usually fit an existing class shell, and new task types usually fit an existing `output_kind` card.
 
-No-task states also vary by `agent_class`, but they stay short:
+No-task states vary by `agent_class`:
 
-- specialists name the missing tracker while still showing the owned folder on-page
-- reporting names the missing reporting task
-- integration bots point the user to connection/source setup above
+- specialists point to TP for tracker setup (not a generic "start one" instruction)
+- synthesizer points to TP once specialists have trackers running
+- platform bots point to connection/source setup above, then TP for digest task
 - Thinking Partner names the missing maintenance work
+
+Highlight chips (the small stat pills in the role block) are suppressed when zero — showing `0 tracking tasks` is noise, not signal. TP's `highlights()` returns `[]` unconditionally.
 
 For platform bots specifically, `/agents?agent={slug}` is the canonical management surface for source selection. `/context` stays the single filesystem browser and no longer owns per-platform management pages.
 
@@ -444,6 +450,7 @@ When adding a new detail-mode page, prefer the list/detail collapse pattern over
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-04-10 | v9.6 | Agent detail UX pass. Component ordering now varies by `agent_class`: domain-stewards show Tasks before Context folder (work is the point, folder is where it lives); platform-bots keep Connection → Sources → Tasks (must connect before tasks make sense); TP/meta-cognitive omits highlights chips, `Create Task` CTA, and `LearnedBlock`. Highlight chips suppressed when zero. Domain trailing `/` removed from metadata strip. Role block titles and descriptions rewritten to be human-readable per class. Empty-state copy updated to reference TP for setup. Section labels: "Folder" → "Context folder", "Assigned work" → "Work". |
 | 2026-04-09 | v9.5 | Agent detail consolidation amendment. `/agents?agent={slug}` is the single canonical detail surface; `/agents/{id}` now resolves and redirects there. `AgentContentView` no longer behaves like a generic identity card. Its top shell dispatches on `agent.agent_class`, and its assigned-work cards dispatch on task `output_kind` with optional `type_key` label specialization. This mirrors WorkDetail's kind-aware pattern and prevents bespoke per-agent page branches. |
 | 2026-04-09 | v9.4 | ADR-167 v5 amendment — Page header split into two responsibilities. `<PageHeader />` becomes pure breadcrumb chrome (no title, no metadata, no actions — deleted `subtitle` and `actions` props). New `<SurfaceIdentityHeader />` primitive lives inside the surface content and renders the real H1 + metadata + optional actions. WorkDetail and AgentContentView each render their own SurfaceIdentityHeader at the top of their content stream. Additionally introduces the **nested document pattern**: any task-produced markdown/HTML content (output iframes in DeliverableMiddle, CHANGELOG in TrackingMiddle, hygiene log in MaintenanceMiddle, AGENT.md in InstructionsBlock) is wrapped in a bordered, visually inset card (`rounded-lg border border-border bg-muted/5`) so its internal H1s are unambiguously scoped as "content inside the task/agent" rather than competing with the surface's own H1. Uniform across all four `output_kind` middles. |
 | 2026-04-09 | v9.3 | ADR-167 v4 amendment — `<PageHeader />` rewritten as pure chrome. v3 had promoted the last breadcrumb segment to a bold `h1.text-xl`, which duplicated against content that already had its own H1 (daily-update's rendered output renders `<h1>Daily Workspace Update — April 8, 2026</h1>` immediately inside the iframe). v3 also suppressed the breadcrumb entirely in list mode, making the header tone conditional. v4: (1) breadcrumb is ALWAYS present with the same muted tone across all states — list pages render the `defaultLabel` as a single-segment breadcrumb instead of suppressing the strip; (2) no bold title promotion anywhere — the last segment reads as chrome; (3) metadata + actions row stays as an optional second row but collapses when both are absent. Content's own H1 is now unambiguously the visual page title. |

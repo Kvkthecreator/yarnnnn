@@ -120,87 +120,93 @@ const AGENT_SHELL_REGISTRY: Record<AgentClass, AgentShellDescriptor> = {
   'domain-steward': {
     label: 'Role',
     title: (agent) => (
-      agent.context_domain ? `${roleDisplayName(agent.role)} owns ${formatKeyLabel(agent.context_domain, false)}` : roleDisplayName(agent.role)
+      agent.context_domain
+        ? `Tracks ${formatKeyLabel(agent.context_domain, false)}`
+        : roleDisplayName(agent.role)
     ),
     description: (agent) => (
       agent.context_domain
-        ? `Keeps ${formatKeyLabel(agent.context_domain, false)} current and turns that context into specialist output.`
+        ? `Builds up what we know about ${formatKeyLabel(agent.context_domain, false)} and turns that into reports and briefs.`
         : roleTagline(agent.role) || agentClassDescription(agent.agent_class)
     ),
-    highlights: (agent, counts) => {
-      const highlights = [
-        `${counts.accumulates_context} tracking ${counts.accumulates_context === 1 ? 'task' : 'tasks'}`,
-      ];
+    highlights: (_, counts) => {
+      const highlights: string[] = [];
+      if (counts.accumulates_context > 0) {
+        highlights.push(`${counts.accumulates_context} tracking ${counts.accumulates_context === 1 ? 'task' : 'tasks'}`);
+      }
       if (counts.produces_deliverable > 0) {
         highlights.push(`${counts.produces_deliverable} deliverable ${counts.produces_deliverable === 1 ? 'task' : 'tasks'}`);
       }
-      if (agent.context_domain) highlights.push(`Domain: ${formatKeyLabel(agent.context_domain)}`);
       return highlights;
     },
   },
   synthesizer: {
     label: 'Role',
-    title: () => 'Reporting assembles cross-domain updates',
-    description: () => 'Reads specialist context and turns it into a report, brief, or executive update.',
+    title: () => 'Assembles cross-domain updates',
+    description: () => 'Reads what each specialist has learned and turns it into a report, brief, or executive update.',
     highlights: (_, counts) => {
-      const highlights = [
-        `${counts.produces_deliverable} deliverable ${counts.produces_deliverable === 1 ? 'task' : 'tasks'}`,
-      ];
-      if (counts.accumulates_context > 0) highlights.push(`${counts.accumulates_context} tracking input ${counts.accumulates_context === 1 ? 'task' : 'tasks'}`);
+      const highlights: string[] = [];
+      if (counts.produces_deliverable > 0) {
+        highlights.push(`${counts.produces_deliverable} deliverable ${counts.produces_deliverable === 1 ? 'task' : 'tasks'}`);
+      }
+      if (counts.accumulates_context > 0) {
+        highlights.push(`${counts.accumulates_context} tracking ${counts.accumulates_context === 1 ? 'input' : 'inputs'}`);
+      }
       return highlights;
     },
   },
   'platform-bot': {
     label: 'Role',
-    title: (agent) => `${roleDisplayName(agent.role)} manages connected ${roleDisplayName(agent.role).replace(' Bot', '')} sources`,
-    description: () => 'Manages platform access, source scope, and recurring observation or action tasks for that platform.',
-    highlights: (agent, counts) => {
-      const highlights = [
-        `${counts.accumulates_context} observation ${counts.accumulates_context === 1 ? 'task' : 'tasks'}`,
-      ];
+    title: (agent) => {
+      const platform = roleDisplayName(agent.role).replace(' Bot', '');
+      return `Connects to ${platform} and watches selected sources`;
+    },
+    description: (agent) => {
+      const platform = roleDisplayName(agent.role).replace(' Bot', '');
+      return `Manages your ${platform} connection and source selection. Add a digest task to start pulling information in.`;
+    },
+    highlights: (_, counts) => {
+      const highlights: string[] = [];
+      if (counts.accumulates_context > 0) {
+        highlights.push(`${counts.accumulates_context} observation ${counts.accumulates_context === 1 ? 'task' : 'tasks'}`);
+      }
       if (counts.external_action > 0) {
         highlights.push(`${counts.external_action} write-back ${counts.external_action === 1 ? 'task' : 'tasks'}`);
       }
-      highlights.push(`Platform: ${roleDisplayName(agent.role).replace(' Bot', '')}`);
       return highlights;
     },
   },
   'meta-cognitive': {
     label: 'Role',
-    title: () => 'Thinking Partner runs orchestration and maintenance',
-    description: () => 'Keeps the workforce coherent, maintains shared state, and handles system-level upkeep.',
-    highlights: (_, counts) => {
-      const highlights = [
-        `${counts.system_maintenance} maintenance ${counts.system_maintenance === 1 ? 'task' : 'tasks'}`,
-      ];
-      if (counts.produces_deliverable > 0) {
-        highlights.push(`${counts.produces_deliverable} report ${counts.produces_deliverable === 1 ? 'task' : 'tasks'}`);
-      }
-      return highlights;
-    },
+    title: () => 'Keeps the workforce running',
+    description: () => 'Handles orchestration, shared state, and system-level upkeep so the rest of the team can focus on domain work.',
+    highlights: () => [],
   },
 };
 
 const AGENT_EMPTY_STATE_REGISTRY: Record<AgentClass, AgentEmptyStateDescriptor> = {
   'domain-steward': {
-    title: () => 'No task yet',
+    title: () => 'No work assigned yet',
     description: (agent) => (
       agent.context_domain
-        ? `Start one recurring tracker for ${formatKeyLabel(agent.context_domain, false)}.`
-        : 'Start one recurring tracker in this domain.'
+        ? `Ask your thinking partner to set up a tracker for ${formatKeyLabel(agent.context_domain, false)}.`
+        : 'Ask your thinking partner to set up a recurring tracker for this agent.'
     ),
   },
   synthesizer: {
-    title: () => 'No task yet',
-    description: () => 'Start one reporting task that turns active specialist work into an update.',
+    title: () => 'No work assigned yet',
+    description: () => 'Ask your thinking partner to create a reporting task once the specialists have trackers running.',
   },
   'platform-bot': {
-    title: () => 'No task yet',
-    description: (agent) => `Use the connection and source sections above, then create the first recurring ${roleDisplayName(agent.role).replace(' Bot', '')} task.`,
+    title: () => 'Not watching anything yet',
+    description: (agent) => {
+      const platform = roleDisplayName(agent.role).replace(' Bot', '');
+      return `Connect ${platform} above and select sources, then ask TP to set up a digest task.`;
+    },
   },
   'meta-cognitive': {
-    title: () => 'No task yet',
-    description: () => 'Create the core maintenance tasks that keep the workspace and workforce coherent.',
+    title: () => 'No maintenance tasks yet',
+    description: () => 'Ask your thinking partner to set up the core workspace maintenance tasks.',
   },
 };
 
@@ -362,7 +368,7 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
         href={`${CONTEXT_ROUTE}?domain=${domain}`}
         className="hover:text-foreground hover:underline"
       >
-        {formatKeyLabel(domain)}/
+        {formatKeyLabel(domain)}
       </Link>,
     );
   }
@@ -409,7 +415,7 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
               {descriptor.description(agent)}
             </p>
             {highlights.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-3">
+              <div className="flex flex-wrap gap-2 mt-2">
                 {highlights.map((highlight) => (
                   <span
                     key={highlight}
@@ -448,7 +454,7 @@ function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }
 
   return (
     <div className="px-6 py-5 border-t border-border/40">
-      <SectionLabel>Folder</SectionLabel>
+      <SectionLabel>Context folder</SectionLabel>
       <div className="rounded-lg border border-border/60 bg-background overflow-hidden">
         <div className="flex items-center gap-1.5 border-b border-border/50 bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
           <span>Context</span>
@@ -460,7 +466,7 @@ function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }
             <FolderKanban className="w-4 h-4 text-muted-foreground" />
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="text-sm font-medium text-foreground">Responsible for this folder</h4>
+            <h4 className="text-sm font-medium text-foreground">This is where {agent.title} keeps its notes</h4>
             <p className="text-sm text-muted-foreground mt-1">{helperText}</p>
             <div className="flex items-center gap-2 mt-3 text-[12px] text-muted-foreground flex-wrap">
               <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/10 px-2 py-1">
@@ -859,7 +865,7 @@ function TasksBlock({ agent, tasks, onCreateTask }: { agent: Agent; tasks: Task[
   if (tasks.length === 0) {
     return (
       <div className="px-6 py-5 border-t border-border/40">
-        <SectionLabel>Assigned work</SectionLabel>
+        <SectionLabel>Work</SectionLabel>
         <EmptyAssignedWork agent={agent} onCreateTask={onCreateTask} />
       </div>
     );
@@ -876,7 +882,7 @@ function TasksBlock({ agent, tasks, onCreateTask }: { agent: Agent; tasks: Task[
 
   return (
     <div className="px-6 py-5 border-t border-border/40">
-      <SectionLabel>Assigned work · {tasks.length}</SectionLabel>
+      <SectionLabel>Work · {tasks.length}</SectionLabel>
       <div className="space-y-2">
         {sorted.map((task) => (
           <TaskCard key={task.id} task={task} agentSlug={agentSlug} />
@@ -924,12 +930,16 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 
 
 export function AgentContentView({ agent, tasks, onCreateTask }: AgentContentViewProps) {
+  const cls = agent.agent_class || 'domain-steward';
+  const isPlatformBot = cls === 'platform-bot';
+  const isMetaCognitive = cls === 'meta-cognitive';
+
   return (
     <div className="flex-1 overflow-auto">
       <SurfaceIdentityHeader
         title={agent.title}
         metadata={<AgentMetadata agent={agent} tasks={tasks} />}
-        actions={onCreateTask ? (
+        actions={!isMetaCognitive && onCreateTask ? (
           <Button size="sm" onClick={onCreateTask}>
             Create Task
           </Button>
@@ -937,11 +947,17 @@ export function AgentContentView({ agent, tasks, onCreateTask }: AgentContentVie
       />
       <div className="max-w-3xl">
         <AgentRoleBlock agent={agent} tasks={tasks} />
-        <SpecialistFolderBlock agent={agent} tasks={tasks} />
-        {agent.agent_class === 'platform-bot' && <PlatformConnectionBlock agent={agent} />}
-        {agent.agent_class === 'platform-bot' && <PlatformSourcesBlock agent={agent} />}
+
+        {/* Platform bots: connection + sources come before tasks (you need to connect first) */}
+        {isPlatformBot && <PlatformConnectionBlock agent={agent} />}
+        {isPlatformBot && <PlatformSourcesBlock agent={agent} />}
+
+        {/* Domain-stewards: tasks first, then folder (work is the point; folder is where it lives) */}
         <TasksBlock agent={agent} tasks={tasks} onCreateTask={onCreateTask} />
-        <LearnedBlock agent={agent} />
+        {!isPlatformBot && <SpecialistFolderBlock agent={agent} tasks={tasks} />}
+
+        {/* TP doesn't have feedback distillation — suppress for meta-cognitive */}
+        {!isMetaCognitive && <LearnedBlock agent={agent} />}
       </div>
     </div>
   );
