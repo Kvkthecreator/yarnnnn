@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.10.4] - RuntimeDispatch added to CHAT_PRIMITIVES; image skill description updated
+
+### Changed
+- `api/services/primitives/registry.py`: Added `RuntimeDispatch` to `CHAT_PRIMITIVES` (was handler-only, not in tool list — TP could never call it). TP can now invoke image generation, charts, mermaid, and fetch-asset directly in chat.
+- `api/services/primitives/runtime_dispatch.py`: Updated `image` skill description from stale "Pillow image processing" to "Text prompt → PNG/JPG via Google Gemini". Added example showing `prompt`/`aspect_ratio`/`style` inputs.
+- Expected behavior: TP can now generate images (Gemini-backed) when user asks, e.g. "generate a hero image for this blog post" or "generate a sample image from my workspace context". CHAT_PRIMITIVES count: 13 → 14.
+
 ## [2026.04.10.3] - WebSearch: eliminate inner Claude summarization call + fix snippet truncation
 
 ### Changed

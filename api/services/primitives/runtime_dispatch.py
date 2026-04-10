@@ -35,7 +35,7 @@ The rendered file is uploaded to storage and embedded in the output.
 Available skills:
 - chart: Data spec → PNG or SVG data visualization (via matplotlib)
 - mermaid: Mermaid syntax → PNG or SVG diagram (via mermaid-cli)
-- image: Image processing → PNG (via pillow)
+- image: Text prompt → PNG/JPG image (via Google Gemini — AI image generation, 16:9 aspect ratio for hero images)
 - video: Scene spec → MP4 short-form video clip (via Remotion, max 30s)
 - fetch-asset: Fetch external visual asset (favicon, logo) → PNG (ADR-157)
 
@@ -44,6 +44,7 @@ Construct the input spec according to the skill's SKILL.md instructions (injecte
 Examples:
 - RuntimeDispatch(type="chart", input={"chart_type": "bar", "title": "Growth", "labels": ["Jan", "Feb"], "datasets": [{"label": "Users", "data": [100, 200]}]}, output_format="png")
 - RuntimeDispatch(type="mermaid", input={"diagram": "graph TD; A-->B; B-->C"}, output_format="svg")
+- RuntimeDispatch(type="image", input={"prompt": "Hero image for blog post about Solo Operators using AI agents for GTM", "aspect_ratio": "16:9", "style": "editorial"}, output_format="png")
 - RuntimeDispatch(type="video", input={"title": "Metrics", "scenes": [{"type": "metric", "label": "Users", "value": "12K", "duration": 5}], "duration_seconds": 15}, output_format="mp4")
 - RuntimeDispatch(type="fetch-asset", input={"url": "anthropic.com", "asset_type": "favicon", "size": 128}, output_format="png")""",
     "input_schema": {

@@ -188,9 +188,11 @@ CHAT_PRIMITIVES = [
     MANAGE_TASK_TOOL,
     # Repurpose (ADR-148 Phase 4)
     REPURPOSE_OUTPUT_TOOL,
+    # Asset rendering (1) — Gemini image gen, charts, mermaid diagrams
+    RUNTIME_DISPATCH_TOOL,
     # Interaction (1)
     CLARIFY_TOOL,
-]  # 13 tools — ADR-168 Commit 3 folded CreateTask into ManageTask(action="create")
+]  # 14 tools — RuntimeDispatch added to chat for TP image/asset generation
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per
