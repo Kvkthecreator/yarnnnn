@@ -42,6 +42,25 @@ export interface LimitStatus {
   percentUsed: number;
 }
 
+export function checkLimit(
+  tier: SubscriptionTier,
+  feature: keyof typeof TIER_LIMITS.free,
+  currentUsage: number,
+): LimitStatus {
+  const limit = TIER_LIMITS[tier][feature] as number;
+  const isUnlimited = limit === -1 || limit === Infinity;
+  const percentUsed = isUnlimited ? 0 : Math.min((currentUsage / limit) * 100, 100);
+
+  return {
+    feature: String(feature),
+    current: currentUsage,
+    limit,
+    isAtLimit: !isUnlimited && currentUsage >= limit,
+    isNearLimit: !isUnlimited && percentUsed >= 80,
+    percentUsed,
+  };
+}
+
 export function checkSpendLimit(
   tier: SubscriptionTier,
   spendUsd: number,
