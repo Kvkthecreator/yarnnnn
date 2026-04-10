@@ -47,6 +47,7 @@ import {
 import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { getAgentSlug } from '@/lib/agent-identity';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { taskModeLabel, type Agent, type Task } from '@/types';
 import { cn } from '@/lib/utils';
 import type { WorkspaceStateLead } from '@/lib/workspace-state-meta';
@@ -183,7 +184,7 @@ export function WorkspaceStateView({
           {/* Active tab content */}
           <div className="max-h-[60vh] overflow-y-auto">
             {activeTab === 'overview' && (
-              <OverviewTab agents={agents} tasks={tasks} loading={dataLoading} />
+              <OverviewTab agents={agents} tasks={tasks} loading={dataLoading} onAskTP={onAskTP} onClose={onClose} />
             )}
             {activeTab === 'flags' && (
               <FlagsTab
@@ -275,10 +276,14 @@ function OverviewTab({
   agents,
   tasks,
   loading,
+  onAskTP,
+  onClose,
 }: {
   agents: Agent[];
   tasks: Task[];
   loading: boolean;
+  onAskTP: (prompt: string) => void;
+  onClose: () => void;
 }) {
   const [profile, setProfile] = useState<ProfileInfo | null>(null);
   const [brand, setBrand] = useState<BrandInfo | null>(null);
@@ -402,13 +407,14 @@ function OverviewTab({
             icon={Clock3}
             value={activeTasks.length}
             label={`active ${activeTasks.length === 1 ? 'task' : 'tasks'}`}
-            href="/work"
+            href={activeTasks.length > 0 ? '/work' : undefined}
+            onEmpty={() => { onClose(); onAskTP('I have no active tasks yet. What should my team be working on?'); }}
           />
           <OverviewStat
             icon={PauseCircle}
             value={pausedTasks.length}
             label={`paused ${pausedTasks.length === 1 ? 'task' : 'tasks'}`}
-            href="/work"
+            href={pausedTasks.length > 0 ? '/work' : undefined}
           />
         </div>
       </section>
@@ -423,13 +429,15 @@ function OverviewTab({
             icon={FolderOpen}
             value={contextTasks.length}
             label={`context ${contextTasks.length === 1 ? 'track' : 'tracks'}`}
-            href="/context"
+            href={contextTasks.length > 0 ? '/context' : undefined}
+            onEmpty={() => { onClose(); onAskTP('I have no context tracking tasks yet. Which domains should my team be tracking?'); }}
           />
           <OverviewStat
             icon={ClipboardList}
             value={deliverableTasks.length}
             label={`${deliverableTasks.length === 1 ? 'report' : 'reports'}`}
-            href="/work"
+            href={deliverableTasks.length > 0 ? '/work' : undefined}
+            onEmpty={() => { onClose(); onAskTP('I have no report tasks yet. What kind of recurring reports would be useful for my workspace?'); }}
           />
         </div>
       </section>
@@ -486,14 +494,20 @@ function OverviewStat({
   value,
   label,
   href,
+  onEmpty,
 }: {
   icon: React.ElementType;
   value: number;
   label: string;
   href?: string;
+  onEmpty?: () => void;
 }) {
+  const isEmpty = value === 0 && !!onEmpty;
   const content = (
-    <div className="rounded-md border border-border/60 bg-muted/10 p-3 transition-colors hover:bg-muted/30">
+    <div className={cn(
+      'rounded-md border border-border/60 bg-muted/10 p-3 transition-colors hover:bg-muted/30',
+      isEmpty && 'cursor-pointer',
+    )}>
       <div className="flex items-center gap-2">
         <Icon className="h-3.5 w-3.5 text-muted-foreground/60" />
         <span className="text-lg font-semibold tabular-nums">{value}</span>
@@ -501,7 +515,9 @@ function OverviewStat({
       <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
     </div>
   );
-  return href ? <Link href={href}>{content}</Link> : content;
+  if (href) return <Link href={href}>{content}</Link>;
+  if (isEmpty) return <button type="button" onClick={onEmpty} className="text-left w-full">{content}</button>;
+  return content;
 }
 
 // =============================================================================
@@ -803,9 +819,9 @@ function RecapTab() {
             My shift notes
           </h3>
           <div className="mt-2 rounded-lg border border-border/70 bg-muted/10 p-3">
-            <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-foreground/90">
-              {awareness.length > 600 ? awareness.slice(0, 600) + '\u2026' : awareness}
-            </pre>
+            <div className="prose prose-sm max-w-none dark:prose-invert text-xs">
+              <MarkdownRenderer content={awareness.length > 1000 ? awareness.slice(0, 1000) + '\u2026' : awareness} />
+            </div>
           </div>
         </section>
       )}

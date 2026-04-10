@@ -3,17 +3,16 @@
 /**
  * ToggleBar - top-level pill navigation
  *
- * ADR-163 Surface Restructure: Four segments: Chat | Work | Agents | Context
+ * ADR-163 Surface Restructure: Four segments: Chat | Agents | Work | Context
  * Each answers exactly one question:
  *   - Chat: "What should I do? What's happening?"
- *   - Work: "What is my workforce doing?"
  *   - Agents: "Who's on my team?"
+ *   - Work: "What is my workforce doing?"
  *   - Context: "What does my workspace know?"
  *
- * Previous nav (v7.2) was Home | Agents | Context | Activity, with "Home"
- * pointing at /chat. The v8 restructure renames Home to Chat (its true
- * identity), elevates Work to first-class, absorbs Activity into per-surface
- * contexts, and shrinks Agents to a roster-plus-identity view.
+ * Nav order: Chat → Agents → Work → Context.
+ * Agents precedes Work because agents are the WHO (identity), Work is the WHAT.
+ * Reading left-to-right matches the mental model: team first, their tasks second.
  */
 
 import Link from 'next/link';
@@ -23,8 +22,8 @@ import { cn } from '@/lib/utils';
 
 const SEGMENTS = [
   { id: 'chat', label: 'Chat', icon: MessageCircle, href: '/chat' },
-  { id: 'work', label: 'Work', icon: Briefcase, href: '/work' },
   { id: 'agents', label: 'Agents', icon: Users, href: '/agents' },
+  { id: 'work', label: 'Work', icon: Briefcase, href: '/work' },
   { id: 'context', label: 'Context', icon: FolderOpen, href: '/context' },
 ] as const;
 

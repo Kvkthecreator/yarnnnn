@@ -40,6 +40,7 @@ import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
 import {
   agentClassDescription,
   agentClassLabel,
+  getAgentSlug,
   roleDisplayName,
   platformProviderForRole,
   roleTagline,
@@ -760,16 +761,16 @@ function PlatformSourcesBlock({ agent }: { agent: Agent }) {
   );
 }
 
-function TaskCard({ task }: { task: Task }) {
+function TaskCard({ task, agentSlug }: { task: Task; agentSlug: string }) {
   const descriptor = TASK_CARD_REGISTRY[task.output_kind as TaskOutputKind] || TASK_CARD_REGISTRY.produces_deliverable;
   const typeLabel = taskTypeLabel(task.type_key);
   const details = descriptor.details(task);
+  const manageHref = `${WORK_ROUTE}?task=${encodeURIComponent(task.slug)}&agent=${encodeURIComponent(agentSlug)}`;
 
   return (
-    <Link
-      href={`${WORK_ROUTE}?task=${encodeURIComponent(task.slug)}`}
+    <div
       className={cn(
-        'group rounded-lg border border-border/40 bg-background hover:bg-muted/30 hover:border-border transition-colors px-3 py-3 block',
+        'rounded-lg border border-border/40 bg-background px-3 py-3',
         task.status !== 'active' && 'opacity-70',
       )}
     >
@@ -825,9 +826,18 @@ function TaskCard({ task }: { task: Task }) {
             </div>
           )}
         </div>
-        <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground/70 shrink-0 mt-1" />
       </div>
-    </Link>
+
+      <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-end">
+        <Link
+          href={manageHref}
+          className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+        >
+          Manage task
+          <ArrowUpRight className="w-3 h-3" />
+        </Link>
+      </div>
+    </div>
   );
 }
 
@@ -858,6 +868,8 @@ function EmptyAssignedWork({ agent }: { agent: Agent }) {
 }
 
 function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+  const agentSlug = getAgentSlug(agent);
+
   if (tasks.length === 0) {
     return (
       <div className="px-6 py-5 border-t border-border/40">
@@ -881,7 +893,7 @@ function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
       <SectionLabel>Assigned work · {tasks.length}</SectionLabel>
       <div className="space-y-2">
         {sorted.map((task) => (
-          <TaskCard key={task.id} task={task} />
+          <TaskCard key={task.id} task={task} agentSlug={agentSlug} />
         ))}
       </div>
     </div>

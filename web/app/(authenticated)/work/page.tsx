@@ -110,26 +110,50 @@ export default function WorkPage() {
   }, [taskSlugFromUrl]);
 
   // Breadcrumb (segment shape from b033513; PageHeader renders inline now)
+  //
+  // When ?agent= is present we came from the Agents surface (TaskCard "Manage
+  // task" button) — breadcrumb should read Agents › Agent Name › Task, keeping
+  // the user oriented inside the agent context, not the Work surface.
   useEffect(() => {
     if (taskSlugFromUrl) {
       const breadcrumbTask = selectedTask;
       const agentSlug = agentFilter || breadcrumbTask?.agent_slugs?.[0];
       const agent = agentSlug ? agents.find(a => a.slug === agentSlug) : null;
-      setBreadcrumb([
-        { label: 'Work', href: '/work', kind: 'surface' },
-        ...(agentSlug ? [{
-          label: `${agent?.title ?? agentSlug}'s work`,
-          href: `/work?agent=${encodeURIComponent(agentSlug)}`,
-          kind: 'agent' as const,
-        }] : []),
-        {
-          label: taskNotFound
-            ? 'Task not found'
-            : breadcrumbTask?.title ?? taskSlugFromUrl,
-          href: `/work?task=${encodeURIComponent(taskSlugFromUrl)}`,
-          kind: 'task',
-        },
-      ]);
+
+      if (agentFilter && agent) {
+        // Came from Agents surface — root the breadcrumb there
+        setBreadcrumb([
+          { label: 'Agents', href: '/agents', kind: 'surface' },
+          {
+            label: agent.title,
+            href: `/agents?agent=${encodeURIComponent(agent.slug ?? agentFilter)}`,
+            kind: 'agent' as const,
+          },
+          {
+            label: taskNotFound
+              ? 'Task not found'
+              : breadcrumbTask?.title ?? taskSlugFromUrl,
+            href: `/work?task=${encodeURIComponent(taskSlugFromUrl)}&agent=${encodeURIComponent(agentFilter)}`,
+            kind: 'task',
+          },
+        ]);
+      } else {
+        setBreadcrumb([
+          { label: 'Work', href: '/work', kind: 'surface' },
+          ...(agentSlug && !agentFilter ? [{
+            label: `${agent?.title ?? agentSlug}'s work`,
+            href: `/work?agent=${encodeURIComponent(agentSlug)}`,
+            kind: 'agent' as const,
+          }] : []),
+          {
+            label: taskNotFound
+              ? 'Task not found'
+              : breadcrumbTask?.title ?? taskSlugFromUrl,
+            href: `/work?task=${encodeURIComponent(taskSlugFromUrl)}`,
+            kind: 'task',
+          },
+        ]);
+      }
     } else if (agentFilter) {
       const agent = agents.find(a => a.slug === agentFilter);
       setBreadcrumb([

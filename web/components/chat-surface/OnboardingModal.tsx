@@ -79,6 +79,20 @@ export function OnboardingModal({ open, onClose, onSubmit }: OnboardingModalProp
           <div className="max-h-[60vh] overflow-y-auto p-3">
             <ContextSetup onSubmit={onSubmit} embedded />
           </div>
+
+          {/* Footer — explicit escape hatch so the user never feels stuck */}
+          <footer className="border-t border-border px-4 py-2.5 flex items-center justify-between">
+            <p className="text-[11px] text-muted-foreground/50">
+              You can always add this later via Context.
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Skip for now
+            </button>
+          </footer>
         </div>
       </section>
     </div>
