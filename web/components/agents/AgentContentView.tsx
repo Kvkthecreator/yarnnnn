@@ -281,7 +281,7 @@ function stripLeadingH1IfMatchesTitle(content: string, title: string): string {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground/40 mb-2">
+    <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">
       {children}
     </h3>
   );
@@ -428,7 +428,7 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
             )}
             {instructions && (
               <div className="mt-4 pt-4 border-t border-border/50">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground/50 mb-2">
+                <p className="text-[11px] font-medium text-muted-foreground/60 mb-2">
                   How I work
                 </p>
                 <div className="prose prose-sm max-w-none dark:prose-invert text-sm">
