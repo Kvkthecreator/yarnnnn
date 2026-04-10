@@ -507,3 +507,195 @@ def _matches_glob(filename: str, pattern: str) -> bool:
     if pattern.endswith("*"):
         return filename.startswith(pattern[:-1])
     return filename == pattern
+
+
+# =============================================================================
+# Post-generation: Parse draft into section partials (Phase 3)
+# =============================================================================
+
+def parse_draft_into_sections(
+    draft: str,
+    page_structure: list[dict],
+) -> dict[str, dict]:
+    """Parse LLM draft output into per-section content partials.
+
+    Splits on ## headers that match declared page_structure section titles.
+    Returns a dict keyed by section slug with:
+      - kind: section kind from page_structure
+      - title: section title
+      - content: section markdown content (header included)
+      - char_count: content length signal
+
+    Unmatched sections (LLM added extras) are included under their own slug.
+    Declared sections with no matching content get an empty string.
+
+    ADR-170 RD-3: section partials are the atomic units of revision routing.
+    """
+    if not page_structure:
+        return {}
+
+    # Build title → kind map from page_structure (case-insensitive match)
+    declared = {
+        s["title"].lower().strip(): {
+            "kind": s.get("kind", "narrative"),
+            "title": s["title"],
+            "reads_from": s.get("reads_from", []),
+        }
+        for s in page_structure
+    }
+
+    # Split draft on ## headers (top-level sections only — ### stays inside)
+    # Pattern: line starting with exactly ## (not ###)
+    section_pattern = re.compile(r'^(##\s+.+)$', re.MULTILINE)
+    splits = section_pattern.split(draft)
+
+    # splits alternates: [preamble, header, content, header, content, ...]
+    sections_out: dict[str, dict] = {}
+
+    # Any content before the first ## header (preamble) — attach to first section or discard
+    preamble = splits[0].strip() if splits else ""
+
+    i = 1
+    while i + 1 < len(splits):
+        header_line = splits[i].strip()   # e.g. "## Executive Summary"
+        content = splits[i + 1]
+        i += 2
+
+        # Extract title from header (strip ## prefix)
+        raw_title = re.sub(r'^##\s+', '', header_line).strip()
+        # Strip any markdown formatting from title (bold, backtick)
+        clean_title = re.sub(r'[*`_]', '', raw_title).strip()
+        slug = _slug(clean_title)
+
+        # Match against declared sections
+        matched = declared.get(clean_title.lower())
+        kind = matched["kind"] if matched else "narrative"
+        canonical_title = matched["title"] if matched else raw_title
+
+        full_content = f"{header_line}\n{content}".rstrip()
+
+        sections_out[slug] = {
+            "kind": kind,
+            "title": canonical_title,
+            "content": full_content,
+            "char_count": len(full_content),
+        }
+
+    # Ensure all declared sections appear in output (even if LLM missed them)
+    for title, decl in declared.items():
+        slug = _slug(decl["title"])
+        if slug not in sections_out:
+            sections_out[slug] = {
+                "kind": decl["kind"],
+                "title": decl["title"],
+                "content": "",
+                "char_count": 0,
+            }
+
+    return sections_out
+
+
+def build_post_generation_manifest(
+    task_slug: str,
+    surface_type: str,
+    sections_parsed: dict[str, dict],
+    domain_state: dict,
+    task_info: dict,
+    run_started_at: Optional[str] = None,
+) -> "SysManifest":
+    """Build a SysManifest from the post-generation parsed sections.
+
+    Called immediately after parse_draft_into_sections() to record provenance.
+    The manifest is written to outputs/{date}/sys_manifest.json.
+
+    Args:
+        task_slug: Task slug
+        surface_type: Surface type (report | deck | dashboard | digest | workbook)
+        sections_parsed: Output of parse_draft_into_sections()
+        domain_state: Output of _query_domain_state() (same as brief build)
+        task_info: Parsed TASK.md dict
+        run_started_at: ISO timestamp of run start (defaults to now)
+
+    Returns:
+        SysManifest ready to serialize to JSON.
+    """
+    from services.compose.manifest import SysManifest, SectionProvenance, make_manifest
+
+    now = run_started_at or datetime.now(timezone.utc).isoformat()
+
+    # Build section provenance
+    sections: dict = {}
+    page_structure = task_info.get("page_structure") or []
+    structure_map = {
+        _slug(s["title"]): s for s in page_structure
+    }
+
+    for slug, sec in sections_parsed.items():
+        struct = structure_map.get(slug, {})
+        reads_from = struct.get("reads_from", [])
+
+        # Collect source file paths that this section reads from
+        source_files = []
+        source_updated_ats = []
+        for path_pattern in reads_from:
+            domain_key = _domain_from_path(path_pattern)
+            if domain_key and domain_key in domain_state:
+                dstate = domain_state[domain_key]
+                # Synthesis files
+                for sf in dstate.get("synthesis_files", []):
+                    if sf["path"] not in source_files:
+                        source_files.append(sf["path"])
+                        if sf.get("updated_at"):
+                            source_updated_ats.append(sf["updated_at"])
+                # Entity files matching pattern
+                for ef in dstate.get("entity_files", []):
+                    if _path_matches_pattern(ef["path"], path_pattern):
+                        if ef["path"] not in source_files:
+                            source_files.append(ef["path"])
+                            if ef.get("updated_at"):
+                                source_updated_ats.append(ef["updated_at"])
+
+        source_updated_at = max(source_updated_ats) if source_updated_ats else None
+
+        sections[slug] = SectionProvenance(
+            kind=sec["kind"],
+            produced_at=now,
+            source_files=source_files[:20],  # cap
+            source_updated_at=source_updated_at,
+        )
+
+    # Build asset records for root assets seen in domain state
+    assets: dict = {}
+    for domain_key, dstate in domain_state.items():
+        for asset in dstate.get("assets", []):
+            filename = asset.get("filename", "")
+            if filename and asset.get("content_url"):
+                from services.compose.manifest import AssetRecord
+                assets[filename] = AssetRecord(
+                    kind="root",
+                    source_path=asset.get("path"),
+                    content_url=asset.get("content_url"),
+                    fetched_at=asset.get("updated_at"),
+                )
+
+    # Domain freshness
+    domain_freshness = {
+        domain: dstate.get("latest_updated_at", "")
+        for domain, dstate in domain_state.items()
+        if dstate.get("latest_updated_at")
+    }
+
+    # Entity count: total unique entities across all domains
+    entity_count = sum(
+        len(dstate.get("entities", []))
+        for dstate in domain_state.values()
+    )
+
+    return make_manifest(
+        task_slug=task_slug,
+        surface_type=surface_type,
+        sections=sections,
+        assets=assets,
+        entity_count=entity_count,
+        domain_freshness=domain_freshness,
+    )

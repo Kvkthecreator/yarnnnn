@@ -15,7 +15,18 @@ Phase 4: revision routing (staleness detection, section-scoped regeneration) ←
 Phase 5: asset lifecycle (root vs derivative, cross-run continuity) ← future
 """
 
-from services.compose.assembly import build_generation_brief
-from services.compose.manifest import read_manifest, SysManifest
+from services.compose.assembly import (
+    build_generation_brief,
+    parse_draft_into_sections,
+    build_post_generation_manifest,
+)
+from services.compose.manifest import read_manifest, make_manifest, SysManifest
 
-__all__ = ["build_generation_brief", "read_manifest", "SysManifest"]
+__all__ = [
+    "build_generation_brief",
+    "parse_draft_into_sections",
+    "build_post_generation_manifest",
+    "read_manifest",
+    "make_manifest",
+    "SysManifest",
+]

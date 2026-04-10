@@ -1615,6 +1615,69 @@ async def execute_task(
                 logger.warning(f"[TASK_EXEC] Compose HTML failed (non-fatal): {e}")
 
         # =====================================================================
+        # 12b. ADR-170 Phase 3: write section partials + sys_manifest.json
+        # =====================================================================
+        if output_kind == "produces_deliverable" and task_output_folder:
+            try:
+                from services.task_types import get_task_type
+                _type_key = task_info.get("type_key", "")
+                _tdef = get_task_type(_type_key) if _type_key else None
+                _page_structure = _tdef.get("page_structure") if _tdef else None
+                if _page_structure:
+                    from services.compose.assembly import (
+                        parse_draft_into_sections,
+                        build_post_generation_manifest,
+                        _query_domain_state,
+                    )
+                    # Parse draft into section partials
+                    sections_parsed = parse_draft_into_sections(draft, _page_structure)
+
+                    # Write section partials to sections/{slug}.md
+                    for sec_slug, sec_data in sections_parsed.items():
+                        if sec_data.get("content"):
+                            await tw.write(
+                                f"outputs/{task_output_folder}/sections/{sec_slug}.md",
+                                sec_data["content"],
+                                summary=f"Section: {sec_data['title']}",
+                                tags=["output", "section"],
+                            )
+
+                    # Query domain state for manifest provenance
+                    context_reads = task_info.get("context_reads", [])
+                    domain_state = await _query_domain_state(client, user_id, context_reads)
+
+                    # Build and write sys_manifest.json
+                    _surf = task_info.get("surface_type") or (_tdef.get("surface_type") if _tdef else "report") or "report"
+                    manifest = build_post_generation_manifest(
+                        task_slug=task_slug,
+                        surface_type=_surf,
+                        sections_parsed=sections_parsed,
+                        domain_state=domain_state,
+                        task_info=task_info,
+                        run_started_at=started_at.isoformat(),
+                    )
+                    manifest_json = manifest.to_json()
+                    await tw.write(
+                        f"outputs/{task_output_folder}/sys_manifest.json",
+                        manifest_json,
+                        summary=f"Compose manifest v{next_version}",
+                        tags=["output", "manifest"],
+                    )
+                    # Also write to latest/ for staleness detection on next run
+                    await tw.write(
+                        "outputs/latest/sys_manifest.json",
+                        manifest_json,
+                        summary="Latest compose manifest",
+                        tags=["output", "manifest", "latest"],
+                    )
+                    logger.info(
+                        f"[COMPOSE] Wrote manifest + {len(sections_parsed)} section partials "
+                        f"for {task_slug} → outputs/{task_output_folder}/"
+                    )
+            except Exception as e:
+                logger.warning(f"[COMPOSE] Post-generation manifest write failed (non-fatal): {e}")
+
+        # =====================================================================
         # 13. Deliver
         # =====================================================================
         final_status = "delivered"
@@ -2207,6 +2270,56 @@ async def _execute_pipeline(
                 )
         except Exception as e:
             logger.warning(f"[PIPELINE] Compose HTML failed: {e}")
+
+    # ADR-170 Phase 3: write section partials + sys_manifest.json (produces_deliverable only)
+    if task_info.get("output_kind") == "produces_deliverable":
+        try:
+            _page_structure = task_type_def.get("page_structure") if task_type_def else None
+            if _page_structure:
+                from services.compose.assembly import (
+                    parse_draft_into_sections,
+                    build_post_generation_manifest,
+                    _query_domain_state,
+                )
+                sections_parsed = parse_draft_into_sections(final_draft, _page_structure)
+                for sec_slug, sec_data in sections_parsed.items():
+                    if sec_data.get("content"):
+                        await tw.write(
+                            f"outputs/{date_folder}/sections/{sec_slug}.md",
+                            sec_data["content"],
+                            summary=f"Section: {sec_data['title']}",
+                            tags=["output", "section"],
+                        )
+                context_reads = task_info.get("context_reads", [])
+                domain_state = await _query_domain_state(client, user_id, context_reads)
+                _surf = task_info.get("surface_type") or (task_type_def.get("surface_type") if task_type_def else "report") or "report"
+                manifest = build_post_generation_manifest(
+                    task_slug=task_slug,
+                    surface_type=_surf,
+                    sections_parsed=sections_parsed,
+                    domain_state=domain_state,
+                    task_info=task_info,
+                    run_started_at=started_at.isoformat(),
+                )
+                manifest_json = manifest.to_json()
+                await tw.write(
+                    f"outputs/{date_folder}/sys_manifest.json",
+                    manifest_json,
+                    summary=f"Compose manifest v{next_version}",
+                    tags=["output", "manifest"],
+                )
+                await tw.write(
+                    "outputs/latest/sys_manifest.json",
+                    manifest_json,
+                    summary="Latest compose manifest",
+                    tags=["output", "manifest", "latest"],
+                )
+                logger.info(
+                    f"[COMPOSE] Pipeline: wrote manifest + {len(sections_parsed)} section partials "
+                    f"for {task_slug} → outputs/{date_folder}/"
+                )
+        except Exception as e:
+            logger.warning(f"[COMPOSE] Pipeline post-generation manifest write failed (non-fatal): {e}")
 
     # Deliver
     final_status = "delivered"
