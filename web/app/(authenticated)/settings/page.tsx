@@ -418,10 +418,10 @@ export default function SettingsPage() {
           <div>
             <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
               <BarChart3 className="w-5 h-5" />
-              Usage & Limits
+              Usage
             </h2>
             <p className="text-sm text-muted-foreground">
-              Your current usage against plan limits.
+              Your balance and token spend this month.
             </p>
           </div>
 
