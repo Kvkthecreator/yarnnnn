@@ -123,29 +123,36 @@ function TaskActions({
   onEdit: () => void;
 }) {
   const isRunPending = mutationPending && pendingAction === 'run';
+  const isActive = task.status === 'active';
+  const isPaused = task.status === 'paused';
   const isTerminal = task.status === 'completed' || task.status === 'archived';
-  const runDisabledReason = mutationPending
-    ? 'Another task action is already in progress.'
-    : task.status === 'paused'
-      ? 'Resume this task before running it.'
-      : task.status === 'completed'
-        ? 'Completed tasks cannot be run from this view.'
-        : task.status === 'archived'
-          ? 'Archived tasks cannot be run from this view.'
-          : undefined;
 
   return (
     <>
-      <button
-        onClick={onRun}
-        disabled={mutationPending || task.status !== 'active'}
-        title={runDisabledReason}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
-      >
-        {isRunPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-        Run now
-      </button>
-      {!isTerminal && (
+      {/* Active: Run now + Pause. Paused: Resume only. Terminal: nothing. */}
+      {isActive && (
+        <>
+          <button
+            onClick={onRun}
+            disabled={mutationPending}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
+          >
+            {isRunPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+            Run now
+          </button>
+          <button
+            onClick={onPause}
+            disabled={mutationPending}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border',
+              'text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50',
+            )}
+          >
+            <Pause className="w-3 h-3" /> Pause
+          </button>
+        </>
+      )}
+      {isPaused && (
         <button
           onClick={onPause}
           disabled={mutationPending}
@@ -154,19 +161,17 @@ function TaskActions({
             'text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50',
           )}
         >
-          {task.status === 'active' ? (
-            <><Pause className="w-3 h-3" /> Pause</>
-          ) : (
-            <><Play className="w-3 h-3" /> Resume</>
-          )}
+          <Play className="w-3 h-3" /> Resume
         </button>
       )}
-      <button
-        onClick={onEdit}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-      >
-        <MessageSquare className="w-3 h-3" /> Edit via chat
-      </button>
+      {!isTerminal && (
+        <button
+          onClick={onEdit}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+        >
+          <MessageSquare className="w-3 h-3" /> Edit via chat
+        </button>
+      )}
     </>
   );
 }
