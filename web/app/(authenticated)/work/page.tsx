@@ -121,13 +121,14 @@ export default function WorkPage() {
       // Use getAgentSlug() for lookup — agent.slug may not be populated from API
       const agentSlug = agentFilter || breadcrumbTask?.agent_slugs?.[0];
       const agent = agentSlug ? agents.find(a => getAgentSlug(a) === agentSlug) : null;
+      const agentCrumbLabel = agent?.title ?? agentSlug ?? '';
 
       if (agentFilter) {
         // Came from Agents surface via "Manage task" button — root breadcrumb at Agents
         setBreadcrumb([
           { label: 'Agents', href: '/agents', kind: 'surface' },
           {
-            label: agent?.title ?? agentFilter,
+            label: agentCrumbLabel,
             href: `/agents?agent=${encodeURIComponent(agentFilter)}`,
             kind: 'agent' as const,
           },
@@ -143,8 +144,8 @@ export default function WorkPage() {
         setBreadcrumb([
           { label: 'Work', href: '/work', kind: 'surface' },
           ...(agentSlug ? [{
-            label: agent?.title ? `${agent.title}'s work` : `${agentSlug}'s work`,
-            href: `/work?agent=${encodeURIComponent(agentSlug)}`,
+            label: agentCrumbLabel,
+            href: `/agents?agent=${encodeURIComponent(agentSlug)}`,
             kind: 'agent' as const,
           }] : []),
           {
@@ -158,11 +159,12 @@ export default function WorkPage() {
       }
     } else if (agentFilter) {
       const agent = agents.find(a => getAgentSlug(a) === agentFilter);
+      const agentCrumbLabel = agent?.title ?? agentFilter;
       setBreadcrumb([
         { label: 'Work', href: '/work', kind: 'surface' },
         {
-          label: agent?.title ? `${agent.title}'s work` : `${agentFilter}'s work`,
-          href: `/work?agent=${encodeURIComponent(agentFilter)}`,
+          label: agentCrumbLabel,
+          href: `/agents?agent=${encodeURIComponent(agentFilter)}`,
           kind: 'agent',
         },
       ]);
