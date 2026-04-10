@@ -693,9 +693,9 @@ export interface TierLimits {
     notion_pages: number;
     total_platforms: number;
     sync_frequency: '1x_daily' | '2x_daily' | '4x_daily' | 'hourly';
-    monthly_messages: number; // -1 for unlimited (Pro)
+    monthly_messages: number;          // -1 for unlimited (Pro)
     active_tasks: number;
-    monthly_credits: number;
+    monthly_spend_usd_limit: number;   // ADR-171: token spend cap in USD
   };
   usage: {
     slack_channels: number;
@@ -703,7 +703,7 @@ export interface TierLimits {
     platforms_connected: number;
     monthly_messages_used: number;
     active_tasks: number;
-    credits_used: number;
+    spend_usd: number;                 // ADR-171: token spend this month
   };
   next_sync?: string | null;
 }
@@ -763,6 +763,15 @@ export interface TaskCreate {
   delivery?: string;
 }
 
+// ADR-170: Section provenance from sys_manifest.json
+export interface TaskSectionEntry {
+  slug: string;
+  title?: string;
+  kind?: string;
+  produced_at?: string;
+  source_files: string[];
+}
+
 export interface TaskOutput {
   folder: string;
   date: string;
@@ -771,6 +780,9 @@ export interface TaskOutput {
   html_content?: string;   // composed HTML
   md_content?: string;     // legacy alias for content
   manifest?: OutputManifest;
+  // ADR-170: Compose substrate — section provenance
+  sys_manifest?: Record<string, unknown>;
+  sections?: TaskSectionEntry[];
 }
 
 // ADR-145: Task Type Registry

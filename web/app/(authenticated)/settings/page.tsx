@@ -432,16 +432,17 @@ export default function SettingsPage() {
             </div>
           ) : limits ? (
             <>
-              {/* Work Credits — the primary meter */}
+              {/* Token spend — the primary meter (ADR-171) */}
               <div className="p-4 border border-border rounded-lg space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-medium">Work Credits</h3>
+                  <h3 className="font-medium">Usage this month</h3>
                   <span className="text-sm text-muted-foreground">
-                    {limits.usage.credits_used} / {limits.limits.monthly_credits} this month
+                    ${(limits.usage.spend_usd ?? 0).toFixed(2)} of ${limits.limits.monthly_spend_usd_limit.toFixed(2)}
                   </span>
                 </div>
                 {(() => {
-                  const percent = Math.min(100, Math.round((limits.usage.credits_used / Math.max(1, limits.limits.monthly_credits)) * 100));
+                  const percent = Math.min(100, Math.round(((limits.usage.spend_usd ?? 0) / Math.max(0.01, limits.limits.monthly_spend_usd_limit)) * 100));
+                  const remaining = Math.max(0, limits.limits.monthly_spend_usd_limit - (limits.usage.spend_usd ?? 0));
                   return (
                     <>
                       <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -451,7 +452,7 @@ export default function SettingsPage() {
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Task run = 3 credits, Render = 1 credit. {limits.limits.monthly_credits - limits.usage.credits_used} credits remaining.
+                        ${remaining.toFixed(2)} remaining. Covers chat, tasks, and web search — powered by Claude Sonnet.
                       </p>
                     </>
                   );

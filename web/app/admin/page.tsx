@@ -160,8 +160,8 @@ export default function AdminDashboardPage() {
           <StatCard label="Sessions" value={overview.total_sessions} trend={overview.sessions_7d} trendLabel="7d" icon={MessageSquare} />
           <StatCard label="Messages" value={overview.total_messages} icon={MessageSquare} />
           <StatCard
-            label="Credits (mo)"
-            value={execStats ? `${execStats.credits_used_this_month}/${execStats.credits_limit}` : "—"}
+            label="Spend (mo)"
+            value={execStats ? `$${execStats.spend_usd_this_month?.toFixed(2)}/$${execStats.spend_usd_limit?.toFixed(2)}` : "—"}
             icon={Zap}
           />
         </div>
@@ -424,7 +424,7 @@ export default function AdminDashboardPage() {
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">Agents</th>
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">Tasks</th>
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">Sessions</th>
-                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">Credits</th>
+                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">Spend (mo)</th>
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">Last Active</th>
                 </tr>
               </thead>
@@ -453,7 +453,7 @@ export default function AdminDashboardPage() {
                       <td className="py-2 px-2 text-right">{user.agent_count}</td>
                       <td className="py-2 px-2 text-right">{user.task_count}</td>
                       <td className="py-2 px-2 text-right">{user.session_count}</td>
-                      <td className="py-2 px-2 text-right">{user.credits_used}</td>
+                      <td className="py-2 px-2 text-right">${user.spend_usd?.toFixed(2) ?? "—"}</td>
                       <td className="py-2 px-2 text-right text-muted-foreground text-xs">
                         {user.last_activity ? formatDate(user.last_activity) : "—"}
                       </td>

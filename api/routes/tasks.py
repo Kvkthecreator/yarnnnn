@@ -97,11 +97,23 @@ class TaskOutputEntry(BaseModel):
     manifest: Optional[dict] = None
 
 
+class TaskSectionEntry(BaseModel):
+    """A parsed section from sys_manifest.json sections dict (ADR-170)."""
+    slug: str
+    title: Optional[str] = None
+    kind: Optional[str] = None
+    produced_at: Optional[str] = None
+    source_files: list[str] = []
+
+
 class TaskOutputLatest(BaseModel):
     content: Optional[str] = None
     html_content: Optional[str] = None
     date: Optional[str] = None
     manifest: Optional[dict] = None
+    # ADR-170: Compose substrate — section provenance and manifest
+    sys_manifest: Optional[dict] = None          # Full sys_manifest.json parsed
+    sections: list[TaskSectionEntry] = []        # Ordered section list for view-time rendering
 
 
 class TaskRunTriggered(BaseModel):
@@ -894,11 +906,33 @@ async def get_latest_task_output(
         except (ValueError, _json.JSONDecodeError):
             pass
 
+    # ADR-170: Read sys_manifest.json for compose-substrate section provenance
+    sys_manifest_content = await ws.read(f"outputs/{date_folder}/sys_manifest.json")
+    sys_manifest = None
+    sections_list: list[TaskSectionEntry] = []
+    if sys_manifest_content:
+        try:
+            sys_manifest = _json.loads(sys_manifest_content)
+            # Build ordered sections list from manifest.sections dict
+            raw_sections = sys_manifest.get("sections", {})
+            for slug, sec in raw_sections.items():
+                sections_list.append(TaskSectionEntry(
+                    slug=slug,
+                    title=sec.get("title"),
+                    kind=sec.get("kind"),
+                    produced_at=sec.get("produced_at"),
+                    source_files=sec.get("source_files", []),
+                ))
+        except (ValueError, _json.JSONDecodeError):
+            pass
+
     return TaskOutputLatest(
         content=content,
         html_content=html_content,
         date=date_folder,
         manifest=manifest,
+        sys_manifest=sys_manifest,
+        sections=sections_list,
     )
 
 
@@ -1088,11 +1122,32 @@ async def get_task_output_by_date(
         except (ValueError, _json.JSONDecodeError):
             pass
 
+    # ADR-170: sys_manifest for section provenance
+    sys_manifest_content = await ws.read(f"outputs/{date_folder}/sys_manifest.json")
+    sys_manifest = None
+    sections_list: list[TaskSectionEntry] = []
+    if sys_manifest_content:
+        try:
+            sys_manifest = _json.loads(sys_manifest_content)
+            raw_sections = sys_manifest.get("sections", {})
+            for s_slug, sec in raw_sections.items():
+                sections_list.append(TaskSectionEntry(
+                    slug=s_slug,
+                    title=sec.get("title"),
+                    kind=sec.get("kind"),
+                    produced_at=sec.get("produced_at"),
+                    source_files=sec.get("source_files", []),
+                ))
+        except (ValueError, _json.JSONDecodeError):
+            pass
+
     return TaskOutputLatest(
         content=content,
         html_content=html_content,
         date=date_folder,
         manifest=manifest,
+        sys_manifest=sys_manifest,
+        sections=sections_list,
     )
 
 

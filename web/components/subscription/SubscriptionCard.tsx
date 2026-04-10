@@ -26,7 +26,7 @@ const PRICING_OPTIONS: Array<{
 
 const PRO_FEATURES = [
   "Unlimited chat",
-  "500 work credits/month",
+  "$20 usage included/month",
   "10 active tasks",
   "Unlimited sources",
   "Hourly sync",
@@ -34,7 +34,7 @@ const PRO_FEATURES = [
 
 const COMPARE_ROWS: Array<{ label: string; free: string; pro: string }> = [
   { label: "Chat messages", free: "150/month", pro: "Unlimited" },
-  { label: "Work credits", free: "20/month", pro: "500/month" },
+  { label: "Monthly usage included", free: "$3", pro: "$20" },
   { label: "Active tasks", free: "2", pro: "10" },
   { label: "Slack sources", free: "5", pro: "Unlimited" },
   { label: "Notion pages", free: "10", pro: "Unlimited" },
@@ -225,7 +225,7 @@ export function SubscriptionCard() {
               Upgrade to Pro
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Unlimited chat, 500 work credits/month, 10 tasks, hourly sync.
+              Unlimited chat, $20 usage/month, 10 tasks, hourly sync.
             </p>
           </div>
 

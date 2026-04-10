@@ -81,6 +81,7 @@ def classify_revision_scope(
     prior_manifest,          # SysManifest | None
     page_structure: list[dict],
     domain_state: dict,
+    forced_sections: Optional[list[str]] = None,
 ) -> RevisionScope:
     """Classify what needs regeneration given the prior manifest and current domain state.
 
@@ -88,6 +89,9 @@ def classify_revision_scope(
         prior_manifest: SysManifest from prior run, or None for first run
         page_structure: Task type page_structure (list of section defs)
         domain_state: Current domain state from _query_domain_state()
+        forced_sections: Optional list of section slugs to force stale, regardless of
+            manifest or domain freshness. Set when TP uses ManageTask(action="steer",
+            target_section=...) — ADR-170 Gap 1.
 
     Returns:
         RevisionScope describing what to regenerate and why.
@@ -97,8 +101,13 @@ def classify_revision_scope(
     - All sections stale → full run (avoids partial generation overhead)
     - No sections stale → none (skip generation, reuse prior output)
     - Some sections stale → section-scoped (regenerate stale only)
+    - forced_sections → those slugs are always stale (section or full depending on overlap)
     """
     from services.compose.assembly import _slug, _domain_from_path, _path_matches_pattern
+
+    # ADR-170 Gap 1: TP section-level steering override.
+    # forced_sections are always stale regardless of manifest or domain state.
+    forced_set = set(forced_sections or [])
 
     if not prior_manifest:
         all_slugs = [_slug(s["title"]) for s in page_structure]
@@ -125,6 +134,11 @@ def classify_revision_scope(
     for section_def in page_structure:
         title = section_def.get("title", "")
         slug = _slug(title)
+
+        # ADR-170 Gap 1: TP-forced sections are always stale.
+        if slug in forced_set:
+            stale.append(slug)
+            continue
 
         # Check manifest staleness (source files updated after section produced)
         if prior_manifest.is_section_stale(slug):
@@ -178,12 +192,13 @@ def classify_revision_scope(
             all_slugs=all_slugs,
         )
 
+    forced_note = f" ({len(forced_set)} TP-forced)" if forced_set else ""
     return RevisionScope(
         revision_type="section",
         stale_sections=stale,
         current_sections=current,
         reason=(
-            f"{len(stale)}/{len(all_slugs)} sections stale: "
+            f"{len(stale)}/{len(all_slugs)} sections stale{forced_note}: "
             + ", ".join(stale)
         ),
         all_slugs=all_slugs,

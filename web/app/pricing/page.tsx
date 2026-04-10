@@ -10,7 +10,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata = getMarketingMetadata({
   title: "Pricing",
   description:
-    "Free and Pro plans for autonomous recurring work. Every plan includes the scaffolded workforce, Thinking Partner, and platform integrations. Upgrade for more active tasks and work credits.",
+    "Free and Pro plans for autonomous recurring work. Every plan includes the scaffolded workforce, Thinking Partner, and platform integrations. Upgrade for more active tasks and higher monthly usage.",
   path: "/pricing",
   keywords: ["yarnnn pricing", "autonomous AI pricing", "AI workforce plans", "agent pricing", "ai task pricing"],
 });
@@ -24,7 +24,7 @@ interface PricingFeature {
 const features: PricingFeature[] = [
   { name: "Scaffolded workforce", free: "Included", pro: "Included" },
   { name: "Active tasks", free: "2", pro: "10" },
-  { name: "Work credits / month", free: "20", pro: "500" },
+  { name: "Monthly usage included", free: "$3", pro: "$20" },
   { name: "Monthly messages", free: "150", pro: "Unlimited" },
   { name: "Platforms available", free: "All", pro: "All" },
   { name: "Slack sources", free: "5", pro: "Unlimited" },
@@ -91,7 +91,7 @@ export default function PricingPage() {
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
                 Every plan includes the scaffolded workforce, Thinking Partner,
                 and platform integrations. Upgrade when you need more active
-                tasks, work credits, and fresher sync.
+                tasks and fresher sync.
               </p>
             </div>
 
@@ -119,7 +119,7 @@ export default function PricingPage() {
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>20 work credits / month</span>
+                      <span>$3 usage included / month</span>
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -176,7 +176,7 @@ export default function PricingPage() {
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>500 work credits / month</span>
+                      <span>$20 usage included / month</span>
                     </li>
                     <li className="flex items-center gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -218,13 +218,12 @@ export default function PricingPage() {
                 </p>
                 <p className="text-white/50 text-sm leading-relaxed mb-4">
                   <strong className="text-white/70">Active tasks</strong> are recurring
-                  work contracts the system keeps running. <strong className="text-white/70">Work credits</strong>
-                  {" "}meter autonomous execution and rendering. Messages with Thinking Partner
-                  are counted separately.
+                  work contracts the system keeps running. <strong className="text-white/70">Monthly usage</strong>
+                  {" "}covers all LLM activity — chat, tasks, and web search — measured in dollars against Anthropic&apos;s published token rates. YARNNN uses Claude Sonnet at $6/M input tokens and $30/M output tokens.
                 </p>
                 <p className="text-white/40 text-xs">
                   Free is enough to feel the loop. Pro is for a system that runs
-                  with more active tasks, more credits, and faster sync.
+                  with more active tasks, higher usage, and faster sync.
                 </p>
                 </div>
               </SpotlightCard>

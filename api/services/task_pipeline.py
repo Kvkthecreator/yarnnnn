@@ -640,6 +640,23 @@ async def _post_run_domain_scan(
         logger.warning(f"[TASK_EXEC] Awareness update failed (non-fatal): {e}")
 
 
+def _parse_forced_sections(steering_md: str) -> list[str]:
+    """Parse TP-forced section slugs from steering.md (ADR-170 Gap 1).
+
+    ManageTask(action="steer", target_section="executive-summary") writes:
+      <!-- target_section: executive-summary -->
+    into steering.md. This helper extracts those slugs so the revision
+    classifier can force them stale regardless of domain freshness.
+
+    Returns empty list if no target_section directive found.
+    """
+    if not steering_md:
+        return []
+    import re as _re
+    matches = _re.findall(r"<!--\s*target_section:\s*([^\s>]+)\s*-->", steering_md)
+    return [m.strip() for m in matches if m.strip()]
+
+
 def _extract_recent_feedback(feedback_md: str, max_entries: int = 3) -> str:
     """Extract the most recent N feedback entries from task feedback.md.
 
@@ -1454,14 +1471,18 @@ async def execute_task(
                 from services.compose.revision import classify_revision_scope, build_revision_brief
                 _context_reads_6d = task_info.get("context_reads", [])
                 _domain_state_6d = await _query_domain_state(client, user_id, _context_reads_6d)
+                # ADR-170 Gap 1: parse TP-forced sections from steering.md
+                _forced_sections_6d = _parse_forced_sections(steering_notes)
                 revision_scope = classify_revision_scope(
                     prior_manifest=prior_manifest,
                     page_structure=_page_structure_6d,
                     domain_state=_domain_state_6d,
+                    forced_sections=_forced_sections_6d,
                 )
                 logger.info(
                     f"[COMPOSE] {task_slug}: revision_type={revision_scope.revision_type} "
-                    f"stale={revision_scope.stale_sections} current={revision_scope.current_sections}"
+                    f"stale={revision_scope.stale_sections} current={revision_scope.current_sections} "
+                    f"forced={_forced_sections_6d}"
                 )
 
                 # Build generation brief (staleness signals already embedded via prior_manifest)
@@ -2049,14 +2070,18 @@ async def _execute_pipeline(
                 from services.compose.assembly import build_generation_brief, _query_domain_state
                 from services.compose.revision import classify_revision_scope, build_revision_brief
                 _ds = await _query_domain_state(client, user_id, task_info.get("context_reads", []))
+                # ADR-170 Gap 1: parse TP-forced sections from steering.md
+                _forced_pipeline = _parse_forced_sections(steering_notes)
                 rev_scope = classify_revision_scope(
                     prior_manifest=prior_manifest,
                     page_structure=_ps,
                     domain_state=_ds,
+                    forced_sections=_forced_pipeline,
                 )
                 logger.info(
                     f"[COMPOSE] pipeline {task_slug} step={step_name}: "
-                    f"revision_type={rev_scope.revision_type} stale={rev_scope.stale_sections}"
+                    f"revision_type={rev_scope.revision_type} stale={rev_scope.stale_sections} "
+                    f"forced={_forced_pipeline}"
                 )
                 step_generation_brief = await build_generation_brief(
                     client=client,

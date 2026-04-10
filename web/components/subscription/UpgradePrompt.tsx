@@ -12,7 +12,7 @@ import { TIER_LIMITS, formatLimit } from "@/lib/subscription/limits";
 
 interface UpgradePromptProps {
   /** What triggered the prompt */
-  feature: "messages" | "credits" | "tasks";
+  feature: "messages" | "spend" | "tasks";
   /** Current usage count */
   currentUsage?: number;
   /** Whether to show as modal or inline banner */
@@ -30,9 +30,9 @@ const FEATURE_COPY = {
     title: "Need more messages?",
     description: "You've used all your free messages this month. Upgrade to Pro for unlimited chat.",
   },
-  credits: {
-    title: "Need more work credits?",
-    description: "Your agents have used all work credits this month. Upgrade to Pro for 500 credits/month.",
+  spend: {
+    title: "Monthly usage limit reached",
+    description: "Your workspace has used its $3 monthly usage. Upgrade to Pro for $20/month included.",
   },
   tasks: {
     title: "Unlock more tasks",
@@ -54,7 +54,7 @@ export function UpgradePrompt({
   const copy = FEATURE_COPY[feature];
   const limit = TIER_LIMITS.free[
     feature === "messages" ? "monthlyMessages" :
-    feature === "credits" ? "monthlyCredits" :
+    feature === "spend" ? "monthlySpendUsd" :
     "activeTasks"
   ];
 
@@ -65,7 +65,7 @@ export function UpgradePrompt({
 
   const proFeatures = [
     "Unlimited chat",
-    "500 work credits/month",
+    "$20 usage included/month",
     "10 active tasks",
     "Unlimited sources",
     "Hourly sync",

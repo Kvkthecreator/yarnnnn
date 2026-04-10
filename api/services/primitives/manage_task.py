@@ -726,8 +726,13 @@ async def _handle_steer(auth: Any, task_slug: str, input: dict) -> dict:
 
     ADR-149: TP writes management notes that the pipeline reads on next execution.
     Steering is overwritten each time (latest guidance only, not accumulated).
+
+    ADR-170: Optional target_section forces a specific page_structure section to
+    regenerate on next run, bypassing the manifest staleness check. Written as a
+    metadata directive at the top of steering.md — read by revision.py.
     """
     steering_text = input.get("steering", "").strip()
+    target_section = input.get("target_section", "").strip()
 
     if not steering_text:
         return {"success": False, "error": "missing_steering", "message": "steering text is required for action='steer'"}
@@ -742,9 +747,11 @@ async def _handle_steer(auth: Any, task_slug: str, input: dict) -> dict:
     now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y-%m-%d %H:%M")
 
+    target_line = f"target_section: {target_section}\n" if target_section else ""
     steering_content = (
         f"# Steering Notes\n"
-        f"<!-- Written by TP. Read by pipeline on next execution. Overwritten per evaluation. -->\n\n"
+        f"<!-- Written by TP. Read by pipeline on next execution. Overwritten per evaluation. -->\n"
+        f"<!-- {target_line}-->\n\n"
         f"## Guidance ({date_str})\n"
         f"{steering_text}\n"
     )
@@ -758,10 +765,15 @@ async def _handle_steer(auth: Any, task_slug: str, input: dict) -> dict:
     # ADR-164: task_steered activity_log write removed. Steering lives in
     # /tasks/{slug}/memory/steering.md — the file is the record.
 
+    msg = f"Steering notes written for '{task_slug}'. Next run will incorporate this guidance."
+    if target_section:
+        msg += f" Section '{target_section}' will be force-regenerated."
+
     return {
         "success": True,
         "task_slug": task_slug,
-        "message": f"Steering notes written for '{task_slug}'. Next run will incorporate this guidance.",
+        "target_section": target_section or None,
+        "message": msg,
     }
 
 

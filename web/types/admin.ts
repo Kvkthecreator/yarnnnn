@@ -57,8 +57,8 @@ export interface AdminExecutionStats {
   total_runs_24h: number;
   total_runs_7d: number;
   total_runs_30d: number;
-  credits_used_this_month: number;
-  credits_limit: number;
+  spend_usd_this_month: number;
+  spend_usd_limit: number;
   last_scheduler_heartbeat: string | null;
   heartbeats_24h: number;
   tasks: TaskExecutionRow[];
@@ -73,6 +73,6 @@ export interface AdminUserRow {
   agent_count: number;
   task_count: number;
   session_count: number;
-  credits_used: number;
+  spend_usd: number;
   last_activity: string | null;
 }

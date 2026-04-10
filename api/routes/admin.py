@@ -99,9 +99,9 @@ class AdminExecutionStats(BaseModel):
     total_runs_24h: int
     total_runs_7d: int
     total_runs_30d: int
-    # Credits
-    credits_used_this_month: int
-    credits_limit: int
+    # Spend
+    spend_usd_this_month: float
+    spend_usd_limit: float
     # Scheduler
     last_scheduler_heartbeat: Optional[str]
     heartbeats_24h: int
@@ -117,7 +117,7 @@ class AdminUserRow(BaseModel):
     agent_count: int
     task_count: int
     session_count: int
-    credits_used: int
+    spend_usd: float
     last_activity: Optional[str] = None
 
 
@@ -358,16 +358,16 @@ async def get_execution_stats(admin: AdminAuth):
         runs_30d = client.table("agent_runs").select("id", count="exact")\
             .gte("created_at", cutoff_30d).execute()
 
-        # Credits this month
+        # Spend this month
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
-        credits_result = client.table("work_credits")\
-            .select("credits_consumed")\
+        spend_result = client.table("token_usage")\
+            .select("cost_usd")\
             .gte("created_at", month_start)\
             .execute()
-        credits_used = sum(r.get("credits_consumed", 0) for r in (credits_result.data or []))
+        spend_usd_this_month = sum(float(r.get("cost_usd", 0)) for r in (spend_result.data or []))
 
-        # Credit limit (check first user's tier — simplified for single-user)
-        credits_limit = 500  # Pro default
+        # Spend limit (aggregate — $20 pro default shown for overall)
+        spend_usd_limit = 20.0  # Pro default
 
         # Scheduler heartbeat
         hb_result = client.table("activity_log")\
@@ -449,8 +449,8 @@ async def get_execution_stats(admin: AdminAuth):
             total_runs_24h=runs_24h.count or 0,
             total_runs_7d=runs_7d.count or 0,
             total_runs_30d=runs_30d.count or 0,
-            credits_used_this_month=credits_used,
-            credits_limit=credits_limit,
+            spend_usd_this_month=spend_usd_this_month,
+            spend_usd_limit=spend_usd_limit,
             last_scheduler_heartbeat=last_heartbeat,
             heartbeats_24h=hb_24h.count or 0,
             tasks=tasks,
@@ -507,13 +507,13 @@ async def list_users(admin: AdminAuth):
 
             last_activity = sessions.data[0].get("created_at") if sessions.data else None
 
-            # Credits this month
-            credits = client.table("work_credits")\
-                .select("credits_consumed")\
+            # Spend this month
+            spend = client.table("token_usage")\
+                .select("cost_usd")\
                 .eq("user_id", user_id)\
                 .gte("created_at", month_start)\
                 .execute()
-            credits_used = sum(r.get("credits_consumed", 0) for r in (credits.data or []))
+            spend_usd = sum(float(r.get("cost_usd", 0)) for r in (spend.data or []))
 
             # Tier
             from services.platform_limits import get_user_tier
@@ -527,7 +527,7 @@ async def list_users(admin: AdminAuth):
                 agent_count=agents.count or 0,
                 task_count=tasks.count or 0,
                 session_count=sessions.count or 0,
-                credits_used=credits_used,
+                spend_usd=spend_usd,
                 last_activity=last_activity,
             ))
 
@@ -562,7 +562,7 @@ async def export_users_excel(admin: AdminAuth):
             top=Side(style="thin"), bottom=Side(style="thin"),
         )
 
-        headers = ["Email", "Tier", "Agents", "Tasks", "Sessions", "Credits", "Last Active", "Joined"]
+        headers = ["Email", "Tier", "Agents", "Tasks", "Sessions", "Spend (mo)", "Last Active", "Joined"]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col, value=header)
             cell.font = header_font
@@ -575,7 +575,7 @@ async def export_users_excel(admin: AdminAuth):
             ws.cell(row=row, column=3, value=user.agent_count).border = thin_border
             ws.cell(row=row, column=4, value=user.task_count).border = thin_border
             ws.cell(row=row, column=5, value=user.session_count).border = thin_border
-            ws.cell(row=row, column=6, value=user.credits_used).border = thin_border
+            ws.cell(row=row, column=6, value=user.spend_usd).border = thin_border
             ws.cell(row=row, column=7, value=user.last_activity or "—").border = thin_border
             ws.cell(row=row, column=8, value=user.created_at).border = thin_border
 
@@ -680,7 +680,7 @@ async def export_full_report(admin: AdminAuth):
             ("Task Runs (24h)", exec_stats.total_runs_24h),
             ("Task Runs (7d)", exec_stats.total_runs_7d),
             ("Task Runs (30d)", exec_stats.total_runs_30d),
-            ("Credits Used (month)", exec_stats.credits_used_this_month),
+            ("Spend USD (month)", exec_stats.spend_usd_this_month),
         ]:
             ws[f"A{row}"] = label
             ws[f"A{row}"].font = metric_label_font
@@ -700,7 +700,7 @@ async def export_full_report(admin: AdminAuth):
             cell.border = thin_border
         for r, u in enumerate(users, 2):
             for c, v in enumerate([u.email, u.tier, u.agent_count, u.task_count,
-                                   u.session_count, u.credits_used, u.last_activity or "—", u.created_at], 1):
+                                   u.session_count, u.spend_usd, u.last_activity or "—", u.created_at], 1):
                 ws_users.cell(row=r, column=c, value=v).border = thin_border
         for col, w in enumerate([35, 8, 8, 8, 10, 10, 25, 25], 1):
             ws_users.column_dimensions[get_column_letter(col)].width = w
