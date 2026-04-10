@@ -15,8 +15,6 @@ import {
   Loader2,
   MessageCircle,
   ListChecks,
-  Globe,
-  Upload,
   Play,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
@@ -114,14 +112,10 @@ export default function AgentsPage() {
           onSelect: () => { sendMessage(`Run the task "${activeTasks[0]?.title}" now`, { surface: surfaceOverride }); },
         }] : []),
         { id: 'assign-task', label: 'Assign a new task', icon: ListChecks, verb: 'prompt' as const, onSelect: () => { sendMessage(createTaskPrompt || `Create a new task for ${selectedAgent.title}`, { surface: surfaceOverride }); } },
-        { id: 'web-search', label: 'Web research', icon: Globe, verb: 'prompt' as const, onSelect: () => {} },
-        { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach' as const, onSelect: () => {} },
       ];
     }
     return [
       { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt' as const, onSelect: () => { sendMessage('I want to create a task. What do you suggest based on my context?'); } },
-      { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt' as const, onSelect: () => {} },
-      { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach' as const, onSelect: () => {} },
     ];
   }, [selectedAgent, agentTasks, createTaskPrompt, sendMessage, surfaceOverride]);
 

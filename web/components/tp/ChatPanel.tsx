@@ -8,12 +8,13 @@
  * clarification UI, action cards, and token usage.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Loader2,
   X,
   MessageCircle,
   Send,
+  Paperclip,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -71,7 +72,6 @@ export function ChatPanel({
     status,
     pendingClarification,
     respondToClarification,
-    tokenUsage,
   } = useTP();
   const { surface: deskSurface } = useDesk();
   const surface = surfaceOverride || deskSurface;
@@ -132,6 +132,19 @@ export function ChatPanel({
     if (ta) { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 150)}px`; }
   }, []);
   useEffect(() => { adjustHeight(); }, [input, adjustHeight]);
+
+  // Built-in attach action — owned by ChatPanel because it references fileInputRef.
+  // Prepended to whatever plusMenuActions the page provides.
+  const allPlusMenuActions: PlusMenuAction[] = useMemo(() => [
+    {
+      id: 'attach-file',
+      label: 'Attach a file',
+      icon: Paperclip,
+      verb: 'attach' as const,
+      onSelect: () => fileInputRef.current?.click(),
+    },
+    ...plusMenuActions,
+  ], [plusMenuActions, fileInputRef]);
 
   // Command picker (/ prefix)
   const commandQuery = input.startsWith('/') ? input.slice(1).split(' ')[0] : null;
@@ -254,7 +267,7 @@ export function ChatPanel({
         <form onSubmit={handleSubmit}>
           <div className="flex items-end gap-1.5 border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
-            <PlusMenu actions={plusMenuActions} disabled={isLoading} />
+            <PlusMenu actions={allPlusMenuActions} disabled={isLoading} />
             <textarea
               ref={textareaRef}
               value={input}
@@ -268,10 +281,6 @@ export function ChatPanel({
               className="flex-1 py-2.5 pr-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
             />
             <button type="submit" disabled={isLoading || (!input.trim() && attachments.length === 0)} className="shrink-0 p-2.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"><Send className="w-4 h-4" /></button>
-          </div>
-          <div className="mt-1 flex items-center justify-between text-[9px] text-muted-foreground/40">
-            <span>Enter to send, Shift+Enter for new line</span>
-            {tokenUsage && <span className="font-mono">{tokenUsage.totalTokens >= 1000 ? `${(tokenUsage.totalTokens / 1000).toFixed(1)}k` : tokenUsage.totalTokens} tokens</span>}
           </div>
         </form>
       </div>

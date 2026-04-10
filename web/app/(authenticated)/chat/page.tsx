@@ -31,7 +31,7 @@ export default function HomePage() {
   const plusMenuActions: PlusMenuAction[] = useMemo(() => [
     {
       id: 'create-task',
-      label: 'Create a task',
+      label: 'Start new work',
       icon: ListChecks,
       verb: 'prompt',
       onSelect: () => sendMessage('I want to create a task. What do you suggest based on my context?'),
