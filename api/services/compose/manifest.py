@@ -98,10 +98,17 @@ class SysManifest:
         return json.dumps(asdict(self), indent=2, default=str)
 
     def is_section_stale(self, section_key: str) -> bool:
-        """A section is stale if its source files were updated after it was produced."""
+        """A section is stale if its source files were updated after it was produced.
+
+        If source_updated_at is None (section reads from entity_pattern with no explicit
+        reads_from, or source files weren't resolved), defer to domain-level freshness
+        check in classify_revision_scope — do not assume stale.
+        """
         section = self.sections.get(section_key)
-        if not section or not section.source_updated_at or not section.produced_at:
-            return True  # no provenance → assume stale
+        if not section or not section.produced_at:
+            return True  # no provenance at all → assume stale
+        if not section.source_updated_at:
+            return False  # no source file timestamps — defer to domain freshness check
         return section.source_updated_at > section.produced_at
 
 

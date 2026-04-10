@@ -225,8 +225,14 @@ async def _query_domain_state(
                     "updated_at": row.get("updated_at", ""),
                 })
 
-        # Determine latest updated_at across all domain files
-        all_updated = [r.get("updated_at", "") for r in rows if r.get("updated_at")]
+        # Determine latest updated_at across source files only.
+        # Exclude _tracker.md — it's a materialized view written by the pipeline
+        # itself and should not count as a domain change (would make all sections
+        # appear stale on every subsequent run).
+        all_updated = [
+            r.get("updated_at", "") for r in rows
+            if r.get("updated_at") and not r.get("path", "").endswith("/_tracker.md")
+        ]
         latest_updated = max(all_updated) if all_updated else ""
 
         state[domain_key] = {
@@ -632,28 +638,53 @@ def build_post_generation_manifest(
 
     for slug, sec in sections_parsed.items():
         struct = structure_map.get(slug, {})
-        reads_from = struct.get("reads_from", [])
+        reads_from = struct.get("reads_from") or []
+        entity_pattern = struct.get("entity_pattern")  # e.g. "competitors/*/"
 
-        # Collect source file paths that this section reads from
+        # Collect source file paths that this section reads from.
+        # Exclude _tracker.md — it's a materialized view, not source data.
         source_files = []
         source_updated_ats = []
+
         for path_pattern in reads_from:
+            # Skip _tracker.md patterns — derived, not source data
+            if "_tracker" in path_pattern:
+                continue
             domain_key = _domain_from_path(path_pattern)
             if domain_key and domain_key in domain_state:
                 dstate = domain_state[domain_key]
-                # Synthesis files
+                # Synthesis files.
+                # task_types.py uses "_synthesis.md" as a canonical placeholder,
+                # but directory_registry may register a different filename (e.g.,
+                # "landscape.md" for competitors, "overview.md" for market).
+                # Treat any reads_from ending in "_synthesis.md" as matching the
+                # registered synthesis file — regardless of its actual name.
+                pattern_is_synthesis = path_pattern.endswith("_synthesis.md")
                 for sf in dstate.get("synthesis_files", []):
-                    if sf["path"] not in source_files:
-                        source_files.append(sf["path"])
-                        if sf.get("updated_at"):
-                            source_updated_ats.append(sf["updated_at"])
-                # Entity files matching pattern
+                    if pattern_is_synthesis or sf["path"] not in source_files:
+                        if sf["path"] not in source_files:
+                            source_files.append(sf["path"])
+                            if sf.get("updated_at"):
+                                source_updated_ats.append(sf["updated_at"])
+                # Entity files matching pattern (skip for synthesis-only patterns)
+                if not pattern_is_synthesis:
+                    for ef in dstate.get("entity_files", []):
+                        if _path_matches_pattern(ef["path"], path_pattern):
+                            if ef["path"] not in source_files:
+                                source_files.append(ef["path"])
+                                if ef.get("updated_at"):
+                                    source_updated_ats.append(ef["updated_at"])
+
+        # Also collect from entity_pattern (e.g. "competitors/*/")
+        if entity_pattern:
+            domain_key = _domain_from_path(entity_pattern)
+            if domain_key and domain_key in domain_state:
+                dstate = domain_state[domain_key]
                 for ef in dstate.get("entity_files", []):
-                    if _path_matches_pattern(ef["path"], path_pattern):
-                        if ef["path"] not in source_files:
-                            source_files.append(ef["path"])
-                            if ef.get("updated_at"):
-                                source_updated_ats.append(ef["updated_at"])
+                    if ef["path"] not in source_files:
+                        source_files.append(ef["path"])
+                        if ef.get("updated_at"):
+                            source_updated_ats.append(ef["updated_at"])
 
         source_updated_at = max(source_updated_ats) if source_updated_ats else None
 
