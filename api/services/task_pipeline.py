@@ -1391,16 +1391,16 @@ async def execute_task(
             )
 
         # =====================================================================
-        # 3. Check work credits
+        # 3. Check balance (ADR-172)
         # =====================================================================
         try:
-            from services.platform_limits import check_credits
-            credits_ok, credits_used, credits_limit = check_credits(client, user_id)
-            if not credits_ok:
-                logger.info(f"[TASK_EXEC] Work credits exhausted for user {user_id[:8]} ({credits_used}/{credits_limit})")
-                return _fail(task_slug, "Work credits exhausted")
+            from services.platform_limits import check_balance
+            balance_ok, balance = check_balance(client, user_id)
+            if not balance_ok:
+                logger.info(f"[TASK_EXEC] Balance exhausted for user {user_id[:8]} (${balance:.4f})")
+                return _fail(task_slug, "Usage balance exhausted")
         except Exception as e:
-            logger.warning(f"[TASK_EXEC] Credits check failed (proceeding): {e}")
+            logger.warning(f"[TASK_EXEC] Balance check failed (proceeding): {e}")
 
         # =====================================================================
         # 4. Create agent_runs record
@@ -1451,6 +1451,7 @@ async def execute_task(
         # =====================================================================
         # 6d. ADR-170: Generation brief + revision scope (produces_deliverable only)
         # =====================================================================
+        output_kind = task_info.get("output_kind", "")
         generation_brief = ""
         if output_kind == "produces_deliverable":
             from services.task_types import get_task_type
@@ -1647,12 +1648,15 @@ async def execute_task(
                             _surface = _tdef.get("surface_type", "report")
                 if not _surface:
                     _surface = "report"
+                # _compose_output_html expects the date folder only (e.g., "2026-04-10T0400"),
+                # but agent_output_folder is "outputs/2026-04-10T0400" — strip the prefix.
+                _compose_folder = agent_output_folder.removeprefix("outputs/")
                 await _compose_output_html(
-                    client, user_id, agent_slug, agent_output_folder,
+                    client, user_id, agent_slug, _compose_folder,
                     title=title, pending_renders=pending_renders,
                     surface_type=_surface,
                 )
-                agent_html = await ws.read(f"outputs/{agent_output_folder}/output.html")
+                agent_html = await ws.read(f"{agent_output_folder}/output.html")
                 if agent_html and task_output_folder:
                     await tw.write(
                         f"outputs/{task_output_folder}/output.html",
@@ -1678,6 +1682,9 @@ async def execute_task(
                         build_post_generation_manifest,
                         _query_domain_state,
                     )
+                    # task_output_folder is "outputs/{date}" — strip prefix so
+                    # tw.write doesn't double up to "outputs/outputs/{date}/"
+                    _tf = task_output_folder.removeprefix("outputs/")
                     # Parse draft into section partials
                     sections_parsed = parse_draft_into_sections(draft, _page_structure)
 
@@ -1685,7 +1692,7 @@ async def execute_task(
                     for sec_slug, sec_data in sections_parsed.items():
                         if sec_data.get("content"):
                             await tw.write(
-                                f"outputs/{task_output_folder}/sections/{sec_slug}.md",
+                                f"outputs/{_tf}/sections/{sec_slug}.md",
                                 sec_data["content"],
                                 summary=f"Section: {sec_data['title']}",
                                 tags=["output", "section"],
@@ -1707,7 +1714,7 @@ async def execute_task(
                     )
                     manifest_json = manifest.to_json()
                     await tw.write(
-                        f"outputs/{task_output_folder}/sys_manifest.json",
+                        f"outputs/{_tf}/sys_manifest.json",
                         manifest_json,
                         summary=f"Compose manifest v{next_version}",
                         tags=["output", "manifest"],
@@ -1721,7 +1728,7 @@ async def execute_task(
                     )
                     logger.info(
                         f"[COMPOSE] Wrote manifest + {len(sections_parsed)} section partials "
-                        f"for {task_slug} → outputs/{task_output_folder}/"
+                        f"for {task_slug} → outputs/{_tf}/"
                     )
             except Exception as e:
                 logger.warning(f"[COMPOSE] Post-generation manifest write failed (non-fatal): {e}")
@@ -1948,7 +1955,7 @@ async def _execute_pipeline(
         update_version_for_delivery, SONNET_MODEL,
         _extract_agent_reflection, _compose_output_html,
     )
-    from services.platform_limits import check_spend_budget, record_token_usage
+    from services.platform_limits import check_balance, record_token_usage
 
     steps = process_steps  # ADR-152: from TASK.md, not registry
     title = task_info.get("title") or task_slug
@@ -1992,13 +1999,13 @@ async def _execute_pipeline(
         if s:
             slug_to_agent[s] = a
 
-    # Check credits before starting
+    # Check balance before starting (ADR-172)
     try:
-        credits_ok, credits_used, credits_limit = check_credits(client, user_id)
-        if not credits_ok:
-            return _fail(task_slug, "Work credits exhausted")
+        balance_ok, balance = check_balance(client, user_id)
+        if not balance_ok:
+            return _fail(task_slug, "Usage balance exhausted")
     except Exception as e:
-        logger.warning(f"[PIPELINE] Credits check failed (proceeding): {e}")
+        logger.warning(f"[PIPELINE] Balance check failed (proceeding): {e}")
 
     # Date folder for this run
     date_folder = started_at.strftime("%Y-%m-%dT%H%M")
@@ -2034,7 +2041,7 @@ async def _execute_pipeline(
         role = agent.get("role", "custom")
         scope = agent.get("scope", "cross_platform")
 
-        logger.info(f"[PIPELINE] Step {step_num}/{len(steps)}: {step_name} → {agent_slug} ({agent_type})")
+        logger.info(f"[PIPELINE] Step {step_num}/{len(steps)}: {step_name} → {agent_slug} ({role})")
 
         # --- Gather context for this step ---
         ws = AgentWorkspace(client, user_id, agent_slug)
@@ -2177,7 +2184,7 @@ async def _execute_pipeline(
             step_manifest = {
                 "step": step_num,
                 "step_name": step_name,
-                "agent_type": agent_type,
+                "agent_type": role,
                 "agent_slug": agent_slug,
                 "tokens": usage,
             }
@@ -2207,7 +2214,7 @@ async def _execute_pipeline(
         run_status["completed_steps"].append({
             "step": step_num,
             "step_name": step_name,
-            "agent_type": agent_type,
+            "agent_type": role,
             "agent_slug": agent_slug,
         })
         try:
