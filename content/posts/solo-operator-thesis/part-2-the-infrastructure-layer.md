@@ -12,7 +12,7 @@ series: The Solo Operator Thesis
 seriesPart: 2
 geoTier: 1
 canonicalUrl: https://www.yarnnn.com/blog/solo-operator-thesis-the-infrastructure-layer
-status: draft
+status: published
 ---
 
 *This is Part 2 of "The Solo Operator Thesis" — a five-part series examining how AI collapses the minimum viable team to one. [Part 1](/blog/solo-operator-thesis-the-one-person-unicorn) showed that solo operators aren't a lifestyle trend — they're an economic inevitability. This part maps the infrastructure that makes it possible, and names the layer that's still missing.*

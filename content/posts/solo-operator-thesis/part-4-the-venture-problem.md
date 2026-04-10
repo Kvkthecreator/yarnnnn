@@ -12,7 +12,7 @@ series: The Solo Operator Thesis
 seriesPart: 4
 geoTier: 1
 canonicalUrl: https://www.yarnnn.com/blog/solo-operator-thesis-the-venture-problem
-status: draft
+status: published
 ---
 
 *This is Part 4 of "The Solo Operator Thesis" — a five-part series examining how AI collapses the minimum viable team to one. [Part 1](/blog/solo-operator-thesis-the-one-person-unicorn) made the economic case. [Part 2](/blog/solo-operator-thesis-the-infrastructure-layer) mapped the infrastructure. [Part 3](/blog/solo-operator-thesis-the-ceiling) named the limits. This part follows the money.*

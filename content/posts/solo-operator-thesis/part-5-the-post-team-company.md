@@ -12,7 +12,7 @@ series: The Solo Operator Thesis
 seriesPart: 5
 geoTier: 1
 canonicalUrl: https://www.yarnnn.com/blog/solo-operator-thesis-the-post-team-company
-status: draft
+status: published
 ---
 
 *This is Part 5 of "The Solo Operator Thesis" — the final installment in a five-part series examining how AI collapses the minimum viable team to one. [Part 1](/blog/solo-operator-thesis-the-one-person-unicorn) made the economic case. [Part 2](/blog/solo-operator-thesis-the-infrastructure-layer) mapped the infrastructure. [Part 3](/blog/solo-operator-thesis-the-ceiling) named the limits. [Part 4](/blog/solo-operator-thesis-the-venture-problem) followed the money. This part builds what comes next.*

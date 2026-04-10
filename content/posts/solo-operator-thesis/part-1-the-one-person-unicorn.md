@@ -12,7 +12,7 @@ series: The Solo Operator Thesis
 seriesPart: 1
 geoTier: 1
 canonicalUrl: https://www.yarnnn.com/blog/solo-operator-thesis-the-one-person-unicorn
-status: draft
+status: published
 ---
 
 *This is Part 1 of "The Solo Operator Thesis" — a five-part series examining how AI collapses the minimum viable team to one, and what that means for hiring, venture, management, and the shape of companies themselves.*
