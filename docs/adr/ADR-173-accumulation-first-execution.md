@@ -1,7 +1,7 @@
 # ADR-173: Accumulation-First Execution
 
 **Date:** 2026-04-10
-**Status:** Implemented (Phase 1 + Phase 2 — prompt layer + manifest injection)
+**Status:** Implemented (Phase 1 + Phase 2 + Phase 3 — prompt layer + manifest injection + generation_gaps handoff)
 **Authors:** KVK, Claude
 **Supersedes:** Nothing (names and formalizes an implicit principle across ADR-119, ADR-149, ADR-159, ADR-170)
 **Extends:** ADR-119 (Workspace Filesystem Architecture), ADR-149 (Task Lifecycle / DELIVERABLE.md), ADR-159 (Filesystem-as-Memory), ADR-170 (Compose Substrate)
@@ -116,13 +116,17 @@ Phase 2 closes the loop mechanically for all task modes except `produces_deliver
 
 The prompt changes (Phase 1) establish the behavioral expectation. The manifest injection (Phase 2) makes it mechanically available — agents receive concrete prior-state signal, not just an instruction to look for it.
 
-### What Phase 3 Will Add (Output Versioning as Handoff)
+### What Phase 3 Added (Forward-Looking Handoff via generation_gaps — Implemented)
 
-Phase 3 formalizes the run-to-run handoff:
+Phase 3 closes the run-to-run handoff loop via a structured `generation_gaps` field in `sys_manifest.json`.
 
-- `outputs/latest/sys_manifest.json` gains a `generation_gaps` field: what DELIVERABLE.md declared that wasn't produced (with reasons: asset-already-exists, section-current, skipped-no-source-data). This is a forward-looking handoff note to the next run.
-- `outputs/v{N}/` snapshots are created before `latest/` is overwritten (currently, dated folders handle this; Phase 3 adds explicit version numbering aligned with `agent_runs.run_number`).
-- `awareness.md` references the manifest path for the prior run, so the agent can locate it without scanning the folder.
+**`api/services/compose/manifest.py`** — `SysManifest` gains `generation_gaps: dict[str, str]`. Keys are section slugs and asset keys from `page_structure`; values are `"<status>:<reason>"` strings (e.g. `"skipped:section-current"`, `"missing:no-source-data"`, `"produced:forced"`). Written this run, read by next run.
+
+**`api/services/compose/assembly.py`** — `build_post_generation_manifest()` receives `prior_manifest` and `revision_scope`. Computes `generation_gaps` by iterating `page_structure`: sections produced this run are classified by why (`forced`, `stale`, `delta`, `first-run`); sections in `current_sections` are `skipped:section-current`; sections absent from both are `missing:no-source-data` (or `missing:section-current` if a prior section record exists but no source data was found). Derivative assets declared in `page_structure` that weren't produced are classified as `missing:asset-not-produced`.
+
+**`api/services/task_workspace.py`** — `get_prior_state_brief()` now reads `outputs/latest/sys_manifest.json` in addition to `manifest.json`. Surfaces `generation_gaps` as human-readable lines: "Pending from prior run (produce these): ..." for `missing:` entries and "Current from prior run (reuse/skip unless stale): ..." for `skipped:` entries. Non-fatal: parse failure degrades to the Phase 2 brief.
+
+Note: Explicit `outputs/v{N}/` version numbering (aligned with `agent_runs.run_number`) remains a future refinement — dated folders (`outputs/2026-04-10T1400/`) continue to serve as the snapshot mechanism for now.
 
 ---
 
@@ -132,7 +136,7 @@ Phase 3 formalizes the run-to-run handoff:
 |-------|--------|-------------|
 | Phase 1 | ✅ Implemented (2026-04-10) | Prompt layer — accumulation-first guidance in task pipeline + TP |
 | Phase 2 | ✅ Implemented (2026-04-10) | Manifest injection — `TaskWorkspace.get_prior_state_brief()` + wired into all non-`produces_deliverable` task modes via `prior_state_brief` param |
-| Phase 3 | Proposed | Output versioning as forward-looking handoff artifact |
+| Phase 3 | ✅ Implemented (2026-04-10) | `generation_gaps` field in `SysManifest` — forward-looking handoff dict written each run, consumed by next run via `get_prior_state_brief()` |
 
 ---
 

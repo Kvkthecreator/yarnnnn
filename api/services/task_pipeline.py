@@ -1518,6 +1518,8 @@ async def execute_task(
         # 6d. ADR-170: Generation brief + revision scope (produces_deliverable only)
         # =====================================================================
         generation_brief = ""
+        prior_manifest = None   # ADR-173: also used at 12b for generation_gaps
+        revision_scope = None   # ADR-173: also used at 12b for generation_gaps
         if output_kind == "produces_deliverable":
             from services.task_types import get_task_type
             type_key = task_info.get("type_key", "")
@@ -1789,6 +1791,8 @@ async def execute_task(
                         domain_state=domain_state,
                         task_info=task_info,
                         run_started_at=started_at.isoformat(),
+                        prior_manifest=prior_manifest,   # ADR-173: for gap classification
+                        revision_scope=revision_scope,   # ADR-173: for gap reasons
                     )
                     manifest_json = manifest.to_json()
                     await tw.write(

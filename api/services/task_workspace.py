@@ -226,13 +226,14 @@ class TaskWorkspace:
     async def get_prior_state_brief(self, max_output_chars: int = 2000) -> str:
         """Build a compact prior-state brief for accumulation-first prompt injection.
 
-        ADR-173 Phase 2: Reads outputs/latest/ manifest + file list to tell the agent
-        what was produced in the prior run. Keeps the brief under ~800 tokens.
+        ADR-173 Phase 2+3: Reads outputs/latest/ manifest + file list + sys_manifest.json
+        generation_gaps to tell the agent what was produced and what was pending from
+        the prior run. Keeps the brief under ~800 tokens.
 
         Returns empty string if no prior output exists (first run — graceful degradation).
         """
         try:
-            # Read the manifest from outputs/latest/
+            # Read the simple manifest from outputs/latest/
             manifest_content = await self.read("outputs/latest/manifest.json")
             if not manifest_content:
                 return ""
@@ -240,7 +241,6 @@ class TaskWorkspace:
             manifest = _json.loads(manifest_content)
             created_at = manifest.get("created_at", "unknown")
             agent_slug = manifest.get("agent_slug", "agent")
-            files = manifest.get("files", [])
 
             # List all files in outputs/latest/ to discover assets
             latest_files = await self.list("outputs/latest/")
@@ -250,7 +250,7 @@ class TaskWorkspace:
             has_hero = any(f.startswith("hero.") for f in asset_files)
             has_charts = [f for f in asset_files if any(f.endswith(ext) for ext in (".png", ".svg")) and not f.startswith("hero.")]
 
-            # Build compact brief (target: ~300-500 tokens)
+            # Build compact brief (target: ~300-600 tokens)
             lines = [f"## Prior Run State (last output: {created_at[:10] if len(created_at) >= 10 else created_at})"]
             lines.append(f"Agent: {agent_slug} | Files: {len(latest_files)}")
 
@@ -258,6 +258,24 @@ class TaskWorkspace:
                 lines.append("- Hero image: EXISTS at outputs/latest/ — reuse, do not regenerate")
             if has_charts:
                 lines.append(f"- Charts/assets: {len(has_charts)} file(s) at outputs/latest/ — reuse unless source data changed")
+
+            # ADR-173 Phase 3: read generation_gaps from sys_manifest.json (if present)
+            # This is the forward-looking handoff from the prior run:
+            # what was skipped, what was missing, what needs attention this cycle.
+            sys_manifest_content = await self.read("outputs/latest/sys_manifest.json")
+            if sys_manifest_content:
+                try:
+                    sys_manifest = _json.loads(sys_manifest_content)
+                    generation_gaps = sys_manifest.get("generation_gaps", {})
+                    if generation_gaps:
+                        pending = [k for k, v in generation_gaps.items() if v.startswith("missing:")]
+                        skipped = [k for k, v in generation_gaps.items() if v.startswith("skipped:")]
+                        if pending:
+                            lines.append(f"- Pending from prior run (produce these): {', '.join(pending)}")
+                        if skipped:
+                            lines.append(f"- Current from prior run (reuse/skip unless stale): {', '.join(skipped)}")
+                except Exception:
+                    pass  # sys_manifest parse failure is non-fatal
 
             # Include a short excerpt of prior output for recurring/reactive context
             prior_output_content = await self.read("outputs/latest/output.md")

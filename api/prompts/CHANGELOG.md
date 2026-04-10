@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.10.10] - Accumulation-First Phase 3: generation_gaps forward-looking handoff
+
+### Changed
+- `api/services/compose/manifest.py`: Added `generation_gaps: dict[str, str]` field to `SysManifest` dataclass (ADR-173 Phase 3 forward-looking handoff). Updated `read_manifest()` to deserialize it; updated `make_manifest()` to accept optional `generation_gaps` param. Schema docstring extended with full status/reason code reference.
+- `api/services/compose/assembly.py`: `build_post_generation_manifest()` gains `prior_manifest` and `revision_scope` params. Full `generation_gaps` computation block added: iterates `page_structure` entries, classifies each section/asset as `produced:<reason>`, `skipped:section-current`, or `missing:<reason>`. Asset gap tracking for derivative assets declared in page_structure. Generation_gaps written into `SysManifest` for the next run to consume.
+- `api/services/task_pipeline.py`: Initializes `prior_manifest = None` and `revision_scope = None` at section 6d; passes both to `build_post_generation_manifest()` call. Prior manifest is read from `outputs/latest/sys_manifest.json` when available (already happens in section 6d for compose brief); revision_scope is the staleness classification computed by the compose layer.
+- `api/services/task_workspace.py`: `get_prior_state_brief()` enhanced (Phase 3 addition): reads `outputs/latest/sys_manifest.json` in addition to `manifest.json`. Surfaces `generation_gaps` entries as: "Pending from prior run (produce these): ..." for `missing:` entries and "Current from prior run (reuse/skip unless stale): ..." for `skipped:` entries. Non-fatal: sys_manifest parse failure degrades gracefully to the Phase 2 brief (asset inventory + output excerpt only).
+- Expected behavior: After the first run that produces `sys_manifest.json` with `generation_gaps`, subsequent runs receive a structured handoff brief: which sections/assets were pending from last cycle (agent should produce them), which were current (agent should reuse/skip). Closes the run-to-run continuity loop at the execution layer.
+
 ## [2026.04.10.9] - Accumulation-First Phase 2: prior state brief injection for all task modes
 
 ### Changed

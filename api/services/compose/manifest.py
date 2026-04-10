@@ -47,8 +47,32 @@ Schema:
   "domain_freshness": {
     "competitors": "2026-04-10T08:00:00Z",
     "signals": "2026-04-09T22:00:00Z"
+  },
+  "generation_gaps": {
+    "competitor-profiles": "skipped:section-current",
+    "hero_image": "skipped:asset-exists",
+    "signal-timeline": "missing:no-source-data"
   }
 }
+
+generation_gaps — forward-looking handoff note to the next run (ADR-173 Phase 3).
+Keys: section slugs from page_structure, plus special keys (hero_image, derivative_charts).
+Values: "<status>:<reason>" strings.
+
+Status codes:
+  produced    — generated this run
+  skipped     — existed and was current; not regenerated
+  missing     — DELIVERABLE.md or page_structure declared it; agent did not produce it
+  partial     — section exists but flagged as incomplete by agent reflection
+
+Reason codes:
+  section-current     — source files unchanged since last run
+  asset-exists        — asset already present in outputs/latest/
+  no-source-data      — no source files found in context_reads domains
+  first-run           — no prior manifest existed
+  forced              — steering.md required regeneration
+  feedback            — user feedback or TP evaluation triggered update
+"""
 """
 
 from __future__ import annotations
@@ -89,6 +113,10 @@ class SysManifest:
     assets: dict[str, AssetRecord] = field(default_factory=dict)
     entity_count: int = 0
     domain_freshness: dict[str, str] = field(default_factory=dict)  # domain → latest updated_at
+    # ADR-173 Phase 3: forward-looking handoff to next run.
+    # Maps section slugs / asset keys → "<status>:<reason>" strings.
+    # e.g. {"hero_image": "skipped:asset-exists", "competitor-profiles": "produced"}
+    generation_gaps: dict[str, str] = field(default_factory=dict)
 
     def to_json(self) -> str:
         def _serialize(obj):
@@ -148,6 +176,7 @@ def read_manifest(content: str) -> Optional[SysManifest]:
             assets=assets,
             entity_count=data.get("entity_count", 0),
             domain_freshness=data.get("domain_freshness", {}),
+            generation_gaps=data.get("generation_gaps", {}),
         )
     except Exception:
         return None
@@ -160,8 +189,13 @@ def make_manifest(
     assets: dict[str, AssetRecord],
     entity_count: int,
     domain_freshness: dict[str, str],
+    generation_gaps: Optional[dict[str, str]] = None,
 ) -> SysManifest:
-    """Build a new SysManifest for this run."""
+    """Build a new SysManifest for this run.
+
+    generation_gaps (ADR-173 Phase 3): forward-looking handoff dict.
+    Maps section/asset keys → "<status>:<reason>" for the next run to read.
+    """
     return SysManifest(
         run_id=datetime.now(timezone.utc).isoformat(),
         task_slug=task_slug,
@@ -170,4 +204,5 @@ def make_manifest(
         assets=assets,
         entity_count=entity_count,
         domain_freshness=domain_freshness,
+        generation_gaps=generation_gaps or {},
     )

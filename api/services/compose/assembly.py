@@ -608,6 +608,8 @@ def build_post_generation_manifest(
     domain_state: dict,
     task_info: dict,
     run_started_at: Optional[str] = None,
+    prior_manifest: Optional[Any] = None,
+    revision_scope: Optional[Any] = None,
 ) -> "SysManifest":
     """Build a SysManifest from the post-generation parsed sections.
 
@@ -621,6 +623,8 @@ def build_post_generation_manifest(
         domain_state: Output of _query_domain_state() (same as brief build)
         task_info: Parsed TASK.md dict
         run_started_at: ISO timestamp of run start (defaults to now)
+        prior_manifest: SysManifest from previous run (for gap classification)
+        revision_scope: RevisionScope from classify_revision_scope() (for gap reasons)
 
     Returns:
         SysManifest ready to serialize to JSON.
@@ -722,6 +726,59 @@ def build_post_generation_manifest(
         for dstate in domain_state.values()
     )
 
+    # ADR-173 Phase 3: generation_gaps — forward-looking handoff to next run.
+    # Compare page_structure (declared) against sections_parsed (produced) and
+    # asset declarations (produced) to record what was skipped and why.
+    generation_gaps: dict[str, str] = {}
+
+    # Sections: every page_structure entry gets a gap record
+    current_sections = set(revision_scope.current_sections) if revision_scope else set()
+    forced_sections = set(revision_scope.forced_sections) if revision_scope else set()
+
+    for struct_entry in page_structure:
+        slug = _slug(struct_entry["title"])
+        if slug in sections_parsed:
+            # Was produced this run
+            if slug in forced_sections:
+                generation_gaps[slug] = "produced:forced"
+            elif prior_manifest and slug in current_sections:
+                generation_gaps[slug] = "produced:stale"  # was stale, regenerated
+            elif prior_manifest:
+                generation_gaps[slug] = "produced:delta"
+            else:
+                generation_gaps[slug] = "produced:first-run"
+        elif slug in current_sections:
+            # Skipped because source data hasn't changed — still current
+            generation_gaps[slug] = "skipped:section-current"
+        else:
+            # Declared in page_structure but not produced and not classified as current
+            # Check if source data exists at all
+            reads_from = struct_entry.get("reads_from") or []
+            entity_pattern = struct_entry.get("entity_pattern")
+            has_source = False
+            for path_pattern in reads_from:
+                domain_key = _domain_from_path(path_pattern)
+                if domain_key and domain_state.get(domain_key, {}).get("entity_files"):
+                    has_source = True
+                    break
+            if entity_pattern:
+                domain_key = _domain_from_path(entity_pattern)
+                if domain_key and domain_state.get(domain_key, {}).get("entity_files"):
+                    has_source = True
+            generation_gaps[slug] = "missing:section-current" if has_source else "missing:no-source-data"
+
+    # Asset gaps: check for declared derivative assets in page_structure
+    # that don't appear in the produced assets dict
+    for struct_entry in page_structure:
+        for asset_spec in struct_entry.get("assets", []):
+            if asset_spec.get("type") == "derivative":
+                # Derive expected filename from section slug + render type
+                sec_slug = _slug(struct_entry["title"])
+                render = asset_spec.get("render", "chart")
+                expected_key = f"{sec_slug}-{render}"
+                if expected_key not in assets:
+                    generation_gaps[expected_key] = "missing:asset-not-produced"
+
     return make_manifest(
         task_slug=task_slug,
         surface_type=surface_type,
@@ -729,4 +786,5 @@ def build_post_generation_manifest(
         assets=assets,
         entity_count=entity_count,
         domain_freshness=domain_freshness,
+        generation_gaps=generation_gaps,
     )
