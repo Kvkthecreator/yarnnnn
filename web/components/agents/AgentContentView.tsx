@@ -26,9 +26,6 @@ import {
   Loader2,
   Sparkles,
   Target,
-  TrendingDown,
-  TrendingUp,
-  Minus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -841,7 +838,7 @@ function TaskCard({ task, agentSlug }: { task: Task; agentSlug: string }) {
   );
 }
 
-function EmptyAssignedWork({ agent }: { agent: Agent }) {
+function EmptyAssignedWork({ agent, onCreateTask }: { agent: Agent; onCreateTask?: () => void }) {
   const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
   const platformProvider = agent.agent_class === 'platform-bot' ? platformProviderForRole(agent.role) : null;
   const managementHref = platformManagementHref(platformProvider);
@@ -852,29 +849,39 @@ function EmptyAssignedWork({ agent }: { agent: Agent }) {
       <p className="text-sm text-muted-foreground mt-1">
         {descriptor.description(agent)}
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         {platformProvider && (
           <Link
             href={managementHref}
-            className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
           >
             {platformManagementLabel(platformProvider, false)}
             <ArrowUpRight className="w-3 h-3" />
           </Link>
+        )}
+        {onCreateTask && (
+          <button
+            type="button"
+            onClick={onCreateTask}
+            className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+          >
+            Ask TP to set this up
+            <ArrowUpRight className="w-3 h-3" />
+          </button>
         )}
       </div>
     </div>
   );
 }
 
-function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+function TasksBlock({ agent, tasks, onCreateTask }: { agent: Agent; tasks: Task[]; onCreateTask?: () => void }) {
   const agentSlug = getAgentSlug(agent);
 
   if (tasks.length === 0) {
     return (
       <div className="px-6 py-5 border-t border-border/40">
         <SectionLabel>Assigned work</SectionLabel>
-        <EmptyAssignedWork agent={agent} />
+        <EmptyAssignedWork agent={agent} onCreateTask={onCreateTask} />
       </div>
     );
   }
@@ -936,45 +943,6 @@ function LearnedBlock({ agent }: { agent: Agent }) {
   );
 }
 
-function StatsStrip({ agent }: { agent: Agent }) {
-  const totalRuns = agent.version_count ?? 0;
-  const approvalPct = agent.quality_score != null
-    ? Math.round((1 - (agent.quality_score || 0)) * 100)
-    : null;
-  const trend = agent.quality_trend;
-  const avgEdit = agent.avg_edit_distance;
-  const hasStats = totalRuns > 0 || approvalPct != null || avgEdit != null;
-
-  if (!hasStats && !agent.created_at) return null;
-
-  return (
-    <div className="px-6 py-5 border-t border-border/40">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-        {totalRuns > 0 && (
-          <span>
-            <span className="font-medium text-foreground">{totalRuns}</span> {totalRuns === 1 ? 'run' : 'runs'}
-          </span>
-        )}
-        {approvalPct != null && totalRuns >= 5 && (
-          <span className="inline-flex items-center gap-1">
-            <span className="font-medium text-foreground">{approvalPct}%</span> approved
-            {trend === 'improving' && <TrendingUp className="w-3 h-3 text-green-500" />}
-            {trend === 'declining' && <TrendingDown className="w-3 h-3 text-red-500" />}
-            {trend === 'stable' && <Minus className="w-3 h-3 text-muted-foreground/50" />}
-          </span>
-        )}
-        {avgEdit != null && totalRuns >= 5 && (
-          <span>
-            avg edit distance <span className="font-medium text-foreground">{avgEdit.toFixed(2)}</span>
-          </span>
-        )}
-        <span className="text-muted-foreground/40">
-          Created {new Date(agent.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 export function AgentContentView({ agent, tasks, onCreateTask }: AgentContentViewProps) {
   return (
@@ -993,9 +961,8 @@ export function AgentContentView({ agent, tasks, onCreateTask }: AgentContentVie
         <SpecialistFolderBlock agent={agent} tasks={tasks} />
         {agent.agent_class === 'platform-bot' && <PlatformConnectionBlock agent={agent} />}
         {agent.agent_class === 'platform-bot' && <PlatformSourcesBlock agent={agent} />}
-        <TasksBlock agent={agent} tasks={tasks} />
+        <TasksBlock agent={agent} tasks={tasks} onCreateTask={onCreateTask} />
         <LearnedBlock agent={agent} />
-        <StatsStrip agent={agent} />
       </div>
     </div>
   );
