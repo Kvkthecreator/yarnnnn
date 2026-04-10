@@ -7,7 +7,7 @@
  * Click folder → expand/collapse. Click file → notify parent to open in main panel.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceTreeNode } from '@/types';
@@ -46,6 +46,12 @@ function TreeItem({ node, depth, selectedPath, onSelect }: TreeItemProps) {
   const [expanded, setExpanded] = useState(depth < 1); // Auto-expand first level
   const isFolder = node.type === 'folder';
   const isSelected = selectedPath === node.path;
+
+  useEffect(() => {
+    if (isFolder && selectedPath && nodeContainsPath(node, selectedPath)) {
+      setExpanded(true);
+    }
+  }, [isFolder, node, selectedPath]);
 
   const handleClick = () => {
     if (isFolder) {
@@ -91,6 +97,14 @@ function TreeItem({ node, depth, selectedPath, onSelect }: TreeItemProps) {
       )}
     </div>
   );
+}
+
+function nodeContainsPath(node: WorkspaceTreeNode, targetPath: string): boolean {
+  if (node.path === targetPath) return true;
+  for (const child of node.children || []) {
+    if (nodeContainsPath(child, targetPath)) return true;
+  }
+  return false;
 }
 
 function getFileIcon(node: WorkspaceTreeNode) {

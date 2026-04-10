@@ -202,15 +202,6 @@ export default function ContextPage() {
       setTreeNodes(nodes);
       setPhase(nav.readiness?.phase || 'active');
 
-      // Path deep-linking: URL-addressable breadcrumb and explorer state.
-      if (pathParam) {
-        const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: nodes };
-        if (resolveNodeByPath(root, pathParam)) {
-          setSelectedPath(pathParam);
-          return;
-        }
-      }
-
       // Domain deep-linking: auto-navigate to domain folder on first load
       if (domainParam && !domainDeepLinked) {
         setDomainDeepLinked(true);
@@ -242,7 +233,7 @@ export default function ContextPage() {
     } finally {
       setFileTreeLoading(false);
     }
-  }, [domainParam, domainDeepLinked, pathParam]);
+  }, [domainParam, domainDeepLinked]);
 
   const selectedNode = selectedPath ? resolveNodeByPath(virtualRoot, selectedPath) : null;
   const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
@@ -282,6 +273,15 @@ export default function ContextPage() {
     document.addEventListener('visibilitychange', onFocus);
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
   }, [loadExplorer]);
+
+  // Keep URL path deep-linking in sync without forcing explorer re-fetch.
+  useEffect(() => {
+    if (!pathParam) return;
+    const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
+    if (resolveNodeByPath(root, pathParam)) {
+      setSelectedPath(pathParam);
+    }
+  }, [pathParam, treeNodes]);
 
   const handleExplorerSelect = useCallback((node: TreeNode) => {
     setSelectedPath(node.path);
