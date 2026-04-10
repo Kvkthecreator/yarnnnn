@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import { WorkModeBadge } from '@/components/work/WorkModeBadge';
 import { AgentIcon } from './AgentIcon';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { Button } from '@/components/ui/button';
@@ -44,6 +43,7 @@ import { api } from '@/lib/api/client';
 import { usePlatformData } from '@/hooks/usePlatformData';
 import { useSourceSelection } from '@/hooks/useSourceSelection';
 import { ResourceList } from '@/components/context/ResourceList';
+import { taskModeLabel } from '@/types';
 import type { Agent, Task, LandscapeResource, PlatformProvider } from '@/types';
 
 interface AgentContentViewProps {
@@ -256,7 +256,6 @@ const TASK_CARD_REGISTRY: Record<TaskOutputKind, TaskCardDescriptor> = {
     summary: (task) => task.objective?.purpose || 'Keeps the workspace and workforce coherent',
     details: (task) => [
       ...taskFolderDetails(task),
-      ...(task.essential ? ['Essential anchor task'] : []),
       ...(task.objective?.deliverable ? [`Output: ${task.objective.deliverable}`] : []),
     ].filter(Boolean),
   },
@@ -284,6 +283,28 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">
       {children}
     </h3>
+  );
+}
+
+function TaskMetaBadge({
+  kind,
+  value,
+  className,
+}: {
+  kind: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/10 px-2 py-0.5 text-[10px]',
+        className,
+      )}
+    >
+      <span className="text-muted-foreground/70">{kind}</span>
+      <span className="font-medium">{value}</span>
+    </span>
   );
 }
 
@@ -746,6 +767,8 @@ function PlatformSourcesBlock({ agent }: { agent: Agent }) {
 function TaskCard({ task, agentSlug }: { task: Task; agentSlug: string }) {
   const descriptor = TASK_CARD_REGISTRY[task.output_kind as TaskOutputKind] || TASK_CARD_REGISTRY.produces_deliverable;
   const typeLabel = taskTypeLabel(task.type_key);
+  const modeLabel = taskModeLabel(task.mode);
+  const statusLabel = task.status !== 'active' ? formatKeyLabel(task.status) : null;
   const details = descriptor.details(task);
   const manageHref = `${WORK_ROUTE}?task=${encodeURIComponent(task.slug)}&agent=${encodeURIComponent(agentSlug)}`;
 
@@ -756,31 +779,16 @@ function TaskCard({ task, agentSlug }: { task: Task; agentSlug: string }) {
         task.status !== 'active' && 'opacity-70',
       )}
     >
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={cn('inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium', descriptor.badgeClass)}>
-          {descriptor.label}
-        </span>
-        {typeLabel && (
-          <span className="inline-flex rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            {typeLabel}
-          </span>
-        )}
-        <WorkModeBadge mode={task.mode} />
-        {task.essential && (
-          <span className="inline-flex rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">
-            essential
-          </span>
-        )}
-        {task.status === 'paused' && (
-          <span className="inline-flex rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700">
-            paused
-          </span>
-        )}
-      </div>
-
-      <div className="flex items-start justify-between gap-3 mt-2">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <span className="text-sm font-medium">{task.title}</span>
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            <TaskMetaBadge kind="Kind" value={descriptor.label} className={descriptor.badgeClass} />
+            {typeLabel && <TaskMetaBadge kind="Type" value={typeLabel} />}
+            <TaskMetaBadge kind="Mode" value={modeLabel} />
+            {task.essential && <TaskMetaBadge kind="Priority" value="Essential" className="bg-amber-500/10 text-amber-700 dark:text-amber-300" />}
+            {statusLabel && <TaskMetaBadge kind="Status" value={statusLabel} className="bg-amber-500/10 text-amber-700 dark:text-amber-300" />}
+          </div>
           <p className="text-[12px] text-muted-foreground mt-0.5">
             {descriptor.summary(task)}
           </p>

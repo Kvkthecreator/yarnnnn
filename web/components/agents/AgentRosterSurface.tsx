@@ -57,25 +57,28 @@ const CLASS_LABELS: Record<string, { title: string; description: string }> = {
   },
 };
 
-function formatRelativeShort(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+function formatRelativeUntil(dateStr: string): string {
+  const diff = new Date(dateStr).getTime() - Date.now();
+  if (diff <= 0) return 'now';
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return `in ${mins}m`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `in ${hours}h`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
+  if (days < 7) return `in ${days}d`;
   const weeks = Math.floor(days / 7);
-  return `${weeks}w ago`;
+  return `in ${weeks}w`;
 }
 
-function freshnessColor(dateStr: string | null): string {
-  if (!dateStr) return 'text-muted-foreground/40';
-  const hours = (Date.now() - new Date(dateStr).getTime()) / 3600000;
-  if (hours < 24) return 'text-green-600 dark:text-green-400';
-  if (hours < 72) return 'text-muted-foreground';
-  return 'text-amber-600 dark:text-amber-400';
+function normalizeScheduleLabel(schedule?: string | null): string {
+  if (!schedule) return '';
+  const raw = schedule.trim();
+  if (!raw) return '';
+  if (/^[a-z-]+$/i.test(raw)) {
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+  if (/^(\*|[\d\/,-]+)(\s+(\*|[\d\/,-]+)){4}$/.test(raw)) return 'Custom';
+  return raw;
 }
 
 function fmtDomain(value?: string | null): string {
@@ -156,14 +159,47 @@ function AgentCard({
   const mostRecentTask = [...agentTasks]
     .sort((a, b) => (b.last_run_at ?? '').localeCompare(a.last_run_at ?? ''))
     .find(t => t.status === 'active') ?? activeTasks[0] ?? agentTasks[0] ?? null;
-  const lastRun = agentTasks
-    .map(t => t.last_run_at)
-    .filter(Boolean)
-    .sort()
-    .reverse()[0] || agent.last_run_at || null;
   const cls = agent.agent_class || 'domain-steward';
   const isPaused = agent.status === 'paused';
   const hasNoTasks = agentTasks.length === 0;
+  const operationalTasks = activeTasks.length > 0
+    ? activeTasks
+    : agentTasks.filter(t => t.status !== 'archived');
+
+  const scheduleSet = Array.from(new Set(
+    operationalTasks.map(t => normalizeScheduleLabel(t.schedule)).filter(Boolean),
+  ));
+  const frequencyLabel =
+    scheduleSet.length === 0
+      ? null
+      : scheduleSet.length === 1
+        ? scheduleSet[0]
+        : `Mixed (${scheduleSet.length})`;
+
+  const nextRun = operationalTasks
+    .map(t => t.next_run_at)
+    .filter((v): v is string => Boolean(v))
+    .map(v => new Date(v))
+    .filter(d => !Number.isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+
+  const statusTone = isPaused
+    ? {
+        label: 'Paused',
+        dot: 'bg-amber-500',
+        text: 'text-amber-700 dark:text-amber-300',
+      }
+    : activeTasks.length > 0
+      ? {
+          label: 'Active',
+          dot: 'bg-emerald-500',
+          text: 'text-emerald-700 dark:text-emerald-300',
+        }
+      : {
+          label: 'Idle',
+          dot: 'bg-muted-foreground/40',
+          text: 'text-muted-foreground/70',
+        };
 
   // Subline: human-readable domain for specialists, role tagline for others
   const subline = agent.context_domain
@@ -196,12 +232,8 @@ function AgentCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
+            <span className={cn('h-2 w-2 rounded-full shrink-0', statusTone.dot)} />
             <h4 className="text-sm font-semibold truncate">{agent.title}</h4>
-            {isPaused && (
-              <span className="text-[10px] rounded-full bg-amber-500/10 text-amber-700 px-1.5 py-0.5">
-                paused
-              </span>
-            )}
           </div>
           {subline && (
             <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5">
@@ -212,7 +244,7 @@ function AgentCard({
       </div>
 
       {/* Status row */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/40">
+      <div className="flex items-start justify-between gap-3 mt-3 pt-3 border-t border-border/40">
         {hasNoTasks ? (
           <span className="text-[11px] text-muted-foreground/40 italic">No tasks assigned yet</span>
         ) : (
@@ -230,9 +262,26 @@ function AgentCard({
             )}
           </div>
         )}
-        <span className={cn('text-[11px] shrink-0 ml-2', freshnessColor(lastRun))}>
-          {lastRun ? formatRelativeShort(lastRun) : hasNoTasks ? '' : 'never run'}
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2 ml-2">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/10 px-2 py-0.5 text-[10px]',
+              statusTone.text,
+            )}
+          >
+            <span className={cn('h-1.5 w-1.5 rounded-full', statusTone.dot)} />
+            <span className="text-muted-foreground/70">Status</span>
+            <span className="font-medium">{statusTone.label}</span>
+          </span>
+          {frequencyLabel && (
+            <span className="text-[11px] text-muted-foreground/60">
+              Frequency: {frequencyLabel}
+            </span>
+          )}
+          <span className="text-[11px] text-muted-foreground/60">
+            Next: {nextRun ? formatRelativeUntil(nextRun.toISOString()) : 'not scheduled'}
+          </span>
+        </div>
       </div>
     </button>
   );
