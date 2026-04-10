@@ -218,9 +218,9 @@ HEADLESS_PRIMITIVES = [
     MANAGE_AGENT_TOOL,
     MANAGE_TASK_TOOL,
     MANAGE_DOMAINS_TOOL,
-    # ADR-148: RuntimeDispatch removed from headless — assets rendered post-generation
-    # RuntimeDispatch kept in HANDLERS for TP chat usage (explicit user requests)
-]  # 15 tools — ADR-168 Commit 3 folded CreateTask into ManageTask(action="create")
+    # Asset rendering — writes to task output folder when task_slug set on auth
+    RUNTIME_DISPATCH_TOOL,
+]  # 16 tools — RuntimeDispatch added to headless so agents can generate hero images/charts during task execution
 
 # Combined list — for handler registration and backwards compatibility
 PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
@@ -330,6 +330,7 @@ class HeadlessAuth:
         agent_sources=None,
         coordinator_agent_id=None,
         agent=None,
+        task_slug=None,
     ):
         self.client = client
         self.user_id = user_id
@@ -337,6 +338,7 @@ class HeadlessAuth:
         self.agent_sources = agent_sources
         self.coordinator_agent_id = coordinator_agent_id
         self.agent = agent
+        self.task_slug = task_slug
         self.pending_renders: list[dict] = []
         if agent:
             from services.workspace import get_agent_slug
@@ -378,6 +380,7 @@ def create_headless_executor(
     coordinator_agent_id: Optional[str] = None,
     agent: Optional[dict] = None,
     dynamic_tools: Optional[list[dict]] = None,
+    task_slug: Optional[str] = None,
 ):
     """
     Create a tool executor function for headless mode.
@@ -386,7 +389,7 @@ def create_headless_executor(
     that dispatches to primitive handlers with headless-appropriate
     error handling (log + return error dict, never raise).
     """
-    auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id, agent)
+    auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id, agent, task_slug=task_slug)
     allowed_tool_names = set(_HEADLESS_TOOL_NAMES)
     if dynamic_tools:
         allowed_tool_names.update(tool["name"] for tool in dynamic_tools if tool.get("name"))

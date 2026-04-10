@@ -1068,11 +1068,17 @@ You have read-only investigation tools: SearchFiles, ReadFile, ListFiles, QueryK
 **Never narrate tool usage in the final output.** The reader sees only your generated content.
 
 ## Visual Assets
-Include visual elements inline — they are automatically rendered by the platform:
-- **Data tables**: Use markdown tables with numeric data. Tables with numbers are automatically rendered as charts (bar, line, or pie depending on data shape).
-- **Diagrams**: Use ```mermaid code blocks for competitive positioning, market maps, org charts, process flows. These are automatically rendered as SVG diagrams.
+Include visual elements in your output using these methods:
+
+**Auto-rendered (inline):**
+- **Data tables**: Markdown tables with numeric data → automatically rendered as charts.
+- **Diagrams**: ```mermaid code blocks → automatically rendered as SVG diagrams.
 - Interleave visuals with prose — aim for a visual element every 2-3 paragraphs.
-- Tables and mermaid blocks are kept in the output alongside their rendered versions.
+
+**Generated assets (RuntimeDispatch — call the tool):**
+- **Hero image**: If DELIVERABLE.md specifies a hero image, call `RuntimeDispatch(type="image", input={"prompt": "...", "aspect_ratio": "16:9", "style": "editorial"}, output_format="png", filename="hero")` BEFORE writing your main content. Then embed it at the top: `![Hero]({{output_url}})`.
+- **Charts**: `RuntimeDispatch(type="chart", input={...}, output_format="png")` for data visualizations beyond markdown tables.
+- Only call RuntimeDispatch for assets explicitly required by DELIVERABLE.md or clearly needed by the output.
 
 ## Empty Context Handling
 If context says "(No context available)" or tools return no results:
@@ -1554,6 +1560,7 @@ async def execute_task(
         draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
             task_phase=task_phase,
+            task_slug=task_slug,
         )
 
         # Strip agent reflection before delivery (ADR-128/149)
@@ -2200,11 +2207,10 @@ async def _execute_pipeline(
         # Append to user message (after gathered context)
         user_message += step_preamble
 
-        # ADR-148: No SKILL.md / RuntimeDispatch in headless. Agent writes inline data + mermaid.
-
         # --- Generate ---
         draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
+            task_slug=task_slug,
         )
 
         # Strip assessment
@@ -2609,6 +2615,7 @@ async def _generate(
     user_message: str,
     scope: str,
     task_phase: str = "steady",
+    task_slug: str = "",
 ) -> tuple[str, dict, list, list, int]:
     """Run the headless generation loop.
 
@@ -2642,6 +2649,7 @@ async def _generate(
         agent_sources=[],
         agent=agent,
         dynamic_tools=headless_tools,
+        task_slug=task_slug or None,
     )
 
     # Split user_message into task-instructions + context blocks so Anthropic prompt

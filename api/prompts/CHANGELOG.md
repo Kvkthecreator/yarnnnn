@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.10.7] - RuntimeDispatch in headless: task output folder routing + hero image prompt
+
+### Changed
+- `api/services/primitives/registry.py`: Added `RuntimeDispatch` to `HEADLESS_PRIMITIVES` (was blocked). Added `task_slug` param to `HeadlessAuth` and `create_headless_executor`.
+- `api/services/primitives/runtime_dispatch.py`: When `task_slug` is set on auth (headless task execution), writes asset to `/tasks/{task_slug}/outputs/latest/{filename}.{ext}` so it co-locates with `output.html` and compose can reference it. TP chat still writes to `/agents/workspace/outputs/`.
+- `api/services/task_pipeline.py`: Threads `task_slug` into `_generate()` at both single-step and multi-step call sites. Updated "Visual Assets" section in `build_task_execution_prompt` — agents with a DELIVERABLE.md hero image requirement are now instructed to call `RuntimeDispatch(type="image", ...)` before writing main content and embed the `output_url` at the top.
+- Expected behavior: Blog post tasks with `Expected Assets: Hero image` in DELIVERABLE.md will now generate and embed the image during task execution. Image is saved to the task output folder alongside `output.html`.
+
 ## [2026.04.10.6] - RuntimeDispatch: fix workspace path + add TP tools guidance
 
 ### Changed

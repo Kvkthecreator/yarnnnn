@@ -136,9 +136,11 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
 
     # Write workspace_files row with content_url — FATAL on failure (ADR-118 Resolved Decision #3)
     agent_slug = getattr(auth, "agent_slug", None) or "workspace"
+    task_slug = getattr(auth, "task_slug", None)
 
     # ADR-157: fetch-asset writes to caller-specified workspace_path (context domain)
-    # Other skills write to agent outputs
+    # Task execution writes to task output folder so compose step can embed the asset
+    # TP chat writes to agent outputs folder
     workspace_path_override = skill_input.get("workspace_path")
     if workspace_path_override:
         ws_path = workspace_path_override
@@ -146,7 +148,12 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
         # Prefer explicit filename, then title field, then skill_type as last resort
         title = filename or skill_input.get("title") or skill_type
         safe_title = "".join(c if c.isalnum() or c in "-_ " else "" for c in title).strip().replace(" ", "-")[:50]
-        ws_path = f"/agents/{agent_slug}/outputs/{safe_title}.{output_format}"
+        if task_slug:
+            # Headless task execution — write into task output folder alongside output.html
+            ws_path = f"/tasks/{task_slug}/outputs/latest/{safe_title}.{output_format}"
+        else:
+            # TP chat — write to agent workspace outputs
+            ws_path = f"/agents/{agent_slug}/outputs/{safe_title}.{output_format}"
 
     try:
         auth.client.table("workspace_files").upsert(
