@@ -1,82 +1,58 @@
 "use client";
 
 /**
- * ADR-100: Subscription gate hook with 2-tier support.
+ * ADR-172: Balance-first gate hook.
+ * Balance > 0 is the only gate — no tier limits.
  */
 
 import { useMemo } from "react";
 import { useSubscription, type SubscriptionTier } from "./useSubscription";
 import {
-  TIER_LIMITS,
-  checkLimit,
+  checkBalanceLimit,
   type LimitStatus,
 } from "@/lib/subscription/limits";
 
 export interface SubscriptionGate {
-  // Tier info
   tier: SubscriptionTier;
   isPro: boolean;
   isPaid: boolean;
   isLoading: boolean;
-
-  // Actions — ADR-100: Always upgrades to Pro
-  upgrade: (billingPeriod?: "monthly" | "yearly", earlyBird?: boolean) => Promise<void>;
-
-  // Helper to check any feature
-  checkFeatureLimit: (
-    feature: keyof typeof TIER_LIMITS.free,
-    currentUsage: number
-  ) => LimitStatus;
+  upgrade: (billingPeriod?: "monthly" | "yearly") => Promise<void>;
+  /** @deprecated Balance is the single gate in ADR-172 */
+  checkFeatureLimit: (feature: string, currentUsage: number) => LimitStatus;
 }
 
-/**
- * Hook for checking subscription limits and gating features.
- * Combines subscription status with current usage data.
- */
 export function useSubscriptionGate(): SubscriptionGate {
   const { tier, isPro, isPaid, isLoading, upgrade } = useSubscription();
 
-  // Generic limit checker
   const checkFeatureLimit = useMemo(
-    () =>
-      (
-        feature: keyof typeof TIER_LIMITS.free,
-        currentUsage: number
-      ): LimitStatus => {
-        return checkLimit(tier, feature, currentUsage);
-      },
-    [tier]
+    () => (_feature: string, _currentUsage: number): LimitStatus => ({
+      feature: String(_feature),
+      current: _currentUsage,
+      limit: Infinity,
+      isAtLimit: false,
+      isNearLimit: false,
+      percentUsed: 0,
+    }),
+    []
   );
 
-  return {
-    tier,
-    isPro,
-    isPaid,
-    isLoading,
-    upgrade,
-    checkFeatureLimit,
-  };
+  return { tier, isPro, isPaid, isLoading, upgrade, checkFeatureLimit };
 }
 
 /**
- * Hook for checking monthly message limit (ADR-100).
+ * Hook for checking whether user can chat (balance > 0).
+ * @deprecated monthly message counting removed in ADR-172
  */
-export function useMessageLimitGate(monthlyMessagesUsed: number) {
-  const { tier, isPro, checkFeatureLimit } = useSubscriptionGate();
-
-  const messageLimit = useMemo(
-    () => checkFeatureLimit("monthlyMessages", monthlyMessagesUsed),
-    [checkFeatureLimit, monthlyMessagesUsed]
-  );
+export function useMessageLimitGate(_monthlyMessagesUsed: number) {
+  const { tier, isPro } = useSubscriptionGate();
 
   return {
     tier,
     isPro,
-    limit: messageLimit,
-    canChat: !messageLimit.isAtLimit,
-    isNearLimit: messageLimit.isNearLimit,
-    messagesRemaining: messageLimit.limit === -1
-      ? Infinity
-      : Math.max(0, messageLimit.limit - monthlyMessagesUsed),
+    limit: { feature: "messages", current: 0, limit: Infinity, isAtLimit: false, isNearLimit: false, percentUsed: 0 },
+    canChat: true,
+    isNearLimit: false,
+    messagesRemaining: Infinity,
   };
 }

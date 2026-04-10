@@ -1122,7 +1122,7 @@ async def global_chat(
 
     ADR-100: Enforces monthly message limit based on user tier.
     """
-    from services.platform_limits import check_monthly_message_limit
+    # ADR-172: No message limit gate — balance is the only gate
 
     # Extract surface context for working memory injection (not session routing).
     # Unified session model: one session per workspace, surface context on messages.
@@ -1156,20 +1156,6 @@ async def global_chat(
         prev_messages = await get_session_messages(auth.client, session["previous_session_id"])
         if prev_messages:
             await _write_conversation_summary(auth, prev_messages)
-
-    # Check monthly message limit (Free tier only — Pro is unlimited)
-    allowed, messages_used, message_limit = check_monthly_message_limit(auth.client, auth.user_id)
-    if not allowed:
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "monthly_message_limit_exceeded",
-                "message": f"You've reached your {message_limit} monthly messages ({messages_used}/{message_limit}). Upgrade to Pro for unlimited chat.",
-                "messages_used": messages_used,
-                "message_limit": message_limit,
-                "upgrade_url": "/settings?tab=billing",
-            }
-        )
 
     # ADR-159: Load existing messages with rolling window.
     # Only last N messages sent to API. Older context in conversation.md.

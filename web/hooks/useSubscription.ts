@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * ADR-100: Subscription hook with 2-tier support (Free/Pro)
+ * ADR-172: Subscription hook — Pro as auto-refill subscription.
+ * Early Bird removed. Tiers: free (pay-as-you-go) | pro (auto-refill $20/month).
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -32,12 +33,10 @@ export function useSubscription() {
     fetchStatus();
   }, [fetchStatus]);
 
-  // ADR-100: 2-tier detection — normalize legacy "starter" → "pro"
   const rawTier = (status?.status as string) || "free";
   const tier: SubscriptionTier = rawTier === "pro" || rawTier === "starter" ? "pro" : "free";
   const isPro = tier === "pro";
   const isPaid = tier === "pro";
-  const isEarlyBird = status?.plan === "pro_early_bird";
 
   const toUserError = (err: unknown, fallback: string) => {
     if (err instanceof APIError) {
@@ -50,19 +49,11 @@ export function useSubscription() {
     return err instanceof Error ? err : new Error(fallback);
   };
 
-  /**
-   * Upgrade to Pro.
-   * ADR-100: Single tier (Pro), optional Early Bird pricing.
-   */
-  const upgrade = async (
-    billingPeriod: "monthly" | "yearly" = "monthly",
-    earlyBird: boolean = false
-  ) => {
+  const upgrade = async (billingPeriod: "monthly" | "yearly" = "monthly") => {
     try {
       setIsLoading(true);
       setError(null);
-      const { checkout_url } = await api.subscription.createCheckout(billingPeriod, earlyBird);
-      // Redirect to Lemon Squeezy checkout
+      const { checkout_url } = await api.subscription.createCheckout(billingPeriod);
       window.location.href = checkout_url;
     } catch (err) {
       setError(toUserError(err, "Failed to create checkout"));
@@ -75,7 +66,6 @@ export function useSubscription() {
       setIsLoading(true);
       setError(null);
       const { portal_url } = await api.subscription.getPortal();
-      // Navigate directly to avoid popup blockers on async callbacks.
       window.location.assign(portal_url);
     } catch (err) {
       setError(toUserError(err, "Failed to open subscription portal"));
@@ -89,7 +79,6 @@ export function useSubscription() {
     tier,
     isPro,
     isPaid,
-    isEarlyBird,
     isLoading,
     error,
     upgrade,

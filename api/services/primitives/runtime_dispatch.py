@@ -89,14 +89,14 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     if not skill_type or not output_format:
         return {"success": False, "error": "missing_params", "message": "type and output_format are required"}
 
-    # Check work credits before dispatching
-    from services.platform_limits import check_credits
-    credits_ok, credits_used, credits_limit = check_credits(auth.client, auth.user_id)
-    if not credits_ok:
+    # ADR-172: Check balance before dispatching
+    from services.platform_limits import check_balance
+    balance_ok, balance = check_balance(auth.client, auth.user_id)
+    if not balance_ok:
         return {
             "success": False,
-            "error": "credits_exceeded",
-            "message": f"Monthly work credits exhausted ({credits_used}/{credits_limit}). Upgrade for more capacity.",
+            "error": "balance_exhausted",
+            "message": f"Your usage balance is empty. Add balance to continue.",
         }
 
     # Call output gateway with auth + user_id
@@ -172,9 +172,8 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
                        f"Output URL (for manual reference): {output_url}",
         }
 
-    # Record work credits for render
-    from services.platform_limits import record_credits
-    record_credits(auth.client, auth.user_id, "render", metadata={"skill_type": skill_type, "output_format": output_format})
+    # Token usage for renders is recorded via record_token_usage() at LLM call sites.
+    # No additional credit recording needed here.
 
     # ADR-118 D.3: Accumulate rendered file metadata for save_output() manifest
     rendered_file_info = {

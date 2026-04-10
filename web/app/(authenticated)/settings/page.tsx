@@ -432,17 +432,17 @@ export default function SettingsPage() {
             </div>
           ) : limits ? (
             <>
-              {/* Token spend — the primary meter (ADR-171) */}
+              {/* Balance — the single meter (ADR-172) */}
               <div className="p-4 border border-border rounded-lg space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-medium">Usage this month</h3>
-                  <span className="text-sm text-muted-foreground">
-                    ${(limits.usage.spend_usd ?? 0).toFixed(2)} of ${limits.limits.monthly_spend_usd_limit.toFixed(2)}
+                  <h3 className="font-medium">Balance</h3>
+                  <span className="text-sm font-medium">
+                    ${limits.balance_usd.toFixed(2)} remaining
                   </span>
                 </div>
                 {(() => {
-                  const percent = Math.min(100, Math.round(((limits.usage.spend_usd ?? 0) / Math.max(0.01, limits.limits.monthly_spend_usd_limit)) * 100));
-                  const remaining = Math.max(0, limits.limits.monthly_spend_usd_limit - (limits.usage.spend_usd ?? 0));
+                  const total = limits.balance_usd + limits.spend_usd;
+                  const percent = total > 0 ? Math.min(100, Math.round((limits.spend_usd / total) * 100)) : 0;
                   return (
                     <>
                       <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -452,61 +452,27 @@ export default function SettingsPage() {
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        ${remaining.toFixed(2)} remaining. Covers chat, tasks, and web search — powered by Claude Sonnet.
+                        ${limits.spend_usd.toFixed(2)} used · covers chat, tasks, and web search.
+                        {limits.is_subscriber && " Refills $20/month with your Pro subscription."}
                       </p>
                     </>
                   );
                 })()}
               </div>
 
-              {/* Chat — only shown for Free tier */}
-              {limits.limits.monthly_messages !== -1 && (
-                <div className="p-4 border border-border rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium">Chat Messages</h3>
-                    <span className="text-sm text-muted-foreground">
-                      {limits.usage.monthly_messages_used} / {limits.limits.monthly_messages} this month
-                    </span>
-                  </div>
-                  {(() => {
-                    const percent = Math.min(100, Math.round((limits.usage.monthly_messages_used / Math.max(1, limits.limits.monthly_messages)) * 100));
-                    return (
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-yellow-500" : "bg-primary"}`}
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-                    );
-                  })()}
-                  <p className="text-xs text-muted-foreground">
-                    Upgrade to Pro for unlimited chat.
-                  </p>
-                </div>
-              )}
-
-              {/* Other limits */}
-              <div className="p-4 border border-border rounded-lg space-y-3">
+              {/* Plan */}
+              <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-medium">Plan details</h3>
-                  <span className="text-xs text-muted-foreground">
-                    Sync: {({ "1x_daily": "1x daily", "2x_daily": "2x daily", "4x_daily": "4x daily", "hourly": "Hourly" } as Record<string, string>)[limits.limits.sync_frequency] || limits.limits.sync_frequency}
+                  <span className="text-sm font-medium">Plan</span>
+                  <span className="text-sm text-muted-foreground">
+                    {limits.is_subscriber ? (limits.subscription_plan === "pro_yearly" ? "Pro (Annual)" : "Pro") : "Pay as you go"}
                   </span>
                 </div>
-                {[
-                  { label: "Active tasks", used: limits.usage.active_tasks, limit: limits.limits.active_tasks },
-                  { label: "Slack sources", used: limits.usage.slack_channels, limit: limits.limits.slack_channels },
-                  { label: "Notion pages", used: limits.usage.notion_pages, limit: limits.limits.notion_pages },
-                ].map((row) => {
-                  const formatUsage = (used: number, limit: number) =>
-                    limit === -1 ? `${used} / Unlimited` : `${used} / ${limit}`;
-                  return (
-                    <div key={row.label} className="flex items-center justify-between text-sm">
-                      <span>{row.label}</span>
-                      <span className="text-muted-foreground">{formatUsage(row.used, row.limit)}</span>
-                    </div>
-                  );
-                })}
+                {limits.next_refill && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Next refill: {new Date(limits.next_refill).toLocaleDateString()}
+                  </p>
+                )}
               </div>
             </>
           ) : (

@@ -333,17 +333,14 @@ export const api = {
   },
 
   // Subscription endpoints (Lemon Squeezy)
-  // ADR-100: 2-tier pricing (Free/Pro) with Early Bird option
+  // ADR-172: Usage-first billing — Pro subscription for auto-refill
   subscription: {
     getStatus: () => request<SubscriptionStatus>("/api/subscription/status"),
 
-    createCheckout: (
-      billingPeriod: "monthly" | "yearly" = "monthly",
-      earlyBird: boolean = false
-    ) =>
+    createCheckout: (billingPeriod: "monthly" | "yearly" = "monthly") =>
       request<CheckoutResponse>("/api/subscription/checkout", {
         method: "POST",
-        body: JSON.stringify({ billing_period: billingPeriod, early_bird: earlyBird }),
+        body: JSON.stringify({ billing_period: billingPeriod, checkout_type: "subscription" }),
       }),
 
     getPortal: () => request<PortalResponse>("/api/subscription/portal"),
@@ -872,25 +869,11 @@ export const api = {
     // ADR-171: token spend metering — tier limits and current usage
     getLimits: () =>
       request<{
-        tier: "free" | "pro";
-        limits: {
-          slack_channels: number;
-          notion_pages: number;
-          total_platforms: number;
-          sync_frequency: "1x_daily" | "2x_daily" | "4x_daily" | "hourly";
-          monthly_messages: number; // -1 for unlimited (Pro)
-          active_tasks: number;
-          monthly_spend_usd_limit: number;
-        };
-        usage: {
-          slack_channels: number;
-          notion_pages: number;
-          platforms_connected: number;
-          monthly_messages_used: number;
-          active_tasks: number;
-          spend_usd: number;
-        };
-        next_sync: string | null;
+        balance_usd: number;
+        spend_usd: number;
+        is_subscriber: boolean;
+        subscription_plan: string | null;
+        next_refill: string | null;
       }>("/api/user/limits"),
 
     // Get selected sources for a platform

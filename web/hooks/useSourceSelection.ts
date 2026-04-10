@@ -5,16 +5,16 @@ import { api } from '@/lib/api/client';
 import type {
   PlatformProvider,
   LandscapeResource,
-  TierLimits,
-  NumericLimitField,
 } from '@/types';
 import { getApiProvider } from '@/types';
 
 interface UseSourceSelectionProps {
   platform: PlatformProvider;
   resources: LandscapeResource[];
-  tierLimits: TierLimits | null;
-  limitField: NumericLimitField;
+  /** @deprecated ADR-172: source limits dissolved, limit is always 50 */
+  tierLimits?: unknown;
+  /** @deprecated ADR-172: source limits dissolved */
+  limitField?: string;
   selectedIds: Set<string>;
   originalIds: Set<string>;
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
@@ -51,7 +51,7 @@ export function useSourceSelection({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const limit = (tierLimits?.limits[limitField] as number) || 5;
+  const limit = 50; // ADR-172: source limits dissolved, UX heuristic only
   const atLimit = selectedIds.size >= limit;
   const hasChanges =
     selectedIds.size !== originalIds.size ||

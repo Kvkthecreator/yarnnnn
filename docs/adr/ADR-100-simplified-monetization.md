@@ -1,9 +1,10 @@
 # ADR-100: Simplified Monetization — 2-Tier Model with Early Bird Pricing
 
-> **Status**: Accepted
+> **Status**: Superseded by ADR-172 (Usage-First Billing)
 > **Date**: 2026-03-09
 > **Deciders**: Kevin (solo founder)
 > **Supersedes**: ADR-053 3-tier structure (Free/Starter/Pro → Free/Pro)
+> **Superseded by**: ADR-172 (2026-04-10) — balance as single gate, tiers dissolved, early bird removed
 > **Related**: ADR-053 (Platform Sync Monetization), ADR-072 (Accumulation Moat), ADR-077 (Sync Overhaul)
 
 ---

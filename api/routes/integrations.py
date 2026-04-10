@@ -1472,15 +1472,8 @@ async def oauth_callback(
                 landscape_data = await discover_landscape(provider, user_id_for_auto, integration_row)
 
                 if landscape_data.get("resources"):
-                    # Compute smart defaults within tier limits
-                    limits = get_limits_for_user(service_client, user_id_for_auto)
-                    limit_field = PROVIDER_LIMIT_MAP.get(
-                        provider,
-                        "slack_channels"
-                    )
-                    max_sources = getattr(limits, limit_field, 5)
-                    if max_sources == -1:
-                        max_sources = 999
+                    # ADR-172: No source limits — max_sources is a UX heuristic only
+                    max_sources = 50
 
                     smart_selected = compute_smart_defaults(
                         provider, landscape_data["resources"], max_sources
@@ -1627,18 +1620,9 @@ async def get_landscape(
                 if (s.get("id") if isinstance(s, dict) else s) in new_resource_ids
             ]
         else:
-            # ADR-079: Smart auto-selection for first-time landscape discovery
+            # ADR-079: Smart auto-selection — no tier limit (ADR-172)
             from services.landscape import compute_smart_defaults
-            from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
-
-            limits = get_limits_for_user(auth.client, user_id)
-            limit_field = PROVIDER_LIMIT_MAP.get(
-                resolved_provider,
-                "slack_channels"
-            )
-            max_sources = getattr(limits, limit_field, 5)
-            if max_sources == -1:
-                max_sources = 999  # unlimited
+            max_sources = 50  # UX heuristic only, not enforcement
 
             smart_selected = compute_smart_defaults(
                 resolved_provider,
@@ -1700,15 +1684,9 @@ async def get_landscape(
             last_error_at=sync_data.get("last_error_at"),
         ))
 
-    # Compute recommended IDs (ADR-079 smart defaults) for UI grouping
+    # Compute recommended IDs (ADR-079 smart defaults) for UI grouping — no tier limit
     from services.landscape import compute_smart_defaults
-    from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
-
-    limits = get_limits_for_user(auth.client, user_id)
-    limit_field = PROVIDER_LIMIT_MAP.get(provider, "slack_channels")
-    max_sources = getattr(limits, limit_field, 5)
-    if max_sources == -1:
-        max_sources = 999
+    max_sources = 50  # UX heuristic only
 
     recommended_sources = compute_smart_defaults(
         resolved_provider,
@@ -1794,11 +1772,12 @@ async def update_coverage(
 # =============================================================================
 
 class UserLimitsResponse(BaseModel):
-    """User's tier limits and current usage. Subscription + work credits model."""
-    tier: str
-    limits: dict[str, Any]  # sync_frequency (str), monthly_messages, monthly_credits, active_tasks, etc.
-    usage: dict[str, Any]   # credits_used, monthly_messages_used, active_tasks, etc.
-    next_sync: Optional[str] = None
+    """User's balance and subscription status (ADR-172: usage-first billing)."""
+    balance_usd: float
+    spend_usd: float
+    is_subscriber: bool
+    subscription_plan: Optional[str] = None
+    next_refill: Optional[str] = None
 
 
 class SelectedSourcesRequest(BaseModel):
@@ -1816,33 +1795,25 @@ class SelectedSourcesResponse(BaseModel):
 @router.get("/user/limits")
 async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     """
-    Get user's tier limits and current usage.
+    Get user's balance and subscription status (ADR-172: usage-first billing).
 
-    Returns subscription + work credits model:
-    - tier: "free" | "pro"
-    - limits: monthly_messages, monthly_credits, active_tasks, sources, sync_frequency
-    - usage: credits_used, monthly_messages_used, active_tasks, source counts
-    - next_sync: ISO timestamp of next scheduled platform sync
+    Returns:
+    - balance_usd: effective remaining balance (balance - spend since last refill)
+    - spend_usd: total token spend this month
+    - is_subscriber: whether user has an active Pro subscription
+    - subscription_plan: 'pro' | 'pro_yearly' | None
+    - next_refill: ISO timestamp of next subscription billing (if subscriber)
     """
     from services.platform_limits import get_usage_summary
 
-    # ADR-108: timezone from /memory/MEMORY.md
-    user_tz = "UTC"
-    try:
-        from services.workspace import UserMemory
-        um = UserMemory(auth.client, auth.user_id)
-        profile = UserMemory._parse_memory_md(um.read_sync("IDENTITY.md"))
-        user_tz = profile.get("timezone") or "UTC"
-    except Exception as e:
-        logger.debug(f"Failed to fetch user timezone: {e}")
-
-    summary = get_usage_summary(auth.client, auth.user_id, user_tz)
+    summary = get_usage_summary(auth.client, auth.user_id)
 
     return UserLimitsResponse(
-        tier=summary["tier"],
-        limits=summary["limits"],
-        usage=summary["usage"],
-        next_sync=summary.get("next_sync"),
+        balance_usd=summary["balance_usd"],
+        spend_usd=summary["spend_usd"],
+        is_subscriber=summary["is_subscriber"],
+        subscription_plan=summary.get("subscription_plan"),
+        next_refill=summary.get("next_refill"),
     )
 
 
@@ -1860,15 +1831,10 @@ async def update_selected_sources(
 
     Sources are stored in platform_connections.landscape.selected_sources.
     """
-    from services.platform_limits import validate_sources_update
-
+    # ADR-172: No source limits — accept all requested source IDs
     user_id = auth.user_id
+    allowed_ids = request.source_ids
     providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
-
-    # Validate against limits
-    valid, message, allowed_ids = validate_sources_update(
-        auth.client, user_id, provider, request.source_ids
-    )
 
     # Get integration (resolve alias to DB platform, try all candidates)
     integration = None
@@ -1910,7 +1876,7 @@ async def update_selected_sources(
     logger.info(f"[INTEGRATIONS] User {user_id} updated {provider} sources: {len(selected_sources)} selected")
 
     return SelectedSourcesResponse(
-        success=valid,
+        success=True,
         selected_sources=selected_sources,
         message=message,
     )

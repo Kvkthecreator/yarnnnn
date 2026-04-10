@@ -1,13 +1,27 @@
 """
-Subscription management API routes (Lemon Squeezy integration)
+Subscription management API routes — ADR-172: Usage-First Billing
 
 Endpoints:
-- GET /status - Get current subscription status
-- POST /checkout - Create checkout session
-- GET /portal - Get customer portal URL
+- GET /status  — current subscription status
+- POST /checkout — create checkout (subscription or top-up)
+- GET /portal  — Lemon Squeezy customer portal URL
 
-Webhook:
-- POST /webhooks/lemonsqueezy - Handle LS webhook events
+Webhooks:
+- POST /webhooks/lemonsqueezy — subscription events + order_created (top-up)
+
+Checkout types:
+  subscription: 'monthly' ($19/mo) or 'yearly' ($180/yr)
+  topup: $10 / $25 / $50 one-time purchase
+
+Webhook events handled:
+  subscription_created / subscription_updated / subscription_resumed →
+    activate pro, grant subscription_refill balance ($20)
+  subscription_cancelled / subscription_expired →
+    downgrade to free (balance unchanged — they keep what they bought)
+  subscription_payment_success →
+    recurring billing cycle: grant $20 subscription_refill balance
+  order_created →
+    one-time top-up purchase: grant balance by variant ID amount
 """
 
 import hashlib
@@ -29,18 +43,33 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/subscription", tags=["Subscription"])
 webhook_router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 
-# Lemon Squeezy configuration
+# ── Lemon Squeezy configuration ───────────────────────────────────────────────
 LEMONSQUEEZY_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY")
 LEMONSQUEEZY_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID")
 LEMONSQUEEZY_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET")
 
-# ADR-100: Product variant IDs for 2-tier pricing (Free + Pro)
+# Subscription variants
 LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID")
 LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID")
-LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID")
+
+# Top-up variants (one-time purchases) — fill after LS product creation
+LEMONSQUEEZY_TOPUP_10_VARIANT_ID = os.getenv("LEMONSQUEEZY_TOPUP_10_VARIANT_ID")
+LEMONSQUEEZY_TOPUP_25_VARIANT_ID = os.getenv("LEMONSQUEEZY_TOPUP_25_VARIANT_ID")
+LEMONSQUEEZY_TOPUP_50_VARIANT_ID = os.getenv("LEMONSQUEEZY_TOPUP_50_VARIANT_ID")
+
+# Variant → top-up amount mapping (populated when env vars are set)
+TOPUP_AMOUNTS: dict[str, float] = {}
+if LEMONSQUEEZY_TOPUP_10_VARIANT_ID:
+    TOPUP_AMOUNTS[LEMONSQUEEZY_TOPUP_10_VARIANT_ID] = 10.0
+if LEMONSQUEEZY_TOPUP_25_VARIANT_ID:
+    TOPUP_AMOUNTS[LEMONSQUEEZY_TOPUP_25_VARIANT_ID] = 25.0
+if LEMONSQUEEZY_TOPUP_50_VARIANT_ID:
+    TOPUP_AMOUNTS[LEMONSQUEEZY_TOPUP_50_VARIANT_ID] = 50.0
 
 CHECKOUT_SUCCESS_URL = os.getenv("CHECKOUT_SUCCESS_URL", "https://yarnnn.com/settings?subscription=success")
 
+
+# ── LS HTTP helpers ───────────────────────────────────────────────────────────
 
 def _ls_headers(include_content_type: bool = False) -> dict[str, str]:
     headers = {
@@ -53,7 +82,6 @@ def _ls_headers(include_content_type: bool = False) -> dict[str, str]:
 
 
 def _extract_customer_portal_url(payload: dict) -> Optional[str]:
-    """Extract customer portal URL from Lemon Squeezy object payload."""
     return (
         payload.get("data", {})
         .get("attributes", {})
@@ -63,11 +91,9 @@ def _extract_customer_portal_url(payload: dict) -> Optional[str]:
 
 
 def _extract_customer_id(payload: dict) -> Optional[str]:
-    """Extract customer ID from a Lemon Squeezy payload."""
     attrs = payload.get("data", {}).get("attributes", {})
     if attrs.get("customer_id"):
         return str(attrs["customer_id"])
-
     rel_customer = (
         payload.get("data", {})
         .get("relationships", {})
@@ -82,13 +108,12 @@ def _extract_customer_id(payload: dict) -> Optional[str]:
 async def _get_subscription_payload(http: httpx.AsyncClient, subscription_id: str) -> Optional[dict]:
     response = await http.get(
         f"https://api.lemonsqueezy.com/v1/subscriptions/{subscription_id}",
-        headers=_ls_headers(),
-        timeout=30.0,
+        headers=_ls_headers(), timeout=30.0,
     )
     if response.status_code == 404:
         return None
     if response.status_code != 200:
-        log.error(f"LS subscription lookup failed: {response.status_code} - {response.text}")
+        log.error(f"LS subscription lookup failed: {response.status_code}")
         return None
     return response.json()
 
@@ -96,13 +121,12 @@ async def _get_subscription_payload(http: httpx.AsyncClient, subscription_id: st
 async def _get_customer_payload(http: httpx.AsyncClient, customer_id: str) -> Optional[dict]:
     response = await http.get(
         f"https://api.lemonsqueezy.com/v1/customers/{customer_id}",
-        headers=_ls_headers(),
-        timeout=30.0,
+        headers=_ls_headers(), timeout=30.0,
     )
     if response.status_code == 404:
         return None
     if response.status_code != 200:
-        log.error(f"LS customer lookup failed: {response.status_code} - {response.text}")
+        log.error(f"LS customer lookup failed: {response.status_code}")
         return None
     return response.json()
 
@@ -110,106 +134,88 @@ async def _get_customer_payload(http: httpx.AsyncClient, customer_id: str) -> Op
 async def _lookup_customer_by_email(http: httpx.AsyncClient, email: Optional[str]) -> Optional[str]:
     if not email or not LEMONSQUEEZY_STORE_ID:
         return None
-
     response = await http.get(
         "https://api.lemonsqueezy.com/v1/customers",
         headers=_ls_headers(),
-        params={
-            "filter[email]": email,
-            "filter[store_id]": LEMONSQUEEZY_STORE_ID,
-            "page[size]": 1,
-        },
+        params={"filter[email]": email, "filter[store_id]": LEMONSQUEEZY_STORE_ID, "page[size]": 1},
         timeout=30.0,
     )
     if response.status_code != 200:
-        log.error(f"LS customer search failed: {response.status_code} - {response.text}")
         return None
-
     data = response.json().get("data") or []
     if not data:
         return None
-    customer_id = data[0].get("id")
-    return str(customer_id) if customer_id else None
+    return str(data[0]["id"]) if data[0].get("id") else None
 
 
-def get_tier_from_variant_id(variant_id: str) -> str:
-    """
-    ADR-100: Determine subscription tier from Lemon Squeezy variant ID.
-
-    All paid variants map to 'pro' (2-tier model).
-    """
-    pro_variants = {
-        LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID,
-        LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID,
-        LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID,
-    }
-
-    if variant_id in pro_variants:
-        return "pro"
-    else:
-        log.warning(f"Unknown variant_id: {variant_id}, defaulting to pro")
-        return "pro"
-
+# ── Variant helpers ───────────────────────────────────────────────────────────
 
 def get_plan_from_variant_id(variant_id: str) -> str:
-    """ADR-100: Determine subscription plan variant for display."""
-    if variant_id == LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID:
-        return "pro_early_bird"
-    elif variant_id == LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID:
+    """Subscription variant → plan label for display."""
+    if variant_id == LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID:
         return "pro_yearly"
-    else:
-        return "pro"
+    return "pro"
 
 
-# ============== Pydantic Models ==============
+def parse_iso_date(date_str: Optional[str]) -> Optional[str]:
+    if not date_str:
+        return None
+    try:
+        if date_str.endswith("Z"):
+            date_str = date_str[:-1] + "+00:00"
+        datetime.fromisoformat(date_str)
+        return date_str
+    except (ValueError, TypeError):
+        return None
+
+
+# ── Pydantic models ───────────────────────────────────────────────────────────
 
 class CheckoutRequest(BaseModel):
-    """Request to create a checkout session."""
-    billing_period: Optional[str] = "monthly"  # 'monthly' or 'yearly'
-    early_bird: Optional[bool] = False  # ADR-100: Early Bird pricing ($9/mo)
+    """Request to create a checkout session.
+
+    checkout_type: 'subscription' (monthly/yearly) or 'topup' ($10/$25/$50)
+    billing_period: 'monthly' | 'yearly' — for subscriptions only
+    topup_amount: 10 | 25 | 50 — for top-ups only
+    """
+    checkout_type: str = "subscription"  # 'subscription' | 'topup'
+    billing_period: Optional[str] = "monthly"
+    topup_amount: Optional[int] = None  # 10 | 25 | 50
 
 
 class CheckoutResponse(BaseModel):
-    """Response with checkout URL."""
     checkout_url: str
 
 
 class SubscriptionStatus(BaseModel):
-    """Current subscription status."""
-    status: str  # ADR-100: 'free' or 'pro'
-    plan: Optional[str] = None  # ADR-100: 'pro', 'pro_early_bird', 'pro_yearly'
+    status: str           # 'free' | 'pro'
+    plan: Optional[str] = None  # 'pro' | 'pro_yearly'
     expires_at: Optional[str] = None
     customer_id: Optional[str] = None
     subscription_id: Optional[str] = None
 
 
 class PortalResponse(BaseModel):
-    """Response with customer portal URL."""
     portal_url: str
 
 
-# ============== Status Endpoint ==============
+# ── Status endpoint ───────────────────────────────────────────────────────────
 
 @router.get("/status", response_model=SubscriptionStatus)
 async def get_subscription_status(auth: UserClient):
-    """Get current user's subscription status."""
-    # Get workspace for this user
     result = auth.client.table("workspaces")\
         .select("subscription_status, subscription_plan, subscription_expires_at, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
         .eq("owner_id", auth.user_id)\
         .limit(1)\
         .execute()
-
     rows = result.data or []
     if not rows:
         return SubscriptionStatus(status="free")
-
     ws = rows[0]
-    # ADR-100: Normalize legacy "starter" → "pro"
     raw_status = ws.get("subscription_status") or "free"
-    status = "pro" if raw_status == "starter" else raw_status
+    norm_status = "pro" if raw_status in ("starter", "pro") else "free"
     return SubscriptionStatus(
-        status=status,
+        status=norm_status,
         plan=ws.get("subscription_plan"),
         expires_at=ws.get("subscription_expires_at"),
         customer_id=ws.get("lemonsqueezy_customer_id"),
@@ -217,66 +223,40 @@ async def get_subscription_status(auth: UserClient):
     )
 
 
-# ============== Checkout Endpoint ==============
+# ── Checkout endpoint ─────────────────────────────────────────────────────────
 
 @router.post("/checkout", response_model=CheckoutResponse)
 async def create_checkout(request: CheckoutRequest, auth: UserClient):
-    """
-    Create a Lemon Squeezy checkout session for the current user.
-
-    ADR-100: 2-tier model — all checkouts are Pro. Early Bird variant for beta pricing.
-    """
+    """Create Lemon Squeezy checkout — subscription or top-up."""
     if not LEMONSQUEEZY_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Payment service not configured",
-        )
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Payment service not configured")
 
-    # ADR-100: Select variant — Early Bird or standard Pro
-    billing = request.billing_period or "monthly"
-
-    if request.early_bird and billing == "monthly":
-        variant_id = LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID
-    elif billing == "yearly":
-        variant_id = LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID
-    else:
-        variant_id = LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID
-
-    if not variant_id:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Product variant not configured for pro/{billing}",
-        )
-
-    # Get workspace ID for this user
-    ws_result = auth.client.table("workspaces")\
-        .select("id")\
-        .eq("owner_id", auth.user_id)\
-        .limit(1)\
-        .execute()
-
+    ws_result = auth.client.table("workspaces").select("id").eq("owner_id", auth.user_id).limit(1).execute()
     ws_rows = ws_result.data or []
     workspace_id = ws_rows[0]["id"] if ws_rows else None
-
     if not workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No workspace found for user",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No workspace found")
+
+    if request.checkout_type == "topup":
+        amount = request.topup_amount
+        topup_variant_map = {10: LEMONSQUEEZY_TOPUP_10_VARIANT_ID, 25: LEMONSQUEEZY_TOPUP_25_VARIANT_ID, 50: LEMONSQUEEZY_TOPUP_50_VARIANT_ID}
+        variant_id = topup_variant_map.get(amount)
+        if not variant_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Top-up variant for ${amount} not configured yet")
+    else:
+        billing = request.billing_period or "monthly"
+        variant_id = LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID if billing == "yearly" else LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID
+        if not variant_id:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Subscription variant not configured for {billing}")
 
     checkout_data = {
         "data": {
             "type": "checkouts",
             "attributes": {
                 "checkout_data": {
-                    "custom": {
-                        "user_id": auth.user_id,
-                        "workspace_id": workspace_id,
-                    }
+                    "custom": {"user_id": auth.user_id, "workspace_id": workspace_id}
                 },
-                "product_options": {
-                    "redirect_url": CHECKOUT_SUCCESS_URL,
-                },
+                "product_options": {"redirect_url": CHECKOUT_SUCCESS_URL},
             },
             "relationships": {
                 "store": {"data": {"type": "stores", "id": LEMONSQUEEZY_STORE_ID}},
@@ -289,47 +269,30 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
         response = await http.post(
             "https://api.lemonsqueezy.com/v1/checkouts",
             headers=_ls_headers(include_content_type=True),
-            json=checkout_data,
-            timeout=30.0,
+            json=checkout_data, timeout=30.0,
         )
-
         if response.status_code != 201:
             log.error(f"LS checkout error: {response.status_code} - {response.text}")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Failed to create checkout session",
-            )
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to create checkout session")
 
-        data = response.json()
-        checkout_url = data["data"]["attributes"]["url"]
-
-        log.info(f"Created checkout for user {auth.user_id}")
+        checkout_url = response.json()["data"]["attributes"]["url"]
+        log.info(f"Created {request.checkout_type} checkout for user {auth.user_id}")
         return CheckoutResponse(checkout_url=checkout_url)
 
 
-# ============== Customer Portal ==============
+# ── Customer portal ───────────────────────────────────────────────────────────
 
 @router.get("/portal", response_model=PortalResponse)
 async def get_customer_portal(auth: UserClient):
-    """Get Lemon Squeezy customer portal URL for managing subscription."""
     if not LEMONSQUEEZY_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Payment service not configured",
-        )
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Payment service not configured")
 
     result = auth.client.table("workspaces")\
         .select("id, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
-        .eq("owner_id", auth.user_id)\
-        .limit(1)\
-        .execute()
-
+        .eq("owner_id", auth.user_id).limit(1).execute()
     rows = result.data or []
     if not rows:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No workspace found for this user.",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No workspace found")
 
     workspace = rows[0]
     workspace_id = workspace["id"]
@@ -337,143 +300,86 @@ async def get_customer_portal(auth: UserClient):
     subscription_id = workspace.get("lemonsqueezy_subscription_id")
 
     async with httpx.AsyncClient() as http:
-        # 1) Preferred path: direct customer lookup when we have customer_id.
         if customer_id:
             customer_payload = await _get_customer_payload(http, str(customer_id))
             portal_url = _extract_customer_portal_url(customer_payload or {})
             if portal_url:
                 return PortalResponse(portal_url=portal_url)
 
-        # 2) Fallback path: resolve via subscription_id (works when customer_id wasn't persisted).
         if subscription_id:
             subscription_payload = await _get_subscription_payload(http, str(subscription_id))
             if subscription_payload:
                 portal_url = _extract_customer_portal_url(subscription_payload)
                 if portal_url:
-                    resolved_customer_id = _extract_customer_id(subscription_payload)
-                    if resolved_customer_id:
-                        auth.client.table("workspaces").update({
-                            "lemonsqueezy_customer_id": resolved_customer_id,
-                        }).eq("id", workspace_id).execute()
+                    resolved_cid = _extract_customer_id(subscription_payload)
+                    if resolved_cid:
+                        auth.client.table("workspaces").update({"lemonsqueezy_customer_id": resolved_cid}).eq("id", workspace_id).execute()
                     return PortalResponse(portal_url=portal_url)
 
-                resolved_customer_id = _extract_customer_id(subscription_payload)
-                if resolved_customer_id:
-                    auth.client.table("workspaces").update({
-                        "lemonsqueezy_customer_id": resolved_customer_id,
-                    }).eq("id", workspace_id).execute()
-                    customer_payload = await _get_customer_payload(http, resolved_customer_id)
-                    portal_url = _extract_customer_portal_url(customer_payload or {})
-                    if portal_url:
-                        return PortalResponse(portal_url=portal_url)
-
-        # 3) Last fallback: find customer by authenticated user email in this store.
         email_customer_id = await _lookup_customer_by_email(http, auth.email)
         if email_customer_id:
-            auth.client.table("workspaces").update({
-                "lemonsqueezy_customer_id": email_customer_id,
-            }).eq("id", workspace_id).execute()
+            auth.client.table("workspaces").update({"lemonsqueezy_customer_id": email_customer_id}).eq("id", workspace_id).execute()
             customer_payload = await _get_customer_payload(http, email_customer_id)
             portal_url = _extract_customer_portal_url(customer_payload or {})
             if portal_url:
                 return PortalResponse(portal_url=portal_url)
 
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=(
-            "Billing portal is unavailable for this account right now. "
-            "If you recently subscribed, wait a minute and retry. "
-            "If it persists, contact support to re-link your Lemon Squeezy customer record."
-        ),
-    )
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Billing portal unavailable. If you recently subscribed, wait a moment and retry.")
 
 
-# ============== Webhook Handler ==============
+# ── Webhook handler ───────────────────────────────────────────────────────────
 
 def verify_webhook_signature(payload: bytes, signature: str) -> bool:
-    """Verify Lemon Squeezy webhook signature."""
     if not LEMONSQUEEZY_WEBHOOK_SECRET:
         log.error("LEMONSQUEEZY_WEBHOOK_SECRET not configured")
         return False
-
-    expected = hmac.new(
-        LEMONSQUEEZY_WEBHOOK_SECRET.encode(),
-        payload,
-        hashlib.sha256,
-    ).hexdigest()
-
+    expected = hmac.new(LEMONSQUEEZY_WEBHOOK_SECRET.encode(), payload, hashlib.sha256).hexdigest()
     return hmac.compare_digest(signature, expected)
-
-
-def parse_iso_date(date_str: Optional[str]) -> Optional[str]:
-    """Parse and normalize ISO date string."""
-    if not date_str:
-        return None
-    try:
-        # Normalize Z suffix to +00:00
-        if date_str.endswith("Z"):
-            date_str = date_str[:-1] + "+00:00"
-        # Validate format
-        datetime.fromisoformat(date_str)
-        return date_str
-    except (ValueError, TypeError):
-        log.warning(f"Failed to parse date: {date_str}")
-        return None
 
 
 @webhook_router.post("/lemonsqueezy")
 async def handle_lemonsqueezy_webhook(request: Request):
-    """Handle Lemon Squeezy webhook events."""
+    """Handle Lemon Squeezy webhook events.
+
+    Subscription events: activate/deactivate pro status
+    subscription_payment_success: grant $20 subscription_refill balance
+    order_created: grant top-up balance ($10/$25/$50)
+    """
     body = await request.body()
     signature = request.headers.get("X-Signature", "")
 
     if not verify_webhook_signature(body, signature):
         log.warning("Invalid webhook signature")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid signature",
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
 
     try:
         payload = json.loads(body)
     except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid JSON payload",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON")
 
     event_name = payload.get("meta", {}).get("event_name", "")
-    log.info(f"Received LS webhook: {event_name}")
+    log.info(f"LS webhook: {event_name}")
 
-    # Extract identifiers from custom data
     custom_data = payload.get("meta", {}).get("custom_data", {})
     workspace_id = custom_data.get("workspace_id")
-    user_id = custom_data.get("user_id")
-
-    # Extract subscription data
     attrs = payload.get("data", {}).get("attributes", {})
     subscription_id = str(payload.get("data", {}).get("id", ""))
     customer_id = str(attrs.get("customer_id", ""))
 
-    # Use service client for webhook updates (bypasses RLS)
     client = get_service_client()
 
-    # Try to find workspace by customer_id if not in custom_data
+    # Resolve workspace from customer_id if not in custom_data
     if not workspace_id and customer_id:
-        result = client.table("workspaces")\
-            .select("id")\
-            .eq("lemonsqueezy_customer_id", customer_id)\
-            .limit(1)\
-            .execute()
+        result = client.table("workspaces").select("id").eq("lemonsqueezy_customer_id", customer_id).limit(1).execute()
         ws_rows = result.data or []
         if ws_rows:
             workspace_id = ws_rows[0]["id"]
 
     if not workspace_id:
-        log.warning(f"No workspace_id found for event: {event_name}")
+        log.warning(f"No workspace_id for event: {event_name}")
         return {"status": "ok", "message": "No workspace_id found"}
 
-    # Log event for audit
+    # Audit log
     try:
         client.table("subscription_events").insert({
             "workspace_id": workspace_id,
@@ -486,38 +392,14 @@ async def handle_lemonsqueezy_webhook(request: Request):
     except Exception as e:
         log.warning(f"Failed to log subscription event: {e}")
 
-    # Handle specific events
-    if event_name == "subscription_created":
+    # ── Subscription events ────────────────────────────────────────────────────
+    if event_name in ("subscription_created", "subscription_updated", "subscription_resumed"):
         renews_at = parse_iso_date(attrs.get("renews_at"))
         status_value = attrs.get("status", "active")
         variant_id = str(attrs.get("variant_id", ""))
 
-        # ADR-100: Determine tier and plan variant from variant ID
-        if status_value in ("active", "on_trial"):
-            sub_status = get_tier_from_variant_id(variant_id)
-            sub_plan = get_plan_from_variant_id(variant_id)
-        else:
-            sub_status = "free"
-            sub_plan = None
-
-        client.table("workspaces").update({
-            "subscription_status": sub_status,
-            "subscription_plan": sub_plan,
-            "subscription_expires_at": renews_at,
-            "lemonsqueezy_customer_id": customer_id,
-            "lemonsqueezy_subscription_id": subscription_id,
-        }).eq("id", workspace_id).execute()
-
-        log.info(f"Activated {sub_status} ({sub_plan}) subscription for workspace {workspace_id}")
-
-    elif event_name == "subscription_updated":
-        renews_at = parse_iso_date(attrs.get("renews_at"))
-        status_value = attrs.get("status", "active")
-        variant_id = str(attrs.get("variant_id", ""))
-
-        # ADR-100: Determine tier and plan variant from variant ID
         if status_value in ("active", "on_trial", "past_due"):
-            sub_status = get_tier_from_variant_id(variant_id)
+            sub_status = "pro"
             sub_plan = get_plan_from_variant_id(variant_id)
         else:
             sub_status = "free"
@@ -531,10 +413,8 @@ async def handle_lemonsqueezy_webhook(request: Request):
         }
         if customer_id:
             update_data["lemonsqueezy_customer_id"] = customer_id
-
         client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
-
-        log.info(f"Updated subscription for workspace {workspace_id}: {sub_status} ({sub_plan})")
+        log.info(f"Subscription {event_name}: workspace {workspace_id} → {sub_status} ({sub_plan})")
 
     elif event_name in ("subscription_cancelled", "subscription_expired"):
         client.table("workspaces").update({
@@ -542,34 +422,10 @@ async def handle_lemonsqueezy_webhook(request: Request):
             "subscription_plan": None,
             "subscription_expires_at": None,
         }).eq("id", workspace_id).execute()
-
-        log.info(f"Downgraded workspace {workspace_id} to free tier")
-
-    elif event_name == "subscription_resumed":
-        renews_at = parse_iso_date(attrs.get("renews_at"))
-        variant_id = str(attrs.get("variant_id", ""))
-
-        # ADR-100: Determine tier and plan variant from variant ID
-        sub_status = get_tier_from_variant_id(variant_id)
-        sub_plan = get_plan_from_variant_id(variant_id)
-
-        update_data = {
-            "subscription_status": sub_status,
-            "subscription_plan": sub_plan,
-            "subscription_expires_at": renews_at,
-            "lemonsqueezy_subscription_id": subscription_id,
-        }
-        if customer_id:
-            update_data["lemonsqueezy_customer_id"] = customer_id
-
-        client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
-
-        log.info(f"Resumed {sub_status} ({sub_plan}) subscription for workspace {workspace_id}")
-
-    elif event_name == "subscription_payment_failed":
-        log.warning(f"Payment failed for workspace {workspace_id}")
+        log.info(f"Subscription {event_name}: workspace {workspace_id} → free (balance unchanged)")
 
     elif event_name == "subscription_payment_success":
+        # Recurring billing cycle — grant $20 balance reset (ADR-172)
         renews_at = parse_iso_date(attrs.get("renews_at"))
         update_data = {}
         if renews_at:
@@ -580,6 +436,40 @@ async def handle_lemonsqueezy_webhook(request: Request):
             update_data["lemonsqueezy_subscription_id"] = subscription_id
         if update_data:
             client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
-        log.info(f"Subscription renewed for workspace {workspace_id}")
+
+        from services.platform_limits import grant_balance
+        grant_balance(
+            client,
+            workspace_id=workspace_id,
+            amount_usd=20.0,
+            kind="subscription_refill",
+            lemon_subscription_id=subscription_id,
+            metadata={"event": "subscription_payment_success"},
+        )
+        log.info(f"Subscription refill: $20 balance reset for workspace {workspace_id}")
+
+    elif event_name == "subscription_payment_failed":
+        log.warning(f"Payment failed for workspace {workspace_id}")
+
+    elif event_name == "order_created":
+        # One-time top-up purchase — grant balance by variant amount (ADR-172)
+        order_id = str(payload.get("data", {}).get("id", ""))
+        first_item = (attrs.get("first_order_item") or {})
+        variant_id = str(first_item.get("variant_id", ""))
+        amount = TOPUP_AMOUNTS.get(variant_id)
+
+        if amount:
+            from services.platform_limits import grant_balance
+            grant_balance(
+                client,
+                workspace_id=workspace_id,
+                amount_usd=amount,
+                kind="topup",
+                lemon_order_id=order_id,
+                metadata={"variant_id": variant_id, "amount": amount},
+            )
+            log.info(f"Top-up: ${amount} for workspace {workspace_id} (order {order_id})")
+        else:
+            log.warning(f"order_created: unknown variant_id {variant_id} — no balance granted")
 
     return {"status": "ok"}

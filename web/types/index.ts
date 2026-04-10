@@ -131,7 +131,7 @@ export type SubscriptionTier = "free" | "pro";
 
 export interface SubscriptionStatus {
   status: SubscriptionTier;
-  plan: string | null;  // ADR-100: 'pro', 'pro_early_bird', 'pro_yearly'
+  plan: string | null;  // ADR-172: 'pro', 'pro_yearly'
   expires_at: string | null;
   customer_id: string | null;
   subscription_id: string | null;
@@ -684,29 +684,17 @@ export interface SelectedSource {
   last_sync_at: string | null;
 }
 
-export type NumericLimitField = 'slack_channels' | 'notion_pages' | 'total_platforms';
-
-export interface TierLimits {
-  tier: 'free' | 'pro';
-  limits: {
-    slack_channels: number;
-    notion_pages: number;
-    total_platforms: number;
-    sync_frequency: '1x_daily' | '2x_daily' | '4x_daily' | 'hourly';
-    monthly_messages: number;          // -1 for unlimited (Pro)
-    active_tasks: number;
-    monthly_spend_usd_limit: number;   // ADR-171: token spend cap in USD
-  };
-  usage: {
-    slack_channels: number;
-    notion_pages: number;
-    platforms_connected: number;
-    monthly_messages_used: number;
-    active_tasks: number;
-    spend_usd: number;                 // ADR-171: token spend this month
-  };
-  next_sync?: string | null;
+// ADR-172: Usage-first billing — balance is the single gate
+export interface BalanceSummary {
+  balance_usd: number;           // effective remaining balance
+  spend_usd: number;             // total token spend this month (display only)
+  is_subscriber: boolean;        // active Pro subscription
+  subscription_plan?: string | null;
+  next_refill?: string | null;   // ISO timestamp of next subscription billing
 }
+
+/** @deprecated Use BalanceSummary (ADR-172) */
+export type TierLimits = BalanceSummary;
 
 // =============================================================================
 // ADR-138: Tasks (work definitions)

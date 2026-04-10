@@ -179,6 +179,41 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
         except Exception as e:
             logger.warning(f"[WORKSPACE_INIT] Back office task ({slug}) creation failed: {e}")
 
+    # =========================================================================
+    # Phase 6: Signup balance grant — $3 one-time (ADR-172)
+    # =========================================================================
+    # Idempotent: free_balance_granted flag on workspace prevents re-grant.
+    # The workspace row already has balance_usd=3.0 DEFAULT and
+    # free_balance_granted=true DEFAULT from migration 144.
+    # We only insert the balance_transactions row if this is a fresh workspace
+    # (not already_initialized) to avoid duplicate audit rows.
+    if not result["already_initialized"]:
+        try:
+            ws_row = client.table("workspaces")\
+                .select("id, free_balance_granted")\
+                .eq("owner_id", user_id)\
+                .limit(1)\
+                .execute()
+            if ws_row.data:
+                workspace_id = ws_row.data[0]["id"]
+                already_granted = ws_row.data[0].get("free_balance_granted", False)
+                if not already_granted:
+                    from services.platform_limits import grant_balance
+                    grant_balance(
+                        client,
+                        workspace_id=workspace_id,
+                        amount_usd=3.0,
+                        kind="signup_grant",
+                        metadata={"note": "one_time_signup_grant"},
+                    )
+                    client.table("workspaces")\
+                        .update({"free_balance_granted": True})\
+                        .eq("id", workspace_id)\
+                        .execute()
+                    logger.info(f"[WORKSPACE_INIT] Signup balance grant: $3.00 for {user_id[:8]}")
+        except Exception as e:
+            logger.warning(f"[WORKSPACE_INIT] Signup balance grant failed: {e}")
+
     logger.info(
         f"[WORKSPACE_INIT] Complete for {user_id[:8]}: "
         f"{len(result['agents_created'])} agents, "

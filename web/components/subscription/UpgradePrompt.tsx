@@ -8,11 +8,11 @@ import { useState } from "react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Button } from "@/components/ui/button";
 import { X, Sparkles, Loader2, Check } from "lucide-react";
-import { TIER_LIMITS, formatLimit } from "@/lib/subscription/limits";
+import { formatLimit } from "@/lib/subscription/limits";
 
 interface UpgradePromptProps {
   /** What triggered the prompt */
-  feature: "messages" | "spend" | "tasks";
+  feature: "messages" | "spend" | "tasks" | "balance";
   /** Current usage count */
   currentUsage?: number;
   /** Whether to show as modal or inline banner */
@@ -26,17 +26,21 @@ interface UpgradePromptProps {
 }
 
 const FEATURE_COPY = {
+  balance: {
+    title: "Balance empty",
+    description: "Your usage balance is empty. Top up to continue using YARNNN.",
+  },
   messages: {
-    title: "Need more messages?",
-    description: "You've used all your free messages this month. Upgrade to Pro for unlimited chat.",
+    title: "Balance empty",
+    description: "Your usage balance is empty. Top up to continue chatting.",
   },
   spend: {
-    title: "Monthly usage limit reached",
-    description: "Your workspace has used its $3 monthly usage. Upgrade to Pro for $20/month included.",
+    title: "Balance empty",
+    description: "Your usage balance is empty. Top up to continue, or subscribe for $20/month auto-refill.",
   },
   tasks: {
-    title: "Unlock more tasks",
-    description: "You've reached the task limit. Upgrade to Pro for up to 10 active tasks.",
+    title: "Balance empty",
+    description: "Your usage balance is empty. Top up to continue running tasks.",
   },
 };
 
@@ -51,12 +55,8 @@ export function UpgradePrompt({
   const { upgrade, isLoading } = useSubscription();
   const [upgrading, setUpgrading] = useState(false);
 
-  const copy = FEATURE_COPY[feature];
-  const limit = TIER_LIMITS.free[
-    feature === "messages" ? "monthlyMessages" :
-    feature === "spend" ? "monthlySpendUsd" :
-    "activeTasks"
-  ];
+  const copy = FEATURE_COPY[feature] ?? FEATURE_COPY.balance;
+  const limit = 0; // ADR-172: balance-first, no fixed limits
 
   const handleUpgrade = async () => {
     setUpgrading(true);
@@ -64,11 +64,9 @@ export function UpgradePrompt({
   };
 
   const proFeatures = [
-    "Unlimited chat",
-    "$20 usage included/month",
-    "10 active tasks",
-    "Unlimited sources",
-    "Hourly sync",
+    "$20 usage included/month (auto-refill)",
+    "No per-task or per-message limits",
+    "Priority support",
   ];
 
   if (variant === "banner") {
@@ -94,7 +92,7 @@ export function UpgradePrompt({
             {upgrading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              "Upgrade"
+              "Add balance"
             )}
           </Button>
           {onDismiss && (
@@ -178,7 +176,7 @@ export function UpgradePrompt({
             ) : (
               <>
                 <Sparkles className="w-4 h-4 mr-2" />
-                Upgrade to Pro
+                Subscribe to Pro
               </>
             )}
           </Button>

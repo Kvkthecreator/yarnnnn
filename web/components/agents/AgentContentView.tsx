@@ -46,7 +46,7 @@ import { api } from '@/lib/api/client';
 import { usePlatformData } from '@/hooks/usePlatformData';
 import { useSourceSelection } from '@/hooks/useSourceSelection';
 import { ResourceList } from '@/components/context/ResourceList';
-import type { Agent, Task, LandscapeResource, PlatformProvider, NumericLimitField } from '@/types';
+import type { Agent, Task, LandscapeResource, PlatformProvider } from '@/types';
 
 interface AgentContentViewProps {
   agent: Agent;
@@ -344,19 +344,6 @@ function getTaskKindCounts(tasks: Task[]): TaskKindCounts {
   }, { ...EMPTY_TASK_COUNTS });
 }
 
-function shellIcon(agentClass?: string | null) {
-  switch (agentClass) {
-    case 'platform-bot':
-      return Bot;
-    case 'meta-cognitive':
-      return Brain;
-    case 'synthesizer':
-      return Target;
-    default:
-      return FolderKanban;
-  }
-}
-
 function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const classLabel = agentClassLabel(agent.agent_class);
   const showClassLabel = classLabel.toLowerCase() !== agent.title.toLowerCase();
@@ -559,7 +546,6 @@ function platformSourceConfig(provider: PlatformProvider): {
   resourceLabel: string;
   resourceLabelSingular: string;
   resourceIcon: React.ReactNode;
-  limitField: NumericLimitField;
   renderMetadata?: (resource: LandscapeResource) => React.ReactNode;
 } | null {
   switch (provider) {
@@ -568,7 +554,6 @@ function platformSourceConfig(provider: PlatformProvider): {
         resourceLabel: 'Channels',
         resourceLabelSingular: 'channel',
         resourceIcon: <Hash className="w-4 h-4" />,
-        limitField: 'slack_channels',
         renderMetadata: renderSlackMetadata,
       };
     case 'notion':
@@ -576,7 +561,6 @@ function platformSourceConfig(provider: PlatformProvider): {
         resourceLabel: 'Pages',
         resourceLabelSingular: 'page',
         resourceIcon: <FileText className="w-4 h-4" />,
-        limitField: 'notion_pages',
         renderMetadata: renderNotionMetadata,
       };
     default:
@@ -704,8 +688,6 @@ function PlatformSourcesBlock({ agent }: { agent: Agent }) {
   const sourceSelection = useSourceSelection({
     platform: provider || 'slack',
     resources: data.resources,
-    tierLimits: data.tierLimits,
-    limitField: config?.limitField || 'slack_channels',
     selectedIds: data.selectedIds,
     originalIds: data.originalIds,
     setSelectedIds: data.setSelectedIds,

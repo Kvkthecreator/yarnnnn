@@ -7,7 +7,6 @@ import type {
   IntegrationData,
   LandscapeResource,
   SelectedSource,
-  TierLimits,
 } from '@/types';
 import { getApiProvider } from '@/types';
 
@@ -16,7 +15,8 @@ interface UsePlatformDataReturn {
   resources: LandscapeResource[];
   selectedIds: Set<string>;
   originalIds: Set<string>;
-  tierLimits: TierLimits | null;
+  /** @deprecated ADR-172: source limits dissolved */
+  tierLimits: null;
   platformContext: unknown[];
   loading: boolean;
   error: string | null;
@@ -42,7 +42,7 @@ export function usePlatformData(
   const [resources, setResources] = useState<LandscapeResource[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [originalIds, setOriginalIds] = useState<Set<string>>(new Set());
-  const [tierLimits, setTierLimits] = useState<TierLimits | null>(null);
+  const [tierLimits] = useState<null>(null); // ADR-172: source limits dissolved
   const [platformContext] = useState<unknown[]>([]);
 
   const loadData = useCallback(async () => {
@@ -56,7 +56,6 @@ export function usePlatformData(
         integrationResult,
         landscapeResult,
         sourcesResult,
-        limitsResult,
       ] = await Promise.all([
         api.integrations.get(apiProvider).catch(() => null),
         options?.skipResources
@@ -65,13 +64,10 @@ export function usePlatformData(
         options?.skipResources
           ? Promise.resolve({ sources: [] })
           : api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
-        api.integrations.getLimits().catch(() => null),
       ]);
 
       setIntegration(integrationResult as IntegrationData | null);
       setResources((landscapeResult as { resources: LandscapeResource[] }).resources || []);
-
-      setTierLimits(limitsResult as TierLimits | null);
 
       // Set selected IDs from sources endpoint
       const currentIds = new Set(

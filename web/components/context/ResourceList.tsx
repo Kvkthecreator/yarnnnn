@@ -10,7 +10,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react';
-import type { LandscapeResource, TierLimits } from '@/types';
+import type { LandscapeResource } from '@/types';
 import { cn } from '@/lib/utils';
 import { ResourceRow } from './ResourceRow';
 
@@ -25,7 +25,8 @@ interface ResourceListProps {
 
   /** Data */
   resources: LandscapeResource[];
-  tierLimits: TierLimits | null;
+  /** @deprecated ADR-172: source limits dissolved */
+  tierLimits?: unknown;
 
   /** Source selection state (from useSourceSelection) */
   selectedIds: Set<string>;
@@ -52,7 +53,6 @@ export function ResourceList({
   resourceIcon,
   workspaceName,
   resources,
-  tierLimits,
   selectedIds,
   hasChanges,
   atLimit,
@@ -173,7 +173,7 @@ export function ResourceList({
     />
   );
 
-  const upgradeTarget = tierLimits?.tier === 'free' ? 'Pro' : null;
+  const upgradeTarget = null; // ADR-172: source limits dissolved
 
   const viewOptions: Array<{ key: ListView; label: string; count: number }> = [
     { key: 'selected', label: 'Selected', count: selectedCount },
@@ -316,7 +316,7 @@ export function ResourceList({
                   {resourceLabelSingular} limit reached
                 </p>
                 <p className="text-amber-700 dark:text-amber-400 mt-0.5">
-                  Your {tierLimits?.tier || 'free'} plan allows {limit} {resourceLabel.toLowerCase()}.
+                  You have {limit} {resourceLabel.toLowerCase()} selected (max {limit}).
                   {upgradeTarget && (
                     <button className="ml-1 underline hover:no-underline inline-flex items-center gap-1">
                       <Sparkles className="w-3 h-3" />

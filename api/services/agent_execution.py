@@ -1510,13 +1510,7 @@ async def execute_agent_generation(
         # table row is the authoritative execution record — no need to
         # denormalize into activity_log.
 
-        # Record work credits for delivered agent runs
-        if final_status == "delivered":
-            try:
-                from services.platform_limits import record_credits
-                record_credits(svc_client, user_id, "task_execution", agent_id=str(agent_id))
-            except Exception:
-                pass  # Non-fatal
+        # Token usage recorded via record_token_usage() at LLM call sites (ADR-171/172)
 
         return {
             "success": final_status == "delivered",

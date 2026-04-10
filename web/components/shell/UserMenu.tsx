@@ -19,20 +19,20 @@ interface UserMenuProps {
 
 export function UserMenu({ email }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [spend, setSpend] = useState<{ used: number; limit: number; tier: string } | null>(null);
+  const [balance, setBalance] = useState<{ balance: number; spend: number; isPro: boolean } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const supabase = createClient();
   const { theme, setTheme } = useTheme();
 
-  // Fetch token spend on mount
+  // Fetch balance on mount
   useEffect(() => {
     api.integrations.getLimits()
       .then((data) => {
-        setSpend({
-          used: data.usage.spend_usd,
-          limit: data.limits.monthly_spend_usd_limit,
-          tier: data.tier,
+        setBalance({
+          balance: data.balance_usd,
+          spend: data.spend_usd,
+          isPro: data.is_subscriber,
         });
       })
       .catch(() => {});
@@ -89,12 +89,12 @@ export function UserMenu({ email }: UserMenuProps) {
               <p className="text-sm font-medium truncate">{email}</p>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  {spend ? (
+                  {balance ? (
                     <>
                       <Zap className="w-3 h-3" />
-                      ${spend.used.toFixed(2)} / ${spend.limit.toFixed(2)}
+                      ${balance.balance.toFixed(2)} balance
                       <span className="text-muted-foreground/60">
-                        {spend.tier === "pro" ? "Pro" : "Free"}
+                        {balance.isPro ? "· Pro" : ""}
                       </span>
                     </>
                   ) : (

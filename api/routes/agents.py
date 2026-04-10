@@ -364,20 +364,9 @@ async def create_agent(
     ADR-053: Enforces active agent limits based on user tier.
     ADR-111: Delegates to shared create_agent_record() for singular implementation.
     """
-    from services.platform_limits import check_agent_limit
     from services.agent_creation import create_agent_record
 
-    # ADR-053: Check agent limit before creation (route concern — not in shared function)
-    allowed, message = check_agent_limit(auth.client, auth.user_id)
-    if not allowed:
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "agent_limit_reached",
-                "message": message,
-                "upgrade_url": "/settings?tab=billing",
-            }
-        )
+    # ADR-172: No agent limit gate — balance is the only gate
 
     # Handle type_config - use provided or get defaults
     type_config = request.type_config

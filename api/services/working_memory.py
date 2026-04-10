@@ -112,11 +112,11 @@ async def build_working_memory(
     )
 
     # ADR-151: Fetch active tasks + context domain health for TP meta-awareness
-    # ADR-156: Work budget + agent health signals (replaces Composer awareness)
-    active_tasks, context_domains, work_budget, agent_health = await asyncio.gather(
+    # ADR-172: Balance replaces work_budget signal
+    active_tasks, context_domains, balance_info, agent_health = await asyncio.gather(
         asyncio.to_thread(_get_active_tasks_sync, user_id, _make_client()),
         asyncio.to_thread(_get_context_domain_health_sync, user_id, _make_client()),
-        asyncio.to_thread(_get_work_budget_sync, user_id, _make_client()),
+        asyncio.to_thread(_get_balance_sync, user_id, _make_client()),
         asyncio.to_thread(_get_agent_health_sync, user_id, _make_client()),
     )
 
@@ -153,10 +153,9 @@ async def build_working_memory(
             # Work
             "tasks_active": task_count,
             "tasks_stale": tasks_stale,
-            # Budget
-            "credits_used": work_budget.get("used", 0),
-            "credits_limit": work_budget.get("limit", -1),
-            "budget_exhausted": work_budget.get("exhausted", False),
+            # Balance (ADR-172)
+            "balance_usd": balance_info.get("balance", 0.0),
+            "balance_exhausted": balance_info.get("exhausted", False),
             # Health (only flagged agents)
             "agents_flagged": agent_health,
         },
@@ -731,15 +730,15 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
     return summary
 
 
-def _get_work_budget_sync(user_id: str, client: Any) -> dict:
-    """Fetch work budget status (sync, for thread pool). ADR-156."""
+def _get_balance_sync(user_id: str, client: Any) -> dict:
+    """Fetch effective balance status (sync, for thread pool). ADR-172."""
     try:
-        from services.platform_limits import check_credits
-        allowed, used, limit = check_credits(client, user_id)
-        return {"used": used, "limit": limit, "exhausted": not allowed}
+        from services.platform_limits import get_effective_balance
+        balance = get_effective_balance(client, user_id)
+        return {"balance": round(balance, 4), "exhausted": balance <= 0}
     except Exception as e:
-        logger.warning(f"[WORKING_MEMORY] Failed to fetch work budget: {e}")
-        return {"used": 0, "limit": -1, "exhausted": False}
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch balance: {e}")
+        return {"balance": 0.0, "exhausted": False}
 
 
 def _get_agent_health_sync(user_id: str, client: Any) -> list:
