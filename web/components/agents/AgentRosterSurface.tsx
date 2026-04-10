@@ -78,6 +78,10 @@ function freshnessColor(dateStr: string | null): string {
   return 'text-amber-600 dark:text-amber-400';
 }
 
+function fmtDomain(value?: string | null): string {
+  if (!value) return '';
+  return value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 export function AgentRosterSurface({ agents, tasks, onSelect }: AgentRosterSurfaceProps) {
   const grouped = useMemo(() => {
@@ -149,6 +153,9 @@ function AgentCard({
   const slug = getAgentSlug(agent);
   const agentTasks = tasks.filter(t => t.agent_slugs?.includes(slug));
   const activeTasks = agentTasks.filter(t => t.status === 'active');
+  const mostRecentTask = [...agentTasks]
+    .sort((a, b) => (b.last_run_at ?? '').localeCompare(a.last_run_at ?? ''))
+    .find(t => t.status === 'active') ?? activeTasks[0] ?? agentTasks[0] ?? null;
   const lastRun = agentTasks
     .map(t => t.last_run_at)
     .filter(Boolean)
@@ -156,14 +163,15 @@ function AgentCard({
     .reverse()[0] || agent.last_run_at || null;
   const cls = agent.agent_class || 'domain-steward';
   const isPaused = agent.status === 'paused';
-  const showApproval = (agent.version_count ?? 0) >= 5 && agent.quality_score != null;
+  const hasNoTasks = agentTasks.length === 0;
+
+  // Subline: human-readable domain for specialists, role tagline for others
   const subline = agent.context_domain
-    ? `owns ${agent.context_domain} context`
+    ? `Tracks ${fmtDomain(agent.context_domain)}`
     : roleTagline(agent.role) || (
-      cls === 'platform-bot' ? 'platform bridge'
-      : cls === 'meta-cognitive' ? 'orchestration and back office'
-      : cls === 'synthesizer' ? 'reads across domains'
-      : 'specialist'
+      cls === 'synthesizer' ? 'Assembles cross-domain reports'
+      : cls === 'meta-cognitive' ? 'Orchestrates your workforce'
+      : ''
     );
 
   return (
@@ -195,27 +203,36 @@ function AgentCard({
               </span>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground/70 truncate mt-0.5">
-            {subline}
-          </p>
+          {subline && (
+            <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5">
+              {subline}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Health glance row */}
-      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/40 text-[11px] text-muted-foreground">
-        <span>
-          {activeTasks.length} task{activeTasks.length !== 1 ? 's' : ''}
-        </span>
-        <span className="text-muted-foreground/30">·</span>
-        <span className={freshnessColor(lastRun)}>
-          {lastRun ? formatRelativeShort(lastRun) : 'never run'}
-        </span>
-        {showApproval && (
-          <>
-            <span className="text-muted-foreground/30">·</span>
-            <span>{Math.round((agent.quality_score ?? 0) * 100)}% approved</span>
-          </>
+      {/* Status row */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/40">
+        {hasNoTasks ? (
+          <span className="text-[11px] text-muted-foreground/40 italic">No tasks assigned yet</span>
+        ) : (
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] text-muted-foreground/60 shrink-0">
+              {activeTasks.length} active {activeTasks.length === 1 ? 'task' : 'tasks'}
+            </span>
+            {mostRecentTask && (
+              <>
+                <span className="text-muted-foreground/20">·</span>
+                <span className="text-[11px] text-muted-foreground/50 truncate">
+                  {mostRecentTask.title}
+                </span>
+              </>
+            )}
+          </div>
         )}
+        <span className={cn('text-[11px] shrink-0 ml-2', freshnessColor(lastRun))}>
+          {lastRun ? formatRelativeShort(lastRun) : hasNoTasks ? '' : 'never run'}
+        </span>
       </div>
     </button>
   );
