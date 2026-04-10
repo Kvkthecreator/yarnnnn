@@ -249,88 +249,34 @@ async def _execute_web_search(
     """
     Execute web search using Anthropic's native tool.
 
-    This creates a minimal Claude call with web_search enabled,
-    asking it to search and summarize results.
+    Makes a minimal Claude call solely to trigger the web_search_20250305
+    server-side tool. We extract search result blocks directly from the
+    response — no summarization prompt, no prose generation. The calling
+    agent (TP or headless) synthesizes results in context, not here.
+
+    max_tokens=50: We only want the server tool to fire. The model doesn't
+    need to generate meaningful text — just enough to complete the tool call.
+    Output tokens beyond tool execution are waste.
     """
     client = get_anthropic_client()
 
-    # Build the search prompt
-    user_prompt = f"Search the web for: {query}"
+    # Minimal prompt — just enough to trigger a search. No "please summarize"
+    # instruction that wastes output tokens on prose nobody reads.
+    user_prompt = f"Search: {query}"
     if context:
-        user_prompt += f"\n\nContext: {context}"
-    user_prompt += f"""
-
-Please search for this and return the top {max_results} most relevant results.
-For each result, provide:
-1. Title
-2. URL
-3. Brief snippet/summary
-
-Format your response as a structured list of findings."""
-
-    system_prompt = """You are a web search assistant. Use web_search to find relevant information.
-After searching, provide a clear summary of findings with source URLs.
-Be factual and cite your sources."""
+        user_prompt += f" ({context})"
 
     try:
         messages = [{"role": "user", "content": user_prompt}]
-        sources = []
         search_results = []
-        content_parts = []
         # ADR-171: accumulate tokens across all rounds
         total_input_tokens = 0
         total_output_tokens = 0
 
-        # Initial API call with web_search tool
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2048,
-            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-            system=system_prompt,
-            tools=[WEB_SEARCH_TOOL],
-            messages=messages,
-        )
-        if response.usage:
-            total_input_tokens += getattr(response.usage, "input_tokens", 0)
-            total_output_tokens += getattr(response.usage, "output_tokens", 0)
-
-        # Process response - track searches and results
-        for block in response.content:
-            if block.type == "text":
-                content_parts.append(block.text)
-            elif block.type == "server_tool_use":
-                if block.name == "web_search":
-                    logger.info(f"[WEB_SEARCH] Query: {block.input.get('query', '')}")
-            elif block.type == "web_search_tool_result":
-                # Extract search results
-                if hasattr(block, 'content') and isinstance(block.content, list):
-                    for result in block.content:
-                        if hasattr(result, 'type') and result.type == "web_search_result":
-                            search_results.append({
-                                "title": getattr(result, 'title', ''),
-                                "url": getattr(result, 'url', ''),
-                                "snippet": getattr(result, 'snippet', getattr(result, 'content', ''))[:500],
-                            })
-
-        # Handle continuation if needed
-        while response.stop_reason == "tool_use":
-            messages.append({"role": "assistant", "content": response.content})
-
-            response = await client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=2048,
-                system=system_prompt,
-                tools=[WEB_SEARCH_TOOL],
-                messages=messages,
-            )
-            if response.usage:
-                total_input_tokens += getattr(response.usage, "input_tokens", 0)
-                total_output_tokens += getattr(response.usage, "output_tokens", 0)
-
-            for block in response.content:
-                if block.type == "text":
-                    content_parts.append(block.text)
-                elif block.type == "web_search_tool_result":
+        def _extract_results(content_blocks):
+            """Pull web_search_tool_result blocks from a response content list."""
+            for block in content_blocks:
+                if block.type == "web_search_tool_result":
                     if hasattr(block, 'content') and isinstance(block.content, list):
                         for result in block.content:
                             if hasattr(result, 'type') and result.type == "web_search_result":
@@ -339,6 +285,39 @@ Be factual and cite your sources."""
                                     "url": getattr(result, 'url', ''),
                                     "snippet": getattr(result, 'snippet', getattr(result, 'content', ''))[:500],
                                 })
+                elif getattr(block, 'type', '') == "server_tool_use" and block.name == "web_search":
+                    logger.info(f"[WEB_SEARCH] Query: {block.input.get('query', '')}")
+
+        # Initial call — max_tokens=50 because we only need the tool to execute,
+        # not generate a prose summary. Server-side tool result arrives in the
+        # response content regardless of text output length.
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=50,
+            system="Search the web and return results.",
+            tools=[WEB_SEARCH_TOOL],
+            messages=messages,
+        )
+        if response.usage:
+            total_input_tokens += getattr(response.usage, "input_tokens", 0)
+            total_output_tokens += getattr(response.usage, "output_tokens", 0)
+
+        _extract_results(response.content)
+
+        # Continue only if the tool is still running (shouldn't happen with simple queries)
+        while response.stop_reason == "tool_use" and not search_results:
+            messages.append({"role": "assistant", "content": response.content})
+            response = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=50,
+                system="Search the web and return results.",
+                tools=[WEB_SEARCH_TOOL],
+                messages=messages,
+            )
+            if response.usage:
+                total_input_tokens += getattr(response.usage, "input_tokens", 0)
+                total_output_tokens += getattr(response.usage, "output_tokens", 0)
+            _extract_results(response.content)
 
         # Deduplicate by URL
         seen_urls = set()

@@ -473,12 +473,18 @@ async def chat_completion_stream_with_tools(
 
                 # Truncate large results to prevent context overflow
                 # ADR-043: Keep tool results concise for conversation history
-                # Platform tools (channels, messages) need higher limits than
-                # internal tools — TP must see all channels to find the right one,
-                # and enough messages to answer the user's question.
+                # Per-tool limits:
+                # - platform_*: high limits (TP needs full channel/message lists)
+                # - WebSearch: preserve snippet content (already capped at 500 chars
+                #   per result in the primitive; default 200 would double-truncate)
+                # - everything else: default 200 chars (entity lookups, system state)
                 if tool_use.name.startswith("platform_"):
                     truncated_result = _truncate_tool_result(
                         result, max_items=100, max_content_len=1000, max_depth=6
+                    )
+                elif tool_use.name == "WebSearch":
+                    truncated_result = _truncate_tool_result(
+                        result, max_items=10, max_content_len=500, max_depth=4
                     )
                 else:
                     truncated_result = _truncate_tool_result(result)

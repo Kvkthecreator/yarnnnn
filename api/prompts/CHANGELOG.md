@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.10.3] - WebSearch: eliminate inner Claude summarization call + fix snippet truncation
+
+### Changed
+- `api/services/primitives/web_search.py`: Removed summarization system prompt and prose
+  generation from `_execute_web_search`. The inner Claude call now uses max_tokens=50 and
+  a minimal "Search: {query}" prompt — just enough to trigger the server-side
+  web_search_20250305 tool. Results are extracted directly from web_search_tool_result
+  blocks. The previous implementation built a prose summary via 2048 output tokens that
+  was immediately discarded (content_parts was never returned). Switched from Sonnet to
+  Haiku for the search trigger call (no reasoning needed, just tool dispatch).
+- `api/services/anthropic.py`: Added WebSearch branch to per-tool truncation in
+  `chat_completion_stream_with_tools`. WebSearch results now truncate at max_content_len=500
+  (matching the primitive's own snippet cap) rather than the default 200, which was
+  silently double-truncating snippets the TP needed to cite.
+- Expected behavior: each WebSearch call costs ~200 input tokens (Haiku) + <50 output
+  tokens instead of ~1000 input + ~500 output (Sonnet + prose generation). TP now sees
+  full 500-char snippets in tool results.
+
 ## [2026.04.10.2] - Tool calling principles: headless + TP WebSearch guidance
 
 ### Changed
