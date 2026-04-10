@@ -869,7 +869,7 @@ export const api = {
         total_agents: number;
       }>("/api/integrations/summary"),
 
-    // Subscription + work credits model — tier limits and current usage
+    // ADR-171: token spend metering — tier limits and current usage
     getLimits: () =>
       request<{
         tier: "free" | "pro";
@@ -880,7 +880,7 @@ export const api = {
           sync_frequency: "1x_daily" | "2x_daily" | "4x_daily" | "hourly";
           monthly_messages: number; // -1 for unlimited (Pro)
           active_tasks: number;
-          monthly_credits: number;
+          monthly_spend_usd_limit: number;
         };
         usage: {
           slack_channels: number;
@@ -888,7 +888,7 @@ export const api = {
           platforms_connected: number;
           monthly_messages_used: number;
           active_tasks: number;
-          credits_used: number;
+          spend_usd: number;
         };
         next_sync: string | null;
       }>("/api/user/limits"),
