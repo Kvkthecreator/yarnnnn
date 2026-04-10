@@ -1432,7 +1432,7 @@ async def execute_task(
             pass
 
         # =====================================================================
-        # 6d. ADR-170: Generation brief (produces_deliverable tasks only)
+        # 6d. ADR-170: Generation brief + revision scope (produces_deliverable only)
         # =====================================================================
         generation_brief = ""
         if output_kind == "produces_deliverable":
@@ -1440,12 +1440,31 @@ async def execute_task(
             type_key = task_info.get("type_key", "")
             task_type_def = get_task_type(type_key) if type_key else None
             if task_type_def and task_type_def.get("page_structure"):
-                # Read prior manifest for staleness detection
+                _page_structure_6d = task_type_def["page_structure"]
+
+                # Read prior manifest for staleness detection + revision routing
                 prior_manifest_content = await tw.read("outputs/latest/sys_manifest.json") or ""
                 prior_manifest = None
                 if prior_manifest_content:
                     from services.compose.manifest import read_manifest
                     prior_manifest = read_manifest(prior_manifest_content)
+
+                # ADR-170 Phase 4: classify revision scope
+                from services.compose.assembly import _query_domain_state
+                from services.compose.revision import classify_revision_scope, build_revision_brief
+                _context_reads_6d = task_info.get("context_reads", [])
+                _domain_state_6d = await _query_domain_state(client, user_id, _context_reads_6d)
+                revision_scope = classify_revision_scope(
+                    prior_manifest=prior_manifest,
+                    page_structure=_page_structure_6d,
+                    domain_state=_domain_state_6d,
+                )
+                logger.info(
+                    f"[COMPOSE] {task_slug}: revision_type={revision_scope.revision_type} "
+                    f"stale={revision_scope.stale_sections} current={revision_scope.current_sections}"
+                )
+
+                # Build generation brief (staleness signals already embedded via prior_manifest)
                 from services.compose.assembly import build_generation_brief
                 generation_brief = await build_generation_brief(
                     client=client,
@@ -1454,6 +1473,15 @@ async def execute_task(
                     task_info=task_info,
                     prior_manifest=prior_manifest,
                 )
+
+                # Prepend revision brief for section-scoped runs
+                revision_preamble = build_revision_brief(
+                    revision_scope=revision_scope,
+                    prior_manifest=prior_manifest,
+                    page_structure=_page_structure_6d,
+                )
+                if revision_preamble:
+                    generation_brief = revision_preamble + "\n\n" + generation_brief
 
         # =====================================================================
         # 7. Build prompt and generate
@@ -1997,19 +2025,31 @@ async def _execute_pipeline(
         step_objective["step_instruction"] = step_instruction
         step_task_info["objective"] = step_objective
 
-        # ADR-170: Generation brief on derive-output step only (produces_deliverable tasks)
+        # ADR-170: Generation brief + revision scope on derive-output step only
         step_generation_brief = ""
         if step_name == "derive-output" and task_info.get("output_kind") == "produces_deliverable":
             from services.task_types import get_task_type
             type_key = task_info.get("type_key", "")
             task_type_def = get_task_type(type_key) if type_key else None
             if task_type_def and task_type_def.get("page_structure"):
+                _ps = task_type_def["page_structure"]
                 prior_manifest_content = await tw.read("outputs/latest/sys_manifest.json") or ""
                 prior_manifest = None
                 if prior_manifest_content:
                     from services.compose.manifest import read_manifest
                     prior_manifest = read_manifest(prior_manifest_content)
-                from services.compose.assembly import build_generation_brief
+                from services.compose.assembly import build_generation_brief, _query_domain_state
+                from services.compose.revision import classify_revision_scope, build_revision_brief
+                _ds = await _query_domain_state(client, user_id, task_info.get("context_reads", []))
+                rev_scope = classify_revision_scope(
+                    prior_manifest=prior_manifest,
+                    page_structure=_ps,
+                    domain_state=_ds,
+                )
+                logger.info(
+                    f"[COMPOSE] pipeline {task_slug} step={step_name}: "
+                    f"revision_type={rev_scope.revision_type} stale={rev_scope.stale_sections}"
+                )
                 step_generation_brief = await build_generation_brief(
                     client=client,
                     user_id=user_id,
@@ -2017,6 +2057,9 @@ async def _execute_pipeline(
                     task_info=task_info,
                     prior_manifest=prior_manifest,
                 )
+                rev_preamble = build_revision_brief(rev_scope, prior_manifest, _ps)
+                if rev_preamble:
+                    step_generation_brief = rev_preamble + "\n\n" + step_generation_brief
 
         system_prompt, user_message = build_task_execution_prompt(
             task_info=step_task_info,

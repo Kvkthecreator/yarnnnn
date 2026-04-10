@@ -5,7 +5,7 @@ EXECUTION DISCIPLINE REMINDERS (auto-injected via hook):
 3. CHECK ADRs FIRST — Before proposing architectural changes, search docs/adr/ for existing decisions. Don't reinvent what's already decided.
 4. DATABASE — Refer to docs/database/ACCESS.md for connection strings. Verify table/column names match current schema.
 5. QUALITY CHECKS — Double-check API routes match frontend calls. Verify column names, import paths, and backend/frontend field name alignment.
-6. RENDER PARITY — When changing env vars, check all 4 services (API, Unified Scheduler, Platform Sync, MCP Server).
+6. RENDER PARITY — When changing env vars, check all 4 services (API, Unified Scheduler, MCP Server, Output Gateway / yarnnn-render). Platform Sync was deleted (ADR-153).
 7. PROMPT CHANGES — If modifying TP prompts or primitives, update api/prompts/CHANGELOG.md.
 7b. PRIMITIVE RENAMES — When renaming or adding primitives, grep the OLD name across: api/agents/tp_prompts/, docs/architecture/, docs/adr/, docs/design/, docs/features/, CLAUDE.md, api/services/commands.py, api/services/agent_creation.py. All active docs must reference the new name IN THE SAME COMMIT.
 8. GIT — Commit and push when changes are complete. Conventional commit style with ADR refs where applicable.

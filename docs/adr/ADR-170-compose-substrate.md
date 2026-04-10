@@ -1,7 +1,7 @@
 # ADR-170: Compose Substrate — Filesystem-to-Output Assembly Layer
 
 **Date:** 2026-04-10
-**Status:** In Progress (Phase 2)
+**Status:** In Progress (Phase 4)
 **Authors:** KVK, Claude
 **Supersedes:** None (new architectural domain)
 **Extends:** ADR-148 (Output Architecture), ADR-151/152 (Context Domains / Directory Registry), ADR-157 (Fetch-Asset Skill), ADR-166 (Registry Coherence)
@@ -340,27 +340,28 @@ Tasks with `output_kind: accumulates_context` have simple page structures (singl
 - Update output-substrate.md with compose substrate integration ✓
 - Update workspace-conventions.md (dissolve sys_compose.md per RD-1, update output folder) ✓
 
-### Phase 2: Compose Function + Surface Types (In Progress)
+### Phase 2: Compose Function + Surface Types ✓ Implemented (2026-04-10)
 - ✓ `layout_mode` deleted from all task types. `surface_type` + `page_structure` added to all `produces_deliverable` tasks (all 8, not just 2-3 — pre-launch, no legacy to support).
 - ✓ `render/compose.py`: `ComposeRequest` + `compose_html()` renamed to `surface_type`. `_SURFACE_CSS` / `_SURFACE_FN` maps replace `_LAYOUT_CSS` / `_LAYOUT_FN`. 7-surface vocabulary active.
 - ✓ `render/main.py`: validates 7-value `surface_type` enum. `/health` updated.
 - ✓ `api/services/task_pipeline.py`: parses `**Surface:**` from TASK.md, passes `surface_type` to compose. `build_task_md_from_type()` serializes `**Surface:**` line.
 - ✓ All callers updated: `agent_execution.py`, `delivery.py`, `repurpose.py`.
-- Remaining: `api/services/compose/` package (generation brief construction, section kind rendering — Phase 3 wire-up)
 
-### Phase 3: Assembly + Output Folder Build
-- Implement pre-generation assembly (filesystem query, asset discovery, generation brief)
-- Implement post-generation assembly (LLM output → section partials → output folder)
-- Build `index.html` from partials + asset refs
-- Write `sys_manifest.json` with provenance + asset status
-- Wire into `task_pipeline.execute_task()`
-- Validate on competitive-brief and market-report task types
+### Phase 3: Assembly + Output Folder Build ✓ Implemented (2026-04-10)
+- ✓ `api/services/compose/assembly.py` — `build_generation_brief()`: queries workspace_files per domain, builds per-section briefs (entity counts, asset inventory, staleness signals, kind output contracts, surface formatting guidance)
+- ✓ `api/services/compose/manifest.py` — `SysManifest`, `SectionProvenance`, `AssetRecord` dataclasses; `read_manifest()` + `make_manifest()`; `is_section_stale()` staleness detection
+- ✓ `api/services/compose/assembly.py` — `parse_draft_into_sections()`: splits LLM draft on `##` headers into per-section content partials; empty placeholders for missing sections
+- ✓ `api/services/compose/assembly.py` — `build_post_generation_manifest()`: builds `SysManifest` from parsed sections + live domain state; source provenance per section
+- ✓ `api/services/task_pipeline.py` step 12b: both single-step and `_execute_pipeline` paths write `sections/{slug}.md` + `sys_manifest.json` to output folder; `latest/sys_manifest.json` kept current
+- ✓ Generation brief wired into `build_task_execution_prompt()` user message; `prior_manifest` read for staleness signals
+- ✓ `api/test_compose.py` — 24 tests (16 Phase 3, 8 Phase 4)
 
-### Phase 4: Revision Routing
-- Implement revision classification (presentation / section / asset / root context)
-- Route revision signals from ADR-149 evaluate/steer/feedback flows
-- Section-scoped regeneration for `produces_deliverable` tasks
-- Asset-only refresh (derivative re-render, root re-fetch) without section regeneration
+### Phase 4: Revision Routing ✓ Implemented (2026-04-10)
+- ✓ `api/services/compose/revision.py` — `classify_revision_scope()`: reads prior manifest + current domain state, classifies as `full | section | asset | none`; domain freshness delta check catches domain-level updates not reflected in per-section provenance
+- ✓ `build_revision_brief()`: emits targeted LLM instruction for section-scoped runs (rewrite these / preserve these verbatim)
+- ✓ `RevisionScope` dataclass: `needs_generation`, `is_full_run`, `is_section_scoped`, `is_current` property shortcuts
+- ✓ Wired into single-step execute path (step 6d) and `_execute_pipeline` derive-output step; revision preamble prepended to generation brief for section-scoped runs
+- ✓ Logged: `[COMPOSE] {task_slug}: revision_type=section stale=[...] current=[...]` on every produces_deliverable run
 
 ### Phase 5: Asset Lifecycle
 - Root vs derivative asset tracking in `sys_manifest.json`

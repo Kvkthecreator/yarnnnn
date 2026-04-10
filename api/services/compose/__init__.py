@@ -21,6 +21,11 @@ from services.compose.assembly import (
     build_post_generation_manifest,
 )
 from services.compose.manifest import read_manifest, make_manifest, SysManifest
+from services.compose.revision import (
+    classify_revision_scope,
+    build_revision_brief,
+    RevisionScope,
+)
 
 __all__ = [
     "build_generation_brief",
@@ -29,4 +34,7 @@ __all__ = [
     "read_manifest",
     "make_manifest",
     "SysManifest",
+    "classify_revision_scope",
+    "build_revision_brief",
+    "RevisionScope",
 ]
