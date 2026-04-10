@@ -125,25 +125,26 @@ Three layers, strictly separated (ADR-141):
 **Layer 2 — Task Execution** (Sonnet per task, then mechanical render + compose)
 ```
 execute_task(slug)
-  → Read TASK.md + DELIVERABLE.md + page_spec.json + steering.md + feedback.md
+  → Read TASK.md + DELIVERABLE.md + steering.md + feedback.md
+  → Read task type's page_structure + surface_type from registry
   → Resolve assigned agent(s) from process definition
   → Check work credits (budget gate)
-  → SCAFFOLD (first run only): create page_spec.json from task type's page_structure
+  → SCAFFOLD (first run): resolve structural plan from page_structure
   → ASSEMBLE (pre-gen): query filesystem for scoped directories, discover assets,
       enumerate entities, flag stale sections, build generation brief
   → GENERATE: headless agent produces prose guided by assembly brief
-  → ASSEMBLE (post-gen): bind LLM output into page_spec sections,
-      resolve asset refs, update provenance
-  → RENDER: extract data tables → charts, mermaid → SVGs (mechanical, zero LLM)
-  → COMPOSE: page spec + rendered assets → styled HTML per layout mode
-  → Save output + page_spec snapshot to /tasks/{slug}/outputs/{date}/
-  → Deliver to destination (email/Slack/Notion)
+  → ASSEMBLE (post-gen): parse LLM output into section partials,
+      resolve asset refs, render section kinds per surface type, compose index.html
+  → RENDER: derivative assets — data tables → charts, mermaid → SVGs (mechanical, zero LLM)
+  → COMPOSE: apply surface-type arrangement + final HTML styling
+  → Save output folder to /tasks/{slug}/outputs/{date}/
+  → Deliver to destination (email/Slack/Notion) with delivery channel transform
   → Update agent memory (agent reflection, observations)
   → TP evaluates task output quality against DELIVERABLE.md (evaluation loop)
   → Advance next_run_at
 ```
 
-The SCAFFOLD → ASSEMBLE → GENERATE → ASSEMBLE → RENDER → COMPOSE chain is the **compose substrate** (ADR-170) — the binding layer between the accumulating filesystem and rendered output. Assembly and revision routing are deterministic Python (zero LLM cost). The compose substrate is what makes revision a targeted, section-scoped operation rather than full regeneration. See [compose-substrate.md](compose-substrate.md).
+The SCAFFOLD → ASSEMBLE → GENERATE → ASSEMBLE → RENDER → COMPOSE chain is the **compose substrate** (ADR-170) — the binding layer between the accumulating filesystem and rendered output. Assembly and revision routing are deterministic Python (zero LLM cost). The compose substrate reads the task type's **surface type** (visual paradigm: report, deck, dashboard, digest, workbook, preview, video) and **section kinds** (typed components: narrative, metric-cards, entity-grid, etc.) to arrange output structurally. See [compose-substrate.md](compose-substrate.md) for the function, [output-surfaces.md](output-surfaces.md) for the vocabulary.
 
 **Multi-step process** (task types with `process` field defining multiple agent steps):
 ```
@@ -183,15 +184,15 @@ This is the floor that prevents dormant signups from going silent. See ADR-161 f
 
 ### How Output Gets Displayed and Delivered
 
-**Singular rendering path** (ADR-148): every task output is composed HTML. No branching based on agent type, no fallback renderers.
+**Singular rendering path** (ADR-148, extended by ADR-170): every task output is an HTML output folder. Surface type determines the visual paradigm; export to file formats is derivative. No branching based on agent type, no fallback renderers.
 
-- **Task page**: Always shows `output.html` via sandboxed iframe
-- **Email**: Always sends composed HTML via Resend API
-- **Slack**: Posts condensed summary + link to full output
-- **Notion**: Writes structured page via Notion API
-- **PDF/XLSX**: Mechanical exports derived from composed HTML (future)
+- **Task page**: Shows `index.html` from output folder via sandboxed iframe
+- **Email**: Sends HTML with delivery channel transform (inline CSS, 600px max, CID images)
+- **Slack**: Posts condensed summary + link to web view
+- **Notion**: Writes structured blocks via Notion API
+- **Export**: Mechanical conversion — HTML → PDF/PPTX/XLSX/DOCX/MP4 via `yarnnn-render` (on-demand)
 
-Agents produce structured markdown with inline data tables and mermaid diagrams. The platform renders assets and composes HTML. Delivery transports the composed output to external destinations.
+Agents produce structured markdown with inline data tables and mermaid diagrams. The compose substrate structures the output per surface type and section kinds. The render service produces derivative assets. Delivery transports the composed output to external destinations with channel-appropriate transforms. See [output-surfaces.md](output-surfaces.md).
 
 ---
 
@@ -322,6 +323,8 @@ Three distinct mechanisms drive agent development:
 | Task type orchestration | [task-type-orchestration.md](task-type-orchestration.md) |
 | Workspace filesystem conventions | [workspace-conventions.md](workspace-conventions.md) |
 | Output substrate & capabilities | [output-substrate.md](output-substrate.md) |
+| Output surfaces (visual paradigms) | [output-surfaces.md](output-surfaces.md) |
+| Compose substrate (filesystem→output) | [compose-substrate.md](compose-substrate.md) |
 | Product narrative | [NARRATIVE.md](../NARRATIVE.md) |
 | Core identity | [ESSENCE.md](../ESSENCE.md) |
 

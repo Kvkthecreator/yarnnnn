@@ -298,12 +298,13 @@ async def _editorial_repurpose(auth, task_slug, output_date, output_md, target):
         return {"success": False, "error": "empty_output", "message": "Agent produced no repurposed content"}
 
     # Compose the repurposed content
-    layout = "presentation" if target == "slides" else "document"
+    # ADR-170: surface_type vocabulary (deck = discrete full-screen frames)
+    surface = "deck" if target == "slides" else "report"
     try:
         import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'render'))
         from compose import compose_html
-        repurposed_html = compose_html(repurposed_content, title=f"{task_slug} — {target}", layout_mode=layout)
+        repurposed_html = compose_html(repurposed_content, title=f"{task_slug} — {target}", surface_type=surface)
     except Exception:
         repurposed_html = None
 

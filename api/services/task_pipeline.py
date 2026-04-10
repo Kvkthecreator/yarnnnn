@@ -737,6 +737,8 @@ def parse_task_md(content: str) -> dict:
             result["schedule"] = line_stripped.split("**Schedule:**")[1].strip()
         elif line_stripped.startswith("**Delivery:**"):
             result["delivery"] = line_stripped.split("**Delivery:**")[1].strip()
+        elif line_stripped.startswith("**Surface:**"):
+            result["surface_type"] = line_stripped.split("**Surface:**")[1].strip()
         elif line_stripped.startswith("**Context Reads:**"):
             raw = line_stripped.split("**Context Reads:**")[1].strip()
             result["context_reads"] = [d.strip() for d in raw.split(",") if d.strip() and d.strip() != "none"]
@@ -1553,17 +1555,21 @@ async def execute_task(
         if agent_output_folder:
             try:
                 from services.agent_execution import _compose_output_html
-                _layout = "document"
-                _type_key = task_info.get("type_key", "").strip()
-                if _type_key:
-                    from services.task_types import get_task_type
-                    _tdef = get_task_type(_type_key)
-                    if _tdef:
-                        _layout = _tdef.get("layout_mode", "document")
+                # ADR-170: surface_type from TASK.md (parsed) or task type registry fallback
+                _surface = task_info.get("surface_type", "")
+                if not _surface:
+                    _type_key = task_info.get("type_key", "").strip()
+                    if _type_key:
+                        from services.task_types import get_task_type
+                        _tdef = get_task_type(_type_key)
+                        if _tdef:
+                            _surface = _tdef.get("surface_type", "report")
+                if not _surface:
+                    _surface = "report"
                 await _compose_output_html(
                     client, user_id, agent_slug, agent_output_folder,
                     title=title, pending_renders=pending_renders,
-                    layout_mode=_layout,
+                    surface_type=_surface,
                 )
                 agent_html = await ws.read(f"outputs/{agent_output_folder}/output.html")
                 if agent_html and task_output_folder:
@@ -2126,12 +2132,14 @@ async def _execute_pipeline(
     )
 
     # Compose HTML (always — ADR-148 singular rendering path)
+    # ADR-170: surface_type from TASK.md (parsed) or task type registry
     if agent_output_folder:
         try:
+            _surface = task_info.get("surface_type") or task_type_def.get("surface_type", "report")
             await _compose_output_html(
                 client, user_id, final_agent_slug, agent_output_folder,
                 title=title, pending_renders=all_renders,
-                layout_mode=task_type_def.get("layout_mode", "document"),
+                surface_type=_surface,
             )
             # Sync composed HTML from agent workspace to task workspace
             agent_ws = AgentWorkspace(client, user_id, final_agent_slug)

@@ -1,7 +1,7 @@
 # ADR-170: Compose Substrate — Filesystem-to-Output Assembly Layer
 
 **Date:** 2026-04-10
-**Status:** Proposed
+**Status:** In Progress (Phase 2)
 **Authors:** KVK, Claude
 **Supersedes:** None (new architectural domain)
 **Extends:** ADR-148 (Output Architecture), ADR-151/152 (Context Domains / Directory Registry), ADR-157 (Fetch-Asset Skill), ADR-166 (Registry Coherence)
@@ -34,20 +34,21 @@ It is housed **within the API service** (`api/services/compose/`), not as a sepa
 
 ### Naming convention: `sys_` prefix
 
-Compose substrate artifacts in the workspace use the `sys_` prefix to signal **system-managed infrastructure** — files the pipeline reads and writes, distinct from user-authored content (TASK.md, DELIVERABLE.md) and agent-authored content (output.md, memory/*.md). The user can inspect `sys_` files but doesn't need to touch them in normal operation.
+Compose substrate runtime artifacts in output folders use the `sys_` prefix to signal **system-managed infrastructure** — files the pipeline reads and writes, distinct from user-authored content (TASK.md, DELIVERABLE.md) and agent-authored content (output.md, memory/*.md). The user can inspect `sys_` files but doesn't need to touch them in normal operation.
+
+> **RD-1 revision:** The originally proposed `sys_compose.md` per-task playbook file was dissolved during stress testing. See RD-1 below. The compose substrate is a function, not a document — structural knowledge lives in the task type registry's `page_structure` field, agent playbooks, and DELIVERABLE.md. The only `sys_`-prefixed file that persists is `sys_manifest.json` in output folders.
 
 ```
 /tasks/{slug}/
 ├── TASK.md                    # user-authored: operational charter
 ├── DELIVERABLE.md             # user-authored: quality contract (ADR-149)
-├── sys_compose.md             # system-managed: compose playbook ← NEW
 ├── memory/
 │   ├── run_log.md
 │   ├── feedback.md
 │   └── steering.md
 └── outputs/{date}/            # output folder IS the deliverable ← CHANGED
-    ├── index.html             # entry point (the "page")
-    ├── sections/              # section partials
+    ├── index.html             # entry point (the "page") — surface-type-aware
+    ├── sections/              # section partials (one per section kind)
     │   ├── executive-summary.html
     │   ├── competitor-cards.html
     │   └── signal-timeline.html
@@ -61,55 +62,38 @@ Compose substrate artifacts in the workspace use the `sys_` prefix to signal **s
     └── sys_manifest.json      # system: provenance + asset status
 ```
 
-### Core concept: the Compose Playbook (`sys_compose.md`)
+### Core concept: Compose as Function
 
-The compose substrate's structural knowledge lives as a **playbook** — a markdown document following the same conventions as task process playbooks and agent playbooks. Not a JSON schema blob. Human-readable, editable, and consistent with how the rest of the system expresses structural knowledge.
+> **RD-1 revision:** The originally proposed `sys_compose.md` playbook was dissolved during stress testing. This section describes the final model.
 
-The compose playbook declares:
-- **Sections** — what the output is made of, each with a kind, title, source scope, and expected assets.
-- **Asset expectations** — what root assets (durable: logos, screenshots) and derivative assets (generated: charts, diagrams) each section expects.
-- **Directory scope** — which workspace directories this output draws from, derived from the task's context declarations.
+The compose substrate is a **capability layer** — a function that reads existing structural knowledge at execution time and produces the output folder. There is no separate compose playbook file per task. The structural knowledge lives where it already exists:
 
-The playbook is the structural complement to `DELIVERABLE.md`. DELIVERABLE.md is the *quality contract* (what the output should achieve). The compose playbook is the *structural contract* (what the output is made of and where each piece comes from).
+- **Task type registry** — `surface_type` (visual paradigm: report, deck, dashboard, digest, workbook, preview, video) + `page_structure` (section kinds with scopes and asset expectations). See [output-surfaces.md](docs/architecture/output-surfaces.md).
+- **DELIVERABLE.md** — quality contract (audience, criteria, format preferences). Can override or extend the task type's structural template.
+- **Agent playbooks** — craft methodology for content production.
+- **Filesystem state** — what entities, assets, and prior outputs actually exist.
 
-#### Playbook creation
+The compose function reads these sources, resolves the section kinds against the surface type's arrangement rules, and produces the generation brief + output folder.
 
-Three sources, in order of precedence:
+#### Structural template example
 
-1. **Task type registry** — the `page_structure` field on the task type definition provides the template. When a task is created, the scaffold step generates the initial `sys_compose.md` from this template.
-2. **TP inference** — for custom tasks or when the user describes what they want in chat, TP can infer the compose structure (same pattern as `context_inference.py` for IDENTITY.md).
-3. **User editing** — the playbook is markdown, visible in the workspace, editable. A user can refine the compose structure just like they refine TASK.md or DELIVERABLE.md.
-
-#### Playbook example
-
-```markdown
-# Compose Playbook: Competitive Intelligence Brief
-
-## Directory Scope
-- competitors
-- signals
-
-## Sections
-
-### Executive Summary
-- **Kind:** narrative
-- **Reads from:** competitors/_synthesis.md
-- **Assets:** market/assets/tam-chart.png (derivative)
-
-### Competitor Profiles
-- **Kind:** entity_cards
-- **Entity pattern:** competitors/*/
-- **Reads from:** competitors/*/analysis.md
-- **Assets:** competitors/assets/*-favicon.png (root)
-
-### Signal Timeline
-- **Kind:** timeline
-- **Reads from:** signals/_tracker.md
-
-### Market Position
-- **Kind:** chart
-- **Reads from:** competitors/*/analysis.md
-- **Assets:** (derivative — generated at render time from source data)
+```python
+# In task_types.py — the structural knowledge lives here, not in a per-task file
+"competitive-brief": {
+    "surface_type": "report",
+    "page_structure": [
+        {"kind": "narrative", "title": "Executive Summary",
+         "reads_from": ["competitors/_synthesis.md"]},
+        {"kind": "entity-grid", "title": "Competitor Profiles",
+         "entity_pattern": "competitors/*/",
+         "assets": [{"type": "root", "pattern": "competitors/assets/*-favicon.png"}]},
+        {"kind": "timeline", "title": "Signal Timeline",
+         "reads_from": ["signals/_tracker.md"]},
+        {"kind": "trend-chart", "title": "Market Position",
+         "reads_from": ["competitors/*/analysis.md"],
+         "assets": [{"type": "derivative", "render": "chart"}]},
+    ],
+}
 ```
 
 ### Output as folder — the deliverable is a directory
@@ -314,7 +298,8 @@ Tasks with `output_kind: accumulates_context` have simple page structures (singl
 | `docs/architecture/FOUNDATIONS.md` | Extend Axiom 2 with composition corollary — accumulation projected into output | High — axiomatic (done: Phase 1) |
 | `docs/architecture/output-substrate.md` | Integrate compose substrate as structural layer; update pipeline diagram | High — adjacent (done: Phase 1) |
 | `docs/architecture/compose-substrate.md` | New canonical reference for the compose domain | High — new (done: Phase 1) |
-| `docs/architecture/workspace-conventions.md` | Add `sys_` naming convention; output-as-folder structure; root vs derivative assets | Medium |
+| `docs/architecture/output-surfaces.md` | New canonical reference for surface types, section kinds, export pipeline | High — new (done: Phase 1) |
+| `docs/architecture/workspace-conventions.md` | Remove dissolved sys_compose.md; update output-as-folder structure; root vs derivative assets | Medium |
 | `docs/architecture/registry-matrix.md` | Add `page_structure` field to task type catalog | Medium |
 | `docs/architecture/task-type-orchestration.md` | Show how compose playbook flows through multi-step task processes | Medium |
 | `docs/features/agent-playbook-framework.md` | Compose playbook as a new playbook type alongside task process and agent playbooks | Medium |
@@ -324,7 +309,7 @@ Tasks with `output_kind: accumulates_context` have simple page structures (singl
 | ADR | Relationship |
 |-----|-------------|
 | ADR-148 | Extended — SCAFFOLD + ASSEMBLE steps added to pipeline; output folder structure evolves |
-| ADR-149 | Extended — DELIVERABLE.md (quality) + sys_compose.md (structure) as dual charter. Evaluation remains ADR-149's concern, compose substrate consumes its signals. |
+| ADR-149 | Extended — DELIVERABLE.md (quality) + task type `page_structure` (structure) as complementary sources (RD-1: sys_compose.md dissolved). Evaluation remains ADR-149's concern, compose substrate consumes its signals. |
 | ADR-151/152 | Extended — `context_reads`/`context_writes` become compose substrate's scope index; `sys_` naming convention added to workspace conventions |
 | ADR-157 | Absorbed — asset discovery becomes first-class compose operation; root asset distinction formalized |
 | ADR-130 | Evolved — Phase 2 (compose integration) is now the compose substrate |
@@ -349,17 +334,19 @@ Tasks with `output_kind: accumulates_context` have simple page structures (singl
 
 ### Phase 1: Foundation (this ADR + architecture docs)
 - Create `docs/architecture/compose-substrate.md` (canonical reference) ✓
+- Create `docs/architecture/output-surfaces.md` (surface types + section kinds + export) ✓
 - Update SERVICE-MODEL.md execution flow ✓
 - Update FOUNDATIONS.md Axiom 2 with composition corollary ✓
 - Update output-substrate.md with compose substrate integration ✓
+- Update workspace-conventions.md (dissolve sys_compose.md per RD-1, update output folder) ✓
 
-### Phase 2: Compose Playbook + Scaffold
-- Create `api/services/compose/` package
-- Implement playbook parsing (`playbook.py`) — markdown ↔ structured
-- Implement scaffold operation from task type `page_structure`
-- Add `page_structure` to 2-3 task types as proof of concept (competitive-brief, market-report, daily-update)
-- Wire scaffold into `ManageTask(action="create")` — generates `sys_compose.md`
-- Add `sys_` naming convention to workspace-conventions.md
+### Phase 2: Compose Function + Surface Types (In Progress)
+- ✓ `layout_mode` deleted from all task types. `surface_type` + `page_structure` added to all `produces_deliverable` tasks (all 8, not just 2-3 — pre-launch, no legacy to support).
+- ✓ `render/compose.py`: `ComposeRequest` + `compose_html()` renamed to `surface_type`. `_SURFACE_CSS` / `_SURFACE_FN` maps replace `_LAYOUT_CSS` / `_LAYOUT_FN`. 7-surface vocabulary active.
+- ✓ `render/main.py`: validates 7-value `surface_type` enum. `/health` updated.
+- ✓ `api/services/task_pipeline.py`: parses `**Surface:**` from TASK.md, passes `surface_type` to compose. `build_task_md_from_type()` serializes `**Surface:**` line.
+- ✓ All callers updated: `agent_execution.py`, `delivery.py`, `repurpose.py`.
+- Remaining: `api/services/compose/` package (generation brief construction, section kind rendering — Phase 3 wire-up)
 
 ### Phase 3: Assembly + Output Folder Build
 - Implement pre-generation assembly (filesystem query, asset discovery, generation brief)
@@ -428,6 +415,122 @@ Phase 2 revised: no `sys_compose.md` generation. Instead, add `page_structure` t
 ### Impact on prior sections
 
 The "Compose Playbook" section above describes the pre-stress-test model. Per RD-1, `sys_compose.md` is dissolved. The `page_structure` on task type definitions remains as the structural template. The compose function reads it at execution time. The "Three Operations" section remains valid: scaffold (on first run, from registry), assemble (compose function proper), revise (compose function with existing folder as additional input).
+
+---
+
+## Resolved Decisions (Output Surfaces, 2026-04-10)
+
+The compose function produces output. But "output" conflates structure (what's in it) with surface (how it looks). A second discourse resolved the output surface model — how the compose substrate handles the wide range of visual paradigms users expect (reports, decks, dashboards, data views, videos).
+
+### RD-6: Surface types are visual paradigms, not file formats
+
+YARNNN is HTML-native (ADR-130). All output is HTML. But HTML that *looks like* a deck, *looks like* a dashboard, *looks like* a data table. The word "slides" describes a visual paradigm (discrete full-screen frames, one idea per frame), not a `.pptx` file. Export to `.pptx` is a separate, lossy, derivative operation.
+
+**Surface types** are the user-facing vocabulary for how information is consumed. Seven surface types:
+
+| Surface Type | Visual Paradigm | Consumption Model | Interaction |
+|---|---|---|---|
+| **report** | Flowing narrative document | Sequential reading, start to finish | Scroll, section anchors |
+| **deck** | Discrete full-screen frames | One idea per frame, presented | Navigate frame-to-frame |
+| **dashboard** | Single-canvas overview | At-a-glance, spatial scanning | Grid arrangement, optional drill-down |
+| **digest** | Grouped/chronological stream | Quick triage — what matters, what changed | Scan, expand/collapse |
+| **workbook** | Tabular-first, data-dense | Analysis, comparison, filtering | Sort, filter, pivot |
+| **preview** | In-context mockups | Content shown as it would appear elsewhere | Platform-framed cards |
+| **video** | Sequential animated frames | Temporal, narrated, presented | Play/pause, timeline scrub |
+
+Each surface type maps to a distinct HTML experience. The compose function arranges section kinds differently per surface type: a `metric-card` section in a dashboard is a grid tile; in a deck it's a hero slide; in a report it's an inline callout; in a video it's an animated entrance frame.
+
+The `layout_mode` field on task types becomes `surface_type`. Current mapping:
+
+| Current layout_mode | Becomes surface_type | Affected task types |
+|---|---|---|
+| `document` | `report` (most), `dashboard` (track-*), `deck` (updates) | Split by task type intent |
+| `email` | `digest` | daily-update |
+| `digest` | `digest` | slack-digest, notion-digest, github-digest |
+| `message` | N/A (external_action, no surface) | slack-respond |
+| `comment` | N/A (external_action, no surface) | notion-update |
+| `presentation` | `deck` | (available but unused until now) |
+| `dashboard` | `dashboard` | (available but unused until now) |
+| `data` | `workbook` | (available but unused until now) |
+
+### RD-7: Section kinds are the component vocabulary (Palantir/Foundry model)
+
+Section kinds are **typed components** — semantic building blocks the compose function understands. Not arbitrary HTML. A constrained vocabulary with rendering contracts per surface type.
+
+**11 section kinds:**
+
+| Kind | Data Contract | Example |
+|---|---|---|
+| `narrative` | Prose paragraph(s), optional pullquote/highlight | Executive summary, analysis section |
+| `metric-cards` | 2-4 KPI tiles: number + label + delta + optional sparkline | Revenue metrics, health indicators |
+| `entity-grid` | Cards: image/icon + title + one-liner + optional badge | Competitor profiles, team roster |
+| `comparison-table` | Entities as columns, attributes as rows, optional RAG coloring | Feature comparison, vendor evaluation |
+| `trend-chart` | Time-series line/area chart from structured data | Revenue over time, signal frequency |
+| `distribution-chart` | Bar/pie/treemap for categorical breakdown | Market share, category split |
+| `timeline` | Chronological event list: date + description + source | Signal timeline, changelog |
+| `status-matrix` | Entities × criteria with status indicators (red/amber/green) | Competitor health, project status |
+| `data-table` | Raw tabular data with headers | Financial data, raw metrics |
+| `callout` | Highlighted insight, warning, or recommendation | Key finding, risk alert |
+| `checklist` | Action items or criteria with status | Next steps, review criteria |
+
+The section kind is a **rendering contract**: the compose function knows what HTML structure + CSS to produce per kind per surface type. The LLM's generation brief says "produce a `metric-cards` section with these 4 KPIs" — the post-generation assembly parses the output, matches it to the component template, and renders with surface-appropriate treatment.
+
+This is the Palantir Foundry / Tableau "widget" model applied to knowledge work output. The power comes from the constraint: because every component follows a known contract, the platform can render it consistently, theme it across the workspace, and export it to multiple formats without losing structure.
+
+**Section kinds live in the `page_structure` field** on task type definitions — the same field RD-1 established as the structural template. Example:
+
+```python
+"competitive-brief": {
+    "surface_type": "report",
+    "page_structure": [
+        {"kind": "narrative", "title": "Executive Summary", ...},
+        {"kind": "entity-grid", "title": "Competitor Profiles", ...},
+        {"kind": "timeline", "title": "Signal Timeline", ...},
+        {"kind": "trend-chart", "title": "Market Position", ...},
+    ],
+}
+```
+
+### RD-8: Export is derivative — completely separate from compose
+
+Three clean layers:
+
+1. **Surface type** — how the user *thinks* about the output (Layer 1: visual paradigm)
+2. **Section kinds** — the typed components that compose within any surface (Layer 2: component vocabulary)
+3. **Export pipeline** — mechanical, lossy transformation to file formats (Layer 3: interoperability)
+
+Export transforms:
+
+| Export | Input | Output | Valid surface types | Fidelity |
+|---|---|---|---|---|
+| `pdf` | Any HTML surface | .pdf | All | High (print CSS) |
+| `pptx` | Deck surface | .pptx | deck | Medium (structure preserved, styling lossy) |
+| `xlsx` | Workbook surface | .xlsx | workbook, dashboard | Medium (data preserved, layout lossy) |
+| `docx` | Report surface | .docx | report | Medium (prose preserved, assets flattened) |
+| `mp4` | Video surface | .mp4 | video | High (Remotion render) |
+| `png` | Any HTML surface | .png | All | Snapshot (single frame) |
+
+Export is NOT part of the compose substrate. It's a downstream mechanical transformation handled by `yarnnn-render`. The compose function produces an output folder with HTML + section partials + assets. Export reads that folder and converts it.
+
+### RD-9: Video is a first-class surface type
+
+Video follows the same model as all other surface types: section kinds compose within it, the compose function arranges them, the output folder contains the specification.
+
+For video, the output folder contains:
+- `index.html` — a playable HTML experience (CSS animations, scroll-triggered transitions)
+- `spec.json` — a Remotion-compatible scene graph (sections → scenes, data → animated elements)
+- `assets/` — static frames, data files for animated charts, audio tracks
+- Export to `.mp4` via the `node_remotion` runtime (ADR-130 Runtime Registry)
+
+Section kinds in a video surface: `metric-cards` animate in with number counters. `trend-chart` animates data points appearing over time. `narrative` appears as text overlays or lower-thirds. `entity-grid` sequences cards one by one. The section kind data contract is the same — the surface type determines the temporal treatment.
+
+Video is Phase 6+ but the architecture accommodates it now because surface types and section kinds are the stable abstractions.
+
+### Impact on Architecture Docs
+
+A new canonical reference document, `docs/architecture/output-surfaces.md`, governs the surface type vocabulary, section kind catalog, and export pipeline. `compose-substrate.md` references it for the vocabulary the compose function operates on. `output-substrate.md` references it for the pipeline's surface-type-aware rendering step.
+
+The `layout_mode` field on task types and in `compose.py` evolves to `surface_type`. The CSS in `compose.py` evolves from 5 monolithic layout stylesheets to a matrix: section kind × surface type rendering rules. This is an implementation concern (Phase 2+), not an architectural one.
 
 ---
 

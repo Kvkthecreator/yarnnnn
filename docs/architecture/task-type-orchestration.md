@@ -35,7 +35,7 @@ TASK_TYPES: dict[str, TaskTypeDefinition] = {
         "output_kind": str,            # accumulates_context | produces_deliverable | external_action | system_maintenance
         "default_mode": str,           # recurring | goal | reactive
         "default_schedule": str,        # daily | weekly | biweekly | monthly | on-demand
-        "layout_mode": str,             # document | digest | email | message | comment
+        "surface_type": str,            # report | deck | dashboard | digest | workbook | preview | video (ADR-170 RD-6, replaces layout_mode)
         "output_format": str,           # html | markdown
         "export_options": list[str],    # ["pdf", "pptx", "xlsx"]
         "process": list[ProcessStep],   # Ordered execution steps
@@ -188,7 +188,7 @@ Task types should not produce one bespoke page per `type_key`. The shell should
 follow the same registry boundary the execution model uses:
 
 1. `output_kind` decides the primary `/work` detail shape
-2. registry metadata (`requires_platform`, `bootstrap`, `layout_mode`) adds
+2. registry metadata (`requires_platform`, `bootstrap`, `surface_type`) adds
    bounded secondary modules
 3. `type_key` specializes copy and small task-family affordances
 

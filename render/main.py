@@ -178,7 +178,7 @@ async def health():
         "status": "ok",
         "skills": list(SKILLS.keys()),
         "compose": True,
-        "layout_modes": ["document", "presentation", "dashboard", "data"],
+        "surface_types": ["report", "deck", "dashboard", "digest", "workbook", "preview", "video"],
         "storage": bool(SUPABASE_URL and SUPABASE_SERVICE_KEY),
     }
 
@@ -276,9 +276,9 @@ from compose import ComposeRequest, ComposeResponse, compose_html
 
 @app.post("/compose", response_model=ComposeResponse)
 async def compose(req: ComposeRequest, request: Request):
-    """ADR-130 Phase 1: Compose markdown + assets into styled HTML.
+    """ADR-130 Phase 1 + ADR-170: Compose markdown + assets into styled HTML.
 
-    Layout modes: document (default), presentation, dashboard, data, email.
+    Surface types: report (default), deck, dashboard, digest, workbook, preview, video.
     Optionally uploads the HTML to Supabase Storage.
     """
     _validate_render_secret(request)
@@ -291,18 +291,18 @@ async def compose(req: ComposeRequest, request: Request):
     if content_length and int(content_length) > MAX_REQUEST_SIZE:
         raise HTTPException(status_code=413, detail=f"Request too large (max {MAX_REQUEST_SIZE // 1024 // 1024}MB)")
 
-    valid_modes = ("document", "presentation", "dashboard", "data", "email")
-    if req.layout_mode not in valid_modes:
+    valid_surfaces = ("report", "deck", "dashboard", "digest", "workbook", "preview", "video")
+    if req.surface_type not in valid_surfaces:
         return ComposeResponse(
             success=False,
-            error=f"Invalid layout_mode: {req.layout_mode}. Valid: {valid_modes}",
+            error=f"Invalid surface_type: {req.surface_type}. Valid: {valid_surfaces}",
         )
 
     try:
         html = compose_html(
             md_text=req.markdown,
             title=req.title,
-            layout_mode=req.layout_mode,
+            surface_type=req.surface_type,
             assets=req.assets or [],
             brand_css=req.brand_css,
         )

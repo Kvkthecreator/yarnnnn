@@ -1,8 +1,9 @@
 # Agent Capability & Output Substrate
 
-> **Status**: Canonical (ADR-130). Phase 1 implemented. Phase 2 (compose integration) proposed.
-> **Date**: 2026-03-23 (revised)
+> **Status**: Canonical (ADR-130 + ADR-170). Phase 1 implemented. Phase 2 (compose integration) proposed.
+> **Date**: 2026-04-10 (revised)
 > **Rule**: All capability, output, and rendering decisions should be consistent with this document.
+> **Related**: [output-surfaces.md](output-surfaces.md) — surface types, section kinds, export pipeline. [compose-substrate.md](compose-substrate.md) — compose function architecture.
 
 ---
 
@@ -183,24 +184,29 @@ Five production phases. SCAFFOLD and ASSEMBLE (the compose substrate) are determ
 │      PHASE 3: COMPOSE (mechanical)                   │
 │                                                      │
 │  POST /compose with page spec + rendered assets:     │
-│  ├── Apply layout mode (document/presentation/       │
-│  │   dashboard/data/digest/email)                    │
-│  └── Store output.html alongside output.md           │
+│  ├── Apply surface type arrangement (report/deck/    │
+│  │   dashboard/digest/workbook/preview/video)        │
+│  ├── Render section kinds per surface type rules     │
+│  └── Store output folder (index.html + partials)     │
 └──────────────────┬──────────────────────────────────┘
                    │
                    ▼
 ┌─────────────────────────────────────────────────────┐
 │              WORKSPACE STORAGE                       │
 │                                                      │
-│  /agents/{slug}/outputs/{date}/                      │
-│  ├── output.md        (structured source)            │
-│  ├── output.html      (composed, platform-rendered)  │
-│  ├── manifest.json    (type, capabilities, assets)   │
-│  └── assets/                                         │
-│      ├── *.svg        (charts, diagrams)             │
-│      ├── *.png        (images)                       │
-│      ├── *.mp4        (video) [future]               │
-│      └── *.json       (structured data)              │
+│  /tasks/{slug}/outputs/{date}/                       │
+│  ├── index.html       (entry point — assembles       │
+│  │                     section partials + assets)     │
+│  ├── output.md        (structured source, preserved) │
+│  ├── sections/        (section partials per kind)    │
+│  ├── assets/          (root + derivative)            │
+│  │   ├── *.svg        (charts, diagrams)             │
+│  │   ├── *.png        (images, logos)                │
+│  │   ├── *.mp4        (video) [future]               │
+│  │   └── *.json       (structured data)              │
+│  ├── data/            (structured data backing       │
+│  │                     derivative assets)             │
+│  └── sys_manifest.json (provenance, asset status)    │
 └──────────────────┬──────────────────────────────────┘
                    │
           ┌────────┼─────────────────┐
@@ -246,16 +252,25 @@ PM arranges sections, specifies layout mode. Platform composes HTML. No format-s
 
 ---
 
-## Layout Modes (platform-owned)
+## Surface Types (ADR-170 RD-6)
 
-| Mode | Visual treatment | Best for | How specified |
+> **Note:** `layout_mode` evolves to `surface_type`. Surface types are visual paradigms, not file formats. Full catalog and section kind vocabulary in [output-surfaces.md](output-surfaces.md).
+
+| Surface Type | Visual Paradigm | Best for | Current CSS mode |
 |---|---|---|---|
-| **document** | Flowing text, max-width, reading-optimized | Reports, digests, analysis | Default |
-| **presentation** | Full-screen sections, large type, slide breaks at `##`/`---` | Executive reviews, team updates | PM or agent metadata |
-| **dashboard** | CSS grid, metric cards, KPI panels | Operational summaries, status reports | PM or content detection |
-| **data** | Dense tables, tabular nums, sticky headers | Data-heavy outputs, comparisons | Content detection |
+| **`report`** | Flowing narrative document | Reports, briefs, analysis | `document` |
+| **`deck`** | Discrete full-screen frames | Investor updates, team updates, executive reviews | `presentation` |
+| **`dashboard`** | CSS grid, metric tiles, KPI panels | Operational summaries, competitor tracking, project status | `dashboard` |
+| **`digest`** | Grouped/chronological stream | Daily update, Slack/Notion/GitHub digests | `document` (evolving) |
+| **`workbook`** | Tabular-first, data-dense | Data analysis, comparisons, financial models | `data` |
+| **`preview`** | In-context mockups | Social media content, email campaigns, creative briefs | (new) |
+| **`video`** | Sequential animated frames | Video briefings, animated data presentations | (new — Phase 6+) |
 
-Layout mode is decoupled from agent type. Any agent's output can be rendered in any mode.
+Surface type is decoupled from agent type. Any agent's output can be rendered in any surface type.
+
+**Section kinds** compose within surface types. A `metric-cards` section renders as grid tiles in a dashboard, hero metrics in a deck, inline stat boxes in a report. The compose function resolves the section kind × surface type matrix. See [output-surfaces.md](output-surfaces.md) for the full rendering matrix.
+
+**Export** is a separate, derivative concern. HTML → PDF/PPTX/XLSX/DOCX/MP4 is handled by `yarnnn-render`, not by the compose function. See [output-surfaces.md](output-surfaces.md) Layer 3.
 
 ---
 
@@ -282,7 +297,7 @@ Layout mode is decoupled from agent type. Any agent's output can be rendered in 
   "agent_id": "uuid",
   "agent_type": "synthesize",
   "run_number": 5,
-  "layout_mode": "dashboard",
+  "surface_type": "dashboard",
   "capabilities_used": ["chart", "data_analysis"],
   "files": [
     {"path": "output.md", "role": "source", "content_type": "text/markdown"},

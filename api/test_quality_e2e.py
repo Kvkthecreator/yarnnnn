@@ -5,7 +5,7 @@ Validates that the quality hardening interventions produce measurably better out
 1. Methodology injection — agent playbooks visible in output structure
 2. Process step hardening — output matches the prescribed structure
 3. Task-aware context — KB search uses objective, not agent title
-4. Layout mode — HTML composition uses correct layout_mode
+4. Surface type — HTML composition uses correct surface_type (ADR-170)
 5. Multi-step handoff — step 2 builds on step 1, not independent
 
 Usage:
@@ -45,28 +45,28 @@ TEST_USER_ID = "2abf3f96-118b-4987-9d95-40f2d9be9a18"
 # Task types to test — covers key quality dimensions
 TEST_CASES = [
     {
-        "type_key": "competitive-intel-brief",
+        "type_key": "competitive-brief",
         "focus": "AI agent platforms",
-        "description": "1-step (research agent), document layout, charts + citations expected",
+        "description": "1-step (research agent), report surface, charts + citations expected",
         "quality_checks": {
             "min_words": 400,
             "required_sections": ["executive summary", "key findings", "implications"],
             "expects_citations": True,
             "expects_structure": True,
-            "layout_mode": "document",
+            "surface_type": "report",
             "multi_step": False,
         },
     },
     {
         "type_key": "stakeholder-update",
         "focus": "YARNNN AI platform progress",
-        "description": "1-step (content agent), dashboard layout, metrics + sections expected",
+        "description": "1-step (content agent), deck surface, metrics + sections expected",
         "quality_checks": {
             "min_words": 400,
             "required_sections": ["achievements", "challenges"],
             "expects_citations": False,
             "expects_structure": True,
-            "layout_mode": "dashboard",
+            "surface_type": "deck",
             "multi_step": False,
         },
     },
@@ -80,7 +80,7 @@ class QualityResult:
     duration_ms: int = 0
     output_words: int = 0
     html_composed: bool = False
-    layout_mode_used: Optional[str] = None
+    surface_type_used: Optional[str] = None
     methodology_signal: bool = False  # Did output structure match playbook?
     sections_found: list[str] = field(default_factory=list)
     sections_missing: list[str] = field(default_factory=list)
@@ -412,10 +412,10 @@ async def run_task_and_evaluate(client, user_id: str, test_case: dict) -> Qualit
 
     # HTML composition
     if result.html_composed:
-        # Check for layout mode indicators in HTML
+        # Check for surface type indicators in HTML
         if output_html and "class=" in output_html:
-            result.layout_mode_used = checks.get("layout_mode", "document")
-            logger.info(f"  ✓ HTML composed (layout: {result.layout_mode_used})")
+            result.surface_type_used = checks.get("surface_type", "report")
+            logger.info(f"  ✓ HTML composed (surface: {result.surface_type_used})")
         else:
             logger.info(f"  ✓ HTML composed")
     else:

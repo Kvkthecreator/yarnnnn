@@ -26,7 +26,7 @@ import markdown
 class ComposeRequest(BaseModel):
     markdown: str
     title: str = "Output"
-    layout_mode: str = "document"  # document | presentation | dashboard | data | email
+    surface_type: str = "report"  # report | deck | dashboard | digest | workbook | preview | video
     assets: list[dict] = []  # [{ref: "chart.svg", url: "https://..."}]
     brand_css: Optional[str] = None
     user_id: Optional[str] = None
@@ -777,20 +777,27 @@ def _esc(text: str) -> str:
 # Layout mode CSS mapping
 # ---------------------------------------------------------------------------
 
-_LAYOUT_CSS = {
-    "document": DOCUMENT_CSS,
-    "presentation": PRESENTATION_CSS,
+# ADR-170: surface_type vocabulary → layout implementation mapping.
+# Seven surface types map to the four current layout implementations.
+# preview + video use report layout until Phase 6 (view-time rendering).
+_SURFACE_CSS = {
+    "report": DOCUMENT_CSS,
+    "deck": PRESENTATION_CSS,
     "dashboard": DASHBOARD_CSS,
-    "data": DATA_CSS,
-    "email": EMAIL_LAYOUT_CSS,
+    "digest": EMAIL_LAYOUT_CSS,   # scannable, mobile-friendly (same as email layout)
+    "workbook": DATA_CSS,
+    "preview": DOCUMENT_CSS,      # Phase 6: platform-framed cards
+    "video": DOCUMENT_CSS,        # Phase 6: Remotion scene graph
 }
 
-_LAYOUT_FN = {
-    "document": _apply_document_layout,
-    "presentation": _apply_presentation_layout,
+_SURFACE_FN = {
+    "report": _apply_document_layout,
+    "deck": _apply_presentation_layout,
     "dashboard": _apply_dashboard_layout,
-    "data": _apply_data_layout,
-    "email": _apply_email_layout,
+    "digest": _apply_email_layout,    # scannable grouped stream
+    "workbook": _apply_data_layout,
+    "preview": _apply_document_layout,
+    "video": _apply_document_layout,
 }
 
 
@@ -801,23 +808,28 @@ _LAYOUT_FN = {
 def compose_html(
     md_text: str,
     title: str = "Output",
-    layout_mode: str = "document",
+    surface_type: str = "report",
     assets: list[dict] | None = None,
     brand_css: str | None = None,
 ) -> str:
     """Compose markdown + assets into a styled, self-contained HTML document.
 
+    ADR-170: surface_type is the visual paradigm (report | deck | dashboard |
+    digest | workbook | preview | video). Each maps to a layout implementation.
+
     Args:
         md_text: Markdown source content.
         title: Document title (appears in <title> and heading).
-        layout_mode: One of document, presentation, dashboard, data, email.
+        surface_type: Visual paradigm. One of: report, deck, dashboard, digest,
+            workbook, preview, video.
         assets: List of {ref, url} dicts for resolving local asset paths.
         brand_css: Optional CSS string for brand overrides.
 
     Returns:
         Complete HTML document string.
     """
-    is_email = layout_mode == "email"
+    # digest surface uses the email-safe rendering path (no JS, mobile-first)
+    is_email_style = surface_type in ("digest",)
 
     # 1. Markdown → HTML fragment
     html_body = _render_markdown_to_html(md_text)
@@ -826,8 +838,8 @@ def compose_html(
     if assets:
         html_body = _resolve_asset_urls(html_body, assets)
 
-    # 3. Email: strip mermaid code blocks (no JS in email) — show as code instead
-    if is_email:
+    # 3. Digest/email-style: strip mermaid code blocks (no JS) — show as code instead
+    if is_email_style:
         html_body = re.sub(
             r'<pre class="mermaid">(.*?)</pre>',
             r'<pre><code>\1</code></pre>',
@@ -835,22 +847,22 @@ def compose_html(
             flags=re.DOTALL,
         )
 
-    # 4. Apply layout mode
-    layout_fn = _LAYOUT_FN.get(layout_mode, _apply_document_layout)
+    # 4. Apply surface layout
+    layout_fn = _SURFACE_FN.get(surface_type, _apply_document_layout)
     body_html = layout_fn(html_body, title)
 
-    # 5. Assemble CSS: email uses its own base (no CSS variables), others use BASE_CSS
-    if is_email:
-        layout_css = _LAYOUT_CSS.get(layout_mode, EMAIL_LAYOUT_CSS)
-        css_parts = [EMAIL_CSS, layout_css]
+    # 5. Assemble CSS: digest uses email-safe base (no CSS variables), others use BASE_CSS
+    if is_email_style:
+        surface_css = _SURFACE_CSS.get(surface_type, EMAIL_LAYOUT_CSS)
+        css_parts = [EMAIL_CSS, surface_css]
     else:
-        layout_css = _LAYOUT_CSS.get(layout_mode, DOCUMENT_CSS)
-        css_parts = [BASE_CSS, layout_css]
+        surface_css = _SURFACE_CSS.get(surface_type, DOCUMENT_CSS)
+        css_parts = [BASE_CSS, surface_css]
     if brand_css:
         css_parts.append(f"\n/* Brand overrides */\n{brand_css}")
     full_css = "\n".join(css_parts)
 
-    # 6. Wrap in full HTML document (email skips mermaid.js script)
-    if is_email:
+    # 6. Wrap in full HTML document (digest/email-style skips mermaid.js script)
+    if is_email_style:
         return _wrap_email_document(body_html, full_css, title)
     return _wrap_full_document(body_html, full_css, title)

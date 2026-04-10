@@ -7,7 +7,7 @@ Supported formats:
 - Slack Block Kit (for slack_digest, slack_update)
 - Notion Blocks (for notion_page) [future]
 
-Email HTML rendering moved to compose engine (render/compose.py layout_mode="email").
+Email HTML rendering moved to compose engine (render/compose.py surface_type="digest").
 
 Usage:
     from services.platform_output import generate_platform_output
@@ -341,7 +341,7 @@ def generate_platform_output(
         }
 
     elif platform == "email":
-        # Email HTML composed via render service (layout_mode="email") in delivery.py
+        # Email HTML composed via render service (surface_type="digest") in delivery.py
         return {
             "format": "markdown",
             "content": content,
@@ -366,7 +366,7 @@ def generate_platform_output(
 
 
 # Email HTML generation removed — email rendering now handled by compose engine
-# (render/compose.py layout_mode="email") called from delivery.py.
+# (render/compose.py surface_type="digest") called from delivery.py.
 # See ADR-148 and the _compose_email_html() function in delivery.py.
 
 

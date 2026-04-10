@@ -102,13 +102,13 @@ async def _fetch_skill_docs() -> Optional[str]:
 async def _compose_output_html(
     client, user_id: str, agent_slug: str, output_folder: str,
     title: str = "Output", pending_renders: list = None,
-    layout_mode: str = "document",
+    surface_type: str = "report",
 ) -> Optional[str]:
-    """ADR-130 Phase 2: Post-generation compose step.
+    """ADR-130 Phase 2 + ADR-170: Post-generation compose step.
 
     Calls /compose on the render service to convert output.md + asset URLs
-    into styled HTML. Layout mode determines composition strategy
-    (document/presentation/dashboard/data).
+    into styled HTML. Surface type is the visual paradigm
+    (report/deck/dashboard/digest/workbook/preview/video).
     Non-fatal — agent run succeeds even if compose fails.
     """
     from services.workspace import AgentWorkspace
@@ -145,7 +145,7 @@ async def _compose_output_html(
                 json={
                     "markdown": md_content,
                     "title": title,
-                    "layout_mode": layout_mode,
+                    "surface_type": surface_type,
                     "assets": assets,
                     "user_id": user_id,
                 },

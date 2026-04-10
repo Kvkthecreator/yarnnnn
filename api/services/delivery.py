@@ -868,7 +868,7 @@ async def _deliver_email_from_manifest(
 ) -> ExportResult:
     """ADR-118 D.3 + ADR-148: Email delivery sourced from output folder.
 
-    Always composes email-optimized HTML via compose engine (layout_mode="email").
+    Always composes email-optimized HTML via compose engine (surface_type="digest").
     The pre-composed HTML (output.html) is for web display — email needs its own
     rendering with inline-safe CSS, no CSS variables, no external scripts.
     Includes rendered binary download links from the manifest.
@@ -891,7 +891,7 @@ async def _deliver_email_from_manifest(
         default_subject = f"{title} — {timestamp_str}"
     subject = options.get("subject", default_subject)
 
-    # ADR-148: Compose email-specific HTML via render service (layout_mode="email")
+    # ADR-148: Compose email-specific HTML via render service (surface_type="digest")
     html_body = await _compose_email_html(
         text_content,
         title,
@@ -982,7 +982,11 @@ async def _compose_email_html(
     title: str,
     assets: Optional[list[dict]] = None,
 ) -> Optional[str]:
-    """Call render service compose endpoint with layout_mode=email."""
+    """Call render service compose endpoint with surface_type=digest for email delivery.
+
+    ADR-170: Email delivery uses the digest surface type — scannable, mobile-first,
+    email-safe CSS (no CSS variables, no JS, inline-friendly).
+    """
     import httpx
     import os
 
@@ -1000,7 +1004,7 @@ async def _compose_email_html(
                 json={
                     "markdown": markdown,
                     "title": title,
-                    "layout_mode": "email",
+                    "surface_type": "digest",
                     "assets": assets or [],
                 },
                 headers=headers,

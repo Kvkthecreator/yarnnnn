@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.10.1] - ADR-170 Phase 2 start: layout_mode → surface_type
+
+### Changed
+- `api/services/task_types.py` v7.0: `layout_mode` field deleted from all task types.
+  `surface_type` (7 visual paradigms) and `page_structure` (section kinds with scope
+  declarations) added to all `produces_deliverable` task types. No surface fields on
+  `accumulates_context`, `external_action`, `system_maintenance` tasks.
+- `render/compose.py`: `ComposeRequest.layout_mode` → `surface_type`. `compose_html()`
+  parameter renamed. `_LAYOUT_CSS`/`_LAYOUT_FN` maps replaced with `_SURFACE_CSS`/
+  `_SURFACE_FN`. Surface vocabulary: report | deck | dashboard | digest | workbook |
+  preview | video. `digest` surface maps to email-safe rendering path (no JS, mobile-first).
+- `render/main.py`: `/compose` endpoint validates `surface_type` against 7-value enum.
+  `/health` response updated.
+- `api/services/agent_execution.py`: `_compose_output_html()` param `layout_mode` → `surface_type`.
+- `api/services/task_pipeline.py`: reads `surface_type` from parsed TASK.md then registry
+  fallback. `parse_task_md()` gains `**Surface:**` field parsing.
+- `api/services/delivery.py`: `_compose_email_html()` sends `surface_type: digest`.
+- `api/services/primitives/repurpose.py`: `layout_mode` → `surface_type`, `presentation` → `deck`.
+- `api/services/task_types.py`: `build_task_md_from_type()` serializes `**Surface:**` line for
+  `produces_deliverable` tasks.
+- Expected behavior: compose engine selects layout from surface_type vocabulary. All
+  existing functionality preserved — the 5 internal layout implementations (document,
+  presentation, dashboard, data, email) are still used, just addressed via the new vocabulary.
+  `digest` → email layout (scannable, mobile-first). `deck` → presentation. `report` → document.
+
+---
+
 ## [2026.04.09.6] - ADR-165 v8: Overview + Onboarding modal split
 
 ### Changed

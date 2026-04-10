@@ -1,7 +1,7 @@
 # Architecture: Workspace Conventions
 
-**Status:** Canonical (v12 — ADR-156 naming convention)
-**Date:** 2026-03-31
+**Status:** Canonical (v13 — ADR-170 compose substrate + output surfaces)
+**Date:** 2026-04-10
 **Related:**
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR
 - [ADR-119: Workspace Filesystem Architecture](../adr/ADR-119-workspace-filesystem-architecture.md) — folder conventions, lifecycle, versioning
@@ -179,7 +179,6 @@ Each task's work definition, quality contract, cycle-to-cycle awareness, executi
 /tasks/{slug}/
 ├── TASK.md                        # Charter: objective, process, type_key, mode
 ├── DELIVERABLE.md                 # Quality contract: output spec + assets + inferred preferences (ADR-149)
-├── sys_compose.md                 # Structural contract: compose playbook — sections, scopes, assets (ADR-170)
 ├── awareness.md                   # Cycle-to-cycle execution state (ADR-154, pipeline-maintained)
 ├── memory/
 │   ├── run_log.md                 # Execution history (append-only audit trail)
@@ -204,13 +203,15 @@ Each task's work definition, quality contract, cycle-to-cycle awareness, executi
 
 Tasks do NOT have `context/` or `knowledge/` folders — accumulated context lives at `/workspace/context/` (ADR-151). Tasks are thin work units: charter, quality contract, structural contract, memory, outputs, scratch.
 
-### Compose Playbook (`sys_compose.md`) — ADR-170
+### Compose Substrate — ADR-170
 
-The compose playbook is the third playbook type alongside agent methodology playbooks (`_playbook-*.md`) and TP orchestration (`_playbook.md`). It declares what the output is structurally made of: sections, their directory scopes, and expected assets. Scaffolded from the task type's `page_structure` field at task creation, refinable by TP or user. See [compose-substrate.md](compose-substrate.md).
+The compose substrate is the binding layer between the accumulating filesystem and rendered output. It is a **function**, not a file — there is no `sys_compose.md` per task (ADR-170 RD-1). The structural knowledge lives in the task type registry's `page_structure` field (surface type + section kinds) and DELIVERABLE.md. The compose function reads these at execution time. See [compose-substrate.md](compose-substrate.md).
 
 ### Output Folder as Deliverable — ADR-170
 
-Output folders evolve from flat files (`output.md` + `output.html` + `manifest.json`) to structured directories. The folder IS the deliverable: `index.html` assembles section partials and asset references. This makes revision structurally targetable — swap an asset, regenerate a section partial, or recompose the index without regenerating the whole output.
+Output folders evolve from flat files (`output.md` + `output.html` + `manifest.json`) to structured directories. The folder IS the deliverable: `index.html` assembles section partials and asset references, arranged per surface type (report, deck, dashboard, digest, workbook, preview, video). Section kinds (narrative, metric-cards, entity-grid, etc.) determine component rendering within the surface. See [output-surfaces.md](output-surfaces.md).
+
+This makes revision structurally targetable — swap an asset, regenerate a section partial, or recompose the index without regenerating the whole output.
 
 Two kinds of assets in output folders:
 - **Root assets**: durable entities (logos, screenshots) copied from domain `assets/` folders at compose time. Change rarely.
@@ -333,4 +334,4 @@ Task outputs use `manifest.json` for metadata:
 | 2026-03-31 | v9 | ADR-153: platform_content sunset. /platforms/ deprecated — platform data flows through tracking tasks into /workspace/context/ domains. Four roots → three roots. Platform sync file-sharing context removed. |
 | 2026-04-01 | v10 | TP Awareness Model hardened — three-layer architecture (ground truth, workspace files, behavioral guidance), agent-level hooks documented. Cross-ref TP-DESIGN-PRINCIPLES.md. AWARENESS.md added to /workspace/ as TP's persistent situational notes. |
 | 2026-04-01 | v11 | ADR-154: Execution boundary reform. Agent workspace thinned to identity only (AGENT.md + playbooks). Dissolved: thesis.md, reflections.md, feedback.md, working/, 6 dead files. Task awareness.md added (cycle-to-cycle state). Domain _tracker.md added (entity registry, pipeline-maintained). context_reads fixed for track-relationships/track-projects. Tool round budget increased. |
-| 2026-04-10 | v13 | ADR-170: Compose substrate. sys_compose.md added to /tasks/{slug}/ (structural contract — compose playbook). Output folders evolve to structured directories: index.html + sections/ + assets/ + data/ + sys_manifest.json. Root vs derivative asset distinction. Compose playbook as third playbook type alongside agent methodology and TP orchestration. |
+| 2026-04-10 | v13 | ADR-170: Compose substrate. sys_compose.md dissolved (RD-1 — compose is a function, structural knowledge lives in task type registry page_structure). Output folders evolve to structured directories: index.html + sections/ + assets/ + data/ + sys_manifest.json. Root vs derivative asset distinction. Surface types (report, deck, dashboard, digest, workbook, preview, video) replace layout_mode. Section kinds (narrative, metric-cards, entity-grid, etc.) as typed component vocabulary. See output-surfaces.md. |

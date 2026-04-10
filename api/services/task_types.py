@@ -1,5 +1,5 @@
 """
-Task Type Registry — ADR-152 + ADR-154 + ADR-166: Atomic Task Types
+Task Type Registry — ADR-152 + ADR-154 + ADR-166 + ADR-170: Atomic Task Types
 
 Each task type has one `output_kind` (ADR-166) describing what shape of work
 the task produces. Four values:
@@ -29,7 +29,16 @@ Mode + Bootstrap (ADR-154):
   task transitions from aggressive bootstrapping to steady-state cadence.
   Phase (bootstrap/steady/complete) is derived by the pipeline at runtime.
 
-Version: 6.0 (2026-04-08 — ADR-166 registry coherence pass)
+Surface type + page_structure (ADR-170):
+  produces_deliverable tasks declare surface_type (visual paradigm: report, deck,
+  dashboard, digest, workbook, preview, video) and page_structure (section kinds
+  with scope declarations). The compose substrate reads these at execution time
+  to build the generation brief and output folder.
+
+  accumulates_context, external_action, system_maintenance tasks have no surface
+  type — they don't produce user-visible HTML output. The field is absent.
+
+Version: 7.0 (2026-04-10 — ADR-170 compose substrate: layout_mode → surface_type + page_structure)
 Changelog:
   v1.0 — 13 product-named types (ADR-145)
   v2.0 — context_reads/writes, output_category, STEP_INSTRUCTIONS templates (ADR-152)
@@ -47,10 +56,21 @@ Changelog:
          - DELETED gtm-report (merged into market-report)
          - CHANGED meeting-prep mode: reactive → goal (it has clear completion)
          - NORMALIZED track-* context_reads (all four read domain + signals now)
+  v7.0 — ADR-170 Compose Substrate:
+         - DELETED `layout_mode` from all task types (no backwards compat)
+         - ADDED `surface_type` to produces_deliverable tasks (7 visual paradigms)
+         - ADDED `page_structure` to produces_deliverable tasks (section kinds vocabulary)
+         - accumulates_context / external_action / system_maintenance have no surface
+         - Section kind vocabulary: narrative, metric-cards, entity-grid,
+           comparison-table, trend-chart, distribution-chart, timeline,
+           status-matrix, data-table, callout, checklist
 
 Canonical docs:
   - docs/architecture/registry-matrix.md
   - docs/adr/ADR-166-registry-coherence-pass.md
+  - docs/adr/ADR-170-compose-substrate.md
+  - docs/architecture/compose-substrate.md
+  - docs/architecture/output-surfaces.md
 """
 
 from __future__ import annotations
@@ -299,7 +319,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "required_files": ["profile"],
         },
         "output_format": "markdown",
-        "layout_mode": "document",
         "export_options": [],
         "process": [
             {
@@ -347,7 +366,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "required_files": ["analysis"],
         },
         "output_format": "markdown",
-        "layout_mode": "document",
         "export_options": [],
         "process": [
             {
@@ -389,7 +407,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "required_files": ["profile"],
         },
         "output_format": "markdown",
-        "layout_mode": "document",
         "export_options": [],
         "process": [
             {
@@ -430,7 +447,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "required_files": ["status"],
         },
         "output_format": "markdown",
-        "layout_mode": "document",
         "export_options": [],
         "process": [
             {
@@ -471,7 +487,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             "required_files": ["research"],
         },
         "output_format": "markdown",
-        "layout_mode": "document",
         "export_options": [],
         "process": [
             {
@@ -514,7 +529,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "html",
-        "layout_mode": "digest",
         "export_options": [],
         "process": [
             {
@@ -551,7 +565,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
-        "layout_mode": "digest",
         "export_options": [],
         "process": [
             {
@@ -588,7 +601,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "html",
-        "layout_mode": "digest",
         "export_options": [],
         "process": [
             {
@@ -629,7 +641,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "reactive",
         "default_schedule": "on-demand",
         "output_format": "text",
-        "layout_mode": "message",
         "export_options": [],
         "process": [
             {
@@ -666,7 +677,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "reactive",
         "default_schedule": "on-demand",
         "output_format": "text",
-        "layout_mode": "comment",
         "export_options": [],
         "process": [
             {
@@ -708,7 +718,23 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
-        "layout_mode": "document",
+        "surface_type": "report",
+        "page_structure": [
+            {"kind": "narrative", "title": "Executive Summary",
+             "reads_from": ["competitors/_synthesis.md", "signals/_tracker.md"]},
+            {"kind": "entity-grid", "title": "Competitor Profiles",
+             "entity_pattern": "competitors/*/",
+             "assets": [{"type": "root", "pattern": "competitors/assets/*-favicon.png"}]},
+            {"kind": "timeline", "title": "Recent Signals",
+             "reads_from": ["signals/_tracker.md"]},
+            {"kind": "trend-chart", "title": "Market Position",
+             "reads_from": ["competitors/*/analysis.md"],
+             "assets": [{"type": "derivative", "render": "chart"}]},
+            {"kind": "comparison-table", "title": "Competitive Matrix",
+             "reads_from": ["competitors/*/profile.md"]},
+            {"kind": "callout", "title": "Strategic Implications",
+             "reads_from": ["competitors/_synthesis.md"]},
+        ],
         "export_options": ["pdf"],
         "process": [
             {
@@ -753,7 +779,24 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "recurring",
         "default_schedule": "monthly",
         "output_format": "html",
-        "layout_mode": "document",
+        "surface_type": "report",
+        "page_structure": [
+            {"kind": "narrative", "title": "Executive Summary",
+             "reads_from": ["market/_synthesis.md", "competitors/_synthesis.md"]},
+            {"kind": "distribution-chart", "title": "Market Overview",
+             "reads_from": ["market/*/analysis.md"],
+             "assets": [{"type": "derivative", "render": "chart"}]},
+            {"kind": "entity-grid", "title": "Key Players",
+             "entity_pattern": "competitors/*/",
+             "assets": [{"type": "root", "pattern": "competitors/assets/*-favicon.png"}]},
+            {"kind": "trend-chart", "title": "Growth & Signals",
+             "reads_from": ["market/*/analysis.md", "signals/_tracker.md"],
+             "assets": [{"type": "derivative", "render": "chart"}]},
+            {"kind": "comparison-table", "title": "Competitive Moves",
+             "reads_from": ["competitors/*/profile.md"]},
+            {"kind": "callout", "title": "Opportunities & Threats",
+             "reads_from": ["market/_synthesis.md", "signals/_tracker.md"]},
+        ],
         "export_options": ["pdf"],
         "process": [
             {
@@ -797,7 +840,17 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "goal",
         "default_schedule": "on-demand",
         "output_format": "html",
-        "layout_mode": "document",
+        "surface_type": "report",
+        "page_structure": [
+            {"kind": "narrative", "title": "Context",
+             "reads_from": ["relationships/*/profile.md"]},
+            {"kind": "timeline", "title": "Interaction History",
+             "reads_from": ["relationships/*/profile.md"]},
+            {"kind": "checklist", "title": "Agenda & Talking Points",
+             "reads_from": ["relationships/*/profile.md", "signals/_tracker.md"]},
+            {"kind": "callout", "title": "Open Items",
+             "reads_from": ["relationships/*/profile.md"]},
+        ],
         "export_options": [],
         "process": [
             {
@@ -834,7 +887,24 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "recurring",
         "default_schedule": "monthly",
         "output_format": "html",
-        "layout_mode": "document",
+        "surface_type": "deck",
+        "page_structure": [
+            {"kind": "narrative", "title": "Opening",
+             "reads_from": ["workspace/IDENTITY.md"]},
+            {"kind": "metric-cards", "title": "Key Metrics",
+             "reads_from": ["market/_synthesis.md", "projects/_synthesis.md"],
+             "assets": [{"type": "derivative", "render": "chart"}]},
+            {"kind": "trend-chart", "title": "Progress",
+             "reads_from": ["projects/*/status.md"],
+             "assets": [{"type": "derivative", "render": "chart"}]},
+            {"kind": "status-matrix", "title": "Workstream Status",
+             "reads_from": ["projects/*/status.md"]},
+            {"kind": "entity-grid", "title": "Competitive Landscape",
+             "reads_from": ["competitors/_synthesis.md"],
+             "assets": [{"type": "root", "pattern": "competitors/assets/*-favicon.png"}]},
+            {"kind": "narrative", "title": "Forward Look",
+             "reads_from": ["projects/_synthesis.md", "signals/_tracker.md"]},
+        ],
         "export_options": ["pdf"],
         "process": [
             {
@@ -874,7 +944,18 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "html",
-        "layout_mode": "email",
+        "surface_type": "digest",
+        "page_structure": [
+            {"kind": "callout", "title": "Top Priority",
+             "reads_from": ["signals/_tracker.md"]},
+            {"kind": "timeline", "title": "What Happened",
+             "reads_from": ["signals/_tracker.md"]},
+            {"kind": "entity-grid", "title": "What Changed",
+             "reads_from": ["competitors/_synthesis.md", "market/_synthesis.md",
+                            "projects/_synthesis.md", "relationships/_synthesis.md"]},
+            {"kind": "checklist", "title": "What's Next",
+             "reads_from": ["projects/*/status.md"]},
+        ],
         "export_options": [],
         "process": [
             {
@@ -912,7 +993,17 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
-        "layout_mode": "document",
+        "surface_type": "dashboard",
+        "page_structure": [
+            {"kind": "metric-cards", "title": "Status Summary",
+             "reads_from": ["projects/_synthesis.md"]},
+            {"kind": "status-matrix", "title": "Workstream Health",
+             "reads_from": ["projects/*/status.md"]},
+            {"kind": "timeline", "title": "Blockers & Risks",
+             "reads_from": ["projects/*/status.md", "signals/_tracker.md"]},
+            {"kind": "checklist", "title": "Next Week Priorities",
+             "reads_from": ["projects/*/status.md"]},
+        ],
         "export_options": [],
         "process": [
             {
@@ -949,7 +1040,17 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "goal",
         "default_schedule": "on-demand",
         "output_format": "html",
-        "layout_mode": "document",
+        "surface_type": "report",
+        "page_structure": [
+            {"kind": "narrative", "title": "Brief Overview",
+             "reads_from": ["content_research/_synthesis.md"]},
+            {"kind": "callout", "title": "Key Messages",
+             "reads_from": ["content_research/*/research.md"]},
+            {"kind": "narrative", "title": "Draft Content",
+             "reads_from": ["content_research/*/research.md", "competitors/_synthesis.md"]},
+            {"kind": "data-table", "title": "Sources",
+             "reads_from": ["content_research/*/research.md"]},
+        ],
         "export_options": ["pdf"],
         "process": [
             {
@@ -989,7 +1090,20 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "goal",
         "default_schedule": "on-demand",
         "output_format": "html",
-        "layout_mode": "document",
+        "surface_type": "deck",
+        "page_structure": [
+            {"kind": "narrative", "title": "Launch Summary",
+             "reads_from": ["content_research/_synthesis.md", "market/_synthesis.md"]},
+            {"kind": "callout", "title": "Key Messages",
+             "reads_from": ["content_research/*/research.md", "competitors/_synthesis.md"]},
+            {"kind": "entity-grid", "title": "Target Audiences",
+             "reads_from": ["content_research/_synthesis.md", "relationships/_synthesis.md"]},
+            {"kind": "checklist", "title": "Deliverables Checklist",
+             "reads_from": ["content_research/_synthesis.md"]},
+            {"kind": "timeline", "title": "Launch Timeline",
+             "reads_from": ["projects/_synthesis.md"],
+             "assets": [{"type": "derivative", "render": "mermaid"}]},
+        ],
         "export_options": ["pdf"],
         "process": [
             {
@@ -1038,7 +1152,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "markdown",
-        "layout_mode": "document",
         "export_options": [],
         "process": [
             {
@@ -1079,7 +1192,6 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "markdown",
-        "layout_mode": "document",
         "export_options": [],
         "process": [
             {
@@ -1287,17 +1399,23 @@ def build_task_md_from_type(
         sources_str = "; ".join(parts)
 
     # ADR-166: **Class:** → **Output:** (output_kind, 4-value enum)
+    # ADR-170: **Surface:** for produces_deliverable tasks (visual paradigm)
+    output_kind = task_type.get("output_kind", "produces_deliverable")
+    surface_line = ""
+    if output_kind == "produces_deliverable" and task_type.get("surface_type"):
+        surface_line = f"\n**Surface:** {task_type['surface_type']}"
+
     md = f"""# {title}
 
 **Slug:** {slug}
 **Type:** {type_key}
-**Output:** {task_type.get('output_kind', 'produces_deliverable')}
+**Output:** {output_kind}
 **Mode:** {effective_mode}
 **Schedule:** {effective_schedule}
 **Delivery:** {delivery or 'none'}
 **Context Reads:** {', '.join(context_reads) if context_reads else 'none'}
 **Context Writes:** {', '.join(context_writes) if context_writes else 'none'}
-**Sources:** {sources_str}
+**Sources:** {sources_str}{surface_line}
 
 ## Objective
 - **Deliverable:** {deliverable_text}
