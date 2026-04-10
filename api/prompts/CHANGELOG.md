@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.10.9] - Accumulation-First Phase 2: prior state brief injection for all task modes
+
+### Changed
+- `api/services/task_workspace.py`: Added `get_prior_state_brief()` method. Reads `outputs/latest/manifest.json` + lists `outputs/latest/` to discover existing assets. Builds a compact ~300-500 token brief: prior run date, asset inventory ("Hero image: EXISTS — reuse, do not regenerate"), and a 2000-char excerpt of the prior output.md. Returns `""` on first run (graceful degradation).
+- `api/services/task_pipeline.py`: `output_kind` moved to section 6b (before 6d) so it's available for routing. Added `prior_state_brief` gathering for all non-`produces_deliverable` tasks after goal-mode `prior_output` read. `build_task_execution_prompt()` gains `prior_state_brief` parameter. Brief injected into user message between `generation_brief` / `prior_output` and steering notes. `produces_deliverable` tasks with `page_structure` continue to get the full ADR-170 compose brief (unchanged). `produces_deliverable` tasks without `page_structure` now also get `prior_state_brief` as fallback.
+- Expected behavior: `accumulates_context` tasks (track-competitors, track-market, etc.) now receive their prior output excerpt + asset inventory on every steady-state run. Agents know what exists before generating — can preserve unchanged sections, update stale ones, reuse assets. First run: `""` → no change to existing behavior.
+
 ## [2026.04.10.8] - Accumulation-First Execution (ADR-173): read workspace before generating
 
 ### Changed

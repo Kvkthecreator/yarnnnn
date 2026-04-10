@@ -986,6 +986,7 @@ def build_task_execution_prompt(
     task_feedback: str = "",
     task_mode: str = "recurring",
     prior_output: str = "",
+    prior_state_brief: str = "",
     task_phase: str = "steady",
     generation_brief: str = "",
 ) -> tuple[list[dict], str]:
@@ -993,6 +994,8 @@ def build_task_execution_prompt(
 
     ADR-154: Phase-aware. Bootstrap phase overrides step instructions.
     ADR-149: DELIVERABLE.md injected into system prompt.
+    ADR-173: prior_state_brief injected for non-produces_deliverable tasks —
+    compact summary of what was produced last run (assets, output excerpt).
     Prompt caching: system prompt is stable across tool rounds within
     one task execution — cache_control on the block saves ~90% on
     rounds 2+ of the same execution.
@@ -1183,6 +1186,14 @@ If context says "(No context available)" or tools return no results:
             "and feedback below. Build on what exists — do not start from scratch.\n\n"
             f"{prior_output[:8000]}"
         )
+
+    # ADR-173: Prior state brief — compact summary of what exists from last run.
+    # Injected for non-produces_deliverable tasks (produces_deliverable gets the full
+    # compose brief via generation_brief above). Enables accumulation-first behavior:
+    # agent knows what assets exist and what prior output looked like before generating.
+    # Empty string on first run — graceful degradation to full generation.
+    if prior_state_brief:
+        user_parts.append(f"\n{prior_state_brief}")
 
     # ADR-149: Steering notes — TP's cycle-specific guidance
     if steering_notes and steering_notes.strip():
@@ -1474,11 +1485,23 @@ async def execute_task(
         )
 
         # =====================================================================
-        # 6b. Goal mode: read prior output for revision context (ADR-149)
+        # 6b. Prior state injection (ADR-173 Phase 2 — accumulation-first)
         # =====================================================================
+        output_kind = task_info.get("output_kind", "")
         prior_output = ""
+        prior_state_brief = ""
+
         if task_mode == "goal":
+            # Goal mode: full prior output for revision ("you are revising this")
             prior_output = await tw.read("outputs/latest/output.md") or ""
+
+        # For non-produces_deliverable tasks (which get the full compose brief in 6d):
+        # inject a compact prior-state brief so agents know what exists before generating.
+        # Applies to: accumulates_context, external_action, system_maintenance, and
+        # produces_deliverable tasks without page_structure (fallback).
+        # First run has no prior output — get_prior_state_brief() returns "" gracefully.
+        if output_kind != "produces_deliverable":
+            prior_state_brief = await tw.get_prior_state_brief()
 
         # =====================================================================
         # 6c. Detect phase from awareness.md (ADR-154)
@@ -1494,7 +1517,6 @@ async def execute_task(
         # =====================================================================
         # 6d. ADR-170: Generation brief + revision scope (produces_deliverable only)
         # =====================================================================
-        output_kind = task_info.get("output_kind", "")
         generation_brief = ""
         if output_kind == "produces_deliverable":
             from services.task_types import get_task_type
@@ -1562,6 +1584,7 @@ async def execute_task(
             task_feedback=task_feedback,
             task_mode=task_mode,
             prior_output=prior_output,
+            prior_state_brief=prior_state_brief,
             task_phase=task_phase,
             generation_brief=generation_brief,
         )

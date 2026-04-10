@@ -1,7 +1,7 @@
 # ADR-173: Accumulation-First Execution
 
 **Date:** 2026-04-10
-**Status:** Implemented (Phase 1 — prompt layer)
+**Status:** Implemented (Phase 1 + Phase 2 — prompt layer + manifest injection)
 **Authors:** KVK, Claude
 **Supersedes:** Nothing (names and formalizes an implicit principle across ADR-119, ADR-149, ADR-159, ADR-170)
 **Extends:** ADR-119 (Workspace Filesystem Architecture), ADR-149 (Task Lifecycle / DELIVERABLE.md), ADR-159 (Filesystem-as-Memory), ADR-170 (Compose Substrate)
@@ -104,17 +104,17 @@ Phase 1 is prompt-only. No schema changes, no new files, no new API endpoints.
 - Adds "check what already exists" as a legitimate tool-use reason
 - States the accumulation-first posture explicitly
 
-### What Phase 2 Will Add (Manifest Injection)
+### What Phase 2 Added (Manifest Injection — Implemented)
 
-Phase 2 (next sprint) closes the loop mechanically:
+Phase 2 closes the loop mechanically for all task modes except `produces_deliverable` (which already gets the full compose brief via ADR-170's generation_brief).
 
-1. **`_build_prior_output_brief()`** in `task_pipeline.py` — reads `outputs/latest/sys_manifest.json`, calls `is_section_stale()` from compose substrate, formats a "generation brief" summarizing what exists, what's stale, and what's missing. Injected into `build_task_execution_prompt()` for all task modes (currently only goal mode gets prior output context).
+1. **`TaskWorkspace.get_prior_state_brief()`** — reads `outputs/latest/manifest.json` + lists `outputs/latest/` to discover existing assets (hero images, charts). Builds a compact brief (~300-500 tokens) including: prior run timestamp, asset inventory ("Hero image: EXISTS — reuse, do not regenerate"), and a ~2000-char excerpt of `outputs/latest/output.md`. Returns `""` on first run (graceful degradation to full generation).
 
-2. **`TaskWorkspace.get_latest_manifest()`** — helper to parse `sys_manifest.json` into structured form for brief building.
+2. **`build_task_execution_prompt()` gains `prior_state_brief` param** — injected into user message after `generation_brief` / goal-mode `prior_output`. Empty string is a no-op.
 
-3. **Extend to all modes** — currently `prior_output` is only injected for goal mode (ADR-149). Phase 2 extends the pattern to recurring and reactive modes: they receive the manifest brief, not the full prior output.
+3. **Extended to all non-`produces_deliverable` modes** — `accumulates_context`, `external_action`, `system_maintenance` tasks all receive the brief. Goal mode still gets `prior_output` (full text, "you are revising"). `produces_deliverable` with `page_structure` gets the full ADR-170 compose brief. `produces_deliverable` without `page_structure` now also gets `prior_state_brief` as a fallback.
 
-The Phase 1 prompt changes establish the behavioral expectation. Phase 2 makes it mechanically enforced.
+The prompt changes (Phase 1) establish the behavioral expectation. The manifest injection (Phase 2) makes it mechanically available — agents receive concrete prior-state signal, not just an instruction to look for it.
 
 ### What Phase 3 Will Add (Output Versioning as Handoff)
 
@@ -131,7 +131,7 @@ Phase 3 formalizes the run-to-run handoff:
 | Phase | Status | Description |
 |-------|--------|-------------|
 | Phase 1 | ✅ Implemented (2026-04-10) | Prompt layer — accumulation-first guidance in task pipeline + TP |
-| Phase 2 | Proposed | Manifest injection — prior state brief for all task modes |
+| Phase 2 | ✅ Implemented (2026-04-10) | Manifest injection — `TaskWorkspace.get_prior_state_brief()` + wired into all non-`produces_deliverable` task modes via `prior_state_brief` param |
 | Phase 3 | Proposed | Output versioning as forward-looking handoff artifact |
 
 ---

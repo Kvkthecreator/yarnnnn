@@ -527,11 +527,11 @@ Phase 7 extends the prior-output injection model from goal mode to all task mode
 - TP gains search-first posture: scan workspace before proposing task triggers or generating content.
 - See: `api/services/task_pipeline.py` (`build_task_execution_prompt`), `api/agents/tp_prompts/tools.py`, `api/agents/tp_prompts/base.py`.
 
-**Phase 7b (Manifest injection — proposed):**
-- `_build_prior_output_brief()` in `task_pipeline.py` reads `outputs/latest/sys_manifest.json`, calls staleness detection from compose substrate, formats a ~800-token generation brief summarizing: what sections exist, which are stale, what assets are present.
-- Brief injected into `build_task_execution_prompt()` for ALL task modes (not just goal).
-- `TaskWorkspace.get_latest_manifest()` helper for structured manifest access.
-- Graceful degradation: no manifest = fall back to current full-generation behavior.
+**Phase 7b (Manifest injection — implemented 2026-04-10):**
+- `TaskWorkspace.get_prior_state_brief()` reads `outputs/latest/manifest.json` + lists assets, builds ~300-500 token brief (prior run date, asset inventory, output excerpt).
+- `build_task_execution_prompt()` gains `prior_state_brief` param, injected into user message.
+- Applied to all non-`produces_deliverable` tasks (those already get the full ADR-170 compose brief).
+- Graceful degradation: no manifest = `""` = first-run full generation behavior preserved.
 
 **Phase 7c (Forward-looking handoff — proposed):**
 - `sys_manifest.json` gains `generation_gaps` field: what DELIVERABLE.md declared that wasn't produced, with reasons (asset-already-exists, section-current, skipped-no-source-data).

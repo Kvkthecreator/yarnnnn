@@ -222,3 +222,53 @@ class TaskWorkspace:
         except Exception as e:
             logger.warning(f"[TASK_WORKSPACE] get_latest_output failed: {self._slug}: {e}")
             return None
+
+    async def get_prior_state_brief(self, max_output_chars: int = 2000) -> str:
+        """Build a compact prior-state brief for accumulation-first prompt injection.
+
+        ADR-173 Phase 2: Reads outputs/latest/ manifest + file list to tell the agent
+        what was produced in the prior run. Keeps the brief under ~800 tokens.
+
+        Returns empty string if no prior output exists (first run — graceful degradation).
+        """
+        try:
+            # Read the manifest from outputs/latest/
+            manifest_content = await self.read("outputs/latest/manifest.json")
+            if not manifest_content:
+                return ""
+
+            manifest = _json.loads(manifest_content)
+            created_at = manifest.get("created_at", "unknown")
+            agent_slug = manifest.get("agent_slug", "agent")
+            files = manifest.get("files", [])
+
+            # List all files in outputs/latest/ to discover assets
+            latest_files = await self.list("outputs/latest/")
+
+            # Separate content files from assets
+            asset_files = [f for f in latest_files if not f.endswith(("output.md", "manifest.json", "sys_manifest.json", "awareness.md"))]
+            has_hero = any(f.startswith("hero.") for f in asset_files)
+            has_charts = [f for f in asset_files if any(f.endswith(ext) for ext in (".png", ".svg")) and not f.startswith("hero.")]
+
+            # Build compact brief (target: ~300-500 tokens)
+            lines = [f"## Prior Run State (last output: {created_at[:10] if len(created_at) >= 10 else created_at})"]
+            lines.append(f"Agent: {agent_slug} | Files: {len(latest_files)}")
+
+            if has_hero:
+                lines.append("- Hero image: EXISTS at outputs/latest/ — reuse, do not regenerate")
+            if has_charts:
+                lines.append(f"- Charts/assets: {len(has_charts)} file(s) at outputs/latest/ — reuse unless source data changed")
+
+            # Include a short excerpt of prior output for recurring/reactive context
+            prior_output_content = await self.read("outputs/latest/output.md")
+            if prior_output_content:
+                excerpt = prior_output_content[:max_output_chars]
+                if len(prior_output_content) > max_output_chars:
+                    excerpt += "\n[... truncated — full prior output available at outputs/latest/output.md ...]"
+                lines.append(f"\n### Prior Output Excerpt\n{excerpt}")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.debug(f"[TASK_WORKSPACE] get_prior_state_brief failed (non-fatal): {self._slug}: {e}")
+            return ""
