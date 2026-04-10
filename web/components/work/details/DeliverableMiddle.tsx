@@ -170,17 +170,25 @@ export function DeliverableMiddle({
         <SectionProvenanceStrip sections={latest.sections!} />
       )}
 
-      <div className="px-6">
+      <div className="px-6 pb-6">
         <div className="rounded-lg border border-border bg-muted/5 overflow-hidden">
           {latest.html_content ? (
             <iframe
               srcDoc={latest.html_content}
-              className="h-[600px] w-full border-0 bg-white"
+              className="min-h-[500px] w-full border-0 bg-white block"
+              style={{ height: 'auto' }}
+              onLoad={(e) => {
+                const iframe = e.currentTarget;
+                try {
+                  const h = iframe.contentDocument?.documentElement?.scrollHeight;
+                  if (h) iframe.style.height = `${h}px`;
+                } catch {}
+              }}
               sandbox="allow-same-origin allow-scripts"
               title={`${taskSlug} output`}
             />
           ) : (
-            <div className="max-h-[600px] overflow-auto p-5">
+            <div className="p-5">
               <div className="prose prose-sm max-w-none dark:prose-invert">
                 <MarkdownRenderer content={latest.content ?? latest.md_content ?? ''} />
               </div>

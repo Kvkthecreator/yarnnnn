@@ -230,43 +230,52 @@ export function WorkDetail({
   const showObjective = task.output_kind !== 'system_maintenance';
 
   return (
-    <div className="flex-1 overflow-auto">
-      <SurfaceIdentityHeader
-        title={task.title}
-        metadata={(
-          <div className="space-y-1">
-            <TaskMetadata task={task} assignedAgent={assignedAgent} />
-            {actionNotice && (
-              <p
-                className={cn(
-                  'text-[11px]',
-                  actionNotice.kind === 'error'
-                    ? 'text-destructive'
-                    : actionNotice.kind === 'success'
-                      ? 'text-primary'
-                      : 'text-muted-foreground',
-                )}
-              >
-                {actionNotice.text}
-              </p>
-            )}
-          </div>
-        )}
-        actions={
-          <TaskActions
-            task={task}
-            mutationPending={mutationPending}
-            pendingAction={pendingAction}
-            onRun={() => onRunTask(task.slug)}
-            onPause={() => onPauseTask(task.slug)}
-            onEdit={() => onOpenChat(`Help me edit the task "${task.title}". Ask me what I want to change before making any updates.`)}
-          />
-        }
-      />
-      {showObjective && <ObjectiveBlock task={task} />}
-      <KindMiddle task={task} refreshKey={refreshKey} />
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Sticky chrome — header + objective never scroll away */}
+      <div className="shrink-0">
+        <SurfaceIdentityHeader
+          title={task.title}
+          metadata={(
+            <div className="space-y-1">
+              <TaskMetadata task={task} assignedAgent={assignedAgent} />
+              {actionNotice && (
+                <p
+                  className={cn(
+                    'text-[11px]',
+                    actionNotice.kind === 'error'
+                      ? 'text-destructive'
+                      : actionNotice.kind === 'success'
+                        ? 'text-primary'
+                        : 'text-muted-foreground',
+                  )}
+                >
+                  {actionNotice.text}
+                </p>
+              )}
+            </div>
+          )}
+          actions={
+            <TaskActions
+              task={task}
+              mutationPending={mutationPending}
+              pendingAction={pendingAction}
+              onRun={() => onRunTask(task.slug)}
+              onPause={() => onPauseTask(task.slug)}
+              onEdit={() => onOpenChat(`Help me edit the task "${task.title}". Ask me what I want to change before making any updates.`)}
+            />
+          }
+        />
+        {showObjective && <ObjectiveBlock task={task} />}
+      </div>
+
+      {/* Scrollable output region — only this zone scrolls */}
+      <div className="flex-1 overflow-auto min-h-0">
+        <KindMiddle task={task} refreshKey={refreshKey} />
+      </div>
+
+      {/* Sticky footer */}
       {assignedAgent && (
-        <div className="px-6 py-3 border-t border-border/40">
+        <div className="shrink-0 px-6 py-3 border-t border-border/40">
           <Link
             href={`${AGENTS_ROUTE}?agent=${assignedAgent.slug}`}
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
