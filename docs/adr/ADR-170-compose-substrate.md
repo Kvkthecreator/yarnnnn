@@ -1,0 +1,481 @@
+# ADR-170: Compose Substrate — Filesystem-to-Output Assembly Layer
+
+**Date:** 2026-04-10
+**Status:** Proposed
+**Authors:** KVK, Claude
+**Supersedes:** None (new architectural domain)
+**Extends:** ADR-148 (Output Architecture), ADR-151/152 (Context Domains / Directory Registry), ADR-157 (Fetch-Asset Skill), ADR-166 (Registry Coherence)
+**Evolves:** ADR-130 (HTML-Native Output Substrate — Phase 2 compose integration)
+
+---
+
+## Context
+
+YARNNN's output pipeline has three well-defined layers: **generation** (LLM produces prose + inline data), **rendering** (mechanical transformation — tables→charts, mermaid→SVGs), and **display** (frontend shows `output.html` in iframe). What's missing is the layer between "the filesystem has accumulated context and assets" and "a structured output exists that references that context and those assets."
+
+Today, that binding happens implicitly: the LLM is instructed to write prose, the prose happens to reference things in the filesystem, `render_inline_assets()` extracts chartable data, and `compose_html()` wraps it in a layout. There is no explicit representation of *what the output should structurally contain given the current filesystem state*. This means:
+
+- **Revision is full regeneration.** When feedback points at one section, the entire output is regenerated because there's no structural map from sections to their filesystem sources.
+- **Assets are invisible until composed.** An agent may have fetched a competitor logo (ADR-157) or generated a chart in a prior run, but the compose step doesn't know these exist unless the LLM happens to reference them in prose. Assets are first-class in the filesystem but second-class in composition.
+- **Task types differ only cosmetically.** `layout_mode` picks a CSS wrapper (document, dashboard, digest, email). The structural difference between a competitive tracker and a market report — what directories they draw from, what entity structures they expect, how assets bind — is expressed only in prompts, not in a queryable structure.
+- **Cross-run continuity is accidental.** Each run produces a fresh `output.md` with no structural awareness of what the previous run produced. A tenured agent's output isn't structurally richer than a first-run agent's — it's just longer prose because the prompt is longer.
+
+The compose substrate is the architectural domain that addresses all four gaps.
+
+---
+
+## Decision
+
+### The Compose Substrate is a distinct architectural domain
+
+The compose substrate is the **binding layer** between the accumulating filesystem and rendered output. It sits between generation (LLM) and rendering (mechanical), and its job is to answer: *given this task's compose playbook and the current filesystem state, what is the structure of the deliverable, what goes where, and what references need resolving?*
+
+It is housed **within the API service** (`api/services/compose/`), not as a separate render service. The render service (`yarnnn-render`) remains correctly separated for mechanical transformation (pandoc, matplotlib, mermaid-cli). The compose substrate needs deep awareness of the filesystem, task type registry, directory registry, and scope declarations — concerns that belong in the API.
+
+### Naming convention: `sys_` prefix
+
+Compose substrate artifacts in the workspace use the `sys_` prefix to signal **system-managed infrastructure** — files the pipeline reads and writes, distinct from user-authored content (TASK.md, DELIVERABLE.md) and agent-authored content (output.md, memory/*.md). The user can inspect `sys_` files but doesn't need to touch them in normal operation.
+
+```
+/tasks/{slug}/
+├── TASK.md                    # user-authored: operational charter
+├── DELIVERABLE.md             # user-authored: quality contract (ADR-149)
+├── sys_compose.md             # system-managed: compose playbook ← NEW
+├── memory/
+│   ├── run_log.md
+│   ├── feedback.md
+│   └── steering.md
+└── outputs/{date}/            # output folder IS the deliverable ← CHANGED
+    ├── index.html             # entry point (the "page")
+    ├── sections/              # section partials
+    │   ├── executive-summary.html
+    │   ├── competitor-cards.html
+    │   └── signal-timeline.html
+    ├── assets/                # bound assets (root + derivative)
+    │   ├── tam-chart.svg      # derivative: generated from data
+    │   ├── acme-favicon.png   # root: scraped, durable
+    │   └── market-pos.png     # derivative: rendered chart
+    ├── data/                  # structured data backing derivative assets
+    │   └── metrics.json
+    ├── output.md              # source markdown (preserved)
+    └── sys_manifest.json      # system: provenance + asset status
+```
+
+### Core concept: the Compose Playbook (`sys_compose.md`)
+
+The compose substrate's structural knowledge lives as a **playbook** — a markdown document following the same conventions as task process playbooks and agent playbooks. Not a JSON schema blob. Human-readable, editable, and consistent with how the rest of the system expresses structural knowledge.
+
+The compose playbook declares:
+- **Sections** — what the output is made of, each with a kind, title, source scope, and expected assets.
+- **Asset expectations** — what root assets (durable: logos, screenshots) and derivative assets (generated: charts, diagrams) each section expects.
+- **Directory scope** — which workspace directories this output draws from, derived from the task's context declarations.
+
+The playbook is the structural complement to `DELIVERABLE.md`. DELIVERABLE.md is the *quality contract* (what the output should achieve). The compose playbook is the *structural contract* (what the output is made of and where each piece comes from).
+
+#### Playbook creation
+
+Three sources, in order of precedence:
+
+1. **Task type registry** — the `page_structure` field on the task type definition provides the template. When a task is created, the scaffold step generates the initial `sys_compose.md` from this template.
+2. **TP inference** — for custom tasks or when the user describes what they want in chat, TP can infer the compose structure (same pattern as `context_inference.py` for IDENTITY.md).
+3. **User editing** — the playbook is markdown, visible in the workspace, editable. A user can refine the compose structure just like they refine TASK.md or DELIVERABLE.md.
+
+#### Playbook example
+
+```markdown
+# Compose Playbook: Competitive Intelligence Brief
+
+## Directory Scope
+- competitors
+- signals
+
+## Sections
+
+### Executive Summary
+- **Kind:** narrative
+- **Reads from:** competitors/_synthesis.md
+- **Assets:** market/assets/tam-chart.png (derivative)
+
+### Competitor Profiles
+- **Kind:** entity_cards
+- **Entity pattern:** competitors/*/
+- **Reads from:** competitors/*/analysis.md
+- **Assets:** competitors/assets/*-favicon.png (root)
+
+### Signal Timeline
+- **Kind:** timeline
+- **Reads from:** signals/_tracker.md
+
+### Market Position
+- **Kind:** chart
+- **Reads from:** competitors/*/analysis.md
+- **Assets:** (derivative — generated at render time from source data)
+```
+
+### Output as folder — the deliverable is a directory
+
+The output is not a single `output.html` file. It is a **folder** — an `index.html` entry point that includes section partials, references assets, and can in theory be served as a standalone page. The output folder IS the deliverable.
+
+This reframes what revision means:
+
+- **Section-scoped revision:** "competitive section is weak" → regenerate `sections/competitor-cards.html` only. The `index.html` already includes it by reference.
+- **Asset revision:** "chart is stale" → re-render `assets/market-pos.png` from updated source data. `index.html` already references it by path. No regeneration of any section's prose.
+- **Presentation revision:** feedback targets layout, ordering, or styling — not content or data. Change the `index.html` assembly or section ordering without regenerating any section content.
+- **Root context revision:** feedback traces back to upstream data (entity file is incomplete, domain synthesis is stale). Route upstream: re-run the `update-context` step to refresh the domain, then re-derive affected sections.
+
+The folder structure makes these revision types structurally distinct rather than all collapsing into "regenerate everything."
+
+### Two kinds of assets: root and derivative
+
+**Root assets** — durable entities that change rarely and are fetched or created independently of any single output. Logos, screenshots, user-uploaded images, scraped visuals. They live in domain `assets/` folders (`/workspace/context/{domain}/assets/`) and are *copied or linked into* output folders at compose time.
+
+**Derivative assets** — generated from source data during the render step. Charts from tabular data, diagrams from mermaid specs, visualizations from metrics. They are produced fresh (or from cache when source hasn't changed) and written to the output folder's `assets/` directory.
+
+The distinction matters for revision:
+- Root asset stale → fetch/scrape again (external operation, may require render service).
+- Derivative asset stale → re-render from updated source data (mechanical, zero LLM).
+- Both can be refreshed without regenerating prose sections.
+
+The distinction also matters for the spectrum from **static document** to **live dashboard**:
+- Static: derivative assets are rendered images, frozen at compose time.
+- Live: derivative assets are data specs (JSON) + render instructions that the frontend interprets client-side. The output folder contains data + instructions, not finished images. Like a BI dashboard.
+- The folder structure accommodates both — the compose playbook declares whether each derivative asset is `static` (render at compose time) or `live` (render at view time).
+
+### Three operations on the compose substrate
+
+**1. Scaffold** — Given a task type definition (from `task_types.py`), produce the initial compose playbook (`sys_compose.md`). This determines what sections the output will have, what directory scopes each section reads from, and what asset types are expected. Scaffolding happens at task creation and is stored in the task workspace.
+
+**2. Assemble** — Given a compose playbook + current filesystem state, resolve all references. Discover assets in scoped directories. Detect new entities since last assembly. Identify stale sections (source data updated since section was last generated). This runs before generation to tell the LLM *what* to write about and *what assets are available*, and after generation to bind the LLM's output into the folder structure (section partials, asset references, `index.html` assembly).
+
+**3. Revise** — Given a compose playbook + revision signal (user feedback, TP steering, filesystem diff), determine the minimum regeneration scope and route it:
+
+- **Presentation revision** → recompose `index.html` (no regeneration, no re-render).
+- **Section revision** → regenerate affected section partial(s) only, rebind into `index.html`.
+- **Asset revision** → re-render derivative asset from updated data, or re-fetch root asset. No section regeneration unless prose references changed data.
+- **Root context revision** → route upstream to domain re-sync, then cascade: updated domain files → stale sections flagged → section regeneration → asset re-render if data changed.
+
+Revision routing by `output_kind` (ADR-166):
+
+| output_kind | Revision means | Scope |
+|-------------|---------------|-------|
+| `accumulates_context` | Re-sync source data → update entity files → re-derive affected context | Source → filesystem → section |
+| `produces_deliverable` | Section-scoped regeneration, presentation recomposition, or asset refresh | Section / asset / presentation |
+| `external_action` | Follow-up action (re-send, amend) | Action-scoped |
+| `system_maintenance` | N/A — deterministic executors | None |
+
+### Evaluation is a separate concern
+
+The compose substrate handles *structural binding* — what goes where, what references what. It does **not** handle *quality judgment* — whether the output is good, whether sections are strong enough, whether the overall deliverable meets the DELIVERABLE.md quality contract.
+
+Quality evaluation remains in the existing ADR-149 feedback/evaluation/reflection framework:
+- **TP evaluates** output quality against DELIVERABLE.md → produces steering.md directives.
+- **User provides feedback** → routed to task feedback.md.
+- **Agent self-reflects** → writes to memory/reflections.md.
+
+The compose substrate *consumes* evaluation signals as revision inputs (steering notes identify which sections need work), but it does not *produce* quality judgments. This separation preserves the clean boundary: compose substrate = deterministic Python, evaluation = TP intelligence (LLM).
+
+Recursive improvement of the compose substrate itself (are the section structures right? should the playbook evolve?) is a developmental concern that belongs to the agent's learning loop, not to the compose layer. A tenured agent may accumulate preferences about what sections work well — that feeds back into the compose playbook via TP inference, not via the compose substrate judging itself.
+
+### The filesystem is the data model
+
+The compose substrate does not introduce a new storage layer. The filesystem (`workspace_files`) is the data model. Assets live in domain `assets/` folders (ADR-157). Entity files live in domain entity subfolders (ADR-151). Task outputs live in `/tasks/{slug}/outputs/`. The compose substrate *queries* this structure — it does not duplicate it.
+
+Directory scope declarations on task types (`context_reads`, `context_writes` from ADR-151) are the compose substrate's primary index. A task that reads `[competitors, signals]` will have its compose playbook scoped to those directories. A task that reads `[competitors, market, relationships, signals]` gets a wider scope and more sections. Scope determines composition breadth.
+
+### The human analogy
+
+A knowledge worker building an IR deck doesn't write it top to bottom in one pass. They:
+
+1. **Scaffold** — decide the sections: market size, competitive landscape, financials, team. Each section has an implicit scope in their files.
+2. **Gather** — go to their folders. Market size section needs the TAM chart from last month's analysis. Competitive landscape needs competitor logos and the positioning matrix. Financials needs the model output.
+3. **Bind** — place references into the structure. The chart goes here. The logo grid goes here. The narrative wraps around the data.
+4. **Write** — fill in the narrative for each section, knowing what data and assets are already positioned.
+5. **Revise** — boss says "competitive section needs more depth." They don't rewrite the deck. They go to their competitor folder, see what's shallow, research more, update that section's files, and rebind. If the logo is wrong, they just swap the logo — no rewrite. If the chart is stale, they refresh the chart from updated data — no rewrite.
+
+Steps 1–3 and 5 are the compose substrate. Step 4 is the LLM. The render service formats the final product. The boss's evaluation (step 5 trigger) is the separate evaluation concern — it identifies *what* needs revision, but the compose substrate determines *how* to route that revision.
+
+---
+
+## Architecture
+
+### Layer placement
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Layer 3 — TP Intelligence (user-present, orchestration)  │
+│  Evaluates output → produces steering/feedback signals    │
+│  (Evaluation is TP's concern, NOT compose substrate's)    │
+└──────────────────┬───────────────────────────────────────┘
+                   │ steering/feedback signals
+┌──────────────────▼───────────────────────────────────────┐
+│  Layer 2 — Task Execution (Sonnet per task)               │
+│                                                           │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │  SCAFFOLD (task creation)                            │  │
+│  │  sys_compose.md from task type page_structure        │  │
+│  └──────────────────┬──────────────────────────────────┘  │
+│                     │                                     │
+│  ┌──────────────────▼──────────────────────────────────┐  │
+│  │  ASSEMBLE (pre-generation)                           │  │
+│  │  Read sys_compose.md → query filesystem →            │  │
+│  │  asset discovery → staleness detection →             │  │
+│  │  generation brief for LLM                            │  │
+│  └──────────────────┬──────────────────────────────────┘  │
+│                     │                                     │
+│  ┌──────────────────▼──────────────────────────────────┐  │
+│  │  GENERATE (LLM — Sonnet)                             │  │
+│  │  Agent writes section prose guided by assembly brief │  │
+│  └──────────────────┬──────────────────────────────────┘  │
+│                     │                                     │
+│  ┌──────────────────▼──────────────────────────────────┐  │
+│  │  ASSEMBLE (post-generation)                          │  │
+│  │  Bind LLM output → section partials in output folder │  │
+│  │  Resolve asset refs → copy/render into output/assets │  │
+│  │  Compose index.html from partials + assets           │  │
+│  │  Write sys_manifest.json with provenance             │  │
+│  └──────────────────┬──────────────────────────────────┘  │
+│                     │                                     │
+│  ┌──────────────────▼──────────────────────────────────┐  │
+│  │  RENDER (mechanical — yarnnn-render)                  │  │
+│  │  Derivative assets: tables → charts, mermaid → SVGs  │  │
+│  └──────────────────┬──────────────────────────────────┘  │
+│                     │                                     │
+│  ┌──────────────────▼──────────────────────────────────┐  │
+│  │  COMPOSE (mechanical — yarnnn-render)                 │  │
+│  │  Final HTML styling + layout application              │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                           │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │  REVISE (on feedback/steering)                       │  │
+│  │  Classify revision type:                             │  │
+│  │    presentation → recompose index.html               │  │
+│  │    section → regenerate partial(s)                   │  │
+│  │    asset → re-render/re-fetch                        │  │
+│  │    root context → route upstream to domain re-sync   │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────┐
+│  Layer 1 — Mechanical Scheduling (zero LLM)                │
+│  SQL: tasks WHERE next_run_at <= NOW() → execute_task()    │
+└───────────────────────────────────────────────────────────┘
+```
+
+### File structure (API service)
+
+```
+api/services/compose/
+├── __init__.py
+├── scaffold.py      # sys_compose.md generation from task type page_structure
+├── assembly.py      # filesystem query, asset discovery, ref resolution, folder build
+├── revision.py      # revision classification + routing (presentation/section/asset/root)
+├── playbook.py      # compose playbook parsing + serialization (markdown ↔ structured)
+└── manifest.py      # sys_manifest.json schema, provenance tracking, asset status
+```
+
+### Integration with task type registry
+
+Task types in `task_types.py` gain a `page_structure` field consumed by the scaffold operation:
+
+```python
+"competitive-brief": {
+    "output_kind": "produces_deliverable",
+    "layout_mode": "document",
+    "context_reads": ["competitors", "signals"],
+    "context_writes": ["competitors"],
+    "page_structure": [
+        {"kind": "narrative", "title": "Executive Summary",
+         "reads_from": ["competitors/_synthesis.md"]},
+        {"kind": "entity_cards", "title": "Competitor Profiles",
+         "entity_pattern": "competitors/*/",
+         "assets": [{"type": "root", "pattern": "competitors/assets/*-favicon.png"}]},
+        {"kind": "narrative", "title": "Signal Analysis",
+         "reads_from": ["signals/_tracker.md"]},
+        {"kind": "chart", "title": "Market Position",
+         "reads_from": ["competitors/*/analysis.md"],
+         "assets": [{"type": "derivative", "render": "chart"}]},
+    ],
+    # ... existing fields preserved
+}
+```
+
+Tasks with `output_kind: accumulates_context` have simple page structures (single narrative wrapping domain synthesis). Tasks with `output_kind: produces_deliverable` have richer structures with entity cards, charts, and cross-domain narratives. `external_action` and `system_maintenance` tasks don't use compose playbooks.
+
+---
+
+## Impact Radius
+
+### Documents that need downstream updates
+
+| Document | Update needed | Priority |
+|----------|--------------|----------|
+| `docs/architecture/SERVICE-MODEL.md` | Add compose substrate as named domain in Execution Flow; update pipeline to show SCAFFOLD + ASSEMBLE steps | High — canonical (done: Phase 1) |
+| `docs/architecture/FOUNDATIONS.md` | Extend Axiom 2 with composition corollary — accumulation projected into output | High — axiomatic (done: Phase 1) |
+| `docs/architecture/output-substrate.md` | Integrate compose substrate as structural layer; update pipeline diagram | High — adjacent (done: Phase 1) |
+| `docs/architecture/compose-substrate.md` | New canonical reference for the compose domain | High — new (done: Phase 1) |
+| `docs/architecture/workspace-conventions.md` | Add `sys_` naming convention; output-as-folder structure; root vs derivative assets | Medium |
+| `docs/architecture/registry-matrix.md` | Add `page_structure` field to task type catalog | Medium |
+| `docs/architecture/task-type-orchestration.md` | Show how compose playbook flows through multi-step task processes | Medium |
+| `docs/features/agent-playbook-framework.md` | Compose playbook as a new playbook type alongside task process and agent playbooks | Medium |
+
+### ADRs with status implications
+
+| ADR | Relationship |
+|-----|-------------|
+| ADR-148 | Extended — SCAFFOLD + ASSEMBLE steps added to pipeline; output folder structure evolves |
+| ADR-149 | Extended — DELIVERABLE.md (quality) + sys_compose.md (structure) as dual charter. Evaluation remains ADR-149's concern, compose substrate consumes its signals. |
+| ADR-151/152 | Extended — `context_reads`/`context_writes` become compose substrate's scope index; `sys_` naming convention added to workspace conventions |
+| ADR-157 | Absorbed — asset discovery becomes first-class compose operation; root asset distinction formalized |
+| ADR-130 | Evolved — Phase 2 (compose integration) is now the compose substrate |
+| ADR-166 | Extended — revision routing by `output_kind` formalized in `compose/revision.py` |
+
+### Code files affected (implementation, not this ADR)
+
+| File | Change |
+|------|--------|
+| `api/services/task_pipeline.py` | Insert scaffold + assembly steps; output folder build |
+| `api/services/task_types.py` | Add `page_structure` field to task type definitions |
+| `api/services/workspace.py` | Asset discovery helpers; `sys_` file conventions |
+| `api/services/agent_execution.py` | `_compose_output_html` evolves to folder-based composition |
+| `render/compose.py` | Accept compose playbook structure for folder-aware composition |
+| `api/services/directory_registry.py` | Root vs derivative asset conventions |
+| `api/services/primitives/manage_task.py` | Scaffold compose playbook on task creation |
+| `web/components/work/details/DeliverableMiddle.tsx` | Render from output folder `index.html` instead of flat `output.html` |
+
+---
+
+## Phases
+
+### Phase 1: Foundation (this ADR + architecture docs)
+- Create `docs/architecture/compose-substrate.md` (canonical reference) ✓
+- Update SERVICE-MODEL.md execution flow ✓
+- Update FOUNDATIONS.md Axiom 2 with composition corollary ✓
+- Update output-substrate.md with compose substrate integration ✓
+
+### Phase 2: Compose Playbook + Scaffold
+- Create `api/services/compose/` package
+- Implement playbook parsing (`playbook.py`) — markdown ↔ structured
+- Implement scaffold operation from task type `page_structure`
+- Add `page_structure` to 2-3 task types as proof of concept (competitive-brief, market-report, daily-update)
+- Wire scaffold into `ManageTask(action="create")` — generates `sys_compose.md`
+- Add `sys_` naming convention to workspace-conventions.md
+
+### Phase 3: Assembly + Output Folder Build
+- Implement pre-generation assembly (filesystem query, asset discovery, generation brief)
+- Implement post-generation assembly (LLM output → section partials → output folder)
+- Build `index.html` from partials + asset refs
+- Write `sys_manifest.json` with provenance + asset status
+- Wire into `task_pipeline.execute_task()`
+- Validate on competitive-brief and market-report task types
+
+### Phase 4: Revision Routing
+- Implement revision classification (presentation / section / asset / root context)
+- Route revision signals from ADR-149 evaluate/steer/feedback flows
+- Section-scoped regeneration for `produces_deliverable` tasks
+- Asset-only refresh (derivative re-render, root re-fetch) without section regeneration
+
+### Phase 5: Asset Lifecycle
+- Root vs derivative asset tracking in `sys_manifest.json`
+- Staleness detection (asset produced_at vs source data updated_at)
+- Cross-run asset continuity (root assets persist, derivative assets cached until source changes)
+- Static vs live derivative distinction (render at compose time vs render at view time)
+
+### Phase 6: View-Time Rendering (deferred — separate ADR)
+- Frontend interprets output folder structure directly
+- React components per section kind
+- Live derivative assets (data + render spec, client-side rendering)
+- The "runnable app" evolution — output folder as self-contained page application
+
+---
+
+## Resolved Decisions (Stress Test, 2026-04-10)
+
+Five scenarios were stress-tested: simple context task (`track-competitors`), single-domain synthesis (`competitive-brief`), cross-domain synthesizer (`investor-update`), cross-task operational synthesis (`daily-update`), and cascading revision (feedback → section → domain → upstream task). Full scenarios in `docs/analysis/managed-agents-handoff-compute-perimeter-2026-04-09.md` §6.
+
+### RD-1: Compose is a function, not a document
+
+**`sys_compose.md` is dissolved.** The compose substrate does not maintain a separate playbook file per task. The structural knowledge lives where it already exists: `page_structure` field in the task type registry, agent methodology playbooks, and DELIVERABLE.md. The compose function reads these at execution time and produces the output folder. No fourth playbook, no ambiguity about which file is authoritative.
+
+The compose substrate is a **capability layer** that reads existing sources (task type registry + agent playbooks + DELIVERABLE.md + filesystem state) and produces a folder. The only new runtime artifact is `sys_manifest.json` in the output folder (provenance per section + asset status).
+
+### RD-2: The generation brief is the primary output
+
+The compose function's highest-value output is not the folder itself — it's the **generation brief** it gives the LLM before generation. The brief tells the LLM: which sections to write, what data exists per section, what entities are present, what assets are available, what's stale vs. current since last run.
+
+This is where tenure compounds. A tenured workspace has richer domains → the generation brief is richer → the LLM produces more targeted, structured output. Without the compose function, the LLM receives a flat context dump and organizes everything itself.
+
+### RD-3: Revision is composition with diff — no separate workflow
+
+Revision and composition are the same operation with different inputs. First run: compose receives gathered context + `page_structure` → produces folder from scratch. Subsequent runs: compose receives gathered context + `page_structure` + existing output folder + staleness signals → produces updated folder, regenerating only stale sections.
+
+The provenance metadata in `sys_manifest.json` (which run produced each section, what source files it read, when) enables the diff. Compose detects: section X was produced from file Y at time T₁; file Y was updated at T₂ > T₁; therefore section X is stale and needs regeneration.
+
+**Approaches A and B collapse.** There is no separate revision workflow because revision IS composition against a richer input (existing folder + what changed). The four revision types (presentation, section, asset, root context) are still valid as classifications, but they're all handled by the same compose function — they just result in different scopes of regeneration within the output folder.
+
+### RD-4: Compose enhances existing context gathering, doesn't replace it
+
+The pipeline's `gather_task_context()` does the heavy lifting of reading domain files. The compose function operates on already-gathered context and structures it per the task type's `page_structure`. Compose does not need its own filesystem query layer — it adds structural awareness to the existing context-gathering output.
+
+### RD-5: Upstream orchestration stays with TP
+
+When compose detects that upstream data is missing, wrong, or insufficient for a section, it returns a structured diagnosis: which section is affected, which domain/file is the source, which task last wrote it, and what action is recommended. TP receives this and orchestrates the fix (steer upstream task, trigger re-run). The compose function does not reach across task boundaries.
+
+### Impact on Phases
+
+Phase 2 revised: no `sys_compose.md` generation. Instead, add `page_structure` to task type definitions and implement the compose function that reads it. Phase 3 revised: generation brief construction becomes the central implementation concern. Phase 4 revised: no separate revision routing module — revision is handled by the compose function detecting staleness against existing output folder.
+
+### Impact on prior sections
+
+The "Compose Playbook" section above describes the pre-stress-test model. Per RD-1, `sys_compose.md` is dissolved. The `page_structure` on task type definitions remains as the structural template. The compose function reads it at execution time. The "Three Operations" section remains valid: scaffold (on first run, from registry), assemble (compose function proper), revise (compose function with existing folder as additional input).
+
+---
+
+## What This Is Not
+
+- **Not a separate service.** The compose substrate lives in the API service. It needs filesystem access, task type awareness, and directory registry — all API-resident concerns.
+- **Not a replacement for the render service.** `yarnnn-render` stays for mechanical transformation (pandoc, matplotlib, mermaid-cli, final HTML styling). The compose substrate produces the *structural plan* and *output folder*; the render service produces *derivative assets* and *styled HTML*.
+- **Not a new storage layer.** The filesystem (`workspace_files`) is the data model. The compose substrate queries it, it doesn't duplicate it.
+- **Not LLM-driven composition.** Assembly and revision routing are deterministic Python. The only LLM call is generation (writing prose for sections). Zero LLM cost for compose operations.
+- **Not a quality evaluator.** The compose substrate binds structure; it does not judge quality. Evaluation remains in ADR-149's feedback/evaluation/reflection framework. The compose substrate consumes evaluation signals as revision inputs.
+
+---
+
+## Parked Concerns (Documented, Deferred)
+
+These broader architectural concerns surfaced during compose substrate discourse. They are related but not blocking, and each deserves independent treatment.
+
+### 1. `sys_` as System-Wide Naming Governance
+
+The `sys_` prefix introduced here for compose artifacts (`sys_compose.md`, `sys_manifest.json`) is actually a **system-wide governance rule** — a naming tier alongside existing `UPPERCASE.md` (charter), `lowercase.md` (content), and `_prefixed.md` (hidden infrastructure). `sys_` signals "system-managed, inspectable but not user-authored."
+
+**Scope:** All workspace conventions, frontend explorer visibility rules (grey-out or collapse `sys_` files alongside hiding `_` files).
+**Action:** Workspace-conventions.md version bump or lightweight ADR. Not blocking compose substrate.
+
+### 2. Evaluation as Independent Entity
+
+The compose substrate explicitly does not evaluate quality — it consumes evaluation signals. But the broader thesis is stronger: **evaluation should be structurally independent of the system it evaluates**, like an external audit firm auditing a corporation. This means:
+- Evaluation criteria managed independently of both compose playbook and DELIVERABLE.md.
+- Evaluation results in their own namespace (not just appended to feedback.md).
+- Potentially a distinct evaluation agent or evaluation concern on TP.
+
+**Scope:** New architectural domain. Extends ADR-149 (feedback/evaluation/reflection) into a first-class independent entity.
+**Action:** Separate ADR. Not blocking compose substrate — compose consumes evaluation signals regardless of where they originate.
+
+### 3. Output as Runnable App
+
+The output-as-folder model's logical endpoint: when the folder contains enough structure (HTML partials, data files, styles, render instructions), it's a self-contained application that agents could build from a task instruction. This means:
+- Output folders with their own package manifests.
+- Client-side rendering of live derivative assets (data + render spec, not frozen images).
+- The BI dashboard spectrum: static snapshot → interactive page → live app.
+
+**Scope:** Phase 6 of ADR-170. Large enough for its own ADR.
+**Action:** Separate ADR when compose substrate Phases 2-4 are implemented and the folder model is proven.
+
+---
+
+## Axiom Claim
+
+The compose substrate is **axiomatic** to YARNNN's architecture because it is the layer that makes the accumulation thesis (FOUNDATIONS Axiom 2) manifest in output. Without it, the filesystem accumulates but output doesn't structurally reflect that accumulation — each run starts fresh with no structural memory of what's been built. With it, output is a *projection* of the filesystem through the lens of the task's compose playbook, and revision is a *targeted response* to filesystem changes rather than a full regeneration gamble.
+
+The filesystem has gravity (things accumulate, net direction is growth). The compose substrate is what converts that gravity into deliverable quality that compounds with tenure. The output folder — with its section partials, root assets, derivative assets, and assembly index — is the physical manifestation of that compound value.

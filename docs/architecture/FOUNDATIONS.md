@@ -107,6 +107,16 @@ External platforms → live API calls → agent execution → task output →
 
 The workspace filesystem (three roots: `/workspace/`, `/agents/`, `/tasks/`) acts as an **operating system for agent and human work** — a shared substrate where both contribute and both consume. The filesystem IS the information architecture (ADR-142, ADR-153).
 
+### Corollary: Composition Is Projection of Accumulation (ADR-170)
+
+The perception substrate accumulates. But accumulation without structural projection into output is invisible — each run starts fresh with no awareness of what's been built. The **compose substrate** is the layer that makes accumulation manifest in deliverables.
+
+Composition is not rendering (mechanical transformation) and not generation (LLM prose). It is the *binding* operation: given a task type's structure and the current filesystem state, what sections should the output have, what assets are available, and what references need resolving? The output is a *projection* of the filesystem through the lens of the task type's declared structure.
+
+This is why revision can be targeted rather than full regeneration. When feedback points at one section, the compose substrate knows what that section reads from, what assets it references, and whether its sources have changed. Revision is filesystem-diff routing, not a regeneration gamble.
+
+The compose substrate makes the recursive property structurally load-bearing: a tenured agent's output isn't just better because the LLM has more context — it's structurally richer because the filesystem has more entities, more assets, and more accumulated analysis for the compose substrate to bind into sections. See [compose-substrate.md](compose-substrate.md).
+
 ### Implication: Optimize for Accumulation, Not Extraction
 
 The external platform integrations are the onramp. The enduring value is in the recursive accumulation: agent memory, learned preferences, domain theses, cross-agent insights. As LLM capabilities improve, the quality of each recursive cycle improves — the system's reasoning gets better at the same substrate. This compounds. The architecture must accommodate that compounding.

@@ -113,15 +113,39 @@ Agent type → capabilities → for each capability:
 
 ---
 
-## Output Pipeline (ADR-148)
+## Output Pipeline (ADR-148, extended by ADR-170)
 
-Three production phases, strictly separated:
+Five production phases. SCAFFOLD and ASSEMBLE (the compose substrate) are deterministic Python — zero LLM cost. They are the binding layer between the accumulating filesystem and rendered output. See [compose-substrate.md](compose-substrate.md).
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│           PHASE 1: GENERATE (LLM)                    │
+│      PHASE 0: SCAFFOLD (first run only)              │
 │                                                      │
-│  Agent produces prose with inline data:              │
+│  Create page_spec.json from task type definition:    │
+│  ├── Declared sections with kinds and scopes         │
+│  ├── Expected asset types per section                │
+│  ├── Directory scope from context_reads              │
+│  Zero LLM cost. Deterministic.                       │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────┐
+│      PHASE 1a: ASSEMBLE — pre-generation             │
+│                                                      │
+│  Query filesystem state for scoped directories:      │
+│  ├── Discover assets in domain assets/ folders       │
+│  ├── Enumerate entities matching section patterns    │
+│  ├── Flag stale sections (source newer than content) │
+│  └── Build generation brief for LLM                  │
+│                                                      │
+│  Zero LLM cost. Deterministic filesystem queries.    │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────┐
+│      PHASE 1b: GENERATE (LLM)                        │
+│                                                      │
+│  Agent produces prose guided by assembly brief:      │
 │  ├── Structured markdown (output.md)                 │
 │  ├── Data tables (markdown tables with numeric data) │
 │  └── Mermaid code blocks (diagrams)                  │
@@ -132,7 +156,19 @@ Three production phases, strictly separated:
                    │
                    ▼
 ┌─────────────────────────────────────────────────────┐
-│           PHASE 2: RENDER (mechanical)               │
+│      PHASE 1c: ASSEMBLE — post-generation            │
+│                                                      │
+│  Bind LLM output into page_spec sections:            │
+│  ├── Resolve asset references to filesystem paths    │
+│  ├── Update provenance (run ID, timestamp)           │
+│  └── Persist updated page_spec.json                  │
+│                                                      │
+│  Zero LLM cost. Deterministic binding.               │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────┐
+│      PHASE 2: RENDER (mechanical)                    │
 │                                                      │
 │  render_inline_assets() extracts and renders:        │
 │  ├── Numeric data tables → chart via POST /render    │
@@ -144,11 +180,11 @@ Three production phases, strictly separated:
                    │
                    ▼
 ┌─────────────────────────────────────────────────────┐
-│           PHASE 3: COMPOSE (mechanical)              │
+│      PHASE 3: COMPOSE (mechanical)                   │
 │                                                      │
-│  POST /compose with enriched markdown + asset URLs:  │
-│  ├── Apply composition mode (document/presentation/  │
-│  │   dashboard/data)                                 │
+│  POST /compose with page spec + rendered assets:     │
+│  ├── Apply layout mode (document/presentation/       │
+│  │   dashboard/data/digest/email)                    │
 │  └── Store output.html alongside output.md           │
 └──────────────────┬──────────────────────────────────┘
                    │

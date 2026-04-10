@@ -125,19 +125,25 @@ Three layers, strictly separated (ADR-141):
 **Layer 2 — Task Execution** (Sonnet per task, then mechanical render + compose)
 ```
 execute_task(slug)
-  → Read TASK.md + DELIVERABLE.md + steering.md + feedback.md from workspace
+  → Read TASK.md + DELIVERABLE.md + page_spec.json + steering.md + feedback.md
   → Resolve assigned agent(s) from process definition
   → Check work credits (budget gate)
-  → Gather context (task-aware KB search by objective)
-  → GENERATE: headless agent produces prose + inline data tables + mermaid diagrams
+  → SCAFFOLD (first run only): create page_spec.json from task type's page_structure
+  → ASSEMBLE (pre-gen): query filesystem for scoped directories, discover assets,
+      enumerate entities, flag stale sections, build generation brief
+  → GENERATE: headless agent produces prose guided by assembly brief
+  → ASSEMBLE (post-gen): bind LLM output into page_spec sections,
+      resolve asset refs, update provenance
   → RENDER: extract data tables → charts, mermaid → SVGs (mechanical, zero LLM)
-  → COMPOSE: enriched markdown + assets → styled HTML per composition mode
-  → Save output to /tasks/{slug}/outputs/{date}/
+  → COMPOSE: page spec + rendered assets → styled HTML per layout mode
+  → Save output + page_spec snapshot to /tasks/{slug}/outputs/{date}/
   → Deliver to destination (email/Slack/Notion)
   → Update agent memory (agent reflection, observations)
   → TP evaluates task output quality against DELIVERABLE.md (evaluation loop)
   → Advance next_run_at
 ```
+
+The SCAFFOLD → ASSEMBLE → GENERATE → ASSEMBLE → RENDER → COMPOSE chain is the **compose substrate** (ADR-170) — the binding layer between the accumulating filesystem and rendered output. Assembly and revision routing are deterministic Python (zero LLM cost). The compose substrate is what makes revision a targeted, section-scoped operation rather than full regeneration. See [compose-substrate.md](compose-substrate.md).
 
 **Multi-step process** (task types with `process` field defining multiple agent steps):
 ```

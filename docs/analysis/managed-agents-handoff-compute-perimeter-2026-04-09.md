@@ -168,22 +168,56 @@ The docs currently describe a stronger "singular rendering path" than the code q
 
 That means the current truth is **HTML-primary, not HTML-exclusive**. That's probably the correct operational stance today, but it's worth naming because any future ADR about Managed Agents or `rich_page` outputs should not assume the stricter invariant has already been fully enforced.
 
-## 6. Recommended next steps
+## 6. Discourse conclusions (2026-04-10)
+
+### Move B resolved into ADR-170: Compose Substrate
+
+The extended discourse on Move B reached a foundational conclusion: the compose substrate is **axiomatic** — it is the layer that makes the accumulation thesis (FOUNDATIONS Axiom 2) manifest in output. It warrants its own architectural domain within the service model, comparable to how the render service or the task pipeline are distinct domains.
+
+Key insights that emerged through discourse:
+
+**The filesystem is relational and accumulating.** Directories are scoped context. Each producer run adds deposits. The net direction is growth. Synthesizer agents compose against progressively richer substrate. Assets created or scraped in one cycle are discoverable in the next. The compose substrate is the layer that queries this accumulating structure and projects it into deliverable sections.
+
+**The compose playbook (`sys_compose.md`) replaces the JSON page spec.** Following YARNNN's existing playbook conventions (task process, agent playbooks), the structural knowledge is expressed as markdown — human-readable, editable, consistent. Created from task type templates, refinable by TP or user.
+
+**Output is a folder, not a file.** The deliverable is a directory: `index.html` + section partials + assets + data + manifest. This makes revision structurally targetable: swap an asset, regenerate a section partial, recompose the index — without regenerating the whole output. The folder structure can in theory be served as its own standalone page or even app.
+
+**Two kinds of assets: root and derivative.** Root assets (logos, screenshots) are durable and change rarely. Derivative assets (charts, diagrams) are generated from source data. Both can be refreshed without regenerating prose. The distinction also enables the static→live spectrum (compose-time render vs view-time render).
+
+**Evaluation is a separate concern.** The compose substrate binds structure; it does not judge quality. Quality evaluation stays in ADR-149. The compose substrate consumes evaluation signals as revision inputs.
+
+**Four revision types, not one.** Presentation (recompose index), section (regenerate partial), asset (re-render/re-fetch), root context (route upstream to domain re-sync). Only section revision costs LLM tokens.
+
+**`sys_` naming convention** for system-managed compose artifacts distinguishes them from user-authored and agent-authored files.
+
+### Documentation produced
+
+- **ADR-170** (`docs/adr/ADR-170-compose-substrate.md`) — governing decision record
+- **Architecture doc** (`docs/architecture/compose-substrate.md`) — canonical reference
+- **FOUNDATIONS.md** — Axiom 2 extended with "Composition Is Projection of Accumulation" corollary
+- **SERVICE-MODEL.md** — execution flow updated with SCAFFOLD + ASSEMBLE steps
+- **output-substrate.md** — pipeline diagram updated with compose substrate phases
+
+### Remaining next steps
 
 1. **Confirm Move A explicitly.** Document in an ADR that `yarnnn-render` stays internalized for the reasons in §4. This is cheap and closes an open question.
 2. **Read Managed Agents Environment + Tools docs.** 1-hour research task. Determines whether the reasoning loop can move while `yarnnn-render` stays, and which skills (if any) can port.
-3. **Decide on Move B framing.** Is YARNNN's long-term output substrate document-shaped or page-shaped? This is a product question as much as an architecture question. If page-shaped, draft an ADR for `rich_page` output_kind + page spec format + web app rendering contract + export flattening strategy. Explicitly separate compose-time HTML from view-time page rendering so the discussion doesn't collapse them into one phrase.
-4. **Tighten doc/code alignment on the rendering contract.** Either fully enforce `output.html` as mandatory for deliverable tasks, or update the prose to state the real invariant: HTML-primary with markdown fallback. This matters for future handoff decisions because fallback semantics change where failures are tolerated.
-5. **Rewrite the positioning.** Independent of architecture: the pitch is no longer "we build agents." It is "we are the accumulating knowledge substrate that makes agents get better with tenure." Managed Agents' existence makes this *easier* to tell by providing the named contrast case.
+3. **Begin ADR-170 Phase 2 implementation.** Create `api/services/compose/` package, implement playbook parsing, scaffold 2-3 task types with `page_structure`.
+4. **Update workspace-conventions.md.** Add `sys_` naming convention, output-as-folder structure, root vs derivative asset conventions.
+5. **Tighten doc/code alignment on the rendering contract.** Either fully enforce `output.html` as mandatory for deliverable tasks, or update the prose to state the real invariant: HTML-primary with markdown fallback.
+6. **Rewrite the positioning.** The pitch is "we are the accumulating knowledge substrate that makes agents get better with tenure." Managed Agents' existence makes this *easier* to tell.
 
 ## 7. Related ADRs
 
 - **ADR-072**: Unified Content Layer — accumulation moat thesis (the thing Managed Agents structurally lacks)
 - **ADR-118**: Skills as Capability Layer — internalized compute architecture, SKILL.md conventions
-- **ADR-130**: HTML-Native Output Substrate — compose engine, asset producers, export pipeline (seed for Move B)
+- **ADR-130**: HTML-Native Output Substrate — compose engine, asset producers, export pipeline (evolved by ADR-170)
 - **ADR-138**: Agents as Work Units — identity/work separation that mirrors Managed Agents' Agent/Session split
 - **ADR-140**: Agent Workforce Model — the ~8 global roster types that would map to global Managed Agent configs
 - **ADR-141**: Unified Execution Architecture — mechanical scheduling + LLM generation separation (the seam where a handoff would cut)
-- **ADR-151/152**: Shared Context Domains / Unified Directory Registry — the accumulating workspace that is YARNNN's moat
+- **ADR-148**: Output Architecture — pipeline extended by ADR-170 compose substrate
+- **ADR-151/152**: Shared Context Domains / Unified Directory Registry — the accumulating workspace that is YARNNN's moat; scope declarations that drive compose assembly
+- **ADR-157**: Fetch-Asset Skill — asset discovery absorbed into compose substrate
 - **ADR-159**: Filesystem-as-Memory — already the right shape for chatty MCP-driven context gathering
-- **ADR-166**: Registry Coherence Pass — current output_kind taxonomy that `rich_page` would extend
+- **ADR-166**: Registry Coherence Pass — output_kind taxonomy drives compose revision routing
+- **ADR-170**: Compose Substrate — the foundational ADR produced by this discourse

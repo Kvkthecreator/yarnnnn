@@ -179,6 +179,7 @@ Each task's work definition, quality contract, cycle-to-cycle awareness, executi
 /tasks/{slug}/
 ├── TASK.md                        # Charter: objective, process, type_key, mode
 ├── DELIVERABLE.md                 # Quality contract: output spec + assets + inferred preferences (ADR-149)
+├── sys_compose.md                 # Structural contract: compose playbook — sections, scopes, assets (ADR-170)
 ├── awareness.md                   # Cycle-to-cycle execution state (ADR-154, pipeline-maintained)
 ├── memory/
 │   ├── run_log.md                 # Execution history (append-only audit trail)
@@ -186,17 +187,36 @@ Each task's work definition, quality contract, cycle-to-cycle awareness, executi
 │   └── steering.md                # TP management notes for next cycle (ADR-149)
 ├── outputs/
 │   ├── latest/                    # Current deliverable (mode-dependent semantics)
-│   │   ├── output.md
-│   │   ├── output.html
-│   │   └── manifest.json
-│   └── {date}/                    # Run history (timestamped folders)
-│       ├── output.md
-│       ├── output.html
-│       └── manifest.json
+│   │   ├── index.html             # Entry point — assembles section partials + assets (ADR-170)
+│   │   ├── output.md              # Source markdown (preserved)
+│   │   ├── sections/              # Section partials (one per compose playbook section)
+│   │   │   ├── executive-summary.html
+│   │   │   └── competitor-cards.html
+│   │   ├── assets/                # Bound assets — root (durable) + derivative (generated)
+│   │   │   ├── tam-chart.svg      # Derivative: rendered from data
+│   │   │   └── acme-favicon.png   # Root: scraped/fetched, durable
+│   │   ├── data/                  # Structured data backing derivative assets
+│   │   │   └── metrics.json
+│   │   └── sys_manifest.json      # Provenance, asset status, run metadata (ADR-170)
+│   └── {date}/                    # Run history (timestamped folders, same structure as latest/)
 └── working/                       # Ephemeral scratch (24h TTL)
 ```
 
-Tasks do NOT have `context/` or `knowledge/` folders — accumulated context lives at `/workspace/context/` (ADR-151). Tasks are thin work units: charter, quality contract, memory, outputs, scratch.
+Tasks do NOT have `context/` or `knowledge/` folders — accumulated context lives at `/workspace/context/` (ADR-151). Tasks are thin work units: charter, quality contract, structural contract, memory, outputs, scratch.
+
+### Compose Playbook (`sys_compose.md`) — ADR-170
+
+The compose playbook is the third playbook type alongside agent methodology playbooks (`_playbook-*.md`) and TP orchestration (`_playbook.md`). It declares what the output is structurally made of: sections, their directory scopes, and expected assets. Scaffolded from the task type's `page_structure` field at task creation, refinable by TP or user. See [compose-substrate.md](compose-substrate.md).
+
+### Output Folder as Deliverable — ADR-170
+
+Output folders evolve from flat files (`output.md` + `output.html` + `manifest.json`) to structured directories. The folder IS the deliverable: `index.html` assembles section partials and asset references. This makes revision structurally targetable — swap an asset, regenerate a section partial, or recompose the index without regenerating the whole output.
+
+Two kinds of assets in output folders:
+- **Root assets**: durable entities (logos, screenshots) copied from domain `assets/` folders at compose time. Change rarely.
+- **Derivative assets**: generated from source data (charts, diagrams, mermaid SVGs) during the render step. Refreshed when source data changes.
+
+Both can be updated without regenerating prose sections.
 
 ### Mode-Dependent `outputs/` Semantics
 
@@ -294,6 +314,7 @@ Task outputs use `manifest.json` for metadata:
 - [ADR-128: Multi-Agent Coherence Protocol](../adr/ADR-128-multi-agent-coherence-protocol.md)
 - ADR-149 — DELIVERABLE.md, task memory files (feedback.md, steering.md), agent reflections
 - ADR-151 — /workspace/context/ accumulated context domains, domain registry
+- [ADR-170: Compose Substrate](../adr/ADR-170-compose-substrate.md) — compose playbook, output-as-folder, asset types
 
 ---
 
@@ -312,3 +333,4 @@ Task outputs use `manifest.json` for metadata:
 | 2026-03-31 | v9 | ADR-153: platform_content sunset. /platforms/ deprecated — platform data flows through tracking tasks into /workspace/context/ domains. Four roots → three roots. Platform sync file-sharing context removed. |
 | 2026-04-01 | v10 | TP Awareness Model hardened — three-layer architecture (ground truth, workspace files, behavioral guidance), agent-level hooks documented. Cross-ref TP-DESIGN-PRINCIPLES.md. AWARENESS.md added to /workspace/ as TP's persistent situational notes. |
 | 2026-04-01 | v11 | ADR-154: Execution boundary reform. Agent workspace thinned to identity only (AGENT.md + playbooks). Dissolved: thesis.md, reflections.md, feedback.md, working/, 6 dead files. Task awareness.md added (cycle-to-cycle state). Domain _tracker.md added (entity registry, pipeline-maintained). context_reads fixed for track-relationships/track-projects. Tool round budget increased. |
+| 2026-04-10 | v13 | ADR-170: Compose substrate. sys_compose.md added to /tasks/{slug}/ (structural contract — compose playbook). Output folders evolve to structured directories: index.html + sections/ + assets/ + data/ + sys_manifest.json. Root vs derivative asset distinction. Compose playbook as third playbook type alongside agent methodology and TP orchestration. |
