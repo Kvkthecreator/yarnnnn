@@ -21,6 +21,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from services.schedule_utils import calculate_next_run_at, get_user_timezone
+
 logger = logging.getLogger(__name__)
 
 
@@ -131,9 +133,11 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
     # =========================================================================
     # Phase 5: Default Tasks — the heartbeat anchor (ADR-161)
     # =========================================================================
+    user_timezone = get_user_timezone(client, user_id)
+
     # Every workspace gets exactly one default task: daily-update.
     # It is essential — cannot be deleted or auto-paused. It is the user-facing
-    # manifestation of the system being alive, and runs daily at 09:00 UTC.
+    # manifestation of the system being alive, and runs daily at 09:00 local time.
     # Empty workspaces produce a deterministic "honest empty" template (zero
     # LLM cost). Populated workspaces produce a real operational digest.
     # ── Daily update (user-facing heartbeat, ADR-161) ──
@@ -146,7 +150,7 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
             .execute()
         )
         if not (existing_task.data or []):
-            await _create_essential_daily_update(client, user_id)
+            await _create_essential_daily_update(client, user_id, user_timezone)
             result["tasks_created"].append("daily-update")
             logger.info(f"[WORKSPACE_INIT] Default task: daily-update (essential)")
         else:
@@ -171,7 +175,14 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
                 .execute()
             )
             if not (existing.data or []):
-                await _create_essential_back_office_task(client, user_id, type_key, slug, title)
+                await _create_essential_back_office_task(
+                    client,
+                    user_id,
+                    type_key,
+                    slug,
+                    title,
+                    user_timezone,
+                )
                 result["tasks_created"].append(slug)
                 logger.info(f"[WORKSPACE_INIT] Default task: {slug} (essential, TP-owned)")
             else:
@@ -225,11 +236,15 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
     return result
 
 
-async def _create_essential_daily_update(client: Any, user_id: str) -> None:
+async def _create_essential_daily_update(
+    client: Any,
+    user_id: str,
+    user_timezone: str,
+) -> None:
     """Create the essential daily-update task at workspace initialization.
 
     ADR-161: This is the heartbeat artifact. Every workspace gets one.
-    The task runs at 09:00 UTC each day. Empty workspaces produce a
+    The task runs at 09:00 in the user's local timezone. Empty workspaces produce a
     deterministic template; populated workspaces produce a real digest.
 
     The `essential=true` flag prevents archive and (future) auto-pause.
@@ -239,9 +254,7 @@ async def _create_essential_daily_update(client: Any, user_id: str) -> None:
     from services.task_types import build_task_md_from_type
 
     now = datetime.now(timezone.utc)
-    # Tomorrow 09:00 UTC
-    tomorrow = now + timedelta(days=1)
-    next_run = tomorrow.replace(hour=9, minute=0, second=0, microsecond=0)
+    next_run = calculate_next_run_at("daily", last_run_at=now, user_timezone=user_timezone)
 
     row = {
         "user_id": user_id,
@@ -249,7 +262,7 @@ async def _create_essential_daily_update(client: Any, user_id: str) -> None:
         "mode": "recurring",
         "status": "active",
         "schedule": "daily",
-        "next_run_at": next_run.isoformat(),
+        "next_run_at": next_run.isoformat() if next_run else now.isoformat(),
         "essential": True,
     }
     insert_result = client.table("tasks").insert(row).execute()
@@ -275,6 +288,7 @@ async def _create_essential_back_office_task(
     type_key: str,
     slug: str,
     title: str,
+    user_timezone: str,
 ) -> None:
     """Create an essential back office task owned by TP (ADR-164).
 
@@ -287,10 +301,8 @@ async def _create_essential_back_office_task(
     from services.task_types import build_task_md_from_type
 
     now = datetime.now(timezone.utc)
-    # Tomorrow 09:00 UTC — back office tasks share the same daily cadence
-    # anchor as daily-update. Same rationale: predictable morning rhythm.
-    tomorrow = now + timedelta(days=1)
-    next_run = tomorrow.replace(hour=9, minute=0, second=0, microsecond=0)
+    # Same local morning cadence as daily-update.
+    next_run = calculate_next_run_at("daily", last_run_at=now, user_timezone=user_timezone)
 
     row = {
         "user_id": user_id,
@@ -298,7 +310,7 @@ async def _create_essential_back_office_task(
         "mode": "recurring",
         "status": "active",
         "schedule": "daily",
-        "next_run_at": next_run.isoformat(),
+        "next_run_at": next_run.isoformat() if next_run else now.isoformat(),
         "essential": True,
     }
     insert_result = client.table("tasks").insert(row).execute()

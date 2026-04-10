@@ -27,6 +27,12 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from services.schedule_utils import (
+    calculate_next_run_at as _calculate_next_run_at,
+    format_daily_local_time_label,
+    get_user_timezone,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -1190,41 +1196,20 @@ If context says "(No context available)" or tools return no results:
 def calculate_next_run_at(
     schedule,
     last_run_at: Optional[datetime] = None,
+    user_timezone: str = "UTC",
 ) -> Optional[datetime]:
-    """Calculate next_run_at from schedule string. Pure math, no LLM.
+    """Calculate next_run_at from schedule. Pure math, no LLM.
 
     ADR-154: Schedule is just schedule — no phase override. Phase affects
     execution depth (tool rounds, prompt), not frequency. The journalist
     model: first run is deep research, subsequent runs are delta updates,
     but the check-in rhythm stays the same.
     """
-    now = last_run_at or datetime.now(timezone.utc)
-
-    if isinstance(schedule, str):
-        s = schedule.lower().strip()
-        if s == "daily":
-            return (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-        elif s == "weekly":
-            days_ahead = 7 - now.weekday()
-            if days_ahead == 0:
-                days_ahead = 7
-            return (now + timedelta(days=days_ahead)).replace(hour=9, minute=0, second=0, microsecond=0)
-        elif s == "monthly":
-            if now.month == 12:
-                return now.replace(year=now.year + 1, month=1, day=1, hour=9, minute=0, second=0, microsecond=0)
-            return now.replace(month=now.month + 1, day=1, hour=9, minute=0, second=0, microsecond=0)
-        else:
-            return now + timedelta(hours=24)
-
-    # Legacy dict format
-    if isinstance(schedule, dict):
-        try:
-            from jobs.unified_scheduler import calculate_next_pulse_from_schedule
-            return calculate_next_pulse_from_schedule(schedule, from_time=last_run_at)
-        except Exception:
-            return now + timedelta(hours=24)
-
-    return None
+    return _calculate_next_run_at(
+        schedule=schedule,
+        last_run_at=last_run_at,
+        user_timezone=user_timezone,
+    )
 
 
 # =============================================================================
@@ -1254,6 +1239,7 @@ async def execute_task(
     from services.agent_framework import has_asset_capabilities, has_capability
 
     started_at = datetime.now(timezone.utc)
+    user_timezone = get_user_timezone(client, user_id)
     logger.info(f"[TASK_EXEC] Starting: {task_slug} for user {user_id[:8]}...")
 
     # =====================================================================
@@ -1283,7 +1269,7 @@ async def execute_task(
             is_empty = await _is_workspace_empty_for_daily_update(client, user_id)
             if is_empty:
                 empty_result = await _execute_daily_update_empty_state(
-                    client, user_id, started_at
+                    client, user_id, started_at, user_timezone=user_timezone
                 )
                 return empty_result
         except Exception as e:
@@ -1326,6 +1312,7 @@ async def execute_task(
                 steering_notes=steering_notes,
                 task_feedback=task_feedback,
                 task_mode=task_mode,
+                user_timezone=user_timezone,
             )
             return result
 
@@ -1388,6 +1375,7 @@ async def execute_task(
                 agent_slug=agent_slug,
                 tw=tw,
                 started_at=started_at,
+                user_timezone=user_timezone,
             )
 
         # =====================================================================
@@ -1856,7 +1844,11 @@ async def execute_task(
             )
             schedule = (task_row.data[0]["schedule"] if task_row.data else None) or None
 
-            next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
+            next_run = calculate_next_run_at(
+                schedule,
+                last_run_at=now,
+                user_timezone=user_timezone,
+            ) if schedule else None
 
             update_data = {
                 "last_run_at": now.isoformat(),
@@ -1918,7 +1910,11 @@ async def execute_task(
                 "user_id", user_id
             ).eq("slug", task_slug).limit(1).execute()
             schedule = (task_row.data[0]["schedule"] if task_row.data else None) or None
-            next_run = calculate_next_run_at(schedule, last_run_at=datetime.now(timezone.utc)) if schedule else None
+            next_run = calculate_next_run_at(
+                schedule,
+                last_run_at=datetime.now(timezone.utc),
+                user_timezone=user_timezone,
+            ) if schedule else None
             client.table("tasks").update({
                 "next_run_at": next_run.isoformat() if next_run else None,
             }).eq("user_id", user_id).eq("slug", task_slug).execute()
@@ -1943,6 +1939,7 @@ async def _execute_pipeline(
     steering_notes: str = "",
     task_feedback: str = "",
     task_mode: str = "recurring",
+    user_timezone: str = "UTC",
 ) -> dict:
     """Execute a multi-step process — sequential agent execution with handoffs.
 
@@ -2486,7 +2483,11 @@ async def _execute_pipeline(
             .eq("user_id", user_id).eq("slug", task_slug).limit(1).execute()
         )
         schedule = (task_row.data[0]["schedule"] if task_row.data else None) or None
-        next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
+        next_run = calculate_next_run_at(
+            schedule,
+            last_run_at=now,
+            user_timezone=user_timezone,
+        ) if schedule else None
         update_data = {
             "last_run_at": now.isoformat(),
             "next_run_at": next_run.isoformat() if next_run else None,
@@ -2824,6 +2825,7 @@ async def _execute_tp_task(
     agent_slug: str,
     tw,  # TaskWorkspace (already constructed by caller)
     started_at: datetime,
+    user_timezone: str = "UTC",
 ) -> dict:
     """Execute a back office task (ADR-164).
 
@@ -2918,7 +2920,11 @@ async def _execute_tp_task(
     now = datetime.now(timezone.utc)
     schedule = task_info.get("schedule", "")
     try:
-        next_run = calculate_next_run_at(schedule, last_run_at=now) if schedule else None
+        next_run = calculate_next_run_at(
+            schedule,
+            last_run_at=now,
+            user_timezone=user_timezone,
+        ) if schedule else None
         client.table("tasks").update({
             "last_run_at": now.isoformat(),
             "next_run_at": next_run.isoformat() if next_run else None,
@@ -3036,14 +3042,14 @@ async def _is_workspace_empty_for_daily_update(client, user_id: str) -> bool:
         return False
 
 
-def _build_empty_workspace_html() -> str:
+def _build_empty_workspace_html(schedule_label: str) -> str:
     """Deterministic HTML template for the empty-workspace daily-update.
 
     No LLM call. No personalization. Honest acknowledgement that the workspace
     is empty plus a call-to-action back to chat. The user still gets their
     daily artifact in the inbox; it just says "I have nothing to tell you yet."
     """
-    return """<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3058,12 +3064,12 @@ def _build_empty_workspace_html() -> str:
   </p>
   <p style="margin-top: 16px;">Tell me about your work — what you're focused on, who you're tracking, what platforms you use. I'll set up tracking, kick off research, and tomorrow's update will have something real to say.</p>
   <hr style="margin: 32px 0; border: 0; border-top: 1px solid #e5e7eb;">
-  <p style="color: #6b7280; font-size: 13px;">This is your daily update from YARNNN. It runs every morning at 09:00 UTC. You can adjust the cadence or pause it from chat anytime.</p>
+  <p style="color: #6b7280; font-size: 13px;">This is your daily update from YARNNN. It runs every morning at {schedule_label}. You can adjust the cadence or pause it from chat anytime.</p>
 </body>
 </html>"""
 
 
-def _build_empty_workspace_markdown() -> str:
+def _build_empty_workspace_markdown(schedule_label: str) -> str:
     """Markdown counterpart of the empty-workspace template (for output.md)."""
     return (
         "# Your workforce is ready\n\n"
@@ -3078,7 +3084,7 @@ def _build_empty_workspace_markdown() -> str:
         "tomorrow's update will have something real to say.\n\n"
         "---\n\n"
         "*This is your daily update from YARNNN. It runs every morning at "
-        "09:00 UTC. You can adjust the cadence or pause it from chat anytime.*\n"
+        f"{schedule_label}. You can adjust the cadence or pause it from chat anytime.*\n"
     )
 
 
@@ -3086,12 +3092,13 @@ async def _execute_daily_update_empty_state(
     client,
     user_id: str,
     started_at: datetime,
+    user_timezone: str = "UTC",
 ) -> dict:
     """Empty-state execution path for the daily-update anchor task.
 
     ADR-161: Deterministic, zero LLM. Writes the template to the task's
     outputs folder, delivers via the standard delivery rail, updates
-    next_run_at to tomorrow 09:00 UTC, and returns a success result.
+    next_run_at to the next local morning cadence and returns a success result.
 
     The output is co-located with normal runs in /tasks/daily-update/outputs/{date}/
     so the surface treats it identically. The only difference is that no
@@ -3108,8 +3115,9 @@ async def _execute_daily_update_empty_state(
     date_folder = started_at.strftime("%Y-%m-%dT%H00")
     folder_path = f"outputs/{date_folder}"
 
-    md_content = _build_empty_workspace_markdown()
-    html_content = _build_empty_workspace_html()
+    schedule_label = format_daily_local_time_label(user_timezone)
+    md_content = _build_empty_workspace_markdown(schedule_label)
+    html_content = _build_empty_workspace_html(schedule_label)
 
     await tw.write(
         f"{folder_path}/output.md",
@@ -3182,9 +3190,9 @@ async def _execute_daily_update_empty_state(
             delivery_error = str(e)
             logger.error(f"[TASK_EXEC] daily-update empty-state delivery exception: {e}")
 
-    # Update task scheduling: next run tomorrow 09:00 UTC, last_run_at now
+    # Update task scheduling: next run at local morning cadence, last_run_at now
     now = datetime.now(timezone.utc)
-    next_run = calculate_next_run_at("daily", last_run_at=now)
+    next_run = calculate_next_run_at("daily", last_run_at=now, user_timezone=user_timezone)
     try:
         client.table("tasks").update({
             "last_run_at": now.isoformat(),

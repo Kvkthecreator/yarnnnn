@@ -213,7 +213,7 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    agent's knowledge base within a few minutes."
 
    **Daily update is already active.** Every workspace has a `daily-update` task
-   that runs each morning at 09:00 UTC and emails the user an operational digest.
+   that runs each morning at 09:00 in the user's local timezone and emails the user an operational digest.
    This task is essential — scaffolded at signup, cannot be archived. DO NOT
    create a new daily-update task; it already exists. If the user wants to adjust
    it (cadence, focus, pause), use `ManageTask(action="update")` or

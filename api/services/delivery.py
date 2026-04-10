@@ -26,6 +26,10 @@ from typing import Optional, Any
 from integrations.core.types import ExportResult, ExportStatus
 from integrations.core.tokens import get_token_manager
 from integrations.exporters import get_exporter_registry, ExporterContext
+from services.schedule_utils import (
+    format_datetime_for_timezone,
+    get_user_timezone,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -708,6 +712,7 @@ async def deliver_from_output_folder(
 
     # 4. For email: build HTML with rendered attachments from manifest, then send via Resend
     if platform == "email":
+        user_timezone = get_user_timezone(client, user_id)
         result = await _deliver_email_from_manifest(
             destination=destination,
             text_content=text_content,
@@ -719,6 +724,7 @@ async def deliver_from_output_folder(
             mode=None,  # Mode is on tasks, not agents (ADR-138)
             composed_html=composed_html,
             task_slug=task_slug,
+            user_timezone=user_timezone,
         )
     else:
         # Non-email platforms: fall back to existing exporter registry
@@ -865,6 +871,7 @@ async def _deliver_email_from_manifest(
     mode: Optional[str],
     composed_html: Optional[str] = None,
     task_slug: Optional[str] = None,
+    user_timezone: str = "UTC",
 ) -> ExportResult:
     """ADR-118 D.3 + ADR-148: Email delivery sourced from output folder.
 
@@ -884,7 +891,24 @@ async def _deliver_email_from_manifest(
         )
 
     options = destination.get("options", {})
-    timestamp_str = datetime.now(timezone.utc).strftime("%b %-d %H:%M UTC")
+
+    # Subject clock should reflect when this run happened in the user's timezone.
+    subject_time = datetime.now(timezone.utc)
+    raw_created_at = (manifest or {}).get("created_at")
+    if isinstance(raw_created_at, str) and raw_created_at.strip():
+        try:
+            parsed = datetime.fromisoformat(raw_created_at.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            subject_time = parsed.astimezone(timezone.utc)
+        except Exception:
+            pass
+
+    timestamp_str = format_datetime_for_timezone(
+        subject_time,
+        user_timezone=user_timezone,
+        fmt="%b %-d %H:%M %Z",
+    )
     if version_number:
         default_subject = f"{title} v{version_number} — {timestamp_str}"
     else:

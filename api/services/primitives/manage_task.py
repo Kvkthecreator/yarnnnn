@@ -22,8 +22,10 @@ No parallel creation path, no shim, no CreateTask tool — singular implementati
 import json
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Optional
+
+from services.schedule_utils import calculate_next_run_at, get_user_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -217,29 +219,14 @@ async def handle_manage_task(auth: Any, input: dict) -> dict:
 # Internal handlers — absorbed from task.py
 # ---------------------------------------------------------------------------
 
-def _compute_next_run(schedule: str) -> Optional[str]:
-    """Compute next_run_at from a human-readable schedule string."""
-    now = datetime.now(timezone.utc)
-    schedule_lower = schedule.lower().strip()
-
-    if schedule_lower == "daily":
-        next_run = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-        return next_run.isoformat()
-    elif schedule_lower == "weekly":
-        days_ahead = 7 - now.weekday()
-        if days_ahead <= 0:
-            days_ahead += 7
-        next_run = (now + timedelta(days=days_ahead)).replace(hour=9, minute=0, second=0, microsecond=0)
-        return next_run.isoformat()
-    elif schedule_lower == "monthly":
-        if now.month == 12:
-            next_run = now.replace(year=now.year + 1, month=1, day=1, hour=9, minute=0, second=0, microsecond=0)
-        else:
-            next_run = now.replace(month=now.month + 1, day=1, hour=9, minute=0, second=0, microsecond=0)
-        return next_run.isoformat()
-    else:
-        # Cron or unknown — let scheduler interpret
-        return None
+def _compute_next_run(schedule: str, user_timezone: str = "UTC") -> Optional[str]:
+    """Compute next_run_at from schedule using user-local cadence semantics."""
+    next_run = calculate_next_run_at(
+        schedule=schedule,
+        last_run_at=datetime.now(timezone.utc),
+        user_timezone=user_timezone,
+    )
+    return next_run.isoformat() if next_run else None
 
 
 async def _find_task(auth: Any, task_slug: str, select: str = "id, slug, status, schedule, mode") -> dict:
@@ -338,11 +325,12 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
 
     update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
     changes = []
+    user_timezone = get_user_timezone(auth.client, auth.user_id)
 
     new_schedule = input.get("schedule")
     if new_schedule:
         update_data["schedule"] = new_schedule
-        next_run = _compute_next_run(new_schedule)
+        next_run = _compute_next_run(new_schedule, user_timezone=user_timezone)
         if next_run:
             update_data["next_run_at"] = next_run
         changes.append(f"schedule → {new_schedule}")
@@ -521,7 +509,8 @@ async def _handle_resume(auth: Any, task_slug: str) -> dict:
         return {"success": True, "task_slug": task_slug, "message": f"Task '{task_slug}' is already active."}
 
     schedule = task.get("schedule", "weekly")
-    next_run = _compute_next_run(schedule) if schedule else None
+    user_timezone = get_user_timezone(auth.client, auth.user_id)
+    next_run = _compute_next_run(schedule, user_timezone=user_timezone) if schedule else None
 
     try:
         auth.client.table("tasks").update({
@@ -1031,7 +1020,8 @@ async def _handle_create(auth: Any, input: dict) -> dict:
     if has_bootstrap:
         next_run_at = datetime.now(timezone.utc).isoformat()
     else:
-        next_run_at = _compute_next_run(schedule) if schedule else None
+        user_timezone = get_user_timezone(auth.client, auth.user_id)
+        next_run_at = _compute_next_run(schedule, user_timezone=user_timezone) if schedule else None
 
     # Create tasks row
     now = datetime.now(timezone.utc)
