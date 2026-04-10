@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.10.6] - RuntimeDispatch: fix workspace path + add TP tools guidance
+
+### Changed
+- `api/services/primitives/runtime_dispatch.py`: Fixed `agent_slug` fallback from `"unknown"` to `"workspace"`. Fixed filename resolution — now prefers `filename` param > `skill_input["title"]` > `skill_type`, so explicit filenames produce correct paths (e.g., `solo-operator-hero.png` not `image.png`).
+- `api/agents/tp_prompts/tools.py`: Added `## Generating Visual Assets (RuntimeDispatch)` section. TP now knows it can generate images/charts/diagrams and is instructed to share `output_url` as a markdown image in its response after generation.
+- Expected behavior: TP pastes the Supabase Storage URL after generating an image so user can see it inline. Paths are human-readable.
+
 ## [2026.04.10.5] - Tool description trim + search truncation fix + repurpose model downgrade
 
 ### Changed

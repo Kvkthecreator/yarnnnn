@@ -135,7 +135,7 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     size_bytes = result.get("size_bytes", 0)
 
     # Write workspace_files row with content_url — FATAL on failure (ADR-118 Resolved Decision #3)
-    agent_slug = getattr(auth, "agent_slug", None) or "unknown"
+    agent_slug = getattr(auth, "agent_slug", None) or "workspace"
 
     # ADR-157: fetch-asset writes to caller-specified workspace_path (context domain)
     # Other skills write to agent outputs
@@ -143,7 +143,8 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
     if workspace_path_override:
         ws_path = workspace_path_override
     else:
-        title = skill_input.get("title", skill_type)
+        # Prefer explicit filename, then title field, then skill_type as last resort
+        title = filename or skill_input.get("title") or skill_type
         safe_title = "".join(c if c.isalnum() or c in "-_ " else "" for c in title).strip().replace(" ", "-")[:50]
         ws_path = f"/agents/{agent_slug}/outputs/{safe_title}.{output_format}"
 
