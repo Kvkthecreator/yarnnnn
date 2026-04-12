@@ -1,833 +1,560 @@
-# Production Testing Playbook — ADR-120/121/122/124/125/126
+# Production Testing Playbook — ADR-138/140/141/149/163/164/166/167
 
-> Comprehensive E2E validation for the shipped agent platform stack.
-> Run against production with kvkthecreator@gmail.com fleet.
-> Last updated: 2026-03-20.
-
----
-
-## Pre-Flight Checks
-
-- [ ] API health: `GET https://yarnnn-api.onrender.com/health` → `{"status":"ok"}`
-- [ ] All 5 Render services running (API, Unified Scheduler, Platform Sync, MCP Server, Render)
-- [ ] `SUPABASE_SERVICE_KEY` available for admin endpoints
-- [ ] Test user has: active agents, platform connections, at least one project
-- [ ] SQL access via psql (see `docs/database/ACCESS.md`)
-
-### Baseline Snapshot
-
-```sql
--- Take baseline before testing
-SELECT 'agents' as entity, COUNT(*) as total,
-  COUNT(*) FILTER (WHERE status = 'active') as active
-FROM agents WHERE user_id = '{USER_ID}'
-UNION ALL
-SELECT 'agent_runs', COUNT(*), COUNT(*) FILTER (WHERE status = 'delivered')
-FROM agent_runs ar JOIN agents a ON a.id = ar.agent_id WHERE a.user_id = '{USER_ID}'
-UNION ALL
-SELECT 'work_units', COALESCE(SUM(units_consumed), 0)::int, COUNT(*)::int
-FROM work_units WHERE user_id = '{USER_ID}'
-  AND created_at >= date_trunc('month', NOW())
-UNION ALL
-SELECT 'projects', COUNT(*), COUNT(*) FILTER (WHERE path LIKE '%/PROJECT.md')
-FROM workspace_files WHERE user_id = '{USER_ID}' AND path LIKE '/projects/%/PROJECT.md';
-```
+> E2E validation for the current agent + task architecture.
+> Run against production with kvkthecreator@gmail.com.
+> Last updated: 2026-04-10.
+>
+> **What changed since last version (2026-03-20):**
+> - Projects/PM/Composer/pulse engine all deleted (ADR-138, ADR-156, ADR-141, ADR-126 dissolved)
+> - Architecture is now: Agents (WHO) + Tasks (WHAT) + TP (orchestration)
+> - Three-layer execution: Scheduler (SQL) → Task Pipeline (generate) → TP (chat)
+> - 4 output_kinds per ADR-166: `accumulates_context | produces_deliverable | external_action | system_maintenance`
+> - Surface is Chat | Work | Agents | Context (ADR-163)
+> - Back office tasks are TP-owned essential tasks visible in /work (ADR-164)
 
 ---
 
-## 1. Fresh User Flow — OAuth → Bootstrap → First Pulse → First Run (ADR-110/122/126)
-
-Tests the complete onboarding pipeline: platform connect → auto-bootstrap → project creation → first agent pulse.
-
-### 1.1 Platform Connection + Bootstrap
-
-**Trigger:** Connect a new platform via OAuth (or simulate with existing user + new platform).
-
-**Expected sequence:**
-1. OAuth callback → `maybe_bootstrap_project()` called
-2. Project created via `scaffold_project(type_key)` — e.g., `slack_digest` for Slack
-3. Agent auto-created inside project with `origin=system_bootstrap`
-4. First sync completes → `platform_content` rows populated
-5. Agent `next_pulse_at` set to near-future
-
-**Verify:**
-```sql
--- Check project was scaffolded
-SELECT path, LEFT(content, 300) as preview, created_at
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/projects/%/PROJECT.md'
-ORDER BY created_at DESC LIMIT 1;
-
--- Check bootstrap agent created inside project
-SELECT a.id, a.title, a.role, a.scope, a.status, a.mode,
-  a.next_pulse_at, a.created_at
-FROM agents a
-WHERE a.user_id = '{USER_ID}'
-ORDER BY a.created_at DESC LIMIT 3;
-
--- Verify type_key uniqueness (no duplicate platform projects)
-SELECT path, content
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/projects/%/PROJECT.md'
-  AND content LIKE '%type_key: slack_digest%';
-```
-
-**Pass if:** PROJECT.md exists with correct `type_key`, agent has `role=digest`, `next_pulse_at` is set.
-**Fail if:** No project created, agent created outside project, or duplicate type_key project.
-
-### 1.2 First Pulse Fires
-
-**Trigger:** Wait for scheduler tick (≤5 min) or set `next_pulse_at = NOW()`:
-
-```sql
-UPDATE agents SET next_pulse_at = NOW()
-WHERE id = '{AGENT_ID}'
-RETURNING id, title, role, next_pulse_at;
-```
-
-**Expected:**
-1. Scheduler picks up agent via `get_due_pulse_agents()`
-2. Tier 1 pulse: lightweight check (no LLM call for digest role with 12h cadence)
-3. If content available → triggers run
-4. `next_pulse_at` advances per `ROLE_PULSE_CADENCE`
-
-**Verify:**
-```sql
--- Check pulse advanced
-SELECT id, title, role, next_pulse_at, last_run_at
-FROM agents WHERE id = '{AGENT_ID}';
-
--- Check activity log for pulse event
-SELECT event_type, summary, metadata, created_at
-FROM activity_log
-WHERE user_id = '{USER_ID}'
-  AND event_type IN ('agent_pulse', 'agent_pulse_skip', 'agent_run')
-ORDER BY created_at DESC LIMIT 5;
-```
-
-**Pass if:** `next_pulse_at` advanced, activity_log has pulse event.
-**Fail if:** `next_pulse_at` unchanged, no activity log entry, or error in logs.
-
----
-
-## 2. Pulse Funnel — Tier 1/2/3 Validation (ADR-126)
-
-Tests the three-tier pulse decision pipeline: cheap heuristic → Haiku triage → full generation.
-
-### 2.1 Tier 1 — Heuristic Skip (No Content Change)
-
-**Setup:** Run an agent, then immediately set `next_pulse_at = NOW()` again (no new content since last run).
-
-```sql
--- After a successful run, force immediate re-pulse
-UPDATE agents SET next_pulse_at = NOW()
-WHERE id = '{AGENT_ID}'
-RETURNING id, title, last_run_at;
-```
-
-**Expected:** Tier 1 heuristic detects no new content → skips without LLM call.
-
-**Verify:**
-```sql
-SELECT event_type, summary, metadata->>'tier' as tier, metadata->>'decision' as decision
-FROM activity_log
-WHERE user_id = '{USER_ID}'
-  AND event_ref = '{AGENT_ID}'
-  AND event_type IN ('agent_pulse', 'agent_pulse_skip')
-ORDER BY created_at DESC LIMIT 3;
-```
-
-**Pass if:** `agent_pulse_skip` event with tier=1, decision=skip.
-**Fail if:** Full generation triggered (wasted LLM call), or no event logged.
-
-### 2.2 Tier 2 — Haiku Triage (New Content, Ambiguous)
-
-**Setup:** Ensure fresh platform_content exists since last run, for a `monitor` role agent (15min cadence).
-
-**Expected:** Tier 1 passes (content changed) → Tier 2 Haiku assesses → decides generate or skip.
-
-**Verify:**
-```sql
-SELECT event_type, summary,
-  metadata->>'tier' as tier,
-  metadata->>'decision' as decision,
-  metadata->>'reason' as reason
-FROM activity_log
-WHERE user_id = '{USER_ID}'
-  AND event_type LIKE 'agent_pulse%'
-ORDER BY created_at DESC LIMIT 5;
-```
-
-**Pass if:** Tier 2 event logged with Haiku decision and reasoning.
-**Fail if:** Tier 2 skipped entirely, or Haiku call errors.
-
-### 2.3 Tier 3 — Full Generation
-
-**Trigger:** Either via Tier 2 approve, or manual `POST /api/agents/{id}/run`.
-
-**Verify:**
-```sql
--- Check run completed
-SELECT version_number, status, delivery_status, draft_content IS NOT NULL as has_draft,
-  created_at
-FROM agent_runs
-WHERE agent_id = '{AGENT_ID}'
-ORDER BY version_number DESC LIMIT 1;
-
--- Check output folder created (ADR-119)
-SELECT path, lifecycle, version, updated_at
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/agents/%/outputs/%'
-ORDER BY updated_at DESC LIMIT 5;
-
--- Check manifest
-SELECT path, LEFT(content, 500) as manifest_preview
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '%/manifest.json'
-ORDER BY updated_at DESC LIMIT 1;
-```
-
-**Pass if:** Run delivered, output folder + manifest.json created with correct structure.
-**Fail if:** Run stuck in `generating`, no output folder, or manifest missing.
-
-### 2.4 Role-Based Pulse Cadence Verification
-
-**Expected cadences** (from `ROLE_PULSE_CADENCE`):
-
-| Role | Cadence | Next Pulse After Run |
-|------|---------|---------------------|
-| monitor | 15 min | last_run + 15min |
-| pm | 30 min | last_run + 30min |
-| digest | 12 hours | last_run + 12h |
-| prepare | 12 hours | last_run + 12h |
-| synthesize | schedule | per agent schedule |
-| research | schedule | per agent schedule |
-| custom | schedule | per agent schedule |
-
-```sql
--- Verify cadence alignment
-SELECT a.id, a.title, a.role,
-  a.next_pulse_at,
-  a.last_run_at,
-  EXTRACT(EPOCH FROM (a.next_pulse_at - a.last_run_at)) / 60 as minutes_between
-FROM agents a
-WHERE a.user_id = '{USER_ID}' AND a.status = 'active'
-ORDER BY a.role;
-```
-
-**Pass if:** Each role's `next_pulse_at - last_run_at` matches expected cadence (±5min tolerance).
-**Fail if:** Cadence misaligned or `next_pulse_at` NULL for active agents.
-
----
-
-## 3. Project Execution — PM Intelligence Loop (ADR-120/121)
-
-Tests the full project lifecycle: creation → PM heartbeat → contributor steering → assembly.
-
-### 3.1 Project Creation via Composer or API
-
-**Trigger:** Create a multi-agent project:
+## Pre-Flight
 
 ```bash
-curl -s -X POST "https://yarnnn-api.onrender.com/projects" \
-  -H "Authorization: Bearer {JWT}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Test Weekly Intelligence Report",
-    "type_key": "cross_platform_synthesis",
-    "objective": {
-      "deliverable": "Weekly intelligence report",
-      "audience": "Founder",
-      "format": "pptx",
-      "purpose": "Strategic awareness"
-    },
-    "delivery": {"channel": "email", "target": "kvkthecreator@gmail.com"}
-  }' | python3 -m json.tool
+# API health
+curl -s https://yarnnn-api.onrender.com/health
+
+# Get USER_ID for kvkthecreator@gmail.com
+psql "$SUPABASE_URL" -c "SELECT id FROM workspaces WHERE user_id = (SELECT id FROM auth.users WHERE email='kvkthecreator@gmail.com') LIMIT 1;"
 ```
 
-**Verify:**
 ```sql
--- PROJECT.md written
-SELECT path, LEFT(content, 500) as preview
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/projects/%/PROJECT.md'
-ORDER BY created_at DESC LIMIT 1;
+-- Baseline snapshot for kvkthecreator@gmail.com
+-- Replace USER_ID below with the UUID from above
 
--- PM agent auto-created
-SELECT id, title, role, status, next_pulse_at
+SELECT 'tasks' as entity, COUNT(*) as total,
+  COUNT(*) FILTER (WHERE status = 'active') as active,
+  COUNT(*) FILTER (WHERE essential = true) as essential
+FROM tasks WHERE user_id = :'USER_ID'
+UNION ALL
+SELECT 'agents', COUNT(*), COUNT(*) FILTER (WHERE status = 'active'), 0
+FROM agents WHERE user_id = :'USER_ID'
+UNION ALL
+SELECT 'agent_runs (this month)', COUNT(*),
+  COUNT(*) FILTER (WHERE status = 'delivered'), 0
+FROM agent_runs ar
+JOIN agents a ON a.id = ar.agent_id
+WHERE a.user_id = :'USER_ID'
+  AND ar.created_at >= date_trunc('month', NOW());
+```
+
+---
+
+## 1. Pre-Scaffolded Roster Verification (ADR-140)
+
+Every workspace gets exactly 10 agents at sign-up. Verify the roster is intact and correctly typed.
+
+```sql
+SELECT title, role, status, scope
 FROM agents
-WHERE user_id = '{USER_ID}' AND role = 'pm'
-ORDER BY created_at DESC LIMIT 1;
-
--- Contributors linked
-SELECT path
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/projects/%/contributions/%'
-ORDER BY path;
-```
-
-**Pass if:** PROJECT.md has objective, PM agent created with `role=pm`, contributor folders exist.
-**Fail if:** No PM, missing objective fields, `agents_role_check` constraint violation.
-
-### 3.2 PM Heartbeat — First Run (update_work_plan)
-
-**Trigger:** Force PM pulse:
-```sql
-UPDATE agents SET next_pulse_at = NOW(), last_run_at = NULL
-WHERE id = '{PM_AGENT_ID}' RETURNING id, title;
-```
-
-**Expected:** First PM run should produce `update_work_plan` action (no work plan exists yet).
-
-**Verify:**
-```sql
--- PM run completed
-SELECT version_number, status, LEFT(draft_content, 300) as decision_preview
-FROM agent_runs
-WHERE agent_id = '{PM_AGENT_ID}'
-ORDER BY version_number DESC LIMIT 1;
-
--- Work plan written to PM memory
-SELECT path, LEFT(content, 500) as preview
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/agents/%pm%/memory/work_plan.md'
-ORDER BY updated_at DESC LIMIT 1;
-
--- Activity log
-SELECT event_type, summary, metadata->>'action' as pm_action
-FROM activity_log
-WHERE event_ref = '{PM_AGENT_ID}'
-ORDER BY created_at DESC LIMIT 3;
-```
-
-**Pass if:** PM produced valid JSON with `update_work_plan` action, `work_plan.md` written.
-**Fail if:** PM produced markdown instead of JSON, `NameError` on `type_config`, or work plan missing.
-
-### 3.3 PM Steering — Contribution Briefs (ADR-121)
-
-**Trigger:** Run PM again after work plan exists.
-
-**Expected:** PM should `assess_quality` or `steer_contributor` — writing briefs to guide contributors.
-
-**Verify:**
-```sql
--- Check for contribution briefs
-SELECT path, LEFT(content, 300) as brief_preview
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/projects/%/contributions/%/brief.md'
-ORDER BY path;
-
--- Check PM decision was steer or assess
-SELECT event_type, summary, metadata->>'action' as pm_action
-FROM activity_log
-WHERE event_ref = '{PM_AGENT_ID}'
-  AND event_type IN ('project_pm_decision', 'agent_run')
-ORDER BY created_at DESC LIMIT 3;
-```
-
-**Pass if:** Brief.md written with focus areas, PM action was `steer_contributor` or `assess_quality`.
-**Fail if:** PM only does `update_work_plan` repeatedly (stuck loop), or brief is empty.
-
-### 3.4 Assembly Execution
-
-**Trigger:** PM decides `assemble` (all contributors fresh, work plan satisfied).
-
-**Expected sequence:**
-1. PM produces `assemble` action
-2. Contribution gathering: reads contributor output folders
-3. Assembly composition: LLM integrates contributions
-4. If format=pptx: RenderAsset → render service → PPTX
-5. Upload to Supabase Storage
-6. Manifest written with sources + delivery status
-7. Email delivery via Resend
-
-**Verify:**
-```sql
--- Assembly output folder
-SELECT path, lifecycle, LEFT(content, 200) as preview
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/projects/%/outputs/%'
-ORDER BY updated_at DESC LIMIT 5;
-
--- Manifest with delivery info
-SELECT path, content
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/projects/%/outputs/%/manifest.json'
-ORDER BY updated_at DESC LIMIT 1;
-
--- Render usage (if PPTX/chart produced)
-SELECT skill_name, status, file_size, created_at
-FROM render_usage
-WHERE user_id = '{USER_ID}'
-ORDER BY created_at DESC LIMIT 3;
-
--- Work units consumed
-SELECT action_type, units_consumed, agent_id, created_at
-FROM work_units
-WHERE user_id = '{USER_ID}'
-ORDER BY created_at DESC LIMIT 10;
-```
-
-**Pass if:** Assembly output exists, manifest has sources + delivery, work_units recorded for assembly + render.
-**Fail if:** Assembly empty, no manifest, render failed, or work_units not tracked.
-
----
-
-## 4. Meeting Room — ChatAgent + @-mentions (ADR-124)
-
-Tests the project meeting room: agent-attributed chat, PM routing, @-mentions.
-
-### 4.1 Project Session Creation
-
-**Trigger:** Send a message in a project-scoped chat session.
-
-```bash
-curl -s -X POST "https://yarnnn-api.onrender.com/api/chat" \
-  -H "Authorization: Bearer {JWT}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "What is the current status of this project?",
-    "project_slug": "{SLUG}",
-    "target_agent_id": "{PM_AGENT_ID}"
-  }' --no-buffer
-```
-
-**Expected:**
-1. Session created with `agent_id` pointing to PM
-2. PM responds (not TP) using `PM_CHAT_PROMPT`
-3. SSE `stream_start` event includes author attribution
-4. `session_messages.metadata` has `author_agent_id`, `author_agent_slug`, `author_role`
-
-**Verify:**
-```sql
--- Session created with project context
-SELECT cs.id, cs.agent_id, cs.created_at,
-  a.title as agent_title, a.role as agent_role
-FROM chat_sessions cs
-LEFT JOIN agents a ON a.id = cs.agent_id
-WHERE cs.user_id = '{USER_ID}'
-ORDER BY cs.created_at DESC LIMIT 3;
-
--- Messages have author attribution
-SELECT sm.role, sm.metadata->>'author_agent_slug' as author,
-  sm.metadata->>'author_role' as author_role,
-  LEFT(sm.content, 200) as preview
-FROM session_messages sm
-JOIN chat_sessions cs ON cs.id = sm.session_id
-WHERE cs.user_id = '{USER_ID}'
-ORDER BY sm.created_at DESC LIMIT 5;
-```
-
-**Pass if:** PM responds with project-aware content, author attribution in metadata.
-**Fail if:** TP responds instead of PM, no author attribution, or session not scoped to project.
-
-### 4.2 @-mention Routing to Contributors
-
-**Trigger:** Send a message with `@{contributor-slug}` mention in project chat.
-
-**Expected:** Message routed to the mentioned contributor agent (not PM).
-
-**Verify:** Check `session_messages.metadata.author_agent_slug` matches the mentioned agent.
-
-**Pass if:** Contributor agent responds with role-appropriate content.
-**Fail if:** PM intercepts the message, or routing fails with 500.
-
-### 4.3 ChatAgent Primitive Availability
-
-**Expected:** `agent_chat` mode exposes 13 primitives (subset of chat + headless).
-
-```sql
--- Verify via run metadata (if logged)
-SELECT metadata->>'mode' as mode, metadata->>'tools_available' as tools
-FROM agent_runs
-WHERE agent_id = '{PM_AGENT_ID}'
-ORDER BY version_number DESC LIMIT 1;
-```
-
----
-
-## 5. Work Budget Enforcement (ADR-120)
-
-Tests that autonomous work is bounded per user per billing period.
-
-### 5.1 Budget Tracking
-
-**Verify current budget state:**
-```sql
-SELECT action_type, SUM(units_consumed) as total_units, COUNT(*) as actions
-FROM work_units
-WHERE user_id = '{USER_ID}'
-  AND created_at >= date_trunc('month', NOW())
-GROUP BY action_type
-ORDER BY total_units DESC;
-```
-
-### 5.2 Budget Gate on Agent Run
-
-**Expected:** Scheduler checks `check_work_budget()` before each run. If budget exhausted → agent skipped with escalation.
-
-**Simulate budget exhaustion (CAUTION — production):**
-```sql
--- Check current usage vs limit
-SELECT
-  (SELECT COALESCE(SUM(units_consumed), 0) FROM work_units
-   WHERE user_id = '{USER_ID}'
-     AND created_at >= date_trunc('month', NOW())) as used,
-  CASE WHEN w.subscription_status = 'pro' THEN 1000 ELSE 60 END as limit
-FROM workspaces w
-WHERE w.user_id = '{USER_ID}';
-```
-
-**Pass if:** Work units increment after each run/assembly/render action.
-**Fail if:** Work units not tracked, or budget-exceeded agent still runs.
-
-### 5.3 Budget Escalation
-
-**Expected:** When budget is exhausted, PM action should be `escalate` with reason `budget_exhausted`.
-
-**Verify:**
-```sql
-SELECT event_type, summary, metadata->>'action' as action, metadata->>'reason' as reason
-FROM activity_log
-WHERE user_id = '{USER_ID}'
-  AND event_type = 'project_pm_decision'
-  AND metadata->>'action' = 'escalate'
-ORDER BY created_at DESC LIMIT 3;
-```
-
----
-
-## 6. Project Type Registry — Bootstrap + Uniqueness (ADR-122)
-
-Tests that project creation flows through the unified registry.
-
-### 6.1 Bootstrap Creates Correct Type
-
-```sql
--- Verify type_key on all projects
-SELECT
-  SUBSTRING(content FROM 'type_key: (.+)') as type_key,
-  path
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/projects/%/PROJECT.md';
-```
-
-**Expected type_keys:**
-| Platform | Type Key |
-|----------|----------|
-| Slack | `slack_digest` |
-| Notion | `notion_digest` |
-| Cross-platform | `cross_platform_synthesis` |
-| Custom | `custom` |
-
-### 6.2 Uniqueness Enforcement
-
-**Trigger:** Try to create a second `slack_digest` project (should be blocked).
-
-**Pass if:** Second creation rejected or skipped.
-**Fail if:** Duplicate platform project created.
-
-### 6.3 Scaffold Completeness
-
-**For each scaffolded project, verify:**
-```sql
--- PROJECT.md exists
-SELECT COUNT(*) FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/projects/%/PROJECT.md';
-
--- Agent created inside project
-SELECT a.title, a.role, a.scope, a.status
-FROM agents a
-WHERE a.user_id = '{USER_ID}'
-  AND EXISTS (
-    SELECT 1 FROM workspace_files wf
-    WHERE wf.user_id = '{USER_ID}'
-      AND wf.path LIKE '/projects/%/contributions/' || REPLACE(LOWER(a.title), ' ', '-') || '/%'
-  );
-```
-
----
-
-## 7. Composer Integration — Pulse Escalation + Project Awareness (ADR-126/120)
-
-Tests that Composer receives pulse escalations and has budget/project awareness.
-
-### 7.1 Pulse Escalation to Composer
-
-**Trigger:** An agent pulse escalation should appear in Composer's assessment data.
-
-```sql
--- Check for pulse escalation events
-SELECT event_type, summary, event_ref, metadata, created_at
-FROM activity_log
-WHERE user_id = '{USER_ID}'
-  AND event_type = 'agent_pulse_escalation'
-ORDER BY created_at DESC LIMIT 5;
-```
-
-**Expected:** `should_composer_act()` returns `True` with reason `pulse_escalation` when escalation events exist.
-
-### 7.2 Composer Assessment Completeness
-
-**Verify assessment has all required fields:**
-```sql
--- Trigger assessment via admin or wait for heartbeat
--- Then check activity_log for composer event
-SELECT event_type, summary,
-  metadata->>'reason' as reason,
-  metadata->>'should_act' as should_act,
-  metadata->'assessment'->'pulse_health' as pulse_health,
-  metadata->'assessment'->'workspace_density' as density
-FROM activity_log
-WHERE user_id = '{USER_ID}'
-  AND event_type IN ('composer_assessment', 'composer_heartbeat')
-ORDER BY created_at DESC LIMIT 1;
-```
-
-**Required assessment fields:** `connected_platforms`, `agents`, `knowledge`, `maturity`, `coverage`, `pulse_health`, `workspace_density`, `feedback`, `health`, `tier`, `total_agent_runs`, `agent_graph`.
-
-### 7.3 Composer Project Creation
-
-**Expected:** When Composer identifies a cross-platform opportunity, it can `create_project` via `_execute_create_project()` → `scaffold_project()`.
-
----
-
-## 8. Seniority & Duty Progression (ADR-117 Phase 3)
-
-Tests the feedback-gated developmental model.
-
-### 8.1 Seniority Classification
-
-```sql
--- Verify seniority for all agents
-SELECT a.id, a.title, a.role,
-  COUNT(ar.id) as total_runs,
-  COUNT(ar.id) FILTER (WHERE ar.status = 'delivered') as delivered,
-  COUNT(ar.id) FILTER (WHERE ar.user_approved = true) as approved,
-  CASE
-    WHEN COUNT(ar.id) >= 10 AND
-         COUNT(ar.id) FILTER (WHERE ar.user_approved = true)::float /
-         NULLIF(COUNT(ar.id) FILTER (WHERE ar.status = 'delivered'), 0) >= 0.8
-    THEN 'senior'
-    WHEN COUNT(ar.id) >= 5 AND
-         COUNT(ar.id) FILTER (WHERE ar.user_approved = true)::float /
-         NULLIF(COUNT(ar.id) FILTER (WHERE ar.status = 'delivered'), 0) >= 0.6
-    THEN 'associate'
-    ELSE 'new'
-  END as expected_seniority
-FROM agents a
-LEFT JOIN agent_runs ar ON ar.agent_id = a.id
-WHERE a.user_id = '{USER_ID}' AND a.status = 'active'
-GROUP BY a.id ORDER BY total_runs DESC;
-```
-
-### 8.2 Duty Portfolio Validation
-
-```sql
--- Check duties JSONB populated
-SELECT id, title, role, duties,
-  jsonb_array_length(COALESCE(duties, '[]'::jsonb)) as duty_count
-FROM agents
-WHERE user_id = '{USER_ID}' AND status = 'active'
+WHERE user_id = :'USER_ID'
 ORDER BY role;
 ```
 
-**Expected per `ROLE_PORTFOLIOS`:**
+**Expected roster (10 agents):**
 
-| Role | New Duties | Associate Adds | Senior Adds |
-|------|-----------|---------------|------------|
-| digest | digest(recurring) | monitor(reactive) | synthesize(reactive) |
-| synthesize | synthesize(recurring) | research(goal) | — |
-| research | research(goal) | synthesize(recurring) | — |
-| monitor | monitor(reactive) | digest(recurring) | — |
-| pm | — | — | — |
+| Title | Role | Class |
+|-------|------|-------|
+| Competitive Intelligence | competitive_intel | domain-steward |
+| Market Research | market_research | domain-steward |
+| Business Development | business_dev | domain-steward |
+| Operations | operations | domain-steward |
+| Marketing & Creative | marketing | domain-steward |
+| Reporting | executive | synthesizer |
+| Slack Bot | slack_bot | platform-bot |
+| Notion Bot | notion_bot | platform-bot |
+| GitHub Bot | github_bot | platform-bot |
+| Thinking Partner | thinking_partner | meta-cognitive |
 
-### 8.3 Duty Promotion by Composer
+**Pass if:** All 10 present, status=active for non-bot agents, AGENT.md exists in workspace.
+**Fail if:** Missing agents, wrong role values, constraint violations.
 
-**Trigger:** Composer `promote_duty` action for an associate/senior agent.
-
-**Verify:**
 ```sql
--- Check duties column updated
-SELECT id, title, role, duties
-FROM agents WHERE id = '{AGENT_ID}';
-
--- Check workspace duty file created
-SELECT path, LEFT(content, 200) as preview
+-- Verify AGENT.md files exist for each
+SELECT path, LENGTH(content) as chars
 FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '/agents/%/duties/%'
+WHERE user_id = :'USER_ID'
+  AND path LIKE '/agents/%/AGENT.md'
 ORDER BY path;
 ```
 
 ---
 
-## 9. Feedback Substrate (ADR-117 Phases 1-2)
+## 2. Essential Tasks Verification (ADR-161/164)
 
-Cross-reference with `docs/testing/adr-117-feedback-substrate-tests.md` for detailed test steps.
-
-### 9.1 Self-Observation on Run
+Three tasks are auto-scaffolded as essential at sign-up and cannot be archived.
 
 ```sql
-SELECT path, LEFT(content, 300) as preview, updated_at
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '%/memory/observations.md'
-ORDER BY updated_at DESC LIMIT 3;
+SELECT slug, status, essential, mode, schedule, next_run_at, last_run_at
+FROM tasks
+WHERE user_id = :'USER_ID'
+  AND essential = true
+ORDER BY slug;
 ```
 
-**Pass if:** `(self)` entries with topics and source coverage after each run.
+**Expected:**
 
-### 9.2 Preferences Distillation on Edit
+| Slug | Mode | Essential |
+|------|------|-----------|
+| daily-update | recurring | true |
+| back-office-agent-hygiene | recurring | true |
+| back-office-workspace-cleanup | recurring | true |
 
-**Trigger:** PATCH a run's `final_content`.
-
-```sql
-SELECT path, LEFT(content, 300) as preview, updated_at
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path LIKE '%/memory/preferences.md'
-ORDER BY updated_at DESC LIMIT 3;
-```
-
-**Pass if:** Structured preferences with `# User Preferences` header.
-
-### 9.3 Workspace Context Loading
-
-```sql
-SELECT version_number, metadata->'sources_used' as sources
-FROM agent_runs
-WHERE agent_id = '{AGENT_ID}'
-ORDER BY version_number DESC LIMIT 1;
-```
-
-**Pass if:** `sources_used` includes `"workspace"`.
+**Pass if:** All 3 present with `essential=true`, `status=active`.
+**Fail if:** Missing any of the 3, or `essential=false`.
 
 ---
 
-## 10. Cross-Cutting Verification
+## 3. Output Kind A — `produces_deliverable`: Daily Update (ADR-161)
 
-### 10.1 Activity Log Event Types
+The `daily-update` is the heartbeat artifact. Tests the full single-step deliverable pipeline.
 
-All these event types should appear in activity_log over a full test cycle:
+### 3.1 Trigger a Run
 
+**Via UI:** On `/work`, click into `daily-update` → Run Now.
+
+**Via SQL (force immediate):**
 ```sql
-SELECT event_type, COUNT(*) as occurrences, MAX(created_at) as latest
-FROM activity_log
-WHERE user_id = '{USER_ID}'
-  AND created_at > NOW() - INTERVAL '1 day'
-GROUP BY event_type
-ORDER BY latest DESC;
+UPDATE tasks SET next_run_at = NOW()
+WHERE user_id = :'USER_ID' AND slug = 'daily-update'
+RETURNING slug, next_run_at;
 ```
 
-**Expected event types:**
-- `agent_run` — agent execution
-- `agent_pulse` / `agent_pulse_skip` — pulse tier decisions
-- `agent_pulse_escalation` — budget or failure escalation
-- `project_pm_decision` — PM action (update_work_plan, steer, assess, assemble, escalate)
-- `project_assembly` — assembly completed
-- `composer_heartbeat` / `composer_assessment` — Composer cycle
-- `platform_synced` — sync events
-- `bootstrap_project` — auto-scaffolded project
+Wait 3–5 minutes for the scheduler tick.
 
-### 10.2 No Error Patterns in Logs
+### 3.2 Verify Output
 
-Check Render logs for these MUST-NOT-APPEAR patterns:
+```sql
+-- agent_runs record created
+SELECT ar.version_number, ar.status, ar.delivery_status,
+  LEFT(ar.draft_content, 200) as preview,
+  ar.created_at
+FROM agent_runs ar
+JOIN agents a ON a.id = ar.agent_id
+WHERE a.user_id = :'USER_ID'
+  AND ar.metadata->>'task_slug' = 'daily-update'
+ORDER BY ar.version_number DESC LIMIT 1;
+
+-- Output file written to task workspace
+SELECT path, lifecycle, LENGTH(content) as chars, updated_at
+FROM workspace_files
+WHERE user_id = :'USER_ID'
+  AND path LIKE '/tasks/daily-update/outputs/%'
+ORDER BY updated_at DESC LIMIT 5;
+
+-- Manifest written
+SELECT path, content
+FROM workspace_files
+WHERE user_id = :'USER_ID'
+  AND path LIKE '/tasks/daily-update/outputs/%/manifest.json'
+ORDER BY updated_at DESC LIMIT 1;
+```
+
+**Pass if:** `agent_runs.status = 'delivered'`, output folder exists, manifest.json present with delivery metadata.
+**Fail if:** Status stuck at `generating`, no output file, missing manifest.
+
+### 3.3 Email Delivery Check
+
+Check kvkthecreator@gmail.com inbox for a daily update email from yarnnn.
+- Subject line should reference date
+- Body should be HTML (not raw markdown)
+- If workspace is empty: deterministic template with CTA (ADR-161 empty-state branch)
+
+### 3.4 next_run_at Advancement
+
+```sql
+SELECT slug, last_run_at, next_run_at,
+  EXTRACT(EPOCH FROM (next_run_at - last_run_at)) / 3600 as hours_gap
+FROM tasks
+WHERE user_id = :'USER_ID' AND slug = 'daily-update';
+```
+
+**Pass if:** `next_run_at` is ~24 hours after `last_run_at`.
+
+---
+
+## 4. Output Kind A — `produces_deliverable`: Competitive Brief (Multi-Step)
+
+Tests the multi-step `_execute_pipeline()` path — two agents, output handoff.
+
+### 4.1 Setup
+
+Create or verify a `competitive-brief` task exists with a `track-competitors` context task feeding it.
+
+**Via TP chat:** "Create a competitive brief task for me"
+
+**Verify task created:**
+```sql
+SELECT slug, mode, status, next_run_at
+FROM tasks
+WHERE user_id = :'USER_ID' AND slug LIKE 'competitive%'
+ORDER BY created_at DESC LIMIT 3;
+
+-- Check TASK.md for multi-step process
+SELECT path, content
+FROM workspace_files
+WHERE user_id = :'USER_ID'
+  AND path LIKE '/tasks/%competitive%/TASK.md'
+ORDER BY path LIMIT 1;
+```
+
+The TASK.md should have a `## Process` section with 2 steps: `update-context` (competitive_intel) + `derive-output` (executive).
+
+### 4.2 Trigger Run
+
+```sql
+UPDATE tasks SET next_run_at = NOW()
+WHERE user_id = :'USER_ID' AND slug LIKE '%competitive-brief%'
+RETURNING slug, next_run_at;
+```
+
+### 4.3 Verify Pipeline Execution
+
+```sql
+-- Step outputs created (step-1/, step-2/ folders)
+SELECT path, lifecycle, LENGTH(content) as chars
+FROM workspace_files
+WHERE user_id = :'USER_ID'
+  AND path LIKE '/tasks/%competitive%/outputs/%'
+ORDER BY path;
+
+-- Final manifest includes both steps
+SELECT path, content
+FROM workspace_files
+WHERE user_id = :'USER_ID'
+  AND path LIKE '/tasks/%competitive%/outputs/%/manifest.json'
+ORDER BY updated_at DESC LIMIT 1;
+
+-- agent_runs shows final output
+SELECT ar.version_number, ar.status,
+  ar.metadata->>'task_slug' as task,
+  ar.metadata->>'step_count' as steps
+FROM agent_runs ar
+JOIN agents a ON a.id = ar.agent_id
+WHERE a.user_id = :'USER_ID'
+  AND ar.metadata->>'task_slug' LIKE '%competitive%'
+ORDER BY ar.created_at DESC LIMIT 1;
+```
+
+**Pass if:** Step folders written (`step-1/`, `step-2/`), final manifest has `sources` array with both steps, delivery status in manifest.
+**Fail if:** Only one step ran, manifest missing step sources, no handoff between steps.
+
+---
+
+## 5. Output Kind B — `accumulates_context`: Track Competitors
+
+Tests the context accumulation path — agent writes to `/workspace/context/` domain.
+
+### 5.1 Trigger Run
+
+```sql
+UPDATE tasks SET next_run_at = NOW()
+WHERE user_id = :'USER_ID' AND slug = 'track-competitors'
+RETURNING slug, next_run_at;
+```
+
+### 5.2 Verify Context Write-Back
+
+```sql
+-- Entity files in context domain
+SELECT path, LENGTH(content) as chars, updated_at
+FROM workspace_files
+WHERE user_id = :'USER_ID'
+  AND path LIKE '/workspace/context/competitors/%'
+ORDER BY updated_at DESC LIMIT 10;
+
+-- Signals domain also written
+SELECT path, LENGTH(content) as chars, updated_at
+FROM workspace_files
+WHERE user_id = :'USER_ID'
+  AND path LIKE '/workspace/context/signals/%'
+ORDER BY updated_at DESC LIMIT 5;
+
+-- No deliverable output (accumulates_context tasks don't produce agent_runs deliveries)
+SELECT COUNT(*) as run_count
+FROM agent_runs ar
+JOIN agents a ON a.id = ar.agent_id
+WHERE a.user_id = :'USER_ID'
+  AND ar.metadata->>'task_slug' = 'track-competitors'
+  AND ar.status = 'delivered'
+ORDER BY ar.created_at DESC;
+```
+
+**Pass if:** Competitor entity files updated/created, signals written, task workspace shows output.
+**Fail if:** No context domain files written, wrong path prefix (should be `/workspace/context/` not `/tasks/`).
+
+---
+
+## 6. Output Kind C — `system_maintenance`: Back Office Tasks (ADR-164)
+
+Tests TP-owned back office tasks executing via `_execute_tp_task()`.
+
+### 6.1 Trigger Agent Hygiene
+
+```sql
+UPDATE tasks SET next_run_at = NOW()
+WHERE user_id = :'USER_ID' AND slug = 'back-office-agent-hygiene'
+RETURNING slug, next_run_at;
+```
+
+### 6.2 Verify Execution
+
+```sql
+-- Task ran (next_run_at advanced)
+SELECT slug, last_run_at, next_run_at, status
+FROM tasks
+WHERE user_id = :'USER_ID' AND slug = 'back-office-agent-hygiene';
+
+-- Check hygiene output in task workspace
+SELECT path, LENGTH(content) as chars, updated_at
+FROM workspace_files
+WHERE user_id = :'USER_ID'
+  AND path LIKE '/tasks/back-office-agent-hygiene/%'
+ORDER BY updated_at DESC LIMIT 5;
+```
+
+**Pass if:** `next_run_at` advanced, no errors in Render logs.
+**Fail if:** `ModuleNotFoundError` for back_office executor path, task stuck.
+
+---
+
+## 7. /work Surface — List/Detail Modes (ADR-167)
+
+Tests the new list/detail surface without auto-select-first behavior.
+
+### 7.1 List Mode
+
+1. Navigate to `/work` — should show **full-width task list** (not a pre-selected task)
+2. Filter chips should be visible: All | Deliverable | Tracking | Action | Maintenance
+3. Group-by default: by Output kind
+
+**Verify:**
+- No task auto-selected on landing
+- Filter chips map to `output_kind` values
+- `daily-update` appears under "Deliverable"
+- `track-competitors` appears under "Tracking"
+- `back-office-*` tasks appear under "Maintenance"
+
+### 7.2 Detail Mode
+
+1. Click any task → URL changes to `/work?task={slug}`
+2. PageHeader renders: `Work > {Task Title}` breadcrumb
+3. Objective block visible
+4. Kind-specific middle component renders:
+   - Deliverable tasks → `OutputPreview` (iframe of latest HTML output)
+   - Tracking tasks → `TrackingMiddle` (domain folder link + CHANGELOG)
+   - Maintenance tasks → `MaintenanceMiddle` (hygiene log, objective block suppressed)
+
+### 7.3 Breadcrumb Navigation
+
+1. Click "Work" in breadcrumb → returns to list mode (`/work`, no `?task=`)
+2. No breadcrumb floating bar visible (deleted in ADR-167 V2 amendment)
+3. PageHeader is inline, not floating
+
+---
+
+## 8. /agents Surface — Roster Mode (ADR-167)
+
+### 8.1 Roster Grouping
+
+Navigate to `/agents` — should show grouped roster (no auto-select):
+- **Domain Stewards**: Competitive Intelligence, Market Research, Business Development, Operations, Marketing & Creative
+- **Synthesizer**: Reporting
+- **Platform Bots**: Slack Bot, Notion Bot, GitHub Bot
+- **Thinking Partner**: Thinking Partner
+
+**Verify:**
+- `meta-cognitive` class label renders correctly (was a bug — missing from CLASS_LABELS)
+- Each card shows: active task count, last run freshness, approval rate (if ≥5 runs)
+
+### 8.2 Agent Detail
+
+1. Click any agent → `/agents?agent={slug}`
+2. PageHeader: `Agents > {Agent Title}` breadcrumb
+3. IdentityCard + HealthCard visible (no separate header band)
+4. "See this agent's work" link routes to `/work?agent={slug}`
+
+---
+
+## 9. Chat Surface — TP Orchestration (ADR-163/159)
+
+### 9.1 Compact Index Injection
+
+The TP prompt should include a compact workspace index (not full memory dump).
+
+Send a message in chat: "What tasks do I have running?"
+
+**Expected behavior:**
+- TP references tasks from compact index
+- Response mentions `daily-update` (essential anchor)
+- Token usage visibly lower than old full-dump model (~200-500 token index vs 3-8K dump)
+
+### 9.2 ManageTask via Chat
+
+Send: "Pause my track-competitors task"
+
+**Expected:** TP calls `ManageTask(action="pause", task_slug="track-competitors")`
+
+```sql
+SELECT slug, status FROM tasks
+WHERE user_id = :'USER_ID' AND slug = 'track-competitors';
+```
+
+**Pass if:** Task status changes to `paused`.
+
+### 9.3 CreateTask via Chat (ManageTask action=create)
+
+Send: "Create a weekly market report for me"
+
+**Expected:** TP calls `ManageTask(action="create", ...)` — NOT `CreateTask` (deleted in ADR-168 Commit 3).
+
+```sql
+SELECT slug, status, mode FROM tasks
+WHERE user_id = :'USER_ID'
+ORDER BY created_at DESC LIMIT 1;
+```
+
+**Pass if:** New task created, `CreateTask` NOT referenced in Render logs (primitive deleted).
+
+---
+
+## 10. Primitive Surface Verification (ADR-168)
+
+The rename protocol means old primitive names must be gone from all live callers.
+
+### 10.1 Grep Gate (Run Locally)
+
+```bash
+cd /Users/macbook/yarnnn
+
+# These names must NOT appear in live code (api/ and web/)
+echo "=== Old primitives (must be 0 results) ==="
+grep -r "ReadWorkspace\|WriteWorkspace\|SearchWorkspace\|ListWorkspace\|ReadAgentContext" api/ --include="*.py" | grep -v "test_\|#\|\.pyc" | grep -v "renamed\|old\|deleted\|superseded"
+grep -r "\"Read\"\|\"List\"\|\"Search\"\|\"Edit\"" api/services/primitives/ --include="*.py" | grep "name="
+grep -r "CreateTask\b" api/ --include="*.py" | grep -v "test_\|#"
+grep -r "Execute\b" api/services/primitives/ --include="*.py" | grep "def \|name="
+```
+
+**Pass if:** All return 0 results.
+**Fail if:** Any old primitive name still referenced in execution path.
+
+### 10.2 Registered Primitives Check
+
+```bash
+cd /Users/macbook/yarnnn/api
+python3 -c "
+from services.primitives.registry import CHAT_TOOLS, HEADLESS_TOOLS
+chat_names = [t['name'] for t in CHAT_TOOLS]
+headless_names = [t['name'] for t in HEADLESS_TOOLS]
+print('Chat tools:', len(chat_names))
+print(sorted(chat_names))
+print()
+print('Headless tools:', len(headless_names))
+print(sorted(headless_names))
+# Verify old names absent
+for old in ['ReadWorkspace', 'WriteWorkspace', 'SearchWorkspace', 'CreateTask', 'Execute', 'Read', 'List', 'Search', 'Edit']:
+    if old in chat_names or old in headless_names:
+        print(f'FAIL: {old} still registered')
+"
+```
+
+**Expected:** Chat = 13 tools, Headless = 14 static tools. No old names present.
+
+---
+
+## 11. TP as Agent (ADR-164) — Thinking Partner Identity
+
+### 11.1 TP Agent Record
+
+```sql
+SELECT id, title, role, status, scope
+FROM agents
+WHERE user_id = :'USER_ID' AND role = 'thinking_partner';
+```
+
+**Pass if:** 1 row returned with `role='thinking_partner'`.
+
+### 11.2 Back Office Task Dispatched to TP
+
+The task pipeline dispatches `output_kind='system_maintenance'` tasks via `_execute_tp_task()`.
+
+```bash
+# Check Render API logs after triggering back-office-agent-hygiene
+# Look for: "[TASK_EXEC] TP task: back-office-agent-hygiene"
+# Must NOT see: "[TASK_EXEC] No agent found" for TP tasks
+```
+
+---
+
+## 12. Render Log Error Gate
+
+After running all tests, check Render logs for the API service (`srv-d5sqotcr85hc73dpkqdg`).
+
+**MUST NOT APPEAR:**
 
 | Pattern | Indicates |
 |---------|-----------|
-| `ModuleNotFoundError` | Import path broken (api. prefix on Render) |
-| `NameError: name 'type_config'` | PM scope variable leak |
+| `ModuleNotFoundError` | Import path broken (api. prefix missing on Render) |
+| `NameError: name 'type_config'` | Old PM scope leak (should be gone post-ADR-138) |
 | `CHECK constraint.*agents_role_check` | Missing role in DB constraint |
 | `PGRST205` / `PGRST301` | PostgREST schema cache stale |
-| `KeyError: 'skill'` | Old field name (should be 'role') |
-
-### 10.3 Workspace File Integrity
-
-```sql
--- Check for orphaned files (no parent agent/project)
-SELECT path, lifecycle, updated_at
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-  AND path NOT LIKE '/agents/%'
-  AND path NOT LIKE '/projects/%'
-  AND path NOT LIKE '/knowledge/%'
-  AND path NOT LIKE '/working/%'
-  AND path NOT LIKE '/user_shared/%'
-ORDER BY updated_at DESC;
-
--- Check lifecycle distribution
-SELECT lifecycle, COUNT(*) as files
-FROM workspace_files
-WHERE user_id = '{USER_ID}'
-GROUP BY lifecycle;
-```
+| `KeyError: 'skill'` | Old field name (should be 'role' since ADR-109) |
+| `ReadWorkspace\|WriteWorkspace\|CreateTask\|Execute` | Deleted primitive still called |
+| `project_slug\|pm_agent\|work_units\|work_plan` | Deleted project-layer references |
+| `agent_pulse\|pulse_tier\|composer` | Deleted infrastructure still referenced |
 
 ---
 
 ## Quick Smoke Test (10 min)
 
-If short on time, these 8 checks cover critical paths:
-
-1. **Load `/agents`** — agents list renders, roles display correctly
-2. **Load `/projects`** — projects list renders, type badges correct
-3. **Click into a project** — meeting room loads, PM is default interlocutor
-4. **Trigger "Run Now"** on an agent — execution completes, output folder created
-5. **Check work_units** — units recorded for the run
-6. **Check `next_pulse_at`** — advanced per role cadence after run
-7. **Check Render logs** — no `NameError`, `ModuleNotFoundError`, or `PGRST` errors
-8. **Send meeting room message** — PM responds with author attribution
+1. **`/work` loads** in list mode — no task pre-selected, filter chips visible
+2. **Click `daily-update`** → detail view loads, OutputPreview shows latest HTML
+3. **Run Now** on `daily-update` → execution completes, email received at kvkthecreator@gmail.com
+4. **`/agents` loads** in roster mode — 10 agents grouped by class, Thinking Partner label renders
+5. **Chat: "What tasks are active?"** → TP responds from compact index, no working memory dump
+6. **Chat: "Pause track-competitors"** → `ManageTask` called, task status changes in DB
+7. **Back office task runs** — `back-office-agent-hygiene` runs without error
+8. **Render logs** — no error patterns from the gate above
 
 ---
 
-## Results Template
+## Results Table
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
-| 1.1 | Bootstrap project creation | | |
-| 1.2 | First pulse fires | | |
-| 2.1 | Tier 1 heuristic skip | | |
-| 2.2 | Tier 2 Haiku triage | | |
-| 2.3 | Tier 3 full generation | | |
-| 2.4 | Role-based cadence | | |
-| 3.1 | Project creation | | |
-| 3.2 | PM first run (work_plan) | | |
-| 3.3 | PM steering (briefs) | | |
-| 3.4 | Assembly execution | | |
-| 4.1 | Project session + PM routing | | |
-| 4.2 | @-mention routing | | |
-| 4.3 | ChatAgent primitives | | |
-| 5.1 | Budget tracking | | |
-| 5.2 | Budget gate | | |
-| 5.3 | Budget escalation | | |
-| 6.1 | Bootstrap type_key | | |
-| 6.2 | Uniqueness enforcement | | |
-| 6.3 | Scaffold completeness | | |
-| 7.1 | Pulse escalation to Composer | | |
-| 7.2 | Assessment completeness | | |
-| 7.3 | Composer project creation | | |
-| 8.1 | Seniority classification | | |
-| 8.2 | Duty portfolio | | |
-| 8.3 | Duty promotion | | |
-| 9.1 | Self-observation | | |
-| 9.2 | Preferences distillation | | |
-| 9.3 | Workspace context loading | | |
-| 10.1 | Activity log events | | |
-| 10.2 | No error patterns | | |
-| 10.3 | Workspace integrity | | |
+| 1 | Roster: 10 agents present + AGENT.md files | | |
+| 2 | Essential tasks: 3 present, essential=true | | |
+| 3.1 | daily-update: triggers + runs | | |
+| 3.2 | daily-update: output folder + manifest | | |
+| 3.3 | daily-update: email delivered | | |
+| 3.4 | daily-update: next_run_at advances 24h | | |
+| 4.1 | competitive-brief: TASK.md has 2-step process | | |
+| 4.2 | competitive-brief: step-1/ and step-2/ written | | |
+| 4.3 | competitive-brief: manifest has both step sources | | |
+| 5.1 | track-competitors: context domain files written | | |
+| 5.2 | track-competitors: signals domain also written | | |
+| 6.1 | back-office-hygiene: runs without error | | |
+| 7.1 | /work list mode: no auto-select | | |
+| 7.2 | /work detail mode: kind-correct middle component | | |
+| 7.3 | breadcrumb: inline PageHeader, no floating bar | | |
+| 8.1 | /agents roster: 4 groups, meta-cognitive label | | |
+| 8.2 | /agents detail: IdentityCard + HealthCard | | |
+| 9.1 | chat: compact index (not full dump) | | |
+| 9.2 | chat: ManageTask pause works | | |
+| 9.3 | chat: ManageTask create (not CreateTask) | | |
+| 10.1 | grep gate: old primitive names = 0 | | |
+| 10.2 | registered primitives: 13 chat / 14 headless | | |
+| 11.1 | TP agent record: role=thinking_partner | | |
+| 11.2 | back office dispatch: _execute_tp_task logs | | |
+| 12 | Render logs: no error patterns | | |
 
 ---
 
-*Scaffolded 2026-03-20. Covers ADR-120/121/122/124/125/126 + cross-cutting ADR-117/119.*
+*Updated 2026-04-10. Covers ADR-138/140/141/149/156/161/163/164/166/167/168.*
+*Supersedes 2026-03-20 version (Projects/PM/Composer/pulse architecture — all deleted).*

@@ -1,10 +1,11 @@
 # ADR-130: HTML-Native Output Substrate — Three-Registry Architecture
 
-> **Status**: Phases 1-2 Implemented. Phase 3 partially implemented (skill dissolution done; export pipeline + multi-runtime deferred).
-> **Date**: 2026-03-23 (revised from 2026-03-22)
+> **Status**: Phases 1-3 Implemented. Three-registry architecture live. Phase 1 agent type registry superseded by ADR-140 v4 domain-steward model (AGENT_TEMPLATES). Marketplace SKILL.md imports remain a future capability.
+> **Date**: 2026-03-23 (revised 2026-04-13)
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-118 Phase D (format-builder skills model), ADR-117 Phase 3 seniority-gated capabilities
-> **Extends**: ADR-106 (Workspace), ADR-109 (Agent Framework), ADR-118 (Skills Layer), ADR-119 (Workspace Filesystem), ADR-120 (Project Execution)
+> **Extends**: ADR-106 (Workspace), ADR-109 (Agent Framework), ADR-118 (Skills Layer), ADR-119 (Workspace Filesystem)
+> **Note**: ADR-120 (Project Execution) superseded by ADR-138. PM coordination capabilities removed from CAPABILITIES registry. Agent type registry v2 (8 product types) superseded by ADR-140 v4 domain-steward model — AGENT_TEMPLATES is the live registry; AGENT_TYPES is a backward-compat alias.
 
 ---
 
@@ -206,87 +207,65 @@ Layout mode is decoupled from agent type. Any agent's output can be rendered in 
 
 ---
 
-## What was implemented (Phase 1)
+## What was implemented
 
-### Phase 1a: Registries + seniority deletion
+### Phase 1: Registries + seniority deletion + v2 types (Implemented 2026-03-23)
+
+**Phase 1a: Registries + seniority deletion**
 - Three registries (`AGENT_TYPES`, `CAPABILITIES`, `RUNTIMES`) in `agent_framework.py`
 - Deleted: `classify_seniority()`, `ROLE_PORTFOLIOS`, `get_promotion_duty()`, `get_eligible_duties()`, `SKILL_ENABLED_ROLES`
 - Deleted: `_execute_promote_duty()` in composer.py, `promote_duty` action from Composer prompt (→ v3.0)
-- Deleted: Tier 2 seniority gate in agent_pulse.py (all agents eligible)
 - Deleted: `test_adr117_p3_duties.py`
 - Helper functions: `get_type_capabilities()`, `has_asset_capabilities()`, `has_capability()`, `get_type_skill_docs()`
-- Composer maturity signals: `senior_agents` → `proven_agents` (run count + approval heuristic)
 
-### Phase 1b: v2 types + full caller migration
+**Phase 1b: v2 types + full caller migration**
 - 8 user-facing types + PM: briefer, monitor, researcher, drafter, analyst, writer, planner, scout
-- `LEGACY_ROLE_MAP` + `resolve_role()` for backward compatibility
+- `LEGACY_ROLE_MAP` + `resolve_role()` for backward compatibility (still live)
 - `display_name`, `tagline`, `default_frequency` per type
-- `list_agent_types()`, `get_type_display()` helpers
-- All LLM-facing prompts migrated: Composer (v3.0, superseded by ADR-156), TP ManageAgent, TP behaviors, ManageAgent primitive, commands
-- All code callers migrated: agent_creation, agent_pipeline, agent_execution, agent_pulse, composer, working_memory
-- `VALID_ROLES` derived from `AGENT_TYPES` registry (single source of truth)
-- `infer_scope()` uses `ROLE_TO_SCOPE` for all types
-- `ROLE_PULSE_CADENCE` covers all v2 types + legacy mappings
+- All LLM-facing prompts migrated to v2 type names
 
-### What stays from pre-ADR-130
-- `RuntimeDispatch` tool — works, no rename needed. Type-scoping achieved via `has_asset_capabilities()` gating which SKILL.md gets injected.
-- `_fetch_skill_docs()` — fetches all discovered skills. Acceptable cost (~4 SKILL.md files). Type-scoped selective fetch deferred.
-- Output folder conventions (ADR-119) — unchanged
-- Delivery pipeline — unchanged
-- Feedback distillation (ADR-117 Phase 1) — agents still learn from user edits
-- Coherence protocol (ADR-128) — self-assessments continue
+> **⚠️ Superseded by ADR-140 (v4 domain-steward model, 2026-03-31):** The 8 v2 product types (briefer, monitor, etc.) are superseded by the domain-steward roster (competitive_intelligence, market_research, business_development, operations, marketing_creative, executive_reporting, slack_bot, notion_bot, thinking_partner). `AGENT_TYPES = AGENT_TEMPLATES` is a backward-compat alias. `LEGACY_ROLE_MAP` maps old briefer/monitor/etc. → current domain-steward roles. Three-registry architecture and capability/runtime registries unchanged.
+
+> **⚠️ PM capabilities removed (ADR-138/156):** `check_freshness`, `steer_contributors`, `trigger_assembly`, `manage_work_plan` removed from `CAPABILITIES` registry — PM/project architecture dissolved.
+
+### Phase 2: HTML-native output pipeline (Implemented)
+
+- `_compose_output_html()` in `agent_execution.py` wired into `task_pipeline.py` for all `produces_deliverable` tasks
+- Called post-generation if agent type has `compose_html` capability
+- `output.html` stored alongside `output.md` in output folder
+- `manifest.json` includes `output.html` with role `composed`
+- Delivery via `deliver_from_output_folder()` sends composed HTML as email body
+- Frontend renders `output.html` inline in Work detail view
+
+### Phase 3: Export pipeline + skill dissolution + multi-runtime (Implemented)
+
+**Skill dissolution (complete):**
+- `render/skills/pptx/` — deleted
+- `render/skills/html/` — deleted (absorbed into compose engine)
+- `render/skills/data/` — deleted (absorbed into compose engine)
+- `render/skills/pdf/` — retained as export step only
+- `render/skills/xlsx/` — retained as export step only
+- `render/skills/chart/` — retained (asset renderer, compute primitive)
+- `render/skills/mermaid/` — retained (asset renderer, compute primitive)
+- `render/skills/image/` — retained (asset renderer, compute primitive)
+- `render/skills/video/` — added (Node.js Remotion runtime, validates multi-runtime architecture)
+- `render/skills/fetch_asset/` — added (ADR-157: favicon/asset fetching)
+
+**Multi-runtime (live):**
+- `node_remotion` runtime active via `video` skill
+- External runtimes (slack, notion, github) in RUNTIMES registry
+- Adding a runtime: registry entry + deployed service + SKILL.md — no framework changes
+
+**Marketplace SKILL.md imports** — deferred (future capability, architecture supports it)
 
 ---
 
-## What's next (Phases 2-3)
-
-### Phase 2: HTML-native output pipeline
-
-The compose engine exists (`render/compose.py`, `POST /compose`) but is not wired into agent execution. This phase makes it a post-generation pipeline step.
-
-**Implementation:**
-1. After `generate_draft_inline()` completes, if agent type has `compose_html` capability:
-   - Call `POST /compose` with `output.md` content + asset URLs from `pending_renders`
-   - Apply layout mode (default: `document`; inferrable from content structure or project objective)
-   - Store `output.html` in output folder alongside `output.md`
-2. Update `deliver_from_output_folder()` to send composed HTML as email body (instead of basic Resend template)
-3. Update manifest.json to include `output.html` with role `composed`
-4. Frontend: render `output.html` inline in outputs tab / meeting room
-
-**What this changes for users:**
-- Agent output looks polished — styled, responsive, brand-consistent
-- Same content, better presentation
-- `output.md` remains the feedback/edit surface (users edit markdown, not HTML)
-- HTML regenerated on next run or on edit
-
-**What this does NOT do:**
-- Does not add a new tool for agents to call (compose is a pipeline step, not an agent decision)
-- Does not change what agents produce (still markdown + assets)
-- Does not require agents to know about HTML
-
-### Phase 3: Export pipeline + skill dissolution + multi-runtime
-
-**Export pipeline (derivative, on-demand):**
-- HTML → PDF (pandoc/wkhtmltopdf, from composed HTML)
-- Data → XLSX (from structured JSON in assets/)
-- HTML → image (screenshot, for social/preview)
-- Triggered by user action ("Download as PDF"), not during generation
-
-**Skill dissolution:**
-- `render/skills/pptx/` → deleted (presentation layout mode replaces)
-- `render/skills/html/` → absorbed into compose engine
-- `render/skills/data/` → absorbed into compose engine
-- `render/skills/pdf/` → retained as export step only (not agent-facing)
-- `render/skills/xlsx/` → retained as export step only (not agent-facing)
-- `render/skills/chart/` → retained (asset renderer, compute primitive)
-- `render/skills/mermaid/` → retained (asset renderer, compute primitive)
-- `render/skills/image/` → retained (asset renderer, compute primitive)
-
-**Multi-runtime support:**
-- Node.js Remotion service for video generation (validates architecture)
-- External API runtimes for platform write-backs (Slack, Notion, Linear)
-- Marketplace SKILL.md imports for new capabilities
-- Adding a new runtime requires: registry entry + deployed service + SKILL.md. No framework changes.
+## What stays from pre-ADR-130
+- `RuntimeDispatch` tool — works, no rename needed. Type-scoping achieved via `has_asset_capabilities()` gating.
+- `_fetch_skill_docs()` — fetches all discovered skills. Acceptable cost. Type-scoped selective fetch deferred.
+- Output folder conventions (ADR-119) — unchanged
+- Delivery pipeline — unchanged
+- Feedback distillation (ADR-117 Phase 1) — agents still learn from user edits
 
 ---
 
