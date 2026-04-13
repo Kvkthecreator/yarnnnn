@@ -6,7 +6,7 @@
 
 ## Context
 
-The video render skill exists as scaffolding — Python script (`render.py`) calls Remotion CLI, but the **Remotion composition project doesn't exist**. Remotion CLI and Chromium are already in the Docker image. The skill is listed in agent capabilities (Marketing & Creative) but produces nothing.
+The video render skill exists as scaffolding — Python script (`render.py`) calls Remotion CLI, but the **Remotion composition project doesn't exist**. Remotion CLI and Chromium are already in the Docker image. The skill is listed in agent capabilities (Designer — ADR-176 production specialist) but produces nothing.
 
 ## Design Principle: Agnostic Composition
 
@@ -196,7 +196,7 @@ Node.js version check needed — Remotion requires Node 18+. Current Dockerfile 
 
 ### Agent Capabilities
 
-Currently only Marketing & Creative has `video_render`. Should it expand?
+Currently only Designer has `video_render` (ADR-176 production specialist). Should it expand?
 
 For now, **Marketing only** is appropriate — video generation is expensive (render time + compute) compared to image/chart. As with `image`, we can expand later based on demand.
 

@@ -145,16 +145,17 @@ For ALL agent types, the playbook framework provides:
 
 ## Per-Agent Playbook Catalog (Planned)
 
-| Agent Type | Playbooks | Tags |
+| Agent Role (ADR-176) | Playbooks | Tags |
 |-----------|-----------|------|
-| **Competitive Intelligence** | outputs, research | synthesis, research, investigation |
-| **Market Research** | outputs, research | synthesis, research, market |
-| **Business Development** | outputs | synthesis, relationships |
-| **Operations** | outputs | synthesis, projects, tracking |
-| **Marketing & Creative** | outputs, formats, visual | synthesis, formatting, visual, image, video |
-| **Reporting** | outputs, formats | synthesis, formatting, cross-domain |
+| **Researcher** | outputs, research | research, investigation, web_search |
+| **Analyst** | outputs | synthesis, patterns, cross-domain |
+| **Writer** | outputs, formats | drafting, formatting, audience |
+| **Tracker** | outputs | monitoring, tracking, signals |
+| **Designer** | visual | visual, image, video, chart, mermaid |
+| **Thinking Partner** | — | orchestration (no playbooks — deterministic executors) |
 | **Slack Bot** | outputs | platform, digest |
 | **Notion Bot** | outputs | platform, digest |
+| **GitHub Bot** | outputs | platform, digest |
 
 ## Implementation Phases
 

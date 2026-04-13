@@ -44,14 +44,14 @@ The product is "hiring a team." A hired team arrives with a plan, learns your co
 
 ### Agent → Default Task Mapping
 
-| Agent | Default Task Type | Only If |
+| Team (ADR-176 specialists) | Default Task Type | Only If |
 |-------|-------------------|---------|
-| Competitive Intelligence | `track-competitors` | competitors/ has entities |
-| Market Research | `track-market` | market/ has entities |
-| Business Development | `track-relationships` | relationships/ has entities |
-| Operations | `track-projects` | projects/ has entities |
-| Marketing & Creative | `research-topics` | content_research/ has entities |
-| Reporting | `executive-summary` (synthesis) | At least 1 context task active |
+| Researcher + Tracker | `track-competitors` | competitors/ domain exists |
+| Researcher + Tracker | `track-market` | market/ domain exists |
+| Tracker | `track-relationships` | relationships/ domain exists |
+| Tracker | `track-projects` | projects/ domain exists |
+| Researcher | `research-topics` | content_research/ domain exists |
+| Analyst + Writer | `daily-update` (synthesis) | Always (essential anchor) |
 | Slack Bot | `slack-digest` | Slack connected |
 | Notion Bot | `notion-digest` | Notion connected |
 | GitHub Bot | `github-digest` | GitHub connected |
@@ -128,17 +128,17 @@ The daily briefing is a **persistent collapsible header** — always rendered ab
 │  DAILY BRIEFING                     Apr 5  [▲ Collapse] │
 │                                                           │
 │  What happened                                            │
-│  · Competitive Intelligence: 2 profiles updated           │
+│  · track-competitors: 2 profiles updated (Researcher)     │
 │  · Slack Bot: 3 channels digested, 1 decision captured    │
-│  · Market Research: no run today (weekly, next Mon)       │
+│  · track-market: no run today (weekly, next Mon)          │
 │                                                           │
 │  Coming up                                                │
 │  · Tomorrow: Slack Digest, GitHub Digest                   │
-│  · Monday: Competitive Intelligence, Biz Dev              │
-│  · Apr 15: Market Research                                │
+│  · Monday: track-competitors, track-relationships         │
+│  · Apr 15: track-market                                   │
 │                                                           │
 │  Needs attention                                          │
-│  · Operations: 0 entities — needs project context         │
+│  · track-projects: 0 entities — needs project context     │
 │                                                           │
 │  3 platforms · 12 entities · 5 active tasks               │
 ├──────────────────────────────────────────────────────────┤
@@ -195,7 +195,7 @@ Compact row showing workspace health at a glance:
 
 ### Principle: "Agents work, tasks don't"
 
-The user thinks: "My Competitive Intelligence agent works weekly." Not: "The track-competitors task runs weekly."
+The user thinks: "My track-competitors task runs weekly with a Researcher." Not: "The Researcher agent has a weekly schedule." Tasks are the product surface; agents are infrastructure (ADR-176).
 
 ### UI changes
 

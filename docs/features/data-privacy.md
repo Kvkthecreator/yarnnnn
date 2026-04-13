@@ -42,8 +42,8 @@ Three narrow fixes. Singular implementation, no dual paths:
 
 | Action | Purges | Reinit | Preserves |
 |---|---|---|---|
-| **Clear Workspace** | agents, tasks, workspace_files, chat, activity, work_credits | Full `initialize_workspace()`: 10 agents, context domains, seed files, 3 essential tasks | platform_connections (so user doesn't re-OAuth) |
-| **Disconnect Platforms** | sync state, `/workspace/context/{slack,notion,github}/`, platform_connections | Pauses platform bots (reconnect flips back to active) | Domain stewards, canonical domains, IDENTITY/BRAND, all tasks including essential ones |
+| **Clear Workspace** | agents, tasks, workspace_files, chat, activity, work_credits | Full `initialize_workspace()`: 9 agents, seed files, 3 essential tasks | platform_connections (so user doesn't re-OAuth) |
+| **Disconnect Platforms** | sync state, `/workspace/context/{slack,notion,github}/`, platform_connections | Pauses platform bots (reconnect flips back to active) | Specialists, accumulated context domains, IDENTITY/BRAND, all tasks including essential ones |
 | **Full Data Reset** | Everything user-scoped + workspaces row | Recreates workspaces row, then full `initialize_workspace()` | Nothing (auth user only) |
 | **Deactivate** | Auth user (cascades everything) | N/A (account gone) | Nothing |
 
@@ -51,14 +51,14 @@ Three narrow fixes. Singular implementation, no dual paths:
 
 For `clear_workspace` / `full_account_reset`, the endpoint returns only when all of these are true:
 
-- 10 agents exist (9 domain-stewards/synthesizer + TP, per DEFAULT_ROSTER)
-- All context domain directories with synthesis files + `_tracker.md` + `assets/`
+- 9 agents exist (6 specialists + 3 platform bots, per DEFAULT_ROSTER — ADR-176)
+- Seed workspace files (IDENTITY.md, BRAND.md, etc.) — context domain directories created on demand by work, not at signup
 - IDENTITY.md / BRAND.md / AWARENESS.md / _playbook.md / style.md / notes.md / WORKSPACE.md seeded
 - Three essential tasks exist: `daily-update`, `back-office-agent-hygiene`, `back-office-workspace-cleanup`
 
 For `clear_integrations`:
 
-- All 10 agents still exist (platform bots paused, not deleted)
+- All 9 agents still exist (platform bots paused, not deleted)
 - Canonical context domains untouched
 - Essential tasks untouched
 - Reconnect flow will reactivate paused bots automatically
@@ -89,7 +89,7 @@ L1 is the lightest layer. The user clicking "Clear Work History" expects "give m
 - `agents` table rows. The roster is preserved verbatim.
 - `chat_sessions` rows. The user's relationship with TP is conversational memory, not "work history." Wiping it would be surprising.
 - `activity_log` rows. Per ADR-164, no task-lifecycle events are written here anymore. There's nothing in `activity_log` that L1 considers "work history" — it's only workspace-level events (chat sessions, integrations, agent approvals, scheduler heartbeat).
-- `workspace_files` outside the two L1 path patterns. Specifically: `TASK.md`, `DELIVERABLE.md`, `memory/feedback.md`, `memory/steering.md`, `memory/reflections.md` for each task. Plus the entire `/workspace/context/` substrate (every accumulated context domain — Competitive Intelligence, Market, etc.). Plus `IDENTITY.md`, `BRAND.md`, `AWARENESS.md`, `_playbook.md`, etc.
+- `workspace_files` outside the two L1 path patterns. Specifically: `TASK.md`, `DELIVERABLE.md`, `memory/feedback.md`, `memory/steering.md`, `memory/reflections.md` for each task. Plus the entire `/workspace/context/` substrate (every accumulated context domain — competitors/, market/, etc.). Plus `IDENTITY.md`, `BRAND.md`, `AWARENESS.md`, `_playbook.md`, etc.
 - `platform_connections`. OAuth tokens stay live.
 
 **No reinit needed.** The L1 invariants don't include anything this endpoint touches. The next scheduled task fire automatically creates a fresh `/outputs/{date}/` folder and a fresh `_run_log.md`.

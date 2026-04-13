@@ -122,9 +122,9 @@ Every surface renders `<PageHeader />` as the first row of its center content ar
 | Chat | `Chat` (breadcrumb chrome) + `Thinking Partner` surface identity header with workspace-state toggle action |
 | Work (list) | `Work` |
 | Work (task selected) | `Work › reporting's work › Daily Update` (with metadata subtitle and inline actions) |
-| Work (filtered by agent) | `Work › Competitive Intelligence's work` |
+| Work (filtered by agent) | `Work › Researcher's work` |
 | Agents (list) | `Agents` |
-| Agents (selected) | `Agents › Competitive Intelligence` (with class · domain · task count · last run subtitle) |
+| Agents (selected) | `Agents › Researcher` (with class · task count · last run subtitle) |
 | Context (no selection) | `Context` |
 | Context (domain selected) | `Context › Competitors` |
 | Context (deep file) | `Context › Competitors › cursor › profile.md` |
@@ -243,7 +243,7 @@ In detail mode the page renders `<PageHeader />` as breadcrumb chrome, then `<Wo
 ### Filtering and deep-links
 
 - `/work` — list mode, no filter
-- `/work?agent={slug}` — list mode with the agent filter chip pre-applied (used by the breadcrumb's "Competitive Intelligence's work" segment and by AgentContentView's "See this agent's work" link)
+- `/work?agent={slug}` — list mode with the agent filter chip pre-applied (used by the breadcrumb's "Researcher's work" segment and by AgentContentView's "See this agent's work" link)
 - `/work?task={slug}` — detail mode for that task
 - The breadcrumb (commit b033513) is the navigation between modes; clicking the `Work` segment from a detail returns you to list mode
 - Invalid or stale `/work?task={slug}` links stay in detail mode and render an explicit not-found state with a "Back to work" action
@@ -268,49 +268,33 @@ Agents is where the user looks at **who** is on their team, not **what** they're
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Domain Stewards · 5                                                 │
-│  Each owns one context domain. They accumulate intelligence over time│
+│  Specialists · 6 (ADR-176 universal roles)                           │
+│  Assigned to tasks by TP. Accumulation or production phase.          │
 │  ┌──────────────────────────┐  ┌──────────────────────────┐         │
-│  │ 🧠 Competitive Intel.    │  │ 🧠 Market Research       │         │
-│  │ owns /context/competitors/│  │ owns /context/market/    │         │
-│  │ 1 task · 2h ago · 100%   │  │ 1 task · 16h ago         │         │
+│  │ 🧠 Researcher             │  │ 🧠 Analyst                │         │
+│  │ specialist · accumulation │  │ specialist · accumulation │         │
+│  │ 2 tasks · 2h ago · 100%  │  │ 1 task · 16h ago          │         │
 │  └──────────────────────────┘  └──────────────────────────┘         │
 │  ┌──────────────────────────┐  ┌──────────────────────────┐         │
-│  │ 🧠 Business Development  │  │ 🧠 Operations            │         │
-│  │ owns /context/relations/  │  │ owns /context/projects/  │         │
-│  │ 0 tasks · never run      │  │ 0 tasks · never run      │         │
+│  │ 🧠 Writer                 │  │ 🧠 Tracker                │         │
+│  │ specialist · accumulation │  │ specialist · accumulation │         │
+│  │ 2 tasks · 16h ago        │  │ 1 task · 2h ago           │         │
 │  └──────────────────────────┘  └──────────────────────────┘         │
-│  ┌──────────────────────────┐                                       │
-│  │ 🧠 Marketing & Creative  │                                       │
-│  │ owns /context/content/   │                                       │
-│  │ 0 tasks · never run      │                                       │
-│  └──────────────────────────┘                                       │
-│                                                                      │
-│  Synthesizer · 1                                                     │
-│  Reads across all domains to compose cross-domain reports.           │
-│  ┌──────────────────────────┐                                       │
-│  │ 🪧 Reporting              │                                       │
-│  │ reads all domains         │                                       │
-│  │ 1 task · 16h ago          │                                       │
-│  └──────────────────────────┘                                       │
+│  ┌──────────────────────────┐  ┌──────────────────────────┐         │
+│  │ 🎨 Designer               │  │ 💬 Thinking Partner       │         │
+│  │ specialist · production   │  │ meta-cognitive            │         │
+│  │ 0 tasks · never run      │  │ 2 tasks · daily           │         │
+│  └──────────────────────────┘  └──────────────────────────┘         │
 │                                                                      │
 │  Platform Bots · 3                                                   │
 │  Tied to platform integrations. Bridge external surfaces.            │
 │  ┌──────────────────────────┐  ┌──────────────────────────┐         │
 │  │ 🔌 Slack Bot              │  │ 🔌 Notion Bot             │         │
 │  └──────────────────────────┘  └──────────────────────────┘         │
-│                                                                      │
-│  Thinking Partner · 1                                                │
-│  Orchestration and back office. Conversational by day, runs hygiene. │
-│  ┌──────────────────────────┐                                       │
-│  │ 💬 Thinking Partner       │                                       │
-│  │ orchestration · back office│                                       │
-│  │ 2 tasks · daily           │                                       │
-│  └──────────────────────────┘                                       │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Grouping** is by `agent_class` (ADR-140 v4 + ADR-164): Domain Stewards (5) / Synthesizer (1) / Platform Bots (3) / Thinking Partner (1). Each section has a one-line description of what that class does. Per-card health glance shows: status, owned domain (or class-specific subtitle), active task count, last run (color-coded by freshness), approval rate (only if `version_count >= 5`).
+**Grouping** is by class (ADR-176): Specialists (6, including TP) / Platform Bots (3). Each section has a one-line description of what that class does. Per-card health glance shows: status, phase (accumulation/production/meta-cognitive), active task count, last run (color-coded by freshness), approval rate (only if `version_count >= 5`).
 
 Click a card → URL transitions to `/agents?agent={slug}` → detail mode.
 
