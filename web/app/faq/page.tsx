@@ -52,7 +52,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What agents do I get?",
         answer:
-          "The current scaffolded roster includes five domain stewards (Competitive Intelligence, Market Research, Business Development, Operations, Marketing), one synthesizer (Reporting), three platform bots (Slack, Notion, GitHub), and Thinking Partner.",
+          "The current scaffolded roster includes five universal specialists (Researcher, Analyst, Writer, Tracker, Designer), one synthesizer (Reporting), three platform bots (Slack, Notion, GitHub), and Thinking Partner.",
       },
       {
         question: "How do agents improve over time?",
@@ -62,7 +62,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Can multiple agents work together on a task?",
         answer:
-          "Yes. Most tasks use one agent. For bigger jobs, multiple agents contribute domain expertise to a single task. For example, Slack Bot can keep internal context fresh, Competitive Intelligence can add external signals, and Reporting can synthesize one deliverable.",
+          "Yes. Most tasks use one agent. For bigger jobs, multiple specialists contribute to a single task. For example, Slack Bot can keep internal context fresh, Researcher can add external signals, and Reporting can synthesize one deliverable.",
       },
       {
         question: "How do I steer the system?",

@@ -388,7 +388,7 @@ function OverviewTab({
           <OverviewStat
             icon={Users}
             value={domainAgents.length}
-            label={`domain ${domainAgents.length === 1 ? 'agent' : 'agents'}`}
+            label={`${domainAgents.length === 1 ? 'specialist' : 'specialists'}`}
             href="/agents"
           />
           <OverviewStat

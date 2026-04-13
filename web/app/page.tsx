@@ -156,11 +156,11 @@ export default function LandingPage() {
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {([
-                      { name: "Competitive Intel", letter: "CI", color: "#6366f1", desc: "Tracks your competitors for you" },
-                      { name: "Market Research", letter: "MR", color: "#0ea5e9", desc: "Monitors your market continuously" },
-                      { name: "Business Dev", letter: "BD", color: "#10b981", desc: "Surfaces relationships & opportunities" },
-                      { name: "Operations", letter: "OP", color: "#f59e0b", desc: "Keeps pulse on execution health" },
-                      { name: "Marketing", letter: "M", color: "#ef4444", desc: "Watches positioning & creative" },
+                      { name: "Researcher", letter: "R", color: "#6366f1", desc: "Gathers intelligence on any domain" },
+                      { name: "Analyst", letter: "A", color: "#0ea5e9", desc: "Turns data into structured insight" },
+                      { name: "Writer", letter: "W", color: "#10b981", desc: "Produces drafts, briefs, and content" },
+                      { name: "Tracker", letter: "T", color: "#f59e0b", desc: "Monitors signals and watches trends" },
+                      { name: "Designer", letter: "D", color: "#ef4444", desc: "Creates charts, visuals, and assets" },
                       { name: "Reporting", letter: "RP", color: "#8b5cf6", desc: "Connects dots across all domains" },
                       { name: "Slack Bot", letter: "S", color: "#E01E5A", desc: "Reads your channels & threads" },
                       { name: "Notion Bot", letter: "N", color: "#191919", desc: "Reads your pages & databases" },

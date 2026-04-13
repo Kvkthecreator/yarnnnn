@@ -774,7 +774,7 @@ export default function SettingsPage() {
                     <li>All <code>/tasks/&lt;slug&gt;/memory/_run_log.md</code> files (re-created on next run)</li>
                   </ul>
                   <p className="mt-2 text-sm">
-                    <strong>Preserved:</strong> all tasks, all agents, identity/brand, accumulated context (Competitive Intelligence, Market, etc.), chat sessions, platform connections, agent learning files (steering, feedback, reflections). Your next scheduled task fire will populate fresh outputs.
+                    <strong>Preserved:</strong> all tasks, all agents, identity/brand, accumulated context domains, chat sessions, platform connections, agent learning files (steering, feedback, reflections). Your next scheduled task fire will populate fresh outputs.
                   </p>
                 </>
               )}

@@ -229,13 +229,13 @@ export default function InvestPage() {
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Core product</div>
                     <h3 className="text-xl font-medium mb-3">Scaffolded workforce + TP</h3>
                     <p className="text-white/50 text-sm leading-relaxed mb-6">
-                      Every user gets the current 10-agent scaffold at sign-up: five domain
-                      stewards, Reporting, three platform bots, and Thinking Partner.
+                      Every user gets the current 9-agent scaffold at sign-up: five universal
+                      specialists, Reporting, three platform bots, and Thinking Partner.
                       The point is not the list itself. The point is that the system
                       starts with persistent workers and a meta-cognitive controller.
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {["Competitive Intelligence", "Market Research", "Business Development", "Operations", "Marketing", "Reporting", "Slack Bot", "Notion Bot", "GitHub Bot", "Thinking Partner"].map((a) => (
+                      {["Researcher", "Analyst", "Writer", "Tracker", "Designer", "Reporting", "Slack Bot", "Notion Bot", "GitHub Bot", "Thinking Partner"].map((a) => (
                         <span key={a} className="text-[10px] px-2.5 py-1 rounded-full bg-white/[0.06] text-white/50 font-medium">{a}</span>
                       ))}
                     </div>
