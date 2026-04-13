@@ -34,7 +34,7 @@ import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedInt
 interface DangerZoneStats {
   workspace_files: number;
   agents: number;
-  projects: number;
+  tasks: number;
   chat_sessions: number;
   platform_connections: number;
   // ADR-158: files under /workspace/context/{slack,notion,github}/
@@ -536,7 +536,7 @@ export default function SettingsPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="p-4 border border-border rounded-lg text-center">
                   <FolderKanban className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.agents}</div>
+                  <div className="text-2xl font-bold">{dangerStats.tasks}</div>
                   <div className="text-xs text-muted-foreground">Tasks</div>
                 </div>
                 <div className="p-4 border border-border rounded-lg text-center">
@@ -556,14 +556,14 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Purge Actions */}
+              {/* Purge Actions — graduated severity L1→L3 */}
               <div className="border-t border-border pt-6 space-y-3 mb-6">
                 {/* L1: Clear Work History — lightest layer, no agent/task loss */}
-                <div className="p-4 border border-border rounded-lg">
+                <div className="p-4 border border-amber-200 dark:border-amber-900/50 rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium flex items-center gap-2">
-                        <History className="w-4 h-4" />
+                        <History className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                         Clear Work History
                       </div>
                       <div className="text-sm text-muted-foreground">
@@ -573,7 +573,7 @@ export default function SettingsPage() {
                     <button
                       onClick={() => initiateDangerAction("work-history")}
                       disabled={dangerStats.agent_runs === 0}
-                      className="px-4 py-2 text-muted-foreground border border-border rounded-md text-sm font-medium hover:text-foreground hover:border-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded-md text-sm font-medium hover:bg-amber-50 dark:hover:bg-amber-950/40 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Clear History
                     </button>
@@ -581,11 +581,11 @@ export default function SettingsPage() {
                 </div>
 
                 {/* L2: Clear Workspace — heavier, wipes agents+tasks but reinit restores roster */}
-                <div className="p-4 border border-border rounded-lg">
+                <div className="p-4 border border-orange-200 dark:border-orange-900/50 rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium flex items-center gap-2">
-                        <Database className="w-4 h-4" />
+                        <Database className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                         Clear Workspace
                       </div>
                       <div className="text-sm text-muted-foreground">
@@ -595,19 +595,19 @@ export default function SettingsPage() {
                     <button
                       onClick={() => initiateDangerAction("workspace")}
                       disabled={dangerStats.workspace_files === 0 && dangerStats.agents === 0}
-                      className="px-4 py-2 text-muted-foreground border border-border rounded-md text-sm font-medium hover:text-foreground hover:border-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-md text-sm font-medium hover:bg-orange-50 dark:hover:bg-orange-950/40 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Clear
                     </button>
                   </div>
                 </div>
 
-                {/* Disconnect Platforms */}
-                <div className="p-4 border border-border rounded-lg">
+                {/* L3: Disconnect Platforms — pauses bots, clears platform context dirs */}
+                <div className="p-4 border border-orange-200 dark:border-orange-900/50 rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium flex items-center gap-2">
-                        <Link2 className="w-4 h-4" />
+                        <Link2 className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                         Disconnect Platforms
                       </div>
                       <div className="text-sm text-muted-foreground">
@@ -617,7 +617,7 @@ export default function SettingsPage() {
                     <button
                       onClick={() => initiateDangerAction("integrations")}
                       disabled={dangerStats.platform_connections === 0 && dangerStats.platform_context_files === 0}
-                      className="px-4 py-2 text-muted-foreground border border-border rounded-md text-sm font-medium hover:text-foreground hover:border-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-md text-sm font-medium hover:bg-orange-50 dark:hover:bg-orange-950/40 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Disconnect
                     </button>

@@ -56,7 +56,7 @@ class DangerZoneStats(BaseModel):
     """Stats for all user data that can be purged."""
     workspace_files: int
     agents: int
-    projects: int
+    tasks: int
     chat_sessions: int
     platform_connections: int
     # Count of workspace_files under /workspace/context/{slack,notion,github}/
@@ -314,7 +314,7 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
 
         workspace_files = _count_rows(client, "workspace_files", user_id)
         agents = _count_rows(client, "agents", user_id)
-        projects = _count_workspace_paths(client, user_id, "/projects/")
+        tasks = _count_rows(client, "tasks", user_id)
         chat_sessions = _count_rows(client, "chat_sessions", user_id)
         platform_connections = _count_rows(client, "platform_connections", user_id)
 
@@ -334,7 +334,7 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         return DangerZoneStats(
             workspace_files=workspace_files,
             agents=agents,
-            projects=projects,
+            tasks=tasks,
             chat_sessions=chat_sessions,
             platform_connections=platform_connections,
             platform_context_files=platform_context_files,
@@ -428,10 +428,13 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
 
     Purge:
     - workspace_files (all paths — agents, context, tasks, memory)
-    - agents table (cascades agent_runs, export prefs, delivery logs)
+    - agents table (cascades agent_runs, export_log)
     - tasks table (including the three essential tasks — they are re-scaffolded below)
     - chat_sessions (cascades session_messages)
     - work_credits, activity_log, agent_proposals, agent_context_log
+    - filesystem_documents (cascades filesystem_chunks)
+    - notifications
+    - mcp_oauth_codes/access_tokens/refresh_tokens (MCP sessions)
 
     Reinit (transactional — same endpoint, not deferred to next page load):
     - Full workspace initialization via `initialize_workspace()`:
@@ -466,6 +469,13 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         deleted["user_interaction_patterns"] = _delete_rows(client, "user_interaction_patterns", user_id, optional=True)
         deleted["event_trigger_log"] = _delete_rows(client, "event_trigger_log", user_id, optional=True)
         deleted["trigger_event_log"] = _delete_rows(client, "trigger_event_log", user_id, optional=True)
+        # Uploaded documents (filesystem_documents + chunks cascade from FK)
+        deleted["filesystem_documents"] = _delete_rows(client, "filesystem_documents", user_id, optional=True)
+        # Notifications scoped to this user
+        deleted["notifications"] = _delete_rows(client, "notifications", user_id, optional=True)
+        # MCP OAuth tokens — user's active MCP sessions should not survive a workspace clear
+        for table in ("mcp_oauth_codes", "mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
+            deleted[table] = _delete_rows(client, table, user_id, optional=True)
 
         logger.info(f"[ACCOUNT] User {user_id} cleared workspace: {deleted}")
 

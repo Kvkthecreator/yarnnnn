@@ -74,9 +74,11 @@ class SystemStatusResponse(BaseModel):
 
 
 # Static schedule descriptions for background jobs
-# ADR-141/153/156: Only task execution + system health remain
+# ADR-141/153/156/164: task_executed events deleted — status sourced from
+# tasks.last_run_at + agent_runs. Only scheduler_heartbeat remains in activity_log.
 JOB_SCHEDULE_DESCRIPTIONS = {
-    "Task Execution": "When due (checked every 5 min)",
+    "Workspace Cleanup": "Daily (back office task)",
+    "Agent Hygiene": "Daily (back office task)",
     "Scheduler Heartbeat": "Hourly",
 }
 
@@ -235,36 +237,90 @@ async def get_system_status(auth: UserClient):
                 status="disconnected",
             ))
 
-    # ─── Background Jobs Status (ADR-141/153/156: only active jobs) ─────────────
+    # ─── Background Jobs Status ───────────────────────────────────────────────
+    # ADR-164: task_executed events removed from activity_log. Back office tasks
+    # (workspace-cleanup, agent-hygiene) are regular tasks owned by TP — their
+    # last-run status comes from tasks.last_run_at + latest workspace manifest.
+    # scheduler_heartbeat is still written to activity_log hourly.
     background_jobs = []
 
-    job_types = [
-        ("task_executed", "Task Execution"),
-        ("scheduler_heartbeat", "Scheduler Heartbeat"),
+    # --- Back office tasks: pull last_run_at from tasks table + latest manifest ---
+    back_office_task_slugs = [
+        ("back-office-workspace-cleanup", "Workspace Cleanup"),
+        ("back-office-agent-hygiene", "Agent Hygiene"),
     ]
 
-    for event_type, label in job_types:
-        event_result = auth.client.table("activity_log").select(
-            "id, summary, metadata, created_at"
-        ).eq("user_id", user_id).eq(
-            "event_type", event_type
-        ).order("created_at", desc=True).limit(1).execute()
+    for task_slug, label in back_office_task_slugs:
+        # ADR-164: back office tasks do NOT create agent_runs rows. Status comes
+        # from tasks.last_run_at (set by the scheduler after each execution) and
+        # the latest workspace_files output manifest (written by _execute_tp_task).
+        task_result = auth.client.table("tasks").select(
+            "id, last_run_at, status"
+        ).eq("user_id", user_id).eq("slug", task_slug).limit(1).execute()
 
-        if event_result.data:
-            event = event_result.data[0]
-            metadata = event.get("metadata", {}) or {}
+        task_row = (task_result.data or [None])[0]
+        if task_row and task_row.get("last_run_at"):
+            # Fetch last-run summary from the latest back office manifest.
+            # _execute_tp_task writes outputs/{date_folder}/manifest.json (no latest/ symlink).
+            # TaskWorkspace root is /tasks/{slug}/, so path is
+            # /tasks/{slug}/outputs/%/manifest.json — use most-recently updated row.
+            manifest_result = auth.client.table("workspace_files").select(
+                "content, updated_at"
+            ).eq("user_id", user_id).like(
+                "path", f"/tasks/{task_slug}/outputs/%/manifest.json"
+            ).order("updated_at", desc=True).limit(1).execute()
+
+            manifest_row = (manifest_result.data or [None])[0]
+            summary = None
+            run_status = "success"
+            if manifest_row and manifest_row.get("content"):
+                try:
+                    import json as _json
+                    manifest = _json.loads(manifest_row["content"])
+                    # Back office manifest has no status field — treat presence as success.
+                    # actions_taken is a list of {action, scope, count} dicts.
+                    actions = manifest.get("actions_taken") or []
+                    if actions:
+                        total = sum(a.get("count", 0) for a in actions)
+                        summary = f"{total} items processed"
+                except Exception:
+                    pass
+
             background_jobs.append(BackgroundJobStatus(
                 job_type=label,
-                last_run_at=event["created_at"],
-                last_run_status="success" if not metadata.get("error") else "failed",
-                last_run_summary=event.get("summary"),
-                items_processed=metadata.get("items_processed", 0),
+                last_run_at=task_row["last_run_at"],
+                last_run_status=run_status,
+                last_run_summary=summary,
             ))
-        else:
+        elif task_row:
             background_jobs.append(BackgroundJobStatus(
                 job_type=label,
                 last_run_status="never_run",
             ))
+        # If the task row doesn't exist yet (workspace not fully initialized), skip silently.
+
+    # --- Scheduler heartbeat: still written to activity_log hourly ---
+    hb_result = auth.client.table("activity_log").select(
+        "id, summary, metadata, created_at"
+    ).eq("user_id", user_id).eq(
+        "event_type", "scheduler_heartbeat"
+    ).order("created_at", desc=True).limit(1).execute()
+
+    if hb_result.data:
+        hb = hb_result.data[0]
+        hb_meta = hb.get("metadata", {}) or {}
+        background_jobs.append(BackgroundJobStatus(
+            job_type="Scheduler Heartbeat",
+            last_run_at=hb["created_at"],
+            last_run_status="success" if not hb_meta.get("error") else "failed",
+            last_run_summary=hb.get("summary"),
+            items_processed=hb_meta.get("items_processed", 0),
+        ))
+    else:
+        background_jobs.append(BackgroundJobStatus(
+            job_type="Scheduler Heartbeat",
+            last_run_status="never_run",
+        ))
 
     # ADR-153: Sync schedule observability removed — no platform sync cron.
     # Platform data flows through task execution now.

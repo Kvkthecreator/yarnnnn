@@ -3,11 +3,13 @@
 /**
  * System section for Settings page.
  *
- * Shows background job status: Task Execution + Scheduler Heartbeat.
+ * Shows background job status: Workspace Cleanup + Agent Hygiene + Scheduler Heartbeat.
  *
- * ADR-141/153/156: Platform sync cron, memory extraction, session summaries,
- * Composer heartbeat, and content cleanup are all deleted. The scheduler now
- * only does task execution, workspace cleanup, and lifecycle hygiene.
+ * ADR-141/153/156/164: Platform sync cron, memory extraction, session summaries,
+ * Composer heartbeat, and task_executed activity events are all deleted.
+ * Back office tasks (cleanup, hygiene) are TP-owned tasks — their status comes
+ * from tasks.last_run_at + workspace output manifests, not activity_log.
+ * Scheduler heartbeat is still written hourly to activity_log.
  */
 
 import { useState, useEffect } from 'react';
@@ -82,9 +84,14 @@ const BACKGROUND_JOBS: Array<{
   type: string;
 }> = [
   {
-    label: 'Task Execution',
+    label: 'Workspace Cleanup',
     icon: <HeartPulse className="w-4 h-4 text-cyan-500" />,
-    type: 'Task Execution',
+    type: 'Workspace Cleanup',
+  },
+  {
+    label: 'Agent Hygiene',
+    icon: <HeartPulse className="w-4 h-4 text-violet-400" />,
+    type: 'Agent Hygiene',
   },
   {
     label: 'Scheduler Heartbeat',
