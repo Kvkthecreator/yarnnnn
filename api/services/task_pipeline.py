@@ -784,6 +784,7 @@ def parse_task_md(content: str) -> dict:
 
     # Parse sections
     current_section = None
+    page_structure_lines: list[str] = []
     for line in lines:
         line_stripped = line.strip()
         if line_stripped == "## Objective":
@@ -796,6 +797,10 @@ def parse_task_md(content: str) -> dict:
             continue
         elif line_stripped == "## Output Spec":
             current_section = "output_spec"
+            continue
+        elif line_stripped == "## Page Structure":
+            # ADR-174 Phase 3: YAML block declaring section layout for compose pipeline
+            current_section = "page_structure"
             continue
         elif line_stripped.startswith("## "):
             current_section = None
@@ -825,6 +830,20 @@ def parse_task_md(content: str) -> dict:
                     "agent_ref": agent_ref,  # Could be agent_slug or agent_type
                     "instruction": instruction_text,
                 })
+        elif current_section == "page_structure":
+            page_structure_lines.append(line)
+
+    # ADR-174 Phase 3: parse ## Page Structure section as YAML
+    # This lets TP author bespoke page_structure in TASK.md, taking precedence over registry.
+    if page_structure_lines:
+        import yaml as _yaml
+        try:
+            yaml_text = "\n".join(page_structure_lines)
+            parsed_ps = _yaml.safe_load(yaml_text)
+            if isinstance(parsed_ps, list):
+                result["page_structure"] = parsed_ps
+        except Exception:
+            pass  # Malformed YAML — silently ignore, registry fallback applies
 
     return result
 
@@ -1540,8 +1559,12 @@ async def execute_task(
             from services.task_types import get_task_type
             type_key = task_info.get("type_key", "")
             task_type_def = get_task_type(type_key) if type_key else None
-            if task_type_def and task_type_def.get("page_structure"):
-                _page_structure_6d = task_type_def["page_structure"]
+            # ADR-174 Phase 3: TASK.md page_structure takes precedence over registry
+            _page_structure_6d = (
+                task_info.get("page_structure")
+                or (task_type_def.get("page_structure") if task_type_def else None)
+            )
+            if _page_structure_6d:
 
                 # Read prior manifest for staleness detection + revision routing
                 prior_manifest_content = await tw.read("outputs/latest/sys_manifest.json") or ""
@@ -1771,7 +1794,11 @@ async def execute_task(
                 from services.task_types import get_task_type
                 _type_key = task_info.get("type_key", "")
                 _tdef = get_task_type(_type_key) if _type_key else None
-                _page_structure = _tdef.get("page_structure") if _tdef else None
+                # ADR-174 Phase 3: TASK.md page_structure takes precedence over registry
+                _page_structure = (
+                    task_info.get("page_structure")
+                    or (_tdef.get("page_structure") if _tdef else None)
+                )
                 if _page_structure:
                     from services.compose.assembly import (
                         parse_draft_into_sections,
@@ -2174,8 +2201,12 @@ async def _execute_pipeline(
             from services.task_types import get_task_type
             type_key = task_info.get("type_key", "")
             task_type_def = get_task_type(type_key) if type_key else None
-            if task_type_def and task_type_def.get("page_structure"):
-                _ps = task_type_def["page_structure"]
+            # ADR-174 Phase 3: TASK.md page_structure takes precedence over registry
+            _ps = (
+                task_info.get("page_structure")
+                or (task_type_def.get("page_structure") if task_type_def else None)
+            )
+            if _ps:
                 prior_manifest_content = await tw.read("outputs/latest/sys_manifest.json") or ""
                 prior_manifest = None
                 if prior_manifest_content:
@@ -2479,7 +2510,11 @@ async def _execute_pipeline(
     # ADR-170 Phase 3: write section partials + sys_manifest.json (produces_deliverable only)
     if task_info.get("output_kind") == "produces_deliverable":
         try:
-            _page_structure = task_type_def.get("page_structure") if task_type_def else None
+            # ADR-174 Phase 3: TASK.md page_structure takes precedence over registry
+            _page_structure = (
+                task_info.get("page_structure")
+                or (task_type_def.get("page_structure") if task_type_def else None)
+            )
             if _page_structure:
                 from services.compose.assembly import (
                     parse_draft_into_sections,

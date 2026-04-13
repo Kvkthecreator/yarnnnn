@@ -1,7 +1,7 @@
 # ADR-174: Filesystem-Native Workspace — Discovery, Search, and Conventions
 
 **Date:** 2026-04-13
-**Status:** Proposed
+**Status:** Implemented
 **Authors:** KVK, Claude
 **Supersedes:** ADR-151 (Shared Context Domains — discovery mechanism only), ADR-152 (Directory Registry — demoted from enforcement to vocabulary)
 **Extends:** ADR-106 (Agent Workspace Architecture), ADR-159 (Filesystem-as-Memory), ADR-166 (Registry Coherence Pass), ADR-170 (Compose Substrate), ADR-173 (Accumulation-First Execution)
@@ -191,7 +191,7 @@ Fluid task creation and filesystem-first discovery change onboarding implicitly:
 |-------|--------|-------------|
 | Phase 1 | ✅ Implemented (2026-04-13) | Filesystem-first discovery — `_get_context_domain_health_sync()` rewritten to query actual filesystem paths, grouped by directory segment. Registry reduced to display-name/temporal-flag lookup. 600-token ceiling enforced in `format_compact_index()` (assertion in dev, warning+truncation in prod). `DEFAULT_CONVENTIONS_MD` added to `agent_framework.py`, scaffolded at `/workspace/CONVENTIONS.md` via `workspace_init.py` Phase 3. Compact conventions block injected into every task execution prompt in `task_pipeline.py`. |
 | Phase 2 | ✅ Implemented (2026-04-13) | Semantic search activation — `search_workspace_semantic` SQL RPC added (migration 145). `handle_write_file` scope=context: registry gate removed (unknown domains now accepted, folder derives to `context/{domain}/`), async embedding generation fires on write via `_embed_workspace_file` helper. `handle_query_knowledge` rewritten: semantic-first via `search_workspace_semantic` (threshold 0.3), BM25 fallback on API failure or low similarity. `QUERY_KNOWLEDGE_TOOL` domain field changed from enum to free-form string. Response includes `search_method` field for observability. |
-| Phase 3 | Proposed | Fluid task creation — `page_structure` readable from TASK.md in pipeline (registry fallback preserved), `ManageTask(action="create")` accepts bespoke TASK.md spec, CONVENTIONS.md includes page_structure format reference |
+| Phase 3 | ✅ Implemented (2026-04-13) | Fluid task creation — `parse_task_md()` now parses `## Page Structure` YAML section from TASK.md; all four `page_structure` read sites in `task_pipeline.py` prefer `task_info.get("page_structure")` with registry as fallback; three-tier fallback (TASK.md → registry → raw output). `ManageTask(action="create")` gains `page_structure` input field; `_build_custom_task_md()` serializes it as YAML under `## Page Structure`; YAML round-trip uses `pyyaml.safe_load/dump`. `MANAGE_TASK_TOOL` description updated. `DEFAULT_CONVENTIONS_MD` page_structure section updated to reflect `## Page Structure` as top-level TASK.md section (not nested under `## Process`). |
 
 ---
 

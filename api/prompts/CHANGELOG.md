@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.2] - ADR-174 Phase 3: Fluid task creation — page_structure from TASK.md
+
+### Changed
+- `api/services/task_pipeline.py` — `parse_task_md()`: new `## Page Structure` section parsed as a YAML block using `yaml.safe_load`. Populates `task_info["page_structure"]` (list of section dicts). Malformed YAML silently ignored (registry fallback applies). `page_structure_lines` accumulator initialized alongside `current_section`.
+- `api/services/task_pipeline.py` — four `page_structure` read sites (sections 6d, 12b, multi-step derive-output, and the late produces_deliverable path): each now reads `task_info.get("page_structure") or (registry["page_structure"] if registry else None)`. TASK.md takes precedence; registry is fallback; no page_structure anywhere → skip compose, deliver raw output. Three-tier fallback preserved.
+- `api/services/primitives/manage_task.py` — `MANAGE_TASK_TOOL`: added `page_structure` field to input schema (array of objects). Description notes the field applies to custom produces_deliverable tasks, explains kind values, and states it takes precedence over registry.
+- `api/services/primitives/manage_task.py` — `_handle_create()`: extracts `page_structure` from input, passes to `_build_custom_task_md()`.
+- `api/services/primitives/manage_task.py` — `_build_custom_task_md()`: new optional `page_structure` param. Serializes as YAML via `yaml.dump()` under a `## Page Structure` section. YAML round-trip: `dump` on write, `safe_load` on read (in `parse_task_md`).
+- `api/services/agent_framework.py` — `DEFAULT_CONVENTIONS_MD`: updated page_structure format section — corrected to `## Page Structure` as a top-level TASK.md section (not nested under `## Process`). Added full kind vocabulary list. Added note about ManageTask create path.
+- Expected behavior: TP can author a bespoke `produces_deliverable` task with a custom section layout by passing `page_structure` to `ManageTask(action="create")`. The compose pipeline uses it at execution time. Registry-typed tasks are unaffected (their `page_structure` is still injected from the registry, now as fallback). Tasks with no `page_structure` anywhere fall through to raw output delivery.
+
 ## [2026.04.13.1] - ADR-174 Phase 2: Semantic search activation + registry gate removal
 
 ### Changed

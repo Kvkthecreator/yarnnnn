@@ -829,20 +829,23 @@ not prose paragraphs.
 
 ### page_structure Format (for TP-authored produces_deliverable tasks)
 
-Declare in TASK.md under `## Process` → step with `type: derive-output`:
+Declare as a top-level `## Page Structure` section in TASK.md containing a YAML list:
 
 ```yaml
-page_structure:
-  - id: section-slug
-    title: "Section Title"
-    kind: narrative          # narrative | metric-cards | entity-grid | comparison-table | trend-chart | callout
-    source_domains:
-      - competitors
-      - market
-    asset_type: chart        # optional: chart | image | mermaid
+- id: section-slug
+  title: "Section Title"
+  kind: narrative          # narrative | metric-cards | entity-grid | comparison-table | trend-chart | callout
+  source_domains:
+    - competitors
+    - market
+  asset_type: chart        # optional: chart | image | mermaid
 ```
 
+Section kinds: `narrative`, `metric-cards`, `entity-grid`, `comparison-table`, `trend-chart`,
+`distribution-chart`, `timeline`, `status-matrix`, `data-table`, `callout`, `checklist`
+
 The compose pipeline reads `page_structure` from TASK.md first, task type registry as fallback.
+For ManageTask(action="create") custom tasks, pass `page_structure` as a list of dicts directly.
 """
 
 
