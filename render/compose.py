@@ -816,27 +816,405 @@ _SURFACE_FN = {
 # Public API
 # ---------------------------------------------------------------------------
 
-def _render_section_to_html(section: "SectionContent") -> str:
-    """ADR-177 Phase D1: Render a single section to HTML based on its kind.
+def _render_metric_cards(content: str) -> str:
+    """ADR-177 Phase 5b: metric-cards kind → responsive card grid.
 
-    Phase D1: markdown kinds (narrative, callout, checklist) + fallback for all others.
-    Phase D2 will add structured-data kinds and chart kinds.
+    Expected agent output format (flexible):
+      **Label**: value
+      Label: value
+      - **Label**: value  (with leading dash)
+    Each line becomes one card.
+    """
+    cards = []
+    for line in content.splitlines():
+        line = line.strip().lstrip("- ").strip()
+        if not line:
+            continue
+        # Try **label**: value or label: value
+        m = re.match(r'\*{0,2}([^*:]+)\*{0,2}\s*:\s*(.*)', line)
+        if m:
+            label = m.group(1).strip()
+            value = m.group(2).strip()
+        else:
+            # Treat whole line as value
+            label = ""
+            value = line
+        label_html = f'<div class="mc-label">{_esc(label)}</div>' if label else ""
+        cards.append(
+            f'<div class="mc-card">{label_html}'
+            f'<div class="mc-value">{_esc(value)}</div></div>'
+        )
+    return f'<div class="metric-cards">\n{"".join(cards)}\n</div>'
+
+
+def _render_entity_grid(content: str) -> str:
+    """ADR-177 Phase 5b: entity-grid kind → entity cards with property rows.
+
+    Expected agent output format:
+      ## Entity Name
+      **Property**: value
+      **Property**: value
+
+    or flat list:
+      - **Entity Name** — tagline / description
+    """
+    # Check if it's a list of entities (no ## headings) or structured blocks
+    if "## " not in content:
+        # Flat list → simple cards
+        md_html = _render_markdown_to_html(content)
+        # Wrap each <li> block as a card via post-processing
+        # Convert <ul><li>...</li></ul> → card grid
+        cards = re.findall(r'<li>(.*?)</li>', md_html, re.DOTALL)
+        if cards:
+            card_html = "".join(
+                f'<div class="eg-card">{c}</div>' for c in cards
+            )
+            return f'<div class="entity-grid">{card_html}</div>'
+        return f'<div class="entity-grid">{md_html}</div>'
+
+    # Structured blocks: split at ## headings
+    blocks = re.split(r'(?m)^##\s+', content)
+    card_htmls = []
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        lines = block.splitlines()
+        entity_name = lines[0].strip()
+        props = []
+        desc_lines = []
+        for line in lines[1:]:
+            line = line.strip()
+            m = re.match(r'\*{0,2}([^*:]+)\*{0,2}\s*:\s*(.*)', line)
+            if m:
+                props.append((m.group(1).strip(), m.group(2).strip()))
+            elif line:
+                desc_lines.append(line)
+        prop_rows = "".join(
+            f'<div class="eg-prop"><span class="eg-key">{_esc(k)}</span>'
+            f'<span class="eg-val">{_esc(v)}</span></div>'
+            for k, v in props
+        )
+        desc_html = ""
+        if desc_lines:
+            desc_html = f'<p class="eg-desc">{_esc(" ".join(desc_lines))}</p>'
+        card_htmls.append(
+            f'<div class="eg-card">'
+            f'<div class="eg-name">{_esc(entity_name)}</div>'
+            f'{desc_html}{prop_rows}</div>'
+        )
+    return f'<div class="entity-grid">{"".join(card_htmls)}</div>'
+
+
+def _render_comparison_table(content: str) -> str:
+    """ADR-177 Phase 5b: comparison-table kind → table with first-column highlighting.
+
+    Accepts markdown table format — renders with comparison-table CSS class that
+    highlights the first (label/entity) column distinctly.
+    """
+    html = _render_markdown_to_html(content)
+    # Add comparison-table class to <table>
+    html = html.replace("<table>", '<table class="comparison-table">', 1)
+    return html
+
+
+def _render_status_matrix(content: str) -> str:
+    """ADR-177 Phase 5b: status-matrix kind → status badge rows.
+
+    Expected agent output format:
+      - [done] Task name: optional note
+      - [in-progress] Task name: optional note
+      - [blocked] Task name: note
+      - [pending] Task name
+    Status values: done, complete, in-progress, progress, blocked, pending, skip, na
+    """
+    STATUS_CLASSES = {
+        "done": "sm-done", "complete": "sm-done", "completed": "sm-done",
+        "in-progress": "sm-progress", "progress": "sm-progress", "active": "sm-progress",
+        "blocked": "sm-blocked", "block": "sm-blocked",
+        "pending": "sm-pending", "todo": "sm-pending", "planned": "sm-pending",
+        "skip": "sm-skip", "na": "sm-skip", "n/a": "sm-skip",
+    }
+    rows = []
+    for line in content.splitlines():
+        line = line.strip().lstrip("- ").strip()
+        if not line:
+            continue
+        # Try [status] label: note
+        m = re.match(r'\[([^\]]+)\]\s+(.*?)(?::\s*(.*))?$', line)
+        if m:
+            raw_status = m.group(1).strip().lower()
+            label = m.group(2).strip()
+            note = (m.group(3) or "").strip()
+        else:
+            # No status bracket — treat as pending
+            raw_status = "pending"
+            label = line
+            note = ""
+        css_class = STATUS_CLASSES.get(raw_status, "sm-pending")
+        display_status = raw_status.replace("-", " ").title()
+        note_html = f'<span class="sm-note">{_esc(note)}</span>' if note else ""
+        rows.append(
+            f'<div class="sm-row">'
+            f'<span class="sm-badge {css_class}">{_esc(display_status)}</span>'
+            f'<span class="sm-label">{_esc(label)}</span>'
+            f'{note_html}</div>'
+        )
+    return f'<div class="status-matrix">{"".join(rows)}</div>'
+
+
+def _render_data_table(content: str) -> str:
+    """ADR-177 Phase 5b: data-table kind → dense numeric table.
+
+    Accepts markdown table format. Adds data-table CSS class for numeric styling
+    (tabular nums, tighter cells, sticky header).
+    """
+    html = _render_markdown_to_html(content)
+    html = html.replace("<table>", '<table class="data-table">', 1)
+    return html
+
+
+def _render_timeline(content: str) -> str:
+    """ADR-177 Phase 5b: timeline kind → vertical timeline entries.
+
+    Expected agent output format:
+      - **2024-Q1**: Event description
+      - **Jan 2024**: Event description
+      YYYY-MM-DD: description
+      or plain list items — each item becomes a timeline entry.
+    """
+    entries = []
+    for line in content.splitlines():
+        line = line.strip().lstrip("- ").strip()
+        if not line:
+            continue
+        # Try **date**: description or date: description
+        m = re.match(r'\*{0,2}([^*:]+?)\*{0,2}\s*:\s*(.*)', line)
+        if m:
+            date = m.group(1).strip()
+            desc = m.group(2).strip()
+        else:
+            date = ""
+            desc = line
+        date_html = f'<div class="tl-date">{_esc(date)}</div>' if date else ""
+        entries.append(
+            f'<div class="tl-entry">'
+            f'<div class="tl-marker"></div>'
+            f'<div class="tl-content">{date_html}'
+            f'<div class="tl-desc">{_esc(desc)}</div></div></div>'
+        )
+    return f'<div class="timeline">{"".join(entries)}</div>'
+
+
+# CSS for structured-data kinds (appended to BASE_CSS for section-rendered documents)
+STRUCTURED_DATA_CSS = """
+/* metric-cards */
+.metric-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.mc-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1rem;
+  text-align: center;
+}
+.mc-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+.mc-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* entity-grid */
+.entity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.eg-card {
+  background: var(--brand-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+.eg-name {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+.eg-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+.eg-prop {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  margin-bottom: 0.25rem;
+}
+.eg-key {
+  color: var(--text-muted);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+.eg-val { color: var(--text-primary); }
+
+/* comparison-table */
+table.comparison-table td:first-child,
+table.comparison-table th:first-child {
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--text-primary);
+  border-right: 2px solid var(--border);
+  min-width: 120px;
+}
+
+/* data-table */
+table.data-table {
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+table.data-table td { padding: 0.4rem 0.75rem; }
+
+/* status-matrix */
+.status-matrix { margin: 1.5rem 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.sm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  border-radius: calc(var(--radius) / 2);
+  border: 1px solid var(--border-light);
+}
+.sm-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+.sm-done    { background: #d1fae5; color: #065f46; }
+.sm-progress{ background: #dbeafe; color: #1e40af; }
+.sm-blocked { background: #fee2e2; color: #991b1b; }
+.sm-pending { background: #f3f4f6; color: #4b5563; }
+.sm-skip    { background: #f3f4f6; color: #9ca3af; }
+.sm-label { font-size: 0.9rem; font-weight: 500; flex: 1; }
+.sm-note { font-size: 0.8rem; color: var(--text-muted); }
+
+/* timeline */
+.timeline { margin: 1.5rem 0; position: relative; padding-left: 1.5rem; }
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+.tl-entry {
+  position: relative;
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.tl-marker {
+  position: absolute;
+  left: -1.5rem;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  border: 2px solid var(--brand-bg);
+  flex-shrink: 0;
+}
+.tl-date {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+  margin-bottom: 0.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.tl-desc { font-size: 0.9rem; color: var(--text-secondary); }
+
+/* section wrappers */
+.section-callout {
+  background: var(--brand-primary-light);
+  border-left: 4px solid var(--brand-primary);
+  padding: 1rem 1.25rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  margin: 1.5rem 0;
+}
+.section-checklist { margin: 1.5rem 0; }
+.section-narrative { margin: 1.5rem 0; }
+"""
+
+
+def _render_section_to_html(section: "SectionContent") -> str:
+    """ADR-177 Phase 5b: Render a single section to HTML based on its kind.
+
+    Markdown kinds: narrative, callout, checklist → python-markdown.
+    Structured-data kinds: metric-cards, entity-grid, comparison-table,
+      status-matrix, data-table, timeline → component HTML generators.
+    Chart kinds and RuntimeDispatch assets: fallback with data-kind attribute
+      (Phase 5c will add matplotlib renderers).
     """
     kind = section.kind
     content = section.content
-    title_html = f"<h2>{section.title}</h2>\n" if section.title else ""
+    title_html = f"<h2>{_esc(section.title)}</h2>\n" if section.title else ""
 
-    if kind in ("narrative", "callout", "checklist"):
-        # Markdown path — existing renderer handles these correctly
+    # --- Markdown kinds ---
+    if kind == "narrative":
         body = _render_markdown_to_html(content)
-        if kind == "callout":
-            return f'<div class="section-callout">{title_html}{body}</div>\n'
-        if kind == "checklist":
-            return f'<div class="section-checklist">{title_html}{body}</div>\n'
         return f'<div class="section-narrative">{title_html}{body}</div>\n'
 
-    # Phase D2 placeholder: structured-data kinds and chart kinds fall back to
-    # markdown rendering with a kind data-attribute for future upgrade.
+    if kind == "callout":
+        body = _render_markdown_to_html(content)
+        return f'<div class="section-callout">{title_html}{body}</div>\n'
+
+    if kind == "checklist":
+        body = _render_markdown_to_html(content)
+        return f'<div class="section-checklist">{title_html}{body}</div>\n'
+
+    # --- Structured-data kinds ---
+    if kind == "metric-cards":
+        return f'<div class="section-kind-metric-cards" data-kind="metric-cards">{title_html}{_render_metric_cards(content)}</div>\n'
+
+    if kind == "entity-grid":
+        return f'<div class="section-kind-entity-grid" data-kind="entity-grid">{title_html}{_render_entity_grid(content)}</div>\n'
+
+    if kind == "comparison-table":
+        return f'<div class="section-kind-comparison-table" data-kind="comparison-table">{title_html}{_render_comparison_table(content)}</div>\n'
+
+    if kind == "status-matrix":
+        return f'<div class="section-kind-status-matrix" data-kind="status-matrix">{title_html}{_render_status_matrix(content)}</div>\n'
+
+    if kind == "data-table":
+        return f'<div class="section-kind-data-table" data-kind="data-table">{title_html}{_render_data_table(content)}</div>\n'
+
+    if kind == "timeline":
+        return f'<div class="section-kind-timeline" data-kind="timeline">{title_html}{_render_timeline(content)}</div>\n'
+
+    # --- Chart kinds + unknown → markdown fallback with data-kind (Phase 5c) ---
     body = _render_markdown_to_html(content)
     return f'<div class="section-kind-{kind}" data-kind="{kind}">{title_html}{body}</div>\n'
 
@@ -918,6 +1296,9 @@ def compose_html(
     else:
         surface_css = _SURFACE_CSS.get(surface_type, DOCUMENT_CSS)
         css_parts = [BASE_CSS, surface_css]
+    # Inject structured-data component CSS when rendering via sections (Phase 5b)
+    if sections:
+        css_parts.append(STRUCTURED_DATA_CSS)
     if brand_css:
         css_parts.append(f"\n/* Brand overrides */\n{brand_css}")
     full_css = "\n".join(css_parts)

@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.8] - ADR-177 Phase 5b: Structured-data kind renderers
+
+### Changed
+- `render/compose.py` — Six structured-data kind renderers added to `_render_section_to_html()`:
+  - `metric-cards` → responsive card grid from `**Label**: value` lines
+  - `entity-grid` → entity cards with property rows from `## Entity Name` blocks or flat list
+  - `comparison-table` → markdown table with first-column label highlighting via `comparison-table` CSS class
+  - `status-matrix` → colored badge rows from `- [status] label: note` format (done/in-progress/blocked/pending/skip)
+  - `data-table` → dense numeric table (tabular-nums, tighter cells) via `data-table` CSS class
+  - `timeline` → vertical timeline with dot markers from `**date**: description` or `date: description` lines
+- `render/compose.py` — `STRUCTURED_DATA_CSS` constant added (~130 lines) covering all six component layouts. Injected into CSS assembly when sections are present.
+- Expected behavior: Agents producing sections with structured-data kinds now render as designed components instead of falling back to markdown. Kind-aware HTML is written to `output.html` in the task workspace. Chart kinds (trend-chart, distribution-chart) still fall back to markdown with `data-kind` attribute until Phase 5c.
+
+## [2026.04.13.7] - ADR-177 Phase D: _compose_and_persist() pipeline reorder + section-kind dispatch
+
+### Changed
+- `api/services/task_pipeline.py` — `_compose_and_persist()` added as the single compose+persist step. Replaces the two-seam pattern (compose in agent_execution.py via AgentWorkspace → re-read in task_pipeline.py). New order: (1) parse draft into SectionContent objects first, (2) POST to /compose with `sections` list, (3) write output.html directly to task workspace. Both single-agent and multi-agent call sites migrated.
+- `api/services/agent_execution.py` — `_compose_output_html()` deleted (75 lines). The ADR-130 Phase 2 compose call that wrote composed HTML to agent workspace is gone. No dual compose path.
+- `render/compose.py` — `SectionContent(kind, title, content)` Pydantic model added. `ComposeRequest.sections: list[SectionContent] = []` added (markdown field now optional). `_render_section_to_html()` dispatcher: narrative/callout/checklist → styled wrapper divs with `data-kind`; all other kinds → markdown fallback with `data-kind` for future Phase 5b upgrade. `compose_html()` dispatches on sections when provided, else flat markdown path.
+- `render/main.py` — `/compose` handler passes `sections=req.sections if req.sections else None` to `compose_html()`.
+- Expected behavior: Compose pipeline ordering bug fixed — sections are parsed before compose is called, so render service receives kind metadata. Render service dispatches on kind for markdown kinds; structured-data and chart kinds are placeholders (Phase 5b/5c). Agent workspace no longer holds a composed HTML file; task workspace is the sole output substrate.
+
+## [2026.04.13.6] - ADR-178 Phase B: Mode sync invariant + inference auto-trigger post-evaluate
+
+### Changed
+- `api/services/primitives/manage_task.py` — `_handle_update()`: added `else: new_mode = None` guard so invalid/absent mode input never accidentally patches TASK.md. After DB patch, if `new_mode` is set: reads TASK.md, regex-replaces `**Mode:** {value}` line (or appends if absent). ADR-178 critical invariant: `tasks.mode` (DB) == TASK.md `**Mode:**` field at all times — `_handle_update()` now enforces this atomically.
+- `api/services/primitives/manage_task.py` — `_handle_evaluate()`: post-evaluate inference auto-trigger added. After writing to `memory/feedback.md`, counts `## ` headings (entries total) vs entries newer than `<!-- last_inference: {iso} -->` stamp in DELIVERABLE.md. If ≥2 new entries: calls `infer_task_deliverable_preferences(client, user_id, task_slug)`. On success (`updated_deliverable is not None`): stamps `<!-- last_inference: {now_iso} -->` into DELIVERABLE.md. Return dict gains `inference_triggered: bool`.
+- Expected behavior: When TP calls `ManageTask(action="update", mode="goal")`, TASK.md `**Mode:**` is updated atomically with the DB row — no divergence. When TP evaluates a task that has accumulated ≥2 feedback entries since the last inference run, DELIVERABLE.md preferences are automatically updated in the same evaluate turn (ADR-156 single-intelligence-layer: no shadow LLM calls, TP-initiated only).
+
 ## [2026.04.13.5] - ADR-176 Phase 4: Directory registry simplification + context write hardening
 
 ### Changed
