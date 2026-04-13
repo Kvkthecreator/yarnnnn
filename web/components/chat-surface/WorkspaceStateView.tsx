@@ -72,6 +72,11 @@ interface WorkspaceStateViewProps {
    * which routes to opening the Onboarding modal instead of chat.
    */
   onOpenOnboarding: () => void;
+  /**
+   * Called when the user clicks "Set up work" from the idle-agents Heads Up flag.
+   * Opens TaskSetupModal, pre-filled with idle agent names as notes.
+   */
+  onOpenTaskSetup: (initialNotes: string) => void;
 }
 
 // =============================================================================
@@ -88,6 +93,7 @@ export function WorkspaceStateView({
   onClose,
   onAskTP,
   onOpenOnboarding,
+  onOpenTaskSetup,
 }: WorkspaceStateViewProps) {
   // Active tab — initialized from `lead` prop, falls back to `overview`.
   const initialLead = lead ?? 'overview';
@@ -193,6 +199,8 @@ export function WorkspaceStateView({
                 loading={dataLoading}
                 onAskTP={onAskTP}
                 onOpenOnboarding={onOpenOnboarding}
+                onClose={onClose}
+                onOpenTaskSetup={onOpenTaskSetup}
               />
             )}
             {activeTab === 'recap' && <RecapTab />}
@@ -544,12 +552,16 @@ function FlagsTab({
   loading,
   onAskTP,
   onOpenOnboarding,
+  onClose,
+  onOpenTaskSetup,
 }: {
   agents: Agent[];
   tasks: Task[];
   loading: boolean;
   onAskTP: (prompt: string) => void;
   onOpenOnboarding: () => void;
+  onClose: () => void;
+  onOpenTaskSetup: (initialNotes: string) => void;
 }) {
   const [identityMissing, setIdentityMissing] = useState<boolean>(false);
   const [fetching, setFetching] = useState(true);
@@ -632,11 +644,11 @@ function FlagsTab({
         title: `${idle.length} ${idle.length === 1 ? 'agent has' : 'agents have'} no work yet`,
         detail: names,
         action: {
-          label: 'Suggest work for them',
-          onClick: () =>
-            onAskTP(
-              `I have ${idle.length} agents without work (${names}). What should they be doing?`,
-            ),
+          label: 'Set up work for them',
+          onClick: () => {
+            onClose();
+            onOpenTaskSetup(`${names} ${idle.length === 1 ? 'has' : 'have'} no tasks yet.`);
+          },
         },
       });
     }
@@ -679,7 +691,7 @@ function FlagsTab({
     }
 
     return items;
-  }, [identityMissing, agents, tasks, onAskTP, onOpenOnboarding]);
+  }, [identityMissing, agents, tasks, onAskTP, onOpenOnboarding, onClose, onOpenTaskSetup]);
 
   if (loading || fetching) {
     return (

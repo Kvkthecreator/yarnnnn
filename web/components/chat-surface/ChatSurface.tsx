@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ChatSurface — TP chat surface with two structured modals (ADR-165 v8).
+ * ChatSurface — TP chat surface with three structured modals (ADR-165 v8).
  *
  *   <SurfaceIdentityHeader                     — the real h1 + actions
  *     title="Thinking Partner"
@@ -9,23 +9,26 @@
  *   />
  *   <ChatPanel />                              — conversation column
  *
- * Two sibling modals, opened independently:
+ * Three sibling modals, opened independently:
  *   1. WorkspaceStateView (Overview) — read-only diagnostic dashboard
  *      Opened by: TP `<!-- workspace-state: ... -->` marker or user "Overview" button
  *   2. OnboardingModal — first-run identity capture (wraps ContextSetup)
  *      Opened by: TP `<!-- onboarding -->` marker only (no manual trigger)
+ *   3. TaskSetupModal — structured task creation (wraps TaskSetup)
+ *      Opened by: "Start new work" plus-menu action or Heads Up idle-agents flag
  *
- * Both modals cannot be open simultaneously. ChatSurface is the state machine
- * that enforces exclusivity and routes markers to the correct modal.
+ * All modals mutually exclusive. ChatSurface is the state machine that
+ * enforces exclusivity and routes markers to the correct modal.
  *
  * ADR-165 v8 (2026-04-09): Onboarding split from workspace state. Overview
  * modal has four read-only tabs (What I know / Heads up / Last time / Team
  * activity). No isEmpty prop, no soft gate. Onboarding is a separate modal
  * with its own marker. Two markers, two parsers, two modals.
+ * ADR-178 (2026-04-13): TaskSetup added as third modal.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { LayoutDashboard } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { LayoutDashboard, ListChecks } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -38,21 +41,26 @@ import {
 } from '@/lib/workspace-state-meta';
 import { WorkspaceStateView } from './WorkspaceStateView';
 import { OnboardingModal } from './OnboardingModal';
+import { TaskSetupModal } from './TaskSetupModal';
 
 interface ChatSurfaceProps {
   agents: Agent[];
   tasks: Task[];
   dataLoading: boolean;
-  plusMenuActions: PlusMenuAction[];
+  /** Additional plus-menu actions from the page. ChatSurface prepends its own built-in actions. */
+  plusMenuActions?: PlusMenuAction[];
   onContextSubmit: (message: string) => void;
+  /** Called by the page if it needs to register an external open handler. Unused post-ADR-178. */
+  onRegisterOpenTaskSetup?: (fn: () => void) => void;
 }
 
 export function ChatSurface({
   agents,
   tasks,
   dataLoading,
-  plusMenuActions,
+  plusMenuActions = [],
   onContextSubmit,
+  onRegisterOpenTaskSetup,
 }: ChatSurfaceProps) {
   const { messages, sendMessage } = useTP();
 
@@ -63,6 +71,10 @@ export function ChatSurface({
 
   // --- Onboarding modal state ---
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+
+  // --- Task setup modal state ---
+  const [taskSetupOpen, setTaskSetupOpen] = useState(false);
+  const [taskSetupInitialNotes, setTaskSetupInitialNotes] = useState('');
 
   // Track the last message id we processed for marker directives.
   const [lastProcessedId, setLastProcessedId] = useState<string | null>(null);
@@ -136,6 +148,36 @@ export function ChatSurface({
     [onContextSubmit],
   );
 
+  // Task setup modal — opened from plus-menu or Heads Up idle-agents flag.
+  const handleOpenTaskSetup = useCallback((initialNotes = '') => {
+    setOverviewOpen(false);
+    setOnboardingOpen(false);
+    setTaskSetupInitialNotes(initialNotes);
+    setTaskSetupOpen(true);
+  }, []);
+
+  const handleTaskSetupClose = useCallback(() => setTaskSetupOpen(false), []);
+
+  const handleTaskSetupSubmit = useCallback(
+    (msg: string) => {
+      setTaskSetupOpen(false);
+      sendMessage(msg);
+    },
+    [sendMessage],
+  );
+
+  // Built-in plus-menu action — prepended to any page-supplied actions.
+  const allPlusMenuActions = useMemo<PlusMenuAction[]>(() => [
+    {
+      id: 'create-task',
+      label: 'Start new work',
+      icon: ListChecks,
+      verb: 'show',
+      onSelect: () => handleOpenTaskSetup(),
+    },
+    ...plusMenuActions,
+  ], [plusMenuActions, handleOpenTaskSetup]);
+
   // Overview toggle button — lives in the surface header.
   const overviewAction = (
     <button
@@ -172,7 +214,7 @@ export function ChatSurface({
         <div className="mx-auto h-full w-full max-w-3xl px-4 py-5">
           <ChatPanel
             surfaceOverride={{ type: 'chat' }}
-            plusMenuActions={plusMenuActions}
+            plusMenuActions={allPlusMenuActions}
             placeholder="Ask anything or type / ..."
             showCommandPicker={true}
             showInputDivider={false}
@@ -191,6 +233,7 @@ export function ChatSurface({
         onClose={handleOverviewClose}
         onAskTP={handleAskTP}
         onOpenOnboarding={handleOpenOnboarding}
+        onOpenTaskSetup={handleOpenTaskSetup}
       />
 
       {/* Onboarding modal — first-run identity capture */}
@@ -198,6 +241,14 @@ export function ChatSurface({
         open={onboardingOpen}
         onClose={handleOnboardingClose}
         onSubmit={handleOnboardingSubmit}
+      />
+
+      {/* Task setup modal — structured task creation (ADR-178) */}
+      <TaskSetupModal
+        open={taskSetupOpen}
+        onClose={handleTaskSetupClose}
+        onSubmit={handleTaskSetupSubmit}
+        initialNotes={taskSetupInitialNotes}
       />
     </div>
   );

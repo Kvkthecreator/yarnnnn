@@ -4,6 +4,17 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-13 — TASK-SETUP-FLOW.md: Structured intent capture for task creation
+
+- **New design doc**: `TASK-SETUP-FLOW.md` — defines the `TaskSetup` component, the task creation equivalent of `ContextSetup`. Two-route flow: Route B (context-driven: "track something") and Route A (output-driven: "get a deliverable"). Both routes share the same material injection layer (links → entity seed, files → DELIVERABLE.md shape, notes → `focus`). Composed message gives TP a complete intent statement it can act on in one turn without clarifying. Governs ADR-178 task creation routes.
+- **`web/components/chat-surface/TaskSetup.tsx`** — component built. Screen 0 = route selection cards. Screen 1B = domain chip + cadence + source toggles + material injection. Screen 1A = surface chip + mode chip + cadence + delivery toggle + material injection.
+- **`web/components/chat-surface/TaskSetupModal.tsx`** — modal shell wrapping TaskSetup, same pattern as OnboardingModal.
+- **`web/components/chat-surface/ChatSurface.tsx`** — TaskSetupModal added as third sibling modal. Built-in "Start new work" plus-menu action prepended to any page-supplied actions. `handleOpenTaskSetup(initialNotes)` is the entry point.
+- **`web/app/(authenticated)/chat/page.tsx`** — simplified: no longer owns plus-menu action definition (ChatSurface owns it).
+- **`web/components/chat-surface/WorkspaceStateView.tsx`** — Heads Up idle-agents flag updated: "Suggest work for them" (→ blank TP prompt) replaced by "Set up work for them" (→ opens TaskSetupModal pre-filled with idle agent names).
+
+---
+
 ## 2026-04-09 — Agent surface patterns: broader shell / empty-state rules
 
 - **New design doc**: `AGENT-AND-TASK-SURFACE-PATTERNS.md` — broader-scoped surface guidance layered on top of ADR-167. Defines the rendering split: `agent_class` chooses the agent shell, `output_kind` chooses the task shell, assigned-work cards stay shared, and `role` is limited to bounded add-on modules when the data genuinely differs.
