@@ -109,8 +109,8 @@ export default function HowItWorksPage() {
                 <div>
                   <h2 className="text-2xl md:text-3xl font-medium mb-4">Your team is ready at signup</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl">
-                    You don&apos;t build agents from scratch. Five domain experts,
-                    a reporting synthesizer, platform connectors, and an orchestrator
+                    You don&apos;t build agents from scratch. A researcher, analyst,
+                    writer, tracker, designer, platform connectors, and an orchestrator
                     are waiting when you sign up.
                   </p>
                 </div>
@@ -125,21 +125,19 @@ export default function HowItWorksPage() {
                 >
                   <div className="p-6 md:p-8 h-full">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Your roster</div>
-                    <h3 className="text-xl font-medium mb-2">Ten agents, each with a specialty</h3>
+                    <h3 className="text-xl font-medium mb-2">Nine agents, each with a specialty</h3>
                     <p className="text-white/50 text-sm mb-8 max-w-md">
-                      Five domain experts, a synthesizer for cross-cutting reports,
-                      platform connectors for your tools, and an orchestrator that
-                      manages the whole team.
+                      Six universal specialists — a researcher, analyst, writer, tracker,
+                      designer, and orchestrator — plus platform connectors for your tools.
                     </p>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {([
-                        { name: "Competitive Intel", letter: "CI", color: "#6366f1", desc: "Tracks your competitors for you" },
-                        { name: "Market Research", letter: "MR", color: "#0ea5e9", desc: "Monitors your market continuously" },
-                        { name: "Business Dev", letter: "BD", color: "#10b981", desc: "Surfaces relationships & opportunities" },
-                        { name: "Operations", letter: "OP", color: "#f59e0b", desc: "Keeps pulse on execution health" },
-                        { name: "Marketing", letter: "M", color: "#ef4444", desc: "Watches positioning & creative" },
-                        { name: "Reporting", letter: "RP", color: "#8b5cf6", desc: "Connects dots across all domains" },
+                        { name: "Researcher", letter: "R", color: "#6366f1", desc: "Finds and evaluates sources" },
+                        { name: "Analyst", letter: "A", color: "#0ea5e9", desc: "Synthesizes patterns and meaning" },
+                        { name: "Writer", letter: "W", color: "#10b981", desc: "Drafts polished deliverables" },
+                        { name: "Tracker", letter: "T", color: "#f59e0b", desc: "Monitors signals and changes" },
+                        { name: "Designer", letter: "D", color: "#ef4444", desc: "Creates charts, images & visuals" },
                         { name: "Slack Bot", letter: "S", color: "#E01E5A", desc: "Reads your channels & threads" },
                         { name: "Notion Bot", letter: "N", color: "#191919", desc: "Reads your pages & databases" },
                         { name: "GitHub Bot", letter: "G", color: "#111827", desc: "Follows repos & activity" },
@@ -168,15 +166,15 @@ export default function HowItWorksPage() {
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">How they work together</div>
                     <div className="flex-1 space-y-4">
                       <div>
-                        <div className="text-sm font-medium mb-1">Domain experts</div>
+                        <div className="text-sm font-medium mb-1">Accumulation specialists</div>
                         <p className="text-white/40 text-xs leading-relaxed">
-                          Five specialists that each own a knowledge area and get deeper over time.
+                          Researcher, Analyst, Writer, and Tracker build up knowledge over time.
                         </p>
                       </div>
                       <div>
-                        <div className="text-sm font-medium mb-1">Reporting</div>
+                        <div className="text-sm font-medium mb-1">Production specialist</div>
                         <p className="text-white/40 text-xs leading-relaxed">
-                          Reads across the whole team and assembles cross-cutting reports and briefs.
+                          Designer creates charts, images, and visual assets for your deliverables.
                         </p>
                       </div>
                       <div>
@@ -231,13 +229,13 @@ export default function HowItWorksPage() {
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Example task</div>
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center">
-                        <span className="text-[9px] text-white font-bold">RP</span>
+                        <span className="text-[9px] text-white font-bold">W</span>
                       </div>
                       <span className="text-lg font-medium">Weekly leadership brief</span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.06] text-white/40 ml-auto">Recurring · Weekly</span>
                     </div>
                     <p className="text-white/50 text-sm leading-relaxed max-w-lg">
-                      Slack and Notion keep the workspace fresh. Reporting assembles the
+                      Slack and Notion keep the workspace fresh. The Writer assembles the
                       week's changes, decisions, and risks into one Monday morning brief.
                     </p>
                   </div>
@@ -264,9 +262,9 @@ export default function HowItWorksPage() {
 
                 {/* More task examples */}
                 {([
-                  { title: "Competitor intelligence brief", agent: "Competitive Intelligence", mode: "Recurring" },
-                  { title: "Market research deep dive", agent: "Market Research", mode: "Goal" },
-                  { title: "Meeting prep brief", agent: "Reporting", mode: "Reactive" },
+                  { title: "Competitor intelligence brief", agent: "Researcher + Analyst + Writer", mode: "Recurring" },
+                  { title: "Market research deep dive", agent: "Researcher + Analyst", mode: "Goal" },
+                  { title: "Meeting prep brief", agent: "Tracker + Writer", mode: "Reactive" },
                 ] as const).map((task) => (
                   <SpotlightCard key={task.title} variant="dark" className="md:col-span-2">
                     <div className="p-5">
@@ -387,15 +385,15 @@ export default function HowItWorksPage() {
                     </div>
                     <div className="flex items-start gap-4">
                       <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center shrink-0">
-                        <span className="text-[8px] text-white font-bold">CI</span>
+                        <span className="text-[8px] text-white font-bold">R</span>
                       </div>
-                      <p className="text-white/70 text-sm pt-1">Competitive Intelligence adds external moves and market shifts</p>
+                      <p className="text-white/70 text-sm pt-1">Researcher adds external moves and market shifts</p>
                     </div>
                     <div className="flex items-start gap-4">
                       <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center shrink-0">
-                        <span className="text-[8px] text-white font-bold">RP</span>
+                        <span className="text-[8px] text-white font-bold">W</span>
                       </div>
-                      <p className="text-white/70 text-sm pt-1">Reporting synthesizes it into one brief for leadership</p>
+                      <p className="text-white/70 text-sm pt-1">Writer synthesizes it into one brief for leadership</p>
                     </div>
                     <div className="flex items-start gap-4 pt-2 border-t border-white/[0.06]">
                       <div className="w-7 h-7 rounded-full bg-white/[0.1] flex items-center justify-center shrink-0">

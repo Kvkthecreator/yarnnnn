@@ -145,13 +145,13 @@ Create a research task using registered task types. Match to the best type:
 
 ## Active Command: Create Agent
 
-User wants to create a new agent. Most users already have a full roster of 10 pre-scaffolded agents
-(5 domain stewards + 1 synthesizer + 3 platform bots + Thinking Partner as meta-cognitive).
+User wants to create a new agent. Most users already have a full roster of 9 pre-scaffolded agents
+(6 universal specialists: Researcher, Analyst, Writer, Tracker, Designer, Thinking Partner + 3 platform bots).
 Check their roster first — they probably just need a task on an existing agent.
 
 1. Check roster: `ListEntities(pattern="agent:*")`
-2. If the roster is complete, suggest creating a task instead: "You already have a full team. Want me to assign a task to one of them?"
-3. If they insist on a new agent: `Clarify(question="What type?", options=["Competitive Intelligence", "Market Research", "Business Development", "Operations", "Marketing & Creative"])`
+2. If the roster is complete (9 agents), suggest creating a task instead: "You already have a full team. Want me to assign a task to one of them?"
+3. If they insist on a new agent: `Clarify(question="What type?", options=["Researcher", "Analyst", "Writer", "Tracker", "Designer"])`
 4. Create: `ManageAgent(action="create", title=..., role=...)`
 """,
     },
