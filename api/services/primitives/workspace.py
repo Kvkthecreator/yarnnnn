@@ -18,6 +18,7 @@ layer was always distinct from the entity layer, the names now reflect it.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
@@ -315,19 +316,66 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         abs_path = f"/workspace/{full_path}"
 
         um = UserMemory(auth.client, auth.user_id)
+
         if mode == "append":
             existing = await um.read(full_path) or ""
-            success = await um.write(full_path, existing + "\n" + content,
+            new_content = existing + "\n" + content
+            success = await um.write(full_path, new_content,
                                      summary=f"Context update: {domain}/{path}")
         else:
-            success = await um.write(full_path, content,
+            # ADR-176 Phase 4: Content hash dedup — skip write if content unchanged.
+            # Cheap SHA-256 comparison avoids unnecessary DB writes and embedding calls.
+            filename = path.rsplit("/", 1)[-1] if "/" in path else path
+            _ENTITY_PROFILE_FILENAMES = {"profile.md", "strategy.md", "product.md"}
+            is_entity_profile = filename in _ENTITY_PROFILE_FILENAMES
+
+            existing_content = await um.read(full_path)
+            if existing_content is not None:
+                existing_hash = hashlib.sha256(existing_content.encode()).hexdigest()
+                new_hash = hashlib.sha256(content.encode()).hexdigest()
+                if existing_hash == new_hash:
+                    return {"success": True, "path": abs_path, "domain": domain,
+                            "scope": "context", "skipped": True, "reason": "content_unchanged"}
+
+                # ADR-176 Phase 4: Entity profile versioning — archive profile.md,
+                # strategy.md, product.md to /workspace/context/{domain}/history/ before overwrite.
+                if is_entity_profile:
+                    try:
+                        entity_dir = path.rsplit("/", 1)[0] if "/" in path else ""
+                        hist_prefix = (f"{domain_folder}/{entity_dir}/history/"
+                                       if entity_dir else f"{domain_folder}/history/")
+                        # Count existing versions
+                        ver_result = um._db.table("workspace_files").select("path, updated_at") \
+                            .eq("user_id", auth.user_id) \
+                            .like("path", f"/workspace/{hist_prefix}{filename.replace('.md', '')}-v%.md") \
+                            .order("updated_at", desc=True).execute()
+                        existing_versions = ver_result.data or []
+                        next_v = len(existing_versions) + 1
+                        hist_path = f"{hist_prefix}{filename.replace('.md', '')}-v{next_v}.md"
+                        await um.write(hist_path, existing_content,
+                                      summary=f"v{next_v} archive of {filename}")
+                        # Cap at 5 versions — delete oldest beyond limit
+                        _MAX_PROFILE_VERSIONS = 5
+                        if len(existing_versions) >= _MAX_PROFILE_VERSIONS:
+                            for old in existing_versions[_MAX_PROFILE_VERSIONS - 1:]:
+                                try:
+                                    um._db.table("workspace_files").delete() \
+                                        .eq("user_id", auth.user_id) \
+                                        .eq("path", old["path"]).execute()
+                                except Exception:
+                                    pass
+                    except Exception as e:
+                        logger.warning(f"[WORKSPACE] Entity profile archive failed for {full_path}: {e}")
+
+            new_content = content
+            success = await um.write(full_path, new_content,
                                      summary=f"Context write: {domain}/{path}")
 
         if success:
             # ADR-174 Phase 2: embed context files async (fire-and-forget).
             # Scoped to /workspace/context/ only. Failure is non-fatal.
             asyncio.ensure_future(
-                _embed_workspace_file(auth.client, auth.user_id, abs_path, content)
+                _embed_workspace_file(auth.client, auth.user_id, abs_path, new_content)
             )
             return {"success": True, "path": abs_path, "domain": domain, "scope": "context"}
         return {"success": False, "error": "write_failed", "message": f"Failed to write: {full_path}"}

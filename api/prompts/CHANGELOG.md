@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.5] - ADR-176 Phase 4: Directory registry simplification + context write hardening
+
+### Changed
+- `api/services/directory_registry.py` — `scaffold_all_directories()` simplified: now creates `signals/` only at signup. All other context domains (competitors, market, relationships, etc.) are demand-driven — created by TP when the first task that needs them is assembled. Added `scaffold_context_domain(domain_key)` for on-demand scaffolding: creates synthesis file, assets folder, and tracker for known archetypes; creates minimal `landscape.md` for unknown domains.
+- `api/services/primitives/workspace.py` — `handle_write_file()` scope="context" path hardened with two new behaviors: (1) **Content hash dedup**: SHA-256 comparison against existing content before overwrite; returns `{"skipped": True, "reason": "content_unchanged"}` if identical. (2) **Entity profile versioning**: before overwriting `profile.md`, `strategy.md`, or `product.md`, archives prior version to `/workspace/context/{domain}/{entity}/history/{filename}-v{N}.md`. Capped at 5 versions.
+- Added `import hashlib` to workspace primitives.
+- Expected behavior: New workspaces get only `signals/` at signup. Other domains appear when TP creates tasks that need them. Context writes skip unnecessary DB/embedding calls when content hasn't changed. Entity profile history is preserved across runs.
+
 ## [2026.04.13.4] - ADR-176 Phase 3: Work-first TP prompt — universal specialist framing
 
 ### Changed

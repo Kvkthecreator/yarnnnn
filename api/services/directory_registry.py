@@ -535,75 +535,117 @@ CONTEXT_DOMAINS = {k: v for k, v in WORKSPACE_DIRECTORIES.items() if v.get("type
 
 
 async def scaffold_all_directories(client, user_id: str) -> list[str]:
-    """Scaffold all workspace directories at onboarding.
+    """Scaffold workspace directories at signup.
 
-    Creates synthesis files for context domains and empty markers for output categories.
+    ADR-176 Decision 5: Only signals/ is created at signup. All other context domains
+    (competitors, market, relationships, etc.) are created by TP when work first demands
+    them. Domain directories emerge from actual work intent, not from pre-declared keys.
+
+    The signals domain is the universal exception — it is the cross-domain temporal inbox,
+    present from day one because signals can arrive before any specific domain exists.
+
     Idempotent — skips already-scaffolded directories.
-
-    Called during user onboarding (alongside agent roster scaffold).
     Returns list of directory keys that were newly scaffolded.
     """
     from services.workspace import UserMemory
+    from datetime import datetime, timezone
     import logging
 
     logger = logging.getLogger(__name__)
     um = UserMemory(client, user_id)
     scaffolded = []
 
-    for key, directory in WORKSPACE_DIRECTORIES.items():
-        dir_type = directory.get("type")
-        path = directory["path"]
-
-        if dir_type == "context":
-            # Scaffold synthesis file for context domains
-            synthesis = directory.get("synthesis_file")
-            if synthesis:
-                existing = await um.read(f"{path}/{synthesis}")
-                if not existing:
-                    template = directory.get("synthesis_template") or ""
-                    await um.write(f"{path}/{synthesis}", template,
-                                  summary=f"Directory scaffold: {key}")
-
-            # ADR-157: Scaffold assets/ folder for domains that support visual assets
-            if directory.get("assets_folder"):
-                assets_path = f"{path}/assets/.gitkeep"
-                existing_assets = await um.read(assets_path)
-                if not existing_assets:
-                    await um.write(assets_path,
-                                  "# Assets\n\nVisual assets for this domain (favicons, charts, diagrams).\n",
-                                  summary=f"Assets folder scaffold: {key}")
-
-            # ADR-154: Scaffold _tracker.md for entity-bearing domains
-            tracker = directory.get("tracker_file")
-            if tracker:
-                tracker_path = f"{path}/{tracker}"
-                existing_tracker = await um.read(tracker_path)
-                if not existing_tracker:
-                    tracker_content = build_tracker_md(key, [])
-                    await um.write(tracker_path, tracker_content,
-                                  summary=f"Entity tracker scaffold: {key}")
-
-            # Signal domains get today's file
-            if directory.get("signal_log"):
-                from datetime import datetime, timezone
-                today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-                signal_path = f"{path}/{today}.md"
-                existing_signal = await um.read(signal_path)
-                if not existing_signal:
-                    await um.write(signal_path,
-                                  f"# Signals — {today}\n<!-- Cross-domain temporal signal log. -->\n",
-                                  summary=f"Signal log scaffold: {today}")
-
-            scaffolded.append(key)
-
-        elif dir_type == "output":
-            # No pre-scaffold needed for output directories — created when first output promotes
-            pass
-
-        elif dir_type == "user_contributed":
-            # No pre-scaffold — user uploads create files
-            pass
-
-        logger.info(f"[DIRECTORY_REGISTRY] Scaffolded: {key}")
+    # ADR-176: Only scaffold signals/ at signup. All other context domains
+    # are demand-driven — created when TP assembles the first task that needs them.
+    signals_dir = WORKSPACE_DIRECTORIES.get("signals")
+    if signals_dir:
+        path = signals_dir["path"]
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        signal_path = f"{path}/{today}.md"
+        existing = await um.read(signal_path)
+        if not existing:
+            await um.write(
+                signal_path,
+                f"# Signals — {today}\n<!-- Cross-domain temporal signal log. -->\n",
+                summary=f"Signal log scaffold: {today}",
+            )
+            scaffolded.append("signals")
+            logger.info("[DIRECTORY_REGISTRY] Scaffolded: signals")
 
     return scaffolded
+
+
+async def scaffold_context_domain(client, user_id: str, domain_key: str) -> bool:
+    """Scaffold a single context domain on demand (ADR-176 Decision 5).
+
+    Called by TP when it creates a task that needs a new context domain.
+    Creates the synthesis file, assets folder, and tracker if defined in the registry.
+    For unknown domains (not in registry), creates a minimal landscape.md.
+
+    Returns True if domain was newly scaffolded, False if already existed.
+    """
+    from services.workspace import UserMemory
+    import logging
+
+    logger = logging.getLogger(__name__)
+    um = UserMemory(client, user_id)
+
+    directory = WORKSPACE_DIRECTORIES.get(domain_key)
+    if not directory:
+        # Unknown domain — create minimal landscape.md
+        path = f"context/{domain_key}"
+        landscape_path = f"{path}/landscape.md"
+        existing = await um.read(landscape_path)
+        if existing:
+            return False
+        await um.write(
+            landscape_path,
+            f"# {domain_key.replace('-', ' ').title()} — Landscape\n\n"
+            f"<!-- Auto-scaffolded by TP on first task that needed this domain -->\n",
+            summary=f"Domain scaffold: {domain_key}",
+        )
+        logger.info(f"[DIRECTORY_REGISTRY] Scaffolded unknown domain: {domain_key}")
+        return True
+
+    path = directory["path"]
+    dir_type = directory.get("type")
+    if dir_type != "context":
+        return False
+
+    newly_created = False
+
+    # Synthesis file
+    synthesis = directory.get("synthesis_file")
+    if synthesis:
+        existing = await um.read(f"{path}/{synthesis}")
+        if not existing:
+            template = directory.get("synthesis_template") or ""
+            await um.write(f"{path}/{synthesis}", template,
+                          summary=f"Directory scaffold: {domain_key}")
+            newly_created = True
+
+    # Assets folder (ADR-157)
+    if directory.get("assets_folder"):
+        assets_path = f"{path}/assets/.gitkeep"
+        existing_assets = await um.read(assets_path)
+        if not existing_assets:
+            await um.write(assets_path,
+                          "# Assets\n\nVisual assets for this domain (favicons, charts, diagrams).\n",
+                          summary=f"Assets folder scaffold: {domain_key}")
+            newly_created = True
+
+    # Entity tracker (ADR-154)
+    tracker = directory.get("tracker_file")
+    if tracker:
+        tracker_path = f"{path}/{tracker}"
+        existing_tracker = await um.read(tracker_path)
+        if not existing_tracker:
+            tracker_content = build_tracker_md(domain_key, [])
+            await um.write(tracker_path, tracker_content,
+                          summary=f"Entity tracker scaffold: {domain_key}")
+            newly_created = True
+
+    if newly_created:
+        logger.info(f"[DIRECTORY_REGISTRY] Scaffolded domain: {domain_key}")
+
+    return newly_created

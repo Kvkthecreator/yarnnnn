@@ -87,39 +87,45 @@ This also future-proofs the model. When a new work pattern emerges that the curr
 
 ---
 
-## Decision 2: Team Composition — Registry Floor + TP Additive Judgment
+## Decision 2: Team Composition — TP Owns Full Judgment, Registry Provides Defaults
 
-Every task has a **minimum viable team** defined by its work intent (task mode + output kind). TP can add specialists above this floor; it cannot remove below it.
+TP has full authority over team composition for every task. The registry provides **suggested defaults** per work intent — inputs to TP's reasoning, not constraints on its output.
 
-### Why This Model (Not Pure TP Judgment, Not Pure Registry)
+### Why Full TP Judgment (Not a Registry Floor)
 
-**Pure TP judgment** is flexible but inconsistent. Two identical work intents could produce different teams across sessions. Users can't predict what they'll get. Erodes trust. Hard to test.
+**Registry floor** was considered and rejected. A non-removable floor trades flexibility for testability, but creates the wrong failure mode: a reactive one-off task gets a full Researcher + Analyst + Writer team because the registry says so, even though TP knows the work only needs a Tracker. The registry override produces a worse team than TP's judgment would. Code constraints that make agents dumber are wrong constraints.
 
-**Pure registry** is consistent but rigid. Novel work intents break. Every edge case requires a registry update. Rigidity creeps back in.
+**The hospital analogy applies differently here:** The hospital's mandatory team composition is non-negotiable because liability and patient safety require it — the cost of a wrong omission is catastrophic and irreversible. Task team composition has no equivalent downside. If TP under-staffs a team, the output is worse — observable, correctable, and the user can ask TP to add a specialist. That feedback loop is the right protection mechanism.
 
-**Registry floor + TP additive judgment** gives both: the minimum team is guaranteed and testable (registry), but TP can augment it for context-specific needs (judgment). This is the hospital model applied: mandatory team composition (surgery type defines the floor) plus specialist additions for this specific patient (cardiologist called in because of a heart condition).
+**The protection against composition mistakes** is not a code gate. It is:
+1. TP's prompt quality — documented defaults give TP a strong starting point
+2. Visibility — the `## Team` section in TASK.md is readable by the user
+3. Correctability — the user can ask TP to change the team at any time
 
-The floor is the promise. The additions are the intelligence.
+TP reads the registry defaults, applies judgment for this specific work intent and context, and documents its reasoning. The default is an informed suggestion. TP's judgment is the decision.
 
-### Team Composition by Work Intent
+### Registry Defaults by Work Intent
 
-Work intent is determined by two axes already in the data model: `mode` (recurring/goal/reactive) and `output_kind` (accumulates_context/produces_deliverable/external_action/system_maintenance).
+Work intent is determined by two axes in the data model: `mode` (recurring/goal/reactive) and `output_kind` (accumulates_context/produces_deliverable/external_action/system_maintenance).
 
-| Work Intent | Mode | Output Kind | Minimum Team | TP May Add |
-|------------|------|-------------|-------------|-----------|
-| Monitor & inform | recurring | accumulates_context | Tracker | Analyst (for synthesis) |
-| Recurring report | recurring | produces_deliverable | Researcher + Analyst + Writer | Designer (if visual) |
-| One-time deliverable | goal | produces_deliverable | Researcher + Writer | Analyst, Designer |
-| Platform digest | recurring | accumulates_context | Tracker (bot) | Analyst |
-| Reactive response | reactive | external_action | Tracker + Writer | — |
-| Research task | goal | accumulates_context | Researcher | Analyst |
+| Work Intent | Mode | Output Kind | Registry Default | When TP Deviates |
+|------------|------|-------------|-----------------|-----------------|
+| Monitor & inform | recurring | accumulates_context | Tracker + Analyst | Drop Analyst if domain is simple/narrow; add Researcher if domain needs active investigation |
+| Recurring report | recurring | produces_deliverable | Researcher + Analyst + Writer | Add Designer if visual output needed; drop Analyst if single-source synthesis |
+| One-time deliverable | goal | produces_deliverable | Researcher + Writer | Add Analyst for multi-domain synthesis; add Designer if presentation format |
+| Platform digest | recurring | accumulates_context | Tracker (bot) | Add Analyst if cross-channel synthesis needed |
+| Reactive response | reactive | external_action | Tracker + Writer | Simplify to Writer only if trigger is well-defined |
+| Research task | goal | accumulates_context | Researcher | Add Analyst if synthesis is the primary output |
 
-**TP's additive judgment criteria:**
-- Add Designer if: user mentions presentation, board deck, visual summary, social content, or brand materials
-- Add Analyst if: task spans multiple context domains or requires cross-domain synthesis
-- Add Researcher if: goal task requires external information not yet in workspace context
+**TP's composition criteria (applied to every task):**
+- Does the work require finding new information? → Researcher
+- Does the work require synthesizing across multiple sources or time periods? → Analyst
+- Does the work require a polished deliverable for an audience? → Writer
+- Does the work require ongoing monitoring or signal capture? → Tracker
+- Does the work require visual assets (charts, images, diagrams)? → Designer
+- Is the scope narrow enough that a specialist is redundant? → remove them
 
-TP documents its team additions in TASK.md under `## Team` section at task creation.
+TP writes its team reasoning in one sentence in the `## Team` section of TASK.md alongside the team list. This makes the decision observable and correctable.
 
 ---
 
@@ -299,10 +305,10 @@ A context file gets overwritten → new content has no embedding until the async
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Phase 1 | Proposed | `AGENT_TEMPLATES` rewritten: 5 ICP domain-steward templates deleted, 6 universal specialist templates added. `DEFAULT_ROSTER` updated: 9 agents (6 specialists + 3 bots). Capability sets split: accumulation caps for Researcher/Analyst/Tracker, production caps for Designer only. Methodology playbooks redistributed. |
-| Phase 2 | Proposed | `TASK_TYPES` updated: `minimum_team` field added per task type (list of specialist role keys). `parse_task_md()` updated to parse `## Team` section. Task creation writes team to TASK.md. `gather_task_context()` uses team composition for agent lookup. |
-| Phase 3 | Proposed | TP prompt updated: work-first framing, team composition guidance, additive judgment criteria. `ManageAgent(action="create")` role enum updated. Onboarding prompt updated: two entry points (deliverable intent + context upload). |
-| Phase 4 | Proposed | Directory registry: `scaffold_all_directories()` simplified to `signals/` only at signup. Entity profile versioning extended to context domain files (`_archive_to_history()` for `profile.md`, `strategy.md`, `product.md`). Content hash dedup added to write path. Staleness timestamp convention (`<!-- last-researched: {date} -->`) added to Tracker playbook. |
+| Phase 1 | Implemented | `AGENT_TEMPLATES` rewritten: 5 ICP domain-steward templates deleted, 6 universal specialist templates added. `DEFAULT_ROSTER` updated: 9 agents (6 specialists + 3 bots). Capability sets split: accumulation caps for Researcher/Analyst/Tracker, production caps for Designer only. Methodology playbooks redistributed. |
+| Phase 2 | Implemented | `TASK_TYPES` updated: `registry_default_team` field added per task type (list of specialist role keys). `parse_task_md()` updated to parse `## Team` section. Task creation writes team to TASK.md. |
+| Phase 3 | Implemented | TP prompt updated: work-first framing, team composition guidance, specialist capability discipline. All ICP domain-steward references removed from TP-facing prompts (base.py, tools.py, onboarding.py, behaviors.py). |
+| Phase 4 | Implemented | Directory registry: `scaffold_all_directories()` simplified to `signals/` only at signup. `scaffold_context_domain()` added for on-demand domain creation by TP. Entity profile versioning for `profile.md`/`strategy.md`/`product.md` in WriteFile context path. Content hash SHA-256 dedup on context write path. Staleness timestamp instruction in Tracker default_instructions and playbook. |
 | Phase 5 | Proposed | Clean-slate migration: all test workspace data wiped. `agents` DB rows for old ICP roles deleted. New specialist agents scaffolded for all test workspaces. Context domain directories reset. |
 
 ---
