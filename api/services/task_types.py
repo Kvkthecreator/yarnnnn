@@ -312,6 +312,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Track Competitors",
         "description": "Research and maintain intelligence on competitors — products, pricing, funding, strategy.",
         "output_kind": "accumulates_context",
+        "registry_default_team": ["researcher"],
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "bootstrap": {
@@ -359,6 +360,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Track Market",
         "description": "Research and maintain intelligence on market segments, sizing, trends, and opportunities.",
         "output_kind": "accumulates_context",
+        "registry_default_team": ["researcher"],
         "default_mode": "recurring",
         "default_schedule": "monthly",
         "bootstrap": {
@@ -400,6 +402,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Track Relationships",
         "description": "Maintain contact profiles, interaction history, and relationship health from platform signals.",
         "output_kind": "accumulates_context",
+        "registry_default_team": ["tracker"],
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "bootstrap": {
@@ -440,6 +443,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Track Projects",
         "description": "Maintain project status, milestones, and blockers from platform signals and team activity.",
         "output_kind": "accumulates_context",
+        "registry_default_team": ["tracker"],
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "bootstrap": {
@@ -480,6 +484,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Research Topics",
         "description": "Deep research on specific topics — accumulate findings, sources, and outlines for content creation.",
         "output_kind": "accumulates_context",
+        "registry_default_team": ["researcher"],
         "default_mode": "goal",
         "default_schedule": "on-demand",
         "bootstrap": {
@@ -490,7 +495,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": [],
         "process": [
             {
-                "agent_type": "writer",
+                "agent_type": "researcher",
                 "step": "update-context",
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
@@ -526,6 +531,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Slack Digest",
         "description": "Read selected Slack channels. Capture decisions, action items, and key discussions. Write per-channel observations.",
         "output_kind": "accumulates_context",
+        "registry_default_team": [],
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "html",
@@ -562,6 +568,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Notion Digest",
         "description": "Read selected Notion pages. Track changes, new content, and stale sections. Write per-page observations.",
         "output_kind": "accumulates_context",
+        "registry_default_team": [],
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
@@ -598,6 +605,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "GitHub Digest",
         "description": "Read selected GitHub repos. Track issues, PRs, and activity. Write per-repo observations.",
         "output_kind": "accumulates_context",
+        "registry_default_team": [],
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "html",
@@ -638,6 +646,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Slack Post",
         "description": "Post a message to a Slack channel or DM. Composes from workspace context and delivers via Slack.",
         "output_kind": "external_action",
+        "registry_default_team": ["tracker", "writer"],
         "default_mode": "reactive",
         "default_schedule": "on-demand",
         "output_format": "text",
@@ -674,6 +683,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Notion Update",
         "description": "Post a comment or update to a Notion page. Composes from workspace context and delivers via Notion.",
         "output_kind": "external_action",
+        "registry_default_team": ["tracker", "writer"],
         "default_mode": "reactive",
         "default_schedule": "on-demand",
         "output_format": "text",
@@ -715,6 +725,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Competitive Brief",
         "description": "Weekly competitive intelligence report with charts, positioning analysis, and strategic implications.",
         "output_kind": "produces_deliverable",
+        "registry_default_team": ["researcher", "analyst", "writer"],
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
@@ -776,6 +787,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         # the audience overlap (leadership, strategy, marketing) is total.
         "description": "Market intelligence report with segment sizing, competitive moves, GTM signals, and opportunity identification.",
         "output_kind": "produces_deliverable",
+        "registry_default_team": ["researcher", "analyst", "writer"],
         "default_mode": "recurring",
         "default_schedule": "monthly",
         "output_format": "html",
@@ -835,6 +847,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Meeting Prep",
         "description": "Pre-meeting brief with relationship context, talking points, and open items.",
         "output_kind": "produces_deliverable",
+        "registry_default_team": ["tracker", "writer"],
         # ADR-166: meeting-prep has clear completion (the meeting happens), so it's
         # goal-shaped, not reactive. User triggers, TP orchestrates to a deliverable.
         "default_mode": "goal",
@@ -884,6 +897,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Stakeholder Update",
         "description": "Board-ready update synthesizing all domains — projects, market, competitive, relationships.",
         "output_kind": "produces_deliverable",
+        "registry_default_team": ["analyst", "writer"],
         "default_mode": "recurring",
         "default_schedule": "monthly",
         "output_format": "html",
@@ -941,6 +955,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Daily Update",
         "description": "Daily operational digest — what your agents did, what changed, what's coming up.",
         "output_kind": "produces_deliverable",
+        "registry_default_team": ["analyst", "writer"],
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "html",
@@ -990,6 +1005,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Project Status Report",
         "description": "Weekly status report per workstream with progress, blockers, and next steps.",
         "output_kind": "produces_deliverable",
+        "registry_default_team": ["tracker", "writer"],
         "default_mode": "recurring",
         "default_schedule": "weekly",
         "output_format": "html",
@@ -1037,6 +1053,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Content Brief",
         "description": "Blog post, article, or content draft synthesized from accumulated topic research.",
         "output_kind": "produces_deliverable",
+        "registry_default_team": ["researcher", "writer"],
         "default_mode": "goal",
         "default_schedule": "on-demand",
         "output_format": "html",
@@ -1087,6 +1104,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Launch Material",
         "description": "Launch announcements, press materials, and go-to-market content from accumulated research.",
         "output_kind": "produces_deliverable",
+        "registry_default_team": ["researcher", "writer", "designer"],
         "default_mode": "goal",
         "default_schedule": "on-demand",
         "output_format": "html",
@@ -1149,6 +1167,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Agent Hygiene",
         "description": "Reviews active agents daily. Pauses underperformers based on approval rate. Migrated from ADR-156 _pause_underperformers.",
         "output_kind": "system_maintenance",
+        "registry_default_team": [],
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "markdown",
@@ -1189,6 +1208,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "display_name": "Workspace Cleanup",
         "description": "Deletes expired ephemeral files from /working/ (24h TTL) and /user_shared/ (30d TTL). Migrated from ADR-119/127 scheduler block.",
         "output_kind": "system_maintenance",
+        "registry_default_team": [],
         "default_mode": "recurring",
         "default_schedule": "daily",
         "output_format": "markdown",
@@ -1405,6 +1425,13 @@ def build_task_md_from_type(
     if output_kind == "produces_deliverable" and task_type.get("surface_type"):
         surface_line = f"\n**Surface:** {task_type['surface_type']}"
 
+    # ADR-176 Phase 2: ## Team section — registry default team for this task type
+    default_team = task_type.get("registry_default_team", [])
+    team_section = ""
+    if default_team:
+        team_lines = "\n".join(f"- {role}" for role in default_team)
+        team_section = f"\n## Team\n{team_lines}\n"
+
     md = f"""# {title}
 
 **Slug:** {slug}
@@ -1425,7 +1452,7 @@ def build_task_md_from_type(
 
 ## Process
 {chr(10).join(process_lines)}
-
+{team_section}
 ## Output Spec
 - Deliverable as specified in DELIVERABLE.md
 """

@@ -97,6 +97,11 @@ MANAGE_TASK_TOOL = {
                 "items": {"type": "object"},
                 "description": "For action='create' with a custom produces_deliverable task: structured section layout for the compose pipeline. Each item: {id, title, kind, source_domains?, asset_type?}. Kind values: narrative, metric-cards, entity-grid, comparison-table, trend-chart, callout. Takes precedence over registry page_structure. Omit for accumulates_context/external_action/system_maintenance tasks."
             },
+            "team": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "For action='create': explicit team composition for this task — list of specialist role keys (e.g. ['researcher', 'analyst', 'writer']). Overrides registry_default_team. TP uses this when the work intent warrants a non-default composition. Omit to use registry default."
+            },
             # --- Shared fields used by multiple actions ---
             "context": {
                 "type": "string",
@@ -821,6 +826,7 @@ def _build_custom_task_md(
     success_criteria: Optional[list] = None,
     output_spec: Optional[list] = None,
     page_structure: Optional[list] = None,
+    team: Optional[list] = None,
 ) -> str:
     """Build TASK.md content for a custom task (no type_key).
 
@@ -856,6 +862,13 @@ def _build_custom_task_md(
         lines.append("## Output Spec")
         for section in output_spec:
             lines.append(f"- {section}")
+
+    # ADR-176 Phase 2: team composition for custom tasks
+    if team and isinstance(team, list):
+        lines.append("")
+        lines.append("## Team")
+        for role in team:
+            lines.append(f"- {role}")
 
     # ADR-174 Phase 3: bespoke compose layout — YAML block readable by parse_task_md()
     if page_structure and isinstance(page_structure, list):
@@ -909,6 +922,8 @@ async def _handle_create(auth: Any, input: dict) -> dict:
     output_spec = input.get("output_spec")
     # ADR-174 Phase 3: bespoke page_structure for TP-authored custom tasks
     page_structure = input.get("page_structure")  # list[dict] | None
+    # ADR-176 Phase 2: team composition override (list of role strings)
+    team_override = input.get("team")  # list[str] | None
 
     if mode not in ("recurring", "goal", "reactive"):
         mode = "recurring"
@@ -1098,6 +1113,7 @@ async def _handle_create(auth: Any, input: dict) -> dict:
                 success_criteria=success_criteria,
                 output_spec=output_spec,
                 page_structure=page_structure,
+                team=team_override,
             )
         await tw.write("TASK.md", task_md, summary=f"Task definition: {title}", tags=["task", "definition"])
 

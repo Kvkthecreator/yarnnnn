@@ -798,6 +798,10 @@ def parse_task_md(content: str) -> dict:
         elif line_stripped == "## Output Spec":
             current_section = "output_spec"
             continue
+        elif line_stripped == "## Team":
+            # ADR-176 Phase 2: specialist team assigned to this task
+            current_section = "team"
+            continue
         elif line_stripped == "## Page Structure":
             # ADR-174 Phase 3: YAML block declaring section layout for compose pipeline
             current_section = "page_structure"
@@ -830,6 +834,11 @@ def parse_task_md(content: str) -> dict:
                     "agent_ref": agent_ref,  # Could be agent_slug or agent_type
                     "instruction": instruction_text,
                 })
+        elif current_section == "team" and line_stripped.startswith("- "):
+            # Parse "- researcher (optional description)" → extract role key
+            role_part = line_stripped[2:].split("(")[0].strip()
+            if role_part:
+                result.setdefault("team", []).append(role_part)
         elif current_section == "page_structure":
             page_structure_lines.append(line)
 
