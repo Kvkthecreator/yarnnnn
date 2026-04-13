@@ -732,8 +732,11 @@ def build_post_generation_manifest(
     generation_gaps: dict[str, str] = {}
 
     # Sections: every page_structure entry gets a gap record
-    current_sections = set(revision_scope.current_sections) if revision_scope else set()
-    forced_sections = set(revision_scope.forced_sections) if revision_scope else set()
+    # revision_scope may be a RevisionScope object or a plain string ("full") from
+    # the multi-agent path in _compose_and_persist(). Guard both.
+    _rs_obj = revision_scope if hasattr(revision_scope, "current_sections") else None
+    current_sections = set(_rs_obj.current_sections) if _rs_obj else set()
+    forced_sections = set(_rs_obj.forced_sections) if _rs_obj else set()
 
     for struct_entry in page_structure:
         slug = _slug(struct_entry["title"])

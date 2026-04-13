@@ -52,7 +52,8 @@ class RevisionScope:
     stale_sections: list[str]             # slugs of sections that need regeneration
     current_sections: list[str]           # slugs of sections that are current
     reason: str                           # e.g. "2/5 sections stale: executive-summary, recent-signals"
-    all_slugs: list[str] = field(default_factory=list)  # all declared section slugs (stale + current)
+    all_slugs: list[str] = field(default_factory=list)        # all declared section slugs (stale + current)
+    forced_sections: list[str] = field(default_factory=list)  # slugs forced stale by steering
 
     @property
     def needs_generation(self) -> bool:
@@ -117,6 +118,7 @@ def classify_revision_scope(
             current_sections=[],
             reason="No prior manifest — first run or manifest unavailable",
             all_slugs=all_slugs,
+            forced_sections=list(forced_set),
         )
 
     if not page_structure:
@@ -126,6 +128,7 @@ def classify_revision_scope(
             current_sections=[],
             reason="No page_structure declared — full run",
             all_slugs=[],
+            forced_sections=list(forced_set),
         )
 
     stale = []
@@ -181,6 +184,7 @@ def classify_revision_scope(
             current_sections=current,
             reason="All sections current — no domain changes since last run",
             all_slugs=all_slugs,
+            forced_sections=list(forced_set),
         )
 
     if not current:
@@ -190,6 +194,7 @@ def classify_revision_scope(
             current_sections=[],
             reason=f"All {len(stale)} sections stale — full regeneration",
             all_slugs=all_slugs,
+            forced_sections=list(forced_set),
         )
 
     forced_note = f" ({len(forced_set)} TP-forced)" if forced_set else ""
@@ -202,6 +207,7 @@ def classify_revision_scope(
             + ", ".join(stale)
         ),
         all_slugs=all_slugs,
+        forced_sections=list(forced_set),
     )
 
 
