@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.1] - ADR-174 Phase 2: Semantic search activation + registry gate removal
+
+### Changed
+- `api/services/primitives/workspace.py` — `QUERY_KNOWLEDGE_TOOL`: removed hardcoded domain `enum` from tool schema (was `["competitors", "market", ...]`). Domain is now a free-form string — any domain, including user-created ones, is valid. Updated description to reflect filesystem-first discovery and semantic search as primary path.
+- `api/services/primitives/workspace.py` — `handle_query_knowledge()`: semantic search via `search_workspace_semantic` RPC (vector cosine similarity) is now the primary path. BM25 `search_workspace` RPC is the fallback when the embedding API fails or returns no results above the 0.3 similarity threshold. Response includes `search_method` field (`semantic | bm25 | list`) for observability.
+- `api/services/primitives/workspace.py` — `handle_write_file()` scope="context": registry gate removed. Unknown domains (not in WORKSPACE_DIRECTORIES) are now accepted — folder derives to `context/{domain}/` for any domain name. After successful write, async embedding generation fires (fire-and-forget via `asyncio.ensure_future`). Embedding failure is non-fatal.
+- `api/services/primitives/workspace.py` — `_embed_workspace_file()` helper added: calls `get_embedding(content)` and updates the `workspace_files.embedding` column for the written path. Scoped to `/workspace/context/` paths only.
+- Expected behavior: Agents can write to new context domains (e.g., `customers/`, `investors/`) without registry entries. Context files get embeddings on write. `QueryKnowledge("what do we know about X?")` returns semantically relevant files, not just keyword-matched ones. Domain enum restriction on the tool no longer prevents TP from querying novel domains.
+
 ## [2026.04.10.10] - Accumulation-First Phase 3: generation_gaps forward-looking handoff
 
 ### Changed

@@ -17,12 +17,31 @@ layer was always distinct from the entity layer, the names now reflect it.
 - DiscoverAgents: find other agents by role/scope/status (ADR-116 Phase 2)
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+async def _embed_workspace_file(client: Any, user_id: str, abs_path: str, content: str) -> None:
+    """Fire-and-forget: generate embedding for a context file and update the row.
+
+    ADR-174 Phase 2 — scoped to /workspace/context/ paths only. Non-blocking;
+    called after successful WriteFile for context scope. Failure is logged but
+    does not surface to the caller.
+    """
+    try:
+        from services.embeddings import get_embedding
+        embedding = await get_embedding(content)
+        client.table("workspace_files").update(
+            {"embedding": embedding}
+        ).eq("user_id", user_id).eq("path", abs_path).execute()
+        logger.debug(f"[WORKSPACE] Embedded context file: {abs_path}")
+    except Exception as e:
+        logger.warning(f"[WORKSPACE] Embedding failed (non-fatal) for {abs_path}: {e}")
 
 
 # =============================================================================
@@ -133,19 +152,18 @@ Use this to find specific information from your accumulated knowledge.""",
 
 QUERY_KNOWLEDGE_TOOL = {
     "name": "QueryKnowledge",
-    "description": """Search accumulated workspace context (ADR-151).
+    "description": """Search accumulated workspace context (ADR-151, ADR-174).
 
-Context domains contain accumulated intelligence shared across all tasks:
-- /workspace/context/competitors/ — competitor profiles, signals, strategy
-- /workspace/context/market/ — market segments, trends, opportunities
-- /workspace/context/relationships/ — contact profiles, interaction history
-- /workspace/context/projects/ — project status, milestones, blockers
-- /workspace/context/content/ — research, drafts, outlines
-- /workspace/context/signals/ — cross-domain temporal signal log
-- Context domains are the sole data source. Create tracking tasks to accumulate context.
+Context domains contain accumulated intelligence shared across all tasks.
+Search by topic, entity, or keyword. Optionally filter by domain name to narrow results.
 
-Use this to find accumulated intelligence. Search by topic, entity, keyword.
-Optionally filter by domain to narrow results.""",
+Domains are filesystem-discovered — any domain that has files appears here,
+including user-created domains (customers/, investors/, campaigns/, etc.).
+Do not assume a fixed set of domains; use ListFiles on /workspace/context/ to discover what exists.
+
+Uses semantic search (vector similarity) as the primary path, with keyword
+search as fallback. Best for conceptual queries: "what do we know about X?"
+For path-based browsing, use ListFiles instead.""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -155,8 +173,7 @@ Optionally filter by domain to narrow results.""",
             },
             "domain": {
                 "type": "string",
-                "enum": ["competitors", "market", "relationships", "projects", "content", "signals"],
-                "description": "Optional: limit search to a specific context domain"
+                "description": "Optional: limit search to a specific context domain (e.g., 'competitors', 'market', or any custom domain)"
             },
             "limit": {
                 "type": "integer",
@@ -266,7 +283,15 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
 
 
 async def handle_write_file(auth: Any, input: dict) -> dict:
-    """Handle WriteFile primitive (ADR-168: renamed from WriteWorkspace) — agent workspace or shared context domains."""
+    """Handle WriteFile primitive (ADR-168: renamed from WriteWorkspace) — agent workspace or shared context domains.
+
+    ADR-174 Phase 2: Two changes from prior implementation:
+    1. Registry gate removed for scope='context'. Unknown domains are now allowed —
+       TP can create new context domains freely. The registry is vocabulary, not enforcement.
+       Domain folder derives to context/{domain}/ for any domain name.
+    2. Async embedding generation fires after successful context file writes. Non-blocking
+       fire-and-forget — embedding failure does not fail the write.
+    """
     path = input.get("path", "")
     content = input.get("content", "")
     mode = input.get("mode", "overwrite")
@@ -274,20 +299,20 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     domain = input.get("domain", "")
 
     if scope == "context":
-        # ADR-151: Write to shared context domain /workspace/context/{domain}/
+        # ADR-151 + ADR-174: Write to shared context domain /workspace/context/{domain}/
+        # ADR-174: domain need not be in the registry — any domain name is valid.
         if not domain:
             return {"success": False, "error": "missing_domain", "message": "domain is required for scope='context'"}
 
-        from services.directory_registry import get_domain_folder
         from services.workspace import UserMemory
 
-        domain_folder = get_domain_folder(domain)
-        if not domain_folder:
-            return {"success": False, "error": "unknown_domain", "message": f"Context domain '{domain}' not found in registry"}
+        # ADR-174: derive folder directly — registry is vocabulary, not gate.
+        # Known domains resolve to their declared path; unknown domains default to context/{domain}.
+        from services.directory_registry import get_domain_folder
+        domain_folder = get_domain_folder(domain) or f"context/{domain}"
 
-        # Write-scoping: only allow writes to declared context_writes domains
-        # (enforcement is advisory — the task pipeline sets context_writes in auth)
         full_path = f"{domain_folder}/{path}"
+        abs_path = f"/workspace/{full_path}"
 
         um = UserMemory(auth.client, auth.user_id)
         if mode == "append":
@@ -299,7 +324,12 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
                                      summary=f"Context write: {domain}/{path}")
 
         if success:
-            return {"success": True, "path": f"/workspace/{full_path}", "domain": domain, "scope": "context"}
+            # ADR-174 Phase 2: embed context files async (fire-and-forget).
+            # Scoped to /workspace/context/ only. Failure is non-fatal.
+            asyncio.ensure_future(
+                _embed_workspace_file(auth.client, auth.user_id, abs_path, content)
+            )
+            return {"success": True, "path": abs_path, "domain": domain, "scope": "context"}
         return {"success": False, "error": "write_failed", "message": f"Failed to write: {full_path}"}
 
     else:
@@ -350,36 +380,65 @@ async def handle_search_files(auth: Any, input: dict) -> dict:
 async def handle_query_knowledge(auth: Any, input: dict) -> dict:
     """Handle QueryKnowledge primitive — searches /workspace/context/ accumulated domains.
 
-    ADR-151: Searches shared workspace context domains. Replaces legacy /knowledge/ search.
-    Optional domain filter narrows to specific context domain.
+    ADR-151 + ADR-174 Phase 2: Semantic search as primary path, BM25 as fallback.
+    - Primary: vector cosine similarity via search_workspace_semantic RPC (requires embedding)
+    - Fallback: BM25 full-text via search_workspace RPC (always available)
+
+    ADR-174: domain filter resolves to any path under /workspace/context/{domain}/,
+    including user-created domains not in the registry.
     """
     query = input.get("query") or ""
     domain = input.get("content_class") or input.get("domain")  # content_class kept for backwards compat
     limit = min(input.get("limit", 10), 30)
 
-    # Search /workspace/context/ via workspace_files
-    try:
-        prefix = "/workspace/context/"
-        if domain:
-            from services.directory_registry import get_domain_folder
-            domain_folder = get_domain_folder(domain)
-            if domain_folder:
-                prefix = f"/workspace/{domain_folder}/"
+    # Resolve path prefix — registry for known domains, direct path for unknown.
+    prefix = "/workspace/context/"
+    if domain:
+        from services.directory_registry import get_domain_folder
+        domain_folder = get_domain_folder(domain) or f"context/{domain}"
+        prefix = f"/workspace/{domain_folder}/"
 
-        # Full-text search if query provided, otherwise list recent files
-        if query:
-            # Use workspace_files search (text match)
-            result = (
-                auth.client.rpc("search_workspace", {
+    rows = []
+    search_method = "none"
+
+    if query:
+        # --- Primary: semantic search via vector embedding ---
+        semantic_ok = False
+        try:
+            from services.embeddings import get_embedding
+            query_embedding = await get_embedding(query)
+            result = auth.client.rpc("search_workspace_semantic", {
+                "p_user_id": auth.user_id,
+                "p_query_embedding": query_embedding,
+                "p_path_prefix": prefix,
+                "p_limit": limit,
+            }).execute()
+            sem_rows = result.data or []
+            # Only use semantic results if we got meaningful similarity scores
+            if sem_rows and sem_rows[0].get("similarity", 0) > 0.3:
+                rows = sem_rows
+                search_method = "semantic"
+                semantic_ok = True
+        except Exception as e:
+            logger.warning(f"[QUERY_KNOWLEDGE] Semantic search failed, falling back to BM25: {e}")
+
+        # --- Fallback: BM25 full-text search ---
+        if not semantic_ok:
+            try:
+                result = auth.client.rpc("search_workspace", {
                     "p_user_id": auth.user_id,
                     "p_query": query,
                     "p_path_prefix": prefix,
                     "p_limit": limit,
                 }).execute()
-            )
-            rows = result.data or []
-        else:
-            # List recent files in the domain
+                rows = result.data or []
+                search_method = "bm25"
+            except Exception as e:
+                logger.warning(f"[QUERY_KNOWLEDGE] BM25 fallback also failed: {e}")
+
+    else:
+        # No query — list recent files in the domain
+        try:
             result = (
                 auth.client.table("workspace_files")
                 .select("path, content, summary, updated_at, metadata")
@@ -390,34 +449,33 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
                 .execute()
             )
             rows = result.data or []
+            search_method = "list"
+        except Exception as e:
+            logger.warning(f"[QUERY_KNOWLEDGE] List failed: {e}")
 
-        result_items = []
-        for r in rows:
-            path = r.get("path", "")
-            content = r.get("content", "")
-            summary = r.get("summary", "")
-            metadata = r.get("metadata") or {}
-            item = {
-                "path": path,
-                "summary": summary or path.split("/")[-1],
-                "content_preview": content[:500] if content else "",
-                "domain": metadata.get("domain", ""),
-                "updated_at": r.get("updated_at", ""),
-            }
-            result_items.append(item)
-
-        return {
-            "success": True,
-            "query": query,
-            "domain": domain,
-            "count": len(result_items),
-            "results": result_items,
+    result_items = []
+    for r in rows:
+        path = r.get("path", "")
+        content = r.get("content", "")
+        summary = r.get("summary", "")
+        item = {
+            "path": path,
+            "summary": summary or path.split("/")[-1],
+            "content_preview": content[:500] if content else "",
+            "updated_at": r.get("updated_at", ""),
         }
+        if "similarity" in r:
+            item["similarity"] = round(r["similarity"], 3)
+        result_items.append(item)
 
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"[QUERY_KNOWLEDGE] Search failed: {e}")
-        return {"success": True, "query": query, "count": 0, "results": []}
+    return {
+        "success": True,
+        "query": query,
+        "domain": domain,
+        "search_method": search_method,
+        "count": len(result_items),
+        "results": result_items,
+    }
 
 
 async def handle_list_files(auth: Any, input: dict) -> dict:
