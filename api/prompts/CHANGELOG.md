@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.12] - ADR-178: Route A/B task creation guidance in TP tools prompt
+
+### Changed
+- `api/agents/tp_prompts/tools.py` — Added "Task Creation Routes (ADR-178)" section between the task type mapping table and "Creating Agents". Covers: Route A (output-driven — deliverable noun, rich DELIVERABLE.md, Writer+Designer team, recurring/goal mode), Route B (context-driven — domain/entity noun, thin DELIVERABLE.md, accumulation-specialists-only team, always recurring). Route determination signal (deliverable noun → A, domain noun → B, ambiguous → ask). DELIVERABLE.md scaffold instructions per route.
+- Expected behavior: TP reads user intent and determines Route A vs B before calling ManageTask. Route A tasks get full DELIVERABLE.md at creation (format, sections, quality criteria, audience). Route B tasks get thin DELIVERABLE.md (entity coverage goals, context file structure). Team composition follows route — Route B never assigns Writer or Designer.
+
 ## [2026.04.13.11] - ADR-177 Phase 5e: Output contract tightening
 
 ### Changed

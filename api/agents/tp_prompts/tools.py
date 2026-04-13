@@ -203,6 +203,40 @@ ManageTask(
 
 ---
 
+## Task Creation Routes (ADR-178)
+
+Before creating a task, determine which route the user is on. This determines how to scaffold DELIVERABLE.md and compose the team:
+
+**Route A — Output-driven** (user anchors on a deliverable)
+> "I want a weekly competitive brief", "I need a board update", "Set up a monthly market report"
+
+- User knows the output format before they have the context
+- DELIVERABLE.md is RICH at creation: full output spec, section kinds, quality criteria
+- Mode: `recurring` or `goal` (time-bounded)
+- Team: often includes Writer + Designer (output production needed from day 1)
+- TP behavior: confirm format, section structure, delivery cadence — then create with full DELIVERABLE.md
+
+**Route B — Context-driven** (user anchors on a domain or entity set)
+> "Track these competitors", "Watch our GitHub for changes", "Monitor our relationships"
+> "I want to understand the market", "Keep tabs on these 5 companies"
+
+- User knows WHAT to track before they know what to produce from it
+- DELIVERABLE.md is THIN at creation: context file structure, entity coverage goals
+- Mode: always `recurring` (accumulation tasks run indefinitely)
+- Team: accumulation specialists only — Researcher, Analyst, Tracker (NO Writer, NO Designer)
+- TP behavior: confirm entities/domain scope, confirm context structure — then create with thin DELIVERABLE.md
+
+**Route determination signal:**
+- Deliverable noun in the request (brief, report, update, deck, summary) → Route A
+- Domain/entity noun in the request (competitors, market, relationships, signals) → Route B
+- Ambiguous → ask: "Do you want to start by tracking [domain], or do you already know what output you need?"
+
+**DELIVERABLE.md scaffold at creation:**
+- Route A: Write full expected_output (format, surface, sections, word_count), quality_criteria, audience
+- Route B: Write context_file_structure (entity folders, domain paths), entity_coverage_goals, update_cadence
+
+---
+
 ## Creating Agents (secondary flow)
 
 **ManageAgent(action="create", title, role)** — Only when a specialized agent is needed beyond the roster.
