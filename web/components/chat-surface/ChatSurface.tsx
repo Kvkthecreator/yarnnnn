@@ -198,7 +198,7 @@ export function ChatSurface({
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="mx-auto w-full max-w-3xl px-4">
+      <div className="mx-auto w-full max-w-3xl px-3 sm:px-4">
         <SurfaceIdentityHeader
           size="md"
           bordered={false}
@@ -208,7 +208,7 @@ export function ChatSurface({
         />
       </div>
       <div className="flex-1 min-h-0">
-        <div className="mx-auto h-full w-full max-w-3xl px-4 py-5">
+        <div className="mx-auto h-full w-full max-w-3xl px-3 sm:px-4 py-3 sm:py-5">
           <ChatPanel
             surfaceOverride={{ type: 'chat' }}
             plusMenuActions={allPlusMenuActions}

@@ -44,14 +44,15 @@ export function ToggleBar() {
             key={segment.id}
             href={segment.href}
             className={cn(
-              'flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors',
+              'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium transition-colors',
               isActive
                 ? 'bg-foreground text-background shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <Icon className="h-3.5 w-3.5" />
-            <span>{segment.label}</span>
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            {/* Hide text labels on small screens — icons only on mobile */}
+            <span className="hidden sm:inline">{segment.label}</span>
           </Link>
         );
       })}

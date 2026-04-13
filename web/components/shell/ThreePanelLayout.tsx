@@ -24,6 +24,19 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react';
 import { ChatPanel, type ChatPanelProps } from '@/components/tp/ChatPanel';
 
+/** Returns true when viewport width < 640px (Tailwind sm breakpoint). */
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
+}
+
 const CHAT_WIDTH_KEY = 'yarnnn:chat-panel-width';
 const LEFT_WIDTH_KEY = 'yarnnn:left-panel-width';
 const CHAT_MIN = 320;
@@ -92,8 +105,19 @@ export function ThreePanelLayout({
   children,
   chat,
 }: ThreePanelLayoutProps) {
+  const isMobile = useIsMobile();
   const [panelOpen, setPanelOpen] = useState(true);
-  const [chatOpen, setChatOpen] = useState(chat?.defaultOpen ?? false);
+  // Start closed to avoid SSR/hydration mismatch. On desktop with defaultOpen=true,
+  // we open after mount. On mobile we never open — user reaches TP via Chat nav.
+  const [chatOpen, setChatOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isMobile && chat?.defaultOpen) {
+      setChatOpen(true);
+    }
+    // Only run once on mount (when isMobile resolves from media query)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
 
   // Width state — hydrated from localStorage on mount to avoid SSR mismatch.
   const [leftWidth, setLeftWidth] = useState(leftPanel?.width ?? 280);
@@ -172,8 +196,8 @@ export function ThreePanelLayout({
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* ── Left Panel (ADR-167: optional) ── */}
-      {leftPanel && (
+      {/* ── Left Panel (ADR-167: optional, hidden on mobile) ── */}
+      {leftPanel && !isMobile && (
         panelOpen ? (
           <>
             <div
@@ -221,8 +245,8 @@ export function ThreePanelLayout({
         {children}
       </div>
 
-      {/* ── Right: Chat Panel or FAB ── */}
-      {chat && chatOpen && (
+      {/* ── Right: Chat Panel or FAB (hidden on mobile — use Chat nav segment) ── */}
+      {chat && chatOpen && !isMobile && (
         <>
           {/* Resize handle for chat panel */}
           <div
@@ -265,10 +289,11 @@ export function ThreePanelLayout({
         </>
       )}
 
-      {chat && !chatOpen && (
+      {chat && !chatOpen && !isMobile && (
         <button
           onClick={() => setChatOpen(true)}
           className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center group"
+          style={{ bottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
           title="Chat with TP"
         >
           <img

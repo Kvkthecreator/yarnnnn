@@ -219,7 +219,7 @@ export function WorkListSurface({
   return (
     <div className="flex flex-col h-full">
       {/* ── Header: filters + search + group-by ── */}
-      <div className="px-6 py-4 border-b border-border/60 shrink-0 space-y-3">
+      <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-border/60 shrink-0 space-y-2 sm:space-y-3">
         {dataError && (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700">
             Showing the last available work index. Refresh the page to retry the failed background load.
@@ -248,8 +248,8 @@ export function WorkListSurface({
         </div>
 
         {/* Search + group-by + toggles + agent filter chip */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
+          <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-md">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
             <input
               type="text"
@@ -310,7 +310,7 @@ export function WorkListSurface({
         {filtered.length === 0 ? (
           <EmptyResult hasFilters={modeFilter !== 'all' || !!search || !!agentFilter || includeHistorical} />
         ) : (
-          <div className="px-6 py-4 space-y-6 max-w-5xl">
+          <div className="px-3 sm:px-6 py-3 sm:py-4 space-y-6 max-w-5xl">
             {grouped.map(([groupName, items]) => (
               <section key={groupName}>
                 <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">
