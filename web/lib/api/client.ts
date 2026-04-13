@@ -653,7 +653,7 @@ export const api = {
       request<{
         workspace_files: number;
         agents: number;
-        projects: number;
+        tasks: number;
         chat_sessions: number;
         platform_connections: number;
         platform_context_files: number;
