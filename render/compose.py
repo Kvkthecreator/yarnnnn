@@ -23,13 +23,24 @@ import markdown
 # Request / Response models
 # ---------------------------------------------------------------------------
 
+class SectionContent(BaseModel):
+    """ADR-177: Pre-parsed section with kind metadata. Sent by _compose_and_persist()."""
+    kind: str = "narrative"  # narrative | callout | checklist | metric-cards | entity-grid |
+                             # comparison-table | status-matrix | data-table | timeline |
+                             # trend-chart | distribution-chart
+    title: str
+    content: str
+
+
 class ComposeRequest(BaseModel):
-    markdown: str
+    markdown: str = ""          # flat markdown fallback (used when sections absent)
     title: str = "Output"
     surface_type: str = "report"  # report | deck | dashboard | digest | workbook | preview | video
     assets: list[dict] = []  # [{ref: "chart.svg", url: "https://..."}]
     brand_css: Optional[str] = None
     user_id: Optional[str] = None
+    # ADR-177 Phase D1: pre-parsed sections with kind metadata
+    sections: list[SectionContent] = []  # when non-empty, compose from sections not flat markdown
 
 
 class ComposeResponse(BaseModel):
@@ -805,25 +816,57 @@ _SURFACE_FN = {
 # Public API
 # ---------------------------------------------------------------------------
 
+def _render_section_to_html(section: "SectionContent") -> str:
+    """ADR-177 Phase D1: Render a single section to HTML based on its kind.
+
+    Phase D1: markdown kinds (narrative, callout, checklist) + fallback for all others.
+    Phase D2 will add structured-data kinds and chart kinds.
+    """
+    kind = section.kind
+    content = section.content
+    title_html = f"<h2>{section.title}</h2>\n" if section.title else ""
+
+    if kind in ("narrative", "callout", "checklist"):
+        # Markdown path — existing renderer handles these correctly
+        body = _render_markdown_to_html(content)
+        if kind == "callout":
+            return f'<div class="section-callout">{title_html}{body}</div>\n'
+        if kind == "checklist":
+            return f'<div class="section-checklist">{title_html}{body}</div>\n'
+        return f'<div class="section-narrative">{title_html}{body}</div>\n'
+
+    # Phase D2 placeholder: structured-data kinds and chart kinds fall back to
+    # markdown rendering with a kind data-attribute for future upgrade.
+    body = _render_markdown_to_html(content)
+    return f'<div class="section-kind-{kind}" data-kind="{kind}">{title_html}{body}</div>\n'
+
+
 def compose_html(
     md_text: str,
     title: str = "Output",
     surface_type: str = "report",
     assets: list[dict] | None = None,
     brand_css: str | None = None,
+    sections: list | None = None,  # ADR-177: list[SectionContent] when available
 ) -> str:
     """Compose markdown + assets into a styled, self-contained HTML document.
 
     ADR-170: surface_type is the visual paradigm (report | deck | dashboard |
     digest | workbook | preview | video). Each maps to a layout implementation.
 
+    ADR-177 Phase D1: when sections is non-empty, render section-by-section
+    using kind-specific renderers instead of flat markdown. Phase D2 will extend
+    each kind renderer; Phase D1 ensures the pipeline ordering is correct and
+    kind metadata flows through.
+
     Args:
-        md_text: Markdown source content.
+        md_text: Markdown source content (used when sections is empty/None).
         title: Document title (appears in <title> and heading).
         surface_type: Visual paradigm. One of: report, deck, dashboard, digest,
             workbook, preview, video.
         assets: List of {ref, url} dicts for resolving local asset paths.
         brand_css: Optional CSS string for brand overrides.
+        sections: Pre-parsed SectionContent list from _compose_and_persist().
 
     Returns:
         Complete HTML document string.
@@ -831,21 +874,38 @@ def compose_html(
     # digest surface uses the email-safe rendering path (no JS, mobile-first)
     is_email_style = surface_type in ("digest",)
 
-    # 1. Markdown → HTML fragment
-    html_body = _render_markdown_to_html(md_text)
+    # ADR-177 Phase D1: section-aware rendering path
+    if sections:
+        section_html_parts = []
+        for sec in sections:
+            part = _render_section_to_html(sec)
+            if assets:
+                part = _resolve_asset_urls(part, assets)
+            if is_email_style:
+                part = re.sub(
+                    r'<pre class="mermaid">(.*?)</pre>',
+                    r'<pre><code>\1</code></pre>',
+                    part,
+                    flags=re.DOTALL,
+                )
+            section_html_parts.append(part)
+        html_body = "\n".join(section_html_parts)
+    else:
+        # 1. Markdown → HTML fragment (flat path — no sections declared)
+        html_body = _render_markdown_to_html(md_text)
 
-    # 2. Resolve asset URLs
-    if assets:
-        html_body = _resolve_asset_urls(html_body, assets)
+        # 2. Resolve asset URLs
+        if assets:
+            html_body = _resolve_asset_urls(html_body, assets)
 
-    # 3. Digest/email-style: strip mermaid code blocks (no JS) — show as code instead
-    if is_email_style:
-        html_body = re.sub(
-            r'<pre class="mermaid">(.*?)</pre>',
-            r'<pre><code>\1</code></pre>',
-            html_body,
-            flags=re.DOTALL,
-        )
+        # 3. Digest/email-style: strip mermaid code blocks (no JS) — show as code instead
+        if is_email_style:
+            html_body = re.sub(
+                r'<pre class="mermaid">(.*?)</pre>',
+                r'<pre><code>\1</code></pre>',
+                html_body,
+                flags=re.DOTALL,
+            )
 
     # 4. Apply surface layout
     layout_fn = _SURFACE_FN.get(surface_type, _apply_document_layout)

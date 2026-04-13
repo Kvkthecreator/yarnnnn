@@ -305,6 +305,9 @@ async def compose(req: ComposeRequest, request: Request):
             surface_type=req.surface_type,
             assets=req.assets or [],
             brand_css=req.brand_css,
+            # ADR-177 Phase D1: pass sections when provided; render service
+            # dispatches on kind. Falls back to flat markdown when sections absent.
+            sections=req.sections if req.sections else None,
         )
     except Exception as e:
         logger.error(f"[COMPOSE] Composition failed: {e}")
