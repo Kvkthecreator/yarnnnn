@@ -984,7 +984,17 @@ async def _handle_create(auth: Any, input: dict) -> dict:
     6. Scaffold DELIVERABLE.md (ADR-149) + memory/feedback.md + memory/steering.md + awareness.md
     7. Scaffold context domains for task's context_writes (ADR-151)
     8. Update WORKSPACE.md manifest
-    9. Return success with task slug + process narration
+    9. Trigger immediate first run if warranted (bootstrap tasks or goal mode)
+    10. Return success with task slug + process narration
+
+    Run-on-creation logic (step 9):
+    - Bootstrap tasks (accumulates_context with context domains to seed) run immediately
+      so the domain is populated before the first scheduled cycle. next_run_at is already
+      set to NOW for these — we execute inline to close the 5-minute scheduler gap.
+    - goal mode tasks represent a specific deliverable the user wants now. Running on
+      creation gives the user output without a manual trigger.
+    - recurring tasks without bootstrap criteria run on their natural cadence (no change).
+    - reactive tasks are explicitly dispatch-and-done; caller triggers when ready.
     """
     title = input.get("title", "").strip()
     type_key = input.get("type_key", "").strip() or None
@@ -1303,6 +1313,25 @@ async def _handle_create(auth: Any, input: dict) -> dict:
             step_descriptions.append(f"{agent_label} ({s['step']})")
         process_narration = " → ".join(step_descriptions)
 
+    # Run on creation: bootstrap tasks and goal mode tasks execute immediately.
+    # Bootstrap: next_run_at is already NOW — we fire inline to close the
+    #   5-minute scheduler gap so the context domain is seeded right away.
+    # Goal: user wants a specific deliverable now, not at the next cadence tick.
+    # Recurring without bootstrap: runs on its natural schedule (no change).
+    # Reactive: explicitly caller-triggered; skip.
+    first_run_result = None
+    should_run_now = has_bootstrap or mode == "goal"
+    if should_run_now:
+        try:
+            first_run_result = await _handle_trigger(auth, slug, {})
+            if first_run_result.get("success"):
+                logger.info(f"[MANAGE_TASK] First run completed inline for '{slug}'")
+            else:
+                logger.warning(f"[MANAGE_TASK] First run failed for '{slug}': {first_run_result.get('message')}")
+        except Exception as e:
+            logger.warning(f"[MANAGE_TASK] First run exception for '{slug}' (non-fatal): {e}")
+            first_run_result = None
+
     return {
         "success": True,
         "action": "create",
@@ -1315,10 +1344,12 @@ async def _handle_create(auth: Any, input: dict) -> dict:
         "mode": mode,
         "schedule": schedule,
         "next_run_at": next_run_at,
+        "first_run": "completed" if first_run_result and first_run_result.get("success") else ("failed" if first_run_result else "scheduled"),
         "message": f"Created task '{title}'" + (f" ({type_key})" if type_key else "") + f" — {schedule or 'on-demand'}."
-                   + (f" Process: {process_narration}." if process_narration else ""),
+                   + (f" Process: {process_narration}." if process_narration else "")
+                   + (" First run completed." if first_run_result and first_run_result.get("success") else ""),
         "ui_action": {
             "type": "NAVIGATE",
-            "data": {"url": f"/agents", "label": title},
+            "data": {"url": f"/work", "label": title},
         },
     }
