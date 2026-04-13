@@ -27,26 +27,7 @@ import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-import type { Agent } from '@/types';
 
-function buildCreateTaskPrompt(agent: Agent, hasExistingTasks: boolean): string {
-  if (hasExistingTasks) {
-    return `Create another task for ${agent.title} that fits this agent's role and current workload.`;
-  }
-
-  switch (agent.agent_class) {
-    case 'platform-bot':
-      return `Set up ${agent.title} and create its first recurring task. If the platform or sources are not ready, tell me what needs to be configured first.`;
-    case 'synthesizer':
-      return `Create the first reporting task for ${agent.title}, using active specialist inputs.`;
-    case 'meta-cognitive':
-      return `Create the core maintenance tasks for ${agent.title}.`;
-    case 'specialist':
-    case 'domain-steward': // backward compat for v4 DB rows
-    default:
-      return `Create the first recurring task for ${agent.title}.`;
-  }
-}
 
 export default function AgentsPage() {
   const searchParams = useSearchParams();
@@ -97,10 +78,6 @@ export default function AgentsPage() {
   const surfaceOverride = selectedAgent
     ? { type: 'agent-detail' as const, agentId: selectedAgent.id }
     : undefined;
-
-  const createTaskPrompt = selectedAgent
-    ? buildCreateTaskPrompt(selectedAgent, agentTasks.length > 0)
-    : null;
 
   const plusMenuActions: PlusMenuAction[] = useMemo(() => {
     if (selectedAgent) {
@@ -171,9 +148,6 @@ export default function AgentsPage() {
         <AgentContentView
           agent={selectedAgent}
           tasks={agentTasks}
-          onCreateTask={createTaskPrompt
-            ? () => { setTaskSetupNotes(`For ${selectedAgent!.title}.`); setTaskSetupOpen(true); }
-            : undefined}
         />
       ) : (
         <AgentRosterSurface

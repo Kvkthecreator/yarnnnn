@@ -28,7 +28,6 @@ import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentIcon } from './AgentIcon';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
-import { Button } from '@/components/ui/button';
 import { formatRelativeTime } from '@/lib/formatting';
 import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
 import {
@@ -43,13 +42,11 @@ import { api } from '@/lib/api/client';
 import { usePlatformData } from '@/hooks/usePlatformData';
 import { useSourceSelection } from '@/hooks/useSourceSelection';
 import { ResourceList } from '@/components/context/ResourceList';
-import { taskModeLabel } from '@/types';
 import type { Agent, Task, LandscapeResource, PlatformProvider } from '@/types';
 
 interface AgentContentViewProps {
   agent: Agent;
   tasks: Task[];
-  onCreateTask?: () => void;
 }
 
 type AgentClass = NonNullable<Agent['agent_class']>;
@@ -67,13 +64,6 @@ interface RoleGuidanceDescriptor {
   does: (agent: Agent) => string[];
   doesnt: (agent: Agent) => string[];
   examples: (agent: Agent) => string[];
-}
-
-interface TaskCardDescriptor {
-  label: string;
-  badgeClass: string;
-  summary: (task: Task) => string;
-  details: (task: Task) => string[];
 }
 
 interface AgentEmptyStateDescriptor {
@@ -101,27 +91,6 @@ const EMPTY_TASK_COUNTS: TaskKindCounts = {
   system_maintenance: 0,
 };
 
-const TASK_TYPE_LABELS: Record<string, string> = {
-  'track-competitors': 'Competitor tracker',
-  'track-market': 'Market tracker',
-  'track-relationships': 'Relationship tracker',
-  'track-projects': 'Project tracker',
-  'research-topics': 'Topic research',
-  'slack-digest': 'Slack digest',
-  'notion-digest': 'Notion digest',
-  'github-digest': 'GitHub digest',
-  'daily-update': 'Daily update',
-  'competitive-intel-brief': 'Competitive brief',
-  'market-report': 'Market report',
-  'relationship-health-digest': 'Relationship digest',
-  'stakeholder-update': 'Stakeholder update',
-  'project-status-report': 'Project status report',
-  'meeting-prep': 'Meeting prep',
-  'slack-respond': 'Slack response',
-  'notion-update': 'Notion update',
-  'back-office-agent-hygiene': 'Agent hygiene',
-  'back-office-workspace-cleanup': 'Workspace cleanup',
-};
 
 const _SPECIALIST_SHELL: AgentShellDescriptor = {
   label: 'Role',
@@ -298,56 +267,6 @@ const ROLE_GUIDANCE_REGISTRY: Record<AgentClass, RoleGuidanceDescriptor> = {
   },
 };
 
-const TASK_CARD_REGISTRY: Record<TaskOutputKind, TaskCardDescriptor> = {
-  accumulates_context: {
-    label: 'Tracking',
-    badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-    summary: (task) => trackingTaskSummary(task),
-    details: (task) => [
-      ...taskFolderDetails(task),
-      ...(task.objective?.purpose ? [task.objective.purpose] : []),
-    ].filter(Boolean),
-  },
-  produces_deliverable: {
-    label: 'Deliverable',
-    badgeClass: 'bg-violet-500/10 text-violet-700 dark:text-violet-300',
-    summary: (task) => (
-      task.objective?.deliverable ||
-      task.objective?.format ||
-      'Produces a user-facing deliverable'
-    ),
-    details: (task) => [
-      ...taskFolderDetails(task),
-      ...(task.objective?.audience ? [`Audience: ${task.objective.audience}`] : []),
-      ...(task.objective?.purpose ? [task.objective.purpose] : []),
-      ...(task.delivery ? [`Delivery: ${task.delivery}`] : []),
-    ].filter(Boolean),
-  },
-  external_action: {
-    label: 'Action',
-    badgeClass: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
-    summary: (task) => (
-      task.objective?.deliverable ||
-      task.delivery ||
-      inferActionTarget(task) ||
-      'Takes action on an external platform'
-    ),
-    details: (task) => [
-      ...taskFolderDetails(task),
-      ...(task.objective?.purpose ? [task.objective.purpose] : []),
-      ...(inferActionTarget(task) ? [`Target: ${inferActionTarget(task)}`] : []),
-    ].filter(Boolean),
-  },
-  system_maintenance: {
-    label: 'Maintenance',
-    badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-    summary: (task) => task.objective?.purpose || 'Keeps the workspace and workforce coherent',
-    details: (task) => [
-      ...taskFolderDetails(task),
-      ...(task.objective?.deliverable ? [`Output: ${task.objective.deliverable}`] : []),
-    ].filter(Boolean),
-  },
-};
 
 function stripLeadingH1IfMatchesTitle(content: string, title: string): string {
   const lines = content.split('\n');
@@ -374,79 +293,11 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function TaskMetaBadge({
-  kind,
-  value,
-  className,
-}: {
-  kind: string;
-  value: string;
-  className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/10 px-2 py-0.5 text-[10px]',
-        className,
-      )}
-    >
-      <span className="text-muted-foreground/70">{kind}</span>
-      <span className="font-medium">{value}</span>
-    </span>
-  );
-}
-
-function readableDomainSummary(domains: string[] | undefined, fallback: string): string {
-  if (!domains || domains.length === 0) return fallback;
-  return domains.map((domain) => formatKeyLabel(domain, false)).join(', ');
-}
-
-function taskTypeLabel(typeKey?: string | null): string | null {
-  if (!typeKey) return null;
-  return TASK_TYPE_LABELS[typeKey] || typeKey.replace(/-/g, ' ');
-}
-
 function formatKeyLabel(value?: string | null, capitalize = true): string {
   if (!value) return '';
   const formatted = value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (!formatted) return '';
   return capitalize ? formatted.charAt(0).toUpperCase() + formatted.slice(1) : formatted;
-}
-
-function inferActionTarget(task: Task): string | null {
-  if (task.type_key?.startsWith('slack-')) return 'Slack';
-  if (task.type_key?.startsWith('notion-')) return 'Notion';
-  return task.delivery || null;
-}
-
-function trackingTaskSummary(task: Task): string {
-  if (task.context_writes?.length) {
-    return `Working in ${readableDomainSummary(task.context_writes, 'this folder')}`;
-  }
-  if (task.context_reads?.length) {
-    return `Working from ${readableDomainSummary(task.context_reads, 'this folder')}`;
-  }
-  return 'Maintains context';
-}
-
-function taskFolderDetails(task: Task): string[] {
-  const details: string[] = [];
-  const writes = task.context_writes || [];
-  const reads = task.context_reads || [];
-
-  if (task.output_kind === 'accumulates_context' && writes.length > 0) {
-    details.push(`Working in folder: ${readableDomainSummary(writes, '')}`);
-  } else if (task.output_kind === 'produces_deliverable' && reads.length > 0) {
-    details.push(`Reads from folder: ${readableDomainSummary(reads, '')}`);
-  } else if (reads.length > 0) {
-    details.push(`Uses folder: ${readableDomainSummary(reads, '')}`);
-  }
-
-  if (writes.length > 0 && task.output_kind !== 'accumulates_context') {
-    details.push(`Writes to folder: ${readableDomainSummary(writes, '')}`);
-  }
-
-  return details;
 }
 
 function getTaskKindCounts(tasks: Task[]): TaskKindCounts {
@@ -978,109 +829,30 @@ function PlatformSourcesBlock({ agent }: { agent: Agent }) {
   );
 }
 
-function TaskCard({ task, agentSlug }: { task: Task; agentSlug: string }) {
-  const descriptor = TASK_CARD_REGISTRY[task.output_kind as TaskOutputKind] || TASK_CARD_REGISTRY.produces_deliverable;
-  const typeLabel = taskTypeLabel(task.type_key);
-  const modeLabel = taskModeLabel(task.mode);
-  const statusLabel = task.status !== 'active' ? formatKeyLabel(task.status) : null;
-  const details = descriptor.details(task);
-  const manageHref = `${WORK_ROUTE}?task=${encodeURIComponent(task.slug)}&agent=${encodeURIComponent(agentSlug)}`;
-
-  return (
-    <div
-      className={cn(
-        'rounded-lg border border-border/40 bg-background px-3 py-3',
-        task.status !== 'active' && 'opacity-70',
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-medium">{task.title}</span>
-          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            <TaskMetaBadge kind="Kind" value={descriptor.label} className={descriptor.badgeClass} />
-            {typeLabel && <TaskMetaBadge kind="Type" value={typeLabel} />}
-            <TaskMetaBadge kind="Mode" value={modeLabel} />
-            {task.essential && <TaskMetaBadge kind="Priority" value="Essential" className="bg-amber-500/10 text-amber-700 dark:text-amber-300" />}
-            {statusLabel && <TaskMetaBadge kind="Status" value={statusLabel} className="bg-amber-500/10 text-amber-700 dark:text-amber-300" />}
-          </div>
-          <p className="text-[12px] text-muted-foreground mt-0.5">
-            {descriptor.summary(task)}
-          </p>
-          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-muted-foreground flex-wrap">
-            {task.schedule && <span className="truncate">{task.schedule}</span>}
-            {task.schedule && task.last_run_at && <span className="text-muted-foreground/30">·</span>}
-            {task.last_run_at && <span>Ran {formatRelativeTime(task.last_run_at)}</span>}
-            {!task.last_run_at && !task.schedule && <span>Never run</span>}
-          </div>
-          {details.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {details.map((detail) => (
-                <span
-                  key={detail}
-                  className="inline-flex rounded-md border border-border/50 bg-muted/10 px-2 py-1 text-[11px] text-muted-foreground"
-                >
-                  {detail}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <Link
-          href={manageHref}
-          className="shrink-0 inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
-        >
-          Manage
-          <ArrowUpRight className="w-3 h-3" />
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function EmptyAssignedWork({ agent, onCreateTask }: { agent: Agent; onCreateTask?: () => void }) {
+function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+  const agentSlug = getAgentSlug(agent);
   const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'specialist') as AgentClass];
   const platformProvider = agent.agent_class === 'platform-bot' ? platformProviderForRole(agent.role) : null;
-  const managementHref = platformManagementHref(platformProvider);
-
-  return (
-    <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-4 py-4">
-      <h4 className="text-sm font-medium text-foreground">{descriptor.title(agent)}</h4>
-      <p className="text-sm text-muted-foreground mt-1">
-        {descriptor.description(agent)}
-      </p>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {platformProvider && (
-          <Link
-            href={managementHref}
-            className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
-          >
-            {platformManagementLabel(platformProvider, false)}
-            <ArrowUpRight className="w-3 h-3" />
-          </Link>
-        )}
-        {onCreateTask && (
-          <button
-            type="button"
-            onClick={onCreateTask}
-            className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
-          >
-            Ask TP to set this up
-            <ArrowUpRight className="w-3 h-3" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TasksBlock({ agent, tasks, onCreateTask }: { agent: Agent; tasks: Task[]; onCreateTask?: () => void }) {
-  const agentSlug = getAgentSlug(agent);
 
   if (tasks.length === 0) {
     return (
       <div className="px-6 py-5 border-t border-border/40">
         <SectionLabel>Work</SectionLabel>
-        <EmptyAssignedWork agent={agent} onCreateTask={onCreateTask} />
+        <div className="rounded-lg border border-dashed border-border/50 bg-muted/5 px-4 py-4">
+          <p className="text-sm font-medium text-foreground">{descriptor.title(agent)}</p>
+          <p className="text-sm text-muted-foreground mt-1">{descriptor.description(agent)}</p>
+          {platformProvider && (
+            <div className="mt-3">
+              <Link
+                href={platformManagementHref(platformProvider)}
+                className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+              >
+                {platformManagementLabel(platformProvider, false)}
+                <ArrowUpRight className="w-3 h-3" />
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -1097,10 +869,33 @@ function TasksBlock({ agent, tasks, onCreateTask }: { agent: Agent; tasks: Task[
   return (
     <div className="px-6 py-5 border-t border-border/40">
       <SectionLabel>Work · {tasks.length}</SectionLabel>
-      <div className="space-y-2">
-        {sorted.map((task) => (
-          <TaskCard key={task.id} task={task} agentSlug={agentSlug} />
-        ))}
+      <div className="rounded-md border border-border/60 divide-y divide-border/40 overflow-hidden">
+        {sorted.map((task) => {
+          const href = `${WORK_ROUTE}?task=${encodeURIComponent(task.slug)}&agent=${encodeURIComponent(agentSlug)}`;
+          const isInactive = task.status !== 'active';
+          return (
+            <Link
+              key={task.id}
+              href={href}
+              className={cn(
+                'flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-muted/40 transition-colors',
+                isInactive && 'opacity-60',
+              )}
+            >
+              <span className="font-medium truncate">{task.title}</span>
+              <div className="flex items-center gap-2 shrink-0 text-[11px] text-muted-foreground">
+                {task.schedule && <span className="capitalize">{task.schedule}</span>}
+                {task.last_run_at && (
+                  <>
+                    {task.schedule && <span className="text-muted-foreground/30">·</span>}
+                    <span>ran {formatRelativeTime(task.last_run_at)}</span>
+                  </>
+                )}
+                <ArrowUpRight className="w-3 h-3 text-muted-foreground/40" />
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
@@ -1143,7 +938,7 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 }
 
 
-export function AgentContentView({ agent, tasks, onCreateTask }: AgentContentViewProps) {
+export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, 'onCreateTask'>) {
   const cls = agent.agent_class || 'specialist';
   const isPlatformBot = cls === 'platform-bot';
   const isMetaCognitive = cls === 'meta-cognitive';
@@ -1153,11 +948,6 @@ export function AgentContentView({ agent, tasks, onCreateTask }: AgentContentVie
       <SurfaceIdentityHeader
         title={agent.title}
         metadata={<AgentMetadata agent={agent} tasks={tasks} />}
-        actions={!isMetaCognitive && onCreateTask ? (
-          <Button size="sm" onClick={onCreateTask}>
-            Create Task
-          </Button>
-        ) : undefined}
       />
       <div className="max-w-3xl">
         <AgentRoleBlock agent={agent} tasks={tasks} />
@@ -1166,8 +956,8 @@ export function AgentContentView({ agent, tasks, onCreateTask }: AgentContentVie
         {isPlatformBot && <PlatformConnectionBlock agent={agent} />}
         {isPlatformBot && <PlatformSourcesBlock agent={agent} />}
 
-        {/* Domain-stewards: tasks first, then folder (work is the point; folder is where it lives) */}
-        <TasksBlock agent={agent} tasks={tasks} onCreateTask={onCreateTask} />
+        {/* Tasks: lightweight "currently assigned to" list, links out to /work */}
+        <TasksBlock agent={agent} tasks={tasks} />
         {!isPlatformBot && <SpecialistFolderBlock agent={agent} tasks={tasks} />}
 
         {/* TP doesn't have feedback distillation — suppress for meta-cognitive */}
