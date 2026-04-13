@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.13] - default_title for platform digest task types
+
+### Changed
+- `api/services/task_types.py` — Added `default_title` field to `slack-digest`, `notion-digest`, `github-digest`. Values: "Slack Digest", "Notion Digest", "GitHub Digest".
+- `api/services/primitives/manage_task.py` — `_handle_create()`: before the "title is required" guard, fall back to `task_type_def.default_title` when `title` is empty and a `type_key` is provided. Prevents free-form naming like "Daily Slack Activity" when no title is passed.
+- Expected behavior: `ManageTask(action="create", type_key="slack-digest")` without an explicit title now creates a task titled "Slack Digest". TP-provided titles still take precedence.
+
 ## [2026.04.13.12] - ADR-178: Route A/B task creation guidance in TP tools prompt
 
 ### Changed

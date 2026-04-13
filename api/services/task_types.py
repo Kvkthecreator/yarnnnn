@@ -529,6 +529,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "slack-digest": {
         "display_name": "Slack Digest",
+        "default_title": "Slack Digest",
         "description": "Read selected Slack channels. Capture decisions, action items, and key discussions. Write per-channel observations.",
         "output_kind": "accumulates_context",
         "registry_default_team": [],
@@ -566,6 +567,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "notion-digest": {
         "display_name": "Notion Digest",
+        "default_title": "Notion Digest",
         "description": "Read selected Notion pages. Track changes, new content, and stale sections. Write per-page observations.",
         "output_kind": "accumulates_context",
         "registry_default_team": [],
@@ -603,6 +605,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "github-digest": {
         "display_name": "GitHub Digest",
+        "default_title": "GitHub Digest",
         "description": "Read selected GitHub repos. Track issues, PRs, and activity. Write per-repo observations.",
         "output_kind": "accumulates_context",
         "registry_default_team": [],

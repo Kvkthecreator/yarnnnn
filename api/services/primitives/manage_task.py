@@ -1014,6 +1014,13 @@ async def _handle_create(auth: Any, input: dict) -> dict:
     if mode not in ("recurring", "goal", "reactive"):
         mode = "recurring"
 
+    # Fall back to type registry default_title if caller omitted a title
+    if not title and type_key:
+        from services.task_types import get_task_type as _get_type_for_title
+        _type_def = _get_type_for_title(type_key)
+        if _type_def and _type_def.get("default_title"):
+            title = _type_def["default_title"]
+
     if not title:
         return {"success": False, "error": "missing_title", "message": "title is required for action='create'"}
     if not type_key and not agent_slug:
