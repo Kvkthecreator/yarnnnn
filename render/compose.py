@@ -12,11 +12,16 @@ are mechanical downstream conversions from this HTML.
 
 from __future__ import annotations
 
+import base64
+import io
 import re
 from pydantic import BaseModel
 from typing import Optional
 
 import markdown
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 # ---------------------------------------------------------------------------
@@ -1169,6 +1174,176 @@ table.data-table td { padding: 0.4rem 0.75rem; }
 """
 
 
+def _parse_chart_content(content: str, kind: str) -> dict:
+    """Parse agent section content into chart data spec.
+
+    Accepts two formats:
+    1. Structured key: value + data lines:
+       x_label: Month
+       y_label: Revenue ($K)
+       Jan 2024: 45
+       Feb 2024: 52
+       ...
+
+    2. Markdown table (for multi-series):
+       | Label | Series A | Series B |
+       | Jan   | 45       | 30       |
+
+    Returns a dict compatible with render_chart() input_data.
+    """
+    lines = [l.strip() for l in content.splitlines() if l.strip()]
+
+    # Detect markdown table
+    if any(l.startswith("|") for l in lines):
+        table_lines = [l for l in lines if l.startswith("|") and not re.match(r'\|[-| :]+\|', l)]
+        if len(table_lines) >= 2:
+            headers = [h.strip() for h in table_lines[0].split("|") if h.strip()]
+            labels = []
+            datasets_raw: dict[str, list] = {h: [] for h in headers[1:]}
+            for row_line in table_lines[1:]:
+                cells = [c.strip() for c in row_line.split("|") if c.strip()]
+                if not cells:
+                    continue
+                labels.append(cells[0])
+                for i, series_name in enumerate(headers[1:]):
+                    try:
+                        val = float(cells[i + 1].replace(",", "").replace("%", "").strip())
+                    except (IndexError, ValueError):
+                        val = 0.0
+                    datasets_raw[series_name].append(val)
+            chart_type = "line" if kind == "trend-chart" else "bar"
+            return {
+                "chart_type": chart_type,
+                "title": "",
+                "labels": labels,
+                "datasets": [{"label": k, "data": v} for k, v in datasets_raw.items()],
+            }
+
+    # Structured key: value format
+    meta: dict = {}
+    data_points: list[tuple[str, float]] = []
+    for line in lines:
+        m = re.match(r'^([^:]+):\s*(.+)$', line)
+        if not m:
+            continue
+        key = m.group(1).strip()
+        val_str = m.group(2).strip()
+        if key.lower() in ("title", "x_label", "y_label", "chart_type", "label"):
+            meta[key.lower()] = val_str
+            continue
+        # Try numeric value → data point
+        try:
+            val = float(val_str.replace(",", "").replace("%", "").strip())
+            data_points.append((key, val))
+        except ValueError:
+            pass
+
+    chart_type = "line" if kind == "trend-chart" else "bar"
+    if "chart_type" in meta:
+        chart_type = meta["chart_type"]
+
+    series_label = meta.get("label", "Value")
+    return {
+        "chart_type": chart_type,
+        "title": meta.get("title", ""),
+        "labels": [p[0] for p in data_points],
+        "datasets": [{"label": series_label, "data": [p[1] for p in data_points]}],
+        "x_label": meta.get("x_label", ""),
+        "y_label": meta.get("y_label", ""),
+    }
+
+
+def _render_chart_kind(section: "SectionContent") -> str:
+    """ADR-177 Phase 5c: Render trend-chart / distribution-chart via matplotlib.
+
+    Parses agent section content, generates a PNG, embeds as base64 data URI.
+    Falls back to markdown rendering if parsing yields no data points.
+    """
+    kind = section.kind
+    try:
+        spec = _parse_chart_content(section.content, kind)
+        labels = spec.get("labels", [])
+        datasets = spec.get("datasets", [])
+
+        if not labels or not datasets or not datasets[0].get("data"):
+            raise ValueError("no data points parsed")
+
+        chart_type = spec.get("chart_type", "bar")
+        title_text = spec.get("title", section.title or "")
+
+        # Style: clean, minimal, matches brand colors
+        plt.rcParams.update({
+            "font.family": "DejaVu Sans",
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.grid": True,
+            "grid.alpha": 0.3,
+            "axes.facecolor": "#f9fafb",
+            "figure.facecolor": "#ffffff",
+        })
+
+        fig, ax = plt.subplots(figsize=(9, 4.5))
+
+        brand_colors = ["#1a56db", "#60a5fa", "#3b82f6", "#93c5fd", "#bfdbfe"]
+
+        if chart_type == "line":
+            for i, ds in enumerate(datasets):
+                color = brand_colors[i % len(brand_colors)]
+                ax.plot(
+                    labels, ds["data"],
+                    marker="o", linewidth=2, markersize=5,
+                    color=color, label=ds.get("label", ""),
+                )
+        elif chart_type in ("bar", "distribution-chart"):
+            import numpy as np
+            x = range(len(labels))
+            bar_width = 0.8 / max(len(datasets), 1)
+            for i, ds in enumerate(datasets):
+                color = brand_colors[i % len(brand_colors)]
+                offsets = [xi + (i - len(datasets) / 2 + 0.5) * bar_width for xi in x]
+                ax.bar(offsets, ds["data"], bar_width, color=color,
+                       label=ds.get("label", ""), alpha=0.85)
+            ax.set_xticks(list(x))
+            ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=9)
+        elif chart_type == "pie":
+            ax.pie(
+                datasets[0]["data"],
+                labels=labels,
+                colors=brand_colors[: len(labels)],
+                autopct="%1.0f%%",
+                startangle=90,
+            )
+
+        if title_text:
+            ax.set_title(title_text, fontsize=12, fontweight="bold", pad=12)
+        if spec.get("x_label") and chart_type != "pie":
+            ax.set_xlabel(spec["x_label"], fontsize=9)
+        if spec.get("y_label") and chart_type != "pie":
+            ax.set_ylabel(spec["y_label"], fontsize=9)
+        if len(datasets) > 1:
+            ax.legend(fontsize=9, framealpha=0.7)
+
+        fig.tight_layout()
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=144, bbox_inches="tight")
+        plt.close(fig)
+
+        png_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        alt = _esc(section.title or title_text or kind)
+        return (
+            f'<div class="section-kind-{kind} chart-embed" data-kind="{kind}">'
+            f'<img src="data:image/png;base64,{png_b64}" alt="{alt}" '
+            f'style="width:100%;max-width:720px;height:auto;border-radius:8px;margin:1rem auto;display:block;">'
+            f'</div>\n'
+        )
+
+    except Exception:
+        # Graceful fallback: markdown with data-kind attribute
+        body = _render_markdown_to_html(section.content)
+        title_html = f"<h2>{_esc(section.title)}</h2>\n" if section.title else ""
+        return f'<div class="section-kind-{kind}" data-kind="{kind}">{title_html}{body}</div>\n'
+
+
 def _render_section_to_html(section: "SectionContent") -> str:
     """ADR-177 Phase 5b: Render a single section to HTML based on its kind.
 
@@ -1214,7 +1389,12 @@ def _render_section_to_html(section: "SectionContent") -> str:
     if kind == "timeline":
         return f'<div class="section-kind-timeline" data-kind="timeline">{title_html}{_render_timeline(content)}</div>\n'
 
-    # --- Chart kinds + unknown → markdown fallback with data-kind (Phase 5c) ---
+    # --- Chart kinds → matplotlib PNG embedded as base64 (Phase 5c) ---
+    if kind in ("trend-chart", "distribution-chart"):
+        # title_html already in section; _render_chart_kind handles its own wrapper
+        return f'{title_html}{_render_chart_kind(section)}'
+
+    # --- Unknown kinds → markdown fallback with data-kind ---
     body = _render_markdown_to_html(content)
     return f'<div class="section-kind-{kind}" data-kind="{kind}">{title_html}{body}</div>\n'
 

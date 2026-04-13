@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.9] - ADR-177 Phase 5c: Chart kind renderers via matplotlib
+
+### Changed
+- `render/compose.py` — `_parse_chart_content()` added: parses agent section content in two formats — structured `key: value` lines (single-series) and markdown tables (multi-series). Returns chart spec compatible with matplotlib.
+- `render/compose.py` — `_render_chart_kind()` added: generates PNG via matplotlib for `trend-chart` (line chart) and `distribution-chart` (bar chart). PNG embedded as base64 `data:image/png;base64,...` URI — no storage upload, output.html is self-contained. Brand colors (#1a56db palette), clean minimal style (no top/right spines, light grid). Graceful fallback to markdown + `data-kind` if parsing yields no data points or matplotlib fails.
+- `render/compose.py` — `matplotlib` + `base64` + `io` imports added at top level.
+- `render/compose.py` — `_render_section_to_html()`: chart kinds route to `_render_chart_kind()` instead of markdown fallback.
+- Expected behavior: Agents producing `trend-chart` or `distribution-chart` sections with data in `label: value` or markdown table format get rendered as embedded PNG charts in output.html. No external calls, no storage round-trips. Malformed or empty data degrades to markdown.
+
 ## [2026.04.13.8] - ADR-177 Phase 5b: Structured-data kind renderers
 
 ### Changed
