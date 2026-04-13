@@ -97,6 +97,7 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
             DEFAULT_IDENTITY_MD,
             DEFAULT_BRAND_MD,
             DEFAULT_AWARENESS_MD,
+            DEFAULT_CONVENTIONS_MD,
         )
 
         workspace_files = {
@@ -106,6 +107,8 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
             "_playbook.md": (TP_ORCHESTRATION_PLAYBOOK, "TP orchestration playbook"),
             "style.md": ("# Style\n<!-- System-inferred from edit patterns. -->\n", "Style placeholder"),
             "notes.md": ("# Notes\n<!-- TP-extracted facts and instructions. -->\n", "Notes placeholder"),
+            # ADR-174 Phase 1: workspace structural conventions — agent-readable, TP-extensible
+            "CONVENTIONS.md": (DEFAULT_CONVENTIONS_MD, "Workspace filesystem conventions"),
         }
 
         for filename, (content, summary) in workspace_files.items():

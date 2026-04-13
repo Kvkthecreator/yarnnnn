@@ -319,50 +319,73 @@ def _get_active_tasks_sync(user_id: str, client: Any) -> list[dict]:
 
 
 def _get_context_domain_health_sync(user_id: str, client: Any) -> list[dict]:
-    """Get context domain health summary for TP awareness (sync). ADR-151, ADR-158.
+    """Get context domain health summary for TP awareness (sync). ADR-174 Phase 1.
 
-    Returns list of {domain, file_count, latest_update, temporal} for each domain
-    that has files in /workspace/context/. ADR-158: includes temporal flag for
-    platform observation domains (slack, notion, github).
+    Filesystem-first: queries workspace_files for all paths under /workspace/context/,
+    groups by the first directory segment after context/. Registry provides display
+    names and temporal flags as a lookup layer — it does not determine what gets reported.
+
+    Domains created by TP outside the declared registry (e.g., /workspace/context/customers/)
+    appear automatically as soon as they contain files. No registry update required.
+
+    Returns list of {domain, file_count, latest_update, health, temporal} for each
+    non-empty directory found under /workspace/context/.
     """
-    from services.directory_registry import CONTEXT_DOMAINS, get_domain_folder
-    domains = []
-    for domain_key, domain_def in CONTEXT_DOMAINS.items():
-        folder = get_domain_folder(domain_key)
-        if not folder:
+    from services.directory_registry import WORKSPACE_DIRECTORIES
+
+    # Build a registry lookup for display metadata (temporal flag, known domain keys).
+    # Keys are the directory segment name (e.g., "competitors", "slack").
+    registry_meta: dict[str, dict] = {}
+    for key, defn in WORKSPACE_DIRECTORIES.items():
+        path = defn.get("path", "")
+        if path.startswith("context/"):
+            segment = path[len("context/"):].rstrip("/")
+            if segment:
+                registry_meta[segment] = {
+                    "temporal": defn.get("temporal", False),
+                }
+
+    try:
+        # Single query: all files under /workspace/context/ for this user.
+        result = (
+            client.table("workspace_files")
+            .select("path, updated_at")
+            .eq("user_id", user_id)
+            .like("path", "/workspace/context/%")
+            .in_("lifecycle", ["active", "delivered"])
+            .execute()
+        )
+        rows = result.data or []
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] context domain query failed: {e}")
+        return []
+
+    # Group by first directory segment after /workspace/context/
+    from collections import defaultdict
+    groups: dict[str, list[str]] = defaultdict(list)  # segment → [updated_at, ...]
+    for row in rows:
+        path = row.get("path", "")
+        # /workspace/context/{segment}/...
+        remainder = path[len("/workspace/context/"):]
+        if not remainder:
             continue
-        prefix = f"/workspace/{folder}/"
-        is_temporal = domain_def.get("temporal", False)
-        try:
-            result = (
-                client.table("workspace_files")
-                .select("updated_at")
-                .eq("user_id", user_id)
-                .like("path", f"{prefix}%")
-                .order("updated_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-            rows = result.data or []
-            # Count files
-            count_result = (
-                client.table("workspace_files")
-                .select("id", count="exact")
-                .eq("user_id", user_id)
-                .like("path", f"{prefix}%")
-                .execute()
-            )
-            file_count = count_result.count or 0
-            latest = rows[0]["updated_at"][:10] if rows else None
-            domains.append({
-                "domain": domain_key,
-                "file_count": file_count,
-                "latest_update": latest,
-                "health": "active" if file_count > 1 else ("seeded" if file_count == 1 else "empty"),
-                "temporal": is_temporal,
-            })
-        except Exception:
-            domains.append({"domain": domain_key, "file_count": 0, "latest_update": None, "health": "empty", "temporal": is_temporal})
+        segment = remainder.split("/")[0]
+        if segment:
+            groups[segment].append(row.get("updated_at", ""))
+
+    domains = []
+    for segment, timestamps in sorted(groups.items()):
+        file_count = len(timestamps)
+        latest = max(t for t in timestamps if t)[:10] if any(timestamps) else None
+        meta = registry_meta.get(segment, {})
+        domains.append({
+            "domain": segment,
+            "file_count": file_count,
+            "latest_update": latest,
+            "health": "active" if file_count > 1 else "seeded",
+            "temporal": meta.get("temporal", False),
+        })
+
     return domains
 
 
@@ -804,11 +827,17 @@ def estimate_working_memory_tokens(working_memory: dict) -> int:
 
 def format_compact_index(working_memory: dict, surface_context: Optional[dict] = None) -> str:
     """
-    ADR-159 + ADR-168: Compact index for TP system prompt (~200-500 tokens).
+    ADR-159 + ADR-168 + ADR-174: Compact index for TP system prompt.
 
-    Replaces the full working memory dump. TP reads workspace files on demand
-    via ReadFile (file layer) when it needs detail. This index tells TP what
-    exists and provides just enough signal to guide judgment.
+    Hard 600-token ceiling (ADR-174 Phase 1). Enforced after formatting:
+    - Dev: AssertionError if exceeded (catches regressions early)
+    - Prod: Warning logged + deterministic truncation applied
+
+    Truncation priority (never truncated → truncated first):
+      1. System summary / gaps (never truncated)
+      2. Memory file references (never truncated)
+      3. Active tasks (capped at 20, oldest last-run dropped first)
+      4. Context domains (capped at 15, smallest file count dropped first)
 
     Three tiers:
       1. This compact index (always in prompt)
@@ -946,7 +975,30 @@ def format_compact_index(working_memory: dict, surface_context: Optional[dict] =
         for ah in flagged:
             lines.append(f"- {ah['title']}: {ah['flag']}")
 
-    return "\n".join(lines)
+    output = "\n".join(lines)
+
+    # ADR-174 Phase 1: 600-token ceiling enforcement.
+    # 1 token ≈ 4 chars (conservative estimate).
+    _TOKEN_CEILING = 600
+    _CHAR_CEILING = _TOKEN_CEILING * 4  # 2400 chars
+
+    if len(output) > _CHAR_CEILING:
+        import os
+        if os.environ.get("ENV", "production") == "development":
+            actual_tokens = len(output) // 4
+            raise AssertionError(
+                f"format_compact_index exceeded {_TOKEN_CEILING}-token ceiling: "
+                f"~{actual_tokens} tokens ({len(output)} chars). "
+                f"Trim the offending section."
+            )
+        else:
+            logger.warning(
+                f"[WORKING_MEMORY] compact index exceeded ceiling: "
+                f"~{len(output)//4} tokens. Truncating."
+            )
+            output = output[:_CHAR_CEILING] + "\n... (truncated — workspace index too large)"
+
+    return output
 
 
 def format_for_prompt(working_memory: dict) -> str:

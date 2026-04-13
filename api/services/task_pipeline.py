@@ -1044,6 +1044,22 @@ def build_task_execution_prompt(
         for filename, content in playbooks.items():
             system += f"\n\n{content}"
 
+    # ADR-174 Phase 1: Workspace conventions — compact structural reference.
+    # Injected so agents know where to write files and how without consulting Python code.
+    system += """
+
+## Workspace Conventions (compact)
+
+Write files to consistent paths so they accumulate and are searchable:
+- Context domain entities: `/workspace/context/{domain}/{entity-slug}/profile.md`
+- Signal logs: `/workspace/context/{domain}/{entity-slug}/signals.md` (append newest-first)
+- Domain synthesis: `/workspace/context/{domain}/landscape.md` (overwrite each cycle)
+- Task output: `/tasks/{slug}/outputs/latest/output.md` (overwrite) + dated snapshot
+- New domain: create `/workspace/context/{new-domain}/landscape.md` — no approval needed
+
+Write modes: entity files **overwrite** (current best), signal/log files **append** (dated history), synthesis **overwrite**.
+Full conventions: `ReadFile(path="/workspace/CONVENTIONS.md")`"""
+
     # Tool usage guidance
     system += """
 

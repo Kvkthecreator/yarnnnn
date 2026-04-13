@@ -778,6 +778,74 @@ DEFAULT_AWARENESS_MD = """\
 """
 
 
+DEFAULT_CONVENTIONS_MD = """\
+# Workspace Conventions
+
+ADR-174: Structural rules for the workspace filesystem. Agents follow these
+conventions to produce consistent, searchable file structure. TP extends this
+document when new workspace-wide conventions are established.
+
+Extension discipline: append to existing sections or add new ### sections.
+Do not rename or remove existing sections. New sections use structured bullets,
+not prose paragraphs.
+
+---
+
+### Directory Layout
+
+- `/workspace/context/{domain}/{entity-slug}/` — entity-specific files for a context domain
+- `/workspace/context/{domain}/landscape.md` — cross-entity synthesis for a domain (overwrite each run)
+- `/workspace/context/signals/` — temporal signal log, cross-domain (append newest-first)
+- `/workspace/uploads/` — user-contributed files (never modified by agents)
+- `/tasks/{slug}/outputs/latest/` — current best task output (overwrite)
+- `/tasks/{slug}/outputs/{datetime}/` — dated output snapshot (preserved)
+- `/tasks/{slug}/memory/` — task working memory (agent-managed)
+- `/agents/{slug}/` — agent identity (AGENT.md) and memory
+- `/workspace/IDENTITY.md` — who the user is
+- `/workspace/BRAND.md` — visual style and voice
+- `/workspace/AWARENESS.md` — TP shift notes across sessions
+
+### Entity File Conventions
+
+- Each entity gets its own subfolder: `{domain}/{entity-slug}/`
+- Standard files per entity: `profile.md`, `signals.md` (domain-specific variants documented by registry)
+- Naming: lowercase hyphen-separated slugs — e.g., `openai/`, `acme-corp/`
+- Assets: `{domain}/assets/{entity-slug}-{asset-type}.png` — favicons, charts, images
+
+### Write Modes
+
+- `profile.md`, `product.md`, `strategy.md` — **overwrite**: keep current best version, no append
+- `signals.md`, `latest.md`, log files — **append newest-first**: preserve dated history
+- `landscape.md`, `_synthesis.md` — **overwrite**: full rewrite each cycle, synthesize all entities
+- `outputs/latest/output.md` — **overwrite**: current best output
+- `outputs/{datetime}/` — **preserve**: dated snapshots are never modified
+
+### Creating New Context Domains
+
+- If work requires a domain that does not exist, create it — no registry approval needed
+- Name like existing domains: lowercase, plural noun (e.g., `customers/`, `investors/`, `campaigns/`)
+- First file to create: `{domain}/landscape.md` describing what the domain tracks
+- New domain appears in TP's workspace index automatically once it contains files
+
+### page_structure Format (for TP-authored produces_deliverable tasks)
+
+Declare in TASK.md under `## Process` → step with `type: derive-output`:
+
+```yaml
+page_structure:
+  - id: section-slug
+    title: "Section Title"
+    kind: narrative          # narrative | metric-cards | entity-grid | comparison-table | trend-chart | callout
+    source_domains:
+      - competitors
+      - market
+    asset_type: chart        # optional: chart | image | mermaid
+```
+
+The compose pipeline reads `page_structure` from TASK.md first, task type registry as fallback.
+"""
+
+
 # Default roster created at sign-up (ADR-140 + ADR-164: TP added as 10th agent)
 DEFAULT_ROSTER = [
     {"title": "Competitive Intelligence", "role": "competitive_intel"},
