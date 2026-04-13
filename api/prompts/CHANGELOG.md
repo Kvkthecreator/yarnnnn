@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.11] - ADR-177 Phase 5e: Output contract tightening
+
+### Changed
+- `api/services/task_pipeline.py` — `_compose_and_persist()`: Step 1b added between section parsing and payload assembly. Eight lightweight structural contracts (zero LLM): `metric-cards` (has `label: value`), `entity-grid` (has `## heading` or list), `comparison-table`/`data-table` (has `|` table), `status-matrix` (has `[status]` bracket), `timeline` (has `date: event`), `trend-chart`/`distribution-chart` (has numeric value). Contract check fires per section; mismatch logs a WARNING and downgrades `kind` → `"narrative"` in-place before the payload is assembled. Contract errors are silently swallowed (non-blocking).
+- Expected behavior: Sections where the agent declared a structured kind but produced incompatible content (e.g., wrote prose in a `metric-cards` section) degrade gracefully to markdown narrative instead of emitting broken component HTML. Logged as `[COMPOSE] Section '{slug}' kind='{kind}' failed output contract — downgrading to narrative`. No silent rendering failures.
+
 ## [2026.04.13.10] - ADR-177 Phase 5d: Surface×kind overrides
 
 ### Changed

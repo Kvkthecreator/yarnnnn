@@ -458,11 +458,40 @@ async def _compose_and_persist(
         except Exception as e:
             logger.warning(f"[COMPOSE] Section parsing failed (non-fatal): {e}")
 
+    # ── Step 1b: Output contract validation (ADR-177 Phase 5e) ───────────────────
+    # Validate each parsed section's kind against a lightweight structural contract.
+    # Mismatches are logged and kind is downgraded to "narrative" (safe fallback).
+    # No LLM calls — pure string/regex checks. Non-blocking.
+    if sections_parsed:
+        _kind_contracts = {
+            # kind → callable(content: str) -> bool
+            "metric-cards": lambda c: bool(re.search(r'.+:.+', c)),
+            "entity-grid": lambda c: bool(re.search(r'##\s+\S|^\s*-\s+\S', c, re.MULTILINE)),
+            "comparison-table": lambda c: "|" in c,
+            "data-table": lambda c: "|" in c,
+            "status-matrix": lambda c: bool(re.search(r'\[[^\]]+\]', c)),
+            "timeline": lambda c: bool(re.search(r'.+:.+', c)),
+            "trend-chart": lambda c: bool(re.search(r'[\d.]+', c)),
+            "distribution-chart": lambda c: bool(re.search(r'[\d.]+', c)),
+        }
+        for sec_slug, sec_data in list(sections_parsed.items()):
+            _kind = sec_data.get("kind", "narrative")
+            _contract = _kind_contracts.get(_kind)
+            if _contract:
+                _content = sec_data.get("content", "")
+                try:
+                    _valid = _contract(_content)
+                except Exception:
+                    _valid = True  # don't fail on contract error
+                if not _valid:
+                    logger.warning(
+                        f"[COMPOSE] Section '{sec_slug}' kind='{_kind}' failed "
+                        f"output contract — downgrading to narrative (task={task_slug})"
+                    )
+                    sec_data["kind"] = "narrative"
+
     # ── Step 2: Build sections payload for render service ─────────────────────
-    # ADR-177 Phase D1: send sections list; render service uses kind for dispatch.
-    # Phase D2 will expand the render service to handle each kind specifically.
-    # For now, sections carry kind metadata — render service still falls back to
-    # markdown rendering but now has the structural information available.
+    # ADR-177: send sections list; render service dispatches on kind.
     sections_payload = [
         {
             "kind": sec_data.get("kind", "narrative"),
