@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.3] - ManageTask: add archive action
+
+### Changed
+- `api/services/primitives/manage_task.py` — added `archive` as the 9th valid action. Soft-deletes a task by setting `status='archived'` and clearing `next_run_at`. Respects the ADR-161 essential task guard (returns error instead of archiving `daily-update` and back-office tasks). Symmetric with the existing `DELETE /tasks/{slug}` REST endpoint.
+- Expected behavior: TP can now archive duplicate or unwanted tasks directly via `ManageTask(action="archive", task_slug=...)` instead of failing with `invalid_action`.
+
 ## [2026.04.13.2] - ADR-174 Phase 3: Fluid task creation — page_structure from TASK.md
 
 ### Changed

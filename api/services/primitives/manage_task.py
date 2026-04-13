@@ -1,7 +1,7 @@
 """
 ManageTask Primitive — ADR-146 + ADR-149 + ADR-168: Unified Task Lifecycle
 
-Single task lifecycle primitive. 8 actions:
+Single task lifecycle primitive. 9 actions:
 - create   — scaffold a new task from a task type and assign to an agent (ADR-168)
 - trigger  — run task immediately
 - update   — change schedule, delivery, mode, type, sources (ADR-158)
@@ -10,6 +10,7 @@ Single task lifecycle primitive. 8 actions:
 - evaluate — TP reads output + DELIVERABLE.md → quality judgment (ADR-149)
 - steer    — TP writes cycle-specific guidance to steering.md (ADR-149)
 - complete — mark task done, clear scheduling (ADR-149)
+- archive  — soft-delete a task (essential tasks cannot be archived)
 
 Design principle P3 (One Tool Per Decision): TP decides "manage this task"
 and picks the action. One tool, one decision. Symmetric with ManageAgent,
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 MANAGE_TASK_TOOL = {
     "name": "ManageTask",
-    "description": """Manage task lifecycle: create, trigger, update, pause, resume, evaluate, steer, or complete.
+    "description": """Manage task lifecycle: create, trigger, update, pause, resume, evaluate, steer, complete, or archive.
 
 - create: scaffold from type_key (preferred, auto-populates pipeline/agent/schedule) or agent_slug + objective
 - trigger: run immediately; pass context= to focus this run only
@@ -40,13 +41,14 @@ MANAGE_TASK_TOOL = {
 - pause/resume: stop or restore scheduled runs
 - evaluate: assess latest output against DELIVERABLE.md; returns criteria_met, gaps, recommendation
 - steer: write guidance for next run (steering=); pass target_section= to force one section to regenerate
-- complete: mark goal task done, clear scheduling""",
+- complete: mark goal task done, clear scheduling
+- archive: soft-delete a task (essential tasks cannot be archived; use pause instead)""",
     "input_schema": {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["create", "trigger", "update", "pause", "resume", "evaluate", "steer", "complete"],
+                "enum": ["create", "trigger", "update", "pause", "resume", "evaluate", "steer", "complete", "archive"],
                 "description": "What to do with the task"
             },
             "task_slug": {
@@ -140,7 +142,7 @@ async def handle_manage_task(auth: Any, input: dict) -> dict:
     """
     action = input.get("action", "")
 
-    valid_actions = ("create", "trigger", "update", "pause", "resume", "evaluate", "steer", "complete")
+    valid_actions = ("create", "trigger", "update", "pause", "resume", "evaluate", "steer", "complete", "archive")
     if action not in valid_actions:
         return {"success": False, "error": "invalid_action", "message": f"action must be one of: {', '.join(valid_actions)}"}
 
@@ -167,6 +169,8 @@ async def handle_manage_task(auth: Any, input: dict) -> dict:
         return await _handle_steer(auth, task_slug, input)
     elif action == "complete":
         return await _handle_complete(auth, task_slug)
+    elif action == "archive":
+        return await _handle_archive(auth, task_slug)
 
     return {"success": False, "error": "unknown_action", "message": f"Unhandled action: {action}"}
 
@@ -753,6 +757,44 @@ async def _handle_complete(auth: Any, task_slug: str) -> dict:
         "success": True,
         "task_slug": task_slug,
         "message": f"Task '{task_slug}' marked as completed. No further runs will be scheduled.",
+    }
+
+
+async def _handle_archive(auth: Any, task_slug: str) -> dict:
+    """Soft-delete a task by setting status='archived'.
+
+    ADR-161: Essential tasks (e.g., daily-update) cannot be archived.
+    Use pause instead if the user wants to stop a required task.
+    """
+    now = datetime.now(timezone.utc)
+
+    task = await _find_task(auth, task_slug, select="id, slug, status, essential")
+    if task.get("error"):
+        return task
+
+    if task.get("essential"):
+        return {
+            "success": False,
+            "error": "essential_task",
+            "message": f"Task '{task_slug}' is essential to your workspace and cannot be archived. You can pause it instead.",
+        }
+
+    if task["status"] == "archived":
+        return {"success": True, "task_slug": task_slug, "message": f"Task '{task_slug}' is already archived."}
+
+    try:
+        auth.client.table("tasks").update({
+            "status": "archived",
+            "next_run_at": None,
+            "updated_at": now.isoformat(),
+        }).eq("id", task["id"]).execute()
+    except Exception as e:
+        return {"success": False, "error": "update_failed", "message": str(e)}
+
+    return {
+        "success": True,
+        "task_slug": task_slug,
+        "message": f"Task '{task_slug}' archived successfully.",
     }
 
 
