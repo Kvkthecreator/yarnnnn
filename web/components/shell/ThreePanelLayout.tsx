@@ -21,6 +21,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { ChatPanel, type ChatPanelProps } from '@/components/tp/ChatPanel';
 
@@ -106,6 +107,7 @@ export function ThreePanelLayout({
   chat,
 }: ThreePanelLayoutProps) {
   const isMobile = useIsMobile();
+  const router = useRouter();
   const [panelOpen, setPanelOpen] = useState(true);
   // Start closed to avoid SSR/hydration mismatch. On desktop with defaultOpen=true,
   // we open after mount. On mobile we never open — user reaches TP via Chat nav.
@@ -289,10 +291,13 @@ export function ThreePanelLayout({
         </>
       )}
 
-      {chat && !chatOpen && !isMobile && (
+      {/* FAB — always visible when chat panel is closed.
+          Desktop: opens the inline chat panel.
+          Mobile: navigates to /chat (panel layout doesn't work at <640px). */}
+      {chat && !chatOpen && (
         <button
-          onClick={() => setChatOpen(true)}
-          className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center group"
+          onClick={() => isMobile ? router.push('/chat') : setChatOpen(true)}
+          className="fixed right-4 z-50 w-12 h-12 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center group sm:right-6"
           style={{ bottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
           title="Chat with TP"
         >
