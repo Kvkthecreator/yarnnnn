@@ -87,6 +87,8 @@ class TaskResponse(BaseModel):
     essential: bool = False
     # Enriched from workspace (detail endpoint only)
     run_log: Optional[str] = None
+    # ADR-178 Phase 6: DELIVERABLE.md as living quality contract
+    deliverable_spec: Optional[dict] = None
 
 
 class TaskOutputEntry(BaseModel):
@@ -162,6 +164,85 @@ def _slugify(title: str) -> str:
         slug = "untitled"
     # Truncate to reasonable length
     return slug[:60]
+
+
+def _parse_deliverable_md(content: str, output_kind: Optional[str] = None) -> Optional[dict]:
+    """
+    Parse DELIVERABLE.md into a structured deliverable_spec dict.
+    ADR-178 Phase 6: DELIVERABLE.md as living quality contract surfaced in TaskDetail.
+
+    Returns None if content is empty or unparseable.
+    """
+    if not content or not content.strip():
+        return None
+
+    def _extract_section(md: str, heading: str) -> Optional[str]:
+        """Extract content of a ## Heading section, stopping at the next ## heading."""
+        pattern = rf"##\s+{re.escape(heading)}\s*\n(.*?)(?=\n##\s|\Z)"
+        match = re.search(pattern, md, re.DOTALL | re.IGNORECASE)
+        if not match:
+            return None
+        return match.group(1).strip() or None
+
+    def _parse_bullet_list(text: Optional[str]) -> Optional[list]:
+        """Convert a bullet list string into a list of strings. Returns None if empty."""
+        if not text:
+            return None
+        lines = [
+            re.sub(r"^[-*]\s*", "", line).strip()
+            for line in text.splitlines()
+            if re.match(r"^\s*[-*]\s+", line)
+        ]
+        return lines if lines else None
+
+    def _parse_expected_output(text: Optional[str]) -> Optional[dict]:
+        """Parse ## Expected Output section into structured fields."""
+        if not text:
+            return None
+        result = {}
+        for line in text.splitlines():
+            line = line.strip().lstrip("- ")
+            if line.lower().startswith("format:"):
+                result["format"] = line.split(":", 1)[1].strip()
+            elif line.lower().startswith("surface:"):
+                result["surface"] = line.split(":", 1)[1].strip()
+            elif line.lower().startswith("sections:"):
+                sections_raw = line.split(":", 1)[1].strip()
+                result["sections"] = [s.strip() for s in sections_raw.split(",") if s.strip()]
+            elif line.lower().startswith("word count:"):
+                result["word_count"] = line.split(":", 1)[1].strip()
+            elif line.lower().startswith("paths:"):
+                # Context-driven tasks list file paths instead of sections
+                result["paths"] = line.split(":", 1)[1].strip()
+        return result if result else None
+
+    output_section = _extract_section(content, "Expected Output")
+    assets_section = _extract_section(content, "Expected Assets")
+    criteria_section = _extract_section(content, "Quality Criteria")
+    audience_section = _extract_section(content, "Audience")
+    prefs_section = _extract_section(content, "User Preferences (inferred)")
+
+    # Infer route from output_kind
+    route = None
+    if output_kind == "produces_deliverable":
+        route = "output-driven"
+    elif output_kind == "accumulates_context":
+        route = "context-driven"
+
+    spec = {
+        "expected_output": _parse_expected_output(output_section),
+        "expected_assets": _parse_bullet_list(assets_section),
+        "quality_criteria": _parse_bullet_list(criteria_section),
+        "audience": audience_section,
+        "user_preferences": prefs_section,
+        "route": route,
+    }
+
+    # Return None if all values are None (empty/unparseable DELIVERABLE.md)
+    if all(v is None for v in spec.values()):
+        return None
+
+    return spec
 
 
 def _format_task_md(
@@ -514,14 +595,17 @@ async def get_task(
 
     row = rows[0]
 
-    # Read TASK.md + run_log (detail-only enrichment)
+    # Read TASK.md + run_log + DELIVERABLE.md (detail-only enrichment)
     ws = TaskWorkspace(auth.client, auth.user_id, slug)
     content = await ws.read_task()
     parsed = _parse_task_md(content) if content else None
     run_log = await ws.read("memory/_run_log.md")
+    deliverable_md = await ws.read("DELIVERABLE.md")
 
     response = _task_row_to_response(row, parsed)
     response.run_log = run_log
+    # ADR-178 Phase 6: parse DELIVERABLE.md into structured quality contract
+    response.deliverable_spec = _parse_deliverable_md(deliverable_md, output_kind=response.output_kind)
     return response
 
 

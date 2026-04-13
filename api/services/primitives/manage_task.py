@@ -683,10 +683,70 @@ Return ONLY the JSON object, no other text."""
     # written to /tasks/{slug}/memory/feedback.md (ADR-149) — that file is
     # the authoritative record. No denormalization.
 
+    # ADR-178: TP-initiated inference trigger. If feedback.md has ≥2 entries
+    # since the last inference run, call infer_task_deliverable_preferences()
+    # in the same evaluate turn (preserves ADR-156 single intelligence layer).
+    inference_triggered = False
+    try:
+        feedback_content = await tw.read("memory/feedback.md") or ""
+        entry_count = len(re.findall(r"^## ", feedback_content, re.MULTILINE))
+        deliverable_content = await tw.read("DELIVERABLE.md") or ""
+        # Check last inference timestamp from DELIVERABLE.md metadata comment
+        last_inference_match = re.search(r"<!-- last_inference: ([\d\-T:Z]+) -->", deliverable_content)
+        if last_inference_match:
+            last_inference_str = last_inference_match.group(1)
+            try:
+                last_inference_dt = datetime.fromisoformat(last_inference_str.rstrip("Z")).replace(tzinfo=timezone.utc)
+                entries_since = len(re.findall(
+                    rf"^## .+\(({re.escape(last_inference_str[:7])}.+?)\)",
+                    feedback_content,
+                    re.MULTILINE,
+                ))
+                # Recount entries added after last inference using date comparison
+                new_entries = 0
+                for match in re.finditer(r"^## .+?\((\d{4}-\d{2}-\d{2} \d{2}:\d{2})", feedback_content, re.MULTILINE):
+                    try:
+                        entry_dt = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+                        if entry_dt > last_inference_dt:
+                            new_entries += 1
+                    except ValueError:
+                        pass
+                entries_since = new_entries
+            except (ValueError, AttributeError):
+                entries_since = entry_count  # assume all are new if timestamp unparseable
+        else:
+            entries_since = entry_count  # no prior inference — all entries are new
+
+        if entries_since >= 2:
+            from services.task_deliverable_inference import infer_task_deliverable_preferences
+            # Returns updated DELIVERABLE.md content (str) or None if skipped/failed
+            updated_deliverable = await infer_task_deliverable_preferences(
+                client=auth.client,
+                user_id=auth.user_id,
+                task_slug=task_slug,
+            )
+            inference_triggered = updated_deliverable is not None
+            if inference_triggered:
+                # Stamp last_inference timestamp into DELIVERABLE.md metadata comment
+                # so future calls can count entries since last inference
+                now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                stamped = re.sub(
+                    r"<!-- last_inference: [\d\-T:Z]+ -->",
+                    f"<!-- last_inference: {now_iso} -->",
+                    updated_deliverable,
+                )
+                if "<!-- last_inference:" not in stamped:
+                    stamped = stamped + f"\n<!-- last_inference: {now_iso} -->"
+                await tw.write("DELIVERABLE.md", stamped, summary=f"Inference timestamp stamped ({now_iso[:10]})")
+                logger.info(f"[MANAGE_TASK] Inference triggered post-evaluate for '{task_slug}': {entries_since} feedback entries since last inference")
+    except Exception as e:
+        logger.warning(f"[MANAGE_TASK] Post-evaluate inference check failed (non-fatal): {e}")
+
     return {
         "success": True,
         "task_slug": task_slug,
         "assessment": assessment,
+        "inference_triggered": inference_triggered,
         "message": f"Evaluated '{task_slug}': {assessment.get('quality_assessment', 'assessment complete')}",
     }
 

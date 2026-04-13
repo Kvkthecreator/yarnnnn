@@ -733,11 +733,31 @@ export interface Task {
   essential?: boolean;         // ADR-161: anchor task (e.g., daily-update) — cannot be archived
 }
 
+// ADR-178 Phase 6: DELIVERABLE.md as structured quality contract
+export interface DeliverableExpectedOutput {
+  format?: string;         // e.g. "HTML report", "context files"
+  surface?: string;        // surface_type from registry
+  sections?: string[];     // declared section kinds
+  word_count?: string;     // e.g. "800–1200 words"
+  paths?: string;          // context-driven: file paths pattern
+}
+
+export interface DeliverableSpec {
+  expected_output: DeliverableExpectedOutput | null;
+  expected_assets: string[] | null;
+  quality_criteria: string[] | null;
+  audience: string | null;
+  user_preferences: string | null;
+  route: 'output-driven' | 'context-driven' | null;
+}
+
 export interface TaskDetail extends Task {
   run_log?: string;            // memory/run_log.md content
   success_criteria?: string[];
   output_spec?: string[];
   // context_reads/context_writes inherited from Task
+  // ADR-178 Phase 6: parsed DELIVERABLE.md quality contract
+  deliverable_spec?: DeliverableSpec | null;
 }
 
 export interface TaskCreate {

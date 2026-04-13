@@ -40,10 +40,10 @@ import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader'
 import { AGENTS_ROUTE } from '@/lib/routes';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
-import type { Task, Agent } from '@/types';
+import type { Task, TaskDetail, Agent } from '@/types';
 
 interface WorkDetailProps {
-  task: Task;
+  task: Task | TaskDetail;
   agents: Agent[];
   refreshKey: number;
   mutationPending: boolean;
@@ -198,10 +198,11 @@ function ObjectiveBlock({ task }: { task: Task }) {
 
 // ─── Kind dispatch (ADR-167) ───
 
-function KindMiddle({ task, refreshKey }: { task: Task; refreshKey: number }) {
+function KindMiddle({ task, refreshKey }: { task: Task | TaskDetail; refreshKey: number }) {
+  const deliverableSpec = (task as TaskDetail).deliverable_spec ?? null;
   switch (task.output_kind) {
     case 'accumulates_context':
-      return <TrackingMiddle task={task} refreshKey={refreshKey} />;
+      return <TrackingMiddle task={task} refreshKey={refreshKey} deliverableSpec={deliverableSpec} />;
     case 'external_action':
       return <ActionMiddle task={task} refreshKey={refreshKey} />;
     case 'system_maintenance':
@@ -210,7 +211,7 @@ function KindMiddle({ task, refreshKey }: { task: Task; refreshKey: number }) {
     default:
       // Default to DeliverableMiddle for unknown/missing output_kind so legacy
       // tasks with no enriched type info still render something useful.
-      return <DeliverableMiddle taskSlug={task.slug} refreshKey={refreshKey} />;
+      return <DeliverableMiddle taskSlug={task.slug} refreshKey={refreshKey} deliverableSpec={deliverableSpec} />;
   }
 }
 

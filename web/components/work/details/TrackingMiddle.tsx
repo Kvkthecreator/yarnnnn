@@ -23,19 +23,72 @@
  * We render it inline inside a nested card, plus link out to the domain.
  */
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, FolderOpen, Layers, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, FolderOpen, Layers, Loader2, RefreshCw, Shield } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { useTaskOutputs } from '@/hooks/useTaskOutputs';
 import { CONTEXT_ROUTE } from '@/lib/routes';
-import type { Task } from '@/types';
+import type { DeliverableSpec, Task } from '@/types';
+
+// Quality Contract panel for context-driven tasks — context-shaped copy
+function QualityContractPanel({ spec }: { spec: DeliverableSpec }) {
+  const [open, setOpen] = useState(false);
+  const hasContent = spec.quality_criteria?.length || spec.expected_output;
+  if (!hasContent) return null;
+
+  return (
+    <div className="px-6 pb-2">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+      >
+        <Shield className="h-3 w-3" />
+        <span className="uppercase tracking-wide font-medium">Data Contract</span>
+        {open ? <ChevronDown className="h-3 w-3 ml-auto" /> : <ChevronRight className="h-3 w-3 ml-auto" />}
+      </button>
+
+      {open && (
+        <div className="mt-2 rounded-md border border-border bg-muted/5 p-3 space-y-3 text-xs">
+          {spec.expected_output && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wide mb-1">Context Structure</p>
+              <div className="space-y-0.5 text-muted-foreground">
+                {spec.expected_output.paths && <p>Paths: {spec.expected_output.paths}</p>}
+                {spec.expected_output.format && <p>Output: {spec.expected_output.format}</p>}
+              </div>
+            </div>
+          )}
+          {spec.quality_criteria?.length ? (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wide mb-1">Data Quality Criteria</p>
+              <ul className="space-y-0.5 text-muted-foreground list-none">
+                {spec.quality_criteria.map((c, i) => (
+                  <li key={i} className="flex gap-1.5"><span className="text-muted-foreground/30 flex-shrink-0">–</span>{c}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {spec.audience && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wide mb-1">Feeds</p>
+              <p className="text-muted-foreground">{spec.audience}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function TrackingMiddle({
   task,
   refreshKey,
+  deliverableSpec,
 }: {
   task: Task;
   refreshKey: number;
+  deliverableSpec?: DeliverableSpec | null;
 }) {
   const { latest, loading, error, reload } = useTaskOutputs(task.slug, {
     includeLatest: true,
@@ -90,6 +143,9 @@ export function TrackingMiddle({
           </p>
         )}
       </div>
+
+      {/* ADR-178 Phase 6: Data Contract — collapsible quality spec for context tasks */}
+      {deliverableSpec && <QualityContractPanel spec={deliverableSpec} />}
 
       {/* Last-run CHANGELOG in a nested card */}
       <div className="px-6 py-4">

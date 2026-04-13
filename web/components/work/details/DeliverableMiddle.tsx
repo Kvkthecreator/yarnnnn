@@ -16,10 +16,11 @@
  *   ManageTask(action="steer", target_section="executive-summary")
  */
 
-import { AlertCircle, Clock, FileText, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, Clock, FileText, Loader2, RefreshCw, Shield } from 'lucide-react';
+import { useState } from 'react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { useTaskOutputs } from '@/hooks/useTaskOutputs';
-import type { TaskSectionEntry } from '@/types';
+import type { DeliverableSpec, TaskSectionEntry } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Section kind display config
@@ -100,15 +101,80 @@ function SectionProvenanceStrip({ sections }: { sections: TaskSectionEntry[] }) 
 }
 
 // ---------------------------------------------------------------------------
+// Quality Contract panel (ADR-178 Phase 6)
+// ---------------------------------------------------------------------------
+
+function QualityContractPanel({ spec }: { spec: DeliverableSpec }) {
+  const [open, setOpen] = useState(false);
+  const hasContent = spec.quality_criteria?.length || spec.expected_output || spec.audience || spec.user_preferences;
+  if (!hasContent) return null;
+
+  return (
+    <div className="px-6 pb-3">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+      >
+        <Shield className="h-3 w-3" />
+        <span className="uppercase tracking-wide font-medium">Quality Contract</span>
+        {open ? <ChevronDown className="h-3 w-3 ml-auto" /> : <ChevronRight className="h-3 w-3 ml-auto" />}
+      </button>
+
+      {open && (
+        <div className="mt-2 rounded-md border border-border bg-muted/5 p-3 space-y-3 text-xs">
+          {spec.expected_output && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wide mb-1">Expected Output</p>
+              <div className="space-y-0.5 text-muted-foreground">
+                {spec.expected_output.format && <p>Format: {spec.expected_output.format}</p>}
+                {spec.expected_output.surface && <p>Surface: {spec.expected_output.surface}</p>}
+                {spec.expected_output.word_count && <p>Length: {spec.expected_output.word_count}</p>}
+                {spec.expected_output.sections?.length ? (
+                  <p>Sections: {spec.expected_output.sections.join(', ')}</p>
+                ) : null}
+              </div>
+            </div>
+          )}
+          {spec.quality_criteria?.length ? (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wide mb-1">Quality Criteria</p>
+              <ul className="space-y-0.5 text-muted-foreground list-none">
+                {spec.quality_criteria.map((c, i) => (
+                  <li key={i} className="flex gap-1.5"><span className="text-muted-foreground/30 flex-shrink-0">–</span>{c}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {spec.audience && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wide mb-1">Audience</p>
+              <p className="text-muted-foreground">{spec.audience}</p>
+            </div>
+          )}
+          {spec.user_preferences && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wide mb-1">Inferred Preferences</p>
+              <p className="text-muted-foreground whitespace-pre-line">{spec.user_preferences}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export function DeliverableMiddle({
   taskSlug,
   refreshKey,
+  deliverableSpec,
 }: {
   taskSlug: string;
   refreshKey: number;
+  deliverableSpec?: DeliverableSpec | null;
 }) {
   const { latest, loading, error, reload } = useTaskOutputs(taskSlug, {
     includeLatest: true,
@@ -169,6 +235,9 @@ export function DeliverableMiddle({
       {hasSections && (
         <SectionProvenanceStrip sections={latest.sections!} />
       )}
+
+      {/* ADR-178 Phase 6: Quality Contract — collapsible, updates post-evaluate */}
+      {deliverableSpec && <QualityContractPanel spec={deliverableSpec} />}
 
       <div className="px-6 pb-6">
         <div className="rounded-lg border border-border bg-muted/5 overflow-hidden">
