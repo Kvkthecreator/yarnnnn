@@ -1,7 +1,7 @@
 # ADR-176: Work-First Agent Model
 
 **Date:** 2026-04-13
-**Status:** Proposed
+**Status:** Implemented (2026-04-13)
 **Authors:** KVK, Claude
 **Supersedes:** ADR-140 (Agent Workforce Model — pre-scaffolded ICP roster), ADR-175 (Generic Roster Model — never implemented)
 **Amends:** ADR-152 (Directory Registry — canonical domains demoted to scaffold library), ADR-138 (Agents as Work Units — agent taxonomy updated)
@@ -309,7 +309,7 @@ A context file gets overwritten → new content has no embedding until the async
 | Phase 2 | Implemented | `TASK_TYPES` updated: `registry_default_team` field added per task type (list of specialist role keys). `parse_task_md()` updated to parse `## Team` section. Task creation writes team to TASK.md. |
 | Phase 3 | Implemented | TP prompt updated: work-first framing, team composition guidance, specialist capability discipline. All ICP domain-steward references removed from TP-facing prompts (base.py, tools.py, onboarding.py, behaviors.py). |
 | Phase 4 | Implemented | Directory registry: `scaffold_all_directories()` simplified to `signals/` only at signup. `scaffold_context_domain()` added for on-demand domain creation by TP. Entity profile versioning for `profile.md`/`strategy.md`/`product.md` in WriteFile context path. Content hash SHA-256 dedup on context write path. Staleness timestamp instruction in Tracker default_instructions and playbook. |
-| Phase 5 | Proposed | Clean-slate migration: all test workspace data wiped. `agents` DB rows for old ICP roles deleted. New specialist agents scaffolded for all test workspaces. Context domain directories reset. |
+| Phase 5 | Implemented | Clean-slate migration: 10 ICP agent rows deleted (competitive_intel, market_research, business_dev, operations, marketing × 2 users). ICP agent workspace files deleted. ICP context domain files deleted (competitors, market, relationships, projects, content_research). New specialist agents scaffolded for both test workspaces (researcher, analyst, writer, tracker, designer × 2 users). Migration 146: agents_role_check constraint updated to include tracker and designer. |
 
 ---
 
