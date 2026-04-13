@@ -8,9 +8,11 @@
  * in your workspace.
  *
  * Features:
- *   - Filter chips on output_kind: All | Tracking | Reports | Actions | System
+ *   - Filter chips on mode: All | Recurring | One-time
+ *     System tasks (output_kind=system_maintenance) are hidden by default
+ *     and excluded from All — shown only when "Include system tasks" is checked.
  *   - Search box across title, agent, delivery, type, objective, domains
- *   - Group-by dropdown: Output kind (default) | Agent | Status | Schedule
+ *   - Group-by dropdown: Mode (default) | Agent | Status | Schedule
  *   - Status filter: active+paused (default), optional completed+archived
  *   - Agent filter: pre-applied if `?agent={slug}` is in URL; user can clear
  *
@@ -24,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
 import { WorkModeBadge } from './WorkModeBadge';
 import { getAgentSlug } from '@/lib/agent-identity';
+import { taskModeLabel } from '@/types';
 import type { Task, Agent } from '@/types';
 
 interface WorkListSurfaceProps {
@@ -38,26 +41,17 @@ interface WorkListSurfaceProps {
   onSelect: (slug: string) => void;
 }
 
-type KindFilter = 'all' | 'accumulates_context' | 'produces_deliverable' | 'external_action' | 'system_maintenance';
-type GroupBy = 'output_kind' | 'agent' | 'status' | 'schedule';
+type ModeFilter = 'all' | 'recurring' | 'one-time';
+type GroupBy = 'mode' | 'agent' | 'status' | 'schedule';
 
-const KIND_CHIPS: { id: KindFilter; label: string }[] = [
+const MODE_CHIPS: { id: ModeFilter; label: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'accumulates_context', label: 'Tracking' },
-  { id: 'produces_deliverable', label: 'Reports' },
-  { id: 'external_action', label: 'Actions' },
-  { id: 'system_maintenance', label: 'System' },
+  { id: 'recurring', label: 'Recurring' },
+  { id: 'one-time', label: 'One-time' },
 ];
 
-const KIND_LABEL: Record<string, string> = {
-  accumulates_context: 'Tracking',
-  produces_deliverable: 'Reports',
-  external_action: 'Actions',
-  system_maintenance: 'System',
-};
-
 const GROUP_BY_LABEL: Record<GroupBy, string> = {
-  output_kind: 'Output kind',
+  mode: 'Mode',
   agent: 'Agent',
   status: 'Status',
   schedule: 'Schedule',
@@ -71,11 +65,15 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const GROUP_ORDER: Record<GroupBy, string[]> = {
-  output_kind: ['Tracking', 'Reports', 'Actions', 'System', 'Other'],
+  mode: ['Recurring', 'One-time'],
   agent: [],
   status: ['Active', 'Paused', 'Completed', 'Archived', 'Unknown'],
   schedule: [],
 };
+
+function isSystemTask(task: Task): boolean {
+  return task.output_kind === 'system_maintenance';
+}
 
 function agentNameFor(task: Task, agents: Agent[]): string {
   const assigned = task.agent_slugs?.[0];
@@ -102,8 +100,8 @@ function statusRank(status: string | undefined): number {
 
 function groupKeyFor(task: Task, groupBy: GroupBy, agents: Agent[]): string {
   switch (groupBy) {
-    case 'output_kind':
-      return KIND_LABEL[task.output_kind ?? ''] ?? 'Other';
+    case 'mode':
+      return taskModeLabel(task.mode);
     case 'agent':
       return agentNameFor(task, agents);
     case 'status':
@@ -170,19 +168,24 @@ export function WorkListSurface({
   onClearAgentFilter,
   onSelect,
 }: WorkListSurfaceProps) {
-  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [modeFilter, setModeFilter] = useState<ModeFilter>('all');
   const [search, setSearch] = useState('');
-  const [groupBy, setGroupBy] = useState<GroupBy>('output_kind');
+  const [groupBy, setGroupBy] = useState<GroupBy>('mode');
   const [includeHistorical, setIncludeHistorical] = useState(false);
+  const [includeSystem, setIncludeSystem] = useState(false);
 
   // Apply filters in pipeline order
   const filtered = useMemo(() => {
     let result = tasks;
+    // System tasks are always hidden unless explicitly opted in
+    if (!includeSystem) {
+      result = result.filter(t => !isSystemTask(t));
+    }
     if (!includeHistorical) {
       result = result.filter(t => t.status !== 'archived' && t.status !== 'completed');
     }
-    if (kindFilter !== 'all') {
-      result = result.filter(t => t.output_kind === kindFilter);
+    if (modeFilter !== 'all') {
+      result = result.filter(t => taskModeLabel(t.mode) === (modeFilter === 'recurring' ? 'Recurring' : 'One-time'));
     }
     if (agentFilter) {
       result = result.filter(t => t.agent_slugs?.includes(agentFilter));
@@ -192,7 +195,7 @@ export function WorkListSurface({
       result = result.filter(t => buildSearchText(t, agents).includes(q));
     }
     return result;
-  }, [tasks, kindFilter, agentFilter, search, includeHistorical, agents]);
+  }, [tasks, modeFilter, agentFilter, search, includeHistorical, includeSystem, agents]);
 
   // Group + sort within each group
   const grouped = useMemo(() => {
@@ -223,14 +226,14 @@ export function WorkListSurface({
           </div>
         )}
 
-        {/* Kind chips */}
+        {/* Mode chips */}
         <div className="flex items-center gap-1 flex-wrap">
-          {KIND_CHIPS.map(chip => {
-            const isActive = kindFilter === chip.id;
+          {MODE_CHIPS.map(chip => {
+            const isActive = modeFilter === chip.id;
             return (
               <button
                 key={chip.id}
-                onClick={() => setKindFilter(chip.id)}
+                onClick={() => setModeFilter(chip.id)}
                 className={cn(
                   'px-3 py-1 rounded-full text-xs font-medium transition-colors',
                   isActive
@@ -244,7 +247,7 @@ export function WorkListSurface({
           })}
         </div>
 
-        {/* Search + group-by + agent filter chip */}
+        {/* Search + group-by + toggles + agent filter chip */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
@@ -280,6 +283,16 @@ export function WorkListSurface({
             Include completed and archived
           </label>
 
+          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeSystem}
+              onChange={e => setIncludeSystem(e.target.checked)}
+              className="rounded border-border"
+            />
+            Include system tasks
+          </label>
+
           {agentFilter && (
             <button
               onClick={onClearAgentFilter}
@@ -295,7 +308,7 @@ export function WorkListSurface({
       {/* ── List body ── */}
       <div className="flex-1 overflow-auto">
         {filtered.length === 0 ? (
-          <EmptyResult hasFilters={kindFilter !== 'all' || !!search || !!agentFilter || includeHistorical} />
+          <EmptyResult hasFilters={modeFilter !== 'all' || !!search || !!agentFilter || includeHistorical} />
         ) : (
           <div className="px-6 py-4 space-y-6 max-w-5xl">
             {grouped.map(([groupName, items]) => (
@@ -309,6 +322,7 @@ export function WorkListSurface({
                       key={task.slug}
                       task={task}
                       agentName={agentNameFor(task, agents)}
+                      dim={isSystemTask(task)}
                       onSelect={() => onSelect(task.slug)}
                     />
                   ))}
@@ -327,31 +341,39 @@ export function WorkListSurface({
 function WorkRow({
   task,
   agentName,
+  dim,
   onSelect,
 }: {
   task: Task;
   agentName: string;
+  /** System tasks are shown dimmed — same row shape, visually de-prioritised */
+  dim?: boolean;
   onSelect: () => void;
 }) {
   const isActive = task.status === 'active';
-  const statusColor = isActive
-    ? 'fill-green-500 text-green-500'
-    : task.status === 'paused'
-      ? 'fill-amber-500 text-amber-500'
-      : 'text-muted-foreground/30';
+  const statusColor = dim
+    ? 'text-muted-foreground/20'
+    : isActive
+      ? 'fill-green-500 text-green-500'
+      : task.status === 'paused'
+        ? 'fill-amber-500 text-amber-500'
+        : 'text-muted-foreground/30';
 
   return (
     <button
       onClick={onSelect}
-      className="w-full text-left px-4 py-3 hover:bg-muted/40 transition-colors flex items-center gap-3"
+      className={cn(
+        'w-full text-left px-4 py-3 hover:bg-muted/40 transition-colors flex items-center gap-3',
+        dim && 'opacity-50',
+      )}
     >
       <Circle className={cn('w-2 h-2 shrink-0', statusColor)} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate">{task.title}</span>
+          <span className={cn('text-sm font-medium truncate', dim && 'font-normal')}>{task.title}</span>
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground">
-          <WorkModeBadge mode={task.mode} />
+          {!dim && <WorkModeBadge mode={task.mode} />}
           <span className="truncate">{agentName}</span>
           {task.schedule && (
             <>
