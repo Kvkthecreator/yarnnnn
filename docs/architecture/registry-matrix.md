@@ -1,8 +1,8 @@
 # Registry Matrix — Domains, Tasks, Agents
 
 **Status:** Canonical  
-**Date:** 2026-04-08 (ADR-166 coherence pass)
-**Related:** ADR-140 (Agent Workforce), ADR-145 (Task Type Registry), ADR-151 (Context Domains), ADR-152 (Unified Directory Registry), ADR-164 (Back Office Tasks), ADR-166 (Registry Coherence)
+**Date:** 2026-04-13 (ADR-176 universal specialist roster)
+**Related:** ADR-176 (Work-First Agent Model), ADR-145 (Task Type Registry), ADR-151 (Context Domains), ADR-152 (Unified Directory Registry), ADR-164 (Back Office Tasks), ADR-166 (Registry Coherence)
 
 ---
 
@@ -13,7 +13,7 @@ YARNNN has three registries that work together:
 | Registry | Governs | File | Key constant |
 |---|---|---|---|
 | **Directory Registry** | Workspace structure + context domains | `directory_registry.py` | `WORKSPACE_DIRECTORIES` |
-| **Agent Templates** (v4 domain-steward + meta-cognitive) | Who does the work — domain-steward + synthesizer + bot + TP | `agent_framework.py` | `AGENT_TEMPLATES` |
+| **Agent Templates** (v5 universal specialists — ADR-176) | Who does the work — 6 specialists + 3 platform bots | `agent_framework.py` | `AGENT_TEMPLATES` |
 | **Task Types** (v6 — ADR-166) | How work gets done — classified by `output_kind` | `task_types.py` | `TASK_TYPES` |
 
 **Read direction:** Domains are upstream → context-accumulating tasks WRITE to domains → deliverable-producing tasks READ from domains → agent types execute task steps. External-action and system-maintenance tasks sit alongside, governed by the same pipeline.
@@ -35,18 +35,20 @@ After ADR-166 every task is described by exactly two axes:
 
 ## Domain ↔ Task ↔ Agent Matrix
 
-| Context Domain | Tasks that WRITE (accumulates_context) | Tasks that READ (produces_deliverable) | Agent (domain steward) |
+| Context Domain | Tasks that WRITE (accumulates_context) | Tasks that READ (produces_deliverable) | Agent (ADR-176 specialist) |
 |---|---|---|---|
-| **competitors/** | track-competitors | competitive-brief, market-report, meeting-prep, launch-material | Competitive Intelligence |
-| **market/** | track-market | market-report, launch-material | Market Research |
-| **relationships/** | track-relationships | meeting-prep, stakeholder-update | Business Development |
-| **projects/** | track-projects | project-status, stakeholder-update | Operations |
-| **content_research/** | research-topics | content-brief, launch-material | Marketing & Creative |
-| **signals/** | slack-digest, notion-digest, github-digest, ALL track-* | ALL deliverable-producing tasks | Slack Bot, Notion Bot, GitHub Bot |
+| **competitors/** | track-competitors | competitive-brief, market-report, meeting-prep, launch-material | Researcher + Tracker (write), Analyst + Writer (read) |
+| **market/** | track-market | market-report, launch-material | Researcher + Tracker (write), Analyst + Writer (read) |
+| **relationships/** | track-relationships | meeting-prep, stakeholder-update | Tracker (write), Analyst + Writer (read) |
+| **projects/** | track-projects | project-status, stakeholder-update | Tracker (write), Analyst + Writer (read) |
+| **content_research/** | research-topics | content-brief, launch-material | Researcher (write), Analyst + Writer (read) |
+| **signals/** | slack-digest, notion-digest, github-digest, ALL track-* | ALL deliverable-producing tasks | Tracker + bots (write), all specialists (read) |
 | **slack/** (temporal) | slack-digest | (TP awareness only) | Slack Bot |
 | **notion/** (temporal) | notion-digest | (TP awareness only) | Notion Bot |
 | **github/** (temporal) | github-digest | (TP awareness only) | GitHub Bot |
-| **(cross-domain)** | — | daily-update, stakeholder-update, market-report | Reporting (synthesizer) |
+| **(cross-domain)** | — | daily-update, stakeholder-update, market-report | Analyst + Writer (deliverables TP-assembled) |
+
+> **Note (ADR-176):** Domain context directories are created by work demand, not pre-scaffolded at signup. Only `signals/` and platform bot directories exist at signup. Other domains (competitors/, market/, etc.) are created by TP when the first task needing them is created. Domain names come from user language — these are the known archetypes, not the only possible domains.
 
 External-action tasks (`slack-respond`, `notion-update`) read from the domains in their `context_reads` but produce no workspace artifact — their effect is the platform write. System-maintenance tasks (`back-office-*`) touch no domains; they emit hygiene signals only.
 
@@ -121,28 +123,28 @@ TP-owned, deterministic, no LLM. Run through the same task pipeline as user-faci
 
 ## Agent Roster (Default — Pre-Scaffolded at Signup)
 
-10 agents at signup (ADR-140 + ADR-164).
+9 agents at signup (ADR-176 universal specialists + ADR-164 TP as agent).
 
-| Agent | Class | Domain Owned | Data Viz | Visual Production | Playbooks |
+| Agent | Role | Class | Capabilities | Phase | Playbooks |
 |---|---|---|---|---|---|
-| **Competitive Intelligence** | domain-steward | competitors/ | chart, mermaid | — | outputs, research |
-| **Market Research** | domain-steward | market/ | chart, mermaid | — | outputs, research |
-| **Business Development** | domain-steward | relationships/ | — | — | outputs |
-| **Operations** | domain-steward | projects/ | chart | — | outputs |
-| **Marketing & Creative** | domain-steward | content/ | chart, mermaid | **image, video** | outputs, formats, **visual** |
-| **Reporting** | synthesizer | (cross-domain) | chart, mermaid | — | outputs, formats |
-| **Slack Bot** | platform-bot | slack/ (temporal) | — | — | outputs |
-| **Notion Bot** | platform-bot | notion/ (temporal) | — | — | outputs |
-| **GitHub Bot** | platform-bot | github/ (temporal) | — | — | outputs |
-| **Thinking Partner** (ADR-164) | **meta-cognitive** | (orchestration) | — | — | — |
+| **Researcher** | `researcher` | specialist | web_search, investigate, read_workspace, search_knowledge, produce_markdown | Accumulation | outputs, research |
+| **Analyst** | `analyst` | specialist | read_workspace, search_knowledge, produce_markdown | Accumulation | outputs |
+| **Writer** | `writer` | specialist | read_workspace, produce_markdown | Accumulation | outputs, formats |
+| **Tracker** | `tracker` | specialist | read_slack, read_notion, read_github, read_workspace, produce_markdown | Accumulation | outputs |
+| **Designer** | `designer` | specialist | chart, mermaid, image, video_render, compose_html | Production | visual |
+| **Thinking Partner** | `thinking_partner` | meta-cognitive | read_workspace, write_workspace, search_knowledge, produce_markdown | Orchestration | — |
+| **Slack Bot** | `slack_bot` | platform-bot | read_slack, write_slack | Accumulation | outputs |
+| **Notion Bot** | `notion_bot` | platform-bot | read_notion, write_notion | Accumulation | outputs |
+| **GitHub Bot** | `github_bot` | platform-bot | read_github | Accumulation | outputs |
 
-**Key principles:**
-- Each domain-steward owns one context domain. The synthesizer (Reporting) reads all domains.
-- **Data viz** (chart, mermaid) is analytical — available to research/synthesis agents for data-driven visuals.
-- **Visual production** (image, video) is a specialization — only Marketing & Creative. Other agents collaborate via multi-step process when they need rich visuals.
-- **Playbooks** are agent-level methodology (how this agent does its work). Loaded selectively by task `output_kind` (ADR-166). See `docs/features/agent-playbook-framework.md`.
+**Key principles (ADR-176):**
+- **Universal specialists, not ICP-specific personas.** Researcher, Analyst, Writer, Tracker, Designer — names that pass the instinct test for any user in any industry.
+- **Capability split:** Accumulation agents (Researcher, Analyst, Writer, Tracker) accumulate knowledge and produce markdown. Production agent (Designer) generates visual assets. These phases never overlap within a single agent.
+- **No domain ownership.** Specialists are assigned to tasks; tasks read/write context domains. The same Researcher can work on competitors one task and market another. Domain expertise develops through accumulated work, not through a pre-assigned label.
+- **Hospital principle:** The 9-agent roster is fixed and non-configurable. These are the roles that all knowledge work requires. The roster grows from observed work patterns, not user preference.
+- **Playbooks** are agent-level methodology. Loaded selectively by task `output_kind` (ADR-166). See `docs/features/agent-playbook-framework.md`.
 - Templates are bootstrapping — AGENT.md is the runtime source of truth.
-- **Thinking Partner (TP)** is the meta-cognitive agent (ADR-164). It has two runtime modes: chat (user-present conversation) and task (back office execution of TP-owned tasks like agent hygiene and workspace cleanup). TP owns no context domain; its domain is orchestration itself.
+- **Thinking Partner (TP)** is the meta-cognitive agent (ADR-164). Two runtime modes: chat (user-present conversation) and task (back office execution). TP owns no context domain; its domain is orchestration itself.
 
 ### Context Domain Assets (ADR-157)
 
@@ -166,15 +168,15 @@ Favicons fetched automatically via ManageDomains when entities have a `url` fiel
 
 ### Running a Context Task (Example: Track Competitors)
 1. Scheduler triggers (next_run_at <= now)
-2. Research Agent gathers fresh intelligence (workspace context, web search, task-scoped source reads)
-3. Agent writes findings to `/workspace/context/competitors/` (entity files, analysis)
-4. Agent appends signal to `/workspace/context/signals/`
+2. Researcher gathers fresh intelligence (workspace context, web search, task-scoped source reads)
+3. Tracker maintains entity profiles in `/workspace/context/competitors/` (entity files, analysis)
+4. Tracker appends signal to `/workspace/context/signals/`
 5. No output produced — context accumulates silently
 
 ### Running a Synthesis Task (Example: Competitive Brief)
 1. Scheduler triggers (next_run_at <= now)
-2. Content Agent reads from `/workspace/context/competitors/` and `/workspace/context/signals/`
-3. Agent composes a deliverable from the accumulated context
+2. Analyst reads from `/workspace/context/competitors/` and `/workspace/context/signals/`, synthesizes patterns
+3. Writer composes a deliverable from the synthesized context
 4. Output saved to `/tasks/{slug}/outputs/`
 5. Delivered per TASK.md config
 

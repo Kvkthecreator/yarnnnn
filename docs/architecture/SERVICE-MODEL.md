@@ -37,15 +37,15 @@ Persistent domain experts with three independent axes:
 | **Capabilities** | Type registry — tools and runtimes available | Fixed at creation |
 | **Tasks** | TASK.md assignments — what work to do | Come and go |
 
-**Pre-scaffolded roster** (ADR-140 + ADR-164): Every user gets 10 agents at sign-up:
-- 5 domain stewards: Competitive Intelligence, Market Research, Business Development, Operations, Marketing & Creative
-- 1 synthesizer: Reporting
+**Pre-scaffolded roster** (ADR-176 + ADR-164): Every user gets 9 agents at sign-up:
+- 6 universal specialists: Researcher, Analyst, Writer, Tracker, Designer, Thinking Partner
 - 3 platform bots: Slack Bot, Notion Bot, GitHub Bot
-- 1 meta-cognitive: **Thinking Partner** (ADR-164) — owns back office tasks
 
-TP is an agent (ADR-164). It has the same structural shape as domain agents — row in the agents table, slug (`thinking-partner`), workspace folder (`/agents/thinking-partner/`), can own tasks. What distinguishes TP is its class (`meta-cognitive`) and domain (orchestration itself, no context domain). TP's tasks are back office tasks: agent hygiene, workspace cleanup, future task-freshness review.
+Capability split (ADR-176): accumulation agents (Researcher, Analyst, Writer, Tracker) accumulate knowledge and produce markdown. Production agent (Designer) generates visual assets via RuntimeDispatch. TP orchestrates. No domain ownership baked into agent identity — specialists are assigned to tasks by TP, and tasks read/write context domains.
 
-Agent types determine capabilities. Development is knowledge depth (accumulated memory, preferences, observations), not capability breadth. See [agent-framework.md](agent-framework.md).
+TP is an agent (ADR-164). It has the same structural shape as specialist agents — row in the agents table, slug (`thinking-partner`), workspace folder (`/agents/thinking-partner/`), can own tasks. What distinguishes TP is its class (`meta-cognitive`) and domain (orchestration itself, no context domain). TP's tasks are back office tasks: agent hygiene, workspace cleanup, future task-freshness review.
+
+Agent roles determine capabilities. Development is knowledge depth (accumulated memory, preferences, observations), not capability breadth. See [agent-framework.md](agent-framework.md).
 
 ### Tasks (WHAT)
 
@@ -76,8 +76,8 @@ Virtual filesystem over Postgres (`workspace_files` table). Three content areas:
 
 | Layer | Agent class | Role | Develops |
 |-------|-------------|------|----------|
-| **Meta-cognitive** | TP (Thinking Partner) — `meta-cognitive` | Creates agents, assigns tasks, monitors health, orchestrates; owns back office tasks | Upward — better judgment about attention allocation |
-| **Domain-cognitive** | Domain agents — `domain-steward`, `synthesizer`, `platform-bot` | Execute tasks, accumulate domain expertise | Inward — deeper knowledge in their domain |
+| **Meta-cognitive** | TP (Thinking Partner) — `meta-cognitive` | Creates tasks, assigns teams, monitors health, orchestrates; owns back office tasks | Upward — better judgment about attention allocation |
+| **Domain-cognitive** | Specialists (Researcher, Analyst, Writer, Tracker, Designer) + platform bots | Execute tasks, accumulate domain expertise | Inward — deeper knowledge through accumulated work |
 
 **Both layers are expressed through the same agent substrate.** TP is an agent (ADR-164) — same DB row, same task ownership, same pipeline. What distinguishes TP from domain agents is its *class* and *domain* (meta-cognitive, orchestration itself) rather than being "not an agent."
 

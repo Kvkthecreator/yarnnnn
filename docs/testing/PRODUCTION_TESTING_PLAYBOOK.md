@@ -1,10 +1,16 @@
-# Production Testing Playbook — ADR-138/140/141/149/163/164/166/167
+# Production Testing Playbook — ADR-138/141/149/163/164/166/167/176
 
 > E2E validation for the current agent + task architecture.
 > Run against production with kvkthecreator@gmail.com.
-> Last updated: 2026-04-10.
+> Last updated: 2026-04-13.
 >
-> **What changed since last version (2026-03-20):**
+> **What changed since last version (2026-04-10):**
+> - ADR-176: Universal specialist roster replaces ICP domain-steward roster
+> - 9 agents at signup: 6 universal specialists (Researcher, Analyst, Writer, Tracker, Designer, TP) + 3 platform bots
+> - Capability split: accumulation agents (Researcher, Analyst, Writer, Tracker) vs production (Designer)
+> - Domain context directories created by work demand, not pre-scaffolded at signup
+>
+> **What changed since 2026-03-20:**
 > - Projects/PM/Composer/pulse engine all deleted (ADR-138, ADR-156, ADR-141, ADR-126 dissolved)
 > - Architecture is now: Agents (WHO) + Tasks (WHAT) + TP (orchestration)
 > - Three-layer execution: Scheduler (SQL) → Task Pipeline (generate) → TP (chat)
@@ -46,9 +52,9 @@ WHERE a.user_id = :'USER_ID'
 
 ---
 
-## 1. Pre-Scaffolded Roster Verification (ADR-140)
+## 1. Pre-Scaffolded Roster Verification (ADR-176)
 
-Every workspace gets exactly 10 agents at sign-up. Verify the roster is intact and correctly typed.
+Every workspace gets exactly 9 agents at sign-up. Verify the roster is intact and correctly typed.
 
 ```sql
 SELECT title, role, status, scope
@@ -57,22 +63,21 @@ WHERE user_id = :'USER_ID'
 ORDER BY role;
 ```
 
-**Expected roster (10 agents):**
+**Expected roster (9 agents — ADR-176 universal specialists):**
 
 | Title | Role | Class |
 |-------|------|-------|
-| Competitive Intelligence | competitive_intel | domain-steward |
-| Market Research | market_research | domain-steward |
-| Business Development | business_dev | domain-steward |
-| Operations | operations | domain-steward |
-| Marketing & Creative | marketing | domain-steward |
-| Reporting | executive | synthesizer |
+| Researcher | researcher | specialist |
+| Analyst | analyst | specialist |
+| Writer | writer | specialist |
+| Tracker | tracker | specialist |
+| Designer | designer | specialist |
+| Thinking Partner | thinking_partner | meta-cognitive |
 | Slack Bot | slack_bot | platform-bot |
 | Notion Bot | notion_bot | platform-bot |
 | GitHub Bot | github_bot | platform-bot |
-| Thinking Partner | thinking_partner | meta-cognitive |
 
-**Pass if:** All 10 present, status=active for non-bot agents, AGENT.md exists in workspace.
+**Pass if:** All 9 present, status=active for non-bot agents, AGENT.md exists in workspace.
 **Fail if:** Missing agents, wrong role values, constraint violations.
 
 ```sql
@@ -364,10 +369,9 @@ Tests the new list/detail surface without auto-select-first behavior.
 ### 8.1 Roster Grouping
 
 Navigate to `/agents` — should show grouped roster (no auto-select):
-- **Domain Stewards**: Competitive Intelligence, Market Research, Business Development, Operations, Marketing & Creative
-- **Synthesizer**: Reporting
+- **Specialists**: Researcher, Analyst, Writer, Tracker, Designer
+- **Meta-Cognitive**: Thinking Partner
 - **Platform Bots**: Slack Bot, Notion Bot, GitHub Bot
-- **Thinking Partner**: Thinking Partner
 
 **Verify:**
 - `meta-cognitive` class label renders correctly (was a bug — missing from CLASS_LABELS)
@@ -516,7 +520,7 @@ After running all tests, check Render logs for the API service (`srv-d5sqotcr85h
 1. **`/work` loads** in list mode — no task pre-selected, filter chips visible
 2. **Click `daily-update`** → detail view loads, OutputPreview shows latest HTML
 3. **Run Now** on `daily-update` → execution completes, email received at kvkthecreator@gmail.com
-4. **`/agents` loads** in roster mode — 10 agents grouped by class, Thinking Partner label renders
+4. **`/agents` loads** in roster mode — 9 agents grouped by class, Thinking Partner label renders
 5. **Chat: "What tasks are active?"** → TP responds from compact index, no working memory dump
 6. **Chat: "Pause track-competitors"** → `ManageTask` called, task status changes in DB
 7. **Back office task runs** — `back-office-agent-hygiene` runs without error
@@ -528,7 +532,7 @@ After running all tests, check Render logs for the API service (`srv-d5sqotcr85h
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
-| 1 | Roster: 10 agents present + AGENT.md files | | |
+| 1 | Roster: 9 agents present + AGENT.md files | | |
 | 2 | Essential tasks: 3 present, essential=true | | |
 | 3.1 | daily-update: triggers + runs | | |
 | 3.2 | daily-update: output folder + manifest | | |
@@ -543,7 +547,7 @@ After running all tests, check Render logs for the API service (`srv-d5sqotcr85h
 | 7.1 | /work list mode: no auto-select | | |
 | 7.2 | /work detail mode: kind-correct middle component | | |
 | 7.3 | breadcrumb: inline PageHeader, no floating bar | | |
-| 8.1 | /agents roster: 4 groups, meta-cognitive label | | |
+| 8.1 | /agents roster: 3 groups, meta-cognitive label | | |
 | 8.2 | /agents detail: IdentityCard + HealthCard | | |
 | 9.1 | chat: compact index (not full dump) | | |
 | 9.2 | chat: ManageTask pause works | | |
@@ -556,5 +560,5 @@ After running all tests, check Render logs for the API service (`srv-d5sqotcr85h
 
 ---
 
-*Updated 2026-04-10. Covers ADR-138/140/141/149/156/161/163/164/166/167/168.*
+*Updated 2026-04-13. Covers ADR-138/141/149/156/161/163/164/166/167/168/176.*
 *Supersedes 2026-03-20 version (Projects/PM/Composer/pulse architecture — all deleted).*

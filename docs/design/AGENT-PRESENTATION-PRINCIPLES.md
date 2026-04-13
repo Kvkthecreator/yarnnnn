@@ -5,11 +5,11 @@
 **Supersedes:** v2 (2026-04-04, task-cards-as-bridge vertical stack)
 **Related:**
 - [Surface Architecture](SURFACE-ARCHITECTURE.md) v8 — current model (ADR-163: Chat | Work | Agents | Context, Agents page is roster + identity only)
-- [ADR-140](../adr/ADR-140-agent-workforce-model.md) — workforce model (4 classes as of ADR-164, pre-scaffolded roster of 10 agents)
+- [ADR-176](../adr/ADR-176-work-first-agent-model.md) — universal specialist roster (9 agents: 6 specialists + 3 bots, supersedes ADR-140)
 - [ADR-138](../adr/ADR-138-agents-as-work-units.md) — agents as work units (tasks are WHAT, agents are WHO)
 - [ADR-164](../adr/ADR-164-back-office-tasks-tp-as-agent.md) — TP as the 10th agent (meta-cognitive class), back office tasks owned by TP
 
-> **2026-04-08 update:** After ADR-163, the Agents page is no longer the home and no longer uses a three-tab layout. Work observation moved to `/work`, context browsing to `/context`. The Agents page shrank to a single-view roster + identity + health card. This document's "three-tab center panel" principle is historical — the current Agents page has no tabs. After ADR-164, the workforce is 10 agents across 4 classes (domain-steward × 5, synthesizer × 1, platform-bot × 3, meta-cognitive × 1 = TP). The knowledge-first principle (Principle 1 below) remains directionally valid for the per-agent identity card, but the detail views it described now live on `/work` and `/context` surfaces.
+> **2026-04-13 update:** After ADR-176, the workforce is 9 agents across 3 classes: specialist × 6 (Researcher, Analyst, Writer, Tracker, Designer, TP) + platform-bot × 3. The ICP-specific domain-steward names (Competitive Intelligence, Market Research, etc.) are replaced by universal specialist roles. After ADR-163, the Agents page is no longer the home and no longer uses a three-tab layout. Work observation moved to `/work`, context browsing to `/context`. The Agents page shrank to a single-view roster + identity + health card. This document's "three-tab center panel" principle is historical — the current Agents page has no tabs. The knowledge-first principle (Principle 1 below) remains directionally valid for the per-agent identity card, but the detail views it described now live on `/work` and `/context` surfaces.
 
 ---
 
@@ -29,7 +29,7 @@ The three-tab center panel (Agent / Setup / Settings) reflects three user intent
 
 **The Agent tab shows the agent's accumulated knowledge — not task cards, not status dashboards.** Domain files fill 90% of the space. Task metadata collapses to a single status line.
 
-A user opening "Competitive Intelligence" sees:
+A user opening "Researcher" sees:
 - A 2-line description of what this agent does
 - A single status line: `● Active · Updated 2h ago · Weekly · competitors/ → signals/`
 - Then immediately: the domain file browser filling the rest of the panel
@@ -44,8 +44,8 @@ The Agent tab's hero area varies by class, but the three-tab structure is identi
 
 | Agent Class | Agent Tab Hero | What Defines It |
 |---|---|---|
-| **Domain steward** | Directory browser (`/workspace/context/{domain}/`) | Accumulated knowledge in their owned domain |
-| **Synthesizer** | Latest output (rendered HTML) + run history | Reports and cross-domain compositions |
+| **Specialist** (Researcher, Analyst, Writer, Tracker, Designer) | Task assignments + recent outputs + capability summary | What work they're doing and how they contribute |
+| **Specialist** (Thinking Partner) | Orchestration health + back office task status | System coherence and workforce coordination |
 | **Platform bot** | Observations directory (`/workspace/context/{platform}/`) + connection status | Platform connection + observation stream |
 
 This replaces the v2 approach of vertical stacking (header → task cards → domain files). The tab model gives knowledge the full panel height instead of competing with task cards for vertical space.
@@ -70,28 +70,26 @@ Users who want to see task objectives, schedules, delivery channels, or trigger 
 
 ## Principle 4: Agents Are Stable, Tasks Come and Go
 
-**The left panel roster is permanent — 8 agents, always visible, no filters.** Users build a relationship with their agents over time. "My competitive intelligence agent" is a persistent mental anchor.
+**The left panel roster is permanent — 9 agents, always visible, no filters.** Users build a relationship with their agents over time. "My researcher" and "my analyst" are persistent mental anchors — universal roles that make sense regardless of what work the user is doing.
 
 ### Roster layout
 
-Three sections with user-friendly labels:
+Two sections with user-friendly labels (ADR-176 universal specialists):
 
 ```
 YOUR TEAM
-● Competitive Intelligence
-  competitors/ · 1 task
-● Market Research
-  market/ · 0 tasks
-● Business Development
-  relationships/ · 0 tasks
-● Operations
-  projects/ · 0 tasks
-● Marketing & Creative
-  content_research/ · 0 tasks
-
-CROSS-TEAM
-● Reporting
-  synthesizer · 0 tasks
+● Researcher
+  specialist · 2 tasks
+● Analyst
+  specialist · 1 task
+● Writer
+  specialist · 2 tasks
+● Tracker
+  specialist · 1 task
+● Designer
+  specialist · 0 tasks
+● Thinking Partner
+  meta-cognitive · 2 tasks
 
 INTEGRATIONS
 ● Slack Bot
@@ -102,7 +100,7 @@ INTEGRATIONS
   github/ · 0 tasks
 ```
 
-No filter pills (All/Active/Dormant removed). The roster is fixed — agents can't be deleted (ADR-140). Showing all 8 always communicates "ready to work" for dormant agents.
+No filter pills (All/Active/Dormant removed). The roster is fixed — agents can't be deleted (ADR-176 hospital principle). Showing all 9 always communicates "ready to work" for dormant agents.
 
 ---
 
@@ -158,7 +156,7 @@ Both surfaces read from the same data (workspace_files via `GET /api/workspace/t
 | Vertical stack (header → tasks → files) | Files compete with task cards for vertical space | Tabs give knowledge full panel height |
 | Redirecting to Context page for file browsing | Breaks flow, loses agent context | Master-detail inline on agents page |
 | Frequency in task names | Schedule is config, not identity | Freeform names, schedule as separate field |
-| Filter pills on fixed roster | Can't delete agents, filtering hides them pointlessly | Show all 8 always |
+| Filter pills on fixed roster | Can't delete agents, filtering hides them pointlessly | Show all 9 always |
 | CRUD forms for task config | Product model is conversational | TP-mediated actions |
 | Uniform agent detail page | Different classes have different primary artifacts | Class-aware hero dispatch |
 

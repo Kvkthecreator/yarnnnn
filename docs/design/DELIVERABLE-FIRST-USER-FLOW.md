@@ -8,7 +8,7 @@
 ## The Shift
 
 **Before (agent-first):**
-Sign up → see 10 pre-scaffolded agents (9 domain + TP meta-cognitive) → describe your work → TP enriches context → maybe create a task → hope output is good
+Sign up → see 9 pre-scaffolded agents (6 specialists + 3 bots) → describe your work → TP enriches context → maybe create a task → hope output is good
 
 **After (deliverable-first):**
 Sign up → "What do you want delivered?" → pick from catalog → task scaffolded → first output delivered → evaluate against clear promise
@@ -161,7 +161,7 @@ Workfloor becomes a deliverables dashboard:
 
 ### Agent Strip
 - **Current:** Prominent 3-column grid at top of workfloor
-- **Proposed:** Collapsed single-line strip below deliverables. Expandable. Shows: "10 agents · N with active tasks" (9 domain + TP meta-cognitive). Expand → same grid as before.
+- **Proposed:** Collapsed single-line strip below deliverables. Expandable. Shows: "9 agents · N with active tasks" (6 specialists + 3 platform bots, ADR-176). Expand → same grid as before.
 - **Rationale:** Agents are infrastructure. They matter for power users who want to customize agent identity or view agent workspace. But for onboarding and daily use, deliverables are the hero.
 
 ### Empty State (No Tasks)

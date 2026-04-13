@@ -1,101 +1,97 @@
 # Agent Types — Feature Reference
 
 **Status:** Living document
-**Date:** 2026-04-08 (updated: v4 domain-steward model + ADR-164 meta-cognitive)
-**Related:** [Registry Matrix](../architecture/registry-matrix.md), [ADR-140: Agent Workforce](../adr/ADR-140-agent-workforce-model.md), [ADR-145: Task Type Registry](../adr/ADR-145-task-type-registry.md), [ADR-164: TP as Agent](../adr/ADR-164-back-office-tasks-tp-as-agent.md)
+**Date:** 2026-04-13 (updated: v5 universal specialists — ADR-176)
+**Related:** [Registry Matrix](../architecture/registry-matrix.md), [ADR-176: Work-First Agent Model](../adr/ADR-176-work-first-agent-model.md), [ADR-145: Task Type Registry](../adr/ADR-145-task-type-registry.md), [ADR-164: TP as Agent](../adr/ADR-164-back-office-tasks-tp-as-agent.md)
 
-YARNNN agents are organized into four classes: **domain stewards** (own a
-context domain), **synthesizers** (read across all domains),
-**platform bots** (own temporal context directories, platform-scoped observation), and
-**meta-cognitive** (TP, owns orchestration itself per ADR-164). All agents
-are pre-scaffolded at sign-up (10 total). Users enrich agent identity through use — they do
+YARNNN agents are organized into three classes: **specialists** (universal roles that
+describe *how* agents contribute, not what domain they work in), **platform bots**
+(own temporal context directories, platform-scoped observation), and
+**meta-cognitive** (TP, owns orchestration itself per ADR-164). All agents are
+pre-scaffolded at sign-up (9 total). Users enrich agent identity through use — they do
 not create agents from scratch.
 
-**Key principles:**
-- Each domain-steward agent owns one context domain. The synthesizer reads all.
+**Key principles (ADR-176):**
+- **Universal specialists, not ICP-specific personas.** Researcher, Analyst, Writer, Tracker, Designer — names that pass the instinct test for any user in any industry.
+- **Capability split:** Accumulation agents (Researcher, Analyst, Writer, Tracker) accumulate knowledge and produce markdown. Production agent (Designer) generates visual assets. These phases never overlap within a single agent.
+- **No domain ownership.** Specialists are assigned to tasks; tasks read/write context domains. The same Researcher can work on competitors one task and market another. Domain expertise develops through accumulated work, not a pre-assigned label.
+- **Hospital principle:** The 9-agent roster is fixed and non-configurable. These are the roles that all knowledge work requires.
 - TP (meta-cognitive) owns orchestration work itself — no context domain. Back office tasks (agent hygiene, workspace cleanup) are owned by TP.
 - Templates (`AGENT_TEMPLATES`) are bootstrapping — `AGENT.md` is the runtime source of truth.
-- **Playbooks** (`_playbook-*.md`) define agent methodology — seeded from type registry, evolve with feedback. Loaded selectively by task class. See [Agent Playbook Framework](agent-playbook-framework.md).
-- **Visual production** (image/video) is Marketing's specialization. Other agents use charts/mermaid for data visualization only.
+- **Playbooks** (`_playbook-*.md`) define agent methodology — seeded from type registry, evolve with feedback. Loaded selectively by task output_kind. See [Agent Playbook Framework](agent-playbook-framework.md).
 
 ---
 
-## Four Agent Classes (ADR-140 + ADR-164)
+## Three Agent Classes (ADR-176)
 
 | Class | Count | Role | Behavior |
 |-------|-------|------|----------|
-| **domain-steward** | 5 | Own one context domain, maintain knowledge, produce domain-scoped deliverables | Domain-cognitive, multi-step reasoning, web research |
-| **synthesizer** | 1 | Read across all domains, produce cross-domain deliverables | Cross-domain composition, reads everything, writes nothing to context |
+| **specialist** | 6 | Universal roles: Researcher, Analyst, Writer, Tracker, Designer, TP | Capability-defined, assigned to tasks by TP based on work intent |
 | **platform-bot** | 3 | Own temporal context directory, platform-scoped observation (ADR-158) | Platform-specific, activated on platform connect |
-| **meta-cognitive** (ADR-164) | 1 | Own orchestration itself — attention allocation, workforce health, back office maintenance | Two runtime modes: chat (user-present, streaming) and task (scheduler-dispatched, declarative executor) |
+| **meta-cognitive** | 1 (TP) | Own orchestration itself — attention allocation, workforce health, back office maintenance | Two runtime modes: chat (user-present, streaming) and task (scheduler-dispatched, declarative executor) |
 
 ---
 
-## Domain Stewards (5)
+## Specialists — Accumulation Phase (4)
 
-### Competitive Intelligence
+These agents accumulate knowledge and produce markdown. They have no visual production capabilities and never call RuntimeDispatch.
 
-- **Domain owned:** `competitors/`
-- **Capabilities:** web_search, investigate, chart, mermaid
+### Researcher
+
+- **Role key:** `researcher`
+- **What they do:** Web search, investigate topics, find and evaluate sources, build knowledge files from primary research
+- **What they never do:** Write final deliverables, generate visual assets
+- **Capabilities:** web_search, investigate, read_workspace, search_knowledge, produce_markdown
 - **Playbooks:** outputs, research
-- **What it maintains:** Competitor entity files, competitive landscape analysis, market positioning data in `/workspace/context/competitors/`
-- **What it produces:** Competitive briefs, market reports, GTM intelligence
-- **Typical tasks:** track-competitors, competitive-brief
+- **Typical tasks:** track-competitors (research step), track-market, research-topics
 
-### Market Research
+### Analyst
 
-- **Domain owned:** `market/`
-- **Capabilities:** web_search, investigate, chart, mermaid
-- **Playbooks:** outputs, research
-- **What it maintains:** Market trends, industry analysis, sector data in `/workspace/context/market/`
-- **What it produces:** Market reports, launch materials, GTM reports
-- **Typical tasks:** track-market, market-report
-
-### Business Development
-
-- **Domain owned:** `relationships/`
-- **Capabilities:** read_slack, read_notion, read_github, investigate
+- **Role key:** `analyst`
+- **What they do:** Read accumulated context, identify patterns, synthesize meaning across sources and time, produce insight summaries
+- **What they never do:** Primary research, image/chart generation
+- **Capabilities:** read_workspace, search_knowledge, produce_markdown
 - **Playbooks:** outputs
-- **What it maintains:** Stakeholder profiles, relationship context, meeting history in `/workspace/context/relationships/`
-- **What it produces:** Meeting prep briefs, stakeholder updates
-- **Typical tasks:** track-relationships, meeting-prep, stakeholder-update
+- **Typical tasks:** competitive-brief (analysis step), market-report, stakeholder-update
 
-### Operations
+### Writer
 
-- **Domain owned:** `projects/`
-- **Capabilities:** read_slack, read_notion, read_github, chart
-- **Playbooks:** outputs
-- **What it maintains:** Project status, internal initiative tracking, team activity in `/workspace/context/projects/`
-- **What it produces:** Project status reports, stakeholder updates
-- **Typical tasks:** track-projects, project-status
-
-### Marketing & Creative
-
-- **Domain owned:** `content/`
-- **Capabilities:** web_search, chart, mermaid, **image, video** (visual production specialist)
-- **Playbooks:** outputs, formats, **visual**
-- **What it maintains:** Content research, topic analysis, creative assets in `/workspace/context/content/`
-- **What it produces:** Content briefs, launch materials, creative outputs
-- **Typical tasks:** research-topics, content-brief, launch-material
-
----
-
-## Synthesizer (1)
-
-### Reporting
-
-- **Domain owned:** (cross-domain) — reads all context domains, owns none
-- **Capabilities:** compose_html, chart, mermaid
+- **Role key:** `writer`
+- **What they do:** Draft deliverables from synthesized context, edit for audience and tone, produce polished final output
+- **What they never do:** Research, analysis, visual production
+- **Capabilities:** read_workspace, produce_markdown
 - **Playbooks:** outputs, formats
-- **What it maintains:** Nothing — synthesizer reads, does not accumulate context
-- **What it produces:** Daily operational updates, cross-domain executive summaries, stakeholder reports
-- **Typical tasks:** daily-update (daily, operational), stakeholder-update (monthly, strategic)
+- **Typical tasks:** competitive-brief (writing step), content-brief, launch-material, daily-update
+
+### Tracker
+
+- **Role key:** `tracker`
+- **What they do:** Monitor signals, maintain entity profiles, log temporal changes, watch platforms and sources for updates
+- **What they never do:** Analysis, writing, production
+- **Capabilities:** read_slack, read_notion, read_github, read_workspace, produce_markdown
+- **Playbooks:** outputs
+- **Typical tasks:** track-competitors, track-relationships, track-projects, track-market
+
+---
+
+## Specialist — Production Phase (1)
+
+This agent generates visual assets. It holds all RuntimeDispatch capabilities.
+
+### Designer
+
+- **Role key:** `designer`
+- **What they do:** Generate images, charts, diagrams, visual assets via RuntimeDispatch
+- **What they never do:** Research, writing, analysis
+- **Capabilities:** chart, mermaid, image, video_render, compose_html
+- **Playbooks:** visual
+- **Typical tasks:** Added to teams by TP when deliverables need visual assets (charts, images, diagrams)
 
 ---
 
 ## Platform Bots (3)
 
-ADR-158: Platform bots own temporal context directories — one bot, one platform, one directory. Per-source subfolders (channel/page/repo) with `_tracker.md` for freshness. These directories are temporal awareness for TP, not canonical context for domain stewards. Cross-pollination into canonical domains is explicitly out of scope.
+ADR-158: Platform bots own temporal context directories — one bot, one platform, one directory. Per-source subfolders (channel/page/repo) with `_tracker.md` for freshness. These directories are temporal awareness for TP, not canonical context for specialists. Cross-pollination into canonical domains is explicitly out of scope.
 
 ### Slack Bot
 
@@ -132,6 +128,7 @@ ADR-158: Platform bots own temporal context directories — one bot, one platfor
 ### Thinking Partner
 
 - **Class:** `meta-cognitive`
+- **Role key:** `thinking_partner`
 - **Slug:** `thinking-partner`
 - **Workspace folder:** `/agents/thinking-partner/AGENT.md`
 - **Domain owned:** None — TP does not own a context domain. Its domain is orchestration itself: attention allocation, workforce health, back office maintenance.
@@ -145,7 +142,23 @@ ADR-158: Platform bots own temporal context directories — one bot, one platfor
 1. **Chat runtime** — invoked from `routes/chat.py` via `ThinkingPartnerAgent` class. Full conversation, streaming, all chat primitives (CHAT_PRIMITIVES). This is where TP makes judgment calls with the user present.
 2. **Task runtime** — invoked from `task_pipeline.execute_task()` when the scheduler dispatches a back office task owned by TP. Control handed off to `_execute_tp_task()`, which reads the TASK.md ## Process section's `executor: <dotted.path>` directive, imports the module, calls its `run(client, user_id, task_slug)` async function, and writes the returned output to the standard task outputs folder. No LLM generation — deterministic executors.
 
-**Key principle**: TP's task outputs serve the coherence of the system itself (not any segment of the user's work). Everything else about TP — workspace folder, task ownership, agent row — is structurally identical to domain agents.
+**Key principle**: TP's task outputs serve the coherence of the system itself (not any segment of the user's work). Everything else about TP — workspace folder, task ownership, agent row — is structurally identical to specialist agents.
+
+---
+
+## Team Composition (ADR-176 Decision 2)
+
+TP has full authority over team composition for every task. The task type registry provides suggested defaults per work intent — inputs to TP's reasoning, not constraints on its output.
+
+**TP's composition criteria (applied to every task):**
+- Does the work require finding new information? → Researcher
+- Does the work require synthesizing across multiple sources or time periods? → Analyst
+- Does the work require a polished deliverable for an audience? → Writer
+- Does the work require ongoing monitoring or signal capture? → Tracker
+- Does the work require visual assets (charts, images, diagrams)? → Designer
+- Is the scope narrow enough that a specialist is redundant? → remove them
+
+TP writes its team reasoning in the `## Team` section of TASK.md alongside the team list. This makes the decision observable and correctable by the user.
 
 ---
 

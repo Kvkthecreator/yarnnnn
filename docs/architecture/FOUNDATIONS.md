@@ -41,7 +41,7 @@ Domain agents develop **inward** — deeper domain expertise, more capable execu
 
 ### The Rule: Ownership Determines the Class of Work
 
-**Every task has an owner, and the owner determines the class of work.** A task owned by Competitive Intelligence produces competitive analysis. A task owned by TP produces orchestration judgment (agent health decisions, task freshness evaluations, workspace maintenance). If you can answer "what domain does this work serve?" the task belongs to a domain agent. If you can only answer "it serves the coherence of the system itself," the task belongs to TP.
+**Every task has a team, and the team determines the class of work.** A task with a Researcher and Analyst on competitors produces competitive analysis. A task owned by TP produces orchestration judgment (agent health decisions, task freshness evaluations, workspace maintenance). If you can answer "what domain does this work serve?" the task is staffed with specialists. If you can only answer "it serves the coherence of the system itself," the task belongs to TP.
 
 This is not a collapse of the two-layer model; it is the formalization of what TP already does. TP was always the orchestrator; making TP a first-class task owner means orchestration work can be scheduled, inspected, and reasoned about the same way domain work is. The meta/domain distinction persists — it is now expressed as "what does this task's output serve?" instead of "is this entity an agent or not?"
 
@@ -59,7 +59,7 @@ But domain agents accumulate domain knowledge that TP doesn't have. A mature Sla
 | **Autonomy means** | Scaffolding agents without being asked | Taking multi-step action in domain without supervision |
 | **Accumulates** | System-level patterns (what works for this user) | Domain-level knowledge (what matters in this area) |
 | **Identity** | "I manage this user's cognitive workforce" | "I own [domain] and develop expertise in it" |
-| **Examples** | Thinking Partner (singular) | Competitive Intelligence, Market Research, Slack Bot, ... (many) |
+| **Examples** | Thinking Partner (singular) | Researcher, Analyst, Writer, Tracker, Designer, Slack Bot, ... (many) |
 
 ---
 

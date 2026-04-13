@@ -129,10 +129,9 @@ The four classes get distinct top-of-page interpretation:
 
 | Class | User question | Shell emphasis |
 |---|---|---|
-| `domain-steward` | "What folder does this specialist own and what does it produce from that folder?" | Owned folder, working style, downstream deliverable responsibility |
-| `synthesizer` | "What cross-domain output is this reporter responsible for?" | Upstream inputs, reporting role, output cadence |
+| `specialist` (Researcher, Analyst, Writer, Tracker, Designer) | "What work is this specialist assigned to, and how do they contribute?" | Active tasks, capability summary, recent output quality |
 | `platform-bot` | "Is this platform connected, what sources are selected, and what work runs on top of them?" | Connection state, source selection, connect/manage path, platform task setup |
-| `meta-cognitive` | "What system-level responsibility does TP own?" | Orchestration role, back-office tasks, essential maintenance |
+| `meta-cognitive` (TP) | "What system-level responsibility does TP own?" | Orchestration role, back-office tasks, essential maintenance |
 
 ### 2. `task.output_kind` owns assigned-work cards
 
@@ -153,12 +152,12 @@ Examples:
 
 - `slack_bot`, `notion_bot`, `github_bot`
   Add connection/source-selection or platform-specific activity modules. When disconnected, the UI should say so directly and route to Settings > Connectors. Source selection belongs on the bot's agent detail surface, not under `/context`.
-- `executive`
-  Add upstream-readiness and cross-domain input modules.
+- `analyst`, `writer`
+  Add upstream-readiness modules showing which context domains they read from.
 - `thinking_partner`
   Add workforce-health and essential-task modules.
-- `domain-steward`
-  Add an owned-folder block that keeps the folder visible on the agent page instead of sending the user away to `/context` just to understand what the specialist owns.
+- `researcher`, `tracker`
+  Add active-domain blocks showing which context domains they currently write to across their assigned tasks.
 
 ## No-Task States Must Differ By Class
 
@@ -172,16 +171,15 @@ Use one shared pattern:
 - one common header CTA: `Create Task`
 - keep local operational links only when the agent has a real setup dependency, such as `Connect platform`
 
-### Specialists (`domain-steward`)
+### Specialists (Researcher, Analyst, Writer, Tracker, Designer)
 
-No tasks means the specialist has an owned domain but no active work keeping it fresh.
+No tasks means the specialist is available but has no active work assignments.
 
-The empty state should name the missing tracker in plain language.
-The owned folder should still remain visible as its own block on the page.
+The empty state should describe what this specialist does in one sentence and suggest creating a task that would use them.
 
-### Reporting (`synthesizer`)
+### Writer / Analyst (cross-domain readers)
 
-No tasks means the reporting agent has nothing synthesizing cross-domain work.
+No tasks means these agents have nothing to read from or synthesize into deliverables.
 
 The empty state should name the missing report task in plain language.
 

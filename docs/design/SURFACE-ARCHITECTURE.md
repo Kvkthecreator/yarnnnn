@@ -321,8 +321,7 @@ In detail mode the page renders `<PageHeader />` followed by `<AgentContentView 
 The detail body follows two routing keys:
 
 - **`agent.agent_class` chooses the component order and shell block**. Each class follows a different layout rationale:
-  - **domain-steward**: Role → Tasks → Context folder. Tasks come first because the work is the point; the folder is contextual infrastructure that explains where the work lives.
-  - **synthesizer**: Role → Tasks. No folder, no connection — cleanest layout.
+  - **specialist** (Researcher, Analyst, Writer, Tracker, Designer): Role → Tasks → Capability summary. Tasks come first because the work is the point; capabilities explain how this specialist contributes.
   - **platform-bot**: Role → Connection → Source selection → Tasks. Connection state and source selection *enable* tasks, so they surface above the task list.
   - **meta-cognitive (TP)**: Role (no highlights, no "Create Task" CTA) → Tasks. TP page is minimal — no feedback distillation, no chip noise.
 - **`task.output_kind` chooses the assigned-work card shape**. Tracking tasks say which folder they are working in, deliverable tasks say which folder they read from, external-action tasks summarize target/delivery, and maintenance tasks summarize system purpose. `type_key` is allowed to specialize labels, but it does not fork the page architecture.
