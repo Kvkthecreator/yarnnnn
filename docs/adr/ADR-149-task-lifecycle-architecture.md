@@ -1,9 +1,24 @@
 # ADR-149: Task Lifecycle Architecture — TP as Context Manager
 
-**Status:** Phase 1-5 Implemented (Phase 6 frontend deferred)  
-**Date:** 2026-03-31  
-**Supersedes:** Portions of ADR-145 (task type registry stays, execution model evolves)  
+**Status:** Phase 1-5 Implemented. Phase 6 (DELIVERABLE.md frontend surface) **now active** per ADR-178.
+**Date:** 2026-03-31 (amended 2026-04-13: Phase 6 activated, mode sync invariant added)
+**Supersedes:** Portions of ADR-145 (task type registry stays, execution model evolves)
 **Extends:** ADR-138 (agents as work units), ADR-140 (agent workforce model), ADR-141 (unified execution), ADR-144 (inference-first shared context), ADR-146 (primitive hardening)
+**Extended by:** ADR-178 (task creation routes — Phase 6 activation, mode sync invariant, inference trigger)
+
+---
+
+## Critical Invariant: Mode Sync (ADR-178)
+
+`tasks.mode` (DB column) and TASK.md `**Mode:**` field **must be identical at all times.**
+
+The scheduler reads `tasks.mode` for scheduling decisions. The pipeline reads TASK.md `**Mode:**` for execution posture. A divergence between the two is a silent failure — the scheduler and pipeline see different task characters.
+
+**Enforcement:** `ManageTask(action="update", mode=...)` is the only permitted mutation path. It patches both atomically:
+1. `tasks.mode` via DB update
+2. TASK.md `**Mode:**` via regex replace + workspace write
+
+No other code path may modify mode. This invariant is enforced in `_handle_update()` in `manage_task.py`.
 
 ---
 

@@ -255,6 +255,86 @@ Steps 1–3 and 5 are the compose substrate. Step 4 is the LLM. The render servi
 
 ---
 
+## Phase 5: Section-Kind-Aware Rendering (ADR-177)
+
+> **Status:** Defined. Implementation pending Phase B code.
+> **ADR:** [ADR-177: Section Kind Rendering](../adr/ADR-177-section-kind-rendering.md)
+
+### The ordering problem
+
+The current pipeline fires compose *before* section parsing:
+
+```
+Step 12:  _compose_output_html()  ← reads flat output.md, calls /compose
+Step 12b: parse_draft_into_sections()  ← sections now in memory, too late
+```
+
+The render service receives a flat markdown blob. It has no knowledge of what kind of component each section is, so all sections receive the same generic markdown-to-HTML treatment.
+
+### The fix: `_compose_and_persist()`
+
+Phase 5 collapses steps 12 and 12b into a single function in `task_pipeline.py`:
+
+```python
+async def _compose_and_persist(task_slug, draft_md, task_type, output_folder):
+    # 1. Parse first — split draft on ## headers, match to page_structure
+    sections = parse_draft_into_sections(draft_md, task_type.page_structure)
+    # 2. Compose with pre-parsed sections — render service gets SectionContent objects
+    html = await compose_with_sections(sections, task_type.surface_type, assets, brand)
+    # 3. Write to task workspace only — no agent workspace intermediary
+    write_output_folder(task_slug, output_folder, html, sections)
+```
+
+The existing `_compose_output_html()` in `agent_execution.py` is **deleted**. The two-workspace seam (agent workspace → task workspace) is removed. Task workspace is the sole output path.
+
+### Render service contract change
+
+Current `/compose` endpoint receives:
+```json
+{ "markdown": "...", "surface_type": "report", "assets": [...], "brand_css": "..." }
+```
+
+Phase 5 `/compose` endpoint receives:
+```json
+{
+  "sections": [
+    { "kind": "narrative", "title": "Executive Summary", "content": "..." },
+    { "kind": "entity-grid", "title": "Competitor Profiles", "content": "..." },
+    { "kind": "trend-chart", "title": "Pricing Trends", "content": "..." }
+  ],
+  "surface_type": "report",
+  "assets": [...],
+  "brand_css": "..."
+}
+```
+
+The `SectionContent` object is the new render service input contract. Raw markdown is still present in `output.md` but is no longer the compose input.
+
+### Four rendering paths (from ADR-177)
+
+| Path | Kinds | Rendering | Where |
+|------|-------|-----------|-------|
+| **1. Markdown** | `narrative`, `callout`, `checklist` | Markdown → HTML via python-markdown | render service |
+| **2. Structured data** | `metric-cards`, `entity-grid`, `comparison-table`, `status-matrix`, `data-table`, `timeline` | LLM writes JSON/table; render service parses → component HTML | render service |
+| **3. Chart** | `trend-chart`, `distribution-chart` | LLM writes structured data block; render service calls matplotlib → PNG; embedded `<img>` | render service |
+| **4. RuntimeDispatch assets** | (already works — unchanged) | Agent calls RuntimeDispatch during tool loop → URL written to output.md; compose substitutes | agent + render service |
+
+**Chart rendering is server-side (matplotlib), not client-side.** This is consistent with the existing render infrastructure, works in email, works in PDF export, and requires no client-side JS dependency.
+
+### Phase 5 implementation sequence
+
+1. **Phase 5a — pipeline reorder + markdown kinds:** Implement `_compose_and_persist()` in `task_pipeline.py`. Delete `_compose_output_html()` from `agent_execution.py`. Render service gains `sections` input field; markdown kinds (narrative, callout, checklist) route through existing markdown renderer.
+2. **Phase 5b — structured-data kinds:** Render service dispatches `metric-cards`, `entity-grid`, `comparison-table`, `status-matrix`, `data-table`, `timeline` to component HTML generators. LLM output contract for each kind (from `_kind_output_contract()` in `assembly.py`) is enforced.
+3. **Phase 5c — chart kinds:** Render service calls matplotlib for `trend-chart` and `distribution-chart` kinds. LLM writes a `\`\`\`chart-data` fenced block; render service parses → PNG; `<img src="data:image/png;base64,...">` embedded in HTML.
+4. **Phase 5d — surface×kind overrides:** Surface type modifies section rendering defaults (e.g., deck surface wraps each section in a slide container; dashboard surface sets grid sizing per kind).
+5. **Phase 5e — output contract tightening:** `parse_draft_into_sections()` validates LLM output against the declared kind contract; mismatches logged, fallback to markdown kind.
+
+### Relationship to other gaps
+
+Gap 2 (frontend view-time rendering) remains deferred. Phase 5 produces better `output.html` via the server-side compose pipeline — the iframe frontend continues to work correctly. Frontend section-component rendering (React per kind) is a separate, future concern gated on production validation.
+
+---
+
 ## Open Gaps (as of 2026-04-10)
 
 ### Gap 1: TP section-level steering awareness

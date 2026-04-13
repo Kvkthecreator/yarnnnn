@@ -304,6 +304,8 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
     if new_mode and new_mode in ("recurring", "goal", "reactive"):
         update_data["mode"] = new_mode
         changes.append(f"mode → {new_mode}")
+    else:
+        new_mode = None  # ensure we don't accidentally patch TASK.md if invalid/absent
 
     new_delivery = input.get("delivery")
     if new_delivery is not None:
@@ -337,6 +339,20 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
                 await tw.write("TASK.md", task_md, summary=f"Updated delivery: {new_delivery}")
         except Exception as e:
             logger.warning(f"[MANAGE_TASK] TASK.md delivery update failed (non-fatal): {e}")
+
+    # ADR-178 critical invariant: tasks.mode (DB) == TASK.md **Mode:** at all times.
+    # Both are patched atomically in the same update action.
+    if new_mode is not None:
+        try:
+            task_md = await tw.read_task()
+            if task_md:
+                if "**Mode:**" in task_md:
+                    task_md = re.sub(r"\*\*Mode:\*\*.*", f"**Mode:** {new_mode}", task_md)
+                else:
+                    task_md += f"\n**Mode:** {new_mode}"
+                await tw.write("TASK.md", task_md, summary=f"Updated mode: {new_mode}")
+        except Exception as e:
+            logger.warning(f"[MANAGE_TASK] TASK.md mode update failed (non-fatal): {e}")
 
     # ADR-158 Phase 2: Update sources in TASK.md
     if new_sources and isinstance(new_sources, dict):

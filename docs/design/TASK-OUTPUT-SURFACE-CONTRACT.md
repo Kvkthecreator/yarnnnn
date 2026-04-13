@@ -1,7 +1,7 @@
 # Task Output Surface Contract
 
-**Date:** 2026-04-09  
-**Status:** Proposed  
+**Date:** 2026-04-09 (amended 2026-04-13)
+**Status:** Decision
 **Related:**
 - [AGENT-AND-TASK-SURFACE-PATTERNS.md](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — shell rules for agent and task surfaces
 - [SURFACE-ARCHITECTURE.md](./SURFACE-ARCHITECTURE.md) — canonical `/work` list/detail surface
@@ -9,6 +9,8 @@
 - [../adr/ADR-130-html-native-output-substrate.md](../adr/ADR-130-html-native-output-substrate.md) — `output.md` + `output.html` substrate
 - [../adr/ADR-166-registry-coherence-pass.md](../adr/ADR-166-registry-coherence-pass.md) — `output_kind` taxonomy
 - [../adr/ADR-167-list-detail-surfaces.md](../adr/ADR-167-list-detail-surfaces.md) — kind-aware `/work` detail
+- [../adr/ADR-178-task-creation-routes.md](../adr/ADR-178-task-creation-routes.md) — Route A (output-driven) vs Route B (context-driven); DELIVERABLE.md richness at creation
+- [../adr/ADR-149-task-lifecycle.md](../adr/ADR-149-task-lifecycle.md) — DELIVERABLE.md as quality contract; Phase 6 frontend surface (now active)
 
 ## Purpose
 
@@ -82,6 +84,50 @@ It keeps the route model singular:
 - output endpoints return run surfaces
 
 No extra `/surface` endpoint is needed.
+
+## Task Detail Endpoint: `deliverable_spec` Field (ADR-178 Phase 6)
+
+The run surface contract (`TaskRunSurface`) covers a single *run*. Separately, the task detail endpoint needs a `deliverable_spec` field covering the *task* — the living quality contract that persists across all runs.
+
+This is ADR-149 Phase 6, now active per ADR-178.
+
+### Amendment to `GET /api/tasks/{slug}`
+
+The `TaskDetail` response gains a `deliverable_spec` field — the parsed content of `DELIVERABLE.md` as a structured object, not raw markdown:
+
+```ts
+type TaskDetail = Task & {
+  deliverable_spec: {
+    expected_output: {
+      format: string | null;        // "HTML report", "context files", "Slack message"
+      surface: string | null;       // surface_type from registry
+      sections: string[] | null;    // declared section kinds at creation
+      word_count: string | null;    // e.g. "800–1200 words"
+    } | null;
+    expected_assets: string[] | null;   // bullet list from ## Expected Assets
+    quality_criteria: string[] | null;  // bullet list from ## Quality Criteria
+    audience: string | null;            // from ## Audience
+    user_preferences: string | null;    // from ## User Preferences (inferred) — null if empty
+    route: "output-driven" | "context-driven" | null;  // inferred from output_kind
+  } | null;   // null when DELIVERABLE.md does not exist or cannot be parsed
+};
+```
+
+The `route` field is inferred, not stored:
+- `output_kind === "produces_deliverable"` → `"output-driven"`
+- `output_kind === "accumulates_context"` → `"context-driven"`
+- `output_kind === "external_action" | "system_maintenance"` → `null`
+
+**Backend serializer:** `parse_deliverable_md(content: str) -> DeliverableSpec` in `api/routes/tasks.py` or a new `api/services/deliverable_spec.py`. Reads DELIVERABLE.md from `task_workspace.read_file(slug, "DELIVERABLE.md")` and parses each `## Section` into the typed fields.
+
+**Frontend impact (ADR-178 § Frontend implications):**
+- `DeliverableMiddle.tsx` gains a collapsible **Quality Contract** panel showing `expected_output`, `quality_criteria`, and `user_preferences`. Updated in real-time (SWR polling with `refreshInterval`) as inference runs post-evaluate.
+- `TrackingMiddle.tsx` gains the same panel shaped for context tasks: `expected_output` describes context file structure, `quality_criteria` covers data freshness and entity coverage.
+- During task creation (TP chat), TP shows a brief DELIVERABLE.md summary inline in the response — "Here's what I'll produce: [spec preview]" for Route A, "I'll track [domain] weekly. Here's the data contract:" for Route B.
+
+**TypeScript type updates required:** `web/types/index.ts` — add `deliverable_spec` to `TaskDetail`. `web/components/work/details/DeliverableMiddle.tsx` — add Quality Contract panel. `web/components/work/details/TrackingMiddle.tsx` — add Quality Contract panel.
+
+---
 
 ## Contract Shape
 
@@ -181,7 +227,16 @@ This summary is enough for:
 
 ## How The Four Kinds Map
 
-### `accumulates_context`
+The four output_kind values correspond directly to the two task creation routes (ADR-178) and the two system kinds:
+
+| `output_kind` | ADR-178 route | DELIVERABLE.md at creation | Primary artifact |
+|---|---|---|---|
+| `produces_deliverable` | Route A (output-driven) | Rich — full output spec, section kinds, word count | Rendered HTML deliverable |
+| `accumulates_context` | Route B (context-driven) | Thin — context file structure, entity coverage goals | Context-growth changelog |
+| `external_action` | — | Minimal — action payload spec | Sent message/payload |
+| `system_maintenance` | — | None | Upkeep log |
+
+### `accumulates_context` (Route B — context-driven)
 
 The primary artifact is a **context-growth summary**, not a report.
 
@@ -194,7 +249,9 @@ Required packet behavior:
 
 The frontend should not infer these semantics from `context_writes[0]` plus a markdown body.
 
-### `produces_deliverable`
+**Route B surface specifics:** The Quality Contract panel (from `deliverable_spec` on TaskDetail) describes the *context structure* being maintained — entity coverage, freshness targets, path conventions. It does not describe an output format. The TrackingMiddle centerpiece is the domain folder link + entity count + last-run CHANGELOG, not an HTML preview. The "suggest a deliverable task" affordance (Route A composition follow-up) is surfaced here when context accumulation has been running for ≥3 runs — "Your competitor context is mature. Want me to set up a weekly brief from it?"
+
+### `produces_deliverable` (Route A — output-driven)
 
 The primary artifact is the deliverable itself.
 
@@ -206,6 +263,8 @@ Required packet behavior:
 - `exports` are surfaced directly from task type/export availability
 
 This keeps deliverables artifact-led while still exposing provenance and delivery status in a consistent shape.
+
+**Route A surface specifics:** The Quality Contract panel (from `deliverable_spec` on TaskDetail) describes the *output format* — section kinds declared at creation, word count, audience, quality criteria. For Route A tasks, DELIVERABLE.md is rich at creation (from TP reverse-engineering the deliverable), so the panel is populated immediately. User preferences (inferred) populate after ≥2 evaluate cycles run inference. The DeliverableMiddle centerpiece is the HTML preview (iframe now, section-component rendering in future Phase 6). The section provenance strip (from `sys_manifest.json`) shows which sections were regenerated this run vs. carried over.
 
 ### `external_action`
 
@@ -305,12 +364,23 @@ Delete raw-manifest reads from frontend code entirely.
 
 That is the real completion point. Until then, the contract is not singular.
 
+## Amendment: `deliverable_spec` Migration (Phase C from ADR-178)
+
+Phase C adds `deliverable_spec` to the task detail response. This is additive — no existing fields change. Migration is three steps:
+
+1. **Backend:** Implement `parse_deliverable_md()` in task routes or a dedicated service file. Wire into `GET /api/tasks/{slug}` response. Return `null` when DELIVERABLE.md absent (legacy tasks pre-ADR-149).
+2. **Types:** Add `deliverable_spec: DeliverableSpec | null` to `TaskDetail` in `web/types/index.ts`.
+3. **Frontend:** Add Quality Contract collapsible panel to `DeliverableMiddle.tsx` (Route A) and `TrackingMiddle.tsx` (Route B). Gate on `deliverable_spec !== null`. Use `refreshInterval: 30000` on the SWR hook so the panel updates live as inference runs post-evaluate.
+
+The Quality Contract panel is **not** a form — it is read-only for the user. Editing happens via chat with TP ("update the quality criteria for this task"). TP uses `ManageTask(action="steer")` to rewrite the DELIVERABLE.md section; the panel refreshes on the next SWR tick.
+
 ## Non-Goals
 
 - replacing `output.md` / `output.html` storage
 - changing ADR-166 `output_kind`
 - merging task detail and output routes into one oversized payload
 - creating one bespoke page or one bespoke endpoint per task type
+- making the Quality Contract panel editable in the UI (editing is TP-mediated, not form-based)
 
 ## Why This Is The Right Next Step
 
