@@ -1,7 +1,7 @@
 # Architecture: Compose Substrate
 
-> **Status:** Canonical (ADR-170). Phases 2–4 implemented 2026-04-10. Phases 5a+5b+5c implemented 2026-04-13 (ADR-177).
-> **Date:** 2026-04-10 (amended 2026-04-13: Phase 5a — pipeline reorder; Phase 5b — structured-data kinds; Phase 5c — chart kinds)
+> **Status:** Canonical (ADR-170). Phases 2–4 implemented 2026-04-10. Phases 5a–5d implemented 2026-04-13 (ADR-177). Phase 5e pending.
+> **Date:** 2026-04-10 (amended 2026-04-13: Phase 5a — pipeline reorder; 5b — structured-data kinds; 5c — chart kinds; 5d — surface×kind overrides)
 > **Rule:** All output assembly, filesystem-to-output binding, and revision routing decisions should be consistent with this document.
 > **Related:**
 > - [ADR-170: Compose Substrate](../adr/ADR-170-compose-substrate.md) — governing ADR
@@ -265,6 +265,8 @@ Steps 1–3 and 5 are the compose substrate. Step 4 is the LLM. The render servi
 > **Phase 5b shipped:** Six structured-data kind renderers in `render/compose.py`: `metric-cards` (card grid), `entity-grid` (entity cards with properties), `comparison-table` (first-column-highlighted markdown table), `status-matrix` (color-coded badge rows), `data-table` (numeric-dense table), `timeline` (vertical dot timeline). `STRUCTURED_DATA_CSS` (~130 lines) injected when sections are present.
 >
 > **Phase 5c shipped:** `trend-chart` and `distribution-chart` kinds render via matplotlib. `_parse_chart_content()` parses `label: value` lines or markdown tables. `_render_chart_kind()` generates PNG embedded as base64 `data:` URI — self-contained, no storage upload. Graceful fallback to markdown if no data points parsed.
+>
+> **Phase 5d shipped:** `_render_section_to_html()` accepts `surface_type`. Dashboard: wide kinds (chart, table, timeline) get `dashboard-wide-hint` wrapper → `card-wide` in grid. Deck: sections wrapped in `deck-section` → H2 title triggers slide boundary in `_apply_presentation_layout()`.
 
 ### The ordering problem
 

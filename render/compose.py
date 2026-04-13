@@ -696,7 +696,7 @@ def _apply_dashboard_layout(html_body: str, title: str) -> str:
             # Flush previous card
             if current_card:
                 content = "\n".join(current_card)
-                wide = "<table" in content or "<img" in content
+                wide = "<table" in content or "<img" in content or "dashboard-wide-hint" in content
                 cls = "card card-wide" if wide else "card"
                 cards.append(f'<div class="{cls}">\n{content}\n</div>')
                 current_card = []
@@ -710,7 +710,7 @@ def _apply_dashboard_layout(html_body: str, title: str) -> str:
     # Flush remaining card
     if current_card:
         content = "\n".join(current_card)
-        wide = "<table" in content or "<img" in content
+        wide = "<table" in content or "<img" in content or "dashboard-wide-hint" in content
         cls = "card card-wide" if wide else "card"
         cards.append(f'<div class="{cls}">\n{content}\n</div>')
 
@@ -1161,6 +1161,13 @@ table.data-table td { padding: 0.4rem 0.75rem; }
 }
 .tl-desc { font-size: 0.9rem; color: var(--text-secondary); }
 
+/* Phase 5d: surface×kind overrides */
+/* dashboard: wide-hint signals card-wide layout for the layout function */
+.dashboard-wide-hint { grid-column: 1 / -1; }
+
+/* deck: section wrapper carries kind metadata for slide sizing */
+.deck-section { width: 100%; }
+
 /* section wrappers */
 .section-callout {
   background: var(--brand-primary-light);
@@ -1344,14 +1351,16 @@ def _render_chart_kind(section: "SectionContent") -> str:
         return f'<div class="section-kind-{kind}" data-kind="{kind}">{title_html}{body}</div>\n'
 
 
-def _render_section_to_html(section: "SectionContent") -> str:
-    """ADR-177 Phase 5b: Render a single section to HTML based on its kind.
+def _render_section_to_html(section: "SectionContent", surface_type: str = "report") -> str:
+    """ADR-177 Phase 5b+5d: Render a single section to HTML based on kind and surface.
 
     Markdown kinds: narrative, callout, checklist → python-markdown.
     Structured-data kinds: metric-cards, entity-grid, comparison-table,
       status-matrix, data-table, timeline → component HTML generators.
-    Chart kinds and RuntimeDispatch assets: fallback with data-kind attribute
-      (Phase 5c will add matplotlib renderers).
+    Chart kinds: trend-chart, distribution-chart → matplotlib PNG (Phase 5c).
+    Surface×kind overrides (Phase 5d):
+      - deck: each section wrapped in <section class="slide"> for scroll-snap
+      - dashboard: chart/table sections get card-wide class hint
     """
     kind = section.kind
     content = section.content
@@ -1360,43 +1369,65 @@ def _render_section_to_html(section: "SectionContent") -> str:
     # --- Markdown kinds ---
     if kind == "narrative":
         body = _render_markdown_to_html(content)
-        return f'<div class="section-narrative">{title_html}{body}</div>\n'
+        inner = f'<div class="section-narrative">{title_html}{body}</div>\n'
 
-    if kind == "callout":
+    elif kind == "callout":
         body = _render_markdown_to_html(content)
-        return f'<div class="section-callout">{title_html}{body}</div>\n'
+        inner = f'<div class="section-callout">{title_html}{body}</div>\n'
 
-    if kind == "checklist":
+    elif kind == "checklist":
         body = _render_markdown_to_html(content)
-        return f'<div class="section-checklist">{title_html}{body}</div>\n'
+        inner = f'<div class="section-checklist">{title_html}{body}</div>\n'
 
     # --- Structured-data kinds ---
-    if kind == "metric-cards":
-        return f'<div class="section-kind-metric-cards" data-kind="metric-cards">{title_html}{_render_metric_cards(content)}</div>\n'
+    elif kind == "metric-cards":
+        inner = f'<div class="section-kind-metric-cards" data-kind="metric-cards">{title_html}{_render_metric_cards(content)}</div>\n'
 
-    if kind == "entity-grid":
-        return f'<div class="section-kind-entity-grid" data-kind="entity-grid">{title_html}{_render_entity_grid(content)}</div>\n'
+    elif kind == "entity-grid":
+        inner = f'<div class="section-kind-entity-grid" data-kind="entity-grid">{title_html}{_render_entity_grid(content)}</div>\n'
 
-    if kind == "comparison-table":
-        return f'<div class="section-kind-comparison-table" data-kind="comparison-table">{title_html}{_render_comparison_table(content)}</div>\n'
+    elif kind == "comparison-table":
+        inner = f'<div class="section-kind-comparison-table" data-kind="comparison-table">{title_html}{_render_comparison_table(content)}</div>\n'
 
-    if kind == "status-matrix":
-        return f'<div class="section-kind-status-matrix" data-kind="status-matrix">{title_html}{_render_status_matrix(content)}</div>\n'
+    elif kind == "status-matrix":
+        inner = f'<div class="section-kind-status-matrix" data-kind="status-matrix">{title_html}{_render_status_matrix(content)}</div>\n'
 
-    if kind == "data-table":
-        return f'<div class="section-kind-data-table" data-kind="data-table">{title_html}{_render_data_table(content)}</div>\n'
+    elif kind == "data-table":
+        inner = f'<div class="section-kind-data-table" data-kind="data-table">{title_html}{_render_data_table(content)}</div>\n'
 
-    if kind == "timeline":
-        return f'<div class="section-kind-timeline" data-kind="timeline">{title_html}{_render_timeline(content)}</div>\n'
+    elif kind == "timeline":
+        inner = f'<div class="section-kind-timeline" data-kind="timeline">{title_html}{_render_timeline(content)}</div>\n'
 
     # --- Chart kinds → matplotlib PNG embedded as base64 (Phase 5c) ---
-    if kind in ("trend-chart", "distribution-chart"):
-        # title_html already in section; _render_chart_kind handles its own wrapper
-        return f'{title_html}{_render_chart_kind(section)}'
+    elif kind in ("trend-chart", "distribution-chart"):
+        inner = f'{title_html}{_render_chart_kind(section)}'
 
     # --- Unknown kinds → markdown fallback with data-kind ---
-    body = _render_markdown_to_html(content)
-    return f'<div class="section-kind-{kind}" data-kind="{kind}">{title_html}{body}</div>\n'
+    else:
+        body = _render_markdown_to_html(content)
+        inner = f'<div class="section-kind-{kind}" data-kind="{kind}">{title_html}{body}</div>\n'
+
+    # --- Phase 5d: surface×kind overrides ---
+    if surface_type == "deck":
+        # Wrap in slide container — presentation layout will re-split at <h2>,
+        # but since section content has no h2 (title is in title_html which is already h2),
+        # and we emit sections without an outer h2, the existing _apply_presentation_layout
+        # will treat each emitted h2 as a slide boundary. This is correct behavior.
+        # For sections with no title_html (no h2 emitted), deck layout wraps as-is.
+        # We add data-kind so deck renderer can apply slide sizing hints.
+        inner = inner.rstrip("\n")
+        inner = f'<div data-kind="{kind}" class="deck-section">{inner}</div>\n'
+
+    elif surface_type == "dashboard":
+        # Chart and table kinds get card-wide hint for the dashboard grid.
+        # metric-cards and entity-grid have their own grids and don't need card-wide.
+        wide_kinds = {"trend-chart", "distribution-chart", "comparison-table",
+                      "data-table", "timeline"}
+        if kind in wide_kinds:
+            inner = inner.rstrip("\n")
+            inner = f'<div class="dashboard-wide-hint">{inner}</div>\n'
+
+    return inner
 
 
 def compose_html(
@@ -1436,7 +1467,7 @@ def compose_html(
     if sections:
         section_html_parts = []
         for sec in sections:
-            part = _render_section_to_html(sec)
+            part = _render_section_to_html(sec, surface_type=surface_type)
             if assets:
                 part = _resolve_asset_urls(part, assets)
             if is_email_style:

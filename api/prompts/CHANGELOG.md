@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.10] - ADR-177 Phase 5d: Surface×kind overrides
+
+### Changed
+- `render/compose.py` — `_render_section_to_html()` gains `surface_type` parameter. Surface×kind overrides: (1) `deck` surface: section wrapped in `<div data-kind class="deck-section">` — existing `_apply_presentation_layout()` splits at `<h2>` boundaries, so kind-titled sections become individual slides; (2) `dashboard` surface: wide kinds (trend-chart, distribution-chart, comparison-table, data-table, timeline) wrapped in `<div class="dashboard-wide-hint">` so `_apply_dashboard_layout()` detects and assigns `card-wide`. metric-cards and entity-grid have their own internal grids and stay narrower.
+- `render/compose.py` — `_apply_dashboard_layout()`: `card-wide` detection extended to include `"dashboard-wide-hint"` string (both flush paths).
+- `render/compose.py` — `compose_html()`: passes `surface_type=surface_type` to `_render_section_to_html()`.
+- `render/compose.py` — `STRUCTURED_DATA_CSS`: added `.dashboard-wide-hint` (`grid-column: 1 / -1`) and `.deck-section` helpers.
+- Expected behavior: On dashboard surfaces, chart and table sections span full grid width automatically. On deck surfaces, sections with H2 titles become individual slides via the existing presentation layout splitter.
+
 ## [2026.04.13.9] - ADR-177 Phase 5c: Chart kind renderers via matplotlib
 
 ### Changed
