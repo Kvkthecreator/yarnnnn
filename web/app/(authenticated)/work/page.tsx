@@ -30,6 +30,7 @@ import { WorkListSurface } from '@/components/work/WorkListSurface';
 import { WorkDetail } from '@/components/work/WorkDetail';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
+import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
 import { getAgentSlug } from '@/lib/agent-identity';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { DeskSurface } from '@/types/desk';
@@ -98,6 +99,7 @@ export default function WorkPage() {
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState<ActionNotice>(null);
   const [chatDraftSeed, setChatDraftSeed] = useState<{ id: string; text: string } | null>(null);
+  const [taskSetupOpen, setTaskSetupOpen] = useState(false);
   const [chatOpenSignal, setChatOpenSignal] = useState(0);
 
   useEffect(() => {
@@ -254,13 +256,13 @@ export default function WorkPage() {
     return [
       {
         id: 'create-task',
-        label: 'Create new work',
+        label: 'Start new work',
         icon: Briefcase,
-        verb: 'prompt' as const,
-        onSelect: () => { sendMessage('I want to set up new work. What do you suggest based on my context?'); },
+        verb: 'show' as const,
+        onSelect: () => setTaskSetupOpen(true),
       },
     ];
-  }, [selectedTask, sendMessage]);
+  }, [selectedTask]);
 
   const chatSurfaceOverride = useMemo<DeskSurface | undefined>(() => {
     if (!selectedTask) return undefined;
@@ -308,6 +310,7 @@ export default function WorkPage() {
   }
 
   return (
+    <>
     <ThreePanelLayout
       chat={{
         surfaceOverride: chatSurfaceOverride,
@@ -389,5 +392,12 @@ export default function WorkPage() {
         />
       )}
     </ThreePanelLayout>
+
+    <TaskSetupModal
+      open={taskSetupOpen}
+      onClose={() => setTaskSetupOpen(false)}
+      onSubmit={(msg) => { setTaskSetupOpen(false); sendMessage(msg); }}
+    />
+    </>
   );
 }

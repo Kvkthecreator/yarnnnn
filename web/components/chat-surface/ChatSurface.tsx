@@ -50,8 +50,6 @@ interface ChatSurfaceProps {
   /** Additional plus-menu actions from the page. ChatSurface prepends its own built-in actions. */
   plusMenuActions?: PlusMenuAction[];
   onContextSubmit: (message: string) => void;
-  /** Called by the page if it needs to register an external open handler. Unused post-ADR-178. */
-  onRegisterOpenTaskSetup?: (fn: () => void) => void;
 }
 
 export function ChatSurface({
@@ -60,7 +58,6 @@ export function ChatSurface({
   dataLoading,
   plusMenuActions = [],
   onContextSubmit,
-  onRegisterOpenTaskSetup,
 }: ChatSurfaceProps) {
   const { messages, sendMessage } = useTP();
 

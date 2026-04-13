@@ -9,7 +9,7 @@
  * via <SurfaceIdentityHeader /> alongside the agent content it describes.
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -25,6 +25,7 @@ import { AgentRosterSurface } from '@/components/agents/AgentRosterSurface';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
+import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { Agent } from '@/types';
 
@@ -53,6 +54,8 @@ export default function AgentsPage() {
   const { loadScopedHistory, sendMessage } = useTP();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
   const { agents, tasks, loading } = useAgentsAndTasks();
+  const [taskSetupOpen, setTaskSetupOpen] = useState(false);
+  const [taskSetupNotes, setTaskSetupNotes] = useState('');
 
   const agentFromUrl = searchParams.get('agent');
 
@@ -110,13 +113,28 @@ export default function AgentsPage() {
           verb: 'prompt' as const,
           onSelect: () => { sendMessage(`Run the task "${activeTasks[0]?.title}" now`, { surface: surfaceOverride }); },
         }] : []),
-        { id: 'assign-task', label: 'Assign a new task', icon: ListChecks, verb: 'prompt' as const, onSelect: () => { sendMessage(createTaskPrompt || `Create a new task for ${selectedAgent.title}`, { surface: surfaceOverride }); } },
+        {
+          id: 'assign-task',
+          label: 'Assign a new task',
+          icon: ListChecks,
+          verb: 'show' as const,
+          onSelect: () => {
+            setTaskSetupNotes(`For ${selectedAgent.title}.`);
+            setTaskSetupOpen(true);
+          },
+        },
       ];
     }
     return [
-      { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt' as const, onSelect: () => { sendMessage('I want to create a task. What do you suggest based on my context?'); } },
+      {
+        id: 'create-task',
+        label: 'Start new work',
+        icon: ListChecks,
+        verb: 'show' as const,
+        onSelect: () => { setTaskSetupNotes(''); setTaskSetupOpen(true); },
+      },
     ];
-  }, [selectedAgent, agentTasks, createTaskPrompt, sendMessage, surfaceOverride]);
+  }, [selectedAgent, agentTasks, sendMessage, surfaceOverride]);
 
   const chatEmptyState = (
     <div className="py-2 text-center">
@@ -136,6 +154,7 @@ export default function AgentsPage() {
   }
 
   return (
+    <>
     <ThreePanelLayout
       chat={{
         surfaceOverride,
@@ -153,7 +172,7 @@ export default function AgentsPage() {
           agent={selectedAgent}
           tasks={agentTasks}
           onCreateTask={createTaskPrompt
-            ? () => { sendMessage(createTaskPrompt, { surface: surfaceOverride }); }
+            ? () => { setTaskSetupNotes(`For ${selectedAgent!.title}.`); setTaskSetupOpen(true); }
             : undefined}
         />
       ) : (
@@ -164,5 +183,13 @@ export default function AgentsPage() {
         />
       )}
     </ThreePanelLayout>
+
+    <TaskSetupModal
+      open={taskSetupOpen}
+      onClose={() => setTaskSetupOpen(false)}
+      onSubmit={(msg) => { setTaskSetupOpen(false); sendMessage(msg, { surface: surfaceOverride }); }}
+      initialNotes={taskSetupNotes}
+    />
+    </>
   );
 }

@@ -29,6 +29,7 @@ import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
+import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
 
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
@@ -178,6 +179,7 @@ export default function ContextPage() {
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
   const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
   const [domainDeepLinked, setDomainDeepLinked] = useState(false);
+  const [taskSetupOpen, setTaskSetupOpen] = useState(false);
 
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
 
@@ -289,7 +291,7 @@ export default function ContextPage() {
   }, [router]);
 
   const plusMenuActions: PlusMenuAction[] = [
-    { id: 'create-task', label: 'Create a task', icon: ListChecks, verb: 'prompt', onSelect: () => { sendMessage('I want to create a task. What do you suggest based on my context?', { surface: effectiveSurface }); } },
+    { id: 'create-task', label: 'Start new work', icon: ListChecks, verb: 'show', onSelect: () => setTaskSetupOpen(true) },
     { id: 'update-info', label: 'Update my info', icon: Settings2, verb: 'prompt', onSelect: () => {} },
     { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => {} },
     { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => {} },
@@ -341,6 +343,7 @@ export default function ContextPage() {
   );
 
   return (
+    <>
     <ThreePanelLayout
       leftPanel={{
         title: 'Explorer',
@@ -380,5 +383,12 @@ export default function ContextPage() {
         </div>
       )}
     </ThreePanelLayout>
+
+      <TaskSetupModal
+        open={taskSetupOpen}
+        onClose={() => setTaskSetupOpen(false)}
+        onSubmit={(msg) => { setTaskSetupOpen(false); sendMessage(msg, { surface: effectiveSurface }); }}
+      />
+    </>
   );
 }
