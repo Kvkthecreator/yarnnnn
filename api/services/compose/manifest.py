@@ -73,7 +73,6 @@ Reason codes:
   forced              — steering.md required regeneration
   feedback            — user feedback or TP evaluation triggered update
 """
-"""
 
 from __future__ import annotations
 
