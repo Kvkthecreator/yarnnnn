@@ -171,7 +171,7 @@ function AgentCard({
   const mostRecentTask = [...agentTasks]
     .sort((a, b) => (b.last_run_at ?? '').localeCompare(a.last_run_at ?? ''))
     .find(t => t.status === 'active') ?? activeTasks[0] ?? agentTasks[0] ?? null;
-  const cls = agent.agent_class || 'domain-steward';
+  const cls = agent.agent_class || 'specialist';
   const isPaused = agent.status === 'paused';
   const hasNoTasks = agentTasks.length === 0;
   const operationalTasks = activeTasks.length > 0

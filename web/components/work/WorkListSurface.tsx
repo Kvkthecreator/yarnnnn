@@ -23,6 +23,7 @@ import { Circle, Search, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
 import { WorkModeBadge } from './WorkModeBadge';
+import { getAgentSlug } from '@/lib/agent-identity';
 import type { Task, Agent } from '@/types';
 
 interface WorkListSurfaceProps {
@@ -79,7 +80,8 @@ const GROUP_ORDER: Record<GroupBy, string[]> = {
 function agentNameFor(task: Task, agents: Agent[]): string {
   const assigned = task.agent_slugs?.[0];
   if (!assigned) return 'Unassigned';
-  const agent = agents.find(a => a.slug === assigned);
+  // Use getAgentSlug() — agent.slug may not be populated from API response
+  const agent = agents.find(a => getAgentSlug(a) === assigned);
   return agent?.title ?? assigned;
 }
 
@@ -208,7 +210,7 @@ export function WorkListSurface({
   }, [filtered, groupBy, agents]);
 
   const agentLabel = agentFilter
-    ? agents.find(a => a.slug === agentFilter)?.title ?? agentFilter
+    ? agents.find(a => getAgentSlug(a) === agentFilter)?.title ?? agentFilter
     : null;
 
   return (
