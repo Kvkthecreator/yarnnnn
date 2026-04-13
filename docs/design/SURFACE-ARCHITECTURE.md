@@ -1,6 +1,6 @@
 # Surface Architecture — Chat + Work + Agents + Context
 
-**Version:** v9.5 (2026-04-09)
+**Version:** v10.0 (2026-04-14)
 **Status:** Canonical
 **Governed by:** [ADR-163](../adr/ADR-163-surface-restructure.md) — Surface Restructure
 **Active decisions:**
@@ -10,6 +10,7 @@
 - [AGENT-AND-TASK-SURFACE-PATTERNS](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — broader shell and no-task-state rules layered on top of ADR-167
 
 **Supersedes:**
+- v9.5 (2026-04-09) — kind-aware detail spec, run now removed, overflow menu for lifecycle, TrackingMiddle as health dashboard
 - v9 (2026-04-08) — list/detail collapse with separate `<GlobalBreadcrumb />` floating bar
 - v8 (2026-04-08) — three-panel master-detail on Work and Agents
 - v7.2 (2026-04-06) — task-class-aware tabs on Agents page
@@ -209,34 +210,87 @@ The execution layer still distinguishes three modes because `goal` has the revis
 
 The list is **sorted within each group** by lifecycle urgency: active first, then paused, then completed/archived; upcoming runs sort ahead of older work, and historical items sort by most recent run. Clicking a row uses browser-history-friendly navigation (`push`, not `replace`) so Back returns to the prior list state.
 
-### Detail Mode (`/work?task={slug}`) — Kind-Aware (ADR-167)
+### Detail Mode (`/work?task={slug}`) — Kind-Aware (v10, 2026-04-14)
 
-In detail mode the page renders `<PageHeader />` as breadcrumb chrome, then `<WorkDetail />` as the identity + content surface. The selected task is fetched through `GET /api/tasks/{slug}` rather than inferred from the task list payload, so stale deep links now render an explicit "Task not found" state and fetch failures render an explicit retry state instead of silently dropping back to list mode. `WorkDetail` owns the real H1, metadata strip, and Run/Pause/Edit-via-chat actions; the middle band dispatches on `task.output_kind` because the four kinds need fundamentally different data:
+In detail mode the page renders `<PageHeader />` as breadcrumb chrome, then `<WorkDetail />` as the identity + content surface. The selected task is fetched through `GET /api/tasks/{slug}`.
 
-| `output_kind` | Middle component | Renders |
+**Design principle: each output_kind answers a different question.** A single shared header/action bar is wrong because the four kinds have fundamentally different user mental models:
+
+| `output_kind` | User question | Primary affordance |
 |---|---|---|
-| `accumulates_context` | `<TrackingMiddle>` | Domain folder link (`/context?domain={key}`) + last-run CHANGELOG (markdown summary of what was added) |
-| `produces_deliverable` | `<DeliverableMiddle>` | The latest rendered HTML output in an iframe (or markdown) — this was the original `OutputPreview` |
-| `external_action` | `<ActionMiddle>` | Action target (channel/page) + fire history with link-out to platform message |
-| `system_maintenance` | `<MaintenanceMiddle>` | Hygiene log markdown + run history table. Objective block is suppressed (TP owns the contract, not the user). |
+| `produces_deliverable` | "What did it produce?" | Output artifact — full-width hero |
+| `accumulates_context` | "Is it healthy? What's it collecting?" | Run health + compact receipts |
+| `external_action` | "What did it last send? Fire it again?" | Fire button + send history |
+| `system_maintenance` | "Is the system healthy?" | Log output, no user actions |
+
+**Header strip is kind-aware** — each kind gets a purpose-fit metadata strip and action set:
+
+| `output_kind` | Metadata strip | Actions |
+|---|---|---|
+| `produces_deliverable` | Mode badge · Schedule · `Last output: {date}` | `···` overflow (Pause/Resume, Archive) |
+| `accumulates_context` | Mode badge · Schedule · `Next: {rel}` · `Last run: {date}` · domain link | `···` overflow (Pause/Resume, Archive) |
+| `external_action` | Mode badge · `Target: {delivery}` · `Last fired: {date}` | **Fire** (primary) · `···` overflow (Archive) |
+| `system_maintenance` | Mode badge · Schedule · `Last run: {date}` | *(none)* |
+
+**Run now is removed.** Triggering a run is an intent expressed via TP ("run this now"), not a button on the detail page. The one exception is `external_action` tasks where firing IS the whole workflow — those get an explicit **Fire** primary action.
+
+**Pause/Resume moved to overflow (`···`).** Lifecycle management is rare; it doesn't warrant a persistent visible button. An overflow menu keeps it accessible without cluttering the header.
+
+**Objective block is kind-gated.** Only `produces_deliverable` tasks show the Objective block — deliverable/audience/purpose/format is meaningful for output tasks. `accumulates_context` instead shows an inline "Feeds →" summary in the header strip. `external_action` and `system_maintenance` suppress the objective block entirely.
+
+**Agent footer removed.** The assigned agent is visible in the list row and the breadcrumb. It adds no value in the detail's own footer.
+
+**Middle components by kind:**
+
+| `output_kind` | Middle component | Shape |
+|---|---|---|
+| `accumulates_context` | `<TrackingMiddle>` | Domain folder link + compact run receipts (not a document card) |
+| `produces_deliverable` | `<DeliverableMiddle>` | Latest rendered HTML/markdown as full hero (no change) |
+| `external_action` | `<ActionMiddle>` | Latest payload card + fire history list |
+| `system_maintenance` | `<MaintenanceMiddle>` | Hygiene log + run history (no change) |
+
+**`TrackingMiddle` shape change**: was a rendered document card (CHANGELOG markdown). Now a compact health view — domain link + short run receipts (date, what changed). The domain folder is where the content lives; the task detail is just the health dashboard. `context_writes` registry fallback added: if TASK.md parsing fails to populate `task.context_writes`, `TrackingMiddle` infers the domain from `task.type_key` via a local map.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Work › reporting's work › Daily Update                              │ ← PageHeader (chrome)
+│  Work › Slack Bot › Slack Digest                                      │ ← PageHeader (chrome)
 ├──────────────────────────────────────────────────────────────────────┤
-│  Daily Update                           [Run] [Pause] [Edit]         │ ← SurfaceIdentityHeader h1
-│  Recurring · active · Reporting · daily · Next: 9h                   │    metadata under title
+│  Slack Digest                                              [···]      │ ← SurfaceIdentityHeader h1
+│  Recurring · Daily · Next: in 9h · Last run: 4h ago                  │   metadata strip (no Pause btn)
+│  → /workspace/context/slack/                                         │   domain link inline
 ├──────────────────────────────────────────────────────────────────────┤
-│  Objective                                                           │
+│  Apr 14 09:00  3 channels · 4 new observations                       │ ← compact run receipts
+│  Apr 13 09:00  3 channels · 1 new observation                        │   (not a document card)
+│  Apr 12 09:00  2 channels · 0 new                                    │
+└──────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  Work › Reporting › Daily Update                                      │ ← PageHeader (chrome)
+├──────────────────────────────────────────────────────────────────────┤
+│  Daily Update                                              [···]      │ ← SurfaceIdentityHeader h1
+│  Recurring · Daily · Last output: Apr 14                             │   metadata strip
+├──────────────────────────────────────────────────────────────────────┤
+│  Objective                                                           │ ← only for produces_deliverable
 │  · Deliverable: Daily workspace update                               │
 │  · Audience: You — quick morning scan                                │
 ├──────────────────────────────────────────────────────────────────────┤
-│  Latest output  ·  2026-04-08T09:00                                  │
+│  Latest output  ·  2026-04-14T09:00                                  │
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │ [iframe with rendered HTML — DeliverableMiddle]                │  │
 │  └───────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  Work › Slack Bot › Slack Post                                        │ ← PageHeader (chrome)
 ├──────────────────────────────────────────────────────────────────────┤
-│  → Assigned to Reporting                                             │
+│  Slack Post                                    [Fire ↗]  [···]        │ ← Fire is primary action
+│  One-time · Target: #general · Last fired: Apr 12                    │
+├──────────────────────────────────────────────────────────────────────┤
+│  Latest payload  ·  Apr 12                                           │ ← ActionMiddle
+│  ┌──────────────────────────────────────────────┐                   │
+│  │ [sent message markdown]                       │                   │
+│  └──────────────────────────────────────────────┘                   │
+│  Fire history …                                                      │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
