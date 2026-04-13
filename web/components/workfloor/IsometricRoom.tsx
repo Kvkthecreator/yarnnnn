@@ -35,16 +35,26 @@ import { cn } from '@/lib/utils';
 // =============================================================================
 
 const AGENT_ICON: Record<string, typeof FlaskConical> = {
+  // v5 universal specialists (ADR-176)
+  researcher: FlaskConical,
+  analyst: TrendingUp,
+  writer: FileText,
+  tracker: FolderKanban,
+  designer: Users,
+  // synthesizer
+  executive: Layers3,
+  // platform bots
+  slack_bot: MessageCircle,
+  notion_bot: Bot,
+  github_bot: Bot,
+  // meta-cognitive
+  thinking_partner: Brain,
+  // v4 ICP legacy (backward compat)
   competitive_intel: FlaskConical,
   market_research: TrendingUp,
   business_dev: Users,
   operations: FolderKanban,
   marketing: FileText,
-  executive: Layers3,
-  slack_bot: MessageCircle,
-  notion_bot: Bot,
-  github_bot: Bot,
-  thinking_partner: Brain,
 };
 
 function getStyle(role: string) {

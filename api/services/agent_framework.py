@@ -1,5 +1,5 @@
 """
-Agent Framework — Domain-Steward Model (v4)
+Agent Framework — Work-First Universal Specialist Model (v5)
 
 Pre-scaffolded agent roster. Three registries, three concerns:
   1. AGENT_TEMPLATES — workforce roster: templates are starting points,
@@ -7,33 +7,42 @@ Pre-scaffolded agent roster. Three registries, three concerns:
   2. CAPABILITIES    — implementation: what each capability resolves to
   3. RUNTIMES        — infrastructure: where compute happens
 
-Three independent axes per agent (ADR-140):
+Three independent axes per agent (ADR-140, ADR-176):
   - Identity (AGENT.md): name, domain, evolves with use
   - Capabilities (AGENT_TEMPLATES): tool access, fixed at creation
   - Tasks (TASK.md): work assignments, come and go
 
-Three agent classes:
-  - domain-steward: owns a canonical context domain (/workspace/context/{domain}/),
-    accumulates knowledge over time, produces deliverables by synthesizing from context
+Four agent classes:
+  - specialist: universal contributor — does one thing (research, analyze, write,
+    track, or design) regardless of domain. TP assembles a team from specialists
+    per work intent. No pre-assigned context domain at creation.
   - synthesizer: reads across all context domains, produces cross-domain
-    deliverables (e.g., executive reporting). Owns no domain.
+    deliverables (e.g., daily update). Owns no domain.
   - platform-bot: owns a temporal context domain (/workspace/context/{platform}/),
-    captures signals from one external platform (Slack, Notion). Per-source
+    captures signals from one external platform (Slack, Notion, GitHub). Per-source
     subfolders (channel/page/repo). ADR-158: bots own their directories.
   - meta-cognitive: owns orchestration itself (attention allocation, workforce
     health, back office maintenance). Singular — only Thinking Partner.
     Two runtime modes: chat (user-present) and task (back office executor).
     ADR-164: TP as agent.
 
-v4 (2026-03-31): 5 domain-stewards + 1 synthesizer + 2 platform-bots.
-v4.1 (2026-04-04): ADR-158 Phase 4 — GitHub Bot added. 5 + 1 + 3 = 9 agents.
-v4.2 (2026-04-08): ADR-164 — Thinking Partner added as meta-cognitive agent.
-                   5 + 1 + 3 + 1 = 10 agents.
-Templates are starting points — agents evolve via AGENT.md, which is the
-runtime source of truth for identity and behavior.
+Capability split (ADR-176 Decision 4):
+  - Accumulation phase (Researcher, Analyst, Writer, Tracker):
+      web_search, read_workspace, search_knowledge, platform reads,
+      investigate, produce_markdown. NO asset production.
+  - Production phase (Designer only):
+      chart, mermaid, image, video_render, compose_html.
+  - TP (via RuntimeDispatch in chat mode) can invoke production capabilities
+    on behalf of any task that needs visual output.
+
+v5 (2026-04-13): ADR-176 — Work-First Universal Specialist Model.
+                 6 specialists (Researcher, Analyst, Writer, Tracker, Designer,
+                 Thinking Partner) + 1 synthesizer (Reporting) + 3 bots = 10 agents.
+                 ICP domain-steward templates (competitive_intel, market_research,
+                 business_dev, operations, marketing) deleted.
 
 Canonical references:
-  docs/adr/ADR-140-agent-workforce-model.md
+  docs/adr/ADR-176-work-first-agent-model.md
   docs/adr/ADR-164-back-office-tasks-tp-as-agent.md
 """
 
@@ -121,45 +130,35 @@ _PLAYBOOK_RENDERING = (
 
 AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
 
-    # ── Domain Stewards (own a context domain) ──
+    # ── Universal Specialists (ADR-176) ──
+    # Six roles defined by HOW they contribute, not WHAT domain they work in.
+    # No pre-assigned context domain — TP assigns domain from task context.
+    # Capability split: accumulation phase (Researcher/Analyst/Writer/Tracker)
+    # vs production phase (Designer only). Writers produce text deliverables;
+    # visual production is Designer's exclusive territory.
 
-    "competitive_intel": {
-        "class": "domain-steward",
-        "domain": "competitors",
-        "display_name": "Competitive Intelligence",
-        "tagline": "Tracks and analyzes competitors",
+    "researcher": {
+        "class": "specialist",
+        "domain": None,  # domain assigned from task context
+        "display_name": "Researcher",
+        "tagline": "Finds, investigates, and builds knowledge",
         "capabilities": [
             "web_search", "read_workspace", "search_knowledge",
             "read_slack", "read_notion", "read_github",
-            "investigate", "produce_markdown", "chart", "mermaid", "compose_html",
+            "investigate", "produce_markdown",
         ],
-        "description": "Maintains competitive intelligence. Tracks competitor products, "
-                       "pricing, funding, strategy. Produces competitive briefs.",
-        "default_instructions": "Maintain the competitors/ context domain. Track competitor "
-                                "moves, update entity profiles, flag strategic changes. When "
-                                "asked for deliverables, synthesize from accumulated context.",
+        "description": "Searches the web, reads platforms, investigates topics, and writes "
+                       "structured knowledge files into context domains. Accumulation specialist "
+                       "— builds the knowledge base that other specialists consume.",
+        "default_instructions": (
+            "You are a Researcher. Your job is to find, investigate, and record. "
+            "When assigned to a task, read what's already in the relevant context "
+            "domain first — build on prior knowledge, don't repeat it. Search for "
+            "what's new, cross-reference sources, and write structured findings back "
+            "to the workspace. Produce markdown: profile files, signal logs, landscape "
+            "summaries. Do not produce HTML, charts, or images — that is not your role."
+        ),
         "methodology": {
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Report Structure\n"
-                "1. **Executive Summary** — 2-3 sentences, lead with the insight not the process\n"
-                "2. **Key Findings** — numbered, each with evidence source cited\n"
-                "3. **Analysis** — structured by theme, not by source. Synthesize across sources\n"
-                "4. **Data & Visuals** — use charts for trends/comparisons, tables for reference data\n"
-                "5. **Implications** — what this means for the user's domain, not just what was found\n\n"
-                "## Visualization Heuristics\n"
-                "- Trend over time → line chart\n"
-                "- Comparison across categories → bar chart\n"
-                "- Part-of-whole → pie chart (only if ≤6 segments)\n"
-                "- Relationships → mermaid diagram\n"
-                "- Process/flow → mermaid flowchart\n"
-                "- Reference data → markdown table (no chart needed)\n\n"
-                "## Quality Criteria\n"
-                "- Every claim has a source or evidence\n"
-                "- Synthesis across sources, not source-by-source summaries\n"
-                "- Insights the user hasn't seen elsewhere (not just restating source material)\n"
-                "- Actionable implications, not just observations\n"
-            ),
             "_playbook-research.md": (
                 "# Research Playbook\n\n"
                 "## Investigation Depth\n"
@@ -174,179 +173,103 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "- Inline: 'Revenue grew 23% (source: Q4 earnings call)'\n"
                 "- Do not use footnotes — keep evidence next to claims\n"
                 "- When sources conflict, note the conflict explicitly\n\n"
+                "## Workspace Write-Back Protocol\n"
+                "- Check the context domain for existing entity profiles before writing new ones\n"
+                "- Overwrite profile.md / product.md / strategy.md with current best version\n"
+                "- Append to signals.md newest-first (preserve dated history)\n"
+                "- Update landscape.md as a full rewrite (cross-entity synthesis)\n"
+                "- Add <!-- last-researched: {date} --> to entity profiles after each update\n\n"
                 "## Cross-Reference Strategy\n"
                 "- Check workspace knowledge for prior findings on same topic\n"
                 "- Note when new findings update or contradict prior knowledge\n"
                 "- Flag emerging patterns across multiple investigation cycles\n"
             ),
-            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
-        },
-    },
-
-    "market_research": {
-        "class": "domain-steward",
-        "domain": "market",
-        "display_name": "Market Research",
-        "tagline": "Tracks market trends and opportunities",
-        "capabilities": [
-            "web_search", "read_workspace", "search_knowledge",
-            "read_slack", "read_notion", "read_github",
-            "investigate", "produce_markdown", "chart", "mermaid", "compose_html",
-        ],
-        "description": "Maintains market intelligence. Tracks segments, trends, sizing, "
-                       "key players. Produces market reports.",
-        "default_instructions": "Maintain the market/ context domain. Track market segments, "
-                                "trends, and opportunities. When asked for deliverables, "
-                                "synthesize from accumulated research.",
-        "methodology": {
             "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
-                "## Report Structure\n"
-                "1. **Executive Summary** — 2-3 sentences, lead with the insight not the process\n"
-                "2. **Key Findings** — numbered, each with evidence source cited\n"
-                "3. **Analysis** — structured by theme, not by source. Synthesize across sources\n"
-                "4. **Data & Visuals** — use charts for trends/comparisons, tables for reference data\n"
-                "5. **Implications** — what this means for the user's domain, not just what was found\n\n"
-                "## Visualization Heuristics\n"
-                "- Trend over time → line chart\n"
-                "- Comparison across categories → bar chart\n"
-                "- Part-of-whole → pie chart (only if ≤6 segments)\n"
-                "- Relationships → mermaid diagram\n"
-                "- Process/flow → mermaid flowchart\n"
-                "- Reference data → markdown table (no chart needed)\n\n"
+                "## Researcher Output Formats\n"
+                "Your outputs are knowledge files, not deliverables. You write:\n"
+                "- **profile.md** — entity-level factual profile (what they are, key facts, history)\n"
+                "- **product.md** — product/service details, positioning, differentiation\n"
+                "- **strategy.md** — strategic direction, moves, bets, risks\n"
+                "- **signals.md** — dated log of notable events (newest-first, append only)\n"
+                "- **landscape.md** — cross-entity synthesis for the whole domain\n\n"
+                "## Formatting Rules\n"
+                "- Use structured markdown: clear headings, bullet points, no prose waffle\n"
+                "- Lead each section with the most important fact, not background\n"
+                "- Every factual claim: attribute to a source or date\n"
+                "- Length is determined by content value, not by target word count\n\n"
                 "## Quality Criteria\n"
                 "- Every claim has a source or evidence\n"
                 "- Synthesis across sources, not source-by-source summaries\n"
                 "- Insights the user hasn't seen elsewhere (not just restating source material)\n"
                 "- Actionable implications, not just observations\n"
             ),
-            "_playbook-research.md": (
-                "# Research Playbook\n\n"
-                "## Investigation Depth\n"
-                "- Start broad: landscape scan via web search + workspace knowledge\n"
-                "- Go deep on signals: when a finding contradicts expectations or reveals a gap\n"
-                "- Stop when: additional sources confirm existing findings without new signal\n\n"
-                "## Source Evaluation\n"
-                "1. Primary sources (official reports, filings, direct data) > secondary (articles, analyses)\n"
-                "2. Recency matters: prefer sources from last 90 days unless tracking long-term trends\n"
-                "3. Cross-reference: a finding from one source needs corroboration before becoming a 'key finding'\n\n"
-                "## Evidence Citation\n"
-                "- Inline: 'Revenue grew 23% (source: Q4 earnings call)'\n"
-                "- Do not use footnotes — keep evidence next to claims\n"
-                "- When sources conflict, note the conflict explicitly\n\n"
-                "## Market-Specific Research\n"
-                "- Track TAM/SAM/SOM evolution over time\n"
-                "- Segment analysis: who are the buyers, what are the segments, how are they shifting\n"
-                "- Identify emerging trends before they hit mainstream coverage\n"
-                "- Cross-reference multiple analyst reports — consensus vs contrarian signals\n"
-            ),
-            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
         },
     },
 
-    "business_dev": {
-        "class": "domain-steward",
-        "domain": "relationships",
-        "display_name": "Business Development",
-        "tagline": "Manages relationships and deals",
+    "analyst": {
+        "class": "specialist",
+        "domain": None,
+        "display_name": "Analyst",
+        "tagline": "Reads accumulated context and finds patterns",
         "capabilities": [
-            "read_slack", "read_notion", "read_github",
             "read_workspace", "search_knowledge",
-            "produce_markdown", "compose_html",
+            "read_slack", "read_notion", "read_github",
+            "investigate", "produce_markdown",
         ],
-        "description": "Maintains relationship intelligence. Tracks contacts, interactions, "
-                       "deals. Produces meeting prep and relationship digests.",
-        "default_instructions": "Maintain the relationships/ context domain. Track contact "
-                                "interactions, flag follow-ups, update relationship health. "
-                                "When asked for deliverables, synthesize from accumulated "
-                                "relationship context.",
+        "description": "Reads accumulated context files, identifies patterns, synthesizes "
+                       "meaning across entities and time. Does not search the web — consumes "
+                       "what Researcher has built and produces analysis.",
+        "default_instructions": (
+            "You are an Analyst. Your job is to read deeply, find patterns, and synthesize "
+            "meaning. Read the context domain files that Researcher has built. Look across "
+            "entities, look across time — what's changing, what's converging, what's surprising. "
+            "Write structured analysis back to the workspace. Do not search the web — you work "
+            "from accumulated context. Do not produce HTML, charts, or images — produce markdown."
+        ),
         "methodology": {
             "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
-                "## Meeting Brief Format\n"
-                "- **Context** — who, when, what's the relationship history (2-3 sentences)\n"
-                "- **Last Interaction** — what was discussed, what was promised, what's pending\n"
-                "- **Agenda Items** — what to cover, prioritized by relationship impact\n"
-                "- **Talking Points** — specific things to mention (their recent news, shared interests)\n"
-                "- **Open Items** — action items from prior meetings, their status\n\n"
-                "## Relationship Health Report\n"
-                "- Engagement frequency: trending up/down/stable\n"
-                "- Response patterns: quick/delayed/ghosting\n"
-                "- Sentiment signals: positive mentions, complaints, requests\n"
-                "- Risk flags: going quiet, competitor mentions, delayed follow-ups\n\n"
-                "## Deal Tracking Format\n"
-                "- **Pipeline Overview** — deals by stage, expected close, confidence\n"
-                "- **Movement** — what advanced, what stalled, what's at risk\n"
-                "- **Next Actions** — specific follow-ups with deadlines\n\n"
+                "## Analyst Output Formats\n"
+                "Your outputs are analysis files and synthesis documents:\n"
+                "- **_synthesis.md** — cross-entity analysis for a domain (overwrite each run)\n"
+                "- **_patterns.md** — recurring signals, trend identification across entities\n"
+                "- **_implications.md** — what the patterns mean, recommendations, risks\n"
+                "- **analysis_{topic}.md** — deep analysis on a specific question or theme\n\n"
+                "## Analysis Structure\n"
+                "1. **Observation** — what the data shows (cite specific files/dates)\n"
+                "2. **Pattern** — recurring theme or trend across entities or time\n"
+                "3. **Implication** — what this means, what it suggests about the future\n"
+                "4. **Confidence** — how solid is this inference? (strong evidence vs speculation)\n\n"
                 "## Quality Criteria\n"
-                "- Actionable: every brief ends with 'do this before/during/after the meeting'\n"
-                "- Personalized: reference specific prior interactions, not generic relationship advice\n"
-                "- Timely: meeting briefs available before the meeting, not after\n"
-                "- Concise: scannable in 2 minutes — the user has 5 minutes before the call\n"
+                "- Synthesis, not summary — connect dots across sources, don't restate them\n"
+                "- Name the pattern explicitly: 'Three competitors pivoted to enterprise in Q1'\n"
+                "- Flag contradictions: 'X suggests growth but Y signals contraction'\n"
+                "- Include a confidence level for inferences that are not directly evidenced\n"
+                "- Every analysis produces an actionable insight, not just an observation\n"
             ),
-            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
         },
     },
 
-    "operations": {
-        "class": "domain-steward",
-        "domain": "projects",
-        "display_name": "Operations",
-        "tagline": "Tracks projects and workstreams",
+    "writer": {
+        "class": "specialist",
+        "domain": None,
+        "display_name": "Writer",
+        "tagline": "Drafts polished deliverables from context",
         "capabilities": [
-            "read_slack", "read_notion", "read_github",
             "read_workspace", "search_knowledge",
-            "produce_markdown", "chart", "compose_html",
+            "produce_markdown",
         ],
-        "description": "Maintains project intelligence. Tracks status, milestones, "
-                       "blockers. Produces status reports.",
-        "default_instructions": "Maintain the projects/ context domain. Track project status, "
-                                "milestones, and blockers from platform signals. When asked for "
-                                "deliverables, synthesize from accumulated project context.",
-        "methodology": {
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Status Report Format\n"
-                "1. **Summary** — 2-3 sentences: overall health, biggest risk, biggest win\n"
-                "2. **By Project/Workstream** — for each: status (on track/at risk/blocked), "
-                "key milestone, next deadline, blockers\n"
-                "3. **Cross-Cutting Issues** — themes that affect multiple workstreams\n"
-                "4. **Decisions Needed** — what's waiting on someone, who, by when\n"
-                "5. **Next Period Focus** — what matters most in the coming cycle\n\n"
-                "## Milestone Tracking\n"
-                "- Use traffic light status: green (on track), yellow (at risk), red (blocked/late)\n"
-                "- Track planned vs actual dates — drift is signal\n"
-                "- Chart: Gantt-style timeline or milestone burn-down when multiple projects\n\n"
-                "## Blocker Escalation\n"
-                "- Blocked >2 days without owner → escalate\n"
-                "- Same blocker appearing in multiple projects → systemic issue\n"
-                "- Resource conflicts between projects → flag for prioritization\n\n"
-                "## Quality Criteria\n"
-                "- Objective: status is based on evidence (dates, completion %), not feelings\n"
-                "- Forward-looking: what's coming, not just what happened\n"
-                "- Actionable: every section implies a next step\n"
-                "- Concise: one page per project max — scannable by executives\n"
-            ),
-            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
-        },
-    },
-
-    "marketing": {
-        "class": "domain-steward",
-        "domain": "content_research",
-        "display_name": "Marketing & Creative",
-        "tagline": "Creates content and go-to-market materials",
-        "capabilities": [
-            "web_search", "read_workspace", "search_knowledge",
-            "read_slack", "read_notion", "read_github",
-            "produce_markdown", "chart", "mermaid", "image", "video_render", "compose_html",
-        ],
-        "description": "Maintains content research and produces creative deliverables. "
-                       "Blog posts, launch materials, GTM reports, ad creative.",
-        "default_instructions": "Maintain the content/ context domain. Research topics, track "
-                                "content opportunities. When asked for deliverables, produce "
-                                "polished content from accumulated research. Use visual assets "
-                                "(charts, diagrams, images) where they add value.",
+        "description": "Reads accumulated context and analysis, then produces polished "
+                       "text deliverables. Does not research or analyze — consumes what "
+                       "Researcher and Analyst have built and produces final written output.",
+        "default_instructions": (
+            "You are a Writer. Your job is to produce polished, audience-appropriate "
+            "deliverables from accumulated context. Read the context domain files and "
+            "analysis documents, then write. You do not search the web or generate images. "
+            "Your output is the final text artifact — report, brief, memo, narrative, "
+            "blog post, or update. Write well: clear structure, strong opening, no filler."
+        ),
         "methodology": {
             "_playbook-outputs.md": (
                 "# Output Playbook\n\n"
@@ -354,36 +277,29 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "### Reports\n"
                 "- Lead with the conclusion, not the process\n"
                 "- Use headings as scannable summary (reader should get 80% from headings alone)\n"
-                "- Data-heavy sections: chart + 1-sentence interpretation, not paragraphs describing data\n\n"
-                "### Presentations (HTML slide format)\n"
-                "- 1 idea per slide, 3 bullet points maximum\n"
-                "- Title slide → Agenda → Content slides → Summary → Next steps\n"
-                "- Charts/visuals on every other slide minimum\n"
-                "- Slide titles are assertions ('Revenue grew 23%'), not topics ('Revenue')\n\n"
-                "### Documents (memos, briefs, updates)\n"
+                "- Data references: cite specific files from context, not vague gestures at 'the data'\n\n"
+                "### Briefs & Memos\n"
                 "- BLUF (Bottom Line Up Front) — the ask or conclusion in the first paragraph\n"
                 "- Background only if the audience needs it\n"
                 "- End with clear next steps or decisions needed\n\n"
-                "## Asset Integration\n"
-                "- Charts: use when data tells the story better than words\n"
-                "- Diagrams: use for process flows, org structures, system architecture\n"
-                "- Images: use for brand assets, product screenshots, visual concepts\n"
-                "- Never use a visual as decoration — every asset must carry information\n\n"
+                "### Blog Posts / Narratives\n"
+                "- Open with a hook: a surprising fact, a tension, or a direct claim\n"
+                "- Use a clear through-line — one argument the whole piece supports\n"
+                "- Concrete examples over abstractions\n"
+                "- End with a specific, actionable implication\n\n"
+                "## Format Selection\n"
+                "- Status update for stakeholders → structured digest or memo\n"
+                "- Deep analysis for decision-makers → report with executive summary\n"
+                "- Public-facing content → blog post / narrative\n"
+                "- Presentation text → slide-ready bullets (not prose)\n\n"
                 "## Quality Criteria\n"
-                "- Audience-appropriate language and depth\n"
-                "- Consistent visual style within a single deliverable\n"
+                "- Audience-appropriate language: match their vocabulary and context\n"
                 "- Every section earns its place — delete sections that don't add value\n"
-                "- Proofread: no orphaned references, no TBD placeholders\n"
+                "- No placeholder text, no TBDs, no 'to be continued'\n"
+                "- Proofread for consistency: terms, names, dates all match source material\n"
             ),
-            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
             "_playbook-formats.md": (
                 "# Format Playbook\n\n"
-                "## Format Selection Heuristics\n"
-                "- Status update for executives → presentation (slide format)\n"
-                "- Deep analysis for decision-makers → report\n"
-                "- Quick alignment or approval → memo/brief\n"
-                "- Recurring team update → structured digest\n"
-                "- Creative/marketing deliverable → document with embedded visuals\n\n"
                 "## Tone Calibration\n"
                 "- Internal audience → direct, use jargon they know, skip context they have\n"
                 "- External audience → polished, define terms, provide context\n"
@@ -392,64 +308,120 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
                 "## Structural Patterns\n"
                 "- Pyramid principle: conclusion → supporting arguments → evidence\n"
                 "- Contrast pattern: situation → complication → resolution\n"
-                "- Narrative arc: context → tension → insight → implication\n"
+                "- Narrative arc: context → tension → insight → implication\n\n"
+                "## Length Discipline\n"
+                "- Brief/memo: 200-400 words. If you need more, it's a report.\n"
+                "- Report: 600-1500 words. If you need more, split into sections.\n"
+                "- Blog post: 600-1200 words. Readers leave at scroll depth 3.\n"
+                "- Every word must earn its place — no filler, no restating the obvious.\n"
             ),
-            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
+        },
+    },
+
+    "tracker": {
+        "class": "specialist",
+        "domain": None,
+        "display_name": "Tracker",
+        "tagline": "Monitors signals and maintains entity profiles",
+        "capabilities": [
+            "read_workspace", "search_knowledge",
+            "read_slack", "read_notion", "read_github",
+            "web_search", "investigate", "produce_markdown",
+        ],
+        "description": "Monitors recurring signals, tracks entity changes over time, "
+                       "and maintains temporal logs. Owns the signals domain. Fires on "
+                       "recurring cadence — watch, log, flag.",
+        "default_instructions": (
+            "You are a Tracker. Your job is to watch, log, and flag. On each run: "
+            "check your monitored sources for what changed since your last run, "
+            "write new signals to signals.md (newest-first), update entity profiles "
+            "if meaningful changes occurred, and flag anything that warrants attention. "
+            "Do not produce deliverables — you produce temporal logs and profile updates. "
+            "Add <!-- last-researched: {date} --> to entity profiles you update."
+        ),
+        "methodology": {
+            "_playbook-outputs.md": (
+                "# Output Playbook\n\n"
+                "## Tracker Output Formats\n"
+                "Your outputs are signal logs and profile updates:\n"
+                "- **signals.md** — append newest-first, dated entries: 'YYYY-MM-DD: [what changed]'\n"
+                "- **profile.md** — overwrite with current state when meaningful facts change\n"
+                "- **_digest.md** — optional: summary of signals since last run (overwrite)\n\n"
+                "## Signal Entry Format\n"
+                "```\n"
+                "## YYYY-MM-DD\n"
+                "- [Signal type: funding/product/leadership/regulatory/etc.] Description of what changed\n"
+                "  Source: [URL or platform reference]\n"
+                "  Significance: [why this matters — one sentence]\n"
+                "```\n\n"
+                "## What to Log\n"
+                "- Log: new product launches, leadership changes, funding announcements, "
+                "regulatory actions, partnership announcements, significant news coverage\n"
+                "- Skip: routine updates with no strategic significance, duplicate entries\n"
+                "- Flag (in _digest.md): anything requiring user attention or action\n\n"
+                "## Staleness Discipline\n"
+                "- Add <!-- last-researched: {date} --> to every entity profile you update\n"
+                "- If an entity profile hasn't been updated in >90 days, flag it\n"
+                "- Update landscape.md when 3+ entities have significant changes\n"
+            ),
+        },
+    },
+
+    "designer": {
+        "class": "specialist",
+        "domain": None,
+        "display_name": "Designer",
+        "tagline": "Creates visual assets — charts, diagrams, images",
+        "capabilities": [
+            "read_workspace", "search_knowledge",
+            "chart", "mermaid", "image", "video_render", "compose_html",
+        ],
+        "description": "Generates visual output: charts, mermaid diagrams, images, "
+                       "and composed HTML. The only specialist with production-phase "
+                       "capabilities. Reads context to inform visuals; does not research "
+                       "or write text deliverables.",
+        "default_instructions": (
+            "You are a Designer. Your job is to produce visual assets. "
+            "Read the task context and relevant workspace files to understand what visuals "
+            "are needed. Use RuntimeDispatch to generate charts (for data), mermaid diagrams "
+            "(for relationships/flows), and images (for illustration/brand). "
+            "Always check existing assets/ folders before generating — re-use is better than "
+            "redundant generation. Every visual must serve a purpose: information, context, or "
+            "brand presence. Never generate decorative filler."
+        ),
+        "methodology": {
             "_playbook-visual.md": (
                 "# Visual Production Playbook\n\n"
-                "## When to Generate Visuals\n"
-                "Use RuntimeDispatch to produce visual assets. Every visual must serve a purpose — "
-                "information, context, or brand presence. Never generate decorative filler.\n\n"
-                "## Image Generation (type='image')\n\n"
-                "### By Output Context\n"
-                "**Content Brief / Blog Post:**\n"
-                "- Prompt: topic-relevant conceptual illustration\n"
-                "- Aspect: 16:9 (blog header) or 3:2 (inline)\n"
-                "- Style: 'editorial' — magazine quality, sophisticated\n"
-                "- Include brand color in prompt if BRAND.md specifies one\n"
-                "- Place as hero image at top of deliverable\n\n"
-                "**Launch Material / Announcement:**\n"
-                "- Prompt: product-focused, action-oriented imagery\n"
-                "- Aspect: 1:1 (social) or 16:9 (banner)\n"
-                "- Style: 'professional' — clean, confident, modern\n"
-                "- Consider generating both 1:1 and 16:9 variants\n\n"
-                "**GTM Report / Competitive Brief:**\n"
-                "- Prefer charts and mermaid diagrams over generated images\n"
-                "- Generated images for cover/header only (4:3, 'professional' style)\n"
-                "- Use entity favicons from assets/ folder for company references\n\n"
-                "### Prompt Construction\n"
-                "1. Start with the subject: what the image depicts\n"
-                "2. Add composition guidance: 'centered', 'wide shot', 'close-up'\n"
-                "3. Include the style preset\n"
-                "4. If BRAND.md has colors, add: 'using [accent color] as highlight'\n"
-                "5. Always end with: 'no text overlay, no watermarks'\n\n"
-                "## Video Generation (type='video')\n\n"
-                "### When to Use Video\n"
-                "- Weekly/monthly recaps with 3+ key metrics → metrics video\n"
-                "- Key findings that benefit from sequential reveal → findings video\n"
-                "- Do NOT use video for single data points, simple lists, or anything "
-                "that works as well in static format\n\n"
-                "### Video Construction\n"
-                "- Always 3-5 slides. More is noisy, fewer is pointless.\n"
-                "- First slide: title + date/context (3s)\n"
-                "- Middle slides: content — one idea per slide (4-5s each)\n"
-                "- Last slide: attribution or CTA (2s)\n"
-                "- Theme: pull background/accent from BRAND.md if available\n"
-                "- Layout: 'center' for title/closing, 'split' for metric+label, 'stack' for lists\n\n"
-                "## Using Existing Assets\n\n"
-                "### Entity Favicons\n"
-                "Check the domain's assets/ folder for {entity-slug}-favicon.png files.\n"
-                "When referencing companies in HTML output, embed their favicon:\n"
-                "  <img src='{content_url}' width='24' height='24' alt='{name}'>\n\n"
-                "### Prior Generated Images\n"
-                "Check if a relevant image already exists in assets/ before generating new.\n"
-                "Re-use is better than redundant generation.\n\n"
+                "## When to Use Each Visual Type\n"
+                "- **Chart** (`RuntimeDispatch type='chart'`): quantitative data — trends, comparisons, distributions\n"
+                "- **Mermaid** (`RuntimeDispatch type='mermaid'`): relationships, flows, org charts, timelines\n"
+                "- **Image** (`RuntimeDispatch type='image'`): conceptual illustration, brand assets, cover art\n"
+                "- **Video** (`RuntimeDispatch type='video'`): key findings with sequential reveal, metric recaps\n\n"
+                "## Reuse Protocol\n"
+                "Check the domain's assets/ folder before generating:\n"
+                "- Entity favicons (`{slug}-favicon.png`): embed as inline icons next to company names\n"
+                "- Prior generated images: re-use if still relevant. Don't regenerate.\n"
+                "- Charts from prior cycles: reference or update, don't recreate from scratch\n\n"
+                "## Chart Construction\n"
+                "- Always include axis labels\n"
+                "- Add a one-sentence interpretation below every chart\n"
+                "- Minimal gridlines — horizontal only, light gray\n"
+                "- Use accent color as primary, gray for secondary series\n"
+                "- Never more than 3 colors in a single chart\n\n"
+                "## Image Generation\n"
+                "Prompt construction:\n"
+                "1. Subject: what the image depicts\n"
+                "2. Composition: 'centered', 'wide shot', 'close-up'\n"
+                "3. Style preset: 'editorial', 'professional', 'minimal'\n"
+                "4. Brand color (if BRAND.md specifies): 'using [accent color] as highlight'\n"
+                "5. Close with: 'no text overlay, no watermarks'\n\n"
                 "## Quality Gate\n"
-                "- Every visual must be referenced in the text\n"
+                "- Every visual must be referenced in the text output\n"
                 "- Charts need axis labels and a one-sentence interpretation\n"
                 "- Generated images need alt text in the HTML\n"
-                "- If a visual doesn't add information the text doesn't already convey, drop it\n"
+                "- If a visual doesn't add information the text doesn't already convey, skip it\n"
             ),
+            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
         },
     },
 
@@ -679,39 +651,58 @@ AGENT_TYPES = AGENT_TEMPLATES
 TP_ORCHESTRATION_PLAYBOOK = """\
 # Orchestration Playbook
 
+## Work-First Principle (ADR-176)
+Work exists first. Agents serve work. When a user states what they want to accomplish,
+resolve team composition from the work intent — not the other way around.
+
 ## Task Decomposition
-- Simple requests (single deliverable, clear audience) → assign to one agent
-- Complex requests (multi-source, multi-format) → split into research + content tasks
+- Simple requests (single deliverable, clear audience) → assign to one or two specialists
+- Complex requests (multi-source, multi-format) → Researcher first, then Analyst or Writer
 - Recurring work → create task with schedule, not one-off run
 - Bounded investigation → create goal-mode task with clear completion criteria
 
-## Agent Assignment
-- Competitive Intelligence: competitor tracking, competitive analysis, due diligence
-- Market Research: market segments, trends, sizing, opportunities
-- Business Development: contacts, relationships, meeting prep, deal tracking
-- Operations: project status, milestones, blockers, workstream tracking
-- Marketing & Creative: content, launch materials, GTM, ad creative, social
-- Reporting: board updates, stakeholder reports, cross-domain synthesis
-- Slack Bot: Slack digests (slack-digest), Slack posting (slack-respond) — requires Slack connection
-- Notion Bot: Notion digests (notion-digest), Notion updates (notion-update) — requires Notion connection
-- GitHub Bot: GitHub digests (github-digest) — requires GitHub connection
+## Specialist Assignment (ADR-176 Decision 1)
+Work requires finding info?        → Researcher
+Work requires synthesizing patterns? → Analyst
+Work requires a polished deliverable? → Writer
+Work requires monitoring over time? → Tracker
+Work requires visual assets?        → Designer
+Cross-domain summary?               → Reporting (synthesizer)
 
-## When Multiple Agents Are Needed
-- Competitive analysis → executive summary: Competitive Intelligence task first, then Reporting task
-- Market research → GTM plan: Market Research task first, then Marketing & Creative task
-- Operations status → board deck: Operations task first, then Reporting task
-- Don't assign content creation to research agents — they investigate, Marketing/Executive produce
+Platform bots (activate on connection):
+- Slack Bot: Slack digests (slack-digest), Slack posting (slack-respond)
+- Notion Bot: Notion digests (notion-digest), Notion updates (notion-update)
+- GitHub Bot: GitHub digests (github-digest)
+
+## Team Composition (ADR-176 Decision 2)
+TP owns full composition authority. Registry provides suggested defaults — apply judgment.
+
+Composition criteria:
+- Research task → Researcher [+ Analyst if synthesis needed]
+- Recurring deliverable → Researcher + Writer [+ Analyst, Designer optional]
+- Monitoring task → Tracker [+ Analyst optional]
+- One-time deliverable → Researcher + Writer
+- Visual output needed → add Designer
+- Cross-domain synthesis → Reporting
+
+Write team decisions into the ## Team section of TASK.md. Document reasoning briefly.
+
+## Capability Discipline
+- Researcher and Analyst: text and knowledge files only. Do NOT assign charts or images.
+- Writer: text deliverables only. Do NOT assign RuntimeDispatch visual tasks.
+- Designer: visual assets only (chart, mermaid, image, video). Add when a task needs visuals.
+- Reporting: reads all domains, produces synthesis. Do NOT assign platform-specific research.
 
 ## Feedback Routing
 - When user comments on output quality → UpdateContext(target="agent") to the producing agent
 - When user says "too long" / "more detail" / "different format" → feedback to agent
-- When user corrects orchestration ("don't use the marketing agent for this") → update this playbook
+- When user corrects orchestration → update this playbook
 - Positive feedback matters too — "great charts" confirms the agent's approach
 
 ## Quality Oversight
 - After task completion, check if output matches what was asked
 - If user edits frequently, note patterns in agent feedback
-- When an agent consistently underperforms, suggest task reassignment
+- When an agent consistently underperforms, suggest task reassignment or team restructure
 """
 
 
@@ -849,18 +840,24 @@ For ManageTask(action="create") custom tasks, pass `page_structure` as a list of
 """
 
 
-# Default roster created at sign-up (ADR-140 + ADR-164: TP added as 10th agent)
+# Default roster created at sign-up (ADR-176 v5: universal specialist model)
+# 6 specialists + 1 synthesizer + 3 platform-bots + 1 meta-cognitive = 11 agents
+# No ICP-specific domain-stewards. TP assigns domain from task context.
+# Bots activated when platform connected. TP always active.
 DEFAULT_ROSTER = [
-    {"title": "Competitive Intelligence", "role": "competitive_intel"},
-    {"title": "Market Research", "role": "market_research"},
-    {"title": "Business Development", "role": "business_dev"},
-    {"title": "Operations", "role": "operations"},
-    {"title": "Marketing & Creative", "role": "marketing"},
+    # Universal specialists (ADR-176 Decision 1)
+    {"title": "Researcher", "role": "researcher"},
+    {"title": "Analyst", "role": "analyst"},
+    {"title": "Writer", "role": "writer"},
+    {"title": "Tracker", "role": "tracker"},
+    {"title": "Designer", "role": "designer"},
+    # Synthesizer (cross-domain reporting)
     {"title": "Reporting", "role": "executive"},
+    # Platform bots (activated on platform connect — ADR-158)
     {"title": "Slack Bot", "role": "slack_bot"},
     {"title": "Notion Bot", "role": "notion_bot"},
     {"title": "GitHub Bot", "role": "github_bot"},
-    # ADR-164: TP is the meta-cognitive agent. Owns back office tasks.
+    # Meta-cognitive — ADR-164: TP owns back office tasks
     {"title": "Thinking Partner", "role": "thinking_partner"},
 ]
 
@@ -868,31 +865,35 @@ DEFAULT_ROSTER = [
 
 
 # Legacy role → new type mapping (for DB migration / backward compat reads)
+# v4 ICP domain-steward roles map to the nearest universal specialist (ADR-176)
 LEGACY_ROLE_MAP: dict[str, str] = {
     # v1 legacy
-    "digest": "competitive_intel",
+    "digest": "researcher",
     "synthesize": "executive",
-    "prepare": "marketing",
-    "custom": "competitive_intel",
+    "prepare": "writer",
+    "custom": "researcher",
     # v2 legacy (ADR-130)
-    "briefer": "competitive_intel",
-    "monitor": "operations",
-    "scout": "competitive_intel",
-    "researcher": "market_research",
-    "analyst": "competitive_intel",
-    "drafter": "marketing",
-    "writer": "marketing",
-    "planner": "operations",
+    "briefer": "writer",
+    "monitor": "tracker",
+    "scout": "tracker",
+    "drafter": "writer",
+    "planner": "analyst",
     # v3 legacy (ADR-140 v3)
-    "research": "competitive_intel",
-    "content": "marketing",
-    "crm": "business_dev",
-    # v4 current types pass through
-    "competitive_intel": "competitive_intel",
-    "market_research": "market_research",
-    "business_dev": "business_dev",
-    "operations": "operations",
-    "marketing": "marketing",
+    "research": "researcher",
+    "content": "writer",
+    "crm": "tracker",
+    # v4 ICP domain-steward roles (ADR-140 → superseded by ADR-176)
+    "competitive_intel": "researcher",
+    "market_research": "researcher",
+    "business_dev": "tracker",
+    "operations": "tracker",
+    "marketing": "writer",
+    # v5 current types pass through (ADR-176)
+    "researcher": "researcher",
+    "analyst": "analyst",
+    "writer": "writer",
+    "tracker": "tracker",
+    "designer": "designer",
     "executive": "executive",
     "slack_bot": "slack_bot",
     "notion_bot": "notion_bot",
@@ -1020,11 +1021,11 @@ RUNTIMES: dict[str, dict[str, Any]] = {
 # =============================================================================
 
 def get_type_capabilities(agent_type: str) -> list[str]:
-    """Return the capability list for an agent type. Falls back to competitive_intel for unknown."""
+    """Return the capability list for an agent type. Falls back to researcher for unknown."""
     resolved = resolve_role(agent_type)
     type_def = AGENT_TEMPLATES.get(resolved)
     if not type_def:
-        return AGENT_TEMPLATES["competitive_intel"]["capabilities"]
+        return AGENT_TEMPLATES["researcher"]["capabilities"]
     return type_def["capabilities"]
 
 
@@ -1162,7 +1163,7 @@ def get_relevant_playbooks(agent_type: str, output_kind: str | None = None) -> d
 def get_type_display(agent_type: str) -> dict[str, str]:
     """Return display_name and tagline for a type. Used by frontend + TP prompt."""
     resolved = resolve_role(agent_type)
-    type_def = AGENT_TEMPLATES.get(resolved, AGENT_TEMPLATES.get("competitive_intel", {}))
+    type_def = AGENT_TEMPLATES.get(resolved, AGENT_TEMPLATES.get("researcher", {}))
     return {
         "display_name": type_def.get("display_name", agent_type.title()),
         "tagline": type_def.get("tagline", ""),

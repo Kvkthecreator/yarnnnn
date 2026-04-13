@@ -123,30 +123,25 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   'back-office-workspace-cleanup': 'Workspace cleanup',
 };
 
-const AGENT_SHELL_REGISTRY: Record<AgentClass, AgentShellDescriptor> = {
-  'domain-steward': {
-    label: 'Role',
-    title: (agent) => (
-      agent.context_domain
-        ? `Tracks ${formatKeyLabel(agent.context_domain, false)}`
-        : roleDisplayName(agent.role)
-    ),
-    description: (agent) => (
-      agent.context_domain
-        ? `Builds up what we know about ${formatKeyLabel(agent.context_domain, false)} and turns that into reports and briefs.`
-        : roleTagline(agent.role) || agentClassDescription(agent.agent_class)
-    ),
-    highlights: (_, counts) => {
-      const highlights: string[] = [];
-      if (counts.accumulates_context > 0) {
-        highlights.push(`${counts.accumulates_context} tracking ${counts.accumulates_context === 1 ? 'task' : 'tasks'}`);
-      }
-      if (counts.produces_deliverable > 0) {
-        highlights.push(`${counts.produces_deliverable} deliverable ${counts.produces_deliverable === 1 ? 'task' : 'tasks'}`);
-      }
-      return highlights;
-    },
+const _SPECIALIST_SHELL: AgentShellDescriptor = {
+  label: 'Role',
+  title: (agent) => roleTagline(agent.role) || roleDisplayName(agent.role),
+  description: (agent) => agentClassDescription(agent.agent_class),
+  highlights: (_, counts) => {
+    const highlights: string[] = [];
+    if (counts.accumulates_context > 0) {
+      highlights.push(`${counts.accumulates_context} tracking ${counts.accumulates_context === 1 ? 'task' : 'tasks'}`);
+    }
+    if (counts.produces_deliverable > 0) {
+      highlights.push(`${counts.produces_deliverable} deliverable ${counts.produces_deliverable === 1 ? 'task' : 'tasks'}`);
+    }
+    return highlights;
   },
+};
+
+const AGENT_SHELL_REGISTRY: Record<AgentClass, AgentShellDescriptor> = {
+  'specialist': _SPECIALIST_SHELL,
+  'domain-steward': _SPECIALIST_SHELL, // backward compat — v4 DB rows
   synthesizer: {
     label: 'Role',
     title: () => 'Assembles cross-domain updates',
@@ -191,15 +186,14 @@ const AGENT_SHELL_REGISTRY: Record<AgentClass, AgentShellDescriptor> = {
   },
 };
 
+const _SPECIALIST_EMPTY_STATE: AgentEmptyStateDescriptor = {
+  title: () => 'No work assigned yet',
+  description: () => 'Ask your thinking partner to set up a task for this specialist.',
+};
+
 const AGENT_EMPTY_STATE_REGISTRY: Record<AgentClass, AgentEmptyStateDescriptor> = {
-  'domain-steward': {
-    title: () => 'No work assigned yet',
-    description: (agent) => (
-      agent.context_domain
-        ? `Ask your thinking partner to set up a tracker for ${formatKeyLabel(agent.context_domain, false)}.`
-        : 'Ask your thinking partner to set up a recurring tracker for this agent.'
-    ),
-  },
+  'specialist': _SPECIALIST_EMPTY_STATE,
+  'domain-steward': _SPECIALIST_EMPTY_STATE, // backward compat
   synthesizer: {
     title: () => 'No work assigned yet',
     description: () => 'Ask your thinking partner to create a reporting task once the specialists have trackers running.',
@@ -217,29 +211,28 @@ const AGENT_EMPTY_STATE_REGISTRY: Record<AgentClass, AgentEmptyStateDescriptor> 
   },
 };
 
+const _SPECIALIST_GUIDANCE: RoleGuidanceDescriptor = {
+  bestFor: (agent) => roleTagline(agent.role) || 'Doing one thing deeply and well.',
+  does: () => [
+    'Executes assigned tasks with full specialist focus',
+    'Reads and writes context domain files',
+    'Produces structured output (text, analysis, or visuals)',
+  ],
+  doesnt: () => [
+    'Orchestrate other agents or manage the workforce',
+    'Own cross-domain synthesis for the whole workspace',
+    'Run workspace-wide maintenance policy',
+  ],
+  examples: (agent) => [
+    `What should ${agent.title} focus on this week?`,
+    `Run ${agent.title} on the latest data.`,
+    `What has ${agent.title} produced recently?`,
+  ],
+};
+
 const ROLE_GUIDANCE_REGISTRY: Record<AgentClass, RoleGuidanceDescriptor> = {
-  'domain-steward': {
-    bestFor: (agent) => (
-      agent.context_domain
-        ? `Keeping ${formatKeyLabel(agent.context_domain, false)} current and turning it into useful updates.`
-        : 'Owning one topic deeply and keeping that context current over time.'
-    ),
-    does: (agent) => [
-      `Maintains ${formatKeyLabel(agent.context_domain || 'the assigned domain', false)} context files`,
-      'Tracks changes, trends, and notable signals',
-      'Produces domain-specific briefs when a task asks for one',
-    ],
-    doesnt: () => [
-      'Manage platform connection settings',
-      'Own cross-domain synthesis for the whole workspace',
-      'Run workspace-wide maintenance policy',
-    ],
-    examples: (agent) => [
-      `What changed in ${formatKeyLabel(agent.context_domain || 'this domain', false)} since last week?`,
-      'Draft a concise brief with implications and recommended actions.',
-      'Highlight the top 3 signals worth escalating this week.',
-    ],
-  },
+  'specialist': _SPECIALIST_GUIDANCE,
+  'domain-steward': _SPECIALIST_GUIDANCE, // backward compat
   synthesizer: {
     bestFor: () => 'Combining specialist inputs into one coherent cross-domain readout.',
     does: () => [
@@ -474,7 +467,7 @@ function normalizeCadenceLabel(schedule?: string | null): string {
 }
 
 function summarizeRoleContract(agent: Agent, tasks: Task[]) {
-  const cls = (agent.agent_class || 'domain-steward') as AgentClass;
+  const cls = (agent.agent_class || 'specialist') as AgentClass;
   const liveTasks = tasks.filter((task) => task.status !== 'archived');
   const activeTasks = liveTasks.filter((task) => task.status === 'active');
 
@@ -583,8 +576,8 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
 }
 
 function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
-  const descriptor = AGENT_SHELL_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
-  const guidance = ROLE_GUIDANCE_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
+  const descriptor = AGENT_SHELL_REGISTRY[(agent.agent_class || 'specialist') as AgentClass];
+  const guidance = ROLE_GUIDANCE_REGISTRY[(agent.agent_class || 'specialist') as AgentClass];
   const contract = summarizeRoleContract(agent, tasks);
   const instructions = agent.agent_instructions
     ? stripLeadingH1IfMatchesTitle(agent.agent_instructions, agent.title).trim()
@@ -684,7 +677,9 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
 }
 
 function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
-  if (agent.agent_class !== 'domain-steward' || !agent.context_domain) return null;
+  // Show for specialists (v5) and domain-stewards (v4 backward compat) that have a context domain
+  const isSpecialist = agent.agent_class === 'specialist' || agent.agent_class === 'domain-steward';
+  if (!isSpecialist || !agent.context_domain) return null;
 
   const activeTrackingTasks = tasks.filter((task) => task.status === 'active' && task.output_kind === 'accumulates_context');
   const domainLabel = formatKeyLabel(agent.context_domain);
@@ -1043,7 +1038,7 @@ function TaskCard({ task, agentSlug }: { task: Task; agentSlug: string }) {
 }
 
 function EmptyAssignedWork({ agent, onCreateTask }: { agent: Agent; onCreateTask?: () => void }) {
-  const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'domain-steward') as AgentClass];
+  const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'specialist') as AgentClass];
   const platformProvider = agent.agent_class === 'platform-bot' ? platformProviderForRole(agent.role) : null;
   const managementHref = platformManagementHref(platformProvider);
 
@@ -1149,7 +1144,7 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 
 
 export function AgentContentView({ agent, tasks, onCreateTask }: AgentContentViewProps) {
-  const cls = agent.agent_class || 'domain-steward';
+  const cls = agent.agent_class || 'specialist';
   const isPlatformBot = cls === 'platform-bot';
   const isMetaCognitive = cls === 'meta-cognitive';
 

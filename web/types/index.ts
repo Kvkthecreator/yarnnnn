@@ -170,18 +170,23 @@ export type Scope =
   | "autonomous";     // Full primitive set, agent-driven
 
 export type Role =
-  // Canonical workforce roster (ADR-140 + ADR-164)
-  | "competitive_intel"
-  | "market_research"
-  | "business_dev"
-  | "operations"
-  | "marketing"
+  // Canonical workforce roster v5 (ADR-176: universal specialist model)
+  | "researcher"
+  | "analyst"
+  | "writer"
+  | "tracker"
+  | "designer"
   | "executive"
   | "slack_bot"
   | "notion_bot"
   | "github_bot"
   | "thinking_partner"
-  // Legacy roles kept for backward-compat reads
+  // Legacy roles kept for backward-compat DB reads (mapped via LEGACY_ROLE_MAP)
+  | "competitive_intel"
+  | "market_research"
+  | "business_dev"
+  | "operations"
+  | "marketing"
   | "digest"
   | "prepare"
   | "monitor"
@@ -191,10 +196,7 @@ export type Role =
   | "custom"
   | "briefer"
   | "scout"
-  | "researcher"
-  | "analyst"
   | "drafter"
-  | "writer"
   | "planner"
   | "content"
   | "crm";
@@ -370,7 +372,7 @@ export interface Agent {
   avg_edit_distance?: number;
   description?: string;
   // SURFACE-ARCHITECTURE v3: agent class + owned context domain
-  agent_class?: 'domain-steward' | 'synthesizer' | 'platform-bot' | 'meta-cognitive';
+  agent_class?: 'specialist' | 'domain-steward' | 'synthesizer' | 'platform-bot' | 'meta-cognitive';
   context_domain?: string;  // owned domain key (e.g., "competitors"), null for synthesizers
 }
 

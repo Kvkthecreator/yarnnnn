@@ -322,7 +322,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": [],
         "process": [
             {
-                "agent_type": "competitive_intel",
+                "agent_type": "researcher",
                 "step": "update-context",
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
@@ -369,7 +369,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": [],
         "process": [
             {
-                "agent_type": "market_research",
+                "agent_type": "researcher",
                 "step": "update-context",
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
@@ -410,7 +410,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": [],
         "process": [
             {
-                "agent_type": "business_dev",
+                "agent_type": "tracker",
                 "step": "update-context",
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
@@ -450,7 +450,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": [],
         "process": [
             {
-                "agent_type": "operations",
+                "agent_type": "tracker",
                 "step": "update-context",
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
@@ -490,7 +490,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": [],
         "process": [
             {
-                "agent_type": "marketing",
+                "agent_type": "writer",
                 "step": "update-context",
                 "instruction": STEP_INSTRUCTIONS["update-context"],
             },
@@ -738,7 +738,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": ["pdf"],
         "process": [
             {
-                "agent_type": "competitive_intel",
+                "agent_type": "researcher",
                 "step": "derive-output",
                 "instruction": STEP_INSTRUCTIONS["derive-output"],
             },
@@ -800,7 +800,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": ["pdf"],
         "process": [
             {
-                "agent_type": "market_research",
+                "agent_type": "researcher",
                 "step": "derive-output",
                 "instruction": STEP_INSTRUCTIONS["derive-output"],
             },
@@ -854,7 +854,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": [],
         "process": [
             {
-                "agent_type": "business_dev",
+                "agent_type": "tracker",
                 "step": "derive-output",
                 "instruction": STEP_INSTRUCTIONS["derive-output"],
             },
@@ -1007,7 +1007,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": [],
         "process": [
             {
-                "agent_type": "operations",
+                "agent_type": "tracker",
                 "step": "derive-output",
                 "instruction": STEP_INSTRUCTIONS["derive-output"],
             },
@@ -1054,7 +1054,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": ["pdf"],
         "process": [
             {
-                "agent_type": "marketing",
+                "agent_type": "writer",
                 "step": "derive-output",
                 "instruction": STEP_INSTRUCTIONS["derive-output"],
             },
@@ -1107,7 +1107,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "export_options": ["pdf"],
         "process": [
             {
-                "agent_type": "marketing",
+                "agent_type": "writer",
                 "step": "derive-output",
                 "instruction": STEP_INSTRUCTIONS["derive-output"],
             },

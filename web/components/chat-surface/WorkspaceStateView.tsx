@@ -334,7 +334,10 @@ function OverviewTab({
     : 'empty';
 
   const domainAgents = agents.filter(
-    (a) => (a.agent_class || 'domain-steward') === 'domain-steward',
+    (a) => {
+        const cls = a.agent_class || 'specialist';
+        return cls === 'specialist' || cls === 'domain-steward';
+      },
   );
   const BOT_ROLES: ReadonlySet<string> = new Set(['slack_bot', 'notion_bot', 'github_bot']);
   const bots = agents.filter((a) => BOT_ROLES.has(a.role as string));
@@ -609,7 +612,10 @@ function FlagsTab({
 
     // Domain agents without tasks
     const domainAgents = agents.filter(
-      (a) => (a.agent_class || 'domain-steward') === 'domain-steward',
+      (a) => {
+        const cls = a.agent_class || 'specialist';
+        return cls === 'specialist' || cls === 'domain-steward';
+      },
     );
     const idle = domainAgents.filter((agent) => {
       const slug = getAgentSlug(agent);

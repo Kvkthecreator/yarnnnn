@@ -10,21 +10,25 @@
  *
  * Backend canonical types live in `api/services/agent_framework.py`.
  * Frontend helpers here must stay aligned with that roster.
+ *
+ * v5 (ADR-176): Universal specialist model — 6 specialists + 1 synthesizer + 3 bots.
+ * ICP domain-steward roles (competitive_intel, market_research, business_dev,
+ * operations, marketing) removed from canonical set; mapped via LEGACY_ROLE_MAP.
  */
 
 type CanonicalAgentRole =
-  | 'competitive_intel'
-  | 'market_research'
-  | 'business_dev'
-  | 'operations'
-  | 'marketing'
+  | 'researcher'
+  | 'analyst'
+  | 'writer'
+  | 'tracker'
+  | 'designer'
   | 'executive'
   | 'slack_bot'
   | 'notion_bot'
   | 'github_bot'
   | 'thinking_partner';
 
-type AgentClass = 'domain-steward' | 'synthesizer' | 'platform-bot' | 'meta-cognitive';
+type AgentClass = 'specialist' | 'synthesizer' | 'platform-bot' | 'meta-cognitive';
 export type PlatformBotProvider = 'slack' | 'notion' | 'github';
 
 interface RoleMeta {
@@ -39,68 +43,74 @@ interface RoleMeta {
 }
 
 const LEGACY_ROLE_MAP: Record<string, CanonicalAgentRole> = {
-  digest: 'competitive_intel',
+  // v1 legacy
+  digest: 'researcher',
   synthesize: 'executive',
-  prepare: 'marketing',
-  custom: 'competitive_intel',
-  briefer: 'competitive_intel',
-  monitor: 'operations',
-  scout: 'competitive_intel',
-  researcher: 'market_research',
-  analyst: 'competitive_intel',
-  drafter: 'marketing',
-  writer: 'marketing',
-  planner: 'operations',
-  research: 'competitive_intel',
-  content: 'marketing',
-  crm: 'business_dev',
+  prepare: 'writer',
+  custom: 'researcher',
+  // v2 legacy (ADR-130)
+  briefer: 'writer',
+  monitor: 'tracker',
+  scout: 'tracker',
+  drafter: 'writer',
+  planner: 'analyst',
+  // v3 legacy
+  research: 'researcher',
+  content: 'writer',
+  crm: 'tracker',
+  // v4 ICP domain-steward roles (ADR-140 → superseded by ADR-176)
+  competitive_intel: 'researcher',
+  market_research: 'researcher',
+  business_dev: 'tracker',
+  operations: 'tracker',
+  marketing: 'writer',
 };
 
 const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
-  competitive_intel: {
-    displayName: 'Competitive Intelligence',
-    shortLabel: 'CI',
-    tagline: 'Tracks and analyzes competitors',
+  researcher: {
+    displayName: 'Researcher',
+    shortLabel: 'Research',
+    tagline: 'Finds, investigates, and builds knowledge',
     avatarHex: '#3b82f6',
     badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
     authorClass: 'text-blue-600 dark:text-blue-400',
-    iconName: 'Crosshair',
+    iconName: 'Search',
   },
-  market_research: {
-    displayName: 'Market Research',
-    shortLabel: 'Market',
-    tagline: 'Tracks market trends and opportunities',
+  analyst: {
+    displayName: 'Analyst',
+    shortLabel: 'Analysis',
+    tagline: 'Reads accumulated context and finds patterns',
     avatarHex: '#0ea5e9',
     badgeClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
     authorClass: 'text-sky-600 dark:text-sky-400',
-    iconName: 'TrendingUp',
+    iconName: 'LineChart',
   },
-  business_dev: {
-    displayName: 'Business Development',
-    shortLabel: 'Biz Dev',
-    tagline: 'Manages relationships and deals',
+  writer: {
+    displayName: 'Writer',
+    shortLabel: 'Writing',
+    tagline: 'Drafts polished deliverables from context',
     avatarHex: '#f97316',
     badgeClass: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
     authorClass: 'text-orange-600 dark:text-orange-400',
-    iconName: 'Handshake',
+    iconName: 'PenLine',
   },
-  operations: {
-    displayName: 'Operations',
-    shortLabel: 'Ops',
-    tagline: 'Tracks projects and workstreams',
+  tracker: {
+    displayName: 'Tracker',
+    shortLabel: 'Tracking',
+    tagline: 'Monitors signals and maintains entity profiles',
     avatarHex: '#10b981',
     badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
     authorClass: 'text-emerald-600 dark:text-emerald-400',
-    iconName: 'Settings2',
+    iconName: 'Activity',
   },
-  marketing: {
-    displayName: 'Marketing & Creative',
-    shortLabel: 'Marketing',
-    tagline: 'Creates content and go-to-market materials',
+  designer: {
+    displayName: 'Designer',
+    shortLabel: 'Design',
+    tagline: 'Creates visual assets — charts, diagrams, images',
     avatarHex: '#ec4899',
     badgeClass: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
     authorClass: 'text-pink-600 dark:text-pink-400',
-    iconName: 'Megaphone',
+    iconName: 'Palette',
   },
   executive: {
     displayName: 'Reporting',
@@ -150,9 +160,9 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
 };
 
 const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
-  'domain-steward': {
+  specialist: {
     label: 'Specialist',
-    description: 'Owns one context domain and accumulates judgment over time.',
+    description: 'Does one thing well — research, analysis, writing, tracking, or design.',
   },
   synthesizer: {
     label: 'Reporting',
@@ -173,7 +183,7 @@ function isCanonicalRole(role: string): role is CanonicalAgentRole {
 }
 
 export function resolveRole(role?: string | null): CanonicalAgentRole | string {
-  if (!role) return 'competitive_intel';
+  if (!role) return 'researcher';
   if (isCanonicalRole(role)) return role;
   return LEGACY_ROLE_MAP[role] || role;
 }
@@ -209,11 +219,14 @@ export function roleTagline(role?: string | null): string {
 
 export function agentClassLabel(agentClass?: string | null): string {
   if (!agentClass) return 'Specialist';
+  // backward compat: 'domain-steward' from old DB rows maps to 'specialist'
+  if (agentClass === 'domain-steward') return 'Specialist';
   return CLASS_META[agentClass as AgentClass]?.label || agentClass.replace(/-/g, ' ');
 }
 
 export function agentClassDescription(agentClass?: string | null): string {
-  if (!agentClass) return CLASS_META['domain-steward'].description;
+  if (!agentClass) return CLASS_META['specialist'].description;
+  if (agentClass === 'domain-steward') return CLASS_META['specialist'].description;
   return CLASS_META[agentClass as AgentClass]?.description || '';
 }
 

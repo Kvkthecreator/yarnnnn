@@ -7,15 +7,14 @@
  * land on /agents with no `?agent=` param: the team roster grouped by class,
  * with health glances per agent.
  *
- * Grouping (ADR-140 v4 + ADR-164):
+ * Grouping (ADR-176 v5 + ADR-164):
  *   - Thinking Partner: 1 meta-cognitive agent that owns back office work (shown first)
- *   - Specialists: 5 domain-steward agents that own context domains
+ *   - Specialists: 6 universal specialist agents (Researcher, Analyst, Writer, Tracker, Designer)
  *   - Reporting: 1 synthesizer agent that reads cross-domain
  *   - Integrations: 3 platform-bot agents (Slack, Notion, GitHub)
  *
  * Per-card health glance:
  *   - Status indicator (active/paused)
- *   - Domain owned (for stewards)
  *   - Active task count
  *   - Last run (relative time, color-coded by freshness)
  *   - Approval rate (only if version_count >= 5, with trend)
@@ -37,15 +36,20 @@ interface AgentRosterSurfaceProps {
   onSelect: (agentId: string) => void;
 }
 
-const CLASS_ORDER = ['meta-cognitive', 'domain-steward', 'synthesizer', 'platform-bot'] as const;
+// 'specialist' is the v5 class; 'domain-steward' kept for backward compat with old DB rows
+const CLASS_ORDER = ['meta-cognitive', 'specialist', 'domain-steward', 'synthesizer', 'platform-bot'] as const;
 const CLASS_LABELS: Record<string, { title: string; description: string }> = {
   'meta-cognitive': {
     title: 'Thinking Partner',
     description: 'Your day-to-day collaborator. Chats with you and runs background upkeep.',
   },
+  'specialist': {
+    title: 'Specialists',
+    description: 'Each one does one thing well — research, analysis, writing, tracking, or design.',
+  },
   'domain-steward': {
     title: 'Specialists',
-    description: 'Each one owns a topic and gets smarter about it over time.',
+    description: 'Each one does one thing well — research, analysis, writing, tracking, or design.',
   },
   'synthesizer': {
     title: 'Reporting',
@@ -88,11 +92,19 @@ function fmtDomain(value?: string | null): string {
 
 export function AgentRosterSurface({ agents, tasks, onSelect }: AgentRosterSurfaceProps) {
   const grouped = useMemo(() => {
-    return CLASS_ORDER.map(cls => ({
+    // Group agents: 'specialist' is v5 class; 'domain-steward' is v4 backward compat
+    // Both render under the same "Specialists" label — merge them into one group
+    const groups = CLASS_ORDER.map(cls => ({
       cls,
       label: CLASS_LABELS[cls],
-      agents: agents.filter(a => (a.agent_class || 'domain-steward') === cls),
+      agents: agents.filter(a => {
+        const agentCls = a.agent_class || 'specialist';
+        if (cls === 'specialist') return agentCls === 'specialist' || agentCls === 'domain-steward';
+        if (cls === 'domain-steward') return false; // handled by 'specialist' group
+        return agentCls === cls;
+      }),
     })).filter(g => g.agents.length > 0);
+    return groups;
   }, [agents]);
 
   if (agents.length === 0) {

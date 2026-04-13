@@ -40,11 +40,10 @@ function buildCreateTaskPrompt(agent: Agent, hasExistingTasks: boolean): string 
       return `Create the first reporting task for ${agent.title}, using active specialist inputs.`;
     case 'meta-cognitive':
       return `Create the core maintenance tasks for ${agent.title}.`;
-    case 'domain-steward':
+    case 'specialist':
+    case 'domain-steward': // backward compat for v4 DB rows
     default:
-      return agent.context_domain
-        ? `Create the first recurring tracking task for ${agent.title} in ${agent.context_domain}.`
-        : `Create the first recurring tracking task for ${agent.title}.`;
+      return `Create the first recurring task for ${agent.title}.`;
   }
 }
 
