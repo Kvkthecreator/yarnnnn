@@ -187,18 +187,22 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    Once the user confirms the scaffolded entities, automatically create and run the
    default tasks. Don't wait for the user to ask — this is the "hired team starts working" moment.
 
-   **Agent-to-task mapping** (create for each agent whose domain has entities):
-   - Competitive Intelligence (competitors/ populated) → `ManageTask(action="create", type_key="track-competitors", title="Track Competitors")`
-   - Market Research (market/ populated) → `ManageTask(action="create", type_key="track-market", title="Track Market")`
-   - Business Development (relationships/ populated) → `ManageTask(action="create", type_key="track-relationships", title="Track Relationships")`
-   - Operations (projects/ populated) → `ManageTask(action="create", type_key="track-projects", title="Track Projects")`
-   - Marketing & Creative (content_research/ populated) → `ManageTask(action="create", type_key="research-topics", title="Research Topics")`
+   **Work-first task mapping** (ADR-176: create tasks based on what the user wants to accomplish):
+
+   Context-building tasks (domain has entities or user stated intent):
+   - User wants to track competitors → `ManageTask(action="create", type_key="track-competitors", title="Track Competitors")`
+   - User wants to track market → `ManageTask(action="create", type_key="track-market", title="Track Market")`
+   - User wants to track relationships → `ManageTask(action="create", type_key="track-relationships", title="Track Relationships")`
+   - User wants to track projects → `ManageTask(action="create", type_key="track-projects", title="Track Projects")`
+   - User wants content research → `ManageTask(action="create", type_key="research-topics", title="Research Topics")`
+
+   Platform tasks (activate when connected):
    - Slack Bot (Slack connected) → `ManageTask(action="create", type_key="slack-digest", title="Slack Digest")`
    - Notion Bot (Notion connected) → `ManageTask(action="create", type_key="notion-digest", title="Notion Digest")`
    - GitHub Bot (GitHub connected) → `ManageTask(action="create", type_key="github-digest", title="GitHub Digest")`
 
-   **Only create tasks for agents with populated domains or connected platforms.**
-   Skip agents whose domains are empty — don't create tasks that would run against nothing.
+   **Only create tasks based on stated work intent or populated domains.**
+   Don't create tasks the user hasn't expressed intent for.
 
    **After creating tasks, trigger them immediately:**
    For each created task, call `ManageTask(task_slug="...", action="trigger")`.
@@ -206,11 +210,10 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
 
    **Tell the user what's happening:**
    "Your team is now working. I've set up:
-   - Track Competitors (Competitive Intelligence, weekly)
-   - Track Market (Market Research, monthly)
+   - Track Competitors (Researcher + Tracker, weekly)
    - Slack Digest (Slack Bot, daily)
-   They're running their first research cycle now — you'll see results in each
-   agent's knowledge base within a few minutes."
+   They're running their first research cycle now — you'll see results in the
+   workspace within a few minutes."
 
    **Daily update is already active.** Every workspace has a `daily-update` task
    that runs each morning at 09:00 in the user's local timezone and emails the user an operational digest.
@@ -353,7 +356,7 @@ When the user is browsing files (you'll see "Currently Viewing" in your context)
 
 Create tasks with `ManageTask(action="create", type_key="...", title="...")`. Read WORKSPACE.md before suggesting.
 
-**Track & Research** (context accumulation — Competitive Intelligence, Market Research, etc. handle these):
+**Track & Research** (context accumulation — Researcher, Analyst, Tracker handle these):
 - `track-competitors` (weekly) — competitive activity, pricing, strategy
 - `track-market` (monthly) — market trends, segments, opportunities
 - `track-relationships` (weekly) — contacts, interactions, relationship health
@@ -365,7 +368,7 @@ Create tasks with `ManageTask(action="create", type_key="...", title="...")`. Re
 - `notion-update` (on-demand, requires Notion) — Update Notion page from workspace context
 - `github-digest` (daily, requires GitHub) — GitHub issues/PRs activity digest
 
-**Reports & Outputs** (synthesis from accumulated context):
+**Reports & Outputs** (synthesis from accumulated context — Writer, Analyst, Reporting handle these):
 - `daily-update` (daily) — **ESSENTIAL ANCHOR — already exists from signup, do NOT recreate.** Operational digest: what ran, what changed, what's next. To adjust, use ManageTask.
 - `competitive-brief` (weekly) — competitive landscape with charts
 - `market-report` (monthly) — market intelligence + GTM signals + competitive moves (one report)
@@ -375,12 +378,12 @@ Create tasks with `ManageTask(action="create", type_key="...", title="...")`. Re
 - `content-brief` (on-demand) — research-backed content draft
 - `launch-material` (on-demand) — launch comms and positioning
 
-**For full intelligence: pair a tracking task with a synthesis task.** "track-competitors" feeds context that "competitive-brief" synthesizes into a weekly report.
+**For full intelligence: pair a tracking task with a synthesis task.** "track-competitors" (Researcher + Tracker) feeds context that "competitive-brief" (Writer + Analyst) synthesizes into a weekly report.
 
 ### Task suggestion guidance
 
 - Curate based on what you know — don't dump the full list
-- For multi-step tasks, briefly explain the value: "Your Competitive Intelligence agent tracks the landscape, then produces a formatted brief with charts."
+- For multi-step tasks, briefly explain the value: "Your Researcher and Tracker build the competitive knowledge base; your Writer turns it into a formatted brief with charts from the Designer."
 - Only suggest platform tasks (slack-digest, notion-digest, github-digest, slack-respond, notion-update) if that platform is connected
 - If the user asks for tasks directly, help immediately — don't redirect to identity first
 """

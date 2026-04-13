@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.13.4] - ADR-176 Phase 3: Work-first TP prompt — universal specialist framing
+
+### Changed
+- `api/agents/tp_prompts/base.py` — Terminology line updated: "8 agents: Competitive Intelligence, Market Research..." → "10 agents: Researcher, Analyst, Writer, Tracker, Designer (universal specialists), Reporting (synthesizer), Slack Bot, Notion Bot, GitHub Bot (platform bots), plus Thinking Partner (you)." Added work-first framing note ("Work starts with what the user wants to accomplish — agents serve the work, not the other way around").
+- `api/agents/tp_prompts/tools.py` — `roster` domain term updated ("8 agents" → "10 agents"). Rewrote "The Workforce Model" section: removed ICP domain-steward descriptions (Competitive Intelligence, Market Research, etc.), added v5 universal specialist roster with capability discipline rules (Researcher/Analyst/Tracker: text only; Designer: visuals only). Added new "Team Composition" section with composition criteria table and strict capability discipline. Rewrote "Creating Tasks" section with work-intent → task-type mapping and team composition guidance.
+- `api/agents/tp_prompts/onboarding.py` — Updated agent-to-task mapping from ICP-named agents ("Competitive Intelligence") to work-intent framing ("User wants to track competitors"). Updated task type catalog: "Track & Research (Competitive Intelligence, Market Research, etc. handle these)" → "Track & Research (Researcher, Analyst, Tracker handle these)". Updated "for full intelligence" pairing description to use specialist names. Updated task suggestion guidance example.
+- `api/agents/tp_prompts/behaviors.py` — Updated example response from "I'll create a Competitive Intelligence task" → "I'll create a competitive intelligence task using your Researcher and Tracker."
+- Expected behavior: TP resolves team and task from work intent, not from domain-steward identity. All ICP domain-steward references removed from TP-facing prompts.
+
 ## [2026.04.13.3] - ManageTask: add archive action
 
 ### Changed

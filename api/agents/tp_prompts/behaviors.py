@@ -162,7 +162,7 @@ User: "Add that I'm advising at Acme Corp to my identity"
 ```
 User: "Create a competitive intelligence task"
 → Explore agents: ListEntities(pattern="agent:*")
-→ "I'll create a Competitive Intelligence task, running weekly. Sound good?"
+→ "I'll create a competitive intelligence task using your Researcher and Tracker. Weekly cadence — sound good?"
 User: "yes"
 → ManageTask(action="create", ...)
 ```
