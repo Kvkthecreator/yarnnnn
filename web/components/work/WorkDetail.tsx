@@ -3,33 +3,30 @@
 /**
  * WorkDetail — Center panel content for selected task on /work.
  *
- * SURFACE-ARCHITECTURE.md v10.0 — kind-aware detail (2026-04-14).
+ * SURFACE-ARCHITECTURE.md v11 — Work is operational only (ADR-180, 2026-04-14).
  *
- * Design principle: each output_kind answers a different question.
- * A single shared action bar is wrong — the four kinds have fundamentally
- * different user mental models:
+ * Work answers: "Is this task configured, healthy, and running correctly?"
+ * Work does NOT show: output documents, accumulated files, domain knowledge.
+ * Those live in Context.
  *
- *   produces_deliverable → "What did it produce?"   → output artifact as hero
- *   accumulates_context  → "Is it healthy?"          → run health + compact receipts
- *   external_action      → "Fire it / what did it send?" → Fire primary + history
- *   system_maintenance   → "Is the system healthy?" → log only, no actions
+ * Kind dispatch (ADR-166):
+ *   produces_deliverable → objective + link to outputs in Context
+ *   accumulates_context  → objective + link to domain files in Context
+ *   external_action      → Fire primary + history (no outputs to migrate)
+ *   system_maintenance   → log only, no actions (no outputs to migrate)
  *
- * Changes from v9.5:
- *   - Run now REMOVED. Execution intent goes through TP.
- *   - Pause/Resume moved to ··· overflow menu (lifecycle management is rare).
- *   - external_action gets a Fire primary action (firing IS the workflow).
- *   - Objective block shown only for produces_deliverable.
- *   - Agent footer REMOVED (agent visible in list row + breadcrumb).
- *   - Header metadata strip is kind-specific (different signals matter per kind).
+ * ADR-180 changes from v10:
+ *   - KindMiddle no longer renders DeliverableMiddle or TrackingMiddle.
+ *   - produces_deliverable and accumulates_context show OutputsLinkBlock instead.
+ *   - ObjectiveBlock shown for all kinds (describes the task's purpose).
+ *   - DeliverableMiddle and TrackingMiddle now live in the Context surface.
  */
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  MoreHorizontal, Pause, Play, MessageSquare, Send, Loader2,
+  MoreHorizontal, Pause, Play, MessageSquare, Send, Loader2, ArrowRight,
 } from 'lucide-react';
-import { DeliverableMiddle } from './details/DeliverableMiddle';
-import { TrackingMiddle } from './details/TrackingMiddle';
 import { ActionMiddle } from './details/ActionMiddle';
 import { MaintenanceMiddle } from './details/MaintenanceMiddle';
 import { WorkModeBadge } from './WorkModeBadge';
@@ -367,20 +364,69 @@ function ObjectiveBlock({ task }: { task: Task }) {
   );
 }
 
-// ─── Kind dispatch (ADR-167) ─────────────────────────────────────────────────
+// ─── Outputs link block (ADR-180) ────────────────────────────────────────────
+// For produces_deliverable and accumulates_context tasks, Work is operational only.
+// Outputs and accumulated knowledge live in Context.
+
+function OutputsLinkBlock({ task }: { task: Task }) {
+  const kind = task.output_kind ?? 'produces_deliverable';
+  const hasOutput = !!task.last_run_at;
+
+  if (kind === 'accumulates_context') {
+    const writes = task.context_writes ?? [];
+    const primaryDomain = writes.find(d => d !== 'signals') ?? writes[0] ?? null;
+    const href = primaryDomain
+      ? `${CONTEXT_ROUTE}?domain=${primaryDomain}`
+      : CONTEXT_ROUTE;
+
+    return (
+      <div className="px-6 py-5">
+        <Link
+          href={href}
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+        >
+          View accumulated knowledge in Context
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+        {!hasOutput && (
+          <p className="mt-1.5 text-xs text-muted-foreground/60">No runs yet — files will appear here after first execution.</p>
+        )}
+      </div>
+    );
+  }
+
+  // produces_deliverable
+  const href = `${CONTEXT_ROUTE}?path=/tasks/${task.slug}/outputs/latest`;
+  return (
+    <div className="px-6 py-5">
+      <Link
+        href={href}
+        className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+      >
+        View latest output in Context
+        <ArrowRight className="w-3.5 h-3.5" />
+      </Link>
+      {!hasOutput && (
+        <p className="mt-1.5 text-xs text-muted-foreground/60">No output yet — will appear here after first run.</p>
+      )}
+    </div>
+  );
+}
+
+// ─── Kind dispatch (ADR-180) ─────────────────────────────────────────────────
+// Work = operational. produces_deliverable and accumulates_context link to Context.
+// external_action and system_maintenance have no outputs — rendered inline.
 
 function KindMiddle({ task, refreshKey }: { task: Task | TaskDetail; refreshKey: number }) {
-  const deliverableSpec = (task as TaskDetail).deliverable_spec ?? null;
   switch (task.output_kind) {
-    case 'accumulates_context':
-      return <TrackingMiddle task={task} refreshKey={refreshKey} deliverableSpec={deliverableSpec} />;
     case 'external_action':
       return <ActionMiddle task={task} refreshKey={refreshKey} />;
     case 'system_maintenance':
       return <MaintenanceMiddle task={task} refreshKey={refreshKey} />;
+    case 'accumulates_context':
     case 'produces_deliverable':
     default:
-      return <DeliverableMiddle taskSlug={task.slug} refreshKey={refreshKey} deliverableSpec={deliverableSpec} />;
+      return <OutputsLinkBlock task={task} />;
   }
 }
 
@@ -483,8 +529,8 @@ export function WorkDetail({
           metadata={metadata}
           actions={actions}
         />
-        {/* Objective block — only for produces_deliverable */}
-        {kind === 'produces_deliverable' && <ObjectiveBlock task={task} />}
+        {/* Objective block — all kinds (describes task purpose) */}
+        <ObjectiveBlock task={task} />
       </div>
 
       {/* Scrollable output region */}

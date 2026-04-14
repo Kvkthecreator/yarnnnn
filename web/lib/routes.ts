@@ -1,6 +1,7 @@
-// Toggle bar navigation — Chat is home (ADR-163 Surface Restructure)
-// Four top-level destinations: Chat | Work | Agents | Context
-// Each answers exactly one question. See docs/adr/ADR-163-surface-restructure.md
+// Toggle bar navigation — Chat is home (ADR-180 Work/Context Surface Split)
+// Four top-level destinations: Chat | Work | Context | Agents
+// Work = operational (health, schedule, config). Context = knowledge (outputs, domains, uploads).
+// See docs/adr/ADR-180-work-context-surface-split.md
 export const HOME_ROUTE = "/chat";
 export const HOME_LABEL = "Chat";
 export const CHAT_ROUTE = "/chat";

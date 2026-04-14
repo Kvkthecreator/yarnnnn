@@ -1,36 +1,39 @@
-# Surface Architecture — Chat + Work + Agents + Context
+# Surface Architecture — Chat + Work + Context + Agents
 
-**Version:** v10.0 (2026-04-14)
+**Version:** v11.0 (2026-04-14)
 **Status:** Canonical
-**Governed by:** [ADR-163](../adr/ADR-163-surface-restructure.md) — Surface Restructure
+**Governed by:** [ADR-180](../adr/ADR-180-work-context-surface-split.md) — Work/Context Surface Split
 **Active decisions:**
+- [ADR-180](../adr/ADR-180-work-context-surface-split.md) — nav reorder, Work = operational, Context = knowledge (outputs + domains)
 - [ADR-165 v5](../adr/ADR-165-workspace-state-surface.md) — `/chat` workspace state surface (TP-directed, single component, four lead views)
 - [ADR-166](../adr/ADR-166-registry-coherence-pass.md) — task `output_kind` enum (4 values)
-- [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — `/work` and `/agents` collapse from master-detail into list/detail mode with kind-aware detail. **v2 amendment**: breadcrumb collapses into in-page `<PageHeader />`, replacing the floating bar AND the per-page title bands inside `WorkDetail`/`AgentContentView`.
-- [AGENT-AND-TASK-SURFACE-PATTERNS](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — broader shell and no-task-state rules layered on top of ADR-167
+- [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — `/work` and `/agents` list/detail collapse. **v2 amendment**: breadcrumb in `<PageHeader />`.
+- [AGENT-AND-TASK-SURFACE-PATTERNS](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — shell and no-task-state rules
 
 **Supersedes:**
-- v9.5 (2026-04-09) — kind-aware detail spec, run now removed, overflow menu for lifecycle, TrackingMiddle as health dashboard
-- v9 (2026-04-08) — list/detail collapse with separate `<GlobalBreadcrumb />` floating bar
+- v10.0 (2026-04-14) — Work hosted both outputs and operational detail; Agents at position 3
+- v9.5 (2026-04-09) — kind-aware detail spec, run now removed, overflow menu for lifecycle
+- v9 (2026-04-08) — list/detail collapse with separate GlobalBreadcrumb bar
 - v8 (2026-04-08) — three-panel master-detail on Work and Agents
-- v7.2 (2026-04-06) — task-class-aware tabs on Agents page
-- v7.1 (2026-04-06) — tabs restored
-- v7 (2026-04-06) — unified shell, flat center panel
-- v6.1 (2026-04-06) — global breadcrumb
-- v6 (2026-04-05) — dashboard + TP chat two-panel
 
 ---
 
 ## Design Thesis: Four Surfaces, One Question Each
 
-Every previous version of this doc was trying to cram multiple jobs into the Agents page because Agents was the only top-level destination that touched work. The result: four tab layouts in ten commits. ADR-163 fixes the thrash by giving each question its own surface.
+| Priority | Surface | Route | The question it answers | The answer |
+|---|---|---|---|---|
+| 1 | **Chat** | `/chat` | "What should I do? What's happening?" | TP chat + one active structured artifact |
+| 2 | **Work** | `/work` | "Is my work configured, healthy, and running?" | Task list (operational) + task detail (schedule, health, config) |
+| 3 | **Context** | `/context` | "What does my workspace know? What has it produced?" | Outputs + accumulated domains + uploads + settings |
+| 4 | **Agents** | `/agents` | "Who's on my team?" | Roster + agent detail with class-aware identity and work-shape summaries |
 
-| Surface | Route | The question it answers | The answer |
-|---|---|---|---|
-| **Chat** | `/chat` | "What should I do? What's happening?" | TP chat + one active structured artifact |
-| **Work** | `/work` | "What is my workforce doing?" | Task list + task detail (schedule, output, actions) |
-| **Agents** | `/agents` | "Who's on my team?" | Roster + agent detail with class-aware context and work-shape summaries |
-| **Context** | `/context` | "What does my workspace know?" | Filesystem browser |
+**Priority order = navigation frequency.** Chat is where work is directed and results surface. Work is checked daily. Context is read when you want to consume what the system produced. Agents is a reference surface, visited rarely.
+
+**Work is operational only** (ADR-180). Work answers: "is this task configured, healthy, and running correctly?" Work does NOT show task output documents or accumulated files — those live in Context. For `produces_deliverable` and `accumulates_context` tasks, Work shows a direct link to Context.
+
+**Context is the knowledge surface** (ADR-180). Context hosts both accumulated domain knowledge (`/workspace/context/`) and task deliverable outputs (`/tasks/{slug}/outputs/latest/`). Four top-level sections: Context (domains), Outputs (task deliverables), Uploads, Settings.
+
+**Agents is position 4.** Under ADR-176, agents serve work — they are the labor pool, not the organizing principle. The roster is a reference, not a daily destination.
 
 Four destinations. Each answers exactly one question. No overlap.
 
@@ -41,16 +44,17 @@ The old `/activity` page is **deleted**. Its content is absorbed into the surfac
 ## Route Map
 
 ```
-/chat                → Chat (home). TP chat + one active artifact tab.
-/work                → Work LIST mode. Full-width filterable list of tasks.
-/work?agent={slug}   → Work LIST mode with the agent filter pre-applied.
-/work?task={slug}    → Work DETAIL mode. Kind-aware detail dispatched on task.output_kind (ADR-167).
-/agents              → Agents LIST mode. Full-width team roster grouped by class.
-/agents?agent={slug} → Agents DETAIL mode. Class-aware context + task-shape summaries.
-/agents/{id}         → Compatibility entry. Redirects to `/agents?agent={slug}`.
-/context             → Context. Workspace filesystem browser. (Retains left tree nav.)
-/context?domain={k}  → Context pre-filtered to a domain folder.
-/settings            → Settings. Memory, brand, system status (absorbed from /activity).
+/chat                           → Chat (home). TP chat + one active artifact tab.
+/work                           → Work LIST mode. Full-width filterable list of tasks.
+/work?agent={slug}              → Work LIST mode with the agent filter pre-applied.
+/work?task={slug}               → Work DETAIL mode. Operational detail (schedule, health, config).
+/context                        → Context. Workspace knowledge browser. (Retains left tree nav.)
+/context?domain={key}           → Context pre-filtered to a domain folder.
+/context?path=/tasks/{slug}/outputs/latest → Context showing a task's latest output.
+/agents                         → Agents LIST mode. Full-width team roster grouped by class.
+/agents?agent={slug}            → Agents DETAIL mode. Class-aware identity + work-shape summaries.
+/agents/{id}                    → Compatibility entry. Redirects to `/agents?agent={slug}`.
+/settings                       → Settings. Memory, brand, system status.
 ```
 
 **ADR-167 surface mode collapse:** `/work` and `/agents` no longer have a permanent left sidebar. Each is a single surface with two modes selected by URL state — list mode (no detail key) shows the full-width list/roster, detail mode (`?task=` or `?agent=`) shows kind-aware detail. The breadcrumb (commit b033513) drives navigation between modes. Auto-select-first on mount is GONE — landing on `/work` or `/agents` shows the list, never someone else's task or agent. `/context` retains its left sidebar (filesystem tree nav is the right pattern there).
@@ -71,13 +75,13 @@ The old `/activity` page is **deleted**. Its content is absorbed into the surfac
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ yarnnn                   [Chat | Work | Agents | Context]     Avatar │ ← global header (logo / toggle / avatar)
+│ yarnnn                   [Chat | Work | Context | Agents]     Avatar │ ← global header (logo / toggle / avatar)
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 The global header is **just** logo + toggle bar + avatar. There is no separate breadcrumb bar below it. The breadcrumb lives **inside each surface** as a `<PageHeader />` component (ADR-167 v2) — see "Page header" below.
 
-**Toggle bar** (`web/components/shell/ToggleBar.tsx`): four-segment pill `Chat | Work | Agents | Context`. Icons: `MessageCircle`, `Briefcase`, `Users`, `FolderOpen`. `HOME_ROUTE` is `/chat` — both new and returning users land there.
+**Toggle bar** (`web/components/shell/ToggleBar.tsx`): four-segment pill `Chat | Work | Context | Agents`. Icons: `MessageCircle`, `Briefcase`, `FolderOpen`, `Users`. `HOME_ROUTE` is `/chat` — both new and returning users land there.
 
 ### Page header (ADR-167 v5)
 
@@ -85,7 +89,7 @@ Every surface renders `<PageHeader />` as the first row of its center content ar
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ Work › reporting's work › Daily Update                               │ ← PageHeader: breadcrumb chrome
+│ Work › Daily Update                                                  │ ← PageHeader: breadcrumb chrome (ADR-180: task-first)
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │ Daily Update                                 [Run] [Pause] [Edit]    │ ← SurfaceIdentityHeader: the real H1
@@ -118,17 +122,19 @@ Every surface renders `<PageHeader />` as the first row of its center content ar
 
 **List-mode behavior.** `<PageHeader />` falls back to `defaultLabel` and renders a single-segment breadcrumb (`Work`, `Agents`, `Context`) with the exact same muted treatment — uniform tone across all states. List-mode pages don't render `<SurfaceIdentityHeader />` at all since there's no single "page subject" to introduce; the list surface itself owns the visual hierarchy (filter chips on /work, grouped roster on /agents, file tree on /context).
 
-| Surface state | Breadcrumb / page title |
+| Surface state | Breadcrumb (ADR-180) |
 |---|---|
-| Chat | `Chat` (breadcrumb chrome) + `Thinking Partner` surface identity header with workspace-state toggle action |
+| Chat | `Chat` |
 | Work (list) | `Work` |
-| Work (task selected) | `Work › reporting's work › Daily Update` (with metadata subtitle and inline actions) |
-| Work (filtered by agent) | `Work › Researcher's work` |
+| Work (task detail, from Work) | `Work › Daily Update` — task-first, no agent middle segment |
+| Work (task detail, from Agents) | `Agents › Researcher › Daily Update` — traces navigation history |
+| Work (filtered by agent) | `Work` — agent filter shown as chip in list UI, not breadcrumb |
 | Agents (list) | `Agents` |
-| Agents (selected) | `Agents › Researcher` (with class · task count · last run subtitle) |
+| Agents (agent selected) | `Agents › Researcher` |
 | Context (no selection) | `Context` |
 | Context (domain selected) | `Context › Competitors` |
 | Context (deep file) | `Context › Competitors › cursor › profile.md` |
+| Context (task output) | `Context › Daily Update` — output as first-class knowledge item |
 
 Pages set the breadcrumb segments via `setBreadcrumb()` in a `useEffect` (unchanged contract from b033513). PageHeader reads from the same context. List-mode pages clear the breadcrumb and PageHeader falls back to the surface label via `defaultLabel`.
 

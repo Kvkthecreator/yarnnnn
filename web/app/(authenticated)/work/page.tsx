@@ -112,21 +112,21 @@ export default function WorkPage() {
     setActionNotice(null);
   }, [taskSlugFromUrl]);
 
-  // Breadcrumb (segment shape from b033513; PageHeader renders inline now)
+  // Breadcrumb (ADR-180: task-first, no agent middle segment)
   //
-  // When ?agent= is present we came from the Agents surface (TaskCard "Manage
-  // task" button) — breadcrumb should read Agents › Agent Name › Task, keeping
-  // the user oriented inside the agent context, not the Work surface.
+  // Work surface: Work › Task Title — tasks are first-class, agents are participants.
+  // Exception: when ?agent= is present the user navigated here from the Agents surface
+  // (via "Manage task" link) — breadcrumb traces actual navigation: Agents › Agent › Task.
+  // Agent-filter-only list mode (no task selected) shows no breadcrumb — the filter chip
+  // in WorkListSurface already communicates the active filter.
   useEffect(() => {
     if (taskSlugFromUrl) {
       const breadcrumbTask = selectedTask;
-      // Use getAgentSlug() for lookup — agent.slug may not be populated from API
-      const agentSlug = agentFilter || breadcrumbTask?.agent_slugs?.[0];
-      const agent = agentSlug ? agents.find(a => getAgentSlug(a) === agentSlug) : null;
-      const agentCrumbLabel = agent?.title ?? agentSlug ?? '';
 
       if (agentFilter) {
-        // Came from Agents surface via "Manage task" button — root breadcrumb at Agents
+        // Came from Agents surface — trace navigation history, not ownership
+        const agent = agents.find(a => getAgentSlug(a) === agentFilter);
+        const agentCrumbLabel = agent?.title ?? agentFilter;
         setBreadcrumb([
           { label: 'Agents', href: '/agents', kind: 'surface' },
           {
@@ -143,13 +143,9 @@ export default function WorkPage() {
           },
         ]);
       } else {
+        // Standard Work navigation — task is the subject, no agent container
         setBreadcrumb([
           { label: 'Work', href: '/work', kind: 'surface' },
-          ...(agentSlug ? [{
-            label: agentCrumbLabel,
-            href: `/agents?agent=${encodeURIComponent(agentSlug)}`,
-            kind: 'agent' as const,
-          }] : []),
           {
             label: taskNotFound
               ? 'Task not found'
@@ -159,22 +155,11 @@ export default function WorkPage() {
           },
         ]);
       }
-    } else if (agentFilter) {
-      const agent = agents.find(a => getAgentSlug(a) === agentFilter);
-      const agentCrumbLabel = agent?.title ?? agentFilter;
-      setBreadcrumb([
-        { label: 'Work', href: '/work', kind: 'surface' },
-        {
-          label: agentCrumbLabel,
-          href: `/agents?agent=${encodeURIComponent(agentFilter)}`,
-          kind: 'agent',
-        },
-      ]);
     } else {
       clearBreadcrumb();
     }
     return () => clearBreadcrumb();
-  }, [taskSlugFromUrl, selectedTask?.title, selectedTask?.agent_slugs, taskNotFound, agentFilter, agents, setBreadcrumb, clearBreadcrumb]);
+  }, [taskSlugFromUrl, selectedTask?.title, taskNotFound, agentFilter, agents, setBreadcrumb, clearBreadcrumb]);
 
   // Actions
   const handleRunTask = useCallback(async (slug: string) => {

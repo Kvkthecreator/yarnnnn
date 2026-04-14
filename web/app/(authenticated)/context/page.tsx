@@ -1,12 +1,19 @@
 'use client';
 
 /**
- * Context Surface — Workspace explorer (domains, uploads, settings)
+ * Context Surface — Workspace knowledge browser (ADR-180, v11).
  *
- * SURFACE-ARCHITECTURE.md v7: The single file browser. All raw file viewing
- * happens here. Agents page links in with ?domain={key} for deep-linking.
+ * Context answers: "What does my workspace know? What has it produced?"
  *
- * Uses ThreePanelLayout for shared shell.
+ * Four top-level sections:
+ *   Context  — accumulated domain knowledge (/workspace/context/)
+ *   Outputs  — task deliverables (/tasks/{slug}/outputs/latest/) [ADR-180]
+ *   Uploads  — user-contributed files (/workspace/uploads/)
+ *   Settings — workspace identity/brand/conventions files
+ *
+ * Deep-link params:
+ *   ?domain={key}  — navigate to a context domain folder
+ *   ?path={path}   — navigate to any workspace path (incl. /tasks/{slug}/outputs/latest)
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -30,6 +37,7 @@ import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
+import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
 
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
@@ -86,6 +94,7 @@ function buildContextNodes(input: {
   uploadTree?: TreeNode[];
   domainTitles: Record<string, string>;
   settings?: Array<{ name: string; filename: string; path: string; updated_at: string | null }>;
+  outputTasks?: Array<{ slug: string; title: string; last_run_at: string | null }>;
 }): TreeNode[] {
   const domainChildren = relabelTopLevelNodes(
     filterNodes(input.domainTree, (node) => {
@@ -97,6 +106,16 @@ function buildContextNodes(input: {
   const uploadChildren = asNodeArray(input.uploadTree);
   const settingsFiles = Array.isArray(input.settings) ? input.settings : [];
 
+  // Outputs: tasks that have produced deliverables (ADR-180)
+  const outputTasks = input.outputTasks ?? [];
+  const outputChildren: TreeNode[] = outputTasks.map(task => ({
+    name: task.title,
+    path: `/tasks/${task.slug}/outputs/latest`,
+    type: 'folder' as const,
+    updated_at: task.last_run_at ?? undefined,
+    summary: task.last_run_at ? `Latest output` : 'No output yet',
+  }));
+
   return [
     {
       name: 'Context',
@@ -104,6 +123,13 @@ function buildContextNodes(input: {
       type: 'folder' as const,
       summary: domainChildren.length ? `${domainChildren.length} domains` : 'No domains yet',
       children: domainChildren,
+    },
+    {
+      name: 'Outputs',
+      path: `${EXPLORER_ROOT_PATH}/outputs`,
+      type: 'folder' as const,
+      summary: outputChildren.length ? `${outputChildren.length} tasks` : 'No outputs yet',
+      children: outputChildren,
     },
     {
       name: 'Uploads',
@@ -186,19 +212,28 @@ export default function ContextPage() {
   const loadExplorer = useCallback(async () => {
     setFileTreeLoading(true);
     try {
-      const [nav, domainTree, uploadTree] = await Promise.all([
+      const [nav, domainTree, uploadTree, tasksData] = await Promise.all([
         api.workspace.getNav(),
         api.workspace.getTree('/workspace/context'),
         api.workspace.getTree('/workspace/uploads'),
+        api.tasks.list(),
       ]);
 
       const navDomains = Array.isArray(nav?.domains) ? nav.domains : [];
       const domainTitles = Object.fromEntries(navDomains.map((domain: any) => [domain.key, domain.display_name]));
+
+      // Only show tasks that produce deliverables and have run at least once
+      const allTasks = Array.isArray(tasksData) ? tasksData : [];
+      const outputTasks = allTasks
+        .filter((t: any) => t.output_kind === 'produces_deliverable' && t.last_run_at)
+        .map((t: any) => ({ slug: t.slug, title: t.title, last_run_at: t.last_run_at }));
+
       const nodes = buildContextNodes({
         domainTree: asNodeArray(domainTree),
         uploadTree: asNodeArray(uploadTree),
         domainTitles,
         settings: Array.isArray(nav?.settings) ? nav.settings : [],
+        outputTasks,
       });
 
       setTreeNodes(nodes);
@@ -241,9 +276,15 @@ export default function ContextPage() {
   const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
 
   // Push breadcrumb path into global header
+  // Virtual top-level folder names (Context, Outputs, Uploads, Settings) are
+  // explorer-only groupings — strip them; the surface root "Context" label is
+  // always the first segment, showing which surface the user is on.
   useEffect(() => {
+    const TOP_LEVEL_VIRTUAL = new Set(['Context', 'Outputs', 'Uploads', 'Settings']);
     if (breadcrumbs.length > 0) {
-      const displayBreadcrumbs = breadcrumbs[0]?.name === 'Context' ? breadcrumbs.slice(1) : breadcrumbs;
+      const displayBreadcrumbs = TOP_LEVEL_VIRTUAL.has(breadcrumbs[0]?.name ?? '')
+        ? breadcrumbs.slice(1)
+        : breadcrumbs;
       const segs = displayBreadcrumbs.map((crumb) => ({
         label: crumb.name,
         href: `/context?path=${encodeURIComponent(crumb.path)}`,
@@ -367,11 +408,17 @@ export default function ContextPage() {
             metadata={getNodeMetadata(selectedNode)}
           />
           <div className="flex-1 overflow-auto">
-            <ContentViewer
-              selectedNode={selectedNode}
-              onNavigate={handleExplorerSelect}
-              showHeader={false}
-            />
+            {/* Task output paths render DeliverableMiddle (ADR-180) */}
+            {/^\/tasks\/[^/]+\/outputs/.test(selectedNode.path) ? (() => {
+              const taskSlug = selectedNode.path.split('/')[2];
+              return <DeliverableMiddle taskSlug={taskSlug} refreshKey={0} />;
+            })() : (
+              <ContentViewer
+                selectedNode={selectedNode}
+                onNavigate={handleExplorerSelect}
+                showHeader={false}
+              />
+            )}
           </div>
         </div>
       ) : (
