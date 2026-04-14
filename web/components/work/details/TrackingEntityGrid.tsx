@@ -192,8 +192,18 @@ export function TrackingEntityGrid({
     router.push(`${CONTEXT_ROUTE}?path=${encodeURIComponent(path)}`);
   }
 
+  // Entity slugs that have actual data — passed to PlatformSourcesSection so it
+  // can flag selected sources that are pending their first run.
+  const existingEntitySlugs = new Set(domainData?.entities.map(e => e.slug) ?? []);
+
   // Platform source picker — only rendered for platform tasks (slack-digest, notion-digest, github-digest)
-  const platformSources = <PlatformSourcesSection task={task} onSourcesUpdated={onSourcesUpdated} />;
+  const platformSources = (
+    <PlatformSourcesSection
+      task={task}
+      onSourcesUpdated={onSourcesUpdated}
+      existingEntitySlugs={existingEntitySlugs}
+    />
+  );
 
   // No domain declared
   if (!primaryDomain) {
