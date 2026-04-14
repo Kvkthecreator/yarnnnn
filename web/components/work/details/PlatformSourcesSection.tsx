@@ -58,7 +58,7 @@ const PLATFORM_CONFIG: Record<SupportedPlatform, PlatformConfig> = {
     label: 'GitHub',
     resourceLabel: 'repositories',
     icon: <GitBranch className="w-3.5 h-3.5" />,
-    selectionCap: undefined,
+    selectionCap: 5,
   },
 };
 

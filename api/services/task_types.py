@@ -38,7 +38,7 @@ Surface type + page_structure (ADR-170):
   accumulates_context, external_action, system_maintenance tasks have no surface
   type — they don't produce user-visible HTML output. The field is absent.
 
-Version: 7.0 (2026-04-10 — ADR-170 compose substrate: layout_mode → surface_type + page_structure)
+Version: 7.1 (2026-04-14 — github-digest: cycle-aware step instructions, first-run vs steady-state split)
 Changelog:
   v1.0 — 13 product-named types (ADR-145)
   v2.0 — context_reads/writes, output_category, STEP_INSTRUCTIONS templates (ADR-152)
@@ -237,37 +237,25 @@ STEP_INSTRUCTIONS = {
     ),
 
     "github-digest": (
-        "You are the GitHub Bot. Your job is to read selected GitHub repositories "
-        "and write per-repo observation AND reference files to your context domain.\n\n"
+        "You are the GitHub Bot. Read selected GitHub repositories and write context files. "
+        "You have a limited tool budget — be efficient.\n\n"
         "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
         "If one exists, follow it — it was written by you while context was fresh.\n\n"
-        "For EACH selected repository, write FOUR files:\n\n"
-        "**1. Temporal — latest.md** (issues/PRs activity, update every cycle):\n"
-        "   - Read recent issues and PRs using platform_github_get_issues\n"
-        "   - Identify: new issues opened, PRs merged/reviewed/stalled\n"
-        "   - WriteFile(scope='context', domain='github', path='{owner}/{repo}/latest.md')\n\n"
-        "**2. Reference — readme.md** (what the project is, update if changed):\n"
-        "   - Read README using platform_github_get_readme\n"
-        "   - Write a summary (NOT the full README): what the project does, key features, target audience\n"
-        "   - WriteFile(scope='context', domain='github', path='{owner}/{repo}/readme.md')\n"
-        "   - Skip if README hasn't changed since last cycle (check Execution Awareness)\n\n"
-        "**3. Reference — releases.md** (what shipped, update every cycle):\n"
-        "   - Read recent releases using platform_github_get_releases\n"
-        "   - WriteFile(scope='context', domain='github', path='{owner}/{repo}/releases.md')\n\n"
-        "**4. Reference — metadata.md** (repo identity, update weekly or on first run):\n"
-        "   - Read repo metadata using platform_github_get_repo_metadata\n"
-        "   - Include: description, topics, language, stars, license, tech stack\n"
-        "   - WriteFile(scope='context', domain='github', path='{owner}/{repo}/metadata.md')\n"
-        "   - Skip on subsequent daily cycles unless it's a weekly refresh\n\n"
+        "**Every cycle — for each repo (one tool call per repo):**\n"
+        "1. platform_github_get_issues(repo='owner/repo', state='open', limit=20)\n"
+        "2. WriteFile: issues/PRs summary → scope='context', domain='github', "
+        "path='{owner}/{repo}/latest.md'\n\n"
+        "**First run or weekly refresh only (check Execution Awareness — skip if already done this week):**\n"
+        "- platform_github_get_readme → summarize in readme.md (what it does, key features — NOT the full README)\n"
+        "- platform_github_get_releases → releases.md (what shipped, with dates)\n"
+        "- platform_github_get_repo_metadata → metadata.md (description, topics, language, stars)\n\n"
         "Summarization rules:\n"
         "- Preserve attribution: 'Alice opened #123' not 'an issue was opened'\n"
-        "- Group by repo when tracking multiple repos\n"
-        "- Highlight: stale PRs (>7 days without review), blocked issues, release blockers\n"
-        "- Skip: bot-generated PRs (dependabot, renovate) unless they fail\n"
-        "- For external/competitor repos: focus on what they shipped and what it signals\n\n"
-        "Also append a dated signal entry to /workspace/context/signals/ with "
-        "a one-line summary per repo of what was notable.\n\n"
-        "Your output: an activity + reference digest across all observed repositories."
+        "- Highlight: stale PRs (>7 days no review), blocked issues, release blockers\n"
+        "- Skip: bot PRs (dependabot, renovate) unless they fail\n"
+        "- For external/competitor repos: what shipped and what it signals\n\n"
+        "After all repos: append one dated signal entry per repo to /workspace/context/signals/.\n\n"
+        "Your output: a concise activity digest across observed repositories."
     ),
 
     "notion-digest": (
