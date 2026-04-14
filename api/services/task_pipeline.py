@@ -2161,6 +2161,49 @@ async def execute_task(
             f"{final_status} ({duration_ms}ms)"
         )
 
+        # =====================================================================
+        # ADR-179: Write task_complete system card if session active within 4h.
+        # Zero LLM cost. TP reads content as conversation history on next turn.
+        # Only for successfully delivered non-back-office tasks.
+        # Skipped for: background-only tasks (daily-update), failed runs.
+        # =====================================================================
+        if final_status == "delivered" and task_slug != "daily-update" and not task_slug.startswith("back-office-"):
+            try:
+                from routes.chat import append_message as _append_message
+                inactivity_cutoff = (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()
+                session_row = (
+                    client.table("chat_sessions")
+                    .select("id")
+                    .eq("user_id", user_id)
+                    .eq("session_type", "thinking_partner")
+                    .gte("updated_at", inactivity_cutoff)
+                    .eq("status", "active")
+                    .is_("agent_id", "null")
+                    .order("updated_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                if session_row.data:
+                    output_path = f"/tasks/{task_slug}/outputs/latest/"
+                    await _append_message(
+                        client=client,
+                        session_id=session_row.data[0]["id"],
+                        role="assistant",
+                        content=(
+                            f"{title} finished its run. "
+                            f"Output is in /tasks/{task_slug}/outputs/latest/."
+                        ),
+                        metadata={
+                            "system_card": "task_complete",
+                            "task_slug": task_slug,
+                            "task_title": title,
+                            "output_path": output_path,
+                            "run_at": datetime.now(timezone.utc).isoformat(),
+                        },
+                    )
+            except Exception as card_err:
+                logger.warning(f"[SYSTEM_CARD] task_complete write failed (non-fatal): {card_err}")
+
         return {
             "success": final_status == "delivered",
             "task_slug": task_slug,
