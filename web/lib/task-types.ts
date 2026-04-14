@@ -6,7 +6,33 @@
  * when task.surface is null.
  *
  * Keep in sync with api/services/task_types.py surface_type values.
+ * Keep in sync with api/services/directory_registry.py path values.
  */
+
+/**
+ * Resolve the actual workspace path for a context domain registry key.
+ * Registry keys (e.g. "content_research") may differ from their workspace
+ * directory name (e.g. "context/content"). Always use this to build paths
+ * rather than constructing `/workspace/context/${domainKey}` directly.
+ *
+ * Keep in sync with api/services/directory_registry.py WORKSPACE_DIRECTORIES.
+ */
+const DOMAIN_KEY_TO_WORKSPACE_PATH: Record<string, string> = {
+  'competitors':      '/workspace/context/competitors',
+  'market':           '/workspace/context/market',
+  'relationships':    '/workspace/context/relationships',
+  'projects':         '/workspace/context/projects',
+  'content_research': '/workspace/context/content',  // key ≠ dir name
+  'signals':          '/workspace/context/signals',
+  // Temporal platform domains
+  'slack':            '/workspace/context/slack',
+  'notion':           '/workspace/context/notion',
+  'github':           '/workspace/context/github',
+};
+
+export function resolveDomainWorkspacePath(domainKey: string): string {
+  return DOMAIN_KEY_TO_WORKSPACE_PATH[domainKey] ?? `/workspace/context/${domainKey}`;
+}
 
 export type SurfaceType = 'report' | 'deck' | 'digest' | 'dashboard';
 

@@ -35,7 +35,7 @@ import { WorkModeBadge } from './WorkModeBadge';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { AGENTS_ROUTE, CONTEXT_ROUTE } from '@/lib/routes';
 import { formatRelativeTime } from '@/lib/formatting';
-import { resolveTaskSurface, SURFACE_TYPE_LABELS } from '@/lib/task-types';
+import { resolveTaskSurface, SURFACE_TYPE_LABELS, resolveDomainWorkspacePath } from '@/lib/task-types';
 import { cn } from '@/lib/utils';
 import type { Task, TaskDetail, Agent } from '@/types';
 
@@ -219,10 +219,10 @@ function TrackingMetadata({ task, assignedAgent }: { task: Task; assignedAgent: 
         <>
           <span className="text-muted-foreground/30">·</span>
           <Link
-            href={`${CONTEXT_ROUTE}?domain=${primaryDomain}`}
+            href={`${CONTEXT_ROUTE}?path=${encodeURIComponent(resolveDomainWorkspacePath(primaryDomain))}`}
             className="text-primary hover:underline text-[11px]"
           >
-            → /workspace/context/{primaryDomain}/
+            → {resolveDomainWorkspacePath(primaryDomain)}/
           </Link>
         </>
       )}

@@ -363,6 +363,7 @@ async def get_domain_entities(
 
         return {
             "domain_key": domain_key,
+            "domain_path": f"/workspace/{dir_path}",  # actual workspace path (may differ from registry key)
             "display_name": directory.get("display_name", domain_key.title()),
             "entity_type": directory.get("entity_type"),
             "synthesis_files": synthesis_files,

@@ -56,23 +56,29 @@ interface DomainData {
 
 function EntityCard({
   entity,
-  domainKey,
   onClick,
 }: {
   entity: EntityEntry;
-  domainKey: string;
   onClick: (path: string) => void;
 }) {
-  const path = `/workspace/context/${domainKey}/${entity.slug}`;
+  // Derive the entity folder path from the actual file paths returned by the API.
+  // Do NOT construct from domainKey — the registry key (e.g. "content_research")
+  // may differ from the actual workspace directory (e.g. "context/content").
+  const firstFilePath = entity.files[0]?.path ?? '';
+  const path = firstFilePath
+    ? firstFilePath.split('/').slice(0, -1).join('/')  // strip filename → folder path
+    : '';
   const fileCount = entity.files.length;
 
   return (
     <button
-      onClick={() => onClick(path)}
+      onClick={() => path && onClick(path)}
+      disabled={!path}
       className={cn(
         'group flex flex-col gap-2 rounded-lg border border-border bg-muted/20 p-3',
         'text-left hover:bg-muted/40 hover:border-border/80 transition-colors',
         'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+        !path && 'opacity-50 cursor-default',
       )}
     >
       {/* Icon */}
@@ -242,7 +248,6 @@ export function TrackingEntityGrid({ task }: { task: Task }) {
               <EntityCard
                 key={entity.slug}
                 entity={entity}
-                domainKey={primaryDomain}
                 onClick={handleNavigate}
               />
             ))}

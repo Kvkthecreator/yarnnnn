@@ -607,7 +607,7 @@ export const api = {
     // ADR-154: Domain entity listing for domain browser view
     getDomainEntities: (domainKey: string) =>
       request<{
-        domain_key: string; display_name: string; entity_type: string | null;
+        domain_key: string; domain_path: string; display_name: string; entity_type: string | null;
         synthesis_files: Array<{
           name: string; filename: string; path: string; updated_at: string | null; preview: string | null;
         }>;
