@@ -410,13 +410,13 @@ export function TaskSetup({
           <div>
             <p className={cn('font-medium', compact ? 'text-xs' : 'text-base')}>
               {route === null && 'What do you want to work on?'}
-              {route === 'track' && 'Stay in the know'}
-              {route === 'deliverable' && 'Get a deliverable'}
+              {route === 'track' && 'Set up recurring work'}
+              {route === 'deliverable' && 'I have something specific in mind'}
             </p>
             {route !== null && (
               <p className={cn('text-muted-foreground mt-0.5', compact ? 'text-[11px]' : 'text-sm')}>
-                {route === 'track' && 'Agents gather intel on a topic automatically, on repeat.'}
-                {route === 'deliverable' && 'Receive a polished output on a schedule.'}
+                {route === 'track' && 'Agents watch a topic and keep building what they know, automatically.'}
+                {route === 'deliverable' && 'Report, deck, digest, or blog post — delivered on your schedule.'}
               </p>
             )}
           </div>
@@ -440,8 +440,8 @@ export function TaskSetup({
                 <Database className="w-4 h-4 text-muted-foreground" />
               </div>
               <div>
-                <p className="text-sm font-medium">Stay in the know</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Agents automatically gather intel on any topic, on repeat</p>
+                <p className="text-sm font-medium">Set up recurring work</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Agents watch a topic and keep building what they know, automatically</p>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground/30 ml-auto group-hover:text-muted-foreground transition-colors" />
             </div>
@@ -456,8 +456,8 @@ export function TaskSetup({
                 <BarChart2 className="w-4 h-4 text-muted-foreground" />
               </div>
               <div>
-                <p className="text-sm font-medium">Get a deliverable</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Report, deck, digest, blog post, dashboard</p>
+                <p className="text-sm font-medium">I have something specific in mind</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Report, deck, digest, or blog post — delivered on your schedule</p>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground/30 ml-auto group-hover:text-muted-foreground transition-colors" />
             </div>
