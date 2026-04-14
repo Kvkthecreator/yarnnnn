@@ -11,22 +11,22 @@
 
 `/chat` is the TP workspace. It has **two structured modal surfaces**, opened independently:
 
-1. **Overview modal** — a read-only diagnostic dashboard with four peer tabs, each mirroring a slice of TP's compact index. This is the ongoing inspection surface.
+1. **Workspace modal** — a read-only capability dashboard with four peer tabs, each mirroring a slice of TP's compact index. This is the ongoing inspection surface.
 2. **Onboarding modal** — a one-time identity-capture form (wraps the existing `ContextSetup` component). This is the first-run ceremony.
 
 Neither shares state, switcher, or trigger with the other. v7 tried to unify them behind a soft gate; v8 recognizes that they are different jobs and gives them different surfaces.
 
 ```
 /chat
-  ├── SurfaceIdentityHeader (H1 + [Overview] button in actions slot)
+  ├── SurfaceIdentityHeader (H1 + [Workspace] button in actions slot)
   ├── ChatPanel (conversation column)
   │     ├── messages
   │     └── input row (PlusMenu + textarea + submit)
   ├── WorkspaceStateView (sibling, modal — only mounted while open)
   │     ├── backdrop (click-outside closes)
-  │     ├── header ("Overview" + optional reason + close)
+  │     ├── header ("Workspace" + optional reason + close)
   │     ├── tab bar — four peer tabs, always visible when modal is open
-  │     │     [Eye] What I know  [Bell] Heads up  [History] Last time  [Activity] Team activity
+  │     │     [Eye] Readiness  [Bell] Attention  [History] Last session  [Activity] Activity
   │     └── active tab content (all read-only)
   └── OnboardingModal (sibling, modal — only mounted while open)
         ├── backdrop (click-outside closes)
@@ -36,11 +36,11 @@ Neither shares state, switcher, or trigger with the other. v7 tried to unify the
 
 ---
 
-## Overview Modal (`WorkspaceStateView`)
+## Workspace Modal (`WorkspaceStateView`)
 
 ### Default state
 
-`/chat` loads with **no modal visible**. The surface header's "Overview" button is the only persistent entry point for manual open. Modal mounts only while open; close = unmounted.
+`/chat` loads with **no modal visible**. The surface header's "Workspace" button is the only persistent entry point for manual open. Modal mounts only while open; close = unmounted.
 
 ### Four tabs (read-only)
 
@@ -49,23 +49,23 @@ All four tabs are read-only glances at what TP already sees in `format_compact_i
 - Link-outs to other surfaces (`/work`, `/agents`, `/context`)
 - "Ask TP" buttons that drop a pre-filled prompt into the chat input (user reviews and presses send — no auto-send, no auto-tool-call)
 
-#### 1. What I know — `overview`
+#### 1. Readiness — `overview`
 
-TP answering: *"Here's everything I currently know about your workspace."*
+TP answering: *"Your workspace readiness — what your team can draw on right now."*
 
 Sections:
-- **Identity & Brand** — richness badges (empty / sparse / rich), link-out to `/context`
+- **Workspace** — Identity & Brand richness badges (Empty / Sparse / Rich), link-out to `/context`. Values are state descriptors, not to-do labels: "Empty", "Voice and tone defined", "Partially defined".
 - **Team** — agent count by class, flagged-agents callout if any
 - **Work** — active tasks count + stale tasks callout
 - **Knowledge** — canonical context domains (one row per domain, file count + health badge)
 - **Platforms** — connected integrations
 - **Budget** — credits used / limit, exhausted warning if applicable
 
-**Default tab on manual open.** When the user clicks "Overview", this is what they see first.
+**Default tab on manual open.** When the user clicks "Workspace", this is what they see first.
 
 TP opens via: `<!-- workspace-state: {"lead":"overview","reason":"Here's the lay of the land"} -->`
 
-#### 2. Heads up — `flags`
+#### 2. Attention — `flags`
 
 TP answering: *"Here are the things I want you to notice."*
 
@@ -82,7 +82,7 @@ Empty state (when no flags): "Nothing worth flagging right now."
 
 TP opens via: `<!-- workspace-state: {"lead":"flags","reason":"3 things worth a look"} -->`
 
-#### 3. Last time — `recap`
+#### 3. Last session — `recap`
 
 TP answering: *"Here's what we talked about before."*
 
@@ -95,7 +95,7 @@ Empty state (new workspace): "This is our first conversation."
 
 TP opens via: `<!-- workspace-state: {"lead":"recap","reason":"Picking up from last time"} -->`
 
-#### 4. Team activity — `activity`
+#### 4. Activity — `activity`
 
 TP answering: *"Here's what your workforce has been doing lately."*
 
@@ -145,7 +145,7 @@ Wraps the existing `ContextSetup` component unchanged. The component takes `onSu
 
 Parser module: `web/lib/workspace-state-meta.ts`
 
-- `parseWorkspaceStateMeta(content)` → `{ body, directive }` for the Overview modal
+- `parseWorkspaceStateMeta(content)` → `{ body, directive }` for the Workspace modal
 - `parseOnboardingMeta(content)` → `{ body, present }` for the Onboarding modal
 - `stripWorkspaceStateMeta(content)` + `stripOnboardingMeta(content)` — chainable strippers for render paths
 
@@ -180,9 +180,9 @@ AT MOST ONE marker per message. Never both `workspace-state` and `onboarding` in
 
 ## Manual Override
 
-### Overview button
+### Workspace button
 
-The surface header contains a single button **"Overview"** with `LayoutDashboard` icon, positioned in `SurfaceIdentityHeader.actions`. Clicking it toggles the Overview modal. Default tab: `overview` ("What I know").
+The surface header contains a single button **"Workspace"** with `LayoutDashboard` icon, positioned in `SurfaceIdentityHeader.actions`. Clicking it toggles the Workspace modal. Default tab: `overview` ("Readiness").
 
 No manual trigger for the Onboarding modal — the form is a first-run ceremony, not an ongoing interaction mode.
 
@@ -190,10 +190,10 @@ No manual trigger for the Onboarding modal — the form is a first-run ceremony,
 
 ## Tab Bar
 
-Four peer tabs, always visible when the Overview modal is open (no soft gate, no `isEmpty` logic):
+Four peer tabs, always visible when the Workspace modal is open (no soft gate, no `isEmpty` logic):
 
 ```
-[ Eye ] What I know   [ Bell ] Heads up   [ History ] Last time   [ Activity ] Team activity
+[ Eye ] Readiness   [ Bell ] Attention   [ History ] Last session   [ Activity ] Activity
 ```
 
 These are NOT navigation tabs. They are four lenses on the same underlying workspace state, switched client-side (no TP call). The active tab uses the same black-segment styling as ADR-163's global ToggleBar.
@@ -204,9 +204,9 @@ These are NOT navigation tabs. They are four lenses on the same underlying works
 
 ```
 web/components/chat-surface/
-  ChatSurface.tsx              — page-level controller; owns Overview + Onboarding open state,
+  ChatSurface.tsx              — page-level controller; owns Workspace + Onboarding open state,
                                  parses both markers, renders both modals as siblings
-  WorkspaceStateView.tsx       — Overview modal: 4 read-only tabs, no forms, no isEmpty prop
+  WorkspaceStateView.tsx       — Workspace modal: 4 read-only tabs, no forms, no isEmpty prop
   OnboardingModal.tsx          — Onboarding modal: thin shell wrapping ContextSetup
   ContextSetup.tsx             — unchanged (identity capture form)
 
@@ -235,12 +235,12 @@ web/components/home/DailyBriefing.tsx   — sole consumer was v7 WorkspaceStateV
 
 - Do not add draggable panes, docks, or floating windows.
 - Do not introduce a third structured modal on `/chat` without an ADR.
-- Do not mix write forms into the Overview modal tabs. If a tab "needs" a form, that's a signal to carve out a new surface, not to add a form to an existing diagnostic tab.
-- Do not let the Overview modal call TP tools directly. All write intent routes through chat via "Ask TP" pre-fill buttons (user reviews + presses send).
+- Do not mix write forms into the Workspace modal tabs. If a tab "needs" a form, that's a signal to carve out a new surface, not to add a form to an existing diagnostic tab.
+- Do not let the Workspace modal call TP tools directly. All write intent routes through chat via "Ask TP" pre-fill buttons (user reviews + presses send).
 - Do not use frontend heuristics to decide when to open either modal based on conversation state. TP decides via markers.
 - Do not write markers to displayed message bodies — strip both via `stripWorkspaceStateMeta` + `stripOnboardingMeta` at every render site.
 - Do not extend either marker to non-structured directives without an ADR. The markers are behavioral artifacts per execution discipline #10.
-- Keep richer inspection in `/work`, `/agents`, and `/context`. The Overview modal is a glance, not a destination.
+- Keep richer inspection in `/work`, `/agents`, and `/context`. The Workspace modal is a glance, not a destination.
 
 ---
 
@@ -248,10 +248,10 @@ web/components/home/DailyBriefing.tsx   — sole consumer was v7 WorkspaceStateV
 
 1. `/chat` loads with no modal visible for returning users with no marker — just the TP chat conversation.
 2. New users (identity empty) see the Onboarding modal via TP's first-turn `<!-- onboarding -->` marker.
-3. TP emitting a `<!-- workspace-state: ... -->` marker opens the Overview modal in the requested tab, with the marker stripped from the displayed message body.
-4. The "Overview" button in the surface header opens the Overview modal with the `overview` tab as default.
+3. TP emitting a `<!-- workspace-state: ... -->` marker opens the Workspace modal in the requested tab, with the marker stripped from the displayed message body.
+4. The "Workspace" button in the surface header opens the Workspace modal with the `overview` tab (Readiness) as default.
 5. Clicking any of the four tabs switches the lens without any TP call.
-6. The Overview modal contains no write forms — the only action affordance is "Ask TP" pre-fill buttons in the `flags` tab.
+6. The Workspace modal contains no write forms — the only action affordance is "Ask TP" pre-fill buttons in the `flags` (Attention) tab.
 7. The Onboarding modal has no manual trigger — TP marker is the only open path.
 8. `WorkspaceStateView` does NOT accept an `isEmpty` prop.
 9. Both modals cannot be open simultaneously.

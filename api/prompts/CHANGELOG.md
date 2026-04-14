@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.15.1] - Workspace modal framing rename (ADR-165 v8.1)
+
+### Changed
+- `api/agents/tp_prompts/onboarding.py` — "Chat Surface Modals" section: modal renamed "Overview" → "Workspace"; tab label descriptions updated to capability-framed names: `overview` lead → "Readiness tab", `flags` → "Attention tab", `recap` → "Last session tab", `activity` → "Activity tab".
+- **Behavior**: TP's `reason` field in workspace-state markers should now use capability-framed language to match the UI ("Your workspace has 3 gaps" rather than "Here's what I know"). Pure naming alignment — lead enum values (`overview | flags | recap | activity`) unchanged.
+
 ## [2026.04.14.2] - Timezone inference + daily-digest dates + synthesis path fix
 
 ### Changed

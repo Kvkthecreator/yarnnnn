@@ -1,6 +1,6 @@
-# Surface Architecture — Chat + Work + Context + Agents
+# Surface Architecture — Chat + Work + Files + Agents
 
-**Version:** v11.0 (2026-04-14)
+**Version:** v12.0 (2026-04-15)
 **Status:** Canonical
 **Governed by:** [ADR-180](../adr/ADR-180-work-context-surface-split.md) — Work/Context Surface Split
 **Active decisions:**
@@ -11,6 +11,7 @@
 - [AGENT-AND-TASK-SURFACE-PATTERNS](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — shell and no-task-state rules
 
 **Supersedes:**
+- v11.0 (2026-04-14) — Nav label "Context"; modal called "Overview"; tabs "What I know / Heads up / Last time / Team activity"
 - v10.0 (2026-04-14) — Work hosted both outputs and operational detail; Agents at position 3
 - v9.5 (2026-04-09) — kind-aware detail spec, run now removed, overflow menu for lifecycle
 - v9 (2026-04-08) — list/detail collapse with separate GlobalBreadcrumb bar
@@ -24,14 +25,14 @@
 |---|---|---|---|---|
 | 1 | **Chat** | `/chat` | "What should I do? What's happening?" | TP chat + one active structured artifact |
 | 2 | **Work** | `/work` | "Is my work configured, healthy, and running?" | Task list (operational) + task detail (schedule, health, config) |
-| 3 | **Context** | `/context` | "What does my workspace know? What has it produced?" | Outputs + accumulated domains + uploads + settings |
+| 3 | **Files** | `/context` | "What does my workspace know? What has it produced?" | Outputs + accumulated domains + uploads + settings |
 | 4 | **Agents** | `/agents` | "Who's on my team?" | Roster + agent detail with class-aware identity and work-shape summaries |
 
 **Priority order = navigation frequency.** Chat is where work is directed and results surface. Work is checked daily. Context is read when you want to consume what the system produced. Agents is a reference surface, visited rarely.
 
-**Work is operational only** (ADR-180). Work answers: "is this task configured, healthy, and running correctly?" Work does NOT show task output documents or accumulated files — those live in Context. For `produces_deliverable` and `accumulates_context` tasks, Work shows a direct link to Context.
+**Work is operational only** (ADR-180). Work answers: "is this task configured, healthy, and running correctly?" Work does NOT show task output documents or accumulated files — those live in Files. For `produces_deliverable` and `accumulates_context` tasks, Work shows a direct link to Files.
 
-**Context is the knowledge surface** (ADR-180). Context hosts both accumulated domain knowledge (`/workspace/context/`) and task deliverable outputs (`/tasks/{slug}/outputs/latest/`). Four top-level sections: Context (domains), Outputs (task deliverables), Uploads, Settings.
+**Files is the knowledge surface** (ADR-180). Files hosts both accumulated domain knowledge (`/workspace/context/`) and task deliverable outputs (`/tasks/{slug}/outputs/latest/`). Four top-level sections: Context (domains), Outputs (task deliverables), Uploads, Settings. The nav label is "Files" — accurate and non-inflated; it is a filesystem browser.
 
 **Agents is position 4.** Under ADR-176, agents serve work — they are the labor pool, not the organizing principle. The roster is a reference, not a daily destination.
 
@@ -75,13 +76,13 @@ The old `/activity` page is **deleted**. Its content is absorbed into the surfac
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ yarnnn                   [Chat | Work | Context | Agents]     Avatar │ ← global header (logo / toggle / avatar)
+│ yarnnn                   [Chat | Work | Files | Agents]       Avatar │ ← global header (logo / toggle / avatar)
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
 The global header is **just** logo + toggle bar + avatar. There is no separate breadcrumb bar below it. The breadcrumb lives **inside each surface** as a `<PageHeader />` component (ADR-167 v2) — see "Page header" below.
 
-**Toggle bar** (`web/components/shell/ToggleBar.tsx`): four-segment pill `Chat | Work | Context | Agents`. Icons: `MessageCircle`, `Briefcase`, `FolderOpen`, `Users`. `HOME_ROUTE` is `/chat` — both new and returning users land there.
+**Toggle bar** (`web/components/shell/ToggleBar.tsx`): four-segment pill `Chat | Work | Files | Agents`. Icons: `MessageCircle`, `Briefcase`, `FolderOpen`, `Users`. `HOME_ROUTE` is `/chat` — both new and returning users land there.
 
 ### Page header (ADR-167 v5)
 
@@ -131,10 +132,10 @@ Every surface renders `<PageHeader />` as the first row of its center content ar
 | Work (filtered by agent) | `Work` — agent filter shown as chip in list UI, not breadcrumb |
 | Agents (list) | `Agents` |
 | Agents (agent selected) | `Agents › Researcher` |
-| Context (no selection) | `Context` |
-| Context (domain selected) | `Context › Competitors` |
-| Context (deep file) | `Context › Competitors › cursor › profile.md` |
-| Context (task output) | `Context › Daily Update` — output as first-class knowledge item |
+| Files (no selection) | `Files` |
+| Files (domain selected) | `Files › Competitors` |
+| Files (deep file) | `Files › Competitors › cursor › profile.md` |
+| Files (task output) | `Files › Daily Update` — output as first-class knowledge item |
 
 Pages set the breadcrumb segments via `setBreadcrumb()` in a `useEffect` (unchanged contract from b033513). PageHeader reads from the same context. List-mode pages clear the breadcrumb and PageHeader falls back to the surface label via `defaultLabel`.
 
@@ -143,7 +144,7 @@ Pages set the breadcrumb segments via `setBreadcrumb()` in a `useEffect` (unchan
 ## 1. Chat (`/chat`, HOME_ROUTE)
 
 ### Purpose
-Dedicated TP (Thinking Partner) chat surface. The conversation column is the full surface — no always-on briefing side panel. Two structured modals (ADR-165 v8) opened independently: the **Overview modal** (read-only diagnostic dashboard, four tabs: What I know / Heads up / Last time / Team activity) and the **Onboarding modal** (first-run identity capture). TP opens either via HTML-comment markers (`<!-- workspace-state: ... -->` or `<!-- onboarding -->`); the user opens the Overview modal via the "Overview" button in the surface header. Two markers, two modals, never conflated.
+Dedicated TP (Thinking Partner) chat surface. The conversation column is the full surface — no always-on briefing side panel. Two structured modals (ADR-165 v8) opened independently: the **Workspace modal** (read-only capability dashboard, four tabs: Readiness / Attention / Last session / Activity) and the **Onboarding modal** (first-run identity capture). TP opens either via HTML-comment markers (`<!-- workspace-state: ... -->` or `<!-- onboarding -->`); the user opens the Workspace modal via the "Workspace" button in the surface header. Two markers, two modals, never conflated.
 
 For new users with an empty workspace, TP's first response opens the Onboarding modal (identity capture form). The daily-update task still runs (deterministic empty-state template from ADR-161).
 
@@ -152,7 +153,7 @@ For new users with an empty workspace, TP's first response opens the Onboarding 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │                                                                      │
-│ Thinking Partner                                [⊞ Overview]         │ ← SurfaceIdentityHeader
+│ Thinking Partner                                [⊞ Workspace]        │ ← SurfaceIdentityHeader
 │                                                                      │    h1 + action button
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
@@ -163,7 +164,7 @@ For new users with an empty workspace, TP's first response opens the Onboarding 
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-`<SurfaceIdentityHeader />` with "Thinking Partner" as the real H1 and the "Overview" button in the actions slot. The conversation column is centered at `max-w-3xl`. The Overview toggle (icon: `LayoutDashboard`) sits alongside the page identity where it belongs, matching the Run/Pause/Edit pattern on /work detail.
+`<SurfaceIdentityHeader />` with "Thinking Partner" as the real H1 and the "Workspace" button in the actions slot. The conversation column is centered at `max-w-3xl`. The Workspace toggle (icon: `LayoutDashboard`) sits alongside the page identity where it belongs, matching the Run/Pause/Edit pattern on /work detail.
 
 ---
 
@@ -400,16 +401,16 @@ For platform bots specifically, `/agents?agent={slug}` is the canonical manageme
 
 ---
 
-## 4. Context (`/context`)
+## 4. Files (`/context`)
 
 ### Purpose
-The only filesystem browser. Shows the workspace tree with domains, output folders, uploads, and IDENTITY/BRAND files. Unchanged from v7.2 structurally. ADR-163 adds one enhancement: inference-meta rendering.
+The only filesystem browser. Nav label is **Files** — accurate and non-inflated. Shows the workspace tree with domains, output folders, uploads, and IDENTITY/BRAND files. Unchanged from v7.2 structurally. ADR-163 adds one enhancement: inference-meta rendering.
 
 Platform connection management and source selection do not live here anymore. Those belong to Settings > Connectors for connection lifecycle and the platform-bot agent detail surface for source scope.
 
 ### Inference Visibility (ADR-162 + ADR-163)
 
-When the Context tab renders IDENTITY.md or BRAND.md, it uses `InferenceContentView` instead of the raw markdown renderer. The component:
+When the Files surface renders IDENTITY.md or BRAND.md, it uses `InferenceContentView` instead of the raw markdown renderer. The component:
 
 1. Parses the `<!-- inference-meta: {...} -->` HTML comment embedded at the bottom of inference output (written by `_append_inference_meta()` in `api/services/context_inference.py`).
 2. Strips the comment before rendering the markdown body.
@@ -440,11 +441,11 @@ Currently wired for BrandSection in Settings (via `MemorySection.tsx`). A dedica
 
 ### Chat
 - `web/app/(authenticated)/chat/page.tsx` — Chat page (home). Loads scoped history, supplies first-party plus-menu actions, delegates everything else to `ChatSurface`.
-- `web/components/chat-surface/ChatSurface.tsx` — page-level controller (ADR-165 v8). Owns Overview + Onboarding modal open state, parses both TP markers, renders both modals as siblings. "Overview" toggle lives in `SurfaceIdentityHeader.actions`.
-- `web/components/chat-surface/WorkspaceStateView.tsx` — Overview modal: four read-only tabs (What I know / Heads up / Last time / Team activity). No `isEmpty` prop, no soft gate. (ADR-165 v8.)
+- `web/components/chat-surface/ChatSurface.tsx` — page-level controller (ADR-165 v8). Owns Workspace + Onboarding modal open state, parses both TP markers, renders both modals as siblings. "Workspace" toggle lives in `SurfaceIdentityHeader.actions`.
+- `web/components/chat-surface/WorkspaceStateView.tsx` — Workspace modal: four read-only tabs (Readiness / Attention / Last session / Activity). No `isEmpty` prop, no soft gate. (ADR-165 v8.)
 - `web/components/chat-surface/OnboardingModal.tsx` — Onboarding modal: wraps ContextSetup for first-run identity capture. Opened by TP `<!-- onboarding -->` marker only. (ADR-165 v8.)
 - `web/components/chat-surface/ContextSetup.tsx` — identity capture atom (URL inputs + file uploads + free-text). Sole consumer: `OnboardingModal`.
-- `web/lib/workspace-state-meta.ts` — TWO parsers + TWO strippers for TP markers (workspace-state leads: `overview | flags | recap | activity`; onboarding: presence-only). Same pattern as ADR-162 inference-meta.
+- `web/lib/workspace-state-meta.ts` — TWO parsers + TWO strippers for TP markers (workspace-state leads: `overview` (Readiness) `| flags` (Attention) `| recap` (Last session) `| activity` (Activity); onboarding: presence-only). Same pattern as ADR-162 inference-meta.
 - `docs/design/WORKSPACE-STATE-SURFACE.md` — design doc for `/chat` workspace state surface (ADR-165 v7)
 
 ### Work
@@ -462,8 +463,8 @@ Currently wired for BrandSection in Settings (via `MemorySection.tsx`). A dedica
 - `web/components/agents/AgentRosterSurface.tsx` — full-width roster grouped by `agent_class` with health glance cards (ADR-167; replaces deleted `AgentTreeNav.tsx`)
 - `web/components/agents/AgentContentView.tsx` — class-aware shell + output-kind-aware assigned-work cards (detail mode)
 
-### Context
-- `web/app/(authenticated)/context/page.tsx` — Context page. Retains left filesystem tree nav.
+### Files
+- `web/app/(authenticated)/context/page.tsx` — Files page (route `/context`). Retains left filesystem tree nav.
 - `web/components/context/InferenceContentView.tsx` — meta-aware inferred content renderer (ADR-163)
 - `web/lib/inference-meta.ts` — parse helper (ADR-163)
 
@@ -493,6 +494,7 @@ When adding a new detail-mode page, prefer the list/detail collapse pattern over
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-04-15 | v12.0 | Framing rename pass. Nav label "Context" → "Files" (accurate — it is a filesystem browser, not a knowledge concept). Chat modal "Overview" → "Workspace"; four tabs renamed: "What I know" → "Readiness", "Heads up" → "Attention", "Last time" → "Last session", "Team activity" → "Activity". "About you" section inside Readiness → "Workspace". Value labels "Not captured yet" / "Captured" → tiered Empty/Sparse/Rich. Chat plus-menu "Update context" → "Update workspace". Framing shift: from profile-completeness checklist to operational-readiness signal. |
 | 2026-04-10 | v9.6 | Agent detail UX pass. Component ordering now varies by `agent_class`: domain-stewards show Tasks before Context folder (work is the point, folder is where it lives); platform-bots keep Connection → Sources → Tasks (must connect before tasks make sense); TP/meta-cognitive omits highlights chips, `Create Task` CTA, and `LearnedBlock`. Highlight chips suppressed when zero. Domain trailing `/` removed from metadata strip. Role block titles and descriptions rewritten to be human-readable per class. Empty-state copy updated to reference TP for setup. Section labels: "Folder" → "Context folder", "Assigned work" → "Work". |
 | 2026-04-09 | v9.5 | Agent detail consolidation amendment. `/agents?agent={slug}` is the single canonical detail surface; `/agents/{id}` now resolves and redirects there. `AgentContentView` no longer behaves like a generic identity card. Its top shell dispatches on `agent.agent_class`, and its assigned-work cards dispatch on task `output_kind` with optional `type_key` label specialization. This mirrors WorkDetail's kind-aware pattern and prevents bespoke per-agent page branches. |
 | 2026-04-09 | v9.4 | ADR-167 v5 amendment — Page header split into two responsibilities. `<PageHeader />` becomes pure breadcrumb chrome (no title, no metadata, no actions — deleted `subtitle` and `actions` props). New `<SurfaceIdentityHeader />` primitive lives inside the surface content and renders the real H1 + metadata + optional actions. WorkDetail and AgentContentView each render their own SurfaceIdentityHeader at the top of their content stream. Additionally introduces the **nested document pattern**: any task-produced markdown/HTML content (output iframes in DeliverableMiddle, CHANGELOG in TrackingMiddle, hygiene log in MaintenanceMiddle, AGENT.md in InstructionsBlock) is wrapped in a bordered, visually inset card (`rounded-lg border border-border bg-muted/5`) so its internal H1s are unambiguously scoped as "content inside the task/agent" rather than competing with the surface's own H1. Uniform across all four `output_kind` middles. |

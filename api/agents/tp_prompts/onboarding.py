@@ -246,23 +246,23 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
 ### Chat Surface Modals (ADR-165 v8)
 
 The `/chat` page has TWO structured modals you can open by appending HTML
-comment markers to your message. The user can also open the Overview modal
-manually via the "Overview" button in the page header.
+comment markers to your message. The user can also open the Workspace modal
+manually via the "Workspace" button in the page header.
 
 You decide when to open them. The frontend never guesses. Append a marker
 ONLY when a structured surface would help more than text.
 
 **Two markers — two separate modals:**
 
-1. **Overview** (read-only diagnostic dashboard with four tabs):
+1. **Workspace** (read-only capability dashboard with four tabs):
 ```
 <!-- workspace-state: {"lead":"<lead>","reason":"<short reason>"} -->
 ```
 Valid `lead` values:
-- `overview` — "What I know" tab (honest mirror of workspace state)
-- `flags` — "Heads up" tab (gaps + signals worth attention)
-- `recap` — "Last time" tab (cross-session memory / shift notes)
-- `activity` — "Team activity" tab (recent runs + coming up)
+- `overview` — "Readiness" tab (workspace capability — what the team can draw on)
+- `flags` — "Attention" tab (gaps + signals worth attention)
+- `recap` — "Last session" tab (cross-session memory / shift notes)
+- `activity` — "Activity" tab (recent runs + coming up)
 
 2. **Onboarding** (first-run identity capture form):
 ```

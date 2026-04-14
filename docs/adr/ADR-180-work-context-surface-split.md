@@ -28,12 +28,12 @@ Work answered both "is this task healthy/scheduled?" (operational) and "what did
 
 ## Decision
 
-### Nav order: `Chat | Work | Context | Agents`
+### Nav order: `Chat | Work | Files | Agents`
 
 Priority order reflects user navigation frequency:
 - Chat: where work is directed and results surface
 - Work: operational dashboard — task health, schedule, configuration, team
-- Context: knowledge surface — what the workspace knows and what tasks have produced
+- Files: knowledge surface — what the workspace knows and what tasks have produced (nav label "Files" — accurate, non-inflated; it is a filesystem browser)
 - Agents: roster reference — who's on the team (visited rarely)
 
 ### Work = operational only
