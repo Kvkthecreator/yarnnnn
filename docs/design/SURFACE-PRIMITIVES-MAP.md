@@ -2,6 +2,7 @@
 
 **Date:** 2026-04-04 (v2 — Chat + Agents + Context surfaces)
 **Supersedes:** v1 (2026-03-25, Workfloor + Task Page)
+**Note:** Primitive names in this doc may drift from canonical. For the authoritative primitive surface × mode × capability matrix, see [`docs/architecture/primitives-matrix.md`](../architecture/primitives-matrix.md) (ADR-168). This doc's value is the surface→action mapping layer, not the primitive definitions.
 
 Canonical mapping of what's available on each surface. Defines scope boundaries
 for TP primitives, slash commands, plus menu actions, and suggestion chips.

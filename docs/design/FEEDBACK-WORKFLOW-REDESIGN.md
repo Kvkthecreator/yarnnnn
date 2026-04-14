@@ -22,7 +22,7 @@ Feedback routes to three layers: WHAT the workspace tracks, WHO produces output,
 
 1. **Email "Reply with feedback"** → `/tasks/{slug}` → task-scoped TP
 2. **Task page chat** → user types feedback → TP routes
-3. **Workfloor chat** → agent feedback only (no task context)
+3. **Chat surface** (`/chat`) → agent feedback only (no task context)
 
 No background jobs. No edit-distance extraction. Feedback is always explicit, always through TP.
 

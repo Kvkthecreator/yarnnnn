@@ -4,6 +4,25 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-14 — ADR-179 + USER-JOURNEY.md v1.2: system event cards pattern
+
+- **New ADR**: `ADR-179-system-event-cards.md` — system events produce pre-composed assistant messages in the TP chat stream, zero LLM cost. Three defined cards: `workspace_init_complete` (seeded from auth callback), `task_triggered` (TP's response text covers this), `task_complete` (scheduler → realtime → card). No progress tracking — two bookend cards per significant action. Chat is the event log. Scopes first implementation of TP-NOTIFICATION-CHANNEL.md.
+- **USER-JOURNEY.md v1.2** — added system event cards decision table, explicit two-Clarify sequence in Stage 2A (post-inference gap check + accuracy gate), chat-visible guarantee on ContextSetup dismiss, ADR-179 reference.
+- **TP-NOTIFICATION-CHANNEL.md** — added scope clarification header: ADR-179 implements the first phase; FAB ambient state and queued notifications remain as future extension; in-progress task state explicitly out of scope.
+
+---
+
+## 2026-04-14 — USER-JOURNEY.md v1.1: workspace init explicit, tighter format
+
+- **New canonical doc**: `USER-JOURNEY.md` — single source of truth for the full user journey from sign-up through onboarding, returning use, and starting new work. Covers all four paths (sign-up, cold-start, returning user, TaskSetup) with value-add per step. Governed by ADR-138, 141, 144, 161, 163, 176, 178.
+- **Archived**: `DELIVERABLE-FIRST-USER-FLOW.md` → `archive/` — superseded by TASK-SETUP-FLOW.md + USER-JOURNEY.md. Referenced old workfloor routes, ADR-145 pipeline visualisation, "deliverables" terminology.
+- **Archived**: `AGENT-PRESENTATION-PRINCIPLES.md` → `archive/` — three-tab agent model superseded by ADR-163. File itself acknowledged the content was historical.
+- **SURFACE-PRIMITIVES-MAP.md**: Added redirect note to `docs/architecture/primitives-matrix.md` as canonical primitive reference (ADR-168). Surface→action mapping content retained.
+- **SHARED-CONTEXT-WORKFLOW.md**: Replaced stale "Workfloor Surface (v4)" section header with current "Chat Surface (ADR-163)" equivalent.
+- **FEEDBACK-WORKFLOW-REDESIGN.md**: Replaced "Workfloor chat" entry point label with "Chat surface (`/chat`)".
+
+---
+
 ## 2026-04-13 — TASK-SETUP-FLOW.md: Structured intent capture for task creation
 
 - **New design doc**: `TASK-SETUP-FLOW.md` — defines the `TaskSetup` component, the task creation equivalent of `ContextSetup`. Two-route flow: Route B (context-driven: "track something") and Route A (output-driven: "get a deliverable"). Both routes share the same material injection layer (links → entity seed, files → DELIVERABLE.md shape, notes → `focus`). Composed message gives TP a complete intent statement it can act on in one turn without clarifying. Governs ADR-178 task creation routes.

@@ -8,13 +8,12 @@ How users create and update workspace shared context (IDENTITY.md, BRAND.md).
 
 **Inference is the method, not the product.** Users express intent ("update my identity"), the system infers from whatever sources are available (documents, URLs, chat text, platform content). No form fields. Workspace files ARE the context — no separate structured storage.
 
-## Workfloor Surface (v4 — overlay layout, 2026-03-30)
+## Chat Surface (current — ADR-163 four-surface nav)
 
-Floating panels over isometric room backdrop. Left panel has tabbed Tasks/Context:
+`/context` tab owns Identity / Brand / Documents. `/chat` (home) owns ContextSetup for cold-start.
 
 ```
-Tasks           — active task list, links to task pages
-Context         — nested sub-navigation:
+/context
   ├─ Identity   — rendered IDENTITY.md
   ├─ Brand      — rendered BRAND.md
   └─ Documents  — uploaded file list

@@ -1,8 +1,10 @@
 # TP Notification Channel — Unified Side-Effect Surfacing
 
-**Date:** 2026-04-02
-**Status:** Proposed (ADR-155 Phase 3)
+**Date:** 2026-04-02 (scoped down 2026-04-14 — ADR-179)
+**Status:** Partially superseded by [ADR-179](../adr/ADR-179-system-event-cards.md)
 **Depends on:** Chat-as-drawer (SURFACE-ARCHITECTURE.md), InlineActionCard pattern, TPContext streaming
+
+> **Scope clarification (2026-04-14):** The notification channel doc below describes the full vision including FAB states and a rich notification type system. ADR-179 scopes the first implementation to two bookend cards per task (triggered + completed), zero LLM cost, no progress tracking. The FAB ambient state and queued notification patterns below remain valid for future extension but are not in the first build. The "in-progress" state for task execution is explicitly out of scope — users are not waiting at the screen, and the completion card is sufficient.
 
 ---
 
