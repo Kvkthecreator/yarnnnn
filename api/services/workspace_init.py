@@ -105,17 +105,18 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
             DEFAULT_CONVENTIONS_MD,
         )
 
-        # Inject browser timezone into IDENTITY.md before writing so that
-        # get_user_timezone() in Phase 5 picks it up without asking the user.
+        # Inject browser timezone so get_user_timezone() in Phase 5 resolves
+        # correctly without asking the user.
+        # _parse_memory_md reads plain "key: value" lines (not bold markdown),
+        # so we write a separate plain-format IDENTITY.md when a timezone is
+        # known, and fall back to the display template otherwise.
         identity_content = DEFAULT_IDENTITY_MD
         if browser_tz:
             from services.platform_limits import normalize_timezone_name
+            from services.workspace import UserMemory
             validated_tz = normalize_timezone_name(browser_tz)
             if validated_tz and validated_tz != "UTC":
-                identity_content = identity_content.replace(
-                    "**Industry:** (not set)",
-                    f"**Industry:** (not set)\n**Timezone:** {validated_tz}",
-                )
+                identity_content = UserMemory._render_memory_md({"timezone": validated_tz})
                 logger.info(f"[WORKSPACE_INIT] Timezone inferred from browser: {validated_tz}")
 
         workspace_files = {
