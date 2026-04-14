@@ -22,7 +22,7 @@ Endpoints:
 
 import hashlib
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
@@ -142,7 +142,7 @@ def _note_to_entry(note: dict, idx: int) -> dict:
 # ─── Onboarding ───────────────────────────────────────────────────────────────
 
 @router.get("/user/onboarding-state", response_model=OnboardingStateResponse)
-async def get_onboarding_state(auth: UserClient):
+async def get_onboarding_state(request: Request, auth: UserClient):
     """Check if user has completed onboarding (ADR-138/140).
 
     Lazy scaffolding: if no agents exist, create the default workforce roster.
@@ -163,7 +163,10 @@ async def get_onboarding_state(auth: UserClient):
         # ADR-152: Full workspace initialization on first check
         if not has_agents:
             from services.workspace_init import initialize_workspace
-            init_result = await initialize_workspace(auth.client, auth.user_id)
+            # Infer timezone from browser header (sent by frontend via X-Timezone).
+            # Falls back to UTC inside initialize_workspace if absent or invalid.
+            browser_tz = request.headers.get("X-Timezone")
+            init_result = await initialize_workspace(auth.client, auth.user_id, browser_tz=browser_tz)
             has_agents = True
 
             # ADR-179: Write workspace_init_complete system card as persisted session_messages row.

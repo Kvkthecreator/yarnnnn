@@ -347,9 +347,15 @@ def _resolve_reads_from(reads_from: list[str], domain_state: dict) -> list[str]:
 
         dstate = domain_state[domain_key]
 
-        # Synthesis file reference
+        # Synthesis file reference — matches "_synthesis.md" placeholder OR actual filename
         synth = dstate.get("synthesis_files", [])
-        if synth and "_synthesis" in path_pattern or "_tracker" in path_pattern:
+        pattern_filename = path_pattern.split("/")[-1] if "/" in path_pattern else path_pattern
+        is_synth_ref = (
+            "_synthesis" in path_pattern
+            or "_tracker" in path_pattern
+            or any(sf["path"].endswith(f"/{pattern_filename}") for sf in synth)
+        )
+        if synth and is_synth_ref:
             updated = synth[0].get("updated_at", "")[:10] if synth else ""
             freshness = f" (updated {updated})" if updated else ""
             lines.append(f"- `{path_pattern}`{freshness} — {len(synth)} file(s)")
@@ -658,18 +664,22 @@ def build_post_generation_manifest(
             if domain_key and domain_key in domain_state:
                 dstate = domain_state[domain_key]
                 # Synthesis files.
-                # task_types.py uses "_synthesis.md" as a canonical placeholder,
-                # but directory_registry may register a different filename (e.g.,
-                # "landscape.md" for competitors, "overview.md" for market).
-                # Treat any reads_from ending in "_synthesis.md" as matching the
-                # registered synthesis file — regardless of its actual name.
-                pattern_is_synthesis = path_pattern.endswith("_synthesis.md")
+                # Pattern matches the registered synthesis file when either:
+                #   (a) it ends in "_synthesis.md" (legacy placeholder), or
+                #   (b) it names the actual synthesis file (e.g. "competitors/landscape.md")
+                pattern_filename = path_pattern.split("/")[-1] if "/" in path_pattern else path_pattern
+                pattern_is_synthesis = (
+                    path_pattern.endswith("_synthesis.md")
+                    or any(
+                        sf["path"].endswith(f"/{pattern_filename}")
+                        for sf in dstate.get("synthesis_files", [])
+                    )
+                )
                 for sf in dstate.get("synthesis_files", []):
-                    if pattern_is_synthesis or sf["path"] not in source_files:
-                        if sf["path"] not in source_files:
-                            source_files.append(sf["path"])
-                            if sf.get("updated_at"):
-                                source_updated_ats.append(sf["updated_at"])
+                    if pattern_is_synthesis and sf["path"] not in source_files:
+                        source_files.append(sf["path"])
+                        if sf.get("updated_at"):
+                            source_updated_ats.append(sf["updated_at"])
                 # Entity files matching pattern (skip for synthesis-only patterns)
                 if not pattern_is_synthesis:
                     for ef in dstate.get("entity_files", []):

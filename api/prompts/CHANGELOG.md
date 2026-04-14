@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.14.2] - Timezone inference + daily-digest dates + synthesis path fix
+
+### Changed
+- `web/lib/api/client.ts` — `getAuthHeaders()` now sends `X-Timezone` header with the browser's IANA timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`). Sent on every request; non-fatal if unavailable.
+- `api/routes/memory.py` — `get_onboarding_state` reads `X-Timezone` header and passes `browser_tz` to `initialize_workspace()`.
+- `api/services/workspace_init.py` — `initialize_workspace(browser_tz=)` param: if a valid non-UTC timezone is detected, writes `**Timezone:** {tz}` into IDENTITY.md before Phase 5. `get_user_timezone()` in Phase 5 picks it up, so the daily-update fires at 09:00 local time from day one without any user prompt.
+- `api/services/task_types.py` — `daily-digest` step instruction now requires dates on every "What Changed" item: "include that date in parentheses so the user can judge freshness". Dateless competitor or market signals explicitly flagged as unactionable.
+- `api/services/task_types.py` — All `reads_from` paths in `page_structure` updated from `_synthesis.md` placeholders to actual filenames per the directory registry: `competitors/landscape.md`, `market/overview.md`, `projects/status.md`, `relationships/portfolio.md`, `content_research/*/research.md`.
+- `api/services/compose/assembly.py` — Synthesis file matching updated: now recognizes both legacy `_synthesis.md` patterns AND literal synthesis filenames (landscape.md, overview.md, etc.) as synthesis references. Fixes a regression where literal filenames would fall through to entity matching and find nothing.
+- **Behavior**: New users get correct local-time scheduling on day one. Daily updates now show dates next to competitor/market signals. Compose pipeline correctly resolves synthesis files whether the path is a placeholder or literal filename.
+
 ## [2026.04.14.1] - Team→Process wiring + track-market schedule fix (ADR-176 Decision 2)
 
 ### Changed

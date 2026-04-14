@@ -159,6 +159,11 @@ STEP_INSTRUCTIONS = {
         "Brief summary of each task's output (1-2 sentences, not the full report).\n\n"
         "**What Changed**: Key updates to workspace context domains — new entities discovered, "
         "signals logged, profiles updated. Focus on what's NEW since yesterday.\n\n"
+        "IMPORTANT for What Changed: context files carry their last-updated date in the "
+        "section header (e.g. 'updated 2026-04-13'). For each item you surface, include "
+        "that date in parentheses so the user can judge freshness — e.g. "
+        "'Cursor raised $100M Series B (Apr 13)'. Never omit the date for competitor or "
+        "market signals — dateless findings are unactionable.\n\n"
         "**What's Next**: Upcoming scheduled tasks, when they'll run, what they'll cover.\n\n"
         "Keep it scannable — the user should absorb this in under 60 seconds. "
         "Use bullet points, not paragraphs. No charts or visuals needed. "
@@ -735,7 +740,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "surface_type": "report",
         "page_structure": [
             {"kind": "narrative", "title": "Executive Summary",
-             "reads_from": ["competitors/_synthesis.md", "signals/_tracker.md"]},
+             "reads_from": ["competitors/landscape.md", "signals/_tracker.md"]},
             {"kind": "entity-grid", "title": "Competitor Profiles",
              "entity_pattern": "competitors/*/",
              "assets": [{"type": "root", "pattern": "competitors/assets/*-favicon.png"}]},
@@ -747,7 +752,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             {"kind": "comparison-table", "title": "Competitive Matrix",
              "reads_from": ["competitors/*/profile.md"]},
             {"kind": "callout", "title": "Strategic Implications",
-             "reads_from": ["competitors/_synthesis.md"]},
+             "reads_from": ["competitors/landscape.md"]},
         ],
         "export_options": ["pdf"],
         "process": [
@@ -797,7 +802,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "surface_type": "report",
         "page_structure": [
             {"kind": "narrative", "title": "Executive Summary",
-             "reads_from": ["market/_synthesis.md", "competitors/_synthesis.md"]},
+             "reads_from": ["market/overview.md", "competitors/landscape.md"]},
             {"kind": "distribution-chart", "title": "Market Overview",
              "reads_from": ["market/*/analysis.md"],
              "assets": [{"type": "derivative", "render": "chart"}]},
@@ -810,7 +815,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             {"kind": "comparison-table", "title": "Competitive Moves",
              "reads_from": ["competitors/*/profile.md"]},
             {"kind": "callout", "title": "Opportunities & Threats",
-             "reads_from": ["market/_synthesis.md", "signals/_tracker.md"]},
+             "reads_from": ["market/overview.md", "signals/_tracker.md"]},
         ],
         "export_options": ["pdf"],
         "process": [
@@ -909,7 +914,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             {"kind": "narrative", "title": "Opening",
              "reads_from": ["workspace/IDENTITY.md"]},
             {"kind": "metric-cards", "title": "Key Metrics",
-             "reads_from": ["market/_synthesis.md", "projects/_synthesis.md"],
+             "reads_from": ["market/overview.md", "projects/status.md"],
              "assets": [{"type": "derivative", "render": "chart"}]},
             {"kind": "trend-chart", "title": "Progress",
              "reads_from": ["projects/*/status.md"],
@@ -917,10 +922,10 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             {"kind": "status-matrix", "title": "Workstream Status",
              "reads_from": ["projects/*/status.md"]},
             {"kind": "entity-grid", "title": "Competitive Landscape",
-             "reads_from": ["competitors/_synthesis.md"],
+             "reads_from": ["competitors/landscape.md"],
              "assets": [{"type": "root", "pattern": "competitors/assets/*-favicon.png"}]},
             {"kind": "narrative", "title": "Forward Look",
-             "reads_from": ["projects/_synthesis.md", "signals/_tracker.md"]},
+             "reads_from": ["projects/status.md", "signals/_tracker.md"]},
         ],
         "export_options": ["pdf"],
         "process": [
@@ -969,8 +974,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             {"kind": "timeline", "title": "What Happened",
              "reads_from": ["signals/_tracker.md"]},
             {"kind": "entity-grid", "title": "What Changed",
-             "reads_from": ["competitors/_synthesis.md", "market/_synthesis.md",
-                            "projects/_synthesis.md", "relationships/_synthesis.md"]},
+             "reads_from": ["competitors/landscape.md", "market/overview.md",
+                            "projects/status.md", "relationships/portfolio.md"]},
             {"kind": "checklist", "title": "What's Next",
              "reads_from": ["projects/*/status.md"]},
         ],
@@ -1015,7 +1020,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "surface_type": "dashboard",
         "page_structure": [
             {"kind": "metric-cards", "title": "Status Summary",
-             "reads_from": ["projects/_synthesis.md"]},
+             "reads_from": ["projects/status.md"]},
             {"kind": "status-matrix", "title": "Workstream Health",
              "reads_from": ["projects/*/status.md"]},
             {"kind": "timeline", "title": "Blockers & Risks",
@@ -1063,11 +1068,11 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "surface_type": "report",
         "page_structure": [
             {"kind": "narrative", "title": "Brief Overview",
-             "reads_from": ["content_research/_synthesis.md"]},
+             "reads_from": ["content_research/*/research.md"]},
             {"kind": "callout", "title": "Key Messages",
              "reads_from": ["content_research/*/research.md"]},
             {"kind": "narrative", "title": "Draft Content",
-             "reads_from": ["content_research/*/research.md", "competitors/_synthesis.md"]},
+             "reads_from": ["content_research/*/research.md", "competitors/landscape.md"]},
             {"kind": "data-table", "title": "Sources",
              "reads_from": ["content_research/*/research.md"]},
         ],
@@ -1114,15 +1119,15 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "surface_type": "deck",
         "page_structure": [
             {"kind": "narrative", "title": "Launch Summary",
-             "reads_from": ["content_research/_synthesis.md", "market/_synthesis.md"]},
+             "reads_from": ["content_research/*/research.md", "market/overview.md"]},
             {"kind": "callout", "title": "Key Messages",
-             "reads_from": ["content_research/*/research.md", "competitors/_synthesis.md"]},
+             "reads_from": ["content_research/*/research.md", "competitors/landscape.md"]},
             {"kind": "entity-grid", "title": "Target Audiences",
-             "reads_from": ["content_research/_synthesis.md", "relationships/_synthesis.md"]},
+             "reads_from": ["content_research/*/research.md", "relationships/portfolio.md"]},
             {"kind": "checklist", "title": "Deliverables Checklist",
-             "reads_from": ["content_research/_synthesis.md"]},
+             "reads_from": ["content_research/*/research.md"]},
             {"kind": "timeline", "title": "Launch Timeline",
-             "reads_from": ["projects/_synthesis.md"],
+             "reads_from": ["projects/status.md"],
              "assets": [{"type": "derivative", "render": "mermaid"}]},
         ],
         "export_options": ["pdf"],

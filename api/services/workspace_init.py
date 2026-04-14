@@ -26,11 +26,16 @@ from services.schedule_utils import calculate_next_run_at, get_user_timezone
 logger = logging.getLogger(__name__)
 
 
-async def initialize_workspace(client: Any, user_id: str) -> dict:
+async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None = None) -> dict:
     """Initialize a complete workspace for a new user.
 
     Idempotent — checks for existing workspace before creating.
     Called from onboarding-state endpoint on first login.
+
+    Args:
+        browser_tz: IANA timezone string inferred from the browser (X-Timezone header).
+                    Written into IDENTITY.md during Phase 3 so the daily-update task
+                    fires at 09:00 local time on first run — no explicit user prompt needed.
 
     Returns dict with initialization summary.
     """
@@ -100,8 +105,21 @@ async def initialize_workspace(client: Any, user_id: str) -> dict:
             DEFAULT_CONVENTIONS_MD,
         )
 
+        # Inject browser timezone into IDENTITY.md before writing so that
+        # get_user_timezone() in Phase 5 picks it up without asking the user.
+        identity_content = DEFAULT_IDENTITY_MD
+        if browser_tz:
+            from services.platform_limits import normalize_timezone_name
+            validated_tz = normalize_timezone_name(browser_tz)
+            if validated_tz and validated_tz != "UTC":
+                identity_content = identity_content.replace(
+                    "**Industry:** (not set)",
+                    f"**Industry:** (not set)\n**Timezone:** {validated_tz}",
+                )
+                logger.info(f"[WORKSPACE_INIT] Timezone inferred from browser: {validated_tz}")
+
         workspace_files = {
-            "IDENTITY.md": (DEFAULT_IDENTITY_MD, "User identity template"),
+            "IDENTITY.md": (identity_content, "User identity template"),
             "BRAND.md": (DEFAULT_BRAND_MD, "Default brand baseline"),
             "AWARENESS.md": (DEFAULT_AWARENESS_MD, "TP situational awareness"),
             "_playbook.md": (TP_ORCHESTRATION_PLAYBOOK, "TP orchestration playbook"),
