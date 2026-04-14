@@ -3,41 +3,39 @@
 /**
  * TrackingMiddle — Detail middle band for `output_kind: accumulates_context`.
  *
- * SURFACE-ARCHITECTURE.md v10.0 — health dashboard shape (2026-04-14).
+ * SURFACE-ARCHITECTURE.md v10.0 — two-tab health dashboard (2026-04-14).
  *
- * The mental model for accumulates_context tasks:
- *   "This is quietly building knowledge for me. Is it working?"
+ * Two tabs answer the two questions users have about accumulating tasks:
  *
- * The user wants:
- *   1. Is it running? (status visible in header strip above)
- *   2. Where does the context live? (domain link — already in header strip,
- *      repeated here for direct navigation)
- *   3. What has it been collecting? (compact run receipts — NOT a full document)
+ *   Activity — "Is it running?" compact run receipts (date + summary),
+ *               expandable to full last-run log. Data contract collapsible.
  *
- * Key change from v9: the last-run CHANGELOG was rendered as a full scrollable
- * document card, which looked like a deliverable. That was wrong. The document
- * IS the domain folder — this page is just the health dashboard. We now render
- * compact run receipts (date + brief summary line) instead.
+ *   Files    — "What has it accumulated?" Domain entity listing pulled from
+ *               /api/workspace/domain/{key}. Entity cards (name, file count,
+ *               last updated) + synthesis files section. The key missing
+ *               piece: users can see *what files* the task has been writing
+ *               without leaving the detail page.
  *
  * Registry fallback: if TASK.md parsing fails to populate task.context_writes,
  * we infer the primary domain from task.type_key via TRACKING_TYPE_DOMAIN_MAP.
- * This prevents the "No context domain configured" broken state.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle, ChevronDown, ChevronRight,
-  FolderOpen, Layers, Loader2, RefreshCw, Shield,
+  FileText, FolderOpen, Layers, Loader2, RefreshCw, Shield,
 } from 'lucide-react';
 import { useTaskOutputs } from '@/hooks/useTaskOutputs';
 import { CONTEXT_ROUTE } from '@/lib/routes';
 import { formatRelativeTime } from '@/lib/formatting';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { api } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
 import type { DeliverableSpec, Task } from '@/types';
 
 // Fallback: infer primary context domain from type_key when context_writes
-// is missing (TASK.md parsing failure). Keeps the domain link functional.
+// is missing (TASK.md parsing failure).
 const TRACKING_TYPE_DOMAIN_MAP: Record<string, string> = {
   'track-competitors': 'competitors',
   'track-market': 'market',
@@ -57,7 +55,8 @@ function inferPrimaryDomain(task: Task): string | null {
   return null;
 }
 
-// Data Contract panel — collapsible quality spec for context tasks
+// ─── Data Contract panel ─────────────────────────────────────────────────────
+
 function DataContractPanel({ spec }: { spec: DeliverableSpec }) {
   const [open, setOpen] = useState(false);
   const hasContent = spec.quality_criteria?.length || spec.expected_output;
@@ -103,23 +102,24 @@ function DataContractPanel({ spec }: { spec: DeliverableSpec }) {
   );
 }
 
-// Compact run receipt — parse the first heading + brief summary from output
+// ─── Receipt line extractor ───────────────────────────────────────────────────
+
 function extractReceiptLine(content: string): string {
   if (!content) return '';
-  // Try to find a summary line — first non-empty line that isn't a heading or date
   const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
   for (const line of lines) {
-    if (line.startsWith('#')) continue;           // skip headings
-    if (/^\*\*/.test(line)) continue;             // skip bold headers
-    if (/^April|^Jan|^Feb|^Mar|^May|^Jun|^Jul|^Aug|^Sep|^Oct|^Nov|^Dec/.test(line)) continue; // skip dates
-    if (line.length < 10) continue;               // skip very short lines
-    // truncate to ~80 chars
+    if (line.startsWith('#')) continue;
+    if (/^\*\*/.test(line)) continue;
+    if (/^April|^Jan|^Feb|^Mar|^May|^Jun|^Jul|^Aug|^Sep|^Oct|^Nov|^Dec/.test(line)) continue;
+    if (line.length < 10) continue;
     return line.length > 80 ? line.slice(0, 77) + '…' : line;
   }
   return '';
 }
 
-export function TrackingMiddle({
+// ─── Activity tab ────────────────────────────────────────────────────────────
+
+function ActivityTab({
   task,
   refreshKey,
   deliverableSpec,
@@ -134,12 +134,6 @@ export function TrackingMiddle({
     refreshKey,
   });
 
-  const primaryDomain = inferPrimaryDomain(task);
-  const writes = task.context_writes ?? [];
-  const otherDomains = writes.filter(d => d !== (primaryDomain ?? '') && d !== 'signals');
-
-  // Build run receipt entries from outputs (most recent first)
-  // latest + history give us the full picture
   const runEntries = [
     ...(latest ? [{ date: latest.date, content: latest.content ?? latest.md_content ?? '' }] : []),
     ...outputs
@@ -151,39 +145,6 @@ export function TrackingMiddle({
 
   return (
     <>
-      {/* Domain section */}
-      <div className="px-6 py-4 border-b border-border/40">
-        <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">Context Domain</h3>
-        {primaryDomain ? (
-          <div className="space-y-1.5">
-            <Link
-              href={`${CONTEXT_ROUTE}?domain=${primaryDomain}`}
-              className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-            >
-              <FolderOpen className="w-4 h-4" />
-              /workspace/context/{primaryDomain}/
-            </Link>
-            {otherDomains.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                <Layers className="w-3 h-3" />
-                <span>Also writes to:</span>
-                {otherDomains.map(d => (
-                  <Link
-                    key={d}
-                    href={`${CONTEXT_ROUTE}?domain=${d}`}
-                    className="hover:text-foreground hover:underline"
-                  >
-                    {d}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground/60">No context domain configured for this task.</p>
-        )}
-      </div>
-
       {/* Data contract */}
       {deliverableSpec && (
         <div className="pt-3">
@@ -225,9 +186,7 @@ export function TrackingMiddle({
               return (
                 <li key={entry.date ?? idx} className="border-b border-border/30 last:border-0">
                   <div className="flex items-start gap-3 py-2.5">
-                    {/* Status dot */}
                     <div className="w-1.5 h-1.5 rounded-full bg-green-500/70 mt-1.5 shrink-0" />
-
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-foreground font-medium">
@@ -236,13 +195,15 @@ export function TrackingMiddle({
                         {entry.date && (
                           <span className="text-[10px] text-muted-foreground/50">{entry.date}</span>
                         )}
-                        {/* Expand toggle for latest run */}
                         {hasFullContent && (
                           <button
-                            onClick={() => setExpandedDate(isExpanded ? null : entry.date)}
+                            onClick={() => setExpandedDate(isExpanded ? null : (entry.date ?? null))}
                             className="ml-auto text-[10px] text-muted-foreground/50 hover:text-muted-foreground flex items-center gap-0.5"
                           >
-                            {isExpanded ? <><ChevronDown className="w-3 h-3" />Hide</> : <><ChevronRight className="w-3 h-3" />Details</>}
+                            {isExpanded
+                              ? <><ChevronDown className="w-3 h-3" />Hide</>
+                              : <><ChevronRight className="w-3 h-3" />Details</>
+                            }
                           </button>
                         )}
                       </div>
@@ -252,7 +213,6 @@ export function TrackingMiddle({
                     </div>
                   </div>
 
-                  {/* Expandable full log for latest run */}
                   {isExpanded && hasFullContent && (
                     <div className="pb-3 pl-4.5">
                       <div className="rounded-md border border-border bg-muted/5 overflow-hidden">
@@ -270,6 +230,241 @@ export function TrackingMiddle({
           </ul>
         )}
       </div>
+    </>
+  );
+}
+
+// ─── Files tab ───────────────────────────────────────────────────────────────
+
+type DomainEntity = {
+  slug: string;
+  name: string;
+  last_updated: string | null;
+  preview: string | null;
+  files: Array<{ name: string; path: string; updated_at: string | null }>;
+};
+
+type SynthesisFile = {
+  name: string;
+  filename: string;
+  path: string;
+  updated_at: string | null;
+  preview: string | null;
+};
+
+function FilesTab({ task }: { task: Task }) {
+  const primaryDomain = inferPrimaryDomain(task);
+  const writes = task.context_writes ?? [];
+  const otherDomains = writes.filter(d => d !== (primaryDomain ?? '') && d !== 'signals');
+
+  const [entities, setEntities] = useState<DomainEntity[]>([]);
+  const [synthFiles, setSynthFiles] = useState<SynthesisFile[]>([]);
+  const [entityCount, setEntityCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!primaryDomain) return;
+    setLoading(true);
+    setError(null);
+    api.workspace.getDomainEntities(primaryDomain)
+      .then(data => {
+        setEntities(data.entities ?? []);
+        setSynthFiles(data.synthesis_files ?? []);
+        setEntityCount(data.entity_count ?? 0);
+      })
+      .catch(err => setError(err instanceof Error ? err.message : 'Failed to load files'))
+      .finally(() => setLoading(false));
+  }, [primaryDomain]);
+
+  if (!primaryDomain) {
+    return (
+      <div className="px-6 py-8 text-center">
+        <FolderOpen className="w-6 h-6 text-muted-foreground/20 mx-auto mb-2" />
+        <p className="text-xs text-muted-foreground/60">No context domain configured for this task.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 py-4 space-y-4">
+      {/* Domain header */}
+      <div className="flex items-center justify-between">
+        <Link
+          href={`${CONTEXT_ROUTE}?domain=${primaryDomain}`}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+        >
+          <FolderOpen className="w-3.5 h-3.5" />
+          /workspace/context/{primaryDomain}/
+        </Link>
+        {otherDomains.length > 0 && (
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60">
+            <Layers className="w-3 h-3" />
+            {otherDomains.map(d => (
+              <Link
+                key={d}
+                href={`${CONTEXT_ROUTE}?domain=${d}`}
+                className="hover:text-foreground hover:underline"
+              >
+                {d}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 py-4">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Loading files…</span>
+        </div>
+      ) : error ? (
+        <div className="flex items-center gap-2 py-4">
+          <AlertCircle className="w-3.5 h-3.5 text-destructive/70" />
+          <span className="text-xs text-muted-foreground">{error}</span>
+        </div>
+      ) : entities.length === 0 && synthFiles.length === 0 ? (
+        <div className="py-8 text-center">
+          <FileText className="w-5 h-5 text-muted-foreground/20 mx-auto mb-2" />
+          <p className="text-xs text-muted-foreground/60">
+            No files accumulated yet. Files appear here after the first run.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Synthesis / summary files */}
+          {synthFiles.length > 0 && (
+            <div>
+              <h4 className="text-[10px] font-medium text-muted-foreground/40 uppercase tracking-wide mb-2">
+                Summaries · {synthFiles.length}
+              </h4>
+              <div className="space-y-1">
+                {synthFiles.map(f => (
+                  <div key={f.path} className="flex items-center justify-between py-1.5 border-b border-border/20 last:border-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                      <span className="text-xs text-muted-foreground truncate">{f.name}</span>
+                    </div>
+                    {f.updated_at && (
+                      <span className="text-[10px] text-muted-foreground/40 shrink-0 ml-3">
+                        {formatRelativeTime(f.updated_at)}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Entities */}
+          {entities.length > 0 && (
+            <div>
+              <h4 className="text-[10px] font-medium text-muted-foreground/40 uppercase tracking-wide mb-2">
+                Entities · {entityCount}
+              </h4>
+              <div className="rounded-lg border border-border/50 divide-y divide-border/30 overflow-hidden">
+                {entities.map(entity => {
+                  const isExpanded = expandedEntity === entity.slug;
+                  return (
+                    <div key={entity.slug}>
+                      <button
+                        onClick={() => setExpandedEntity(isExpanded ? null : entity.slug)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/20 transition-colors"
+                      >
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-foreground font-medium truncate">{entity.name}</p>
+                          {entity.preview && (
+                            <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5">{entity.preview}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {entity.last_updated && (
+                            <span className="text-[10px] text-muted-foreground/40">
+                              {formatRelativeTime(entity.last_updated)}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground/30">
+                            {entity.files.length} {entity.files.length === 1 ? 'file' : 'files'}
+                          </span>
+                          {isExpanded
+                            ? <ChevronDown className="w-3 h-3 text-muted-foreground/40" />
+                            : <ChevronRight className="w-3 h-3 text-muted-foreground/40" />
+                          }
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="bg-muted/10 border-t border-border/20 px-3 py-2 space-y-1">
+                          {entity.files.map(f => (
+                            <div key={f.path} className="flex items-center justify-between py-0.5">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <FileText className="w-3 h-3 text-muted-foreground/30 shrink-0" />
+                                <span className="text-[11px] text-muted-foreground/70 truncate">{f.name}</span>
+                              </div>
+                              {f.updated_at && (
+                                <span className="text-[10px] text-muted-foreground/40 shrink-0 ml-2">
+                                  {formatRelativeTime(f.updated_at)}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab chrome ───────────────────────────────────────────────────────────────
+
+type Tab = 'activity' | 'files';
+
+export function TrackingMiddle({
+  task,
+  refreshKey,
+  deliverableSpec,
+}: {
+  task: Task;
+  refreshKey: number;
+  deliverableSpec?: DeliverableSpec | null;
+}) {
+  const [tab, setTab] = useState<Tab>('activity');
+
+  return (
+    <>
+      {/* Tab strip */}
+      <div className="flex items-center gap-0 border-b border-border/40 px-6 pt-2">
+        {(['activity', 'files'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              'px-3 py-2 text-xs font-medium capitalize border-b-2 -mb-px transition-colors',
+              tab === t
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-muted-foreground/60 hover:text-muted-foreground',
+            )}
+          >
+            {t === 'activity' ? 'Activity' : 'Files'}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab body */}
+      {tab === 'activity' ? (
+        <ActivityTab task={task} refreshKey={refreshKey} deliverableSpec={deliverableSpec} />
+      ) : (
+        <FilesTab task={task} />
+      )}
     </>
   );
 }

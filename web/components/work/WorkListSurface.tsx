@@ -19,10 +19,9 @@
  */
 
 import { useRef, useEffect, useMemo, useState } from 'react';
-import { MoreHorizontal, Search, Sparkles, X } from 'lucide-react';
+import { Database, FileText, MoreHorizontal, Search, Send, Settings2, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
-import { WorkModeBadge } from './WorkModeBadge';
 import { getAgentSlug } from '@/lib/agent-identity';
 import { taskModeLabel } from '@/types';
 import type { Task, Agent } from '@/types';
@@ -45,6 +44,14 @@ const KIND_GROUP_LABEL: Record<string, string> = {
   accumulates_context:  'Tracking',
   external_action:      'Actions',
   system_maintenance:   'System',
+};
+
+// output_kind → icon component
+const KIND_ICON: Record<string, React.ElementType> = {
+  produces_deliverable: FileText,
+  accumulates_context:  Database,
+  external_action:      Send,
+  system_maintenance:   Settings2,
 };
 
 function kindGroupLabel(task: Task): string {
@@ -370,23 +377,32 @@ function WorkRow({
   const isActive = task.status === 'active';
   const isPaused = task.status === 'paused';
 
+  // Kind icon — replaces status dot as the visual identity of the row
+  const KindIcon = KIND_ICON[task.output_kind ?? ''] ?? FileText;
+  const iconColor = dim
+    ? 'text-muted-foreground/20'
+    : isActive
+      ? 'text-foreground/50'
+      : isPaused
+        ? 'text-amber-400/60'
+        : 'text-muted-foreground/30';
+
+  // Status dot (small, beside icon) for active/paused signal
   const statusColor = dim
     ? 'bg-muted-foreground/15'
     : isActive
       ? 'bg-green-500'
       : isPaused
         ? 'bg-amber-400'
-        : 'bg-muted-foreground/25';
+        : 'bg-transparent';
 
   // Sub-label: what to show depends on grouping context
-  // - grouped by mode (kind): show agent name, since kind is already the group header
-  // - grouped by agent: show kind label + schedule, since agent is already the group header
   const agentName = agentNameFor(task, agents);
   const kindLabel = KIND_GROUP_LABEL[task.output_kind ?? ''] ?? null;
 
-  const subLeft = groupBy === 'agent'
-    ? kindLabel          // agent already shown in group header
-    : agentName;         // kind already shown in group header
+  // When grouped by agent: show kind label
+  // When grouped by kind: show agent name
+  const subLeft = groupBy === 'agent' ? kindLabel : agentName;
 
   const schedule = task.schedule
     ? task.schedule.charAt(0).toUpperCase() + task.schedule.slice(1)
@@ -407,8 +423,13 @@ function WorkRow({
         dim && 'opacity-40',
       )}
     >
-      {/* Status dot */}
-      <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusColor)} />
+      {/* Kind icon with status dot overlay */}
+      <div className="relative shrink-0">
+        <KindIcon className={cn('w-4 h-4', iconColor)} />
+        {(isActive || isPaused) && !dim && (
+          <div className={cn('absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full ring-1 ring-background', statusColor)} />
+        )}
+      </div>
 
       {/* Title + sub-label */}
       <div className="flex-1 min-w-0">
@@ -416,17 +437,13 @@ function WorkRow({
           {task.title}
         </p>
         <div className="flex items-center gap-1.5 mt-0.5">
-          {/* Mode badge only when grouped by agent (kind not in group header) */}
-          {groupBy === 'agent' && !dim && (
-            <WorkModeBadge mode={task.mode} />
-          )}
           {subLeft && (
-            <span className="text-[11px] text-muted-foreground/70 truncate">{subLeft}</span>
+            <span className="text-[11px] text-muted-foreground/60 truncate">{subLeft}</span>
           )}
           {schedule && (
             <>
-              <span className="text-muted-foreground/25 text-[11px]">·</span>
-              <span className="text-[11px] text-muted-foreground/50">{schedule}</span>
+              <span className="text-muted-foreground/20 text-[11px]">·</span>
+              <span className="text-[11px] text-muted-foreground/40">{schedule}</span>
             </>
           )}
         </div>

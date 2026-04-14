@@ -20,6 +20,8 @@ import { AlertCircle, ChevronDown, ChevronRight, Clock, FileText, Loader2, Refre
 import { useState } from 'react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { useTaskOutputs } from '@/hooks/useTaskOutputs';
+import { formatRelativeTime } from '@/lib/formatting';
+import { cn } from '@/lib/utils';
 import type { DeliverableSpec, TaskSectionEntry } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -164,20 +166,13 @@ function QualityContractPanel({ spec }: { spec: DeliverableSpec }) {
 }
 
 // ---------------------------------------------------------------------------
-// Main component
+// History tab
 // ---------------------------------------------------------------------------
 
-export function DeliverableMiddle({
-  taskSlug,
-  refreshKey,
-  deliverableSpec,
-}: {
-  taskSlug: string;
-  refreshKey: number;
-  deliverableSpec?: DeliverableSpec | null;
-}) {
-  const { latest, loading, error, reload } = useTaskOutputs(taskSlug, {
-    includeLatest: true,
+function HistoryTab({ taskSlug, refreshKey }: { taskSlug: string; refreshKey: number }) {
+  const { history: outputs, loading, error, reload } = useTaskOutputs(taskSlug, {
+    includeLatest: false,
+    historyLimit: 20,
     refreshKey,
   });
 
@@ -192,79 +187,161 @@ export function DeliverableMiddle({
   if (error) {
     return (
       <div className="px-6 py-8 text-center">
-        <AlertCircle className="mx-auto mb-2 h-6 w-6 text-destructive/70" />
-        <p className="text-sm font-medium text-foreground">Failed to load output</p>
-        <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+        <AlertCircle className="mx-auto mb-2 h-5 w-5 text-destructive/70" />
+        <p className="text-xs text-muted-foreground">{error}</p>
         <button
           onClick={() => void reload()}
           className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          <RefreshCw className="h-3 w-3" />
-          Retry
+          <RefreshCw className="h-3 w-3" /> Retry
         </button>
       </div>
     );
   }
 
-  if (!latest || (!latest.html_content && !latest.content && !latest.md_content)) {
+  if (outputs.length === 0) {
     return (
       <div className="px-6 py-8 text-center">
-        <FileText className="w-6 h-6 text-muted-foreground/15 mx-auto mb-2" />
-        <p className="text-xs text-muted-foreground/60">
-          No output yet. This task will produce its first output on its next run.
-        </p>
+        <Clock className="w-5 h-5 text-muted-foreground/20 mx-auto mb-2" />
+        <p className="text-xs text-muted-foreground/60">No past outputs yet.</p>
       </div>
     );
   }
 
-  const hasSections = (latest.sections?.length ?? 0) > 0;
+  return (
+    <div className="px-6 py-4">
+      <ul className="divide-y divide-border/30">
+        {outputs.map(o => (
+          <li key={o.folder} className="flex items-center gap-3 py-2.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-xs text-foreground">{o.date}</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground/50 shrink-0">
+              {formatRelativeTime(o.date)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
+type DeliverableTab = 'output' | 'history';
+
+export function DeliverableMiddle({
+  taskSlug,
+  refreshKey,
+  deliverableSpec,
+}: {
+  taskSlug: string;
+  refreshKey: number;
+  deliverableSpec?: DeliverableSpec | null;
+}) {
+  const [tab, setTab] = useState<DeliverableTab>('output');
+  const { latest, loading, error, reload } = useTaskOutputs(taskSlug, {
+    includeLatest: true,
+    refreshKey,
+  });
 
   return (
-    <div className="py-4">
-      <div className="flex items-center gap-2 mb-2 px-6">
-        <h3 className="text-[11px] font-medium text-muted-foreground/60">Latest output</h3>
-        {latest.date && (
-          <>
-            <span className="text-muted-foreground/30 text-[10px]">·</span>
-            <span className="text-[10px] text-muted-foreground/60">{latest.date}</span>
-          </>
-        )}
+    <>
+      {/* Tab strip */}
+      <div className="flex items-center gap-0 border-b border-border/40 px-6 pt-2">
+        {(['output', 'history'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              'px-3 py-2 text-xs font-medium capitalize border-b-2 -mb-px transition-colors',
+              tab === t
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-muted-foreground/60 hover:text-muted-foreground',
+            )}
+          >
+            {t === 'output' ? 'Output' : 'History'}
+          </button>
+        ))}
       </div>
 
-      {/* ADR-170: Section provenance strip — only when compose substrate has run */}
-      {hasSections && (
-        <SectionProvenanceStrip sections={latest.sections!} />
-      )}
-
-      {/* ADR-178 Phase 6: Quality Contract — collapsible, updates post-evaluate */}
-      {deliverableSpec && <QualityContractPanel spec={deliverableSpec} />}
-
-      <div className="px-6 pb-6">
-        <div className="rounded-lg border border-border bg-muted/5 overflow-hidden">
-          {latest.html_content ? (
-            <iframe
-              srcDoc={latest.html_content}
-              className="min-h-[500px] w-full border-0 bg-white block"
-              style={{ height: 'auto' }}
-              onLoad={(e) => {
-                const iframe = e.currentTarget;
-                try {
-                  const h = iframe.contentDocument?.documentElement?.scrollHeight;
-                  if (h) iframe.style.height = `${h}px`;
-                } catch {}
-              }}
-              sandbox="allow-same-origin allow-scripts"
-              title={`${taskSlug} output`}
-            />
-          ) : (
-            <div className="p-5">
-              <div className="prose prose-sm max-w-none dark:prose-invert">
-                <MarkdownRenderer content={latest.content ?? latest.md_content ?? ''} />
-              </div>
-            </div>
-          )}
+      {tab === 'history' ? (
+        <HistoryTab taskSlug={taskSlug} refreshKey={refreshKey} />
+      ) : loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
         </div>
-      </div>
-    </div>
+      ) : error ? (
+        <div className="px-6 py-8 text-center">
+          <AlertCircle className="mx-auto mb-2 h-6 w-6 text-destructive/70" />
+          <p className="text-sm font-medium text-foreground">Failed to load output</p>
+          <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+          <button
+            onClick={() => void reload()}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Retry
+          </button>
+        </div>
+      ) : !latest || (!latest.html_content && !latest.content && !latest.md_content) ? (
+        <div className="px-6 py-8 text-center">
+          <FileText className="w-6 h-6 text-muted-foreground/15 mx-auto mb-2" />
+          <p className="text-xs text-muted-foreground/60">
+            No output yet. This task will produce its first output on its next run.
+          </p>
+        </div>
+      ) : (
+        <div className="py-4">
+          <div className="flex items-center gap-2 mb-2 px-6">
+            <h3 className="text-[11px] font-medium text-muted-foreground/60">Latest output</h3>
+            {latest.date && (
+              <>
+                <span className="text-muted-foreground/30 text-[10px]">·</span>
+                <span className="text-[10px] text-muted-foreground/60">{latest.date}</span>
+              </>
+            )}
+          </div>
+
+          {/* ADR-170: Section provenance strip */}
+          {(latest.sections?.length ?? 0) > 0 && (
+            <SectionProvenanceStrip sections={latest.sections!} />
+          )}
+
+          {/* ADR-178 Phase 6: Quality Contract */}
+          {deliverableSpec && <QualityContractPanel spec={deliverableSpec} />}
+
+          <div className="px-6 pb-6">
+            <div className="rounded-lg border border-border bg-muted/5 overflow-hidden">
+              {latest.html_content ? (
+                <iframe
+                  srcDoc={latest.html_content}
+                  className="min-h-[500px] w-full border-0 bg-white block"
+                  style={{ height: 'auto' }}
+                  onLoad={(e) => {
+                    const iframe = e.currentTarget;
+                    try {
+                      const h = iframe.contentDocument?.documentElement?.scrollHeight;
+                      if (h) iframe.style.height = `${h}px`;
+                    } catch {}
+                  }}
+                  sandbox="allow-same-origin allow-scripts"
+                  title={`${taskSlug} output`}
+                />
+              ) : (
+                <div className="p-5">
+                  <div className="prose prose-sm max-w-none dark:prose-invert">
+                    <MarkdownRenderer content={latest.content ?? latest.md_content ?? ''} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -28,7 +28,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { LayoutDashboard, ListChecks } from 'lucide-react';
+import { LayoutDashboard, ListChecks, SlidersHorizontal } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -163,7 +163,7 @@ export function ChatSurface({
     [sendMessage],
   );
 
-  // Built-in plus-menu action — prepended to any page-supplied actions.
+  // Built-in plus-menu actions — prepended to any page-supplied actions.
   const allPlusMenuActions = useMemo<PlusMenuAction[]>(() => [
     {
       id: 'create-task',
@@ -172,8 +172,15 @@ export function ChatSurface({
       verb: 'show',
       onSelect: () => handleOpenTaskSetup(),
     },
+    {
+      id: 'update-context',
+      label: 'Update context',
+      icon: SlidersHorizontal,
+      verb: 'show',
+      onSelect: () => handleOpenOnboarding(),
+    },
     ...plusMenuActions,
-  ], [plusMenuActions, handleOpenTaskSetup]);
+  ], [plusMenuActions, handleOpenTaskSetup, handleOpenOnboarding]);
 
   // Overview toggle button — lives in the surface header.
   const overviewAction = (
