@@ -174,7 +174,7 @@ export function ChatSurface({
     },
     {
       id: 'update-context',
-      label: 'Update files',
+      label: 'Update workspace',
       icon: SlidersHorizontal,
       verb: 'show',
       onSelect: () => handleOpenOnboarding(),
