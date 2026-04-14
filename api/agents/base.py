@@ -111,7 +111,7 @@ class BaseAgent(ABC):
     AGENT_TYPE: str = "base"
     SYSTEM_PROMPT: str = ""
 
-    def __init__(self, model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, model: str = "claude-sonnet-4-6"):
         self.model = model
         self.tools = []
 

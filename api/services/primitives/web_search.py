@@ -418,7 +418,7 @@ async def handle_web_search(auth: Any, input: dict) -> dict:
                 get_service_client(),
                 user_id=auth.user_id,
                 caller="web_search",
-                model="claude-sonnet-4-20250514",
+                model="claude-sonnet-4-6",
                 input_tokens=result.input_tokens,
                 output_tokens=result.output_tokens,
                 metadata={"query": query[:200]},

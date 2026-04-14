@@ -36,7 +36,7 @@ _ANTHROPIC_RATES = {
     model: {"input": r["input_per_mtok"] / 2 / 1000, "output": r["output_per_mtok"] / 2 / 1000}
     for model, r in _BILLING_RATES.items()
 }
-_DEFAULT_ANTHROPIC_RATE = _ANTHROPIC_RATES.get("claude-sonnet-4-20250514", {"input": 0.003, "output": 0.015})
+_DEFAULT_ANTHROPIC_RATE = _ANTHROPIC_RATES.get("claude-sonnet-4-6", {"input": 0.003, "output": 0.015})
 
 
 # =============================================================================
@@ -245,7 +245,7 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
             output_t = meta.get("output_tokens", 0) or 0
             cache_read = meta.get("cache_read_input_tokens", 0) or 0
             cache_create = meta.get("cache_creation_input_tokens", 0) or 0
-            model = meta.get("model", "claude-sonnet-4-20250514")
+            model = meta.get("model", "claude-sonnet-4-6")
 
             date_str = run["created_at"][:10]
             caller = "task_pipeline"
@@ -273,7 +273,7 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
             output_t = meta.get("output_tokens", 0) or 0
             cache_read = meta.get("cache_read_input_tokens", 0) or 0
             cache_create = meta.get("cache_creation_input_tokens", 0) or 0
-            model = meta.get("model", "claude-sonnet-4-20250514")
+            model = meta.get("model", "claude-sonnet-4-6")
 
             if not input_t and not output_t:
                 continue
@@ -301,7 +301,7 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
         by_day = []
         for date_str in sorted(daily.keys()):
             for caller, bucket in daily[date_str].items():
-                model = bucket["model"] or "claude-sonnet-4-20250514"
+                model = bucket["model"] or "claude-sonnet-4-6"
                 cost = _estimate_cost(model, bucket["input_tokens"], bucket["output_tokens"])
                 by_day.append(TokenUsageRow(
                     date=date_str,

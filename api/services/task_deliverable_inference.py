@@ -21,7 +21,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-INFERENCE_MODEL = "claude-sonnet-4-20250514"
+INFERENCE_MODEL = "claude-sonnet-4-6"
 
 DELIVERABLE_INFERENCE_PROMPT = """You are updating a task's deliverable specification based on accumulated feedback.
 

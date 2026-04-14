@@ -159,7 +159,7 @@ class ChatAgent(BaseAgent):
 
     AGENT_TYPE = "chat_agent"
 
-    def __init__(self, agent: dict, project_slug: str, model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, agent: dict, project_slug: str, model: str = "claude-sonnet-4-6"):
         super().__init__(model)
         self.agent = agent
         self.project_slug = project_slug

@@ -100,7 +100,7 @@ async def _fetch_skill_docs() -> Optional[str]:
     return None
 
 # Model constants
-SONNET_MODEL = "claude-sonnet-4-20250514"
+SONNET_MODEL = "claude-sonnet-4-6"
 
 
 def get_user_email(client, user_id: str) -> Optional[str]:

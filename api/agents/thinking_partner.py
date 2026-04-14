@@ -58,7 +58,7 @@ class ThinkingPartnerAgent(BaseAgent):
     # ADR-059: Prompts are now modularized in tp_prompts/ directory
     SYSTEM_PROMPT = SIMPLE_PROMPT
 
-    def __init__(self, model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, model: str = "claude-sonnet-4-6"):
         super().__init__(model)
         self.tools = CHAT_PRIMITIVES  # ADR-146: explicit chat registry (was PRIMITIVES)
 

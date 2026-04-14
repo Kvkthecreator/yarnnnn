@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 # Model constants
-SONNET_MODEL = "claude-sonnet-4-20250514"
+SONNET_MODEL = "claude-sonnet-4-6"
 
 
 # =============================================================================

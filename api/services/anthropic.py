@@ -158,7 +158,7 @@ def _prepare_system(system: str | list[dict]) -> list[dict]:
 async def chat_completion(
     messages: list[dict],
     system: str | list[dict],
-    model: str = "claude-sonnet-4-20250514",
+    model: str = "claude-sonnet-4-6",
     max_tokens: int = 4096,
 ) -> str:
     """
@@ -189,7 +189,7 @@ async def chat_completion(
 async def chat_completion_with_usage(
     messages: list[dict],
     system: str | list[dict],
-    model: str = "claude-sonnet-4-20250514",
+    model: str = "claude-sonnet-4-6",
     max_tokens: int = 4096,
 ) -> tuple[str, dict]:
     """Non-streaming chat completion returning (text, usage).
@@ -220,7 +220,7 @@ async def chat_completion_with_tools(
     messages: list[dict],
     system: str | list[dict],
     tools: list[dict],
-    model: str = "claude-sonnet-4-20250514",
+    model: str = "claude-sonnet-4-6",
     max_tokens: int = 4096,
     tool_choice: Optional[dict] = None,
 ) -> ChatResponse:
@@ -259,7 +259,7 @@ async def chat_completion_with_tools(
 async def chat_completion_stream(
     messages: list[dict],
     system: str | list[dict],
-    model: str = "claude-sonnet-4-20250514",
+    model: str = "claude-sonnet-4-6",
     max_tokens: int = 4096,
 ) -> AsyncGenerator[str, None]:
     """
@@ -323,7 +323,7 @@ async def chat_completion_stream_with_tools(
     system: str | list[dict],
     tools: list[dict],
     tool_executor: Any,  # Callable[[str, dict], Awaitable[dict]]
-    model: str = "claude-sonnet-4-20250514",
+    model: str = "claude-sonnet-4-6",
     max_tokens: int = 4096,
     max_tool_rounds: int = 15,  # Safety net only; model should decide when done
     tool_choice: Optional[dict] = None,

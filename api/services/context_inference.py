@@ -22,7 +22,7 @@ from typing import Any, Literal, Optional
 
 logger = logging.getLogger(__name__)
 
-INFERENCE_MODEL = "claude-sonnet-4-20250514"
+INFERENCE_MODEL = "claude-sonnet-4-6"
 
 
 IDENTITY_SYSTEM = """You are updating a user's workspace identity file (IDENTITY.md).

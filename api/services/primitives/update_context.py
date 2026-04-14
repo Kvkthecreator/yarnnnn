@@ -170,7 +170,7 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
                     get_service_client(),
                     user_id=auth.user_id,
                     caller="inference",
-                    model="claude-sonnet-4-20250514",
+                    model="claude-sonnet-4-6",
                     input_tokens=inference_usage.get("input_tokens", 0),
                     output_tokens=inference_usage.get("output_tokens", 0),
                     metadata={"target": target},

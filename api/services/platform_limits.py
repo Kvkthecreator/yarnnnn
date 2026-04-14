@@ -36,11 +36,11 @@ SyncFrequency = Literal["1x_daily", "2x_daily", "4x_daily", "hourly"]
 # =============================================================================
 
 BILLING_RATES: dict[str, dict[str, float]] = {
-    "claude-sonnet-4-20250514":  {"input_per_mtok": 6.00,  "output_per_mtok": 30.00},
+    "claude-sonnet-4-6":  {"input_per_mtok": 6.00,  "output_per_mtok": 30.00},
     "claude-opus-4-6":           {"input_per_mtok": 30.00, "output_per_mtok": 150.00},
     "claude-haiku-4-5-20251001": {"input_per_mtok": 1.60,  "output_per_mtok": 8.00},
 }
-_DEFAULT_BILLING_RATE = BILLING_RATES["claude-sonnet-4-20250514"]
+_DEFAULT_BILLING_RATE = BILLING_RATES["claude-sonnet-4-6"]
 
 
 def compute_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
