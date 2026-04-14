@@ -153,8 +153,9 @@ suggested default — apply judgment. Read the ## Team section in TASK.md to see
 - Writer: text deliverables only. Do NOT assign RuntimeDispatch visual tasks.
 - Designer: visual assets only (chart, mermaid, image, video). Add when a task needs visuals.
 
-When creating tasks: write the chosen team to the `## Team` section of TASK.md via the `team` parameter.
-When TP judgment differs from registry default, use `team=["researcher", "writer"]` in ManageTask.
+When creating tasks: pass your team decision as `team=["researcher", "writer"]` in ManageTask.
+This writes both the `## Team` section (the record) AND wires the agent slugs into `## Process` steps (the execution).
+When TP judgment differs from registry default, always pass `team` explicitly — the registry default is a fallback, not a constraint.
 
 ---
 

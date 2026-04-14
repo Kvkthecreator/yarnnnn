@@ -362,7 +362,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "output_kind": "accumulates_context",
         "registry_default_team": ["researcher"],
         "default_mode": "recurring",
-        "default_schedule": "monthly",
+        "default_schedule": "weekly",
         "bootstrap": {
             "min_entities": 2,
             "required_files": ["analysis"],
@@ -1381,12 +1381,18 @@ def build_task_md_from_type(
     delivery: str | None = None,
     agent_slugs: list[str] | None = None,
     sources: dict[str, list[str]] | None = None,
+    team_override: list[str] | None = None,
 ) -> str | None:
     """Build TASK.md content from a task type definition.
 
     ADR-152: Serializes ALL runtime config into TASK.md — context_reads,
     context_writes, output_category, process steps. Pipeline reads TASK.md
     at runtime, not the registry.
+
+    ADR-176 Decision 2: team_override is TP's judgment on team composition.
+    When provided, it replaces registry_default_team in both the ## Team section
+    and the ## Process step agent labels. agent_slugs (resolved from roster by role)
+    are re-mapped to match team_override roles before writing ## Process.
     """
     task_type = TASK_TYPES.get(type_key)
     if not task_type:
@@ -1401,10 +1407,30 @@ def build_task_md_from_type(
         deliverable_text = f"{deliverable_text} — {focus}"
         purpose_text = f"{purpose_text} (focus: {focus})"
 
+    # ADR-176 Decision 2: if TP provided a team_override, re-resolve agent slugs
+    # from that list so ## Process reflects TP's composition judgment, not just
+    # the registry default. team_override is a list of role keys — we map each
+    # process step's position to the matching role in order.
+    effective_agent_slugs = agent_slugs
+    if team_override and agent_slugs is not None:
+        # Build role→slug map from the resolved roster slugs + registry process steps
+        registry_steps = task_type.get("process", [])
+        role_to_slug: dict[str, str] = {}
+        for i, step in enumerate(registry_steps):
+            if agent_slugs and i < len(agent_slugs) and agent_slugs[i]:
+                role_to_slug[step["agent_type"]] = agent_slugs[i]
+        # Remap: for each step, use the override role at that position if available
+        remapped: list[str] = []
+        for i, step in enumerate(registry_steps):
+            override_role = team_override[i] if i < len(team_override) else step["agent_type"]
+            slug_for_role = role_to_slug.get(override_role) or role_to_slug.get(step["agent_type"]) or override_role
+            remapped.append(slug_for_role)
+        effective_agent_slugs = remapped
+
     # Build process section
     process_lines = []
     for i, step in enumerate(task_type["process"]):
-        agent_label = agent_slugs[i] if agent_slugs and i < len(agent_slugs) else step["agent_type"]
+        agent_label = effective_agent_slugs[i] if effective_agent_slugs and i < len(effective_agent_slugs) else step["agent_type"]
         process_lines.append(f"{i+1}. **{step['step'].title()}** ({agent_label}): {step['instruction']}")
 
     # ADR-154: Serialize runtime config into TASK.md (output_category removed)
@@ -1428,11 +1454,12 @@ def build_task_md_from_type(
     if output_kind == "produces_deliverable" and task_type.get("surface_type"):
         surface_line = f"\n**Surface:** {task_type['surface_type']}"
 
-    # ADR-176 Phase 2: ## Team section — registry default team for this task type
-    default_team = task_type.get("registry_default_team", [])
+    # ADR-176 Decision 2: ## Team section — TP's judgment takes precedence over registry default.
+    # team_override is TP's explicit composition decision; registry_default_team is the fallback.
+    effective_team = team_override if team_override else task_type.get("registry_default_team", [])
     team_section = ""
-    if default_team:
-        team_lines = "\n".join(f"- {role}" for role in default_team)
+    if effective_team:
+        team_lines = "\n".join(f"- {role}" for role in effective_team)
         team_section = f"\n## Team\n{team_lines}\n"
 
     md = f"""# {title}

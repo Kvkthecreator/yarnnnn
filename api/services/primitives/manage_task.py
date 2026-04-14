@@ -1095,7 +1095,9 @@ async def _handle_create(auth: Any, input: dict) -> dict:
             except Exception as e:
                 logger.warning(f"[MANAGE_TASK] Failed to read platform sources: {e}")
 
-        # Build TASK.md from type template
+        # Build TASK.md from type template.
+        # ADR-176 Decision 2: pass team_override so TP's composition judgment
+        # is reflected in both ## Process agent labels and ## Team section.
         task_md_content = build_task_md_from_type(
             type_key=type_key,
             title=title,
@@ -1105,6 +1107,7 @@ async def _handle_create(auth: Any, input: dict) -> dict:
             delivery=delivery,
             agent_slugs=resolved_agent_slugs or None,
             sources=task_sources,
+            team_override=team_override or None,
         )
 
     # --- Verify primary agent exists ---

@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.14.1] - Team→Process wiring + track-market schedule fix (ADR-176 Decision 2)
+
+### Changed
+- `api/services/task_types.py` — `build_task_md_from_type()` gains `team_override: list[str] | None` param. When TP passes a team, it replaces the registry `registry_default_team` in both the `## Team` section (the record) and the `## Process` step agent labels (the execution). Previously `## Team` was written but `## Process` still used only registry-resolved slugs — TP's composition judgment had no effect on what actually ran.
+- `api/services/task_types.py` — `track-market` `default_schedule` changed from `monthly` to `weekly` (aligns with other `track-*` types: track-competitors, track-relationships, track-projects all already weekly).
+- `api/services/primitives/manage_task.py` — `_handle_create()` now passes `team_override` to `build_task_md_from_type()`. Previously `team_override` was read from TP input but never forwarded to the TASK.md builder.
+- `api/agents/tp_prompts/tools.py` — Team Composition section updated: clarifies that `team` parameter wires into both `## Team` (record) and `## Process` execution. Instructs TP to always pass `team` explicitly when judgment differs from registry default.
+- **Behavior**: `ManageTask(action="create", ..., team=["researcher", "writer"])` now writes Researcher and Writer agents into the `## Process` steps and `## Team` section. Without `team`, registry `registry_default_team` is used as before.
+- **Impact**: TP's team composition judgment is now executable. A task created with a non-default team actually runs with that team.
+
 ## [2026.04.13.13] - default_title for platform digest task types
 
 ### Changed
