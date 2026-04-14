@@ -46,6 +46,9 @@ const KIND_GROUP_LABEL: Record<string, string> = {
   system_maintenance:   'System',
 };
 
+// Platform digest type_keys — shown in "Connected" group, separate from domain Tracking tasks
+const PLATFORM_DIGEST_TYPES = new Set(['slack-digest', 'notion-digest', 'github-digest']);
+
 // output_kind → icon component
 const KIND_ICON: Record<string, React.ElementType> = {
   produces_deliverable: FileText,
@@ -55,10 +58,11 @@ const KIND_ICON: Record<string, React.ElementType> = {
 };
 
 function kindGroupLabel(task: Task): string {
+  if (task.type_key && PLATFORM_DIGEST_TYPES.has(task.type_key)) return 'Connected';
   return KIND_GROUP_LABEL[task.output_kind ?? ''] ?? 'Other';
 }
 
-const KIND_GROUP_ORDER = ['Reports', 'Tracking', 'Actions', 'Other', 'System'];
+const KIND_GROUP_ORDER = ['Reports', 'Tracking', 'Connected', 'Actions', 'Other', 'System'];
 
 function isSystemTask(task: Task): boolean {
   return task.output_kind === 'system_maintenance';

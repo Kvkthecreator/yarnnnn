@@ -310,7 +310,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "track-competitors": {
         "display_name": "Track Competitors",
-        "description": "Research and maintain intelligence on competitors — products, pricing, funding, strategy.",
+        "description": "Builds a running knowledge file on each competitor — pricing, product moves, funding, and strategy.",
         "output_kind": "accumulates_context",
         "registry_default_team": ["researcher"],
         "default_mode": "recurring",
@@ -358,7 +358,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "track-market": {
         "display_name": "Track Market",
-        "description": "Research and maintain intelligence on market segments, sizing, trends, and opportunities.",
+        "description": "Builds a running knowledge file on your market — segments, trends, sizing, and emerging opportunities.",
         "output_kind": "accumulates_context",
         "registry_default_team": ["researcher"],
         "default_mode": "recurring",
@@ -400,7 +400,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "track-relationships": {
         "display_name": "Track Relationships",
-        "description": "Maintain contact profiles, interaction history, and relationship health from platform signals.",
+        "description": "Keeps a live profile on each contact — last touchpoint, context, and relationship health.",
         "output_kind": "accumulates_context",
         "registry_default_team": ["tracker"],
         "default_mode": "recurring",
@@ -441,7 +441,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "track-projects": {
         "display_name": "Track Projects",
-        "description": "Maintain project status, milestones, and blockers from platform signals and team activity.",
+        "description": "Keeps project status, milestones, and blockers up to date across your active workstreams.",
         "output_kind": "accumulates_context",
         "registry_default_team": ["tracker"],
         "default_mode": "recurring",
@@ -482,7 +482,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "research-topics": {
         "display_name": "Research Topics",
-        "description": "Deep research on specific topics — accumulate findings, sources, and outlines for content creation.",
+        "description": "Digs deep on a topic you define — builds a research file of findings, sources, and key takeaways.",
         "output_kind": "accumulates_context",
         "registry_default_team": ["researcher"],
         "default_mode": "goal",
@@ -530,7 +530,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "slack-digest": {
         "display_name": "Slack Digest",
         "default_title": "Slack Digest",
-        "description": "Read selected Slack channels. Capture decisions, action items, and key discussions. Write per-channel observations.",
+        "description": "Reads your selected Slack channels and captures decisions, action items, and key discussions.",
         "output_kind": "accumulates_context",
         "registry_default_team": [],
         "default_mode": "recurring",
@@ -568,7 +568,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "notion-digest": {
         "display_name": "Notion Digest",
         "default_title": "Notion Digest",
-        "description": "Read selected Notion pages. Track changes, new content, and stale sections. Write per-page observations.",
+        "description": "Reads your selected Notion pages and tracks changes, new content, and updates.",
         "output_kind": "accumulates_context",
         "registry_default_team": [],
         "default_mode": "recurring",
@@ -606,7 +606,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     "github-digest": {
         "display_name": "GitHub Digest",
         "default_title": "GitHub Digest",
-        "description": "Read selected GitHub repos. Track issues, PRs, and activity. Write per-repo observations.",
+        "description": "Reads your selected GitHub repos and tracks issues, PRs, and recent activity.",
         "output_kind": "accumulates_context",
         "registry_default_team": [],
         "default_mode": "recurring",
@@ -647,7 +647,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "slack-respond": {
         "display_name": "Slack Post",
-        "description": "Post a message to a Slack channel or DM. Composes from workspace context and delivers via Slack.",
+        "description": "Posts a message to a Slack channel or DM, composed from your workspace context.",
         "output_kind": "external_action",
         "registry_default_team": ["tracker", "writer"],
         "default_mode": "reactive",
@@ -684,7 +684,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "notion-update": {
         "display_name": "Notion Update",
-        "description": "Post a comment or update to a Notion page. Composes from workspace context and delivers via Notion.",
+        "description": "Posts a comment or update to a Notion page, composed from your workspace context.",
         "output_kind": "external_action",
         "registry_default_team": ["tracker", "writer"],
         "default_mode": "reactive",
@@ -726,7 +726,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "competitive-brief": {
         "display_name": "Competitive Brief",
-        "description": "Weekly competitive intelligence report with charts, positioning analysis, and strategic implications.",
+        "description": "Competitive intelligence report — positioning, pricing moves, strategic implications, and charts.",
         "output_kind": "produces_deliverable",
         "registry_default_team": ["researcher", "analyst", "writer"],
         "default_mode": "recurring",
@@ -788,7 +788,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         # ADR-166: absorbs former gtm-report. Market intelligence, competitive moves,
         # and GTM signals all roll up here — they read the same context domains and
         # the audience overlap (leadership, strategy, marketing) is total.
-        "description": "Market intelligence report with segment sizing, competitive moves, GTM signals, and opportunity identification.",
+        "description": "Market intelligence report — segment sizing, competitive moves, GTM signals, and opportunity gaps.",
         "output_kind": "produces_deliverable",
         "registry_default_team": ["researcher", "analyst", "writer"],
         "default_mode": "recurring",
@@ -848,7 +848,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "meeting-prep": {
         "display_name": "Meeting Prep",
-        "description": "Pre-meeting brief with relationship context, talking points, and open items.",
+        "description": "One-page brief before a meeting — who you're meeting, relevant context from your workspace, and talking points.",
         "output_kind": "produces_deliverable",
         "registry_default_team": ["tracker", "writer"],
         # ADR-166: meeting-prep has clear completion (the meeting happens), so it's
@@ -898,7 +898,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "stakeholder-update": {
         "display_name": "Stakeholder Update",
-        "description": "Board-ready update synthesizing all domains — projects, market, competitive, relationships.",
+        "description": "Synthesizes everything happening across your workspace — market, competitors, projects, relationships — into one update.",
         "output_kind": "produces_deliverable",
         "registry_default_team": ["analyst", "writer"],
         "default_mode": "recurring",
@@ -956,7 +956,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "daily-update": {
         "display_name": "Daily Update",
-        "description": "Daily operational digest — what your agents did, what changed, what's coming up.",
+        "description": "Morning briefing on what your agents did, what changed, and what's coming up.",
         "output_kind": "produces_deliverable",
         "registry_default_team": ["analyst", "writer"],
         "default_mode": "recurring",
@@ -1006,7 +1006,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "project-status": {
         "display_name": "Project Status Report",
-        "description": "Weekly status report per workstream with progress, blockers, and next steps.",
+        "description": "Status report per workstream — progress, blockers, and next steps.",
         "output_kind": "produces_deliverable",
         "registry_default_team": ["tracker", "writer"],
         "default_mode": "recurring",
@@ -1054,7 +1054,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "content-brief": {
         "display_name": "Content Brief",
-        "description": "Blog post, article, or content draft synthesized from accumulated topic research.",
+        "description": "Turns your accumulated research into a content draft — blog post, article, or brief.",
         "output_kind": "produces_deliverable",
         "registry_default_team": ["researcher", "writer"],
         "default_mode": "goal",
@@ -1105,7 +1105,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "launch-material": {
         "display_name": "Launch Material",
-        "description": "Launch announcements, press materials, and go-to-market content from accumulated research.",
+        "description": "Launch-ready content — announcements, press materials, and GTM copy built from your research.",
         "output_kind": "produces_deliverable",
         "registry_default_team": ["researcher", "writer", "designer"],
         "default_mode": "goal",
