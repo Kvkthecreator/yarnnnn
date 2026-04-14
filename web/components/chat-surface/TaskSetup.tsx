@@ -410,14 +410,15 @@ export function TaskSetup({
           <div>
             <p className={cn('font-medium', compact ? 'text-xs' : 'text-base')}>
               {route === null && 'What do you want to work on?'}
-              {route === 'track' && 'Track something'}
+              {route === 'track' && 'Stay in the know'}
               {route === 'deliverable' && 'Get a deliverable'}
             </p>
-            <p className={cn('text-muted-foreground mt-0.5', compact ? 'text-[11px]' : 'text-sm')}>
-              {route === null && "I'll set it up and keep it running."}
-              {route === 'track' && 'Build a living knowledge base over time.'}
-              {route === 'deliverable' && 'Receive a polished output on a schedule.'}
-            </p>
+            {route !== null && (
+              <p className={cn('text-muted-foreground mt-0.5', compact ? 'text-[11px]' : 'text-sm')}>
+                {route === 'track' && 'Agents gather intel on a topic automatically, on repeat.'}
+                {route === 'deliverable' && 'Receive a polished output on a schedule.'}
+              </p>
+            )}
           </div>
         </div>
         {onDismiss && (
@@ -439,8 +440,8 @@ export function TaskSetup({
                 <Database className="w-4 h-4 text-muted-foreground" />
               </div>
               <div>
-                <p className="text-sm font-medium">Track something</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Competitors, markets, relationships, channels, signals</p>
+                <p className="text-sm font-medium">Stay in the know</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Agents automatically gather intel on any topic, on repeat</p>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground/30 ml-auto group-hover:text-muted-foreground transition-colors" />
             </div>

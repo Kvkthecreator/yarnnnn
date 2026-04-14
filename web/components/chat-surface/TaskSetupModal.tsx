@@ -80,10 +80,7 @@ export function TaskSetupModal({ open, onClose, onSubmit, initialNotes }: TaskSe
           </div>
 
           {/* Footer */}
-          <footer className="border-t border-border px-4 py-2.5 flex items-center justify-between">
-            <p className="text-[11px] text-muted-foreground/50">
-              You can always set up work directly in chat too.
-            </p>
+          <footer className="border-t border-border px-4 py-2.5 flex items-center justify-end">
             <button
               type="button"
               onClick={onClose}
