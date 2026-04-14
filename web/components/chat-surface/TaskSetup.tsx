@@ -231,26 +231,16 @@ export function TaskSetup({
         ))}
       </div>
 
-      {/* Main textarea */}
-      <textarea
-        value={notes}
-        onChange={e => setNotes(e.target.value)}
-        placeholder={PLACEHOLDERS[route]}
-        rows={4}
-        autoFocus
-        className="w-full text-sm bg-muted/20 border border-border/50 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none placeholder:text-muted-foreground/30 mb-3"
-      />
+      {/* Unified input surface — textarea + materials in one bordered container */}
+      <div className="rounded-lg border border-border/60 bg-muted/10 focus-within:border-border focus-within:ring-1 focus-within:ring-primary/30 transition-all mb-3">
 
-      {/* Materials row: links + files co-equal */}
-      <div className="space-y-2">
-
-        {/* Existing links */}
+        {/* Attached links */}
         {links.length > 0 && (
-          <div className="space-y-1">
+          <div className="px-3 pt-2.5 space-y-1">
             {links.map((link, i) => (
-              <div key={i} className="flex items-center gap-2 group px-2 py-1 rounded bg-muted/30">
+              <div key={i} className="flex items-center gap-2 group">
                 <Link2 className="w-3 h-3 text-muted-foreground/40 shrink-0" />
-                <span className="text-[11px] text-foreground/70 truncate flex-1 font-mono">
+                <span className="text-[11px] text-foreground/60 truncate flex-1 font-mono">
                   {link}
                 </span>
                 <button
@@ -264,52 +254,13 @@ export function TaskSetup({
           </div>
         )}
 
-        {/* Inline link input */}
-        {showLinkInput && (
-          <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              value={linkInput}
-              onChange={e => { setLinkInput(e.target.value); setLinkError(null); }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); addLink(); }
-                if (e.key === 'Escape') { setShowLinkInput(false); setLinkInput(''); setLinkError(null); }
-              }}
-              placeholder={route === 'track'
-                ? 'competitor sites, market pages, GitHub repos...'
-                : 'example reports, reference sources...'}
-              autoFocus
-              className={cn(
-                'flex-1 text-[11px] bg-muted/30 border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/30',
-                linkError ? 'border-destructive/50' : 'border-border/50'
-              )}
-            />
-            <button
-              onClick={addLink}
-              disabled={!linkInput.trim()}
-              className="p-1.5 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors shrink-0"
-              title="Add link"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => { setShowLinkInput(false); setLinkInput(''); setLinkError(null); }}
-              className="p-1.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
-              title="Cancel"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-        {linkError && <p className="text-[10px] text-destructive">{linkError}</p>}
-
-        {/* Uploaded docs */}
+        {/* Attached files */}
         {uploadedDocs.length > 0 && (
-          <div className="space-y-1">
+          <div className={cn('px-3 space-y-1', links.length > 0 ? 'pt-1' : 'pt-2.5')}>
             {uploadedDocs.map((doc, i) => (
-              <div key={i} className="flex items-center gap-2 group px-2 py-1 rounded bg-muted/30">
+              <div key={i} className="flex items-center gap-2 group">
                 <FileText className="w-3 h-3 text-muted-foreground/40 shrink-0" />
-                <span className="text-[11px] truncate flex-1">{doc.name}</span>
+                <span className="text-[11px] truncate flex-1 text-foreground/60">{doc.name}</span>
                 <span className={cn('text-[10px] shrink-0',
                   doc.status === 'done' ? 'text-green-600' : doc.status === 'error' ? 'text-destructive' : 'text-muted-foreground'
                 )}>
@@ -328,33 +279,88 @@ export function TaskSetup({
           </div>
         )}
 
-        {/* Add link / upload file actions */}
-        <div className="flex items-center gap-2">
-          {!showLinkInput && (
+        {/* Divider when attachments are present */}
+        {(links.length > 0 || uploadedDocs.length > 0) && (
+          <div className="mx-3 mt-2 border-t border-border/40" />
+        )}
+
+        {/* Textarea */}
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder={PLACEHOLDERS[route]}
+          rows={4}
+          autoFocus
+          className="w-full text-sm bg-transparent px-3 py-2.5 focus:outline-none resize-none placeholder:text-muted-foreground/30"
+        />
+
+        {/* Inline link input (shown when adding a link) */}
+        {showLinkInput && (
+          <div className="px-3 pb-2">
+            <div className="flex items-center gap-1.5 border-t border-border/40 pt-2">
+              <Link2 className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+              <input
+                type="text"
+                value={linkInput}
+                onChange={e => { setLinkInput(e.target.value); setLinkError(null); }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); addLink(); }
+                  if (e.key === 'Escape') { setShowLinkInput(false); setLinkInput(''); setLinkError(null); }
+                }}
+                placeholder={route === 'track'
+                  ? 'competitor sites, market pages, GitHub repos...'
+                  : 'example reports, reference sources...'}
+                autoFocus
+                className={cn(
+                  'flex-1 text-[11px] bg-transparent focus:outline-none placeholder:text-muted-foreground/30',
+                  linkError ? 'text-destructive' : ''
+                )}
+              />
+              <button
+                onClick={addLink}
+                disabled={!linkInput.trim()}
+                className="p-1 text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => { setShowLinkInput(false); setLinkInput(''); setLinkError(null); }}
+                className="p-1 text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {linkError && <p className="text-[10px] text-destructive mt-1 pl-5">{linkError}</p>}
+          </div>
+        )}
+
+        {/* Toolbar — attach link / upload file */}
+        {!showLinkInput && (
+          <div className="flex items-center gap-0.5 px-2 pb-2 border-t border-border/30 mt-1 pt-1.5">
             <button
               onClick={() => setShowLinkInput(true)}
-              className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors py-1"
+              className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/60"
             >
               <Link2 className="w-3 h-3" />
-              Add link
+              Link
             </button>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.docx,.txt,.md"
-            multiple
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors py-1"
-          >
-            <Upload className="w-3 h-3" />
-            Upload file
-          </button>
-        </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt,.md"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/60"
+            >
+              <Upload className="w-3 h-3" />
+              File
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Submit */}
