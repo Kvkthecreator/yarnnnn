@@ -3,25 +3,23 @@
 /**
  * WorkListSurface — Full-width list surface for /work (ADR-167).
  *
- * Replaces the old left-sidebar WorkList. This is what you see when you land
- * on /work with no `?task=` param: a filterable, groupable list of every task
- * in your workspace.
+ * SURFACE-ARCHITECTURE.md v10.0 — polished list layout (2026-04-14).
  *
- * Features:
- *   - Filter chips on mode: All | Recurring | One-time
- *     System tasks (output_kind=system_maintenance) are hidden by default
- *     and excluded from All — shown only when "Include system tasks" is checked.
- *   - Search box across title, agent, delivery, type, objective, domains
- *   - Group-by dropdown: Mode (default) | Agent | Status | Schedule
- *   - Status filter: active+paused (default), optional completed+archived
- *   - Agent filter: pre-applied if `?agent={slug}` is in URL; user can clear
+ * Layout:
+ *   Row 1: Mode chips (Recurring | One-time — no "All"; unselected = show all)
+ *   Row 2: Search (flex) + Group-by toggle (Mode | Agent) + ··· overflow
+ *           (include archived, include system tasks)
  *
- * Click a row → onSelect(slug) → page transitions to detail mode by updating
- * the URL to `?task={slug}`.
+ * Group headers key on output_kind label when grouped by mode
+ * ("Reports", "Tracking", "Actions") — more descriptive than "Recurring".
+ *
+ * Row metadata is context-aware: agent name suppressed when grouped by agent,
+ * mode badge suppressed when grouped by mode. Next/Last time is the primary
+ * scan signal — bumped to text-xs.
  */
 
-import { useMemo, useState } from 'react';
-import { Circle, Search, Sparkles, X } from 'lucide-react';
+import { useRef, useEffect, useMemo, useState } from 'react';
+import { MoreHorizontal, Search, Sparkles, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
 import { WorkModeBadge } from './WorkModeBadge';
@@ -32,44 +30,28 @@ import type { Task, Agent } from '@/types';
 interface WorkListSurfaceProps {
   tasks: Task[];
   agents: Agent[];
-  /** Pre-applied agent filter from URL `?agent={slug}` (or null) */
   agentFilter: string | null;
-  /** Non-fatal data loading error when stale list data is still available */
   dataError?: string | null;
-  /** Called when user clears the agent filter via the chip */
   onClearAgentFilter: () => void;
   onSelect: (slug: string) => void;
 }
 
-type ModeFilter = 'all' | 'recurring' | 'one-time';
-type GroupBy = 'mode' | 'agent' | 'status' | 'schedule';
+type ModeFilter = 'recurring' | 'one-time' | null;
+type GroupBy = 'mode' | 'agent';
 
-const MODE_CHIPS: { id: ModeFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'recurring', label: 'Recurring' },
-  { id: 'one-time', label: 'One-time' },
-];
-
-const GROUP_BY_LABEL: Record<GroupBy, string> = {
-  mode: 'Mode',
-  agent: 'Agent',
-  status: 'Status',
-  schedule: 'Schedule',
+// output_kind → human group label (used when groupBy='mode')
+const KIND_GROUP_LABEL: Record<string, string> = {
+  produces_deliverable: 'Reports',
+  accumulates_context:  'Tracking',
+  external_action:      'Actions',
+  system_maintenance:   'System',
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  active: 'Active',
-  paused: 'Paused',
-  completed: 'Completed',
-  archived: 'Archived',
-};
+function kindGroupLabel(task: Task): string {
+  return KIND_GROUP_LABEL[task.output_kind ?? ''] ?? 'Other';
+}
 
-const GROUP_ORDER: Record<GroupBy, string[]> = {
-  mode: ['Recurring', 'One-time'],
-  agent: [],
-  status: ['Active', 'Paused', 'Completed', 'Archived', 'Unknown'],
-  schedule: [],
-};
+const KIND_GROUP_ORDER = ['Reports', 'Tracking', 'Actions', 'Other', 'System'];
 
 function isSystemTask(task: Task): boolean {
   return task.output_kind === 'system_maintenance';
@@ -78,61 +60,36 @@ function isSystemTask(task: Task): boolean {
 function agentNameFor(task: Task, agents: Agent[]): string {
   const assigned = task.agent_slugs?.[0];
   if (!assigned) return 'Unassigned';
-  // Use getAgentSlug() — agent.slug may not be populated from API response
   const agent = agents.find(a => getAgentSlug(a) === assigned);
   return agent?.title ?? assigned;
 }
 
 function statusRank(status: string | undefined): number {
   switch (status) {
-    case 'active':
-      return 0;
-    case 'paused':
-      return 1;
-    case 'completed':
-      return 2;
-    case 'archived':
-      return 3;
-    default:
-      return 4;
-  }
-}
-
-function groupKeyFor(task: Task, groupBy: GroupBy, agents: Agent[]): string {
-  switch (groupBy) {
-    case 'mode':
-      return taskModeLabel(task.mode);
-    case 'agent':
-      return agentNameFor(task, agents);
-    case 'status':
-      return STATUS_LABEL[task.status] ?? 'Unknown';
-    case 'schedule':
-      return task.schedule || 'On-demand';
+    case 'active':    return 0;
+    case 'paused':    return 1;
+    case 'completed': return 2;
+    case 'archived':  return 3;
+    default:          return 4;
   }
 }
 
 function compareTasks(a: Task, b: Task): number {
   const statusDiff = statusRank(a.status) - statusRank(b.status);
   if (statusDiff !== 0) return statusDiff;
-
   const aNext = a.next_run_at ? new Date(a.next_run_at).getTime() : Number.POSITIVE_INFINITY;
   const bNext = b.next_run_at ? new Date(b.next_run_at).getTime() : Number.POSITIVE_INFINITY;
-  if (a.status === 'active' || a.status === 'paused' || b.status === 'active' || b.status === 'paused') {
-    if (aNext !== bNext) return aNext - bNext;
-  }
-
+  if ((a.status === 'active' || b.status === 'active') && aNext !== bNext) return aNext - bNext;
   const aLast = a.last_run_at ? new Date(a.last_run_at).getTime() : 0;
   const bLast = b.last_run_at ? new Date(b.last_run_at).getTime() : 0;
   if (aLast !== bLast) return bLast - aLast;
-
   return a.title.localeCompare(b.title);
 }
 
 function buildSearchText(task: Task, agents: Agent[]): string {
-  const objective = task.objective
+  const obj = task.objective
     ? [task.objective.deliverable, task.objective.audience, task.objective.purpose, task.objective.format]
     : [];
-
   return [
     task.title,
     agentNameFor(task, agents),
@@ -141,24 +98,95 @@ function buildSearchText(task: Task, agents: Agent[]): string {
     task.schedule,
     ...(task.context_reads ?? []),
     ...(task.context_writes ?? []),
-    ...objective,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+    ...obj,
+  ].filter(Boolean).join(' ').toLowerCase();
 }
 
 function compareGroups(groupBy: GroupBy, a: string, b: string): number {
-  const explicitOrder = GROUP_ORDER[groupBy];
-  if (explicitOrder.length > 0) {
-    const aIndex = explicitOrder.indexOf(a);
-    const bIndex = explicitOrder.indexOf(b);
-    if (aIndex !== -1 || bIndex !== -1) {
-      return (aIndex === -1 ? explicitOrder.length : aIndex) - (bIndex === -1 ? explicitOrder.length : bIndex);
+  if (groupBy === 'mode') {
+    const ai = KIND_GROUP_ORDER.indexOf(a);
+    const bi = KIND_GROUP_ORDER.indexOf(b);
+    if (ai !== -1 || bi !== -1) {
+      return (ai === -1 ? KIND_GROUP_ORDER.length : ai) - (bi === -1 ? KIND_GROUP_ORDER.length : bi);
     }
   }
   return a.localeCompare(b);
 }
+
+// ─── Overflow menu for rare options ────────────────────────────────────────
+
+function OverflowOptions({
+  includeHistorical,
+  includeSystem,
+  onToggleHistorical,
+  onToggleSystem,
+}: {
+  includeHistorical: boolean;
+  includeSystem: boolean;
+  onToggleHistorical: () => void;
+  onToggleSystem: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const activeCount = (includeHistorical ? 1 : 0) + (includeSystem ? 1 : 0);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={cn(
+          'inline-flex items-center justify-center w-7 h-7 rounded border transition-colors',
+          activeCount > 0
+            ? 'border-primary/40 text-primary bg-primary/5'
+            : 'border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted',
+        )}
+        aria-label="More filters"
+      >
+        <MoreHorizontal className="w-3.5 h-3.5" />
+        {activeCount > 0 && (
+          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-primary text-[8px] text-primary-foreground flex items-center justify-center font-medium">
+            {activeCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-20 min-w-[200px] rounded-md border border-border bg-popover shadow-md py-1">
+          <label className="flex items-center gap-2.5 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeHistorical}
+              onChange={onToggleHistorical}
+              className="rounded border-border"
+            />
+            Include completed &amp; archived
+          </label>
+          <label className="flex items-center gap-2.5 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeSystem}
+              onChange={onToggleSystem}
+              className="rounded border-border"
+            />
+            Include system tasks
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main ───────────────────────────────────────────────────────────────────
 
 export function WorkListSurface({
   tasks,
@@ -168,28 +196,22 @@ export function WorkListSurface({
   onClearAgentFilter,
   onSelect,
 }: WorkListSurfaceProps) {
-  const [modeFilter, setModeFilter] = useState<ModeFilter>('all');
+  const [modeFilter, setModeFilter] = useState<ModeFilter>(null);
   const [search, setSearch] = useState('');
   const [groupBy, setGroupBy] = useState<GroupBy>('mode');
   const [includeHistorical, setIncludeHistorical] = useState(false);
   const [includeSystem, setIncludeSystem] = useState(false);
 
-  // Apply filters in pipeline order
   const filtered = useMemo(() => {
     let result = tasks;
-    // System tasks are always hidden unless explicitly opted in
-    if (!includeSystem) {
-      result = result.filter(t => !isSystemTask(t));
-    }
-    if (!includeHistorical) {
-      result = result.filter(t => t.status !== 'archived' && t.status !== 'completed');
-    }
-    if (modeFilter !== 'all') {
-      result = result.filter(t => taskModeLabel(t.mode) === (modeFilter === 'recurring' ? 'Recurring' : 'One-time'));
-    }
-    if (agentFilter) {
+    if (!includeSystem)      result = result.filter(t => !isSystemTask(t));
+    if (!includeHistorical)  result = result.filter(t => t.status !== 'archived' && t.status !== 'completed');
+    if (modeFilter === 'recurring')
+      result = result.filter(t => taskModeLabel(t.mode) === 'Recurring');
+    if (modeFilter === 'one-time')
+      result = result.filter(t => taskModeLabel(t.mode) === 'One-time');
+    if (agentFilter)
       result = result.filter(t => t.agent_slugs?.includes(agentFilter));
-    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter(t => buildSearchText(t, agents).includes(q));
@@ -197,18 +219,14 @@ export function WorkListSurface({
     return result;
   }, [tasks, modeFilter, agentFilter, search, includeHistorical, includeSystem, agents]);
 
-  // Group + sort within each group
   const grouped = useMemo(() => {
     const groups: Record<string, Task[]> = {};
     for (const task of filtered) {
-      const key = groupKeyFor(task, groupBy, agents);
+      const key = groupBy === 'mode' ? kindGroupLabel(task) : agentNameFor(task, agents);
       if (!groups[key]) groups[key] = [];
       groups[key].push(task);
     }
-    // Sort tasks within each group: active/paused first, upcoming first, then recent history.
-    for (const key of Object.keys(groups)) {
-      groups[key].sort(compareTasks);
-    }
+    for (const key of Object.keys(groups)) groups[key].sort(compareTasks);
     return Object.entries(groups).sort((a, b) => compareGroups(groupBy, a[0], b[0]));
   }, [filtered, groupBy, agents]);
 
@@ -218,110 +236,108 @@ export function WorkListSurface({
 
   return (
     <div className="flex flex-col h-full">
-      {/* ── Header: filters + search + group-by ── */}
-      <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-border/60 shrink-0 space-y-2 sm:space-y-3">
+      {/* ── Toolbar ── */}
+      <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-border/60 shrink-0 space-y-2.5">
         {dataError && (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700">
-            Showing the last available work index. Refresh the page to retry the failed background load.
+            Showing last available data — refresh to retry.
           </div>
         )}
 
-        {/* Mode chips */}
-        <div className="flex items-center gap-1 flex-wrap">
-          {MODE_CHIPS.map(chip => {
-            const isActive = modeFilter === chip.id;
+        {/* Row 1: mode chips (no All — unselected = show all) */}
+        <div className="flex items-center gap-1.5">
+          {(['recurring', 'one-time'] as const).map(id => {
+            const label = id === 'recurring' ? 'Recurring' : 'One-time';
+            const active = modeFilter === id;
             return (
               <button
-                key={chip.id}
-                onClick={() => setModeFilter(chip.id)}
+                key={id}
+                onClick={() => setModeFilter(active ? null : id)}
                 className={cn(
                   'px-3 py-1 rounded-full text-xs font-medium transition-colors',
-                  isActive
+                  active
                     ? 'bg-foreground text-background'
                     : 'bg-muted/60 text-muted-foreground hover:bg-muted',
                 )}
               >
-                {chip.label}
+                {label}
               </button>
             );
           })}
+
+          {/* Agent filter chip — appears inline when active */}
+          {agentFilter && (
+            <button
+              onClick={onClearAgentFilter}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs hover:bg-primary/20 transition-colors"
+            >
+              {agentLabel}
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
 
-        {/* Search + group-by + toggles + agent filter chip */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
-          <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-md">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
+        {/* Row 2: search + group-by toggle + overflow */}
+        <div className="flex items-center gap-2">
+          {/* Search */}
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search tasks, agents, domains..."
-              className="w-full pl-7 pr-3 py-1.5 text-xs bg-muted/40 border border-border/60 rounded-md focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
+              placeholder="Search…"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-muted/40 border border-border/60 rounded-md focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-muted-foreground/60">Group by:</span>
-            <select
-              value={groupBy}
-              onChange={e => setGroupBy(e.target.value as GroupBy)}
-              className="bg-muted/40 border border-border/60 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              {(Object.entries(GROUP_BY_LABEL) as [GroupBy, string][]).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
+          {/* Group-by segmented toggle */}
+          <div className="flex items-center rounded-md border border-border/60 overflow-hidden text-xs shrink-0">
+            {(['mode', 'agent'] as const).map(opt => (
+              <button
+                key={opt}
+                onClick={() => setGroupBy(opt)}
+                className={cn(
+                  'px-2.5 py-1.5 capitalize transition-colors',
+                  groupBy === opt
+                    ? 'bg-foreground text-background font-medium'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
+                )}
+              >
+                {opt === 'mode' ? 'Kind' : 'Agent'}
+              </button>
+            ))}
           </div>
 
-          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={includeHistorical}
-              onChange={e => setIncludeHistorical(e.target.checked)}
-              className="rounded border-border"
-            />
-            Include completed and archived
-          </label>
-
-          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={includeSystem}
-              onChange={e => setIncludeSystem(e.target.checked)}
-              className="rounded border-border"
-            />
-            Include system tasks
-          </label>
-
-          {agentFilter && (
-            <button
-              onClick={onClearAgentFilter}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-[11px] hover:bg-primary/20"
-            >
-              Agent: {agentLabel}
-              <X className="w-3 h-3" />
-            </button>
-          )}
+          {/* Overflow (rare options) */}
+          <OverflowOptions
+            includeHistorical={includeHistorical}
+            includeSystem={includeSystem}
+            onToggleHistorical={() => setIncludeHistorical(v => !v)}
+            onToggleSystem={() => setIncludeSystem(v => !v)}
+          />
         </div>
       </div>
 
       {/* ── List body ── */}
       <div className="flex-1 overflow-auto">
         {filtered.length === 0 ? (
-          <EmptyResult hasFilters={modeFilter !== 'all' || !!search || !!agentFilter || includeHistorical} />
+          <EmptyResult hasFilters={modeFilter !== null || !!search || !!agentFilter} />
         ) : (
-          <div className="px-3 sm:px-6 py-3 sm:py-4 space-y-6 max-w-5xl">
+          <div className="px-4 sm:px-6 py-4 space-y-5 max-w-4xl">
             {grouped.map(([groupName, items]) => (
               <section key={groupName}>
-                <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">
-                  {groupName} <span className="text-muted-foreground/30 normal-case">· {items.length}</span>
+                <h3 className="text-[11px] font-medium text-muted-foreground/50 uppercase tracking-wide mb-1.5 px-1">
+                  {groupName}
+                  <span className="normal-case font-normal ml-1.5 text-muted-foreground/30">· {items.length}</span>
                 </h3>
-                <div className="rounded-md border border-border/60 divide-y divide-border/40 overflow-hidden">
+                <div className="rounded-lg border border-border/50 divide-y divide-border/30 overflow-hidden">
                   {items.map(task => (
                     <WorkRow
                       key={task.slug}
                       task={task}
-                      agentName={agentNameFor(task, agents)}
+                      agents={agents}
+                      groupBy={groupBy}
                       dim={isSystemTask(task)}
                       onSelect={() => onSelect(task.slug)}
                     />
@@ -336,75 +352,108 @@ export function WorkListSurface({
   );
 }
 
-// ─── Row ───
+// ─── Row ────────────────────────────────────────────────────────────────────
 
 function WorkRow({
   task,
-  agentName,
+  agents,
+  groupBy,
   dim,
   onSelect,
 }: {
   task: Task;
-  agentName: string;
-  /** System tasks are shown dimmed — same row shape, visually de-prioritised */
+  agents: Agent[];
+  groupBy: GroupBy;
   dim?: boolean;
   onSelect: () => void;
 }) {
   const isActive = task.status === 'active';
+  const isPaused = task.status === 'paused';
+
   const statusColor = dim
-    ? 'text-muted-foreground/20'
+    ? 'bg-muted-foreground/15'
     : isActive
-      ? 'fill-green-500 text-green-500'
-      : task.status === 'paused'
-        ? 'fill-amber-500 text-amber-500'
-        : 'text-muted-foreground/30';
+      ? 'bg-green-500'
+      : isPaused
+        ? 'bg-amber-400'
+        : 'bg-muted-foreground/25';
+
+  // Sub-label: what to show depends on grouping context
+  // - grouped by mode (kind): show agent name, since kind is already the group header
+  // - grouped by agent: show kind label + schedule, since agent is already the group header
+  const agentName = agentNameFor(task, agents);
+  const kindLabel = KIND_GROUP_LABEL[task.output_kind ?? ''] ?? null;
+
+  const subLeft = groupBy === 'agent'
+    ? kindLabel          // agent already shown in group header
+    : agentName;         // kind already shown in group header
+
+  const schedule = task.schedule
+    ? task.schedule.charAt(0).toUpperCase() + task.schedule.slice(1)
+    : null;
+
+  // Right-side time signal — the most scan-relevant piece
+  const timeSignal = isActive && task.next_run_at
+    ? `Next: ${formatRelativeTime(task.next_run_at)}`
+    : task.last_run_at
+      ? `Last: ${formatRelativeTime(task.last_run_at)}`
+      : null;
 
   return (
     <button
       onClick={onSelect}
       className={cn(
-        'w-full text-left px-4 py-3 hover:bg-muted/40 transition-colors flex items-center gap-3',
-        dim && 'opacity-50',
+        'w-full text-left px-4 py-3 hover:bg-muted/30 transition-colors flex items-center gap-3',
+        dim && 'opacity-40',
       )}
     >
-      <Circle className={cn('w-2 h-2 shrink-0', statusColor)} />
+      {/* Status dot */}
+      <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusColor)} />
+
+      {/* Title + sub-label */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={cn('text-sm font-medium truncate', dim && 'font-normal')}>{task.title}</span>
-        </div>
-        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground">
-          {!dim && <WorkModeBadge mode={task.mode} />}
-          <span className="truncate">{agentName}</span>
-          {task.schedule && (
+        <p className={cn('text-sm truncate', dim ? 'text-muted-foreground' : 'text-foreground font-medium')}>
+          {task.title}
+        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {/* Mode badge only when grouped by agent (kind not in group header) */}
+          {groupBy === 'agent' && !dim && (
+            <WorkModeBadge mode={task.mode} />
+          )}
+          {subLeft && (
+            <span className="text-[11px] text-muted-foreground/70 truncate">{subLeft}</span>
+          )}
+          {schedule && (
             <>
-              <span className="text-muted-foreground/30">·</span>
-              <span className="capitalize">{task.schedule}</span>
+              <span className="text-muted-foreground/25 text-[11px]">·</span>
+              <span className="text-[11px] text-muted-foreground/50">{schedule}</span>
             </>
           )}
         </div>
       </div>
-      <div className="text-[10px] text-muted-foreground/70 shrink-0 text-right">
-        {isActive && task.next_run_at && <div>Next: {formatRelativeTime(task.next_run_at)}</div>}
-        {!isActive && task.last_run_at && <div>Last: {formatRelativeTime(task.last_run_at)}</div>}
-      </div>
+
+      {/* Time signal — primary scan target */}
+      {timeSignal && (
+        <span className="text-xs text-muted-foreground/60 shrink-0 tabular-nums">
+          {timeSignal}
+        </span>
+      )}
     </button>
   );
 }
 
-// ─── Empty state ───
+// ─── Empty state ─────────────────────────────────────────────────────────────
 
 function EmptyResult({ hasFilters }: { hasFilters: boolean }) {
   return (
-    <div className="flex items-center justify-center h-full">
+    <div className="flex items-center justify-center h-full min-h-[200px]">
       <div className="text-center">
-        <Sparkles className="w-6 h-6 text-muted-foreground/20 mx-auto mb-2" />
+        <Sparkles className="w-5 h-5 text-muted-foreground/20 mx-auto mb-2" />
         <p className="text-sm font-medium mb-1">
-          {hasFilters ? 'No tasks match your filters' : 'No tasks yet'}
+          {hasFilters ? 'No tasks match' : 'No tasks yet'}
         </p>
         <p className="text-xs text-muted-foreground">
-          {hasFilters
-            ? 'Try clearing filters or searching differently.'
-            : 'Chat with TP to set up your first task.'}
+          {hasFilters ? 'Clear filters to see all work.' : 'Chat with TP to set up your first task.'}
         </p>
       </div>
     </div>
