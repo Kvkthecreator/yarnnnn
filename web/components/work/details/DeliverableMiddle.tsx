@@ -319,12 +319,17 @@ export function DeliverableMiddle({
               {latest.html_content ? (
                 <iframe
                   srcDoc={latest.html_content}
-                  className="min-h-[500px] w-full border-0 bg-white block"
-                  style={{ height: 'auto' }}
+                  className="w-full border-0 bg-white block"
+                  style={{ height: 'auto', minHeight: '500px' }}
                   onLoad={(e) => {
                     const iframe = e.currentTarget;
                     try {
-                      const h = iframe.contentDocument?.documentElement?.scrollHeight;
+                      const doc = iframe.contentDocument;
+                      if (!doc) return;
+                      // Deck outputs use slide-based layout — expand to full content height
+                      // so all slides are visible without a fixed viewport constraint.
+                      // Non-deck outputs (report, dashboard, etc.) also expand to content.
+                      const h = doc.documentElement?.scrollHeight;
                       if (h) iframe.style.height = `${h}px`;
                     } catch {}
                   }}

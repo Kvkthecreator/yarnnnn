@@ -248,69 +248,63 @@ DOCUMENT_CSS = """
 PRESENTATION_CSS = """
 .presentation {
   max-width: 100%;
-  scroll-snap-type: y mandatory;
 }
 
 .slide {
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding: 4rem clamp(2rem, 8vw, 8rem);
-  scroll-snap-align: start;
+  justify-content: flex-start;
+  padding: 2.5rem clamp(1.5rem, 6vw, 4rem);
   position: relative;
+  border-bottom: 1px solid var(--border);
 }
 
-.slide:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: clamp(2rem, 8vw, 8rem);
-  right: clamp(2rem, 8vw, 8rem);
-  border-bottom: 1px solid var(--border);
+.slide:last-child {
+  border-bottom: none;
 }
 
 .slide-title {
   text-align: center;
-  padding: 6rem clamp(2rem, 8vw, 8rem);
+  padding: 3rem clamp(1.5rem, 6vw, 4rem) 2.5rem;
+  background: var(--brand-bg);
 }
 
 .slide-title h1 {
-  font-size: 3rem;
+  font-size: 2rem;
   border: none;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .slide-title .subtitle {
-  font-size: 1.5rem;
+  font-size: 1.125rem;
   color: var(--text-muted);
 }
 
 .slide h2 {
-  font-size: 2rem;
+  font-size: 1.375rem;
   margin-top: 0;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
   color: var(--brand-primary);
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-light);
 }
 
-.slide p { font-size: 1.25rem; }
-.slide li { font-size: 1.25rem; margin-bottom: 0.5rem; }
-.slide table { font-size: 1.05rem; }
+.slide p { font-size: 1rem; line-height: 1.7; }
+.slide li { font-size: 1rem; margin-bottom: 0.4rem; line-height: 1.6; }
+.slide table { font-size: 0.9rem; }
 
 .slide img {
-  max-height: 50vh;
+  max-height: 40vh;
   object-fit: contain;
-  margin: 1.5rem auto;
+  margin: 1.25rem auto;
   display: block;
 }
 
 @media print {
   .slide {
-    min-height: auto;
     page-break-after: always;
     padding: 2rem;
   }
-  .slide::after { display: none; }
 }
 """
 
