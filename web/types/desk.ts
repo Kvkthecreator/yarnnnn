@@ -58,12 +58,15 @@ export interface TPImageAttachment {
  * ADR-042: Streaming Process Visibility
  * Message content blocks for inline tool display
  */
+export type SystemCardType = 'workspace_init_complete' | 'task_complete';
+
 export type MessageBlock =
   | { type: 'text'; content: string }
   | { type: 'thinking'; content: string }
   | { type: 'tool_call'; id: string; tool: string; input?: Record<string, unknown>; status: 'pending' | 'success' | 'failed'; result?: TPToolResult }
   | { type: 'clarify'; question: string; options?: string[] }
-  | { type: 'notification'; title: string; description?: string; toolName: string };
+  | { type: 'notification'; title: string; description?: string; toolName: string }
+  | { type: 'system_card'; card_type: SystemCardType; data: Record<string, unknown> };
 
 export interface TPMessage {
   id: string;

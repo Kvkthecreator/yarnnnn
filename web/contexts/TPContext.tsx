@@ -9,7 +9,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useRef, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, TPNotification, mapToolActionToSurface, DeskSurface, Todo, MessageBlock } from '@/types/desk';
+import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, TPNotification, mapToolActionToSurface, DeskSurface, Todo, MessageBlock, SystemCardType } from '@/types/desk';
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
 import { postChatWithFallback } from '@/lib/api/chatTransport';
@@ -274,7 +274,15 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
             }
 
             const messageBlocks: MessageBlock[] = [];
-            if (m.content) {
+            // ADR-179: System event cards — persisted session_messages rows with metadata.system_card.
+            // Render as SystemCard component instead of prose; TP reads content field as history.
+            if (m.metadata?.system_card) {
+              messageBlocks.push({
+                type: 'system_card',
+                card_type: m.metadata.system_card as SystemCardType,
+                data: m.metadata as Record<string, unknown>,
+              });
+            } else if (m.content) {
               messageBlocks.push({ type: 'text', content: m.content });
             }
             if (blocks && blocks.length > 0) {

@@ -324,6 +324,14 @@ export const api = {
               author_agent_id?: string;
               author_agent_slug?: string;
               author_role?: string;
+              // ADR-179: System event cards
+              system_card?: string;
+              agents_created?: number;
+              tasks_created?: string[];
+              task_slug?: string;
+              task_title?: string;
+              output_path?: string;
+              run_at?: string;
             };
           }>;
         }>;

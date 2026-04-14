@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { NotificationCard } from '@/components/tp/NotificationCard';
+import { SystemCard } from '@/components/tp/SystemCard';
 import { MessageBlock } from '@/types/desk';
 import { cn, getToolDisplayMessage } from '@/lib/utils';
 import { stripWorkspaceStateMeta, stripOnboardingMeta } from '@/lib/workspace-state-meta';
@@ -296,6 +297,8 @@ export function MessageBlocks({ blocks, compact = true }: { blocks: MessageBlock
             return null;
           case 'notification':
             return <NotificationCard key={i} title={block.title} description={block.description} toolName={block.toolName} />;
+          case 'system_card':
+            return <SystemCard key={i} card_type={block.card_type} data={block.data} />;
           default:
             return null;
         }
