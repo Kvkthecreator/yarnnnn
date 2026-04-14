@@ -204,7 +204,6 @@ export default function ContextPage() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
   const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
-  const [domainDeepLinked, setDomainDeepLinked] = useState(false);
   const [taskSetupOpen, setTaskSetupOpen] = useState(false);
 
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
@@ -239,14 +238,18 @@ export default function ContextPage() {
       setTreeNodes(nodes);
       setPhase(nav.readiness?.phase || 'active');
 
-      // Domain deep-linking: auto-navigate to domain folder on first load
-      if (domainParam && !domainDeepLinked) {
-        setDomainDeepLinked(true);
-        // Find the domain node in the Context folder's children
+      const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: nodes };
+
+      // ?path= deep-link — try to select the exact path (entity card navigation)
+      if (pathParam && resolveNodeByPath(root, pathParam)) {
+        setSelectedPath(pathParam);
+        return;
+      }
+
+      // ?domain= deep-link — select the domain folder
+      if (domainParam) {
         const contextFolder = nodes.find(n => n.name === 'Context');
         if (contextFolder?.children) {
-          // Match by domain key (the original folder name before relabeling)
-          // The path will be like /workspace/context/{domain}
           const domainNode = contextFolder.children.find(
             n => n.path === `/workspace/context/${domainParam}` || n.path.endsWith(`/${domainParam}`)
           );
@@ -259,10 +262,7 @@ export default function ContextPage() {
 
       // Preserve current selection if still valid
       setSelectedPath((prev) => {
-        if (prev) {
-          const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: nodes };
-          if (resolveNodeByPath(root, prev)) return prev;
-        }
+        if (prev && resolveNodeByPath(root, prev)) return prev;
         return null;
       });
     } catch (err) {
@@ -270,7 +270,7 @@ export default function ContextPage() {
     } finally {
       setFileTreeLoading(false);
     }
-  }, [domainParam, domainDeepLinked]);
+  }, [domainParam, pathParam]);
 
   const selectedNode = selectedPath ? resolveNodeByPath(virtualRoot, selectedPath) : null;
   const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
@@ -317,14 +317,27 @@ export default function ContextPage() {
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onFocus); };
   }, [loadExplorer]);
 
-  // Keep URL path deep-linking in sync without forcing explorer re-fetch.
+  // When URL params change while tree is already loaded (user navigates
+  // entity-to-entity from Work without a full remount), sync selection
+  // without re-fetching the tree.
   useEffect(() => {
-    if (!pathParam) return;
+    if (treeNodes.length === 0) return; // wait for loadExplorer
     const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
-    if (resolveNodeByPath(root, pathParam)) {
+
+    if (pathParam && resolveNodeByPath(root, pathParam)) {
       setSelectedPath(pathParam);
+      return;
     }
-  }, [pathParam, treeNodes]);
+    if (domainParam) {
+      const contextFolder = treeNodes.find(n => n.name === 'Context');
+      const domainNode = contextFolder?.children?.find(
+        n => n.path === `/workspace/context/${domainParam}` || n.path.endsWith(`/${domainParam}`)
+      );
+      if (domainNode) {
+        setSelectedPath(domainNode.path);
+      }
+    }
+  }, [pathParam, domainParam, treeNodes]);
 
   const handleExplorerSelect = useCallback((node: TreeNode) => {
     setSelectedPath(node.path);

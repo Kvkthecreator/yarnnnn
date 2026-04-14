@@ -176,7 +176,7 @@ export function TrackingEntityGrid({ task }: { task: Task }) {
   }, [primaryDomain]);
 
   function handleNavigate(path: string) {
-    router.replace(`${CONTEXT_ROUTE}?path=${encodeURIComponent(path)}`);
+    router.push(`${CONTEXT_ROUTE}?path=${encodeURIComponent(path)}`);
   }
 
   // No domain declared
