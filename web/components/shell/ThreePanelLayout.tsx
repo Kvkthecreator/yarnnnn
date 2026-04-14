@@ -114,10 +114,13 @@ export function ThreePanelLayout({
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
-    if (!isMobile && chat?.defaultOpen) {
+    if (isMobile) {
+      // Force-close the panel if viewport shrinks to mobile (e.g. browser resize).
+      setChatOpen(false);
+    } else if (chat?.defaultOpen) {
+      // On desktop with defaultOpen, open once after mount.
       setChatOpen(true);
     }
-    // Only run once on mount (when isMobile resolves from media query)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile]);
 
@@ -247,8 +250,8 @@ export function ThreePanelLayout({
         {children}
       </div>
 
-      {/* ── Right: Chat Panel or FAB (hidden on mobile — use Chat nav segment) ── */}
-      {chat && chatOpen && !isMobile && (
+      {/* ── Right: Chat Panel (only renders on non-mobile; on mobile chatOpen stays false) ── */}
+      {chat && chatOpen && (
         <>
           {/* Resize handle for chat panel */}
           <div
