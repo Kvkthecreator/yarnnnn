@@ -49,6 +49,8 @@ interface WorkDetailProps {
   onRunTask: (slug: string) => void;   // used for Fire on external_action
   onPauseTask: (slug: string) => void;
   onOpenChat: (prompt?: string) => void;
+  // Called after platform source selection is saved (reload task + bump refresh)
+  onSourcesUpdated?: () => void;
 }
 
 function findAssignedAgent(task: Task, agents: Agent[]): Agent | null {
@@ -389,12 +391,20 @@ function ObjectiveBlock({ task }: { task: Task }) {
 // external_action      → ActionMiddle (fire history + platform link)
 // system_maintenance   → MaintenanceMiddle (hygiene log)
 
-function KindMiddle({ task, refreshKey }: { task: Task | TaskDetail; refreshKey: number }) {
+function KindMiddle({
+  task,
+  refreshKey,
+  onSourcesUpdated,
+}: {
+  task: Task | TaskDetail;
+  refreshKey: number;
+  onSourcesUpdated?: () => void;
+}) {
   switch (task.output_kind) {
     case 'accumulates_context':
-      return <TrackingEntityGrid task={task} />;
+      return <TrackingEntityGrid task={task} onSourcesUpdated={onSourcesUpdated} />;
     case 'external_action':
-      return <ActionMiddle task={task} refreshKey={refreshKey} />;
+      return <ActionMiddle task={task} refreshKey={refreshKey} onSourcesUpdated={onSourcesUpdated} />;
     case 'system_maintenance':
       return <MaintenanceMiddle task={task} refreshKey={refreshKey} />;
     case 'produces_deliverable':
@@ -425,6 +435,7 @@ export function WorkDetail({
   onRunTask,
   onPauseTask,
   onOpenChat,
+  onSourcesUpdated,
 }: WorkDetailProps) {
   const assignedAgent = findAssignedAgent(task, agents);
   const kind = task.output_kind ?? 'produces_deliverable';
@@ -516,7 +527,7 @@ export function WorkDetail({
 
       {/* Scrollable output region */}
       <div className="flex-1 overflow-auto min-h-0">
-        <KindMiddle task={task} refreshKey={refreshKey} />
+        <KindMiddle task={task} refreshKey={refreshKey} onSourcesUpdated={onSourcesUpdated} />
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ import {
 import { useTaskOutputs } from '@/hooks/useTaskOutputs';
 import { formatRelativeTime } from '@/lib/formatting';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { PlatformSourcesSection } from './PlatformSourcesSection';
 import { cn } from '@/lib/utils';
 import type { DeliverableSpec, Task } from '@/types';
 
@@ -207,15 +208,27 @@ function ActivityTab({
 // ─── Export ───────────────────────────────────────────────────────────────────
 // ADR-180: single-purpose operational view — Activity only.
 // "What has it accumulated?" is answered by Context (domain folder).
+//
+// Platform tasks (slack-digest, notion-digest, github-digest) additionally
+// show a PlatformSourcesSection so the user can edit which channels/pages/repos
+// the task reads from without leaving the Work surface.
 
 export function TrackingMiddle({
   task,
   refreshKey,
   deliverableSpec,
+  onSourcesUpdated,
 }: {
   task: Task;
   refreshKey: number;
   deliverableSpec?: DeliverableSpec | null;
+  onSourcesUpdated?: () => void;
 }) {
-  return <ActivityTab task={task} refreshKey={refreshKey} deliverableSpec={deliverableSpec} />;
+  return (
+    <>
+      {/* Platform source picker — only shown for platform tasks */}
+      <PlatformSourcesSection task={task} onSourcesUpdated={onSourcesUpdated} />
+      <ActivityTab task={task} refreshKey={refreshKey} deliverableSpec={deliverableSpec} />
+    </>
+  );
 }

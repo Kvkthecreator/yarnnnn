@@ -364,6 +364,10 @@ export default function WorkPage() {
           onRunTask={handleRunTask}
           onPauseTask={handlePauseTask}
           onOpenChat={handleOpenChatDraft}
+          onSourcesUpdated={() => {
+            reloadTaskDetail();
+            setDetailRefreshKey(k => k + 1);
+          }}
         />
         ) : null
       ) : (

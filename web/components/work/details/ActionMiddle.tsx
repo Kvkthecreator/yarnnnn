@@ -24,14 +24,17 @@ import { AlertCircle, CheckCircle2, ExternalLink, Loader2, RefreshCw, Send } fro
 import { formatRelativeTime } from '@/lib/formatting';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { useTaskOutputs } from '@/hooks/useTaskOutputs';
+import { PlatformSourcesSection } from './PlatformSourcesSection';
 import type { Task } from '@/types';
 
 export function ActionMiddle({
   task,
   refreshKey,
+  onSourcesUpdated,
 }: {
   task: Task;
   refreshKey: number;
+  onSourcesUpdated?: () => void;
 }) {
   const { latest, history: outputs, loading, error, reload } = useTaskOutputs(task.slug, {
     includeLatest: true,
@@ -41,6 +44,9 @@ export function ActionMiddle({
 
   return (
     <>
+      {/* Platform source picker — for slack-respond, notion-update: which channel/page to read from */}
+      <PlatformSourcesSection task={task} onSourcesUpdated={onSourcesUpdated} />
+
       {/* Action target block */}
       <div className="px-6 py-4 border-b border-border/40">
         <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2">

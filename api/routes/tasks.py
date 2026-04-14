@@ -85,6 +85,9 @@ class TaskResponse(BaseModel):
     phase: Optional[str] = None  # bootstrap | steady | complete
     # ADR-161: Essential anchor flag — true for daily-update, blocks archive
     essential: bool = False
+    # ADR-158: Task-level source selection (platform:id,id format, parsed from TASK.md)
+    # Dict of {platform: [id, ...]} e.g. {"slack": ["C123", "C456"]}
+    sources: Optional[dict] = None
     # Enriched from workspace (detail endpoint only)
     run_log: Optional[str] = None
     # ADR-178 Phase 6: DELIVERABLE.md as living quality contract
@@ -432,6 +435,22 @@ def _parse_task_md(content: str) -> dict:
         if cw_match:
             raw = cw_match.group(1).strip()
             result["context_writes"] = [d.strip() for d in raw.split(",") if d.strip() and d.strip() != "none"]
+        # ADR-158: parse **Sources:** field into {platform: [id, ...]} dict
+        src_match = re.match(r"\*\*Sources:\*\*\s*(.*)", line)
+        if src_match:
+            raw = src_match.group(1).strip()
+            if raw and raw != "none":
+                sources: dict = {}
+                for part in raw.split(";"):
+                    part = part.strip()
+                    if ":" in part:
+                        platform, ids_str = part.split(":", 1)
+                        platform = platform.strip()
+                        ids = [i.strip() for i in ids_str.split(",") if i.strip()]
+                        if platform and ids:
+                            sources[platform] = ids
+                if sources:
+                    result["sources"] = sources
         # ADR-154: output_category parsing removed
 
     return result
@@ -475,6 +494,7 @@ def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> T
         output_spec=task_md_parsed.get("output_spec") if task_md_parsed else None,
         context_reads=task_md_parsed.get("context_reads") if task_md_parsed else None,
         context_writes=task_md_parsed.get("context_writes") if task_md_parsed else None,
+        sources=task_md_parsed.get("sources") if task_md_parsed else None,
         essential=bool(row.get("essential", False)),
     )
 
@@ -776,6 +796,83 @@ async def update_task(
     parsed = _parse_task_md(content) if content else None
 
     return _task_row_to_response(updated_row, parsed)
+
+
+class TaskSourcesUpdate(BaseModel):
+    # ADR-158: {platform: [id, ...]} e.g. {"slack": ["C123", "C456"]}
+    sources: dict
+
+
+@router.patch("/{slug}/sources")
+async def update_task_sources(
+    slug: str,
+    request: TaskSourcesUpdate,
+    auth: UserClient,
+) -> TaskResponse:
+    """
+    Update the **Sources:** field in TASK.md for a platform task.
+
+    ADR-158 Phase 2: Task-level source selection. Patches the Sources line in
+    TASK.md without touching other task fields. Used by the Work surface source
+    editor for slack-digest, notion-digest, github-digest, slack-respond,
+    notion-update tasks.
+    """
+    from services.task_workspace import TaskWorkspace
+
+    # Verify task exists and belongs to user
+    existing = (
+        auth.client.table("tasks")
+        .select("id, slug, status, mode, schedule, next_run_at, last_run_at, created_at, updated_at, essential")
+        .eq("user_id", auth.user_id)
+        .eq("slug", slug)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    row = existing.data[0]
+    ws = TaskWorkspace(auth.client, auth.user_id, slug)
+    task_md = await ws.read_task()
+    if not task_md:
+        raise HTTPException(status_code=404, detail="TASK.md not found")
+
+    # Serialize sources: "slack:C123,C456; notion:page-id-1"
+    parts = []
+    for platform, ids in request.sources.items():
+        if ids:
+            parts.append(f"{platform}:{','.join(ids)}")
+    sources_str = "; ".join(parts) if parts else "none"
+
+    # Patch the **Sources:** line in-place (or append after the nearest header field)
+    if "**Sources:**" in task_md:
+        task_md = re.sub(r"\*\*Sources:\*\*[^\n]*", f"**Sources:** {sources_str}", task_md)
+    else:
+        # Insert on a new line after **Context Writes:**, **Context Reads:**, or **Schedule:**
+        inserted = False
+        for pattern in (
+            r"(\*\*Context Writes:\*\*[^\n]*)",
+            r"(\*\*Context Reads:\*\*[^\n]*)",
+            r"(\*\*Schedule:\*\*[^\n]*)",
+        ):
+            if re.search(pattern, task_md):
+                task_md = re.sub(
+                    pattern,
+                    rf"\1\n**Sources:** {sources_str}",
+                    task_md,
+                    count=1,
+                )
+                inserted = True
+                break
+        if not inserted:
+            task_md += f"\n**Sources:** {sources_str}"
+
+    await ws.write("TASK.md", task_md, summary=f"Updated sources: {sources_str}")
+
+    # Read back for response
+    content = await ws.read_task()
+    parsed = _parse_task_md(content) if content else None
+    return _task_row_to_response(row, parsed)
 
 
 @router.delete("/{slug}")

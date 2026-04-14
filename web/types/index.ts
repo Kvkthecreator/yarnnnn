@@ -730,6 +730,9 @@ export interface Task {
   output_kind?: string;
   context_reads?: string[];    // context domains this task reads from (parsed from TASK.md)
   context_writes?: string[];   // context domains this task writes to (parsed from TASK.md)
+  // ADR-158: task-level source selection (parsed from TASK.md **Sources:** field)
+  // e.g. { slack: ["C123", "C456"] } or { notion: ["page-id-1"] }
+  sources?: Record<string, string[]>;
   essential?: boolean;         // ADR-161: anchor task (e.g., daily-update) — cannot be archived
 }
 

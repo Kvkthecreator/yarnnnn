@@ -22,6 +22,7 @@ import {
 import { api } from '@/lib/api/client';
 import { CONTEXT_ROUTE } from '@/lib/routes';
 import { formatRelativeTime } from '@/lib/formatting';
+import { PlatformSourcesSection } from './PlatformSourcesSection';
 import { cn } from '@/lib/utils';
 import type { Task } from '@/types';
 
@@ -154,7 +155,13 @@ function EmptyState({ displayName }: { displayName: string }) {
 
 // ─── Main export ─────────────────────────────────────────────────────────────
 
-export function TrackingEntityGrid({ task }: { task: Task }) {
+export function TrackingEntityGrid({
+  task,
+  onSourcesUpdated,
+}: {
+  task: Task;
+  onSourcesUpdated?: () => void;
+}) {
   const router = useRouter();
   const writes = task.context_writes ?? [];
   const primaryDomain = writes.find(d => d !== 'signals') ?? writes[0] ?? null;
@@ -185,93 +192,115 @@ export function TrackingEntityGrid({ task }: { task: Task }) {
     router.push(`${CONTEXT_ROUTE}?path=${encodeURIComponent(path)}`);
   }
 
+  // Platform source picker — only rendered for platform tasks (slack-digest, notion-digest, github-digest)
+  const platformSources = <PlatformSourcesSection task={task} onSourcesUpdated={onSourcesUpdated} />;
+
   // No domain declared
   if (!primaryDomain) {
     return (
-      <div className="px-6 py-5 text-xs text-muted-foreground/60">
-        No context domain declared for this task.
-      </div>
+      <>
+        {platformSources}
+        <div className="px-6 py-5 text-xs text-muted-foreground/60">
+          No context domain declared for this task.
+        </div>
+      </>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-6 py-5">
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">Loading…</span>
-      </div>
+      <>
+        {platformSources}
+        <div className="flex items-center gap-2 px-6 py-5">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Loading…</span>
+        </div>
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 px-6 py-5">
-        <AlertCircle className="w-3.5 h-3.5 text-destructive/70 shrink-0" />
-        <span className="text-xs text-muted-foreground">{error}</span>
-        <button
-          onClick={() => {
-            setError(null);
-            setLoading(true);
-            api.workspace.getDomainEntities(primaryDomain!)
-              .then(setDomainData)
-              .catch(e => setError(e instanceof Error ? e.message : 'Failed to load'))
-              .finally(() => setLoading(false));
-          }}
-          className="ml-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <RefreshCw className="h-3 w-3" /> Retry
-        </button>
-      </div>
+      <>
+        {platformSources}
+        <div className="flex items-center gap-2 px-6 py-5">
+          <AlertCircle className="w-3.5 h-3.5 text-destructive/70 shrink-0" />
+          <span className="text-xs text-muted-foreground">{error}</span>
+          <button
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              api.workspace.getDomainEntities(primaryDomain!)
+                .then(setDomainData)
+                .catch(e => setError(e instanceof Error ? e.message : 'Failed to load'))
+                .finally(() => setLoading(false));
+            }}
+            className="ml-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <RefreshCw className="h-3 w-3" /> Retry
+          </button>
+        </div>
+      </>
     );
   }
 
   // No data yet (domain exists but never run)
   if (!domainData || (domainData.entities.length === 0 && domainData.synthesis_files.length === 0)) {
-    return <EmptyState displayName={domainData?.display_name ?? primaryDomain} />;
+    return (
+      <>
+        {platformSources}
+        <EmptyState displayName={domainData?.display_name ?? primaryDomain} />
+      </>
+    );
   }
 
   const { entities, synthesis_files, display_name } = domainData;
 
   return (
-    <div className="px-6 py-4 space-y-5">
-      {/* Entity icon grid */}
-      {entities.length > 0 && (
-        <div>
-          <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-3 uppercase tracking-wide">
-            {display_name}
-            <span className="ml-1.5 text-muted-foreground/40 normal-case">
-              {entities.length} tracked
-            </span>
-          </h3>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {entities.map(entity => (
-              <EntityCard
-                key={entity.slug}
-                entity={entity}
-                onClick={handleNavigate}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+    <>
+      {/* Platform source picker — above entity grid for platform tasks */}
+      {platformSources}
 
-      {/* Synthesis files (cross-entity summaries) */}
-      {synthesis_files.length > 0 && (
-        <div>
-          <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2 uppercase tracking-wide">
-            Summaries
-          </h3>
-          <div className="space-y-1.5">
-            {synthesis_files.map(file => (
-              <SynthesisCard
-                key={file.path}
-                file={file}
-                onClick={handleNavigate}
-              />
-            ))}
+      <div className="px-6 py-4 space-y-5">
+        {/* Entity icon grid */}
+        {entities.length > 0 && (
+          <div>
+            <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-3 uppercase tracking-wide">
+              {display_name}
+              <span className="ml-1.5 text-muted-foreground/40 normal-case">
+                {entities.length} tracked
+              </span>
+            </h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {entities.map(entity => (
+                <EntityCard
+                  key={entity.slug}
+                  entity={entity}
+                  onClick={handleNavigate}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+
+        {/* Synthesis files (cross-entity summaries) */}
+        {synthesis_files.length > 0 && (
+          <div>
+            <h3 className="text-[11px] font-medium text-muted-foreground/60 mb-2 uppercase tracking-wide">
+              Summaries
+            </h3>
+            <div className="space-y-1.5">
+              {synthesis_files.map(file => (
+                <SynthesisCard
+                  key={file.path}
+                  file={file}
+                  onClick={handleNavigate}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

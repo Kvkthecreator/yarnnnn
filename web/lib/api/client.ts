@@ -95,6 +95,13 @@ async function getAuthHeaders(): Promise<HeadersInit> {
     console.warn("No auth token available for API request");
   }
 
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) (headers as Record<string, string>)["X-Timezone"] = tz;
+  } catch {
+    // Non-fatal — server falls back to UTC
+  }
+
   return headers;
 }
 
@@ -573,6 +580,14 @@ export const api = {
     // Live execution progress
     getRunStatus: (slug: string) =>
       request<RunStatus>(`/api/tasks/${slug}/status`),
+
+    // ADR-158 Phase 2: Update task-level source selection in TASK.md.
+    // sources: {platform: ids[]} e.g. { slack: ["C123", "C456"] }
+    updateSources: (slug: string, sources: Record<string, string[]>) =>
+      request<Task>(`/api/tasks/${slug}/sources`, {
+        method: "PATCH",
+        body: JSON.stringify({ sources }),
+      }),
   },
 
   // Workspace Explorer (ADR-152)
