@@ -51,8 +51,6 @@ const LINK_PLACEHOLDERS: Record<Route, string> = {
 interface TaskSetupProps {
   /** Called with the composed message when user submits */
   onSubmit: (message: string) => void;
-  /** Called when user dismisses */
-  onDismiss?: () => void;
   /** Compact mode (smaller padding) */
   compact?: boolean;
   /** Embedded mode — parent provides the outer frame */
@@ -63,7 +61,6 @@ interface TaskSetupProps {
 
 export function TaskSetup({
   onSubmit,
-  onDismiss: _onDismiss,
   compact = false,
   embedded = false,
   initialNotes = '',
@@ -91,11 +88,9 @@ export function TaskSetup({
     const parts: string[] = [];
 
     if (route === 'track') {
-      parts.push(
-        notes.trim()
-          ? `I want to track ${notes.trim()}.`
-          : 'I want to set up recurring tracking work.'
-      );
+      const trackText = notes.trim();
+      const trackSentence = trackText.endsWith('.') ? trackText : trackText + '.';
+      parts.push(trackText ? `I want to track ${trackSentence}` : 'I want to set up recurring tracking work.');
       if (links.length > 0) {
         parts.push(`Please fetch these to seed entity profiles:\n${links.map(l => `- ${l}`).join('\n')}`);
       }
