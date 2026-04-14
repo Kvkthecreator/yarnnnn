@@ -2,8 +2,9 @@
 
 **Date:** 2026-03-10
 **Status:** Active
+**Updated:** 2026-04-15 (route names aligned to v12: /work added, /activity deleted, Context→Files)
 **Related:**
-- [Surface Architecture](SURFACE-ARCHITECTURE.md) v3 — Chat + Agents + Context + Activity
+- [Surface Architecture](SURFACE-ARCHITECTURE.md) v12 — Chat + Work + Files + Agents
 - [Inline Plus Menu](INLINE-PLUS-MENU.md) — action verb taxonomy
 - [ADR-105: Instructions to Chat Surface](../adr/ADR-105-instructions-chat-surface-migration.md) — implementation plan
 - [Workspace Layout & Navigation](archive/WORKSPACE-LAYOUT-NAVIGATION.md) — archived layout structure
@@ -137,20 +138,21 @@ The current Instructions drawer tab (behavior textarea + audience fields + promp
 
 ---
 
-## Surface mapping (updated for v3 architecture)
+## Surface mapping (v12 — Chat + Work + Files + Agents)
 
 Four surfaces, each with clear interaction boundaries:
 
 | Surface | Route | Primary Interaction |
 |---------|-------|---------------------|
-| **Chat page** | `/chat` | Directives + strategic conversation — unscoped TP |
-| **Agents page** | `/agents` | Agent management + task steering — agent/task-scoped TP |
-| **Context page** | `/context` | Reference + browsing — workspace-scoped TP |
-| **Activity page** | `/activity` | Observation only — no chat, no actions |
+| **Chat** | `/chat` | Directives + strategic conversation — unscoped TP |
+| **Work** | `/work` | Task operational health — task-scoped TP in detail mode |
+| **Files** | `/context` | Reference + filesystem browsing — workspace-scoped TP |
+| **Agents** | `/agents` | Roster + agent identity — agent-scoped TP in detail mode |
 
 The chat page is the primary **directive** surface (tell TP what to do).
-The agents page mixes **directive** (steer via chat panel) and **reference** (view domain/outputs).
-The context page is primarily **reference** (browse workspace files) with light directive ability.
+Work and Agents mix **directive** (steer via chat panel in detail mode) and **reference** (view task/agent state).
+Files is primarily **reference** (browse workspace filesystem) with light directive ability.
+`/activity` is **deleted** (ADR-163) — activity absorbed into chat briefing, per-task /work, per-agent /agents.
 
 See [SURFACE-PRIMITIVES-MAP.md](SURFACE-PRIMITIVES-MAP.md) for the full primitive/action mapping per surface.
 
@@ -162,3 +164,4 @@ See [SURFACE-PRIMITIVES-MAP.md](SURFACE-PRIMITIVES-MAP.md) for the full primitiv
 |------|--------|
 | 2026-03-10 | Initial principle — surface-action mapping with directive vs configuration distinction |
 | 2026-04-04 | Updated surface mapping for v3 architecture (Chat + Agents + Context + Activity) |
+| 2026-04-15 | Route names aligned to v12 four-surface nav: /work added, /activity deleted, Context→Files |

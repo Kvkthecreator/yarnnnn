@@ -1,6 +1,7 @@
 # Surface → Primitives → Actions Map
 
 **Date:** 2026-04-04 (v2 — Chat + Agents + Context surfaces)
+**Updated:** 2026-04-15 (v3 — aligned to v12 four-surface nav: /work added, /activity deleted, TriggerTask→ManageTask, navigate targets fixed)
 **Supersedes:** v1 (2026-03-25, Workfloor + Task Page)
 **Note:** Primitive names in this doc may drift from canonical. For the authoritative primitive surface × mode × capability matrix, see [`docs/architecture/primitives-matrix.md`](../architecture/primitives-matrix.md) (ADR-168). This doc's value is the surface→action mapping layer, not the primitive definitions.
 
@@ -21,7 +22,7 @@ on the agents page. TP receives surface context and should respect these boundar
 
 ### Plus Menu Actions
 
-**Note (ADR-168 Commit 3, 2026-04-09):** `CreateTask` primitive folded into `ManageTask(action="create")`. The entries below reflect the new call shape. Other references to removed primitives in this file (`TriggerTask`, `UpdateSharedContext`, `SaveMemory`) are older drift from the ADR-146 era — the canonical source is `primitives-matrix.md`.
+**Note (ADR-168 Commit 3, 2026-04-09):** `CreateTask` primitive folded into `ManageTask(action="create")`. `TriggerTask` folded into `ManageTask(action="trigger")` (ADR-168 Commit 2). `UpdateSharedContext` → `UpdateContext`. References to these removed primitives below have been corrected. Canonical source is `primitives-matrix.md`.
 
 | Action | Prompt | Maps to Primitive |
 |--------|--------|-------------------|
@@ -67,7 +68,7 @@ All chat-mode primitives are available. Canonical reference: [primitives-matrix.
 
 ## Agents Page (`/agents`) — Agent Selected
 
-**Scope:** Single agent. User reviews accumulated knowledge, manages responsibilities.
+**Scope:** Single agent. User reviews identity, domain health, assigned work.
 **Session:** Agent-scoped TP session (keyed by `agent_slug`).
 **Surface context:** `type: "agent-detail"`, includes AGENT.md + domain summary + assigned tasks.
 
@@ -75,7 +76,7 @@ All chat-mode primitives are available. Canonical reference: [primitives-matrix.
 
 | Action | Prompt | Maps to Primitive |
 |--------|--------|-------------------|
-| Run [task] now | "Run the task \"{title}\" now" | `TriggerTask(task_slug)` |
+| Run [task] now | "Run the task \"{title}\" now" | `ManageTask(action="trigger", task_slug=...)` |
 | Assign a new task | "Assign a new task to this agent" | `ManageTask(action="create", agent_slug=...)` |
 | Review domain health | "How is this agent's domain?" | Conversational (read + assess) |
 | Web research | "Search the web for..." | `WebSearch(...)` |
@@ -84,20 +85,20 @@ All chat-mode primitives are available. Canonical reference: [primitives-matrix.
 ### TP Primitives Available
 
 Same set as chat page, but TP receives agent surface context that scopes behavior:
-- `TriggerTask` — run any of this agent's tasks
+- `ManageTask(action="trigger")` — run any of this agent's tasks
 - `ManageTask(action="create")` — assign new work to this agent
 - `WebSearch`, `Search` — research scoped to agent's domain
 - `Read`, `List` — information retrieval
 
 **Available but not surfaced in plus menu** (workspace-level):
-- `UpdateSharedContext` — available but TP should not offer it in agent context
+- `UpdateContext` — available but TP should not offer it in agent context
 - `ManageAgent` — available for this agent (rename, update identity)
 
 ---
 
-## Agents Page — Task Drill-Down
+## Work Page (`/work`) — Task Selected
 
-**Scope:** Single task under the selected agent. User steers execution, reviews output.
+**Scope:** Single task. User steers execution, reviews operational health.
 **Session:** Task-scoped TP session (keyed by `task_slug`).
 **Surface context:** `type: "task-detail"`, includes TASK.md + run_log + latest output.
 
@@ -105,29 +106,29 @@ Same set as chat page, but TP receives agent surface context that scopes behavio
 
 | Action | Prompt | Maps to Primitive |
 |--------|--------|-------------------|
-| Run this task now | "Run the task \"{title}\" now" | `TriggerTask(task_slug)` |
-| Adjust focus | "For this task, focus on " | Conversational (ManageTask) |
-| Give feedback | "For the latest output..." | `UpdateContext(feedback_target="deliverable")` |
+| Run this task now | "Run the task \"{title}\" now" | `ManageTask(action="trigger", task_slug=...)` |
+| Adjust focus | "For this task, focus on " | Conversational → `ManageTask(action="steer")` |
+| Give feedback | "For the latest output..." | `UpdateContext(feedback_target="task")` |
 | Web research for this task | "Search the web for..." | `WebSearch(...)` |
 
 ### TP Primitives Available
 
 Narrowed to task-relevant:
-- `TriggerTask` — run this specific task
+- `ManageTask(action="trigger")` — run this specific task
 - `ManageTask` — update, evaluate, steer, complete
 - `WebSearch`, `Search` — research scoped to task context
 - `Read`, `List` — information retrieval
 - `Clarify`
 
-**Not intended for task drill-down** (agent/workspace-level):
-- `ManageTask(action="create")` — go back to agent view or chat page
+**Not intended for task detail** (agent/workspace-level):
+- `ManageTask(action="create")` — go to chat page
 - `ManageAgent` — agent-level, not task-level
 
 ---
 
-## Context Page (`/context`)
+## Files Page (`/context`)
 
-**Scope:** Workspace substrate. User browses domains, uploads, settings.
+**Scope:** Workspace filesystem browser. User browses domains, uploads, settings.
 **Session:** Global TP session (shared with chat page).
 **Surface context:** `type: "context"`, includes navigation path (domain, entity, file).
 
@@ -135,7 +136,7 @@ Narrowed to task-relevant:
 
 | Action | Prompt | Maps to Primitive |
 |--------|--------|-------------------|
-| Update my context | "Update my context" | `UpdateSharedContext(target=...)` |
+| Update workspace | "Update my workspace" | `UpdateContext(target=...)` |
 | Upload file | (file dialog) | Attachment flow |
 | Web search | "Search the web for " | `WebSearch(query=...)` |
 | Create a task | "Create a task" | `ManageTask(action="create", ...)` |
@@ -143,15 +144,6 @@ Narrowed to task-relevant:
 ### TP Primitives Available
 
 Same as chat page (same global session). Navigation context tells TP what the user is viewing, enabling contextual suggestions ("You're looking at the competitors domain — want me to create a tracking task?").
-
----
-
-## Activity Page (`/activity`)
-
-**Scope:** Temporal observation. Read-only.
-**Session:** None (no chat on this surface).
-
-No primitives, no plus menu, no slash commands. This is a pure observation surface.
 
 ---
 
@@ -176,8 +168,8 @@ The frontend auto-navigates on success (600ms delay). Current navigating primiti
 
 | Primitive | Navigates to |
 |-----------|-------------|
-| `ManageTask(action="create")` | `/agents?agent={agent_slug}&task={task_slug}` |
-| `ManageTask(action="trigger")` | `/agents?agent={agent_slug}&task={task_slug}` |
+| `ManageTask(action="create")` | `/work?task={task_slug}` |
+| `ManageTask(action="trigger")` | `/work?task={task_slug}` |
 | `ManageAgent` | `/agents?agent={agent_slug}` |
 
 ---

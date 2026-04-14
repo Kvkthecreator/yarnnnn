@@ -8,50 +8,40 @@ How users create and update workspace shared context (IDENTITY.md, BRAND.md).
 
 **Inference is the method, not the product.** Users express intent ("update my identity"), the system infers from whatever sources are available (documents, URLs, chat text, platform content). No form fields. Workspace files ARE the context — no separate structured storage.
 
-## Chat Surface (current — ADR-163 four-surface nav)
+## Current Surface Model (ADR-163 + ADR-180 — v12 four-surface nav)
 
-`/context` tab owns Identity / Brand / Documents. `/chat` (home) owns ContextSetup for cold-start.
+`/context` (Files) owns the workspace filesystem: domains, outputs, uploads, settings.
+`/chat` (home) owns ContextSetup for cold-start via Onboarding modal (ADR-165 v8).
+Identity/Brand files are browsable at `/context` under Settings; inference provenance rendered by `InferenceContentView`.
 
 ```
-/context
-  ├─ Identity   — rendered IDENTITY.md
-  ├─ Brand      — rendered BRAND.md
-  └─ Documents  — uploaded file list
+/context  (Files)
+  ├─ Context/   — accumulated domain knowledge
+  ├─ Outputs/   — task deliverable outputs
+  ├─ Uploads/   — user-contributed files
+  └─ Settings/
+       ├─ IDENTITY.md
+       ├─ BRAND.md
+       └─ AWARENESS.md
 ```
 
-### Button Consolidation (2026-03-30)
-
-"Update my identity" and "Update my brand" consolidated into single **"Update context"** across all surfaces:
-- **Bottom action bar**: "Update Context" button → sends "Update my context" to TP
-- **PlusMenu**: Single "Update context" entry (was separate identity/brand)
-- **Suggestion chips**: "Update my context" (was "Adjust focus for a task")
-- **Context sub-tabs**: Each tab retains "Update via chat →" for targeted updates
-
-TP decides which target (identity vs brand) based on conversation context via `UpdateContext(target=...)` primitive (ADR-146). No user-facing distinction needed.
+TP decides which target (identity vs brand) based on conversation context via `UpdateContext(target=...)` primitive (ADR-146). No user-facing distinction needed. Plus-menu label is "Update workspace" (v12).
 
 ### Cold Start (Empty Workspace)
 
-**Chat suggestion chips**: When chat history is empty, the chat panel shows clickable
-suggestion chips that send a message to TP on click:
-- "Tell me about myself and my work" → triggers identity enrichment flow
-- "Help me get set up" → TP uses judgment on readiness
-- "What deliverables can you create for me?" → triggers task creation flow
+New users land on `/chat`. TP's first turn detects empty workspace state and emits `<!-- workspace-state: {"lead":"context"} -->`, opening the Onboarding modal with `ContextSetup`. See [ONBOARDING-TP-AWARENESS.md](ONBOARDING-TP-AWARENESS.md) for the full flow.
 
-Chips disappear once the user sends any message (conversation replaces them).
-No LLM call on page load — chips are static frontend, TP only fires on interaction.
+Chat suggestion chips (static, shown when history is empty):
+- "Tell me about my work and who I serve"
+- "Set up competitive intelligence tracking"
+- "Create a weekly Slack recap"
 
-Each context sub-tab also shows guidance when empty:
-
-- **Identity**: "Your identity helps agents understand who you are. Try: 'Update my context — I'm [name], [role] at [company]'"
-- **Brand**: "Your brand guide shapes how agents write. Try: 'Update my brand from our website'"
-- **Documents**: "Upload files via chat input (+) or drag & drop"
-
-"Or edit manually" link available as fallback — opens raw markdown editor.
+Chips disappear once the user sends any message.
 
 ### Populated State
 
-- **Identity/Brand**: Rendered markdown + "Edit" link for manual adjustment
-- **Documents**: File list with processing status + size
+- **Identity/Brand**: `InferenceContentView` renders IDENTITY.md/BRAND.md with source provenance caption + gap banner (ADR-162/163)
+- **Uploads**: File list accessible under `/context` Uploads section
 
 ## Update Flows
 
@@ -113,12 +103,12 @@ Priority order: Identity → Brand → Tasks, but the user is never blocked.
 
 ## Onboarding Dissolution
 
-The `/onboarding` page is replaced by this workflow. New users land on `/workfloor` with:
-- Pre-scaffolded agent roster (ADR-140)
-- Empty Context tabs with guidance
-- TP chat that detects empty context and guides enrichment
+The `/onboarding` page is replaced by this workflow (ADR-132, ADR-144). New users land on `/chat` with:
+- Pre-scaffolded agent roster (ADR-176)
+- TP that detects empty workspace state and opens the Onboarding modal
+- No separate onboarding step — `/chat` is the onboarding surface
 
-No separate onboarding step. The workfloor IS the onboarding surface.
+See [ONBOARDING-TP-AWARENESS.md](ONBOARDING-TP-AWARENESS.md) for the full flow and modal design.
 
 ### TP Context Awareness
 
