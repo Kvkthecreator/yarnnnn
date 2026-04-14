@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.15.3] - Task registry: default_delivery + notion-digest schedule + delivery wiring
+
+### Changed
+- `api/services/task_types.py` — Added `default_delivery` to every task type. Policy: `produces_deliverable` → `"email"`, all others → `"none"`. Makes email the default for all user-facing deliverable tasks.
+- `api/services/task_types.py` — `notion-digest` schedule changed `weekly` → `daily` (aligns with slack-digest and github-digest).
+- `api/services/task_types.py` — `build_task_md_from_type()` resolves `effective_delivery`: caller-supplied `delivery` wins; falls back to `task_type["default_delivery"]`. TASK.md `**Delivery:**` now written from `effective_delivery`.
+- **Behavior**: Tasks created without an explicit delivery now get the registry default. `competitive-brief`, `market-report`, `project-status`, etc. now produce email delivery on first run. Previously all ran silently.
+
+## [2026.04.15.2] - Feedback loop design doc (FEEDBACK-LOOP.md)
+
+### Added
+- `docs/design/FEEDBACK-LOOP.md` — design for per-output_kind feedback affordances, the execute→feedback→iterate loop, and TP feedback solicitation rules.
+- **No prompt changes yet.** Phase 2 (TP evaluate guidance) is designed but not implemented. See FEEDBACK-LOOP.md Phase 2 for the prompt additions when ready to ship.
+
 ## [2026.04.15.1] - Workspace modal framing rename (ADR-165 v8.1)
 
 ### Changed
