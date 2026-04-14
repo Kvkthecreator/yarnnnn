@@ -26,10 +26,10 @@
 // =============================================================================
 
 export type WorkspaceStateLead =
-  | 'overview'   // What I know — honest mirror of compact index
-  | 'flags'      // Heads up — gaps + signals TP wants to flag
-  | 'recap'      // Last time — cross-session memory (AWARENESS.md, summaries)
-  | 'activity';  // Team activity — recent runs + coming up
+  | 'overview'   // Readiness — workspace capability mirror (identity/brand/team/work/knowledge/platforms)
+  | 'flags'      // Attention — gaps + signals TP wants to flag
+  | 'recap'      // Last session — cross-session memory (AWARENESS.md, summaries)
+  | 'activity';  // Activity — recent runs + coming up
 
 export interface WorkspaceStateDirective {
   /** Which tab the Overview modal should open in. */

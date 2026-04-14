@@ -3,17 +3,17 @@
 /**
  * ToggleBar - top-level pill navigation
  *
- * ADR-180 Work/Context Surface Split: Four segments: Chat | Work | Context | Agents
+ * ADR-180 Work/Context Surface Split: Four segments: Chat | Work | Files | Agents
  * Each answers exactly one question:
  *   - Chat: "What should I do? What's happening?"
  *   - Work: "Is my work configured, healthy, and running?" (operational)
- *   - Context: "What does my workspace know? What has it produced?" (knowledge)
+ *   - Files: "What does my workspace know? What has it produced?" (knowledge)
  *   - Agents: "Who's on my team?" (roster reference)
  *
  * Nav order reflects user navigation frequency (ADR-180):
- *   Chat → Work → Context → Agents
+ *   Chat → Work → Files → Agents
  * Agents is last: under ADR-176 agents serve work, not the other way around.
- * Context precedes Agents: outputs and knowledge are consulted more often than the roster.
+ * Files precedes Agents: outputs and knowledge are consulted more often than the roster.
  */
 
 import Link from 'next/link';
@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils';
 const SEGMENTS = [
   { id: 'chat', label: 'Chat', icon: MessageCircle, href: '/chat' },
   { id: 'work', label: 'Work', icon: Briefcase, href: '/work' },
-  { id: 'context', label: 'Context', icon: FolderOpen, href: '/context' },
+  { id: 'context', label: 'Files', icon: FolderOpen, href: '/context' },
   { id: 'agents', label: 'Agents', icon: Users, href: '/agents' },
 ] as const;
 

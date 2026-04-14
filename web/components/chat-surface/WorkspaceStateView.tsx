@@ -6,10 +6,10 @@
  * Four peer tabs, all read-only, each mirroring a slice of TP's compact
  * index (format_compact_index, ADR-159):
  *
- *   [Eye]      What I know     → workspace richness across identity/brand/team/work/knowledge/platforms/budget
- *   [Bell]     Heads up        → gap + flag signals TP wants to surface, with "Ask TP" one-click prompts
- *   [History]  Last time       → cross-session memory (AWARENESS.md + recent sessions)
- *   [Activity] Team activity   → recent runs + coming up (thin glance — full view lives in /work)
+ *   [Eye]      Readiness     → workspace capability across identity/brand/team/work/knowledge/platforms/budget
+ *   [Bell]     Attention     → gap + flag signals TP wants to surface, with "Ask TP" one-click prompts
+ *   [History]  Last session  → cross-session memory (AWARENESS.md + recent sessions)
+ *   [Activity] Activity      → recent runs + coming up (thin glance — full view lives in /work)
  *
  * No write forms. No isEmpty prop. No soft gate. Tabs are always visible when
  * the modal is open. Default tab on manual open is `overview` — the honest
@@ -126,7 +126,7 @@ export function WorkspaceStateView({
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-[10vh] backdrop-blur-sm animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
-      aria-label="Overview"
+      aria-label="Workspace"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -140,7 +140,7 @@ export function WorkspaceStateView({
           <header className="flex items-start justify-between border-b border-border px-4 py-2.5">
             <div className="min-w-0">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-                Overview
+                Workspace
               </p>
               {reason ? (
                 <p className="mt-0.5 text-sm text-foreground">{reason}</p>
@@ -150,7 +150,7 @@ export function WorkspaceStateView({
               type="button"
               onClick={onClose}
               className="rounded p-1 text-muted-foreground/40 hover:bg-muted hover:text-muted-foreground"
-              aria-label="Close overview"
+              aria-label="Close workspace"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -158,31 +158,31 @@ export function WorkspaceStateView({
 
           {/* Tab bar — always visible. Four peer tabs in TP's voice. */}
           <nav
-            aria-label="Overview tabs"
+            aria-label="Workspace tabs"
             className="flex items-center gap-1 border-b border-border px-2 py-1.5"
           >
             <TabButton
               active={activeTab === 'overview'}
               icon={Eye}
-              label="What I know"
+              label="Readiness"
               onClick={() => setActiveTab('overview')}
             />
             <TabButton
               active={activeTab === 'flags'}
               icon={Bell}
-              label="Heads up"
+              label="Attention"
               onClick={() => setActiveTab('flags')}
             />
             <TabButton
               active={activeTab === 'recap'}
               icon={History}
-              label="Last time"
+              label="Last session"
               onClick={() => setActiveTab('recap')}
             />
             <TabButton
               active={activeTab === 'activity'}
               icon={Activity}
-              label="Team activity"
+              label="Activity"
               onClick={() => setActiveTab('activity')}
             />
           </nav>
@@ -361,13 +361,13 @@ function OverviewTab({
   return (
     <div className="space-y-4 p-4">
       <p className="text-xs text-muted-foreground/70">
-        Here's everything I currently know about your workspace.
+        Your workspace readiness — what your team can draw on right now.
       </p>
 
       {/* Identity & Brand */}
       <section>
         <h3 className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
-          About you
+          Workspace
         </h3>
         <div className="mt-2 space-y-1.5">
           <OverviewRow
@@ -375,7 +375,7 @@ function OverviewTab({
             value={
               profile?.name || profile?.role || profile?.company
                 ? [profile.name, profile.role, profile.company].filter(Boolean).join(' · ')
-                : 'Not captured yet'
+                : 'Empty'
             }
             badge={richnessBadge(identityRichness)}
             href={identityRichness !== 'empty' ? '/context' : undefined}
@@ -383,7 +383,13 @@ function OverviewTab({
           />
           <OverviewRow
             label="Brand"
-            value={brand?.exists ? 'Captured' : 'Not captured yet'}
+            value={
+              brand?.richness === 'rich'
+                ? 'Voice and tone defined'
+                : brand?.richness === 'sparse'
+                  ? 'Partially defined'
+                  : 'Empty'
+            }
             badge={richnessBadge(brand?.richness || 'empty')}
             href="/context"
           />

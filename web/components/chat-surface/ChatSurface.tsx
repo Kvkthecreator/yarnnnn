@@ -174,7 +174,7 @@ export function ChatSurface({
     },
     {
       id: 'update-context',
-      label: 'Update context',
+      label: 'Update files',
       icon: SlidersHorizontal,
       verb: 'show',
       onSelect: () => handleOpenOnboarding(),
@@ -188,10 +188,10 @@ export function ChatSurface({
       type="button"
       onClick={handleOverviewToggle}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-      title="Open overview"
+      title="Open workspace"
     >
       <LayoutDashboard className="w-3.5 h-3.5" />
-      Overview
+      Workspace
     </button>
   );
 
