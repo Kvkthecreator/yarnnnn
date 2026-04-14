@@ -208,6 +208,21 @@ export default function ContextPage() {
 
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
 
+  // Synthetic node for direct workspace paths that may not be in the virtual tree
+  // (e.g. entity subfolder /workspace/context/{domain}/{entity} from TrackingEntityGrid)
+  const syntheticNodeForPath = useCallback((path: string): TreeNode | null => {
+    if (!path) return null;
+    const name = path.split('/').filter(Boolean).pop() ?? path;
+    // Determine type: paths without an extension are treated as folders
+    const hasExtension = /\.[a-z0-9]+$/i.test(name);
+    return {
+      name,
+      path,
+      type: hasExtension ? 'file' : 'folder',
+      children: [],
+    };
+  }, []);
+
   const loadExplorer = useCallback(async () => {
     setFileTreeLoading(true);
     try {
@@ -240,8 +255,9 @@ export default function ContextPage() {
 
       const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: nodes };
 
-      // ?path= deep-link — try to select the exact path (entity card navigation)
-      if (pathParam && resolveNodeByPath(root, pathParam)) {
+      // ?path= deep-link — always honour it; syntheticNodeForPath handles paths
+      // not present in the virtual tree (e.g. entity subfolders).
+      if (pathParam) {
         setSelectedPath(pathParam);
         return;
       }
@@ -272,7 +288,12 @@ export default function ContextPage() {
     }
   }, [domainParam, pathParam]);
 
-  const selectedNode = selectedPath ? resolveNodeByPath(virtualRoot, selectedPath) : null;
+  // selectedNode: prefer tree-resolved node (has children populated), fall back to
+  // synthetic node for direct workspace paths that aren't in the virtual tree
+  // (e.g. entity subfolders navigated from TrackingEntityGrid).
+  const selectedNode = selectedPath
+    ? (resolveNodeByPath(virtualRoot, selectedPath) ?? syntheticNodeForPath(selectedPath))
+    : null;
   const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
 
   // Push breadcrumb path into global header
@@ -322,9 +343,8 @@ export default function ContextPage() {
   // without re-fetching the tree.
   useEffect(() => {
     if (treeNodes.length === 0) return; // wait for loadExplorer
-    const root: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
 
-    if (pathParam && resolveNodeByPath(root, pathParam)) {
+    if (pathParam) {
       setSelectedPath(pathParam);
       return;
     }
@@ -333,9 +353,7 @@ export default function ContextPage() {
       const domainNode = contextFolder?.children?.find(
         n => n.path === `/workspace/context/${domainParam}` || n.path.endsWith(`/${domainParam}`)
       );
-      if (domainNode) {
-        setSelectedPath(domainNode.path);
-      }
+      if (domainNode) setSelectedPath(domainNode.path);
     }
   }, [pathParam, domainParam, treeNodes]);
 

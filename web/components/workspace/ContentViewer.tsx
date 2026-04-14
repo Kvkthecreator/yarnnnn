@@ -55,15 +55,41 @@ function DirectoryView({
   onNavigate: (node: WorkspaceTreeNode) => void;
   showHeader: boolean;
 }) {
+  // For synthetic nodes (entity subfolders with no pre-populated children),
+  // fetch children on demand via the tree API.
+  const [fetchedChildren, setFetchedChildren] = useState<WorkspaceTreeNode[] | null>(null);
+  const [fetchLoading, setFetchLoading] = useState(false);
+
+  const hasPreloadedChildren = (node.children?.length ?? 0) > 0;
+
+  useEffect(() => {
+    if (hasPreloadedChildren) return; // already have children from tree
+    // Only fetch for real workspace paths (not virtual /explorer/ paths)
+    if (!node.path.startsWith('/workspace/') && !node.path.startsWith('/tasks/')) return;
+    setFetchLoading(true);
+    api.workspace.getTree(node.path)
+      .then((data) => setFetchedChildren(Array.isArray(data) ? data as WorkspaceTreeNode[] : []))
+      .catch(() => setFetchedChildren([]))
+      .finally(() => setFetchLoading(false));
+  }, [node.path, hasPreloadedChildren]);
+
   const children = useMemo(
     () =>
-      [...(node.children || [])].sort((a, b) => {
+      [...(hasPreloadedChildren ? (node.children || []) : (fetchedChildren || []))].sort((a, b) => {
         const aRank = a.type === 'folder' ? 0 : 1;
         const bRank = b.type === 'folder' ? 0 : 1;
         return aRank - bRank || a.name.localeCompare(b.name);
       }),
-    [node.children]
+    [node.children, fetchedChildren, hasPreloadedChildren]
   );
+
+  if (fetchLoading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (children.length === 0) {
     return (
