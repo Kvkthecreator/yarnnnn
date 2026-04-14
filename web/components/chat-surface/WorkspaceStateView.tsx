@@ -190,7 +190,7 @@ export function WorkspaceStateView({
           {/* Active tab content */}
           <div className="max-h-[60vh] overflow-y-auto">
             {activeTab === 'overview' && (
-              <OverviewTab agents={agents} tasks={tasks} loading={dataLoading} onAskTP={onAskTP} onClose={onClose} />
+              <OverviewTab agents={agents} tasks={tasks} loading={dataLoading} onAskTP={onAskTP} onClose={onClose} onOpenOnboarding={onOpenOnboarding} />
             )}
             {activeTab === 'flags' && (
               <FlagsTab
@@ -286,12 +286,14 @@ function OverviewTab({
   loading,
   onAskTP,
   onClose,
+  onOpenOnboarding,
 }: {
   agents: Agent[];
   tasks: Task[];
   loading: boolean;
   onAskTP: (prompt: string) => void;
   onClose: () => void;
+  onOpenOnboarding: () => void;
 }) {
   const [profile, setProfile] = useState<ProfileInfo | null>(null);
   const [brand, setBrand] = useState<BrandInfo | null>(null);
@@ -376,7 +378,8 @@ function OverviewTab({
                 : 'Not captured yet'
             }
             badge={richnessBadge(identityRichness)}
-            href="/context"
+            href={identityRichness !== 'empty' ? '/context' : undefined}
+            onEmpty={identityRichness === 'empty' ? () => { onClose(); onOpenOnboarding(); } : undefined}
           />
           <OverviewRow
             label="Brand"
@@ -479,11 +482,14 @@ function OverviewRow({
   value,
   badge,
   href,
+  onEmpty,
 }: {
   label: string;
   value: string;
   badge?: React.ReactNode;
   href?: string;
+  /** When provided and identity is empty, renders an "Add now" button instead of a link. */
+  onEmpty?: () => void;
 }) {
   const content = (
     <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/10 px-3 py-2 text-sm transition-colors hover:bg-muted/30">
@@ -494,10 +500,17 @@ function OverviewRow({
       <div className="flex shrink-0 items-center gap-2">
         {badge}
         {href && <ArrowUpRight className="h-3 w-3 text-muted-foreground/40" />}
+        {onEmpty && (
+          <span className="text-[10px] font-medium text-primary/70 hover:text-primary">
+            Add now →
+          </span>
+        )}
       </div>
     </div>
   );
-  return href ? <Link href={href}>{content}</Link> : content;
+  if (href) return <Link href={href}>{content}</Link>;
+  if (onEmpty) return <button type="button" onClick={onEmpty} className="w-full text-left">{content}</button>;
+  return content;
 }
 
 function OverviewStat({
