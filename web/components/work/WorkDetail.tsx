@@ -9,30 +9,33 @@
  * Work does NOT show: output documents, accumulated files, domain knowledge.
  * Those live in Context.
  *
- * Kind dispatch (ADR-166):
- *   produces_deliverable → objective + link to outputs in Context
- *   accumulates_context  → objective + link to domain files in Context
- *   external_action      → Fire primary + history (no outputs to migrate)
- *   system_maintenance   → log only, no actions (no outputs to migrate)
+ * Kind dispatch (ADR-166 + ADR-180):
+ *   accumulates_context  → entity grid (TrackingEntityGrid) — click entity → Context
+ *   produces_deliverable → inline output (DeliverableMiddle) — full view in Work
+ *   external_action      → Fire primary + history (ActionMiddle)
+ *   system_maintenance   → hygiene log (MaintenanceMiddle)
  *
- * ADR-180 changes from v10:
- *   - KindMiddle no longer renders DeliverableMiddle or TrackingMiddle.
- *   - produces_deliverable and accumulates_context show OutputsLinkBlock instead.
- *   - ObjectiveBlock shown for all kinds (describes the task's purpose).
- *   - DeliverableMiddle and TrackingMiddle now live in the Context surface.
+ * ADR-180: Work is operational. For accumulates_context, the entity grid IS the
+ * operational view — it shows what's being tracked and its freshness, with each
+ * entity card navigating into Context for the detail view (section-swap feel).
+ * For produces_deliverable, the output is the primary work artifact — rendered
+ * inline so Work and Context surface the same thing from different angles.
  */
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  MoreHorizontal, Pause, Play, MessageSquare, Send, Loader2, ArrowRight,
+  MoreHorizontal, Pause, Play, MessageSquare, Send, Loader2,
 } from 'lucide-react';
 import { ActionMiddle } from './details/ActionMiddle';
 import { MaintenanceMiddle } from './details/MaintenanceMiddle';
+import { TrackingEntityGrid } from './details/TrackingEntityGrid';
+import { DeliverableMiddle } from './details/DeliverableMiddle';
 import { WorkModeBadge } from './WorkModeBadge';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { AGENTS_ROUTE, CONTEXT_ROUTE } from '@/lib/routes';
 import { formatRelativeTime } from '@/lib/formatting';
+import { resolveTaskSurface, SURFACE_TYPE_LABELS } from '@/lib/task-types';
 import { cn } from '@/lib/utils';
 import type { Task, TaskDetail, Agent } from '@/types';
 
@@ -125,9 +128,21 @@ function OverflowMenu({
 // ─── Kind-aware metadata strips ─────────────────────────────────────────────
 
 function DeliverableMetadata({ task, assignedAgent }: { task: Task; assignedAgent: Agent | null }) {
+  const surface = resolveTaskSurface(
+    (task as TaskDetail).deliverable_spec?.expected_output?.surface,
+    task.type_key,
+  );
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       <WorkModeBadge mode={task.mode} />
+      {surface && (
+        <>
+          <span className="text-muted-foreground/30">·</span>
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/50">
+            {SURFACE_TYPE_LABELS[surface]}
+          </span>
+        </>
+      )}
       {assignedAgent && (
         <>
           <span className="text-muted-foreground/30">·</span>
@@ -364,69 +379,35 @@ function ObjectiveBlock({ task }: { task: Task }) {
   );
 }
 
-// ─── Outputs link block (ADR-180) ────────────────────────────────────────────
-// For produces_deliverable and accumulates_context tasks, Work is operational only.
-// Outputs and accumulated knowledge live in Context.
-
-function OutputsLinkBlock({ task }: { task: Task }) {
-  const kind = task.output_kind ?? 'produces_deliverable';
-  const hasOutput = !!task.last_run_at;
-
-  if (kind === 'accumulates_context') {
-    const writes = task.context_writes ?? [];
-    const primaryDomain = writes.find(d => d !== 'signals') ?? writes[0] ?? null;
-    const href = primaryDomain
-      ? `${CONTEXT_ROUTE}?domain=${primaryDomain}`
-      : CONTEXT_ROUTE;
-
-    return (
-      <div className="px-6 py-5">
-        <Link
-          href={href}
-          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-        >
-          View accumulated knowledge in Context
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
-        {!hasOutput && (
-          <p className="mt-1.5 text-xs text-muted-foreground/60">No runs yet — files will appear here after first execution.</p>
-        )}
-      </div>
-    );
-  }
-
-  // produces_deliverable
-  const href = `${CONTEXT_ROUTE}?path=/tasks/${task.slug}/outputs/latest`;
-  return (
-    <div className="px-6 py-5">
-      <Link
-        href={href}
-        className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-      >
-        View latest output in Context
-        <ArrowRight className="w-3.5 h-3.5" />
-      </Link>
-      {!hasOutput && (
-        <p className="mt-1.5 text-xs text-muted-foreground/60">No output yet — will appear here after first run.</p>
-      )}
-    </div>
-  );
-}
-
 // ─── Kind dispatch (ADR-180) ─────────────────────────────────────────────────
-// Work = operational. produces_deliverable and accumulates_context link to Context.
-// external_action and system_maintenance have no outputs — rendered inline.
+// Work = operational. Outputs are rendered inline per kind — the Work↔Context
+// navigation feels like a section swap because clicking entities/outputs uses
+// router.replace to the Context path without a full page reload.
+//
+// accumulates_context  → entity grid (click entity → Context panel for that entity)
+// produces_deliverable → inline output (DeliverableMiddle, with Context deep-link)
+// external_action      → ActionMiddle (fire history + platform link)
+// system_maintenance   → MaintenanceMiddle (hygiene log)
 
 function KindMiddle({ task, refreshKey }: { task: Task | TaskDetail; refreshKey: number }) {
   switch (task.output_kind) {
+    case 'accumulates_context':
+      return <TrackingEntityGrid task={task} />;
     case 'external_action':
       return <ActionMiddle task={task} refreshKey={refreshKey} />;
     case 'system_maintenance':
       return <MaintenanceMiddle task={task} refreshKey={refreshKey} />;
-    case 'accumulates_context':
     case 'produces_deliverable':
-    default:
-      return <OutputsLinkBlock task={task} />;
+    default: {
+      const taskDetail = task as TaskDetail;
+      return (
+        <DeliverableMiddle
+          taskSlug={task.slug}
+          refreshKey={refreshKey}
+          deliverableSpec={taskDetail.deliverable_spec}
+        />
+      );
+    }
   }
 }
 
