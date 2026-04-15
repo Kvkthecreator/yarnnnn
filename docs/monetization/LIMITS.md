@@ -1,6 +1,16 @@
 # yarnnn Platform Resource Limits
 
-> **Status**: Implemented — subscription + work credits model
+> **Status**: ARCHIVED — Superseded by ADR-172 (Usage-First Billing)
+> **Date**: 2026-03-26 (revised). **Archived**: 2026-04-15.
+> **Superseded by**: [ADR-172](../adr/ADR-172-usage-first-billing.md) — all tier limits, capability gates, message limits, source limits, and credit costs dissolved. Balance (`balance_usd`) is the single gate.
+>
+> This document describes enforcement infrastructure that no longer exists. `TIER_LIMITS`, `CREDIT_COSTS`, `PlatformLimits`, `check_agent_limit()`, `check_source_limit()`, `check_monthly_message_limit()`, `work_credits` table — all deleted. See [STRATEGY.md](./STRATEGY.md) for the current model.
+>
+> **Original content below preserved for historical reference.**
+
+---
+
+> ~~**Status**: Implemented — subscription + work credits model~~
 > **Date**: 2026-03-26 (revised)
 > **Related**: ADR-100, [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md), [STRATEGY.md](./STRATEGY.md)
 

@@ -1,6 +1,16 @@
 # Subscription + Work Credits — Hybrid Pricing Model
 
-> **Status**: Decided — supersedes unified credits consideration
+> **Status**: ARCHIVED — Superseded by ADR-171 (Token Spend Metering) and ADR-172 (Usage-First Billing)
+> **Date**: 2026-03-26 (revised). **Archived**: 2026-04-15.
+> **Superseded by**: [ADR-171](../adr/ADR-171-token-spend-metering.md) (universal `cost_usd` meter replaces work credits), [ADR-172](../adr/ADR-172-usage-first-billing.md) (balance as single gate replaces tiers)
+>
+> This document describes a pricing model that no longer exists. Work credits, tier limits, message limits, source limits, and the subscription+credits hybrid are all deleted. See [STRATEGY.md](./STRATEGY.md) for the current model.
+>
+> **Original context below preserved for historical reference.**
+
+---
+
+> ~~**Status**: Decided — supersedes unified credits consideration~~
 > **Date**: 2026-03-26 (revised)
 > **Context**: Duplicate task execution bug (6x runs) + unbounded chat costs exposed structural gap. Unified credits model rejected — metering chat creates psychological friction that undermines engagement.
 > **Related**: ADR-100 (current tier model), [COST-MODEL.md](COST-MODEL.md), [STRATEGY.md](STRATEGY.md)

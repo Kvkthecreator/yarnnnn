@@ -222,6 +222,14 @@ Lower levels feed higher levels. Higher levels refine what lower levels pay atte
 
 An agent's ability to operate at higher levels of the hierarchy is a function of its tenure and accumulated L4 knowledge. A new agent operates at L1. A mature agent operates at L3, informed by L4.
 
+### Revenue as Moat Proof (ADR-183, ADR-184)
+
+Accumulated attention is invisible without external validation. For content product businesses, **revenue is the proof that accumulated attention has value.** If quality genuinely improves over time, subscribers notice, retention rises, revenue grows. Switching to any other tool means starting from zero context — quality regresses, revenue declines.
+
+This creates a three-tier metrics hierarchy (ADR-184): product health (revenue, subscribers, churn) is upstream, driven by task quality, driven by agent health. Revenue trajectory *is* the quality metric — not a separate business concern, but the measurable consequence of accumulated attention.
+
+Commerce data (subscribers, revenue, churn) flows into the workspace as context domains (`customers/`, `revenue/` — ADR-183), feeding the same perception substrate as all other context. Revenue is perception, not infrastructure.
+
 ---
 
 ## Axiom 5: TP's Compositional Capability (The Composer)
@@ -411,3 +419,4 @@ These require further design work before implementation:
 | 2026-03-25 | v4.1 — Mode moves from agents to tasks (ADR-138 revision). `mode` (recurring/goal/reactive) is temporal behavior of work, not identity of worker. A Research Agent can simultaneously have a recurring task and a goal task. Axiom 3: "Tasks: Work Definition and Temporal Behavior" section added. Axiom 6: "Work Types Carry Lifecycle" updated with mode inference. |
 | 2026-03-25 | v4.2 — Unified filesystem (ADR-142). Axiom 2: four perception layers (external, user-contributed, internal, reflexive). `/knowledge/` dissolved — platform summaries → `/platforms/`, agent outputs stay in `/tasks/`. User-uploaded documents are first-class perception (`/workspace/documents/`). Derived Principle 2 updated: four filesystem roots. |
 | 2026-03-31 | v4.3 — platform_content sunset (ADR-153). Axiom 2 Layer 1 (External): agents call platform APIs live during task execution, no intermediate staging table or /platforms/ root. Recursive property diagram updated. Derived Principle 2: four roots → three roots (/platforms/ dissolved). |
+| 2026-04-15 | v4.4 — Commerce substrate + product health metrics (ADR-183, ADR-184). Axiom 4 extended: "Revenue as Moat Proof" — revenue is the external validation of accumulated attention. Three-tier metrics hierarchy (product > task > agent). Commerce data flows into workspace as context domains (same perception substrate). Revenue is perception, not infrastructure. |

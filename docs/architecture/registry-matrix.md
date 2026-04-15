@@ -46,9 +46,13 @@ After ADR-166 every task is described by exactly two axes:
 | **slack/** (temporal) | slack-digest | (TP awareness only) | Slack Bot |
 | **notion/** (temporal) | notion-digest | (TP awareness only) | Notion Bot |
 | **github/** (temporal) | github-digest | (TP awareness only) | GitHub Bot |
+| **customers/** (canonical, ADR-183) | commerce-digest | revenue-report, daily-update | Commerce Bot (write), Analyst + Writer (read) |
+| **revenue/** (canonical, ADR-183) | commerce-digest | revenue-report, daily-update | Commerce Bot (write), Analyst + Writer (read) |
 | **(cross-domain)** | — | daily-update, stakeholder-update, market-report | Analyst + Writer (deliverables TP-assembled) |
 
 > **Note (ADR-176):** Domain context directories are created by work demand, not pre-scaffolded at signup. Only `signals/` and platform bot directories exist at signup. Other domains (competitors/, market/, etc.) are created by TP when the first task needing them is created. Domain names come from user language — these are the known archetypes, not the only possible domains.
+>
+> **Note (ADR-183):** Commerce domains (`customers/`, `revenue/`) are created when a commerce provider is connected, not at signup. Commerce Bot is scaffolded at the same time. See [commerce-substrate.md](commerce-substrate.md).
 
 External-action tasks (`slack-respond`, `notion-update`) read from the domains in their `context_reads` but produce no workspace artifact — their effect is the platform write. System-maintenance tasks (`back-office-*`) touch no domains; they emit hygiene signals only.
 
@@ -79,8 +83,11 @@ Maintain workspace knowledge domains. Run on schedule, update domain folders, pr
 | **slack-digest** | Slack Digest | recurring | daily | — | slack, signals |
 | **notion-digest** | Notion Digest | recurring | weekly | — | notion, signals |
 | **github-digest** | GitHub Digest | recurring | daily | — | github, signals |
+| **commerce-digest** | Commerce Digest | recurring | daily | — | customers, revenue, signals |
 
 All `track-*` tasks read both their domain AND the `signals/` domain — same shape across the board (ADR-166 normalization).
+
+`commerce-digest` (ADR-183) follows the same pattern — reads from the commerce provider API, writes to `customers/` and `revenue/` domains. Created when commerce provider is connected, not at signup.
 
 ### Produces Deliverable — Reports & Outputs
 
@@ -96,6 +103,7 @@ Read from accumulated context, write a finished artifact to `/tasks/{slug}/outpu
 | **project-status** | Project Status Report | recurring | weekly | projects, signals | reports |
 | **content-brief** | Content Brief | goal | on-demand | content_research, competitors, signals | content_output |
 | **launch-material** | Launch Material | goal | on-demand | content_research, competitors, market, signals | content_output |
+| **revenue-report** | Revenue Report | recurring | weekly | revenue, customers, signals | reports |
 
 ### External Action — Platform Writes
 
@@ -105,6 +113,8 @@ Take an action on an external platform via API write. The user's workspace gets 
 |---|---|---|---|---|---|
 | **slack-respond** | Slack Post | reactive | on-demand | slack, signals | Slack channel/thread |
 | **notion-update** | Notion Update | reactive | on-demand | notion, signals | Notion page |
+| **commerce-create-product** | Create Product | reactive | on-demand | task output folder | Commerce provider (LS) |
+| **commerce-update-product** | Update Product | reactive | on-demand | task output folder | Commerce provider (LS) |
 
 ### System Maintenance — Back Office (ADR-164)
 
@@ -136,6 +146,9 @@ TP-owned, deterministic, no LLM. Run through the same task pipeline as user-faci
 | **Slack Bot** | `slack_bot` | platform-bot | read_slack, write_slack | Accumulation | outputs |
 | **Notion Bot** | `notion_bot` | platform-bot | read_notion, write_notion | Accumulation | outputs |
 | **GitHub Bot** | `github_bot` | platform-bot | read_github | Accumulation | outputs |
+| **Commerce Bot** *(on connect)* | `commerce_bot` | platform-bot | read_commerce, write_commerce | Accumulation | outputs |
+
+> **Commerce Bot (ADR-183):** NOT scaffolded at signup. Created when user connects a commerce provider. Owns `customers/` and `revenue/` context domains. See [commerce-substrate.md](commerce-substrate.md).
 
 **Key principles (ADR-176):**
 - **Universal specialists, not ICP-specific personas.** Researcher, Analyst, Writer, Tracker, Designer — names that pass the instinct test for any user in any industry.
@@ -234,6 +247,8 @@ Favicons fetched automatically via ManageDomains when entities have a `url` fiel
 │   ├── relationships/              # Managed by: track-relationships
 │   ├── projects/                   # Managed by: track-projects
 │   ├── content_research/           # Managed by: research-topics
+│   ├── customers/                  # Managed by: commerce-digest (ADR-183, on connect)
+│   ├── revenue/                    # Managed by: commerce-digest (ADR-183, on connect)
 │   └── signals/                    # Temporal signal log (HIDDEN — no user browse)
 
 /agents/{slug}/                     # WHO — identity only (HIDDEN — all of it)

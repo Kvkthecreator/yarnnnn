@@ -286,20 +286,43 @@ Three distinct mechanisms drive agent development:
 
 ---
 
-## Revenue Model
+## Two Commerce Surfaces
 
-> **ADR-171 (Proposed)**: Moving to universal token spend metering. The credits model below is current implementation; the direction is documented in [ADR-171](../adr/ADR-171-token-spend-metering.md).
+YARNNN has two distinct commerce surfaces that must never be conflated:
 
-**Current (work credits)**:
-- Chat is free — TP conversation is the onramp
-- Work is metered — autonomous task runs consume credits (3 credits/run)
-- Two tiers: Free (20 credits/mo) and Pro ($19/mo, 500 credits/mo)
+### Platform Billing (YARNNN → User) — ADR-171, ADR-172
 
-**Direction (ADR-171)**:
-- Single meter: `cost_usd` across all LLM surfaces — chat, task execution, web search, inference
-- No surface carveouts, no fictional credit currency
-- Free tier: ~$3 of tokens/mo. Pro: ~$X of tokens/mo (allocation TBD post-metering data)
-- Three platforms: Slack, Notion, and GitHub (Gmail/Calendar sunset per ADR-131, GitHub added per ADR-147)
+How YARNNN charges users for platform usage. Implemented.
+
+- **Single gate**: `balance_usd`. All LLM calls deduct `cost_usd`. Hard stop at zero.
+- **Balance sources**: $3 signup grant, top-ups ($10/$25/$50 via LS one-time orders), Pro subscription ($19/mo or $180/yr = $20 balance reset per cycle)
+- **Billing rates**: 2x Anthropic API rates ($6/$30 per MTok Sonnet input/output). Cache discount not passed through.
+- **All tier limits dissolved** (ADR-172): no message limits, task limits, source limits, or capability gates. Cost is the only gate.
+- **Metering**: Universal `token_usage` table across all 7 LLM call sites. `cost_usd` computed at write time.
+
+### Content Commerce (User → User's Customers) — ADR-183
+
+How users sell content products their agent team produces. Proposed.
+
+- **Commerce as fourth platform class**: same `platform_connections` pattern as Slack/Notion/GitHub, API key auth
+- **Two context domains**: `customers/` (per-customer entities) and `revenue/` (aggregate business metrics)
+- **Commerce Bot**: 11th agent (scaffolded on commerce connection, not at signup), owns customer + revenue domains
+- **Delivery to subscribers**: tasks can deliver to all active subscribers of a linked commerce product
+- **Provider-agnostic**: Lemon Squeezy first. Architecture supports provider swap (Stripe Connect, Paddle) without pipeline changes.
+
+See [commerce-substrate.md](commerce-substrate.md) for the architecture, [docs/features/commerce.md](../features/commerce.md) for user-facing docs.
+
+### Product Health Metrics — ADR-184
+
+Revenue as first-class perception. Proposed. Three-tier metrics hierarchy:
+
+| Tier | What it measures | Source |
+|---|---|---|
+| **Product** (new) | Revenue, subscribers, churn, growth | `revenue/` + `customers/` domains via Commerce Bot |
+| **Task** (exists) | Run history, output quality, deliverable adherence | `/tasks/{slug}/` |
+| **Agent** (exists) | Approval rate, confidence, memory depth | `/agents/{slug}/memory/` |
+
+Product health surfaces through existing patterns: daily update enrichment (business snapshot alongside agent activity), TP working memory (compact index gains `## Product Health` section), feedback loop closure (product metrics as quality signal). No new surfaces — revenue is context, not a dashboard. See [ADR-184](../adr/ADR-184-product-health-metrics.md).
 
 ---
 
@@ -317,7 +340,7 @@ Three distinct mechanisms drive agent development:
 | Delivery | `api/services/delivery.py` |
 | Scheduler | `api/jobs/unified_scheduler.py` |
 | Platform sync | `api/jobs/platform_sync_scheduler.py` |
-| Composer (TP workforce assessment) | `api/services/composer.py` |
+| Commerce substrate | [commerce-substrate.md](commerce-substrate.md) |
 
 ---
 
@@ -333,6 +356,9 @@ Three distinct mechanisms drive agent development:
 | Output substrate & capabilities | [output-substrate.md](output-substrate.md) |
 | Output surfaces (visual paradigms) | [output-surfaces.md](output-surfaces.md) |
 | Compose substrate (filesystem→output) | [compose-substrate.md](compose-substrate.md) |
+| Commerce substrate | [commerce-substrate.md](commerce-substrate.md) |
+| Product health metrics | [ADR-184](../adr/ADR-184-product-health-metrics.md) |
+| Platform billing strategy | [docs/monetization/STRATEGY.md](../monetization/STRATEGY.md) |
 | Product narrative | [NARRATIVE.md](../NARRATIVE.md) |
 | Core identity | [ESSENCE.md](../ESSENCE.md) |
 
@@ -344,3 +370,4 @@ Three distinct mechanisms drive agent development:
 |------|--------|
 | 2026-03-29 | v1 — Initial creation. Consolidates service topology from CLAUDE.md, execution model from agent-execution-model.md, entity model from FOUNDATIONS.md/ADR-138/ADR-140, primitives from registry.py. Establishes single canonical service description. |
 | 2026-03-31 | v1.1 — ADR-153 platform_content sunset. Perception model updated: agents call platform APIs live, no intermediate staging. /platforms/ removed from entity model. Platform sync cron role updated. |
+| 2026-04-15 | v1.2 — Revenue Model section rewritten for ADR-171/172 (balance model, tiers dissolved). Added "Two Commerce Surfaces" section covering platform billing vs. content commerce (ADR-183) and product health metrics (ADR-184). Composer reference removed (deleted by ADR-156). Deep-dive references updated. |
