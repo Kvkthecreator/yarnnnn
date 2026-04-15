@@ -1,6 +1,6 @@
 # ADR-183: Commerce Substrate — Provider-Agnostic Business Layer
 
-> **Status**: Phase 1 Implemented
+> **Status**: Phase 1-2 Implemented
 > **Date**: 2026-04-15
 > **Related**: ADR-138 (Agents as Work Units), ADR-141 (Unified Execution), ADR-151/152 (Context Domains / Directory Registry), ADR-153 (Platform Content Sunset — same principle: no mirrored cache, live API reads), ADR-158 (Platform Bot Ownership), ADR-171/172 (Token Spend Metering / Usage-First Billing), ADR-176 (Work-First Agent Model)
 > **Extends**: `docs/analysis/autonomous-business-thesis-2026-04-15/05-lemon-squeezy-technical.md` (LS technical assessment — absorbed, not superseded)
@@ -307,3 +307,4 @@ The `docs/monetization/` directory is stale. Four files reference the old tier/c
 |---|---|
 | 2026-04-15 | v1.0 — Initial proposal. All decisions locked. Commerce as fourth platform class, provider-agnostic abstraction, two context domains, Commerce Bot, four task types, subscriber delivery target, product link on tasks. |
 | 2026-04-15 | v1.1 — **Phase 1 Implemented.** `CommerceProvider` abstract interface + `LemonSqueezyClient` (LS REST API v1, retry, pagination). 5 platform tools (list_products, get_subscribers, get_revenue, get_customers, create_checkout). Commerce Bot in `AGENT_TEMPLATES` + `DEFAULT_ROSTER`. `customers/` + `revenue/` context domains in directory registry (v4.0). `commerce-digest` + `revenue-report` task types. Commerce connect endpoint (`POST /integrations/commerce/connect`, API key auth). Migration 147: `commerce_bot` added to `agents_role_check`. |
+| 2026-04-15 | v1.2 — **Phase 2 Implemented.** Webhook endpoint (`POST /webhooks/commerce/lemonsqueezy`) — subscription_created/cancelled/payment events write customer profiles + history to workspace files (ADR-153 principle: no staging table). Subscriber delivery target (`delivery: subscribers` in TASK.md) — live-reads subscriber list from commerce API at delivery time, sends individually via Resend. `**Commerce:**` field parsed from TASK.md (product_id, checkout_url). Product_id injected into delivery destination for subscriber filtering. |

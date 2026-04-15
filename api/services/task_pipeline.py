@@ -1178,6 +1178,16 @@ def parse_task_md(content: str) -> dict:
                         platform, ids_str = segment.split(":", 1)
                         sources[platform.strip()] = [s.strip() for s in ids_str.split(",") if s.strip()]
                 result["sources"] = sources
+        # ADR-183: **Commerce:** field — product link for subscriber delivery
+        elif line_stripped.startswith("**Commerce:**"):
+            raw = line_stripped.split("**Commerce:**")[1].strip()
+            commerce = {}
+            for part in raw.split(","):
+                part = part.strip()
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    commerce[k.strip()] = v.strip()
+            result["commerce"] = commerce
         # ADR-154: **Output Category:** parsing removed — tasks own their outputs
 
     # Parse sections
@@ -2271,6 +2281,12 @@ async def execute_task(
                 # Build destination from TASK.md delivery field
                 destination = _parse_delivery_target(delivery_target, client, user_id)
 
+                # ADR-183: inject commerce product_id for subscriber delivery
+                if destination and destination.get("target") == "subscribers":
+                    commerce_info = task_info.get("commerce", {})
+                    if commerce_info.get("product_id"):
+                        destination["product_id"] = commerce_info["product_id"]
+
                 if destination:
                     delivery_result = await deliver_from_output_folder(
                         client=client,
@@ -2939,6 +2955,13 @@ async def _execute_pipeline(
         try:
             from services.delivery import deliver_from_output_folder
             destination = _parse_delivery_target(delivery_target, client, user_id)
+
+            # ADR-183: inject commerce product_id for subscriber delivery
+            if destination and destination.get("target") == "subscribers":
+                commerce_info = task_info.get("commerce", {})
+                if commerce_info.get("product_id"):
+                    destination["product_id"] = commerce_info["product_id"]
+
             if destination:
                 delivery_result = await deliver_from_output_folder(
                     client=client, user_id=user_id, agent=final_agent,
@@ -3525,6 +3548,13 @@ def _parse_delivery_target(delivery_str: str, client, user_id: str) -> Optional[
     if delivery_str.startswith("slack:"):
         target = delivery_str[6:]
         return {"platform": "slack", "target": target, "format": "send"}
+
+    # ADR-183 Phase 2: "subscribers" delivery target
+    # Resolves subscriber emails live from commerce provider at delivery time
+    if delivery_str.strip().lower() == "subscribers":
+        dest = {"platform": "email", "target": "subscribers", "format": "send"}
+        # product_id injected by caller from task_info["commerce"]["product_id"]
+        return dest
 
     # Unknown delivery format — don't guess, return None
     logger.warning(f"[TASK_EXEC] Unknown delivery format: '{delivery_str}' — skipping")

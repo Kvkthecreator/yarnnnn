@@ -890,6 +890,22 @@ async def _deliver_email_from_manifest(
             error_message="No recipient email specified",
         )
 
+    # ADR-183 Phase 2: "subscribers" target → resolve emails from commerce API
+    if target == "subscribers":
+        return await _deliver_to_subscribers(
+            destination=destination,
+            text_content=text_content,
+            manifest=manifest,
+            title=title,
+            version_number=version_number,
+            role=role,
+            agent_id=agent_id,
+            mode=mode,
+            composed_html=composed_html,
+            task_slug=task_slug,
+            user_timezone=user_timezone,
+        )
+
     options = destination.get("options", {})
 
     # Subject clock should reflect when this run happened in the user's timezone.
@@ -1081,3 +1097,133 @@ async def _get_exporter_context_standalone(
     except Exception as e:
         logger.error(f"[DELIVERY] Failed to get context for {platform}: {e}")
         return None
+
+
+# =============================================================================
+# ADR-183 Phase 2: Subscriber Delivery
+# =============================================================================
+
+async def _deliver_to_subscribers(
+    destination: dict,
+    text_content: str,
+    manifest: dict,
+    title: str,
+    version_number: int,
+    role: Optional[str],
+    agent_id: str,
+    mode: Optional[str],
+    composed_html: Optional[str] = None,
+    task_slug: Optional[str] = None,
+    user_timezone: str = "UTC",
+) -> ExportResult:
+    """Deliver to all active subscribers via commerce provider.
+
+    ADR-183: Live-reads subscriber list from commerce API at delivery time.
+    No cached subscriber list — commerce provider is the source of truth.
+    Sends individually via the existing email path.
+    """
+    # Resolve product_id from destination metadata (set from TASK.md **Commerce:** field)
+    product_id = destination.get("product_id")
+
+    try:
+        from integrations.core.lemonsqueezy_client import get_commerce_client
+        from integrations.core.tokens import get_token_manager
+
+        # Get commerce credentials
+        from services.supabase import get_service_client
+        service_client = get_service_client()
+
+        # Find user_id from agent_id
+        user_id = None
+        if agent_id:
+            agent_result = service_client.table("agents").select(
+                "user_id"
+            ).eq("id", agent_id).single().execute()
+            if agent_result.data:
+                user_id = agent_result.data["user_id"]
+
+        if not user_id:
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message="Cannot resolve user for subscriber delivery",
+            )
+
+        conn_result = service_client.table("platform_connections").select(
+            "credentials_encrypted"
+        ).eq("user_id", user_id).eq("platform", "commerce").eq(
+            "status", "active"
+        ).single().execute()
+
+        if not conn_result.data:
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message="No active commerce connection for subscriber delivery",
+            )
+
+        token_manager = get_token_manager()
+        api_key = token_manager.decrypt(conn_result.data["credentials_encrypted"])
+
+        commerce_client = get_commerce_client()
+        subscribers = await commerce_client.get_subscribers(
+            api_key=api_key, product_id=product_id,
+        )
+
+        if not subscribers:
+            logger.info(f"[DELIVERY] No active subscribers to deliver to")
+            return ExportResult(
+                status=ExportStatus.SUCCESS,
+                external_id="no_subscribers",
+            )
+
+        # Deliver to each subscriber individually
+        sent = 0
+        failed = 0
+        for sub in subscribers:
+            if not sub.email:
+                continue
+            try:
+                sub_destination = {
+                    "platform": "email",
+                    "target": sub.email,
+                    "format": "send",
+                }
+                result = await _deliver_email_from_manifest(
+                    destination=sub_destination,
+                    text_content=text_content,
+                    manifest=manifest,
+                    title=title,
+                    version_number=version_number,
+                    role=role,
+                    agent_id=agent_id,
+                    mode=mode,
+                    composed_html=composed_html,
+                    task_slug=task_slug,
+                    user_timezone=user_timezone,
+                )
+                if result.status == ExportStatus.SUCCESS:
+                    sent += 1
+                else:
+                    failed += 1
+                    logger.warning(f"[DELIVERY] Subscriber delivery failed for {sub.email}: {result.error_message}")
+            except Exception as e:
+                failed += 1
+                logger.error(f"[DELIVERY] Subscriber delivery error for {sub.email}: {e}")
+
+        logger.info(f"[DELIVERY] Subscriber delivery: {sent} sent, {failed} failed out of {len(subscribers)}")
+
+        if sent > 0:
+            return ExportResult(
+                status=ExportStatus.SUCCESS,
+                external_id=f"subscribers:{sent}/{len(subscribers)}",
+            )
+        return ExportResult(
+            status=ExportStatus.FAILED,
+            error_message=f"All {failed} subscriber deliveries failed",
+        )
+
+    except Exception as e:
+        logger.error(f"[DELIVERY] Subscriber delivery error: {e}")
+        return ExportResult(
+            status=ExportStatus.FAILED,
+            error_message=f"Subscriber delivery failed: {str(e)}",
+        )

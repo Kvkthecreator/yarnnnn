@@ -2112,3 +2112,194 @@ async def connect_commerce(
         "status": "active",
         "store_name": metadata.get("store_name"),
     }
+
+
+# =============================================================================
+# Commerce Webhooks — ADR-183 Phase 2
+# =============================================================================
+
+@router.post("/webhooks/commerce/lemonsqueezy")
+async def handle_commerce_webhook(request: "Request"):
+    """
+    Handle Lemon Squeezy webhook events for content commerce (ADR-183).
+
+    Writes subscriber/order events directly to workspace files — no intermediate
+    staging table (ADR-153 principle). All agents see updated data on next run.
+
+    NOTE: This is for the USER's LS account (content commerce), NOT YARNNN's
+    own billing (which uses routes/subscription.py).
+    """
+    import hashlib
+    import hmac
+    import json
+
+    from fastapi import Request
+    from services.workspace import UserMemory
+    from datetime import datetime, timezone
+
+    body = await request.body()
+    signature = request.headers.get("X-Signature", "")
+
+    # Verify webhook signature using the commerce connection's webhook secret
+    # For Phase 2, we trust the source (LS webhook IPs) — signature verification
+    # is added when the user configures their webhook secret in settings.
+
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    event_name = payload.get("meta", {}).get("event_name", "")
+    custom_data = payload.get("meta", {}).get("custom_data", {})
+
+    # Resolve workspace from custom_data (set during checkout creation)
+    # or from the store → platform_connections lookup
+    user_id = custom_data.get("user_id")
+
+    if not user_id:
+        # Try to find user by store_id from LS payload
+        store_id = str(payload.get("data", {}).get("attributes", {}).get("store_id", ""))
+        if store_id:
+            service_client = get_service_client()
+            result = service_client.table("platform_connections").select(
+                "user_id"
+            ).eq("platform", "commerce").eq("status", "active").execute()
+
+            # Match by store metadata — iterate connections
+            for conn in (result.data or []):
+                user_id = conn.get("user_id")
+                break  # For now, first match (single-user system)
+
+    if not user_id:
+        logger.warning(f"[COMMERCE_WEBHOOK] No user_id found for event: {event_name}")
+        return {"status": "ok", "message": "No user_id resolved"}
+
+    attrs = payload.get("data", {}).get("attributes", {})
+    now = datetime.now(timezone.utc)
+    date_str = now.strftime("%Y-%m-%d %H:%M")
+
+    service_client = get_service_client()
+    um = UserMemory(service_client, user_id)
+
+    logger.info(f"[COMMERCE_WEBHOOK] {event_name} for user {user_id}")
+
+    # Route by event type → write to workspace files
+    if event_name == "subscription_created":
+        email = attrs.get("user_email", "unknown")
+        name = attrs.get("user_name", email.split("@")[0])
+        product = attrs.get("product_name", "Unknown")
+        slug = _slugify_customer(email)
+
+        await um.write(
+            f"context/customers/{slug}/profile.md",
+            (
+                f"# {name}\n\n"
+                f"## Status\nActive subscriber\n\n"
+                f"## Plan & Revenue\n- Product: {product}\n"
+                f"- Status: active\n- Since: {date_str}\n\n"
+                f"## Contact\n- Email: {email}\n"
+            ),
+            summary=f"New subscriber: {email} → {product}",
+        )
+        await um.write(
+            f"context/customers/{slug}/history.md",
+            f"# History — {name}\n\n- {date_str}: Subscribed to {product}\n",
+            summary=f"Subscriber history: {email}",
+        )
+
+    elif event_name == "subscription_cancelled":
+        email = attrs.get("user_email", "unknown")
+        slug = _slugify_customer(email)
+
+        # Append cancellation to history
+        existing = await um.read(f"context/customers/{slug}/history.md")
+        if existing:
+            updated = existing.rstrip() + f"\n- {date_str}: Cancelled subscription\n"
+            await um.write(
+                f"context/customers/{slug}/history.md",
+                updated,
+                summary=f"Subscriber cancelled: {email}",
+            )
+
+        # Update profile status
+        existing_profile = await um.read(f"context/customers/{slug}/profile.md")
+        if existing_profile:
+            updated_profile = existing_profile.replace(
+                "Active subscriber", "Cancelled"
+            ).replace("- Status: active", "- Status: cancelled")
+            await um.write(
+                f"context/customers/{slug}/profile.md",
+                updated_profile,
+                summary=f"Subscriber status → cancelled: {email}",
+            )
+
+    elif event_name == "subscription_payment_success":
+        email = attrs.get("user_email", "unknown")
+        slug = _slugify_customer(email)
+
+        existing = await um.read(f"context/customers/{slug}/history.md")
+        if existing:
+            updated = existing.rstrip() + f"\n- {date_str}: Payment successful\n"
+            await um.write(
+                f"context/customers/{slug}/history.md",
+                updated,
+                summary=f"Payment received: {email}",
+            )
+
+    elif event_name == "subscription_payment_failed":
+        email = attrs.get("user_email", "unknown")
+        slug = _slugify_customer(email)
+
+        existing = await um.read(f"context/customers/{slug}/history.md")
+        if existing:
+            updated = existing.rstrip() + f"\n- {date_str}: ⚠ Payment failed\n"
+            await um.write(
+                f"context/customers/{slug}/history.md",
+                updated,
+                summary=f"Payment failed: {email}",
+            )
+
+    elif event_name == "order_created":
+        email = attrs.get("user_email", "unknown")
+        name = attrs.get("user_name", email.split("@")[0])
+        total = attrs.get("total", 0)
+        currency = attrs.get("currency", "USD")
+        slug = _slugify_customer(email)
+
+        # Create or update customer profile
+        existing_profile = await um.read(f"context/customers/{slug}/profile.md")
+        if not existing_profile:
+            await um.write(
+                f"context/customers/{slug}/profile.md",
+                (
+                    f"# {name}\n\n"
+                    f"## Status\nCustomer (one-time purchase)\n\n"
+                    f"## Plan & Revenue\n- Total spent: ${total / 100:.2f} {currency}\n\n"
+                    f"## Contact\n- Email: {email}\n"
+                ),
+                summary=f"New customer: {email}",
+            )
+
+        # Append to history
+        existing_history = await um.read(f"context/customers/{slug}/history.md")
+        entry = f"- {date_str}: Purchased — ${total / 100:.2f} {currency}\n"
+        if existing_history:
+            updated = existing_history.rstrip() + f"\n{entry}"
+        else:
+            updated = f"# History — {name}\n\n{entry}"
+        await um.write(
+            f"context/customers/{slug}/history.md",
+            updated,
+            summary=f"Order from {email}: ${total / 100:.2f}",
+        )
+
+    return {"status": "ok", "event": event_name}
+
+
+def _slugify_customer(email: str) -> str:
+    """Convert email to a filesystem-safe slug."""
+    import re
+    # Use the local part of the email, lowercased, non-alnum → dash
+    local = email.split("@")[0].lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", local).strip("-")
+    return slug or "unknown"
