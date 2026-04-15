@@ -80,7 +80,7 @@ UpdateContext(
     text: str,                    # What TP learned from the user
     agent_slug: Optional[str],    # Required for target="agent"
     task_slug: Optional[str],     # Required for target="task"
-    document_contents: Optional[list],  # For identity/brand inference
+    document_ids: Optional[list],        # For identity/brand inference (read server-side)
     url_contents: Optional[list],       # For identity/brand inference
 )
 ```

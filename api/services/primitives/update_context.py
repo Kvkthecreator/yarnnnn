@@ -71,16 +71,10 @@ For awareness: full replacement — write your current understanding as a living
                 "enum": ["deliverable", "criteria", "objective", "output_spec", "run_log"],
                 "description": "For target='task': where to route feedback. 'deliverable' (default) writes to feedback.md for DELIVERABLE.md inference. Others patch TASK.md sections directly."
             },
-            "document_contents": {
+            "document_ids": {
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "filename": {"type": "string"},
-                        "content": {"type": "string"}
-                    }
-                },
-                "description": "For identity/brand: content from uploaded documents"
+                "items": {"type": "string"},
+                "description": "For identity/brand: UUIDs of uploaded documents. Content is read server-side — TP does not need to relay document content."
             },
             "url_contents": {
                 "type": "array",
@@ -141,17 +135,24 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
     if severity is "high". This is the post-inference "what's missing" loop
     without introducing a shadow LLM call.
     """
-    from services.context_inference import infer_shared_context, detect_inference_gaps
+    from services.context_inference import infer_shared_context, detect_inference_gaps, read_uploaded_documents
     from services.workspace import UserMemory
 
     text = input.get("text", "")
-    document_contents = input.get("document_contents", [])
+    document_ids = input.get("document_ids", [])
     url_contents = input.get("url_contents", [])
     filename = "IDENTITY.md" if target == "identity" else "BRAND.md"
 
     try:
         um = UserMemory(auth.client, auth.user_id)
         existing = await um.read(filename)
+
+        # Read document content server-side — TP passes IDs, not content
+        document_contents = []
+        if document_ids:
+            document_contents = await read_uploaded_documents(
+                auth.client, auth.user_id, document_ids
+            )
 
         new_content, inference_usage = await infer_shared_context(
             target=target,

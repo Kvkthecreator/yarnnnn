@@ -308,7 +308,7 @@ UpdateContext(target: "task", task_slug: "weekly-briefing", text: "Focus on pric
 
 **Targets:**
 - `identity` — who the user is (role, domain, background). Inference merges with existing.
-- `brand` — voice, tone, style. Pass url_contents or document_contents for richer inference.
+- `brand` — voice, tone, style. Pass url_contents or document_ids for richer inference.
 - `memory` — stable fact, preference, or standing instruction. Appended to notes.
 - `agent` — feedback about an agent's work quality. Applies to ALL the agent's tasks.
 - `task` — feedback about a specific task's output. Applies to THIS task only.

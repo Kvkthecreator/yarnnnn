@@ -70,7 +70,7 @@ The primitive calls `infer_shared_context()` which:
 async def infer_shared_context(
     target: Literal["identity", "brand"],
     text: str = "",
-    document_contents: list[dict] = [],   # [{filename, content}]
+    document_ids: list[str] = [],          # UUIDs — handler reads content server-side
     url_contents: list[dict] = [],        # [{url, content}]
     platform_content: list[dict] = [],    # [{source, content}]
     existing_content: str = "",           # current file content for merge

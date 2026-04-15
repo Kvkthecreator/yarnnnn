@@ -396,7 +396,7 @@ def test_update_context_tool_schema():
     record("UpdateContext has agent_slug field", "agent_slug" in props)
     record("UpdateContext has task_slug field", "task_slug" in props)
     record("UpdateContext has feedback_target field", "feedback_target" in props)
-    record("UpdateContext has document_contents field", "document_contents" in props)
+    record("UpdateContext has document_ids field", "document_ids" in props)
     record("UpdateContext has url_contents field", "url_contents" in props)
 
 

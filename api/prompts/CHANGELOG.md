@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.15.10] - UpdateContext: server-side document reading (document_ids replaces document_contents)
+
+### Changed
+- `api/services/primitives/update_context.py` — `UpdateContext` tool schema: `document_contents` parameter replaced with `document_ids` (array of UUID strings). Handler calls `read_uploaded_documents()` server-side to fetch chunk content before passing to inference. TP no longer needs to relay full document content through conversation context.
+- `api/agents/tp_prompts/tools.py` — UpdateContext target docs: `document_contents` → `document_ids`.
+- Expected behavior: TP passes document UUIDs (from working memory "Recent uploads" surface) instead of reading and relaying document content. Fixes document content being truncated to 200 chars by `_truncate_tool_result()` default limits when TP tried to read documents via LookupEntity then pass content to UpdateContext. Inference receives full document content server-side.
+
 ## [2026.04.15.9] - ADR-182: Pre-gather pipeline optimization — Phase 1+2 implementation
 
 ### Changed

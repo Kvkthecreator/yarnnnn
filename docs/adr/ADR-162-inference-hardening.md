@@ -73,7 +73,7 @@ Each fixture is a JSON file with:
   "target": "identity",
   "inputs": {
     "text": "I'm Sarah, founder of Acme. We make AI tools for designers.",
-    "document_contents": [],
+    "document_ids": [],
     "url_contents": [
       {"url": "acme.com", "content": "Acme — design tools for the AI era. Founded 2024 in SF. 12-person team. Series A."}
     ],
