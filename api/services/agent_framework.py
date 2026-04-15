@@ -587,6 +587,41 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         },
     },
 
+    # ADR-183: Commerce Bot — owns customers/ and revenue/ context domains.
+    # Created at signup (paused), activated when commerce provider connected.
+    "commerce_bot": {
+        "class": "platform-bot",
+        "domain": "customers",  # primary owned domain
+        "platform": "commerce",
+        "display_name": "Commerce Bot",
+        "tagline": "Tracks customers and revenue",
+        "capabilities": [
+            "read_commerce", "summarize", "produce_markdown",
+        ],
+        "description": "Monitors your commerce platform. Tracks subscribers, "
+                       "revenue, products, and orders. Produces business digests.",
+        "default_instructions": (
+            "Monitor connected commerce platform (Lemon Squeezy). "
+            "Track subscribers, revenue, product performance, and orders. "
+            "Produce scannable digests of business activity with precise figures."
+        ),
+        "methodology": {
+            "_playbook-outputs.md": (
+                "# Output Playbook\n\n"
+                "## Commerce Activity Format\n"
+                "- **Revenue** — MRR, total, by product, growth trend\n"
+                "- **Subscribers** — active count, new, churned, net change\n"
+                "- **Products** — per-product subscribers, revenue, conversion\n"
+                "- **Orders** — recent one-time purchases, total\n\n"
+                "## Summarization Rules\n"
+                "- All figures precise: $10,450.23 revenue, 47 subscribers (not ~50)\n"
+                "- Always include period comparison (vs last cycle)\n"
+                "- Highlight: churn events, new subscriber spikes, revenue milestones\n"
+                "- Skip: $0 test orders, admin-generated transactions\n"
+            ),
+        },
+    },
+
     # ── Meta-Cognitive (owns orchestration itself) ──
     #
     # ADR-164: TP is an agent. It is the single meta-cognitive agent —
@@ -857,6 +892,8 @@ DEFAULT_ROSTER = [
     {"title": "Slack Bot", "role": "slack_bot"},
     {"title": "Notion Bot", "role": "notion_bot"},
     {"title": "GitHub Bot", "role": "github_bot"},
+    # Commerce bot — ADR-183: activated on commerce provider connect
+    {"title": "Commerce Bot", "role": "commerce_bot"},
     # Meta-cognitive — ADR-164: TP owns back office tasks
     {"title": "Thinking Partner", "role": "thinking_partner"},
 ]
@@ -898,6 +935,8 @@ LEGACY_ROLE_MAP: dict[str, str] = {
     "slack_bot": "slack_bot",
     "notion_bot": "notion_bot",
     "github_bot": "github_bot",
+    # ADR-183: Commerce bot
+    "commerce_bot": "commerce_bot",
     # ADR-164: TP as meta-cognitive agent
     "thinking_partner": "thinking_partner",
 }

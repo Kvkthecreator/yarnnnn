@@ -2025,3 +2025,90 @@ async def get_platform_sync_status(
         "stale_count": stale_count,
         "error_count": error_count,
     }
+
+
+# =============================================================================
+# Commerce Connection — ADR-183 (API key auth, not OAuth)
+# =============================================================================
+
+class CommerceConnectRequest(BaseModel):
+    """Request to connect a commerce platform via API key."""
+    api_key: str
+
+
+@router.post("/integrations/commerce/connect")
+async def connect_commerce(
+    request: CommerceConnectRequest,
+    auth: UserClient,
+):
+    """
+    Connect a commerce platform using API key (ADR-183).
+
+    Unlike OAuth flows (Slack, Notion, GitHub), commerce uses direct API key auth.
+    This endpoint validates the key, encrypts it, stores the connection, and
+    scaffolds the Commerce Bot + context domains.
+    """
+    from integrations.core.lemonsqueezy_client import get_commerce_client
+    from services.directory_registry import scaffold_context_domain
+
+    user_id = auth.user_id
+    token_manager = get_token_manager()
+    commerce_client = get_commerce_client()
+
+    # 1. Validate the API key
+    try:
+        store_info = await commerce_client.validate_key(request.api_key)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # 2. Encrypt and store the connection
+    encrypted_key = token_manager.encrypt(request.api_key)
+    service_client = get_service_client()
+
+    existing = service_client.table("platform_connections").select("id").eq(
+        "user_id", user_id
+    ).eq("platform", "commerce").execute()
+
+    metadata = {
+        "store_name": store_info.get("store_name", ""),
+        "email": store_info.get("email", ""),
+        "provider": "lemonsqueezy",
+    }
+
+    if existing.data:
+        service_client.table("platform_connections").update({
+            "credentials_encrypted": encrypted_key,
+            "metadata": metadata,
+            "status": "active",
+        }).eq("id", existing.data[0]["id"]).execute()
+        connection_id = existing.data[0]["id"]
+        logger.info(f"[INTEGRATIONS] Updated commerce connection for {user_id}")
+    else:
+        insert_result = service_client.table("platform_connections").insert({
+            "user_id": user_id,
+            "platform": "commerce",
+            "credentials_encrypted": encrypted_key,
+            "metadata": metadata,
+            "status": "active",
+        }).execute()
+        connection_id = insert_result.data[0]["id"] if insert_result.data else None
+        logger.info(f"[INTEGRATIONS] Created commerce connection for {user_id}")
+
+    # 3. Activate Commerce Bot (reactivate if paused)
+    service_client.table("agents").update(
+        {"status": "active"}
+    ).eq("user_id", user_id).eq("role", "commerce_bot").eq(
+        "status", "paused"
+    ).execute()
+
+    # 4. Scaffold commerce context domains (idempotent)
+    await scaffold_context_domain(service_client, user_id, "customers")
+    await scaffold_context_domain(service_client, user_id, "revenue")
+
+    return {
+        "id": connection_id,
+        "platform": "commerce",
+        "provider": "lemonsqueezy",
+        "status": "active",
+        "store_name": metadata.get("store_name"),
+    }

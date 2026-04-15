@@ -1,8 +1,11 @@
 """
 Workspace Directory Registry — ADR-152: Unified Directory Registry (v2)
 
-Version: 3.0 (2026-04-04)
+Version: 4.0 (2026-04-15)
 Changelog:
+  v4.0 (2026-04-15) — ADR-183: Commerce context domains (customers, revenue).
+                       Canonical (not temporal) — business data persists. Created on
+                       commerce provider connection, not at signup.
   v3.0 (2026-04-04) — ADR-158: Platform observation domains (slack, notion, github).
                        Temporal context directories owned by platform bots. Per-source
                        entity structure (channel/page/repo subfolders with _tracker.md).
@@ -20,7 +23,7 @@ Changelog:
 
 Single source of truth for ALL workspace content directories. Governs:
   /workspace/uploads/    — user-contributed reference material
-  /workspace/context/    — agent-accumulated intelligence substrate (9 domains)
+  /workspace/context/    — agent-accumulated intelligence substrate (11 domains)
 
 Two directory types:
   user_contributed — user uploads, permanent, not agent-managed
@@ -203,6 +206,67 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "synthesis_file": None,
         "synthesis_template": None,
         "signal_log": True,
+    },
+
+    # ── Commerce Domains (ADR-183: canonical, commerce-bot-owned) ──
+    # Revenue and customer data from the user's commerce provider.
+    # Canonical (not temporal) — business data persists, accumulates, informs strategy.
+    # Created when commerce provider is connected, not at signup.
+
+    "customers": {
+        "type": "context",
+        "path": "context/customers",
+        "display_name": "Customers",
+        "description": "Subscribers and buyers from your commerce platform",
+        "managed_by": "agent",
+        "entity_type": "customer",
+        "entity_structure": {
+            "profile.md": (
+                "# {name}\n\n"
+                "## Status\n\n"
+                "## Plan & Revenue\n\n"
+                "## Contact\n"
+            ),
+            "history.md": (
+                "# History — {name}\n"
+                "<!-- Subscription and purchase events, newest first -->\n"
+            ),
+        },
+        "assets_folder": False,
+        "synthesis_file": "overview.md",
+        "synthesis_template": (
+            "# Customer Overview\n\n"
+            "## Active Subscribers\n\n"
+            "## Segments & Cohorts\n\n"
+            "## Churn Analysis\n"
+        ),
+        "tracker_file": "_tracker.md",
+    },
+
+    "revenue": {
+        "type": "context",
+        "path": "context/revenue",
+        "display_name": "Revenue",
+        "description": "Business metrics — MRR, growth, product performance",
+        "managed_by": "agent",
+        "entity_type": "product",
+        "entity_structure": {
+            "performance.md": (
+                "# {name}\n\n"
+                "## Revenue\n\n"
+                "## Subscribers\n\n"
+                "## Conversion & Churn\n"
+            ),
+        },
+        "assets_folder": False,
+        "synthesis_file": "summary.md",
+        "synthesis_template": (
+            "# Revenue Summary\n\n"
+            "## MRR & Growth\n\n"
+            "## Product Mix\n\n"
+            "## Trends\n"
+        ),
+        "tracker_file": "_tracker.md",
     },
 
     # ── Platform Observation Domains (ADR-158: temporal, bot-owned) ──

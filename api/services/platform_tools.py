@@ -309,11 +309,73 @@ Parameters:
     },
 ]
 
+# ── Commerce Tools (ADR-183: Commerce Substrate) ──
+
+COMMERCE_TOOLS = [
+    {
+        "name": "platform_commerce_list_products",
+        "description": "List all products in the user's commerce store (Lemon Squeezy). Returns product name, price, status, subscriber count, and checkout URL.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "platform_commerce_get_subscribers",
+        "description": "Get active subscribers. Optionally filter by product_id. Returns subscriber email, name, status, product, and dates.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {
+                    "type": "string",
+                    "description": "Optional: filter subscribers by product ID"
+                },
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "platform_commerce_get_revenue",
+        "description": "Get aggregate revenue metrics: MRR, total revenue, active subscriber count, total customer count.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "platform_commerce_get_customers",
+        "description": "List all customers (subscribers + one-time buyers). Returns email, name, total revenue, status, and dates.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "platform_commerce_create_checkout",
+        "description": "Generate a checkout URL for a product. Returns a shareable link that anyone can use to purchase.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {
+                    "type": "string",
+                    "description": "The product ID to create a checkout URL for"
+                },
+            },
+            "required": ["product_id"]
+        }
+    },
+]
+
+
 # All platform tools by provider
 PLATFORM_TOOLS_BY_PROVIDER = {
     "slack": SLACK_TOOLS,
     "notion": NOTION_TOOLS,
     "github": GITHUB_TOOLS,
+    "commerce": COMMERCE_TOOLS,
 }
 
 PLATFORM_TOOLS_BY_CAPABILITY = {
@@ -326,6 +388,11 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
         "platform_github_get_repo_metadata", "platform_github_get_readme",
         "platform_github_get_releases",
     ],
+    "read_commerce": [
+        "platform_commerce_list_products", "platform_commerce_get_subscribers",
+        "platform_commerce_get_revenue", "platform_commerce_get_customers",
+        "platform_commerce_create_checkout",
+    ],
 }
 
 CAPABILITY_PROVIDER_MAP = {
@@ -334,6 +401,7 @@ CAPABILITY_PROVIDER_MAP = {
     "read_notion": "notion",
     "write_notion": "notion",
     "read_github": "github",
+    "read_commerce": "commerce",
 }
 
 
@@ -469,6 +537,8 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
         return await _handle_notion_tool(auth, tool, tool_input)
     elif provider == "github":
         return await _handle_github_tool(auth, tool, tool_input)
+    elif provider == "commerce":
+        return await _handle_commerce_tool(auth, tool, tool_input)
     else:
         return {"success": False, "error": f"Unknown provider: {provider}"}
 
@@ -885,6 +955,104 @@ async def _handle_github_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         return {"success": True, "result": {"releases": releases, "count": len(releases), "repo": repo}}
 
     return {"success": False, "error": f"Unknown GitHub tool: {tool}"}
+
+
+async def _handle_commerce_tool(auth: Any, tool: str, tool_input: dict) -> dict:
+    """Handle Commerce tools via Direct API (ADR-183)."""
+    from integrations.core.lemonsqueezy_client import get_commerce_client
+    from integrations.core.tokens import get_token_manager
+
+    try:
+        result = auth.client.table("platform_connections").select(
+            "credentials_encrypted, metadata"
+        ).eq("user_id", auth.user_id).eq("platform", "commerce").eq(
+            "status", "active"
+        ).single().execute()
+
+        if not result.data:
+            return {
+                "success": False,
+                "error": "No active commerce integration. Connect it in Settings.",
+            }
+
+        token_manager = get_token_manager()
+        api_key = token_manager.decrypt(result.data["credentials_encrypted"])
+
+    except Exception as e:
+        logger.error(f"[PLATFORM-TOOLS] Failed to get commerce credentials: {e}")
+        return {"success": False, "error": "Failed to get commerce credentials"}
+
+    commerce_client = get_commerce_client()
+
+    if tool == "list_products":
+        products = await commerce_client.list_products(api_key=api_key)
+        formatted = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "price": f"${p.price_cents / 100:.2f}",
+                "status": p.status,
+                "subscriber_count": p.subscriber_count,
+                "checkout_url": p.url,
+            }
+            for p in products
+        ]
+        return {"success": True, "result": {"products": formatted, "count": len(formatted)}}
+
+    elif tool == "get_subscribers":
+        product_id = tool_input.get("product_id")
+        subscribers = await commerce_client.get_subscribers(
+            api_key=api_key, product_id=product_id,
+        )
+        formatted = [
+            {
+                "email": s.email,
+                "name": s.name,
+                "status": s.status,
+                "product": s.product_name,
+                "created_at": s.created_at,
+            }
+            for s in subscribers
+        ]
+        return {"success": True, "result": {"subscribers": formatted, "count": len(formatted)}}
+
+    elif tool == "get_revenue":
+        summary = await commerce_client.get_revenue_summary(api_key=api_key)
+        return {
+            "success": True,
+            "result": {
+                "mrr": f"${summary.mrr_cents / 100:.2f}",
+                "total_revenue": f"${summary.total_revenue_cents / 100:.2f}",
+                "active_subscribers": summary.active_subscribers,
+                "total_customers": summary.total_customers,
+                "currency": summary.currency,
+            },
+        }
+
+    elif tool == "get_customers":
+        customers = await commerce_client.get_customers(api_key=api_key)
+        formatted = [
+            {
+                "email": c.email,
+                "name": c.name,
+                "status": c.status,
+                "total_revenue": f"${c.total_revenue_cents / 100:.2f}",
+                "created_at": c.created_at,
+            }
+            for c in customers
+        ]
+        return {"success": True, "result": {"customers": formatted, "count": len(formatted)}}
+
+    elif tool == "create_checkout":
+        product_id = tool_input.get("product_id")
+        if not product_id:
+            return {"success": False, "error": "product_id is required"}
+        url = await commerce_client.create_checkout(
+            api_key=api_key, product_id=product_id,
+        )
+        return {"success": True, "result": {"checkout_url": url}}
+
+    return {"success": False, "error": f"Unknown commerce tool: {tool}"}
 
 
 def is_platform_tool(tool_name: str) -> bool:

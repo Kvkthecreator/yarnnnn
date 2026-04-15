@@ -258,6 +258,33 @@ STEP_INSTRUCTIONS = {
         "Your output: a concise activity digest across observed repositories."
     ),
 
+    # ADR-183: Commerce digest step
+    "commerce-digest": (
+        "You are the Commerce Bot. Your job is to read your commerce platform "
+        "and write business data to your context domains.\n\n"
+        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
+        "If one exists, follow it — it was written by you while context was fresh.\n\n"
+        "For EACH cycle:\n"
+        "1. Fetch products: platform_commerce_list_products\n"
+        "2. Fetch subscribers: platform_commerce_get_subscribers\n"
+        "3. Fetch revenue: platform_commerce_get_revenue\n"
+        "4. Fetch customers: platform_commerce_get_customers\n"
+        "5. Write revenue summary: WriteFile(scope='context', "
+        "domain='revenue', path='summary.md')\n"
+        "6. Write per-product performance: WriteFile(scope='context', "
+        "domain='revenue', path='products/{product-slug}/performance.md') for each product\n"
+        "7. Write customer tracker: WriteFile(scope='context', "
+        "domain='customers', path='_tracker.md')\n\n"
+        "Quantification rules:\n"
+        "- All figures precise: $10,450.23 MRR, 47 active subscribers (not ~50)\n"
+        "- Always include period comparison vs prior cycle when data exists\n"
+        "- Highlight: churn events, new subscriber spikes, revenue milestones\n"
+        "- Skip: $0 test orders, admin-generated transactions\n\n"
+        "Also append a dated signal entry to /workspace/context/signals/ with "
+        "key business metrics.\n\n"
+        "Your output: a business activity digest with precise revenue and subscriber data."
+    ),
+
     "notion-digest": (
         "You are the Notion Bot. Your job is to read selected Notion pages and "
         "write per-page observation files to your context domain.\n\n"
@@ -638,6 +665,101 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Issues and PRs attributed to authors",
                 "Stale PRs (>7 days) flagged",
                 "Skip bot-generated PRs unless they fail",
+            ],
+        },
+    },
+
+    # ── Commerce Tasks (ADR-183: Commerce Substrate) ──
+
+    "commerce-digest": {
+        "display_name": "Commerce Digest",
+        "default_title": "Commerce Digest",
+        "description": "Reads your commerce platform and tracks subscribers, revenue, and product performance.",
+        "output_kind": "accumulates_context",
+        "default_delivery": "none",
+        "registry_default_team": [],
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "html",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "commerce_bot",
+                "step": "commerce-digest",
+                "instruction": STEP_INSTRUCTIONS["commerce-digest"],
+            },
+        ],
+        "context_reads": ["customers", "revenue", "signals"],
+        "context_writes": ["customers", "revenue", "signals"],
+        "context_sources": ["platforms"],
+        "requires_platform": "commerce",
+        "default_objective": {
+            "deliverable": "Commerce activity digest",
+            "audience": "You",
+            "purpose": "Track subscribers, revenue, and product performance",
+            "format": "Scannable digest with precise figures",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "500-1500", "layout": ["Revenue", "Subscribers", "Products", "Orders"]},
+            "assets": [],
+            "quality_criteria": [
+                "Revenue and subscriber counts precise (not rounded)",
+                "Period-over-period comparison included",
+                "Churn events and new subscriber spikes highlighted",
+            ],
+        },
+    },
+
+    "revenue-report": {
+        "display_name": "Revenue Report",
+        "description": "Synthesizes commerce data into a revenue and business intelligence report.",
+        "output_kind": "produces_deliverable",
+        "default_delivery": "email",
+        "registry_default_team": ["analyst", "writer"],
+        "default_mode": "recurring",
+        "default_schedule": "weekly",
+        "output_format": "html",
+        "surface_type": "report",
+        "page_structure": [
+            {"kind": "narrative", "title": "Executive Summary",
+             "reads_from": ["revenue/summary.md", "signals/_tracker.md"]},
+            {"kind": "metric-cards", "title": "Key Metrics",
+             "reads_from": ["revenue/summary.md"]},
+            {"kind": "trend-chart", "title": "Revenue Trend",
+             "reads_from": ["revenue/summary.md"],
+             "assets": [{"type": "derivative", "render": "chart"}]},
+            {"kind": "comparison-table", "title": "Product Performance",
+             "reads_from": ["revenue/products/"]},
+            {"kind": "narrative", "title": "Customer Insights",
+             "reads_from": ["customers/overview.md"]},
+        ],
+        "export_options": ["pdf"],
+        "process": [
+            {
+                "agent_type": "analyst",
+                "step": "derive-output",
+                "instruction": STEP_INSTRUCTIONS["derive-output"],
+            },
+        ],
+        "context_reads": ["revenue", "customers", "signals"],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": "commerce",
+        "default_objective": {
+            "deliverable": "Revenue and business intelligence report",
+            "audience": "You",
+            "purpose": "Synthesize commerce data into business intelligence",
+            "format": "Structured report with metrics and trends",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "1000-2500", "layout": ["Summary", "Metrics", "Product Performance", "Customer Insights"]},
+            "assets": [
+                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Revenue trend"},
+            ],
+            "quality_criteria": [
+                "Revenue figures match source data precisely",
+                "Period-over-period comparisons included",
+                "Per-product performance quantified",
             ],
         },
     },
