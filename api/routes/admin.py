@@ -56,22 +56,30 @@ class AdminOverviewStats(BaseModel):
 
 
 class TokenUsageRow(BaseModel):
-    """Per-day token usage breakdown."""
+    """Per-day token usage breakdown.
+
+    billed_input_tokens: fresh input tokens charged at full rate (excludes cache_read).
+    cache_read_tokens: tokens served from cache at ~10% rate.
+    cache_creation_tokens: tokens written to cache (slightly above input rate).
+    The dashboard previously showed input_tokens from _total_input_tokens() which
+    summed all three — making runs look 2-3x more expensive than they were. Now
+    separated so cost and volume are independently legible.
+    """
     date: str
-    caller: str  # "chat", "task_pipeline", "composer", "other"
+    caller: str  # "chat", "task_pipeline", "other"
     model: str
-    input_tokens: int
+    billed_input_tokens: int   # fresh input only — excludes cache_read
     output_tokens: int
     cache_read_tokens: int
     cache_creation_tokens: int
     api_calls: int
-    estimated_cost_usd: float
+    estimated_cost_usd: float  # accurate: billed_input + cache_read*0.1 + cache_create*1.25 + output
 
 
 class AdminTokenUsage(BaseModel):
     """Token usage analytics."""
     period_days: int
-    total_input_tokens: int
+    total_billed_input_tokens: int
     total_output_tokens: int
     total_cache_read_tokens: int
     total_cache_creation_tokens: int
@@ -129,10 +137,30 @@ def _get_date_threshold(days: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
 
-def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    """Estimate Anthropic cost (not user-facing rate) from token counts and model."""
+def _estimate_cost(
+    model: str,
+    billed_input_tokens: int,
+    output_tokens: int,
+    cache_read_tokens: int = 0,
+    cache_creation_tokens: int = 0,
+) -> float:
+    """Estimate Anthropic cost (not user-facing rate) from token counts and model.
+
+    Cache pricing (Anthropic rates as of 2026-04):
+      cache_read:     10% of input rate
+      cache_creation: 125% of input rate
+    This gives an accurate cost figure rather than treating all input as full-price.
+    """
     pricing = _ANTHROPIC_RATES.get(model, _DEFAULT_ANTHROPIC_RATE)
-    return (input_tokens / 1000 * pricing["input"]) + (output_tokens / 1000 * pricing["output"])
+    input_rate = pricing["input"]
+    output_rate = pricing["output"]
+    cost = (
+        (billed_input_tokens / 1000 * input_rate)
+        + (cache_read_tokens / 1000 * input_rate * 0.10)
+        + (cache_creation_tokens / 1000 * input_rate * 1.25)
+        + (output_tokens / 1000 * output_rate)
+    )
+    return cost
 
 
 # =============================================================================
@@ -226,14 +254,16 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
             .execute()
 
         # Aggregate by day × caller
+        # billed_input_tokens = fresh input only (excludes cache_read).
+        # Separated so the dashboard shows real cost drivers, not inflated totals.
         daily: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(lambda: {
-            "input_tokens": 0, "output_tokens": 0,
+            "billed_input_tokens": 0, "output_tokens": 0,
             "cache_read_tokens": 0, "cache_creation_tokens": 0,
             "api_calls": 0, "model": "",
         }))
 
         totals = {
-            "input_tokens": 0, "output_tokens": 0,
+            "billed_input_tokens": 0, "output_tokens": 0,
             "cache_read_tokens": 0, "cache_creation_tokens": 0,
             "api_calls": 0, "cost": 0.0,
         }
@@ -251,15 +281,15 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
             caller = "task_pipeline"
 
             bucket = daily[date_str][caller]
-            bucket["input_tokens"] += input_t
+            bucket["billed_input_tokens"] += input_t
             bucket["output_tokens"] += output_t
             bucket["cache_read_tokens"] += cache_read
             bucket["cache_creation_tokens"] += cache_create
             bucket["api_calls"] += 1
             bucket["model"] = model
 
-            cost = _estimate_cost(model, input_t, output_t)
-            totals["input_tokens"] += input_t
+            cost = _estimate_cost(model, input_t, output_t, cache_read, cache_create)
+            totals["billed_input_tokens"] += input_t
             totals["output_tokens"] += output_t
             totals["cache_read_tokens"] += cache_read
             totals["cache_creation_tokens"] += cache_create
@@ -282,15 +312,15 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
             caller = "chat"
 
             bucket = daily[date_str][caller]
-            bucket["input_tokens"] += input_t
+            bucket["billed_input_tokens"] += input_t
             bucket["output_tokens"] += output_t
             bucket["cache_read_tokens"] += cache_read
             bucket["cache_creation_tokens"] += cache_create
             bucket["api_calls"] += 1
             bucket["model"] = model
 
-            cost = _estimate_cost(model, input_t, output_t)
-            totals["input_tokens"] += input_t
+            cost = _estimate_cost(model, input_t, output_t, cache_read, cache_create)
+            totals["billed_input_tokens"] += input_t
             totals["output_tokens"] += output_t
             totals["cache_read_tokens"] += cache_read
             totals["cache_creation_tokens"] += cache_create
@@ -302,12 +332,18 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
         for date_str in sorted(daily.keys()):
             for caller, bucket in daily[date_str].items():
                 model = bucket["model"] or "claude-sonnet-4-6"
-                cost = _estimate_cost(model, bucket["input_tokens"], bucket["output_tokens"])
+                cost = _estimate_cost(
+                    model,
+                    bucket["billed_input_tokens"],
+                    bucket["output_tokens"],
+                    bucket["cache_read_tokens"],
+                    bucket["cache_creation_tokens"],
+                )
                 by_day.append(TokenUsageRow(
                     date=date_str,
                     caller=caller,
                     model=model,
-                    input_tokens=bucket["input_tokens"],
+                    billed_input_tokens=bucket["billed_input_tokens"],
                     output_tokens=bucket["output_tokens"],
                     cache_read_tokens=bucket["cache_read_tokens"],
                     cache_creation_tokens=bucket["cache_creation_tokens"],
@@ -315,13 +351,13 @@ async def get_token_usage(admin: AdminAuth, days: int = 7):
                     estimated_cost_usd=round(cost, 4),
                 ))
 
-        # Cache hit %
-        total_cacheable = totals["input_tokens"] + totals["cache_read_tokens"] + totals["cache_creation_tokens"]
+        # Cache hit %: portion of all input-class tokens that were cache hits
+        total_cacheable = totals["billed_input_tokens"] + totals["cache_read_tokens"] + totals["cache_creation_tokens"]
         cache_hit_pct = round(totals["cache_read_tokens"] / total_cacheable * 100, 1) if total_cacheable else 0.0
 
         return AdminTokenUsage(
             period_days=days,
-            total_input_tokens=totals["input_tokens"],
+            total_billed_input_tokens=totals["billed_input_tokens"],
             total_output_tokens=totals["output_tokens"],
             total_cache_read_tokens=totals["cache_read_tokens"],
             total_cache_creation_tokens=totals["cache_creation_tokens"],
@@ -662,7 +698,8 @@ async def export_full_report(admin: AdminAuth):
         row += 1
         for label, value in [
             ("Total API Calls", token_usage.total_api_calls),
-            ("Input Tokens", f"{token_usage.total_input_tokens:,}"),
+            ("Billed Input Tokens", f"{token_usage.total_billed_input_tokens:,}"),
+            ("Cache Read Tokens", f"{token_usage.total_cache_read_tokens:,}"),
             ("Output Tokens", f"{token_usage.total_output_tokens:,}"),
             ("Estimated Cost", f"${token_usage.total_estimated_cost_usd:.2f}"),
             ("Cache Hit %", f"{token_usage.cache_hit_pct:.1f}%"),
@@ -708,7 +745,7 @@ async def export_full_report(admin: AdminAuth):
 
         # --- Token Usage Sheet ---
         ws_tokens = wb.create_sheet("Token Usage")
-        t_headers = ["Date", "Caller", "Model", "Input Tokens", "Output Tokens", "Cache Read", "API Calls", "Cost ($)"]
+        t_headers = ["Date", "Caller", "Model", "Billed Input", "Output Tokens", "Cache Read", "API Calls", "Cost ($)"]
         for col, h in enumerate(t_headers, 1):
             cell = ws_tokens.cell(row=1, column=col, value=h)
             cell.font = header_font
@@ -716,7 +753,7 @@ async def export_full_report(admin: AdminAuth):
             cell.border = thin_border
         for r, row_data in enumerate(token_usage.by_day, 2):
             for c, v in enumerate([row_data.date, row_data.caller, row_data.model,
-                                   row_data.input_tokens, row_data.output_tokens,
+                                   row_data.billed_input_tokens, row_data.output_tokens,
                                    row_data.cache_read_tokens, row_data.api_calls,
                                    row_data.estimated_cost_usd], 1):
                 ws_tokens.cell(row=r, column=c, value=v).border = thin_border

@@ -105,26 +105,9 @@ The directive loop is converging: v6's directive for v7 specifies "2-3 searches,
 
 To hit the target, input tokens need to drop from 207K to ~80-100K per steady-state run.
 
-## Remaining Optimization Path
+## Optimization History
 
-### Product-level (prompt/behavior changes)
-
-1. **Phase-aware search depth**
-   - Bootstrap: 8-16 rounds, broad research (current behavior, justified)
-   - Steady state: 2-4 targeted rounds, delta-focused ("what changed since last cycle?")
-   - Implementation: awareness.md already tracks domain state; prompt should use it to limit scope
-
-2. **Context gathering efficiency**
-   - Currently: `gather_task_context()` reads all entity files in the domain
-   - Target: read only `_tracker.md` (synthesis) + entities modified since last run
-   - Implementation: workspace file `updated_at` filtering
-
-3. **Model routing**
-   - Context tasks (update-context): could use Haiku for entity updates ($0.80/MTok vs $3.00)
-   - Output tasks (competitive-brief, market-report): keep Sonnet for quality
-   - Implementation: task_types registry gets a `model` field
-
-### Infrastructure-level (already done or low priority)
+### Layer 1: Infrastructure (deployed 2026-04-02)
 
 | Fix | Status | Impact |
 |-----|--------|--------|
@@ -133,7 +116,49 @@ To hit the target, input tokens need to drop from 207K to ~80-100K per steady-st
 | Microcompact (history clearing) | Deployed | ~40% on cumulative growth |
 | WebSearch content cap (200K→12K) | Deployed | Prevents extreme cases |
 | Atomic task claim (no duplicates) | Deployed | Eliminates wasted runs |
-| Autocompact (full conversation summary) | Not needed yet | Would help for 15+ round runs |
+
+### Layer 2: Prompt architecture (deployed 2026-04-15)
+
+Three issues identified by deep prompt audit:
+
+**Finding 1: Playbook injection mismatch.** Headless task pipeline was injecting full playbook content (1,500-2,000 tokens per agent role) into the system prompt on every execution. The chat path (TP) correctly used index-only injection (~150 tokens) pointing to workspace files. Every tool round re-sent the full system prompt including playbooks, multiplying the waste.
+
+**Fix A**: `build_task_execution_prompt()` switched to referential index injection, matching the chat path. Saves ~1,500 tokens from the system prompt, applied to every API call in every tool round.
+
+**Finding 2: Context domain pre-loading for context tasks.** `accumulates_context` tasks (track-competitors, track-market, slack-digest) had the same context pre-load budget as `produces_deliverable` tasks — up to 40 files × 3,000 chars (~22K tokens) in the user message. These tasks exist to update context files via tools, not synthesize from them. The pre-loaded context was redundant — the agent reads what it needs via `ReadFile` during tool rounds.
+
+**Fix B**: Output_kind-aware context budget. `accumulates_context` tasks: 8 files max, ceiling 4/domain (loads tracker + synthesis index only). `produces_deliverable` tasks: 30 files, ceiling 10/domain (justified for synthesis). Saves ~15,000-20,000 tokens from user message for context tasks.
+
+**Finding 3: Microcompact keep_recent too conservative for context tasks.** `accumulates_context` tasks use a sequential read→write pattern (read entity → search → write entity → next entity). Keeping 3 recent tool results carries stale entity content forward unnecessarily. `produces_deliverable` tasks synthesize across multiple results so 3 is appropriate.
+
+**Fix D**: `_generate()` now accepts `output_kind`. Context tasks use `keep_recent=2`, deliverable tasks use `keep_recent=3`.
+
+**Fix C (observability)**: Admin dashboard `input_tokens` column renamed to `billed_input_tokens`. Cache_read tokens now shown separately. `_estimate_cost()` updated to apply Anthropic's actual cache pricing (cache_read at 10%, cache_creation at 125%). Previously the cost estimate used full input rate for all tokens, understating cache savings.
+
+### Expected post-Layer-2 steady-state costs
+
+| Task type | Before | After (estimate) | Driver |
+|---|---|---|---|
+| track-competitors (steady) | ~$0.57/run | ~$0.20-0.30/run | Fix A + Fix B |
+| daily-update | ~$0.65/run | ~$0.30-0.40/run | Fix A + Fix B |
+| competitive-brief | ~$0.57/run | ~$0.45-0.50/run | Fix A only (deliverable context unchanged) |
+
+Target of $0.30/run for steady-state context tasks is now within reach.
+
+## Remaining Optimization Path
+
+### Still open
+
+1. **Phase-aware search depth** (no code change yet)
+   - Bootstrap: 8-16 rounds, broad research (current behavior, justified)
+   - Steady state: 2-4 targeted rounds, delta-focused ("what changed since last cycle?")
+   - The awareness.md directive loop is partially doing this already (v6 showed 7→4 searches). May not need explicit code — observe next few cycles.
+
+2. **Model routing** (deferred pending output quality validation)
+   - `system_maintenance` / `external_action` tasks: clear Haiku candidates (mechanical, no synthesis)
+   - `accumulates_context` tasks: Haiku 4.5 borderline — risk of attribution/date accuracy drop under heavy context
+   - Recommendation: pilot system_maintenance on Haiku first, accumulates_context only after manual output review
+   - Implementation: `model` field on task type registry entries, routed in `_generate()`
 
 ## Observability
 

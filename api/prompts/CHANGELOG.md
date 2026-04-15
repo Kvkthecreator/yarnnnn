@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.15.4] - Token optimization: referential playbooks + output_kind-aware context budget
+
+### Changed
+- `api/services/task_pipeline.py` — `build_task_execution_prompt()`: playbook injection switched from **full content** (~1,500-2,000 tokens per agent role, injected every tool round) to **referential index** (~150 tokens, same pattern as `workspace.py load_context()`). Full playbook content lives in the agent's `memory/` workspace files; agent reads via `ReadFile` when needed. Removes the contradiction where headless path injected full content while chat path correctly used index-only.
+- `api/services/task_pipeline.py` — `gather_task_context()`: context domain loading now **output_kind-aware** (two tiers):
+  - `accumulates_context` tasks: budget 8 files (was 40), ceiling 4/domain (was 15), floor 2. Loads tracker + synthesis only — agent fetches entity detail via `ReadFile` tools during execution. Saves ~15,000–20,000 tokens from the user message per run.
+  - `produces_deliverable` tasks: budget 30 files (was 40), ceiling 10/domain (was 15). Richer pre-load justified for synthesis tasks.
+- `api/services/task_pipeline.py` — `_generate()`: gains `output_kind` parameter. Microcompact aggressiveness now output_kind-aware: `accumulates_context` uses `keep_recent=2` (sequential read/write pattern, older results irrelevant), `produces_deliverable` uses `keep_recent=3` (synthesis benefits from broader recent context). All three `_generate()` call sites updated.
+- **Expected behavior**: `accumulates_context` runs (track-competitors, track-market, slack-digest, etc.) should see 50-70% reduction in input token volume per run. System prompt shrinks by ~1,500 tokens. User message context block shrinks from ~22K to ~3-5K tokens for typical 2-domain tasks. `produces_deliverable` tasks mostly unchanged.
+
+### Admin dashboard (not a prompt change — token visibility)
+- `api/routes/admin.py` — `TokenUsageRow.input_tokens` renamed to `billed_input_tokens` (excludes cache_read). Cache_read tokens are now a separate column. Previously `_total_input_tokens()` summed all three, making runs appear 2-3x more expensive than they were.
+- `api/routes/admin.py` — `_estimate_cost()` now accounts for cache pricing: cache_read at 10% of input rate, cache_creation at 125% of input rate. Previous version treated all input as full-price, understating savings from caching.
+
 ## [2026.04.15.3] - Task registry: default_delivery + notion-digest schedule + delivery wiring
 
 ### Changed

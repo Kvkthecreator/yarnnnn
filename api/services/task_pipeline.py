@@ -1176,17 +1176,30 @@ async def gather_task_context(
     # 2. Accumulated context domains — PRIMARY CONTEXT (ADR-151/152)
     # ADR-154 Phase 2: pass task_info for objective-driven entity selection
     #
-    # Budget-driven per-domain cap: instead of a fixed 20-files-per-domain default
-    # that doesn't account for how many domains a task reads, we derive the cap from
-    # a total file budget divided by domain count. One domain gets the full budget;
-    # five domains each get a proportionally smaller slice. This keeps total context
-    # volume predictable regardless of how many domains a task declares.
-    # Budget: 40 files total (roughly ~120K chars / ~30K tokens for the context block).
-    # Per-domain floor: 3 (always enough for synthesis + 2 entities).
-    # Per-domain ceiling: 15 (prevents single-domain tasks from loading unbounded files).
-    _TOTAL_FILE_BUDGET = 40
-    _PER_DOMAIN_FLOOR = 3
-    _PER_DOMAIN_CEILING = 15
+    # Budget-driven per-domain cap: two tiers based on output_kind.
+    #
+    # accumulates_context tasks (update-context step): the agent's job IS to read
+    # and update context files via tools (ReadFile/WriteFile). Pre-loading large
+    # context dumps is redundant — it reads what it needs during tool rounds.
+    # Load only tracker + synthesis (index-level) so the agent knows what exists.
+    # Budget: 8 files total (~7K chars / ~1.8K tokens). Agent fetches detail via tools.
+    #
+    # produces_deliverable tasks (derive-output step): the agent synthesizes from
+    # accumulated context into a final output. It needs richer pre-loaded context
+    # because it's composing, not researching. Larger budget justified.
+    # Budget: 30 files total (~22K chars / ~5.5K tokens).
+    #
+    # Per-domain floor: 3 (synthesis + 2 primary entities minimum).
+    # Per-domain ceiling: 10 for deliverable tasks (prevents unbounded single-domain loads).
+    _output_kind = (task_info or {}).get("output_kind", "produces_deliverable")
+    if _output_kind == "accumulates_context":
+        _TOTAL_FILE_BUDGET = 8
+        _PER_DOMAIN_FLOOR = 2
+        _PER_DOMAIN_CEILING = 4
+    else:
+        _TOTAL_FILE_BUDGET = 30
+        _PER_DOMAIN_FLOOR = 3
+        _PER_DOMAIN_CEILING = 10
     context_domains_text = ""
     if task_info:
         context_reads = task_info.get("context_reads", [])
@@ -1292,14 +1305,31 @@ def build_task_execution_prompt(
     if agent_instructions:
         system += f"\n\n## Agent Instructions\n{agent_instructions}"
 
-    # Agent methodology — craft knowledge from type registry, injected at system level
-    # so it shapes reasoning identity, not buried in gathered context.
-    from services.agent_framework import get_type_playbook
+    # Agent methodology — referential index only (Claude Code pattern).
+    # Full playbook content lives in the agent's memory/ workspace files.
+    # The agent reads them via ReadFile when making methodology decisions.
+    # Injecting full content (1,500-2,000 tokens) into every tool round is
+    # wasteful — the index (~150 tokens) is enough to guide behavior and
+    # tell the agent where to look for detail.
+    from services.agent_framework import PLAYBOOK_METADATA, TASK_OUTPUT_PLAYBOOK_ROUTING, get_type_playbook
     playbooks = get_type_playbook(role)
+    output_kind_for_playbook = task_info.get("output_kind") if task_info else None
     if playbooks:
-        system += "\n\n## Methodology"
-        for filename, content in playbooks.items():
-            system += f"\n\n{content}"
+        relevant_tags = None
+        if output_kind_for_playbook and output_kind_for_playbook in TASK_OUTPUT_PLAYBOOK_ROUTING:
+            relevant_tags = set(TASK_OUTPUT_PLAYBOOK_ROUTING[output_kind_for_playbook])
+        index_lines = ["Your methodology playbooks are in memory/. Read them via ReadFile when making methodology decisions."]
+        for filename in playbooks:
+            meta = PLAYBOOK_METADATA.get(filename, {})
+            desc = meta.get("description", filename.replace("_playbook-", "").replace(".md", ""))
+            name = filename.replace("_playbook-", "").replace(".md", "").replace("-", " ").title()
+            is_relevant = True
+            if relevant_tags is not None:
+                playbook_tags = set(meta.get("tags", "").split(","))
+                is_relevant = bool(relevant_tags & playbook_tags)
+            marker = " ← relevant for this task" if is_relevant else ""
+            index_lines.append(f"- **{name}** (memory/{filename}): {desc}{marker}")
+        system += "\n\n## Methodology\n" + "\n".join(index_lines)
 
     # ADR-174 Phase 1: Workspace conventions — compact structural reference.
     # Injected so agents know where to write files and how without consulting Python code.
@@ -1877,6 +1907,7 @@ async def execute_task(
             client, user_id, agent, system_prompt, user_message, scope,
             task_phase=task_phase,
             task_slug=task_slug,
+            output_kind=output_kind,
         )
 
         # Strip agent reflection before delivery (ADR-128/149)
@@ -2486,6 +2517,7 @@ async def _execute_pipeline(
         draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
             task_slug=task_slug,
+            output_kind=task_info.get("output_kind", "produces_deliverable"),
         )
 
         # Strip assessment
@@ -2827,11 +2859,15 @@ async def _generate(
     scope: str,
     task_phase: str = "steady",
     task_slug: str = "",
+    output_kind: str = "produces_deliverable",
 ) -> tuple[str, dict, list, list, int]:
     """Run the headless generation loop.
 
     Returns (draft, usage, pending_renders, tools_used, tool_rounds).
     ADR-154: tools_used and tool_rounds returned for awareness.md.
+    output_kind: used to tune microcompact aggressiveness. accumulates_context
+    tasks make many small tool writes so keep_recent=2 keeps history lean.
+    produces_deliverable tasks benefit from keep_recent=3 for richer synthesis context.
     """
     from services.anthropic import chat_completion_with_tools
     from services.primitives.registry import get_headless_tools_for_agent, create_headless_executor
@@ -2894,6 +2930,11 @@ async def _generate(
     total_cache_create = 0
     draft = ""
 
+    # accumulates_context tasks make many small sequential writes (ReadFile → WriteFile
+    # per entity). keeping only 2 recent results is sufficient and cuts re-sent history
+    # faster. produces_deliverable tasks synthesize across results so 3 gives richer context.
+    _microcompact_keep = 2 if output_kind == "accumulates_context" else 3
+
     for round_num in range(max_tool_rounds + 1):
         # Microcompact: clear old tool results from history before each call.
         # Without this, 13 rounds of WebSearch accumulate geometrically —
@@ -2901,7 +2942,7 @@ async def _generate(
         # the most recent results are kept; older ones become stubs.
         # CC uses the same pattern (maybeTimeBasedMicrocompact).
         if round_num >= 2:
-            _microcompact_tool_history(messages, keep_recent=3)
+            _microcompact_tool_history(messages, keep_recent=_microcompact_keep)
 
         response = await chat_completion_with_tools(
             messages=messages,
@@ -3648,9 +3689,10 @@ async def _execute_direct(
                 "text": "\n".join(skill_lines),
             })
 
-        # Generate
+        # Generate (legacy single-agent path — no output_kind, default to produces_deliverable)
         draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
+            output_kind="produces_deliverable",
         )
 
         draft, agent_reflection = _extract_agent_reflection(draft)
