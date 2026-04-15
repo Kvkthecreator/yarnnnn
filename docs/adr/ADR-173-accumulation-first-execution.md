@@ -50,7 +50,7 @@ Before generating output, agents receive:
 2. Prior run awareness (from `awareness.md` — already injected, ADR-154)
 3. Explicit prompt guidance: check `outputs/latest/` before generating; reuse existing assets; identify what's missing vs. stale vs. current
 
-Agents are instructed: "The gap is the only work." They should call `ReadFile(path="outputs/latest/output.md")` when prior output is relevant, and check `outputs/latest/hero.png` exists before calling `RuntimeDispatch` for a hero image.
+**ADR-182 mechanizes this principle:** For `produces_deliverable` tasks, prior output and output inventory are now pre-gathered mechanically (zero LLM) and injected into the prompt. The agent no longer needs to call `ReadFile(path="outputs/latest/output.md")` — it's already in the prompt as `## Prior Output`. Asset existence is declared in `## Output Inventory`. This converts the accumulation-first behavioral instruction into a mechanical guarantee.
 
 **Layer 3 (TP — conversational):**
 Before proposing a task trigger or generating content on behalf of the user, TP should:
@@ -85,6 +85,7 @@ The `sys_manifest.json` at `outputs/latest/sys_manifest.json` bridges these patt
 | ADR-159 (Filesystem-as-Memory) | Compact index for TP is the same principle applied to conversational context; this ADR extends it to generative actions |
 | ADR-170 (Compose Substrate) | `sys_manifest.json` and staleness detection already implement this principle for the compose layer; this ADR generalizes it to all execution layers |
 | ADR-072 (Unified Content Layer / Accumulation Moat) | The moat thesis requires accumulation at the storage layer AND at the execution layer; this ADR closes the execution layer gap |
+| ADR-182 (Pre-Gather Pipeline Optimization) | Mechanizes the accumulation-first principle: prior output and output inventory are pre-gathered at zero LLM cost and injected into the prompt. Converts behavioral instruction into mechanical guarantee. Enables reduced tool surface for `produces_deliverable` tasks (agent no longer needs read tools — all context is pre-loaded). |
 
 ### What Phase 1 Changes (Prompt Layer)
 

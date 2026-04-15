@@ -53,23 +53,28 @@ Cron-triggered, deterministic, SQL-based.
 
 Mechanical pipeline triggered by Layer 1. No decision-making — just execution.
 
+Two internal phases (**ADR-182**: pre-gather pipeline optimization):
+
+- **Phase A — Mechanical Context Assembly** (zero LLM): read TASK.md, resolve agent, gather all predictable context (domain files, entity trackers, prior output, agent identity, user notes). This is `gather_task_context()` — pure SQL queries against `workspace_files`.
+- **Phase B — LLM Synthesis**: all context pre-loaded in prompt. For `produces_deliverable` tasks (reports, briefs, digests), reduced tool surface (write + assets only, no read tools) and 0-1 tool rounds. For `accumulates_context` tasks, full tool surface preserved (agent writes to domain files during execution).
+
 ```
 Scheduler triggers task
-    → Read TASK.md (objective, criteria, output spec, agent slug)
-    → Resolve agent (DB lookup by slug)
-    → Read AGENT.md (identity, expertise)
-    → Read agent memory/ (accumulated knowledge)
-    → Search /knowledge/ (relevant workspace context)
-    → Build execution prompt (task objective + agent identity + context)
-    → Generate output (ONE Sonnet call, multi-tool-round)
-    → Self-check against criteria (ONE Haiku call, optional)
-    → Save output to /tasks/{slug}/outputs/{date}/
-    → Compose HTML (render service call, non-fatal)
-    → Append to memory/run_log.md
-    → Write to /knowledge/ (accumulation)
-    → Deliver per TASK.md config
-    → Update tasks.last_run_at + calculate next_run_at
-    → Write activity event
+    → Phase A (mechanical):
+        → Read TASK.md (objective, criteria, output spec, agent slug)
+        → Resolve agent (DB lookup by slug)
+        → Read AGENT.md (identity, expertise)
+        → Read agent memory/ (accumulated knowledge)
+        → Search /workspace/context/ (domain files, entity profiles, trackers)
+        → Read prior output + output inventory (ADR-182)
+    → Phase B (LLM):
+        → Build execution prompt (task objective + agent identity + context)
+        → Generate output (Sonnet — reduced tools for deliverable tasks, full for accumulation)
+    → Post-generation:
+        → Save output to /tasks/{slug}/outputs/{date}/
+        → Compose HTML (render service call, non-fatal)
+        → Deliver per TASK.md config
+        → Update tasks.last_run_at + calculate next_run_at
 ```
 
 **Layer 3: TP Intelligence (LLM cost = orchestration)**
@@ -127,17 +132,17 @@ async def run_unified_scheduler():
 
 ### Cost model
 
-| Action | LLM | Cost per execution |
-|---|---|---|
-| Check if task is due | None (SQL) | $0 |
-| Execute task (generate) | Sonnet | ~$0.03-0.08 |
-| Self-check output | Haiku (optional) | ~$0.001 |
-| Compose HTML | None (render service) | $0 |
-| TP heartbeat (every 6h) | Sonnet | ~$0.01 |
-| User chat message | Sonnet | ~$0.01 |
-| Health flag check | None (SQL) | $0 |
+| Action | LLM | Cost per execution | With ADR-182 |
+|---|---|---|---|
+| Check if task is due | None (SQL) | $0 | $0 |
+| Context assembly (Phase A) | None (SQL) | $0 | $0 |
+| Execute task — produces_deliverable | Sonnet | ~$0.05-0.12 (multi-round) | ~$0.03-0.06 (single-round) |
+| Execute task — accumulates_context | Sonnet | ~$0.05-0.08 | ~$0.05-0.08 (unchanged) |
+| Compose HTML | None (render service) | $0 | $0 |
+| TP heartbeat (every 6h) | Sonnet | ~$0.01 | ~$0.01 |
+| User chat message | Sonnet | ~$0.01 | ~$0.01 |
 
-User with 5 weekly tasks: ~$0.25/week generation + $0.28/week heartbeats = **~$0.53/week**.
+User with 5 weekly produces_deliverable tasks: ~$0.15-0.30/week (with ADR-182) vs ~$0.25-0.60/week (current).
 
 ---
 

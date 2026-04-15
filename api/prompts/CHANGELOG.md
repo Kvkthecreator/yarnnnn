@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.15.8] - ADR-182: Pre-gather pipeline optimization (Proposed)
+
+### Changed
+- `docs/adr/ADR-182-pre-gather-pipeline-optimization.md` — NEW ADR: split Layer 2 task execution into Phase A (mechanical context assembly, zero LLM) and Phase B (LLM synthesis, reduced tools). For `produces_deliverable` tasks, all predictable reads are pre-gathered mechanically. Generation step runs with reduced tool surface (WriteFile + RuntimeDispatch only), 0-1 tool rounds instead of 3-5.
+- `docs/monetization/TOKEN-ECONOMICS-ANALYSIS.md` — Section 6 updated: item 5 replaced with ADR-182, Haiku pre-screen superseded, Batch API reframed as stacking optimization on top of pre-gather. Section 8 updated with ADR-182 as batch prerequisite.
+- `docs/adr/ADR-141-unified-execution-architecture.md` — Layer 2 pipeline description updated with Phase A/B split. Cost model table updated with ADR-182 column.
+- `docs/adr/ADR-173-accumulation-first-execution.md` — Layer 2 section updated: ADR-182 mechanizes the accumulation-first principle. Architecture Integration table gains ADR-182 row.
+- `docs/architecture/agent-execution-model.md` — Pipeline steps restructured into Phase A (mechanical) and Phase B (LLM). Context Gathering and Generation sections rewritten for output_kind-aware tool surface. Cost model table updated.
+- Expected behavior: No runtime changes yet (Proposed status). When implemented: produces_deliverable tasks complete in 1 LLM round instead of 3-5, ~50% per-task cost reduction. Accumulates_context and external_action tasks unchanged.
+
 ## [2026.04.15.7] - ADR-181: Inference + TP prompt guidance — Phase 3
 
 ### Changed

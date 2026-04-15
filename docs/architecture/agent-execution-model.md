@@ -85,28 +85,37 @@ No LLM calls. No decision-making. Pure SQL queries and dispatch.
 
 `api/services/task_pipeline.py` — the generation pipeline.
 
+### Two internal phases (ADR-182)
+
+**Phase A — Mechanical Context Assembly** (zero LLM): steps 1-6 below. Pure SQL reads against `workspace_files` + DB lookups. Materializes all predictable context into the generation prompt. For `produces_deliverable` tasks, this includes prior output and output inventory — the agent receives everything it needs without tool rounds.
+
+**Phase B — LLM Synthesis**: step 7-8. For `produces_deliverable` tasks: reduced tool surface (`WriteFile` + `RuntimeDispatch` only), 0-1 tool rounds. For `accumulates_context` tasks: full headless tool set, standard tool rounds (agent writes to domain files during execution).
+
 ### Task-first entry: `execute_task(client, user_id, task_slug)`
 
 Used by scheduler for due tasks.
 
 ```
 execute_task(client, user_id, task_slug)
-├── 1. Read TASK.md (objective, criteria, output spec, agent slug)
-├── 2. Resolve agent (DB lookup by slug)
-├── 2b. ADR-164 dispatch: if agent.role == 'thinking_partner' → _execute_tp_task() (back office path, skips LLM)
-├── 3. Check work budget
-├── 4. Create agent_runs record
-├── 5. Read AGENT.md + agent memory + preferences
-├── 6. Gather context (knowledge base + agent workspace)
-├── 7. Build prompt (task objective + agent identity + context)
-├── 8. Generate (Sonnet, multi-tool-round headless loop)
-├── 9. Save output to /tasks/{slug}/outputs/ + /agents/{slug}/outputs/
-├── 10. Write to /knowledge/ (accumulation)
-├── 11. Compose HTML (render service, non-fatal)
-├── 12. Deliver per TASK.md config
-├── 13. Update tasks.last_run_at + calculate next_run_at
-├── 14. Post-generation: self-observation, agent reflection (ADR-149), agent card
-└── 15. Work units only (ADR-164: task_executed activity_log write removed — agent_runs row is authoritative)
+├── Phase A — Mechanical Context Assembly (zero LLM):
+│   ├── 1. Read TASK.md (objective, criteria, output spec, agent slug)
+│   ├── 2. Resolve agent (DB lookup by slug)
+│   ├── 2b. ADR-164 dispatch: if agent.role == 'thinking_partner' → _execute_tp_task() (back office path, skips LLM)
+│   ├── 3. Check work budget
+│   ├── 4. Create agent_runs record
+│   ├── 5. Read AGENT.md + agent memory + preferences
+│   └── 6. Gather context (domain files, entity trackers, prior output, agent workspace)
+├── Phase B — LLM Synthesis:
+│   ├── 7. Build prompt (task objective + agent identity + pre-gathered context)
+│   └── 8. Generate (Sonnet — reduced tools for deliverable, full for accumulation)
+├── Post-generation:
+│   ├── 9. Save output to /tasks/{slug}/outputs/ + /agents/{slug}/outputs/
+│   ├── 10. Write to /knowledge/ (accumulation)
+│   ├── 11. Compose HTML (render service, non-fatal)
+│   ├── 12. Deliver per TASK.md config
+│   ├── 13. Update tasks.last_run_at + calculate next_run_at
+│   ├── 14. Post-generation: self-observation, agent reflection (ADR-149), agent card
+│   └── 15. Work units only (ADR-164: task_executed activity_log write removed — agent_runs row is authoritative)
 ```
 
 **Back office dispatch (ADR-164)**: when step 2 resolves the assigned agent and finds `role == 'thinking_partner'`, control hands off to `_execute_tp_task()` which reads the TASK.md `## Process` section for an `executor: <dotted.path>` directive, imports the module, calls its `run(client, user_id, task_slug)` async function, writes the structured output to the standard outputs folder, updates `next_run_at`, and returns. Back office tasks bypass steps 3-15 entirely — no credit check, no LLM, no agent_runs row. See [ADR-164](../adr/ADR-164-back-office-tasks-tp-as-agent.md).
@@ -122,23 +131,29 @@ execute_agent_run(client, user_id, agent)
 └── 2b. If no task → _execute_direct() (taskless generation)
 ```
 
-### Context Gathering
+### Context Gathering (Phase A — Mechanical)
 
 Replaces the old strategy pattern (PlatformBound/CrossPlatform/Analyst/Research).
 
-One function: `gather_task_context()`. Reads from:
-1. Agent workspace (AGENT.md, thesis, memory, observations) via `ws.load_context()`
-2. Knowledge base (`/knowledge/` — includes platform content synced by platform sync)
-3. User memories (`/memory/notes.md`)
+One function: `gather_task_context()`. Zero LLM cost. Reads from:
+1. Task awareness (`awareness.md` — execution state across cycles)
+2. Source scope (selected platform sources per task)
+3. Domain tracker + entity files (objective-matched from `context_reads`/`context_writes`)
+4. Accumulated context domains (`/workspace/context/`)
+5. Agent identity + playbooks (`ws.load_context()`)
+6. User notes (`notes.md`)
+7. Prior output + output inventory (ADR-182 — `outputs/latest/output.md` + file listing)
 
 No strategy selection. No scope-based routing. One path.
 
-### Generation
+### Generation (Phase B — LLM)
 
 Reuses the headless agent loop pattern:
 - Model: Sonnet
-- Tools: mode-gated headless primitives (Search, Read, List, WebSearch, GetSystemState)
-- Tool rounds: scope-aware (platform=2, cross_platform=3, knowledge=3, research=6, autonomous=8)
+- Tools: **output_kind-aware** (ADR-182):
+  - `produces_deliverable`: reduced set (`WriteFile` + `RuntimeDispatch`), 0-1 tool rounds — all reads pre-gathered
+  - `accumulates_context`: full headless primitives, standard tool rounds — agent writes to domain files
+  - `external_action`: full headless + platform tools
 - Safety: narration stripping, short-output retry, max-tokens handling
 
 ---
@@ -218,15 +233,16 @@ Primitives declare which modes they are available in via two explicit registries
 
 ## Cost Model
 
-| Action | LLM | Cost per execution |
-|--------|-----|-------------------|
-| Check if task is due | None (SQL) | $0 |
-| Execute task (generate) | Sonnet | ~$0.03-0.08 |
-| Compose HTML | None (render service) | $0 |
-| User chat message | Sonnet | ~$0.01 |
-| Composer heartbeat | Haiku | ~$0.001 |
+| Action | LLM | Cost per execution | With ADR-182 |
+|--------|-----|-------------------|---|
+| Check if task is due | None (SQL) | $0 | $0 |
+| Mechanical context assembly | None (SQL) | $0 | $0 |
+| Execute produces_deliverable | Sonnet | ~$0.05-0.12 (multi-round) | ~$0.03-0.06 (single-round) |
+| Execute accumulates_context | Sonnet | ~$0.05-0.08 | ~$0.05-0.08 (unchanged) |
+| Compose HTML | None (render service) | $0 | $0 |
+| User chat message | Sonnet | ~$0.01 | ~$0.01 |
 
-User with 5 weekly tasks: ~$0.25/week generation + $0.03/week heartbeats = **~$0.28/week**.
+User with 5 weekly produces_deliverable tasks: ~$0.15-0.30/week (with ADR-182) vs ~$0.25-0.60/week (current).
 
 ---
 

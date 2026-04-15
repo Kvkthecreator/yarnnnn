@@ -255,13 +255,13 @@ This is <3% of total cost for any paying user. **Acceptable for production.**
 4. Execution lock — prevents duplicate runs
 
 ### High-Impact (Recommended Pre-Launch)
-5. **Batch API for scheduled tasks** — Anthropic Batch API is 50% off for non-real-time. All scheduled task runs qualify. Would cut per-task cost from $0.05-0.08 to **$0.025-0.04**.
-6. **Haiku pre-screen for tasks** — before each Sonnet run, a Haiku call checks "has anything changed since last run?" (~$0.002). Skips Sonnet ($0.05-0.08) when content is stale. Estimated 30-50% of daily task runs would skip.
+5. **Pre-gather pipeline optimization (ADR-182)** — Split task execution into mechanical context assembly (zero LLM) and single-shot synthesis (one Sonnet call). Eliminates 2-3 tool rounds from `produces_deliverable` tasks. A typical 4-round task drops from ~90K cumulative input tokens to ~18K (single round). **~50% per-task cost reduction** on the highest-volume execution path. Also makes synthesis-only tasks batch-eligible (see #7).
+6. ~~**Haiku pre-screen for tasks**~~ — **Superseded by ADR-182.** Pre-gather phase mechanically detects context staleness (prior manifest, domain state) at zero LLM cost. No Haiku call needed.
 
 ### Medium-Impact (Post-Launch)
-7. **Output diffing** — compare current run's output to last run. If <10% changed, skip delivery (saves render/email cost, not LLM cost).
-8. **Context compression** — gathered workspace context (up to 20K chars) could be summarized by Haiku first, reducing Sonnet input by ~60%.
-9. **Tool definition caching** — currently all 14-16 tool schemas are sent every call (~5-7K tokens). With prompt caching these are cheap, but moving to a smaller tool set for simple tasks would help.
+7. **Batch API for pre-gathered tasks** — Once ADR-182 Phase 2 validates single-shot synthesis, `produces_deliverable` scheduled runs become batch-eligible (50% off via Anthropic Batch API). Stacks with ADR-182: per-task cost drops from $0.12 → $0.06 (ADR-182) → **$0.03** (ADR-182 + Batch). Trigger: monthly task execution cost exceeds ~$300. See ADR-182 Phase 3, TOKEN-ECONOMICS Section 8.
+8. **Output diffing** — compare current run's output to last run. If <10% changed, skip delivery (saves render/email cost, not LLM cost).
+9. **Context compression** — ~~gathered workspace context (up to 20K chars) could be summarized by Haiku first, reducing Sonnet input by ~60%~~ **Partially addressed by ADR-182** — pre-gathered context is already budget-capped and entity-matched. Remaining opportunity: Haiku pre-summarization of large domain files before Sonnet synthesis.
 
 ### Low-Impact
 10. **Haiku for simple tasks** — briefer/monitor roles produce short-form outputs. Could use Haiku ($0.001-0.003) instead of Sonnet ($0.05-0.08) for 95% cost reduction on these task types.
@@ -334,9 +334,11 @@ At current scale (3 users, ~5 runs/week): saves ~$0.45/week. Not worth the compl
 
 **Trigger point: ~50+ Pro users with daily tasks.** At that scale: 50 users × 4 daily tasks × 30 days × $0.06 × 50% = **~$180/month saved**. Justifies the 2-3 day investment.
 
-### Decision (2026-03-30)
+### Decision (2026-03-30, updated 2026-04-15)
 
 **Defer Batch API until user scale justifies it.** The composer fix (commit a5a2246) saves more at current scale than Batch API would. Revisit when monthly task execution cost exceeds ~$300.
+
+**Update (ADR-182):** Pre-gather pipeline optimization is a prerequisite for Batch API eligibility. Today, most task runs require tool loops (multi-round) and cannot use batch. ADR-182 Phase 2 eliminates tool rounds from `produces_deliverable` tasks, making them single-shot — batch-eligible. Implement ADR-182 first, then route pre-gathered synthesis calls through Batch API for stacked 75% savings.
 
 ---
 
