@@ -26,8 +26,12 @@ INFERENCE_MODEL = "claude-sonnet-4-6"
 
 DELIVERABLE_INFERENCE_PROMPT = """You are updating a task's deliverable specification based on accumulated feedback.
 
-Read the feedback entries below. Each entry is a user correction or a system evaluation.
-Identify PATTERNS — recurring preferences, repeated corrections, quality expectations.
+Read the feedback entries below. Entries come from three sources (ADR-181):
+- **User feedback** (source: user_conversation, user_edit) — direct user corrections
+- **TP evaluation** (source: evaluation) — quality assessment against DELIVERABLE.md
+- **System verification** (source: system_verification) — deterministic checks (staleness, coverage gaps, low confidence)
+
+All sources are equal signals. Identify PATTERNS — recurring preferences, repeated corrections, quality expectations, structural issues.
 
 Update ONLY the "## User Preferences (inferred)" section of the deliverable spec.
 Preserve ALL other sections exactly as they are (Expected Output, Expected Assets,
@@ -39,6 +43,9 @@ RULES:
 - Maximum 10 preferences (prioritize most-cited patterns)
 - Be specific: "executive summary ≤3 sentences" not "keep it concise"
 - Include both positive patterns (things to keep doing) and negative (things to stop)
+- System verification signals about staleness or coverage indicate structural issues —
+  translate them into deliverable preferences (e.g., "ensure all tracked entities have
+  data fresher than 14 days" or "minimum 5 entity profiles before synthesis")
 - If existing preferences are still valid, keep them
 - If a preference has been addressed consistently for 3+ cycles, it can be promoted
   to Quality Criteria (note this, but don't modify Quality Criteria yourself)

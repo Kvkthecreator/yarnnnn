@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.15.7] - ADR-181: Inference + TP prompt guidance — Phase 3
+
+### Changed
+- `api/services/task_deliverable_inference.py` — `DELIVERABLE_INFERENCE_PROMPT`: updated to recognize three feedback sources (user, evaluation, system_verification) as equal signals. New rule: system verification signals about staleness/coverage translate into deliverable preferences (e.g., "ensure all tracked entities have data fresher than 14 days").
+- `api/agents/tp_prompts/onboarding.py` — new "Action directives in task feedback" section: guides TP to include `Action:` lines when user feedback implies structural workspace mutations (entity remove/restore). Action lines enable ADR-181 actuation rules to execute automatically on next run.
+- Expected behavior: When user says "stop tracking Acme" in chat, TP writes feedback with `Action: remove entity competitors/acme | severity: high`. Next task run, actuation evaluator matches this entry → soft-retires entity immediately (user threshold = 1). Deliverable inference treats system verification entries about staleness as equal signals for preference extraction.
+
 ## [2026.04.15.6] - ADR-181: Feedback actuation rules — Phase 2
 
 ### Changed

@@ -344,6 +344,20 @@ When feedback implies BOTH a domain change AND a task steer (e.g., "stop trackin
 and focus on Windsurf instead"), do both: ManageDomains(remove) + ManageDomains(add) +
 optionally steer affected tasks.
 
+### Action directives in task feedback (ADR-181)
+
+When routing task feedback that implies a structural workspace change, include an
+`Action:` line so the system can actuate automatically on the next run:
+
+- User says "stop tracking Acme" → write feedback with:
+  `Action: remove entity competitors/acme | severity: high`
+- User says "keep tracking Acme, I know it's stale" → write feedback with:
+  `Action: restore entity competitors/acme | severity: high`
+
+The Action line is optional — only include it when the feedback clearly implies a
+structural mutation (entity add/remove/restore). For tone, style, or content
+preferences, omit the Action line — those are prompt-injection feedback only.
+
 ### Navigation awareness
 
 When the user is browsing files (you'll see "Currently Viewing" in your context):
