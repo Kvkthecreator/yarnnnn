@@ -881,6 +881,40 @@ async def _post_run_domain_scan(
         except Exception as e:
             logger.warning(f"[TASK_EXEC] System verification failed (non-fatal): {e}")
 
+        # ── ADR-181: Evaluate actuation rules → execute qualifying mutations ──
+        try:
+            from services.feedback_actuation import evaluate_actuation_rules, age_out_system_entries
+            from services.feedback_distillation import _read_task_feedback
+
+            actuations = await evaluate_actuation_rules(tw, task_slug, task_info)
+            if actuations:
+                awareness_lines.append("\n## Actuation Log")
+                for act in actuations:
+                    if act.get("error"):
+                        awareness_lines.append(
+                            f"- **{act['rule']}** {act['target']}: error — {act['error']}"
+                        )
+                    else:
+                        result = act.get("result", {})
+                        awareness_lines.append(
+                            f"- **{act['rule']}** {act['target']}: "
+                            f"{result.get('action', 'done')} ({act['source']}, "
+                            f"{act['count']} entries)"
+                        )
+                logger.info(
+                    f"[TASK_EXEC] {len(actuations)} actuation(s) for {task_slug}"
+                )
+
+            # Age out stale system entries
+            feedback_content = await _read_task_feedback(tw)
+            if feedback_content:
+                aged = age_out_system_entries(feedback_content)
+                if aged != feedback_content:
+                    await tw.write("feedback.md", aged,
+                                  summary="ADR-181: age out system verification entries")
+        except Exception as e:
+            logger.warning(f"[TASK_EXEC] Actuation evaluation failed (non-fatal): {e}")
+
         awareness_content = "\n".join(awareness_lines) + "\n"
         await tw.write("awareness.md", awareness_content,
                       summary=f"Task awareness update v{version_number}")

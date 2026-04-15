@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.15.6] - ADR-181: Feedback actuation rules — Phase 2
+
+### Changed
+- NEW `api/services/feedback_actuation.py` — actuation rule registry + evaluation engine + executors. Four rules: `remove_entity` (user threshold 1), `stale_entity` (system threshold 3), `restore_entity` (user threshold 1), `expand_coverage` (prompt-only, no mutation). User override detection: if user-sourced restore/keep entry exists for an entity, stale_entity actuation is suppressed.
+- `api/services/task_pipeline.py` — `_post_run_domain_scan()` gains two new steps after system verification: (1) `evaluate_actuation_rules()` matches feedback entries against rules and executes qualifying mutations, (2) `age_out_system_entries()` removes system entries older than 3 runs (15 entries). Actuation log appended to awareness.md.
+- Three actuation executors: `_actuate_remove_entity` (soft-retires via ManageDomains pattern — inactive marker + tracker rebuild), `_actuate_stale_entity` (delegates to remove with stale_retirement reason), `_actuate_restore_entity` (removes inactive marker + tracker rebuild).
+- Entry age-out: system verification entries capped at 3 runs × 5 entries = 15 max. User entries never aged out (persist until inference distills them into DELIVERABLE.md).
+- Expected behavior: User says "stop tracking Acme" → TP writes Action: remove entity competitors/acme → next run actuates immediately (threshold 1). System flags entity stale 3 consecutive runs → actuates soft-retire (threshold 3). User says "keep tracking Acme" → overrides stale actuation for that entity.
+
 ## [2026.04.15.5] - ADR-181: Source-agnostic feedback layer — Phase 1
 
 ### Changed

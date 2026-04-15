@@ -1,7 +1,7 @@
 # ADR-181: Source-Agnostic Feedback Layer
 
 **Date:** 2026-04-15
-**Status:** Phase 1 Implemented (2026-04-15)
+**Status:** Phase 1-2 Implemented (2026-04-15)
 **Extends:** ADR-149 (Task Lifecycle), ADR-151 (Shared Context Domains), ADR-154 (Post-Run Domain Scan), ADR-162 (Inference Hardening)
 **Supersedes:** Feedback portions of FEEDBACK-LOOP.md (surface affordance design preserved; architectural model replaced)
 
