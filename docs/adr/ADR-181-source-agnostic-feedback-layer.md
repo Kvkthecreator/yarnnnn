@@ -313,13 +313,68 @@ Post-run in `_post_run_domain_scan()`. Reads all entries, matches against `FEEDB
 
 **Cost:** Prompt changes only. No new code paths.
 
-### Phase 4 — Frontend affordances (from FEEDBACK-LOOP.md)
+### Phase 4 — Frontend affordances
 
-1. `FeedbackStrip` component on Work detail (user feedback input mechanism)
-2. Domain health indicators on Context surface (reads _tracker.md)
-3. Actuation log visibility in task detail (reads awareness.md)
+Three surfaces gain feedback affordances. All use prompt-relay to TP chat (no new primitives, no CRUD).
 
-**Cost:** Frontend only. No backend changes.
+#### 4a. FeedbackStrip on Work detail (from FEEDBACK-LOOP.md)
+
+New component: `web/components/work/details/FeedbackStrip.tsx`
+
+Sits below KindMiddle in `WorkDetail`, above AssignedAgentFooter. Only rendered when `last_run_at` is set (task has produced output).
+
+Per-output_kind buttons (prompt relays via `onOpenChat(prompt)`):
+
+| output_kind | Primary | Secondary | Universal |
+|-------------|---------|-----------|-----------|
+| `produces_deliverable` | "This looks good" | "Something's off" | Edit in TP |
+| `accumulates_context` | "Looks comprehensive" | "Missing something" | Edit in TP |
+| `external_action` | "Delivery was right" | "Adjust what's sent" | Edit in TP |
+| `system_maintenance` | — (no strip) | — | — |
+
+Daily-update special case: no "This looks good" (ambient, not evaluated). Only "Something's off" + Edit in TP.
+
+#### 4b. Context-sensitive "Edit via chat" on Files surface
+
+The Context/Files surface currently has no affordance for the user to act on what they see. Add an "Edit via chat" action that pre-fills TP chat with context about what the user is viewing.
+
+**Three placement contexts:**
+
+| Viewing | Button label | Pre-filled prompt |
+|---------|-------------|-------------------|
+| Domain folder (`/workspace/context/competitors/`) | "Edit via chat" (MessageSquare icon) | `"Adjust what's tracked in competitors: "` |
+| Entity subfolder (`/workspace/context/competitors/acme/`) | "Edit via chat" | `"About the competitor acme: "` |
+| File (`profile.md`, `summary.md`, etc.) | "Edit via chat" | `"About this file ({relative path}): "` |
+
+**Implementation:** Add an "Edit via chat" button to `ContentViewer.tsx`:
+- In `DirectoryView` header (domain/entity folder): next to the folder name
+- In `FileView` header (file): alongside Open/Download in `FileActions`
+
+The button calls the existing `sendMessage` (or navigates to chat with pre-fill) with the context-appropriate prompt. TP already receives surface context (`type: "context"` with navigation path) in the chat panel, so it knows what the user is looking at.
+
+**Why prompt-relay, not inline editing:** Editing a domain entity may involve ManageDomains (add/remove), ManageTask (adjust tracking scope), or UpdateContext (feedback). TP routes to the right primitive. A CRUD interface would need to expose all these operations directly, fragmenting the single-intelligence-layer.
+
+#### 4c. Domain health indicators on Context surface
+
+Read `_tracker.md` per domain to show health signals in the tree nav and directory view:
+
+- **Tree node badge:** entity count + freshness indicator (green/amber/red based on staleness ratio)
+- **Directory header:** "5 entities · 3 current · 2 stale" summary line
+- **Entity row indicator:** colored dot (green = current, amber = stale, gray = inactive)
+
+Data source: `_tracker.md` is already available via the workspace API. Parse the tracker table to extract entity status and last-updated timestamps.
+
+#### 4d. Actuation log visibility in Work detail
+
+Read `awareness.md` `## Actuation Log` section and render it in `WorkDetail` when present:
+
+- Below `TrackingMiddle` (for `accumulates_context` tasks) or below `DeliverableMiddle`
+- Collapsible panel: "System actions" with a list of recent actuations
+- Each entry: timestamp + action + entity + reason
+
+This makes the system's autonomous corrections visible without requiring the user to browse awareness.md.
+
+**Cost:** Frontend only. No backend changes. All data sources already exist.
 
 ---
 
@@ -335,12 +390,14 @@ Post-run in `_post_run_domain_scan()`. Reads all entries, matches against `FEEDB
 
 ---
 
-## Open questions
+## Resolved questions
 
-1. **Feedback entry cap:** Currently 10 entries in feedback.md. With system verification writing entries every run, this cap may be reached quickly for daily tasks. Options: raise cap, separate system entries into a different section, or age out system entries faster than user entries.
+1. **Feedback entry cap:** System entries age out after 3 runs (max 15 system entries). User entries persist until inference distills them into DELIVERABLE.md. Implemented in `age_out_system_entries()` in `feedback_actuation.py`.
 
-2. **Actuation override priority:** If user writes "keep tracking Acme" but system verification keeps flagging it as stale, which wins? Proposed: user intent always wins. A user-sourced entry with contradicting action cancels the system actuation for that entity. The override is pattern-matched, not permanent — if the user later says nothing and staleness persists, actuation resumes.
+2. **Actuation override priority:** User intent always wins. `evaluate_actuation_rules()` checks for user-sourced "restore"/"keep tracking" entries that contradict system stale-entity actuation. Override is scoped to the presence of the user entry — if the user entry ages out and staleness persists, actuation resumes.
 
-3. **Cross-task actuation:** An entity retirement in one tracking task's feedback should affect the shared domain (workspace-scoped, not task-scoped). Actuation on entity removal should call the workspace-level ManageDomains logic, not a task-scoped operation. This is already how ManageDomains works — confirming no gap here.
+3. **Cross-task actuation:** Confirmed no gap. Entity retirement calls workspace-level ManageDomains logic (writes to `/workspace/context/{domain}/` which is shared across all tasks). Actuation in one task's feedback.md affects the domain for all tasks that read it.
 
-4. **Feedback.md migration:** Existing tasks have `memory/feedback.md`. Migration strategy: read from both paths, write to new path only. Old path becomes a dead symlink naturally as new entries accumulate in the new location.
+4. **Feedback.md migration:** Read-both implemented. All readers check `feedback.md` (task root) first, fall back to `memory/feedback.md`. All writers write to `feedback.md` only. Old path naturally becomes stale as new entries accumulate in the new location. No migration script needed.
+
+5. **Chat-time vs pipeline-time actuation:** User-sourced structural changes (entity removal) execute immediately via ManageDomains in the same chat turn. The feedback entry with `Action:` line is the audit trail + safety net — if the direct call failed, the pipeline actuation evaluator catches it on next run. System-sourced actions only actuate post-run (no user present to want immediacy).
