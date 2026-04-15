@@ -521,8 +521,8 @@ export function WorkDetail({
           metadata={metadata}
           actions={actions}
         />
-        {/* Objective block — all kinds (describes task purpose) */}
-        <ObjectiveBlock task={task} />
+        {/* Objective block — all kinds except system_maintenance (TP-owned back office, no user-authored objective) */}
+        {task.output_kind !== 'system_maintenance' && <ObjectiveBlock task={task} />}
       </div>
 
       {/* Scrollable output region */}

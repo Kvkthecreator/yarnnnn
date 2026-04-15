@@ -4,6 +4,12 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-15 — SURFACE-DISPLAY-MAP.md: ground-truth component matrix
+
+**New doc**: `SURFACE-DISPLAY-MAP.md` — single reference for what each surface actually renders. Covers Work (list mode + detail mode per output_kind) and Context/Files (tree roots + center panel dispatch per node type). Ground-truth from code (`WorkDetail.tsx`, `*Middle.tsx`, `context/page.tsx`, `WorkspaceTree.tsx`, `ContentViewer.tsx`), not narrative docs. Establishes the three-surface user journey (Work → judgment gap → Context), cross-surface correspondence table (which output_kinds have Context representation vs. not), and component inventory. Documents known gaps (no FeedbackStrip yet, ObjectiveBlock renders for all kinds in code vs. spec saying produces_deliverable only).
+
+---
+
 ## 2026-04-15 — Design folder cleanup: archive pass + route alignment
 
 **Archived to `docs/design/archive/`** (content superseded by current ADRs and docs):

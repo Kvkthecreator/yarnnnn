@@ -7,7 +7,7 @@
  *
  * Four top-level sections:
  *   Context  — accumulated domain knowledge (/workspace/context/)
- *   Outputs  — task deliverables (/tasks/{slug}/outputs/latest/) [ADR-180]
+ *   Reports  — rendered deliverables from produces_deliverable tasks (/tasks/{slug}/outputs/latest/) [ADR-180]
  *   Uploads  — user-contributed files (/workspace/uploads/)
  *   Settings — workspace identity/brand/conventions files
  *
@@ -125,10 +125,10 @@ function buildContextNodes(input: {
       children: domainChildren,
     },
     {
-      name: 'Outputs',
+      name: 'Reports',
       path: `${EXPLORER_ROOT_PATH}/outputs`,
       type: 'folder' as const,
-      summary: outputChildren.length ? `${outputChildren.length} tasks` : 'No outputs yet',
+      summary: outputChildren.length ? `${outputChildren.length} reports` : 'No reports yet',
       children: outputChildren,
     },
     {
