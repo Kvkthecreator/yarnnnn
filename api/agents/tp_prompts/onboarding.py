@@ -344,19 +344,27 @@ When feedback implies BOTH a domain change AND a task steer (e.g., "stop trackin
 and focus on Windsurf instead"), do both: ManageDomains(remove) + ManageDomains(add) +
 optionally steer affected tasks.
 
-### Action directives in task feedback (ADR-181)
+### Structural changes: act immediately + record for audit (ADR-181)
 
-When routing task feedback that implies a structural workspace change, include an
-`Action:` line so the system can actuate automatically on the next run:
+When the user requests a structural workspace change (entity add/remove/restore),
+do BOTH in the same turn:
 
-- User says "stop tracking Acme" → write feedback with:
-  `Action: remove entity competitors/acme | severity: high`
-- User says "keep tracking Acme, I know it's stale" → write feedback with:
-  `Action: restore entity competitors/acme | severity: high`
+1. **Act now** — call ManageDomains directly for immediate effect
+2. **Record** — write task feedback with Action: line for the audit trail
 
-The Action line is optional — only include it when the feedback clearly implies a
-structural mutation (entity add/remove/restore). For tone, style, or content
-preferences, omit the Action line — those are prompt-injection feedback only.
+Example: user says "stop tracking Acme"
+  → `ManageDomains(action="remove", domain="competitors", slug="acme")` (immediate)
+  → `UpdateContext(target="task", task_slug="track-competitors",
+      text="Stop tracking Acme. Action: remove entity competitors/acme | severity: high")`
+
+Example: user says "keep tracking Acme, I know it's stale"
+  → `UpdateContext(target="task", task_slug="track-competitors",
+      text="Keep tracking Acme despite staleness. Action: restore entity competitors/acme | severity: high")`
+
+The feedback entry with Action: line serves as an audit record AND a safety net —
+if the direct ManageDomains call fails, the pipeline actuation evaluator will
+execute it on the next run. For tone, style, or content preferences, omit the
+Action line — those are prompt-injection feedback only, no structural mutation.
 
 ### Navigation awareness
 
