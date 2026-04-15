@@ -6,7 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.04.15.8] - ADR-182: Pre-gather pipeline optimization (Proposed)
+## [2026.04.15.9] - ADR-182: Pre-gather pipeline optimization — Phase 1+2 implementation
+
+### Changed
+- `api/services/task_pipeline.py` — `gather_task_context()`: new section 5 (after user notes) pre-loads prior output (`outputs/latest/output.md`, truncated to 3000 chars) and output inventory (file listing of `outputs/latest/`) for all task modes. Non-fatal — read failures are logged and skipped.
+- `api/services/task_pipeline.py` — `_generate()`: gains `tool_overrides: Optional[list[dict]]` and `max_rounds_override: Optional[int]` params. When set, bypasses default full headless tool resolution and scope-based round limits.
+- `api/services/task_pipeline.py` — `execute_task()`: for `produces_deliverable` tasks (except bootstrap phase), passes reduced tool surface (`WriteFile` + `RuntimeDispatch` only) and `max_rounds_override=2` to `_generate()`.
+- `api/services/task_pipeline.py` — `build_task_execution_prompt()`: "Accumulation-First Execution" section rewritten — references pre-loaded prior output and output inventory. "Tool Usage" section rewritten — tells agent all context is pre-gathered, produce output directly.
+- Expected behavior: `produces_deliverable` tasks complete in 0-1 tool rounds instead of 3-5. ~50% input token savings (eliminated geometric growth from multi-round tool history). Bootstrap phase excluded (first runs keep full tool surface). `accumulates_context` and `external_action` tasks unchanged.
+
+## [2026.04.15.8] - ADR-182: Pre-gather pipeline optimization (docs-only)
 
 ### Changed
 - `docs/adr/ADR-182-pre-gather-pipeline-optimization.md` — NEW ADR: split Layer 2 task execution into Phase A (mechanical context assembly, zero LLM) and Phase B (LLM synthesis, reduced tools). For `produces_deliverable` tasks, all predictable reads are pre-gathered mechanically. Generation step runs with reduced tool surface (WriteFile + RuntimeDispatch only), 0-1 tool rounds instead of 3-5.
@@ -14,7 +23,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 - `docs/adr/ADR-141-unified-execution-architecture.md` — Layer 2 pipeline description updated with Phase A/B split. Cost model table updated with ADR-182 column.
 - `docs/adr/ADR-173-accumulation-first-execution.md` — Layer 2 section updated: ADR-182 mechanizes the accumulation-first principle. Architecture Integration table gains ADR-182 row.
 - `docs/architecture/agent-execution-model.md` — Pipeline steps restructured into Phase A (mechanical) and Phase B (LLM). Context Gathering and Generation sections rewritten for output_kind-aware tool surface. Cost model table updated.
-- Expected behavior: No runtime changes yet (Proposed status). When implemented: produces_deliverable tasks complete in 1 LLM round instead of 3-5, ~50% per-task cost reduction. Accumulates_context and external_action tasks unchanged.
+- Expected behavior: docs-only change. Runtime implementation in 2026.04.15.9.
 
 ## [2026.04.15.7] - ADR-181: Inference + TP prompt guidance — Phase 3
 

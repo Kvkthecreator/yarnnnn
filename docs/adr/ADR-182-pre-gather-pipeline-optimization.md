@@ -1,6 +1,6 @@
 # ADR-182: Pre-Gather Pipeline Optimization — Mechanical Context Assembly
 
-> **Status**: Proposed
+> **Status**: Phase 1-2 Implemented (extended gathering + output_kind-aware tool surface)
 > **Date**: 2026-04-15
 > **Authors**: KVK, Claude
 > **Extends**: ADR-141 (Unified Execution Architecture), ADR-173 (Accumulation-First Execution)
@@ -168,32 +168,30 @@ If produces_deliverable tasks become single-shot (no tools), they qualify for Ba
 
 ## Implementation
 
-### Phase 1: Extended mechanical gathering (Proposed)
+### Phase 1: Extended mechanical gathering (Implemented 2026-04-15)
 
-Extend `gather_task_context()` with three additional read sources:
+Extended `gather_task_context()` with two additional read sources (cross-domain entity matching deferred):
 
-1. **Prior output for all modes** (not just goal): read `outputs/latest/output.md`, truncate to 3000 chars, inject as `## Prior Output (latest run)`.
-2. **Output inventory**: read `outputs/latest/` file listing, inject as compact `## Output Inventory` section.
-3. **Cross-domain entity matching**: when `context_reads` has multiple domains, load matching-slug entities across domains.
+1. **Prior output for all modes**: reads `outputs/latest/output.md`, truncates to 3000 chars, injects as `## Prior Output (latest run)`. Graceful degradation: first run has no prior output, section is omitted.
+2. **Output inventory**: reads `outputs/latest/` file listing, injects as compact `## Output Inventory (outputs/latest/)` section. Filters out `sys_*` internal files. Shows filename + date.
 
-Estimated effort: 0.5 days. No schema changes. No new files.
+Key implementation: added as section 5 in `gather_task_context()`, after user notes. Non-fatal — any read failure is logged and skipped.
 
-### Phase 2: Reduced tool surface for produces_deliverable (Proposed)
+### Phase 2: Reduced tool surface for produces_deliverable (Implemented 2026-04-15)
 
-In `execute_task()`, after determining `output_kind`:
+In `execute_task()`, after determining `output_kind`, produces_deliverable tasks (except bootstrap phase) get a reduced tool surface:
 
 ```python
-if output_kind == "produces_deliverable":
-    # Synthesis-only: no read tools needed, all context pre-gathered
-    headless_tools = [WRITE_FILE_TOOL, RUNTIME_DISPATCH_TOOL]
-    max_tool_rounds = 2  # asset generation only
-else:
-    # Full tool surface for accumulation + external tasks
-    headless_tools = await get_headless_tools_for_agent(...)
-    max_tool_rounds = _TOOL_ROUNDS.get(scope, 5)
+if output_kind == "produces_deliverable" and task_phase != "bootstrap":
+    _tool_overrides = [WRITE_FILE_TOOL, RUNTIME_DISPATCH_TOOL]
+    _max_rounds_override = 2  # asset generation only
 ```
 
-Estimated effort: 0.5 days. Prompt changes to tell agent all context is pre-loaded.
+`_generate()` gained two new optional params: `tool_overrides: Optional[list[dict]]` and `max_rounds_override: Optional[int]`. When set, these bypass the default full headless tool resolution and scope-based round limits.
+
+Bootstrap phase is excluded — first runs need full tool surface for deep research.
+
+Prompt updated: "Accumulation-First Execution" and "Tool Usage" sections in `build_task_execution_prompt()` rewritten to reflect pre-loaded context model. Agent is told prior output and inventory are already in gathered context.
 
 ### Phase 3: Batch API eligibility (Deferred)
 

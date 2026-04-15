@@ -1275,6 +1275,7 @@ async def gather_task_context(
     3. Accumulated context domains (WHAT) — /workspace/context/ files
     4. Agent identity (WHO) — AGENT.md only (no thesis, no working notes)
     5. User notes — workspace-level standing instructions
+    6. Prior output + output inventory (ADR-182) — pre-gathered for all modes
 
     Returns:
         (context_text, context_metadata)
@@ -1399,6 +1400,36 @@ async def gather_task_context(
             sections.append(f"## User Notes\n{notes}")
     except Exception as e:
         logger.debug(f"[TASK_EXEC] User memory read failed: {e}")
+
+    # 5. ADR-182: Prior output + output inventory (pre-gathered for all modes)
+    # Pre-loads what agents would otherwise fetch via ReadFile/ListFiles tool rounds.
+    # For produces_deliverable tasks this eliminates 2-3 read-only tool rounds.
+    if task_slug:
+        try:
+            tw = TaskWorkspace(client, user_id, task_slug)
+
+            # 5a. Prior output excerpt — truncated to avoid token bloat
+            prior_md = await tw.read("outputs/latest/output.md")
+            if prior_md and prior_md.strip():
+                _MAX_PRIOR = 3000
+                excerpt = prior_md[:_MAX_PRIOR]
+                if len(prior_md) > _MAX_PRIOR:
+                    excerpt += "\n\n[... truncated — full output available via ReadFile]"
+                sections.append(f"## Prior Output (latest run)\n{excerpt}")
+
+            # 5b. Output inventory — compact file listing so agent knows what assets exist
+            output_files = await tw.list("outputs/latest/")
+            if output_files:
+                inventory_lines = ["## Output Inventory (outputs/latest/)"]
+                for f in output_files:
+                    fname = f.get("path", "").rsplit("/", 1)[-1] if isinstance(f, dict) else str(f)
+                    updated = f.get("updated_at", "")[:10] if isinstance(f, dict) else ""
+                    if fname and not fname.startswith("sys_"):  # skip internal manifests
+                        inventory_lines.append(f"- {fname} (EXISTS{', ' + updated if updated else ''})")
+                if len(inventory_lines) > 1:
+                    sections.append("\n".join(inventory_lines))
+        except Exception as e:
+            logger.debug(f"[TASK_EXEC] ADR-182 prior output/inventory read failed (non-fatal): {e}")
 
     context_text = "\n\n".join(sections) if sections else "(No context available)"
 
@@ -1525,24 +1556,24 @@ Your workspace accumulates across runs. Before generating anything, understand w
 
 **The principle:** Read the current state → identify the gap → produce only what's missing or stale.
 
-**What to check before generating:**
-1. **DELIVERABLE.md** (already in your context below) — what's the quality target?
-2. **Prior output** — if `outputs/latest/output.md` exists, read it before rewriting. Don't start from scratch if a prior version is current.
-3. **Assets** — if a hero image or chart was generated in a prior run (check `outputs/latest/`), reuse it. Call `RuntimeDispatch` only if it doesn't exist or is stale.
+**What to check before generating (all pre-loaded in your context below):**
+1. **DELIVERABLE.md** — what's the quality target?
+2. **Prior Output** — if a prior run produced output, it's included below as "Prior Output (latest run)". Don't start from scratch if that version is current.
+3. **Output Inventory** — if assets (images, charts) exist from a prior run, they're listed below as "Output Inventory". Reuse them. Call `RuntimeDispatch` only for missing or stale assets.
 4. **Domain state** — the gathered context shows what entities and signals exist. Work with what's there; identify true gaps before searching externally.
 
 **The gap is the only work.** A section that was accurate last run and whose source data hasn't changed should be preserved, not regenerated. A section with stale source data gets updated. A missing section gets written fresh. This is delta generation, not full regeneration.
 
 ## Tool Usage (Headless Mode)
-You have read-only investigation tools: SearchFiles, ReadFile, ListFiles, QueryKnowledge, WebSearch, GetSystemState.
+All relevant context has been pre-gathered and included below. In most cases, you have everything needed to produce your output directly.
 
 **Decision order — follow this sequence:**
 1. Read the gathered context below first. Most tasks have enough to generate from.
-2. Identify a specific gap ("I have Q1 data but no Q2", "I see company names but no pricing").
-3. Call ONE tool to fill that specific gap. Check the result.
-4. If still insufficient and a second gap is clear, call ONE more. Stop there unless critical.
+2. Produce your output directly from the provided context.
+3. If you have asset generation tools (RuntimeDispatch), use them only for missing assets (check the Output Inventory).
+4. If you have investigation tools and identify a specific gap ("I have Q1 data but no Q2"), call ONE tool to fill it. Stop there unless critical.
 
-**WebSearch principles:**
+**WebSearch principles (when available):**
 - Call WebSearch only when gathered context is genuinely stale or missing external data.
 - Be specific: `WebSearch(query="Acme Corp pricing 2025")` not `WebSearch(query="Acme")`.
 - Use `context=` to narrow scope: `WebSearch(query="latest releases", context="AI coding tools")`.
@@ -2072,12 +2103,30 @@ async def execute_task(
         # Agent writes prose with inline data tables + mermaid blocks.
         # Post-generation render phase (render_inline_assets) handles chart/diagram rendering.
 
-        # Generate via headless agent (multi-tool-round)
+        # =====================================================================
+        # ADR-182: Output-kind-aware tool surface
+        # produces_deliverable tasks have all context pre-gathered (Phase A).
+        # Agent only needs WriteFile (save output) + RuntimeDispatch (assets).
+        # This eliminates 2-3 read-only tool rounds, ~50% input token savings.
+        # accumulates_context / external_action keep full tool surface.
+        # =====================================================================
+        _tool_overrides = None
+        _max_rounds_override = None
+        if output_kind == "produces_deliverable" and task_phase != "bootstrap":
+            from services.primitives.workspace import WRITE_FILE_TOOL
+            from services.primitives.runtime_dispatch import RUNTIME_DISPATCH_TOOL
+            _tool_overrides = [WRITE_FILE_TOOL, RUNTIME_DISPATCH_TOOL]
+            _max_rounds_override = 2  # asset generation only
+            logger.info(f"[TASK_EXEC] ADR-182: reduced tool surface for produces_deliverable ({task_slug})")
+
+        # Generate via headless agent
         draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
             task_phase=task_phase,
             task_slug=task_slug,
             output_kind=output_kind,
+            tool_overrides=_tool_overrides,
+            max_rounds_override=_max_rounds_override,
         )
 
         # Strip agent reflection before delivery (ADR-128/149)
@@ -3030,6 +3079,8 @@ async def _generate(
     task_phase: str = "steady",
     task_slug: str = "",
     output_kind: str = "produces_deliverable",
+    tool_overrides: Optional[list[dict]] = None,
+    max_rounds_override: Optional[int] = None,
 ) -> tuple[str, dict, list, list, int]:
     """Run the headless generation loop.
 
@@ -3038,6 +3089,11 @@ async def _generate(
     output_kind: used to tune microcompact aggressiveness. accumulates_context
     tasks make many small tool writes so keep_recent=2 keeps history lean.
     produces_deliverable tasks benefit from keep_recent=3 for richer synthesis context.
+
+    ADR-182: tool_overrides and max_rounds_override allow callers to pass a
+    reduced tool surface for produces_deliverable tasks where all context is
+    pre-gathered mechanically. When set, these override the default full
+    headless tool set and scope-based round limits.
     """
     from services.anthropic import chat_completion_with_tools
     from services.primitives.registry import get_headless_tools_for_agent, create_headless_executor
@@ -3047,20 +3103,28 @@ async def _generate(
     )
 
     role = agent.get("role", "custom")
-    max_tool_rounds = _TOOL_ROUNDS.get(scope, 5)
 
-    # ADR-154: Bootstrap phase gets 2x tool rounds — deep research on first run
-    if task_phase == "bootstrap":
-        max_tool_rounds = max_tool_rounds * _BOOTSTRAP_ROUND_MULTIPLIER
+    if max_rounds_override is not None:
+        max_tool_rounds = max_rounds_override
+    else:
+        max_tool_rounds = _TOOL_ROUNDS.get(scope, 5)
 
-    # Agents with asset capabilities (chart, mermaid, image) need more rounds
-    from services.agent_framework import has_asset_capabilities
-    if has_asset_capabilities(role):
-        max_tool_rounds = max(max_tool_rounds, 6)
+        # ADR-154: Bootstrap phase gets 2x tool rounds — deep research on first run
+        if task_phase == "bootstrap":
+            max_tool_rounds = max_tool_rounds * _BOOTSTRAP_ROUND_MULTIPLIER
 
-    headless_tools = await get_headless_tools_for_agent(
-        client, user_id, agent=agent, agent_sources=[],
-    )
+        # Agents with asset capabilities (chart, mermaid, image) need more rounds
+        from services.agent_framework import has_asset_capabilities
+        if has_asset_capabilities(role):
+            max_tool_rounds = max(max_tool_rounds, 6)
+
+    if tool_overrides is not None:
+        # ADR-182: caller provided a reduced tool surface (e.g., synthesis-only)
+        headless_tools = tool_overrides
+    else:
+        headless_tools = await get_headless_tools_for_agent(
+            client, user_id, agent=agent, agent_sources=[],
+        )
     executor = create_headless_executor(
         client, user_id,
         agent_sources=[],
