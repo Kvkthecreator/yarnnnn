@@ -1,17 +1,18 @@
 """
-Task Deliverable Inference — ADR-149 Phase 5
+Task Deliverable Inference — ADR-149 Phase 5, updated ADR-181.
 
-Reads task memory/feedback.md → infers user preferences → merges into
+Reads task feedback.md → infers user preferences → merges into
 DELIVERABLE.md "User Preferences (inferred)" section.
 
 Same pattern as context_inference.py (ADR-144) but scoped to task deliverable
 quality. TP triggers this after feedback accumulates — not mechanical, judgment-based.
 
-Two signal sources feed this inference:
+Three signal sources feed this inference (ADR-181: source-agnostic layer):
   1. User feedback (source: user_edit, user_conversation) — what the user corrected
   2. TP evaluation (source: evaluation) — what TP assessed as gaps
+  3. System verification (source: system_verification) — what deterministic checks flagged
 
-Both are read equally. The inference distills patterns into structured preferences
+All are read equally. The inference distills patterns into structured preferences
 that shape future output quality.
 """
 
@@ -68,8 +69,8 @@ async def infer_task_deliverable_preferences(
         logger.info(f"[DELIVERABLE_INFERENCE] No DELIVERABLE.md for {task_slug}")
         return None
 
-    # Read feedback.md
-    feedback = await tw.read("memory/feedback.md")
+    # ADR-181: feedback.md at task root (fallback to memory/feedback.md for migration)
+    feedback = await tw.read("feedback.md") or await tw.read("memory/feedback.md")
     if not feedback or feedback.strip() == "# Task Feedback":
         logger.info(f"[DELIVERABLE_INFERENCE] No feedback entries for {task_slug}")
         return None

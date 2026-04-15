@@ -1,17 +1,18 @@
 """
-Feedback Distillation — ADR-143 Phase 2, updated ADR-154.
+Feedback Distillation — ADR-143 Phase 2, updated ADR-154, ADR-181.
 
-Routes user feedback signals to the appropriate task's memory/feedback.md.
+Routes user feedback signals to the appropriate task's feedback.md.
 ADR-154: Feedback is per-task (HOW), not per-agent (WHO).
+ADR-181: feedback.md promoted to task root (peer of TASK.md, DELIVERABLE.md).
 
 Two write paths:
   1. Edit-based — called from agents.py PATCH run endpoint. Resolves task_slug
-     from the run's metadata, writes to /tasks/{slug}/memory/feedback.md.
+     from the run's metadata, writes to /tasks/{slug}/feedback.md.
   2. Conversational — called by TP via UpdateContext(target="agent" or "deliverable").
      For agent-targeted feedback with no task context, writes to the agent's
      most recent task's feedback file.
 
-The task pipeline reads memory/feedback.md on every run via build_task_execution_prompt().
+The task pipeline reads feedback.md on every run via build_task_execution_prompt().
 """
 
 from __future__ import annotations
@@ -218,13 +219,14 @@ def _build_feedback_entry(run: dict) -> str:
 
 async def _append_feedback_to_task(tw, new_entry: str) -> None:
     """
-    Append a feedback entry to task memory/feedback.md (newest first, capped).
+    Append a feedback entry to task feedback.md (newest first, capped).
 
     ADR-154: Writes to TaskWorkspace, not AgentWorkspace.
+    ADR-181: feedback.md at task root (peer of TASK.md, DELIVERABLE.md).
     """
-    existing = await tw.read("memory/feedback.md") or ""
+    existing = await _read_task_feedback(tw)
 
-    header = "# Task Feedback\n<!-- User corrections + TP evaluations. Newest first. ADR-149/154. -->\n\n"
+    header = "# Task Feedback\n<!-- Source-agnostic feedback layer. Newest first. ADR-181. -->\n\n"
 
     entries = re.split(r"(?=^## )", existing, flags=re.MULTILINE)
     entries = [e.strip() for e in entries if e.strip() and e.strip().startswith("## ")]
@@ -234,7 +236,20 @@ async def _append_feedback_to_task(tw, new_entry: str) -> None:
     content = header + "\n\n".join(entries) + "\n"
 
     await tw.write(
-        "memory/feedback.md",
+        "feedback.md",
         content,
-        summary="ADR-154: feedback entry (task-level)",
+        summary="ADR-181: feedback entry (task-level)",
     )
+
+
+async def _read_task_feedback(tw) -> str:
+    """Read task feedback.md with migration fallback.
+
+    ADR-181: Primary path is feedback.md at task root.
+    Falls back to memory/feedback.md for pre-ADR-181 tasks.
+    """
+    content = await tw.read("feedback.md")
+    if content:
+        return content
+    # Migration fallback — read from old location
+    return await tw.read("memory/feedback.md") or ""

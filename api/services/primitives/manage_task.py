@@ -523,8 +523,8 @@ EVALUATE_MODEL = "claude-haiku-4-5-20251001"  # Cost-conscious evaluation
 async def _handle_evaluate(auth: Any, task_slug: str) -> dict:
     """Evaluate latest task output against DELIVERABLE.md quality spec.
 
-    ADR-149: TP reads output + DELIVERABLE.md → produces structured quality
-    assessment → writes to memory/feedback.md (source: evaluation).
+    ADR-149/181: TP reads output + DELIVERABLE.md → produces structured quality
+    assessment → writes to feedback.md at task root (source: evaluation).
 
     Returns assessment dict for TP to act on (steer, complete, or no action).
     """
@@ -653,7 +653,7 @@ Return ONLY the JSON object, no other text."""
         logger.error(f"[MANAGE_TASK] Evaluation LLM call failed: {e}")
         return {"success": False, "error": "evaluation_failed", "message": str(e)}
 
-    # Write evaluation to memory/feedback.md (source: evaluation)
+    # ADR-181: Write evaluation to feedback.md (task root, source-agnostic layer)
     now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y-%m-%d %H:%M")
     eval_entry = (
@@ -666,7 +666,8 @@ Return ONLY the JSON object, no other text."""
     )
 
     try:
-        existing_feedback = await tw.read("memory/feedback.md") or ""
+        # ADR-181: Read from new path, fallback to old for migration
+        existing_feedback = await tw.read("feedback.md") or await tw.read("memory/feedback.md") or ""
         # Prepend (newest first)
         if existing_feedback.startswith("# Task Feedback"):
             header = existing_feedback.split("\n", 2)
@@ -674,13 +675,14 @@ Return ONLY the JSON object, no other text."""
             updated = f"{header[0]}\n{header[1] if len(header) > 1 else ''}\n\n{eval_entry}\n{rest}"
         else:
             updated = f"# Task Feedback\n\n{eval_entry}\n{existing_feedback}"
-        await tw.write("memory/feedback.md", updated,
+        # ADR-181: Write to task root
+        await tw.write("feedback.md", updated,
                       summary=f"Evaluation: {assessment.get('criteria_met', '?')} criteria met")
     except Exception as e:
         logger.warning(f"[MANAGE_TASK] Evaluation write to feedback.md failed: {e}")
 
     # ADR-164: task_evaluated activity_log write removed. Evaluation is
-    # written to /tasks/{slug}/memory/feedback.md (ADR-149) — that file is
+    # written to /tasks/{slug}/feedback.md (ADR-181) — that file is
     # the authoritative record. No denormalization.
 
     # ADR-178: TP-initiated inference trigger. If feedback.md has ≥2 entries
@@ -688,7 +690,8 @@ Return ONLY the JSON object, no other text."""
     # in the same evaluate turn (preserves ADR-156 single intelligence layer).
     inference_triggered = False
     try:
-        feedback_content = await tw.read("memory/feedback.md") or ""
+        # ADR-181: Read from task root, fallback to old path for migration
+        feedback_content = await tw.read("feedback.md") or await tw.read("memory/feedback.md") or ""
         entry_count = len(re.findall(r"^## ", feedback_content, re.MULTILINE))
         deliverable_content = await tw.read("DELIVERABLE.md") or ""
         # Check last inference timestamp from DELIVERABLE.md metadata comment
@@ -981,7 +984,7 @@ async def _handle_create(auth: Any, input: dict) -> dict:
     3. Resolve agent(s) — from pipeline or explicit agent_slug
     4. Create DB row in tasks table (with auto-suffix on slug collision)
     5. Write TASK.md via TaskWorkspace
-    6. Scaffold DELIVERABLE.md (ADR-149) + memory/feedback.md + memory/steering.md + awareness.md
+    6. Scaffold DELIVERABLE.md (ADR-149) + feedback.md (ADR-181) + memory/steering.md + awareness.md
     7. Scaffold context domains for task's context_writes (ADR-151)
     8. Update WORKSPACE.md manifest
     9. Trigger immediate first run if warranted (bootstrap tasks or goal mode)
@@ -1239,10 +1242,10 @@ async def _handle_create(auth: Any, input: dict) -> dict:
             await tw.write("DELIVERABLE.md", custom_deliverable,
                           summary=f"Deliverable spec for {title}", tags=["deliverable", "spec"])
 
-        # ADR-149: Seed empty task memory files
-        await tw.write("memory/feedback.md",
-                      "# Task Feedback\n<!-- User corrections + TP evaluations. Newest first. ADR-149. -->\n",
-                      summary="ADR-149: task feedback file", tags=["memory"])
+        # ADR-181: Seed empty feedback file at task root (source-agnostic layer)
+        await tw.write("feedback.md",
+                      "# Task Feedback\n<!-- Source-agnostic feedback layer. Newest first. ADR-181. -->\n",
+                      summary="ADR-181: task feedback file", tags=["feedback"])
         await tw.write("memory/steering.md",
                       "# Steering Notes\n<!-- TP management notes for next cycle. Overwritten per evaluation. ADR-149. -->\n",
                       summary="ADR-149: task steering file", tags=["memory"])

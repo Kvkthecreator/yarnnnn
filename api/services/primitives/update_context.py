@@ -69,7 +69,7 @@ For awareness: full replacement — write your current understanding as a living
             "feedback_target": {
                 "type": "string",
                 "enum": ["deliverable", "criteria", "objective", "output_spec", "run_log"],
-                "description": "For target='task': where to route feedback. 'deliverable' (default) writes to memory/feedback.md for DELIVERABLE.md inference. Others patch TASK.md sections directly."
+                "description": "For target='task': where to route feedback. 'deliverable' (default) writes to feedback.md for DELIVERABLE.md inference. Others patch TASK.md sections directly."
             },
             "document_contents": {
                 "type": "array",
@@ -361,10 +361,10 @@ async def _handle_agent_feedback(auth: Any, input: dict) -> dict:
 
 
 async def _handle_task_feedback(auth: Any, input: dict) -> dict:
-    """Write task-specific feedback to memory/feedback.md (default) or TASK.md sections.
+    """Write task-specific feedback to feedback.md (default) or TASK.md sections.
 
-    ADR-149/151: feedback_target="deliverable" (default) writes to memory/feedback.md
-    for DELIVERABLE.md inference. Other targets patch TASK.md sections directly.
+    ADR-149/181: feedback_target="deliverable" (default) writes to feedback.md
+    (task root) for DELIVERABLE.md inference. Other targets patch TASK.md directly.
     """
     from services.task_workspace import TaskWorkspace
     from datetime import datetime, timezone
@@ -385,9 +385,10 @@ async def _handle_task_feedback(auth: Any, input: dict) -> dict:
         date_str = now.strftime("%Y-%m-%d %H:%M")
 
         if feedback_target == "deliverable":
-            # ADR-149: Primary path — write to memory/feedback.md for DELIVERABLE.md inference
+            # ADR-181: Primary path — write to feedback.md (task root) for DELIVERABLE.md inference
             entry = f"## User Feedback ({date_str}, source: user_conversation)\n- {feedback_text}\n"
-            existing = await tw.read("memory/feedback.md") or ""
+            # ADR-181: Read from new path, fallback to old for migration
+            existing = await tw.read("feedback.md") or await tw.read("memory/feedback.md") or ""
             # Prepend (newest first)
             if existing.startswith("# Task Feedback"):
                 header_lines = existing.split("\n", 2)
@@ -395,7 +396,8 @@ async def _handle_task_feedback(auth: Any, input: dict) -> dict:
                 updated = f"{header_lines[0]}\n{header_lines[1] if len(header_lines) > 1 else ''}\n\n{entry}\n{rest}"
             else:
                 updated = f"# Task Feedback\n\n{entry}\n{existing}"
-            await tw.write("memory/feedback.md", updated,
+            # ADR-181: Write to task root
+            await tw.write("feedback.md", updated,
                           summary=f"User feedback: {feedback_text[:50]}")
             return {"success": True, "message": f"Feedback recorded for {task_slug} (will inform next run via DELIVERABLE.md inference)"}
 

@@ -867,12 +867,146 @@ async def _post_run_domain_scan(
         else:
             awareness_lines.append("- All entities current. Discover new entities or deepen existing profiles.")
 
+        # ── ADR-181: System verification → write entries to feedback.md ──
+        try:
+            await _compute_system_verification(
+                tw=tw,
+                task_slug=task_slug,
+                task_info=task_info,
+                stale_entities=stale_entities,
+                task_phase=task_phase,
+                agent_reflection=agent_reflection,
+                run_time=run_time,
+            )
+        except Exception as e:
+            logger.warning(f"[TASK_EXEC] System verification failed (non-fatal): {e}")
+
         awareness_content = "\n".join(awareness_lines) + "\n"
         await tw.write("awareness.md", awareness_content,
                       summary=f"Task awareness update v{version_number}")
 
     except Exception as e:
         logger.warning(f"[TASK_EXEC] Awareness update failed (non-fatal): {e}")
+
+
+async def _compute_system_verification(
+    tw,
+    task_slug: str,
+    task_info: dict,
+    stale_entities: list[str],
+    task_phase: str,
+    agent_reflection: Optional[dict],
+    run_time,
+) -> None:
+    """ADR-181: Deterministic post-run verification → feedback entries. Zero LLM cost.
+
+    Reads workspace state already computed by _post_run_domain_scan() and writes
+    feedback entries to feedback.md when verification thresholds are crossed.
+
+    Three checks:
+    1. Entity staleness — entities not updated within expected cadence
+    2. Coverage gap — fewer entities than bootstrap criteria expect (post-bootstrap only)
+    3. Agent low confidence — consecutive low-confidence reflections
+
+    All checks are deterministic. Entries use source: system_verification.
+    """
+    now = run_time.strftime("%Y-%m-%d %H:%M")
+    entries_to_write: list[str] = []
+
+    # ── Check 1: Entity staleness ──
+    # stale_entities is already computed: ["slug (domain_key)", ...]
+    if stale_entities and task_phase != "bootstrap":
+        # Only flag if there are stale entities outside bootstrap phase
+        # (during bootstrap, staleness is expected — entities are being discovered)
+        schedule = task_info.get("schedule", "weekly")
+        stale_threshold = {"daily": 3, "weekly": 10, "monthly": 45}.get(schedule, 14)
+        for se in stale_entities[:5]:  # Cap at 5 to avoid flooding
+            entries_to_write.append(
+                f"## System Verification ({now}, source: system_verification)\n"
+                f"- Entity {se} exceeds staleness threshold ({stale_threshold} days)\n"
+                f"- Action: flag stale entity {se} | severity: medium\n"
+            )
+
+    # ── Check 2: Coverage gap ──
+    # Only for tasks with context_writes that have bootstrap criteria
+    if task_phase == "steady":
+        type_key = task_info.get("type_key", "")
+        context_writes = task_info.get("context_writes", [])
+        if type_key and context_writes:
+            try:
+                from services.task_types import get_bootstrap_criteria
+                bootstrap = get_bootstrap_criteria(type_key)
+                if bootstrap:
+                    min_entities = bootstrap.get("min_entities", 0)
+                    # Count current entities across write domains
+                    from services.directory_registry import (
+                        get_domain_folder, has_entity_tracker, get_tracker_path,
+                    )
+                    from services.workspace import UserMemory
+                    um = UserMemory(tw._db, tw._user_id)
+                    for dk in context_writes:
+                        if dk == "signals" or not has_entity_tracker(dk):
+                            continue
+                        tracker_path = get_tracker_path(dk)
+                        if not tracker_path:
+                            continue
+                        tracker_content = await um.read(tracker_path)
+                        if not tracker_content:
+                            continue
+                        # Count active entities in tracker
+                        active_count = 0
+                        for line in tracker_content.split("\n"):
+                            if line.startswith("|") and "Slug" not in line and "---" not in line:
+                                if "| stale |" not in line.lower() and "| inactive |" not in line.lower():
+                                    active_count += 1
+                        if min_entities > 0 and active_count < min_entities:
+                            entries_to_write.append(
+                                f"## System Verification ({now}, source: system_verification)\n"
+                                f"- Domain {dk} has {active_count} active entities "
+                                f"(min expected: {min_entities} for {type_key})\n"
+                                f"- Action: expand coverage {dk} | severity: low\n"
+                            )
+            except Exception as e:
+                logger.warning(f"[SYS_VERIFY] Coverage check failed: {e}")
+
+    # ── Check 3: Agent low confidence ──
+    if agent_reflection:
+        confidence = agent_reflection.get("output_confidence", "")
+        if isinstance(confidence, str) and confidence.lower().startswith("low"):
+            # Check if previous awareness.md also had low confidence
+            prev_awareness = await tw.read("awareness.md") or ""
+            if "confidence=low" in prev_awareness.lower():
+                entries_to_write.append(
+                    f"## System Verification ({now}, source: system_verification)\n"
+                    f"- Agent reported low confidence for 2+ consecutive runs\n"
+                    f"- Action: review data sources | severity: medium\n"
+                )
+
+    # ── Write entries to feedback.md ──
+    if entries_to_write:
+        from services.feedback_distillation import _read_task_feedback, _MAX_FEEDBACK_ENTRIES
+
+        existing = await _read_task_feedback(tw)
+        header = "# Task Feedback\n<!-- Source-agnostic feedback layer. Newest first. ADR-181. -->\n\n"
+
+        # Parse existing entries
+        all_entries = re.split(r"(?=^## )", existing, flags=re.MULTILINE)
+        all_entries = [e.strip() for e in all_entries if e.strip() and e.strip().startswith("## ")]
+
+        # Prepend new entries (newest first), cap total
+        combined = [e.strip() for e in entries_to_write] + all_entries
+        combined = combined[:_MAX_FEEDBACK_ENTRIES]
+
+        content = header + "\n\n".join(combined) + "\n"
+        await tw.write(
+            "feedback.md",
+            content,
+            summary=f"ADR-181: system verification ({len(entries_to_write)} entries)",
+        )
+        logger.info(
+            f"[SYS_VERIFY] Wrote {len(entries_to_write)} verification entries "
+            f"for {task_slug}"
+        )
 
 
 def _parse_forced_sections(steering_md: str) -> list[str]:
@@ -895,8 +1029,9 @@ def _parse_forced_sections(steering_md: str) -> list[str]:
 def _extract_recent_feedback(feedback_md: str, max_entries: int = 3) -> str:
     """Extract the most recent N feedback entries from task feedback.md.
 
-    ADR-149: feedback.md has entries like '## Feedback (date, source: ...)' or
-    '## Evaluation (date, source: ...)'. Returns the last N entries as a string.
+    ADR-181: feedback.md is a source-agnostic layer. Entries may have source tags:
+    user_conversation, user_edit, evaluation, system_verification, system_lifecycle.
+    Returns the last N entries as a string, regardless of source.
     """
     if not feedback_md or not feedback_md.strip():
         return ""
@@ -1660,7 +1795,8 @@ async def execute_task(
         # =====================================================================
         deliverable_spec = await tw.read("DELIVERABLE.md") or ""
         steering_notes = await tw.read("memory/steering.md") or ""
-        task_feedback_raw = await tw.read("memory/feedback.md") or ""
+        # ADR-181: feedback.md at task root (fallback to memory/feedback.md for migration)
+        task_feedback_raw = await tw.read("feedback.md") or await tw.read("memory/feedback.md") or ""
         # Extract last 3 feedback entries for prompt injection (keep it concise)
         task_feedback = _extract_recent_feedback(task_feedback_raw, max_entries=3)
 

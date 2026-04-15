@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.15.5] - ADR-181: Source-agnostic feedback layer — Phase 1
+
+### Changed
+- `api/services/task_pipeline.py` — `_extract_recent_feedback()` docstring updated: feedback.md is now a source-agnostic layer. Entries may have source tags: `user_conversation`, `user_edit`, `evaluation`, `system_verification`, `system_lifecycle`. Parser unchanged (already source-agnostic — splits on `## ` headers).
+- `api/services/task_pipeline.py` — feedback read path: `memory/feedback.md` → `feedback.md` at task root (with migration fallback to old path). ADR-181: feedback.md is a peer of TASK.md and DELIVERABLE.md.
+- `api/services/task_pipeline.py` — NEW `_compute_system_verification()`: zero-LLM deterministic post-run checks (entity staleness, coverage gaps, agent low confidence) write `source: system_verification` entries to feedback.md. Called from `_post_run_domain_scan()` after domain scan, before awareness write.
+- `api/services/primitives/update_context.py` — task feedback write path: `memory/feedback.md` → `feedback.md`. Agent-level feedback (`target="agent"`) unchanged (stays at agent workspace `memory/feedback.md`).
+- `api/services/primitives/manage_task.py` — evaluation write + inference trigger read: `memory/feedback.md` → `feedback.md`. Task scaffold seeds `feedback.md` at task root.
+- `api/services/task_deliverable_inference.py` — feedback read: `memory/feedback.md` → `feedback.md`. Docstring updated: three signal sources (user, evaluation, system verification).
+- `api/services/feedback_distillation.py` — `_append_feedback_to_task()`: writes to `feedback.md`. New `_read_task_feedback()` helper with migration fallback.
+- Expected behavior: System verification entries appear alongside user feedback and TP evaluations in the same file. Agents see all three sources in `## Recent Feedback` section during generation. Entry format includes optional `Action:` line for future actuation (Phase 2).
+
 ## [2026.04.15.4] - Token optimization: referential playbooks + output_kind-aware context budget
 
 ### Changed

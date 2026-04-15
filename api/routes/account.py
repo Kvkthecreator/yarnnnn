@@ -29,7 +29,7 @@ Layer invariants — what is NEVER touched by L1:
   * `chat_sessions` (the user's relationship with TP)
   * `workspace_files` outside `/tasks/{slug}/outputs/` and
     `/tasks/{slug}/memory/_run_log.md` (so TASK.md, DELIVERABLE.md,
-    memory/feedback.md, memory/steering.md, memory/reflections.md, and the
+    feedback.md, memory/steering.md, memory/reflections.md, and the
     entire `/workspace/context/` substrate are all preserved)
   * `activity_log` (ADR-164 already removed task-lifecycle events from this
     table; nothing in there is "work history" anymore)
@@ -372,7 +372,7 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
       - Every `tasks` table row (essential and otherwise)
       - Every `agents` table row
       - All `chat_sessions` (the user's relationship with TP)
-      - TASK.md, DELIVERABLE.md, memory/feedback.md, memory/steering.md,
+      - TASK.md, DELIVERABLE.md, feedback.md, memory/steering.md,
         memory/reflections.md (per-task)
       - The entire `/workspace/context/` substrate (every accumulated context
         domain)
