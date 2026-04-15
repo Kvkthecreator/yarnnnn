@@ -302,6 +302,7 @@ export default function SettingsPage() {
   }, [purgeSuccess]);
 
   return (
+    <div className="h-full overflow-y-auto">
     <div className="max-w-3xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-6">
         <Settings className="w-6 h-6" />
@@ -874,6 +875,7 @@ export default function SettingsPage() {
         </div>
       )}
 
+    </div>
     </div>
   );
 }

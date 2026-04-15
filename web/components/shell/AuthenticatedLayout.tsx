@@ -177,7 +177,7 @@ function AuthenticatedLayoutInner({
 
         {/* Main content. ADR-167 v2: each surface renders its own <PageHeader />
             inside the content area — there is no separate breadcrumb bar. */}
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
       </div>
 
       {/* Setup Confirmation Modal - rendered inside TPProvider */}
