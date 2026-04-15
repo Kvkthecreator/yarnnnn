@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Clock, Download, ExternalLink, FileText, Folder, Loader2 } from 'lucide-react';
+import { Clock, Download, ExternalLink, FileText, Folder, Loader2, MessageSquare } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { FileIcon } from '@/components/workspace/FileIcon';
@@ -18,12 +18,15 @@ interface ContentViewerProps {
   selectedNode: WorkspaceTreeNode | null;
   onNavigate: (node: WorkspaceTreeNode) => void;
   showHeader?: boolean;
+  /** ADR-181 Phase 4b: pre-fill TP chat with context-sensitive prompt */
+  onEditViaChat?: (prompt: string) => void;
 }
 
 export function ContentViewer({
   selectedNode,
   onNavigate,
   showHeader = true,
+  onEditViaChat,
 }: ContentViewerProps) {
   if (!selectedNode) {
     return (
@@ -39,21 +42,24 @@ export function ContentViewer({
         node={selectedNode}
         onNavigate={onNavigate}
         showHeader={showHeader}
+        onEditViaChat={onEditViaChat}
       />
     );
   }
 
-  return <FileView path={selectedNode.path} showHeader={showHeader} />;
+  return <FileView path={selectedNode.path} showHeader={showHeader} onEditViaChat={onEditViaChat} />;
 }
 
 function DirectoryView({
   node,
   onNavigate,
   showHeader,
+  onEditViaChat,
 }: {
   node: WorkspaceTreeNode;
   onNavigate: (node: WorkspaceTreeNode) => void;
   showHeader: boolean;
+  onEditViaChat?: (prompt: string) => void;
 }) {
   // For synthetic nodes (entity subfolders with no pre-populated children),
   // fetch children on demand via the tree API.
@@ -110,6 +116,18 @@ function DirectoryView({
               <h2 className="text-lg font-medium">{node.name}</h2>
               <p className="text-xs text-muted-foreground">{children.length} items</p>
             </div>
+            {onEditViaChat && (
+              <button
+                onClick={() => {
+                  const folderName = node.name || node.path.split('/').filter(Boolean).pop() || 'this folder';
+                  onEditViaChat(`About the ${folderName} context: `);
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Edit via chat
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -157,9 +175,11 @@ function DirectoryView({
 function FileView({
   path,
   showHeader,
+  onEditViaChat,
 }: {
   path: string;
   showHeader: boolean;
+  onEditViaChat?: (prompt: string) => void;
 }) {
   const [file, setFile] = useState<WorkspaceFile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -220,9 +240,23 @@ function FileView({
                 {file.content_type && <span>{file.content_type}</span>}
               </div>
             </div>
-            {file.content_url && (
-              <FileActions contentUrl={file.content_url} />
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {onEditViaChat && (
+                <button
+                  onClick={() => {
+                    const relPath = path.replace('/workspace/', '').replace('/tasks/', 'tasks/');
+                    onEditViaChat(`About this file (${relPath}): `);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Edit via chat
+                </button>
+              )}
+              {file.content_url && (
+                <FileActions contentUrl={file.content_url} />
+              )}
+            </div>
           </div>
         </div>
       ) : file.content_url ? (

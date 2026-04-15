@@ -31,6 +31,7 @@ import { ActionMiddle } from './details/ActionMiddle';
 import { MaintenanceMiddle } from './details/MaintenanceMiddle';
 import { TrackingEntityGrid } from './details/TrackingEntityGrid';
 import { DeliverableMiddle } from './details/DeliverableMiddle';
+import { FeedbackStrip } from './details/FeedbackStrip';
 import { WorkModeBadge } from './WorkModeBadge';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { AGENTS_ROUTE, CONTEXT_ROUTE } from '@/lib/routes';
@@ -528,6 +529,8 @@ export function WorkDetail({
       {/* Scrollable output region */}
       <div className="flex-1 overflow-auto min-h-0">
         <KindMiddle task={task} refreshKey={refreshKey} onSourcesUpdated={onSourcesUpdated} />
+        {/* ADR-181 Phase 4a: Feedback prompt relay */}
+        <FeedbackStrip task={task} onOpenChat={onOpenChat} />
       </div>
     </div>
   );

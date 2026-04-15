@@ -448,6 +448,7 @@ export default function ContextPage() {
                 selectedNode={selectedNode}
                 onNavigate={handleExplorerSelect}
                 showHeader={false}
+                onEditViaChat={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
               />
             )}
           </div>
