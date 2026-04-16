@@ -1,6 +1,6 @@
 # ADR-187: Trading Integration — Alpaca as Execution Platform
 
-> **Status**: Proposed
+> **Status**: Phases 1-3 Implemented
 > **Date**: 2026-04-16
 > **Related**: ADR-138 (Agents as Work Units), ADR-141 (Unified Execution), ADR-151/152 (Context Domains / Directory Registry), ADR-153 (Platform Content Sunset — live API reads, no mirrored cache), ADR-158 (Platform Bot Ownership), ADR-176 (Work-First Agent Model), ADR-183 (Commerce Substrate — fourth platform class pattern)
 > **Extends**: ADR-147 (GitHub Platform Integration — Direct API client pattern), ADR-166 (Registry Coherence Pass — output_kind taxonomy)
@@ -544,55 +544,42 @@ Phase transitions are manual (user flips `paper` flag and pauses/unpauses `tradi
 
 ## Implementation
 
-### Phase 1: Client + read tools + context domains
+### Phase 1: Client + read/write tools + context domains — **Implemented 2026-04-16**
 
 **New files:**
-- `api/integrations/core/alpaca_client.py` — Alpaca Direct API client following `github_client.py` / `lemonsqueezy_client.py` pattern
-  - `async def _request()` with retry logic (exponential backoff, 3 attempts)
-  - Rate limiting: 200 req/min (check response headers)
-  - Read methods: `get_account()`, `get_positions()`, `list_orders()`, `get_bars()`, `get_portfolio_history()`
-  - Paper/live base URL switching via connection `metadata.paper`
-  - Alpha Vantage reads: `get_daily_prices()`, `get_fundamentals()` — separate base URL, uses `metadata.market_data_key`
-  - Singleton via `get_trading_client()`
+- `api/integrations/core/alpaca_client.py` — Alpaca Direct API client (httpx, no `alpaca-py` dependency). 11 methods: `get_account()`, `get_positions()`, `list_orders()`, `get_bars()`, `get_portfolio_history()`, `submit_order()`, `cancel_order()`, `close_position()`, `get_daily_prices()` (Alpha Vantage), `get_fundamentals()` (Alpha Vantage), `validate_credentials()`. Paper/live URL switching, retry with backoff, singleton `get_trading_client()`.
 
 **Modified files:**
-- `api/services/platform_tools.py` — Add `TRADING_TOOLS`, `PLATFORM_TOOLS_BY_PROVIDER["trading"]`, `PLATFORM_TOOLS_BY_CAPABILITY["read_trading"]`, `CAPABILITY_PROVIDER_MAP["read_trading"]`, `_handle_trading_tool()` handler
-- `api/services/directory_registry.py` — Add `trading/` and `portfolio/` domain entries (canonical, not temporal)
-- `api/services/agent_framework.py` — Add `trading_bot` to `AGENT_TEMPLATES` + `DEFAULT_ROSTER` (paused at signup), `CAPABILITIES["read_trading"]`
-- `api/routes/integrations.py` — Add `POST /integrations/trading/connect` endpoint
+- `api/services/platform_tools.py` — `TRADING_TOOLS` (5 read) + `TRADING_WRITE_TOOLS` (3 write), `_handle_trading_tool()` handler, capability + provider mappings
+- `api/services/directory_registry.py` — `trading/` (canonical, entity_type=instrument) + `portfolio/` (canonical, entity_type=position)
+- `api/services/agent_framework.py` — `trading_bot` in `AGENT_TEMPLATES` + `DEFAULT_ROSTER` (12 agents). `read_trading`, `write_trading`, `read_commerce`, `write_commerce` added to `CAPABILITIES` dict.
+- `api/routes/integrations.py` — `POST /integrations/trading/connect` + `PATCH /integrations/trading/connect` (paper/live toggle). `_PROVIDER_TO_DIGEST["trading"]` for connect-time task scaffolding.
 
-**Migration:** `supabase/migrations/148_add_trading_bot_role.sql` — add `trading_bot` to `agents_role_check` constraint.
+**Migration:** `148_add_trading_bot_role.sql` — applied 2026-04-16.
 
-**Dependencies:** `pip install alpaca-py` on API + Scheduler services. Alpha Vantage: lightweight HTTP wrapper via `_request()`, no library needed.
+**No new pip dependencies** — uses httpx (existing dep) for raw API calls.
 
-### Phase 2: Digest + signal task types
-
-**Modified files:**
-- `api/services/task_types.py` — Add `trading-digest`, `trading-signal`, `portfolio-review` task type definitions + step instructions
-- `api/services/workspace_init.py` — Trading Bot activation + default task scaffolding on connect (same pattern as commerce connect)
-
-**Validation:** Run `trading-digest` task, verify market data and portfolio state written correctly to `trading/` and `portfolio/` context domains.
-
-### Phase 3: Write tools + execution task
+### Phase 2: Task types + step instructions — **Implemented 2026-04-16**
 
 **Modified files:**
-- `api/integrations/core/alpaca_client.py` — Add write methods: `submit_order()`, `cancel_order()`, `close_position()` — with client-side guardrail validation (position size, max positions, order type)
-- `api/services/platform_tools.py` — Add `TRADING_WRITE_TOOLS`, `PLATFORM_TOOLS_BY_CAPABILITY["write_trading"]`, extend `_handle_trading_tool()` for write operations
-- `api/services/agent_framework.py` — Add `CAPABILITIES["write_trading"]`
-- `api/services/task_types.py` — Add `trading-execute` task type + step instructions
+- `api/services/task_types.py` — 4 step instructions (`trading-digest`, `trading-signal`, `trading-execute`, `portfolio-review`) + 4 task type definitions with full `default_objective`, `default_deliverable`, `page_structure` (portfolio-review), `context_reads`/`context_writes`
+- `api/routes/integrations.py` — `connect_trading` calls `_scaffold_platform_digest_task("trading")` to auto-create paused `trading-sync` task on connect
 
-**Validation:** Run full loop on Alpaca paper account. Verify: signal generated → order placed → position appears → portfolio domain updated.
+### Phase 3: Write tools + execution task — **Implemented 2026-04-16**
 
-### Phase 4: Portfolio review + performance tracking
+Write tools (submit_order, cancel_order, close_position) and `trading-execute` task type shipped with Phase 1 + Phase 2 in a unified implementation. All read + write tools, all 4 task types, complete in single pass.
 
-**Modified files:**
-- `api/services/task_types.py` — Finalize `portfolio-review` step instructions with section kind guidance (metric-cards, trend-chart, data-table)
+### Phase 4: Validation — **Pending**
 
-**Validation:** After 5+ paper trades, `portfolio-review` produces a meaningful performance report with signal accuracy metrics and benchmark comparison.
+- Connect Alpaca paper account via `POST /integrations/trading/connect`
+- Run `trading-digest` task, verify context domains populated
+- Run `trading-signal` task, verify signals generated from accumulated context
+- Run `trading-execute` on paper, verify orders placed and portfolio updated
+- After 5+ paper trades, run `portfolio-review` for performance report
 
-### Phase 5: Live trading
+### Phase 5: Live trading — **Pending**
 
-- `PATCH /integrations/trading/connect` endpoint for paper-to-live transition
+- `PATCH /integrations/trading/connect { "paper": false }`
 - Verify guardrails fire correctly (position limits, stop-loss, daily loss limit)
 - Fund Alpaca account, flip the switch
 

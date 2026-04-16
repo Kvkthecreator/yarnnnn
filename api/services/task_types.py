@@ -362,6 +362,119 @@ STEP_INSTRUCTIONS = {
         "a one-line summary per page of what changed.\n\n"
         "Your output: a change digest across all observed pages."
     ),
+
+    # ADR-187: Trading step instructions
+    "trading-digest": (
+        "You are the Trading Bot. Your job is to sync your trading account "
+        "and market data into the workspace.\n\n"
+        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
+        "If one exists, follow it — it was written by you while context was fresh.\n\n"
+        "Steps:\n"
+        "1. Read account status: platform_trading_get_account\n"
+        "2. Read current positions: platform_trading_get_positions\n"
+        "3. Read recent orders: platform_trading_get_orders\n"
+        "4. For each asset on the watchlist, read market data: "
+        "platform_trading_get_market_data\n"
+        "5. Update portfolio/ domain:\n"
+        "   - WriteFile(scope='context', domain='portfolio', path='_tracker.md') "
+        "(account snapshot: equity, cash, buying power)\n"
+        "   - WriteFile(scope='context', domain='portfolio', "
+        "path='{ticker}/profile.md') for each open position\n"
+        "   - WriteFile(scope='context', domain='portfolio', "
+        "path='history/{YYYY-MM}.md') (append new executions)\n"
+        "6. Update trading/ domain:\n"
+        "   - WriteFile(scope='context', domain='trading', "
+        "path='{ticker}/profile.md') (price + volume update)\n"
+        "   - WriteFile(scope='context', domain='trading', path='_tracker.md') "
+        "(freshness update per asset)\n\n"
+        "Quantification rules:\n"
+        "- All figures precise: $10,450.23 equity, 47.5 shares (not ~50)\n"
+        "- Always include period comparison (vs last cycle)\n\n"
+        "Also append a dated signal entry to /workspace/context/signals/ with "
+        "key portfolio metrics.\n\n"
+        "Your output: a digest of account state and market observations."
+    ),
+
+    "trading-signal": (
+        "You are generating trading signals based on accumulated market "
+        "intelligence and portfolio context.\n\n"
+        "IMPORTANT: Read the workspace FIRST. Your value comes from "
+        "accumulated context — price history, prior signal outcomes, "
+        "portfolio performance, and market patterns observed over time.\n\n"
+        "Steps:\n"
+        "1. ReadFile: /workspace/context/portfolio/_tracker.md (current state)\n"
+        "2. ReadFile: /workspace/context/portfolio/summary.md (portfolio assessment)\n"
+        "3. For each watchlist asset:\n"
+        "   - ReadFile: /workspace/context/trading/{ticker}/profile.md\n"
+        "   - ReadFile: /workspace/context/trading/{ticker}/analysis.md "
+        "(prior signals + outcomes)\n"
+        "4. Analyze: trend direction, momentum, support/resistance, news catalysts, "
+        "prior signal accuracy for this asset\n"
+        "5. Generate signals with format:\n"
+        "   - Ticker, Direction (buy/sell/hold), Confidence (high/medium/low)\n"
+        "   - Reasoning (2-3 sentences referencing accumulated data)\n"
+        "   - Suggested position size (%% of portfolio)\n"
+        "   - Risk note (what would invalidate this signal)\n"
+        "6. WriteFile: update /workspace/context/trading/{ticker}/analysis.md "
+        "(append this signal for future outcome tracking)\n\n"
+        "Your output: today's signal report with actionable recommendations."
+    ),
+
+    "trading-execute": (
+        "You are the Trading Bot. Your job is to execute trades based on "
+        "approved trading signals.\n\n"
+        "IMPORTANT: This task places real orders (or paper orders). "
+        "Execute ONLY signals marked as approved in the signal output.\n\n"
+        "Pre-check: Read the latest signal output from the trading-signal task. "
+        "If no new approved signals exist since last execution, SKIP — produce "
+        "a brief 'no signals to execute' output and exit.\n\n"
+        "Steps:\n"
+        "1. Read the latest signal output from the trading-signal task\n"
+        "2. Read current positions: platform_trading_get_positions\n"
+        "3. Read account status: platform_trading_get_account\n"
+        "4. For each approved signal:\n"
+        "   - Validate: sufficient buying power, position size within limits\n"
+        "   - Execute: platform_trading_submit_order\n"
+        "   - Log: WriteFile(scope='context', domain='portfolio', "
+        "path='history/{YYYY-MM}.md') (append execution)\n"
+        "   - Update: WriteFile(scope='context', domain='portfolio', "
+        "path='{ticker}/profile.md')\n"
+        "5. Update portfolio/_tracker.md with new account state\n\n"
+        "Position sizing rules:\n"
+        "- Never exceed 10%% of portfolio in a single position\n"
+        "- Never exceed 5 open positions simultaneously\n"
+        "- Always use limit orders (not market orders)\n"
+        "- Set stop-loss at 5%% below entry for all new positions\n\n"
+        "Daily loss limit: if portfolio drops >3%% in a day, skip remaining "
+        "signals and log escalation to portfolio/_tracker.md.\n\n"
+        "Your output: execution confirmation with order details."
+    ),
+
+    "portfolio-review": (
+        "You are producing a weekly portfolio performance review.\n\n"
+        "Steps:\n"
+        "1. ReadFile: /workspace/context/portfolio/_tracker.md\n"
+        "2. ReadFile: /workspace/context/portfolio/history/{YYYY-MM}.md\n"
+        "3. ReadFile: /workspace/context/portfolio/performance/{YYYY-MM}.md "
+        "(if exists)\n"
+        "4. For each position, read trading/{ticker}/analysis.md to correlate "
+        "signal → outcome\n"
+        "5. Compute:\n"
+        "   - Weekly return (%% and $)\n"
+        "   - Signal accuracy (%% of signals that were profitable)\n"
+        "   - Best/worst trades with reasoning\n"
+        "   - Benchmark comparison (SPY buy-and-hold equivalent)\n"
+        "   - Portfolio concentration and risk assessment\n"
+        "6. Produce report with:\n"
+        "   - Section kind: metric-cards (portfolio KPIs)\n"
+        "   - Section kind: trend-chart (cumulative return vs benchmark)\n"
+        "   - Section kind: data-table (trade log with outcomes)\n"
+        "   - Section kind: narrative (weekly commentary)\n"
+        "7. WriteFile: /workspace/context/portfolio/performance/{YYYY-MM}.md\n"
+        "8. WriteFile: /workspace/context/portfolio/summary.md "
+        "(updated synthesis)\n\n"
+        "Your output: weekly performance report with charts and metrics."
+    ),
 }
 
 
@@ -1015,6 +1128,176 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Code is uppercase and memorable",
                 "Amount and type match the objective",
                 "Scope (store-wide or product) confirmed",
+            ],
+        },
+    },
+
+    # ── Trading Tasks (ADR-187: Trading Integration) ──
+
+    "trading-digest": {
+        "display_name": "Trading Sync",
+        "default_title": "Trading Sync",
+        "description": "Reads your trading account and market data, updates trading and portfolio context domains.",
+        "output_kind": "accumulates_context",
+        "default_delivery": "none",
+        "registry_default_team": [],
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "html",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "trading_bot",
+                "step": "trading-digest",
+                "instruction": STEP_INSTRUCTIONS["trading-digest"],
+            },
+        ],
+        "context_reads": ["trading", "portfolio"],
+        "context_writes": ["trading", "portfolio"],
+        "context_sources": ["platforms"],
+        "requires_platform": "trading",
+        "default_objective": {
+            "deliverable": "Trading account and market data digest",
+            "audience": "You",
+            "purpose": "Track positions, market data, and portfolio state",
+            "format": "Scannable digest with precise figures",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "500-1500", "layout": ["Account", "Positions", "Market Data"]},
+            "assets": [],
+            "quality_criteria": [
+                "All figures precise (not rounded)",
+                "Period-over-period comparison included",
+                "Watchlist coverage and freshness noted",
+            ],
+        },
+    },
+
+    "trading-signal": {
+        "display_name": "Trading Signals",
+        "default_title": "Trading Signals",
+        "description": "Generates trading signals from accumulated market intelligence and portfolio context.",
+        "output_kind": "produces_deliverable",
+        "default_delivery": "none",
+        "registry_default_team": ["analyst"],
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "html",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "analyst",
+                "step": "trading-signal",
+                "instruction": STEP_INSTRUCTIONS["trading-signal"],
+            },
+        ],
+        "context_reads": ["trading", "portfolio"],
+        "context_writes": ["trading"],
+        "context_sources": ["workspace"],
+        "requires_platform": "trading",
+        "default_objective": {
+            "deliverable": "Daily trading signal report",
+            "audience": "You",
+            "purpose": "Analyze accumulated data and generate actionable signals",
+            "format": "Signal report with ticker, direction, confidence, reasoning",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "500-2000", "layout": ["Summary", "Signals", "Risk Notes"]},
+            "assets": [],
+            "quality_criteria": [
+                "Each signal references accumulated data (not generic)",
+                "Confidence level justified by evidence",
+                "Risk note included for every signal",
+            ],
+        },
+    },
+
+    "trading-execute": {
+        "display_name": "Trade Execution",
+        "default_title": "Trade Execution",
+        "description": "Executes approved trading signals via Alpaca API. Skips if no new approved signals.",
+        "output_kind": "external_action",
+        "default_delivery": "none",
+        "registry_default_team": [],
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "html",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "trading_bot",
+                "step": "trading-execute",
+                "instruction": STEP_INSTRUCTIONS["trading-execute"],
+            },
+        ],
+        "context_reads": ["portfolio"],
+        "context_writes": ["portfolio"],
+        "context_sources": ["workspace"],
+        "requires_platform": "trading",
+        "default_objective": {
+            "deliverable": "Trade execution confirmation",
+            "audience": "You",
+            "purpose": "Execute approved signals with position sizing guardrails",
+            "format": "Execution log with order details",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "100-500", "layout": ["Executions", "Portfolio Update"]},
+            "assets": [],
+            "quality_criteria": [
+                "Only approved signals executed",
+                "Position sizing limits enforced",
+                "Order details precise (price, qty, type)",
+            ],
+        },
+    },
+
+    "portfolio-review": {
+        "display_name": "Portfolio Review",
+        "default_title": "Portfolio Review",
+        "description": "Weekly portfolio performance report with signal accuracy, benchmark comparison, and charts.",
+        "output_kind": "produces_deliverable",
+        "default_delivery": "email",
+        "registry_default_team": ["analyst"],
+        "default_mode": "recurring",
+        "default_schedule": "weekly",
+        "output_format": "html",
+        "surface_type": "report",
+        "page_structure": [
+            {"kind": "metric-cards", "title": "Portfolio KPIs",
+             "reads_from": ["portfolio/_tracker.md"]},
+            {"kind": "trend-chart", "title": "Cumulative Return vs Benchmark",
+             "reads_from": ["portfolio/performance/"],
+             "assets": [{"type": "derivative", "render": "chart"}]},
+            {"kind": "data-table", "title": "Trade Log",
+             "reads_from": ["portfolio/history/"]},
+            {"kind": "narrative", "title": "Weekly Commentary",
+             "reads_from": ["portfolio/summary.md", "trading/overview.md"]},
+        ],
+        "export_options": ["pdf"],
+        "process": [
+            {
+                "agent_type": "analyst",
+                "step": "portfolio-review",
+                "instruction": STEP_INSTRUCTIONS["portfolio-review"],
+            },
+        ],
+        "context_reads": ["portfolio", "trading"],
+        "context_writes": ["portfolio"],
+        "context_sources": ["workspace"],
+        "requires_platform": "trading",
+        "default_objective": {
+            "deliverable": "Weekly portfolio performance report",
+            "audience": "You",
+            "purpose": "Measure signal accuracy, track returns vs benchmark, identify patterns",
+            "format": "Report with charts, metrics, and trade log",
+        },
+        "default_deliverable": {
+            "output": {"format": "html", "word_count": "1000-3000", "layout": ["KPIs", "Performance Chart", "Trade Log", "Commentary"]},
+            "assets": [{"type": "derivative", "render": "chart", "description": "Cumulative return vs SPY"}],
+            "quality_criteria": [
+                "Signal accuracy computed precisely",
+                "Benchmark comparison (SPY) included",
+                "Best/worst trades with reasoning",
             ],
         },
     },

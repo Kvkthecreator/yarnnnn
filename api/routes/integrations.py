@@ -1305,6 +1305,7 @@ _PROVIDER_TO_DIGEST = {
     "slack": {"type_key": "slack-digest", "slug": "slack-sync", "title": "Slack Sync", "bot_slug": "slack-bot"},
     "notion": {"type_key": "notion-digest", "slug": "notion-sync", "title": "Notion Sync", "bot_slug": "notion-bot"},
     "github": {"type_key": "github-digest", "slug": "github-sync", "title": "GitHub Sync", "bot_slug": "github-bot"},
+    "trading": {"type_key": "trading-digest", "slug": "trading-sync", "title": "Trading Sync", "bot_slug": "trading-bot"},
 }
 
 
@@ -2478,6 +2479,11 @@ async def connect_trading(
     # 4. Scaffold trading context domains (idempotent)
     await scaffold_context_domain(service_client, user_id, "trading")
     await scaffold_context_domain(service_client, user_id, "portfolio")
+
+    # 5. Scaffold default trading-digest task (idempotent, paused)
+    await _scaffold_platform_digest_task(
+        service_client, user_id, "trading", smart_selected=[],
+    )
 
     return {
         "id": connection_id,
