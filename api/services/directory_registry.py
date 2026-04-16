@@ -269,6 +269,67 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "tracker_file": "_tracker.md",
     },
 
+    # ── Trading Domains (ADR-187: canonical, trading-bot-owned) ──
+    # Market intelligence and portfolio state from the user's trading platform.
+    # Canonical (not temporal) — same reasoning as commerce: accumulated knowledge.
+    # Created when trading provider is connected, not at signup.
+
+    "trading": {
+        "type": "context",
+        "path": "context/trading",
+        "display_name": "Trading",
+        "description": "Market data, signals, and analysis for tracked financial instruments",
+        "managed_by": "agent",
+        "entity_type": "instrument",
+        "entity_structure": {
+            "profile.md": (
+                "# {name}\n\n"
+                "## Price & Volume\n\n"
+                "## Fundamentals\n\n"
+                "## Signal History\n"
+            ),
+            "analysis.md": (
+                "# Analysis — {name}\n\n"
+                "<!-- Latest analysis with reasoning, newest first -->\n"
+            ),
+        },
+        "assets_folder": False,
+        "synthesis_file": "overview.md",
+        "synthesis_template": (
+            "# Trading Overview\n\n"
+            "## Watchlist Status\n\n"
+            "## Cross-Asset Patterns\n\n"
+            "## Active Signals\n"
+        ),
+        "tracker_file": "_tracker.md",
+    },
+
+    "portfolio": {
+        "type": "context",
+        "path": "context/portfolio",
+        "display_name": "Portfolio",
+        "description": "Trading account state — positions, trade history, performance metrics",
+        "managed_by": "agent",
+        "entity_type": "position",
+        "entity_structure": {
+            "profile.md": (
+                "# {name}\n\n"
+                "## Entry\n\n"
+                "## Current State\n\n"
+                "## Thesis & Exit Criteria\n"
+            ),
+        },
+        "assets_folder": False,
+        "synthesis_file": "summary.md",
+        "synthesis_template": (
+            "# Portfolio Summary\n\n"
+            "## Account State\n\n"
+            "## Position Mix\n\n"
+            "## Performance & Attribution\n"
+        ),
+        "tracker_file": "_tracker.md",
+    },
+
     # ── Platform Observation Domains (ADR-158: temporal, bot-owned) ──
     # Temporal awareness from external platforms. NOT canonical — TP reads these
     # for situational awareness, but they don't feed into steward domains

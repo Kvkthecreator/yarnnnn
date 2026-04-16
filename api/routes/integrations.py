@@ -17,7 +17,7 @@ Endpoints:
 import logging
 from typing import Optional, Any
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
@@ -2390,3 +2390,147 @@ def _slugify_customer(email: str) -> str:
     local = email.split("@")[0].lower()
     slug = re.sub(r"[^a-z0-9]+", "-", local).strip("-")
     return slug or "unknown"
+
+
+# =============================================================================
+# Trading Connection — ADR-187 (API key + secret auth, same pattern as Commerce)
+# =============================================================================
+
+class TradingConnectRequest(BaseModel):
+    """Request to connect a trading platform via API key + secret."""
+    api_key: str
+    api_secret: str
+    paper: bool = True
+    market_data_key: Optional[str] = None
+
+
+@router.post("/integrations/trading/connect")
+async def connect_trading(
+    request: TradingConnectRequest,
+    auth: UserClient,
+):
+    """
+    Connect a trading platform using API key + secret (ADR-187).
+
+    Same pattern as Commerce (ADR-183): validates credentials, encrypts,
+    stores connection, activates Trading Bot, scaffolds context domains.
+    """
+    from integrations.core.alpaca_client import get_trading_client
+    from services.directory_registry import scaffold_context_domain
+
+    user_id = auth.user_id
+    token_manager = get_token_manager()
+    trading_client = get_trading_client()
+
+    # 1. Validate the credentials
+    try:
+        account_info = await trading_client.validate_credentials(
+            request.api_key, request.api_secret, request.paper,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # 2. Encrypt and store the connection (key:secret as single encrypted string)
+    encrypted_credentials = token_manager.encrypt(
+        f"{request.api_key}:{request.api_secret}"
+    )
+    service_client = get_service_client()
+
+    metadata = {
+        "provider": "alpaca",
+        "paper": request.paper,
+        "account_number": account_info.get("account_number", "")[-4:],  # last 4 only
+        "account_status": account_info.get("status", ""),
+    }
+    if request.market_data_key:
+        metadata["market_data_key"] = request.market_data_key
+
+    existing = service_client.table("platform_connections").select("id").eq(
+        "user_id", user_id
+    ).eq("platform", "trading").execute()
+
+    if existing.data:
+        service_client.table("platform_connections").update({
+            "credentials_encrypted": encrypted_credentials,
+            "metadata": metadata,
+            "status": "active",
+        }).eq("id", existing.data[0]["id"]).execute()
+        connection_id = existing.data[0]["id"]
+        logger.info(f"[INTEGRATIONS] Updated trading connection for {user_id}")
+    else:
+        insert_result = service_client.table("platform_connections").insert({
+            "user_id": user_id,
+            "platform": "trading",
+            "credentials_encrypted": encrypted_credentials,
+            "metadata": metadata,
+            "status": "active",
+        }).execute()
+        connection_id = insert_result.data[0]["id"] if insert_result.data else None
+        logger.info(f"[INTEGRATIONS] Created trading connection for {user_id}")
+
+    # 3. Activate Trading Bot (reactivate if paused)
+    service_client.table("agents").update(
+        {"status": "active"}
+    ).eq("user_id", user_id).eq("role", "trading_bot").eq(
+        "status", "paused"
+    ).execute()
+
+    # 4. Scaffold trading context domains (idempotent)
+    await scaffold_context_domain(service_client, user_id, "trading")
+    await scaffold_context_domain(service_client, user_id, "portfolio")
+
+    return {
+        "id": connection_id,
+        "platform": "trading",
+        "provider": "alpaca",
+        "status": "active",
+        "paper": request.paper,
+        "account_number": metadata.get("account_number"),
+    }
+
+
+@router.patch("/integrations/trading/connect")
+async def update_trading_connection(
+    request: Request,
+    auth: UserClient,
+):
+    """
+    Update trading connection metadata (e.g., paper-to-live transition).
+
+    ADR-187 Decision 7: flip `paper` flag to switch between paper and live.
+    """
+    body = await request.json()
+    service_client = get_service_client()
+
+    existing = service_client.table("platform_connections").select(
+        "id, metadata"
+    ).eq("user_id", auth.user_id).eq("platform", "trading").eq(
+        "status", "active"
+    ).single().execute()
+
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="No active trading connection")
+
+    metadata = existing.data.get("metadata") or {}
+
+    if "paper" in body:
+        metadata["paper"] = bool(body["paper"])
+    if "market_data_key" in body:
+        metadata["market_data_key"] = body["market_data_key"]
+
+    service_client.table("platform_connections").update({
+        "metadata": metadata,
+    }).eq("id", existing.data["id"]).execute()
+
+    logger.info(
+        f"[INTEGRATIONS] Updated trading metadata for {auth.user_id}: "
+        f"paper={metadata.get('paper')}"
+    )
+
+    return {
+        "id": existing.data["id"],
+        "platform": "trading",
+        "provider": "alpaca",
+        "status": "active",
+        "paper": metadata.get("paper"),
+    }

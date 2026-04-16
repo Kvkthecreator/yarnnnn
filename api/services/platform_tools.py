@@ -459,12 +459,164 @@ COMMERCE_WRITE_TOOLS = [
 ]
 
 
+# =============================================================================
+# ADR-187: Trading Platform Tools (Alpaca + Alpha Vantage)
+# =============================================================================
+
+TRADING_TOOLS = [
+    {
+        "name": "platform_trading_get_account",
+        "description": "Get trading account details: equity, cash, buying power, portfolio value, account status.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "platform_trading_get_positions",
+        "description": "Get all current open positions with unrealized P&L, market value, cost basis.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "platform_trading_get_orders",
+        "description": "Get recent orders (last 7 days) with status, fill price, and timestamps.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "description": "Filter by order status: open, closed, all. Default: all.",
+                    "enum": ["open", "closed", "all"],
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max orders to return. Default: 50.",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "platform_trading_get_market_data",
+        "description": "Get daily price data for a ticker: open, high, low, close, volume. Returns last 30 trading days.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker symbol (e.g., AAPL, SPY, BTC/USD).",
+                },
+                "timeframe": {
+                    "type": "string",
+                    "description": "Data granularity: 1Day, 1Hour, 1Min. Default: 1Day.",
+                    "enum": ["1Day", "1Hour", "1Min"],
+                },
+            },
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "platform_trading_get_portfolio_history",
+        "description": "Get portfolio value history over time for performance tracking.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "period": {
+                    "type": "string",
+                    "description": "History period: 1W, 1M, 3M, 6M, 1A. Default: 1M.",
+                    "enum": ["1W", "1M", "3M", "6M", "1A"],
+                },
+            },
+            "required": [],
+        },
+    },
+]
+
+TRADING_WRITE_TOOLS = [
+    {
+        "name": "platform_trading_submit_order",
+        "description": "Submit a trading order. Returns order ID and status. Use limit orders for controlled execution.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker symbol (e.g., AAPL, SPY).",
+                },
+                "side": {
+                    "type": "string",
+                    "description": "Order side: buy or sell.",
+                    "enum": ["buy", "sell"],
+                },
+                "qty": {
+                    "type": "number",
+                    "description": "Number of shares (supports fractional, e.g., 0.5).",
+                },
+                "order_type": {
+                    "type": "string",
+                    "description": "Order type: market, limit, stop, stop_limit. Prefer limit.",
+                    "enum": ["market", "limit", "stop", "stop_limit"],
+                },
+                "limit_price": {
+                    "type": "number",
+                    "description": "Limit price. Required for limit and stop_limit orders.",
+                },
+                "stop_price": {
+                    "type": "number",
+                    "description": "Stop price. Required for stop and stop_limit orders.",
+                },
+                "time_in_force": {
+                    "type": "string",
+                    "description": "Time in force: day, gtc (good til cancelled). Default: day.",
+                    "enum": ["day", "gtc"],
+                },
+            },
+            "required": ["ticker", "side", "qty", "order_type"],
+        },
+    },
+    {
+        "name": "platform_trading_cancel_order",
+        "description": "Cancel an open order by order ID.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "The Alpaca order ID to cancel.",
+                },
+            },
+            "required": ["order_id"],
+        },
+    },
+    {
+        "name": "platform_trading_close_position",
+        "description": "Close an entire position for a ticker (sells all shares).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker to close position for.",
+                },
+            },
+            "required": ["ticker"],
+        },
+    },
+]
+
+
 # All platform tools by provider
 PLATFORM_TOOLS_BY_PROVIDER = {
     "slack": SLACK_TOOLS,
     "notion": NOTION_TOOLS,
     "github": GITHUB_TOOLS,
     "commerce": COMMERCE_TOOLS + COMMERCE_WRITE_TOOLS,
+    "trading": TRADING_TOOLS + TRADING_WRITE_TOOLS,
 }
 
 PLATFORM_TOOLS_BY_CAPABILITY = {
@@ -486,6 +638,15 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
         "platform_commerce_create_product", "platform_commerce_update_product",
         "platform_commerce_create_discount",
     ],
+    "read_trading": [
+        "platform_trading_get_account", "platform_trading_get_positions",
+        "platform_trading_get_orders", "platform_trading_get_market_data",
+        "platform_trading_get_portfolio_history",
+    ],
+    "write_trading": [
+        "platform_trading_submit_order", "platform_trading_cancel_order",
+        "platform_trading_close_position",
+    ],
 }
 
 CAPABILITY_PROVIDER_MAP = {
@@ -496,6 +657,8 @@ CAPABILITY_PROVIDER_MAP = {
     "read_github": "github",
     "read_commerce": "commerce",
     "write_commerce": "commerce",
+    "read_trading": "trading",
+    "write_trading": "trading",
 }
 
 
@@ -633,6 +796,8 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
         return await _handle_github_tool(auth, tool, tool_input)
     elif provider == "commerce":
         return await _handle_commerce_tool(auth, tool, tool_input)
+    elif provider == "trading":
+        return await _handle_trading_tool(auth, tool, tool_input)
     else:
         return {"success": False, "error": f"Unknown provider: {provider}"}
 
@@ -1218,6 +1383,151 @@ async def _handle_commerce_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             return {"success": False, "error": str(e)}
 
     return {"success": False, "error": f"Unknown commerce tool: {tool}"}
+
+
+async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
+    """Handle Trading tools via Direct API (ADR-187)."""
+    from integrations.core.alpaca_client import get_trading_client
+    from integrations.core.tokens import get_token_manager
+
+    try:
+        result = auth.client.table("platform_connections").select(
+            "credentials_encrypted, metadata"
+        ).eq("user_id", auth.user_id).eq("platform", "trading").eq(
+            "status", "active"
+        ).single().execute()
+
+        if not result.data:
+            return {
+                "success": False,
+                "error": "No active trading integration. Connect it in Settings.",
+            }
+
+        token_manager = get_token_manager()
+        credentials = token_manager.decrypt(result.data["credentials_encrypted"])
+        metadata = result.data.get("metadata") or {}
+        paper = metadata.get("paper", True)
+
+        # Credentials stored as "key:secret"
+        if ":" not in credentials:
+            return {"success": False, "error": "Invalid trading credentials format"}
+        api_key, api_secret = credentials.split(":", 1)
+
+    except Exception as e:
+        logger.error(f"[PLATFORM-TOOLS] Failed to get trading credentials: {e}")
+        return {"success": False, "error": "Failed to get trading credentials"}
+
+    trading_client = get_trading_client()
+
+    # -- Read tools --
+
+    if tool == "get_account":
+        account = await trading_client.get_account(api_key, api_secret, paper)
+        if isinstance(account, dict) and account.get("error"):
+            return {"success": False, "error": account["error"]}
+        return {"success": True, "result": account}
+
+    elif tool == "get_positions":
+        positions = await trading_client.get_positions(api_key, api_secret, paper)
+        return {
+            "success": True,
+            "result": {"positions": positions, "count": len(positions)},
+        }
+
+    elif tool == "get_orders":
+        status = tool_input.get("status", "all")
+        limit = tool_input.get("limit", 50)
+        orders = await trading_client.list_orders(
+            api_key, api_secret, paper, status=status, limit=limit,
+        )
+        return {
+            "success": True,
+            "result": {"orders": orders, "count": len(orders)},
+        }
+
+    elif tool == "get_market_data":
+        ticker = tool_input.get("ticker")
+        if not ticker:
+            return {"success": False, "error": "ticker is required"}
+        timeframe = tool_input.get("timeframe", "1Day")
+
+        # Try Alpaca Data API first (no extra key needed)
+        bars = await trading_client.get_bars(
+            api_key, api_secret, ticker, timeframe=timeframe,
+        )
+
+        # Fall back to Alpha Vantage if Alpaca returns empty and key is available
+        if not bars and metadata.get("market_data_key"):
+            bars = await trading_client.get_daily_prices(
+                metadata["market_data_key"], ticker,
+            )
+
+        return {
+            "success": True,
+            "result": {
+                "ticker": ticker,
+                "timeframe": timeframe,
+                "bars": bars,
+                "count": len(bars),
+            },
+        }
+
+    elif tool == "get_portfolio_history":
+        period = tool_input.get("period", "1M")
+        history = await trading_client.get_portfolio_history(
+            api_key, api_secret, paper, period=period,
+        )
+        if isinstance(history, dict) and history.get("error"):
+            return {"success": False, "error": history["error"]}
+        return {"success": True, "result": history}
+
+    # -- Write tools --
+
+    elif tool == "submit_order":
+        ticker = tool_input.get("ticker")
+        side = tool_input.get("side")
+        qty = tool_input.get("qty")
+        order_type = tool_input.get("order_type")
+        if not all([ticker, side, qty, order_type]):
+            return {"success": False, "error": "ticker, side, qty, and order_type are required"}
+
+        order = await trading_client.submit_order(
+            api_key, api_secret, paper,
+            symbol=ticker,
+            side=side,
+            qty=float(qty),
+            order_type=order_type,
+            time_in_force=tool_input.get("time_in_force", "day"),
+            limit_price=tool_input.get("limit_price"),
+            stop_price=tool_input.get("stop_price"),
+        )
+        if isinstance(order, dict) and order.get("error"):
+            return {"success": False, "error": order["error"]}
+        return {"success": True, "result": order}
+
+    elif tool == "cancel_order":
+        order_id = tool_input.get("order_id")
+        if not order_id:
+            return {"success": False, "error": "order_id is required"}
+        result = await trading_client.cancel_order(
+            api_key, api_secret, order_id, paper,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"]}
+        return {"success": True, "result": {"cancelled": True, "order_id": order_id}}
+
+    elif tool == "close_position":
+        ticker = tool_input.get("ticker")
+        if not ticker:
+            return {"success": False, "error": "ticker is required"}
+        result = await trading_client.close_position(
+            api_key, api_secret, ticker, paper,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"]}
+        return {"success": True, "result": {"closed": True, "ticker": ticker}}
+
+    return {"success": False, "error": f"Unknown trading tool: {tool}"}
 
 
 def is_platform_tool(tool_name: str) -> bool:

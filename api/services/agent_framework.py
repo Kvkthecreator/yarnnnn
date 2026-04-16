@@ -624,6 +624,42 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         },
     },
 
+    # ADR-187: Trading Bot — owns trading/ and portfolio/ context domains.
+    # Created at signup (paused), activated when trading provider connected.
+    "trading_bot": {
+        "class": "platform-bot",
+        "domain": "trading",  # primary owned domain
+        "platform": "trading",
+        "display_name": "Trading Bot",
+        "tagline": "Tracks markets, generates signals, executes trades",
+        "capabilities": [
+            "read_trading", "write_trading", "summarize", "produce_markdown",
+        ],
+        "description": (
+            "Monitors trading account activity, positions, and market data. "
+            "Generates trading signals and executes orders via Alpaca API."
+        ),
+        "default_instructions": (
+            "Monitor trading account and market data. Track positions, generate "
+            "signals based on accumulated market intelligence, execute approved trades."
+        ),
+        "methodology": {
+            "_playbook-outputs.md": (
+                "# Trading Output Conventions\n\n"
+                "## Signal Format\n"
+                "Every signal entry must include: ticker, direction (buy/sell/hold), "
+                "confidence (high/medium/low), reasoning (2-3 sentences), "
+                "and suggested position size (% of portfolio).\n\n"
+                "## Execution Log Format\n"
+                "Every execution entry must include: timestamp, ticker, side, quantity, "
+                "price, order_type, status, and link to originating signal.\n\n"
+                "## Position Format\n"
+                "Every position file must include: entry_date, entry_price, current_price, "
+                "quantity, unrealized_pnl, thesis (why entered), and exit_criteria.\n"
+            ),
+        },
+    },
+
     # ── Meta-Cognitive (owns orchestration itself) ──
     #
     # ADR-164: TP is an agent. It is the single meta-cognitive agent —
@@ -888,6 +924,8 @@ DEFAULT_ROSTER = [
     {"title": "GitHub Bot", "role": "github_bot"},
     # Commerce bot — ADR-183: activated on commerce provider connect
     {"title": "Commerce Bot", "role": "commerce_bot"},
+    # Trading bot — ADR-187: activated on trading provider connect
+    {"title": "Trading Bot", "role": "trading_bot"},
     # Meta-cognitive — ADR-164: TP owns back office tasks
     {"title": "Thinking Partner", "role": "thinking_partner"},
 ]
@@ -1001,6 +1039,28 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     "read_github": {
         "category": "tool", "runtime": "external:github",
         "tools": ["platform_github_list_repos", "platform_github_get_issues"],
+    },
+    "read_commerce": {
+        "category": "tool", "runtime": "external:commerce",
+        "tools": ["platform_commerce_list_products", "platform_commerce_get_subscribers",
+                  "platform_commerce_get_revenue", "platform_commerce_get_customers",
+                  "platform_commerce_create_checkout"],
+    },
+    "write_commerce": {
+        "category": "tool", "runtime": "external:commerce",
+        "tools": ["platform_commerce_create_product", "platform_commerce_update_product",
+                  "platform_commerce_create_discount"],
+    },
+    "read_trading": {
+        "category": "tool", "runtime": "external:trading",
+        "tools": ["platform_trading_get_account", "platform_trading_get_positions",
+                  "platform_trading_get_orders", "platform_trading_get_market_data",
+                  "platform_trading_get_portfolio_history"],
+    },
+    "write_trading": {
+        "category": "tool", "runtime": "external:trading",
+        "tools": ["platform_trading_submit_order", "platform_trading_cancel_order",
+                  "platform_trading_close_position"],
     },
 
     # -- Asset production (compute runtimes) --
