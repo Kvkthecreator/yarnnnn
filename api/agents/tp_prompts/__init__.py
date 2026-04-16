@@ -1,22 +1,32 @@
 from __future__ import annotations
 """
-Thinking Partner Prompt Modules (ADR-059: Modular Prompt Architecture)
+Thinking Partner Prompt Modules (ADR-059 + ADR-186)
 
-Prompts are split into composable sections for maintainability:
-- base.py: Core identity and style
-- tools.py: Tool documentation (Read, Write, Search, etc.)
-- platforms.py: Platform-specific tools (Slack, Notion, Gmail, Calendar)
-- behaviors.py: Behavioral guidelines (Search→Read→Act, resilience, etc.)
-- onboarding.py: Context awareness (always-on, graduated)
+ADR-059: Prompts are split into composable sections.
+ADR-186: Two prompt profiles — workspace (full scope) and entity (scoped).
 
-Usage:
-    from agents.tp_prompts import build_system_prompt
+Profile-aware assembly:
+  build_system_prompt(profile="workspace", ...)  → onboarding, task catalog, creation
+  build_system_prompt(profile="entity", ...)     → feedback routing, evaluate/steer/complete
+
+Shared sections (both profiles):
+  base.py       — identity + tone
+  tools_core.py — primitive docs, domain terms, workforce model
+  platforms.py  — platform tools
+
+Profile-specific sections:
+  workspace.py  — onboarding, task catalog, team composition, creation routes
+  entity.py     — feedback routing, evaluation, agent identity management
 """
 
 from .base import BASE_PROMPT, SIMPLE_PROMPT
-from .tools import TOOLS_SECTION
+from .tools_core import TOOLS_CORE
 from .platforms import PLATFORMS_SECTION
-from .behaviors import BEHAVIORS_SECTION
+from .workspace import WORKSPACE_BEHAVIORS
+from .entity import ENTITY_BEHAVIORS
+
+# Legacy imports — kept for any callers that reference them directly.
+# onboarding.py still defines CONTEXT_AWARENESS for the workspace profile.
 from .onboarding import CONTEXT_AWARENESS
 
 
@@ -24,16 +34,24 @@ def build_system_prompt(
     *,
     with_tools: bool = False,
     context: str = "",
+    profile: str = "workspace",
+    entity_preamble: str = "",
 ) -> list[dict]:
     """
     Build the full system prompt as content blocks for prompt caching.
 
+    ADR-186: Profile-aware assembly.
+      - profile="workspace": full behavioral guidance (onboarding, creation, catalog)
+      - profile="entity": scoped behavioral guidance (feedback, evaluate, steer)
+
     Static sections (identity, tools, behaviors) are cached via cache_control.
-    Dynamic sections (working memory context) are NOT cached — they change per turn.
+    Dynamic sections (working memory context, entity preamble) are NOT cached.
 
     Args:
         with_tools: Include tool documentation
         context: Working memory / context section
+        profile: "workspace" or "entity" — determines behavioral sections
+        entity_preamble: For entity profile — TASK.md, run log, output preview
 
     Returns:
         List of content blocks for the Anthropic system parameter
@@ -42,21 +60,36 @@ def build_system_prompt(
         # Simple prompt without tools — all dynamic (contains context)
         return [{"type": "text", "text": SIMPLE_PROMPT.format(context=context)}]
 
-    # Full prompt with tools
-    # Static: identity + behaviors + tools + platforms + context awareness
-    # These sections are identical across turns within a session (~10K tokens).
-    static_sections = [
-        BASE_PROMPT,
-        BEHAVIORS_SECTION,
-        TOOLS_SECTION,
-        PLATFORMS_SECTION,
-        CONTEXT_AWARENESS,
-    ]
-    static_prompt = "\n\n".join(sections for sections in static_sections)
+    # Profile-specific behavioral assembly
+    if profile == "entity":
+        static_sections = [
+            BASE_PROMPT,
+            ENTITY_BEHAVIORS,
+            TOOLS_CORE,
+            PLATFORMS_SECTION,
+        ]
+    else:
+        # Default: workspace profile (full guidance)
+        static_sections = [
+            BASE_PROMPT,
+            WORKSPACE_BEHAVIORS,
+            TOOLS_CORE,
+            PLATFORMS_SECTION,
+            CONTEXT_AWARENESS,
+        ]
+
+    static_prompt = "\n\n".join(section for section in static_sections)
     # Remove the {context} placeholder from static — context goes in dynamic block
     static_prompt = static_prompt.replace("{context}", "")
 
-    # Dynamic: working memory context (changes per turn)
+    # Build dynamic section
+    dynamic_parts = []
+    if entity_preamble:
+        dynamic_parts.append(f"\n\n## Entity Context\n{entity_preamble}")
+    if context:
+        dynamic_parts.append(f"\n\n## Working Memory & Context\n{context}")
+    dynamic_text = "".join(dynamic_parts)
+
     return [
         {
             "type": "text",
@@ -65,6 +98,6 @@ def build_system_prompt(
         },
         {
             "type": "text",
-            "text": f"\n\n## Working Memory & Context\n{context}" if context else "",
+            "text": dynamic_text,
         },
     ]

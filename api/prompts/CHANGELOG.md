@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.16.6] - ADR-186: TP Prompt Profiles — Surface-Aware Behavioral Assembly
+
+### Changed
+- `api/agents/tp_prompts/__init__.py`: `build_system_prompt()` gains `profile` and `entity_preamble` params. Profile selects which behavioral sections are assembled: "workspace" (onboarding, task catalog, creation) or "entity" (feedback routing, evaluate/steer/complete).
+- `api/agents/tp_prompts/tools_core.py`: NEW — shared tool docs extracted from tools.py. Covers primitive syntax, domain terms, workforce model, UpdateContext targets, ManageTask actions, RuntimeDispatch, memory guidance. Both profiles include this.
+- `api/agents/tp_prompts/workspace.py`: NEW — workspace profile behavioral guidance. Absorbs onboarding.py (context awareness, task catalog, domain scaffolding) + behaviors.py (exploration, resilience, confirmation) + tools.py (creation routes, team composition). All stale references fixed.
+- `api/agents/tp_prompts/entity.py`: NEW — entity profile behavioral guidance. Absorbs task_scope.py (feedback routing, role on task page — revived from dead code) + behaviors.py (agent workspace management — modernized). All stale references fixed.
+- `api/agents/tp_prompts/base.py`: Fixed SearchFiles/ReadFile reference in chat prompt — these are headless-only. Replaced with entity-layer and working memory guidance.
+- `api/agents/thinking_partner.py`: `_build_system_prompt()` gains `profile` param, routes to profile-aware assembly. Entity profile injects surface content as entity preamble instead of general context.
+- `api/routes/chat.py`: `resolve_profile()` + `SURFACE_PROFILES` dict — declarative surface→profile mapping with logging. task-detail/agent-detail/agent-review → "entity", everything else → "workspace".
+- `api/services/working_memory.py`: `format_compact_index()` gains `profile` param. Entity profile gets `_format_entity_index()` — scoped to entity health + one-line workspace summary (~300 tokens vs ~500).
+
+### Fix pass (rolled into restructure)
+- Fixed: ReadFile/SearchFiles/ListFiles references in chat prompt (headless-only tools)
+- Fixed: "nightly cron extracts" memory guidance (ADR-156: TP writes in-session)
+- Fixed: ADR-130 agent types (briefer/monitor/drafter/planner/scout → ADR-176 roster)
+- Fixed: ManageAgent example using invalid role="digest" and nonexistent frequency param
+- Fixed: EditEntity patterns for agent workspace management → UpdateContext(target="agent")
+- Fixed: primitives-matrix.md chat tool count (13 → 14, RuntimeDispatch was missing)
+
+### Expected behavior
+- Entity-scoped conversations (task-detail, agent-detail): ~40% token reduction, ~3x signal density improvement. TP sees feedback routing and evaluation guidance front-and-center, not buried in task catalog.
+- Workspace-wide conversations: unchanged behavior, slightly cleaner prompt (stale references fixed).
+- Profile resolution logged as `[TP:PROFILE] surface=X → profile=Y` for diagnostics.
+
+---
+
 ## [2026.04.16.5] - TP feedback communication protocol
 
 ### Changed

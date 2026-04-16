@@ -77,6 +77,35 @@ class SurfaceContext(BaseModel):
     domainId: Optional[str] = None
 
 
+# =============================================================================
+# ADR-186: Prompt Profile Resolution
+# =============================================================================
+
+# Declarative mapping: surface type → prompt profile.
+# Default is "workspace" — new surface types get the full prompt unless
+# explicitly mapped. Failure mode: "too much context" not "missing context."
+SURFACE_PROFILES: dict[str, str] = {
+    "task-detail": "entity",
+    "agent-detail": "entity",
+    "agent-review": "entity",
+}
+
+
+def resolve_profile(surface: Optional[SurfaceContext]) -> str:
+    """Resolve prompt profile from surface context (ADR-186).
+
+    Returns "workspace" or "entity". Always logs the resolution for
+    future evaluation and diagnostics.
+    """
+    if not surface:
+        profile = "workspace"
+        logger.info(f"[TP:PROFILE] surface=None → profile={profile}")
+        return profile
+    profile = SURFACE_PROFILES.get(surface.type, "workspace")
+    logger.info(f"[TP:PROFILE] surface={surface.type} → profile={profile}")
+    return profile
+
+
 class ImageAttachment(BaseModel):
     """Image sent inline as base64 (not stored, ephemeral like Claude Code)."""
     type: Literal["base64"] = "base64"
@@ -1267,6 +1296,9 @@ async def global_chat(
                 ]
                 logger.info(f"[TP] Processing {len(images_for_api)} image attachment(s)")
 
+            # ADR-186: Resolve prompt profile from surface
+            profile = resolve_profile(request.surface_context)
+
             stream_params = {
                     "include_context": request.include_context,
                     "history": history,
@@ -1274,6 +1306,7 @@ async def global_chat(
                     "images": images_for_api,  # Inline base64 images
                     "scoped_agent": scoped_agent,  # ADR-087: Agent-scoped context
                     "surface_context_raw": request.surface_context.dict() if request.surface_context else None,  # ADR-159
+                    "profile": profile,  # ADR-186: Prompt profile
                 }
 
             async for event in agent.execute_stream_with_tools(

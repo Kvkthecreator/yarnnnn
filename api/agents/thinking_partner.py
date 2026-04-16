@@ -122,11 +122,12 @@ class ThinkingPartnerAgent(BaseAgent):
         selected_domain_name: Optional[str] = None,
         command_prompt: Optional[str] = None,
         injected_context: Optional[dict] = None,
+        profile: str = "workspace",
     ) -> list[dict]:
         """Build system prompt as content blocks for prompt caching.
 
         ADR-059: Uses modular prompts from tp_prompts/ directory.
-        ADR-144: Context awareness always injected (graduated, not binary).
+        ADR-186: Profile-aware assembly — "workspace" or "entity".
         Static sections (identity, tools, behaviors) are cached.
         Dynamic sections (working memory, surface content) are NOT cached.
 
@@ -138,6 +139,7 @@ class ThinkingPartnerAgent(BaseAgent):
             selected_domain_name: ADR-034 - Name of user's selected domain context
             command_prompt: ADR-025 - Skill-specific prompt addition to inject
             injected_context: ADR-058 - Pre-built working memory from build_working_memory()
+            profile: ADR-186 - "workspace" or "entity" prompt profile
         """
         # Build context text
         if not include_context:
@@ -145,7 +147,9 @@ class ThinkingPartnerAgent(BaseAgent):
         elif injected_context:
             # ADR-159: Compact index (replaces full working memory dump)
             surface_ctx = injected_context.pop("_surface_context", None)
-            context_text = format_compact_index(injected_context, surface_context=surface_ctx)
+            context_text = format_compact_index(
+                injected_context, surface_context=surface_ctx, profile=profile,
+            )
         else:
             # Legacy path: format from ContextBundle
             context_text = self._format_memories(context, selected_domain_name)
@@ -160,15 +164,21 @@ class ThinkingPartnerAgent(BaseAgent):
 
         context_text = context_scope + context_text
 
-        # ADR-023: Prepend surface content if user is viewing something specific
-        if surface_content:
+        # ADR-186: For entity profile, surface_content becomes the entity preamble
+        # (TASK.md, run log, output preview). For workspace profile, it's prepended
+        # as general navigation context.
+        entity_preamble = ""
+        if profile == "entity" and surface_content:
+            entity_preamble = surface_content
+        elif surface_content:
             context_text = f"{surface_content}\n\n---\n\n{context_text}"
 
-        # ADR-059: Use modular prompt builder — returns content blocks
-        # ADR-144: Context awareness always included — graduated, not binary
+        # ADR-059 + ADR-186: Use modular prompt builder with profile
         blocks = build_modular_prompt(
             with_tools=with_tools,
             context=context_text,
+            profile=profile,
+            entity_preamble=entity_preamble,
         )
 
         # ADR-025: Inject skill prompt as additional dynamic block
@@ -381,6 +391,9 @@ This is their CHOICE. Execute the action implied by their selection:
 
 Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on their choice."""
 
+        # ADR-186: Profile from caller (resolved by chat.py from surface context)
+        profile = params.get("profile", "workspace")
+
         system = self._build_system_prompt(
             context, include_context,
             with_tools=True,
@@ -388,6 +401,7 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
             selected_domain_name=selected_domain_name,
             command_prompt=command_prompt,
             injected_context=injected_context,
+            profile=profile,
         )
 
         # Build messages list - filter out empty assistant messages which cause 400 errors

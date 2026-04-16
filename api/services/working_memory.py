@@ -825,25 +825,106 @@ def estimate_working_memory_tokens(working_memory: dict) -> int:
     return len(json_str) // 4
 
 
-def format_compact_index(working_memory: dict, surface_context: Optional[dict] = None) -> str:
+def _format_entity_index(working_memory: dict, surface_context: Optional[dict] = None) -> str:
+    """ADR-186: Compact index for entity-scoped profile.
+
+    Shows: entity being viewed, its relevant context domains, one-line workspace
+    summary, balance status, memory file references. Omits: full task list, full
+    domain list, onboarding gaps, team summary, recent uploads.
+
+    Target: ~300 tokens (well under the 600-token ceiling).
     """
-    ADR-159 + ADR-168 + ADR-174: Compact index for TP system prompt.
+    lines = ["## Entity Context\n"]
+
+    # --- One-line workspace summary (escape hatch) ---
+    ws = working_memory.get("workspace_state", {})
+    tasks_active = ws.get("tasks_active", 0)
+    domains_active = ws.get("context_domains", 0)
+    lines.append(f"Workspace: {tasks_active} active tasks | {domains_active} context domains")
+
+    # Balance warning (only if exhausted)
+    if ws.get("balance_exhausted"):
+        lines.append(f"- Balance: EXHAUSTED")
+
+    # --- Surface context (what entity the user is viewing) ---
+    if surface_context:
+        task_slug = surface_context.get("taskSlug")
+        agent_slug = surface_context.get("agentSlug")
+        if task_slug:
+            lines.append(f"\nScoped to task: **{task_slug}**")
+            # Find this task in active_tasks for freshness info
+            active_tasks = working_memory.get("active_tasks", [])
+            for t in active_tasks:
+                if t.get("slug") == task_slug:
+                    parts = []
+                    if t.get("mode"):
+                        parts.append(t["mode"])
+                    if t.get("schedule"):
+                        parts.append(t["schedule"])
+                    if t.get("status"):
+                        parts.append(t["status"])
+                    if t.get("last_run"):
+                        parts.append(f"last ran {t['last_run']}")
+                    if t.get("next_run"):
+                        parts.append(f"next {t['next_run']}")
+                    if parts:
+                        lines.append(f"- {' · '.join(parts)}")
+                    break
+        elif agent_slug:
+            lines.append(f"\nScoped to agent: **{agent_slug}**")
+
+    # --- Context domains relevant to this entity (compact) ---
+    context_domains = working_memory.get("context_domains", [])
+    if context_domains:
+        # Show all domains but very compact — entity profile needs domain awareness
+        # for feedback routing (domain changes vs task changes)
+        canonical = [d for d in context_domains if not d.get("temporal") and d.get("file_count", 0) > 0]
+        if canonical:
+            domain_strs = [f"{d['domain']}/ ({d.get('file_count', 0)})" for d in canonical[:6]]
+            lines.append(f"\nDomains: {', '.join(domain_strs)}")
+
+    # --- Agent health flags (only if flagged) ---
+    flagged = ws.get("agents_flagged", [])
+    if flagged:
+        lines.append("\nAgent health flags:")
+        for ah in flagged:
+            lines.append(f"- {ah['title']}: {ah['flag']}")
+
+    # --- Memory file references (always included) ---
+    lines.append("\n### Memory files (read with LookupEntity or entity-layer tools)")
+    lines.append("- `/workspace/IDENTITY.md` — who the user is")
+    lines.append("- `/workspace/AWARENESS.md` — your shift notes")
+    lines.append("- `/workspace/memory/notes.md` — stable facts and preferences")
+
+    return "\n".join(lines)
+
+
+def format_compact_index(
+    working_memory: dict,
+    surface_context: Optional[dict] = None,
+    profile: str = "workspace",
+) -> str:
+    """
+    ADR-159 + ADR-168 + ADR-174 + ADR-186: Compact index for TP system prompt.
+
+    ADR-186: Profile-aware rendering.
+      - "workspace": Full workspace overview (all tasks, all domains, all health).
+      - "entity": Scoped to the entity being viewed (entity health, its domains,
+        one-line workspace summary for escape-hatch awareness).
 
     Hard 600-token ceiling (ADR-174 Phase 1). Enforced after formatting:
     - Dev: AssertionError if exceeded (catches regressions early)
     - Prod: Warning logged + deterministic truncation applied
 
-    Truncation priority (never truncated → truncated first):
-      1. System summary / gaps (never truncated)
-      2. Memory file references (never truncated)
-      3. Active tasks (capped at 20, oldest last-run dropped first)
-      4. Context domains (capped at 15, smallest file count dropped first)
-
     Three tiers:
       1. This compact index (always in prompt)
       2. Last 5 messages (rolling window, handled by chat.py)
-      3. On-demand files (TP reads via ReadFile — or LookupEntity for entity-layer refs)
+      3. On-demand files (TP reads via LookupEntity for entity-layer refs)
     """
+    # ADR-186: Entity profile gets a scoped compact index
+    if profile == "entity":
+        return _format_entity_index(working_memory, surface_context)
+
     lines = ["## Workspace Index\n"]
 
     # --- Workspace state (unified signal) ---

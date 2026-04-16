@@ -180,3 +180,33 @@ These are mechanical (no LLM judgment in the hook). The agent reads them on next
 | Session state tracking for nudges | Adds complexity, TP already avoids nagging | Prompt guidance: "suggest each gap once, then drop it" |
 | Hardcoded response templates | Removes TP's ability to be natural | Give behavioral guidance, let TP compose |
 | Multiple simultaneous suggestions | Overwhelms users | Priority order + "one thing at a time" principle |
+
+---
+
+## Prompt Profiles (ADR-186)
+
+TP's system prompt is assembled from a **prompt profile** determined by the user's current surface. Two profiles:
+
+### `workspace` — workspace-wide scope
+
+**When:** User on `/chat`, browsing general surfaces, no entity focus.
+**Contains:** Onboarding, task type catalog, team composition, creation routes, domain scaffolding, profile/brand awareness.
+**Compact index:** Full workspace overview.
+**Budget:** ~7K tokens.
+
+### `entity` — entity-scoped
+
+**When:** User viewing a specific task (`task-detail`), agent (`agent-detail`), or run (`agent-review`).
+**Contains:** Feedback routing (domain/agent/task layers), evaluate/steer/complete, agent identity management, accumulation-first for scoped entity.
+**Compact index:** Scoped — this entity's health, its domains, one-line workspace summary.
+**Budget:** ~5-6K tokens.
+
+### Key design choices
+
+1. **Primitive set is constant across profiles.** Both profiles get the same 14 chat tools. Behavioral guidance determines when TP reaches for them, not tool availability. This preserves TP's ability to create a new task from a task page if the user explicitly asks.
+
+2. **Profile resolution is declarative and logged.** A dict maps surface types to profiles. Default is `workspace`. Adding a surface type = one dict entry. Resolution is logged for evaluation.
+
+3. **Profiles are stateless.** Determined entirely from the `DeskSurface.type` on each request. No mode tracking, no state transitions.
+
+4. **Surface content routing is profile-aware.** For `entity` profile, surface content (TASK.md, run log, output preview) is injected as an entity preamble. For `workspace` profile, it's prepended as general navigation context.
