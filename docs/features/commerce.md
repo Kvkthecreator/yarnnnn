@@ -60,12 +60,13 @@ Aggregate business metrics — MRR, growth rate, product performance, monthly sn
 
 ## Task Types
 
-| Task | What it does | Runs |
-|---|---|---|
-| **commerce-digest** | Reads commerce API, writes customer + revenue data to workspace | Daily (automatic) |
-| **revenue-report** | Produces a business intelligence deliverable from accumulated revenue data | Weekly (configurable) |
-| **commerce-create-product** | Creates a product in your commerce store, attaches rendered output | On demand (TP-triggered) |
-| **commerce-update-product** | Updates product files with latest rendered output | On demand (TP-triggered) |
+| Task | Kind | What it does | Runs |
+|---|---|---|---|
+| **commerce-digest** | accumulates_context | Reads commerce API, writes customer + revenue data to workspace | Daily (automatic) |
+| **revenue-report** | produces_deliverable | Produces a business intelligence deliverable from accumulated revenue data | Weekly (configurable) |
+| **commerce-create-product** | external_action | Creates a product in the commerce store with pricing and description | On demand (TP-triggered) |
+| **commerce-update-product** | external_action | Updates product name, description, or status (publish/archive) | On demand (TP-triggered) |
+| **commerce-create-discount** | external_action | Creates a discount code — percentage or fixed, store-wide or product-scoped | On demand (TP-triggered) |
 
 ---
 

@@ -596,14 +596,16 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         "display_name": "Commerce Bot",
         "tagline": "Tracks customers and revenue",
         "capabilities": [
-            "read_commerce", "summarize", "produce_markdown",
+            "read_commerce", "write_commerce", "summarize", "produce_markdown",
         ],
         "description": "Monitors your commerce platform. Tracks subscribers, "
-                       "revenue, products, and orders. Produces business digests.",
+                       "revenue, products, and orders. Creates and manages "
+                       "products and discount codes.",
         "default_instructions": (
             "Monitor connected commerce platform (Lemon Squeezy). "
             "Track subscribers, revenue, product performance, and orders. "
-            "Produce scannable digests of business activity with precise figures."
+            "Produce scannable digests of business activity with precise figures. "
+            "When tasked, create products, update listings, and manage discount codes."
         ),
         "methodology": {
             "_playbook-outputs.md": (

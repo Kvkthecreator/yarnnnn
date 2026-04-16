@@ -137,8 +137,9 @@ Commerce Bot is NOT in the default signup roster. It's created when the user con
 |---|---|---|---|---|---|
 | `commerce-digest` | `accumulates_context` | Commerce Bot | Daily | (commerce API live) | `customers/`, `revenue/`, `signals/` |
 | `revenue-report` | `produces_deliverable` | Analyst + Writer | Weekly | `revenue/`, `customers/`, `signals/` | (output folder) |
-| `commerce-create-product` | `external_action` | Commerce Bot | Reactive | task output folder | (commerce API write) |
-| `commerce-update-product` | `external_action` | Commerce Bot | Reactive | task output folder | (commerce API write) |
+| `commerce-create-product` | `external_action` | Commerce Bot | Reactive | `revenue/`, `customers/` | (commerce API write) |
+| `commerce-update-product` | `external_action` | Commerce Bot | Reactive | `revenue/` | (commerce API write) |
+| `commerce-create-discount` | `external_action` | Commerce Bot | Reactive | `revenue/`, `customers/` | (commerce API write) |
 
 ---
 

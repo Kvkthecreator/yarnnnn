@@ -51,6 +51,7 @@ class LemonSqueezyClient(CommerceProvider):
         path: str,
         api_key: str,
         params: Optional[dict] = None,
+        json_body: Optional[dict] = None,
     ) -> Any:
         """Make LS API request with retry on transient failures."""
         url = f"{LS_API_BASE}{path}"
@@ -65,7 +66,8 @@ class LemonSqueezyClient(CommerceProvider):
             try:
                 async with httpx.AsyncClient(timeout=_LS_TIMEOUT) as client:
                     response = await client.request(
-                        method, url, headers=headers, params=params,
+                        method, url, headers=headers,
+                        params=params, json=json_body,
                     )
 
                 if response.status_code == 401:
@@ -73,6 +75,14 @@ class LemonSqueezyClient(CommerceProvider):
 
                 if response.status_code == 404:
                     return {"error": "not_found", "status": 404}
+
+                if response.status_code == 422:
+                    # Validation error — don't retry
+                    try:
+                        body = response.json()
+                    except Exception:
+                        body = response.text
+                    return {"error": "validation_error", "status": 422, "detail": body}
 
                 if response.status_code == 429:
                     retry_after = int(response.headers.get("Retry-After", "5"))
@@ -88,7 +98,9 @@ class LemonSqueezyClient(CommerceProvider):
                     await asyncio.sleep(backoff)
                     continue
 
-                if response.status_code in (200, 201):
+                if response.status_code in (200, 201, 204):
+                    if response.status_code == 204:
+                        return {"success": True}
                     return response.json()
 
                 return {
@@ -301,11 +313,246 @@ class LemonSqueezyClient(CommerceProvider):
             )
         return orders
 
+    async def _get_store_id(self, api_key: str) -> Optional[str]:
+        """Resolve the user's store ID (needed for create operations)."""
+        stores = await self._request("GET", "/stores", api_key)
+        if isinstance(stores, dict) and stores.get("error"):
+            return None
+        store_data = stores.get("data", [])
+        if not store_data:
+            return None
+        return str(store_data[0].get("id"))
+
     async def create_checkout(self, api_key: str, product_id: str) -> str:
-        """Generate a checkout URL for a product variant."""
-        # LS checkouts require a variant ID, not product ID
-        # For Phase 1 (read-only), this is a placeholder
-        return f"https://checkout.lemonsqueezy.com/buy/{product_id}"
+        """Generate a checkout URL via LS /checkouts endpoint.
+
+        LS checkouts require a variant ID. We resolve the first variant
+        for the given product, then create a checkout.
+        """
+        # Resolve first variant for this product
+        variants = await self._request(
+            "GET", "/variants", api_key,
+            params={"filter[product_id]": product_id},
+        )
+        if isinstance(variants, dict) and variants.get("error"):
+            logger.warning(f"[LS_API] Failed to get variants for product {product_id}: {variants}")
+            return f"https://checkout.lemonsqueezy.com/buy/{product_id}"
+
+        variant_data = variants.get("data", [])
+        if not variant_data:
+            logger.warning(f"[LS_API] No variants found for product {product_id}")
+            return f"https://checkout.lemonsqueezy.com/buy/{product_id}"
+
+        variant_id = str(variant_data[0]["id"])
+        store_id = await self._get_store_id(api_key)
+        if not store_id:
+            return f"https://checkout.lemonsqueezy.com/buy/{product_id}"
+
+        # Create checkout via JSON:API
+        body = {
+            "data": {
+                "type": "checkouts",
+                "attributes": {
+                    "checkout_data": {"custom": {}},
+                },
+                "relationships": {
+                    "store": {"data": {"type": "stores", "id": store_id}},
+                    "variant": {"data": {"type": "variants", "id": variant_id}},
+                },
+            }
+        }
+        result = await self._request("POST", "/checkouts", api_key, json_body=body)
+        if isinstance(result, dict) and result.get("error"):
+            logger.warning(f"[LS_API] Checkout creation failed: {result}")
+            return f"https://checkout.lemonsqueezy.com/buy/{product_id}"
+
+        checkout_url = result.get("data", {}).get("attributes", {}).get("url", "")
+        return checkout_url or f"https://checkout.lemonsqueezy.com/buy/{product_id}"
+
+    # =========================================================================
+    # Phase 3: Write operations (ADR-183)
+    # =========================================================================
+
+    async def create_product(
+        self,
+        api_key: str,
+        name: str,
+        description: str,
+        price_cents: int,
+        interval: Optional[str] = None,
+    ) -> CommerceProduct:
+        """Create a product + variant in LS.
+
+        LS products always need at least one variant (the pricing entity).
+        We create the product, then create a variant with the price.
+        """
+        store_id = await self._get_store_id(api_key)
+        if not store_id:
+            raise ValueError("Could not resolve store ID")
+
+        # Create product
+        product_body = {
+            "data": {
+                "type": "products",
+                "attributes": {
+                    "name": name,
+                    "description": description,
+                    "status": "draft",
+                },
+                "relationships": {
+                    "store": {"data": {"type": "stores", "id": store_id}},
+                },
+            }
+        }
+        result = await self._request("POST", "/products", api_key, json_body=product_body)
+        if isinstance(result, dict) and result.get("error"):
+            raise ValueError(f"Product creation failed: {result.get('error')} — {result.get('detail', '')}")
+
+        product_id = str(result["data"]["id"])
+        attrs = result["data"]["attributes"]
+
+        # Create variant (pricing entity)
+        is_subscription = interval in ("month", "year")
+        variant_body = {
+            "data": {
+                "type": "variants",
+                "attributes": {
+                    "name": "Default",
+                    "price": price_cents,
+                    "is_subscription": is_subscription,
+                },
+                "relationships": {
+                    "product": {"data": {"type": "products", "id": product_id}},
+                },
+            }
+        }
+        if is_subscription:
+            # LS interval values: "day", "week", "month", "year"
+            variant_body["data"]["attributes"]["interval"] = interval
+            variant_body["data"]["attributes"]["interval_count"] = 1
+
+        variant_result = await self._request("POST", "/variants", api_key, json_body=variant_body)
+        if isinstance(variant_result, dict) and variant_result.get("error"):
+            logger.warning(f"[LS_API] Variant creation failed (product {product_id} exists without variant): {variant_result}")
+
+        return CommerceProduct(
+            id=product_id,
+            name=attrs.get("name", name),
+            price_cents=price_cents,
+            currency="USD",
+            interval=interval,
+            status="draft",
+            subscriber_count=0,
+            url=attrs.get("buy_now_url"),
+        )
+
+    async def update_product(
+        self,
+        api_key: str,
+        product_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> CommerceProduct:
+        """Update an existing product's name, description, or status."""
+        update_attrs: dict[str, Any] = {}
+        if name is not None:
+            update_attrs["name"] = name
+        if description is not None:
+            update_attrs["description"] = description
+        if status is not None:
+            update_attrs["status"] = status
+
+        if not update_attrs:
+            raise ValueError("No fields to update")
+
+        body = {
+            "data": {
+                "type": "products",
+                "id": product_id,
+                "attributes": update_attrs,
+            }
+        }
+        result = await self._request("PATCH", f"/products/{product_id}", api_key, json_body=body)
+        if isinstance(result, dict) and result.get("error"):
+            raise ValueError(f"Product update failed: {result.get('error')} — {result.get('detail', '')}")
+
+        attrs = result["data"]["attributes"]
+        return CommerceProduct(
+            id=product_id,
+            name=attrs.get("name", ""),
+            price_cents=attrs.get("price", 0),
+            currency="USD",
+            interval=None,
+            status=attrs.get("status", ""),
+            subscriber_count=0,
+            url=attrs.get("buy_now_url"),
+        )
+
+    async def create_discount(
+        self,
+        api_key: str,
+        name: str,
+        code: str,
+        amount: int,
+        amount_type: str = "percent",
+        product_id: Optional[str] = None,
+    ) -> dict:
+        """Create a discount code in LS.
+
+        Args:
+            name: Internal discount name.
+            code: Customer-facing code (e.g., "LAUNCH20").
+            amount: Percentage (20 = 20%) or fixed cents.
+            amount_type: "percent" or "fixed".
+            product_id: Scope to product, or None for store-wide.
+        """
+        store_id = await self._get_store_id(api_key)
+        if not store_id:
+            raise ValueError("Could not resolve store ID")
+
+        body: dict[str, Any] = {
+            "data": {
+                "type": "discounts",
+                "attributes": {
+                    "name": name,
+                    "code": code,
+                    "amount": amount,
+                    "amount_type": amount_type,
+                },
+                "relationships": {
+                    "store": {"data": {"type": "stores", "id": store_id}},
+                },
+            }
+        }
+
+        # Scope to a specific product via variants
+        if product_id:
+            variants = await self._request(
+                "GET", "/variants", api_key,
+                params={"filter[product_id]": product_id},
+            )
+            variant_ids = []
+            if not (isinstance(variants, dict) and variants.get("error")):
+                variant_ids = [
+                    {"type": "variants", "id": str(v["id"])}
+                    for v in variants.get("data", [])
+                ]
+            if variant_ids:
+                body["data"]["relationships"]["variants"] = {"data": variant_ids}
+
+        result = await self._request("POST", "/discounts", api_key, json_body=body)
+        if isinstance(result, dict) and result.get("error"):
+            raise ValueError(f"Discount creation failed: {result.get('error')} — {result.get('detail', '')}")
+
+        d_attrs = result["data"]["attributes"]
+        return {
+            "id": str(result["data"]["id"]),
+            "code": d_attrs.get("code", code),
+            "amount": d_attrs.get("amount", amount),
+            "amount_type": d_attrs.get("amount_type", amount_type),
+            "status": d_attrs.get("status", "published"),
+        }
 
 
 # Singleton

@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.16.7] - ADR-183 Phase 3: Commerce Write Platform Tools + Task Types
+
+### Changed
+- `api/integrations/core/commerce_provider.py`: Added `create_product()`, `update_product()`, `create_discount()` abstract methods.
+- `api/integrations/core/lemonsqueezy_client.py`: Implemented all 3 write methods against LS REST API v1 (JSON:API payloads). Fixed `create_checkout()` — now resolves variant ID via /variants endpoint and creates real checkout via /checkouts (was returning dummy URL). Added `_get_store_id()` helper. `_request()` gains `json_body` param + 422 validation error handling + 204 no-content support.
+- `api/services/platform_tools.py`: Added `COMMERCE_WRITE_TOOLS` (3 tools: `platform_commerce_create_product`, `platform_commerce_update_product`, `platform_commerce_create_discount`). Added `write_commerce` to `PLATFORM_TOOLS_BY_CAPABILITY` + `CAPABILITY_PROVIDER_MAP`. Added handler cases in `_handle_commerce_tool()`.
+- `api/services/agent_framework.py`: Commerce Bot gains `write_commerce` capability.
+- `api/services/task_types.py` (v7.1): Added 3 commerce write step instructions + 3 `external_action` task types (`commerce-create-product`, `commerce-update-product`, `commerce-create-discount`).
+
+### Expected behavior
+- Commerce Bot can now create products, update product listings, and create discount codes on the user's Lemon Squeezy store via TP-triggered reactive tasks. Same external_action pattern as slack-respond/notion-update.
+
+---
+
 ## [2026.04.16.6] - ADR-186: TP Prompt Profiles — Surface-Aware Behavioral Assembly
 
 ### Changed

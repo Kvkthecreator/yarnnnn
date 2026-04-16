@@ -302,7 +302,7 @@ How YARNNN charges users for platform usage. Implemented.
 
 ### Content Commerce (User → User's Customers) — ADR-183
 
-How users sell content products their agent team produces. Proposed.
+How users sell content products their agent team produces. Phases 1-3 implemented.
 
 - **Commerce as fourth platform class**: same `platform_connections` pattern as Slack/Notion/GitHub, API key auth
 - **Two context domains**: `customers/` (per-customer entities) and `revenue/` (aggregate business metrics)

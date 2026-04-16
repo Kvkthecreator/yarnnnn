@@ -119,3 +119,64 @@ class CommerceProvider(ABC):
     ) -> str:
         """Generate a checkout URL for a product. Returns the URL."""
         ...
+
+    # ── Write operations (ADR-183 Phase 3) ──
+
+    @abstractmethod
+    async def create_product(
+        self,
+        api_key: str,
+        name: str,
+        description: str,
+        price_cents: int,
+        interval: Optional[str] = None,
+    ) -> CommerceProduct:
+        """Create a product in the commerce store.
+
+        Args:
+            name: Product name.
+            description: Product description.
+            price_cents: Price in cents (e.g., 1999 = $19.99).
+            interval: Billing interval — "month", "year", or None for one-time.
+
+        Returns the created product with its ID and checkout URL.
+        """
+        ...
+
+    @abstractmethod
+    async def update_product(
+        self,
+        api_key: str,
+        product_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> CommerceProduct:
+        """Update an existing product's name, description, or status.
+
+        Only provided fields are updated; others are left unchanged.
+        """
+        ...
+
+    @abstractmethod
+    async def create_discount(
+        self,
+        api_key: str,
+        name: str,
+        code: str,
+        amount: int,
+        amount_type: str = "percent",
+        product_id: Optional[str] = None,
+    ) -> dict:
+        """Create a discount code.
+
+        Args:
+            name: Internal name for the discount.
+            code: The customer-facing code (e.g., "LAUNCH20").
+            amount: Discount amount — percentage (20 = 20%) or cents.
+            amount_type: "percent" or "fixed" (cents).
+            product_id: Scope to a specific product, or None for store-wide.
+
+        Returns dict with id, code, amount, and status.
+        """
+        ...

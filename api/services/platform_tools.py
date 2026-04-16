@@ -369,13 +369,102 @@ COMMERCE_TOOLS = [
     },
 ]
 
+# ADR-183 Phase 3: Commerce write tools
+COMMERCE_WRITE_TOOLS = [
+    {
+        "name": "platform_commerce_create_product",
+        "description": "Create a new product in the commerce store. Returns the created product with its ID. Product starts in 'draft' status — use update_product to publish.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Product name (e.g., 'Weekly Competitive Brief')"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Product description for the store listing"
+                },
+                "price_cents": {
+                    "type": "integer",
+                    "description": "Price in cents (e.g., 1999 = $19.99)"
+                },
+                "interval": {
+                    "type": "string",
+                    "enum": ["month", "year"],
+                    "description": "Billing interval for subscriptions. Omit for one-time purchase."
+                },
+            },
+            "required": ["name", "description", "price_cents"]
+        }
+    },
+    {
+        "name": "platform_commerce_update_product",
+        "description": "Update an existing product's name, description, or status. Only provided fields are changed.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {
+                    "type": "string",
+                    "description": "The product ID to update"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "New product name"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "New product description"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["published", "draft", "archived"],
+                    "description": "Product status. Set to 'published' to make available for purchase."
+                },
+            },
+            "required": ["product_id"]
+        }
+    },
+    {
+        "name": "platform_commerce_create_discount",
+        "description": "Create a discount code for the commerce store. Can be store-wide or scoped to a specific product.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Internal name for the discount (e.g., 'Launch Promo')"
+                },
+                "code": {
+                    "type": "string",
+                    "description": "Customer-facing code (e.g., 'LAUNCH20')"
+                },
+                "amount": {
+                    "type": "integer",
+                    "description": "Discount amount — percentage (20 = 20%) or cents for fixed"
+                },
+                "amount_type": {
+                    "type": "string",
+                    "enum": ["percent", "fixed"],
+                    "description": "Discount type: 'percent' (default) or 'fixed' (cents off)"
+                },
+                "product_id": {
+                    "type": "string",
+                    "description": "Scope discount to a specific product. Omit for store-wide."
+                },
+            },
+            "required": ["name", "code", "amount"]
+        }
+    },
+]
+
 
 # All platform tools by provider
 PLATFORM_TOOLS_BY_PROVIDER = {
     "slack": SLACK_TOOLS,
     "notion": NOTION_TOOLS,
     "github": GITHUB_TOOLS,
-    "commerce": COMMERCE_TOOLS,
+    "commerce": COMMERCE_TOOLS + COMMERCE_WRITE_TOOLS,
 }
 
 PLATFORM_TOOLS_BY_CAPABILITY = {
@@ -393,6 +482,10 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
         "platform_commerce_get_revenue", "platform_commerce_get_customers",
         "platform_commerce_create_checkout",
     ],
+    "write_commerce": [
+        "platform_commerce_create_product", "platform_commerce_update_product",
+        "platform_commerce_create_discount",
+    ],
 }
 
 CAPABILITY_PROVIDER_MAP = {
@@ -402,6 +495,7 @@ CAPABILITY_PROVIDER_MAP = {
     "write_notion": "notion",
     "read_github": "github",
     "read_commerce": "commerce",
+    "write_commerce": "commerce",
 }
 
 
@@ -1051,6 +1145,77 @@ async def _handle_commerce_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             api_key=api_key, product_id=product_id,
         )
         return {"success": True, "result": {"checkout_url": url}}
+
+    # ── Phase 3: Write operations ──
+
+    elif tool == "create_product":
+        name = tool_input.get("name")
+        description = tool_input.get("description", "")
+        price_cents = tool_input.get("price_cents")
+        interval = tool_input.get("interval")
+        if not name or price_cents is None:
+            return {"success": False, "error": "name and price_cents are required"}
+        try:
+            product = await commerce_client.create_product(
+                api_key=api_key, name=name, description=description,
+                price_cents=price_cents, interval=interval,
+            )
+            return {
+                "success": True,
+                "result": {
+                    "id": product.id,
+                    "name": product.name,
+                    "price": f"${product.price_cents / 100:.2f}",
+                    "interval": product.interval or "one-time",
+                    "status": product.status,
+                    "note": "Product created as draft. Use update_product to set status='published' when ready.",
+                },
+            }
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+    elif tool == "update_product":
+        product_id = tool_input.get("product_id")
+        if not product_id:
+            return {"success": False, "error": "product_id is required"}
+        try:
+            product = await commerce_client.update_product(
+                api_key=api_key,
+                product_id=product_id,
+                name=tool_input.get("name"),
+                description=tool_input.get("description"),
+                status=tool_input.get("status"),
+            )
+            return {
+                "success": True,
+                "result": {
+                    "id": product.id,
+                    "name": product.name,
+                    "status": product.status,
+                    "url": product.url,
+                },
+            }
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+
+    elif tool == "create_discount":
+        name = tool_input.get("name")
+        code = tool_input.get("code")
+        amount = tool_input.get("amount")
+        if not name or not code or amount is None:
+            return {"success": False, "error": "name, code, and amount are required"}
+        try:
+            discount = await commerce_client.create_discount(
+                api_key=api_key,
+                name=name,
+                code=code,
+                amount=amount,
+                amount_type=tool_input.get("amount_type", "percent"),
+                product_id=tool_input.get("product_id"),
+            )
+            return {"success": True, "result": discount}
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
 
     return {"success": False, "error": f"Unknown commerce tool: {tool}"}
 

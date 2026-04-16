@@ -9,7 +9,8 @@ the task produces. Four values:
   produces_deliverable — Writes a user-visible output to /tasks/{slug}/outputs/.
                          (daily-update, *-brief, *-report, *-prep, *-update)
   external_action      — Takes an action on an external platform via API write.
-                         (slack-respond, notion-update)
+                         (slack-respond, notion-update, commerce-create-product,
+                          commerce-update-product, commerce-create-discount)
   system_maintenance   — TP-owned. Produces an orchestration signal. Deterministic,
                          no LLM. (back-office-*)
 
@@ -64,6 +65,9 @@ Changelog:
          - Section kind vocabulary: narrative, metric-cards, entity-grid,
            comparison-table, trend-chart, distribution-chart, timeline,
            status-matrix, data-table, callout, checklist
+  v7.1 — ADR-183 Phase 3: Commerce write-back task types
+         (commerce-create-product, commerce-update-product, commerce-create-discount).
+         Same external_action pattern as slack-respond/notion-update.
 
 Canonical docs:
   - docs/architecture/registry-matrix.md
@@ -283,6 +287,60 @@ STEP_INSTRUCTIONS = {
         "Also append a dated signal entry to /workspace/context/signals/ with "
         "key business metrics.\n\n"
         "Your output: a business activity digest with precise revenue and subscriber data."
+    ),
+
+    # ADR-183 Phase 3: Commerce write-back step instructions
+    "commerce-create-product": (
+        "You are the Commerce Bot. Your job is to create a new product in the "
+        "user's commerce store based on the task objective.\n\n"
+        "Steps:\n"
+        "1. Read workspace context for product details — check the task objective "
+        "for product name, description, pricing, and billing interval\n"
+        "2. If a related task output exists (e.g., a report or brief to sell), "
+        "read it from /tasks/ outputs to inform the product description\n"
+        "3. Create the product: platform_commerce_create_product(name, description, "
+        "price_cents, interval)\n"
+        "4. Note: product is created as 'draft'. If the objective says to publish, "
+        "call platform_commerce_update_product(product_id, status='published')\n"
+        "5. Generate a checkout URL: platform_commerce_create_checkout(product_id)\n\n"
+        "Product rules:\n"
+        "- Description must be compelling — this is a store listing, not internal notes\n"
+        "- Price should match the objective. If not specified, do NOT guess — ask via output\n"
+        "- Include checkout URL in your output confirmation\n\n"
+        "Your output: confirmation of the created product with ID, name, price, "
+        "status, and checkout URL."
+    ),
+
+    "commerce-update-product": (
+        "You are the Commerce Bot. Your job is to update an existing product in "
+        "the user's commerce store based on the task objective.\n\n"
+        "Steps:\n"
+        "1. If you don't have the product_id, list products first: "
+        "platform_commerce_list_products()\n"
+        "2. Read the task objective for what to change (name, description, status)\n"
+        "3. Update: platform_commerce_update_product(product_id, ...changed fields)\n\n"
+        "Update rules:\n"
+        "- Only change what the objective requests — don't alter unmentioned fields\n"
+        "- When publishing (status='published'), verify the product has a name and price\n"
+        "- When archiving, note that existing subscribers are unaffected\n\n"
+        "Your output: confirmation of what was changed, with updated product details."
+    ),
+
+    "commerce-create-discount": (
+        "You are the Commerce Bot. Your job is to create a discount code in the "
+        "user's commerce store based on the task objective.\n\n"
+        "Steps:\n"
+        "1. Read the task objective for discount details: code, amount, type, scope\n"
+        "2. If scoped to a product and you don't have the product_id, list products: "
+        "platform_commerce_list_products()\n"
+        "3. Create: platform_commerce_create_discount(name, code, amount, "
+        "amount_type, product_id)\n\n"
+        "Discount rules:\n"
+        "- Code should be uppercase and memorable (e.g., LAUNCH20, WELCOME10)\n"
+        "- Default to percent unless the objective specifies a fixed amount\n"
+        "- If no product_id specified, create store-wide\n\n"
+        "Your output: confirmation of the created discount with code, amount, "
+        "type, and scope."
     ),
 
     "notion-digest": (
@@ -840,6 +898,123 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
                 "Preserves existing page structure",
                 "Uses Notion-native formatting",
                 "Focused — one update per objective",
+            ],
+        },
+    },
+
+    # ── Commerce Write-Back Tasks (ADR-183 Phase 3: agent-driven commerce ops) ──
+    # Commerce Bot creates/updates products and discount codes on the commerce
+    # platform. Same external_action pattern as slack-respond / notion-update.
+
+    "commerce-create-product": {
+        "display_name": "Create Product",
+        "description": "Creates a new product in the commerce store with pricing and description.",
+        "output_kind": "external_action",
+        "default_delivery": "none",
+        "registry_default_team": ["commerce_bot"],
+        "default_mode": "reactive",
+        "default_schedule": "on-demand",
+        "output_format": "text",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "commerce_bot",
+                "step": "commerce-create-product",
+                "instruction": STEP_INSTRUCTIONS["commerce-create-product"],
+            },
+        ],
+        "context_reads": ["revenue", "customers"],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": "commerce",
+        "default_objective": {
+            "deliverable": "Commerce product listing",
+            "audience": "Potential subscribers/buyers",
+            "purpose": "Create a product in the commerce store for sale",
+            "format": "Product with name, description, pricing, and checkout URL",
+        },
+        "default_deliverable": {
+            "output": {"format": "text", "word_count": "50-200", "layout": ["Confirmation"]},
+            "assets": [],
+            "quality_criteria": [
+                "Product name is clear and descriptive",
+                "Price matches the stated objective",
+                "Checkout URL is included in confirmation",
+            ],
+        },
+    },
+
+    "commerce-update-product": {
+        "display_name": "Update Product",
+        "description": "Updates an existing product's name, description, or status (publish/archive).",
+        "output_kind": "external_action",
+        "default_delivery": "none",
+        "registry_default_team": ["commerce_bot"],
+        "default_mode": "reactive",
+        "default_schedule": "on-demand",
+        "output_format": "text",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "commerce_bot",
+                "step": "commerce-update-product",
+                "instruction": STEP_INSTRUCTIONS["commerce-update-product"],
+            },
+        ],
+        "context_reads": ["revenue"],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": "commerce",
+        "default_objective": {
+            "deliverable": "Updated product listing",
+            "audience": "Existing and potential subscribers",
+            "purpose": "Update product details or status on the commerce store",
+            "format": "Confirmation of changes applied",
+        },
+        "default_deliverable": {
+            "output": {"format": "text", "word_count": "50-150", "layout": ["Confirmation"]},
+            "assets": [],
+            "quality_criteria": [
+                "Only requested fields were changed",
+                "Updated details confirmed in output",
+            ],
+        },
+    },
+
+    "commerce-create-discount": {
+        "display_name": "Create Discount Code",
+        "description": "Creates a discount code — percentage or fixed amount, store-wide or product-scoped.",
+        "output_kind": "external_action",
+        "default_delivery": "none",
+        "registry_default_team": ["commerce_bot"],
+        "default_mode": "reactive",
+        "default_schedule": "on-demand",
+        "output_format": "text",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "commerce_bot",
+                "step": "commerce-create-discount",
+                "instruction": STEP_INSTRUCTIONS["commerce-create-discount"],
+            },
+        ],
+        "context_reads": ["revenue", "customers"],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": "commerce",
+        "default_objective": {
+            "deliverable": "Discount code",
+            "audience": "Customers and prospects",
+            "purpose": "Create a promotional discount code",
+            "format": "Discount code with amount, type, and applicable products",
+        },
+        "default_deliverable": {
+            "output": {"format": "text", "word_count": "30-100", "layout": ["Confirmation"]},
+            "assets": [],
+            "quality_criteria": [
+                "Code is uppercase and memorable",
+                "Amount and type match the objective",
+                "Scope (store-wide or product) confirmed",
             ],
         },
     },
