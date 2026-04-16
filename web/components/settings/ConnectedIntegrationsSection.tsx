@@ -47,6 +47,9 @@ export function ConnectedIntegrationsSection({
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
+  // Commerce (API key auth, not OAuth)
+  const [commerceApiKey, setCommerceApiKey] = useState("");
+  const [commerceError, setCommerceError] = useState<string | null>(null);
 
   const loadIntegrations = async () => {
     setIsLoadingIntegrations(true);
@@ -105,6 +108,25 @@ export function ConnectedIntegrationsSection({
   const slackConnected = platformStatuses.slack === "active";
   const notionConnected = platformStatuses.notion === "active";
   const githubConnected = platformStatuses.github === "active";
+  const commerceConnected = platformStatuses.commerce === "active";
+
+  const handleConnectCommerce = async () => {
+    if (!commerceApiKey.trim()) {
+      setCommerceError("API key is required");
+      return;
+    }
+    setConnectingProvider("commerce");
+    setCommerceError(null);
+    try {
+      await api.integrations.connectCommerce(commerceApiKey.trim());
+      setCommerceApiKey("");
+      await loadIntegrations();
+    } catch (err: any) {
+      setCommerceError(err?.message || "Failed to connect. Check your API key.");
+    } finally {
+      setConnectingProvider(null);
+    }
+  };
 
   return (
     <section className={className}>
@@ -346,6 +368,102 @@ export function ConnectedIntegrationsSection({
                             </>
                           )}
                         </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {(() => {
+            const commerceIntegration = integrations.find((i) => i.provider === "commerce");
+            return (
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-[#7C3AED] rounded-lg flex items-center justify-center shrink-0">
+                    <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+                      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-medium">Lemon Squeezy</div>
+                        <div className="text-sm text-muted-foreground">Subscriptions, revenue, and customer data</div>
+                      </div>
+                      {commerceConnected ? (
+                        <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1 shrink-0">
+                          <Check className="w-4 h-4" />
+                          Connected
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      {commerceIntegration ? (
+                        <>
+                          <button
+                            onClick={() => router.push("/work?task=commerce-digest")}
+                            className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
+                          >
+                            Manage
+                          </button>
+                          <button
+                            onClick={() => handleDisconnectIntegration("commerce")}
+                            disabled={disconnectingProvider === "commerce"}
+                            className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
+                          >
+                            {disconnectingProvider === "commerce" ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              "Disconnect"
+                            )}
+                          </button>
+                        </>
+                      ) : (
+                        <div className="flex flex-col gap-2 w-full">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="password"
+                              value={commerceApiKey}
+                              onChange={(e) => {
+                                setCommerceApiKey(e.target.value);
+                                setCommerceError(null);
+                              }}
+                              placeholder="Paste your Lemon Squeezy API key"
+                              className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleConnectCommerce();
+                              }}
+                            />
+                            <button
+                              onClick={handleConnectCommerce}
+                              disabled={connectingProvider === "commerce" || !commerceApiKey.trim()}
+                              className="px-4 py-2 bg-[#7C3AED] text-white rounded-md text-sm font-medium hover:bg-[#6D28D9] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                            >
+                              {connectingProvider === "commerce" ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "Connect"
+                              )}
+                            </button>
+                          </div>
+                          {commerceError && (
+                            <p className="text-sm text-destructive">{commerceError}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Find your API key at{" "}
+                            <a
+                              href="https://app.lemonsqueezy.com/settings/api"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline hover:text-foreground"
+                            >
+                              app.lemonsqueezy.com/settings/api
+                            </a>
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>

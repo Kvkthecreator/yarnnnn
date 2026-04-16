@@ -378,8 +378,8 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         from datetime import timedelta
         seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
-        # ADR-131: Google/Gmail removed. ADR-147: GitHub added.
-        SUPPORTED_PLATFORMS = {"slack", "notion", "github"}
+        # ADR-131: Google/Gmail removed. ADR-147: GitHub added. ADR-183: Commerce added.
+        SUPPORTED_PLATFORMS = {"slack", "notion", "github", "commerce"}
 
         def _is_active(row: dict[str, Any]) -> bool:
             return row.get("status") == IntegrationStatus.ACTIVE.value
@@ -430,6 +430,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 "slack": "channels",
                 "notion": "pages",
                 "github": "repositories",
+                "commerce": "products",
             }.get(provider, "resources")
 
             return PlatformSummary(

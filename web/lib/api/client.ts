@@ -997,6 +997,20 @@ export const api = {
         method: "DELETE",
       }),
 
+    // ADR-183: Commerce connection (API key auth, not OAuth)
+    connectCommerce: (apiKey: string) =>
+      request<{
+        success: boolean;
+        connection_id: string;
+        platform: string;
+        provider: string;
+        status: string;
+        store_name: string;
+      }>("/api/integrations/commerce/connect", {
+        method: "POST",
+        body: JSON.stringify({ api_key: apiKey }),
+      }),
+
   },
 
   // ADR-063: Activity Log (what YARNNN has done)
