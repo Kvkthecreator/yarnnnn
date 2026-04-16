@@ -337,8 +337,17 @@ export type TaskMode = 'recurring' | 'goal' | 'reactive';
 // but the user only ever sees two labels. All task-displaying components
 // use this helper, never the raw schema value.
 export type TaskModeLabel = 'Recurring' | 'One-time';
-export function taskModeLabel(mode: string | undefined | null): TaskModeLabel {
-  return mode === 'recurring' ? 'Recurring' : 'One-time';
+/**
+ * Derive the user-facing mode label from the task's schedule, not its
+ * internal mode. A task with any schedule (daily, weekly, etc.) is
+ * "Recurring"; a task with no schedule (or "on-demand") is "One-time".
+ * The internal mode (recurring/goal/reactive) drives execution semantics
+ * only — users should never see those values.
+ */
+export function taskModeLabel(schedule: string | undefined | null): TaskModeLabel {
+  if (!schedule) return 'One-time';
+  const s = schedule.trim().toLowerCase();
+  return (s && s !== 'on-demand') ? 'Recurring' : 'One-time';
 }
 
 // ADR-087: Scoped chat session

@@ -137,7 +137,7 @@ function DeliverableMetadata({ task, assignedAgent }: { task: Task; assignedAgen
   );
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <WorkModeBadge mode={task.mode} />
+      <WorkModeBadge schedule={task.schedule} />
       {surface && (
         <>
           <span className="text-muted-foreground/30">·</span>
@@ -184,7 +184,7 @@ function TrackingMetadata({ task, assignedAgent }: { task: Task; assignedAgent: 
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <WorkModeBadge mode={task.mode} />
+      <WorkModeBadge schedule={task.schedule} />
       {assignedAgent && (
         <>
           <span className="text-muted-foreground/30">·</span>
@@ -240,7 +240,7 @@ function ActionMetadata({ task, assignedAgent }: { task: Task; assignedAgent: Ag
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <WorkModeBadge mode={task.mode} />
+      <WorkModeBadge schedule={task.schedule} />
       {assignedAgent && (
         <>
           <span className="text-muted-foreground/30">·</span>
@@ -276,7 +276,7 @@ function ActionMetadata({ task, assignedAgent }: { task: Task; assignedAgent: Ag
 function MaintenanceMetadata({ task }: { task: Task }) {
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <WorkModeBadge mode={task.mode} />
+      <WorkModeBadge schedule={task.schedule} />
       {task.schedule && (
         <>
           <span className="text-muted-foreground/30">·</span>

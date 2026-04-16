@@ -1052,7 +1052,7 @@ function TaskRow({
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate text-sm font-medium text-foreground">{task.title}</p>
           <span className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            {taskModeLabel(task.mode)}
+            {taskModeLabel(task.schedule)}
           </span>
         </div>
         <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{agentLabel}</p>
