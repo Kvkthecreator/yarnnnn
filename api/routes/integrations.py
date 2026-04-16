@@ -378,7 +378,9 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         from datetime import timedelta
         seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
-        # ADR-131: Only Slack and Notion remain — no Google/Gmail alias resolution needed
+        # ADR-131: Google/Gmail removed. ADR-147: GitHub added.
+        SUPPORTED_PLATFORMS = {"slack", "notion", "github"}
+
         def _is_active(row: dict[str, Any]) -> bool:
             return row.get("status") == IntegrationStatus.ACTIVE.value
 
@@ -395,7 +397,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         canonical_integrations: dict[str, dict[str, Any]] = {}
         for integration in integrations_result.data:
             provider = integration["platform"]
-            if provider not in {"slack", "notion"}:
+            if provider not in SUPPORTED_PLATFORMS:
                 continue
             canonical_integrations[provider] = _pick_preferred(
                 canonical_integrations.get(provider),
@@ -427,6 +429,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             resource_type = {
                 "slack": "channels",
                 "notion": "pages",
+                "github": "repositories",
             }.get(provider, "resources")
 
             return PlatformSummary(
@@ -440,8 +443,8 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 activity_7d=_count_activity(provider),
             )
 
-        # Emit platform summaries in stable order (ADR-131: Slack + Notion only)
-        for provider in ("slack", "notion"):
+        # Emit platform summaries in stable order
+        for provider in ("slack", "notion", "github"):
             integration = canonical_integrations.get(provider)
             if integration:
                 platforms.append(_to_summary(provider, integration))
@@ -1569,8 +1572,8 @@ async def get_landscape(
 
     If landscape hasn't been discovered or refresh=True, fetches from provider.
     """
-    if provider not in ["slack", "notion"]:
-        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}. ADR-131: Only Slack and Notion are supported.")
+    if provider not in ["slack", "notion", "github"]:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}. Supported: Slack, Notion, GitHub.")
 
     user_id = auth.user_id
 
