@@ -65,8 +65,9 @@ docs/working_docs/previous_versions/*.key
 docs/working_docs/previous_versions/*.numbers
 docs/working_docs/previous_versions/*.pages
 
-# Lock files (LibreOffice etc.)
+# Lock files (LibreOffice, MS Office temp files)
 .~lock.*
+~$*
 *.tmp
 
 # Analysis source dumps (large, third-party)
