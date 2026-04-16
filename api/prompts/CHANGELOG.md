@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.16.4] - Compact index gap signal for sparse identity
+
+### Changed
+- `api/services/working_memory.py`: Gap signal in `format_compact_index()` now fires for both `empty` AND `sparse` identity (was only `empty`). With the slimmed DEFAULT_IDENTITY_MD, fresh workspaces classify as "sparse" — the gap signal must still appear so TP prioritizes identity capture. Also: "no tasks" gap now requires `identity == "rich"` (was `identity != "empty"`) — prevents premature task suggestions before the user has told TP about themselves.
+- Expected behavior: TP sees "Gap: identity not set" for both empty and sparse workspaces. Task catalog suggestions only appear after identity is meaningfully filled in.
+
+---
+
+## [2026.04.16.3] - Fix post-reset onboarding flow (modal never appeared)
+
+### Changed
+- `api/agents/tp_prompts/onboarding.py`: Onboarding marker trigger condition widened from `identity is empty` to `identity is empty or sparse`. After a reset, workspace_init writes a minimal IDENTITY.md (just timezone or HTML comment) which classifies as "sparse" — TP must still trigger onboarding in this case.
+- `api/agents/tp_prompts/behaviors.py`: Profile awareness nudge updated from checking `(not set)` fields to checking "empty or sparse" profile, matching the new shorter DEFAULT_IDENTITY_MD.
+- `api/services/agent_framework.py`: `DEFAULT_IDENTITY_MD` shortened from full template with `(not set)` placeholders (~220 chars, classified "rich") to minimal `<!-- Identity not yet provided. -->` (~35 chars, classified "sparse"). Prevents false "rich" classification that suppressed onboarding.
+- Expected behavior: After workspace purge or full reset, user is redirected to /chat where TP detects sparse identity and emits the `<!-- onboarding -->` marker, opening the onboarding modal.
+
+---
+
 ## [2026.04.16.2] - Streamline user context injection, delete legacy format_for_prompt
 
 ### Changed

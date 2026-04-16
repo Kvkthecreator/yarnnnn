@@ -858,10 +858,10 @@ def format_compact_index(working_memory: dict, surface_context: Optional[dict] =
     lines.append(f"Identity: {identity} | Brand: {brand} | {tasks_active} active tasks | {domains_active} context domains | {docs} documents")
 
     # Gaps (only if present)
-    if identity == "empty":
-        lines.append("- Gap: identity empty — ask user about themselves")
-    if tasks_active == 0 and identity != "empty":
-        lines.append("- Gap: no tasks — suggest from catalog after scaffolding")
+    if identity in ("empty", "sparse"):
+        lines.append("- Gap: identity not set — ask user about themselves")
+    if tasks_active == 0 and identity == "rich":
+        lines.append("- Gap: no tasks — suggest from catalog")
     if tasks_stale > 0:
         lines.append(f"- Gap: {tasks_stale} stale task{'s' if tasks_stale != 1 else ''}")
     if ws.get("budget_exhausted"):
