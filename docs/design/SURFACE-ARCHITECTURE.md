@@ -1,16 +1,17 @@
 # Surface Architecture — Chat + Work + Files + Agents
 
-**Version:** v13.0 (2026-04-16)
+**Version:** v14.0 (2026-04-16)
 **Status:** Canonical
-**Governed by:** [ADR-180](../adr/ADR-180-work-context-surface-split.md) — Work/Context Surface Split
+**Governed by:** [ADR-180](../adr/ADR-180-work-context-surface-split.md) — Work/Context Surface Split (amended 2026-04-16: task-scoped vs. workspace-scoped)
 **Active decisions:**
-- [ADR-180](../adr/ADR-180-work-context-surface-split.md) — nav reorder, Work = operational, Context = knowledge (outputs + domains)
+- [ADR-180](../adr/ADR-180-work-context-surface-split.md) — nav reorder, Work = task-scoped (output + domain browsing inline), Files = workspace-scoped (cross-task knowledge + uploads)
 - [ADR-165 v5](../adr/ADR-165-workspace-state-surface.md) — `/chat` workspace state surface (TP-directed, single component, four lead views)
 - [ADR-166](../adr/ADR-166-registry-coherence-pass.md) — task `output_kind` enum (4 values)
 - [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — `/work` and `/agents` list/detail collapse. **v2 amendment**: breadcrumb in `<PageHeader />`.
 - [AGENT-AND-TASK-SURFACE-PATTERNS](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — shell and no-task-state rules
 
 **Supersedes:**
+- v13.0 (2026-04-16) — Work "operational only" thesis; Files had 4 sections (Context, Outputs, Uploads, Settings)
 - v12.0 (2026-04-15) — Work list: output_kind filter chips + group-by-agent toggle + system tasks in overflow
 - v11.0 (2026-04-14) — Nav label "Context"; modal called "Overview"; tabs "What I know / Heads up / Last time / Team activity"
 - v10.0 (2026-04-14) — Work hosted both outputs and operational detail; Agents at position 3
@@ -25,15 +26,15 @@
 | Priority | Surface | Route | The question it answers | The answer |
 |---|---|---|---|---|
 | 1 | **Chat** | `/chat` | "What should I do? What's happening?" | TP chat + one active structured artifact |
-| 2 | **Work** | `/work` | "Is my work configured, healthy, and running?" | Task list (operational) + task detail (schedule, health, config) |
-| 3 | **Files** | `/context` | "What does my workspace know? What has it produced?" | Outputs + accumulated domains + uploads + settings |
+| 2 | **Work** | `/work` | "What is this task doing, and what has it produced?" | Task list + task detail with inline output/domain browsing |
+| 3 | **Files** | `/context` | "What does my workspace know overall?" | Cross-task accumulated domains + user uploads |
 | 4 | **Agents** | `/agents` | "Who's on my team?" | Roster + agent detail with class-aware identity and work-shape summaries |
 
-**Priority order = navigation frequency.** Chat is where work is directed and results surface. Work is checked daily. Context is read when you want to consume what the system produced. Agents is a reference surface, visited rarely.
+**Priority order = navigation frequency.** Chat is where work is directed and results surface. Work is checked daily. Files is read when you want a cross-task knowledge view. Agents is a reference surface, visited rarely.
 
-**Work is operational only** (ADR-180). Work answers: "is this task configured, healthy, and running correctly?" Work does NOT show task output documents or accumulated files — those live in Files. For `produces_deliverable` and `accumulates_context` tasks, Work shows a direct link to Files.
+**Work is task-scoped** (ADR-180 amendment). Everything about a single task — configuration, health, output, accumulated domain files — is reachable from the task detail page without navigating away. `produces_deliverable` tasks render output inline. `accumulates_context` tasks show an entity grid with inline domain browsing. The user's core loop (check task → see what it produced) stays on one surface.
 
-**Files is the knowledge surface** (ADR-180). Files hosts both accumulated domain knowledge (`/workspace/context/`) and task deliverable outputs (`/tasks/{slug}/outputs/latest/`). Four top-level sections: Context (domains), Outputs (task deliverables), Uploads, Settings. The nav label is "Files" — accurate and non-inflated; it is a filesystem browser.
+**Files is workspace-scoped** (ADR-180 amendment). Files shows cross-task accumulated knowledge (`/workspace/context/` domains) and user uploads (`/workspace/uploads/`). Two top-level sections: Context domains and Uploads. Domain folders show task provenance ("Written by: track-competitors · weekly"). No Outputs section (task outputs live on Work). No Settings section (Identity/Brand live on Settings page). The nav label is "Files" — accurate and non-inflated.
 
 **Agents is position 4.** Under ADR-176, agents serve work — they are the labor pool, not the organizing principle. The roster is a reference, not a daily destination.
 
@@ -50,9 +51,9 @@ The old `/activity` page is **deleted**. Its content is absorbed into the surfac
 /work                           → Work LIST mode. Full-width filterable list of tasks.
 /work?agent={slug}              → Work LIST mode with the agent filter pre-applied.
 /work?task={slug}               → Work DETAIL mode. Operational detail (schedule, health, config).
-/context                        → Context. Workspace knowledge browser. (Retains left tree nav.)
-/context?domain={key}           → Context pre-filtered to a domain folder.
-/context?path=/tasks/{slug}/outputs/latest → Context showing a task's latest output.
+/context                        → Files. Workspace knowledge browser. (Retains left tree nav.)
+/context?domain={key}           → Files pre-filtered to a domain folder.
+/context?path={path}            → Files showing a specific workspace file.
 /agents                         → Agents LIST mode. Full-width team roster grouped by class.
 /agents?agent={slug}            → Agents DETAIL mode. Class-aware identity + work-shape summaries.
 /agents/{id}                    → Compatibility entry. Redirects to `/agents?agent={slug}`.
@@ -258,12 +259,12 @@ In detail mode the page renders `<PageHeader />` as breadcrumb chrome, then `<Wo
 
 | `output_kind` | Middle component | Shape |
 |---|---|---|
-| `accumulates_context` | `<TrackingMiddle>` | Domain folder link + compact run receipts (not a document card) |
-| `produces_deliverable` | `<DeliverableMiddle>` | Latest rendered HTML/markdown as full hero (no change) |
+| `accumulates_context` | `<TrackingMiddle>` | Entity grid with inline domain browsing + run receipts |
+| `produces_deliverable` | `<DeliverableMiddle>` | Latest rendered HTML/markdown as full hero |
 | `external_action` | `<ActionMiddle>` | Latest payload card + fire history list |
-| `system_maintenance` | `<MaintenanceMiddle>` | Hygiene log + run history (no change) |
+| `system_maintenance` | `<MaintenanceMiddle>` | Hygiene log + run history |
 
-**`TrackingMiddle` shape change**: was a rendered document card (CHANGELOG markdown). Now a compact health view — domain link + short run receipts (date, what changed). The domain folder is where the content lives; the task detail is just the health dashboard. `context_writes` registry fallback added: if TASK.md parsing fails to populate `task.context_writes`, `TrackingMiddle` infers the domain from `task.type_key` via a local map.
+**`TrackingMiddle` inline domain browsing** (ADR-180 amendment): `TrackingEntityGrid` renders entity cards for the primary `context_writes` domain. Clicking an entity opens a `DomainBrowser` (ContentViewer + WorkspaceTree scoped to that entity's folder) **inline within the Work detail page** — no navigation to Files. The user drills into entity files and returns to the grid without leaving the task. `DomainBrowser` reuses the same ContentViewer that Files uses (markdown, HTML, images, CSV, PDF rendering). `context_writes` registry fallback: if TASK.md parsing fails to populate `task.context_writes`, `TrackingMiddle` infers the domain from `task.type_key` via a local map.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
