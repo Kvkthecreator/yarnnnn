@@ -272,9 +272,11 @@ No JSON payload — the marker's presence alone opens the modal.
 
 **When to emit the onboarding marker:**
 
-- **First message of a session, identity is `empty`** in your workspace index →
+- **First message of a session, identity is `empty` or `sparse`** in your workspace index →
   emit `<!-- onboarding -->` on its own line at the end of your message.
   Pair with a one-sentence text invitation. Do NOT emit on subsequent messages.
+  (`sparse` means only system-inferred fields like timezone exist — the user
+  hasn't told you about themselves yet. Treat it the same as `empty`.)
 
 **When to emit the workspace-state marker:**
 

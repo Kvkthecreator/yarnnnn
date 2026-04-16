@@ -91,7 +91,7 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
             except Exception as e:
                 logger.warning(f"[WORKSPACE_INIT] Agent {agent_def['title']} failed (may exist): {e}")
     except Exception as e:
-        logger.warning(f"[WORKSPACE_INIT] Agent roster failed: {e}")
+        logger.error(f"[WORKSPACE_INIT] Agent roster FAILED — no agents created: {e}")
 
     # =========================================================================
     # Phase 3: Workspace Files (identity, brand, playbook, preferences)
@@ -178,7 +178,7 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         else:
             logger.info(f"[WORKSPACE_INIT] daily-update task already exists, skipping")
     except Exception as e:
-        logger.warning(f"[WORKSPACE_INIT] Default task (daily-update) creation failed: {e}")
+        logger.error(f"[WORKSPACE_INIT] Default task (daily-update) FAILED — user has no heartbeat: {e}")
 
     # ── Back office tasks (ADR-164) ──
     # Scheduled maintenance owned by TP. Same substrate as user tasks; runs
@@ -213,47 +213,76 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
             logger.warning(f"[WORKSPACE_INIT] Back office task ({slug}) creation failed: {e}")
 
     # =========================================================================
-    # Phase 6: Signup balance grant — $3 one-time (ADR-172)
+    # Phase 6: Signup balance audit trail (ADR-172)
     # =========================================================================
-    # Idempotent: free_balance_granted flag on workspace prevents re-grant.
-    # The workspace row already has balance_usd=3.0 DEFAULT and
-    # free_balance_granted=true DEFAULT from migration 144.
-    # We only insert the balance_transactions row if this is a fresh workspace
-    # (not already_initialized) to avoid duplicate audit rows.
+    # The $3 signup balance is granted by schema DEFAULT on workspaces
+    # (migration 144: balance_usd=3.0, free_balance_granted=true).
+    # The trigger in migration 106 auto-creates the workspace row on
+    # auth.users INSERT, so the balance exists before this code runs.
+    #
+    # This phase records the audit trail in balance_transactions.
+    # Idempotent: only writes if no signup_grant row exists yet.
     if not result["already_initialized"]:
         try:
             ws_row = client.table("workspaces")\
-                .select("id, free_balance_granted")\
+                .select("id")\
                 .eq("owner_id", user_id)\
                 .limit(1)\
                 .execute()
             if ws_row.data:
                 workspace_id = ws_row.data[0]["id"]
-                already_granted = ws_row.data[0].get("free_balance_granted", False)
-                if not already_granted:
-                    from services.platform_limits import grant_balance
-                    grant_balance(
-                        client,
-                        workspace_id=workspace_id,
-                        amount_usd=3.0,
-                        kind="signup_grant",
-                        metadata={"note": "one_time_signup_grant"},
-                    )
-                    client.table("workspaces")\
-                        .update({"free_balance_granted": True})\
-                        .eq("id", workspace_id)\
-                        .execute()
-                    logger.info(f"[WORKSPACE_INIT] Signup balance grant: $3.00 for {user_id[:8]}")
+                # Check if audit row already exists (idempotent)
+                existing_tx = client.table("balance_transactions")\
+                    .select("id")\
+                    .eq("workspace_id", workspace_id)\
+                    .eq("kind", "signup_grant")\
+                    .limit(1)\
+                    .execute()
+                if not (existing_tx.data or []):
+                    client.table("balance_transactions").insert({
+                        "workspace_id": workspace_id,
+                        "kind": "signup_grant",
+                        "amount_usd": 3.0,
+                        "metadata": {"note": "schema_default_grant_audit_trail"},
+                    }).execute()
+                    logger.info(f"[WORKSPACE_INIT] Signup balance audit: $3.00 for {user_id[:8]}")
+            else:
+                logger.error(f"[WORKSPACE_INIT] No workspace row for {user_id[:8]} — balance may be missing")
         except Exception as e:
-            logger.warning(f"[WORKSPACE_INIT] Signup balance grant failed: {e}")
+            logger.warning(f"[WORKSPACE_INIT] Signup balance audit failed: {e}")
 
-    logger.info(
-        f"[WORKSPACE_INIT] Complete for {user_id[:8]}: "
-        f"{len(result['agents_created'])} agents, "
-        f"{len(result['directories_scaffolded'])} directories, "
-        f"{len(result['workspace_files_seeded'])} files, "
-        f"{len(result['tasks_created'])} tasks"
-    )
+    # =========================================================================
+    # Post-init validation — check critical invariants
+    # =========================================================================
+    problems = []
+    if len(result["agents_created"]) == 0 and not result["already_initialized"]:
+        problems.append("zero agents created")
+    if "IDENTITY.md" not in result["workspace_files_seeded"] and not result["already_initialized"]:
+        problems.append("IDENTITY.md not seeded")
+    if "daily-update" not in result["tasks_created"] and not result["already_initialized"]:
+        # Check if it existed already (idempotent case is fine)
+        try:
+            check = client.table("tasks").select("id").eq("user_id", user_id).eq("slug", "daily-update").execute()
+            if not (check.data or []):
+                problems.append("daily-update task missing")
+        except Exception:
+            problems.append("daily-update task check failed")
+
+    if problems:
+        logger.error(
+            f"[WORKSPACE_INIT] INCOMPLETE for {user_id[:8]}: {', '.join(problems)}. "
+            f"Created: {len(result['agents_created'])} agents, "
+            f"{len(result['workspace_files_seeded'])} files, "
+            f"{len(result['tasks_created'])} tasks"
+        )
+    else:
+        logger.info(
+            f"[WORKSPACE_INIT] Complete for {user_id[:8]}: "
+            f"{len(result['agents_created'])} agents, "
+            f"{len(result['directories_scaffolded'])} directories, "
+            f"{len(result['workspace_files_seeded'])} files, "
+            f"{len(result['tasks_created'])} tasks"
+        )
 
     return result
 

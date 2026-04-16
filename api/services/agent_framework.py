@@ -747,15 +747,7 @@ Write team decisions into the ## Team section of TASK.md. Document reasoning bri
 
 DEFAULT_IDENTITY_MD = """\
 # About Me
-
-**Name:** (not set)
-**Role:** (not set)
-**Company:** (not set)
-**Industry:** (not set)
-
-## Summary
-(Not yet provided. Tell your Thinking Partner about yourself — your role, what you work on, \
-who you work with — so your agents can tailor outputs to your context.)
+<!-- Identity not yet provided. -->
 """
 
 DEFAULT_BRAND_MD = """\

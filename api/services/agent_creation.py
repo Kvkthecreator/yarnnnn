@@ -185,7 +185,7 @@ async def create_agent_record(
                         summary=f"ADR-143: seed playbook ({filename})",
                     )
             except Exception as e:
-                logger.warning(f"[AGENT_CREATION] Workspace seed failed for {entity_id}: {e}")
+                logger.error(f"[AGENT_CREATION] Workspace seed FAILED for {entity_id} — agent exists in DB but has no AGENT.md: {e}")
 
         logger.info(f"[AGENT_CREATION] Created: {title} ({entity_id}), origin={origin}, role={role}")
 
