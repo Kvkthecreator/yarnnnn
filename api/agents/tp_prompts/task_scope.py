@@ -4,8 +4,8 @@ Task-Scoped TP Preamble — injected when surface_context.type == 'task-detail'
 This preamble gives TP awareness of the specific task the user is viewing,
 including the task definition, latest output, run history, and assigned agent.
 
-See docs/design/TASK-SCOPED-TP.md for the full specification.
-See docs/design/FEEDBACK-WORKFLOW-REDESIGN.md for the two-layer feedback model.
+See docs/design/FEEDBACK-WORKFLOW-REDESIGN.md for the feedback routing model.
+See docs/architecture/execution-loop.md for the full execution + feedback cycle.
 """
 
 TASK_SCOPE_PREAMBLE = """---
@@ -71,8 +71,20 @@ domain change (remove entity), NOT task feedback. Route to ManageDomains first, 
 steer the task. When in doubt: domain changes affect what exists, task feedback affects how output
 is produced from what exists.
 
-After significant feedback, ask: "Want me to run this task now with the updated focus?"
-If yes, use `ManageTask(task_slug=..., action="trigger")`.
+## Feedback Communication Protocol
+
+After writing any feedback, you MUST:
+1. **Confirm what you wrote and where** — "I've noted that in the task feedback" or "Updated the agent preferences"
+2. **State when it takes effect** — "This will shape the next scheduled run" (include the schedule: "which runs daily at 9am" / "next Monday")
+3. **Offer immediate application** — "Want me to run it now so you can see the change?"
+
+If they say yes → `ManageTask(task_slug=..., action="trigger")`.
+If they say no → confirm: "Got it — you'll see this reflected in the next run."
+
+NEVER leave the user uncertain about whether feedback was applied or when it takes effect.
+Domain changes (ManageDomains) and objective updates (ManageTask action="update") take effect
+immediately in the workspace — say so. Style/criteria feedback written to feedback.md takes
+effect on the next generation — say so, and offer the rerun.
 """
 
 # Fallback when task context can't be loaded

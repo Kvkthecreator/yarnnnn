@@ -381,6 +381,27 @@ accumulates_context tasks          produces_deliverable tasks
 
 **The workspace is the memory between them.** A `track-competitors` task running weekly builds the intelligence. A `competitor-brief` task running weekly reads that intelligence and produces a report. The brief gets better because the context gets deeper.
 
+### Multi-agent team composition (ADR-176)
+
+Tasks are not single-agent. TASK.md declares a `## Team` section, and TP has full judgment over team composition. The pipeline supports multi-step execution: each process step runs a different agent sequentially, with prior step output passed as context to the next step.
+
+**Capability split by phase** (ADR-176 Decision 4):
+- **Accumulation phase** — Researcher, Analyst, Writer, Tracker: text production only. `produce_markdown`, `web_search`, `read_workspace`. No `RuntimeDispatch`, no visual assets.
+- **Production phase** — Designer: `chart`, `mermaid`, `image`, `video_render`, `compose_html`. Reads context, produces visual assets.
+
+This split is by cognitive mode, not by task type. A `produces_deliverable` task can have an accumulation step (Researcher gathers) followed by a production step (Designer charts). TP composes the team based on the work intent:
+
+| Work intent | Default team | When TP adds Designer |
+|------------|-------------|----------------------|
+| Track & inform | Researcher or Tracker | Never — context is knowledge, not presentation |
+| Recurring report | Researcher + Analyst + Writer | When visual output needed (charts, diagrams) |
+| One-time deliverable | Researcher + Writer | When presentation format required |
+| Platform digest | Bot (Slack/Notion/GitHub) | Never — bots produce text digests |
+
+**Pipeline support:** `_execute_pipeline()` in `task_pipeline.py` handles multi-step sequential execution. Each step resolves its agent from the roster, gathers step-specific context (including prior step output), generates, and saves to `outputs/{date}/step-{N}/`. The final step's output becomes the task deliverable.
+
+**Key constraint:** Designer cannot participate in `accumulates_context` tasks. Context accumulation is knowledge work — structured markdown files with source citations, entity profiles, signal logs. Visual assets are produced at deliverable time from accumulated context, not accumulated themselves.
+
 ---
 
 ## Bootstrap → Steady Phase Transition
@@ -492,10 +513,22 @@ Rules: one question per evaluate call. Always reference a specific output detail
 - TP evaluation cadence: weekly, not per-run
 - Email reply-with-feedback still works
 
+### TP feedback communication protocol
+
+After writing any feedback, TP MUST:
+1. **Confirm what was written and where** — "I've noted that in the task feedback" or "Updated the agent preferences"
+2. **State when it takes effect** — "This will shape the next scheduled run" (include timing: "which runs daily at 9am" / "next Monday")
+3. **Offer immediate application** — "Want me to run it now so you can see the change?"
+
+**Temporal model:** Domain changes (`ManageDomains`) and objective updates (`ManageTask(action="update")`) take effect immediately in the workspace. Style/criteria feedback written to `feedback.md` takes effect on the next generation. TP must make this distinction explicit — never leave the user uncertain about whether feedback was applied or when it takes effect.
+
+**Code:** `api/agents/tp_prompts/task_scope.py` (task-scoped), `api/agents/tp_prompts/tools.py` (global)
+
 ### Implementation status
 
 - FeedbackStrip component: **proposed** (`web/components/work/details/FeedbackStrip.tsx`)
 - TP solicitation prompt guidance: **proposed** (add to `api/agents/tp_prompts/onboarding.py`)
+- TP communication protocol: **implemented** (prompt guidance in task_scope.py + tools.py)
 - Feedback routing model: **implemented** (ADR-156, three-layer)
 
 ---

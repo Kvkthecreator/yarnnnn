@@ -336,7 +336,11 @@ When a user gives feedback, pick the right target:
 | "Too long" | agent | General preference — cross-task |
 | "Competitor section thin" | task (run_log) | Observation — this task only |
 
-After significant feedback, offer to re-run: "Want me to run this now?"
+After writing feedback, ALWAYS:
+1. Confirm what you wrote and where ("Noted in task feedback" / "Updated agent preferences")
+2. State when it takes effect ("This shapes the next run, scheduled for Monday 9am")
+3. Offer immediate rerun: "Want me to run it now so you can see the change?"
+Domain/objective changes are immediate. Style/criteria feedback takes effect next generation.
 
 ---
 

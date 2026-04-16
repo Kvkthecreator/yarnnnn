@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.16.5] - TP feedback communication protocol
+
+### Changed
+- `api/agents/tp_prompts/task_scope.py`: Replaced one-line "ask if they want a rerun" with explicit three-step communication protocol: (1) confirm what was written and where, (2) state when it takes effect with schedule timing, (3) offer immediate rerun. Added temporal model distinction: domain/objective changes are immediate, style/criteria feedback takes effect on next generation.
+- `api/agents/tp_prompts/tools.py`: Same three-step protocol added to global feedback routing section.
+- Expected behavior: TP never leaves the user uncertain about whether feedback was applied or when it takes effect. Clear "applied now" vs "noted for next run" distinction in every feedback response.
+
+---
+
 ## [2026.04.16.4] - Compact index gap signal for sparse identity
 
 ### Changed
