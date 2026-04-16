@@ -3,9 +3,10 @@
 **Status:** Canonical
 **Date:** 2026-04-16
 **Codifies:** ADR-141 (Unified Execution), ADR-154 (Execution Boundaries), ADR-173 (Accumulation-First), ADR-181 (Feedback Layer), ADR-182 (Pre-Gather)
+**Absorbs:** FEEDBACK-LOOP.md (2026-04-15) — user feedback surface, FeedbackStrip design, TP solicitation rules
 **Related:**
 - [agent-execution-model.md](agent-execution-model.md) — three-layer architecture (scheduler / pipeline / TP)
-- [FEEDBACK-LOOP.md](../design/FEEDBACK-LOOP.md) — user-facing feedback affordances
+- [FEEDBACK-WORKFLOW-REDESIGN.md](../design/FEEDBACK-WORKFLOW-REDESIGN.md) — feedback routing model (domain/agent/task layers)
 - [workspace-conventions.md](workspace-conventions.md) — filesystem layout and directory registry
 - [FOUNDATIONS.md](FOUNDATIONS.md) — Axiom 4 (accumulated attention compounds)
 
@@ -421,6 +422,84 @@ Mode (`recurring`, `goal`, `reactive`) affects the loop's posture, not its mecha
 
 ---
 
+## User Feedback Surface
+
+The mechanical loop (Phases 1-6) runs autonomously. User feedback is the third input alongside system verification and TP evaluation — all three write to the same `feedback.md` in the same source-agnostic format (ADR-181).
+
+### How feedback enters the system
+
+All user feedback routes through TP chat via **prompt relays** — pre-filled messages the user reviews and sends. TP is the single intelligence layer (ADR-156); no background feedback jobs, no direct-trigger write paths.
+
+Three entry points:
+1. **Email "Reply with feedback"** → task-scoped TP chat
+2. **Task detail page** → FeedbackStrip affordance → pre-filled chat message
+3. **Chat surface** (`/chat`) → free-form feedback → TP routes
+
+### FeedbackStrip — per-output_kind affordances
+
+A thin feedback strip sits below the output in `WorkDetail` (below `KindMiddle`, above `AssignedAgentFooter`). Visible when `last_run_at` is set.
+
+**`produces_deliverable`** — *"Is this output right?"*
+
+| Button | Pre-filled prompt | TP routes to |
+|--------|------------------|--------------|
+| **This looks good** | `"This output looks good. Note it for future runs."` | `UpdateContext(target="task")` → appends to feedback.md |
+| **Something's off** | `"I want to change something about this output: "` (cursor at end) | TP asks what, routes to task or agent feedback |
+| **Edit in TP** | `"Edit the latest [task title] output: "` | `ManageTask(action="steer")` |
+
+**`accumulates_context`** — *"Is this tracking the right things?"*
+
+| Button | Pre-filled prompt | TP routes to |
+|--------|------------------|--------------|
+| **Looks comprehensive** | `"The [task title] context looks comprehensive."` | `UpdateContext(target="task")` → positive feedback |
+| **Missing something** | `"The [task title] context is missing: "` (cursor at end) | TP routes: `ManageDomains` / objective update / task feedback |
+| **Edit in TP** | `"Adjust what [task title] tracks: "` | `ManageTask(action="update")` or `ManageDomains` |
+
+**`external_action`** — *"Did this send the right thing?"*
+
+| Button | Pre-filled prompt | TP routes to |
+|--------|------------------|--------------|
+| **Delivery was right** | `"The [task title] delivery looked right."` | `UpdateContext(target="task")` → positive feedback |
+| **Adjust what's sent** | `"Change what [task title] sends: "` | `ManageTask(action="update")` |
+
+**`system_maintenance`** — no FeedbackStrip. TP-owned.
+
+### Feedback routing (three layers)
+
+TP determines where feedback lands. See [FEEDBACK-WORKFLOW-REDESIGN.md](../design/FEEDBACK-WORKFLOW-REDESIGN.md) for the full routing model.
+
+| User says | Layer | Target |
+|-----------|-------|--------|
+| "Too verbose" / "Use bullet points" | Agent | `/agents/{slug}/memory/feedback.md` (cross-task) |
+| "Focus on pricing this week" | Task | `/tasks/{slug}/feedback.md` (this task only) |
+| "Don't track Tabnine" | Domain | `ManageDomains(action="remove")` (workspace-wide) |
+
+### TP feedback solicitation
+
+TP proactively asks for feedback during `ManageTask(action="evaluate")`:
+
+- **First ask**: task has ≥3 runs but zero feedback entries
+- **Check-in**: feedback.md not updated in ≥14 days (recurring tasks)
+- **Quality divergence**: evaluation detects mismatch vs DELIVERABLE.md criteria
+- **Goal milestone**: goal-mode task near declared milestone
+
+Rules: one question per evaluate call. Always reference a specific output detail. Never generic ("how was this output?").
+
+### Daily update special case
+
+`daily-update` (`essential: true`) is ambient, not quality-evaluated:
+- No "This looks good" affordance — only "Something's off" and "Edit in TP"
+- TP evaluation cadence: weekly, not per-run
+- Email reply-with-feedback still works
+
+### Implementation status
+
+- FeedbackStrip component: **proposed** (`web/components/work/details/FeedbackStrip.tsx`)
+- TP solicitation prompt guidance: **proposed** (add to `api/agents/tp_prompts/onboarding.py`)
+- Feedback routing model: **implemented** (ADR-156, three-layer)
+
+---
+
 ## What Does NOT Accumulate (Known Gaps)
 
 These are architectural observations, not bugs:
@@ -455,6 +534,6 @@ These are architectural observations, not bugs:
 ## Relationship to Other Docs
 
 - **[agent-execution-model.md](agent-execution-model.md)** describes the three-layer *architecture* (what the layers are, what triggers exist, what code runs). This doc describes the *loop mechanics* (how run N feeds run N+1).
-- **[FEEDBACK-LOOP.md](../design/FEEDBACK-LOOP.md)** describes the *user-facing* feedback affordances (buttons, prompt relays, TP solicitation). This doc describes the *mechanical* feedback loop (system verification, actuation, aging).
+- **[FEEDBACK-WORKFLOW-REDESIGN.md](../design/FEEDBACK-WORKFLOW-REDESIGN.md)** describes the feedback *routing model* (where feedback lands: domain / agent / task layers). This doc describes the full loop including how feedback is collected, verified, and actuated.
 - **[workspace-conventions.md](workspace-conventions.md)** describes the *filesystem layout*. This doc describes how that layout is *used* across cycles.
 - **[FOUNDATIONS.md](FOUNDATIONS.md)** Axiom 4 states the thesis ("accumulated attention compounds"). This doc describes the mechanism.

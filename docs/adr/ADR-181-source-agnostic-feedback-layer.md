@@ -3,7 +3,7 @@
 **Date:** 2026-04-15
 **Status:** Phase 1-3 + 4a-4b Implemented (2026-04-15). Phase 4c-4d (health indicators, actuation log) deferred.
 **Extends:** ADR-149 (Task Lifecycle), ADR-151 (Shared Context Domains), ADR-154 (Post-Run Domain Scan), ADR-162 (Inference Hardening)
-**Supersedes:** Feedback portions of FEEDBACK-LOOP.md (surface affordance design preserved; architectural model replaced)
+**Supersedes:** Feedback portions of FEEDBACK-LOOP.md (deleted; surface affordance design absorbed into `docs/architecture/execution-loop.md` "User Feedback Surface" section; architectural model replaced by this ADR)
 
 ---
 
@@ -308,7 +308,7 @@ Post-run in `_post_run_domain_scan()`. Reads all entries, matches against `FEEDB
 ### Phase 3 — Inference update + TP prompt guidance
 
 1. Update `task_deliverable_inference.py` prompt to treat system verification entries as equal signals
-2. Add TP prompt guidance for feedback solicitation rules (from FEEDBACK-LOOP.md Phase 2)
+2. Add TP prompt guidance for feedback solicitation rules (see `execution-loop.md` "TP feedback solicitation" section)
 3. Update `api/prompts/CHANGELOG.md`
 
 **Cost:** Prompt changes only. No new code paths.
@@ -317,7 +317,7 @@ Post-run in `_post_run_domain_scan()`. Reads all entries, matches against `FEEDB
 
 Three surfaces gain feedback affordances. All use prompt-relay to TP chat (no new primitives, no CRUD).
 
-#### 4a. FeedbackStrip on Work detail (from FEEDBACK-LOOP.md)
+#### 4a. FeedbackStrip on Work detail (see `execution-loop.md` "User Feedback Surface")
 
 New component: `web/components/work/details/FeedbackStrip.tsx`
 
@@ -386,7 +386,7 @@ This makes the system's autonomous corrections visible without requiring the use
 - **ADR-156** (Single Intelligence Layer): No background LLM jobs. System verification is deterministic. Actuation is rule-based. Consistent with single-intelligence-layer principle.
 - **ADR-162** (Inference Hardening): `detect_inference_gaps()` pattern is analogous — deterministic gap detection feeding into structured response. System verification follows the same pattern for task-level feedback.
 - **ADR-164** (Back Office Tasks): Agent hygiene (`back-office-agent-hygiene`) is a workspace-level deterministic check. System verification is the task-level equivalent — same pattern, different scope.
-- **FEEDBACK-LOOP.md**: Surface affordance design (FeedbackStrip, prompt relay, solicitation rules) preserved as Phase 4. The architectural model (source-agnostic layer, system verification, actuation) replaces the doc's implicit assumption that all feedback is user-initiated.
+- **FEEDBACK-LOOP.md** (deleted, absorbed into `execution-loop.md`): Surface affordance design (FeedbackStrip, prompt relay, solicitation rules) preserved in `execution-loop.md` "User Feedback Surface" section. The architectural model (source-agnostic layer, system verification, actuation) replaced the doc's implicit assumption that all feedback is user-initiated.
 
 ---
 

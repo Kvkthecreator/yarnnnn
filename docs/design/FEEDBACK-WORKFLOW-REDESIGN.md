@@ -3,6 +3,7 @@
 **Date:** 2026-03-26 (original), 2026-04-03 (revised to three-layer)
 **Status:** Implemented (ADR-156: three-layer routing)
 **Depends on:** ADR-138 (Agents as Work Units), ADR-156 (Single Intelligence Layer)
+**Sibling:** [execution-loop.md](../architecture/execution-loop.md) — the full execution + feedback cycle (mechanical verification, user affordances, actuation). This doc covers feedback *routing* only.
 
 ---
 

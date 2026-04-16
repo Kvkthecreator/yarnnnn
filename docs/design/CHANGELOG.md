@@ -13,7 +13,7 @@ Track changes to design documentation structure and active principles.
 ## 2026-04-15 — Design folder cleanup: archive pass + route alignment
 
 **Archived to `docs/design/archive/`** (content superseded by current ADRs and docs):
-- `QUALITY-GATE-DESIGN.md` — designed for ADR-137 (PM-tier quality gates), which was superseded by ADR-138 (project layer collapse). Evaluation model now lives in ADR-149 + FEEDBACK-LOOP.md.
+- `QUALITY-GATE-DESIGN.md` — designed for ADR-137 (PM-tier quality gates), which was superseded by ADR-138 (project layer collapse). Evaluation model now lives in ADR-149 + `docs/architecture/execution-loop.md`.
 - `TASK-SCOPED-TP.md` — three-scope TP model (global/agent/task). Superseded by ADR-163 four-surface nav + SURFACE-PRIMITIVES-MAP.md which covers scope-aware primitives.
 - `ONBOARDING-SCAFFOLD-AND-BRIEFING.md` — proposed onboarding task scaffold + daily briefing header. Architecture diverged: briefing dissolved into Workspace modal (ADR-165 v8), task scaffold moved to TP judgment. Superseded by USER-JOURNEY.md + ONBOARDING-TP-AWARENESS.md.
 - `WORKSPACE-EXPLORER-UI.md` — three-panel Files explorer spec from v3 architecture. Superseded by ADR-163 Files surface and SURFACE-ARCHITECTURE.md v12 (nav label "Files", `/context` route, left tree nav retained).

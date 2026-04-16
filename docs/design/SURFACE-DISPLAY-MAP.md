@@ -306,7 +306,7 @@ The only kind with a direct Work↔Context equivalence is `produces_deliverable`
 
 | Gap | Location | Notes |
 |-----|----------|-------|
-| No `FeedbackStrip` in `WorkDetail` | `WorkDetail.tsx` | Proposed in `FEEDBACK-LOOP.md`. Not yet implemented. |
+| No `FeedbackStrip` in `WorkDetail` | `WorkDetail.tsx` | Proposed in `execution-loop.md` "User Feedback Surface" section. Not yet implemented. |
 | `OutputsLinkBlock` ("See in Context" pointer) | `WorkDetail.tsx` | Mentioned in ADR-180 intent; verify whether it exists in code. The cross-reference from Work→Context for `accumulates_context` tasks is currently implicit (user must navigate manually). |
 | `accumulates_context` tasks: no entity-level navigation from Work | `TrackingMiddle.tsx` | Only links to domain folder root. Entity drill-down requires navigating to Context first. |
 | Empty workspace state on `/context` | `context/page.tsx` | Renders empty tree roots with CTAs. Not explicitly specified in design docs. |
