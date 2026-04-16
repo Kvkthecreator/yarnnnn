@@ -1,6 +1,6 @@
 # Surface Architecture — Chat + Work + Files + Agents
 
-**Version:** v12.0 (2026-04-15)
+**Version:** v13.0 (2026-04-16)
 **Status:** Canonical
 **Governed by:** [ADR-180](../adr/ADR-180-work-context-surface-split.md) — Work/Context Surface Split
 **Active decisions:**
@@ -11,6 +11,7 @@
 - [AGENT-AND-TASK-SURFACE-PATTERNS](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — shell and no-task-state rules
 
 **Supersedes:**
+- v12.0 (2026-04-15) — Work list: output_kind filter chips + group-by-agent toggle + system tasks in overflow
 - v11.0 (2026-04-14) — Nav label "Context"; modal called "Overview"; tabs "What I know / Heads up / Last time / Team activity"
 - v10.0 (2026-04-14) — Work hosted both outputs and operational detail; Agents at position 3
 - v9.5 (2026-04-09) — kind-aware detail spec, run now removed, overflow menu for lifecycle
@@ -187,35 +188,41 @@ The `WorkModeBadge` component is the only place modes are rendered. Every task r
 
 The execution layer still distinguishes three modes because `goal` has the revision loop and `reactive` has dispatch-and-done semantics (see ADR-149). Users never see the third option — they pick "Recurring" or "One-time", and TP resolves "One-time" to `goal` or `reactive` behind the scenes based on task type.
 
-### List Mode (default)
+### List Mode (default) — Three-Tab Architecture (v13)
+
+Three tabs partition tasks by user attention need, not data taxonomy:
+
+| Tab | Contents | Grouping |
+|---|---|---|
+| **My Work** (default) | User knowledge work — anything without `requires_platform` and not `system_maintenance` | Ongoing (recurring) / In Progress (goal, reactive) |
+| **Connectors** | Platform-bound tasks (`requires_platform != null`) — digests, external actions, revenue reports | By platform: Slack, Notion, GitHub, Commerce |
+| **System** | `system_maintenance` tasks (TP back-office) | Flat list |
+
+"Connectors" label + `Link2` icon matches the Settings page. Group-by-agent is **deleted** — tasks are 1:N agents, so grouping by `agent_slugs[0]` was misleading. Agent names display inline on each row instead.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  [ All ][ Tracking ][ Reports ][ Actions ][ System ]                 │
-│  Search: [____________]   Group by: ▾ [Output kind]  [include arch.] │
+│  [📄 My Work 5] [🔗 Connectors 3] [⚙ System 2]                     │ ← tab bar with count badges
+│  Search: [____________]          [agent chip ×]  [···]               │ ← search + overflow (include archived)
 ├──────────────────────────────────────────────────────────────────────┤
-│  REPORTS · 5                                                         │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ ● Daily Update       Recurring · Reporting · daily   Next: 9h │  │
-│  │ ● Competitive Brief  Recurring · Comp Intel · weekly Next: 4d │  │
-│  │ ● Market Report      Recurring · Mkt Rsch · monthly  Next: 12d│  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│  TRACKING · 3                                                        │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ ● Track Competitors  Recurring · Comp Intel · weekly Next: 2d │  │
-│  │ ● Slack Digest       Recurring · Slack Bot · daily   Next:18h │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│  SYSTEM · 2                                                          │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ ● Agent Hygiene      Recurring · TP · daily          Next:22h │  │
-│  │ ● Workspace Cleanup  Recurring · TP · daily          Next:22h │  │
-│  └───────────────────────────────────────────────────────────────┘  │
+│  ONGOING ──────────────────────────────────────────────── 3          │
+│  ┌──┐ Daily Update         Report · Daily · Reporting    Next: 9h   │
+│  ┌──┐ Competitive Brief    Report · Weekly · Researcher  Next: 4d   │
+│  ┌──┐ Track Competitors    Tracking · Weekly · Researcher Next: 2d  │
+│                                                                      │
+│  IN PROGRESS ──────────────────────────────────────────── 2          │
+│  ┌──┐ Meeting Prep         Report · Researcher, Writer   Last: 2d   │
+│  ┌──┐ Content Brief        Report · Writer               Last: 5d   │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Filter chips** key on `output_kind` (ADR-166): `All | Tracking | Reports | Actions | System`. **Group-by dropdown** defaults to "Output kind" and supports Agent / Status / Schedule. **Search box** indexes title, assigned agent, task type, delivery target, objective fields, and context domains. **Status filter** defaults to active + paused, with an explicit "Include completed and archived" toggle. **Agent filter chip** appears when `?agent={slug}` is in the URL or applied via the UI; click X to clear.
+**My Work grouping**: `Ongoing` (recurring tasks — the heartbeat) and `In Progress` (goal/reactive — has a finish line). If only one group exists, headers are suppressed and the list is flat.
 
-The list is **sorted within each group** by lifecycle urgency: active first, then paused, then completed/archived; upcoming runs sort ahead of older work, and historical items sort by most recent run. Clicking a row uses browser-history-friendly navigation (`push`, not `replace`) so Back returns to the prior list state.
+**Search box** indexes title, all assigned agents, task type, delivery target, objective fields, and context domains. **Status filter** defaults to active + paused, with "Include completed & archived" in overflow. **Agent filter chip** appears when `?agent={slug}` is in the URL; click X to clear.
+
+The list is **sorted within each group** by lifecycle urgency: active first, then paused, then completed/archived; upcoming runs sort ahead of older work, historical items sort by most recent run. Clicking a row uses browser-history-friendly navigation (`push`, not `replace`) so Back returns to the prior list state.
+
+**Row anatomy (v13)**: icon-in-box with status dot overlay → title (bold) → sub-label (kind hint + schedule + agent names) → right-aligned time signal. Agent names show ALL assigned agents (`Researcher, Writer`), not just the first. System tab rows render at 50% opacity.
 
 ### Detail Mode (`/work?task={slug}`) — Kind-Aware (v10, 2026-04-14)
 
@@ -311,7 +318,7 @@ In detail mode the page renders `<PageHeader />` as breadcrumb chrome, then `<Wo
 
 ### What Used to Live Here
 
-- The left sidebar `WorkList` with auto-select-first → DELETED. Replaced by `WorkListSurface` (full-width list with filter chips, search, group-by). Landing on `/work` no longer shows you someone else's task by accident.
+- The left sidebar `WorkList` with auto-select-first → DELETED. Replaced by `WorkListSurface` (full-width three-tab list: My Work / Connectors / System). Landing on `/work` no longer shows you someone else's task by accident.
 - The single one-shape `OutputPreview` inside `WorkDetail` → DELETED. Replaced by four kind-specific middle components in `web/components/work/details/`. The dispatch lives in `WorkDetail`.
 - `ThreePanelLayout`'s left panel on `/work` → DELETED. The page no longer passes `leftPanel`. The layout is effectively two-panel (full-width center + FAB-overlay chat), which is what the page actually wanted all along.
 - `WorkDetail`'s internal `<WorkHeader>` band (title + mode badge + status row + Next/Last run row) → DELETED in v2. The title moves to `<PageHeader />`'s breadcrumb (last segment). The metadata moves to PageHeader's `subtitle` slot. One row instead of four.
@@ -450,7 +457,7 @@ Currently wired for BrandSection in Settings (via `MemorySection.tsx`). A dedica
 
 ### Work
 - `web/app/(authenticated)/work/page.tsx` — Work page. List/detail mode switched on `?task=` URL state (ADR-167).
-- `web/components/work/WorkListSurface.tsx` — full-width list with filter chips, search, group-by, agent filter (ADR-167; replaces deleted `WorkList.tsx`)
+- `web/components/work/WorkListSurface.tsx` — three-tab list surface: My Work (Ongoing/In Progress), Connectors (by platform), System (flat). Group-by-agent deleted. (v13; replaces v10 filter-chip + group-by model)
 - `web/components/work/WorkDetail.tsx` — thin shell that dispatches the middle band on `task.output_kind` (ADR-167)
 - `web/components/work/details/DeliverableMiddle.tsx` — middle band for `produces_deliverable` (the original iframe `OutputPreview`, extracted)
 - `web/components/work/details/TrackingMiddle.tsx` — middle band for `accumulates_context` (domain folder + CHANGELOG)
