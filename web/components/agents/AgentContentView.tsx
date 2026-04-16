@@ -13,15 +13,10 @@
  */
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import {
   ArrowUpRight,
   ChevronRight,
-  FileText,
   FolderKanban,
-  Hash,
-  Link2,
-  Loader2,
   Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -38,11 +33,7 @@ import {
   platformProviderForRole,
   roleTagline,
 } from '@/lib/agent-identity';
-import { api } from '@/lib/api/client';
-import { usePlatformData } from '@/hooks/usePlatformData';
-import { useSourceSelection } from '@/hooks/useSourceSelection';
-import { ResourceList } from '@/components/context/ResourceList';
-import type { Agent, Task, LandscapeResource, PlatformProvider } from '@/types';
+import type { Agent, Task } from '@/types';
 
 interface AgentContentViewProps {
   agent: Agent;
@@ -71,16 +62,7 @@ interface AgentEmptyStateDescriptor {
   description: (agent: Agent) => string;
 }
 
-interface PlatformSummary {
-  provider: string;
-  status: string;
-  workspace_name: string | null;
-  connected_at: string;
-  resource_count: number;
-  resource_type: string;
-  agent_count: number;
-  activity_7d: number;
-}
+
 
 type TaskKindCounts = Record<TaskOutputKind, number>;
 
@@ -589,246 +571,6 @@ function platformManagementLabel(provider: string | null, connected: boolean): s
   }
 }
 
-function renderSlackMetadata(resource: LandscapeResource) {
-  const memberCount =
-    (resource.metadata?.member_count as number | undefined)
-    ?? (resource.metadata?.num_members as number | undefined);
-  if (memberCount === undefined && !resource.last_extracted_at && resource.items_extracted === 0) return null;
-
-  return (
-    <div className="text-xs text-muted-foreground">
-      {memberCount !== undefined && <span>{memberCount.toLocaleString()} members</span>}
-      {memberCount !== undefined && (resource.items_extracted > 0 || !!resource.last_extracted_at) && <span> • </span>}
-      {(resource.items_extracted > 0 || !!resource.last_extracted_at) && (
-        <span>
-          {resource.items_extracted > 0 ? `${resource.items_extracted} items` : '0 new items'}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function renderNotionMetadata(resource: LandscapeResource) {
-  const parentType = resource.metadata?.parent_type as string | undefined;
-  if (!parentType && resource.items_extracted === 0 && !resource.last_extracted_at) return null;
-
-  return (
-    <div className="text-xs text-muted-foreground">
-      {parentType && (
-        <span>
-          {parentType === 'workspace' && 'Top-level page'}
-          {parentType === 'page' && 'Nested page'}
-          {parentType === 'database' && 'Database item'}
-        </span>
-      )}
-      {parentType && (resource.items_extracted > 0 || !!resource.last_extracted_at) && <span> • </span>}
-      {(resource.items_extracted > 0 || !!resource.last_extracted_at) && (
-        <span>
-          {resource.items_extracted > 0 ? `${resource.items_extracted} items` : '0 new items'}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function platformSourceConfig(provider: PlatformProvider): {
-  resourceLabel: string;
-  resourceLabelSingular: string;
-  resourceIcon: React.ReactNode;
-  renderMetadata?: (resource: LandscapeResource) => React.ReactNode;
-} | null {
-  switch (provider) {
-    case 'slack':
-      return {
-        resourceLabel: 'Channels',
-        resourceLabelSingular: 'channel',
-        resourceIcon: <Hash className="w-4 h-4" />,
-        renderMetadata: renderSlackMetadata,
-      };
-    case 'notion':
-      return {
-        resourceLabel: 'Pages',
-        resourceLabelSingular: 'page',
-        resourceIcon: <FileText className="w-4 h-4" />,
-        renderMetadata: renderNotionMetadata,
-      };
-    default:
-      return null;
-  }
-}
-
-function PlatformConnectionBlock({ agent }: { agent: Agent }) {
-  const provider = platformProviderForRole(agent.role);
-  const [summary, setSummary] = useState<PlatformSummary | null>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      if (!provider) {
-        setLoaded(true);
-        return;
-      }
-      try {
-        const result = await api.integrations.getSummary();
-        const match = (result.platforms || []).find((platform) => platform.provider === provider) || null;
-        if (!cancelled) setSummary(match);
-      } catch {
-        if (!cancelled) setSummary(null);
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [provider]);
-
-  if (!provider) return null;
-
-  const connected = summary?.status === 'active';
-  const manageHref = platformManagementHref(provider);
-  const platformName = roleDisplayName(agent.role).replace(' Bot', '');
-
-  return (
-    <div className="px-6 py-5 border-t border-border/40">
-      <SectionLabel>Connection</SectionLabel>
-      <div className="rounded-lg border border-border/60 bg-background px-4 py-4">
-        <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-lg bg-muted/30 border border-border/60 flex items-center justify-center shrink-0">
-            <Link2 className="w-4 h-4 text-muted-foreground" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="text-sm font-medium text-foreground">{platformName} connection</h4>
-              {loaded && (
-                <span
-                  className={cn(
-                    'inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                    connected
-                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                      : 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-                  )}
-                >
-                  {connected ? 'connected' : 'not connected'}
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {!loaded
-                ? 'Checking current connection status.'
-                : connected
-                  ? summary?.workspace_name
-                    ? `Connected to ${summary.workspace_name}. Choose sources here, then add the task that should watch or act on this platform.`
-                    : 'Connected. Choose sources here, then add the task that should watch or act on this platform.'
-                  : 'Not connected yet. Connect it in Settings > Connectors before assigning platform work.'}
-            </p>
-            <div className="flex flex-wrap gap-2 mt-3">
-              <Link
-                href={manageHref}
-                className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20"
-              >
-                {platformManagementLabel(provider, connected)}
-                <ArrowUpRight className="w-3 h-3" />
-              </Link>
-              {manageHref !== '/settings?tab=connectors' && (
-                <Link
-                  href="/settings?tab=connectors"
-                  className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/10 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20"
-                >
-                  Connectors settings
-                  <ArrowUpRight className="w-3 h-3" />
-                </Link>
-              )}
-            </div>
-            {loaded && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {connected && summary?.resource_count != null && (
-                  <span className="inline-flex rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-                    {summary.resource_count} selected {summary.resource_type || 'resources'}
-                  </span>
-                )}
-                {connected && summary?.activity_7d != null && (
-                  <span className="inline-flex rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-                    {summary.activity_7d} events in the last 7d
-                  </span>
-                )}
-                {!connected && (
-                  <span className="inline-flex rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-                    No platform connection detected
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PlatformSourcesBlock({ agent }: { agent: Agent }) {
-  const provider = platformProviderForRole(agent.role) as PlatformProvider | null;
-  const config = provider ? platformSourceConfig(provider) : null;
-  const data = usePlatformData(provider || 'slack', { skipResources: !config });
-  const sourceSelection = useSourceSelection({
-    platform: provider || 'slack',
-    resources: data.resources,
-    selectedIds: data.selectedIds,
-    originalIds: data.originalIds,
-    setSelectedIds: data.setSelectedIds,
-    setOriginalIds: data.setOriginalIds,
-    reload: data.reload,
-  });
-
-  if (!provider || !config) return null;
-
-  if (data.loading) {
-    return (
-      <div className="px-6 py-5 border-t border-border/40">
-        <SectionLabel>Source selection</SectionLabel>
-        <div className="rounded-lg border border-border/60 bg-background px-4 py-6 flex items-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Loading available sources...
-        </div>
-      </div>
-    );
-  }
-
-  if (!data.integration) return null;
-
-  return (
-    <div className="px-6 py-5 border-t border-border/40">
-      <SectionLabel>Source selection</SectionLabel>
-      <p className="text-sm text-muted-foreground mb-3 px-1">
-        Choose which {config.resourceLabel.toLowerCase()} should feed this bot. This is the canonical management surface for platform-source selection.
-      </p>
-      <ResourceList
-        resourceLabel={config.resourceLabel}
-        resourceLabelSingular={config.resourceLabelSingular}
-        resourceIcon={config.resourceIcon}
-        workspaceName={data.integration.workspace_name}
-        resources={data.resources}
-        tierLimits={data.tierLimits}
-        selectedIds={data.selectedIds}
-        hasChanges={sourceSelection.hasChanges}
-        atLimit={sourceSelection.atLimit}
-        limit={sourceSelection.limit}
-        saving={sourceSelection.saving}
-        error={sourceSelection.error || data.error}
-        onToggle={sourceSelection.handleToggle}
-        onSave={sourceSelection.handleSave}
-        onDiscard={sourceSelection.handleDiscard}
-        renderMetadata={config.renderMetadata}
-        platformLabel={roleDisplayName(agent.role).replace(' Bot', '')}
-      />
-    </div>
-  );
-}
-
 function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const agentSlug = getAgentSlug(agent);
   const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'specialist') as AgentClass];
@@ -951,10 +693,6 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
       />
       <div className="max-w-3xl">
         <AgentRoleBlock agent={agent} tasks={tasks} />
-
-        {/* Platform bots: connection + sources come before tasks (you need to connect first) */}
-        {isPlatformBot && <PlatformConnectionBlock agent={agent} />}
-        {isPlatformBot && <PlatformSourcesBlock agent={agent} />}
 
         {/* Tasks: lightweight "currently assigned to" list, links out to /work */}
         <TasksBlock agent={agent} tasks={tasks} />

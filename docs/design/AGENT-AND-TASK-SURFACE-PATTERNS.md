@@ -151,7 +151,7 @@ Role-specific UI should only exist when the primary data model differs enough to
 Examples:
 
 - `slack_bot`, `notion_bot`, `github_bot`
-  Add connection/source-selection or platform-specific activity modules. When disconnected, the UI should say so directly and route to Settings > Connectors. Source selection belongs on the bot's agent detail surface, not under `/context`.
+  Agent page shows identity and assigned tasks only (WHO). Source selection (channels/pages/repos) lives on the task page (WHAT) — e.g. `/work?task=daily-slack-activity`. When disconnected, the task list links to Settings > Connectors.
 - `analyst`, `writer`
   Add upstream-readiness modules showing which context domains they read from.
 - `thinking_partner`

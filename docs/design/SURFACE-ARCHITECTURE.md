@@ -382,7 +382,7 @@ No-task states vary by `agent_class`:
 
 Highlight chips (the small stat pills in the role block) are suppressed when zero — showing `0 tracking tasks` is noise, not signal. TP's `highlights()` returns `[]` unconditionally.
 
-For platform bots specifically, `/agents?agent={slug}` is the canonical management surface for source selection. `/context` stays the single filesystem browser and no longer owns per-platform management pages.
+Source selection (channels, pages, repos) lives on the task page (`/work?task={slug}`), not the agent page. Platform digest tasks are auto-scaffolded when a platform connects (paused, awaiting source setup). Settings > Connectors "Manage" button navigates directly to the task. The agent page shows only identity (WHO), not source configuration (WHAT).
 
 ### What Used to Live Here
 
@@ -406,7 +406,7 @@ For platform bots specifically, `/agents?agent={slug}` is the canonical manageme
 ### Purpose
 The only filesystem browser. Nav label is **Files** — accurate and non-inflated. Shows the workspace tree with domains, output folders, uploads, and IDENTITY/BRAND files. Unchanged from v7.2 structurally. ADR-163 adds one enhancement: inference-meta rendering.
 
-Platform connection management and source selection do not live here anymore. Those belong to Settings > Connectors for connection lifecycle and the platform-bot agent detail surface for source scope.
+Platform connection management lives in Settings > Connectors. Source selection lives on the task page (`/work?task={slug}`).
 
 ### Inference Visibility (ADR-162 + ADR-163)
 

@@ -1297,6 +1297,81 @@ async def list_destinations(
 
 
 # =============================================================================
+# Platform Digest Task Scaffolding
+# =============================================================================
+
+_PROVIDER_TO_DIGEST = {
+    "slack": {"type_key": "slack-digest", "slug": "daily-slack-activity", "title": "Daily Slack Activity", "bot_slug": "slack-bot"},
+    "notion": {"type_key": "notion-digest", "slug": "notion-digest", "title": "Notion Digest", "bot_slug": "notion-bot"},
+    "github": {"type_key": "github-digest", "slug": "github-digest", "title": "GitHub Digest", "bot_slug": "github-bot"},
+}
+
+
+async def _scaffold_platform_digest_task(
+    client: Any,
+    user_id: str,
+    provider: str,
+    smart_selected: list[dict],
+) -> None:
+    """Auto-create a platform digest task when a platform is connected.
+
+    The task is created as paused with no sources selected — the user picks
+    sources on the task page and activates. Idempotent: skips if the task
+    slug already exists.
+    """
+    digest_info = _PROVIDER_TO_DIGEST.get(provider)
+    if not digest_info:
+        return
+
+    slug = digest_info["slug"]
+
+    # Idempotent: skip if already exists
+    existing = client.table("tasks").select("id").eq("user_id", user_id).eq("slug", slug).execute()
+    if existing.data:
+        logger.info(f"[INTEGRATIONS] Platform digest task '{slug}' already exists, skipping scaffold")
+        return
+
+    from services.task_types import build_task_md_from_type, build_deliverable_md_from_type
+    from services.task_workspace import TaskWorkspace
+    from services.schedule_utils import calculate_next_run_at, get_user_timezone
+
+    user_timezone = get_user_timezone(client, user_id)
+    now = datetime.utcnow()
+
+    row = {
+        "user_id": user_id,
+        "slug": slug,
+        "mode": "recurring",
+        "status": "paused",  # User must pick sources and activate
+        "schedule": "daily",
+        "next_run_at": None,  # No next run until activated
+    }
+    insert_result = client.table("tasks").insert(row).execute()
+    if not insert_result.data:
+        raise RuntimeError(f"Failed to insert platform digest task: {slug}")
+
+    task_md = build_task_md_from_type(
+        type_key=digest_info["type_key"],
+        title=digest_info["title"],
+        slug=slug,
+        schedule="daily",
+        delivery="none",
+        agent_slugs=[digest_info["bot_slug"]],
+    )
+    tw = TaskWorkspace(client, user_id, slug)
+    await tw.write("TASK.md", task_md, summary=f"Platform digest task: {digest_info['title']}")
+
+    deliverable_md = build_deliverable_md_from_type(digest_info["type_key"])
+    if deliverable_md:
+        await tw.write("DELIVERABLE.md", deliverable_md, summary=f"Quality contract: {digest_info['title']}")
+
+    logger.info(
+        f"[INTEGRATIONS] Scaffolded platform digest task '{slug}' (paused) "
+        f"for {provider} user {user_id[:8]}"
+    )
+
+
+# =============================================================================
 # OAuth Flow - Initiate
 # =============================================================================
 
@@ -1494,13 +1569,21 @@ async def oauth_callback(
                         f"for {provider} user {user_id_for_auto[:8]}"
                     )
 
-                    # ADR-153: Platform sync removed. Platform data flows through tracking tasks.
-                    # Auto-sync disabled — user creates monitoring tasks post-connection.
+                    # Auto-scaffold a platform digest task (paused, needs source setup).
+                    # The user lands on the task page to pick sources and activate.
                     if smart_selected:
-                        logger.info(
-                            f"[INTEGRATIONS] ADR-153: Platform connected ({provider}), "
-                            f"{len(smart_selected)} sources selected. Create tracking task to begin accumulation."
-                        )
+                        try:
+                            await _scaffold_platform_digest_task(
+                                service_client,
+                                user_id_for_auto,
+                                provider,
+                                smart_selected,
+                            )
+                        except Exception as scaffold_err:
+                            logger.warning(
+                                f"[INTEGRATIONS] Platform digest task scaffold failed "
+                                f"for {provider}: {scaffold_err}"
+                            )
                 else:
                     logger.info(
                         f"[INTEGRATIONS] ADR-113: No resources discovered for {provider} "

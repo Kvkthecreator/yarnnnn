@@ -35,7 +35,7 @@ interface ConnectedIntegrationsSectionProps {
 
 export function ConnectedIntegrationsSection({
   title = "Connected Platforms",
-  description = "Connect platforms to sync context. Manage source scope from each platform bot's agent page.",
+  description = "Connect platforms to give your agents data. Platforms are infrastructure — connect once, agents read automatically.",
   className,
   children,
   redirectTo,
@@ -169,7 +169,7 @@ export function ConnectedIntegrationsSection({
                             )}
                           </button>
                           <button
-                            onClick={() => router.push("/agents?agent=slack-bot")}
+                            onClick={() => router.push("/work?task=daily-slack-activity")}
                             className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
                           >
                             Manage
@@ -247,7 +247,7 @@ export function ConnectedIntegrationsSection({
                             )}
                           </button>
                           <button
-                            onClick={() => router.push("/agents?agent=notion-bot")}
+                            onClick={() => router.push("/work?task=notion-digest")}
                             className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
                           >
                             Manage
@@ -314,7 +314,7 @@ export function ConnectedIntegrationsSection({
                             )}
                           </button>
                           <button
-                            onClick={() => router.push("/agents?agent=github-bot")}
+                            onClick={() => router.push("/work?task=github-digest")}
                             className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
                           >
                             Manage
@@ -358,8 +358,8 @@ export function ConnectedIntegrationsSection({
 
           <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">
             <p>
-              <strong>How it works:</strong> After connecting, manage each platform from its bot agent page.
-              Source selection and task setup live there; connectors here stay focused on connect, reconnect, and disconnect.
+              <strong>How it works:</strong> After connecting, a digest task is created automatically.
+              Use &quot;Manage&quot; to pick which channels, pages, or repos the task should read. Connectors here handle connect, reconnect, and disconnect.
             </p>
           </div>
         </div>
