@@ -36,7 +36,7 @@ Platform connections provide auth, discovery, and source selection. There is no
 generic synced platform-content cache.
 
 - **Live tools for read/write** — `platform_slack_*`, `platform_notion_*` for direct platform queries and scoped delivery actions
-- **Task-first recurring sync** — platform sync task types (`slack-digest`, `notion-digest`, `github-digest`, `commerce-digest`) are the recurring workflow for ongoing platform awareness. Bots write per-source observations to their own context directory (/workspace/context/slack/, /workspace/context/notion/, etc.)
+- **Task-first recurring sync** — platform sync task types (`slack-digest`, `notion-digest`, `github-digest`, `commerce-digest`, `trading-digest`) are the recurring workflow for ongoing platform awareness. Bots write per-source observations to their own context directory (/workspace/context/slack/, /workspace/context/notion/, /workspace/context/trading/, etc.)
 
 ### Per-task source selection (ADR-158)
 
@@ -56,4 +56,17 @@ GitHub Bot can track ANY public repo — not just the user's own.
 - The bot writes the same 4 files (latest.md, readme.md, releases.md, metadata.md) for all repos
 - Use full `owner/repo` format for external repos in the sources parameter
 - GitHub tools work on any public repo the token can access (public repos don't need special auth)
+
+### Trading: closed-loop market intelligence (ADR-187)
+
+Trading Bot owns two canonical context domains: `trading/` (per-instrument market data, signals, analysis) and `portfolio/` (account state, positions, trade history, performance). Four task types:
+
+- `trading-digest` — syncs account + market data into context domains (Trading Bot, daily)
+- `trading-signal` — generates signals from accumulated context (Analyst, daily)
+- `trading-execute` — executes approved signals via Alpaca API (Trading Bot, daily, skips if no signals)
+- `portfolio-review` — weekly performance report with signal accuracy and benchmark comparison (Analyst)
+
+Trading tools: `platform_trading_get_account`, `platform_trading_get_positions`, `platform_trading_get_orders`, `platform_trading_get_market_data`, `platform_trading_get_portfolio_history` (read), `platform_trading_submit_order`, `platform_trading_cancel_order`, `platform_trading_close_position` (write).
+
+Paper/live mode is controlled by the connection metadata (`paper: true/false`). The user decides when to go live.
 """

@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.1] - ADR-187: Trading platform awareness in TP prompt
+
+### Changed
+- `api/agents/tp_prompts/platforms.py`: Added trading section — Trading Bot, 4 task types (trading-digest, trading-signal, trading-execute, portfolio-review), 8 platform tools, paper/live mode description. Updated task-first sync list to include trading-digest.
+
+### Expected behavior
+- TP now knows about the trading platform class and can suggest/create trading tasks when the user has an active trading connection. Previously TP had no guidance about trading tools or task types.
+
+---
+
 ## [2026.04.16.7] - ADR-183 Phase 3: Commerce Write Platform Tools + Task Types
 
 ### Changed
