@@ -36,11 +36,11 @@ Platform connections provide auth, discovery, and source selection. There is no
 generic synced platform-content cache.
 
 - **Live tools for read/write** — `platform_slack_*`, `platform_notion_*` for direct platform queries and scoped delivery actions
-- **Task-first recurring observation** — digest task types such as `slack-digest` and `notion-digest` are the recurring workflow shape for ongoing platform awareness. Bots write per-source observations to their own context directory (/workspace/context/slack/, /workspace/context/notion/)
+- **Task-first recurring sync** — platform sync task types (`slack-digest`, `notion-digest`, `github-digest`, `commerce-digest`) are the recurring workflow for ongoing platform awareness. Bots write per-source observations to their own context directory (/workspace/context/slack/, /workspace/context/notion/, etc.)
 
 ### Per-task source selection (ADR-158)
 
-Platform digest tasks auto-populate sources from the user's selected sources at creation time.
+Platform sync tasks auto-populate sources from the user's selected sources at creation time.
 Users can refine which channels/pages/repos a task reads via:
   ManageTask(task_slug="slack-digest", action="update", sources={"slack": ["C123", "C456"]})
   ManageTask(task_slug="github-digest", action="update", sources={"github": ["my-org/my-repo", "competitor/their-repo"]})

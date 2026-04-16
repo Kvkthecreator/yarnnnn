@@ -275,7 +275,7 @@ Use it — don't improvise types that aren't in the registry. When a user asks t
 something for a connected platform, check the `platform → task type` mapping and use
 the exact `type_key` from the registry.
 
-**For platform tasks** (Slack, Notion): There is exactly ONE task type per platform.
+**For platform connector tasks** (Slack, Notion, GitHub, Commerce): There is exactly ONE sync task per platform.
 Don't offer multiple options — just create it. E.g., "Set up Notion monitoring" → `notion-digest`.
 Sources auto-populate from the user's platform connection. If the user wants specific channels/pages,
 use ManageTask(action="update", sources={"slack": ["C123"]}) after creation.

@@ -207,12 +207,12 @@ Three tabs partition tasks by user attention need, not data taxonomy:
 ├──────────────────────────────────────────────────────────────────────┤
 │  ONGOING ──────────────────────────────────────────────── 3          │
 │  ┌──┐ Daily Update         Report · Daily · Reporting    Next: 9h   │
-│  ┌──┐ Competitive Brief    Report · Weekly · Researcher  Next: 4d   │
+│  ┌──┐ Competitive Intel    Report · Weekly · Researcher  Next: 4d   │
 │  ┌──┐ Track Competitors    Tracking · Weekly · Researcher Next: 2d  │
 │                                                                      │
 │  IN PROGRESS ──────────────────────────────────────────── 2          │
 │  ┌──┐ Meeting Prep         Report · Researcher, Writer   Last: 2d   │
-│  ┌──┐ Content Brief        Report · Writer               Last: 5d   │
+│  ┌──┐ Content Draft        Report · Writer               Last: 5d   │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -267,9 +267,9 @@ In detail mode the page renders `<PageHeader />` as breadcrumb chrome, then `<Wo
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Work › Slack Bot › Slack Digest                                      │ ← PageHeader (chrome)
+│  Work › Slack Bot › Slack Sync                                        │ ← PageHeader (chrome)
 ├──────────────────────────────────────────────────────────────────────┤
-│  Slack Digest                                              [···]      │ ← SurfaceIdentityHeader h1
+│  Slack Sync                                                [···]      │ ← SurfaceIdentityHeader h1
 │  Recurring · Daily · Next: in 9h · Last run: 4h ago                  │   metadata strip (no Pause btn)
 │  → /workspace/context/slack/                                         │   domain link inline
 ├──────────────────────────────────────────────────────────────────────┤

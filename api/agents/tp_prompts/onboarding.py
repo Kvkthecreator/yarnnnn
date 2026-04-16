@@ -194,12 +194,12 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    - User wants to track market → `ManageTask(action="create", type_key="track-market", title="Track Market")`
    - User wants to track relationships → `ManageTask(action="create", type_key="track-relationships", title="Track Relationships")`
    - User wants to track projects → `ManageTask(action="create", type_key="track-projects", title="Track Projects")`
-   - User wants content research → `ManageTask(action="create", type_key="research-topics", title="Research Topics")`
+   - User wants deep research on a topic → `ManageTask(action="create", type_key="research-topics", title="Deep Research: {topic}")`
 
-   Platform tasks (activate when connected):
-   - Slack Bot (Slack connected) → `ManageTask(action="create", type_key="slack-digest", title="Slack Digest")`
-   - Notion Bot (Notion connected) → `ManageTask(action="create", type_key="notion-digest", title="Notion Digest")`
-   - GitHub Bot (GitHub connected) → `ManageTask(action="create", type_key="github-digest", title="GitHub Digest")`
+   Connector tasks (activate when platform connected):
+   - Slack Bot (Slack connected) → `ManageTask(action="create", type_key="slack-digest", title="Slack Sync")`
+   - Notion Bot (Notion connected) → `ManageTask(action="create", type_key="notion-digest", title="Notion Sync")`
+   - GitHub Bot (GitHub connected) → `ManageTask(action="create", type_key="github-digest", title="GitHub Sync")`
 
    **Only create tasks based on stated work intent or populated domains.**
    Don't create tasks the user hasn't expressed intent for.
@@ -211,7 +211,7 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    **Tell the user what's happening:**
    "Your team is now working. I've set up:
    - Track Competitors (Researcher + Tracker, weekly)
-   - Slack Digest (Slack Bot, daily)
+   - Slack Sync (Slack Bot, daily)
    They're running their first research cycle now — you'll see results in the
    workspace within a few minutes."
 
@@ -224,7 +224,7 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    with an honest "tell me what to track" message — that is the point.
 
    **Synthesis roll-up:** If 2+ context tasks were created, also create a stakeholder
-   summary: `ManageTask(action="create", type_key="stakeholder-update", title="Stakeholder Update", delivery="email")`.
+   summary: `ManageTask(action="create", type_key="stakeholder-update", title="Stakeholder Report", delivery="email")`.
    Don't trigger immediately — it should wait until context tasks have completed at
    least their first run. Note this in your awareness file for next session.
 

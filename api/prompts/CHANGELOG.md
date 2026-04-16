@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.16.1] - Task display name cohesion pass — user-facing label renames
+
+### Changed
+- `api/services/task_types.py` — 9 display_name renames for naming cohesion:
+  - `Competitive Brief` → `Competitive Intel Report` (disambiguate from "brief" overload)
+  - `Stakeholder Update` → `Stakeholder Report` (disambiguate from "update" overload with Daily Update)
+  - `Project Status Report` → `Project Status` (shorter, distinct from Track Projects)
+  - `Research Topics` → `Deep Research` (clearer intent, avoids Researcher agent name collision)
+  - `Content Brief` → `Content Draft` (what you get is a draft)
+  - `Slack Digest` → `Slack Sync` (user-facing: "sync" not internal "digest")
+  - `Notion Digest` → `Notion Sync`
+  - `GitHub Digest` → `GitHub Sync`
+  - `Commerce Digest` → `Commerce Sync`
+  - `default_title` updated for all 4 platform sync types to match.
+- `api/agents/tp_prompts/tools.py` — Work intent → task type mapping rewritten with categorized sections (Tracking / Reports / Connectors). Title guidance section added: "Avoid jargon like digest or brief."
+- `api/agents/tp_prompts/onboarding.py` — Platform task examples updated (Slack Digest → Slack Sync, etc.). Research Topics → Deep Research. Stakeholder Update → Stakeholder Report.
+- `api/agents/tp_prompts/behaviors.py` — "platform tasks" → "platform connector tasks".
+- `api/agents/tp_prompts/platforms.py` — "digest task types" → "platform sync task types".
+- `api/services/commands.py` — Example titles updated (Monthly Stakeholder Update → Monthly Stakeholder Report, project-status-report → project-status).
+- `api/routes/integrations.py` — `_PROVIDER_TO_DIGEST` scaffold titles and slugs updated (Slack Digest → Slack Sync, etc.).
+- Expected behavior: TP creates tasks with clearer, user-facing titles. No type_key changes — stable identifiers preserved.
+
 ## [2026.04.15.10] - UpdateContext: server-side document reading (document_ids replaces document_contents)
 
 ### Changed

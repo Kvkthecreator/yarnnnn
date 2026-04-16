@@ -1301,9 +1301,9 @@ async def list_destinations(
 # =============================================================================
 
 _PROVIDER_TO_DIGEST = {
-    "slack": {"type_key": "slack-digest", "slug": "daily-slack-activity", "title": "Daily Slack Activity", "bot_slug": "slack-bot"},
-    "notion": {"type_key": "notion-digest", "slug": "notion-digest", "title": "Notion Digest", "bot_slug": "notion-bot"},
-    "github": {"type_key": "github-digest", "slug": "github-digest", "title": "GitHub Digest", "bot_slug": "github-bot"},
+    "slack": {"type_key": "slack-digest", "slug": "slack-sync", "title": "Slack Sync", "bot_slug": "slack-bot"},
+    "notion": {"type_key": "notion-digest", "slug": "notion-sync", "title": "Notion Sync", "bot_slug": "notion-bot"},
+    "github": {"type_key": "github-digest", "slug": "github-sync", "title": "GitHub Sync", "bot_slug": "github-bot"},
 }
 
 

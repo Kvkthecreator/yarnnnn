@@ -79,7 +79,7 @@ These tasks maintain your workspace knowledge. They run on schedule, update doma
 
 ---
 
-### Research Topics
+### Deep Research
 `research-topics`
 
 **What it does:** Deep-dive research on specified topics. Writes findings to the `content_research` context domain for later use by content synthesis tasks.
@@ -90,7 +90,7 @@ These tasks maintain your workspace knowledge. They run on schedule, update doma
 
 ---
 
-### Slack Digest
+### Slack Sync
 `slack-digest`
 
 **What it does:** Reads selected Slack channels. Captures decisions, action items, and key discussions. Writes per-channel observation files to the Slack Bot's temporal context directory.
@@ -103,7 +103,7 @@ These tasks maintain your workspace knowledge. They run on schedule, update doma
 
 ---
 
-### Notion Digest
+### Notion Sync
 `notion-digest`
 
 **What it does:** Reads selected Notion pages. Tracks changes, new content, and stale sections. Writes per-page observation files to the Notion Bot's temporal context directory.
@@ -116,7 +116,7 @@ These tasks maintain your workspace knowledge. They run on schedule, update doma
 
 ---
 
-### GitHub Digest
+### GitHub Sync
 `github-digest`
 
 **What it does:** Reads selected GitHub repos — own AND external public repos. Writes 4 files per repo: `latest.md` (issues/PRs activity), `readme.md` (project summary), `releases.md` (what shipped), `metadata.md` (repo identity). Temporal + reference data.
@@ -133,7 +133,7 @@ These tasks maintain your workspace knowledge. They run on schedule, update doma
 
 These tasks read from accumulated context domains and produce deliverables. They are where workspace knowledge becomes polished, delivered output. Each one declares which domains it reads from — the richer those domains (maintained by `accumulates_context` tasks), the better the output.
 
-### Competitive Brief
+### Competitive Intel Report
 `competitive-brief`
 
 **What you get:** Competitive analysis with positioning diagrams, trend charts, and evidence-linked findings — composed from accumulated competitive intelligence.
@@ -199,7 +199,7 @@ These tasks read from accumulated context domains and produce deliverables. They
 
 ---
 
-### Stakeholder Update
+### Stakeholder Report
 `stakeholder-update`
 
 **What you get:** Executive-quality update with KPI cards, metric charts, and narrative context — draws from ALL workspace domains.
@@ -219,7 +219,7 @@ These tasks read from accumulated context domains and produce deliverables. They
 
 ---
 
-### Project Status Report
+### Project Status
 `project-status`
 
 **What you get:** Project activity composed into a polished status report from accumulated project tracking data.
@@ -240,7 +240,7 @@ These tasks read from accumulated context domains and produce deliverables. They
 
 ---
 
-### Content Brief
+### Content Draft
 `content-brief`
 
 **What you get:** Research-backed content draft with competitive context and visual assets — composed from accumulated topic research.

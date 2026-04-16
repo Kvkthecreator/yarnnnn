@@ -79,11 +79,11 @@ Maintain workspace knowledge domains. Run on schedule, update domain folders, pr
 | **track-market** | Track Market | recurring | monthly | 2 entities, analysis | market, signals |
 | **track-relationships** | Track Relationships | recurring | weekly | 3 entities, profile | relationships, signals |
 | **track-projects** | Track Projects | recurring | weekly | 2 entities, status | projects, signals |
-| **research-topics** | Research Topics | goal | on-demand | 1 entity, research | content_research |
-| **slack-digest** | Slack Digest | recurring | daily | — | slack, signals |
-| **notion-digest** | Notion Digest | recurring | weekly | — | notion, signals |
-| **github-digest** | GitHub Digest | recurring | daily | — | github, signals |
-| **commerce-digest** | Commerce Digest | recurring | daily | — | customers, revenue, signals |
+| **research-topics** | Deep Research | goal | on-demand | 1 entity, research | content_research |
+| **slack-digest** | Slack Sync | recurring | daily | — | slack, signals |
+| **notion-digest** | Notion Sync | recurring | weekly | — | notion, signals |
+| **github-digest** | GitHub Sync | recurring | daily | — | github, signals |
+| **commerce-digest** | Commerce Sync | recurring | daily | — | customers, revenue, signals |
 
 All `track-*` tasks read both their domain AND the `signals/` domain — same shape across the board (ADR-166 normalization).
 
@@ -96,12 +96,12 @@ Read from accumulated context, write a finished artifact to `/tasks/{slug}/outpu
 | Type Key | Display Name | Mode | Schedule | Reads From | Notes |
 |---|---|---|---|---|---|
 | **daily-update** ⭐ | Daily Update | recurring | daily | ALL domains | **ESSENTIAL ANCHOR (ADR-161)** — scaffolded at signup, cannot be archived. Empty workspaces produce a deterministic template (zero LLM cost). The user-facing heartbeat artifact. |
-| **competitive-brief** | Competitive Brief | recurring | weekly | competitors, signals | briefs |
+| **competitive-brief** | Competitive Intel Report | recurring | weekly | competitors, signals | briefs |
 | **market-report** | Market Report | recurring | monthly | market, competitors, signals | Absorbs former `gtm-report`. Single market+competitive+GTM intelligence brief (ADR-166). |
 | **meeting-prep** | Meeting Prep | **goal** | on-demand | relationships, competitors, signals | Has clear completion (the meeting). Goal-shaped, not reactive (ADR-166). |
-| **stakeholder-update** | Stakeholder Update | recurring | monthly | ALL domains | reports |
-| **project-status** | Project Status Report | recurring | weekly | projects, signals | reports |
-| **content-brief** | Content Brief | goal | on-demand | content_research, competitors, signals | content_output |
+| **stakeholder-update** | Stakeholder Report | recurring | monthly | ALL domains | reports |
+| **project-status** | Project Status | recurring | weekly | projects, signals | reports |
+| **content-brief** | Content Draft | goal | on-demand | content_research, competitors, signals | content_output |
 | **launch-material** | Launch Material | goal | on-demand | content_research, competitors, market, signals | content_output |
 | **revenue-report** | Revenue Report | recurring | weekly | revenue, customers, signals | reports |
 

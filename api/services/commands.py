@@ -93,16 +93,16 @@ Create a Slack or Notion recap using registered task types.
 
 ## Active Command: Work Summary
 
-Create a stakeholder update or project status report using registered task types.
+Create a stakeholder report or project status using registered task types.
 
 **Flow:**
 1. Ask audience: `Clarify(question="Who is this for?", options=["Board/Investors", "Leadership", "Team"])`
 2. Based on audience:
-   - Board/Investors/Leadership → `ManageTask(action="create", title="Monthly Stakeholder Update", type_key="stakeholder-update")`
-   - Team → `ManageTask(action="create", title="Weekly Project Status", type_key="project-status-report")` (requires Slack)
+   - Board/Investors/Leadership → `ManageTask(action="create", title="Monthly Stakeholder Report", type_key="stakeholder-update")`
+   - Team → `ManageTask(action="create", title="Weekly Project Status", type_key="project-status")`
 3. Ask for any focus customization
 
-**Defaults:** stakeholder-update=monthly, project-status-report=weekly
+**Defaults:** stakeholder-update=monthly, project-status=weekly
 """,
     },
 

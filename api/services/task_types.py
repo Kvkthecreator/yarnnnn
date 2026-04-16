@@ -330,7 +330,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
 
     "track-competitors": {
         "display_name": "Track Competitors",
-        "description": "Builds a running knowledge file on each competitor — pricing, product moves, funding, and strategy.",
+        "description": "Builds a running knowledge file on each competitor — pricing, product moves, funding, and strategy shifts.",
         "output_kind": "accumulates_context",
         "default_delivery": "none",
         "registry_default_team": ["researcher"],
@@ -505,7 +505,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "research-topics": {
-        "display_name": "Research Topics",
+        "display_name": "Deep Research",
         "description": "Digs deep on a topic you define — builds a research file of findings, sources, and key takeaways.",
         "output_kind": "accumulates_context",
         "default_delivery": "none",
@@ -553,8 +553,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     # of scope — these are awareness surfaces for TP, not steward inputs.
 
     "slack-digest": {
-        "display_name": "Slack Digest",
-        "default_title": "Slack Digest",
+        "display_name": "Slack Sync",
+        "default_title": "Slack Sync",
         "description": "Reads your selected Slack channels and captures decisions, action items, and key discussions.",
         "output_kind": "accumulates_context",
         "default_delivery": "none",
@@ -592,8 +592,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "notion-digest": {
-        "display_name": "Notion Digest",
-        "default_title": "Notion Digest",
+        "display_name": "Notion Sync",
+        "default_title": "Notion Sync",
         "description": "Reads your selected Notion pages and tracks changes, new content, and updates.",
         "output_kind": "accumulates_context",
         "default_delivery": "none",
@@ -631,8 +631,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "github-digest": {
-        "display_name": "GitHub Digest",
-        "default_title": "GitHub Digest",
+        "display_name": "GitHub Sync",
+        "default_title": "GitHub Sync",
         "description": "Reads your selected GitHub repos and tracks issues, PRs, and recent activity.",
         "output_kind": "accumulates_context",
         "default_delivery": "none",
@@ -672,8 +672,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     # ── Commerce Tasks (ADR-183: Commerce Substrate) ──
 
     "commerce-digest": {
-        "display_name": "Commerce Digest",
-        "default_title": "Commerce Digest",
+        "display_name": "Commerce Sync",
+        "default_title": "Commerce Sync",
         "description": "Reads your commerce platform and tracks subscribers, revenue, and product performance.",
         "output_kind": "accumulates_context",
         "default_delivery": "none",
@@ -850,7 +850,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     # ══════════════════════════════════════════════════════════════════════════
 
     "competitive-brief": {
-        "display_name": "Competitive Brief",
+        "display_name": "Competitive Intel Report",
         "description": "Competitive intelligence report — positioning, pricing moves, strategic implications, and charts.",
         "output_kind": "produces_deliverable",
         "default_delivery": "email",
@@ -1025,8 +1025,8 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "stakeholder-update": {
-        "display_name": "Stakeholder Update",
-        "description": "Synthesizes everything happening across your workspace — market, competitors, projects, relationships — into one update.",
+        "display_name": "Stakeholder Report",
+        "description": "Synthesizes everything happening across your workspace — market, competitors, projects, relationships — into one report.",
         "output_kind": "produces_deliverable",
         "default_delivery": "email",
         "registry_default_team": ["analyst", "writer"],
@@ -1135,7 +1135,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "project-status": {
-        "display_name": "Project Status Report",
+        "display_name": "Project Status",
         "description": "Status report per workstream — progress, blockers, and next steps.",
         "output_kind": "produces_deliverable",
         "default_delivery": "email",
@@ -1184,7 +1184,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     },
 
     "content-brief": {
-        "display_name": "Content Brief",
+        "display_name": "Content Draft",
         "description": "Turns your accumulated research into a content draft — blog post, article, or brief.",
         "output_kind": "produces_deliverable",
         "default_delivery": "email",

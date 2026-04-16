@@ -171,7 +171,7 @@ Two creation paths:
 ```
 ManageTask(
   action: "create",
-  title: "Weekly Competitive Briefing",
+  title: "Weekly Competitive Intel",
   type_key: "competitive-brief",
   schedule: "weekly",
   delivery: "email"
@@ -182,25 +182,35 @@ ManageTask(
 **Optional:** mode, objective, schedule, delivery, success_criteria, output_spec, focus, sources, team
 
 **mode** determines temporal behavior:
-- `recurring` (default) — runs on fixed cadence indefinitely (weekly briefings, daily recaps)
+- `recurring` (default) — runs on fixed cadence indefinitely (weekly reports, daily recaps)
 - `goal` — bounded work, completes when success criteria are met (due diligence, one-off research)
 - `reactive` — on-demand or event-triggered (pricing alerts, competitor changes)
 
 **Work intent → task type mapping:**
-- Track competitors/entities → `track-competitors`, `track-market`, etc.
-- Track relationships → `track-relationships`
-- Track projects → `track-projects`
-- Research a topic → `research-topics`
-- Competitive brief → `competitive-brief`
-- Market report → `market-report`
-- Meeting prep → `meeting-prep`
-- Stakeholder update → `stakeholder-update`
+
+Tracking (ongoing context accumulation):
+- Track competitors/entities → `track-competitors`
+- Track market segments → `track-market`
+- Track relationships/contacts → `track-relationships`
+- Track projects/workstreams → `track-projects`
+- Deep-dive research on a topic → `research-topics`
+
+Reports (deliverable outputs):
+- Competitive intelligence → `competitive-brief`
+- Market intelligence → `market-report`
+- Meeting preparation → `meeting-prep`
+- Stakeholder / board report → `stakeholder-update`
 - Project status → `project-status`
-- Content brief → `content-brief`
-- Launch material → `launch-material`
-- Slack digest → `slack-digest`
-- Notion digest → `notion-digest`
-- GitHub digest → `github-digest`
+- Content draft / blog post → `content-brief`
+- Launch / announcement material → `launch-material`
+
+Connectors (platform sync — one per platform):
+- Slack sync → `slack-digest`
+- Notion sync → `notion-digest`
+- GitHub sync → `github-digest`
+- Commerce sync → `commerce-digest`
+
+**Title guidance:** Choose a descriptive, user-facing title. Avoid jargon like "digest" or "brief" — prefer clear labels: "Weekly Competitive Intel", "Q2 Market Report", "Slack Sync", "Track Cursor & Linear".
 
 ---
 
