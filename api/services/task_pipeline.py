@@ -1460,7 +1460,7 @@ def build_task_execution_prompt(
     agent: dict,
     agent_instructions: str,
     context: str,
-    user_context: Optional[list] = None,
+    user_context: Optional[str] = None,
     deliverable_spec: str = "",
     steering_notes: str = "",
     task_feedback: str = "",
@@ -1496,20 +1496,9 @@ def build_task_execution_prompt(
 - Do not use emojis in headers or content unless preferences explicitly request them.
 - Use plain markdown headers (##, ###) and bullet points for structure."""
 
-    # User context (profile + preferences)
+    # User context — pre-rendered by _load_user_context() (identity + prefs + brand)
     if user_context:
-        context_lines = []
-        for row in user_context:
-            key = row.get("key", "")
-            value = row.get("value", "")
-            if key in ("name", "role", "company", "timezone"):
-                context_lines.append(f"- {key.title()}: {value}")
-            elif key.startswith("tone_") or key.startswith("verbosity_"):
-                context_lines.append(f"- {key.replace('_', ' ').title()}: {value}")
-            elif key.startswith("preference:"):
-                context_lines.append(f"- Prefers: {value}")
-        if context_lines:
-            system += "\n\n## User Context\n" + "\n".join(context_lines)
+        system += "\n\n" + user_context
 
     # Agent instructions (from AGENT.md)
     if agent_instructions:
@@ -3320,31 +3309,45 @@ async def _generate(
 # Helpers
 # =============================================================================
 
-def _load_user_context(client, user_id: str) -> Optional[list]:
-    """Load user context from workspace /memory/ files."""
+def _load_user_context(client, user_id: str) -> Optional[str]:
+    """Load user context from workspace files and return as prompt-ready text.
+
+    Reads IDENTITY.md, style.md, notes.md, and BRAND.md from workspace,
+    renders directly into prompt sections. No intermediate key-value layer.
+    """
     try:
         from services.workspace import UserMemory
         um = UserMemory(client, user_id)
         memory_files = um.read_all_sync()
-        user_context = []
+        sections: list[str] = []
+
+        # Identity (IDENTITY.md → profile fields)
         profile = UserMemory._parse_memory_md(memory_files.get("IDENTITY.md"))
-        for k, v in profile.items():
-            if v:
-                user_context.append({"key": k, "value": v})
+        profile_lines = [f"- {k.title()}: {v}" for k, v in profile.items() if v]
+        if profile_lines:
+            sections.append("## User Context\n" + "\n".join(profile_lines))
+
+        # Preferences (style.md → tone/verbosity per platform)
         prefs = UserMemory._parse_preferences_md(memory_files.get("style.md"))
+        pref_lines = []
         for platform, settings in prefs.items():
             if settings.get("tone"):
-                user_context.append({"key": f"tone_{platform}", "value": settings["tone"]})
+                pref_lines.append(f"- {platform.title()} Tone: {settings['tone']}")
             if settings.get("verbosity"):
-                user_context.append({"key": f"verbosity_{platform}", "value": settings["verbosity"]})
+                pref_lines.append(f"- {platform.title()} Verbosity: {settings['verbosity']}")
+        # Standing notes (notes.md → top 5 facts/preferences)
         notes = UserMemory._parse_notes_md(memory_files.get("notes.md"))
         for note in notes[:5]:
-            user_context.append({"key": f"preference:{note['content'][:40]}", "value": note["content"]})
-        # ADR-143: Inject brand context
+            pref_lines.append(f"- Prefers: {note['content']}")
+        if pref_lines:
+            sections.append("## Preferences\n" + "\n".join(pref_lines))
+
+        # Brand (BRAND.md → raw content)
         brand = memory_files.get("BRAND.md", "").strip()
         if brand:
-            user_context.append({"key": "brand", "value": brand})
-        return user_context if user_context else None
+            sections.append("## Brand Guidelines\n" + brand)
+
+        return "\n\n".join(sections) if sections else None
     except Exception as e:
         logger.warning(f"[TASK_EXEC] User context load failed: {e}")
         return None

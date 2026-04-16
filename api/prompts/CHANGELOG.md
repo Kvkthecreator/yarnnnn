@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.16.2] - Streamline user context injection, delete legacy format_for_prompt
+
+### Changed
+- `api/services/task_pipeline.py`: `_load_user_context()` rewritten — was: parse files → key-value list → re-serialize to text (round-trip that silently dropped BRAND.md). Now: parse files → return prompt-ready text string directly. Signature changed from `-> Optional[list]` to `-> Optional[str]`. Three sections: `## User Context` (identity), `## Preferences` (style + notes), `## Brand Guidelines` (brand). All 3 call sites unchanged (pass-through).
+- `api/services/task_pipeline.py`: `build_task_execution_prompt()` — `user_context` param changed from `Optional[list]` to `Optional[str]`. Key-value rendering loop deleted (was 15 lines with the brand bug). Now: single `system += user_context` injection.
+- `api/services/working_memory.py`: `format_for_prompt()` DELETED (285 lines). Was legacy 3-8K token dump, superseded by `format_compact_index()` (ADR-159). Zero production callers — only test files imported it.
+- Expected behavior: headless agents now see brand guidelines (was silently dropped). User context injection is singular path — no intermediate data format, no key-matching logic to go stale.
+
+---
+
 ## [2026.04.16.1] - Task display name cohesion pass — user-facing label renames
 
 ### Changed

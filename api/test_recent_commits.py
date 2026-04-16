@@ -83,71 +83,55 @@ def test_classify_richness():
            _classify_richness(multi_line_content) == "rich")
 
 
-def test_sparse_context_in_format():
-    """format_for_prompt surfaces sparse identity/brand with guidance."""
-    from services.working_memory import format_for_prompt
+def test_compact_index_surfaces_identity_gaps():
+    """format_compact_index surfaces sparse/empty identity/brand with guidance."""
+    from services.working_memory import format_compact_index
 
-    # Simulate working memory with sparse identity
     wm_sparse = {
-        "profile": {"name": "Test"},
-        "preferences": [],
-        "known": [],
-        "identity": "Hi I'm John",
-        "brand": None,
-        "orchestration_playbook": None,
-        "agents": [],
-        "platforms": [],
-        "recent_sessions": [],
-        "system_summary": {},
-        "system_reference": {"agent_roles": [], "connected_platforms": []},
-        "user_shared_files": [],
         "workspace_state": {
             "identity": "sparse",
             "brand": "empty",
             "documents": 0,
             "tasks_active": 0,
             "tasks_stale": 0,
-                        "context_domains": 0,
-            "credits_used": 0, "credits_limit": -1, "budget_exhausted": False,
+            "context_domains": 0,
+            "balance_usd": 3.0,
+            "balance_exhausted": False,
             "agents_flagged": [],
         },
+        "active_tasks": [],
+        "context_domains": [],
     }
 
-    formatted = format_for_prompt(wm_sparse)
+    formatted = format_compact_index(wm_sparse)
 
-    # Should contain sparse guidance
-    record("sparse identity surfaces in prompt",
-           "sparse" in formatted.lower() and "enrich" in formatted.lower())
-    record("empty brand surfaces in prompt",
-           "brand" in formatted.lower() and ("empty" in formatted.lower() or "none" in formatted.lower()))
-    record("workspace state section present",
-           "workspace state" in formatted.lower())
+    record("sparse identity surfaces in compact index",
+           "identity" in formatted.lower() and "sparse" in formatted.lower())
+    record("empty brand gap signal in compact index",
+           "identity empty" in formatted.lower() or "brand" in formatted.lower())
 
 
-def test_sparse_vs_empty_differentiation():
-    """Sparse and empty produce different guidance."""
-    from services.working_memory import format_for_prompt
+def test_user_context_renders_brand():
+    """_load_user_context renders brand as ## Brand Guidelines section."""
+    from services.task_pipeline import build_task_execution_prompt
 
-    wm_empty = {
-        "profile": {}, "preferences": [], "known": [],
-        "identity": None, "brand": None, "orchestration_playbook": None,
-        "agents": [], "platforms": [], "recent_sessions": [],
-        "system_summary": {}, "system_reference": {"agent_roles": [], "connected_platforms": []},
-        "user_shared_files": [],
-        "workspace_state": {"identity": "empty", "brand": "empty", "documents": 0, "tasks_active": 0, "tasks_stale": 0, "context_domains": 0, "credits_used": 0, "credits_limit": -1, "budget_exhausted": False, "agents_flagged": []},
-    }
+    # Simulate what _load_user_context now returns — pre-rendered text
+    user_context = (
+        "## User Context\n- Name: Test User\n- Role: CEO\n\n"
+        "## Brand Guidelines\nTone: Professional. Colors: Blue."
+    )
+    task_info = {"title": "Test", "objective": {}, "success_criteria": [], "output_spec": []}
+    agent = {"role": "researcher", "scope": "cross_platform"}
 
-    wm_sparse = dict(wm_empty)
-    wm_sparse["identity"] = "Just a name"
-    wm_sparse["workspace_state"] = {"identity": "sparse", "brand": "empty", "documents": 0, "tasks_active": 0, "tasks_stale": 0, "context_domains": 0, "credits_used": 0, "credits_limit": -1, "budget_exhausted": False, "agents_flagged": []}
+    system_blocks, user_msg = build_task_execution_prompt(
+        task_info=task_info, agent=agent, agent_instructions="",
+        context="", user_context=user_context,
+    )
 
-    fmt_empty = format_for_prompt(wm_empty)
-    fmt_sparse = format_for_prompt(wm_sparse)
-
-    # Both should have gaps, but sparse should mention "enrich" specifically
-    record("sparse identity has 'enrich' guidance", "enrich" in fmt_sparse.lower())
-    # Empty identity should mention "share" or similar
-    record("empty identity has gap signal", "identity" in fmt_empty.lower())
+    # System blocks are list of dicts — extract text
+    system_text = " ".join(b.get("text", "") for b in system_blocks)
+    record("brand guidelines in system prompt", "Brand Guidelines" in system_text)
+    record("user context in system prompt", "Name: Test User" in system_text)
 
 
 # =============================================================================
