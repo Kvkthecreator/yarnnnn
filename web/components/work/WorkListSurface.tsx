@@ -6,14 +6,13 @@
  * SURFACE-ARCHITECTURE.md v13.0 — three-tab architecture.
  *
  * Three tabs:
- *   My Work (default) — user's knowledge work, grouped Ongoing / In Progress
+ *   My Work (default) — user's knowledge work, grouped by output kind
+ *     (Reports / Tracking / Actions). Cadence badge (Recurring / One-time)
+ *     on each row.
  *   Connectors — platform-bound tasks (requires_platform), grouped by platform
  *   System — system_maintenance tasks, flat list
  *
- * Group-by-agent is DELETED (tasks are 1:N agents; grouping by first agent
- * was misleading). Agent names shown inline on each row instead.
- *
- * Mode filter (Recurring / One-time) and search are preserved within each tab.
+ * Search is preserved within each tab.
  */
 
 import { useRef, useEffect, useMemo, useState } from 'react';
@@ -79,14 +78,19 @@ const KIND_ICON: Record<string, React.ElementType> = {
   system_maintenance: Settings2,
 };
 
-// ─── My Work grouping ────────────────────────────────────────────────────────
+// ─── My Work grouping (primary axis: output kind) ───────────────────────────
+
+const OUTPUT_KIND_LABELS: Record<string, string> = {
+  accumulates_context: 'Tracking',
+  produces_deliverable: 'Reports',
+  external_action: 'Actions',
+};
 
 function myWorkGroup(task: Task): string {
-  const s = (task.schedule ?? '').trim().toLowerCase();
-  return (s && s !== 'on-demand') ? 'Scheduled' : 'One-time';
+  return OUTPUT_KIND_LABELS[task.output_kind ?? ''] ?? 'Reports';
 }
 
-const MY_WORK_GROUP_ORDER = ['Scheduled', 'One-time'];
+const MY_WORK_GROUP_ORDER = ['Reports', 'Tracking', 'Actions'];
 
 // ─── Connector grouping (by platform) ────────────────────────────────────────
 
@@ -459,11 +463,7 @@ function WorkRow({
   // Sub-label varies by tab
   let subParts: string[] = [];
   if (tab === 'my-work') {
-    // Show output kind hint + schedule
-    const kindHint = task.output_kind === 'accumulates_context' ? 'Tracking' :
-      task.output_kind === 'produces_deliverable' ? 'Report' :
-        task.output_kind === 'external_action' ? 'Action' : null;
-    if (kindHint) subParts.push(kindHint);
+    // Group header shows kind — row shows schedule
     if (schedule) subParts.push(schedule);
   } else if (tab === 'connectors') {
     if (schedule) subParts.push(schedule);

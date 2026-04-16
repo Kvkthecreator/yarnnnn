@@ -347,7 +347,7 @@ export type TaskModeLabel = 'Recurring' | 'One-time';
 export function taskModeLabel(schedule: string | undefined | null): TaskModeLabel {
   if (!schedule) return 'One-time';
   const s = schedule.trim().toLowerCase();
-  return (s && s !== 'on-demand') ? 'Recurring' : 'One-time';
+  return s && s !== 'on-demand' ? 'Recurring' : 'One-time';
 }
 
 // ADR-087: Scoped chat session
