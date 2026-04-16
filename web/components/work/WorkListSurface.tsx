@@ -82,10 +82,11 @@ const KIND_ICON: Record<string, React.ElementType> = {
 // ─── My Work grouping ────────────────────────────────────────────────────────
 
 function myWorkGroup(task: Task): string {
-  return task.mode === 'recurring' ? 'Ongoing' : 'In Progress';
+  const s = (task.schedule ?? '').trim().toLowerCase();
+  return (s && s !== 'on-demand') ? 'Scheduled' : 'One-time';
 }
 
-const MY_WORK_GROUP_ORDER = ['Ongoing', 'In Progress'];
+const MY_WORK_GROUP_ORDER = ['Scheduled', 'One-time'];
 
 // ─── Connector grouping (by platform) ────────────────────────────────────────
 
