@@ -1,6 +1,6 @@
 # Architecture Documentation Index
 
-> **Last updated**: 2026-04-09 (ADR-168 — primitives-matrix.md added as canonical)
+> **Last updated**: 2026-04-16 (execution-loop.md added as canonical)
 
 ---
 
@@ -14,6 +14,7 @@ Start with SERVICE-MODEL.md — it's the single entry point for how the system w
 | [**FOUNDATIONS.md**](FOUNDATIONS.md) | First-principles axioms — all ADRs derive from these |
 | [agent-framework.md](agent-framework.md) | Agent type registry (v4 domain-steward model), capabilities, runtimes |
 | [agent-execution-model.md](agent-execution-model.md) | 3-layer execution model (mechanical scheduling, LLM generation, TP orchestration) |
+| [**execution-loop.md**](execution-loop.md) | The accumulation cycle — how run N feeds run N+1 (awareness, tracker, feedback, actuation) |
 | [backend-orchestration.md](backend-orchestration.md) | 4 Render services, scheduler phase map, LLM cost surface, env var matrix |
 | [workspace-conventions.md](workspace-conventions.md) | Filesystem layout, directory registry, lifecycle conventions |
 | [registry-matrix.md](registry-matrix.md) | Agent types × task types × output categories — the full registry catalog |
@@ -31,10 +32,11 @@ For someone new to the codebase:
 1. **[SERVICE-MODEL.md](SERVICE-MODEL.md)** — how the system works (start here)
 2. **[FOUNDATIONS.md](FOUNDATIONS.md)** — why it works this way
 3. **[agent-framework.md](agent-framework.md)** — agent types and capabilities
-4. **[workspace-conventions.md](workspace-conventions.md)** — the filesystem model
-5. **[backend-orchestration.md](backend-orchestration.md)** — how everything runs
-6. **[registry-matrix.md](registry-matrix.md)** — the full type catalog
-7. **[primitives-matrix.md](primitives-matrix.md)** — the full primitive surface
+4. **[execution-loop.md](execution-loop.md)** — the accumulation cycle (how recurring work compounds)
+5. **[workspace-conventions.md](workspace-conventions.md)** — the filesystem model
+6. **[backend-orchestration.md](backend-orchestration.md)** — how everything runs
+7. **[registry-matrix.md](registry-matrix.md)** — the full type catalog
+8. **[primitives-matrix.md](primitives-matrix.md)** — the full primitive surface
 
 ## Archived (`docs/architecture/previous_versions/`)
 

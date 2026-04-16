@@ -351,6 +351,7 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | First principles & axioms | [FOUNDATIONS.md](FOUNDATIONS.md) |
 | Agent taxonomy & type registry | [agent-framework.md](agent-framework.md) |
 | Execution model & trigger taxonomy | [agent-execution-model.md](agent-execution-model.md) |
+| Execution loop & accumulation cycle | [execution-loop.md](execution-loop.md) |
 | Task type orchestration | [task-type-orchestration.md](task-type-orchestration.md) |
 | Workspace filesystem conventions | [workspace-conventions.md](workspace-conventions.md) |
 | Output substrate & capabilities | [output-substrate.md](output-substrate.md) |

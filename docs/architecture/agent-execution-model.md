@@ -5,10 +5,13 @@
 **Supersedes:** Previous version (pulse-driven execution, strategy pattern, PM coordination)
 **Codifies:** ADR-141 (Unified Execution Architecture), ADR-138 (Agents as Work Units), ADR-140 (Workforce Roster)
 **Related:**
+- [execution-loop.md](execution-loop.md) — **the accumulation cycle** (how run N feeds run N+1 — awareness, tracker, feedback actuation)
 - [ADR-141: Unified Execution Architecture](../adr/ADR-141-unified-execution-architecture.md) — governing ADR
 - [ADR-138: Agents as Work Units](../adr/ADR-138-agents-as-work-units.md) — task model
 - [ADR-140: Agent Workforce Model](../adr/ADR-140-agent-workforce-model.md) — roster model
 - [FOUNDATIONS.md](FOUNDATIONS.md) — axioms governing the system (Axiom 5: user-as-supervisor)
+
+> **This doc describes the three-layer architecture** (what the layers are, what triggers exist, what code runs). For the cycle-to-cycle accumulation mechanics — awareness.md handoff, entity tracker rebuild, system verification, feedback actuation, and how context compounds across runs — see [execution-loop.md](execution-loop.md).
 
 ---
 

@@ -3,7 +3,8 @@
 **Date:** 2026-04-15  
 **Status:** Proposed  
 **Extends:** [FEEDBACK-WORKFLOW-REDESIGN.md](./FEEDBACK-WORKFLOW-REDESIGN.md) — three-layer routing model  
-**Depends on:** ADR-156 (Single Intelligence Layer), ADR-167 (List/Detail Surfaces), ADR-166 (Registry Coherence), ADR-178 (Task Creation Routes)
+**Depends on:** ADR-156 (Single Intelligence Layer), ADR-167 (List/Detail Surfaces), ADR-166 (Registry Coherence), ADR-178 (Task Creation Routes)  
+**Sibling:** [execution-loop.md](../architecture/execution-loop.md) — the **mechanical** feedback loop (system verification, actuation, aging). This doc covers the **user-facing** feedback loop (surface affordances, TP solicitation).
 
 ---
 
