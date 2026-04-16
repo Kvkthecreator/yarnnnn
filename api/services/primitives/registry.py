@@ -118,8 +118,9 @@ LIST_INTEGRATIONS_TOOL = {
     "description": """List the user's connected platform integrations and their metadata.
 
 Call this first when about to use a platform tool, to get:
-- Which platforms are active (slack, notion)
+- Which platforms are active (slack, notion, github, commerce, trading)
 - Slack: authed_user_id — use as channel_id when sending DMs to self
+- Trading: provider, paper mode, account_number
 - Notion: designated_page_id — use as page_id when writing to user's YARNNN page
 
 AGENTIC BEHAVIOR: Don't ask "are you connected to Slack?" — call list_integrations and find out.
@@ -155,6 +156,13 @@ async def handle_list_integrations(auth: Any, input: dict) -> dict:
             item["authed_user_id"] = metadata["authed_user_id"]
         if i["platform"] == "notion" and metadata.get("designated_page_id"):
             item["designated_page_id"] = metadata["designated_page_id"]
+        if i["platform"] == "commerce":
+            item["provider"] = metadata.get("provider", "")
+            item["store_name"] = metadata.get("store_name", "")
+        if i["platform"] == "trading":
+            item["provider"] = metadata.get("provider", "")
+            item["paper"] = metadata.get("paper", True)
+            item["account_number"] = metadata.get("account_number", "")
         items.append(item)
 
     return {
