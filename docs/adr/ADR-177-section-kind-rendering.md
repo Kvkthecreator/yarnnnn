@@ -1,7 +1,7 @@
 # ADR-177: Section Kind Rendering — Unified Parse+Render
 
 **Date:** 2026-04-13
-**Status:** Proposed
+**Status:** Implemented (2026-04-13)
 **Authors:** KVK, Claude
 **Supersedes:** ADR-177 draft (2026-04-13) — integration point and chart rendering approach revised
 **Extends:** ADR-170 (Compose Substrate — Phase 3 section partials, Phase 4 revision routing)

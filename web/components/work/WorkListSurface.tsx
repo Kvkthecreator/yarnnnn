@@ -68,9 +68,9 @@ function isSystemTask(task: Task): boolean {
   return task.output_kind === 'system_maintenance';
 }
 
-function agentNameFor(task: Task, agents: Agent[]): string {
+function agentNameFor(task: Task, agents: Agent[]): string | null {
   const assigned = task.agent_slugs?.[0];
-  if (!assigned) return 'Unassigned';
+  if (!assigned) return null;
   const agent = agents.find(a => getAgentSlug(a) === assigned);
   return agent?.title ?? assigned;
 }
@@ -233,7 +233,7 @@ export function WorkListSurface({
   const grouped = useMemo(() => {
     const groups: Record<string, Task[]> = {};
     for (const task of filtered) {
-      const key = groupBy === 'mode' ? kindGroupLabel(task) : agentNameFor(task, agents);
+      const key = groupBy === 'mode' ? kindGroupLabel(task) : (agentNameFor(task, agents) ?? 'Other');
       if (!groups[key]) groups[key] = [];
       groups[key].push(task);
     }

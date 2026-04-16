@@ -301,7 +301,13 @@ async def _create_essential_daily_update(
         agent_slugs=["reporting"],
     )
     tw = TaskWorkspace(client, user_id, "daily-update")
-    await tw.write_task(task_md)
+    await tw.write("TASK.md", task_md, summary="Essential task definition: Daily Update")
+
+    # ADR-149: Scaffold DELIVERABLE.md from type registry
+    from services.task_types import build_deliverable_md_from_type
+    deliverable_md = build_deliverable_md_from_type("daily-update")
+    if deliverable_md:
+        await tw.write("DELIVERABLE.md", deliverable_md, summary="Quality contract: Daily Update")
 
 
 async def _create_essential_back_office_task(
@@ -350,7 +356,13 @@ async def _create_essential_back_office_task(
         agent_slugs=["thinking-partner"],
     )
     tw = TaskWorkspace(client, user_id, slug)
-    await tw.write_task(task_md)
+    await tw.write("TASK.md", task_md, summary=f"Essential task definition: {title}")
+
+    # ADR-149: Scaffold DELIVERABLE.md from type registry
+    from services.task_types import build_deliverable_md_from_type
+    deliverable_md = build_deliverable_md_from_type(type_key)
+    if deliverable_md:
+        await tw.write("DELIVERABLE.md", deliverable_md, summary=f"Quality contract: {title}")
 
 
 async def update_workspace_manifest(client: Any, user_id: str) -> bool:
