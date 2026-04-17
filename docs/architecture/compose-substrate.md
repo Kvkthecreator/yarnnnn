@@ -56,7 +56,7 @@ The compose function reads structural knowledge from existing sources at executi
 | Source | What it provides | Who writes it |
 |---|---|---|
 | **Task type registry** (`task_types.py`) | `surface_type` (visual paradigm) + `page_structure` (section kinds, scopes, asset expectations) | System (curated registry) |
-| **DELIVERABLE.md** (per task) | Quality contract: audience, quality criteria, format preferences, inferred user preferences | TP/user (ADR-149) |
+| **DELIVERABLE.md** (per task) | Quality contract: audience, quality criteria, format preferences, inferred user preferences | YARNNN/user (ADR-149) |
 | **Agent playbooks** (`_playbook-*.md`) | Craft methodology: how this agent type approaches content production | System + feedback distillation |
 | **Filesystem state** | What entities exist, what assets are available, what's stale since last run | Accumulated by agents over time |
 | **Prior output folder** (if exists) | What sections were produced, when, from what sources — enables revision-as-composition | Previous compose run |
@@ -174,7 +174,7 @@ Revision is composition with diff — same function, richer input (ADR-170 RD-3)
 | `full` | No manifest, or all sections stale | Full regeneration | Sonnet (full) |
 | `asset` | Asset stale but no section prose change | Re-render/re-fetch only | Zero (future Phase 6) |
 
-**TP → compose revision loop (pending — see gaps below):** TP steering notes currently contain free-text instructions. The loop will be complete when TP can target a specific section slug in steering, and the compose function routes that to section-scoped regeneration without a full re-run.
+**YARNNN → compose revision loop (pending — see gaps below):** YARNNN steering notes currently contain free-text instructions. The loop will be complete when YARNNN can target a specific section slug in steering, and the compose function routes that to section-scoped regeneration without a full re-run.
 
 ---
 
@@ -215,13 +215,13 @@ api/services/compose/
 The compose substrate handles *structural binding* — what goes where, what references what. It does **not** handle *quality judgment*.
 
 Quality evaluation remains in ADR-149:
-- TP evaluates output against DELIVERABLE.md → produces steering signals.
+- YARNNN evaluates output against DELIVERABLE.md → produces steering signals.
 - User provides feedback → routed to task feedback.md.
 - Agent self-reflects → writes to memory/reflections.md.
 
-The compose substrate *consumes* these signals as revision inputs. It does not *produce* quality judgments. This preserves the boundary: compose = deterministic Python, evaluation = TP intelligence (LLM).
+The compose substrate *consumes* these signals as revision inputs. It does not *produce* quality judgments. This preserves the boundary: compose = deterministic Python, evaluation = YARNNN intelligence (LLM).
 
-Recursive improvement of the output structure itself (should sections change? is the surface type right?) is a developmental concern belonging to the agent's learning loop. A tenured agent accumulates preferences about what works — that feeds back into DELIVERABLE.md via TP inference or user editing, not via the compose substrate judging itself.
+Recursive improvement of the output structure itself (should sections change? is the surface type right?) is a developmental concern belonging to the agent's learning loop. A tenured agent accumulates preferences about what works — that feeds back into DELIVERABLE.md via YARNNN inference or user editing, not via the compose substrate judging itself.
 
 ---
 
@@ -347,12 +347,12 @@ Gap 2 (frontend view-time rendering) remains deferred. Phase 5 produces better `
 
 ## Open Gaps (as of 2026-04-10)
 
-### Gap 1: TP section-level steering awareness
+### Gap 1: YARNNN section-level steering awareness
 
-**Current state:** TP steers via free-text notes written to `memory/steering.md`. The compose substrate reads these notes and injects them into the LLM prompt, but it cannot route them to specific section partials. TP has no knowledge of what sections exist for a given task type.
+**Current state:** YARNNN steers via free-text notes written to `memory/steering.md`. The compose substrate reads these notes and injects them into the LLM prompt, but it cannot route them to specific section partials. YARNNN has no knowledge of what sections exist for a given task type.
 
 **What's needed:**
-- TP working memory injection should include the task's `page_structure` section titles when a `produces_deliverable` task is in context (compact index addition in `working_memory.py`).
+- YARNNN working memory injection should include the task's `page_structure` section titles when a `produces_deliverable` task is in context (compact index addition in `working_memory.py`).
 - `ManageTask(action="steer")` should optionally accept a `target_section` field (slug or title) alongside the existing `steering_notes` string.
 - When `target_section` is set, the revision preamble marks only that section as stale (`revision_type=section`, `stale_sections=[target_section]`), bypassing the manifest-based staleness check.
 - This closes the ADR-149 evaluate → steer → compose revision loop end-to-end.

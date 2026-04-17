@@ -47,7 +47,7 @@ pm:         [read_workspace, check_freshness, steer_contributors, trigger_assemb
 
 Each type also defines: display_name, tagline, default instructions, pulse cadence, prompt template.
 
-Multi-agent coordination: projects are teams (1 PM + 1..N contributors). Lean start at scaffold (1 contributor), team grows via Composer/TP/user request. PM orchestrates via work plan.
+Multi-agent coordination: projects are teams (1 PM + 1..N contributors). Lean start at scaffold (1 contributor), team grows via Composer/YARNNN/user request. PM orchestrates via work plan.
 
 New types added by extending the registry + deploying runtimes. No framework changes required. Legacy roles (digest, synthesize, research, prepare, custom) mapped to new types via `resolve_role()`.
 

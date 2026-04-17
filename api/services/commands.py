@@ -2,11 +2,11 @@
 Slash Commands System (ADR-025 Claude Code Alignment)
 
 Commands are packaged workflows triggered by slash commands or intent recognition.
-Each command expands to a system prompt addition that guides TP through a structured process.
+Each command expands to a system prompt addition that guides YARNNN through a structured process.
 
 Two categories:
 1. Agent creation commands — structured flows to create recurring agents
-2. Capability commands — surface TP's built-in abilities (search, sync, memory, web research)
+2. Capability commands — surface YARNNN's built-in abilities (search, sync, memory, web research)
 """
 
 import logging
@@ -145,19 +145,33 @@ Create a research task using registered task types. Match to the best type:
 
 ## Active Command: Create Agent
 
-User wants to create a new agent. Most users already have a full roster of 9 pre-scaffolded agents
-(6 universal specialists: Researcher, Analyst, Writer, Tracker, Designer, Thinking Partner + 3 platform bots).
-Check their roster first — they probably just need a task on an existing agent.
+User wants to create a new Agent. Under ADR-189 (authored-team model), Agents are the user's
+— built through conversation, each scoped to a specific domain of the user's work. The user
+starts with zero Agents and builds the team as work intents emerge.
 
-1. Check roster: `ListEntities(pattern="agent:*")`
-2. If the roster is complete (9 agents), suggest creating a task instead: "You already have a full team. Want me to assign a task to one of them?"
-3. If they insist on a new agent: `Clarify(question="What type?", options=["Researcher", "Analyst", "Writer", "Tracker", "Designer"])`
-4. Create: `ManageAgent(action="create", title=..., role=...)`
+Your job is to help the user author an Agent that matches the work they're describing.
+
+1. Understand the domain — what does this Agent need to know or track? (competitors, clients,
+   market trends, product launches, specific projects, etc.)
+2. Clarify the role — ask briefly only if the work intent is unclear: `Clarify(question="What
+   kind of work?", options=["Researcher", "Analyst", "Writer", "Tracker", "Designer"])`.
+   Otherwise infer from conversation.
+3. Create: `ManageAgent(action="create", title="<user's language>", role="<role>")`. Use the
+   user's own words for the title — this is their Agent, it should sound like theirs.
+4. Confirm and suggest a first task: once the Agent exists, the natural next step is
+   describing what work it should do. Offer a concrete task idea based on the domain.
+
+Notes:
+- Specialists (Researcher, Analyst, Writer, Tracker, Designer, Reporting) are YARNNN's palette
+  — you draft them into Teams per task. They are NOT user-visible Agents. Do not suggest the
+  user "create a Researcher Agent" unless they mean a specific domain-scoped worker.
+- Platform Bots (Slack, Notion, GitHub, Commerce, Trading) activate on platform connection.
+  If a user wants to "add Slack," route them to connect rather than creating an Agent.
 """,
     },
 
     # =========================================================================
-    # Capability Commands — surface TP's built-in abilities
+    # Capability Commands — surface YARNNN's built-in abilities
     # =========================================================================
     "search": {
         "name": "search",

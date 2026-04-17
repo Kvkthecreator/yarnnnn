@@ -8,7 +8,7 @@
 
 ## Three Registries, One System
 
-YARNNN has three registries that work together. **These are curated template libraries, not exhaustive definitions** (ADR-188). TP can draw from them or compose novel definitions for domains, task types, and agent configurations not represented here. At execution time, the pipeline reads workspace files (TASK.md, AGENT.md), not the registries.
+YARNNN has three registries that work together. **These are curated template libraries, not exhaustive definitions** (ADR-188). YARNNN can draw from them or compose novel definitions for domains, task types, and agent configurations not represented here. At execution time, the pipeline reads workspace files (TASK.md, AGENT.md), not the registries.
 
 | Registry | Governs | File | Key constant |
 |---|---|---|---|
@@ -24,7 +24,7 @@ After ADR-166 every task is described by exactly two axes:
 
 | Axis | Where it lives | Values | Used for |
 |---|---|---|---|
-| **`mode`** (temporal posture) | TASK.md `**Mode:**` + `tasks.mode` column | `recurring \| goal \| reactive` | TP management posture: auto-deliver vs. evaluate-and-steer-to-completion vs. dispatch-and-done. |
+| **`mode`** (temporal posture) | TASK.md `**Mode:**` + `tasks.mode` column | `recurring \| goal \| reactive` | YARNNN management posture: auto-deliver vs. evaluate-and-steer-to-completion vs. dispatch-and-done. |
 | **`output_kind`** (work shape) | TASK.md `**Output:**` + task_types registry | `accumulates_context \| produces_deliverable \| external_action \| system_maintenance` | Pipeline routing: which playbooks load, where output goes, who consumes it, what UI treatment to use. |
 
 **Dropped (ADR-166):** the redundant `category` field on task types and the related `TASK_TYPE_CATEGORIES` constant. Categorization was overlapping shorthand for owner agent + output_kind; both already exist explicitly elsewhere.
@@ -43,14 +43,14 @@ After ADR-166 every task is described by exactly two axes:
 | **projects/** | track-projects | project-status, stakeholder-update | Tracker (write), Analyst + Writer (read) |
 | **content_research/** | research-topics | content-brief, launch-material | Researcher (write), Analyst + Writer (read) |
 | **signals/** | slack-digest, notion-digest, github-digest, ALL track-* | ALL deliverable-producing tasks | Tracker + bots (write), all specialists (read) |
-| **slack/** (temporal) | slack-digest | (TP awareness only) | Slack Bot |
-| **notion/** (temporal) | notion-digest | (TP awareness only) | Notion Bot |
-| **github/** (temporal) | github-digest | (TP awareness only) | GitHub Bot |
+| **slack/** (temporal) | slack-digest | (YARNNN awareness only) | Slack Bot |
+| **notion/** (temporal) | notion-digest | (YARNNN awareness only) | Notion Bot |
+| **github/** (temporal) | github-digest | (YARNNN awareness only) | GitHub Bot |
 | **customers/** (canonical, ADR-183) | commerce-digest | revenue-report, daily-update | Commerce Bot (write), Analyst + Writer (read) |
 | **revenue/** (canonical, ADR-183) | commerce-digest | revenue-report, daily-update | Commerce Bot (write), Analyst + Writer (read) |
-| **(cross-domain)** | — | daily-update, stakeholder-update, market-report | Analyst + Writer (deliverables TP-assembled) |
+| **(cross-domain)** | — | daily-update, stakeholder-update, market-report | Analyst + Writer (deliverables YARNNN-assembled) |
 
-> **Note (ADR-176):** Domain context directories are created by work demand, not pre-scaffolded at signup. Only `signals/` and platform bot directories exist at signup. Other domains (competitors/, market/, etc.) are created by TP when the first task needing them is created. Domain names come from user language — these are the known archetypes, not the only possible domains.
+> **Note (ADR-176):** Domain context directories are created by work demand, not pre-scaffolded at signup. Only `signals/` and platform bot directories exist at signup. Other domains (competitors/, market/, etc.) are created by YARNNN when the first task needing them is created. Domain names come from user language — these are the known archetypes, not the only possible domains.
 >
 > **Note (ADR-183):** Commerce domains (`customers/`, `revenue/`) are created when a commerce provider is connected, not at signup. Commerce Bot is scaffolded at the same time. See [commerce-substrate.md](commerce-substrate.md).
 
@@ -65,7 +65,7 @@ Task types are organized by `output_kind`. There are exactly four:
 1. **`accumulates_context`** — writes to a workspace context domain. Produces no user-visible artifact this run; the run's value is what it adds to the domain.
 2. **`produces_deliverable`** — writes a user-visible output to `/tasks/{slug}/outputs/`. The "synthesis tasks" of prior versions.
 3. **`external_action`** — takes an action on an external platform via API write. No workspace artifact; the effect lives on the third-party surface.
-4. **`system_maintenance`** — TP-owned, deterministic, no LLM. Emits orchestration signals (paused agents, cleaned-up files) into activity_log.
+4. **`system_maintenance`** — YARNNN-owned, deterministic, no LLM. Emits orchestration signals (paused agents, cleaned-up files) into activity_log.
 
 For full intelligence coverage, pair an `accumulates_context` task with a `produces_deliverable` task — e.g., `track-competitors` (Mon) + `competitive-brief` (Fri).
 
@@ -118,12 +118,12 @@ Take an action on an external platform via API write. The user's workspace gets 
 
 ### System Maintenance — Back Office (ADR-164)
 
-TP-owned, deterministic, no LLM. Run through the same task pipeline as user-facing tasks. Visible to users at `/work` (essential, cannot be archived).
+YARNNN-owned, deterministic, no LLM. Run through the same task pipeline as user-facing tasks. Visible to users at `/work` (essential, cannot be archived).
 
 | Type Key | Display Name | Mode | Schedule | Owner | Effect |
 |---|---|---|---|---|---|
-| **back-office-agent-hygiene** ⭐ | Agent Hygiene | recurring | daily | TP | Pauses agents whose approval rate has decayed below threshold. |
-| **back-office-workspace-cleanup** ⭐ | Workspace Cleanup | recurring | daily | TP | Sweeps ephemeral files past TTL, prunes orphaned outputs. |
+| **back-office-agent-hygiene** ⭐ | Agent Hygiene | recurring | daily | YARNNN | Pauses agents whose approval rate has decayed below threshold. |
+| **back-office-workspace-cleanup** ⭐ | Workspace Cleanup | recurring | daily | YARNNN | Sweeps ephemeral files past TTL, prunes orphaned outputs. |
 
 ### Outputs — Tasks Own Their Outputs (ADR-154)
 
@@ -131,9 +131,9 @@ TP-owned, deterministic, no LLM. Run through the same task pipeline as user-faci
 
 ---
 
-## Agent Roster (Default Template — Customized by TP)
+## Agent Roster (Default Template — Customized by YARNNN)
 
-Default roster scaffolded at signup (ADR-176 universal specialists + ADR-164 TP as agent). TP customizes which specialists are active and what domains they serve based on the user's work description (ADR-188). Platform bots are activated on platform connection.
+Default roster scaffolded at signup (ADR-176 universal specialists + ADR-164 YARNNN as agent). YARNNN customizes which specialists are active and what domains they serve based on the user's work description (ADR-188). Platform bots are activated on platform connection.
 
 | Agent | Role | Class | Capabilities | Phase | Playbooks |
 |---|---|---|---|---|---|
@@ -154,10 +154,10 @@ Default roster scaffolded at signup (ADR-176 universal specialists + ADR-164 TP 
 - **Universal specialists, not ICP-specific personas.** Researcher, Analyst, Writer, Tracker, Designer — names that pass the instinct test for any user in any industry.
 - **Capability split:** Accumulation agents (Researcher, Analyst, Writer, Tracker) accumulate knowledge and produce markdown. Production agent (Designer) generates visual assets. These phases never overlap within a single agent.
 - **No domain ownership.** Specialists are assigned to tasks; tasks read/write context domains. The same Researcher can work on competitors one task and market another. Domain expertise develops through accumulated work, not through a pre-assigned label.
-- **Universal roles, contextual application (ADR-188):** The role taxonomy (Researcher, Analyst, Writer, Tracker, Designer) is a fixed framework primitive — universal cognitive functions. Which specialists are active and what domains they serve is contextual, determined by TP based on the user's work description.
+- **Universal roles, contextual application (ADR-188):** The role taxonomy (Researcher, Analyst, Writer, Tracker, Designer) is a fixed framework primitive — universal cognitive functions. Which specialists are active and what domains they serve is contextual, determined by YARNNN based on the user's work description.
 - **Playbooks** are agent-level methodology. Loaded selectively by task `output_kind` (ADR-166). See `docs/features/agent-playbook-framework.md`.
 - Templates are bootstrapping — AGENT.md is the runtime source of truth.
-- **Thinking Partner (TP)** is the meta-cognitive agent (ADR-164). Two runtime modes: chat (user-present conversation) and task (back office execution). TP owns no context domain; its domain is orchestration itself.
+- **Thinking Partner (YARNNN)** is the meta-cognitive agent (ADR-164). Two runtime modes: chat (user-present conversation) and task (back office execution). YARNNN owns no context domain; its domain is orchestration itself.
 
 ### Context Domain Assets (ADR-157)
 
@@ -173,11 +173,11 @@ Favicons fetched automatically via ManageDomains when entities have a `url` fiel
 ## How It Works Together
 
 ### Creating Tasks
-1. User describes work → TP selects from the template library or composes novel task definitions (ADR-188)
-2. For full intelligence coverage, TP creates BOTH a context task AND a synthesis task (e.g., `track-competitors` + `competitive-brief`)
+1. User describes work → YARNNN selects from the template library or composes novel task definitions (ADR-188)
+2. For full intelligence coverage, YARNNN creates BOTH a context task AND a synthesis task (e.g., `track-competitors` + `competitive-brief`)
 3. Each task definition (templated or composed) specifies: agent assignment, context domains (reads/writes), default schedule/mode, step instructions
 4. Task creation scaffolds: TASK.md, DELIVERABLE.md (synthesis only), memory files
-5. Domain folders scaffolded if not yet present (idempotent) — domains can be from registry templates or TP-composed with custom entity structures
+5. Domain folders scaffolded if not yet present (idempotent) — domains can be from registry templates or YARNNN-composed with custom entity structures
 
 ### Running a Context Task (Example: Track Competitors)
 1. Scheduler triggers (next_run_at <= now)
@@ -232,10 +232,10 @@ Favicons fetched automatically via ManageDomains when entities have a `url` fiel
 /workspace/                          # User workspace
 ├── IDENTITY.md                     # User profile (visible in Settings)
 ├── BRAND.md                        # Output style (visible in Settings)
-├── AWARENESS.md                    # TP situational notes (visible in Settings)
+├── AWARENESS.md                    # YARNNN situational notes (visible in Settings)
 ├── notes.md                        # Standing instructions (visible in Settings)
 ├── style.md                        # Learned output style (visible in Settings)
-├── _playbook.md                    # TP methodology (HIDDEN — system file)
+├── _playbook.md                    # YARNNN methodology (HIDDEN — system file)
 ├── WORKSPACE.md                    # Init manifest (HIDDEN — system file)
 ├── uploads/                        # User-uploaded references
 ├── context/                        # ACCUMULATED CONTEXT (domains)

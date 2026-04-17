@@ -22,7 +22,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What is yarnnn?",
         answer:
-          "yarnnn is an autonomous agent platform for recurring knowledge work. It keeps shared workspace context, a scaffolded workforce, Thinking Partner, and recurring task execution inside one system.",
+          "yarnnn is an autonomous agent platform for recurring knowledge work. You describe your work to YARNNN, create the Agents that do it through conversation, and supervise outputs as they run on cadence with accumulated context.",
       },
       {
         question: "How is yarnnn different from ChatGPT or Claude?",
@@ -35,9 +35,9 @@ const faqSections: FaqSection[] = [
           "Tasks run on schedule or by trigger without you re-prompting from zero. Agents pull fresh context, execute the work, and deliver outputs. You review and redirect when needed.",
       },
       {
-        question: "What's the difference between agents, bots, and tasks?",
+        question: "What's the difference between YARNNN, Agents, Specialists, and Platform Bots?",
         answer:
-          "Agents are persistent specialists that deepen over time. Platform bots are agents shaped around a specific system such as Slack, Notion, or GitHub. Tasks are the work units: an objective, cadence, delivery target, and assignment. Thinking Partner is the meta-cognitive agent that manages the system.",
+          "YARNNN is the super-agent you talk to — the product and the conversational layer share a name. Agents are identity-explicit workers you create by chatting with YARNNN, each scoped to a domain of your work (competitors, clients, etc.). Specialists (Researcher, Analyst, Writer, Tracker, Designer, Reporting) are YARNNN's palette — it drafts a Team of Specialists for each task. Platform Bots (Slack, Notion, GitHub) activate on platform connection. Tasks are the work units: objective, cadence, delivery, assignment.",
       },
     ],
   },
@@ -45,14 +45,14 @@ const faqSections: FaqSection[] = [
     category: "Workforce",
     items: [
       {
-        question: "Do I have to create agents manually?",
+        question: "Do I create Agents, or do they come pre-built?",
         answer:
-          "No. yarnnn scaffolds a workforce at signup. Most of the time you create tasks, not agents. Thinking Partner turns plain-language requests into recurring work.",
+          "You create them. Signup starts you with zero Agents on the /agents page — the team is yours, authored through conversation with YARNNN. YARNNN has a palette of six Specialist roles (Researcher, Analyst, Writer, Tracker, Designer, Reporting) it draws from when drafting a Team for each task. Platform Bots (Slack, Notion, GitHub) activate on platform connection. The authored-team model means the switching cost compounds from your first Agent.",
       },
       {
-        question: "What agents do I get?",
+        question: "How do I build my team?",
         answer:
-          "The current scaffolded roster includes five universal specialists (Researcher, Analyst, Writer, Tracker, Designer), one synthesizer (Reporting), three platform bots (Slack, Notion, GitHub), and Thinking Partner.",
+          "Describe your work to YARNNN. Say \"I want to track these competitors\" or \"I need a weekly stakeholder brief\" and YARNNN infers the Agent that emerges, confirms with you, and creates it. Each Agent has its own identity, memory, and accumulated domain context. Over time the team grows as more work intents surface.",
       },
       {
         question: "How do agents improve over time?",
@@ -67,7 +67,7 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I steer the system?",
         answer:
-          "Thinking Partner is the main control surface. Use it to create work, change priorities, refine objectives, and ask why something ran. The Work and Agents surfaces let you inspect outputs, history, and the specialists involved.",
+          "YARNNN is the main control surface. Use it to create work, change priorities, refine objectives, and ask why something ran. The Work and Agents surfaces let you inspect outputs, history, and the specialists involved.",
       },
     ],
   },
@@ -87,7 +87,7 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I create a task?",
         answer:
-          "Describe what you need in plain language — for example, \"Give me a weekly competitor brief\" or \"Summarize #engineering every Friday as a PDF.\" TP creates the task definition, assigns the right agent or process, sets the cadence, and starts executing.",
+          "Describe what you need in plain language — for example, \"Give me a weekly competitor brief\" or \"Summarize #engineering every Friday as a PDF.\" YARNNN creates the task definition, assigns the right agent or process, sets the cadence, and starts executing.",
       },
     ],
   },
@@ -117,7 +117,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What plans are available?",
         answer:
-          "yarnnn has Free and Pro plans. Both include the scaffolded workforce, Thinking Partner, and platform integrations. Free gives you 2 active tasks, 20 work credits/month, 150 messages/month, and daily sync. Pro gives you 10 active tasks, 500 work credits/month, unlimited messages, hourly sync, and unlimited sources — $19/mo (Early Bird: $9/mo).",
+          "yarnnn has Free and Pro plans. Both include the scaffolded workforce, YARNNN, and platform integrations. Free gives you 2 active tasks, 20 work credits/month, 150 messages/month, and daily sync. Pro gives you 10 active tasks, 500 work credits/month, unlimited messages, hourly sync, and unlimited sources — $19/mo (Early Bird: $9/mo).",
       },
       {
         question: "What does \"active tasks\" mean?",
@@ -127,7 +127,7 @@ const faqSections: FaqSection[] = [
       {
         question: "What are work credits?",
         answer:
-          "Work credits meter autonomous execution and rendering. They are separate from messages with Thinking Partner. Free includes 20 credits/month, Pro includes 500.",
+          "Work credits meter autonomous execution and rendering. They are separate from messages with YARNNN. Free includes 20 credits/month, Pro includes 500.",
       },
       {
         question: "How does sync frequency differ by plan?",
@@ -142,12 +142,12 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I get started?",
         answer:
-          "Sign up, connect context if you want it, and describe the first recurring task. TP turns that into a standing loop and the rest of the system starts compounding from there.",
+          "Sign up, connect context if you want it, and describe the first recurring task. YARNNN turns that into a standing loop and the rest of the system starts compounding from there.",
       },
       {
         question: "What's the best first task?",
         answer:
-          "A weekly team recap or stakeholder brief is usually the fastest way to see value. It creates an obvious review loop, gives TP something concrete to refine, and quickly shows whether the system is grounding itself well.",
+          "A weekly team recap or stakeholder brief is usually the fastest way to see value. It creates an obvious review loop, gives YARNNN something concrete to refine, and quickly shows whether the system is grounding itself well.",
       },
       {
         question: "How quickly do I see results?",
@@ -163,7 +163,7 @@ const allFaqItems = faqSections.flatMap((s) => s.items);
 export const metadata = getMarketingMetadata({
   title: "FAQ",
   description:
-    "Frequently asked questions about yarnnn: persistent agents, Thinking Partner, recurring tasks, platform integrations, pricing, and getting started.",
+    "Frequently asked questions about yarnnn: persistent agents, YARNNN, recurring tasks, platform integrations, pricing, and getting started.",
   path: "/faq",
   keywords: [
     "yarnnn faq",
@@ -202,7 +202,7 @@ export default function FaqPage() {
               Frequently asked questions
             </h1>
             <p className="text-white/50 mb-16 max-w-xl">
-              Persistent agents, Thinking Partner, tasks, integrations, pricing, and how to get started.
+              Persistent agents, YARNNN, tasks, integrations, pricing, and how to get started.
             </p>
 
             <div className="space-y-16">
