@@ -595,7 +595,7 @@ TRADING_WRITE_TOOLS = [
     },
     {
         "name": "platform_trading_close_position",
-        "description": "Close an entire position for a ticker (sells all shares).",
+        "description": "Close an entire position for a ticker (sells all shares). Use partial_close_position if you want to close only N shares.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -603,6 +603,102 @@ TRADING_WRITE_TOOLS = [
                     "type": "string",
                     "description": "Stock ticker to close position for.",
                 },
+            },
+            "required": ["ticker"],
+        },
+    },
+    # ADR-192 Phase 1: Trading sophistication
+    {
+        "name": "platform_trading_submit_bracket_order",
+        "description": "Submit a bracket order (entry + take-profit + stop-loss in one atomic call). Recommended for disciplined position entry — if the entry doesn't fill, take-profit and stop-loss never activate. Use for all new positions unless you have a reason not to.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Stock ticker (e.g., AAPL)."},
+                "side": {"type": "string", "enum": ["buy", "sell"], "description": "Entry side."},
+                "qty": {"type": "number", "description": "Number of shares (fractional supported)."},
+                "entry_type": {"type": "string", "enum": ["limit", "market"], "description": "Entry order type. Prefer limit.", "default": "limit"},
+                "entry_limit_price": {"type": "number", "description": "Entry limit price (required if entry_type=limit)."},
+                "take_profit_limit_price": {"type": "number", "description": "Take-profit leg limit price."},
+                "stop_loss_stop_price": {"type": "number", "description": "Stop-loss leg trigger price."},
+                "stop_loss_limit_price": {"type": "number", "description": "Optional: stop-loss leg limit price (creates stop_limit instead of stop)."},
+                "time_in_force": {"type": "string", "enum": ["day", "gtc"], "default": "day"},
+            },
+            "required": ["ticker", "side", "qty", "take_profit_limit_price", "stop_loss_stop_price"],
+        },
+    },
+    {
+        "name": "platform_trading_submit_trailing_stop",
+        "description": "Submit a trailing-stop order. Stop follows price at a % or $ offset from the best mark. Provide EXACTLY ONE of trail_percent or trail_price.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Stock ticker."},
+                "side": {"type": "string", "enum": ["buy", "sell"], "description": "Stop side. Sell for long protection; buy for short cover."},
+                "qty": {"type": "number", "description": "Number of shares."},
+                "trail_percent": {"type": "number", "description": "Trail offset as % (e.g., 5.0 for 5%)."},
+                "trail_price": {"type": "number", "description": "Trail offset in dollars (alternative to trail_percent)."},
+                "time_in_force": {"type": "string", "enum": ["day", "gtc"], "default": "day"},
+            },
+            "required": ["ticker", "side", "qty"],
+        },
+    },
+    {
+        "name": "platform_trading_update_order",
+        "description": "Modify an open order (qty / limit_price / stop_price / trail / time_in_force). Used to move a stop level on an existing stop order without cancel+resubmit race. Only provided fields change.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "order_id": {"type": "string", "description": "Alpaca order ID."},
+                "qty": {"type": "number", "description": "New quantity."},
+                "limit_price": {"type": "number", "description": "New limit price."},
+                "stop_price": {"type": "number", "description": "New stop price (move stop-loss level)."},
+                "trail": {"type": "number", "description": "New trailing offset."},
+                "time_in_force": {"type": "string", "enum": ["day", "gtc"]},
+            },
+            "required": ["order_id"],
+        },
+    },
+    {
+        "name": "platform_trading_partial_close",
+        "description": "Close N shares of a position (not all). Safer wrapper than submit_order for position-reduction workflows; auto-detects position side and submits opposite-side market order for the requested quantity.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Stock ticker."},
+                "qty": {"type": "number", "description": "Number of shares to close (must be ≤ current position size)."},
+            },
+            "required": ["ticker", "qty"],
+        },
+    },
+    {
+        "name": "platform_trading_cancel_all_orders",
+        "description": "Cancel all open orders. Use for 'get flat' scenarios or end-of-day cleanup. Returns per-order cancellation status.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "platform_trading_add_to_watchlist",
+        "description": "Add a ticker to a named watchlist (creates watchlist if it doesn't exist). Default watchlist name is 'YARNNN'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Stock ticker to add."},
+                "watchlist_name": {"type": "string", "description": "Watchlist name.", "default": "YARNNN"},
+            },
+            "required": ["ticker"],
+        },
+    },
+    {
+        "name": "platform_trading_remove_from_watchlist",
+        "description": "Remove a ticker from a named watchlist. No-op if watchlist or symbol absent.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {"type": "string", "description": "Stock ticker to remove."},
+                "watchlist_name": {"type": "string", "description": "Watchlist name.", "default": "YARNNN"},
             },
             "required": ["ticker"],
         },
@@ -646,6 +742,14 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
     "write_trading": [
         "platform_trading_submit_order", "platform_trading_cancel_order",
         "platform_trading_close_position",
+        # ADR-192 Phase 1: sophistication
+        "platform_trading_submit_bracket_order",
+        "platform_trading_submit_trailing_stop",
+        "platform_trading_update_order",
+        "platform_trading_partial_close",
+        "platform_trading_cancel_all_orders",
+        "platform_trading_add_to_watchlist",
+        "platform_trading_remove_from_watchlist",
     ],
 }
 
@@ -1526,6 +1630,114 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         if isinstance(result, dict) and result.get("error"):
             return {"success": False, "error": result["error"]}
         return {"success": True, "result": {"closed": True, "ticker": ticker}}
+
+    # ADR-192 Phase 1: Trading sophistication
+    elif tool == "submit_bracket_order":
+        ticker = tool_input.get("ticker")
+        side = tool_input.get("side")
+        qty = tool_input.get("qty")
+        tp = tool_input.get("take_profit_limit_price")
+        sl_stop = tool_input.get("stop_loss_stop_price")
+        if not all([ticker, side, qty, tp, sl_stop]):
+            return {"success": False, "error": "ticker, side, qty, take_profit_limit_price, and stop_loss_stop_price are required"}
+        order = await trading_client.submit_bracket_order(
+            api_key, api_secret, paper,
+            symbol=ticker,
+            side=side,
+            qty=float(qty),
+            entry_type=tool_input.get("entry_type", "limit"),
+            entry_limit_price=tool_input.get("entry_limit_price"),
+            take_profit_limit_price=float(tp),
+            stop_loss_stop_price=float(sl_stop),
+            stop_loss_limit_price=tool_input.get("stop_loss_limit_price"),
+            time_in_force=tool_input.get("time_in_force", "day"),
+        )
+        if isinstance(order, dict) and order.get("error"):
+            return {"success": False, "error": order["error"]}
+        return {"success": True, "result": order}
+
+    elif tool == "submit_trailing_stop":
+        ticker = tool_input.get("ticker")
+        side = tool_input.get("side")
+        qty = tool_input.get("qty")
+        if not all([ticker, side, qty]):
+            return {"success": False, "error": "ticker, side, and qty are required"}
+        order = await trading_client.submit_trailing_stop(
+            api_key, api_secret, paper,
+            symbol=ticker,
+            side=side,
+            qty=float(qty),
+            trail_percent=tool_input.get("trail_percent"),
+            trail_price=tool_input.get("trail_price"),
+            time_in_force=tool_input.get("time_in_force", "day"),
+        )
+        if isinstance(order, dict) and order.get("error"):
+            return {"success": False, "error": order["error"], "message": order.get("message")}
+        return {"success": True, "result": order}
+
+    elif tool == "update_order":
+        order_id = tool_input.get("order_id")
+        if not order_id:
+            return {"success": False, "error": "order_id is required"}
+        result = await trading_client.update_order(
+            api_key, api_secret, order_id, paper,
+            qty=tool_input.get("qty"),
+            limit_price=tool_input.get("limit_price"),
+            stop_price=tool_input.get("stop_price"),
+            trail=tool_input.get("trail"),
+            time_in_force=tool_input.get("time_in_force"),
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"], "message": result.get("message")}
+        return {"success": True, "result": result}
+
+    elif tool == "partial_close":
+        ticker = tool_input.get("ticker")
+        qty = tool_input.get("qty")
+        if not all([ticker, qty]):
+            return {"success": False, "error": "ticker and qty are required"}
+        result = await trading_client.partial_close_position(
+            api_key, api_secret, paper,
+            symbol=ticker,
+            qty=float(qty),
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"], "message": result.get("message")}
+        return {"success": True, "result": result}
+
+    elif tool == "cancel_all_orders":
+        result = await trading_client.cancel_all_orders(
+            api_key, api_secret, paper,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"]}
+        return {"success": True, "result": result}
+
+    elif tool == "add_to_watchlist":
+        ticker = tool_input.get("ticker")
+        if not ticker:
+            return {"success": False, "error": "ticker is required"}
+        result = await trading_client.add_to_watchlist(
+            api_key, api_secret, paper,
+            symbol=ticker,
+            watchlist_name=tool_input.get("watchlist_name", "YARNNN"),
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"], "message": result.get("message")}
+        return {"success": True, "result": result}
+
+    elif tool == "remove_from_watchlist":
+        ticker = tool_input.get("ticker")
+        if not ticker:
+            return {"success": False, "error": "ticker is required"}
+        result = await trading_client.remove_from_watchlist(
+            api_key, api_secret, paper,
+            symbol=ticker,
+            watchlist_name=tool_input.get("watchlist_name", "YARNNN"),
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"], "message": result.get("message")}
+        return {"success": True, "result": result}
 
     return {"success": False, "error": f"Unknown trading tool: {tool}"}
 

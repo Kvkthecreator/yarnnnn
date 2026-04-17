@@ -352,6 +352,295 @@ class AlpacaClient:
         )
 
     # =========================================================================
+    # ADR-192 Phase 1: Trading sophistication
+    # =========================================================================
+
+    async def submit_bracket_order(
+        self,
+        api_key: str,
+        api_secret: str,
+        paper: bool = True,
+        *,
+        symbol: str,
+        side: str,
+        qty: float,
+        entry_type: str = "limit",
+        entry_limit_price: Optional[float] = None,
+        take_profit_limit_price: float,
+        stop_loss_stop_price: float,
+        stop_loss_limit_price: Optional[float] = None,
+        time_in_force: str = "day",
+    ) -> dict:
+        """Submit a bracket order (entry + take-profit + stop-loss in one atomic call).
+
+        Alpaca bracket orders require a limit or market entry, plus both a
+        take_profit (limit) and stop_loss (stop or stop_limit) leg. The three
+        legs are submitted atomically; if the entry doesn't fill, the legs
+        never activate.
+        """
+        base = self._get_trading_base(paper)
+        body: dict[str, Any] = {
+            "symbol": symbol,
+            "side": side,
+            "qty": str(qty),
+            "type": entry_type,
+            "time_in_force": time_in_force,
+            "order_class": "bracket",
+            "take_profit": {"limit_price": str(take_profit_limit_price)},
+            "stop_loss": {"stop_price": str(stop_loss_stop_price)},
+        }
+        if entry_type == "limit" and entry_limit_price is not None:
+            body["limit_price"] = str(entry_limit_price)
+        if stop_loss_limit_price is not None:
+            body["stop_loss"]["limit_price"] = str(stop_loss_limit_price)
+
+        result = await self._request(
+            "POST", base, "/v2/orders", api_key, api_secret, json_body=body,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return result
+
+        return {
+            "id": result.get("id", ""),
+            "symbol": result.get("symbol", ""),
+            "side": result.get("side", ""),
+            "qty": result.get("qty", "0"),
+            "status": result.get("status", ""),
+            "order_class": result.get("order_class", "bracket"),
+            "legs": result.get("legs", []),
+        }
+
+    async def submit_trailing_stop(
+        self,
+        api_key: str,
+        api_secret: str,
+        paper: bool = True,
+        *,
+        symbol: str,
+        side: str,
+        qty: float,
+        trail_percent: Optional[float] = None,
+        trail_price: Optional[float] = None,
+        time_in_force: str = "day",
+    ) -> dict:
+        """Submit a trailing-stop order (stop follows price by % or $).
+
+        Provide exactly one of `trail_percent` (e.g., 5.0 for 5%) or
+        `trail_price` (dollar offset). Alpaca maintains the stop level
+        relative to the high-water (sell) or low-water (buy) mark.
+        """
+        if (trail_percent is None) == (trail_price is None):
+            return {"error": "invalid_input", "message": "provide exactly one of trail_percent or trail_price"}
+
+        base = self._get_trading_base(paper)
+        body: dict[str, Any] = {
+            "symbol": symbol,
+            "side": side,
+            "qty": str(qty),
+            "type": "trailing_stop",
+            "time_in_force": time_in_force,
+        }
+        if trail_percent is not None:
+            body["trail_percent"] = str(trail_percent)
+        else:
+            body["trail_price"] = str(trail_price)
+
+        result = await self._request(
+            "POST", base, "/v2/orders", api_key, api_secret, json_body=body,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return result
+
+        return {
+            "id": result.get("id", ""),
+            "symbol": result.get("symbol", ""),
+            "side": result.get("side", ""),
+            "qty": result.get("qty", "0"),
+            "type": result.get("type", "trailing_stop"),
+            "status": result.get("status", ""),
+            "trail_percent": result.get("trail_percent"),
+            "trail_price": result.get("trail_price"),
+        }
+
+    async def update_order(
+        self,
+        api_key: str,
+        api_secret: str,
+        order_id: str,
+        paper: bool = True,
+        *,
+        qty: Optional[float] = None,
+        limit_price: Optional[float] = None,
+        stop_price: Optional[float] = None,
+        trail: Optional[float] = None,
+        time_in_force: Optional[str] = None,
+    ) -> dict:
+        """Modify an open order (Alpaca PATCH /v2/orders/{id}).
+
+        Only provided fields are changed. Used primarily to move a stop-loss
+        level on an existing stop order without cancel+resubmit race.
+        """
+        base = self._get_trading_base(paper)
+        body: dict[str, Any] = {}
+        if qty is not None:
+            body["qty"] = str(qty)
+        if limit_price is not None:
+            body["limit_price"] = str(limit_price)
+        if stop_price is not None:
+            body["stop_price"] = str(stop_price)
+        if trail is not None:
+            body["trail"] = str(trail)
+        if time_in_force is not None:
+            body["time_in_force"] = time_in_force
+
+        if not body:
+            return {"error": "no_changes", "message": "provide at least one field to update"}
+
+        return await self._request(
+            "PATCH", base, f"/v2/orders/{order_id}", api_key, api_secret, json_body=body,
+        )
+
+    async def partial_close_position(
+        self,
+        api_key: str,
+        api_secret: str,
+        paper: bool = True,
+        *,
+        symbol: str,
+        qty: float,
+    ) -> dict:
+        """Close N shares of a position (not all shares).
+
+        Implemented as submit_order with the opposite side. Prevents
+        accidental full-close when only partial reduction is intended.
+        Caller must know the current position side; Alpaca doesn't expose
+        a native partial-close on the /v2/positions endpoint.
+        """
+        # Fetch current position to determine side
+        base = self._get_trading_base(paper)
+        pos = await self._request(
+            "GET", base, f"/v2/positions/{symbol}", api_key, api_secret,
+        )
+        if isinstance(pos, dict) and pos.get("error"):
+            return pos
+
+        position_side = (pos.get("side") or "").lower()
+        if position_side not in ("long", "short"):
+            return {"error": "invalid_position", "message": f"could not determine side for {symbol}"}
+
+        # Opposite side closes
+        close_side = "sell" if position_side == "long" else "buy"
+
+        return await self.submit_order(
+            api_key=api_key,
+            api_secret=api_secret,
+            paper=paper,
+            symbol=symbol,
+            side=close_side,
+            qty=qty,
+            order_type="market",
+            time_in_force="day",
+        )
+
+    async def cancel_all_orders(
+        self, api_key: str, api_secret: str, paper: bool = True,
+    ) -> dict:
+        """Cancel all open orders. Returns per-order cancellation status."""
+        base = self._get_trading_base(paper)
+        result = await self._request(
+            "DELETE", base, "/v2/orders", api_key, api_secret,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return result
+
+        # Alpaca returns a list of {id, status} for each cancelled order
+        if isinstance(result, list):
+            return {
+                "cancelled_count": len(result),
+                "orders": result,
+            }
+        return {"cancelled_count": 0, "orders": []}
+
+    async def _get_or_create_watchlist(
+        self, api_key: str, api_secret: str, paper: bool, name: str,
+    ) -> Optional[str]:
+        """Return watchlist id for the given name, creating it if absent."""
+        base = self._get_trading_base(paper)
+        lists = await self._request(
+            "GET", base, "/v2/watchlists", api_key, api_secret,
+        )
+        if isinstance(lists, list):
+            for wl in lists:
+                if wl.get("name") == name:
+                    return wl.get("id")
+
+        # Create
+        created = await self._request(
+            "POST", base, "/v2/watchlists", api_key, api_secret,
+            json_body={"name": name, "symbols": []},
+        )
+        if isinstance(created, dict) and not created.get("error"):
+            return created.get("id")
+        return None
+
+    async def add_to_watchlist(
+        self,
+        api_key: str,
+        api_secret: str,
+        paper: bool = True,
+        *,
+        symbol: str,
+        watchlist_name: str = "YARNNN",
+    ) -> dict:
+        """Add a symbol to a named watchlist (creates watchlist if absent)."""
+        watchlist_id = await self._get_or_create_watchlist(
+            api_key, api_secret, paper, watchlist_name,
+        )
+        if not watchlist_id:
+            return {"error": "watchlist_unavailable", "message": "could not resolve or create watchlist"}
+
+        base = self._get_trading_base(paper)
+        result = await self._request(
+            "POST", base, f"/v2/watchlists/{watchlist_id}",
+            api_key, api_secret, json_body={"symbol": symbol},
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return result
+
+        return {
+            "watchlist": watchlist_name,
+            "symbol": symbol,
+            "added": True,
+            "symbols_in_watchlist": [a.get("symbol") for a in (result.get("assets") or [])],
+        }
+
+    async def remove_from_watchlist(
+        self,
+        api_key: str,
+        api_secret: str,
+        paper: bool = True,
+        *,
+        symbol: str,
+        watchlist_name: str = "YARNNN",
+    ) -> dict:
+        """Remove a symbol from a named watchlist. No-op if watchlist absent."""
+        watchlist_id = await self._get_or_create_watchlist(
+            api_key, api_secret, paper, watchlist_name,
+        )
+        if not watchlist_id:
+            return {"error": "watchlist_unavailable", "message": "could not resolve watchlist"}
+
+        base = self._get_trading_base(paper)
+        result = await self._request(
+            "DELETE", base, f"/v2/watchlists/{watchlist_id}/{symbol}",
+            api_key, api_secret,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return result
+
+        return {"watchlist": watchlist_name, "symbol": symbol, "removed": True}
+
+    # =========================================================================
     # Market Data (Alpaca Data API)
     # =========================================================================
 

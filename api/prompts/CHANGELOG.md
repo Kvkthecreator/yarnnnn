@@ -6,6 +6,37 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.11] - ADR-192 Phase 1: Trading sophistication (7 new Alpaca tools)
+
+### Changed
+- `api/integrations/core/alpaca_client.py`: 7 new client methods wired to Alpaca REST API v2:
+  - `submit_bracket_order` — entry + take-profit + stop-loss atomic (`order_class="bracket"`)
+  - `submit_trailing_stop` — trail_percent OR trail_price, validated mutually exclusive
+  - `update_order` — PATCH /v2/orders/{id}; only provided fields change
+  - `partial_close_position` — auto-detects position side, submits opposite-side market order for the requested qty
+  - `cancel_all_orders` — DELETE /v2/orders; returns per-order cancel status
+  - `add_to_watchlist` / `remove_from_watchlist` — with `_get_or_create_watchlist()` helper that creates named list on demand (default name "YARNNN")
+- `api/services/platform_tools.py`:
+  - `TRADING_WRITE_TOOLS` expanded from 3 → 10 (seven new tool definitions with full JSON schemas)
+  - Dispatch handlers added for each new tool in `handle_platform_tool()`
+  - `PLATFORM_TOOLS_BY_CAPABILITY["write_trading"]` expanded accordingly
+
+### Expected behavior
+- YARNNN (or any agent with the `write_trading` capability) can now propose bracket orders for disciplined position entry, trailing stops for dynamic protection, order modification without cancel+resubmit races, partial position close, bulk cancel, and watchlist mutation — all through the live Alpaca API.
+- Paper and live modes both supported; mode determined by `platform_connections` metadata as before.
+- All new tools return `{success: true, result: {...}}` on success or `{success: false, error: "...", message: "..."}` on failure.
+
+### NOT in this commit
+- **Risk gate** (ADR-192 Phase 2) — today these new tools execute with NO pre-trade validation against trader-declared risk parameters. Autonomous use remains unsafe until Phase 2 lands.
+- Prompt teaching YARNNN when to prefer bracket over plain submit_order, when to use trailing stops, etc. — that's Phase 5.
+
+### Verification
+- `ast.parse()` clean on both modified files.
+- `TRADING_WRITE_TOOLS` now has 10 tool definitions (confirmed).
+- `write_trading` capability maps to all 10 tools (confirmed).
+
+---
+
 ## [2026.04.17.10] - ADR-192 proposed (doc-only): write primitive coverage expansion plan
 
 ### Added
