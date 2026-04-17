@@ -61,14 +61,38 @@ These are the current, active decision records that define yarnnn's architecture
 | ADR | Title | Status |
 |-----|-------|--------|
 | [110](ADR-110-onboarding-bootstrap.md) | Onboarding Bootstrap | Implemented |
-| [111](ADR-111-agent-composer.md) | Agent Composer | Implemented |
-| [114](ADR-114-composer-substrate-aware-assessment.md) | Composer Substrate-Aware Assessment | Proposed |
+| [111](ADR-111-agent-composer.md) | Agent Composer | Implemented (dissolved by ADR-156) |
+| [114](ADR-114-composer-substrate-aware-assessment.md) | Composer Substrate-Aware Assessment | **Superseded by ADR-156** |
 | [115](ADR-115-composer-workspace-density-model.md) | Composer Workspace Density Model | Proposed |
-| [117](ADR-117-agent-feedback-substrate-developmental-model.md) | Agent Feedback Substrate & Developmental Model | Proposed |
+| [117](ADR-117-agent-feedback-substrate-developmental-model.md) | Agent Feedback Substrate & Developmental Model | Proposed (identity split clarified by ADR-189) |
+| [156](ADR-156-composer-sunset-single-intelligence-layer.md) | Composer Sunset — Single Intelligence Layer | Phase 1 Implemented |
+
+### Three-Layer Cognition Evolution (ADR-138 → ADR-189)
+
+The current cognitive architecture evolved through a series of decisions. ADR-189 is the current canonical reference; the preceding ADRs remain as historical record of how we got there.
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [138](ADR-138-agents-as-work-units.md) | Agents as Work Units — Project Layer Collapse | Phases 1-4 Implemented |
+| [164](ADR-164-back-office-tasks-tp-as-agent.md) | Back Office Tasks — TP as Agent | Phase 4 Implemented |
+| [176](ADR-176-work-first-agent-model.md) | Work-First Agent Model | Implemented (Decision 1 superseded by ADR-189) |
+| [186](ADR-186-tp-prompt-profiles.md) | TP Prompt Profiles | Phase 1-3 Implemented |
+| [188](ADR-188-domain-agnostic-framework.md) | Domain-Agnostic Framework — Registries as Template Libraries | Phases 1-2 Implemented |
+| [189](ADR-189-three-layer-cognition.md) | Three-Layer Cognition — YARNNN, Specialists, Agents | **Proposed — canonical** |
+
+### Canonical Terminology
+
+| Document | Purpose |
+|----------|---------|
+| [GLOSSARY.md](../architecture/GLOSSARY.md) | **Canonical terminology** (ratified by ADR-189). One word, one concept, one layer. |
 
 ## Archived ADRs
 
 Decisions from earlier phases of development (ADR-001 through ADR-058, plus superseded decisions from later phases) are in `archive/`. These are preserved for historical reference but describe superseded patterns.
+
+**Recent archival moves (2026-04-17, Phase 5 of ADR-189):**
+- `archive/ADR-140-agent-workforce-model.md` — ICP roster model, superseded by ADR-176 and ADR-189
+- `archive/ADR-175-generic-roster-model.md` — never implemented, superseded same-day by ADR-176, further clarified by ADR-189
 
 ## Canonical Architecture Docs
 

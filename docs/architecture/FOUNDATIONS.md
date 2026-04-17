@@ -14,52 +14,58 @@ This document defines the foundational axioms of YARNNN's cognitive architecture
 
 ---
 
-## Axiom 1: Two Layers of Intelligence, Expressed Through One Agent Substrate
+## Axiom 1: Three Layers of Cognition, One Agent Substrate
 
-YARNNN has two distinct layers of intelligence that develop along different axes. Both layers are expressed through the same agent substrate — the distinction is what each layer's tasks serve, not whether the entity is "an agent" or not.
+YARNNN has three distinct layers of cognition that develop along different axes. All three are expressed through the same underlying agent substrate — the distinction is scope and what each layer's tasks serve. See [GLOSSARY.md](GLOSSARY.md) for canonical terminology and ADR-189 for the ratifying decision.
 
-### TP is an Agent (Meta-Cognitive)
+### YARNNN is the Meta-Cognitive Agent
 
-**TP is an agent.** It is the *meta-cognitive* agent — a special role distinct from the domain agents of the workforce, but structurally the same kind of entity. TP has a row in the agents table, a slug (`thinking-partner`), a workspace folder (`/agents/thinking-partner/`), and can own tasks. What makes TP distinct is its *domain*: where domain agents own a segment of the user's work (competitors, market, projects), TP owns the user's attention allocation and the workforce's health. TP's tasks are the tasks of orchestration — deciding what should run, evaluating what has run, maintaining the workspace.
+**YARNNN is the user's super-agent.** The product and the conversational layer share a name — when the user "talks to YARNNN," they are addressing the meta-cognitive agent. YARNNN has a row in the agents table (internal DB slug: `thinking_partner`, retained by glossary exception), a workspace folder, and can own tasks. What makes YARNNN distinct is its *scope*: where Agents own a segment of the user's work (competitors, clients, market), YARNNN owns the user's attention allocation and the workforce's health. YARNNN's tasks are the tasks of orchestration — deciding what should run, evaluating what has run, maintaining the workspace.
 
-TP develops **upward** over time — better judgment about what agents to create, when to adjust them, how to respond to the user's evolving work patterns. Its accumulation is system-level: what works for this user, what attention patterns produce value, what feedback signals matter. TP has two runtime modes that share this identity:
+YARNNN develops **upward** over time — better judgment about what Agents to create, when to adjust them, how to respond to the user's evolving work patterns. Its accumulation is workspace-level: what works for this user, what attention patterns produce value, what feedback signals matter. YARNNN has two runtime modes that share this identity:
 
-1. **Chat runtime** — invoked when the user messages TP. Full conversation, streaming, all chat primitives. This is where TP makes judgment calls with the user present.
-2. **Task runtime** — invoked when the scheduler dispatches a back office task owned by TP. TP runs a declared executor (deterministic Python function or focused prompt) defined in the task's TASK.md ## Process section, writes a structured output, and the signal surfaces into working memory for chat-runtime TP to reference next conversation turn.
+1. **Chat runtime** — invoked when the user messages YARNNN. Full conversation, streaming, all chat primitives. This is where YARNNN makes judgment calls with the user present.
+2. **Task runtime** — invoked when the scheduler dispatches a back office task owned by YARNNN. YARNNN runs a declared executor (deterministic Python function or focused prompt) defined in the task's TASK.md `## Process` section, writes a structured output, and the signal surfaces into working memory for chat-runtime YARNNN to reference next conversation turn.
 
-TP's responsibilities remain:
+YARNNN's responsibilities:
 - **Conversational**: mediates between the user and the system
-- **Compositional**: assesses the user's substrate and scaffolds agents and tasks (Composer capability)
-- **Supervisory**: monitors agent health, reviews outputs, applies feedback
-- **Orchestrative**: adjusts, evolves, and dissolves agents based on changing needs
+- **Compositional**: assesses the user's substrate and creates Agents and tasks
+- **Supervisory**: monitors Agent health, reviews outputs, applies feedback
+- **Orchestrative**: adjusts, evolves, and dissolves Agents based on changing needs
 
-### Domain Agents (Domain-Cognitive)
+### Specialists are the Role-Cognitive Palette
 
-Domain agents are **persistent entities that develop expertise in a specific domain of the user's work**. They are not task executors in the mechanical sense — they are autonomous cognitive functions that deepen their understanding over time.
+**Specialists are YARNNN's palette.** There are six: Researcher, Analyst, Writer, Tracker, Designer, Reporting. Each is a role-typed capability with role-scoped stylistic memory (ADR-117 — the distilled "this user prefers em-dashes, punchy leads, no hedging"). Specialists have no domain identity. They are not user-addressed, do not appear on `/agents`, and are never entries the user "hires" or creates.
 
-Domain agents develop **inward** — deeper domain expertise, more capable execution, higher autonomy. An agent that starts as a daily Slack digest may evolve to notice patterns, draft responses, and eventually act independently in its domain.
+Specialists develop along exactly one axis: **stylistic preference**, accumulated across every task that uses the specialist. A Writer gets better at voice and tone. A Tracker gets better at what signals to surface. Their memory is role-scoped, not domain-scoped.
+
+YARNNN *drafts a Team* from the Specialist palette every time a task is created or re-run. The drafting is per-task, iterative, re-evaluated each cycle.
+
+### Agents are Domain-Cognitive, User-Created
+
+**Agents are persistent, identity-explicit, user-created workers** that develop expertise in a specific domain of the user's work. They are the only entities the user supervises as persistent workers, the only entries on `/agents`, and the only layer where the user exercises authorship. An Agent is created through conversation with YARNNN — the user describes work, YARNNN infers what Agent identity emerges, the user confirms.
+
+Agents develop **inward** — deeper domain expertise, more capable execution, accumulated tenure. An Agent created to track competitors accumulates competitor-specific observations, a competitive thesis, and learned preferences for how the user reads competitive intelligence. A different user's competitor-tracking Agent will develop differently, because it's tracking different competitors and receiving different feedback.
 
 ### The Rule: Ownership Determines the Class of Work
 
-**Every task has a team, and the team determines the class of work.** A task with a Researcher and Analyst on competitors produces competitive analysis. A task owned by TP produces orchestration judgment (agent health decisions, task freshness evaluations, workspace maintenance). If you can answer "what domain does this work serve?" the task is staffed with specialists. If you can only answer "it serves the coherence of the system itself," the task belongs to TP.
-
-This is not a collapse of the two-layer model; it is the formalization of what TP already does. TP was always the orchestrator; making TP a first-class task owner means orchestration work can be scheduled, inspected, and reasoned about the same way domain work is. The meta/domain distinction persists — it is now expressed as "what does this task's output serve?" instead of "is this entity an agent or not?"
+**Every task has a Team, and the Team determines the class of work.** A task with Researcher and Analyst Specialists assigned to an Agent whose domain is "competitors" produces competitive analysis. A task owned by YARNNN produces orchestration judgment (Agent health decisions, task freshness evaluations, workspace maintenance). If you can answer "what domain does this work serve?" the task is staffed with an Agent plus Specialists. If you can only answer "it serves the coherence of the system itself," the task belongs to YARNNN.
 
 ### The Relationship
 
-TP creates domain agents. Domain agents don't create TP capabilities. TP monitors domain agents. Domain agents don't monitor TP. TP can dissolve domain agents. Domain agents can't dissolve TP. The flow is always: **TP judges what attention is warranted → domain agents execute that attention → outputs feed back to TP for further judgment.**
+YARNNN creates Agents. Agents do not create YARNNN capabilities. YARNNN monitors Agents. Agents do not monitor YARNNN. YARNNN can dissolve Agents. Agents cannot dissolve YARNNN. The flow is always: **YARNNN judges what attention is warranted → YARNNN creates Agents → YARNNN drafts Teams of Specialists per task → Teams execute that attention → outputs feed back to YARNNN for further judgment.**
 
-But domain agents accumulate domain knowledge that TP doesn't have. A mature Slack agent understands the team's communication patterns in a way TP's general intelligence does not. TP respects this — it orchestrates based on what agents know, not despite it.
+But Agents accumulate domain knowledge that YARNNN doesn't have. A mature competitor-tracking Agent understands the user's competitive landscape in a way YARNNN's general intelligence does not. YARNNN respects this — it orchestrates based on what Agents know, not despite it.
 
-| | TP (Meta-Cognitive Agent) | Domain Agent (Domain-Cognitive) |
-|---|---|---|
-| **Owns** | Orchestration itself (attention, workforce health) | A specific domain of the user's work |
-| **Develops** | Better judgment about what agents to create/adjust/dissolve | Deeper expertise in domain, more capable execution |
-| **Task outputs serve** | The coherence of the system itself | A segment of the user's work |
-| **Autonomy means** | Scaffolding agents without being asked | Taking multi-step action in domain without supervision |
-| **Accumulates** | System-level patterns (what works for this user) | Domain-level knowledge (what matters in this area) |
-| **Identity** | "I manage this user's cognitive workforce" | "I own [domain] and develop expertise in it" |
-| **Examples** | Thinking Partner (singular) | Researcher, Analyst, Writer, Tracker, Designer, Slack Bot, ... (many) |
+| | YARNNN (Meta-Cognitive) | Specialist (Role-Cognitive) | Agent (Domain-Cognitive) |
+|---|---|---|---|
+| **Owns** | Orchestration itself | A role (Researcher, Writer, etc.) | A specific domain of the user's work |
+| **Scope** | Workspace | Role (across all tasks using it) | Domain (one Agent, one domain) |
+| **Develops** | Better judgment about what Agents to create/adjust/dissolve | Stylistic preference | Deeper domain expertise |
+| **Created by** | Signup (one per workspace) | Framework (six per workspace, fixed) | User (through conversation) |
+| **User-addressed** | Yes (talking to YARNNN) | No (infrastructure) | Yes (entries on `/agents`) |
+| **Count per workspace** | One | Six | Zero at signup; N over time |
+| **Identity** | "I manage this user's cognitive workforce" | "I am the role Writer; I apply style" | "I own [domain] and develop expertise in it" |
 
 ---
 
@@ -71,11 +77,11 @@ Perception is not just external platform data. The perception substrate is **eve
 
 1. **External perception** — Agents call platform APIs (Slack, Notion, GitHub) live during task execution. Raw platform signals are processed by agents and written as structured context to `/workspace/context/` domains. No intermediate staging (ADR-153: `platform_content` table and `/platforms/` root sunset).
 
-2. **User-contributed perception** — uploaded documents in `/workspace/uploads/`. Permanent reference material the user explicitly shares. Triggers inference to update workspace context (IDENTITY.md, CONTEXT.md). TP always knows these exist.
+2. **User-contributed perception** — uploaded documents in `/workspace/uploads/`. Permanent reference material the user explicitly shares. Triggers inference to update workspace context (IDENTITY.md, CONTEXT.md). YARNNN always knows these exist.
 
 3. **Internal perception** — accumulated workspace context at `/workspace/context/` (primary intelligence substrate — structured by the context domain registry, ADR-151) + task outputs in `/tasks/{slug}/outputs/` (derived deliverables). Each run's output feeds the next run's context; context domains accumulate cross-task intelligence that any agent can draw from.
 
-4. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections) and TP's observations (`/workspace/notes.md`, `/workspace/style.md`). As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
+4. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections) and YARNNN's observations (`/workspace/notes.md`, `/workspace/style.md`). As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
 
 **Context domains** (ADR-151) are the structural implementation of this recursive perception loop. Each domain (competitors, market, relationships, etc.) is a named accumulation target in `/workspace/context/` where agents deposit and refine intelligence across execution cycles. The domain registry determines what gets accumulated; the recursive property ensures it compounds.
 
@@ -91,7 +97,7 @@ These are not hierarchical — they are peer substrates. Intelligence degrades w
 
 The **coherence protocol** (ADR-128) defines three flows that keep substrates aligned:
 1. **Cognition → Filesystem**: Agents write self-assessments (`memory/self_assessment.md`) after each run — rolling history of mandate fitness, domain fitness, context currency, output confidence.
-2. **Filesystem → Cognition**: TP reads agent self-assessments during workforce monitoring — trajectory data (not just current state) informs orchestration decisions.
+2. **Filesystem → Cognition**: YARNNN reads agent self-assessments during workforce monitoring — trajectory data (not just current state) informs orchestration decisions.
 3. **Conversation → Filesystem**: Agents persist durable directives from chat to `memory/directives.md` — user guidance survives session rotation.
 
 ### The Recursive Property
@@ -102,7 +108,7 @@ External platforms → live API calls → agent execution → task output →
        ↑                                          |
        └── user uploads (/workspace/uploads/) ────┘
        └── user feedback (/workspace/style.md) ──┘
-       └── TP observations (/workspace/notes.md) ──┘
+       └── YARNNN observations (/workspace/notes.md) ──┘
 ```
 
 The workspace filesystem (three roots: `/workspace/`, `/agents/`, `/tasks/`) acts as an **operating system for agent and human work** — a shared substrate where both contribute and both consume. The filesystem IS the information architecture (ADR-142, ADR-153).
@@ -125,20 +131,38 @@ Architecture decisions should prioritize the health of this recursive loop over 
 
 ---
 
-## Axiom 3: Agents Are Developing Entities
+## Axiom 3: Agents and Specialists Develop Along Different Axes
 
-An agent is not a static configuration that runs the same task forever. An agent is a **persistent entity with a developmental trajectory**.
+Neither an Agent nor a Specialist is a static configuration that runs the same task forever. Both are **persistent entities with developmental trajectories** — but the axis each develops along is distinct, and conflating them has been a recurring source of design error (resolved by ADR-189).
 
-### Agent Identity = Type + Instructions
+### Identity-Layer Split (ADR-189)
 
-An agent's **type** (role) determines its capabilities — what tools, runtimes, and actions are available. The role taxonomy is a fixed framework primitive: `researcher | analyst | writer | tracker | designer | reporting | thinking_partner` + platform bots. These are universal cognitive functions that apply to any domain. An agent's role is fixed at creation and defines the mechanical boundary of what it can do. See ADR-130 for the three-registry architecture (Agent Type Registry, Capability Registry, Runtime Registry).
+Three cognitive layers, three identity substrates, three development axes:
 
-**Universal roles, contextual application (ADR-188):** The role taxonomy is fixed, but which specialists are instantiated in a workspace is contextual. TP scaffolds agents based on the user's work description — a day-trader's workspace may have 2 Analysts and no Writer; a content creator's may have 2 Writers and no Tracker. The registries (`AGENT_TEMPLATES`, `TASK_TYPES`, `WORKSPACE_DIRECTORIES`) are a curated template library that TP can draw from or compose beyond. See ADR-188 for the agnosticism boundary.
+| Layer | Identity substrate | Development axis | Created by |
+|-------|-------------------|------------------|------------|
+| **Workspace** (YARNNN) | `/workspace/IDENTITY.md`, `/workspace/BRAND.md` | Judgment about user's attention and workforce health | Signup (one per workspace) |
+| **Specialist** | ADR-117 role-keyed style distillation | Stylistic preference across all tasks using the specialist | Framework (fixed six) |
+| **Agent** | `/agents/{slug}/AGENT.md` + accumulated Domain context | Domain knowledge and tenure | User (through conversation with YARNNN) |
 
-An agent's **instructions** determine its persona — how it applies its capabilities, what it pays attention to, what judgment it exercises. Instructions are user-configurable and prompt-level.
+**Specialists develop outward through style.** A Writer reused across dozens of tasks accumulates "this user prefers punchy leads, no hedging, em-dashes over colons" — and that preference is available on every future task that drafts the Writer.
+
+**Agents develop inward through domain.** A competitor-tracking Agent accumulates observations about specific competitors, a competitive thesis, learned preferences for how the user reads competitive intelligence. None of this transfers to a different domain — it's Agent-scoped, not Specialist-scoped.
+
+The prior framing (pre-ADR-189) collapsed these into a single "agent memory" concept, which created two failure modes: Specialists were asked to carry domain identity they couldn't carry, and Agents' domain accumulation was read through a lens designed for role-scoped style. The split resolves both.
+
+### Agent Identity = Type + Instructions + Domain
+
+An Agent's **type** (role) determines its capabilities — what tools, runtimes, and actions are available. The role taxonomy is a fixed framework primitive: `researcher | analyst | writer | tracker | designer | reporting | thinking_partner` + platform bots. These are universal cognitive functions that apply to any domain. An Agent's role is fixed at creation and defines the mechanical boundary of what it can do. See ADR-130 for the three-registry architecture (Agent Type Registry, Capability Registry, Runtime Registry).
+
+**Universal roles, contextual application (ADR-188 + ADR-189):** The role taxonomy is fixed framework, but which Agents exist in a workspace is entirely user-created. A brand-new workspace has zero Agents at signup (ADR-189). Over time, the user creates Agents through conversation with YARNNN. A day-trader's workspace may accumulate two Analyst-type Agents (one for market patterns, one for portfolio review) and no Writer-type Agents. A content creator's may accumulate two Writer-type Agents and no Tracker. The registries (`AGENT_TEMPLATES`, `TASK_TYPES`, `WORKSPACE_DIRECTORIES`) are a curated template library that YARNNN draws from or composes beyond.
+
+An Agent's **instructions** determine its persona — how it applies its capabilities, what it pays attention to, what judgment it exercises. Instructions are user-configurable and prompt-level.
+
+An Agent's **domain** is the segment of user work the Agent owns. Domain is declared at creation (from the user's own language, e.g., "my competitors," "my client roster") and is what the Agent accumulates expertise in.
 
 ```
-Agent = Type (capabilities, fixed) + Instructions (persona, configurable)
+Agent = Type (role, fixed) + Instructions (persona, configurable) + Domain (user-created)
 ```
 
 ### Two Dimensions of Agent Development
@@ -196,7 +220,7 @@ A task objective exhibits a key paradox: **an objective is flat data from the us
 - "I want a daily recap of #engineering with executive summary" — bounded objective, 1 agent, predictable cadence
 - "I want the most comprehensive analysis possible on market trends" — unbounded objective, potentially multiple agents/files/runs
 
-TP's core cognitive task when creating work is **translating the user's intent into executable, bounded tasks** — decomposing what the user wants into task definitions: which agent(s) contribute, what mode, what cadence, what format, and how much budget to allocate. The work budget (ADR-120) prevents unbounded objectives from consuming infinite resources.
+YARNNN's core cognitive task when creating work is **translating the user's intent into executable, bounded tasks** — decomposing what the user wants into task definitions: which Agent(s) contribute, which Specialists draft the team, what mode, what cadence, what format, and how much budget to allocate. The work budget (ADR-120) prevents unbounded objectives from consuming infinite resources.
 
 Objectives include delivery and format preferences: the user wants email delivery, or a presentation-style report, or a data-rich dashboard. These preferences are data in TASK.md's `## Objective` section — they shape assembly decisions, layout mode selection, and export format. Output is HTML-native (ADR-130): agents produce structured content, the platform renders it visually, and legacy formats (PDF, XLSX) are mechanical exports for external sharing.
 
@@ -234,29 +258,29 @@ Commerce data (subscribers, revenue, churn) flows into the workspace as context 
 
 ---
 
-## Axiom 5: TP's Compositional Capability (The Composer)
+## Axiom 5: YARNNN's Compositional Capability
 
-The Composer is not a separate service, agent type, or subsystem. It is **TP exercising judgment about what attention patterns the user's work requires.**
+Composition is not a separate service, agent type, or subsystem. It is **YARNNN exercising judgment about what attention patterns the user's work requires.**
 
-### What the Composer Does
+### What YARNNN Composes
 
-1. **Substrate Assessment** — "What can I perceive?" Evaluates connected platforms, available data, existing agents, tasks, user feedback patterns.
-2. **Need Recognition** — "What sustained attention is warranted?" Identifies cognitive patterns that would produce value (Axiom 4 — this is about sustained attention, not one-shot tasks). This includes recognizing when a user's work requires multiple agents coordinated through a task.
-3. **Domain Composition** — "What structure does this work need?" Composes context domains (entity structures, synthesis templates), task definitions (objectives, step instructions, process configurations), and agent assignments from the user's work description. Draws from the template library (existing task types, domain structures) as reference, but can compose novel definitions for domains not represented. See ADR-188.
-4. **Agent & Task Creation** — "What should I create?" Maps recognized needs to agent identities and task definitions. TP directly creates agents, assigns them to tasks, and defines cadence and delivery. High-confidence needs are auto-created; medium-confidence are suggested to the user.
-5. **Lifecycle Management** — "Are my entities developing well?" Reviews agent health, output quality, feedback patterns. Adjusts, evolves, or dissolves agents and tasks. Monitors workforce via Composer heartbeat — reading agent self-assessments and pulse outcomes to make compositional decisions.
+1. **Substrate Assessment** — "What can I perceive?" Evaluates connected platforms, available data, existing Agents, tasks, user feedback patterns.
+2. **Need Recognition** — "What sustained attention is warranted?" Identifies cognitive patterns that would produce value (Axiom 4 — this is about sustained attention, not one-shot tasks). This includes recognizing when a user's work requires multiple Agents coordinated through a task.
+3. **Domain Composition** — "What structure does this work need?" Composes context Domains (entity structures, synthesis templates), task definitions (objectives, step instructions, process configurations), and Agent assignments from the user's work description. Draws from the template library (existing task types, domain structures) as reference, but can compose novel definitions for domains not represented. See ADR-188.
+4. **Agent Creation + Team Drafting** — "What should I create? Who drafts this task?" The user creates Agents through conversation with YARNNN; YARNNN infers the identity that emerges and confirms with the user. For each task, YARNNN drafts a Team of Specialists from the palette — this is per-task selection, re-drafted each cycle. See ADR-189 for the three-layer identity split.
+5. **Lifecycle Management** — "Are my entities developing well?" Reviews Agent health, output quality, feedback patterns. Adjusts, evolves, or dissolves Agents and tasks. Monitors workforce by reading Agent self-assessments and pulse outcomes to make compositional decisions.
 
-### Composer Triggers
+### Composition Triggers
 
-The Composer capability activates when:
+YARNNN's compositional capability activates when:
 - A platform is connected (new substrate — what attention is now warranted?)
-- A user provides feedback (approval/edit — should agents adjust?)
-- A periodic self-assessment fires (are agents healthy? is anything missing?)
-- A user conversationally requests (explicit direction — scaffold or adjust)
+- A user provides feedback (approval/edit — should Agents adjust?)
+- A periodic self-assessment fires (are Agents healthy? is anything missing?)
+- A user conversationally requests (explicit direction — create an Agent, adjust a task)
 
-### Compositional Quality Is Now Measurable (ADR-162)
+### Compositional Quality Is Measurable (ADR-162)
 
-The Composer's substrate assessment depends on the quality of inference (IDENTITY.md, BRAND.md, domain entities). Bad inference upstream cascades into wrong compositional decisions downstream — wrong agents, wrong tasks, wrong scaffolding, wasted work budget. ADR-162 makes inference quality testable via an offline evaluation harness, recoverable via deterministic gap detection (zero-cost post-inference loop), and proactive on document uploads. None of this introduces new autonomous LLM judgment; it tightens the inference TP already does, in conversation, where the user can see and correct.
+YARNNN's substrate assessment depends on the quality of inference (IDENTITY.md, BRAND.md, domain entities). Bad inference upstream cascades into wrong compositional decisions downstream — wrong Agents, wrong tasks, wrong scaffolding, wasted work budget. ADR-162 makes inference quality testable via an offline evaluation harness, recoverable via deterministic gap detection (zero-cost post-inference loop), and proactive on document uploads. None of this introduces new autonomous LLM judgment; it tightens the inference YARNNN already does, in conversation, where the user can see and correct.
 
 ---
 
@@ -270,7 +294,7 @@ The system must know **what to work on** before it can work autonomously. Platfo
 
 The onboarding sequence is:
 1. **User describes their work** — "I run a consulting practice with 3 clients" (primary input)
-2. **TP composes the workspace** — creates context domains appropriate to the work, scaffolds task definitions with domain-specific step instructions, assigns universal specialist agents to tasks. TP draws from the template library but composes novel structures when the user's domain isn't pre-represented (ADR-188).
+2. **YARNNN composes the workspace** — creates Agents with domains appropriate to the work, scaffolds task definitions with domain-specific step instructions, drafts Specialist teams per task. YARNNN draws from the template library but composes novel structures when the user's domain isn't pre-represented (ADR-188). No Agents are scaffolded at signup — every Agent is created through conversation (ADR-189).
 3. **User connects platforms** — platform sources get mapped to tasks (Slack channels → digest tasks)
 4. **Agents activate** — scoped to work context, not platform topology
 
@@ -280,18 +304,18 @@ Platform connection without work context produces generic digests (the fallback)
 
 ```
 1. User describes work (or connects platform, or Composer detects opportunity)
-2. TP creates agent(s) + task(s) with cadence, format, and delivery config
+2. YARNNN creates Agent(s) and task(s) through conversation; drafts Specialist Team per task with cadence, format, and delivery config
 3. Task pulses begin on cadence (sense→decide cycle)
 4. Agent pulse decides "generate" → run produces output to workspace
 5. Agent self-checks output quality → delivers per TASK.md
 6. For multi-agent tasks: outputs assembled and delivered as composed deliverable
-7. User feedback refines agent outputs and TP's orchestration
+7. User feedback refines Agent outputs and YARNNN's orchestration
 8. Recursive: next cycle's pulses are smarter because agents learned
 ```
 
 Steps 1-2 are the onboarding/Composer capability. Steps 3-5 are pulse-driven execution. Step 6 handles multi-agent coordination. Step 7 closes the recursive loop. Step 8 is the compounding mechanism — each pulse cycle benefits from accumulated workspace state.
 
-**Agents are persistent domain experts. Tasks define what work gets done. TP orchestrates.**
+**Agents are persistent domain experts. Specialists are YARNNN's palette. Tasks define what work gets done. YARNNN orchestrates.**
 
 Task cadence determines when an agent runs. The agent's pulse decides whether to generate. Delivery configuration lives in TASK.md.
 
@@ -302,7 +326,7 @@ For the canonical phase-by-phase breakdown of standalone agent flow — includin
 Both are valid. The architecture optimizes for the autonomous path while fully supporting the directed path.
 
 - **Autonomous work**: System recognizes need → creates agents → delivers value → user refines
-- **Directed work**: User asks TP → TP responds or creates agents → user gets what they asked for
+- **Directed work**: User asks YARNNN → YARNNN responds or creates Agents → user gets what they asked for
 
 Over time, the balance shifts toward autonomous. Early users direct more; tenured users supervise more. This is the natural consequence of agents developing expertise (Axiom 3) and the recursive substrate accumulating judgment (Axiom 2).
 
@@ -334,13 +358,13 @@ The schema needs three modes because the execution layer has three genuinely dif
 
 These follow from the axioms and are stated explicitly for implementation guidance:
 
-1. **Two layers, clear separation** — TP handles meta-cognition (composition, supervision, orchestration). Agents handle domain cognition (expertise, execution, accumulation). Neither does the other's job.
+1. **Three layers, clear separation (ADR-189)** — YARNNN handles meta-cognition (composition, supervision, orchestration). Specialists handle role-cognition (style, preference — role-scoped, never domain-scoped). Agents handle domain-cognition (expertise, execution, accumulation — user-created, domain-scoped). Each layer develops along its own axis; none does the others' job.
 2. **Workspace is the shared OS** — All persistent state lives in three filesystem roots (ADR-142, ADR-153): `/workspace/` (user context + uploads + accumulated context domains), `/agents/{slug}/` (identity + memory), `/tasks/{slug}/` (work + outputs). The filesystem IS the information architecture. New capabilities extend paths, not database tables.
 3. **Agents are the write path** — All modifications to workspace files and agent state flow through agent primitives, not direct user manipulation. The frontend is read-only on workspace (objective editing via API is the exception — it's charter-level, not operational). User intent goes through TP → agents. This protects the structural conventions (folder hierarchy, manifests, lifecycle metadata) that agents depend on for coordination. User feedback on outputs is the exception — it flows through the feedback distillation pipeline, which is itself an agent-mediated write.
 4. **Accumulation over extraction** — Prioritize the health of the recursive accumulation loop over the breadth of external integrations. The internal/reflexive perception layers are more valuable long-term than the external layer.
 5. **Agents develop through knowledge, not capability expansion** — Agent capabilities are fixed by type. Development is about knowledge depth: accumulated memory, learned preferences, refined domain expertise. The architecture supports this deepening through workspace state (memory, feedback distillation, self-assessment), not through mechanical capability unlocking.
-6. **Feedback is perception** — User edits, approvals, and dismissals are first-class signals, equivalent in architectural importance to platform data. They drive both agent development (Axiom 3) and TP's compositional judgment (Axiom 5).
-7. **Singular implementation** — One way to do things. If TP can compose, there is no separate composer service. If tasks subsume scheduling, there is no parallel trigger system.
+6. **Feedback is perception** — User edits, approvals, and dismissals are first-class signals, equivalent in architectural importance to platform data. They drive both Agent development (Axiom 3) and YARNNN's compositional judgment (Axiom 5).
+7. **Singular implementation** — One way to do things. If YARNNN can compose, there is no separate composer service. If tasks subsume scheduling, there is no parallel trigger system.
 8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes work units. Tasks are the work units. The system must have a governor that bounds total autonomous compute per user, regardless of how many agents or tasks exist. This prevents unbounded objectives from consuming infinite resources and is the basis for the service model users pay for.
 9. **Agent roles determine capabilities; output is structured, not formatted** — Agent capabilities are determined by role (universal cognitive functions, fixed at creation), not earned through seniority or feedback. Three registries define the capability substrate: Agent Types (capability bundles), Capabilities (what each enables + where it executes), Runtimes (where compute happens). The role taxonomy is a framework primitive; which agents are instantiated and what domains they serve is workspace-contextual (ADR-188). Capabilities, presentation, and export are three separate concerns: agents produce structured content, the platform renders it visually via layout modes, and legacy formats are mechanical exports. Agent development is knowledge depth (accumulated memory, preferences, domain expertise), not capability breadth. See ADR-130.
 10. **Registries are template libraries, not validation gates** — The task type registry, directory registry, and agent templates are curated libraries of domain-specific patterns. TP can draw from them or compose novel definitions. The execution pipeline reads workspace files (TASK.md, AGENT.md, _domain.md) at runtime, not the registries. What is fixed: framework primitives (output_kind, roles, modes, pipeline). What is contextual: domain structures, task definitions, step instructions, agent assignments. See ADR-188.
@@ -373,6 +397,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-162 (Inference Hardening) | Implements Axiom 5 quality — eval harness, deterministic gap detection, upload trigger via working memory, source provenance comments. All additive, zero shadow LLM calls. | Proposed |
 | ADR-163 (Surface Restructure) | Four-surface nav (Chat \| Work \| Agents \| Context). Mode collapse on surface (two labels) with schema preserved (three modes). Activity absorbed. Agents shrunk to identity. Inference visibility frontend. | Proposed |
 | ADR-164 (Back Office Tasks — TP as Agent) | TP becomes the 10th agent (meta-cognitive class). Back office tasks are tasks owned by TP — same schema, same pipeline, visible by default. Agent hygiene + workspace cleanup migrated from scheduler to back office tasks. 9 task-lifecycle activity_log events removed as redundant denormalizations. Updates Axiom 1 to reflect TP-as-agent. | Implemented |
+| ADR-189 (Three-Layer Cognition) | Three-layer model (YARNNN / Specialist / Agent) ratified. TP user-facing naming retired in favor of YARNNN. ADR-140 superseded in full. ADR-176 Decision 1 (fixed roster) superseded. Axioms 1, 3, 5 revised. GLOSSARY.md ratified. | Proposed |
 
 ---
 
@@ -380,7 +405,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 
 These require further design work before implementation:
 
-1. **Intention model** — How are agent intentions represented? Are they explicit (stored in workspace) or implicit (derived from agent behavior)? How does TP create, modify, or retire an agent's intentions?
+1. **Intention model** — How are Agent intentions represented? Are they explicit (stored in workspace) or implicit (derived from Agent behavior)? How does YARNNN create, modify, or retire an Agent's intentions?
 
 2. ~~**Capability gating mechanism** — How does the system track and enforce which capabilities an agent has earned?~~ → **Resolved by ADR-130.** Capabilities are determined by agent type, fixed at creation. No earning, no tracking. Three-registry architecture (Agent Types, Capabilities, Runtimes).
 
@@ -425,3 +450,4 @@ These require further design work before implementation:
 | 2026-03-31 | v4.3 — platform_content sunset (ADR-153). Axiom 2 Layer 1 (External): agents call platform APIs live during task execution, no intermediate staging table or /platforms/ root. Recursive property diagram updated. Derived Principle 2: four roots → three roots (/platforms/ dissolved). |
 | 2026-04-15 | v4.4 — Commerce substrate + product health metrics (ADR-183, ADR-184). Axiom 4 extended: "Revenue as Moat Proof" — revenue is the external validation of accumulated attention. Three-tier metrics hierarchy (product > task > agent). Commerce data flows into workspace as context domains (same perception substrate). Revenue is perception, not infrastructure. |
 | 2026-04-17 | v4.5 — Domain-agnostic framework (ADR-188). Axiom 3: clarified "fixed at creation" applies to role taxonomy, not roster composition; added "Universal roles, contextual application." Axiom 5: added Domain Composition as third Composer step. Axiom 6: onboarding sequence updated for TP-composed workspaces. Derived Principle 9 reworded for roles. New Derived Principle 10: "Registries are template libraries, not validation gates." |
+| 2026-04-17 | v5.0 — Three-layer cognition (ADR-189). Axiom 1 restructured: two-layer → three-layer model (YARNNN / Specialist / Agent). TP user-facing naming retired in favor of YARNNN (DB slug `thinking_partner` retained). Axiom 3 restructured: identity-layer split made explicit (Specialists develop outward through style; Agents develop inward through domain). Axiom 5 title: "TP's Compositional Capability" → "YARNNN's Compositional Capability." Agent creation moved to user-initiated conversational flow (no signup roster). Derived Principle 1 updated for three layers. GLOSSARY.md ratified as canonical terminology source. ADR-140 fully superseded; ADR-176 Decision 1 superseded. |

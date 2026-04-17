@@ -1,10 +1,12 @@
 # ADR-175: Generic Roster Model — Domain-Inferred Agent Initialization
 
+> **⚠ ARCHIVED 2026-04-17.** Never implemented. Superseded by [ADR-176](../ADR-176-work-first-agent-model.md) on the same day it was written; definitively superseded by [ADR-189](../ADR-189-three-layer-cognition.md) which resolves the signup-roster question in a different direction (zero Agents at signup — user-authored). Kept for historical reference only.
+
 **Date:** 2026-04-13
-**Status:** Superseded by ADR-176 (Work-First Agent Model, 2026-04-13) — never implemented
+**Status:** Archived — never implemented; superseded
 **Authors:** KVK, Claude
-**Supersedes:** ADR-140 (Agent Workforce Model — Pre-Scaffolded Roster, signup initialization only)
-**Extends:** ADR-140 (agent class model and capability bundles preserved), ADR-174 (Filesystem-Native Workspace — depends on fluid task creation and filesystem-first discovery)
+**Superseded by:** ADR-176 (same-day replacement); further clarified by ADR-189 (authored-team model, zero signup roster)
+**Historical relationship:** Supersedes ADR-140; extends ADR-174
 
 ---
 

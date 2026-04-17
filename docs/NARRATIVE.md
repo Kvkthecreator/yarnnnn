@@ -1,9 +1,9 @@
 # YARNNN Narrative Architecture
 
 **Purpose**: Canonical reference for how the YARNNN story is structured and sequenced across all surfaces — decks, videos, applications, landing pages, conversations.
-**Status**: Active (v3)
-**Date**: 2026-03-25
-**Supersedes**: v2 (2026-03-02) — aligned product language with ADR-138 (agents + tasks, projects dissolved)
+**Status**: Active (v4)
+**Date**: 2026-04-17
+**Supersedes**: v3 (2026-03-25) — aligned product language with ADR-189 (three-layer cognition, YARNNN as super-agent, authored-team positioning)
 
 **Related docs:**
 - [ESSENCE.md](ESSENCE.md) — What we believe and how the product works
@@ -91,39 +91,41 @@ We can't predict the future with certainty. But we can read the structural patte
 
 ### Beat 3: Meet the Product (The Application Layer)
 
-**Role**: Introduce YARNNN and TP as a concrete, living product — the application layer that Beat 1 said was missing.
+**Role**: Introduce YARNNN as a concrete, living product — the application layer that Beat 1 said was missing. YARNNN is the product *and* the super-agent the user talks to. There is no separate name for the conversational layer.
 
-**The claim**: Meet TP — your autonomous AI agent. You describe your work, it creates the right agents and tasks. Agents are persistent domain experts — each with identity, memory, and capabilities. Tasks define what work gets done, on what cadence, delivered where. Agents connect to the platforms where your work lives (Slack, Notion), accumulate context from every sync cycle, and use that accumulated understanding to operate autonomously. They produce on schedule. They get smarter every cycle. You supervise — they operate.
+**The claim**: Meet YARNNN — the super-agent you talk to. You describe your work; you create the Agents that do it. Each Agent is a persistent domain expert — yours, authored through conversation, with its own identity, memory, and accumulated context in its domain. YARNNN drafts the right Specialist Team for each task from a palette of six role-types (Researcher, Analyst, Writer, Tracker, Designer, Reporting). Agents connect to the platforms where your work lives (Slack, Notion, GitHub), accumulate context from every cycle, and operate autonomously. They produce on schedule. The team gets richer every cycle. You supervise — the team you built keeps working.
 
-This isn't a better chatbot or a memory add-on for existing LLMs. It's a new layer: your AI workforce, powered by your accumulated context, producing your work.
+This isn't a better chatbot or a memory add-on for existing LLMs. It's a new layer: an authored team, powered by your accumulated context, producing your work. The switching cost is the team itself — you built it, it's yours.
 
 **Beat 3 has three internal layers** (these can be separate slides or combined depending on surface):
 
-**(a) Product introduction**: What TP is and what it connects to. TP is the orchestrator — it creates agents and tasks, monitors health, and coordinates multi-agent work. Agents handle the full thinking chain: sense context, reason about it, produce output. Two platform integrations live (Slack, Notion). The emphasis is on identity: this is a working product at yarnnn.com.
+**(a) Product introduction**: What YARNNN is and what it connects to. YARNNN is the super-agent — you talk to YARNNN, you create Agents with it, and YARNNN drafts Specialist Teams per task. Three platform integrations live (Slack, Notion, GitHub). The emphasis is on authorship: this is *your* team, built by chatting.
 
-**(b) Day 1 proof**: TP already knows your work from first sync. Before/after demonstration — the same request with and without accumulated context. The point: value is immediate, not theoretical.
+**(b) Day 1 proof**: Your first Agent is created within minutes of the first conversation. Before/after demonstration — describing work, then seeing an Agent emerge and produce. The point: authorship is immediate; switching cost begins with Agent one.
 
-**(c) Value trajectory**: How the experience improves over time. Day 1: the agent already knows your work. Day 30: autonomous agents running on schedule, improving through your feedback. Day 90: the system's understanding of your work is deep enough that a competitor starting from zero can't replicate it.
+**(c) Value trajectory**: How the team improves over time. Day 1: the first Agent emerges from conversation. Day 30: multiple Agents, each with accumulated domain context, running on schedule. Day 90: the team's understanding of your work is deep enough that starting over elsewhere means rebuilding the team from zero.
 
-**Key vocabulary rules**:
-- Always introduce TP within agent framing: "TP, your autonomous agent" — never just "Thinking Partner" in isolation
-- Lead with what the agent does (knows your work, produces agents), not how it works (sync pipelines, memory extraction)
-- "Autonomous" is the lead adjective. Not "context-aware" (too passive), not "intelligent" (too generic)
-- The supervision model ("you supervise, it operates") is part of the product identity
+**Key vocabulary rules** (see [GLOSSARY.md](architecture/GLOSSARY.md) for full discipline):
+- "YARNNN" names both the product and the conversational super-agent. Never introduce "TP" or "Thinking Partner" in user-facing copy.
+- Agents are *created*, never *hired*. Creation happens through conversation.
+- Teams are *drafted* by YARNNN per task, not composed or assembled.
+- Specialists are YARNNN's palette — infrastructure, not user-addressed. Don't surface Specialists as things users manage.
+- "Autonomous" and "authored" are the lead adjectives. Authored implies ownership; autonomous implies it keeps running.
+- The supervision model ("you supervise, the team operates") is part of the product identity.
 
 **Thesis-protection rule**: Beat 3 describes *value increasing over time*. It does NOT use the words "moat," "switching costs," "compounding," or "irreplaceable." Those words belong to Beats 4 and 5. The product section shows the trajectory; the insight section names what it means.
 
-**What to avoid**: Don't frame TP as "what ChatGPT should have been" (positions as an improvement, not a category). Don't lead with architecture or the four-layer model (that's Beat 5 defensibility). Don't call it an "AI wrapper" or "middleware."
+**What to avoid**: Don't frame YARNNN as "what ChatGPT should have been" (positions as an improvement, not a category). Don't lead with architecture or the four-layer model (that's Beat 5 defensibility). Don't call it an "AI wrapper" or "middleware." Don't describe Agents as pre-built or ready-out-of-the-box — authorship is the point.
 
 ### Beat 4: The Insight (Thesis as Revelation)
 
 **Role**: The "aha" moment. Reframe why this product works when others don't, and why it will matter more over time. This is where both structural theses land.
 
-**The claim**: Context is what makes autonomy meaningful. Without accumulated context, autonomous AI is just random — it can execute but it doesn't know what to execute or for whom. With accumulated context, it's irreplaceable.
+**The claim**: Context is what makes autonomy meaningful. Without accumulated context, autonomous AI is just random — it can execute but it doesn't know what to execute or for whom. With accumulated context *and* an authored team, it's irreplaceable — the team is literally yours.
 
-But the insight goes deeper. Work itself is shifting from human-first to agent-first. Today, professionals direct AI. Tomorrow, AI agents will coordinate with other AI agents to execute complex work. In both cases — whether a human is prompting or an agent is coordinating — the critical substrate is the same: persistent, accumulated understanding of the work. YARNNN is building that substrate.
+But the insight goes deeper. Work itself is shifting from human-first to agent-first. Today, professionals direct AI. Tomorrow, AI agents will coordinate with other AI agents to execute complex work. In both cases — whether a human is prompting or an agent is coordinating — the critical substrate is the same: persistent, accumulated understanding of the work, held by an authored team. YARNNN is building that substrate.
 
-**The compounding loop**: Describe your work → system creates agents and tasks → connect your tools → context accumulates from every sync → agents produce on cadence powered by real context → your edits and feedback deepen agent expertise → repeat. Your agents after 90 days are incomparably better than day one. This is true whether the "user" is you or another agent acting on your behalf.
+**The compounding loop**: Describe your work → YARNNN and you create Agents and tasks together → connect your tools → context accumulates from every cycle → Agents produce on cadence powered by real context → your edits and feedback deepen Agent expertise → the team grows over time as new work surfaces → repeat. Your team after 90 days is incomparably better than day one — and it's *your* team. Starting over elsewhere means rebuilding from zero. This is true whether the "user" is you or another agent acting on your behalf.
 
 **Why this works**: The audience already knows what the product is (Beat 3). Now they understand *why* it's structurally different. The platform-cycle argument (Beat 1) established that the layer will exist. The work-economy argument now lands as the reason the layer will be *enormous*. YARNNN isn't just an application on top of today's LLMs — it's the context layer for the shift from human-first to agent-first work.
 
@@ -169,16 +171,22 @@ These apply across all surfaces — deck, website, video, applications:
 
 | Always say | Instead of | Reasoning |
 |------------|-----------|-----------|
-| "Your autonomous AI agent" | "Thinking Partner" alone | Agent framing positions against the market, not as a chatbot |
-| "TP, your autonomous agent" | "The Thinking Partner" | TP is the name; "autonomous agent" is the category |
+| "YARNNN, your super-agent" | "Thinking Partner" or "TP" | Product and conversational layer share one name (ADR-189) |
+| "Describe your work. Create the agents that do it." | "Agents that know your work out of the box" | Authored-team positioning — the team is built, not provisioned |
+| "The team you build by chatting" | "Pre-built agent roster" | Authorship is the moat; a pre-built roster undermines it |
+| "Create an Agent" (verb: create) | "Hire an agent" / "Author an agent" | "Create" is neutral and universally understood; "hire" implies catalog |
+| "YARNNN drafts the Team" | "YARNNN composes the team" / "assembles the team" | "Draft" is precise about per-task iterative selection |
+| "Agents are yours" | "Agents for you" | Ownership vs. service; authorship register |
 | "Already knows your work" | "Context-aware" | Active and concrete vs. passive and abstract |
 | "Agents produce on schedule" | "Autonomous output capability" | Describes the experience, not the architecture |
-| "Gets smarter every cycle" | "Accumulated intelligence" | Human language vs. technical jargon |
-| "You supervise, it operates" | "Human-in-the-loop" | Frames the user as powerful, not as a safety mechanism |
+| "Gets richer every cycle" | "Accumulated intelligence" | Human language vs. technical jargon |
+| "You supervise, the team operates" | "Human-in-the-loop" | Frames the user as powerful, not as a safety mechanism |
 | "Accumulated context" | "Persistent memory" | Memory is one input; context is the whole picture |
 | "One agent, two modes" | "Chat + agent engine" | Unified architecture story, not two separate systems |
 | "The application layer for work" | "AI wrapper" or "middleware" | Category language, not diminishing language |
 | "Built for the transition" | "Future-proof" | Specific and directional vs. generic marketing speak |
+
+**Retired terminology** (do not use in new copy): "TP," "Thinking Partner," "hire an agent," "compose a team," "author an agent," "roster" (in the workspace-scoped sense), "craft" (in the specialist sense). See [GLOSSARY.md](architecture/GLOSSARY.md).
 
 ---
 
@@ -206,7 +214,7 @@ The six beats are the canonical sequence. Here's how they compress for different
 All six beats, fully expanded. The deck is the master version. Beat 1 gets two slides (contrarian opener + structured category gap). Beat 3 gets two to three slides (product overview + Day 1 proof + value trajectory). Beat 4 is a single high-impact slide. Beat 5 can be one or two slides (moat + positioning). Beat 6 gets three to four slides (market, comps, traction, pricing). Founder and Ask close.
 
 ### 1-Minute Video
-Beats 1 → 3 → 4 compressed. Problem as contrarian hook (8 sec) → "Meet TP" with concrete capability (25 sec) → the insight / why this matters now (15 sec) → CTA (12 sec). Skip proof of demand (no time) and detailed moat (wrong format for talking-head video). The video's job is to make people want to learn more, not to close the deal.
+Beats 1 → 3 → 4 compressed. Problem as contrarian hook (8 sec) → "Meet YARNNN — describe your work, create the agents that do it" (25 sec) → the insight / why this matters now (15 sec) → CTA (12 sec). Skip proof of demand (no time) and detailed moat (wrong format for talking-head video). The video's job is to make people want to learn more, not to close the deal.
 
 ### Written VC Application (500–1000 words)
 All six beats in prose form. Beat 1 (contrarian thesis) and Beat 5 (moat/defensibility) get the most space because applications reward structural arguments and evidence. Beat 3 (product) is a paragraph, not a demo. Beat 4 (insight) bridges the product and the vision. The work-economy thesis is woven through rather than front-loaded.
@@ -215,7 +223,7 @@ All six beats in prose form. Beat 1 (contrarian thesis) and Beat 5 (moat/defensi
 Beat 1 (headline — contrarian or problem statement) → Beat 3 (hero + how it works) → Beat 4 (why it's different / the insight) → Beat 6 (CTA). Proof of demand and moat are secondary sections or social proof elements.
 
 ### Elevator Pitch (30 seconds)
-Beat 1 + Beat 3: "Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built yarnnn — you describe your work, it creates agents and tasks that connect to your Slack and Notion, accumulate your work context, and produce on schedule. It's the application layer for work — and no one else is building it."
+Beat 1 + Beat 3: "Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built YARNNN — you describe your work, YARNNN creates the Agents that do it, and those Agents connect to your Slack, Notion, and GitHub, accumulate your work context, and produce on schedule. The team is yours — built by chatting. It's the application layer for work — and no one else is building it."
 
 ### Creative Supplement (1-pager, visual asset)
 Beat 3 + Beat 4 as visual: product screenshot or mockup showing the workfloor with agents and tasks. The compounding loop diagram. The platform-cycle parallel as a simple visual (prior cycles → application layers → LLMs → YARNNN). Minimal text — the visual does the work.
@@ -238,7 +246,9 @@ Patterns that have been explicitly rejected and why:
 
 **"Better ChatGPT" positioning**: Comparing directly to ChatGPT as the primary competitor. Rejected because it commoditizes YARNNN. The comparison is against the *category* landscape — application layers, not chatbot features. "Not another chatbot, not another agent framework" — something structurally different.
 
-**Underselling TP as Day 1 hero**: Treating TP as one feature among many. TP is the primary interface, the Day 1 value, and the relationship anchor. It should be introduced as the product, not as a component.
+**Underselling YARNNN as Day 1 hero**: Treating YARNNN (the conversational super-agent) as one feature among many. YARNNN is the primary interface, the Day 1 value, and the relationship anchor. It should be introduced as the product itself, not as a component.
+
+**Pre-built roster framing**: Saying "your roster of agents is ready" or showing a populated `/agents` page on signup. ADR-189 deliberately retires the pre-scaffolded roster. Signup shows zero Agents; the first Agent is authored through conversation within minutes. Pre-built roster framing undermines the authorship moat — the team's value is that it's *yours*, built up over time.
 
 **Overplaying the A2A vision before product validation**: Leading with agent-to-agent coordination as the headline before the human-facing product is established. The agent-first future is part of the thesis (Beat 4) and the timing argument (Beat 6), not the product introduction (Beat 3). YARNNN works for humans today — that's the proof. The vision is where it goes.
 

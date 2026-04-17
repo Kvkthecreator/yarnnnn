@@ -3,47 +3,50 @@
 **Purpose**: Canonical product narrative. What YARNNN is, what users are buying, and what must remain true as the implementation evolves.
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-03-25 (v11.0 — ADR-138 agents as work units, ADR-139 workfloor surface architecture)
+**Updated**: 2026-04-17 (v12.0 — ADR-189 three-layer cognition, YARNNN as super-agent, authored-team positioning)
 
 ---
 
 ## Core Thesis
 
-YARNNN is an **autonomous agent platform for recurring knowledge work**.
+YARNNN is an **autonomous agent platform for recurring knowledge work** — the team you build by chatting.
 
-It connects to the tools where work already lives, accumulates context over time, creates persistent agents around recurring jobs, and lets the user supervise outcomes instead of rebuilding the same context and drafts every cycle.
+The user describes their work to YARNNN, creates Agents around it through that conversation, and supervises outcomes as the Agents run on cadence with accumulated context. The relationship is authorship, not delegation: the team is the user's, built up over time, switching cost accumulates from the first Agent.
 
-**The value proposition in one sentence:**
-> Persistent agents with accumulated context do recurring work products for you, and supervision gets lighter the longer they run.
+**The product promise in one sentence:**
+> Describe your work. Create the agents that do it.
+
+Short form: *Your work, your agents.*
 
 ## What Stays Constant
 
 The product essence has four stable elements:
 
-1. **Persistent agents, not session threads**  
-   Each agent has its own identity, directives, memory, workspace, sources, and execution history.
+1. **Agents built around your work, not generic assistants**  
+   Agents are created by the user through conversation with YARNNN, scoped to a specific domain of the user's work, with identity, directives, memory, workspace, sources, and execution history. Zero Agents are pre-scaffolded — the team is authored, not provisioned (ADR-189).
 
 2. **Accumulated context, not prompt reconstruction**  
-   Slack, Gmail, Notion, Calendar, workspace memory, prior outputs, and user feedback all compound into future runs.
+   Slack, Notion, GitHub, workspace memory, prior outputs, and user feedback all compound into future runs. Specialists accumulate role-scoped style; Agents accumulate domain-scoped expertise. The two axes are distinct and both compound (ADR-117, ADR-189).
 
 3. **Supervision, not manual operation**  
-   The user does not re-prompt from zero every time. The user reviews, redirects, and refines a running system.
+   The user does not re-prompt from zero every time. The user reviews, redirects, and refines a running system. The team the user built keeps running.
 
 4. **Recurring work products, not one-off answers**  
    The system exists to produce useful work on cadence: recaps, briefs, monitoring outputs, research, synthesis, and richer rendered artifacts when the job requires them.
 
 ## What Changed Recently
 
-ADR-138 simplified the execution model. The project layer (PM agents, phase dispatch, meeting rooms) was dissolved. The new model separates WHO from WHAT:
+ADR-189 introduced the three-layer cognition model. The prior model conflated "agents" as a single concept; the new model separates three distinct layers with distinct scopes and developmental axes:
 
-- **Agents = WHO** — persistent domain experts with identity, memory, and capabilities. Four archetypes: monitor, researcher, producer, operator.
-- **Tasks = WHAT** — defined work units with objective, cadence, delivery, and success criteria. TASK.md is the source of truth.
-- **TP orchestrates** — creates agents and tasks, monitors health, coordinates multi-agent work directly. No PM intermediary.
+- **YARNNN = the super-agent** — the product and the conversational layer share a name. The user addresses YARNNN directly. YARNNN composes, supervises, and orchestrates.
+- **Specialists = YARNNN's palette** — six role-typed capabilities (Researcher, Analyst, Writer, Tracker, Designer, Reporting). Infrastructure; not user-addressed. Develop stylistic preference across all tasks using them.
+- **Agents = WHO (user-created)** — persistent, identity-explicit, domain-scoped workers. Each Agent is created by the user through conversation with YARNNN. Appear on `/agents`. Develop domain expertise over tenure.
+- **Tasks = WHAT** — defined work units with objective, cadence, delivery, and success criteria. TASK.md is the source of truth. A task's Team is drafted by YARNNN from the Specialist palette per cycle.
 
-The product promise is unchanged: compounding autonomous work through supervision. The architecture got simpler and cheaper (~65% cost reduction per cycle).
+Users are buying an authored team that compounds. The team is theirs — built up through conversation, supervised over time, richer with tenure.
 
-> Users are still buying compounding autonomous work.
-> Agents are domain experts. Tasks define the work. TP orchestrates.
+> Users buy an authored team that compounds.
+> YARNNN orchestrates. Specialists draft style. Agents carry domain. Tasks define the work.
 
 ---
 
@@ -98,19 +101,20 @@ The work product may be plain text, email-ready content, or a rendered artifact.
 
 ## The System Shape
 
-### 1. TP: The Meta-Cognitive Layer
+### 1. YARNNN: The Meta-Cognitive Layer
 
-The Thinking Partner (TP) is the system's meta-intelligence.
+YARNNN is the system's meta-intelligence — the super-agent the user addresses directly. Product and conversational layer share the name (ADR-189).
 
 Its job is not to own a domain. Its job is to manage the user's cognitive workforce:
 
 - converse with the user
-- scaffold agents
-- supervise agent health
+- create Agents through that conversation
+- draft Specialist Teams per task
+- supervise Agent health
 - interpret feedback
 - adjust the system over time
 
-TP is the interface through which the user directs and supervises the system.
+YARNNN is the interface through which the user builds, directs, and supervises the team.
 
 ### 2. Agents: The Domain-Cognitive Layer (WHO)
 
@@ -132,7 +136,7 @@ Tasks define units of work: what to produce, for whom, on what cadence, delivere
 - TASK.md carries the objective, success criteria, output spec, and agent assignment
 - Tasks run on schedule — the scheduler queries tasks, not agents
 - Output accumulates in task workspace (`/tasks/{slug}/outputs/`)
-- Simple tasks: 1 agent. Complex tasks: multiple agents, TP orchestrates the sequence.
+- Simple tasks: 1 Agent, small Specialist Team. Complex tasks: multiple Agents, larger Specialist Team, YARNNN orchestrates the sequence.
 
 Tasks are where work definition lives. Agents are assigned to tasks — one agent can work on multiple tasks.
 
@@ -224,7 +228,7 @@ The longer an agent runs, the harder its judgment is to replicate elsewhere.
 YARNNN is not:
 
 - **just a chat UI**  
-  TP is an interface into a running system, not the whole product.
+  YARNNN (the conversational layer) is an interface into a running system, not the whole product.
 
 - **generic task automation**  
   The value is recurring, high-context work, not arbitrary one-off commands.
@@ -244,13 +248,20 @@ YARNNN is not:
 
 If YARNNN must be described simply, the canonical external framing is:
 
-> YARNNN connects to the tools where your work already lives, creates persistent agents for recurring jobs, and helps you supervise outputs that improve with every cycle.
+**Primary:**
+> Describe your work. Create the agents that do it.
 
-Short forms that remain valid:
+**Short form:**
+> Your work, your agents.
 
-- **Autonomous AI that knows your work**
-- **Compounding autonomy for recurring knowledge work**
-- **Connect once. Supervise from there.**
+**Expanded:**
+> YARNNN is the super-agent the user talks to. The user describes their work, creates persistent Agents through that conversation, and supervises outputs that improve with every cycle. The team is built, not provisioned. Switching cost accumulates from the first Agent.
+
+Short forms that remain valid in voice-variation contexts:
+
+- **The team you build by chatting**
+- **Compounding autonomy for recurring knowledge work** (internal/architectural)
+- **Connect once. Build from there.**
 
 ---
 

@@ -1,10 +1,11 @@
 # ADR-140: Agent Workforce Model — Pre-Scaffolded Roster
 
-> **Status**: Proposed
+> **⚠ ARCHIVED 2026-04-17.** Superseded in full by [ADR-176](../ADR-176-work-first-agent-model.md) (Work-First Agent Model) and [ADR-189](../ADR-189-three-layer-cognition.md) (Three-Layer Cognition). The pre-scaffolded ICP roster (domain-stewards, business-function naming) and the fixed-roster-at-signup path are both retired. Kept for historical reference only.
+
+> **Status**: Archived — superseded in full
 > **Date**: 2026-03-25
 > **Authors**: KVK, Claude
-> **Evolves**: ADR-130 (Type Registry → workforce roster), ADR-138 (Agent/Task separation)
-> **Requires update**: FOUNDATIONS.md (Axiom 3), ESSENCE.md (System Shape), CLAUDE.md (Agent Types), agent-framework.md
+> **Superseded by**: ADR-176 (universal specialist roles replace ICP domain-stewards) + ADR-189 (signup scaffolds zero Agents — user-authored model)
 
 ---
 

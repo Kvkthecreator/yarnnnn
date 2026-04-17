@@ -1,9 +1,12 @@
 # ADR-176: Work-First Agent Model
 
+> **⚠ Decision 1 (Hospital Principle — fixed 9-agent signup roster) SUPERSEDED by [ADR-189](ADR-189-three-layer-cognition.md) (2026-04-17).** Signup now scaffolds zero Agents; Agents are user-created through conversation with YARNNN (the authored-team model). Decisions 2–5 (universal specialist roles, work-first onboarding entry points, capability split between accumulation and production, two-namespace workspace directory model) remain in force. The universal specialist roster itself is preserved — it is now YARNNN's palette for drafting Teams per task, not a set of user-visible entries on `/agents`.
+
 **Date:** 2026-04-13
-**Status:** Implemented (2026-04-13)
+**Status:** Implemented (2026-04-13) — Decision 1 partially superseded 2026-04-17 by ADR-189
 **Authors:** KVK, Claude
 **Supersedes:** ADR-140 (Agent Workforce Model — pre-scaffolded ICP roster), ADR-175 (Generic Roster Model — never implemented)
+**Superseded in part by:** ADR-189 (Decision 1 — hospital principle + fixed signup roster)
 **Amends:** ADR-152 (Directory Registry — canonical domains demoted to scaffold library), ADR-138 (Agents as Work Units — agent taxonomy updated)
 **Extends:** ADR-174 (Filesystem-Native Workspace), ADR-173 (Accumulation-First Execution)
 
