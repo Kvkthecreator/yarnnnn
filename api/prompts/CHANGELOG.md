@@ -6,6 +6,55 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.20] - ADR-193 Phase 4: YARNNN prompt guidance (propose-vs-execute decision tree)
+
+### Changed
+- `api/agents/yarnnn_prompts/platforms.py`: added new section **"ProposeAction vs direct execute — the approval loop (ADR-193)"** at the end. Teaches YARNNN when to `ProposeAction` vs call platform tools directly.
+
+### Decision tree (encoded in prompt)
+Two questions: is the user present right now? is the action reversible?
+
+**Execute directly** when:
+- User in chat AND explicitly asked for this specific action
+- User in chat AND action is trivially reversible + low-stakes
+- Scheduled task AND action is genuinely reversible
+
+**Propose via ProposeAction** when:
+- User in chat BUT YARNNN suggesting (not them) AND action is irreversible
+- Scheduled task AND action is soft-reversible or irreversible
+- (Trading autonomous rejections auto-propose via handler — `error: "risk_limit_violation_proposed"`; YARNNN surfaces naturally)
+
+### Reversibility classification (for the `reversibility` parameter)
+- **reversible** (24h TTL default): refund, product update, watchlist, update_customer, update_variant
+- **soft-reversible** (6h TTL default): campaign email send, order update during fill
+- **irreversible** (1h TTL default): trade submissions, bulk price update across many SKUs, bulk send to large list
+
+### Proposal hygiene guidance
+- `rationale`: 1-2 sentences, name the specific signal ("competitor dropped to $X")
+- `expected_effect`: concrete preview with named entities, numbers, timing
+- `risk_warnings`: short, actionable
+- Don't batch unrelated proposals. One proposal = one coherent action. Bulk tools batch internally.
+- After rejection/timeout: don't immediately re-propose. Learn from the rejection first.
+
+### Expected behavior
+- YARNNN in chat, user says "refund order 123" → `platform_commerce_issue_refund` directly.
+- YARNNN in chat, user says "watch my competitors" → YARNNN analyzes context and, noticing a price-drop signal, proposes the match rather than executing silently.
+- YARNNN in scheduled task, finds abandoned carts → ProposeAction for campaign email (soft-reversible), user sees proposal in chat when they log in.
+- YARNNN in autonomous trading loop, risk gate rejects → handler auto-proposes; YARNNN's response surfaces the proposal naturally.
+
+### NOT in this commit
+- Working-memory surfacing of pending proposals at session start. YARNNN still relies on user to open `/proposals` API or see recent chat. ADR-194 operational pane will surface this properly.
+- Per-domain approval policies (`_approvals.md`). Future — when alpha reveals friction.
+
+### Impact per ADR-191 matrix gate
+- E-commerce: Helps (YARNNN knows when to propose refunds/campaigns/bulk-price vs execute)
+- Day trader: Helps (consolidates all previous phases into usable autonomy)
+- AI influencer (scheduled): Forward-helps (same decision tree applies)
+- International trader (scheduled): Forward-helps
+No verticalization.
+
+---
+
 ## [2026.04.17.19] - ADR-193 Phase 3: risk-gate autonomous rejection → auto-proposal
 
 ### Changed

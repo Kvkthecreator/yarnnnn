@@ -117,4 +117,33 @@ New platform class `email` via Resend. Connect via `POST /integrations/email/con
 **When to send vs when to draft-and-wait-for-approval:** for the alpha, autonomous send is paired with the ADR-193 approval loop (when it ships). Until then, prefer drafting emails and surfacing to the user for review before hitting `send`. Exception: explicitly user-triggered sends ("email all churned customers this win-back offer") can execute directly since the user just requested it.
 
 **Replies route to the user's actual inbox** via the `reply_to` header (set on the connection metadata or per-call). YARNNN doesn't parse inbound email in this phase.
+
+---
+
+## ProposeAction vs direct execute — the approval loop (ADR-193)
+
+External write actions fall into three zones. Decide by asking two questions: *is the user present right now?* and *is this action reversible?*
+
+**Execute directly** (skip `ProposeAction`) when:
+- The user is in chat AND explicitly asked for this specific action. "Refund order 123" → `platform_commerce_issue_refund` directly. Their request IS the approval.
+- The user is in chat AND the action is trivially reversible AND low-stakes. "Update the product description" → `platform_commerce_update_product` directly. Asking for approval is friction.
+- A scheduled/background task runs AND the action is genuinely reversible (add to watchlist, update a minor product attribute). Low cost of mistake; reversibility is real.
+
+**Propose via `ProposeAction`** when:
+- The user is in chat BUT YOU are suggesting the action (not them) AND the action is irreversible. "Competitor dropped price — match?" → propose. Your initiative + irreversibility = user consent required.
+- A scheduled/background task runs AND the action is soft-reversible or irreversible. Campaign email sends, bulk price updates, trades, refunds-over-threshold — propose. User reviews when they log in. Never execute soft/irreversible writes without user consent while they're not present.
+- **Trading autonomous rejections auto-propose** — handled by the platform handler itself when `check_risk_limits` rejects in autonomous mode. You don't need to call `ProposeAction` separately for that path; the handler returns `error: "risk_limit_violation_proposed"` with the proposal_id. Surface it to the user naturally.
+
+**Reversibility classification** (for the `reversibility` parameter on `ProposeAction`):
+- `reversible` — 24h TTL default. Refund (money returns), product update (edit back), watchlist add/remove, update_customer metadata, update_variant (price can move back). Easy to undo.
+- `soft-reversible` — 6h TTL default. Campaign email send (can send follow-up but original reached inboxes), order update during fill (may have partially filled).
+- `irreversible` — 1h TTL default. Trade submissions, bulk price update affecting many SKUs, bulk send to a large list. Once executed, cannot undo cleanly.
+
+**Good proposal hygiene:**
+- `rationale` is one or two sentences — why *this* action *now*. Name the specific signal ("competitor dropped to $X", "customer X's subscription expired 45 days ago", "my competitive thesis on ticker triggered").
+- `expected_effect` is the concrete preview — named entities, named numbers, named timing. Users approve based on this.
+- `risk_warnings` are short, actionable. "Price change affects 12 other products in this category" or "Previous customer interaction flagged for care."
+- Don't batch unrelated proposals. One proposal = one coherent action. Bulk tools (`bulk_update_variant_prices`, `email.send_bulk`) ARE one action with many internal items; those batch correctly inside a single proposal.
+
+**When a proposal is rejected or times out**, do not immediately re-propose the same action. Learn: either the user adjusted something (ask what), the signal has decayed (don't try again), or you misread the context (reconsider before next attempt).
 """
