@@ -2,7 +2,7 @@
 
 > **Status**: Phases 1-3 Implemented
 > **Date**: 2026-04-16
-> **Related**: ADR-138 (Agents as Work Units), ADR-141 (Unified Execution), ADR-151/152 (Context Domains / Directory Registry), ADR-153 (Platform Content Sunset — live API reads, no mirrored cache), ADR-158 (Platform Bot Ownership), ADR-176 (Work-First Agent Model), ADR-183 (Commerce Substrate — fourth platform class pattern)
+> **Related**: ADR-138 (Agents as Work Units), ADR-141 (Unified Execution), ADR-151/152 (Context Domains / Directory Registry), ADR-153 (Platform Content Sunset — live API reads, no mirrored cache), ADR-158 (Platform Bot Ownership), ADR-176 (Work-First Agent Model), ADR-183 (Commerce Substrate — fourth platform class pattern), ADR-188 (Domain-Agnostic Framework — this integration triggered the reframe)
 > **Extends**: ADR-147 (GitHub Platform Integration — Direct API client pattern), ADR-166 (Registry Coherence Pass — output_kind taxonomy)
 
 ---
@@ -619,12 +619,42 @@ DB migration 148: Add `trading_bot` to `agents_role_check` constraint.
 
 ## What this validates
 
+### Framework validation matrix
+
+ADR-187 is an **internalized end-to-end test of the agent framework** (ADR-188 framing). Trading was chosen because it closes the full observe→analyze→decide→execute→measure loop against objective outcomes (P&L). Each trading component exercises specific subsystems:
+
+| Trading component | Subsystems validated | ADRs exercised |
+|---|---|---|
+| `trading-digest` (accumulates_context) | Platform bot ownership, directory registry scaffolding, task pipeline execution, platform tool dispatch | ADR-158, ADR-152, ADR-141, ADR-166 |
+| `trading-signal` (produces_deliverable) | Cross-domain context reads, DELIVERABLE.md quality contract, compose substrate, section kinds | ADR-151, ADR-149, ADR-170, ADR-177 |
+| `trading-execute` (external_action) | Write-back with consequences, guardrail enforcement in step instructions, skip-if-nothing-to-do pattern | ADR-166, ADR-141 |
+| `portfolio-review` (produces_deliverable) | Multi-agent coordination through workspace files, accumulated context across runs, metric-cards + trend-chart section kinds | ADR-176, ADR-173, ADR-177 |
+| Trading Bot + Analyst coordination | Multi-agent: different agents read/write shared domains, no direct communication | ADR-176 (work-first), ADR-138 (agents as work units) |
+| `trading/` + `portfolio/` domains | Context domain accumulation across runs, entity files carry forward | ADR-151, ADR-152, ADR-173 |
+
+### Framework acceptance criteria
+
+These are the criteria for the framework test (distinct from trading performance criteria):
+
+1. **Zero special-casing**: `task_pipeline.py` has no `if platform == "trading"` branch. Trading tasks execute through the same `execute_task()` path as every other task.
+2. **All 4 output_kinds exercised**: accumulates_context (trading-digest), produces_deliverable (trading-signal, portfolio-review), external_action (trading-execute), system_maintenance (existing back office tasks).
+3. **Context accumulates across runs**: The `analysis.md` entity files grow with each cycle. Later runs produce richer output because the workspace has more accumulated intelligence.
+4. **Multi-agent coordination through filesystem**: Analyst reads Trading Bot's domain writes. No direct inter-agent communication. Same pattern as `revenue-report` (Analyst reads Commerce Bot output).
+5. **Template library proof (ADR-188)**: After ADR-188 infrastructure changes, TP should be able to compose a novel domain (e.g., legal case tracking) of comparable structural quality to the hand-authored trading domain, using trading templates as reference.
+
+### Trading performance criteria
+
 If the full loop runs successfully for 30 days on paper trading:
 
-1. **Framework proof**: The standard agent framework — registries, scaffolding, task pipeline, context domains — can close a complete loop without special-casing. Observe → analyze → decide → execute → measure, all through existing infrastructure.
-2. **Accumulation proof**: Signal accuracy should improve as the workspace accumulates more price history, prior signal outcomes, and pattern data. The `analysis.md` entity files carry forward.
-3. **Multi-agent proof**: Different agents (Trading Bot for data/execution, Analyst for signals/review) coordinate through workspace files, not direct communication. Same multi-agent pattern as `revenue-report` (analyst reads commerce-digest output).
-4. **Quality signal**: P&L vs. buy-and-hold benchmark provides an objective, non-gameable quality metric for the agent framework's closed-loop capability.
-5. **Stress test**: Write-back with consequences (real money) tests guardrail enforcement, graduated capability, and the framework's ability to handle domains where mistakes are irreversible.
+1. **Accumulation proof**: Signal accuracy should improve as the workspace accumulates more price history, prior signal outcomes, and pattern data. The `analysis.md` entity files carry forward.
+2. **Quality signal**: P&L vs. buy-and-hold benchmark provides an objective, non-gameable quality metric for the agent framework's closed-loop capability.
+3. **Stress test**: Write-back with consequences (real money) tests guardrail enforcement, graduated capability, and the framework's ability to handle domains where mistakes are irreversible.
 
 If signal accuracy exceeds 55% and portfolio returns beat SPY buy-and-hold over 30 days of paper trading, proceed to Phase 5 (live). If not, the workspace files reveal exactly where the analysis is failing — which signals were wrong, what data was missing, what patterns the agents missed — providing concrete direction for improvement.
+
+### Relationship to ADR-188 (Domain-Agnostic Framework)
+
+ADR-187 is the **last fully hand-authored domain integration**. Its dual role:
+
+1. **Framework validation**: Exercises every framework primitive without special-casing. If trading works through the standard pipeline, any domain can.
+2. **Template exemplar**: The trading task types, step instructions, and domain structures become high-quality templates in the library. When TP composes a novel domain for a different user persona, it references patterns established here.

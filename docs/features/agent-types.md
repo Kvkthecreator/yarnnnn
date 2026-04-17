@@ -7,17 +7,16 @@
 YARNNN agents are organized into three classes: **specialists** (universal roles that
 describe *how* agents contribute, not what domain they work in), **platform bots**
 (own temporal context directories, platform-scoped observation), and
-**meta-cognitive** (TP, owns orchestration itself per ADR-164). All agents are
-pre-scaffolded at sign-up (9 total). Users enrich agent identity through use — they do
-not create agents from scratch.
+**meta-cognitive** (TP, owns orchestration itself per ADR-164). A default roster is
+scaffolded at sign-up; TP customizes which specialists are active and what domains
+they serve based on the user's work description (ADR-188).
 
-**Key principles (ADR-176):**
-- **Universal specialists, not ICP-specific personas.** Researcher, Analyst, Writer, Tracker, Designer — names that pass the instinct test for any user in any industry.
+**Key principles (ADR-176, ADR-188):**
+- **Universal roles, contextual application.** The role taxonomy (Researcher, Analyst, Writer, Tracker, Designer) is a fixed framework primitive — universal cognitive functions that apply to any domain. Which specialists are active and what work they do is contextual, determined by TP from the user's work description.
 - **Capability split:** Accumulation agents (Researcher, Analyst, Writer, Tracker) accumulate knowledge and produce markdown. Production agent (Designer) generates visual assets. These phases never overlap within a single agent.
 - **No domain ownership.** Specialists are assigned to tasks; tasks read/write context domains. The same Researcher can work on competitors one task and market another. Domain expertise develops through accumulated work, not a pre-assigned label.
-- **Hospital principle:** The 9-agent roster is fixed and non-configurable. These are the roles that all knowledge work requires.
 - TP (meta-cognitive) owns orchestration work itself — no context domain. Back office tasks (agent hygiene, workspace cleanup) are owned by TP.
-- Templates (`AGENT_TEMPLATES`) are bootstrapping — `AGENT.md` is the runtime source of truth.
+- Templates (`AGENT_TEMPLATES`) are a curated template library — `AGENT.md` is the runtime source of truth. TP can draw from templates or compose novel agent configurations.
 - **Playbooks** (`_playbook-*.md`) define agent methodology — seeded from type registry, evolve with feedback. Loaded selectively by task output_kind. See [Agent Playbook Framework](agent-playbook-framework.md).
 
 ---

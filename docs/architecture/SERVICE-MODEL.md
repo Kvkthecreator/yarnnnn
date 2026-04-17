@@ -37,9 +37,7 @@ Persistent domain experts with three independent axes:
 | **Capabilities** | Type registry — tools and runtimes available | Fixed at creation |
 | **Tasks** | TASK.md assignments — what work to do | Come and go |
 
-**Pre-scaffolded roster** (ADR-176 + ADR-164): Every user gets 9 agents at sign-up:
-- 6 universal specialists: Researcher, Analyst, Writer, Tracker, Designer, Thinking Partner
-- 3 platform bots: Slack Bot, Notion Bot, GitHub Bot
+**Universal roles, contextual application** (ADR-176 + ADR-164 + ADR-188): The role taxonomy is a fixed framework primitive — six universal specialist roles (Researcher, Analyst, Writer, Tracker, Designer) + Thinking Partner + platform bots (Slack, Notion, GitHub, Commerce, Trading — activated on platform connection). Which specialists are instantiated and what domains they serve is contextual, determined by TP based on the user's work description. A default roster is scaffolded at signup; TP customizes it during onboarding.
 
 Capability split (ADR-176): accumulation agents (Researcher, Analyst, Writer, Tracker) accumulate knowledge and produce markdown. Production agent (Designer) generates visual assets via RuntimeDispatch. TP orchestrates. No domain ownership baked into agent identity — specialists are assigned to tasks by TP, and tasks read/write context domains.
 
@@ -64,11 +62,11 @@ Defined work units with an objective, schedule, and delivery target. Two charter
 
 Mode is a property of the task, not the agent. A Research Agent can simultaneously have a recurring weekly briefing and a goal-based one-off investigation. Mode also signals TP's management posture — recurring tasks get periodic review, goal tasks get completion tracking, reactive tasks get trigger monitoring.
 
-**Task types** (ADR-145): Pre-meditated deliverable definitions. Users select an outcome ("Competitive Intelligence Brief"), and the system resolves it into a deterministic sequence of agent steps. See [task-type-orchestration.md](task-type-orchestration.md).
+**Task types** (ADR-145, ADR-188): A curated template library of deliverable definitions. TP can select from the library ("Competitive Intelligence Brief") or compose novel task definitions from the user's work description. The template library encodes domain-specific patterns (step instructions, context domain mappings, process configurations); TP can draw from it or compose beyond it. At execution time, the pipeline reads TASK.md — not the registry. See [task-type-orchestration.md](task-type-orchestration.md).
 
 ### Workspace (WHERE)
 
-Virtual filesystem over Postgres (`workspace_files` table). Three content areas: identity, brand, and accumulated context domains (`/workspace/context/` — competitors, market, relationships, etc. per ADR-151). Path conventions are the schema — new capabilities extend paths, not database tables. See [workspace-conventions.md](workspace-conventions.md).
+Virtual filesystem over Postgres (`workspace_files` table). Three content areas: identity, brand, and accumulated context domains (`/workspace/context/` — extensible per ADR-151, ADR-188). The directory registry provides curated domain templates (e.g., competitors, market, customers, trading); TP can scaffold these or compose novel domains with custom entity structures from the user's work description. Path conventions are the schema — new capabilities extend paths, not database tables. See [workspace-conventions.md](workspace-conventions.md).
 
 ---
 
@@ -108,7 +106,7 @@ No hidden flag. No `task_kind` column. Task ownership (agent.role) is the only d
 
 ```
 User intent (chat or UI)
-  → TP decomposes into task definition
+  → TP decomposes into task definition (from template library or composed novel)
   → ManageTask(action="create", ...) writes TASK.md + tasks DB row
   → next_run_at calculated from schedule
 ```
@@ -372,3 +370,4 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | 2026-03-29 | v1 — Initial creation. Consolidates service topology from CLAUDE.md, execution model from agent-execution-model.md, entity model from FOUNDATIONS.md/ADR-138/ADR-140, primitives from registry.py. Establishes single canonical service description. |
 | 2026-03-31 | v1.1 — ADR-153 platform_content sunset. Perception model updated: agents call platform APIs live, no intermediate staging. /platforms/ removed from entity model. Platform sync cron role updated. |
 | 2026-04-15 | v1.2 — Revenue Model section rewritten for ADR-171/172 (balance model, tiers dissolved). Added "Two Commerce Surfaces" section covering platform billing vs. content commerce (ADR-183) and product health metrics (ADR-184). Composer reference removed (deleted by ADR-156). Deep-dive references updated. |
+| 2026-04-17 | v1.3 — Domain-agnostic framework (ADR-188). Agent roster: "Pre-scaffolded roster" → "Universal roles, contextual application." Task types: "pre-meditated definitions" → "curated template library." Workspace: context domains described as extensible. Execution flow: task creation can be from template or TP-composed. |

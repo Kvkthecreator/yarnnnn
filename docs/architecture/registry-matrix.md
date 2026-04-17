@@ -8,13 +8,13 @@
 
 ## Three Registries, One System
 
-YARNNN has three registries that work together:
+YARNNN has three registries that work together. **These are curated template libraries, not exhaustive definitions** (ADR-188). TP can draw from them or compose novel definitions for domains, task types, and agent configurations not represented here. At execution time, the pipeline reads workspace files (TASK.md, AGENT.md), not the registries.
 
 | Registry | Governs | File | Key constant |
 |---|---|---|---|
-| **Directory Registry** | Workspace structure + context domains | `directory_registry.py` | `WORKSPACE_DIRECTORIES` |
-| **Agent Templates** (v5 universal specialists — ADR-176) | Who does the work — 6 specialists + 3 platform bots | `agent_framework.py` | `AGENT_TEMPLATES` |
-| **Task Types** (v6 — ADR-166) | How work gets done — classified by `output_kind` | `task_types.py` | `TASK_TYPES` |
+| **Directory Registry** | Workspace structure + context domain templates | `directory_registry.py` | `WORKSPACE_DIRECTORIES` |
+| **Agent Templates** (v5 universal specialists — ADR-176) | Universal roles — 6 specialists + platform bots | `agent_framework.py` | `AGENT_TEMPLATES` |
+| **Task Types** (v6 — ADR-166) | Task definition templates — classified by `output_kind` | `task_types.py` | `TASK_TYPES` |
 
 **Read direction:** Domains are upstream → context-accumulating tasks WRITE to domains → deliverable-producing tasks READ from domains → agent types execute task steps. External-action and system-maintenance tasks sit alongside, governed by the same pipeline.
 
@@ -131,9 +131,9 @@ TP-owned, deterministic, no LLM. Run through the same task pipeline as user-faci
 
 ---
 
-## Agent Roster (Default — Pre-Scaffolded at Signup)
+## Agent Roster (Default Template — Customized by TP)
 
-9 agents at signup (ADR-176 universal specialists + ADR-164 TP as agent).
+Default roster scaffolded at signup (ADR-176 universal specialists + ADR-164 TP as agent). TP customizes which specialists are active and what domains they serve based on the user's work description (ADR-188). Platform bots are activated on platform connection.
 
 | Agent | Role | Class | Capabilities | Phase | Playbooks |
 |---|---|---|---|---|---|
@@ -154,7 +154,7 @@ TP-owned, deterministic, no LLM. Run through the same task pipeline as user-faci
 - **Universal specialists, not ICP-specific personas.** Researcher, Analyst, Writer, Tracker, Designer — names that pass the instinct test for any user in any industry.
 - **Capability split:** Accumulation agents (Researcher, Analyst, Writer, Tracker) accumulate knowledge and produce markdown. Production agent (Designer) generates visual assets. These phases never overlap within a single agent.
 - **No domain ownership.** Specialists are assigned to tasks; tasks read/write context domains. The same Researcher can work on competitors one task and market another. Domain expertise develops through accumulated work, not through a pre-assigned label.
-- **Hospital principle:** The 9-agent roster is fixed and non-configurable. These are the roles that all knowledge work requires. The roster grows from observed work patterns, not user preference.
+- **Universal roles, contextual application (ADR-188):** The role taxonomy (Researcher, Analyst, Writer, Tracker, Designer) is a fixed framework primitive — universal cognitive functions. Which specialists are active and what domains they serve is contextual, determined by TP based on the user's work description.
 - **Playbooks** are agent-level methodology. Loaded selectively by task `output_kind` (ADR-166). See `docs/features/agent-playbook-framework.md`.
 - Templates are bootstrapping — AGENT.md is the runtime source of truth.
 - **Thinking Partner (TP)** is the meta-cognitive agent (ADR-164). Two runtime modes: chat (user-present conversation) and task (back office execution). TP owns no context domain; its domain is orchestration itself.
@@ -173,11 +173,11 @@ Favicons fetched automatically via ManageDomains when entities have a `url` fiel
 ## How It Works Together
 
 ### Creating Tasks
-1. User describes work → TP infers task type(s) from registry
+1. User describes work → TP selects from the template library or composes novel task definitions (ADR-188)
 2. For full intelligence coverage, TP creates BOTH a context task AND a synthesis task (e.g., `track-competitors` + `competitive-brief`)
-3. Each task type defines: agent assignment, context domains (reads/writes), default schedule/mode
+3. Each task definition (templated or composed) specifies: agent assignment, context domains (reads/writes), default schedule/mode, step instructions
 4. Task creation scaffolds: TASK.md, DELIVERABLE.md (synthesis only), memory files
-5. Domain folders scaffolded if not yet present (idempotent)
+5. Domain folders scaffolded if not yet present (idempotent) — domains can be from registry templates or TP-composed with custom entity structures
 
 ### Running a Context Task (Example: Track Competitors)
 1. Scheduler triggers (next_run_at <= now)

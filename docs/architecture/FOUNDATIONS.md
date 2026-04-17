@@ -131,7 +131,9 @@ An agent is not a static configuration that runs the same task forever. An agent
 
 ### Agent Identity = Type + Instructions
 
-An agent's **type** determines its capabilities — what tools, runtimes, and actions are available. Type is deterministic, fixed at creation, and defines the mechanical boundary of what an agent can do. See ADR-130 for the three-registry architecture (Agent Type Registry, Capability Registry, Runtime Registry).
+An agent's **type** (role) determines its capabilities — what tools, runtimes, and actions are available. The role taxonomy is a fixed framework primitive: `researcher | analyst | writer | tracker | designer | reporting | thinking_partner` + platform bots. These are universal cognitive functions that apply to any domain. An agent's role is fixed at creation and defines the mechanical boundary of what it can do. See ADR-130 for the three-registry architecture (Agent Type Registry, Capability Registry, Runtime Registry).
+
+**Universal roles, contextual application (ADR-188):** The role taxonomy is fixed, but which specialists are instantiated in a workspace is contextual. TP scaffolds agents based on the user's work description — a day-trader's workspace may have 2 Analysts and no Writer; a content creator's may have 2 Writers and no Tracker. The registries (`AGENT_TEMPLATES`, `TASK_TYPES`, `WORKSPACE_DIRECTORIES`) are a curated template library that TP can draw from or compose beyond. See ADR-188 for the agnosticism boundary.
 
 An agent's **instructions** determine its persona — how it applies its capabilities, what it pays attention to, what judgment it exercises. Instructions are user-configurable and prompt-level.
 
@@ -240,8 +242,9 @@ The Composer is not a separate service, agent type, or subsystem. It is **TP exe
 
 1. **Substrate Assessment** — "What can I perceive?" Evaluates connected platforms, available data, existing agents, tasks, user feedback patterns.
 2. **Need Recognition** — "What sustained attention is warranted?" Identifies cognitive patterns that would produce value (Axiom 4 — this is about sustained attention, not one-shot tasks). This includes recognizing when a user's work requires multiple agents coordinated through a task.
-3. **Agent & Task Creation** — "What should I create?" Maps recognized needs to agent identities and task definitions. TP directly creates agents, assigns them to tasks, and defines cadence and delivery. High-confidence needs are auto-created; medium-confidence are suggested to the user.
-4. **Lifecycle Management** — "Are my entities developing well?" Reviews agent health, output quality, feedback patterns. Adjusts, evolves, or dissolves agents and tasks. Monitors workforce via Composer heartbeat — reading agent self-assessments and pulse outcomes to make compositional decisions.
+3. **Domain Composition** — "What structure does this work need?" Composes context domains (entity structures, synthesis templates), task definitions (objectives, step instructions, process configurations), and agent assignments from the user's work description. Draws from the template library (existing task types, domain structures) as reference, but can compose novel definitions for domains not represented. See ADR-188.
+4. **Agent & Task Creation** — "What should I create?" Maps recognized needs to agent identities and task definitions. TP directly creates agents, assigns them to tasks, and defines cadence and delivery. High-confidence needs are auto-created; medium-confidence are suggested to the user.
+5. **Lifecycle Management** — "Are my entities developing well?" Reviews agent health, output quality, feedback patterns. Adjusts, evolves, or dissolves agents and tasks. Monitors workforce via Composer heartbeat — reading agent self-assessments and pulse outcomes to make compositional decisions.
 
 ### Composer Triggers
 
@@ -267,8 +270,8 @@ The system must know **what to work on** before it can work autonomously. Platfo
 
 The onboarding sequence is:
 1. **User describes their work** — "I run a consulting practice with 3 clients" (primary input)
-2. **TP creates agents and tasks** — each discrete scope of recurring attention becomes an agent assigned to a task
-3. **User connects platforms** — platform sources get mapped to agents (Slack channels → domain agents)
+2. **TP composes the workspace** — creates context domains appropriate to the work, scaffolds task definitions with domain-specific step instructions, assigns universal specialist agents to tasks. TP draws from the template library but composes novel structures when the user's domain isn't pre-represented (ADR-188).
+3. **User connects platforms** — platform sources get mapped to tasks (Slack channels → digest tasks)
 4. **Agents activate** — scoped to work context, not platform topology
 
 Platform connection without work context produces generic digests (the fallback). Work description without platform connection produces correctly-scoped agents with task definitions (enriched when platforms connect). The work description is always more valuable than the platform connection.
@@ -339,7 +342,8 @@ These follow from the axioms and are stated explicitly for implementation guidan
 6. **Feedback is perception** — User edits, approvals, and dismissals are first-class signals, equivalent in architectural importance to platform data. They drive both agent development (Axiom 3) and TP's compositional judgment (Axiom 5).
 7. **Singular implementation** — One way to do things. If TP can compose, there is no separate composer service. If tasks subsume scheduling, there is no parallel trigger system.
 8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes work units. Tasks are the work units. The system must have a governor that bounds total autonomous compute per user, regardless of how many agents or tasks exist. This prevents unbounded objectives from consuming infinite resources and is the basis for the service model users pay for.
-9. **Agent types determine capabilities; output is structured, not formatted** — Agent capabilities are determined by agent type (deterministic, fixed at creation), not earned through seniority or feedback. Three registries define the capability substrate: Agent Types (capability bundles), Capabilities (what each enables + where it executes), Runtimes (where compute happens). Capabilities, presentation, and export are three separate concerns: agents produce structured content, the platform renders it visually via layout modes, and legacy formats are mechanical exports. Agent development is knowledge depth (accumulated memory, preferences, domain expertise), not capability breadth. See ADR-130.
+9. **Agent roles determine capabilities; output is structured, not formatted** — Agent capabilities are determined by role (universal cognitive functions, fixed at creation), not earned through seniority or feedback. Three registries define the capability substrate: Agent Types (capability bundles), Capabilities (what each enables + where it executes), Runtimes (where compute happens). The role taxonomy is a framework primitive; which agents are instantiated and what domains they serve is workspace-contextual (ADR-188). Capabilities, presentation, and export are three separate concerns: agents produce structured content, the platform renders it visually via layout modes, and legacy formats are mechanical exports. Agent development is knowledge depth (accumulated memory, preferences, domain expertise), not capability breadth. See ADR-130.
+10. **Registries are template libraries, not validation gates** — The task type registry, directory registry, and agent templates are curated libraries of domain-specific patterns. TP can draw from them or compose novel definitions. The execution pipeline reads workspace files (TASK.md, AGENT.md, _domain.md) at runtime, not the registries. What is fixed: framework primitives (output_kind, roles, modes, pipeline). What is contextual: domain structures, task definitions, step instructions, agent assignments. See ADR-188.
 
 ---
 
@@ -420,3 +424,4 @@ These require further design work before implementation:
 | 2026-03-25 | v4.2 — Unified filesystem (ADR-142). Axiom 2: four perception layers (external, user-contributed, internal, reflexive). `/knowledge/` dissolved — platform summaries → `/platforms/`, agent outputs stay in `/tasks/`. User-uploaded documents are first-class perception (`/workspace/documents/`). Derived Principle 2 updated: four filesystem roots. |
 | 2026-03-31 | v4.3 — platform_content sunset (ADR-153). Axiom 2 Layer 1 (External): agents call platform APIs live during task execution, no intermediate staging table or /platforms/ root. Recursive property diagram updated. Derived Principle 2: four roots → three roots (/platforms/ dissolved). |
 | 2026-04-15 | v4.4 — Commerce substrate + product health metrics (ADR-183, ADR-184). Axiom 4 extended: "Revenue as Moat Proof" — revenue is the external validation of accumulated attention. Three-tier metrics hierarchy (product > task > agent). Commerce data flows into workspace as context domains (same perception substrate). Revenue is perception, not infrastructure. |
+| 2026-04-17 | v4.5 — Domain-agnostic framework (ADR-188). Axiom 3: clarified "fixed at creation" applies to role taxonomy, not roster composition; added "Universal roles, contextual application." Axiom 5: added Domain Composition as third Composer step. Axiom 6: onboarding sequence updated for TP-composed workspaces. Derived Principle 9 reworded for roles. New Derived Principle 10: "Registries are template libraries, not validation gates." |
