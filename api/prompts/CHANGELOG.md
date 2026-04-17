@@ -6,6 +6,47 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.17] - ADR-193 Phase 1: action_proposals table + 3 primitives + registry wiring
+
+### Added
+- **Migration 149** (`supabase/migrations/149_action_proposals.sql`) — applied to prod. New `action_proposals` table with RLS + 3 partial indexes + 2 CHECK constraints (reversibility ∈ {reversible, soft-reversible, irreversible}; status ∈ {pending, approved, rejected, executed, expired, rejected_at_execution}).
+- `api/services/primitives/propose_action.py` (NEW) — 3 primitives + dispatch map:
+  - `ProposeAction` — creates proposal row, returns proposal_id + rendered proposal dict for chat-stream card
+  - `ExecuteProposal` — validates pending+not-expired, merges modified_inputs, dispatches via `execute_primitive`, marks executed or rejected_at_execution based on result
+  - `RejectProposal` — marks proposal rejected with optional reason
+  - `ACTION_DISPATCH_MAP` — 20 entries mapping action_type strings (e.g., `"trading.submit_bracket_order"`) to platform tool names
+  - `DEFAULT_TTL_HOURS` — {reversible: 24, soft-reversible: 6, irreversible: 1}
+- `api/services/primitives/registry.py` — 3 new tools added to `CHAT_PRIMITIVES` (17 total, up from 14). `ProposeAction` also added to `HEADLESS_PRIMITIVES` (17 total, up from 16) so headless agents must propose when action is soft/irreversible. `HANDLERS` extended with 3 new mappings (24 total, up from 21).
+
+### Design decisions (from ADR-193)
+- **Status lifecycle**: pending → {approved → executed | rejected_at_execution} | rejected | expired. Transitions enforced via CHECK constraint.
+- **TTL by reversibility**: reversible (24h) > soft-reversible (6h) > irreversible (1h). Override via `expires_in_hours` param.
+- **Approval atomicity**: status flips to "approved" BEFORE execution so the approval act is recorded even if execution fails. Execution result updates status to "executed" or "rejected_at_execution".
+- **Dispatch reuse**: `ExecuteProposal` calls `execute_primitive(auth, tool_name, merged_inputs)` — reuses existing platform-tool dispatch, no new execution path.
+- **RLS**: users see only their own proposals; service role bypasses for background cleanup.
+
+### Not yet live-wired
+- **Frontend chat card** (Phase 2): `ProposeAction` returns a `proposal` dict but nothing in the chat UI renders it yet. YARNNN tool results show the raw dict for now — functional, not polished.
+- **Risk-gate → proposal automation** (Phase 3): autonomous-mode rejections from `check_risk_limits` still hard-error; they'll emit proposals once Phase 3 lands.
+- **Prompt guidance** (Phase 4): YARNNN doesn't yet know when to use `ProposeAction` vs direct platform tool calls. Prompts update in Phase 4.
+- **TTL expiration cleanup** (Phase 5): proposals past `expires_at` stay in `pending` status until Phase 5 back-office task sweeps them.
+
+### Verification
+- Migration applied to prod: 18-column `action_proposals` table present.
+- AST parse clean on new + modified files.
+- All 3 handlers async-verified.
+- `ACTION_DISPATCH_MAP` has 20 entries covering trading (10), commerce (8), email (2).
+- Registry wiring end-to-end: ProposeAction/ExecuteProposal/RejectProposal in CHAT_PRIMITIVES + HANDLERS; ProposeAction also in HEADLESS_PRIMITIVES.
+
+### Impact per ADR-191 matrix gate
+- E-commerce: Helps (primitives available; prompts + autonomy integration in later phases).
+- Day trader: Helps (primitives available; risk-gate integration in Phase 3 is the critical unlock).
+- AI influencer (scheduled): Forward-helps.
+- International trader (scheduled): Forward-helps.
+No verticalization.
+
+---
+
 ## [2026.04.17.16] - ADR-193 proposed (doc-only): ProposeAction + approval loop
 
 ### Added

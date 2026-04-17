@@ -40,6 +40,11 @@ from .workspace import (
 )
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
 from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
+from .propose_action import (
+    PROPOSE_ACTION_TOOL, handle_propose_action,
+    EXECUTE_PROPOSAL_TOOL, handle_execute_proposal,
+    REJECT_PROPOSAL_TOOL, handle_reject_proposal,
+)
 from services.platform_tools import (
     is_platform_tool, handle_platform_tool, get_platform_tools_for_agent,
 )
@@ -198,9 +203,13 @@ CHAT_PRIMITIVES = [
     REPURPOSE_OUTPUT_TOOL,
     # Asset rendering (1) — Gemini image gen, charts, mermaid diagrams
     RUNTIME_DISPATCH_TOOL,
+    # Approval loop (3) — ADR-193
+    PROPOSE_ACTION_TOOL,
+    EXECUTE_PROPOSAL_TOOL,
+    REJECT_PROPOSAL_TOOL,
     # Interaction (1)
     CLARIFY_TOOL,
-]  # 14 tools — RuntimeDispatch added to chat for TP image/asset generation
+]  # 17 tools — ADR-193 added ProposeAction / ExecuteProposal / RejectProposal
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per
@@ -228,7 +237,10 @@ HEADLESS_PRIMITIVES = [
     MANAGE_DOMAINS_TOOL,
     # Asset rendering — writes to task output folder when task_slug set on auth
     RUNTIME_DISPATCH_TOOL,
-]  # 16 tools — RuntimeDispatch added to headless so agents can generate hero images/charts during task execution
+    # Approval loop (ADR-193) — headless agents must propose when action is
+    # soft/irreversible; autonomous execution without approval is unsafe.
+    PROPOSE_ACTION_TOOL,
+]  # 17 tools — RuntimeDispatch for assets; ProposeAction for approval-gated writes
 
 # Combined list — for handler registration and backwards compatibility
 PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
@@ -265,6 +277,10 @@ HANDLERS: dict[str, Callable] = {
     "ReadAgentFile": handle_read_agent_file,
     "RuntimeDispatch": handle_runtime_dispatch,
     "RepurposeOutput": handle_repurpose_output,
+    # ADR-193: Approval loop
+    "ProposeAction": handle_propose_action,
+    "ExecuteProposal": handle_execute_proposal,
+    "RejectProposal": handle_reject_proposal,
 }
 
 
