@@ -6,6 +6,46 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.18] - ADR-193 Phase 2: ProposalCard inline UI + /api/proposals routes
+
+### Added
+- `api/routes/proposals.py` (NEW) — 4 endpoints:
+  - `GET /api/proposals?status=pending&limit=50` — list user's proposals (default pending)
+  - `GET /api/proposals/{id}` — fetch single proposal
+  - `POST /api/proposals/{id}/approve` — wraps `handle_execute_proposal`; optional `modified_inputs` body
+  - `POST /api/proposals/{id}/reject` — wraps `handle_reject_proposal`; optional `reason` body
+- `api/main.py` — imports + registers `proposals.router` at `/api/proposals`
+- `web/lib/api/client.ts` — `api.proposals` object with `list / get / approve / reject` methods
+- `web/components/tp/ProposalCard.tsx` (NEW) — inline card with Approve / Reject buttons. Shows rationale, expected_effect, reversibility pill, TTL, risk warnings, local optimistic status states (pending / approving / approved / rejecting / rejected / error).
+- `web/components/tp/ToolResultCard.tsx` — dispatch: when `toolName === 'ProposeAction'` and `data` present, render `<ProposalCard />` instead of the generic tool-result card.
+
+### Design decisions
+- **Direct API for approve/reject** (not chat-message-based). Faster, cheaper, deterministic. LLM picks up status changes on next turn via compact index / proposal list.
+- **No Modify form in Phase 2.** Users who want to adjust tell YARNNN in chat ("make it $18 instead"); YARNNN re-proposes. Less form bloat, same outcome.
+- **Optimistic local state transitions.** Card updates immediately on approve/reject click; if the API fails, error state renders with reason.
+- **HTTP status code discipline in the route:** 404 for missing proposal, 409 for not-pending, 410 for expired. Execution failures return 200 + `success: false` so frontend can surface execution_result details to the user (they're actionable — e.g., risk-gate re-rejection with a reason the user might adjust).
+
+### Expected behavior
+- YARNNN calls `ProposeAction(...)`. The tool result flows through `MessageBlocks` → `ToolResultCard`. Because `toolName === 'ProposeAction'`, the card renders as `<ProposalCard />` with Approve / Reject buttons inline in the chat stream.
+- User clicks Approve → `POST /api/proposals/{id}/approve` → `handle_execute_proposal` dispatches through `execute_primitive` → real write happens → card shows "Approved + executed" with emerald tone.
+- User clicks Reject → `POST /api/proposals/{id}/reject` → proposal marked rejected → card shows "Rejected" dimmed.
+- If approval fails at execution (e.g., risk-gate re-rejection post-approval), card shows error state with reason; user can try again or abandon.
+
+### NOT in this commit
+- **Risk-gate → proposal automation** (Phase 3): autonomous-mode `check_risk_limits` rejections still hard-error. Phase 3 converts them to proposals that land in the card UI automatically.
+- **Prompt guidance** (Phase 4): YARNNN doesn't yet know when to `ProposeAction` vs direct tool call. Prompts update in Phase 4.
+- **TTL expiration cleanup** (Phase 5): background sweep is still pending; expired proposals require user interaction to transition (Approve will 410).
+- **Dedicated /proposals page** — a full list/management surface belongs to ADR-194 (surface archetypes — operational pane). Inline chat card is the MVP here.
+
+### Impact per ADR-191 matrix gate
+- E-commerce: Helps (operator sees refund/email/variant proposals inline, approves in one click)
+- Day trader: Helps (trade proposals from autonomous loop + risk-gate rejections render in chat)
+- AI influencer (scheduled): Forward-helps (same card reusable)
+- International trader (scheduled): Forward-helps
+No verticalization.
+
+---
+
 ## [2026.04.17.17] - ADR-193 Phase 1: action_proposals table + 3 primitives + registry wiring
 
 ### Added

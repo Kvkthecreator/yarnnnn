@@ -18,6 +18,7 @@
 import { CheckCircle2, XCircle, FileText, Plus, Pencil, List, Search, Play, ListTodo } from 'lucide-react';
 import { TPToolResult } from '@/types/desk';
 import { cn } from '@/lib/utils';
+import { ProposalCard } from './ProposalCard';
 
 interface ToolResultCardProps {
   result: TPToolResult;
@@ -140,6 +141,16 @@ export function ToolResultCard({ result, compact = false }: ToolResultCardProps)
   // Skip Respond/Clarify - these are handled as chat messages
   if (toolName === 'Respond' || toolName === 'Clarify') {
     return null;
+  }
+
+  // ADR-193: ProposeAction renders as a dedicated approval card with
+  // approve/reject buttons. Bypass the generic tool-result rendering.
+  if (toolName === 'ProposeAction' && !compact && data) {
+    return (
+      <ProposalCard
+        result={data as Parameters<typeof ProposalCard>[0]['result']}
+      />
+    );
   }
 
   const Icon = PRIMITIVE_ICONS[toolName] || FileText;

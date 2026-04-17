@@ -1147,6 +1147,71 @@ export const api = {
       }>("/api/system/sync-timestamps"),
   },
 
+  // ADR-193: Action proposals (approval loop)
+  proposals: {
+    /** List the user's proposals (default: pending only). */
+    list: (status: string = "pending", limit: number = 50) =>
+      request<{
+        proposals: Array<{
+          id: string;
+          action_type: string;
+          inputs: Record<string, unknown>;
+          rationale: string | null;
+          expected_effect: string | null;
+          reversibility: "reversible" | "soft-reversible" | "irreversible";
+          status: string;
+          task_slug: string | null;
+          agent_slug: string | null;
+          risk_warnings: string[] | null;
+          expires_at: string;
+          created_at: string;
+          approved_at: string | null;
+          executed_at: string | null;
+          execution_result: Record<string, unknown> | null;
+          rejection_reason: string | null;
+          approved_by: string | null;
+        }>;
+      }>(`/api/proposals?status=${encodeURIComponent(status)}&limit=${limit}`),
+
+    /** Fetch a single proposal by id. */
+    get: (id: string) =>
+      request<{
+        id: string;
+        action_type: string;
+        inputs: Record<string, unknown>;
+        rationale: string | null;
+        expected_effect: string | null;
+        reversibility: "reversible" | "soft-reversible" | "irreversible";
+        status: string;
+        expires_at: string;
+        created_at: string;
+        risk_warnings: string[] | null;
+      }>(`/api/proposals/${id}`),
+
+    /** Approve + execute. Optional modified_inputs merged over proposal.inputs. */
+    approve: (id: string, modified_inputs?: Record<string, unknown>) =>
+      request<{
+        success: boolean;
+        proposal_id?: string;
+        execution_result?: Record<string, unknown>;
+        error?: string;
+      }>(`/api/proposals/${id}/approve`, {
+        method: "POST",
+        body: JSON.stringify({ modified_inputs: modified_inputs ?? null }),
+      }),
+
+    /** Reject with optional reason. */
+    reject: (id: string, reason?: string) =>
+      request<{
+        success: boolean;
+        proposal_id?: string;
+        status?: string;
+      }>(`/api/proposals/${id}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason ?? null }),
+      }),
+  },
+
 };
 
 export default api;
