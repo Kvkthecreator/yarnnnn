@@ -1595,6 +1595,27 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         if not all([ticker, side, qty, order_type]):
             return {"success": False, "error": "ticker, side, qty, and order_type are required"}
 
+        # ADR-192 Phase 2: pre-trade risk gate
+        from services.risk_gate import check_risk_limits
+        gate = await check_risk_limits(
+            auth.client, auth.user_id,
+            proposed_order={
+                "ticker": ticker, "side": side, "qty": qty,
+                "order_type": order_type,
+                "limit_price": tool_input.get("limit_price"),
+                "stop_price": tool_input.get("stop_price"),
+            },
+            mode=tool_input.get("_mode", "supervised"),
+        )
+        if not gate.get("approved"):
+            return {
+                "success": False,
+                "error": "risk_limit_violation",
+                "message": gate.get("reason"),
+                "warnings": gate.get("warnings", []),
+                "mode": gate.get("mode"),
+            }
+
         order = await trading_client.submit_order(
             api_key, api_secret, paper,
             symbol=ticker,
@@ -1607,7 +1628,11 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         )
         if isinstance(order, dict) and order.get("error"):
             return {"success": False, "error": order["error"]}
-        return {"success": True, "result": order}
+        return {
+            "success": True,
+            "result": order,
+            "risk_warnings": gate.get("warnings", []) or None,
+        }
 
     elif tool == "cancel_order":
         order_id = tool_input.get("order_id")
@@ -1631,7 +1656,7 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             return {"success": False, "error": result["error"]}
         return {"success": True, "result": {"closed": True, "ticker": ticker}}
 
-    # ADR-192 Phase 1: Trading sophistication
+    # ADR-192 Phase 1: Trading sophistication (with Phase 2 risk gate)
     elif tool == "submit_bracket_order":
         ticker = tool_input.get("ticker")
         side = tool_input.get("side")
@@ -1640,6 +1665,29 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         sl_stop = tool_input.get("stop_loss_stop_price")
         if not all([ticker, side, qty, tp, sl_stop]):
             return {"success": False, "error": "ticker, side, qty, take_profit_limit_price, and stop_loss_stop_price are required"}
+
+        from services.risk_gate import check_risk_limits
+        gate = await check_risk_limits(
+            auth.client, auth.user_id,
+            proposed_order={
+                "ticker": ticker, "side": side, "qty": qty,
+                "order_class": "bracket",
+                "entry_type": tool_input.get("entry_type", "limit"),
+                "entry_limit_price": tool_input.get("entry_limit_price"),
+                "take_profit_limit_price": tp,
+                "stop_loss_stop_price": sl_stop,
+            },
+            mode=tool_input.get("_mode", "supervised"),
+        )
+        if not gate.get("approved"):
+            return {
+                "success": False,
+                "error": "risk_limit_violation",
+                "message": gate.get("reason"),
+                "warnings": gate.get("warnings", []),
+                "mode": gate.get("mode"),
+            }
+
         order = await trading_client.submit_bracket_order(
             api_key, api_secret, paper,
             symbol=ticker,
@@ -1654,7 +1702,11 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         )
         if isinstance(order, dict) and order.get("error"):
             return {"success": False, "error": order["error"]}
-        return {"success": True, "result": order}
+        return {
+            "success": True,
+            "result": order,
+            "risk_warnings": gate.get("warnings", []) or None,
+        }
 
     elif tool == "submit_trailing_stop":
         ticker = tool_input.get("ticker")
@@ -1662,6 +1714,27 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         qty = tool_input.get("qty")
         if not all([ticker, side, qty]):
             return {"success": False, "error": "ticker, side, and qty are required"}
+
+        from services.risk_gate import check_risk_limits
+        gate = await check_risk_limits(
+            auth.client, auth.user_id,
+            proposed_order={
+                "ticker": ticker, "side": side, "qty": qty,
+                "order_type": "trailing_stop",
+                "trail_percent": tool_input.get("trail_percent"),
+                "trail_price": tool_input.get("trail_price"),
+            },
+            mode=tool_input.get("_mode", "supervised"),
+        )
+        if not gate.get("approved"):
+            return {
+                "success": False,
+                "error": "risk_limit_violation",
+                "message": gate.get("reason"),
+                "warnings": gate.get("warnings", []),
+                "mode": gate.get("mode"),
+            }
+
         order = await trading_client.submit_trailing_stop(
             api_key, api_secret, paper,
             symbol=ticker,
@@ -1673,7 +1746,11 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         )
         if isinstance(order, dict) and order.get("error"):
             return {"success": False, "error": order["error"], "message": order.get("message")}
-        return {"success": True, "result": order}
+        return {
+            "success": True,
+            "result": order,
+            "risk_warnings": gate.get("warnings", []) or None,
+        }
 
     elif tool == "update_order":
         order_id = tool_input.get("order_id")

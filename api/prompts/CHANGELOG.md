@@ -6,6 +6,59 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.12] - ADR-192 Phase 2: Risk-gate primitive + _risk.md schema + order-submission integration
+
+### Added
+- `api/services/risk_gate.py` (NEW) — pure-Python pre-trade validation. Zero LLM cost. Exports:
+  - `check_risk_limits(client, user_id, proposed_order, mode)` → `{approved, reason, warnings, mode}`
+  - `scaffold_default_risk_md()` → conservative-default `_risk.md` content for trading onboarding (wired in Phase 5)
+  - `_parse_risk_md(content)` → dict (supports numbers, booleans, `[ticker, ...]` lists)
+  - `_fetch_account_state(client, user_id)` → equity, buying_power, daytrade_count, todays_pnl (best-effort from Alpaca; degrades gracefully)
+  - `RISK_MD_PATH` = `workspace/context/trading/_risk.md`
+
+### Rules implemented (when `_risk.md` is present)
+- `allowed_tickers` whitelist and `blocked_tickers` blacklist
+- `max_order_size_shares` (per-order share cap)
+- `max_position_size_usd` (notional cap; requires price estimate)
+- `max_position_percent_of_portfolio` (vs. equity)
+- `max_daily_loss_usd` (blocks new positions once today's P&L hits threshold)
+- `max_day_trades` (PDT guard)
+- `require_stop_loss` (blocks orders without stop/bracket/trailing)
+- `trading_hours_only` (approximate US market hours check)
+
+### Mode semantics
+- **supervised** (default): rule violations block; missing `_risk.md` produces a warning rather than a block (preserves today's behavior for traders who haven't configured risk params).
+- **autonomous**: missing `_risk.md` fail-closed; rule violations block.
+- Mode signaled via `tool_input._mode` (underscore-prefixed to mark as runtime-injected, not LLM-declared). Default "supervised". Autonomous loop (ADR-195) will inject `"autonomous"`.
+
+### Integrated into order-submission dispatch
+- `api/services/platform_tools.py`: `submit_order`, `submit_bracket_order`, `submit_trailing_stop` handlers now call `check_risk_limits` BEFORE the Alpaca call. On rejection, return `{success: false, error: "risk_limit_violation", message, warnings, mode}` and Alpaca is never hit. On approval, order flows through and any non-blocking warnings are included in the `result` response as `risk_warnings`.
+- Update/cancel/close/watchlist tools NOT gated — those are safety/reduction actions, don't open new risk.
+
+### Expected behavior
+- Trader with no `_risk.md`: behavior unchanged (orders execute as before, with one advisory warning in the tool result).
+- Trader with `_risk.md` configured: orders violating any rule are blocked with a human-readable reason; orders within limits flow through.
+- Autonomous caller (future ADR-195) with no `_risk.md`: orders fail-closed immediately.
+
+### Design notes
+- Fail-closed default for autonomous mode is non-negotiable for trusted trading autonomy (ADR-192 rationale).
+- `_risk.md` is trader-authored; `scaffold_default_risk_md()` provides a conservative starting point (ADR-192 open question resolved in favor of auto-scaffold at trading-connect time — wired in Phase 5).
+- Gate degrades gracefully: Alpaca account-state fetch failure doesn't block size-rule validation (ticker rules + order-size rules still apply without account state).
+- Trading-hours check is approximate (UTC window 13:30-20:00); NYSE holiday calendar is a future refinement if alpha surfaces false negatives.
+
+### Verification
+- AST parse clean on both files.
+- Parser test: numbers, booleans, ticker lists all coerce correctly.
+- Price-estimate derivation order preserved (limit → entry_limit → stop_loss_stop → stop).
+- Scaffold output parses back successfully through the same parser.
+
+### What's NOT in this commit
+- Auto-scaffold of `_risk.md` at trading-connect time → Phase 5.
+- Prompt guidance teaching YARNNN to interpret `risk_limit_violation` errors and propose adjusted orders → Phase 5.
+- Approval-loop integration (ADR-193) that turns rejections into approval proposals rather than hard blocks.
+
+---
+
 ## [2026.04.17.11] - ADR-192 Phase 1: Trading sophistication (7 new Alpaca tools)
 
 ### Changed
