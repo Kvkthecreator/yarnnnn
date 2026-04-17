@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.6] - ADR-190 commit 3: first-act inference (identity + brand + entities + work_intent)
+
+### Changed
+- `api/services/context_inference.py`: new `FIRST_ACT_SYSTEM` prompt + new `infer_first_act()` async function. Single LLM call (Sonnet, 4096 token output budget) that produces structured payload:
+  - `identity_md`: full markdown for IDENTITY.md (or null)
+  - `brand_md`: full markdown for BRAND.md (or null)
+  - `entities`: list of `{domain, name, slug, hints}` extracted from source material
+  - `work_intent`: `{kind, deliverable_type, cadence}` or null
+  - `source_summary`: provenance counts
+  - `usage`: token usage
+  Defensive JSON parse + normalization (strips markdown fences, filters malformed entities, validates intent fields). Both markdown fields get `_append_inference_meta()` + `detect_inference_gaps()` (ADR-162) applied.
+
+### Reconciliation with ADR-190
+The ADR proposed "extending `infer_shared_context()` with `entities` and `work_intent` output fields." Audit revealed `infer_shared_context()` runs ONE call per target (identity OR brand), not a combined call — so extending it would have broken the per-target update flow. Revised to add `infer_first_act()` as a sibling function for the first-act scaffold pass. `infer_shared_context()` is unchanged; it stays the entry point for targeted updates (user later asks YARNNN to refine just brand, etc.). `_handle_shared_context` orchestrator (commit 4) chooses which to call based on context.
+
+### Preserved
+- `infer_shared_context()` signature and behavior — unchanged.
+- `detect_inference_gaps()` — reused for each markdown field in the first-act output.
+- `_append_inference_meta()` — reused for provenance stamping.
+- Inference eval harness (ADR-162 sub-phase C) — existing fixtures continue to exercise `infer_shared_context()`. First-act fixtures can be added in a follow-on.
+
+### Expected behavior
+- `infer_first_act(text=..., document_contents=..., url_contents=...)` returns structured dict ready for `_handle_shared_context` orchestration (commit 4).
+- Entity extraction hints seed `ManageDomains` and entity subfolder creation (commit 4).
+- Work intent hints seed `ManageAgent` + `ManageTask` shape (commit 4).
+- No caller uses `infer_first_act` yet in this commit — scaffold orchestration lands in commit 4.
+
+---
+
 ## [2026.04.17.5] - ADR-190 commit 2: onboarding marker retired + rich-input chip wiring
 
 ### Changed

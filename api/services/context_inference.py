@@ -86,6 +86,286 @@ RULES:
 - If existing content is provided, MERGE: preserve information from both old and new sources"""
 
 
+FIRST_ACT_SYSTEM = """You are running the first-act inference for a brand-new YARNNN workspace.
+The user has submitted rich context (files, URLs, and/or text). Your job is to
+extract everything you can in ONE pass so YARNNN can scaffold the user's
+workspace deeply (identity + brand + named entities + work intent) before their
+first Agent is created.
+
+Respond with ONLY a JSON object, no prose, no markdown fences. The object must
+have exactly these four fields (any may be null if insufficient signal):
+
+{
+  "identity_md": "<full markdown for IDENTITY.md>" | null,
+  "brand_md": "<full markdown for BRAND.md>" | null,
+  "entities": [
+    {
+      "domain": "<domain key, e.g. 'competitors', 'clients', 'market', 'content'>",
+      "name": "<entity name in user's language>",
+      "slug": "<filesystem-safe, lowercase, hyphenated>",
+      "hints": ["<optional tag>", ...]
+    },
+    ...
+  ],
+  "work_intent": {
+    "kind": "recurring" | "goal" | "reactive" | null,
+    "deliverable_type": "brief" | "digest" | "monitor" | "report" | "tracker" | null,
+    "cadence": "daily" | "weekly" | "monthly" | "on-demand" | null
+  } | null
+}
+
+IDENTITY_MD — use exactly this structure when populating:
+```
+# Identity
+
+## Who
+[Name], [Role] at [Company]
+[Industry/space]. [2-3 sentence context summary.]
+
+## Domains of Attention
+- [Domain]: [why it matters]
+- ...
+
+## Work Patterns
+- [Pattern]: [cadence, what it involves]
+- ...
+
+## Timezone
+[Inferred or stated, e.g., "US Pacific (UTC-8)"]
+```
+
+BRAND_MD — use exactly this structure when populating:
+```
+# Brand
+
+## Voice
+[1-2 sentences on communication style]
+
+## Tone
+[Professional/casual/technical with nuance]
+
+## Terminology
+- [Term]: [how they use it]
+- ...
+
+## Audience
+[Who they communicate with]
+
+## Style Notes
+- [Specific observation]
+- ...
+```
+
+RULES for identity_md and brand_md:
+- Extract REAL names, companies, industries from their materials — never fabricate.
+- If something isn't mentioned, OMIT that section entirely (don't write placeholder text).
+- Be specific — use their actual context, not generic labels.
+- Return null for a field if there is no meaningful signal (e.g., no brand cues in input → brand_md: null).
+
+RULES for entities:
+- Extract named entities the user would plausibly want YARNNN to track or know about.
+- domain should be a meaningful grouping: "competitors" (companies they compete with), "clients" (companies they serve), "market" (sectors/categories of interest), "content" (topics/themes they work on), "relationships" (investors/partners/collaborators), etc. Invent a domain key if none of the above fit the material. Lowercase, singular-or-plural-noun form.
+- Only include entities with reasonable evidence in the material. Do not fabricate.
+- Empty array is fine if no entities surface.
+- slug is lowercase, hyphenated, filesystem-safe (e.g., "openai", "anthropic", "y-combinator").
+
+RULES for work_intent:
+- Infer what kind of recurring work the user will want YARNNN to do.
+- kind: "recurring" (ongoing cadence), "goal" (bounded objective that completes), "reactive" (on-demand or event-triggered).
+- deliverable_type: what shape of output (brief, digest, monitor tracking output, report, tracker document).
+- cadence: how often.
+- Return null for the whole object (or any field) if intent is unclear from input. Better to leave null than to guess wrong — YARNNN will ask the user.
+
+Respond with ONLY the JSON object."""
+
+
+async def infer_first_act(
+    text: str = "",
+    document_contents: Optional[list] = None,
+    url_contents: Optional[list] = None,
+) -> dict:
+    """Run combined first-act inference over rich input (ADR-190).
+
+    Single LLM call that produces identity markdown + brand markdown +
+    structured entity list + work intent. Used by `_handle_shared_context`
+    during the first-act scaffold pass. Does NOT replace `infer_shared_context()` —
+    the per-target function remains for update flows (e.g., user asks YARNNN
+    to refine just brand later).
+
+    Args:
+        text: Direct user text (chat message, description).
+        document_contents: [{filename, content}] from uploaded documents.
+        url_contents: [{url, content}] from WebSearch / fetched URLs.
+
+    Returns:
+        dict with keys:
+          - identity_md: str | None (markdown with inference-meta appended)
+          - brand_md: str | None (markdown with inference-meta appended)
+          - entities: list[{domain, name, slug, hints}]
+          - work_intent: dict | None ({kind, deliverable_type, cadence})
+          - source_summary: dict (counts + filenames + urls)
+          - usage: dict (token usage from the LLM call)
+
+        On LLM / parse failure: all fields null/empty, `error` key populated.
+    """
+    from services.anthropic import chat_completion_with_usage
+
+    # Assemble source material (same pattern as infer_shared_context).
+    parts = []
+    source_summary = {
+        "has_text": bool(text.strip()),
+        "doc_count": 0,
+        "doc_filenames": [],
+        "url_count": 0,
+        "urls": [],
+    }
+    if text.strip():
+        parts.append(f"User says:\n{text.strip()}")
+    if document_contents:
+        for doc in (document_contents or [])[:5]:
+            name = doc.get("filename", "document")
+            content = doc.get("content", "")[:5000]
+            if content:
+                parts.append(f"--- Document: {name} ---\n{content}")
+                source_summary["doc_count"] += 1
+                source_summary["doc_filenames"].append(name)
+    if url_contents:
+        for item in (url_contents or [])[:3]:
+            url = item.get("url", "")
+            content = item.get("content", "")[:3000]
+            if content:
+                parts.append(f"--- URL: {url} ---\n{content}")
+                source_summary["url_count"] += 1
+                source_summary["urls"].append(url)
+
+    if not parts:
+        logger.warning("[FIRST_ACT_INFERENCE] No source material provided")
+        return {
+            "identity_md": None,
+            "brand_md": None,
+            "entities": [],
+            "work_intent": None,
+            "source_summary": source_summary,
+            "usage": {},
+            "error": "no_source_material",
+        }
+
+    source_material = "\n\n".join(parts)
+
+    try:
+        result_text, usage = await chat_completion_with_usage(
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Run first-act inference from these sources:\n\n"
+                        f"{source_material}"
+                    ),
+                }
+            ],
+            system=FIRST_ACT_SYSTEM,
+            model=INFERENCE_MODEL,
+            max_tokens=4096,  # Larger than per-target (2048) — need identity + brand + entities in one payload
+        )
+    except Exception as e:
+        logger.error(f"[FIRST_ACT_INFERENCE] LLM call failed: {e}")
+        return {
+            "identity_md": None,
+            "brand_md": None,
+            "entities": [],
+            "work_intent": None,
+            "source_summary": source_summary,
+            "usage": {},
+            "error": f"llm_call_failed: {e}",
+        }
+
+    # Parse JSON. Handle accidental markdown fences around the JSON.
+    raw = (result_text or "").strip()
+    if raw.startswith("```"):
+        # Strip leading ```json or ``` and trailing ```
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```\s*$", "", raw)
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error(f"[FIRST_ACT_INFERENCE] JSON parse failed: {e}; raw head: {raw[:200]!r}")
+        return {
+            "identity_md": None,
+            "brand_md": None,
+            "entities": [],
+            "work_intent": None,
+            "source_summary": source_summary,
+            "usage": usage,
+            "error": "json_parse_failed",
+        }
+
+    identity_md = payload.get("identity_md")
+    brand_md = payload.get("brand_md")
+    entities = payload.get("entities") or []
+    work_intent = payload.get("work_intent")
+
+    # Validate + normalize entities defensively
+    clean_entities = []
+    for ent in entities if isinstance(entities, list) else []:
+        if not isinstance(ent, dict):
+            continue
+        domain = (ent.get("domain") or "").strip().lower()
+        name = (ent.get("name") or "").strip()
+        slug = (ent.get("slug") or "").strip().lower()
+        hints = ent.get("hints") or []
+        if not (domain and name and slug):
+            continue
+        clean_entities.append({
+            "domain": domain,
+            "name": name,
+            "slug": slug,
+            "hints": [h for h in hints if isinstance(h, str)][:8],
+        })
+
+    # Validate + normalize work_intent
+    clean_intent = None
+    if isinstance(work_intent, dict):
+        kind = work_intent.get("kind")
+        dtype = work_intent.get("deliverable_type")
+        cadence = work_intent.get("cadence")
+        if kind in ("recurring", "goal", "reactive", None) and any([kind, dtype, cadence]):
+            clean_intent = {
+                "kind": kind,
+                "deliverable_type": dtype,
+                "cadence": cadence,
+            }
+
+    # Append inference-meta to markdown fields (ADR-162 sub-phase D).
+    if identity_md and isinstance(identity_md, str):
+        gap_report = detect_inference_gaps(target="identity", inferred_content=identity_md)
+        identity_md = _append_inference_meta(identity_md, "identity", source_summary, gap_report=gap_report)
+    else:
+        identity_md = None
+
+    if brand_md and isinstance(brand_md, str):
+        gap_report = detect_inference_gaps(target="brand", inferred_content=brand_md)
+        brand_md = _append_inference_meta(brand_md, "brand", source_summary, gap_report=gap_report)
+    else:
+        brand_md = None
+
+    logger.info(
+        f"[FIRST_ACT_INFERENCE] identity={'yes' if identity_md else 'no'} "
+        f"brand={'yes' if brand_md else 'no'} "
+        f"entities={len(clean_entities)} "
+        f"intent={'yes' if clean_intent else 'no'}"
+    )
+
+    return {
+        "identity_md": identity_md,
+        "brand_md": brand_md,
+        "entities": clean_entities,
+        "work_intent": clean_intent,
+        "source_summary": source_summary,
+        "usage": usage,
+    }
+
+
 async def infer_shared_context(
     target: Literal["identity", "brand"],
     text: str = "",
