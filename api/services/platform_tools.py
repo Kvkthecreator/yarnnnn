@@ -456,6 +456,103 @@ COMMERCE_WRITE_TOOLS = [
             "required": ["name", "code", "amount"]
         }
     },
+    # ADR-192 Phase 3: Commerce operational tools
+    {
+        "name": "platform_commerce_issue_refund",
+        "description": "Refund an order. Pass amount_cents for partial refund; omit for full refund. Returns refund id + status.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "Order ID to refund (from list_orders or customer lookup)."
+                },
+                "amount_cents": {
+                    "type": "integer",
+                    "description": "Partial refund amount in cents. Omit for full refund of original order amount."
+                },
+            },
+            "required": ["order_id"]
+        }
+    },
+    {
+        "name": "platform_commerce_update_variant",
+        "description": "Update a product variant (price, name, subscription interval). LS variants are the pricing entity — price changes happen here, not on the product. Pass only the fields you want to change.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "variant_id": {
+                    "type": "string",
+                    "description": "Variant ID to update (each product has ≥1 variant; the default is auto-created)."
+                },
+                "name": {"type": "string", "description": "New variant name."},
+                "price_cents": {"type": "integer", "description": "New price in cents (e.g., 1999 = $19.99)."},
+                "is_subscription": {"type": "boolean", "description": "Toggle subscription vs one-time."},
+                "interval": {
+                    "type": "string",
+                    "enum": ["day", "week", "month", "year"],
+                    "description": "Subscription interval (only relevant when is_subscription=true)."
+                },
+            },
+            "required": ["variant_id"]
+        }
+    },
+    {
+        "name": "platform_commerce_bulk_update_variant_prices",
+        "description": "Apply price updates across many variants. Each variant updated independently — partial failures don't roll back. Returns success_count, failure_count, and per-variant outcome.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "updates": {
+                    "type": "array",
+                    "description": "List of {variant_id, price_cents} updates.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "variant_id": {"type": "string"},
+                            "price_cents": {"type": "integer"},
+                        },
+                        "required": ["variant_id", "price_cents"],
+                    }
+                }
+            },
+            "required": ["updates"]
+        }
+    },
+    {
+        "name": "platform_commerce_create_variant",
+        "description": "Create an additional variant on an existing product (e.g., monthly + annual pricing tiers on the same product). Each product auto-gets a 'Default' variant on create; use this to add secondary tiers.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "string", "description": "Existing product ID."},
+                "name": {"type": "string", "description": "Variant name (e.g., 'Annual', 'Monthly', 'Team tier')."},
+                "price_cents": {"type": "integer", "description": "Price in cents."},
+                "interval": {
+                    "type": "string",
+                    "enum": ["day", "week", "month", "year"],
+                    "description": "Subscription interval. Omit for one-time purchase variant."
+                },
+            },
+            "required": ["product_id", "name", "price_cents"]
+        }
+    },
+    {
+        "name": "platform_commerce_update_customer",
+        "description": "Update LS-native customer metadata (name, city, country, region, email_marketing opt-in). For cross-customer tagging / segmentation, write to /workspace/context/customers/{slug}/_tags.md via WriteFile — that intelligence layer belongs in YARNNN, not LS.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "customer_id": {"type": "string", "description": "LS customer ID."},
+                "name": {"type": "string", "description": "Customer display name."},
+                "city": {"type": "string"},
+                "country": {"type": "string", "description": "ISO country code (e.g., 'US')."},
+                "region": {"type": "string", "description": "State / province / region."},
+                "email_marketing": {"type": "boolean", "description": "Subscribe/unsubscribe customer from marketing emails."},
+            },
+            "required": ["customer_id"]
+        }
+    },
 ]
 
 
@@ -733,6 +830,12 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
     "write_commerce": [
         "platform_commerce_create_product", "platform_commerce_update_product",
         "platform_commerce_create_discount",
+        # ADR-192 Phase 3: operational tools
+        "platform_commerce_issue_refund",
+        "platform_commerce_update_variant",
+        "platform_commerce_bulk_update_variant_prices",
+        "platform_commerce_create_variant",
+        "platform_commerce_update_customer",
     ],
     "read_trading": [
         "platform_trading_get_account", "platform_trading_get_positions",
@@ -1485,6 +1588,78 @@ async def _handle_commerce_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             return {"success": True, "result": discount}
         except ValueError as e:
             return {"success": False, "error": str(e)}
+
+    # ADR-192 Phase 3: Commerce operational tools
+    elif tool == "issue_refund":
+        order_id = tool_input.get("order_id")
+        if not order_id:
+            return {"success": False, "error": "order_id is required"}
+        amount_cents = tool_input.get("amount_cents")
+        result = await commerce_client.issue_refund(
+            api_key,
+            order_id=str(order_id),
+            amount_cents=int(amount_cents) if amount_cents is not None else None,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"], "message": result.get("detail", "")}
+        return {"success": True, "result": result}
+
+    elif tool == "update_variant":
+        variant_id = tool_input.get("variant_id")
+        if not variant_id:
+            return {"success": False, "error": "variant_id is required"}
+        result = await commerce_client.update_variant(
+            api_key,
+            variant_id=str(variant_id),
+            name=tool_input.get("name"),
+            price_cents=int(tool_input["price_cents"]) if tool_input.get("price_cents") is not None else None,
+            is_subscription=tool_input.get("is_subscription"),
+            interval=tool_input.get("interval"),
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"], "message": result.get("detail", "")}
+        return {"success": True, "result": result}
+
+    elif tool == "bulk_update_variant_prices":
+        updates = tool_input.get("updates")
+        if not isinstance(updates, list) or not updates:
+            return {"success": False, "error": "updates (non-empty list of {variant_id, price_cents}) is required"}
+        result = await commerce_client.bulk_update_variant_prices(api_key, updates)
+        return {"success": True, "result": result}
+
+    elif tool == "create_variant":
+        product_id = tool_input.get("product_id")
+        name = tool_input.get("name")
+        price_cents = tool_input.get("price_cents")
+        if not (product_id and name and price_cents is not None):
+            return {"success": False, "error": "product_id, name, and price_cents are required"}
+        result = await commerce_client.create_variant(
+            api_key,
+            product_id=str(product_id),
+            name=name,
+            price_cents=int(price_cents),
+            interval=tool_input.get("interval"),
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"], "message": result.get("detail", "")}
+        return {"success": True, "result": result}
+
+    elif tool == "update_customer":
+        customer_id = tool_input.get("customer_id")
+        if not customer_id:
+            return {"success": False, "error": "customer_id is required"}
+        result = await commerce_client.update_customer(
+            api_key,
+            customer_id=str(customer_id),
+            name=tool_input.get("name"),
+            city=tool_input.get("city"),
+            country=tool_input.get("country"),
+            region=tool_input.get("region"),
+            email_marketing=tool_input.get("email_marketing"),
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"], "message": result.get("detail", "")}
+        return {"success": True, "result": result}
 
     return {"success": False, "error": f"Unknown commerce tool: {tool}"}
 

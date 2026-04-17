@@ -554,6 +554,269 @@ class LemonSqueezyClient(CommerceProvider):
             "status": d_attrs.get("status", "published"),
         }
 
+    # =========================================================================
+    # ADR-192 Phase 3: Commerce operational tools
+    # =========================================================================
+
+    async def issue_refund(
+        self,
+        api_key: str,
+        order_id: str,
+        amount_cents: Optional[int] = None,
+    ) -> dict:
+        """Refund an order (full or partial).
+
+        Args:
+            order_id: LS order ID.
+            amount_cents: Partial refund amount. Omit for full refund.
+
+        Returns refund dict with id / status / amount.
+        """
+        attrs: dict[str, Any] = {}
+        if amount_cents is not None:
+            attrs["amount"] = amount_cents
+
+        body = {
+            "data": {
+                "type": "refunds",
+                "attributes": attrs,
+                "relationships": {
+                    "order": {"data": {"type": "orders", "id": str(order_id)}},
+                },
+            }
+        }
+
+        result = await self._request("POST", "/refunds", api_key, json_body=body)
+        if isinstance(result, dict) and result.get("error"):
+            return {"error": result.get("error"), "detail": result.get("detail", "")}
+
+        r_attrs = result["data"]["attributes"]
+        return {
+            "id": str(result["data"]["id"]),
+            "order_id": order_id,
+            "amount": r_attrs.get("amount", amount_cents),
+            "status": r_attrs.get("status", "completed"),
+            "refunded_at": r_attrs.get("refunded_at"),
+        }
+
+    async def update_variant(
+        self,
+        api_key: str,
+        variant_id: str,
+        *,
+        name: Optional[str] = None,
+        price_cents: Optional[int] = None,
+        is_subscription: Optional[bool] = None,
+        interval: Optional[str] = None,
+    ) -> dict:
+        """Update a product variant (price, name, subscription interval).
+
+        LS variants are the pricing entity — changing price, name, or
+        subscription settings all happen at variant level, not product level.
+        """
+        update_attrs: dict[str, Any] = {}
+        if name is not None:
+            update_attrs["name"] = name
+        if price_cents is not None:
+            update_attrs["price"] = price_cents
+        if is_subscription is not None:
+            update_attrs["is_subscription"] = is_subscription
+        if interval is not None:
+            update_attrs["interval"] = interval
+            update_attrs["interval_count"] = 1
+
+        if not update_attrs:
+            return {"error": "no_changes", "detail": "provide at least one field to update"}
+
+        body = {
+            "data": {
+                "type": "variants",
+                "id": str(variant_id),
+                "attributes": update_attrs,
+            }
+        }
+        result = await self._request(
+            "PATCH", f"/variants/{variant_id}", api_key, json_body=body,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"error": result.get("error"), "detail": result.get("detail", "")}
+
+        v_attrs = result["data"]["attributes"]
+        return {
+            "id": str(result["data"]["id"]),
+            "name": v_attrs.get("name"),
+            "price": v_attrs.get("price"),
+            "is_subscription": v_attrs.get("is_subscription"),
+            "interval": v_attrs.get("interval"),
+            "status": v_attrs.get("status"),
+        }
+
+    async def bulk_update_variant_prices(
+        self,
+        api_key: str,
+        updates: list,
+    ) -> dict:
+        """Apply price updates across many variants. Per-variant outcome reported.
+
+        Args:
+            updates: list of {variant_id, price_cents} dicts.
+
+        Returns:
+            {
+                success_count: int,
+                failure_count: int,
+                results: [{variant_id, price_cents, outcome, error?}, ...],
+            }
+
+        Each variant updated independently — partial failure doesn't roll back.
+        """
+        results = []
+        for update in updates:
+            variant_id = update.get("variant_id")
+            price_cents = update.get("price_cents")
+            if not variant_id or price_cents is None:
+                results.append({
+                    "variant_id": variant_id,
+                    "price_cents": price_cents,
+                    "outcome": "skipped",
+                    "error": "variant_id and price_cents required",
+                })
+                continue
+
+            result = await self.update_variant(
+                api_key, str(variant_id), price_cents=int(price_cents),
+            )
+            if isinstance(result, dict) and result.get("error"):
+                results.append({
+                    "variant_id": variant_id,
+                    "price_cents": price_cents,
+                    "outcome": "failed",
+                    "error": result.get("error"),
+                })
+            else:
+                results.append({
+                    "variant_id": variant_id,
+                    "price_cents": price_cents,
+                    "outcome": "updated",
+                })
+
+        success_count = sum(1 for r in results if r["outcome"] == "updated")
+        failure_count = len(results) - success_count
+        return {
+            "success_count": success_count,
+            "failure_count": failure_count,
+            "results": results,
+        }
+
+    async def create_variant(
+        self,
+        api_key: str,
+        product_id: str,
+        name: str,
+        price_cents: int,
+        interval: Optional[str] = None,
+    ) -> dict:
+        """Create an additional variant on an existing product.
+
+        LS products auto-get a "Default" variant on create. Use this to add
+        secondary variants (e.g., monthly + annual pricing tiers on the
+        same product).
+        """
+        is_subscription = interval in ("day", "week", "month", "year")
+        attrs: dict[str, Any] = {
+            "name": name,
+            "price": price_cents,
+            "is_subscription": is_subscription,
+        }
+        if is_subscription:
+            attrs["interval"] = interval
+            attrs["interval_count"] = 1
+
+        body = {
+            "data": {
+                "type": "variants",
+                "attributes": attrs,
+                "relationships": {
+                    "product": {"data": {"type": "products", "id": str(product_id)}},
+                },
+            }
+        }
+        result = await self._request("POST", "/variants", api_key, json_body=body)
+        if isinstance(result, dict) and result.get("error"):
+            return {"error": result.get("error"), "detail": result.get("detail", "")}
+
+        v_attrs = result["data"]["attributes"]
+        return {
+            "id": str(result["data"]["id"]),
+            "product_id": product_id,
+            "name": v_attrs.get("name", name),
+            "price": v_attrs.get("price", price_cents),
+            "is_subscription": v_attrs.get("is_subscription", is_subscription),
+            "interval": v_attrs.get("interval", interval),
+            "status": v_attrs.get("status", "pending"),
+        }
+
+    async def update_customer(
+        self,
+        api_key: str,
+        customer_id: str,
+        *,
+        name: Optional[str] = None,
+        city: Optional[str] = None,
+        country: Optional[str] = None,
+        region: Optional[str] = None,
+        email_marketing: Optional[bool] = None,
+    ) -> dict:
+        """Update LS-native customer metadata.
+
+        LS doesn't natively support tags / segments. For cross-customer
+        segmentation + targeting, write to workspace context (e.g.,
+        `/workspace/context/customers/{slug}/_tags.md`) via WriteFile —
+        that layer belongs to YARNNN, not LS.
+
+        This tool updates LS's native customer record fields.
+        """
+        update_attrs: dict[str, Any] = {}
+        if name is not None:
+            update_attrs["name"] = name
+        if city is not None:
+            update_attrs["city"] = city
+        if country is not None:
+            update_attrs["country"] = country
+        if region is not None:
+            update_attrs["region"] = region
+        if email_marketing is not None:
+            # LS uses "email_marketing" (opt-in/opt-out) at the subscriber level;
+            # use the relevant attribute per LS docs when available.
+            update_attrs["email_marketing"] = email_marketing
+
+        if not update_attrs:
+            return {"error": "no_changes", "detail": "provide at least one field to update"}
+
+        body = {
+            "data": {
+                "type": "customers",
+                "id": str(customer_id),
+                "attributes": update_attrs,
+            }
+        }
+        result = await self._request(
+            "PATCH", f"/customers/{customer_id}", api_key, json_body=body,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"error": result.get("error"), "detail": result.get("detail", "")}
+
+        c_attrs = result["data"]["attributes"]
+        return {
+            "id": str(result["data"]["id"]),
+            "name": c_attrs.get("name"),
+            "email": c_attrs.get("email"),
+            "city": c_attrs.get("city"),
+            "country": c_attrs.get("country"),
+            "region": c_attrs.get("region"),
+            "status": c_attrs.get("status"),
+        }
+
 
 # Singleton
 _ls_client: Optional[LemonSqueezyClient] = None

@@ -6,6 +6,39 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.13] - ADR-192 Phase 3: Commerce operational tools (5 new LS primitives)
+
+### Changed
+- `api/integrations/core/lemonsqueezy_client.py`: 5 new client methods wired to Lemon Squeezy REST API:
+  - `issue_refund(order_id, amount_cents?)` — POST /refunds. Full or partial. Autonomous customer support.
+  - `update_variant(variant_id, name?, price_cents?, is_subscription?, interval?)` — PATCH /variants/{id}. Price/name/subscription config.
+  - `bulk_update_variant_prices(updates: [{variant_id, price_cents}])` — iterates update_variant. Per-variant outcome reported. Partial failure doesn't roll back.
+  - `create_variant(product_id, name, price_cents, interval?)` — POST /variants. Add secondary pricing tiers to existing product.
+  - `update_customer(customer_id, name?, city?, country?, region?, email_marketing?)` — PATCH /customers/{id}. LS-native fields only.
+- `api/services/platform_tools.py`:
+  - `COMMERCE_WRITE_TOOLS` expanded from 3 → 8 (five new tool definitions with full JSON schemas).
+  - Dispatch handlers added for each new tool in `handle_platform_tool()`.
+  - `PLATFORM_TOOLS_BY_CAPABILITY["write_commerce"]` expanded accordingly.
+
+### Design note: customer tagging / segmentation
+The matrix originally listed "tag_customer / segment_customer" as a required primitive. LS does NOT natively support tags/segments on customers. **This intentionally lives in YARNNN's workspace context layer, not in LS.** The pattern: an agent or YARNNN writes tagging metadata to `/workspace/context/customers/{slug}/_tags.md` via existing `WriteFile` primitive. Segmentation logic reads those files. This keeps LS as the transaction-of-record and YARNNN as the intelligence layer — architecturally clean and doesn't require an LS capability that doesn't exist. The `platform_commerce_update_customer` tool covers LS-native fields (name, city, country, region, email_marketing).
+
+### Expected behavior
+- E-commerce operator can autonomously issue refunds, modify pricing across variants, roll out bulk price updates (seasonal sales, competitor matching), add pricing tiers to existing products, and update customer contact metadata.
+- Customer segmentation handled in YARNNN workspace, not in LS — clean separation of concerns.
+
+### NOT in this commit
+- Email send capability (needed for autonomous customer communication) → Phase 4.
+- Prompts teaching YARNNN when to refund, when to bulk-price-update, etc. → Phase 5.
+
+### Verification
+- `ast.parse()` clean on both files.
+- LS client has all 8 write methods.
+- `COMMERCE_WRITE_TOOLS` has 8 tool definitions.
+- `write_commerce` capability maps to all 8.
+
+---
+
 ## [2026.04.17.12] - ADR-192 Phase 2: Risk-gate primitive + _risk.md schema + order-submission integration
 
 ### Added
