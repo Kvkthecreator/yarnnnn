@@ -3,9 +3,9 @@
 **Status:** Canonical
 **Date:** 2026-04-16
 **Codifies:** ADR-141 (Unified Execution), ADR-154 (Execution Boundaries), ADR-173 (Accumulation-First), ADR-181 (Feedback Layer), ADR-182 (Pre-Gather)
-**Absorbs:** FEEDBACK-LOOP.md (2026-04-15) — user feedback surface, FeedbackStrip design, TP solicitation rules
+**Absorbs:** FEEDBACK-LOOP.md (2026-04-15) — user feedback surface, FeedbackStrip design, YARNNN solicitation rules
 **Related:**
-- [agent-execution-model.md](agent-execution-model.md) — three-layer architecture (scheduler / pipeline / TP)
+- [agent-execution-model.md](agent-execution-model.md) — three-layer architecture (scheduler / pipeline / YARNNN)
 - [FEEDBACK-WORKFLOW-REDESIGN.md](../design/FEEDBACK-WORKFLOW-REDESIGN.md) — feedback routing model (domain/agent/task layers)
 - [workspace-conventions.md](workspace-conventions.md) — filesystem layout and directory registry
 - [FOUNDATIONS.md](FOUNDATIONS.md) — Axiom 4 (accumulated attention compounds)
@@ -144,7 +144,7 @@ The **Next Cycle Directive** is the agent's own marching orders to its future se
 
 > *"Check your Execution Awareness for a ## Next Cycle Directive. If one exists, FOLLOW IT as your primary guidance — it was written by you while the context was fresh."*
 
-This is how focus self-directs across runs without TP involvement.
+This is how focus self-directs across runs without YARNNN involvement.
 
 ---
 
@@ -270,7 +270,7 @@ Zero-LLM deterministic checks. Writes entries to `feedback.md` when thresholds a
 | Coverage gap | Steady-phase task with active entities < min_entities | `Action: expand coverage {domain}` |
 | Low confidence | 2+ consecutive runs with agent confidence = low | `Action: review data sources` |
 
-These entries accumulate in `feedback.md` alongside user feedback and TP evaluations. All sources use the same format — the system is source-agnostic (ADR-181).
+These entries accumulate in `feedback.md` alongside user feedback and YARNNN evaluations. All sources use the same format — the system is source-agnostic (ADR-181).
 
 ### 5b. Feedback actuation → workspace mutations
 
@@ -342,7 +342,7 @@ The loop compounds through five substrates, each written by one run and read by 
 
 ### 4. Feedback.md (corrections and signals)
 
-**Writer:** Three sources — user (via TP chat), system verification (post-run), TP evaluation (ManageTask evaluate).
+**Writer:** Three sources — user (via YARNNN chat), system verification (post-run), YARNNN evaluation (ManageTask evaluate).
 **Reader:** `build_task_execution_prompt()` — last 3 entries injected into generation prompt.
 **Growth pattern:** Append-only with aging. System entries aged out after 3 runs. User entries persist.
 **Effect:** Shapes generation behavior. Also triggers actuation (workspace mutations) when thresholds are met.
@@ -383,15 +383,15 @@ accumulates_context tasks          produces_deliverable tasks
 
 ### Multi-agent team composition (ADR-176)
 
-Tasks are not single-agent. TASK.md declares a `## Team` section, and TP has full judgment over team composition. The pipeline supports multi-step execution: each process step runs a different agent sequentially, with prior step output passed as context to the next step.
+Tasks are not single-agent. TASK.md declares a `## Team` section, and YARNNN has full judgment over team composition. The pipeline supports multi-step execution: each process step runs a different agent sequentially, with prior step output passed as context to the next step.
 
 **Capability split by phase** (ADR-176 Decision 4):
 - **Accumulation phase** — Researcher, Analyst, Writer, Tracker: text production only. `produce_markdown`, `web_search`, `read_workspace`. No `RuntimeDispatch`, no visual assets.
 - **Production phase** — Designer: `chart`, `mermaid`, `image`, `video_render`, `compose_html`. Reads context, produces visual assets.
 
-This split is by cognitive mode, not by task type. A `produces_deliverable` task can have an accumulation step (Researcher gathers) followed by a production step (Designer charts). TP composes the team based on the work intent:
+This split is by cognitive mode, not by task type. A `produces_deliverable` task can have an accumulation step (Researcher gathers) followed by a production step (Designer charts). YARNNN composes the team based on the work intent:
 
-| Work intent | Default team | When TP adds Designer |
+| Work intent | Default team | When YARNNN adds Designer |
 |------------|-------------|----------------------|
 | Track & inform | Researcher or Tracker | Never — context is knowledge, not presentation |
 | Recurring report | Researcher + Analyst + Writer | When visual output needed (charts, diagrams) |
@@ -434,27 +434,27 @@ Mode (`recurring`, `goal`, `reactive`) affects the loop's posture, not its mecha
 | Schedule | Runs on cadence | Runs on cadence until complete | No schedule (manual trigger) |
 | Prior output | Excerpt (3000 chars) | Full output injected (revision) | Excerpt |
 | Output handling | New dated folder + update latest/ | Archive old latest/ → new latest/ | New dated folder + update latest/ |
-| Reschedule | `calculate_next_run_at()` | `calculate_next_run_at()` (until TP completes) | `next_run_at = None` |
-| TP posture | Auto-deliver, periodic evaluation | Evaluate → steer → complete | Dispatch-and-done |
+| Reschedule | `calculate_next_run_at()` | `calculate_next_run_at()` (until YARNNN completes) | `next_run_at = None` |
+| YARNNN posture | Auto-deliver, periodic evaluation | Evaluate → steer → complete | Dispatch-and-done |
 
 **Recurring** is the default. The loop runs indefinitely, outputs compound, the system gets better.
-**Goal** converges toward a target. Each run revises the prior output. TP completes the task when the goal is met.
+**Goal** converges toward a target. Each run revises the prior output. YARNNN completes the task when the goal is met.
 **Reactive** is one-shot per trigger. No loop — the task fires when triggered and waits.
 
 ---
 
 ## User Feedback Surface
 
-The mechanical loop (Phases 1-6) runs autonomously. User feedback is the third input alongside system verification and TP evaluation — all three write to the same `feedback.md` in the same source-agnostic format (ADR-181).
+The mechanical loop (Phases 1-6) runs autonomously. User feedback is the third input alongside system verification and YARNNN evaluation — all three write to the same `feedback.md` in the same source-agnostic format (ADR-181).
 
 ### How feedback enters the system
 
-All user feedback routes through TP chat via **prompt relays** — pre-filled messages the user reviews and sends. TP is the single intelligence layer (ADR-156); no background feedback jobs, no direct-trigger write paths.
+All user feedback routes through YARNNN chat via **prompt relays** — pre-filled messages the user reviews and sends. YARNNN is the single intelligence layer (ADR-156); no background feedback jobs, no direct-trigger write paths.
 
 Three entry points:
-1. **Email "Reply with feedback"** → task-scoped TP chat
+1. **Email "Reply with feedback"** → task-scoped YARNNN chat
 2. **Task detail page** → FeedbackStrip affordance → pre-filled chat message
-3. **Chat surface** (`/chat`) → free-form feedback → TP routes
+3. **Chat surface** (`/chat`) → free-form feedback → YARNNN routes
 
 ### FeedbackStrip — per-output_kind affordances
 
@@ -462,32 +462,32 @@ A thin feedback strip sits below the output in `WorkDetail` (below `KindMiddle`,
 
 **`produces_deliverable`** — *"Is this output right?"*
 
-| Button | Pre-filled prompt | TP routes to |
+| Button | Pre-filled prompt | YARNNN routes to |
 |--------|------------------|--------------|
 | **This looks good** | `"This output looks good. Note it for future runs."` | `UpdateContext(target="task")` → appends to feedback.md |
-| **Something's off** | `"I want to change something about this output: "` (cursor at end) | TP asks what, routes to task or agent feedback |
-| **Edit in TP** | `"Edit the latest [task title] output: "` | `ManageTask(action="steer")` |
+| **Something's off** | `"I want to change something about this output: "` (cursor at end) | YARNNN asks what, routes to task or agent feedback |
+| **Edit in YARNNN** | `"Edit the latest [task title] output: "` | `ManageTask(action="steer")` |
 
 **`accumulates_context`** — *"Is this tracking the right things?"*
 
-| Button | Pre-filled prompt | TP routes to |
+| Button | Pre-filled prompt | YARNNN routes to |
 |--------|------------------|--------------|
 | **Looks comprehensive** | `"The [task title] context looks comprehensive."` | `UpdateContext(target="task")` → positive feedback |
-| **Missing something** | `"The [task title] context is missing: "` (cursor at end) | TP routes: `ManageDomains` / objective update / task feedback |
-| **Edit in TP** | `"Adjust what [task title] tracks: "` | `ManageTask(action="update")` or `ManageDomains` |
+| **Missing something** | `"The [task title] context is missing: "` (cursor at end) | YARNNN routes: `ManageDomains` / objective update / task feedback |
+| **Edit in YARNNN** | `"Adjust what [task title] tracks: "` | `ManageTask(action="update")` or `ManageDomains` |
 
 **`external_action`** — *"Did this send the right thing?"*
 
-| Button | Pre-filled prompt | TP routes to |
+| Button | Pre-filled prompt | YARNNN routes to |
 |--------|------------------|--------------|
 | **Delivery was right** | `"The [task title] delivery looked right."` | `UpdateContext(target="task")` → positive feedback |
 | **Adjust what's sent** | `"Change what [task title] sends: "` | `ManageTask(action="update")` |
 
-**`system_maintenance`** — no FeedbackStrip. TP-owned.
+**`system_maintenance`** — no FeedbackStrip. YARNNN-owned.
 
 ### Feedback routing (three layers)
 
-TP determines where feedback lands. See [FEEDBACK-WORKFLOW-REDESIGN.md](../design/FEEDBACK-WORKFLOW-REDESIGN.md) for the full routing model.
+YARNNN determines where feedback lands. See [FEEDBACK-WORKFLOW-REDESIGN.md](../design/FEEDBACK-WORKFLOW-REDESIGN.md) for the full routing model.
 
 | User says | Layer | Target |
 |-----------|-------|--------|
@@ -495,9 +495,9 @@ TP determines where feedback lands. See [FEEDBACK-WORKFLOW-REDESIGN.md](../desig
 | "Focus on pricing this week" | Task | `/tasks/{slug}/feedback.md` (this task only) |
 | "Don't track Tabnine" | Domain | `ManageDomains(action="remove")` (workspace-wide) |
 
-### TP feedback solicitation
+### YARNNN feedback solicitation
 
-TP proactively asks for feedback during `ManageTask(action="evaluate")`:
+YARNNN proactively asks for feedback during `ManageTask(action="evaluate")`:
 
 - **First ask**: task has ≥3 runs but zero feedback entries
 - **Check-in**: feedback.md not updated in ≥14 days (recurring tasks)
@@ -509,26 +509,26 @@ Rules: one question per evaluate call. Always reference a specific output detail
 ### Daily update special case
 
 `daily-update` (`essential: true`) is ambient, not quality-evaluated:
-- No "This looks good" affordance — only "Something's off" and "Edit in TP"
-- TP evaluation cadence: weekly, not per-run
+- No "This looks good" affordance — only "Something's off" and "Edit in YARNNN"
+- YARNNN evaluation cadence: weekly, not per-run
 - Email reply-with-feedback still works
 
-### TP feedback communication protocol
+### YARNNN feedback communication protocol
 
-After writing any feedback, TP MUST:
+After writing any feedback, YARNNN MUST:
 1. **Confirm what was written and where** — "I've noted that in the task feedback" or "Updated the agent preferences"
 2. **State when it takes effect** — "This will shape the next scheduled run" (include timing: "which runs daily at 9am" / "next Monday")
 3. **Offer immediate application** — "Want me to run it now so you can see the change?"
 
-**Temporal model:** Domain changes (`ManageDomains`) and objective updates (`ManageTask(action="update")`) take effect immediately in the workspace. Style/criteria feedback written to `feedback.md` takes effect on the next generation. TP must make this distinction explicit — never leave the user uncertain about whether feedback was applied or when it takes effect.
+**Temporal model:** Domain changes (`ManageDomains`) and objective updates (`ManageTask(action="update")`) take effect immediately in the workspace. Style/criteria feedback written to `feedback.md` takes effect on the next generation. YARNNN must make this distinction explicit — never leave the user uncertain about whether feedback was applied or when it takes effect.
 
-**Code:** `api/agents/tp_prompts/task_scope.py` (task-scoped), `api/agents/tp_prompts/tools.py` (global)
+**Code:** `api/agents/yarnnn_prompts/task_scope.py` (task-scoped), `api/agents/yarnnn_prompts/tools.py` (global)
 
 ### Implementation status
 
 - FeedbackStrip component: **proposed** (`web/components/work/details/FeedbackStrip.tsx`)
-- TP solicitation prompt guidance: **proposed** (add to `api/agents/tp_prompts/onboarding.py`)
-- TP communication protocol: **implemented** (prompt guidance in task_scope.py + tools.py)
+- YARNNN solicitation prompt guidance: **proposed** (add to `api/agents/yarnnn_prompts/onboarding.py`)
+- YARNNN communication protocol: **implemented** (prompt guidance in task_scope.py + tools.py)
 - Feedback routing model: **implemented** (ADR-156, three-layer)
 
 ---
@@ -541,11 +541,11 @@ These are architectural observations, not bugs:
 
 2. **Multi-cycle awareness history.** `awareness.md` is overwritten each run (one-deep). A great next_cycle_directive from run N is lost if run N+1 overwrites it with different priorities. The entity files themselves accumulate, but the execution strategy is memoryless beyond one cycle.
 
-3. **Output quality feedback.** System verification checks entity staleness and coverage, not output quality. Agent confidence is self-reported. There is no mechanical quality gate — TP evaluation (`ManageTask(action="evaluate")`) is manual and ad-hoc.
+3. **Output quality feedback.** System verification checks entity staleness and coverage, not output quality. Agent confidence is self-reported. There is no mechanical quality gate — YARNNN evaluation (`ManageTask(action="evaluate")`) is manual and ad-hoc.
 
 4. **"Nothing changed" fast-path.** If no context domain files have been updated since the last deliverable run, the task still generates a full report. No skip-if-stale optimization exists.
 
-5. **Actuation scope.** Feedback actuation only mutates entity status (active/inactive). It cannot change research focus, add domains, or adjust cadence — those require TP intervention.
+5. **Actuation scope.** Feedback actuation only mutates entity status (active/inactive). It cannot change research focus, add domains, or adjust cadence — those require YARNNN intervention.
 
 ---
 

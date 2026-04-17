@@ -1,9 +1,11 @@
 from __future__ import annotations
 """
-Thinking Partner Prompt Modules (ADR-059 + ADR-186)
+YARNNN Prompt Modules (ADR-059 + ADR-186 + ADR-189)
 
 ADR-059: Prompts are split into composable sections.
 ADR-186: Two prompt profiles — workspace (full scope) and entity (scoped).
+ADR-189: Directory renamed tp_prompts/ → yarnnn_prompts/. User-facing "TP"
+         retired in favor of "YARNNN" throughout prompt contents.
 
 Profile-aware assembly:
   build_system_prompt(profile="workspace", ...)  → onboarding, task catalog, creation

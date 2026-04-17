@@ -667,11 +667,11 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
     # domain is the user's attention allocation and the workforce's health
     # rather than a segment of user work.
     #
-    # TP has two runtime modes that share this identity:
-    #   1. Chat runtime — invoked from routes/chat.py via ThinkingPartnerAgent
+    # YARNNN has two runtime modes that share this identity:
+    #   1. Chat runtime — invoked from routes/chat.py via YarnnnAgent (ADR-189)
     #      class. Full conversation, streaming, all CHAT_PRIMITIVES available.
     #   2. Task runtime — invoked from task_pipeline._execute_tp_task() when
-    #      the scheduler dispatches a back office task owned by TP. Runs a
+    #      the scheduler dispatches a back office task owned by YARNNN. Runs a
     #      declarative executor (deterministic Python function or focused
     #      LLM prompt) declared in the task's TASK.md ## Process section.
     #

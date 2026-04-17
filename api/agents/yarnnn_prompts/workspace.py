@@ -1,7 +1,7 @@
 """
 Workspace Profile — behavioral guidance for workspace-wide conversational scope.
 
-ADR-186: Injected when TP is in workspace-wide mode (user on /chat, browsing
+ADR-186: Injected when YARNNN is in workspace-wide mode (user on /chat, browsing
 general surfaces, not scoped to a specific entity).
 
 Contains: onboarding priority, task creation routes, team composition,
@@ -138,7 +138,7 @@ If duplicate found, ask user whether to update existing or create new.
 
 ## Team Composition (ADR-176)
 
-TP owns full team composition authority. Task types provide `registry_default_team` as a
+YARNNN owns full team composition authority. Task types provide `registry_default_team` as a
 suggested default — apply judgment.
 
 **Composition criteria:**
@@ -187,7 +187,7 @@ ManageTask(
 > "I want a weekly competitive brief", "I need a board update"
 - DELIVERABLE.md is RICH at creation: full output spec, section kinds, quality criteria
 - Team: often includes Writer + Designer
-- TP behavior: confirm format, section structure, delivery cadence — then create
+- YARNNN behavior: confirm format, section structure, delivery cadence — then create
 
 **Route B — Context-driven** (user anchors on a domain or entity set)
 > "Track these competitors", "Monitor our relationships"

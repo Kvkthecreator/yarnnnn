@@ -1,5 +1,5 @@
 """
-Behavioral Guidelines - Core patterns for TP behavior.
+Behavioral Guidelines - Core patterns for YARNNN behavior.
 
 Includes:
 - SearchEntities → LookupEntity → Act workflow

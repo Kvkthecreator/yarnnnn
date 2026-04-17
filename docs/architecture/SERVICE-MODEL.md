@@ -37,11 +37,11 @@ Persistent domain experts with three independent axes:
 | **Capabilities** | Type registry — tools and runtimes available | Fixed at creation |
 | **Tasks** | TASK.md assignments — what work to do | Come and go |
 
-**Universal roles, contextual application** (ADR-176 + ADR-164 + ADR-188): The role taxonomy is a fixed framework primitive — six universal specialist roles (Researcher, Analyst, Writer, Tracker, Designer) + Thinking Partner + platform bots (Slack, Notion, GitHub, Commerce, Trading — activated on platform connection). Which specialists are instantiated and what domains they serve is contextual, determined by TP based on the user's work description. A default roster is scaffolded at signup; TP customizes it during onboarding.
+**Universal roles, contextual application** (ADR-176 + ADR-164 + ADR-188 + ADR-189): The role taxonomy is a fixed framework primitive — six universal specialist roles (Researcher, Analyst, Writer, Tracker, Designer, Reporting) + YARNNN (the super-agent) + platform bots (Slack, Notion, GitHub, Commerce, Trading — activated on platform connection). Which Agents are instantiated and what domains they serve is contextual, determined by YARNNN based on the user's work description. **No Agents are scaffolded at signup (ADR-189)** — the user creates Agents through conversation with YARNNN.
 
-Capability split (ADR-176): accumulation agents (Researcher, Analyst, Writer, Tracker) accumulate knowledge and produce markdown. Production agent (Designer) generates visual assets via RuntimeDispatch. TP orchestrates. No domain ownership baked into agent identity — specialists are assigned to tasks by TP, and tasks read/write context domains.
+Capability split (ADR-176): accumulation specialists (Researcher, Analyst, Writer, Tracker) accumulate knowledge and produce markdown. Production specialist (Designer) generates visual assets via RuntimeDispatch. YARNNN orchestrates by drafting a Specialist Team per task. No domain ownership baked into specialist identity — specialists are assigned to tasks by YARNNN, and tasks read/write context domains.
 
-TP is an agent (ADR-164). It has the same structural shape as specialist agents — row in the agents table, slug (`thinking-partner`), workspace folder (`/agents/thinking-partner/`), can own tasks. What distinguishes TP is its class (`meta-cognitive`) and domain (orchestration itself, no context domain). TP's tasks are back office tasks: agent hygiene, workspace cleanup, future task-freshness review.
+YARNNN is an agent (ADR-164 + ADR-189). It has the same structural shape as other agents — row in the agents table, slug (`thinking-partner`, retained by glossary exception), workspace folder, can own tasks. What distinguishes YARNNN is its class (`meta-cognitive`) and domain (orchestration itself, no context domain). YARNNN's tasks are back office tasks: agent hygiene, workspace cleanup, future task-freshness review.
 
 Agent roles determine capabilities. Development is knowledge depth (accumulated memory, preferences, observations), not capability breadth. See [agent-framework.md](agent-framework.md).
 
@@ -60,34 +60,35 @@ Defined work units with an objective, schedule, and delivery target. Two charter
 | `delivery` | Where to send: email, Slack channel, Notion page |
 | `process` | Multi-step agent sequence (from task type registry, if applicable) |
 
-Mode is a property of the task, not the agent. A Research Agent can simultaneously have a recurring weekly briefing and a goal-based one-off investigation. Mode also signals TP's management posture — recurring tasks get periodic review, goal tasks get completion tracking, reactive tasks get trigger monitoring.
+Mode is a property of the task, not the Agent. A Research Agent can simultaneously have a recurring weekly briefing and a goal-based one-off investigation. Mode also signals YARNNN's management posture — recurring tasks get periodic review, goal tasks get completion tracking, reactive tasks get trigger monitoring.
 
-**Task types** (ADR-145, ADR-188): A curated template library of deliverable definitions. TP can select from the library ("Competitive Intelligence Brief") or compose novel task definitions from the user's work description. The template library encodes domain-specific patterns (step instructions, context domain mappings, process configurations); TP can draw from it or compose beyond it. At execution time, the pipeline reads TASK.md — not the registry. See [task-type-orchestration.md](task-type-orchestration.md).
+**Task types** (ADR-145, ADR-188): A curated template library of deliverable definitions. YARNNN can select from the library ("Competitive Intelligence Brief") or compose novel task definitions from the user's work description. The template library encodes domain-specific patterns (step instructions, context domain mappings, process configurations); YARNNN can draw from it or compose beyond it. At execution time, the pipeline reads TASK.md — not the registry. See [task-type-orchestration.md](task-type-orchestration.md).
 
 ### Workspace (WHERE)
 
-Virtual filesystem over Postgres (`workspace_files` table). Three content areas: identity, brand, and accumulated context domains (`/workspace/context/` — extensible per ADR-151, ADR-188). The directory registry provides curated domain templates (e.g., competitors, market, customers, trading); TP can scaffold these or compose novel domains with custom entity structures from the user's work description. Path conventions are the schema — new capabilities extend paths, not database tables. See [workspace-conventions.md](workspace-conventions.md).
+Virtual filesystem over Postgres (`workspace_files` table). Three content areas: identity, brand, and accumulated context domains (`/workspace/context/` — extensible per ADR-151, ADR-188). The directory registry provides curated domain templates (e.g., competitors, market, customers, trading); YARNNN can scaffold these or compose novel domains with custom entity structures from the user's work description. Path conventions are the schema — new capabilities extend paths, not database tables. See [workspace-conventions.md](workspace-conventions.md).
 
 ---
 
-## Two Layers of Intelligence, One Agent Substrate (ADR-164)
+## Three Layers of Cognition, One Agent Substrate (ADR-164 + ADR-189)
 
-| Layer | Agent class | Role | Develops |
-|-------|-------------|------|----------|
-| **Meta-cognitive** | TP (Thinking Partner) — `meta-cognitive` | Creates tasks, assigns teams, monitors health, orchestrates; owns back office tasks | Upward — better judgment about attention allocation |
-| **Domain-cognitive** | Specialists (Researcher, Analyst, Writer, Tracker, Designer) + platform bots | Execute tasks, accumulate domain expertise | Inward — deeper knowledge through accumulated work |
+| Layer | Entity | Scope | Role | Develops |
+|-------|--------|-------|------|----------|
+| **Meta-cognitive** | YARNNN — `meta-cognitive` class | Workspace-level (the super-agent) | Composes Agents, drafts Teams, monitors health, orchestrates; owns back office tasks | Upward — better judgment about attention allocation |
+| **Role-cognitive** | Specialists (Researcher, Analyst, Writer, Tracker, Designer, Reporting) | Role-level (YARNNN's palette) | Infrastructure — drafted into Teams per task | Outward — stylistic preference across all tasks using the specialist |
+| **Domain-cognitive** | Agents (user-created) + platform bots | Domain-level (one Agent per domain) | Execute tasks, accumulate domain expertise | Inward — deeper knowledge through accumulated work in their domain |
 
-**Both layers are expressed through the same agent substrate.** TP is an agent (ADR-164) — same DB row, same task ownership, same pipeline. What distinguishes TP from domain agents is its *class* and *domain* (meta-cognitive, orchestration itself) rather than being "not an agent."
+**All three layers are expressed through the same agent substrate.** YARNNN is an agent (ADR-164) — same DB row, same task ownership, same pipeline. What distinguishes YARNNN from Specialists and Agents is its *class* (`meta-cognitive`) and scope (orchestration itself).
 
-TP has two runtime modes that share one identity:
-- **Chat runtime**: user-present conversation via `ThinkingPartnerAgent` class in `api/agents/thinking_partner.py`
+YARNNN has two runtime modes that share one identity:
+- **Chat runtime**: user-present conversation via `YarnnnAgent` class in `api/agents/yarnnn.py` (ADR-189)
 - **Task runtime**: scheduler-triggered back office task execution via `task_pipeline._execute_tp_task()`
 
-Domain agents accumulate domain knowledge TP doesn't have. A mature Slack Bot understands team communication patterns; TP orchestrates based on what agents know. See [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 1.
+Domain agents accumulate domain knowledge YARNNN doesn't have. A mature Slack Bot understands team communication patterns; YARNNN orchestrates based on what agents know. See [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 1.
 
 ### Back Office Tasks (ADR-164)
 
-Back office tasks are tasks owned by TP. They are scaffolded at workspace init as essential tasks alongside the daily-update heartbeat (ADR-161):
+Back office tasks are tasks owned by YARNNN. They are scaffolded at workspace init as essential tasks alongside the daily-update heartbeat (ADR-161):
 
 | Task | Executor | Purpose |
 |---|---|---|
@@ -106,7 +107,7 @@ No hidden flag. No `task_kind` column. Task ownership (agent.role) is the only d
 
 ```
 User intent (chat or UI)
-  → TP decomposes into task definition (from template library or composed novel)
+  → YARNNN decomposes into task definition (from template library or composed novel)
   → ManageTask(action="create", ...) writes TASK.md + tasks DB row
   → next_run_at calculated from schedule
 ```
@@ -138,7 +139,7 @@ execute_task(slug)
   → Save output folder to /tasks/{slug}/outputs/{date}/
   → Deliver to destination (email/Slack/Notion) with delivery channel transform
   → Update agent memory (agent reflection, observations)
-  → TP evaluates task output quality against DELIVERABLE.md (evaluation loop)
+  → YARNNN evaluates task output quality against DELIVERABLE.md (evaluation loop)
   → Advance next_run_at
 ```
 
@@ -153,7 +154,7 @@ For each step in process:
   → Final step = deliverable → deliver
 ```
 
-**Layer 3 — TP Intelligence** (user-driven)
+**Layer 3 — YARNNN Intelligence** (user-driven)
 - Chat mode: responds to user, creates/adjusts tasks
 - Composer heartbeat: periodic workforce assessment
 - The only component that "thinks about" the system
@@ -200,7 +201,7 @@ Agents produce structured markdown with inline data tables and mermaid diagrams.
 
 | Service | Type | What It Does |
 |---------|------|-------------|
-| **yarnnn-api** | Web (FastAPI) | API endpoints, TP chat, OAuth, all user-facing operations |
+| **yarnnn-api** | Web (FastAPI) | API endpoints, YARNNN chat, OAuth, all user-facing operations |
 | **yarnnn-unified-scheduler** | Cron (*/5 min) | Task execution, workspace cleanup, memory extraction, Composer heartbeat |
 | **yarnnn-platform-sync** | Cron (*/5 min) | Platform connection health checks, OAuth token refresh (ADR-153: bulk content sync sunset) |
 | **yarnnn-mcp-server** | Web (FastAPI) | MCP protocol for Claude Desktop/Code access |
@@ -233,7 +234,7 @@ Four layers of perception feed agent execution (FOUNDATIONS Axiom 2):
 1. **External** — Agents call platform APIs (Slack, Notion, GitHub) live during task execution. Signals flow into `/workspace/context/` domains. Platform connections provide auth infrastructure; there is no intermediate staging table (ADR-153).
 2. **User-contributed** — Uploaded documents in `/workspace/uploads/`. Permanent reference material.
 3. **Internal** — Prior task outputs in `/tasks/{slug}/outputs/` + accumulated context in `/workspace/context/`. Each run's output feeds the next run's context.
-4. **Reflexive** — User feedback (edits, approvals), TP observations (`/workspace/notes.md`, `/workspace/style.md`).
+4. **Reflexive** — User feedback (edits, approvals), YARNNN observations (`/workspace/notes.md`, `/workspace/style.md`).
 
 The recursive property: external data → agent output → next cycle's context → better output. Accumulated attention compounds.
 
@@ -243,13 +244,13 @@ Inference is the upstream lever for everything downstream — bad inference at I
 
 - **Measurable**: `api/eval/run_inference_eval.py` runs a fixture set (10 fixtures) through `infer_shared_context()` and scores entity recall, section completeness, anti-fabrication, length, and richness. Run before any prompt change to detect regressions. See [inference-evaluation.md](inference-evaluation.md).
 
-- **Iterative**: After every successful inference, `detect_inference_gaps()` (pure-Python, zero LLM cost) examines the output for missing-but-load-bearing fields. The structured gap report is returned to TP, which issues at most one targeted Clarify per inference cycle when the most important gap is high-severity. Deterministic by design — no shadow LLM judgment, preserves single-intelligence-layer (ADR-156).
+- **Iterative**: After every successful inference, `detect_inference_gaps()` (pure-Python, zero LLM cost) examines the output for missing-but-load-bearing fields. The structured gap report is returned to YARNNN, which issues at most one targeted Clarify per inference cycle when the most important gap is high-severity. Deterministic by design — no shadow LLM judgment, preserves single-intelligence-layer (ADR-156).
 
-- **Proactive on uploads**: `working_memory.py` surfaces documents uploaded in the last 7 days as a "Recent uploads" entry in TP's compact index. TP sees this on every chat turn and proactively offers to process the upload via `UpdateContext`, with user consent. Filesystem-as-notification — no separate notification table.
+- **Proactive on uploads**: `working_memory.py` surfaces documents uploaded in the last 7 days as a "Recent uploads" entry in YARNNN's compact index. YARNNN sees this on every chat turn and proactively offers to process the upload via `UpdateContext`, with user consent. Filesystem-as-notification — no separate notification table.
 
 - **Traceable**: Every inference output ends with a `<!-- inference-meta: {...} -->` HTML comment recording target, timestamp, and source provenance (chat text, document filenames, URLs). Frontend can parse this to show "Last updated from: 2 documents + 1 URL · 2h ago" captions on the Identity/Brand surfaces.
 
-These four pieces compound: measurement validates that gap detection is helping; gap detection makes thin inference recoverable; upload surfacing puts the richest source material in front of TP automatically; traceability lets users see and trust the result.
+These four pieces compound: measurement validates that gap detection is helping; gap detection makes thin inference recoverable; upload surfacing puts the richest source material in front of YARNNN automatically; traceability lets users see and trust the result.
 
 ---
 
@@ -259,7 +260,7 @@ Four top-level destinations, each answering one question:
 
 | Surface | Route | Question | Contents |
 |---|---|---|---|
-| **Chat** | `/chat` (HOME) | "What should I do? What's happening?" | TP chat + daily briefing dashboard fed by the `daily-update` task |
+| **Chat** | `/chat` (HOME) | "What should I do? What's happening?" | YARNNN chat + daily briefing dashboard fed by the `daily-update` task |
 | **Work** | `/work` | "What is my workforce doing?" | Task list sorted by upcoming + task detail with output, actions, schedule |
 | **Agents** | `/agents` | "Who's on my team?" | Agent roster + identity/health card |
 | **Context** | `/context` | "What does my workspace know?" | Workspace filesystem browser |
@@ -278,8 +279,8 @@ Full design doc: [SURFACE-ARCHITECTURE.md](../design/SURFACE-ARCHITECTURE.md) (v
 
 Three distinct mechanisms drive agent development:
 
-- **Feedback** — User corrections (edits, comments) routed by TP to the appropriate scope: workspace-level (`/workspace/style.md`), agent-level (`/agents/{slug}/memory/`), or task-level (`/tasks/{slug}/feedback.md`).
-- **Evaluation** — TP judges task output quality against the DELIVERABLE.md specification. Produces steering directives (`/tasks/{slug}/steering.md`) that guide the next execution cycle.
+- **Feedback** — User corrections (edits, comments) routed by YARNNN to the appropriate scope: workspace-level (`/workspace/style.md`), agent-level (`/agents/{slug}/memory/`), or task-level (`/tasks/{slug}/feedback.md`).
+- **Evaluation** — YARNNN judges task output quality against the DELIVERABLE.md specification. Produces steering directives (`/tasks/{slug}/steering.md`) that guide the next execution cycle.
 - **Reflection** — Agent self-assesses fitness and confidence post-run, written to `/agents/{slug}/memory/reflections.md`. Formerly "contributor assessment." Gives the agent a developmental voice independent of external judgment.
 
 ---
@@ -320,7 +321,7 @@ Revenue as first-class perception. Proposed. Three-tier metrics hierarchy:
 | **Task** (exists) | Run history, output quality, deliverable adherence | `/tasks/{slug}/` |
 | **Agent** (exists) | Approval rate, confidence, memory depth | `/agents/{slug}/memory/` |
 
-Product health surfaces through existing patterns: daily update enrichment (business snapshot alongside agent activity), TP working memory (compact index gains `## Product Health` section), feedback loop closure (product metrics as quality signal). No new surfaces — revenue is context, not a dashboard. See [ADR-184](../adr/ADR-184-product-health-metrics.md).
+Product health surfaces through existing patterns: daily update enrichment (business snapshot alongside agent activity), YARNNN working memory (compact index gains `## Product Health` section), feedback loop closure (product metrics as quality signal). No new surfaces — revenue is context, not a dashboard. See [ADR-184](../adr/ADR-184-product-health-metrics.md).
 
 ---
 
@@ -328,13 +329,13 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 
 | Concern | File |
 |---------|------|
-| TP (orchestrator) | `api/agents/thinking_partner.py` |
+| YARNNN (orchestrator) | `api/agents/yarnnn.py` |
 | Task execution | `api/services/task_pipeline.py` |
 | Agent types & capabilities | `api/services/agent_framework.py` |
 | Task type registry | `api/services/task_types.py` |
 | Primitive registry | `api/services/primitives/registry.py` |
 | Workspace abstraction | `api/services/workspace.py` |
-| Working memory (TP context) | `api/services/working_memory.py` |
+| Working memory (YARNNN context) | `api/services/working_memory.py` |
 | Delivery | `api/services/delivery.py` |
 | Scheduler | `api/jobs/unified_scheduler.py` |
 | Platform sync | `api/jobs/platform_sync_scheduler.py` |
@@ -370,4 +371,4 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | 2026-03-29 | v1 — Initial creation. Consolidates service topology from CLAUDE.md, execution model from agent-execution-model.md, entity model from FOUNDATIONS.md/ADR-138/ADR-140, primitives from registry.py. Establishes single canonical service description. |
 | 2026-03-31 | v1.1 — ADR-153 platform_content sunset. Perception model updated: agents call platform APIs live, no intermediate staging. /platforms/ removed from entity model. Platform sync cron role updated. |
 | 2026-04-15 | v1.2 — Revenue Model section rewritten for ADR-171/172 (balance model, tiers dissolved). Added "Two Commerce Surfaces" section covering platform billing vs. content commerce (ADR-183) and product health metrics (ADR-184). Composer reference removed (deleted by ADR-156). Deep-dive references updated. |
-| 2026-04-17 | v1.3 — Domain-agnostic framework (ADR-188). Agent roster: "Pre-scaffolded roster" → "Universal roles, contextual application." Task types: "pre-meditated definitions" → "curated template library." Workspace: context domains described as extensible. Execution flow: task creation can be from template or TP-composed. |
+| 2026-04-17 | v1.3 — Domain-agnostic framework (ADR-188). Agent roster: "Pre-scaffolded roster" → "Universal roles, contextual application." Task types: "pre-meditated definitions" → "curated template library." Workspace: context domains described as extensible. Execution flow: task creation can be from template or YARNNN-composed. |

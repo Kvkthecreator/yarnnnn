@@ -1,12 +1,12 @@
 """
-Context Awareness Prompt — ADR-144 + ADR-156: Graduated TP awareness of workspace state.
+Context Awareness Prompt — ADR-144 + ADR-156: Graduated YARNNN awareness of workspace state.
 
-TP sees a unified `workspace_state` signal in working memory — identity/brand gaps,
+YARNNN sees a unified `workspace_state` signal in working memory — identity/brand gaps,
 task health, budget, agent health, all in one section. This prompt provides
 behavioral guidance for how to act on those signals.
 
-ADR-156: Memory and session continuity are now TP responsibilities (in-session),
-not nightly cron jobs. TP writes facts via UpdateContext(target="memory") and
+ADR-156: Memory and session continuity are now YARNNN responsibilities (in-session),
+not nightly cron jobs. YARNNN writes facts via UpdateContext(target="memory") and
 shift notes via UpdateContext(target="awareness").
 
 Always injected into the system prompt — not gated by any onboarding flag.

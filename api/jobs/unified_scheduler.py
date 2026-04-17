@@ -16,15 +16,16 @@ Both run through execute_task() via the TP dispatch branch in task_pipeline.py
 (_execute_tp_task). The scheduler has no knowledge of what any particular task
 does — it just dispatches execute_task() for everything that's due.
 
-Layer 2 (task_pipeline.py — Sonnet per user task; zero LLM for TP tasks):
+Layer 2 (task_pipeline.py — Sonnet per user task; zero LLM for YARNNN tasks):
 - TASK.md → resolve agent → dispatch
 - If agent.role == 'thinking_partner': _execute_tp_task() → run declared executor
+  (DB slug `thinking_partner` retained per ADR-189 glossary exception.)
 - Else: standard Sonnet generation path
 - All paths: save output, update last_run_at, calculate next_run_at
 
-Layer 3 (thinking_partner.py — user-present only):
-- Chat mode with primitives. TP is the single intelligence layer (ADR-156).
-- Memory: TP writes facts in-session via UpdateContext(target="memory")
+Layer 3 (yarnnn.py — user-present only):
+- Chat mode with primitives. YARNNN is the single intelligence layer (ADR-156, ADR-189).
+- Memory: YARNNN writes facts in-session via UpdateContext(target="memory")
 - Session continuity: inline summary at session close (chat.py) + AWARENESS.md
 
 Run every 5 minutes via Render cron:

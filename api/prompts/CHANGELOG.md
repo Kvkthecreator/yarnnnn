@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.3] - ADR-189 Phase 3: YARNNN rename pass (prompts + code)
+
+### Changed
+- `api/agents/thinking_partner.py` → `api/agents/yarnnn.py` (git mv). Class `ThinkingPartnerAgent` → `YarnnnAgent`. Import sites updated: `api/routes/chat.py`, `api/agents/{__init__,base,chat_agent}.py`, `api/services/agent_framework.py` (comment), `api/jobs/unified_scheduler.py` (module docstring), `api/test_structural_overhaul.py` (test imports).
+- `api/agents/tp_prompts/` → `api/agents/yarnnn_prompts/` (git mv). All 10 prompt modules renamed in place.
+- `api/agents/yarnnn_prompts/base.py`: SIMPLE_PROMPT and BASE_PROMPT rewritten. "You are the user's Thinking Partner" → "You are YARNNN — the user's super-agent." New Terminology section ratifies ADR-189 glossary (three-layer cognition): YARNNN (super-agent), Agent (user-created, domain-scoped), Specialist (role palette), Platform Bot. Explicit verb discipline: **create** an Agent (user action), **draft** a Team (YARNNN action). "Hire" banned.
+- `api/agents/yarnnn_prompts/{__init__,onboarding,behaviors,entity,workspace,task_scope,tools,tools_core}.py`: `TP` → `YARNNN` throughout prompt text and comments. `Thinking Partner` references removed except one self-retirement note in base.py.
+- `api/routes/chat.py`: log prefixes `[TP]`, `[TP-STREAM]`, `[TP:PROFILE]`, `[TP-COMPACT]` → `[YARNNN]`, `[YARNNN-STREAM]`, `[YARNNN:PROFILE]`, `[YARNNN-COMPACT]`. User-facing comment "All messages route to TP" → "to YARNNN".
+- `docs/architecture/TP-DESIGN-PRINCIPLES.md` → `docs/architecture/YARNNN-DESIGN-PRINCIPLES.md` (git mv). All internal TP references renamed.
+- `docs/architecture/{SERVICE-MODEL,execution-loop,primitives-matrix}.md`: `TP` → `YARNNN`; `ThinkingPartnerAgent` → `YarnnnAgent`; `thinking_partner.py` → `yarnnn.py`; `tp_prompts` → `yarnnn_prompts`. SERVICE-MODEL.md "Two Layers of Intelligence" section restructured to "Three Layers of Cognition" (YARNNN / Specialist / Agent) per ADR-189.
+
+### Preserved (glossary exceptions)
+- `agents.role = 'thinking_partner'` DB constraint value — migration cost exceeds reader benefit; never surfaced.
+- `agents.title = 'Thinking Partner'` DB value (in AGENT_TEMPLATES + existing workspace rows) — deferred to ADR-189 Phase 2 where it lands with the clean-slate workspace migration and workspace-path migration (`/agents/thinking-partner/` → `/agents/yarnnn/`).
+- Frontend `web/lib/agent-identity.ts` displayName — deferred to Phase 2 to land atomically with DB title migration.
+- Historical ADRs + archived docs — per glossary rule 2, ADRs are dated records, not rewritten.
+
+### Expected behavior
+- YARNNN refers to itself as "YARNNN" in chat, not as "TP" or "Thinking Partner."
+- Prompts teach the three-layer model (YARNNN / Specialist / Agent) with explicit verb discipline (create Agent, draft Team).
+- `agents.role == 'thinking_partner'` still routes through `_execute_tp_task()` unchanged — DB-level behavior identical.
+- `YarnnnAgent` is the import path for the conversational super-agent class.
+
+---
+
 ## [2026.04.17.2] - ADR-188: Pipeline reads TASK.md and _domain.md before registry
 
 ### Changed

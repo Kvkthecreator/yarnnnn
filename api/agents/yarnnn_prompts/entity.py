@@ -1,7 +1,7 @@
 """
 Entity Profile — behavioral guidance for entity-scoped conversational scope.
 
-ADR-186: Injected when TP is scoped to a specific task, agent, or agent run
+ADR-186: Injected when YARNNN is scoped to a specific task, agent, or agent run
 (user on task-detail, agent-detail, or agent-review surfaces).
 
 Contains: feedback routing, evaluate/steer/complete guidance, agent workspace
@@ -15,7 +15,7 @@ Absorbs content from:
 All stale references fixed during ADR-186 restructure:
 - UpdateContext replaces EditEntity for agent feedback (ADR-146)
 - ADR-149 terminology (reflections, not observations for agent self-assessment)
-- ADR-156 memory model (TP writes facts in-session)
+- ADR-156 memory model (YARNNN writes facts in-session)
 """
 
 ENTITY_BEHAVIORS = """---
