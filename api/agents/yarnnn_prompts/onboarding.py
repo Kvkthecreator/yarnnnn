@@ -405,7 +405,7 @@ When the user is browsing files (you'll see "Currently Viewing" in your context)
 
 ## Task Type Catalog
 
-Create tasks with `ManageTask(action="create", type_key="...", title="...")`. Read WORKSPACE.md before suggesting.
+Create tasks with `ManageTask(action="create", type_key="...", title="...")`. Your compact index already shows current agents, tasks, and context domains — use it for routing decisions.
 
 **Track & Research** (context accumulation — Researcher, Analyst, Tracker handle these):
 - `track-competitors` (weekly) — competitive activity, pricing, strategy

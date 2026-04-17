@@ -790,28 +790,14 @@ DEFAULT_IDENTITY_MD = """\
 
 DEFAULT_BRAND_MD = """\
 # Brand
-
-## Tone & Voice
-- **Tone:** Professional, clear, direct
-- **Voice:** Confident but not aggressive. Data-driven. Concise.
-
-## Visual Style
-- **Primary color:** #000000 (black)
-- **Secondary color:** #ffffff (white)
-- **Accent color:** #666666 (gray)
-- **Typography:** Clean sans-serif (system default)
-- **Charts:** Black/gray palette. Minimal gridlines. Clear axis labels. No decorative elements.
-- **Diagrams:** Monochrome. Solid lines. Clear labels.
-
-## Output Defaults
-- Clean, minimal formatting — content over decoration
-- White background, high contrast text
-- Generous whitespace, scannable structure
-- No placeholder images or decorative visuals
-
-(Update this file to match your brand — colors, logo, typography, tone of voice. \
-Your agents read this on every run.)
+<!-- Brand not yet provided. -->
 """
+# Rationale (ADR-190): Prior default populated BRAND.md with opinionated
+# defaults (monochrome palette, "confident but not aggressive" tone) before
+# YARNNN had any signal about the user. Under the authored-team model, brand
+# emerges from inference on rich user input (uploaded docs, URLs, descriptions),
+# not from a pre-committed template. The skeleton matches IDENTITY.md: empty
+# until populated by `infer_first_act` or `infer_shared_context(target="brand")`.
 
 DEFAULT_AWARENESS_MD = """\
 # Awareness

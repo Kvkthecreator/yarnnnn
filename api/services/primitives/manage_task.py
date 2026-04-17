@@ -986,9 +986,8 @@ async def _handle_create(auth: Any, input: dict) -> dict:
     5. Write TASK.md via TaskWorkspace
     6. Scaffold DELIVERABLE.md (ADR-149) + feedback.md (ADR-181) + memory/steering.md + awareness.md
     7. Scaffold context domains for task's context_writes (ADR-151)
-    8. Update WORKSPACE.md manifest
-    9. Trigger immediate first run if warranted (bootstrap tasks or goal mode)
-    10. Return success with task slug + process narration
+    8. Trigger immediate first run if warranted (bootstrap tasks or goal mode)
+    9. Return success with task slug + process narration
 
     Run-on-creation logic (step 9):
     - Bootstrap tasks (accumulates_context with context domains to seed) run immediately
@@ -1309,13 +1308,7 @@ async def _handle_create(auth: Any, input: dict) -> dict:
 
     # ADR-154: memory/tasks.json dissolved — task assignments tracked via TASK.md, not agent memory
     # ADR-164: task_created activity_log write removed. tasks table + TASK.md ARE the record.
-
-    # Update WORKSPACE.md manifest (living manifest — ADR-152)
-    try:
-        from services.workspace_init import update_workspace_manifest
-        await update_workspace_manifest(auth.client, user_id)
-    except Exception:
-        pass  # Non-fatal
+    # ADR-190: WORKSPACE.md manifest deleted. Current state comes from DB via compact index.
 
     # Build process narration for TP to explain the workflow
     process_narration = None

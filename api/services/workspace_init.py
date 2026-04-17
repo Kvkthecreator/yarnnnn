@@ -1,20 +1,29 @@
 """
-Workspace Initialization — ADR-152: Full Workspace Bootstrap
+Workspace Initialization — ADR-152 + ADR-189 + ADR-190: Workspace Bootstrap
 
-Sets up a complete workspace from the three registries. Called once at signup.
+Sets up a workspace from the three registries. Called once at signup.
 After initialization, the workspace is self-contained — registries are templates
 that were applied, the workspace filesystem is the sole source of truth.
 
-Like provisioning a new employee's computer:
-  1. Install the OS → directory structure from WORKSPACE_DIRECTORIES
-  2. Set up the tools → agents from AGENT_TYPES + DEFAULT_ROSTER
-  3. Configure defaults → IDENTITY.md, BRAND.md, playbook, preferences
-  4. Create the manifest → WORKSPACE.md snapshot of what was initialized
+Phases:
+  1. Directory structure (from WORKSPACE_DIRECTORIES)
+  2. Agent roster (from AGENT_TYPES + DEFAULT_ROSTER) — infrastructure rows
+     (YARNNN, Specialists, Platform Bots); user-authored Agents filter by
+     origin='system_bootstrap' per ADR-189
+  3. Workspace files (IDENTITY.md, BRAND.md, AWARENESS.md, CONVENTIONS.md as
+     empty/minimal skeletons — ADR-190 strips pre-committed filler)
+  4. Essential tasks (daily-update heartbeat + back office tasks)
+  5. Signup balance audit trail (ADR-172)
 
-After init, TP and agents evolve the workspace independently.
-The registries are NEVER consulted at runtime — only at creation time.
+ADR-190 deletions:
+  - WORKSPACE.md manifest (was vestigial post-ADR-159 compact index)
+  - DEFAULT_BRAND_MD filler (BRAND.md now empty skeleton; inference populates)
+  - update_workspace_manifest() helper (no longer called from ManageTask etc.)
 
-Version: 1.0 (2026-03-31)
+After init, YARNNN and agents evolve the workspace. The registries are
+NEVER consulted at runtime — only at creation time.
+
+Version: 2.0 (2026-04-17, ADR-190)
 """
 
 import logging
@@ -47,11 +56,13 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         "already_initialized": False,
     }
 
-    # Check if already initialized
+    # Check if already initialized. ADR-190: WORKSPACE.md manifest deleted;
+    # idempotency now gated on IDENTITY.md presence (always scaffolded at
+    # Phase 3). Per-phase idempotency guards the rest.
     from services.workspace import UserMemory
     um = UserMemory(client, user_id)
-    existing_manifest = await um.read("WORKSPACE.md")
-    if existing_manifest:
+    existing_identity = await um.read("IDENTITY.md")
+    if existing_identity:
         result["already_initialized"] = True
         # Still run idempotent steps in case of partial init
         logger.info(f"[WORKSPACE_INIT] Workspace already initialized for {user_id[:8]}")
@@ -140,17 +151,12 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         logger.warning(f"[WORKSPACE_INIT] Workspace files failed: {e}")
 
     # =========================================================================
-    # Phase 4: Workspace Manifest (WORKSPACE.md — initialization snapshot)
+    # Phase 4 (was WORKSPACE.md manifest) DELETED per ADR-190. The manifest
+    # was vestigial — ADR-159 compact index replaced it as the session-start
+    # meta-awareness source. YARNNN queries DB for current state via working
+    # memory; no static file needed. Phase numbering below preserved as 5/6
+    # for commit diff readability.
     # =========================================================================
-    if not existing_manifest:
-        try:
-            now = datetime.now(timezone.utc)
-            manifest = _build_workspace_manifest(result, now)
-            await um.write("WORKSPACE.md", manifest, summary="Workspace initialization manifest")
-            result["workspace_files_seeded"].append("WORKSPACE.md")
-            logger.info(f"[WORKSPACE_INIT] Manifest written for {user_id[:8]}")
-        except Exception as e:
-            logger.warning(f"[WORKSPACE_INIT] Manifest write failed: {e}")
 
     # =========================================================================
     # Phase 5: Default Tasks — the heartbeat anchor (ADR-161)
@@ -394,160 +400,8 @@ async def _create_essential_back_office_task(
         await tw.write("DELIVERABLE.md", deliverable_md, summary=f"Quality contract: {title}")
 
 
-async def update_workspace_manifest(client: Any, user_id: str) -> bool:
-    """Update WORKSPACE.md with current workspace state.
-
-    Called after agent/domain/task creation to keep manifest current.
-    TP reads WORKSPACE.md at session start for meta-awareness.
-
-    Returns True on success.
-    """
-    from services.workspace import UserMemory
-
-    um = UserMemory(client, user_id)
-    now = datetime.now(timezone.utc)
-
-    try:
-        # Query actual workspace state (not registry defaults)
-        agents_result = (
-            client.table("agents")
-            .select("title, role, status, slug")
-            .eq("user_id", user_id)
-            .neq("status", "archived")
-            .order("created_at")
-            .execute()
-        )
-        agents = agents_result.data or []
-
-        tasks_result = (
-            client.table("tasks")
-            .select("slug, mode, status, schedule")
-            .eq("user_id", user_id)
-            .neq("status", "archived")
-            .order("created_at")
-            .execute()
-        )
-        tasks = tasks_result.data or []
-
-        # Build agent table with domain assignments
-        from services.agent_framework import get_agent_domain
-        agent_lines = []
-        for a in agents:
-            domain = get_agent_domain(a.get("role", ""))
-            domain_str = f"`{domain}/`" if domain else "(cross-domain)" if a.get("role") == "executive" else "(platform)"
-            agent_lines.append(f"| {a['title']} | {a.get('role', '?')} | {domain_str} | {a['status']} |")
-
-        # Build task table
-        task_lines = []
-        for t in tasks:
-            task_lines.append(f"| {t['slug']} | {t.get('mode', '?')} | {t.get('schedule', 'on-demand')} | {t['status']} |")
-
-        # Count context domain files
-        from services.directory_registry import CONTEXT_DOMAINS, get_directory_path
-        domain_lines = []
-        for domain_key in CONTEXT_DOMAINS:
-            path = get_directory_path(domain_key)
-            if path:
-                prefix = f"/workspace/{path}/"
-                try:
-                    count_result = (
-                        client.table("workspace_files")
-                        .select("id", count="exact")
-                        .eq("user_id", user_id)
-                        .like("path", f"{prefix}%")
-                        .execute()
-                    )
-                    file_count = count_result.count or 0
-                except Exception:
-                    file_count = 0
-                domain_lines.append(f"| {domain_key} | {file_count} files |")
-
-        manifest = f"""# Workspace
-
-Last updated: {now.strftime('%Y-%m-%d %H:%M UTC')}
-
-## Agents ({len(agents)})
-
-| Agent | Role | Domain | Status |
-|---|---|---|---|
-{chr(10).join(agent_lines) if agent_lines else "| (none) | | | |"}
-
-## Tasks ({len(tasks)})
-
-| Task | Mode | Schedule | Status |
-|---|---|---|---|
-{chr(10).join(task_lines) if task_lines else "| (none) | | | |"}
-
-## Context Domains
-
-| Domain | Content |
-|---|---|
-{chr(10).join(domain_lines) if domain_lines else "| (none) | |"}
-
----
-*This manifest reflects current workspace state. Updated on agent/domain/task creation.*
-"""
-
-        await um.write("WORKSPACE.md", manifest, summary="Workspace manifest updated")
-        return True
-
-    except Exception as e:
-        logger.warning(f"[WORKSPACE_INIT] Manifest update failed: {e}")
-        return False
-
-
-def _build_workspace_manifest(init_result: dict, timestamp: datetime) -> str:
-    """Build initial WORKSPACE.md at workspace creation time."""
-    from services.directory_registry import WORKSPACE_DIRECTORIES
-    from services.agent_framework import DEFAULT_ROSTER, get_agent_domain
-
-    agent_lines = []
-    for a in DEFAULT_ROSTER:
-        domain = get_agent_domain(a['role'])
-        domain_str = f"`{domain}/`" if domain else "(cross-domain)" if a['role'] == 'executive' else "(platform)"
-        agent_lines.append(f"| {a['title']} | {a['role']} | {domain_str} | active |")
-
-    context_domains = [
-        f"| {k} | 0 files |"
-        for k, v in WORKSPACE_DIRECTORIES.items()
-        if v.get("type") == "context"
-    ]
-
-    return f"""# Workspace
-
-Initialized: {timestamp.strftime('%Y-%m-%d %H:%M UTC')}
-
-## Agents ({len(DEFAULT_ROSTER)})
-
-| Agent | Role | Domain | Status |
-|---|---|---|---|
-{chr(10).join(agent_lines)}
-
-## Tasks (0)
-
-| Task | Mode | Schedule | Status |
-|---|---|---|---|
-| (none — create tasks to begin) | | | |
-
-## Context Domains
-{chr(10).join(context_domains)}
-
-## How This Workspace Works
-
-**Registries are templates.** The agent types, task types, and directory structure
-were initialized from system registries at setup. After initialization, this
-workspace is self-contained — TP and agents evolve it independently.
-
-**Context accumulates.** Tasks read from and write to /workspace/context/ domains.
-Each execution cycle deepens the accumulated intelligence. Context compounds
-across all tasks that touch the same domain.
-
-**Outputs are derived.** Reports, briefs, and content are produced by synthesizing
-accumulated context. They live in /workspace/outputs/ and are cross-task referenceable.
-
-**TP manages.** TP creates tasks, evaluates outputs, steers next cycles, routes
-feedback, and evolves the workspace structure over time.
-
----
-*This manifest is a reference snapshot. The workspace filesystem is the source of truth.*
-"""
+# ADR-190: `update_workspace_manifest()` and `_build_workspace_manifest()`
+# DELETED. The WORKSPACE.md manifest they wrote was vestigial — ADR-159
+# compact index replaced it as the session-start meta-awareness source.
+# YARNNN queries current workspace state from the DB via `build_working_memory`
+# (agents, tasks, context domains); no static manifest file needed.

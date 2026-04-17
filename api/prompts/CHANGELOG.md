@@ -6,6 +6,34 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.8] - ADR-190 commit 5: workspace init cleanup (BRAND skeleton + WORKSPACE.md deletion)
+
+### Changed
+- `api/services/agent_framework.py`: `DEFAULT_BRAND_MD` stripped from 22-line pre-committed template (monochrome palette `#000000`/`#ffffff`/`#666666`, "Confident but not aggressive" tone descriptors, visual style defaults) to 2-line skeleton matching `DEFAULT_IDENTITY_MD`. Rationale appended as comment. Inference populates BRAND.md from user input — no pre-opinion.
+- `api/services/workspace_init.py`: Phase 4 (WORKSPACE.md manifest write) deleted. Idempotency gate swapped from `existing_manifest = um.read("WORKSPACE.md")` → `existing_identity = um.read("IDENTITY.md")`. `update_workspace_manifest()` and `_build_workspace_manifest()` helper functions deleted. Module docstring updated to reflect ADR-190 deletions (version bumped to 2.0).
+- `api/services/primitives/manage_task.py`: `update_workspace_manifest()` call removed from task-creation post-write flow. Docstring step numbering updated (was 10 steps, now 9).
+- `api/agents/yarnnn_prompts/onboarding.py`: "Read WORKSPACE.md before suggesting" → "Your compact index already shows current agents, tasks, and context domains — use it for routing decisions."
+- `api/agents/yarnnn_prompts/behaviors.py`: same replacement pattern for the WORKSPACE.md reference in the platform-context guidance.
+
+### Rationale
+WORKSPACE.md was a static manifest written at init and updated on every task creation. ADR-159 (Filesystem-as-Memory compact index) replaced it as the session-start meta-awareness source — YARNNN now queries agents, tasks, and domains from the DB via `build_working_memory()`. The file persisted as vestigial infrastructure, and its contents under ADR-189 Phase 2 (origin filter) would have misrepresented user-authored state (showed 9 agents to YARNNN when the user had authored 0). Deletion is cleaner than rewriting.
+
+BRAND.md filler was pre-committing user brand to monochrome palette + "confident but not aggressive" tone before YARNNN had any signal. Under the authored-team model, brand must emerge from user input, not from a template. Skeleton matches IDENTITY.md discipline.
+
+### Expected behavior
+- New workspace signup: IDENTITY.md, BRAND.md, AWARENESS.md, CONVENTIONS.md, _playbook.md, style.md, notes.md scaffolded (4 skeletons + 3 structural). No WORKSPACE.md created.
+- Existing workspaces: still have WORKSPACE.md from prior init; orphaned but inert. It won't be updated (update_workspace_manifest deleted); eventually self-prunes via workspace cleanup back-office task. No auto-deletion in this commit — harmless stale file.
+- YARNNN reads agents/tasks/domains from working memory compact index (ADR-159), not from a file.
+- Task creation no longer does a post-write manifest update — faster, fewer writes per task create.
+
+### Preserved
+- IDENTITY.md skeleton (already 2-line)
+- AWARENESS.md skeleton (honest placeholder text — "New workspace — no prior sessions yet" — acceptable)
+- CONVENTIONS.md structural rules (ADR-174 — agents depend on these)
+- _playbook.md, style.md, notes.md — unchanged
+
+---
+
 ## [2026.04.17.7] - ADR-190 commit 4: workspace scaffold orchestrator + prompt guidance
 
 ### Changed
