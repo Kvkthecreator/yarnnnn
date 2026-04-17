@@ -1,6 +1,6 @@
 # ADR-193: ProposeAction Primitive + Approval Loop
 
-> **Status**: Proposed
+> **Status**: Implemented (2026-04-17, five phases all on main)
 > **Date**: 2026-04-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-168 (Primitive Matrix), ADR-189 (Three-Layer Cognition), ADR-191 (Polymath Operator ICP), ADR-192 (Write Primitive Coverage Expansion)

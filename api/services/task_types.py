@@ -1840,6 +1840,48 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             ],
         },
     },
+
+    "back-office-proposal-cleanup": {
+        "display_name": "Proposal Cleanup",
+        "description": "Sweeps action_proposals past expires_at and marks them expired. Prevents stale pending proposals from accumulating. ADR-193 Phase 5.",
+        "output_kind": "system_maintenance",
+        "default_delivery": "none",
+        "registry_default_team": [],
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "markdown",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "thinking_partner",
+                "step": "back-office",
+                "instruction": (
+                    "Back office maintenance: mark pending proposals past their TTL "
+                    "as expired. Deterministic SQL update, zero LLM cost. "
+                    "executor: services.back_office.proposal_cleanup"
+                ),
+            },
+        ],
+        "context_reads": [],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Proposal cleanup report",
+            "audience": "User (for transparency) and the system itself",
+            "purpose": "Expire stale pending proposals so the inbox stays clean and TTL semantics hold",
+            "format": "Markdown report with count of expired proposals",
+        },
+        "default_deliverable": {
+            "output": {"format": "markdown", "word_count": "n/a", "layout": ["Summary", "Results"]},
+            "assets": [],
+            "quality_criteria": [
+                "Per-run expired count reported",
+                "Errors logged explicitly",
+                "Only pending proposals past expires_at are touched",
+            ],
+        },
+    },
 }
 
 

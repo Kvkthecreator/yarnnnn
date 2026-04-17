@@ -6,6 +6,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.21] - ADR-193 Phase 5: back-office-proposal-cleanup task (CLOSES ADR-193)
+
+### Added
+- `api/services/back_office/proposal_cleanup.py` (NEW) — YARNNN-owned back office task. Sweeps `action_proposals` rows with `status='pending'` AND `expires_at < now()`, marks them `status='expired'`. Zero LLM cost. Scopes by user_id (per-user execution via task pipeline). Outputs markdown report with expired count.
+- `api/services/task_types.py` — new task type `back-office-proposal-cleanup`:
+  - output_kind: system_maintenance, mode: recurring, schedule: daily, delivery: none
+  - Process step declares `executor: services.back_office.proposal_cleanup`
+  - Team: empty (zero-LLM executor pattern per ADR-164)
+- `api/services/workspace_init.py` — Phase 5 scaffolds the new essential task at signup alongside agent-hygiene + workspace-cleanup.
+
+### Expected behavior
+- Every new workspace signup gets 3 back-office tasks scaffolded (up from 2). Each runs daily, owned by YARNNN, essential (can't archive).
+- Proposals past TTL no longer linger as "pending" — cleaned up within 24h of expiration. This keeps the `/proposals?status=pending` surface truthful; the LLM's context doesn't include stale "awaiting approval" items that are actually dead.
+- 2 existing test workspaces not auto-backfilled (zero proposals → nothing to clean); they'll pick up the task on next workspace reinitialization.
+
+### ADR-193 completion
+Five phases shipped over the day on main:
+- Phase 1 [2026.04.17.17] — action_proposals table + 3 primitives + registry wiring
+- Phase 2 [2026.04.17.18] — ProposalCard inline UI + /api/proposals routes
+- Phase 3 [2026.04.17.19] — risk-gate autonomous rejection → auto-proposal
+- Phase 4 [2026.04.17.20] — YARNNN prompt decision tree (propose-vs-execute)
+- Phase 5 [2026.04.17.21] (this entry) — back-office TTL expiration sweep
+
+Net new: 3 primitives + 1 DB table + 4 API endpoints + 1 frontend component + 1 back-office task + prompt guidance. ADR-193 status flipped: Proposed → Implemented.
+
+### What's NEXT
+- **ADR-194**: Surface archetypes (document / dashboard / operational pane). The operational pane becomes the dedicated surface for many pending proposals (vs. today's inline chat card). Also hosts dashboard views over context domains and persisted action cards.
+- **ADR-195**: TP autonomous decision loop. Signal-driven proposal generation. Uses ADR-193's ProposeAction. Uses ADR-192's risk gate. Builds on top of everything shipped today.
+
+### Impact per ADR-191 matrix gate
+- E-commerce: Helps (TTL hygiene keeps approval UX clean)
+- Day trader: Helps (irreversible trading proposals auto-expire in 1h, preventing stale approvals)
+- AI influencer (scheduled): Forward-helps
+- International trader (scheduled): Forward-helps
+No verticalization.
+
+---
+
 ## [2026.04.17.20] - ADR-193 Phase 4: YARNNN prompt guidance (propose-vs-execute decision tree)
 
 ### Changed

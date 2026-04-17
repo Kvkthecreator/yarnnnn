@@ -202,6 +202,8 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
     for type_key, slug, title in [
         ("back-office-agent-hygiene", "back-office-agent-hygiene", "Agent Hygiene"),
         ("back-office-workspace-cleanup", "back-office-workspace-cleanup", "Workspace Cleanup"),
+        # ADR-193 Phase 5: sweep expired action_proposals
+        ("back-office-proposal-cleanup", "back-office-proposal-cleanup", "Proposal Cleanup"),
     ]:
         try:
             existing = (
