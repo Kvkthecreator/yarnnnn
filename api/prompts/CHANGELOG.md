@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.4] - ADR-190 commit 1: first-turn welcome + 4 chips + stale-label fixes
+
+### Changed
+- `web/components/chat-surface/ChatEmptyState.tsx` (NEW): deterministic client-side welcome rendered by `ChatPanel` when `messages.length === 0`. Headline "What are you working on?" + subline prompting rich input + 4 chips (Upload a doc / Paste a URL / Track something recurring / Build a recurring report). Zero LLM cost on first load. Chips seed composer text via `draftSeed` pattern.
+- `web/components/chat-surface/ChatSurface.tsx`: wired `ChatEmptyState` into `ChatPanel` via `emptyState` prop + `chipSeed` state for `draftSeed`. Surface title `"Thinking Partner"` → `"YARNNN"` (Phase 4 sweep missed this user-facing string). Placeholder `"Ask anything or type / ..."` → `"Type, drop a file, or paste a link..."` (hints at rich input).
+- `web/components/tp/ChatPanel.tsx`: assistant role label `"Thinking Partner"` → `"YARNNN"` (Phase 4 sweep missed this). Default placeholder updated. Empty-state JSDoc rewritten — /chat surface now uses the slot (previously documented as not using it).
+
+### Expected behavior
+- Brand-new workspace: user lands on `/chat`, sees YARNNN logo + welcome + 4 chips before typing anything. Zero-typing path in: click a chip, composer seeds with starter text.
+- Assistant messages display as "YARNNN" (not "Thinking Partner") in chat stream.
+- Header says "YARNNN" (not "Thinking Partner").
+
+### Preserved
+- `OnboardingModal` auto-trigger on `<!-- onboarding -->` marker (sunsets in ADR-190 commit 2 when rich-composer work dissolves the modal from the onboarding flow entirely).
+- `TaskSetupModal` and `ContextSetup` / `TaskSetup` components (preserved pending deferred decision on non-onboarding reuse).
+
+---
+
 ## [2026.04.17.3] - ADR-189 Phase 3: YARNNN rename pass (prompts + code)
 
 ### Changed

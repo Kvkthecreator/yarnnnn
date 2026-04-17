@@ -1,30 +1,25 @@
 'use client';
 
 /**
- * ChatSurface — TP chat surface with three structured modals (ADR-165 v8).
+ * ChatSurface — YARNNN chat surface (ADR-165 v8, ADR-189, ADR-190).
  *
- *   <SurfaceIdentityHeader                     — the real h1 + actions
- *     title="Thinking Partner"
- *     actions={Overview toggle}
- *   />
- *   <ChatPanel />                              — conversation column
+ *   <SurfaceIdentityHeader title="YARNNN" actions={Overview toggle} />
+ *   <ChatPanel emptyState={<ChatEmptyState onChipClick={seedComposer} />} />
  *
  * Three sibling modals, opened independently:
  *   1. WorkspaceStateView (Overview) — read-only diagnostic dashboard
- *      Opened by: TP `<!-- workspace-state: ... -->` marker or user "Overview" button
+ *      Opened by: YARNNN `<!-- workspace-state: ... -->` marker or user "Overview" button
  *   2. OnboardingModal — first-run identity capture (wraps ContextSetup)
- *      Opened by: TP `<!-- onboarding -->` marker only (no manual trigger)
+ *      Opened by: YARNNN `<!-- onboarding -->` marker only (auto-trigger sunsets in ADR-190 commit 2)
  *   3. TaskSetupModal — structured task creation (wraps TaskSetup)
  *      Opened by: "Start new work" plus-menu action or Heads Up idle-agents flag
  *
- * All modals mutually exclusive. ChatSurface is the state machine that
- * enforces exclusivity and routes markers to the correct modal.
- *
- * ADR-165 v8 (2026-04-09): Onboarding split from workspace state. Overview
- * modal has four read-only tabs (What I know / Heads up / Last time / Team
- * activity). No isEmpty prop, no soft gate. Onboarding is a separate modal
- * with its own marker. Two markers, two parsers, two modals.
+ * ADR-165 v8 (2026-04-09): Onboarding split from workspace state.
  * ADR-178 (2026-04-13): TaskSetup added as third modal.
+ * ADR-189 (2026-04-17): TP → YARNNN user-facing rename.
+ * ADR-190 (2026-04-17): Empty state renders ChatEmptyState — deterministic
+ *   client-side welcome + 4 chips prompting rich-input behaviors. Replaces
+ *   prior silent-canvas empty state. Zero LLM cost on first load.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -42,6 +37,7 @@ import {
 import { WorkspaceStateView } from './WorkspaceStateView';
 import { OnboardingModal } from './OnboardingModal';
 import { TaskSetupModal } from './TaskSetupModal';
+import { ChatEmptyState } from './ChatEmptyState';
 
 interface ChatSurfaceProps {
   agents: Agent[];
@@ -72,6 +68,15 @@ export function ChatSurface({
   // --- Task setup modal state ---
   const [taskSetupOpen, setTaskSetupOpen] = useState(false);
   const [taskSetupInitialNotes, setTaskSetupInitialNotes] = useState('');
+
+  // --- Empty-state chip seed (ADR-190) ---
+  // When a chip is clicked in ChatEmptyState, this seeds the composer input
+  // via ChatPanel's draftSeed prop. Each click gets a unique id so the same
+  // chip can be clicked twice in a row and still re-seed.
+  const [chipSeed, setChipSeed] = useState<{ id: string; text: string } | null>(null);
+  const handleChipClick = useCallback((text: string) => {
+    setChipSeed({ id: `chip-${Date.now()}`, text });
+  }, []);
 
   // Track the last message id we processed for marker directives.
   const [lastProcessedId, setLastProcessedId] = useState<string | null>(null);
@@ -210,7 +215,7 @@ export function ChatSurface({
           size="md"
           bordered={false}
           icon={surfaceLogo}
-          title="Thinking Partner"
+          title="YARNNN"
           actions={overviewAction}
         />
       </div>
@@ -219,9 +224,11 @@ export function ChatSurface({
           <ChatPanel
             surfaceOverride={{ type: 'chat' }}
             plusMenuActions={allPlusMenuActions}
-            placeholder="Ask anything or type / ..."
+            placeholder="Type, drop a file, or paste a link..."
             showCommandPicker={true}
             showInputDivider={false}
+            draftSeed={chipSeed}
+            emptyState={<ChatEmptyState onChipClick={handleChipClick} />}
           />
         </div>
       </div>

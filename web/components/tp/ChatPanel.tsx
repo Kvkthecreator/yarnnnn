@@ -1,11 +1,15 @@
 'use client';
 
 /**
- * ChatPanel — Shared TP chat component
+ * ChatPanel — Shared YARNNN chat component (ADR-189, ADR-190).
  *
  * Used by both the Tasks surface and Context explorer.
  * Handles message display, input, file attachments, command picker,
  * clarification UI, action cards, and token usage.
+ *
+ * ADR-190: the /chat surface passes `emptyState={<ChatEmptyState />}` to
+ * render a deterministic welcome + chips when messages.length === 0.
+ * File drop + URL paste affordances will migrate here in a later commit.
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -43,10 +47,11 @@ export interface ChatPanelProps {
   /** Input placeholder text */
   placeholder?: string;
   /**
-   * Empty state content — rendered when no messages. Used by surfaces that
-   * embed ChatPanel via ThreePanelLayout (work, agents) to show contextual
-   * "select something" guidance. The /chat surface (ADR-165 v6) does NOT
-   * use this — TP's first response is the empty state there.
+   * Empty state content — rendered when no messages. Used by:
+   *   - The /chat surface (ADR-190): passes <ChatEmptyState onChipClick=... />
+   *     which renders a deterministic welcome + 4 chips. Zero LLM cost.
+   *   - Other surfaces (work, agents, context via ThreePanelLayout): pass
+   *     contextual "select something" guidance.
    */
   emptyState?: React.ReactNode;
   /** Whether to show the command picker (/ commands) */
@@ -60,7 +65,7 @@ export function ChatPanel({
   draftSeed,
   plusMenuActions,
   pendingActionConfig,
-  placeholder = 'Ask anything or type / ...',
+  placeholder = 'Type, drop a file, or paste a link...',
   emptyState,
   showCommandPicker = true,
   showInputDivider = true,
@@ -176,7 +181,7 @@ export function ChatPanel({
         {messages.map(msg => (
           <div key={msg.id} className={cn('text-[13px] rounded-2xl px-3 py-2 max-w-[92%]', msg.role === 'user' ? 'bg-primary/10 ml-auto rounded-br-md' : 'bg-muted rounded-bl-md')}>
             <span className={cn("text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1", msg.role === 'user' ? 'uppercase' : 'font-brand text-[10px]')}>
-              {msg.role === 'user' ? 'You' : 'Thinking Partner'}
+              {msg.role === 'user' ? 'You' : 'YARNNN'}
             </span>
             {msg.blocks && msg.blocks.length > 0 ? (
               <MessageBlocks blocks={msg.blocks} />
