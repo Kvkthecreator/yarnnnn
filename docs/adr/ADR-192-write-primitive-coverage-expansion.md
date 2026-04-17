@@ -1,6 +1,6 @@
 # ADR-192: Write Primitive Coverage Expansion — Trading Sophistication + Risk Gate + Commerce Ops + Email Send
 
-> **Status**: Proposed
+> **Status**: Implemented (2026-04-17, five phases all on main)
 > **Date**: 2026-04-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-183 (Commerce Substrate), ADR-187 (Trading Integration Alpaca), ADR-191 (Polymath Operator ICP + Domain Stress Discipline)

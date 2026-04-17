@@ -2571,6 +2571,12 @@ async def connect_trading(
         service_client, user_id, "trading", smart_selected=[],
     )
 
+    # 6. ADR-192 Phase 5: scaffold default _risk.md if absent.
+    # Conservative defaults. User is expected to review + adjust before
+    # enabling autonomous execution. Without this file, autonomous orders
+    # fail-closed (per risk_gate.py).
+    risk_md_created = await _scaffold_risk_md(service_client, user_id)
+
     return {
         "id": connection_id,
         "platform": "trading",
@@ -2578,7 +2584,45 @@ async def connect_trading(
         "status": "active",
         "paper": request.paper,
         "account_number": metadata.get("account_number"),
+        "risk_md_scaffolded": risk_md_created,
     }
+
+
+async def _scaffold_risk_md(service_client: Any, user_id: str) -> bool:
+    """Create /workspace/context/trading/_risk.md with conservative defaults.
+
+    Idempotent: returns False if the file already exists. Returns True
+    if newly created. Non-fatal: connection succeeds even if scaffold
+    fails (worst case user sets params manually later).
+
+    Called from the trading connect endpoint (ADR-192 Phase 5) so every
+    trader gets a starting risk posture immediately.
+    """
+    try:
+        from services.risk_gate import RISK_MD_PATH, scaffold_default_risk_md
+
+        # Check existence
+        existing = service_client.table("workspace_files").select("id").eq(
+            "user_id", user_id
+        ).eq("path", RISK_MD_PATH).limit(1).execute()
+        if existing.data:
+            logger.info(f"[TRADING] _risk.md already exists for {user_id}; skipping scaffold")
+            return False
+
+        # Create with conservative defaults
+        content = scaffold_default_risk_md()
+        service_client.table("workspace_files").insert({
+            "user_id": user_id,
+            "path": RISK_MD_PATH,
+            "content": content,
+            "summary": "Default risk parameters (conservative). Review + adjust before autonomous trading.",
+            "content_type": "text/markdown",
+        }).execute()
+        logger.info(f"[TRADING] Scaffolded _risk.md with conservative defaults for {user_id}")
+        return True
+    except Exception as e:
+        logger.warning(f"[TRADING] _risk.md scaffold failed for {user_id}: {e}")
+        return False
 
 
 @router.patch("/integrations/trading/connect")

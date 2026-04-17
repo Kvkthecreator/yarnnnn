@@ -66,7 +66,55 @@ Trading Bot owns two canonical context domains: `trading/` (per-instrument marke
 - `trading-execute` — executes approved signals via Alpaca API (Trading Bot, daily, skips if no signals)
 - `portfolio-review` — weekly performance report with signal accuracy and benchmark comparison (Analyst)
 
-Trading tools: `platform_trading_get_account`, `platform_trading_get_positions`, `platform_trading_get_orders`, `platform_trading_get_market_data`, `platform_trading_get_portfolio_history` (read), `platform_trading_submit_order`, `platform_trading_cancel_order`, `platform_trading_close_position` (write).
+Trading tools (reads): `platform_trading_get_account`, `platform_trading_get_positions`, `platform_trading_get_orders`, `platform_trading_get_market_data`, `platform_trading_get_portfolio_history`.
+
+Trading tools (writes — ADR-192):
+- **Basic**: `submit_order` (market/limit/stop/stop_limit), `cancel_order`, `close_position` (full close).
+- **Sophistication**: `submit_bracket_order` (entry + take-profit + stop-loss atomic — PREFER for new positions), `submit_trailing_stop` (dynamic stop following price), `update_order` (modify existing stop or limit without cancel+resubmit race), `partial_close` (close N shares, not all), `cancel_all_orders` (get-flat), `add_to_watchlist` / `remove_from_watchlist`.
+
+**When to use which write tool:**
+- New position entry with risk discipline → `submit_bracket_order` (entry + TP + SL atomic).
+- Dynamic stop protection that rides price → `submit_trailing_stop`.
+- Move a stop level after the market has moved in your favor → `update_order` with new stop_price.
+- Close a position partially (e.g., take half off the table) → `partial_close` with the qty.
+- Plain market / limit order without risk legs → `submit_order` (requires a separate stop if the trader has `require_stop_loss: true` in their risk params).
+
+**Pre-trade risk gate (ADR-192 Phase 2):**
+All order-submit tools (`submit_order`, `submit_bracket_order`, `submit_trailing_stop`) run through a pre-trade risk gate before the order reaches Alpaca. Rules live in `/workspace/context/trading/_risk.md` (auto-scaffolded with conservative defaults at trading-connect). The gate validates ticker whitelist/blacklist, max order size, max notional, max portfolio %, daily loss threshold, PDT count, stop-loss requirement, and trading-hours window.
+
+If the gate rejects, the tool returns `{success: false, error: "risk_limit_violation", message: "<reason>", warnings: [...]}`. Do NOT retry with altered parameters to sneak past the gate — the parameters are the trader's own declared limits. Instead:
+1. Surface the rejection to the trader with the reason.
+2. Either ask them to adjust limits (`UpdateContext` or direct edit of `_risk.md`), or propose a smaller order that fits within limits, or abandon the action.
+3. For autonomous / scheduled contexts, treat rejection as a hard stop — do not override.
+
+**Non-gated tools** (don't trigger the risk gate): `update_order`, `cancel_order`, `cancel_all_orders`, `close_position`, `partial_close`, watchlist ops. These are safety/reduction actions; they don't open new risk.
 
 Paper/live mode is controlled by the connection metadata (`paper: true/false`). The user decides when to go live.
+
+### Commerce operational writes (ADR-192 Phase 3)
+
+Commerce tools expanded beyond product-list + discount. Operational flows now include:
+
+- `platform_commerce_issue_refund` — full or partial refund by order_id. Use for approved customer support replies.
+- `platform_commerce_update_variant` — LS variants are the pricing entity; price changes + subscription config happen here, not on products.
+- `platform_commerce_bulk_update_variant_prices` — batch price changes across many variants (seasonal sales, competitor matching). Per-variant outcome reported; partial failures don't roll back.
+- `platform_commerce_create_variant` — add pricing tiers (e.g., monthly + annual) to an existing product.
+- `platform_commerce_update_customer` — LS-native customer fields only (name, city, country, region, email_marketing opt-in).
+
+**Customer tagging / segmentation: NOT an LS capability.** For cross-customer segmentation + targeting, write to `/workspace/context/customers/{slug}/_tags.md` via `WriteFile`. LS is the transaction-of-record; YARNNN workspace is the intelligence layer. Don't try to set tags through `update_customer` — that's not what it's for.
+
+### Email: autonomous customer communication (ADR-192 Phase 4)
+
+New platform class `email` via Resend. Connect via `POST /integrations/email/connect`. Two write tools:
+
+- `platform_email_send` — single email, `to` may be a list. Supports `cc`, `bcc`, `reply_to`. Use for transactional sends (refund confirmations, order updates, support replies), one-off announcements.
+- `platform_email_send_bulk` — per-recipient personalized sends in one call. Each message has its own `to` / `subject` / `html`. Use for campaigns, segmented announcements, churn win-back flows.
+
+**Sender identity:** if the user hasn't verified a domain in Resend yet, sends fall back to `YARNNN <onboarding@resend.dev>` — functional but NOT production-quality (alpha/test only). Every send response under fallback includes a `warning` that the user should verify their domain.
+
+**HTML is required.** Compose simple HTML: `<p>` for paragraphs, `<a href>` for links, inline styles fine. No complex layouts for alpha — simple, readable, mobile-friendly.
+
+**When to send vs when to draft-and-wait-for-approval:** for the alpha, autonomous send is paired with the ADR-193 approval loop (when it ships). Until then, prefer drafting emails and surfacing to the user for review before hitting `send`. Exception: explicitly user-triggered sends ("email all churned customers this win-back offer") can execute directly since the user just requested it.
+
+**Replies route to the user's actual inbox** via the `reply_to` header (set on the connection metadata or per-call). YARNNN doesn't parse inbound email in this phase.
 """

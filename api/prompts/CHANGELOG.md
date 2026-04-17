@@ -6,6 +6,38 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.15] - ADR-192 Phase 5: prompt teaching + _risk.md auto-scaffold (CLOSES ADR-192)
+
+### Changed
+- `api/agents/yarnnn_prompts/platforms.py`: Trading, Commerce, and Email sections expanded to teach YARNNN the 14 new tools shipped in Phases 1–4.
+  - **Trading**: new "When to use which write tool" decision guide (bracket for new positions, trailing for dynamic protection, update_order for stop moves, partial_close for sizing). Pre-trade risk-gate behavior documented — LLM told to surface rejection reasons, NOT retry with altered parameters to sneak past the gate. Non-gated tools (update/cancel/close/watchlist) listed.
+  - **Commerce**: new "Commerce operational writes" section for Phase 3 primitives (refund, variant update, bulk price, create_variant, update_customer). Customer tagging/segmentation explicitly directed to `/workspace/context/customers/{slug}/_tags.md` via WriteFile — LS is transaction-of-record, YARNNN workspace is intelligence layer.
+  - **Email**: new "Email: autonomous customer communication" section for Phase 4. Send vs send_bulk guidance. Sender-fallback warning explained. HTML-required. Draft-and-wait vs autonomous-send guidance pending ADR-193 approval loop.
+- `api/routes/integrations.py`: `connect_trading` endpoint now scaffolds `/workspace/context/trading/_risk.md` with conservative defaults if the file doesn't exist (via new `_scaffold_risk_md` helper). Idempotent. Non-fatal. Response includes `risk_md_scaffolded: true|false` flag. Every new trading connection now has a starting risk posture immediately — autonomous execution can pass the gate from day one without manual setup (after user reviews the defaults).
+
+### Expected behavior (ADR-192 fully implemented)
+- Trading autonomy: all 10 trading write tools available; order-submits pass through the risk gate; `_risk.md` auto-scaffolds on connect with defaults the trader reviews.
+- Commerce autonomy: all 8 commerce write tools available; customer segmentation clearly routes to workspace context, not LS.
+- Email autonomy: 2 email tools available for transactional + campaign sends; sender fallback warnings on every send until domain verified.
+- YARNNN prompt now teaches all of the above, including when NOT to override the risk gate.
+
+### ADR-192 completion
+Five phases shipped over one day on main:
+- Phase 1 [2026.04.17.11] — 7 new trading tools (Alpaca sophistication)
+- Phase 2 [2026.04.17.12] — risk-gate primitive + _risk.md schema + handler integration
+- Phase 3 [2026.04.17.13] — 5 new commerce tools (LS operational)
+- Phase 4 [2026.04.17.14] — email platform class + Resend integration + 2 tools
+- Phase 5 [2026.04.17.15] (this entry) — prompt teaching + _risk.md auto-scaffold on connect
+
+Net new: 14 platform tools + 1 internal primitive (risk gate) + 1 new platform class (email) + 1 new workspace file schema (_risk.md) + auto-scaffold wiring.
+
+### What's NEXT (follow-on ADRs)
+- ADR-193 — ProposeAction primitive + approval loop. Turns risk_limit_violation rejections into approval-UX proposals rather than hard errors. Turns autonomous email sends into approval-mediated drafts. Turns bulk operations into reviewable previews.
+- ADR-194 — Surface archetypes (document / dashboard / operational pane). Renders proposals from ADR-193 as operational-pane cards.
+- ADR-195 — TP autonomous decision loop. Signal → propose → execute (via ADR-193) with the risk gate enforcing bounds.
+
+---
+
 ## [2026.04.17.14] - ADR-192 Phase 4: Email send platform class (Resend integration)
 
 ### Added
