@@ -22,41 +22,54 @@
 import { FileUp, Link2, Eye, FileText } from 'lucide-react';
 
 interface ChatEmptyStateProps {
-  /** Called when a chip is clicked with the text to seed into the composer. */
+  /** Called when a text-seed chip is clicked. */
   onChipClick: (text: string) => void;
+  /** Opens the composer's file picker. Wired from ChatPanel.fileInputRef. */
+  onUploadClick: () => void;
 }
 
-interface Chip {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  /** Text seeded into the composer when clicked. */
-  seed: string;
-}
+type Chip =
+  | {
+      icon: React.ComponentType<{ className?: string }>;
+      label: string;
+      /** Rich affordance chips trigger a helper instead of seeding text. */
+      action: 'upload';
+    }
+  | {
+      icon: React.ComponentType<{ className?: string }>;
+      label: string;
+      /** Text-seed chips seed this string into the composer. */
+      action: 'seed';
+      seed: string;
+    };
 
 const CHIPS: Chip[] = [
   {
     icon: FileUp,
     label: 'Upload a doc',
-    seed: 'I want to share a doc — pitch deck, brief, anything that describes my work. ',
+    action: 'upload',
   },
   {
     icon: Link2,
     label: 'Paste a URL',
+    action: 'seed',
     seed: 'Here is a URL that describes my work or company: ',
   },
   {
     icon: Eye,
     label: 'Track something recurring',
+    action: 'seed',
     seed: 'I want to track ',
   },
   {
     icon: FileText,
     label: 'Build a recurring report',
+    action: 'seed',
     seed: 'I want a recurring report on ',
   },
 ];
 
-export function ChatEmptyState({ onChipClick }: ChatEmptyStateProps) {
+export function ChatEmptyState({ onChipClick, onUploadClick }: ChatEmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-10 sm:py-16 px-4">
       <img
@@ -77,11 +90,15 @@ export function ChatEmptyState({ onChipClick }: ChatEmptyStateProps) {
       <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
         {CHIPS.map((chip) => {
           const Icon = chip.icon;
+          const handleClick =
+            chip.action === 'upload'
+              ? onUploadClick
+              : () => onChipClick(chip.seed);
           return (
             <button
               key={chip.label}
               type="button"
-              onClick={() => onChipClick(chip.seed)}
+              onClick={handleClick}
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-border/60 bg-background hover:bg-muted/40 hover:border-border transition-colors text-sm text-foreground"
             >
               <Icon className="w-3.5 h-3.5 text-muted-foreground" />

@@ -31,7 +31,6 @@ import type { Agent, Task } from '@/types';
 import { useTP } from '@/contexts/TPContext';
 import {
   parseWorkspaceStateMeta,
-  parseOnboardingMeta,
   type WorkspaceStateLead,
 } from '@/lib/workspace-state-meta';
 import { WorkspaceStateView } from './WorkspaceStateView';
@@ -81,8 +80,10 @@ export function ChatSurface({
   // Track the last message id we processed for marker directives.
   const [lastProcessedId, setLastProcessedId] = useState<string | null>(null);
 
-  // Watch the latest assistant message for BOTH markers.
-  // When present, open the matching modal and close the other (exclusivity).
+  // Watch the latest assistant message for the workspace-state marker.
+  // ADR-190: onboarding marker auto-trigger retired. OnboardingModal is now
+  // opened only via the plus-menu "Update workspace" action. Onboarding is
+  // conversational (prompt guidance in yarnnn_prompts/onboarding.py).
   useEffect(() => {
     if (messages.length === 0) return;
     const latest = messages[messages.length - 1];
@@ -92,22 +93,12 @@ export function ChatSurface({
 
     setLastProcessedId(latest.id);
 
-    // Check for workspace-state marker first.
     const { directive } = parseWorkspaceStateMeta(latest.content);
     if (directive) {
       setOnboardingOpen(false);
       setOverviewOpen(true);
       setOverviewLead(directive.lead);
       setOverviewReason(directive.reason ?? null);
-      return;
-    }
-
-    // Check for onboarding marker.
-    const { present } = parseOnboardingMeta(latest.content);
-    if (present) {
-      setOverviewOpen(false);
-      setOnboardingOpen(true);
-      return;
     }
   }, [messages, lastProcessedId]);
 
@@ -228,7 +219,12 @@ export function ChatSurface({
             showCommandPicker={true}
             showInputDivider={false}
             draftSeed={chipSeed}
-            emptyState={<ChatEmptyState onChipClick={handleChipClick} />}
+            emptyState={(helpers) => (
+              <ChatEmptyState
+                onChipClick={handleChipClick}
+                onUploadClick={helpers.requestUpload}
+              />
+            )}
           />
         </div>
       </div>

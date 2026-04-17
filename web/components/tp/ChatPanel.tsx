@@ -48,16 +48,32 @@ export interface ChatPanelProps {
   placeholder?: string;
   /**
    * Empty state content — rendered when no messages. Used by:
-   *   - The /chat surface (ADR-190): passes <ChatEmptyState onChipClick=... />
-   *     which renders a deterministic welcome + 4 chips. Zero LLM cost.
-   *   - Other surfaces (work, agents, context via ThreePanelLayout): pass
-   *     contextual "select something" guidance.
+   *   - The /chat surface (ADR-190): passes a render function that receives
+   *     helpers (e.g., requestUpload) so the ChatEmptyState chips can trigger
+   *     composer affordances (file picker) directly.
+   *   - Other surfaces (work, agents, context via ThreePanelLayout): pass a
+   *     plain ReactNode with contextual "select something" guidance.
+   *
+   * The render-function form exposes ChatPanel's internal helpers (file
+   * picker ref, future URL input focus, etc.) to the empty-state children
+   * without leaking ChatPanel internals through props.
    */
-  emptyState?: React.ReactNode;
+  emptyState?:
+    | React.ReactNode
+    | ((helpers: ChatEmptyStateHelpers) => React.ReactNode);
   /** Whether to show the command picker (/ commands) */
   showCommandPicker?: boolean;
   /** Whether to render a divider above the input */
   showInputDivider?: boolean;
+}
+
+/**
+ * Helpers exposed to emptyState render functions (ADR-190).
+ * Add new helpers here as rich-input affordances grow (URL capture, etc.).
+ */
+export interface ChatEmptyStateHelpers {
+  /** Opens the OS file picker for the composer's hidden file input. */
+  requestUpload: () => void;
 }
 
 export function ChatPanel({
@@ -174,7 +190,11 @@ export function ChatPanel({
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
         {messages.length === 0 && !isLoading && emptyState && (
           <div className="py-4 px-2">
-            {emptyState}
+            {typeof emptyState === 'function'
+              ? emptyState({
+                  requestUpload: () => fileInputRef.current?.click(),
+                })
+              : emptyState}
           </div>
         )}
 

@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.5] - ADR-190 commit 2: onboarding marker retired + rich-input chip wiring
+
+### Changed
+- `api/agents/yarnnn_prompts/onboarding.py`: `<!-- onboarding -->` marker emission guidance deleted. Replaced with explicit ADR-190 principle — onboarding is conversational when identity is `empty`/`sparse`; YARNNN engages the user in chat directly rather than emitting a marker to open a modal form. Example block for the retired marker removed. The `<!-- workspace-state: ... -->` marker is unaffected (Overview modal still works as designed).
+- `web/components/chat-surface/ChatSurface.tsx`: removed `parseOnboardingMeta` import + the auto-trigger branch in the message-marker useEffect. OnboardingModal is now opened only via the "Update workspace" plus-menu action (manual invocation preserved). `handleOpenOnboarding` callback retained for plus-menu use.
+- `web/components/tp/ChatPanel.tsx`: `emptyState` prop type extended to accept a render function `(helpers: ChatEmptyStateHelpers) => ReactNode`. Helpers include `requestUpload` which clicks the composer's hidden file input. Legacy `ReactNode` form still supported for non-`/chat` surfaces.
+- `web/components/chat-surface/ChatEmptyState.tsx`: "Upload a doc" chip now triggers the actual file picker (via `onUploadClick` prop) instead of seeding text. Other three chips still seed text via `onChipClick`. Chip type refactored to discriminated union (`action: 'upload' | 'seed'`).
+- `web/components/chat-surface/ChatSurface.tsx`: passes `emptyState` as render function so `ChatEmptyState` receives `requestUpload` helper.
+
+### Preserved (deferred per ADR-190)
+- `OnboardingModal` and `TaskSetupModal` components remain — openable via plus-menu actions ("Update workspace", "Start new work"). Their auto-trigger via markers / workspace-state is what's retired, not their existence.
+- `ContextSetup` and `TaskSetup` components remain — used by the preserved modals.
+- `stripOnboardingMeta` / `parseOnboardingMeta` helpers — kept as defensive cleanup for any historical session messages that still contain the retired marker. Dead code only in the sense no new emission path exists; still serves legacy content.
+
+### Expected behavior
+- Brand-new workspace on `/chat`: user sees empty state → clicks "Upload a doc" → OS file picker opens → selected PDF/DOCX/TXT/MD uploads via existing document pipeline; selected images attach inline to the next message.
+- YARNNN no longer emits `<!-- onboarding -->`. Empty-identity first turns are pure conversation.
+- "Update workspace" and "Start new work" plus-menu actions continue to open their respective modals for users who prefer the guided form.
+
+### Rationale (ADR-190)
+Rich-input affordances are the mechanism that drives scaffold depth. Chip 1 previously seeded instructional text; now it opens the file picker directly — one click from empty canvas to a doc upload. Marker-gated modals created bootstrap circularity (marker only fires if YARNNN acts; YARNNN only acts if user types). The conversational path + direct affordances removes the circularity.
+
+---
+
 ## [2026.04.17.4] - ADR-190 commit 1: first-turn welcome + 4 chips + stale-label fixes
 
 ### Changed

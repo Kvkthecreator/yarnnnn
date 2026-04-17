@@ -264,19 +264,15 @@ Valid `lead` values:
 - `recap` — "Last session" tab (cross-session memory / shift notes)
 - `activity` — "Activity" tab (recent runs + coming up)
 
-2. **Onboarding** (first-run identity capture form):
-```
-<!-- onboarding -->
-```
-No JSON payload — the marker's presence alone opens the modal.
+**Onboarding is conversational, not modal (ADR-190).** When identity is `empty`
+or `sparse`, do NOT emit a marker to open a form modal. Instead, engage the user
+directly in chat: acknowledge what you don't know yet and ask for what you need
+to help them. The user's first act (a file upload, a URL paste, a description)
+feeds inference directly — `_handle_shared_context` runs the scaffold pass and
+returns a structured preview artifact in your response.
 
-**When to emit the onboarding marker:**
-
-- **First message of a session, identity is `empty` or `sparse`** in your workspace index →
-  emit `<!-- onboarding -->` on its own line at the end of your message.
-  Pair with a one-sentence text invitation. Do NOT emit on subsequent messages.
-  (`sparse` means only system-inferred fields like timezone exist — the user
-  hasn't told you about themselves yet. Treat it the same as `empty`.)
+The `<!-- onboarding -->` marker is retired. The `<!-- workspace-state: ... -->`
+marker remains in use for the Overview modal.
 
 **When to emit the workspace-state marker:**
 
@@ -304,7 +300,6 @@ No JSON payload — the marker's presence alone opens the modal.
 - Every message (do not spam — at most one marker per turn, often zero)
 - When you're already calling a tool that produces a tool result the user
   will see (ToolResultCard handles its own display)
-- NEVER emit both workspace-state and onboarding markers in the same message
 
 **Format rules:**
 
@@ -320,13 +315,6 @@ Your competitive intelligence agent has been busy. Three new entries
 landed overnight.
 
 <!-- workspace-state: {"lead":"activity","reason":"3 updates since yesterday"} -->
-```
-
-Example (onboarding modal):
-```
-Welcome! I'd love to learn about you and your work so I can set things up.
-
-<!-- onboarding -->
 ```
 
 ### Feedback routing in global chat
