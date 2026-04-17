@@ -6,6 +6,34 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.16] - ADR-193 proposed (doc-only): ProposeAction + approval loop
+
+### Added
+- `docs/adr/ADR-193-propose-action-approval-loop.md` — proposes the approval-loop primitive that closes the gap between "always execute" and "always manual" for autonomous writes.
+
+### Scope (proposed, not yet implemented)
+- **New primitives**: `ProposeAction`, `ExecuteProposal`, `RejectProposal`.
+- **New DB table**: `action_proposals` with RLS + reversibility-aware TTL indexes.
+- **Integration with ADR-192 risk gate**: autonomous-mode rejections emit a proposal instead of a hard error. Supervised-mode rejections unchanged.
+- **Prompt decision tree**: when to propose vs. execute (chat + user-asked = execute; autonomous + irreversible = propose; etc).
+- **Five phases**: migration+primitives → frontend card → risk-gate integration → prompts → expiration cleanup.
+
+### Why this matters
+- ADR-192 enabled write-level sophistication + a risk gate. ADR-193 turns the risk gate's rejections into reviewable proposals and adds an approval surface for autonomous soft/irreversible writes.
+- Without 193, autonomous sends / trades / refunds are either always-on (unsafe) or always-draft (defeats autonomy). 193 is the middle path.
+
+### Impact per ADR-191 matrix gate
+- E-commerce: Helps (autonomous refunds/campaigns/bulk-price become safe via approval).
+- Day trader: Helps (risk-gate rejections become approval proposals; autonomous trading becomes trustable).
+- AI influencer (scheduled): Forward-helps (same primitive reusable).
+- International trader (scheduled): Forward-helps (same primitive reusable).
+No verticalization.
+
+### NOT in this commit
+- No code changes. Implementation lands in 5 follow-on commits per ADR-193.
+
+---
+
 ## [2026.04.17.15] - ADR-192 Phase 5: prompt teaching + _risk.md auto-scaffold (CLOSES ADR-192)
 
 ### Changed
