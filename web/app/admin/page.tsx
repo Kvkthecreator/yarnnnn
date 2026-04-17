@@ -161,7 +161,7 @@ export default function AdminDashboardPage() {
           <StatCard label="Messages" value={overview.total_messages} icon={MessageSquare} />
           <StatCard
             label="Spend (mo)"
-            value={execStats ? `$${execStats.spend_usd_this_month?.toFixed(2)}/$${execStats.spend_usd_limit?.toFixed(2)}` : "—"}
+            value={execStats ? `$${(execStats.spend_usd_this_month ?? 0).toFixed(2)}/$${(execStats.spend_usd_limit ?? 0).toFixed(2)}` : "—"}
             icon={Zap}
           />
         </div>
@@ -201,8 +201,8 @@ export default function AdminDashboardPage() {
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground">Input Tokens</p>
-                <p className="text-xl font-semibold">{formatTokens(tokenUsage.total_input_tokens)}</p>
+                <p className="text-muted-foreground">Billed Input</p>
+                <p className="text-xl font-semibold">{formatTokens(tokenUsage.total_billed_input_tokens)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Output Tokens</p>
@@ -278,7 +278,7 @@ export default function AdminDashboardPage() {
                         <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Date</th>
                         <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">Caller</th>
                         <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Calls</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Input</th>
+                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Billed Input</th>
                         <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Output</th>
                         <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Cache Read</th>
                         <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Cost</th>
@@ -300,7 +300,7 @@ export default function AdminDashboardPage() {
                               </span>
                             </td>
                             <td className="py-1.5 px-2 text-right tabular-nums">{row.api_calls}</td>
-                            <td className="py-1.5 px-2 text-right tabular-nums">{formatTokens(row.input_tokens)}</td>
+                            <td className="py-1.5 px-2 text-right tabular-nums">{formatTokens(row.billed_input_tokens)}</td>
                             <td className="py-1.5 px-2 text-right tabular-nums">{formatTokens(row.output_tokens)}</td>
                             <td className="py-1.5 px-2 text-right tabular-nums">{formatTokens(row.cache_read_tokens)}</td>
                             <td className="py-1.5 px-2 text-right tabular-nums font-medium">${row.estimated_cost_usd.toFixed(2)}</td>
