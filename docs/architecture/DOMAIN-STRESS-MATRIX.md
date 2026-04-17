@@ -80,22 +80,28 @@ Solo or 1–3 person e-commerce business. Direct-to-consumer via Lemon Squeezy, 
 
 All three archetypes needed. Operational pane is load-bearing for autonomy.
 
-### Write primitives needed (for trusted autonomy)
+### Write primitives — shipped state + autonomy gaps
 
-Currently shipped (ADR-183):
-- `create_product`, `update_product`, `create_discount`
+**Shipped today (ADR-183 Phase 3, verified wired to live LS API):**
+- `platform_commerce_create_product` — real SKU creation on the store
+- `platform_commerce_update_product` — name/description/status mutation (publish/archive via status)
+- `platform_commerce_create_discount` — store-wide or product-scoped, percent or fixed
+- `platform_commerce_create_checkout` — customer-purchasable URL
 
-Additional needed for alpha autonomy:
-- `issue_refund` — reverse an order on user-approved trigger
-- `update_inventory` / `set_stock_level` — adjust inventory on signals
-- `bulk_price_update` — apply pricing change across SKUs
-- `archive_product` — retire SKU
-- `send_campaign_email` — transactional/marketing email via connected provider
-- `respond_to_customer_inquiry` — reply to support email on approved template
-- `create_product_variant` — expand SKU portfolio
-- `tag_customer` / `segment_customer` — mutate customer metadata for targeting
+**MVP assessment:** an e-commerce operator can already list products that real customers purchase. Basic operations work. Alpha is NOT gated by ADR-192.
 
-~8 new write primitives to close the gap. Scope for ADR-192.
+**Additional needed for trusted autonomy (ADR-192 scope):**
+- `issue_refund` — LS API supports; not wired. Needed for autonomous customer-support flows.
+- `update_inventory` / `set_stock_level` — LS has quantity fields; not wired. Needed for out-of-stock reactions.
+- `send_campaign_email` — no email-send primitive exists in yarnnn anywhere yet. Major gap for autonomous customer communication.
+- `respond_to_customer_inquiry` — no support-integration path. May require email primitive above.
+- `bulk_price_update` — composable from iterated `update_product` today; a primitive would improve ergonomics + atomicity.
+- `create_product_variant` — LS supports; not wired.
+- `tag_customer` / `segment_customer` — LS has customer metadata; not wired. Needed for targeted campaigns.
+
+Archive is already covered by `update_product(status="archived")`.
+
+~5–6 genuinely new primitives + 1 new capability class (email send). Scope for ADR-192.
 
 ### Autonomous decisions (where TP should propose action via ADR-193)
 - "Competitor X dropped price 10% on matching SKU — match price or hold?"
@@ -169,26 +175,34 @@ Retail or small-fund trader (prop shop, 1–3 person). Active manager running di
 
 Dashboard and operational pane are load-bearing. Document is secondary.
 
-### Write primitives needed
+### Write primitives — shipped state + autonomy gaps
 
-Currently shipped (ADR-187 — Alpaca basic):
-- Place basic orders (market / limit)
-- Read positions + watchlist
+**Shipped today (ADR-187, verified wired to live Alpaca API — paper or live mode):**
+- `platform_trading_submit_order` — buy/sell, market/limit/stop/stop_limit, day/gtc time-in-force. **Real order execution.**
+- `platform_trading_cancel_order` — cancel open order by ID
+- `platform_trading_close_position` — close full position for a ticker (sells all shares)
+- Reads: account, positions, portfolio history, order history, market data (Alpha Vantage)
 
-Additional needed for alpha autonomy:
-- `place_stop_loss_order` / `update_stop_loss` — tight stop management
-- `place_bracket_order` — entry + target + stop in one call
-- `place_trailing_stop` — dynamic stop following price
-- `close_position` — with sizing (partial or full)
-- `cancel_order` — mid-flight cancellation
-- `rebalance_to_target` — portfolio rebalancing to target weights
-- `add_watchlist` / `remove_watchlist` — mutate watchlist
-- `set_risk_limit` — enforce max position size / max daily loss as pre-trade gate
-- `get_account_metrics` — realtime margin, buying power, day-trade count
+**MVP assessment:** a trader can already place real buys/sells/stops and close positions via YARNNN. The basics work. Alpha is NOT gated by ADR-192. **BUT** — see risk-gating note below.
 
-~9 new write primitives + 1 risk-gating logic layer. Scope for ADR-192.
+**Additional needed for trusted autonomy (ADR-192 scope):**
+- `update_stop_loss` — modify an existing stop order without cancel+resubmit race. Alpaca supports order replacement; not wired.
+- `place_bracket_order` — entry + target + stop in one atomic call. Alpaca supports; not wired.
+- `place_trailing_stop` — dynamic stop following price. Alpaca supports; not wired.
+- `partial_close_position` — close X shares of Y, not all. Today composable from submit_order(sell, qty); a primitive improves ergonomics + atomicity.
+- `rebalance_to_target` — portfolio rebalancing to declared weights. Higher-order primitive composed from multiple orders.
+- `add_to_watchlist` / `remove_from_watchlist` — Alpaca supports; not wired.
+- `cancel_all_orders` — bulk cancel. Alpaca supports; not wired.
 
-**Risk-gating is critical.** Unlike e-commerce where wrong-writes are reversible, trading writes are not. Need a pre-trade gate: before any order executes, validate against `set_risk_limit` parameters. This gate is a primitive of its own, not just a wrapper.
+~5–7 genuinely new primitives for order sophistication.
+
+**Risk-gating is the load-bearing gap, separate from the primitives above.**
+
+Today: YARNNN can call `submit_order` with any size, any ticker, any price. No pre-trade validation against the trader's declared risk parameters (max position size, max daily loss, position concentration limits). An LLM decision could submit an unbounded order. **This is unsafe for autonomous execution.**
+
+ADR-192 must introduce a `check_risk_limits(proposed_order)` gate that runs before any `submit_order` call in autonomous mode. The gate reads risk parameters from the trader's workspace context (user-set), validates the proposed order, and either passes to execution or rejects with reason. Rejection becomes an approval-loop input (ADR-193).
+
+Risk-gating is NOT a new capability on Alpaca's side — it's a YARNNN-side validation primitive. It's the most important thing ADR-192 adds for the trading domain.
 
 ### Autonomous decisions (ADR-193)
 - "Position X hit stop-loss — close at market or wait?"
@@ -331,3 +345,4 @@ If any row is **Hurts** or if three out of four are **Neutral** with one **Helps
 | Date | Change |
 |------|--------|
 | 2026-04-17 | v1 — Initial matrix. 4 alpha domains: e-commerce + day trader active, AI influencer + international trader scheduled. E-commerce and day trader rows populated from ADR-183 + ADR-187 integration specs. Cross-domain pattern observations surfaced (all domains need all archetypes; write-primitive depth correlates with risk tolerance; autonomous decisions are signal-gated; revenue legibility universal; Day-1 rich input pattern universal). Matrix ratified by ADR-191. |
+| 2026-04-17 | v1.1 — Audit pass against shipped code. E-commerce + day trader "Write primitives needed" sections tightened from speculation to verified ground truth. Findings: basics ship live on both domains (real trade submission, real product creation), alpha not gated by ADR-192. Risk-gating identified as load-bearing gap for trading autonomy (distinct from the write primitives themselves). Matrix now distinguishes "MVP shipped" from "trusted autonomy gap" per domain. |
