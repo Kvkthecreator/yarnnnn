@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.3] - ADR-188 Phase 3: TP prompt — template library + composition guidance
+
+### Changed
+- `api/agents/tp_prompts/workspace.py`: "Task Type Catalog" → "Task Template Library (ADR-188)." Two creation paths now both first-class (template-based AND composed). New "Composing Custom Tasks" section: 4-step pattern (output_kind → team → step instructions → context domains). "Creating Agents" section: TP can create additional specialists for domain-focused work.
+- `api/agents/tp_prompts/tools.py`: Parallel task creation section updated. Template mapping condensed. Explicit "when NO template fits" guidance with composed example for any-domain users.
+- `api/agents/tp_prompts/onboarding.py`: Domain scaffolding no longer assumes fixed 5 domains. TP instructed to use domain names from user's own language. Examples: cases (lawyer), clients (consultant), audience (influencer).
+
+### Expected behavior
+- TP now knows it can compose custom tasks from framework primitives (output_kind, team, mode, objective) for ANY user domain. Previously TP only knew about the hardcoded task type catalog and would try to fit every user into existing templates. Users in novel domains (law, medicine, trading, content creation) will get domain-appropriate tasks composed by TP.
+- Domain scaffolding during onboarding now adapts to the user's vocabulary instead of assuming competitors/market/relationships/projects.
+
+---
+
 ## [2026.04.17.2] - ADR-188: Pipeline reads TASK.md and _domain.md before registry
 
 ### Changed

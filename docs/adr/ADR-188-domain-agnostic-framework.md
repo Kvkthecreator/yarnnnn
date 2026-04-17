@@ -1,6 +1,6 @@
 # ADR-188: Domain-Agnostic Framework — Registries as Template Libraries
 
-> **Status**: Phases 1-2 Implemented, Phases 3-5 Proposed
+> **Status**: Phases 1-4 Implemented, Phase 5 Complete
 > **Date**: 2026-04-17
 > **Related**: ADR-138 (Agents as Work Units), ADR-141 (Unified Execution), ADR-145 (Task Type Registry), ADR-151/152 (Context Domains / Directory Registry), ADR-166 (Registry Coherence Pass), ADR-176 (Work-First Agent Model), ADR-183 (Commerce Substrate), ADR-187 (Trading Integration)
 > **Supersedes**: ADR-176 "hospital principle" (fixed roster as non-negotiable)
@@ -121,21 +121,27 @@ Market data, signals, and analysis for tracked financial instruments.
 
 **Files**: `api/services/task_pipeline.py`
 
-### Phase 3: TP prompt gains domain composition guidance (behavioral)
+### Phase 3: TP prompt gains domain composition guidance (behavioral) — **Implemented 2026-04-17**
 
-TP's workspace profile prompt gains a section teaching it to compose domains and task definitions from the user's work description. The task catalog becomes "here are examples of well-structured task definitions" rather than "here is the menu."
+Three prompt files updated to shift TP from "pick from catalog" to "compose or pick from catalog":
 
-**Files**: `api/agents/tp_prompts/workspace.py` (prompt section), `api/prompts/CHANGELOG.md`
+**workspace.py** — "Task Type Catalog" → "Task Template Library." Two creation paths now both first-class (template-based AND composed). New "Composing Custom Tasks" section teaches TP the 4-step composition pattern: determine output_kind → choose team → define step instructions → declare context domains. "Creating Agents" updated: TP can create additional specialists for domain-focused work. Domain composition guidance added.
 
-### Phase 4: Default roster becomes contextual (behavioral)
+**tools.py** — Parallel task creation section updated. Work intent → template mapping condensed. Explicit "when NO template fits" guidance with composed example.
 
-`workspace_init.py` scaffolds a minimal default roster (TP + platform bots for connected platforms). TP, through the onboarding conversation, scaffolds domain-appropriate specialists based on the user's work description. The registry's `DEFAULT_ROSTER` becomes the template library for what TP draws from.
+**onboarding.py** — Domain scaffolding no longer assumes fixed 5 domains. TP instructed to use domain names from the user's own language. Examples expanded beyond competitors/market to include cases (lawyer), clients (consultant), audience (influencer).
 
-**Files**: `api/services/workspace_init.py`, `api/services/agent_framework.py` (roster reframe)
+**Files**: `api/agents/tp_prompts/workspace.py`, `api/agents/tp_prompts/tools.py`, `api/agents/tp_prompts/onboarding.py`, `api/prompts/CHANGELOG.md`
 
-### Phase 5: Documentation alignment (narrative)
+### Phase 4: Default roster — contextual customization post-init — **Implemented 2026-04-17**
 
-All canonical docs updated to reflect the reframe. See "Documentation impact" section below.
+The default roster stays at init time (all specialists + TP + platform bots) because signup happens BEFORE the user describes their work. The behavioral change is: TP customizes the workspace during the onboarding conversation by creating domain-appropriate tasks, scaffolding novel context domains, and optionally creating additional specialist agents. `workspace_init.py` docstring updated to reflect the template library framing.
+
+**Files**: `api/services/workspace_init.py` (docstring)
+
+### Phase 5: Documentation alignment (narrative) — **Implemented 2026-04-17**
+
+All canonical docs updated in the initial commit. See "Documentation impact" section below.
 
 ---
 
@@ -251,3 +257,4 @@ Mitigation: TASK.md is the single source of truth at runtime. Debugging "why did
 |---|---|
 | 2026-04-17 | v1 — Initial decision. Triggered by ADR-187 stress test. Registries reframed as template libraries. Five-phase implementation. Documentation impact assessed. |
 | 2026-04-17 | v1.1 — Phases 1-2 implemented. Step instructions read from TASK.md first (single-step gap fixed). Domain metadata read from `_domain.md` first. Both with registry fallback. |
+| 2026-04-17 | v1.2 — Phases 3-5 implemented. TP prompt rewritten: task catalog → template library, composition guidance, domain-agnostic onboarding. workspace_init.py docstring updated. All 5 phases complete. |

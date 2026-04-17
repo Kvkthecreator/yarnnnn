@@ -1,20 +1,24 @@
 """
 Workspace Initialization — ADR-152: Full Workspace Bootstrap
 
-Sets up a complete workspace from the three registries. Called once at signup.
-After initialization, the workspace is self-contained — registries are templates
-that were applied, the workspace filesystem is the sole source of truth.
+Sets up a complete workspace from the three registries (ADR-188: template libraries).
+Called once at signup. After initialization, the workspace is self-contained —
+registries are templates that were applied, the workspace filesystem is the sole
+source of truth.
 
 Like provisioning a new employee's computer:
   1. Install the OS → directory structure from WORKSPACE_DIRECTORIES
-  2. Set up the tools → agents from AGENT_TYPES + DEFAULT_ROSTER
+  2. Set up the tools → agents from AGENT_TEMPLATES + DEFAULT_ROSTER
   3. Configure defaults → IDENTITY.md, BRAND.md, playbook, preferences
   4. Create the manifest → WORKSPACE.md snapshot of what was initialized
 
-After init, TP and agents evolve the workspace independently.
+After init, TP customizes the workspace based on the user's work description:
+- Scaffolds domain-specific context directories (ADR-188 Phase 2: _domain.md)
+- Creates custom tasks with domain-specific step instructions (ADR-188 Phase 1)
+- Optionally creates additional specialist agents for domain-focused work
 The registries are NEVER consulted at runtime — only at creation time.
 
-Version: 1.0 (2026-03-31)
+Version: 1.1 (2026-04-17) — ADR-188 template library framing
 """
 
 import logging
