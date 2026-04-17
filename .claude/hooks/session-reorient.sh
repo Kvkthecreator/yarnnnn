@@ -29,6 +29,21 @@ BRANCH=$(git -C "$CLAUDE_PROJECT_DIR" branch --show-current 2>/dev/null)
 echo "Current branch: $BRANCH"
 echo ""
 
+# Session handoff file — surfaces an explicit handoff left by the previous session.
+# Delete docs/SESSION-HANDOFF.md after absorbing it to silence this banner.
+if [ -f "$CLAUDE_PROJECT_DIR/docs/SESSION-HANDOFF.md" ]; then
+  echo "=== ACTIVE SESSION HANDOFF (READ FIRST) ==="
+  echo ""
+  echo "A handoff document exists at: docs/SESSION-HANDOFF.md"
+  echo "Read it before responding to the user's first message — it captures"
+  echo "strategic state, what's next, and gotchas that aren't in git log alone."
+  echo ""
+  echo "Delete the handoff file in the commit that starts the next direction,"
+  echo "once its contents have been absorbed. It's a one-cycle bridge, not a"
+  echo "canonical doc."
+  echo ""
+fi
+
 echo "=== DOCUMENTATION DIRECTION (2026-03-29) ==="
 echo ""
 echo "SERVICE-MODEL.md is the SINGLE canonical service description."
