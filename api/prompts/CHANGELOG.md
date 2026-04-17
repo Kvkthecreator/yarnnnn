@@ -6,6 +6,46 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.19] - ADR-193 Phase 3: risk-gate autonomous rejection → auto-proposal
+
+### Changed
+- `api/services/platform_tools.py`: the three risk-gated trading handlers (`submit_order`, `submit_bracket_order`, `submit_trailing_stop`) now convert autonomous-mode risk-gate rejections into proposals instead of returning hard errors.
+  - When `tool_input._mode == "autonomous"` AND `check_risk_limits` rejects: handler calls `handle_propose_action` with the original proposed inputs + gate reason + warnings, marks `reversibility=irreversible`, sets `expires_in_hours=1` (market urgency).
+  - Returns `{success: false, error: "risk_limit_violation_proposed", proposal_id, proposal, mode: "autonomous"}` — the LLM sees a proposal was emitted, not just a rejection.
+  - Supervised mode unchanged: rejection is still a hard error (user is in chat and can adjust inline).
+- `api/services/primitives/propose_action.py`: added `build_trading_expected_effect(action_type, inputs)` helper that constructs human-readable preview strings for trading proposals. Used by the auto-proposal path. Keeps preview logic close to the dispatch map.
+
+### Expected behavior
+- Autonomous task runs that violate trader-declared risk → instead of silent failure, a proposal lands in `action_proposals`. When the trader next opens YARNNN (chat surface or `/proposals` API), pending proposals are visible. They can approve override or reject.
+- Example: autonomous rebalance proposes 500 shares of NVDA but `max_position_size_usd: 5000` blocks it → proposal created: *"Submit limit buy of 500 shares of NVDA at $120. Risk gate rejected: notional $60000 exceeds max_position_size_usd ($5000). Review limits or approve override."* Reversibility: irreversible. Expires in 1h.
+
+### Design decisions
+- **1-hour TTL for irreversible trading proposals.** Market state moves; stale proposals get executed at wrong prices. Conservative default; user can `expires_in_hours` override via direct `ProposeAction` call if needed.
+- **Original inputs preserved in proposal.** User sees exactly what YARNNN wanted to do. If approved via `ExecuteProposal`, the same inputs flow through `execute_primitive` with `_mode=supervised` (supervised-mode gate is advisory for configured limits; hard-blocking remains on rule violations but the approval IS the override).
+  - Subtle point: when `ExecuteProposal` re-runs, the platform tool's risk-gate will fire again in supervised mode. Hard-block rules (like `max_order_size_shares`) will re-reject even with user approval. The user would need to *adjust `_risk.md`* to permit the order, then re-execute. This is correct — risk params are the declared bounds; approvals don't override them, they just progress through a user-consent loop.
+- **Not gating non-order writes.** The three gated tools are the only tools that call `check_risk_limits`. Watchlist mutations, cancels, partial close, update_order — all pass through without gate (they're safety/reduction, don't open new risk). These actions don't auto-propose in autonomous mode; they execute directly.
+- **Reversibility=irreversible** hardcoded for the auto-emitted trading proposals. Trading orders are inherently irreversible. Same 1h TTL logic applies.
+
+### NOT in this commit
+- Commerce auto-propose (autonomous refunds / bulk price updates). No risk gate on commerce writes today; Phase 4 prompt guidance will teach YARNNN to `ProposeAction` for these deliberately.
+- Email auto-propose. Same pattern — handled via prompt guidance in Phase 4.
+- Notification when a proposal is emitted autonomously (user may not be online). ADR-194 surface work + future notification layer.
+- Working-memory surfacing of pending proposals (so YARNNN mentions them at session start). Deferred to Phase 4 or Phase 5.
+
+### Verification
+- AST parse clean on both modified files.
+- `build_trading_expected_effect` produces readable previews for all 3 trading action types.
+- `handle_platform_tool` still imports cleanly.
+
+### Impact per ADR-191 matrix gate
+- E-commerce: Neutral (trading-only change this phase)
+- Day trader: Helps — load-bearing unlock. Autonomous rejections no longer silent.
+- AI influencer (scheduled): Forward-helps (same proposal infrastructure reusable)
+- International trader (scheduled): Forward-helps
+No verticalization.
+
+---
+
 ## [2026.04.17.18] - ADR-193 Phase 2: ProposalCard inline UI + /api/proposals routes
 
 ### Added

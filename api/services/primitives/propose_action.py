@@ -31,6 +31,43 @@ logger = logging.getLogger(__name__)
 # ExecuteProposal dispatches through execute_primitive using the mapped
 # tool name. Add entries here as new write primitives become proposable.
 
+def build_trading_expected_effect(action_type: str, inputs: dict) -> str:
+    """Build a human-readable preview for a trading proposal (ADR-193 Phase 3).
+
+    Used by the risk-gate → proposal integration path. Kept close to the
+    dispatch map so new action types get consistent preview text.
+    """
+    ticker = inputs.get("ticker") or "?"
+    side = inputs.get("side") or "?"
+    qty = inputs.get("qty")
+
+    if action_type == "trading.submit_order":
+        order_type = inputs.get("order_type", "market")
+        price = inputs.get("limit_price") or inputs.get("stop_price")
+        price_str = f" at ${price}" if price else ""
+        return f"Submit {order_type} {side} of {qty} shares of {ticker}{price_str}."
+
+    if action_type == "trading.submit_bracket_order":
+        entry = inputs.get("entry_limit_price") or "market"
+        tp = inputs.get("take_profit_limit_price")
+        sl = inputs.get("stop_loss_stop_price")
+        return (
+            f"Enter {side} bracket on {ticker}: {qty} shares @ {entry}, "
+            f"take-profit {tp}, stop-loss {sl}."
+        )
+
+    if action_type == "trading.submit_trailing_stop":
+        trail = inputs.get("trail_percent")
+        if trail is not None:
+            trail_str = f"{trail}%"
+        else:
+            trail_str = f"${inputs.get('trail_price')}"
+        return f"Trailing stop on {ticker}: {qty} shares, trail {trail_str}."
+
+    # Fallback for any trading action
+    return f"Execute {action_type} on {ticker} ({side}, {qty} shares)."
+
+
 ACTION_DISPATCH_MAP: dict[str, str] = {
     # Trading (ADR-187 + ADR-192)
     "trading.submit_order":                 "platform_trading_submit_order",

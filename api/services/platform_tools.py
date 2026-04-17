@@ -1844,23 +1844,47 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
 
         # ADR-192 Phase 2: pre-trade risk gate
         from services.risk_gate import check_risk_limits
+        mode = tool_input.get("_mode", "supervised")
+        proposed = {
+            "ticker": ticker, "side": side, "qty": qty,
+            "order_type": order_type,
+            "limit_price": tool_input.get("limit_price"),
+            "stop_price": tool_input.get("stop_price"),
+        }
         gate = await check_risk_limits(
             auth.client, auth.user_id,
-            proposed_order={
-                "ticker": ticker, "side": side, "qty": qty,
-                "order_type": order_type,
-                "limit_price": tool_input.get("limit_price"),
-                "stop_price": tool_input.get("stop_price"),
-            },
-            mode=tool_input.get("_mode", "supervised"),
+            proposed_order=proposed,
+            mode=mode,
         )
         if not gate.get("approved"):
+            # ADR-193 Phase 3: autonomous rejection → emit proposal; supervised → hard error
+            if mode == "autonomous":
+                from services.primitives.propose_action import (
+                    handle_propose_action, build_trading_expected_effect,
+                )
+                prop_result = await handle_propose_action(auth, {
+                    "action_type": "trading.submit_order",
+                    "inputs": proposed,
+                    "rationale": f"Risk gate rejected autonomous execution: {gate.get('reason')}. Review limits or approve override.",
+                    "expected_effect": build_trading_expected_effect("trading.submit_order", proposed),
+                    "reversibility": "irreversible",
+                    "risk_warnings": [gate.get("reason", "")] + (gate.get("warnings") or []),
+                    "expires_in_hours": 1,
+                })
+                return {
+                    "success": False,
+                    "error": "risk_limit_violation_proposed",
+                    "message": f"Risk gate rejected; proposal emitted for user review.",
+                    "proposal_id": prop_result.get("proposal_id"),
+                    "proposal": prop_result.get("proposal"),
+                    "mode": mode,
+                }
             return {
                 "success": False,
                 "error": "risk_limit_violation",
                 "message": gate.get("reason"),
                 "warnings": gate.get("warnings", []),
-                "mode": gate.get("mode"),
+                "mode": mode,
             }
 
         order = await trading_client.submit_order(
@@ -1914,25 +1938,48 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             return {"success": False, "error": "ticker, side, qty, take_profit_limit_price, and stop_loss_stop_price are required"}
 
         from services.risk_gate import check_risk_limits
+        mode = tool_input.get("_mode", "supervised")
+        proposed = {
+            "ticker": ticker, "side": side, "qty": qty,
+            "order_class": "bracket",
+            "entry_type": tool_input.get("entry_type", "limit"),
+            "entry_limit_price": tool_input.get("entry_limit_price"),
+            "take_profit_limit_price": tp,
+            "stop_loss_stop_price": sl_stop,
+        }
         gate = await check_risk_limits(
             auth.client, auth.user_id,
-            proposed_order={
-                "ticker": ticker, "side": side, "qty": qty,
-                "order_class": "bracket",
-                "entry_type": tool_input.get("entry_type", "limit"),
-                "entry_limit_price": tool_input.get("entry_limit_price"),
-                "take_profit_limit_price": tp,
-                "stop_loss_stop_price": sl_stop,
-            },
-            mode=tool_input.get("_mode", "supervised"),
+            proposed_order=proposed,
+            mode=mode,
         )
         if not gate.get("approved"):
+            if mode == "autonomous":
+                from services.primitives.propose_action import (
+                    handle_propose_action, build_trading_expected_effect,
+                )
+                prop_result = await handle_propose_action(auth, {
+                    "action_type": "trading.submit_bracket_order",
+                    "inputs": proposed,
+                    "rationale": f"Risk gate rejected autonomous execution: {gate.get('reason')}. Review limits or approve override.",
+                    "expected_effect": build_trading_expected_effect("trading.submit_bracket_order", proposed),
+                    "reversibility": "irreversible",
+                    "risk_warnings": [gate.get("reason", "")] + (gate.get("warnings") or []),
+                    "expires_in_hours": 1,
+                })
+                return {
+                    "success": False,
+                    "error": "risk_limit_violation_proposed",
+                    "message": "Risk gate rejected; proposal emitted for user review.",
+                    "proposal_id": prop_result.get("proposal_id"),
+                    "proposal": prop_result.get("proposal"),
+                    "mode": mode,
+                }
             return {
                 "success": False,
                 "error": "risk_limit_violation",
                 "message": gate.get("reason"),
                 "warnings": gate.get("warnings", []),
-                "mode": gate.get("mode"),
+                "mode": mode,
             }
 
         order = await trading_client.submit_bracket_order(
@@ -1963,23 +2010,46 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             return {"success": False, "error": "ticker, side, and qty are required"}
 
         from services.risk_gate import check_risk_limits
+        mode = tool_input.get("_mode", "supervised")
+        proposed = {
+            "ticker": ticker, "side": side, "qty": qty,
+            "order_type": "trailing_stop",
+            "trail_percent": tool_input.get("trail_percent"),
+            "trail_price": tool_input.get("trail_price"),
+        }
         gate = await check_risk_limits(
             auth.client, auth.user_id,
-            proposed_order={
-                "ticker": ticker, "side": side, "qty": qty,
-                "order_type": "trailing_stop",
-                "trail_percent": tool_input.get("trail_percent"),
-                "trail_price": tool_input.get("trail_price"),
-            },
-            mode=tool_input.get("_mode", "supervised"),
+            proposed_order=proposed,
+            mode=mode,
         )
         if not gate.get("approved"):
+            if mode == "autonomous":
+                from services.primitives.propose_action import (
+                    handle_propose_action, build_trading_expected_effect,
+                )
+                prop_result = await handle_propose_action(auth, {
+                    "action_type": "trading.submit_trailing_stop",
+                    "inputs": proposed,
+                    "rationale": f"Risk gate rejected autonomous execution: {gate.get('reason')}. Review limits or approve override.",
+                    "expected_effect": build_trading_expected_effect("trading.submit_trailing_stop", proposed),
+                    "reversibility": "irreversible",
+                    "risk_warnings": [gate.get("reason", "")] + (gate.get("warnings") or []),
+                    "expires_in_hours": 1,
+                })
+                return {
+                    "success": False,
+                    "error": "risk_limit_violation_proposed",
+                    "message": "Risk gate rejected; proposal emitted for user review.",
+                    "proposal_id": prop_result.get("proposal_id"),
+                    "proposal": prop_result.get("proposal"),
+                    "mode": mode,
+                }
             return {
                 "success": False,
                 "error": "risk_limit_violation",
                 "message": gate.get("reason"),
                 "warnings": gate.get("warnings", []),
-                "mode": gate.get("mode"),
+                "mode": mode,
             }
 
         order = await trading_client.submit_trailing_stop(
