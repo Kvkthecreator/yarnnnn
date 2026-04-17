@@ -20,11 +20,23 @@ logger = logging.getLogger(__name__)
 
 UPDATE_CONTEXT_TOOL = {
     "name": "UpdateContext",
-    "description": """Update workspace context — identity, brand, memory, agent feedback, or task feedback.
+    "description": """Update workspace context — identity, brand, memory, agent feedback, task feedback, or the full first-act workspace scaffold.
 
 Call this whenever you learn something worth persisting. Pick the right target:
 
-**target="identity"** — User shares who they are (role, domain, background)
+**target="workspace"** — Rich first-act input (ADR-190). User just sent a doc,
+URL, or description on a fresh/thin workspace. Runs ONE inference call that
+produces identity + brand + named entities + work intent in one pass, then
+writes IDENTITY.md, BRAND.md, and scaffolds entity subfolders across domains.
+Returns a scaffold report with a `work_intent_proposal` you can act on
+in the same turn via follow-up ManageAgent + ManageTask tool calls.
+Use this when: identity is empty or sparse AND the user has submitted rich
+source material (doc, URL, multi-sentence description).
+  UpdateContext(target="workspace", text="I run a competitive intel
+      shop tracking AI foundation models", document_ids=["<uuid>"])
+
+**target="identity"** — User shares who they are (role, domain, background).
+Use for targeted updates, not first-act. See "workspace" for first-act.
   UpdateContext(target="identity", text="I'm Sarah, VP Eng at Acme, building ML infrastructure")
 
 **target="brand"** — User shares brand/voice/style (often from URLs or docs)
@@ -43,6 +55,7 @@ Call this whenever you learn something worth persisting. Pick the right target:
 **target="awareness"** — Update your situational awareness notes (shift handoff)
   UpdateContext(target="awareness", text="User focused on competitive intel. Two tracking tasks active...")
 
+For workspace: combined inference produces identity + brand + entities + work_intent in one call. Scaffolds identity/brand files + entity subfolders. Returns `work_intent_proposal` for you to materialize via ManageAgent + ManageTask in the same turn.
 For identity/brand: inference merges with existing content — nothing is lost.
 For memory: appends (deduped). For agent/task: appends feedback entry.
 For awareness: full replacement — write your current understanding as a living document.""",
@@ -51,12 +64,12 @@ For awareness: full replacement — write your current understanding as a living
         "properties": {
             "target": {
                 "type": "string",
-                "enum": ["identity", "brand", "memory", "agent", "task", "awareness"],
-                "description": "What to update: identity (IDENTITY.md), brand (BRAND.md), memory (notes), agent (agent feedback), task (task feedback), awareness (your situational notes)"
+                "enum": ["workspace", "identity", "brand", "memory", "agent", "task", "awareness"],
+                "description": "What to update: workspace (first-act scaffold — ADR-190), identity (IDENTITY.md), brand (BRAND.md), memory (notes), agent (agent feedback), task (task feedback), awareness (your situational notes)"
             },
             "text": {
                 "type": "string",
-                "description": "The content to persist — what you learned from the user"
+                "description": "The content to persist — what you learned from the user. Required for all targets except 'workspace' when document_ids or url_contents are provided."
             },
             "agent_slug": {
                 "type": "string",
@@ -74,7 +87,7 @@ For awareness: full replacement — write your current understanding as a living
             "document_ids": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "For identity/brand: UUIDs of uploaded documents. Content is read server-side — TP does not need to relay document content."
+                "description": "For target='workspace', 'identity', or 'brand': UUIDs of uploaded documents. Content is read server-side — TP does not need to relay document content."
             },
             "url_contents": {
                 "type": "array",
@@ -85,10 +98,10 @@ For awareness: full replacement — write your current understanding as a living
                         "content": {"type": "string"}
                     }
                 },
-                "description": "For identity/brand: content from web pages"
+                "description": "For target='workspace', 'identity', or 'brand': content from web pages"
             },
         },
-        "required": ["target", "text"]
+        "required": ["target"]
     }
 }
 
@@ -102,13 +115,18 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
     target = input.get("target")
     text = input.get("text", "").strip()
 
-    if target not in ("identity", "brand", "memory", "agent", "task", "awareness"):
-        return {"success": False, "error": "invalid_target", "message": "target must be one of: identity, brand, memory, agent, task, awareness"}
+    # ADR-190 "workspace" target added: rich-input first-act scaffold pass.
+    valid_targets = ("identity", "brand", "memory", "agent", "task", "awareness", "workspace")
+    if target not in valid_targets:
+        return {"success": False, "error": "invalid_target", "message": f"target must be one of: {', '.join(valid_targets)}"}
 
-    if not text:
+    # "workspace" allows empty text if documents/URLs are present (rich input paths).
+    if target != "workspace" and not text:
         return {"success": False, "error": "empty_text", "message": "text is required"}
 
-    if target in ("identity", "brand"):
+    if target == "workspace":
+        return await _handle_workspace_scaffold(auth, input)
+    elif target in ("identity", "brand"):
         return await _handle_shared_context(auth, target, input)
     elif target == "memory":
         return await _handle_memory(auth, text)
@@ -120,6 +138,165 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
         return await _handle_awareness(auth, text)
 
     return {"success": False, "error": "unknown_target", "message": f"Unhandled target: {target}"}
+
+
+async def _handle_workspace_scaffold(auth: Any, input: dict) -> dict:
+    """Rich-input first-act scaffold pass (ADR-190).
+
+    Calls `infer_first_act()` which produces identity + brand + entities +
+    work_intent from the rich input in ONE LLM call. Writes IDENTITY.md and
+    BRAND.md, delegates entity subfolder creation to ManageDomains(scaffold),
+    and returns a structured scaffold report that includes a
+    `work_intent_proposal` for YARNNN to act on in the same conversation turn
+    (via follow-up ManageAgent + ManageTask tool calls).
+
+    The orchestrator writes CONTEXT files; it does not create agents or tasks
+    directly. This preserves primitive atomicity (ADR-168) and YARNNN's team
+    composition judgment (ADR-176). YARNNN reads the scaffold report and
+    decides whether/how to materialize the work_intent_proposal.
+    """
+    from services.context_inference import infer_first_act, read_uploaded_documents
+    from services.workspace import UserMemory
+    from services.primitives.scaffold import _handle_scaffold as _handle_domain_scaffold
+
+    text = input.get("text", "") or ""
+    document_ids = input.get("document_ids", []) or []
+    url_contents = input.get("url_contents", []) or []
+
+    # At least one input channel must have content.
+    if not text.strip() and not document_ids and not url_contents:
+        return {
+            "success": False,
+            "error": "empty_input",
+            "message": "target='workspace' requires text, document_ids, or url_contents",
+        }
+
+    # Read uploaded document contents (TP passes IDs, we resolve here).
+    document_contents = []
+    if document_ids:
+        try:
+            document_contents = await read_uploaded_documents(
+                auth.client, auth.user_id, document_ids
+            )
+        except Exception as e:
+            logger.warning(f"[WORKSPACE_SCAFFOLD] Document read failed: {e}")
+
+    # Run combined first-act inference.
+    inference_result = await infer_first_act(
+        text=text,
+        document_contents=document_contents,
+        url_contents=url_contents,
+    )
+    usage = inference_result.get("usage", {}) or {}
+
+    # Record token usage (ADR-171).
+    if usage.get("input_tokens") or usage.get("output_tokens"):
+        try:
+            from services.platform_limits import record_token_usage
+            from services.supabase import get_service_client
+            record_token_usage(
+                get_service_client(),
+                user_id=auth.user_id,
+                caller="inference",
+                model="claude-sonnet-4-6",
+                input_tokens=usage.get("input_tokens", 0),
+                output_tokens=usage.get("output_tokens", 0),
+                metadata={"target": "workspace", "first_act": True},
+            )
+        except Exception as _e:
+            logger.warning(f"[TOKEN_USAGE] first-act inference record failed: {_e}")
+
+    # If inference failed entirely, surface the error and stop.
+    if inference_result.get("error") and not (
+        inference_result.get("identity_md") or inference_result.get("brand_md") or inference_result.get("entities")
+    ):
+        return {
+            "success": False,
+            "error": inference_result.get("error"),
+            "message": "First-act inference produced no usable content",
+        }
+
+    um = UserMemory(auth.client, auth.user_id)
+    scaffolded: dict = {
+        "identity": "skipped",
+        "brand": "skipped",
+        "domains": {},
+        "entity_count": 0,
+    }
+
+    # 1. Write IDENTITY.md if produced.
+    identity_md = inference_result.get("identity_md")
+    if identity_md:
+        ok = await um.write("IDENTITY.md", identity_md, summary="First-act identity inference")
+        scaffolded["identity"] = "written" if ok else "failed"
+        if ok:
+            logger.info(f"[WORKSPACE_SCAFFOLD] Wrote IDENTITY.md ({len(identity_md)} chars)")
+
+    # 2. Write BRAND.md if produced.
+    brand_md = inference_result.get("brand_md")
+    if brand_md:
+        ok = await um.write("BRAND.md", brand_md, summary="First-act brand inference")
+        scaffolded["brand"] = "written" if ok else "failed"
+        if ok:
+            logger.info(f"[WORKSPACE_SCAFFOLD] Wrote BRAND.md ({len(brand_md)} chars)")
+
+    # 3. Scaffold entities into domains (delegate to ManageDomains scaffold).
+    entities = inference_result.get("entities") or []
+    if entities:
+        # `_handle_domain_scaffold` expects entities in its own shape: {domain, slug, name, facts, url}.
+        # `infer_first_act` emits {domain, name, slug, hints}. Translate hints → facts.
+        translated = [
+            {
+                "domain": e["domain"],
+                "slug": e["slug"],
+                "name": e["name"],
+                "facts": e.get("hints", []),
+                "url": "",  # hints aren't URLs; URL enrichment is a separate concern
+            }
+            for e in entities
+            if e.get("domain") and e.get("slug") and e.get("name")
+        ]
+        try:
+            domain_result = await _handle_domain_scaffold(auth, {"entities": translated})
+            scaffolded["domains"] = domain_result.get("scaffolded", {})
+            scaffolded["entity_count"] = sum(len(v) for v in scaffolded["domains"].values())
+            if domain_result.get("skipped"):
+                scaffolded["skipped_entities"] = domain_result["skipped"]
+            logger.info(
+                f"[WORKSPACE_SCAFFOLD] Domain scaffold: "
+                f"{scaffolded['entity_count']} entities / "
+                f"{len(scaffolded['domains'])} domains"
+            )
+        except Exception as e:
+            logger.error(f"[WORKSPACE_SCAFFOLD] Domain scaffold failed: {e}")
+            scaffolded["domains_error"] = str(e)
+
+    # 4. Package work_intent as a PROPOSAL for YARNNN to act on.
+    #    We do NOT call ManageAgent / ManageTask here — that's YARNNN's judgment
+    #    call in the same conversation turn. Orchestrator stays a context primitive.
+    work_intent = inference_result.get("work_intent")
+
+    source_summary = inference_result.get("source_summary", {}) or {}
+    source_counts = (
+        f"{source_summary.get('doc_count', 0)} doc(s) + "
+        f"{source_summary.get('url_count', 0)} URL(s) + "
+        f"{'text' if source_summary.get('has_text') else 'no text'}"
+    )
+
+    return {
+        "success": True,
+        "target": "workspace",
+        "scaffolded": scaffolded,
+        "work_intent_proposal": work_intent,  # None if inference couldn't infer intent
+        "source_summary": source_summary,
+        "message": (
+            f"Scaffolded from {source_counts}: "
+            f"identity={scaffolded['identity']}, "
+            f"brand={scaffolded['brand']}, "
+            f"entities={scaffolded['entity_count']} across {len(scaffolded['domains'])} domain(s)"
+            + (f"; work intent: {work_intent.get('kind')}/{work_intent.get('deliverable_type')}" if work_intent else "")
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------

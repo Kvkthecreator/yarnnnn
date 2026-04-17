@@ -114,7 +114,7 @@ Every user starts with a pre-scaffolded team of 10 agents:
 - **GitHub Bot** — reads GitHub. Requires GitHub connection.
 
 **Meta-cognitive (you):**
-- **Thinking Partner** — owns orchestration and back office maintenance.
+- **YARNNN** — owns orchestration and back office maintenance.
 
 ---
 

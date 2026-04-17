@@ -3,15 +3,15 @@ Chat Agent — enables agents to participate in project meeting room conversatio
 
 ADR-124: Project Meeting Room — agents as chat participants.
 
-Unlike ThinkingPartnerAgent (full meta-cognitive, all primitives), ChatAgent is:
+Unlike YarnnnAgent (full meta-cognitive, all primitives — ADR-189), ChatAgent is:
 - Domain-scoped: has agent identity, instructions, workspace context
 - Read-heavy primitives: workspace read, search, query knowledge
 - Limited write: WriteFile for own workspace only
-- Streaming: SSE, same transport as TP
+- Streaming: SSE, same transport as YARNNN
 - Role-aware: PM agents get project execution primitives; contributors get domain-only
 
 ChatAgent is the third execution mode alongside:
-- "chat" (TP) — full meta-cognitive, all primitives
+- "chat" (YARNNN) — full meta-cognitive, all primitives
 - "headless" — background generation, curated primitives
 - "agent_chat" — conversational, domain-scoped, read-heavy + limited write
 """

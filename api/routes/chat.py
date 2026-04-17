@@ -42,7 +42,7 @@ from services.task_workspace import TaskWorkspace
 
 logger = logging.getLogger(__name__)
 from agents.base import ContextBundle
-from agents.thinking_partner import ThinkingPartnerAgent
+from agents.yarnnn import YarnnnAgent
 
 router = APIRouter()
 
@@ -99,10 +99,10 @@ def resolve_profile(surface: Optional[SurfaceContext]) -> str:
     """
     if not surface:
         profile = "workspace"
-        logger.info(f"[TP:PROFILE] surface=None → profile={profile}")
+        logger.info(f"[YARNNN:PROFILE] surface=None → profile={profile}")
         return profile
     profile = SURFACE_PROFILES.get(surface.type, "workspace")
-    logger.info(f"[TP:PROFILE] surface={surface.type} → profile={profile}")
+    logger.info(f"[YARNNN:PROFILE] surface={surface.type} → profile={profile}")
     return profile
 
 
@@ -829,7 +829,7 @@ async def maybe_compact_history(
 
     # Over threshold — generate compaction summary
     logger.info(
-        f"[TP-COMPACT] Session {session_id}: {total_tokens} tokens exceeds "
+        f"[YARNNN-COMPACT] Session {session_id}: {total_tokens} tokens exceeds "
         f"threshold {COMPACTION_THRESHOLD}. Generating compaction summary."
     )
 
@@ -871,7 +871,7 @@ async def maybe_compact_history(
         compaction_text = response.content[0].text.strip() if response.content else ""
 
         if not compaction_text:
-            logger.warning(f"[TP-COMPACT] Session {session_id}: Empty compaction response, skipping.")
+            logger.warning(f"[YARNNN-COMPACT] Session {session_id}: Empty compaction response, skipping.")
             return None
 
         # Persist to chat_sessions.compaction_summary
@@ -879,9 +879,9 @@ async def maybe_compact_history(
             client.table("chat_sessions").update(
                 {"compaction_summary": compaction_text}
             ).eq("id", session_id).execute()
-            logger.info(f"[TP-COMPACT] Session {session_id}: Compaction summary written ({len(compaction_text)} chars).")
+            logger.info(f"[YARNNN-COMPACT] Session {session_id}: Compaction summary written ({len(compaction_text)} chars).")
         except Exception as db_err:
-            logger.warning(f"[TP-COMPACT] Session {session_id}: Failed to write compaction_summary: {db_err}")
+            logger.warning(f"[YARNNN-COMPACT] Session {session_id}: Failed to write compaction_summary: {db_err}")
 
         return {
             "role": "assistant",
@@ -892,7 +892,7 @@ async def maybe_compact_history(
         }
 
     except Exception as e:
-        logger.warning(f"[TP-COMPACT] Session {session_id}: Compaction failed, falling back to truncation: {e}")
+        logger.warning(f"[YARNNN-COMPACT] Session {session_id}: Compaction failed, falling back to truncation: {e}")
         return None
 
 
@@ -1209,7 +1209,7 @@ async def global_chat(
         ).eq("id", session_id).single().execute()
         existing_compaction = (session_row.data or {}).get("compaction_summary")
     except Exception as e:
-        logger.debug(f"[TP-COMPACT] Failed to load existing compaction: {e}")
+        logger.debug(f"[YARNNN-COMPACT] Failed to load existing compaction: {e}")
 
     # ADR-067 Phase 3: check compaction threshold; generate or reuse summary
     from services.supabase import get_service_client
@@ -1226,7 +1226,7 @@ async def global_chat(
         compaction_block=compaction_block,
     )
     logger.info(
-        f"[TP] Loaded {len(existing_messages)} messages, built {len(history)} history entries"
+        f"[YARNNN] Loaded {len(existing_messages)} messages, built {len(history)} history entries"
         + (f" (compaction block present)" if compaction_block else "")
     )
 
@@ -1242,7 +1242,7 @@ async def global_chat(
             if d_result.data:
                 scoped_agent = d_result.data
         except Exception as e:
-            logger.warning(f"[TP] Failed to fetch scoped agent: {e}")
+            logger.warning(f"[YARNNN] Failed to fetch scoped agent: {e}")
 
     # ADR-059/064: Memory now loaded via build_working_memory in execute_stream_with_tools
     # ContextBundle is passed for backwards compatibility but is empty
@@ -1251,17 +1251,17 @@ async def global_chat(
     # ADR-023: Load surface content if user is viewing something specific
     surface_content = None
     if request.surface_context:
-        logger.info(f"[TP] Surface context received: {request.surface_context.type}")
+        logger.info(f"[YARNNN] Surface context received: {request.surface_context.type}")
         surface_content = await load_surface_content(
             auth.client,
             auth.user_id,
             request.surface_context
         )
         if surface_content:
-            logger.info(f"[TP] Loaded surface content ({len(surface_content)} chars)")
+            logger.info(f"[YARNNN] Loaded surface content ({len(surface_content)} chars)")
 
-    # All messages route to TP (ChatAgent/project meeting room routing removed)
-    agent = ThinkingPartnerAgent()
+    # All messages route to YARNNN (ChatAgent/project meeting room routing removed)
+    agent = YarnnnAgent()
 
     async def response_stream():
         full_response = ""
@@ -1278,7 +1278,7 @@ async def global_chat(
             user_message_metadata = {}
 
             await append_message(auth.client, session_id, "user", request.content, user_message_metadata)
-            logger.info(f"[TP-STREAM] Starting stream for message: {request.content[:50]}...")
+            logger.info(f"[YARNNN-STREAM] Starting stream for message: {request.content[:50]}...")
 
             # Build images list for Claude API format (if any)
             images_for_api = None
@@ -1294,7 +1294,7 @@ async def global_chat(
                     }
                     for img in request.images
                 ]
-                logger.info(f"[TP] Processing {len(images_for_api)} image attachment(s)")
+                logger.info(f"[YARNNN] Processing {len(images_for_api)} image attachment(s)")
 
             # ADR-186: Resolve prompt profile from surface
             profile = resolve_profile(request.surface_context)
@@ -1321,14 +1321,14 @@ async def global_chat(
                 elif event.type == "tool_use":
                     tools_used.append(event.content["name"])
                     current_tool_use = event.content
-                    msg = f"[TP-STREAM] Tool use: {event.content['name']}"
+                    msg = f"[YARNNN-STREAM] Tool use: {event.content['name']}"
                     logger.info(msg)
                     yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
                 elif event.type == "tool_result":
                     result = event.content.get("result", {})
                     ui_action = result.get("ui_action")
                     tool_name = event.content.get("name")
-                    msg = f"[TP-STREAM] Tool result for {tool_name}: ui_action={ui_action}, success={result.get('success')}"
+                    msg = f"[YARNNN-STREAM] Tool result for {tool_name}: ui_action={ui_action}, success={result.get('success')}"
                     logger.info(msg)
 
                     # Extract Respond/Clarify message as text content
@@ -1362,7 +1362,7 @@ async def global_chat(
                     last_token_usage = event.content
                     yield f"data: {json.dumps({'usage': event.content})}\n\n"
                 elif event.type == "done":
-                    msg = f"[TP-STREAM] Stream done, tools_used={tools_used}"
+                    msg = f"[YARNNN-STREAM] Stream done, tools_used={tools_used}"
                     logger.info(msg)
                     pass  # Will send done event after saving
 
@@ -1439,15 +1439,15 @@ async def global_chat(
                     metadata={"session_id": session_id, "tools_used": tools_used},
                 )
             except Exception as e:
-                logger.debug(f"[TP] Activity log write failed: {e}")
+                logger.debug(f"[YARNNN] Activity log write failed: {e}")
 
             # ADR-059: Background extraction removed.
 
         except Exception as e:
             import traceback
-            error_msg = f"[TP-STREAM] Error: {type(e).__name__}: {str(e)}"
+            error_msg = f"[YARNNN-STREAM] Error: {type(e).__name__}: {str(e)}"
             logger.error(error_msg)
-            logger.error(f"[TP-STREAM] Traceback: {traceback.format_exc()}")
+            logger.error(f"[YARNNN-STREAM] Traceback: {traceback.format_exc()}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(

@@ -108,14 +108,30 @@ export function AgentRosterSurface({ agents, tasks, onSelect }: AgentRosterSurfa
   }, [agents]);
 
   if (agents.length === 0) {
+    // ADR-189: Authored-team empty state. The /agents list starts empty;
+    // the user builds the team by chatting with YARNNN. Infrastructure
+    // (YARNNN, Specialists, Platform Bots) is present at the DB layer but
+    // never shown here — those are YARNNN's palette, not user-visible Agents.
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <Sparkles className="w-6 h-6 text-muted-foreground/20 mx-auto mb-2" />
-          <p className="text-sm font-medium mb-1">No agents yet</p>
-          <p className="text-xs text-muted-foreground">
-            Your workspace agents will appear here once scaffolded.
+      <div className="flex items-center justify-center h-full px-6">
+        <div className="text-center max-w-md">
+          <Sparkles className="w-8 h-8 text-muted-foreground/30 mx-auto mb-4" />
+          <h3 className="text-base font-semibold mb-2">Your team starts here</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Describe your work to YARNNN. Create the Agents that do it.
           </p>
+          <p className="text-xs text-muted-foreground/60">
+            Agents are yours — you build them by chatting. They accumulate
+            domain expertise over every run.
+          </p>
+          <div className="mt-6">
+            <a
+              href="/chat"
+              className="inline-flex items-center gap-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90 transition-colors"
+            >
+              Talk to YARNNN
+            </a>
+          </div>
         </div>
       </div>
     );

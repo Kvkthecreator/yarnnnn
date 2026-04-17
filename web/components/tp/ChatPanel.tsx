@@ -1,11 +1,15 @@
 'use client';
 
 /**
- * ChatPanel — Shared TP chat component
+ * ChatPanel — Shared YARNNN chat component (ADR-189, ADR-190).
  *
  * Used by both the Tasks surface and Context explorer.
  * Handles message display, input, file attachments, command picker,
  * clarification UI, action cards, and token usage.
+ *
+ * ADR-190: the /chat surface passes `emptyState={<ChatEmptyState />}` to
+ * render a deterministic welcome + chips when messages.length === 0.
+ * File drop + URL paste affordances will migrate here in a later commit.
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -43,16 +47,33 @@ export interface ChatPanelProps {
   /** Input placeholder text */
   placeholder?: string;
   /**
-   * Empty state content — rendered when no messages. Used by surfaces that
-   * embed ChatPanel via ThreePanelLayout (work, agents) to show contextual
-   * "select something" guidance. The /chat surface (ADR-165 v6) does NOT
-   * use this — TP's first response is the empty state there.
+   * Empty state content — rendered when no messages. Used by:
+   *   - The /chat surface (ADR-190): passes a render function that receives
+   *     helpers (e.g., requestUpload) so the ChatEmptyState chips can trigger
+   *     composer affordances (file picker) directly.
+   *   - Other surfaces (work, agents, context via ThreePanelLayout): pass a
+   *     plain ReactNode with contextual "select something" guidance.
+   *
+   * The render-function form exposes ChatPanel's internal helpers (file
+   * picker ref, future URL input focus, etc.) to the empty-state children
+   * without leaking ChatPanel internals through props.
    */
-  emptyState?: React.ReactNode;
+  emptyState?:
+    | React.ReactNode
+    | ((helpers: ChatEmptyStateHelpers) => React.ReactNode);
   /** Whether to show the command picker (/ commands) */
   showCommandPicker?: boolean;
   /** Whether to render a divider above the input */
   showInputDivider?: boolean;
+}
+
+/**
+ * Helpers exposed to emptyState render functions (ADR-190).
+ * Add new helpers here as rich-input affordances grow (URL capture, etc.).
+ */
+export interface ChatEmptyStateHelpers {
+  /** Opens the OS file picker for the composer's hidden file input. */
+  requestUpload: () => void;
 }
 
 export function ChatPanel({
@@ -60,7 +81,7 @@ export function ChatPanel({
   draftSeed,
   plusMenuActions,
   pendingActionConfig,
-  placeholder = 'Ask anything or type / ...',
+  placeholder = 'Type, drop a file, or paste a link...',
   emptyState,
   showCommandPicker = true,
   showInputDivider = true,
@@ -169,14 +190,18 @@ export function ChatPanel({
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5">
         {messages.length === 0 && !isLoading && emptyState && (
           <div className="py-4 px-2">
-            {emptyState}
+            {typeof emptyState === 'function'
+              ? emptyState({
+                  requestUpload: () => fileInputRef.current?.click(),
+                })
+              : emptyState}
           </div>
         )}
 
         {messages.map(msg => (
           <div key={msg.id} className={cn('text-[13px] rounded-2xl px-3 py-2 max-w-[92%]', msg.role === 'user' ? 'bg-primary/10 ml-auto rounded-br-md' : 'bg-muted rounded-bl-md')}>
             <span className={cn("text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1", msg.role === 'user' ? 'uppercase' : 'font-brand text-[10px]')}>
-              {msg.role === 'user' ? 'You' : 'Thinking Partner'}
+              {msg.role === 'user' ? 'You' : 'YARNNN'}
             </span>
             {msg.blocks && msg.blocks.length > 0 ? (
               <MessageBlocks blocks={msg.blocks} />

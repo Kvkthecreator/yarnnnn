@@ -41,7 +41,7 @@ ROLE_TO_SCOPE = {
     "writer": "cross_platform",
     "planner": "platform",
     "scout": "research",
-    # ADR-164: TP as meta-cognitive agent — orchestration is autonomous scope
+    # ADR-164: YARNNN as meta-cognitive agent — orchestration is autonomous scope
     "thinking_partner": "autonomous",
     # Legacy mappings (DB may still have old values)
     "digest": "platform",
@@ -104,7 +104,7 @@ async def create_agent_record(
     Create an agent record in the database with workspace seeding.
 
     This is the single creation path for all agent origins:
-    - user_configured (TP chat, UI form)
+    - user_configured (YARNNN chat, UI form)
     - coordinator_created (coordinator agents)
     - system_bootstrap (onboarding bootstrap, ADR-110)
     - composer (composer service, ADR-111 future)

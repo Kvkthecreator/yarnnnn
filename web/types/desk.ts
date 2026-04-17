@@ -10,7 +10,7 @@
 // =============================================================================
 
 export type DeskSurface =
-  // Agents (create handled by TP chat — /dashboard?create)
+  // Agents (create handled by YARNNN chat — /dashboard?create)
   | { type: 'agent-review'; agentId: string; runId: string }
   | { type: 'agent-detail'; agentId: string }
   | { type: 'agent-list'; status?: 'active' | 'paused' | 'archived' }
@@ -194,7 +194,7 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
   const { surface, data } = action;
 
   switch (surface) {
-    // Agents (create handled by TP chat — /dashboard?create)
+    // Agents (create handled by YARNNN chat — /dashboard?create)
     case 'agent':
       return { type: 'agent-detail', agentId: data.agentId as string };
     case 'agent-review':

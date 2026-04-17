@@ -449,9 +449,9 @@ async def phase_5_behavioral_triggers(auth: MockAuth) -> PhaseResult:
     logger.info(f"Phase 5: Behavioral Triggers (Prompt Verification)")
     logger.info(f"{'='*60}")
 
-    from agents.tp_prompts.behaviors import BEHAVIORS_SECTION
-    from agents.tp_prompts.tools import TOOLS_SECTION
-    from agents.tp_prompts import build_system_prompt
+    from agents.yarnnn_prompts.behaviors import BEHAVIORS_SECTION
+    from agents.yarnnn_prompts.tools import TOOLS_SECTION
+    from agents.yarnnn_prompts import build_system_prompt
 
     # 5a: Stale references removed
     assert_not_in(r, "No 'Work Boundary' in behaviors",

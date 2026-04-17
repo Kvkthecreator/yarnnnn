@@ -1,7 +1,7 @@
 """
 Base agent interface and shared types
 
-Shared data classes used by ThinkingPartnerAgent and integration agents.
+Shared data classes used by YarnnnAgent (ADR-189) and integration agents.
 ADR-090: WorkOutput, SUBMIT_OUTPUT_TOOL, factory, and AgentAgent removed.
 """
 
@@ -92,7 +92,7 @@ class AgentResult:
     success: bool
     error: Optional[str] = None
 
-    # For TP/chat responses
+    # For YARNNN/chat responses
     content: Optional[str] = None
 
     # Token tracking
@@ -105,7 +105,7 @@ class BaseAgent(ABC):
     Base class for agents.
 
     Subclasses must implement execute() method.
-    Currently used by ThinkingPartnerAgent.
+    Currently used by YarnnnAgent (ADR-189).
     """
 
     AGENT_TYPE: str = "base"

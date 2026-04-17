@@ -1,10 +1,18 @@
 # YARNNN Naming Conventions
 
-**Status:** Canonical
+> **⚠ Superseded by [GLOSSARY.md](GLOSSARY.md) — ratified by ADR-189 (2026-04-17).**
+>
+> The contents of this document predate the three-layer cognition model (YARNNN / Specialist / Agent) and the glossary discipline established by ADR-189. Several terms below (notably "TP," "Thinking Partner," "Specialist" in its pre-ADR-189 sense) are retired. Use GLOSSARY.md for all current terminology.
+>
+> This file is retained as a historical artifact pending removal after the ADR-189 Phase 3 rename pass lands.
+
+**Status:** Superseded (2026-04-17, by GLOSSARY.md / ADR-189)
 **Date:** 2026-03-06 (updated from 2026-03-03)
 **Related:**
+- [GLOSSARY.md](GLOSSARY.md) — canonical terminology (current)
+- [ADR-189](../adr/ADR-189-three-layer-cognition.md) — three-layer cognition
 - [Agent Model Comparison](agent-model-comparison.md) — why YARNNN has its own model
-- [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — naming convention table
+- [ADR-087: Agent Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — naming convention table (historical)
 
 ---
 

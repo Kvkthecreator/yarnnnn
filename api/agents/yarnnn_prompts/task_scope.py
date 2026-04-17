@@ -1,7 +1,7 @@
 """
-Task-Scoped TP Preamble — injected when surface_context.type == 'task-detail'
+Task-Scoped YARNNN Preamble — injected when surface_context.type == 'task-detail'
 
-This preamble gives TP awareness of the specific task the user is viewing,
+This preamble gives YARNNN awareness of the specific task the user is viewing,
 including the task definition, latest output, run history, and assigned agent.
 
 See docs/design/FEEDBACK-WORKFLOW-REDESIGN.md for the feedback routing model.

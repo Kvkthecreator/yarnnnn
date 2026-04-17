@@ -1,7 +1,7 @@
 """
 Agent implementations
 
-- ThinkingPartnerAgent: Real-time TP conversation agent
+- YarnnnAgent: Real-time YARNNN conversation super-agent (ADR-189)
 - Base classes: BaseAgent, ContextBundle, Memory (shared types)
 - Integration agents: DELETED (ADR-153 — platform data flows through task execution)
 """

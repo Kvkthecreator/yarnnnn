@@ -3,7 +3,7 @@
 **Status:** Canonical — reflects post-ADR-168 state
 **Last updated:** 2026-04-09 (ADR-168 Commit 5 — marked Implemented)
 **Governing ADRs:** ADR-146 (Primitive Hardening), ADR-168 (this matrix — substrate/mode/capability axes + entity/file naming reform), ADR-169 (MCP as third caller)
-**Related:** ADR-154 (Who/What/How), ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-164 (TP as Agent), ADR-166 (precedent for two-axis registry cleanup)
+**Related:** ADR-154 (Who/What/How), ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-164 (YARNNN as Agent), ADR-166 (precedent for two-axis registry cleanup)
 **Sibling reference:** [registry-matrix.md](registry-matrix.md) — for domains × tasks × agents
 **Source of truth:** [api/services/primitives/registry.py](../../api/services/primitives/registry.py)
 
@@ -104,49 +104,49 @@ Verbs: `GetSystemState`, `list_integrations`.
 
 ---
 
-## Perception channel: how TP senses state before it acts
+## Perception channel: how YARNNN senses state before it acts
 
-**The matrix below is TP's action vocabulary. It is not TP's entire input surface.** Before TP reaches for a primitive, it reads a precomputed perception channel that is injected into its system prompt on every turn. This section documents that channel so the matrix isn't misread as the only way TP knows about workspace state.
+**The matrix below is YARNNN's action vocabulary. It is not YARNNN's entire input surface.** Before YARNNN reaches for a primitive, it reads a precomputed perception channel that is injected into its system prompt on every turn. This section documents that channel so the matrix isn't misread as the only way YARNNN knows about workspace state.
 
 ### Two input channels
 
 | Channel | What it carries | When it runs | Who produces it | Primitive cost |
 |---|---|---|---|---|
-| **Perception** (working memory) | Workspace state snapshot: identity/brand richness, task counts, stale tasks, budget, agent health, context domain fullness, recent uploads, active tasks, recent sessions, system summary | Once per TP turn, before tool dispatch | [api/services/working_memory.py](../../api/services/working_memory.py) `format_compact_index()` | Zero LLM, zero primitives — pure SQL precompute |
-| **Action** (primitives) | Mutations + lookups TP initiates in response to what it read from perception | During tool rounds | The primitives in the matrix below | One tool call per verb |
+| **Perception** (working memory) | Workspace state snapshot: identity/brand richness, task counts, stale tasks, budget, agent health, context domain fullness, recent uploads, active tasks, recent sessions, system summary | Once per YARNNN turn, before tool dispatch | [api/services/working_memory.py](../../api/services/working_memory.py) `format_compact_index()` | Zero LLM, zero primitives — pure SQL precompute |
+| **Action** (primitives) | Mutations + lookups YARNNN initiates in response to what it read from perception | During tool rounds | The primitives in the matrix below | One tool call per verb |
 
-TP **reads perception → decides → acts through primitives**. It does not call primitives to reconstruct state that the perception channel already carries.
+YARNNN **reads perception → decides → acts through primitives**. It does not call primitives to reconstruct state that the perception channel already carries.
 
-### What working memory injects into TP's prompt
+### What working memory injects into YARNNN's prompt
 
 Single source of truth: [api/services/working_memory.py:format_compact_index()](../../api/services/working_memory.py). Key fields in the injected dict:
 
 - **`workspace_state`** (ADR-156) — the meta-awareness signal. Identity/brand richness classification (empty / partial / rich), document count, context domain count with content, active task count, stale task count, credits used/limit, budget-exhausted flag, flagged-agent list.
 - **`active_tasks`** — currently active task summaries with last run / next run freshness.
 - **`context_domains`** — per-domain health: file count, temporal flag, entity count.
-- **`recent_uploads`** (ADR-162 Sub-phase B) — documents uploaded in last 7 days that TP may want to process.
+- **`recent_uploads`** (ADR-162 Sub-phase B) — documents uploaded in last 7 days that YARNNN may want to process.
 - **`recent_sessions`** — prior session continuity markers.
 - **`system_summary`** + **`system_reference`** — tier, limits, connected platforms.
 - **`user_shared_files`** — shared uploads available as context.
 - **`identity`**, **`brand`**, **`awareness`**, **`conversation_summary`** — the narrative layer of workspace memory (ADR-159 filesystem-as-memory).
 
-All of this is precomputed from SQL and file reads — **zero LLM calls** produced it. TP receives it as a compact index (~500 tokens after ADR-159) and reads deeper on demand via file-layer primitives when it needs detail.
+All of this is precomputed from SQL and file reads — **zero LLM calls** produced it. YARNNN receives it as a compact index (~500 tokens after ADR-159) and reads deeper on demand via file-layer primitives when it needs detail.
 
 ### Why perception is not a primitive
 
 This is deliberate, not drift. Two ADRs govern it:
 
-1. **ADR-156 (Composer Sunset / Single Intelligence Layer)**. Making TP call `GetSystemState` + `ListEntities(type=task)` + `QueryKnowledge(domain=…)` + `ListFiles(…)` on every turn to reconstruct workspace state would reintroduce exactly the pattern ADR-156 deleted Composer to avoid — a second reasoning loop judging state that SQL can compute deterministically. Primitives are for actions, not for waste-motion sensing.
+1. **ADR-156 (Composer Sunset / Single Intelligence Layer)**. Making YARNNN call `GetSystemState` + `ListEntities(type=task)` + `QueryKnowledge(domain=…)` + `ListFiles(…)` on every turn to reconstruct workspace state would reintroduce exactly the pattern ADR-156 deleted Composer to avoid — a second reasoning loop judging state that SQL can compute deterministically. Primitives are for actions, not for waste-motion sensing.
 
-2. **ADR-159 (Filesystem-as-Memory)**. TP's prompt is a compact index (~500 tokens) plus on-demand file reads. The compact index *is* the meta-awareness layer. A `GetWorkspaceState` primitive would duplicate what the compact index already carries, burn a tool round to get it, and cost ~70% of the token savings ADR-159 delivered.
+2. **ADR-159 (Filesystem-as-Memory)**. YARNNN's prompt is a compact index (~500 tokens) plus on-demand file reads. The compact index *is* the meta-awareness layer. A `GetWorkspaceState` primitive would duplicate what the compact index already carries, burn a tool round to get it, and cost ~70% of the token savings ADR-159 delivered.
 
-Consequence: **there is no `GetWorkspaceState` primitive and there will not be one.** If a state signal is missing from TP's perception, the fix is to add it to `working_memory.format_compact_index()`, not to create a primitive.
+Consequence: **there is no `GetWorkspaceState` primitive and there will not be one.** If a state signal is missing from YARNNN's perception, the fix is to add it to `working_memory.format_compact_index()`, not to create a primitive.
 
 ### A realistic meta-awareness loop
 
 Concrete example of how perception and action compose during a cold-start onboarding conversation:
 
-| Turn | Perception TP reads (from working memory) | TP decides | Primitive TP calls |
+| Turn | Perception YARNNN reads (from working memory) | YARNNN decides | Primitive YARNNN calls |
 |---|---|---|---|
 | 1 | `workspace_state.identity = "empty"`, `tasks_active = 1` (daily-update), `documents = 0` | Cold start. Need context input. | `Clarify(question="Tell me about your work — paste docs, URLs, or describe it in chat?")` |
 | 2 | User pastes material → `recent_uploads` populated, user message has text | Run inference. | `UpdateContext(target="identity", text=…)` (context inference) |
@@ -156,7 +156,7 @@ Concrete example of how perception and action compose during a cold-start onboar
 
 Four primitives touched in five turns, across four different substrate families (`interaction`, `context`, `lifecycle`, `lifecycle`). Turn 5 uses zero primitives because perception already carries the answer. This is the intended shape: **perception surfaces state, primitives change it.**
 
-Every verb in that loop is in the matrix below. The decision loop ("read perception, pick next action") lives in TP's system prompt, not in any primitive.
+Every verb in that loop is in the matrix below. The decision loop ("read perception, pick next action") lives in YARNNN's system prompt, not in any primitive.
 
 ---
 
@@ -179,7 +179,7 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 | `QueryKnowledge` | file | ○ | ● | ● | semantic-query | [workspace.py](../../api/services/primitives/workspace.py) | Semantic ranked query over accumulated `/workspace/context/` domains (ADR-151). Distinct from `SearchFiles` — returns ranked results with domain/metadata filters. **MCP's primary primitive**: `pull_context` is a thin wrapper, `work_on_this` composes over it. |
 | `ReadAgentFile` | file | ○ | ● | ○ | file-layer, inter-agent | [workspace.py](../../api/services/primitives/workspace.py) | Read a file from another agent's workspace (read-only, ADR-116). |
 | `DiscoverAgents` | lifecycle | ○ | ● | ○ | inter-agent | [workspace.py](../../api/services/primitives/workspace.py) | Find other agents in the workspace by role/scope/status (ADR-116 Phase 2). |
-| `UpdateContext` | context | ● | ○ | ● | context-mutation | [update_context.py](../../api/services/primitives/update_context.py) | Single verb for all context mutations. Targets: `identity`, `brand`, `memory`, `agent`, `task`, `awareness`. **MCP `remember_this`** dispatches here with a two-branch classifier (workspace-level targets default safely to `memory`, operational feedback uses slug disambiguation). ADR-169 decision: all UpdateContext targets available via MCP *except `awareness`* (TP-only). Safety via ADR-162 provenance stamping, not pre-write guards. |
+| `UpdateContext` | context | ● | ○ | ● | context-mutation | [update_context.py](../../api/services/primitives/update_context.py) | Single verb for all context mutations. Targets: `identity`, `brand`, `memory`, `agent`, `task`, `awareness`. **MCP `remember_this`** dispatches here with a two-branch classifier (workspace-level targets default safely to `memory`, operational feedback uses slug disambiguation). ADR-169 decision: all UpdateContext targets available via MCP *except `awareness`* (YARNNN-only). Safety via ADR-162 provenance stamping, not pre-write guards. |
 | `ManageAgent` | lifecycle | ● | ● | ○ | lifecycle | [coordinator.py](../../api/services/primitives/coordinator.py) | Create, update, pause, resume, archive agent. |
 | `ManageTask` | lifecycle | ● | ● | ○ | lifecycle | [manage_task.py](../../api/services/primitives/manage_task.py) | Create, trigger, update, pause, resume, evaluate, steer, complete task. ADR-168 Commit 3 folded the former `CreateTask` primitive into `action="create"` for symmetry with `ManageAgent`. |
 | `ManageDomains` | lifecycle | ● | ● | ○ | lifecycle | [scaffold.py](../../api/services/primitives/scaffold.py) | Scaffold, add, remove, list entities in workspace context domains (ADR-155/157). |
@@ -193,16 +193,16 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 
 ### Mode totals (current state, post-ADR-168 + ADR-169)
 
-- **Chat mode:** 14 static primitives — `LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `RuntimeDispatch`, `Clarify`. Note: `RuntimeDispatch` was added for TP image/asset generation via Gemini (charts, diagrams, hero images). ADR-186: the primitive set is constant across both prompt profiles — behavioral guidance (not tool availability) determines when TP reaches for each tool.
+- **Chat mode:** 14 static primitives — `LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `ManageTask`, `RepurposeOutput`, `RuntimeDispatch`, `Clarify`. Note: `RuntimeDispatch` was added for YARNNN image/asset generation via Gemini (charts, diagrams, hero images). ADR-186: the primitive set is constant across both prompt profiles — behavioral guidance (not tool availability) determines when YARNNN reaches for each tool.
 - **Headless mode:** 16 static primitives + `platform_*` dynamic — `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `QueryKnowledge`, `ListFiles`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageTask`, `ManageDomains`, `RuntimeDispatch`.
 - **MCP mode (ADR-169):** 2 primitives — `QueryKnowledge` and `UpdateContext`. The MCP tool surface itself is three intent-shaped tools (`work_on_this`, `pull_context`, `remember_this`) that compose over these two primitives. MCP is the foreign-LLM surface — third caller of `execute_primitive()` per ADR-164 runtime-agnostic principle. See [docs/features/mcp/architecture.md](../features/mcp/architecture.md) for the composition layer (`api/services/mcp_composition.py`).
 
 **Hard boundaries (enforced by [api/test_recent_commits.py](../../api/test_recent_commits.py)):**
 
-- Chat does NOT have file-layer primitives (`ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`). TP operates on task/agent paths through `EditEntity` on typed refs, not through agent-scoped file I/O.
-- Chat has `RuntimeDispatch` for explicit user requests (image generation, charts, diagrams). TP uses it when the user asks for a visual asset or when a visual would materially improve a response.
+- Chat does NOT have file-layer primitives (`ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`). YARNNN operates on task/agent paths through `EditEntity` on typed refs, not through agent-scoped file I/O.
+- Chat has `RuntimeDispatch` for explicit user requests (image generation, charts, diagrams). YARNNN uses it when the user asks for a visual asset or when a visual would materially improve a response.
 - Headless does NOT have `EditEntity`, `Clarify`, `UpdateContext`, `RepurposeOutput`, or `list_integrations`. No user-authorization path in headless mode, no user channel, no user-facing mutations, no platform metadata needs that aren't already resolved at capability-bundle time.
-- **MCP does NOT have any lifecycle, entity-layer, or agent-scoped file-layer primitives.** MCP callers (foreign LLMs acting on behalf of the user) are consultation-shaped, not operator-shaped. The user in a foreign LLM is in thinking mode, not workforce-management mode — the MCP surface reflects that. Specifically: no `ManageAgent`/`ManageTask`/`ManageDomains` (no workforce control from foreign LLMs), no `LookupEntity`/`ListEntities`/`SearchEntities`/`EditEntity` (entity layer is TP-chat-only), no `ReadFile`/`WriteFile`/`SearchFiles`/`ListFiles`/`ReadAgentFile` (agent-scoped file layer is headless-only), no `RuntimeDispatch`/`RepurposeOutput` (output generation lives on YARNNN's own runtime), no `Clarify` (MCP uses the structured `ambiguous` return shape instead). The two permitted primitives (`QueryKnowledge` + `UpdateContext`) are the exact surface needed for "consult accumulated context + contribute back" and nothing more. ADR-169 decision; see [docs/features/mcp/architecture.md](../features/mcp/architecture.md).
+- **MCP does NOT have any lifecycle, entity-layer, or agent-scoped file-layer primitives.** MCP callers (foreign LLMs acting on behalf of the user) are consultation-shaped, not operator-shaped. The user in a foreign LLM is in thinking mode, not workforce-management mode — the MCP surface reflects that. Specifically: no `ManageAgent`/`ManageTask`/`ManageDomains` (no workforce control from foreign LLMs), no `LookupEntity`/`ListEntities`/`SearchEntities`/`EditEntity` (entity layer is YARNNN-chat-only), no `ReadFile`/`WriteFile`/`SearchFiles`/`ListFiles`/`ReadAgentFile` (agent-scoped file layer is headless-only), no `RuntimeDispatch`/`RepurposeOutput` (output generation lives on YARNNN's own runtime), no `Clarify` (MCP uses the structured `ambiguous` return shape instead). The two permitted primitives (`QueryKnowledge` + `UpdateContext`) are the exact surface needed for "consult accumulated context + contribute back" and nothing more. ADR-169 decision; see [docs/features/mcp/architecture.md](../features/mcp/architecture.md).
 
 ---
 
@@ -216,12 +216,12 @@ For verbs that carry a typed sub-action, the enum is load-bearing. Single source
 
 | Target | Writes to | Typical caller |
 |---|---|---|
-| `identity` | Identity substrate (IDENTITY.md + inference merge) | TP during context inference |
-| `brand` | Brand substrate (BRAND.md + inference merge) | TP during context inference |
-| `memory` | `user_memory` KV store — appends (deduped) | TP in-session fact capture (ADR-156) |
-| `agent` | Agent's workspace `memory/feedback.md` — appends feedback entry | TP routing user feedback about an agent |
-| `task` | Task's `memory/feedback.md` by default; `feedback_target` sub-parameter can route to `DELIVERABLE.md` preference trail (ADR-149) or patch TASK.md sections directly (`criteria`, `objective`, `output_spec`, `run_log`) | TP routing user feedback on a task's output |
-| `awareness` | TP's situational notes (shift handoff) — full replacement, living document | TP updating its own working awareness |
+| `identity` | Identity substrate (IDENTITY.md + inference merge) | YARNNN during context inference |
+| `brand` | Brand substrate (BRAND.md + inference merge) | YARNNN during context inference |
+| `memory` | `user_memory` KV store — appends (deduped) | YARNNN in-session fact capture (ADR-156) |
+| `agent` | Agent's workspace `memory/feedback.md` — appends feedback entry | YARNNN routing user feedback about an agent |
+| `task` | Task's `memory/feedback.md` by default; `feedback_target` sub-parameter can route to `DELIVERABLE.md` preference trail (ADR-149) or patch TASK.md sections directly (`criteria`, `objective`, `output_spec`, `run_log`) | YARNNN routing user feedback on a task's output |
+| `awareness` | YARNNN's situational notes (shift handoff) — full replacement, living document | YARNNN updating its own working awareness |
 
 The `feedback_target` sub-parameter on `target="task"` has its own 5-value enum: `deliverable` (default, writes to `memory/feedback.md` for DELIVERABLE.md inference), `criteria`, `objective`, `output_spec`, `run_log`. It's a refinement of where within a task's substrate the feedback lands, not a top-level target.
 
@@ -248,8 +248,8 @@ Note: `task_slug` is required for all actions EXCEPT `create` (which generates t
 | `update` | Patch task fields (schedule, objective, sources, delivery) | both | ADR-146 |
 | `pause` | Set `tasks.status = 'paused'` | both | ADR-146 |
 | `resume` | Set `tasks.status = 'active'`, recompute `next_run_at` | both | ADR-146 |
-| `evaluate` | Write TP evaluation to `memory/feedback.md` (goal-mode steering) | chat | ADR-149 |
-| `steer` | Write TP steering note to `memory/steering.md` | chat | ADR-149 |
+| `evaluate` | Write YARNNN evaluation to `memory/feedback.md` (goal-mode steering) | chat | ADR-149 |
+| `steer` | Write YARNNN steering note to `memory/steering.md` | chat | ADR-149 |
 | `complete` | Mark goal-mode task complete | chat | ADR-149 |
 
 ### `ManageDomains.action`
@@ -278,8 +278,8 @@ When renaming, adding, or removing a primitive, perform a grep sweep across thes
 
 - `api/services/primitives/registry.py` — imports, `HANDLERS`, `CHAT_PRIMITIVES`, `HEADLESS_PRIMITIVES`
 - `api/services/primitives/*.py` — tool definition files
-- `api/agents/thinking_partner.py` — TP system prompt
-- `api/agents/tp_prompts/*.py` — onboarding, tools, behaviors, system
+- `api/agents/thinking_partner.py` — YARNNN system prompt
+- `api/agents/yarnnn_prompts/*.py` — onboarding, tools, behaviors, system
 - `api/agents/chat_agent.py`
 - `api/services/agent_pipeline.py` — reasoning agent prompts
 - `api/services/task_pipeline.py` — task execution prompts
@@ -307,7 +307,7 @@ When renaming, adding, or removing a primitive, perform a grep sweep across thes
 - `docs/architecture/SERVICE-MODEL.md` — primitive references in the service description
 - `docs/architecture/agent-framework.md` — capabilities → tool mapping
 - `docs/architecture/agent-execution-model.md`
-- `docs/architecture/TP-DESIGN-PRINCIPLES.md`
+- `docs/architecture/YARNNN-DESIGN-PRINCIPLES.md`
 - `docs/architecture/workspace-conventions.md`
 - `docs/architecture/output-substrate.md`
 - `docs/features/context.md`
@@ -330,7 +330,7 @@ Any primitive change (rename, add, remove, mode change, enum extension) writes a
 ### Changed
 - registry.py: What changed
 - <other files>: What changed
-- Expected behavior: How TP/headless behavior shifts
+- Expected behavior: How YARNNN/headless behavior shifts
 ```
 
 ---
@@ -380,7 +380,7 @@ If you are new to this doc:
 - [registry-matrix.md](registry-matrix.md) — what the system works on (domains × tasks × agents). This doc is its sibling covering *how* the system acts on it.
 - [agent-framework.md](agent-framework.md) — agent types and the `capabilities` → primitive mapping.
 - [SERVICE-MODEL.md](SERVICE-MODEL.md) — system-level description; this doc is the primitive-level deep dive.
-- [TP-DESIGN-PRINCIPLES.md](TP-DESIGN-PRINCIPLES.md) — design principles for TP's use of chat-mode primitives.
+- [YARNNN-DESIGN-PRINCIPLES.md](YARNNN-DESIGN-PRINCIPLES.md) — design principles for YARNNN's use of chat-mode primitives.
 - [workspace-conventions.md](workspace-conventions.md) — filesystem layout that the `file` substrate family operates on.
 - [api/services/primitives/registry.py](../../api/services/primitives/registry.py) — source of truth for registries and handlers.
 - [api/prompts/CHANGELOG.md](../../api/prompts/CHANGELOG.md) — behavioral change history.

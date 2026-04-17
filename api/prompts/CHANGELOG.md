@@ -6,16 +6,202 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.04.17.3] - ADR-188 Phase 3: TP prompt — template library + composition guidance
+## [2026.04.17.9] - ADR-190 commit 6: empty-state consistency + stale TP sweep
 
 ### Changed
-- `api/agents/tp_prompts/workspace.py`: "Task Type Catalog" → "Task Template Library (ADR-188)." Two creation paths now both first-class (template-based AND composed). New "Composing Custom Tasks" section: 4-step pattern (output_kind → team → step instructions → context domains). "Creating Agents" section: TP can create additional specialists for domain-focused work.
-- `api/agents/tp_prompts/tools.py`: Parallel task creation section updated. Template mapping condensed. Explicit "when NO template fits" guidance with composed example for any-domain users.
-- `api/agents/tp_prompts/onboarding.py`: Domain scaffolding no longer assumes fixed 5 domains. TP instructed to use domain names from user's own language. Examples: cases (lawyer), clients (consultant), audience (influencer).
+- `web/components/work/WorkListSurface.tsx`: `EmptyResult` for "my-work" tab when zero tasks exist now reads *"Describe your work to YARNNN. Create the tasks that do it."* + "Talk to YARNNN" CTA button linking to `/chat`. Matches the ADR-189 `/agents` empty-state pattern. Stale `"Chat with TP"` copy replaced.
+- `web/app/(authenticated)/context/page.tsx`: plus-menu placeholder handlers wired — "Update my info" sends an identity-update prompt through YARNNN via `sendMessage`; "Web search" seeds a search prompt. "Upload file" entry deleted (redundant with ChatPanel's built-in "Attach a file" action). `Upload` icon import removed.
+- `web/components/shell/ThreePanelLayout.tsx`: `title="Chat with TP"` → `"Chat with YARNNN"`.
+- `web/components/agents/AgentContentView.tsx`: `"ask TP"` → `"ask YARNNN"` in platform-connect copy.
+- `web/components/work/details/ActionMiddle.tsx`: `"ask TP to trigger"` → `"ask YARNNN to trigger"` in no-fires empty state.
+- `web/types/desk.ts`: two `"TP chat"` comments → `"YARNNN chat"`.
 
 ### Expected behavior
-- TP now knows it can compose custom tasks from framework primitives (output_kind, team, mode, objective) for ANY user domain. Previously TP only knew about the hardcoded task type catalog and would try to fit every user into existing templates. Users in novel domains (law, medicine, trading, content creation) will get domain-appropriate tasks composed by TP.
+- `/work` empty state: icon + "No tasks yet" + "Describe your work to YARNNN. Create the tasks that do it." + "Talk to YARNNN" button → routes to `/chat`. Same pattern as `/agents` empty state (ADR-189 Phase 2).
+- `/context` plus-menu: "Start new work" (task modal), "Update my info" (sends identity prompt to YARNNN), "Web search" (seeds search prompt). No redundant upload entry.
+- All `/chat`, `/work`, `/agents`, `/context` empty states now share a consistent funnel-back-to-chat mental model under Shape A.
+- Zero user-facing `Chat with TP` / `ask TP` strings remain anywhere in `web/components/` or `web/types/` (verified by grep).
+
+### Preserved
+- `/context` empty state in the Chat panel (text-seed buttons + plus-menu) — was already consistent; left alone.
+- `/agents` empty state — shipped in ADR-189 Phase 2 (`"Talk to YARNNN"` CTA); unchanged.
+- `/chat` empty state — shipped in ADR-190 commit 1 (welcome + 4 chips); unchanged.
+
+### ADR-190 completion
+All six commits in the ADR-190 implementation sequence are shipped:
+- Commit 1 [2026.04.17.4] — first-turn welcome + 4 chips + stale-label fixes
+- Commit 2 [2026.04.17.5] — onboarding marker retired + Upload chip wiring
+- Commit 3 [2026.04.17.6] — `infer_first_act()` combined inference
+- Commit 4 [2026.04.17.7] — `UpdateContext(target="workspace")` scaffold orchestrator
+- Commit 5 [2026.04.17.8] — BRAND skeleton + WORKSPACE.md deletion
+- Commit 6 [2026.04.17.9] — empty-state consistency + stale TP sweep
+
+---
+
+## [2026.04.17.8] - ADR-190 commit 5: workspace init cleanup (BRAND skeleton + WORKSPACE.md deletion)
+
+### Changed
+- `api/services/agent_framework.py`: `DEFAULT_BRAND_MD` stripped from 22-line pre-committed template (monochrome palette `#000000`/`#ffffff`/`#666666`, "Confident but not aggressive" tone descriptors, visual style defaults) to 2-line skeleton matching `DEFAULT_IDENTITY_MD`. Rationale appended as comment. Inference populates BRAND.md from user input — no pre-opinion.
+- `api/services/workspace_init.py`: Phase 4 (WORKSPACE.md manifest write) deleted. Idempotency gate swapped from `existing_manifest = um.read("WORKSPACE.md")` → `existing_identity = um.read("IDENTITY.md")`. `update_workspace_manifest()` and `_build_workspace_manifest()` helper functions deleted. Module docstring updated to reflect ADR-190 deletions (version bumped to 2.0).
+- `api/services/primitives/manage_task.py`: `update_workspace_manifest()` call removed from task-creation post-write flow. Docstring step numbering updated (was 10 steps, now 9).
+- `api/agents/yarnnn_prompts/onboarding.py`: "Read WORKSPACE.md before suggesting" → "Your compact index already shows current agents, tasks, and context domains — use it for routing decisions."
+- `api/agents/yarnnn_prompts/behaviors.py`: same replacement pattern for the WORKSPACE.md reference in the platform-context guidance.
+
+### Rationale
+WORKSPACE.md was a static manifest written at init and updated on every task creation. ADR-159 (Filesystem-as-Memory compact index) replaced it as the session-start meta-awareness source — YARNNN now queries agents, tasks, and domains from the DB via `build_working_memory()`. The file persisted as vestigial infrastructure, and its contents under ADR-189 Phase 2 (origin filter) would have misrepresented user-authored state (showed 9 agents to YARNNN when the user had authored 0). Deletion is cleaner than rewriting.
+
+BRAND.md filler was pre-committing user brand to monochrome palette + "confident but not aggressive" tone before YARNNN had any signal. Under the authored-team model, brand must emerge from user input, not from a template. Skeleton matches IDENTITY.md discipline.
+
+### Expected behavior
+- New workspace signup: IDENTITY.md, BRAND.md, AWARENESS.md, CONVENTIONS.md, _playbook.md, style.md, notes.md scaffolded (4 skeletons + 3 structural). No WORKSPACE.md created.
+- Existing workspaces: still have WORKSPACE.md from prior init; orphaned but inert. It won't be updated (update_workspace_manifest deleted); eventually self-prunes via workspace cleanup back-office task. No auto-deletion in this commit — harmless stale file.
+- YARNNN reads agents/tasks/domains from working memory compact index (ADR-159), not from a file.
+- Task creation no longer does a post-write manifest update — faster, fewer writes per task create.
+
+### Preserved
+- IDENTITY.md skeleton (already 2-line)
+- AWARENESS.md skeleton (honest placeholder text — "New workspace — no prior sessions yet" — acceptable)
+- CONVENTIONS.md structural rules (ADR-174 — agents depend on these)
+- _playbook.md, style.md, notes.md — unchanged
+
+---
+
+## [2026.04.17.7] - ADR-190 commit 4: workspace scaffold orchestrator + prompt guidance
+
+### Changed
+- `api/services/primitives/update_context.py`: new `target="workspace"` value and `_handle_workspace_scaffold()` handler. Calls `infer_first_act()` (commit 3), writes IDENTITY.md + BRAND.md if inferred, delegates entity subfolder creation to `ManageDomains(action="scaffold")` (reuses existing infrastructure). Returns structured scaffold report including `work_intent_proposal` (not executed — YARNNN acts on it in same turn via follow-up `ManageAgent` + `ManageTask` calls).
+- `UPDATE_CONTEXT_TOOL` description + enum: adds `workspace` target at the top of the target list with full usage guidance. `required` narrowed from `["target", "text"]` to `["target"]` so `target="workspace"` can submit with only `document_ids` / `url_contents` (text-less rich input).
+- `api/agents/yarnnn_prompts/onboarding.py`: extended rich-input guidance. When workspace is fresh and user submits rich input, YARNNN should use `UpdateContext(target="workspace")` instead of per-target calls. After the scaffold report returns, if `work_intent_proposal` is present and entities exist, YARNNN materializes the first Agent + first task via `ManageAgent` + `ManageTask` in the same turn. If `work_intent_proposal` is null, YARNNN asks one targeted clarify rather than guessing.
+
+### Design decisions
+- **Orchestrator writes context files; it does NOT create agents or tasks.** Preserves primitive atomicity (ADR-168) and YARNNN's team composition judgment (ADR-176). The scaffold report is a brief; YARNNN decides.
+- **Entity translation from `infer_first_act` shape → `ManageDomains` shape.** First-act inference emits `{domain, name, slug, hints}`; scaffold expects `{domain, slug, name, facts, url}`. Translation keeps both surfaces clean without a shared intermediate type.
+- **Only registered domains are scaffolded in this commit.** `ManageDomains(scaffold)` filters to WORKSPACE_DIRECTORIES entries with `entity_structure`; entities in novel domains (ADR-188 territory) get skipped. Surfaced in response as `skipped_entities`. Novel-domain scaffolding is a follow-on.
+- **Token usage recorded.** `record_token_usage` entry with `metadata={"target": "workspace", "first_act": True}` for attribution (ADR-171).
+- **No new frontend artifact.** Scaffold report renders through existing `ToolResultList` via the `message` field. A tree-preview card can polish later; MVP is the structured response visible in the chat stream.
+
+### Reconciliation with ADR-190
+Proposed: "one first-act pipeline executes atomically: domains + entity subfolders + agent + task." Implementation: context files + domains + entity subfolders execute atomically; agent + task creation is YARNNN's next tool call in the same turn (two-step within one conversational round). This preserves primitive atomicity while delivering the "one conversational arc" UX. Updated ADR Decision 4.
+
+### Expected behavior
+- User at fresh workspace drops a pitch deck + says "track my competitors."
+- YARNNN calls `UpdateContext(target="workspace", text=..., document_ids=[...])`.
+- One LLM inference call extracts identity + brand + entity list + work intent.
+- Orchestrator writes IDENTITY.md, BRAND.md, creates `/workspace/context/competitors/{slug}/` for each named competitor with `_tracker.md` seeded, returns `work_intent_proposal={kind: "recurring", deliverable_type: "brief", cadence: "weekly"}`.
+- YARNNN reads proposal, calls `ManageAgent(title="Competitive Tracker", role="writer")` + `ManageTask(title="Weekly Competitor Brief", schedule="weekly", ...)` in the same turn.
+- Final chat response names specific competitors, agent name, first-run schedule. Trust anchors in specificity.
+
+---
+
+## [2026.04.17.6] - ADR-190 commit 3: first-act inference (identity + brand + entities + work_intent)
+
+### Changed
+- `api/services/context_inference.py`: new `FIRST_ACT_SYSTEM` prompt + new `infer_first_act()` async function. Single LLM call (Sonnet, 4096 token output budget) that produces structured payload:
+  - `identity_md`: full markdown for IDENTITY.md (or null)
+  - `brand_md`: full markdown for BRAND.md (or null)
+  - `entities`: list of `{domain, name, slug, hints}` extracted from source material
+  - `work_intent`: `{kind, deliverable_type, cadence}` or null
+  - `source_summary`: provenance counts
+  - `usage`: token usage
+  Defensive JSON parse + normalization (strips markdown fences, filters malformed entities, validates intent fields). Both markdown fields get `_append_inference_meta()` + `detect_inference_gaps()` (ADR-162) applied.
+
+### Reconciliation with ADR-190
+The ADR proposed "extending `infer_shared_context()` with `entities` and `work_intent` output fields." Audit revealed `infer_shared_context()` runs ONE call per target (identity OR brand), not a combined call — so extending it would have broken the per-target update flow. Revised to add `infer_first_act()` as a sibling function for the first-act scaffold pass. `infer_shared_context()` is unchanged; it stays the entry point for targeted updates (user later asks YARNNN to refine just brand, etc.). `_handle_shared_context` orchestrator (commit 4) chooses which to call based on context.
+
+### Preserved
+- `infer_shared_context()` signature and behavior — unchanged.
+- `detect_inference_gaps()` — reused for each markdown field in the first-act output.
+- `_append_inference_meta()` — reused for provenance stamping.
+- Inference eval harness (ADR-162 sub-phase C) — existing fixtures continue to exercise `infer_shared_context()`. First-act fixtures can be added in a follow-on.
+
+### Expected behavior
+- `infer_first_act(text=..., document_contents=..., url_contents=...)` returns structured dict ready for `_handle_shared_context` orchestration (commit 4).
+- Entity extraction hints seed `ManageDomains` and entity subfolder creation (commit 4).
+- Work intent hints seed `ManageAgent` + `ManageTask` shape (commit 4).
+- No caller uses `infer_first_act` yet in this commit — scaffold orchestration lands in commit 4.
+
+---
+
+## [2026.04.17.5] - ADR-190 commit 2: onboarding marker retired + rich-input chip wiring
+
+### Changed
+- `api/agents/yarnnn_prompts/onboarding.py`: `<!-- onboarding -->` marker emission guidance deleted. Replaced with explicit ADR-190 principle — onboarding is conversational when identity is `empty`/`sparse`; YARNNN engages the user in chat directly rather than emitting a marker to open a modal form. Example block for the retired marker removed. The `<!-- workspace-state: ... -->` marker is unaffected (Overview modal still works as designed).
+- `web/components/chat-surface/ChatSurface.tsx`: removed `parseOnboardingMeta` import + the auto-trigger branch in the message-marker useEffect. OnboardingModal is now opened only via the "Update workspace" plus-menu action (manual invocation preserved). `handleOpenOnboarding` callback retained for plus-menu use.
+- `web/components/tp/ChatPanel.tsx`: `emptyState` prop type extended to accept a render function `(helpers: ChatEmptyStateHelpers) => ReactNode`. Helpers include `requestUpload` which clicks the composer's hidden file input. Legacy `ReactNode` form still supported for non-`/chat` surfaces.
+- `web/components/chat-surface/ChatEmptyState.tsx`: "Upload a doc" chip now triggers the actual file picker (via `onUploadClick` prop) instead of seeding text. Other three chips still seed text via `onChipClick`. Chip type refactored to discriminated union (`action: 'upload' | 'seed'`).
+- `web/components/chat-surface/ChatSurface.tsx`: passes `emptyState` as render function so `ChatEmptyState` receives `requestUpload` helper.
+
+### Preserved (deferred per ADR-190)
+- `OnboardingModal` and `TaskSetupModal` components remain — openable via plus-menu actions ("Update workspace", "Start new work"). Their auto-trigger via markers / workspace-state is what's retired, not their existence.
+- `ContextSetup` and `TaskSetup` components remain — used by the preserved modals.
+- `stripOnboardingMeta` / `parseOnboardingMeta` helpers — kept as defensive cleanup for any historical session messages that still contain the retired marker. Dead code only in the sense no new emission path exists; still serves legacy content.
+
+### Expected behavior
+- Brand-new workspace on `/chat`: user sees empty state → clicks "Upload a doc" → OS file picker opens → selected PDF/DOCX/TXT/MD uploads via existing document pipeline; selected images attach inline to the next message.
+- YARNNN no longer emits `<!-- onboarding -->`. Empty-identity first turns are pure conversation.
+- "Update workspace" and "Start new work" plus-menu actions continue to open their respective modals for users who prefer the guided form.
+
+### Rationale (ADR-190)
+Rich-input affordances are the mechanism that drives scaffold depth. Chip 1 previously seeded instructional text; now it opens the file picker directly — one click from empty canvas to a doc upload. Marker-gated modals created bootstrap circularity (marker only fires if YARNNN acts; YARNNN only acts if user types). The conversational path + direct affordances removes the circularity.
+
+---
+
+## [2026.04.17.4] - ADR-190 commit 1: first-turn welcome + 4 chips + stale-label fixes
+
+### Changed
+- `web/components/chat-surface/ChatEmptyState.tsx` (NEW): deterministic client-side welcome rendered by `ChatPanel` when `messages.length === 0`. Headline "What are you working on?" + subline prompting rich input + 4 chips (Upload a doc / Paste a URL / Track something recurring / Build a recurring report). Zero LLM cost on first load. Chips seed composer text via `draftSeed` pattern.
+- `web/components/chat-surface/ChatSurface.tsx`: wired `ChatEmptyState` into `ChatPanel` via `emptyState` prop + `chipSeed` state for `draftSeed`. Surface title `"Thinking Partner"` → `"YARNNN"` (Phase 4 sweep missed this user-facing string). Placeholder `"Ask anything or type / ..."` → `"Type, drop a file, or paste a link..."` (hints at rich input).
+- `web/components/tp/ChatPanel.tsx`: assistant role label `"Thinking Partner"` → `"YARNNN"` (Phase 4 sweep missed this). Default placeholder updated. Empty-state JSDoc rewritten — /chat surface now uses the slot (previously documented as not using it).
+
+### Expected behavior
+- Brand-new workspace: user lands on `/chat`, sees YARNNN logo + welcome + 4 chips before typing anything. Zero-typing path in: click a chip, composer seeds with starter text.
+- Assistant messages display as "YARNNN" (not "Thinking Partner") in chat stream.
+- Header says "YARNNN" (not "Thinking Partner").
+
+### Preserved
+- `OnboardingModal` auto-trigger on `<!-- onboarding -->` marker (sunsets in ADR-190 commit 2 when rich-composer work dissolves the modal from the onboarding flow entirely).
+- `TaskSetupModal` and `ContextSetup` / `TaskSetup` components (preserved pending deferred decision on non-onboarding reuse).
+
+---
+
+## [2026.04.17.3b] - ADR-189 Phase 3: YARNNN rename pass (prompts + code)
+
+### Changed
+- `api/agents/thinking_partner.py` → `api/agents/yarnnn.py` (git mv). Class `ThinkingPartnerAgent` → `YarnnnAgent`. Import sites updated: `api/routes/chat.py`, `api/agents/{__init__,base,chat_agent}.py`, `api/services/agent_framework.py` (comment), `api/jobs/unified_scheduler.py` (module docstring), `api/test_structural_overhaul.py` (test imports).
+- `api/agents/tp_prompts/` → `api/agents/yarnnn_prompts/` (git mv). All 10 prompt modules renamed in place.
+- `api/agents/yarnnn_prompts/base.py`: SIMPLE_PROMPT and BASE_PROMPT rewritten. "You are the user's Thinking Partner" → "You are YARNNN — the user's super-agent." New Terminology section ratifies ADR-189 glossary (three-layer cognition): YARNNN (super-agent), Agent (user-created, domain-scoped), Specialist (role palette), Platform Bot. Explicit verb discipline: **create** an Agent (user action), **draft** a Team (YARNNN action). "Hire" banned.
+- `api/agents/yarnnn_prompts/{__init__,onboarding,behaviors,entity,workspace,task_scope,tools,tools_core}.py`: `TP` → `YARNNN` throughout prompt text and comments. `Thinking Partner` references removed except one self-retirement note in base.py.
+- `api/routes/chat.py`: log prefixes `[TP]`, `[TP-STREAM]`, `[TP:PROFILE]`, `[TP-COMPACT]` → `[YARNNN]`, `[YARNNN-STREAM]`, `[YARNNN:PROFILE]`, `[YARNNN-COMPACT]`. User-facing comment "All messages route to TP" → "to YARNNN".
+- `docs/architecture/TP-DESIGN-PRINCIPLES.md` → `docs/architecture/YARNNN-DESIGN-PRINCIPLES.md` (git mv). All internal TP references renamed.
+- `docs/architecture/{SERVICE-MODEL,execution-loop,primitives-matrix}.md`: `TP` → `YARNNN`; `ThinkingPartnerAgent` → `YarnnnAgent`; `thinking_partner.py` → `yarnnn.py`; `tp_prompts` → `yarnnn_prompts`. SERVICE-MODEL.md "Two Layers of Intelligence" section restructured to "Three Layers of Cognition" (YARNNN / Specialist / Agent) per ADR-189.
+
+### Preserved (glossary exceptions)
+- `agents.role = 'thinking_partner'` DB constraint value — migration cost exceeds reader benefit; never surfaced.
+- `agents.title = 'Thinking Partner'` DB value (in AGENT_TEMPLATES + existing workspace rows) — deferred to ADR-189 Phase 2 where it lands with the clean-slate workspace migration and workspace-path migration (`/agents/thinking-partner/` → `/agents/yarnnn/`).
+- Frontend `web/lib/agent-identity.ts` displayName — deferred to Phase 2 to land atomically with DB title migration.
+- Historical ADRs + archived docs — per glossary rule 2, ADRs are dated records, not rewritten.
+
+### Expected behavior
+- YARNNN refers to itself as "YARNNN" in chat, not as "TP" or "Thinking Partner."
+- Prompts teach the three-layer model (YARNNN / Specialist / Agent) with explicit verb discipline (create Agent, draft Team).
+- `agents.role == 'thinking_partner'` still routes through `_execute_tp_task()` unchanged — DB-level behavior identical.
+- `YarnnnAgent` is the import path for the conversational super-agent class.
+
+---
+
+## [2026.04.17.3] - ADR-188 Phase 3: YARNNN prompt — template library + composition guidance
+
+### Changed
+- `api/agents/yarnnn_prompts/workspace.py`: "Task Type Catalog" → "Task Template Library (ADR-188)." Two creation paths now both first-class (template-based AND composed). New "Composing Custom Tasks" section: 4-step pattern (output_kind → team → step instructions → context domains). "Creating Agents" section: YARNNN can create additional specialists for domain-focused work.
+- `api/agents/yarnnn_prompts/tools.py`: Parallel task creation section updated. Template mapping condensed. Explicit "when NO template fits" guidance with composed example for any-domain users.
+- `api/agents/yarnnn_prompts/onboarding.py`: Domain scaffolding no longer assumes fixed 5 domains. YARNNN instructed to use domain names from user's own language. Examples: cases (lawyer), clients (consultant), audience (influencer).
+
+### Expected behavior
+- YARNNN now knows it can compose custom tasks from framework primitives (output_kind, team, mode, objective) for ANY user domain. Previously YARNNN only knew about the hardcoded task type catalog and would try to fit every user into existing templates. Users in novel domains (law, medicine, trading, content creation) will get domain-appropriate tasks composed by YARNNN.
 - Domain scaffolding during onboarding now adapts to the user's vocabulary instead of assuming competitors/market/relationships/projects.
+
+### Merge note (2026-04-17)
+This entry originated on `main` as `[2026.04.17.3]` with `tp_prompts/` and `TP` vocabulary. During merge with the ADR-189 YARNNN rename branch, path references (`tp_prompts/` → `yarnnn_prompts/`) and user-facing terminology (`TP` → `YARNNN`) were brought in line with shipped glossary. Original slot `.3` preserved; ADR-189 Phase 3 entry renumbered to `.3b` to avoid conflict.
 
 ---
 

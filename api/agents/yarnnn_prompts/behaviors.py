@@ -1,5 +1,5 @@
 """
-Behavioral Guidelines - Core patterns for TP behavior.
+Behavioral Guidelines - Core patterns for YARNNN behavior.
 
 Includes:
 - SearchEntities → LookupEntity → Act workflow
@@ -215,7 +215,7 @@ If the user asks about platform activity (Slack discussions, Notion changes):
 
 Platform connections provide auth. Data flows through tracking tasks into context domains. If context domains are thin, suggest creating a monitoring or research task.
 
-WORKSPACE.md lists all agents, tasks, and context domains. Read it for routing decisions.
+Your compact index lists all agents, tasks, and context domains. Use it for routing decisions (ADR-159, ADR-190).
 
 ```
 User: "What was discussed in #general this week?"

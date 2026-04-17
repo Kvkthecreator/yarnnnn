@@ -433,11 +433,19 @@ async def list_agents(
     """
     # Fetch agents with versions
     # Note: ADR-034 removed projects table, agents are now user-scoped
+    #
+    # ADR-189: The /agents list shows ONLY user-authored Agents. Infrastructure
+    # rows (YARNNN, Specialists, Platform Bots) are scaffolded at signup with
+    # origin='system_bootstrap' and excluded here. This is the authored-team
+    # model: `/agents` empty at signup; the user builds the list by creating
+    # Agents through conversation with YARNNN. Infrastructure remains in the
+    # agents table so the pipeline can dispatch to Specialists by role.
     query = (
         auth.client.table("agents")
         .select("*, agent_runs(id, status, version_number, edit_distance_score, approved_at)")
         .eq("user_id", auth.user_id)
         .neq("role", "pm")  # PM agents are project infrastructure, not user-facing
+        .neq("origin", "system_bootstrap")  # ADR-189: infrastructure hidden from user-facing list
         .order("created_at", desc=True)
         .limit(limit)
     )
