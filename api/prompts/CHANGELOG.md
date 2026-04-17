@@ -6,6 +6,38 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.9] - ADR-190 commit 6: empty-state consistency + stale TP sweep
+
+### Changed
+- `web/components/work/WorkListSurface.tsx`: `EmptyResult` for "my-work" tab when zero tasks exist now reads *"Describe your work to YARNNN. Create the tasks that do it."* + "Talk to YARNNN" CTA button linking to `/chat`. Matches the ADR-189 `/agents` empty-state pattern. Stale `"Chat with TP"` copy replaced.
+- `web/app/(authenticated)/context/page.tsx`: plus-menu placeholder handlers wired — "Update my info" sends an identity-update prompt through YARNNN via `sendMessage`; "Web search" seeds a search prompt. "Upload file" entry deleted (redundant with ChatPanel's built-in "Attach a file" action). `Upload` icon import removed.
+- `web/components/shell/ThreePanelLayout.tsx`: `title="Chat with TP"` → `"Chat with YARNNN"`.
+- `web/components/agents/AgentContentView.tsx`: `"ask TP"` → `"ask YARNNN"` in platform-connect copy.
+- `web/components/work/details/ActionMiddle.tsx`: `"ask TP to trigger"` → `"ask YARNNN to trigger"` in no-fires empty state.
+- `web/types/desk.ts`: two `"TP chat"` comments → `"YARNNN chat"`.
+
+### Expected behavior
+- `/work` empty state: icon + "No tasks yet" + "Describe your work to YARNNN. Create the tasks that do it." + "Talk to YARNNN" button → routes to `/chat`. Same pattern as `/agents` empty state (ADR-189 Phase 2).
+- `/context` plus-menu: "Start new work" (task modal), "Update my info" (sends identity prompt to YARNNN), "Web search" (seeds search prompt). No redundant upload entry.
+- All `/chat`, `/work`, `/agents`, `/context` empty states now share a consistent funnel-back-to-chat mental model under Shape A.
+- Zero user-facing `Chat with TP` / `ask TP` strings remain anywhere in `web/components/` or `web/types/` (verified by grep).
+
+### Preserved
+- `/context` empty state in the Chat panel (text-seed buttons + plus-menu) — was already consistent; left alone.
+- `/agents` empty state — shipped in ADR-189 Phase 2 (`"Talk to YARNNN"` CTA); unchanged.
+- `/chat` empty state — shipped in ADR-190 commit 1 (welcome + 4 chips); unchanged.
+
+### ADR-190 completion
+All six commits in the ADR-190 implementation sequence are shipped:
+- Commit 1 [2026.04.17.4] — first-turn welcome + 4 chips + stale-label fixes
+- Commit 2 [2026.04.17.5] — onboarding marker retired + Upload chip wiring
+- Commit 3 [2026.04.17.6] — `infer_first_act()` combined inference
+- Commit 4 [2026.04.17.7] — `UpdateContext(target="workspace")` scaffold orchestrator
+- Commit 5 [2026.04.17.8] — BRAND skeleton + WORKSPACE.md deletion
+- Commit 6 [2026.04.17.9] — empty-state consistency + stale TP sweep
+
+---
+
 ## [2026.04.17.8] - ADR-190 commit 5: workspace init cleanup (BRAND skeleton + WORKSPACE.md deletion)
 
 ### Changed

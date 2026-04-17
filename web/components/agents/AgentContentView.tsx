@@ -153,7 +153,7 @@ const AGENT_EMPTY_STATE_REGISTRY: Record<AgentClass, AgentEmptyStateDescriptor> 
     title: () => 'Not watching anything yet',
     description: (agent) => {
       const platform = roleDisplayName(agent.role).replace(' Bot', '');
-      return `Connect ${platform} above and select sources, then ask TP to set up a digest task.`;
+      return `Connect ${platform} above and select sources, then ask YARNNN to set up a digest task.`;
     },
   },
   'meta-cognitive': {

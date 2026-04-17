@@ -1,6 +1,6 @@
 # ADR-190: Inference-Driven Scaffold Depth
 
-> **Status**: Proposed
+> **Status**: Implemented (2026-04-17, six commits)
 > **Date**: 2026-04-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-144 (Inference-First Shared Context), ADR-149 (Task Lifecycle), ADR-151 (Shared Context Domains), ADR-178 (Task Creation Routes), ADR-189 (Three-Layer Cognition)

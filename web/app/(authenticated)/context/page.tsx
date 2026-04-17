@@ -21,7 +21,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Loader2,
   MessageCircle,
-  Upload,
   Globe,
   Settings2,
   ListChecks,
@@ -362,11 +361,31 @@ export default function ContextPage() {
     router.replace(`/context?path=${encodeURIComponent(node.path)}`, { scroll: false });
   }, [router]);
 
+  // ADR-190: plus-menu actions route through YARNNN via sendMessage so they
+  // flow through UpdateContext/WebSearch primitives. "Upload file" is handled
+  // by ChatPanel's built-in "Attach a file" action — no duplicate entry here.
   const plusMenuActions: PlusMenuAction[] = [
     { id: 'create-task', label: 'Start new work', icon: ListChecks, verb: 'show', onSelect: () => setTaskSetupOpen(true) },
-    { id: 'update-info', label: 'Update my info', icon: Settings2, verb: 'prompt', onSelect: () => {} },
-    { id: 'web-search', label: 'Web search', icon: Globe, verb: 'prompt', onSelect: () => {} },
-    { id: 'upload-file', label: 'Upload file', icon: Upload, verb: 'attach', onSelect: () => {} },
+    {
+      id: 'update-info',
+      label: 'Update my info',
+      icon: Settings2,
+      verb: 'prompt',
+      onSelect: () => sendMessage(
+        'I want to update my identity or brand. I can share a doc, paste a URL, or describe what you should know.',
+        { surface: effectiveSurface },
+      ),
+    },
+    {
+      id: 'web-search',
+      label: 'Web search',
+      icon: Globe,
+      verb: 'prompt',
+      onSelect: () => sendMessage(
+        'Search the web for: ',
+        { surface: effectiveSurface },
+      ),
+    },
   ];
 
   const emptyState = (

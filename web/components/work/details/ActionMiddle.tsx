@@ -120,7 +120,7 @@ export function ActionMiddle({
             </div>
           ) : outputs.length === 0 ? (
             <p className="text-xs text-muted-foreground/60 py-2">
-              No fires yet. Use the Fire button above or ask TP to trigger this action.
+              No fires yet. Use the Fire button above or ask YARNNN to trigger this action.
             </p>
           ) : (
             <ul className="divide-y divide-border/40">

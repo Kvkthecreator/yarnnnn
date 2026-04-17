@@ -523,16 +523,25 @@ function WorkRow({
 // ─── Empty state ─────────────────────────────────────────────────────────────
 
 function EmptyResult({ tab, hasFilters }: { tab: WorkTab; hasFilters: boolean }) {
-  const messages: Record<WorkTab, { icon: React.ElementType; title: string; sub: string }> = {
+  // ADR-190 + ADR-189: empty states funnel back to /chat (the authorship
+  // surface) so a user who lands on /work or /agents with nothing yet has
+  // a clear path forward. CTA present only on the "no work authored yet"
+  // case — not when filters merely hide existing work.
+  const messages: Record<WorkTab, { icon: React.ElementType; title: string; sub: string; cta?: { label: string; href: string } }> = {
     'my-work': {
       icon: Sparkles,
       title: hasFilters ? 'No tasks match' : 'No tasks yet',
-      sub: hasFilters ? 'Clear filters to see all work.' : 'Chat with TP to set up your first task.',
+      sub: hasFilters
+        ? 'Clear filters to see all work.'
+        : 'Describe your work to YARNNN. Create the tasks that do it.',
+      cta: hasFilters ? undefined : { label: 'Talk to YARNNN', href: '/chat' },
     },
     connectors: {
       icon: Link2,
       title: hasFilters ? 'No connector tasks match' : 'No connectors active',
-      sub: hasFilters ? 'Clear filters to see all connector tasks.' : 'Connect a platform in Settings to get started.',
+      sub: hasFilters
+        ? 'Clear filters to see all connector tasks.'
+        : 'Connect a platform in Settings to get started.',
     },
     system: {
       icon: Settings2,
@@ -545,11 +554,19 @@ function EmptyResult({ tab, hasFilters }: { tab: WorkTab; hasFilters: boolean })
   const Icon = msg.icon;
 
   return (
-    <div className="flex items-center justify-center h-full min-h-[200px]">
-      <div className="text-center">
-        <Icon className="w-5 h-5 text-muted-foreground/20 mx-auto mb-2" />
-        <p className="text-sm font-medium mb-1">{msg.title}</p>
-        <p className="text-xs text-muted-foreground">{msg.sub}</p>
+    <div className="flex items-center justify-center h-full min-h-[200px] px-4">
+      <div className="text-center max-w-sm">
+        <Icon className="w-6 h-6 text-muted-foreground/25 mx-auto mb-3" />
+        <p className="text-sm font-medium mb-1.5">{msg.title}</p>
+        <p className="text-xs text-muted-foreground mb-4">{msg.sub}</p>
+        {msg.cta && (
+          <a
+            href={msg.cta.href}
+            className="inline-flex items-center gap-2 rounded-md bg-foreground px-3.5 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 transition-colors"
+          >
+            {msg.cta.label}
+          </a>
+        )}
       </div>
     </div>
   );

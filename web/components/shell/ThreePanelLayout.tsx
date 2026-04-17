@@ -302,7 +302,7 @@ export function ThreePanelLayout({
           onClick={() => isMobile ? router.push('/chat') : setChatOpen(true)}
           className="fixed right-4 z-50 w-12 h-12 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center group sm:right-6"
           style={{ bottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
-          title="Chat with TP"
+          title="Chat with YARNNN"
         >
           <img
             src="/assets/logos/circleonly_yarnnn_1.svg"
