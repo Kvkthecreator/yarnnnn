@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.10] - ADR-192 proposed (doc-only): write primitive coverage expansion plan
+
+### Added
+- `docs/adr/ADR-192-write-primitive-coverage-expansion.md` — proposes five-phase expansion of write primitives across trading, commerce, and a new email-send platform class.
+
+### Scope (proposed, not yet implemented)
+- Phase 1: 7 new trading tools (bracket order, trailing stop, partial close, update order, watchlist mutation, cancel-all) — wired to existing Alpaca client methods or added to client.
+- Phase 2: `check_risk_limits` internal primitive + `_risk.md` workspace schema. Load-bearing for trusted trading autonomy.
+- Phase 3: 5 new commerce tools (refund, inventory update, bulk price, variant, customer tag).
+- Phase 4: New `email` platform class via Resend. 2 platform tools (`platform_email_send`, `platform_email_send_bulk`).
+- Phase 5: Prompt + capability-registry updates teaching YARNNN the new tools.
+
+### What ships later (not this CHANGELOG entry)
+- No prompt changes in this entry — ADR-192 is documentation only. Per-phase commits will carry their own CHANGELOG entries as implementation lands.
+
+### Why this matters
+- ADR-191 alpha can launch today on baseline write primitives (verified wired).
+- ADR-192 closes the gap from "baseline writes" to "trusted autonomy" — specifically, trading risk-gating is non-negotiable before ADR-195 autonomous loop can safely execute trades.
+- Commerce operational coverage (refund, campaigns, inventory) reaches parity with what a real operator's job requires.
+
+### Impact per domain (per ADR-191 matrix gate)
+- E-commerce: Helps
+- Day trader: Helps (risk gate is the specific unlock)
+- AI influencer (scheduled): Neutral + forward-helps (email infra reusable)
+- International trader (scheduled): Neutral + forward-helps (email infra reusable)
+No verticalization.
+
+---
+
 ## [2026.04.17.9] - ADR-190 commit 6: empty-state consistency + stale TP sweep
 
 ### Changed
