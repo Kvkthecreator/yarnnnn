@@ -96,6 +96,53 @@ def _get_primary_entity_filename(domain_key: str) -> Optional[str]:
     return next(iter(entity_structure.keys()), None)
 
 
+def _read_domain_metadata_sync(client, user_id: str, domain_prefix: str) -> dict:
+    """Read domain metadata from _domain.md file in workspace.
+
+    ADR-188: Enables TP-composed domains to declare metadata (temporal, ttl_days,
+    entity_type, display_name) without a registry entry. The file uses YAML-style
+    frontmatter key: value pairs.
+
+    Returns dict of metadata fields. Empty dict if file not found.
+    """
+    domain_md_path = f"{domain_prefix}/_domain.md"
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", domain_md_path)
+            .limit(1)
+            .execute()
+        )
+        if not result.data or not result.data[0].get("content"):
+            return {}
+
+        content = result.data[0]["content"]
+        meta = {}
+        # Parse YAML-style frontmatter between --- delimiters
+        if content.startswith("---"):
+            parts = content.split("---", 2)
+            if len(parts) >= 3:
+                for line in parts[1].strip().splitlines():
+                    if ":" in line:
+                        key, val = line.split(":", 1)
+                        key = key.strip()
+                        val = val.strip()
+                        # Coerce types
+                        if val.lower() == "true":
+                            meta[key] = True
+                        elif val.lower() == "false":
+                            meta[key] = False
+                        elif val.isdigit():
+                            meta[key] = int(val)
+                        else:
+                            meta[key] = val
+        return meta
+    except Exception:
+        return {}
+
+
 def _match_entities_to_objective(
     tracker_entities: list[str],
     task_info: dict,
@@ -176,9 +223,14 @@ async def _gather_context_domains(
             continue
 
         prefix = f"/workspace/{folder}"
+
+        # ADR-188: Read domain metadata from _domain.md first, registry fallback.
+        # This enables TP-composed domains (not in registry) to declare temporal
+        # behavior and TTL via a workspace file.
+        domain_meta = _read_domain_metadata_sync(client, user_id, prefix)
         domain_def = WORKSPACE_DIRECTORIES.get(domain_key, {})
-        is_temporal = domain_def.get("temporal", False)
-        ttl_days = domain_def.get("ttl_days")
+        is_temporal = domain_meta.get("temporal", domain_def.get("temporal", False))
+        ttl_days = domain_meta.get("ttl_days", domain_def.get("ttl_days"))
 
         # ADR-158: Soft TTL — temporal domains only load files within TTL window
         ttl_cutoff = None
@@ -1643,17 +1695,19 @@ If context says "(No context available)" or tools return no results:
         type_key = task_info.get("type_key", "")
         is_context_task = output_kind == "accumulates_context"
 
-        if task_phase == "bootstrap" and is_context_task:
-            # Bootstrap context task — inject discovery-focused instruction
+        # ADR-188: TASK.md instruction is primary source. Registry is fallback
+        # for tasks created before ADR-188 or from registry templates where
+        # TASK.md instruction was truncated.
+        if task_phase == "bootstrap" and is_context_task and not step_instruction:
+            # Bootstrap context task without TASK.md instruction — use registry
             from services.task_types import STEP_INSTRUCTIONS
             bootstrap_instruction = STEP_INSTRUCTIONS.get("update-context:bootstrap", "")
             if bootstrap_instruction:
-                # Replace {domain} placeholder with actual domain from context_writes
                 context_writes = task_info.get("context_writes", [])
                 primary_domain = next((d for d in context_writes if d != "signals"), "")
                 step_instruction = bootstrap_instruction.replace("{domain}", primary_domain)
         elif not step_instruction and is_context_task:
-            # Steady-state context task without explicit step instruction
+            # Steady-state context task without explicit step instruction — registry fallback
             from services.task_types import STEP_INSTRUCTIONS
             step_instruction = STEP_INSTRUCTIONS.get("update-context", "")
 
@@ -1887,6 +1941,13 @@ async def execute_task(
 
         # Single-step execution (existing flow)
         agent_slug = task_info.get("agent_slug", "").strip()
+
+        # ADR-188: For single-step tasks, read step instruction from TASK.md process
+        # section first. This makes TP-composed step instructions work without registry.
+        if process_steps:
+            inline_instruction = process_steps[0].get("instruction", "")
+            if inline_instruction:
+                task_info.setdefault("objective", {})["step_instruction"] = inline_instruction
 
         # ADR-152: For single-step tasks, resolve agent from TASK.md process_steps
         if not agent_slug and process_steps:

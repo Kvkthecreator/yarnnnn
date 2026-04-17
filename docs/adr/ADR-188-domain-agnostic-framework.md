@@ -1,6 +1,6 @@
 # ADR-188: Domain-Agnostic Framework — Registries as Template Libraries
 
-> **Status**: Accepted
+> **Status**: Phases 1-2 Implemented, Phases 3-5 Proposed
 > **Date**: 2026-04-17
 > **Related**: ADR-138 (Agents as Work Units), ADR-141 (Unified Execution), ADR-145 (Task Type Registry), ADR-151/152 (Context Domains / Directory Registry), ADR-166 (Registry Coherence Pass), ADR-176 (Work-First Agent Model), ADR-183 (Commerce Substrate), ADR-187 (Trading Integration)
 > **Supersedes**: ADR-176 "hospital principle" (fixed roster as non-negotiable)
@@ -81,16 +81,21 @@ This is a prompt evolution, not an infrastructure change. TP already has `Manage
 
 ## What changes
 
-### Phase 1: Step instructions move to TASK.md (infrastructure)
+### Phase 1: Step instructions move to TASK.md (infrastructure) — **Implemented 2026-04-17**
 
 **Current**: Pipeline reads `STEP_INSTRUCTIONS[step_name]` from `task_types.py` at runtime.
 **New**: Pipeline reads step instructions from the `## Process` section of TASK.md first. Falls back to registry if not found in TASK.md (backwards compatibility during migration).
 
 This is the load-bearing infrastructure change. Once step instructions live in TASK.md, TP can author them for any domain — the pipeline doesn't care where they came from.
 
-**Files**: `api/services/task_pipeline.py` (one read-path change)
+**Implementation details:**
+- Single-step tasks: `execute_task()` now reads `process_steps[0].instruction` from parsed TASK.md and injects it into `objective["step_instruction"]` before `build_task_execution_prompt()` runs. Previously, single-step tasks never read the TASK.md process instruction.
+- Multi-step tasks: `_execute_pipeline()` already had TASK.md-first, registry-fallback behavior (lines 2602-2606). No change needed.
+- Bootstrap override: now only fires when TASK.md instruction is empty (`not step_instruction`), preserving TASK.md-authored bootstrap instructions.
 
-### Phase 2: Domain metadata moves to workspace files (infrastructure)
+**Files**: `api/services/task_pipeline.py`
+
+### Phase 2: Domain metadata moves to workspace files (infrastructure) — **Implemented 2026-04-17**
 
 **Current**: Pipeline reads `WORKSPACE_DIRECTORIES[domain_key]` for temporal flag and TTL.
 **New**: Pipeline reads `_domain.md` metadata file from the domain folder first. Falls back to registry (defaults to canonical/non-temporal if neither exists).
@@ -100,6 +105,7 @@ Domain metadata file format:
 ---
 type: context
 temporal: false
+ttl_days: 30
 entity_type: instrument
 display_name: Trading
 ---
@@ -107,7 +113,13 @@ display_name: Trading
 Market data, signals, and analysis for tracked financial instruments.
 ```
 
-**Files**: `api/services/task_pipeline.py` (one file read + fallback), `api/services/workspace.py` (domain metadata reader)
+**Implementation details:**
+- New `_read_domain_metadata_sync()` helper in `task_pipeline.py` reads `/workspace/context/{domain}/_domain.md`, parses YAML-style frontmatter, returns metadata dict.
+- `_gather_context_domains()` now calls this helper first, merges with registry fallback: `domain_meta.get("temporal", domain_def.get("temporal", False))`.
+- Zero cost for existing domains (registry lookup is instant, `_domain.md` read is one extra DB query only for domains not in registry or when `_domain.md` exists).
+- Type coercion: `true/false` → bool, digits → int, everything else → string.
+
+**Files**: `api/services/task_pipeline.py`
 
 ### Phase 3: TP prompt gains domain composition guidance (behavioral)
 
@@ -238,3 +250,4 @@ Mitigation: TASK.md is the single source of truth at runtime. Debugging "why did
 | Date | Change |
 |---|---|
 | 2026-04-17 | v1 — Initial decision. Triggered by ADR-187 stress test. Registries reframed as template libraries. Five-phase implementation. Documentation impact assessed. |
+| 2026-04-17 | v1.1 — Phases 1-2 implemented. Step instructions read from TASK.md first (single-step gap fixed). Domain metadata read from `_domain.md` first. Both with registry fallback. |

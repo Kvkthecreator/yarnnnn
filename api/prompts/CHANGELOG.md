@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.2] - ADR-188: Pipeline reads TASK.md and _domain.md before registry
+
+### Changed
+- `api/services/task_pipeline.py`: Single-step tasks now read step instruction from TASK.md `## Process` section first (was previously ignored — only multi-step tasks read it). Bootstrap/steady-state registry overrides now only fire when TASK.md instruction is empty.
+- `api/services/task_pipeline.py`: New `_read_domain_metadata_sync()` helper reads `_domain.md` YAML frontmatter from workspace context domain folders. `_gather_context_domains()` merges `_domain.md` metadata with registry fallback for temporal/ttl_days fields.
+
+### Expected behavior
+- TP-composed tasks (not from registry) now have their step instructions respected by the pipeline. Previously, custom single-step tasks with inline instructions in TASK.md silently fell through to empty registry lookup.
+- TP-composed context domains can declare `temporal: true` and `ttl_days: N` via a `_domain.md` file without needing a code change to the directory registry. Existing domains are unaffected (registry fallback).
+
+---
+
 ## [2026.04.17.1] - ADR-187: Trading platform awareness in TP prompt
 
 ### Changed
