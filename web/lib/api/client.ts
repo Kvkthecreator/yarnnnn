@@ -1011,6 +1011,26 @@ export const api = {
         body: JSON.stringify({ api_key: apiKey }),
       }),
 
+    // ADR-187: Trading connection (API key + secret auth)
+    connectTrading: (apiKey: string, apiSecret: string, paper: boolean = true, marketDataKey?: string) =>
+      request<{
+        success: boolean;
+        connection_id: string;
+        platform: string;
+        provider: string;
+        status: string;
+        paper: boolean;
+        account_number: string;
+      }>("/api/integrations/trading/connect", {
+        method: "POST",
+        body: JSON.stringify({
+          api_key: apiKey,
+          api_secret: apiSecret,
+          paper,
+          market_data_key: marketDataKey,
+        }),
+      }),
+
   },
 
   // ADR-063: Activity Log (what YARNNN has done)

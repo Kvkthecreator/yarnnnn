@@ -164,7 +164,7 @@ Rich-input affordances are the mechanism that drives scaffold depth. Chip 1 prev
 
 ---
 
-## [2026.04.17.3] - ADR-189 Phase 3: YARNNN rename pass (prompts + code)
+## [2026.04.17.3b] - ADR-189 Phase 3: YARNNN rename pass (prompts + code)
 
 ### Changed
 - `api/agents/thinking_partner.py` → `api/agents/yarnnn.py` (git mv). Class `ThinkingPartnerAgent` → `YarnnnAgent`. Import sites updated: `api/routes/chat.py`, `api/agents/{__init__,base,chat_agent}.py`, `api/services/agent_framework.py` (comment), `api/jobs/unified_scheduler.py` (module docstring), `api/test_structural_overhaul.py` (test imports).
@@ -186,6 +186,22 @@ Rich-input affordances are the mechanism that drives scaffold depth. Chip 1 prev
 - Prompts teach the three-layer model (YARNNN / Specialist / Agent) with explicit verb discipline (create Agent, draft Team).
 - `agents.role == 'thinking_partner'` still routes through `_execute_tp_task()` unchanged — DB-level behavior identical.
 - `YarnnnAgent` is the import path for the conversational super-agent class.
+
+---
+
+## [2026.04.17.3] - ADR-188 Phase 3: YARNNN prompt — template library + composition guidance
+
+### Changed
+- `api/agents/yarnnn_prompts/workspace.py`: "Task Type Catalog" → "Task Template Library (ADR-188)." Two creation paths now both first-class (template-based AND composed). New "Composing Custom Tasks" section: 4-step pattern (output_kind → team → step instructions → context domains). "Creating Agents" section: YARNNN can create additional specialists for domain-focused work.
+- `api/agents/yarnnn_prompts/tools.py`: Parallel task creation section updated. Template mapping condensed. Explicit "when NO template fits" guidance with composed example for any-domain users.
+- `api/agents/yarnnn_prompts/onboarding.py`: Domain scaffolding no longer assumes fixed 5 domains. YARNNN instructed to use domain names from user's own language. Examples: cases (lawyer), clients (consultant), audience (influencer).
+
+### Expected behavior
+- YARNNN now knows it can compose custom tasks from framework primitives (output_kind, team, mode, objective) for ANY user domain. Previously YARNNN only knew about the hardcoded task type catalog and would try to fit every user into existing templates. Users in novel domains (law, medicine, trading, content creation) will get domain-appropriate tasks composed by YARNNN.
+- Domain scaffolding during onboarding now adapts to the user's vocabulary instead of assuming competitors/market/relationships/projects.
+
+### Merge note (2026-04-17)
+This entry originated on `main` as `[2026.04.17.3]` with `tp_prompts/` and `TP` vocabulary. During merge with the ADR-189 YARNNN rename branch, path references (`tp_prompts/` → `yarnnn_prompts/`) and user-facing terminology (`TP` → `YARNNN`) were brought in line with shipped glossary. Original slot `.3` preserved; ADR-189 Phase 3 entry renumbered to `.3b` to avoid conflict.
 
 ---
 

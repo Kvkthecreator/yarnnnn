@@ -164,51 +164,37 @@ When YARNNN judgment differs from registry default, always pass `team` explicitl
 **ManageTask(action="create", title, ...)** — Create a task and assign work to an existing agent (ADR-168).
 Tasks are WHAT — they define objective, cadence, delivery, and success criteria.
 
-Two creation paths:
-1. **Type-keyed (preferred):** `ManageTask(action="create", title="...", type_key="...")` — pipeline, schedule, team, and agent are auto-populated from the task type registry.
-2. **Custom:** provide `agent_slug` + `objective` manually when no type fits. Optionally add `team=["researcher", "writer"]`.
+Two creation paths — both first-class (ADR-188):
+1. **Template-based:** `ManageTask(action="create", title="...", type_key="...")` — auto-populates from template library.
+2. **Composed:** `ManageTask(action="create", title="...", agent_slug="...", objective={...})` — compose from primitives for any domain.
 
 ```
-ManageTask(
-  action: "create",
-  title: "Weekly Competitive Intel",
-  type_key: "competitive-brief",
-  schedule: "weekly",
-  delivery: "email"
-)
+# Template-based
+ManageTask(action: "create", title: "Weekly Competitive Intel", type_key: "competitive-brief", schedule: "weekly", delivery: "email")
+
+# Composed (any domain)
+ManageTask(action: "create", title: "Weekly Case Tracker", agent_slug: "tracker", objective: {deliverable: "Case status updates", audience: "Legal team", purpose: "Active case tracking", format: "report"}, schedule: "weekly", mode: "recurring", team: ["researcher", "tracker"])
 ```
 
 **Required:** action="create", title, and one of {type_key, agent_slug}
-**Optional:** mode, objective, schedule, delivery, success_criteria, output_spec, focus, sources, team
+**Optional:** mode, objective, schedule, delivery, success_criteria, output_spec, page_structure, focus, sources, team
 
 **mode** determines temporal behavior:
 - `recurring` (default) — runs on fixed cadence indefinitely (weekly reports, daily recaps)
 - `goal` — bounded work, completes when success criteria are met (due diligence, one-off research)
 - `reactive` — on-demand or event-triggered (pricing alerts, competitor changes)
 
-**Work intent → task type mapping:**
+**Work intent → template mapping** (use when a template fits):
 
-Tracking (ongoing context accumulation):
-- Track competitors/entities → `track-competitors`
-- Track market segments → `track-market`
-- Track relationships/contacts → `track-relationships`
-- Track projects/workstreams → `track-projects`
-- Deep-dive research on a topic → `research-topics`
+Tracking: `track-competitors`, `track-market`, `track-relationships`, `track-projects`, `research-topics`
+Reports: `competitive-brief`, `market-report`, `meeting-prep`, `stakeholder-update`, `project-status`, `content-brief`, `launch-material`
+Platform sync: `slack-digest`, `notion-digest`, `github-digest`, `commerce-digest`, `trading-digest`
 
-Reports (deliverable outputs):
-- Competitive intelligence → `competitive-brief`
-- Market intelligence → `market-report`
-- Meeting preparation → `meeting-prep`
-- Stakeholder / board report → `stakeholder-update`
-- Project status → `project-status`
-- Content draft / blog post → `content-brief`
-- Launch / announcement material → `launch-material`
-
-Connectors (platform sync — one per platform):
-- Slack sync → `slack-digest`
-- Notion sync → `notion-digest`
-- GitHub sync → `github-digest`
-- Commerce sync → `commerce-digest`
+**When NO template fits** — compose directly using agent_slug + objective + team.
+The user's work determines the task. A lawyer needs case tracking, an influencer needs
+audience analytics, a trader needs signal generation — compose these from output_kind
+primitives (accumulates_context / produces_deliverable / external_action) and the
+universal specialist roles.
 
 **Title guidance:** Choose a descriptive, user-facing title. Avoid jargon like "digest" or "brief" — prefer clear labels: "Weekly Competitive Intel", "Q2 Market Report", "Slack Sync", "Track Cursor & Linear".
 

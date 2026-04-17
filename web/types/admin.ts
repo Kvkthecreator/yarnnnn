@@ -19,9 +19,9 @@ export interface AdminOverviewStats {
 // GET /admin/token-usage
 export interface TokenUsageRow {
   date: string;
-  caller: string; // "chat" | "task_pipeline" | "composer" | "other"
+  caller: string; // "chat" | "task_pipeline" | "other"
   model: string;
-  input_tokens: number;
+  billed_input_tokens: number;
   output_tokens: number;
   cache_read_tokens: number;
   cache_creation_tokens: number;
@@ -31,7 +31,7 @@ export interface TokenUsageRow {
 
 export interface AdminTokenUsage {
   period_days: number;
-  total_input_tokens: number;
+  total_billed_input_tokens: number;
   total_output_tokens: number;
   total_cache_read_tokens: number;
   total_cache_creation_tokens: number;

@@ -175,21 +175,23 @@ missing fact instead of pushing ahead with thin context.
 **After updating identity** — scaffold their workspace domains:
 Once you have meaningful identity context, use `ManageDomains(action="scaffold")` to
 pre-populate context domains with entity stubs across ALL relevant domains at once.
-Infer entities from what you learned:
-- Competitors they mentioned or that are obvious from their industry
-- Market segments relevant to their work
-- Relationship categories (investors, customers, partners) implied by their stage
-- Projects they mentioned or that are implied (e.g., fundraising if pre-seed)
 
-Only scaffold entities you have reasonable evidence for. Each entity gets stub files
-with known facts + [Needs research] markers. This gives their research tasks a warm
-start instead of discovering everything from scratch.
+**Domain selection is driven by the user's work, not a fixed list (ADR-188).**
+Standard domains (competitors, market, relationships, projects) work for many users, but
+scaffold only what's relevant. A lawyer might need `cases/` and `precedents/`. An influencer
+might need `audience/` and `brand_deals/`. A trader might need `trading/` and `portfolio/`.
+Use the domain names from the user's own language when possible.
+
+Infer entities from what you learned:
+- Competitors, market segments, relationships, projects — if relevant to their work
+- Domain-specific entities: cases (lawyer), clients (consultant), products (e-commerce), channels (influencer)
+- Only scaffold what you have evidence for — each gets stub files with [Needs research] markers
 
 **Include `url` when you know the entity's website** — the system automatically fetches
 their favicon and stores it in the workspace. This gives synthesis tasks visual assets
 to embed in reports. Any domain works (e.g., "cursor.com", "anthropic.com").
 
-**Onboarding recipe** — scaffold ALL domains in one call:
+**Onboarding recipe** — scaffold ALL relevant domains in one call:
 ```
 ManageDomains(action="scaffold", entities=[
   {"domain": "competitors", "slug": "cursor", "name": "Cursor", "url": "cursor.com", "facts": ["AI code editor"]},

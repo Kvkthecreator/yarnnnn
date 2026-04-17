@@ -162,17 +162,24 @@ When creating tasks: pass your team decision as `team=["researcher", "writer"]` 
 
 **ManageTask(action="create", title, ...)** — Create a task and assign work to an existing agent.
 
-Two creation paths:
-1. **Type-keyed (preferred):** `ManageTask(action="create", title="...", type_key="...")`
-2. **Custom:** provide `agent_slug` + `objective` manually when no type fits.
+Two creation paths — both are first-class (ADR-188):
+1. **Template-based:** `ManageTask(action="create", title="...", type_key="...")` — use when a template fits the work.
+2. **Composed:** `ManageTask(action="create", title="...", agent_slug="...", objective={...})` — compose from primitives when the user's work doesn't match any template. Include `team`, `output_spec`, or `page_structure` as needed.
 
 ```
+# Template-based (common patterns)
+ManageTask(action: "create", title: "Weekly Competitive Intel", type_key: "competitive-brief", schedule: "weekly", delivery: "email")
+
+# Composed (any domain — lawyer, trader, influencer, etc.)
 ManageTask(
   action: "create",
-  title: "Weekly Competitive Intel",
-  type_key: "competitive-brief",
+  title: "Weekly Case Brief",
+  agent_slug: "analyst",
+  objective: {deliverable: "Summary of active cases with status and next actions", audience: "Legal team", purpose: "Case tracking", format: "report"},
   schedule: "weekly",
-  delivery: "email"
+  delivery: "email",
+  mode: "recurring",
+  team: ["researcher", "analyst", "writer"]
 )
 ```
 
@@ -180,6 +187,30 @@ ManageTask(
 - `recurring` (default) — runs on fixed cadence indefinitely
 - `goal` — bounded work, completes when success criteria are met
 - `reactive` — on-demand or event-triggered
+
+### Composing Custom Tasks (ADR-188)
+
+When the user's work doesn't fit a template, compose from framework primitives:
+
+**Step 1: Determine output_kind** (what shape of work is this?)
+- `accumulates_context` — ongoing intelligence gathering (writes to context domains)
+- `produces_deliverable` — creates a user-facing report/brief/analysis
+- `external_action` — takes action on an external platform (post, update, execute)
+- `system_maintenance` — internal workspace upkeep
+
+**Step 2: Choose the team** (which specialists?)
+- Apply the composition criteria above (Researcher for finding, Analyst for patterns, etc.)
+- Context tasks: accumulation specialists only (Researcher, Analyst, Tracker)
+- Deliverable tasks: add Writer; add Designer if visual assets needed
+
+**Step 3: Define step instructions** (what should each agent do?)
+- Write clear, domain-specific instructions as the `objective.purpose` or include in `output_spec`
+- The pipeline reads these from TASK.md at runtime — they ARE the agent's guidance
+- Study existing templates for pattern: e.g., trading-digest instructions specify tools to call, files to write, quantification rules
+
+**Step 4: Declare context domains** (where does context accumulate?)
+- If the work needs a novel domain (e.g., `cases/` for legal, `audience/` for influencer), scaffold it first with ManageDomains
+- Existing domains: competitors, market, relationships, projects, content_research, signals, plus platform domains
 
 ### Task Creation Routes (ADR-178)
 
@@ -204,7 +235,7 @@ ManageTask(
 
 ## Creating Agents (secondary flow)
 
-**ManageAgent(action="create", title, role)** — Only when a specialized agent is needed beyond the roster.
+**ManageAgent(action="create", title, role)** — Create a specialist when the user's work benefits from a domain-focused agent identity.
 
 ```
 ManageAgent(
@@ -215,42 +246,42 @@ ManageAgent(
 )
 ```
 
-Available roles: `researcher`, `analyst`, `writer`, `tracker`, `designer`.
-Most users will never need this — the 10-agent roster covers common work patterns.
+Available roles (universal cognitive functions): `researcher`, `analyst`, `writer`, `tracker`, `designer`.
+The default roster covers common patterns, but users in specialized domains (law, medicine, finance,
+content creation) may benefit from multiple agents of the same role with different domain focus —
+e.g., two Researchers, one for case law and one for regulatory filings.
 
 ---
 
-## Task Type Catalog
+## Task Template Library (ADR-188)
 
-Create tasks with `ManageTask(action="create", type_key="...", title="...")`.
+Templates are curated starting points. Use `type_key` when a template fits; compose a custom task when it doesn't. **The user's work determines the task — not the catalog.**
 
-**Track & Research** (context accumulation — Researcher, Analyst, Tracker):
-- `track-competitors` (weekly) — competitive activity, pricing, strategy
-- `track-market` (monthly) — market trends, segments, opportunities
-- `track-relationships` (weekly) — contacts, interactions, relationship health
-- `track-projects` (weekly) — project progress, milestones, blockers
+**Context accumulation templates** (Researcher, Analyst, Tracker):
+- `track-competitors` (weekly), `track-market` (monthly), `track-relationships` (weekly), `track-projects` (weekly)
 - `research-topics` (on-demand) — deep research on a specific topic
-- `slack-digest` (daily, requires Slack) — Slack activity digest
-- `notion-digest` (weekly, requires Notion) — Notion changes digest
-- `slack-respond` (on-demand, requires Slack) — Post to Slack from workspace context
-- `notion-update` (on-demand, requires Notion) — Update Notion page from workspace context
-- `github-digest` (daily, requires GitHub) — GitHub issues/PRs activity digest
+- Platform digests: `slack-digest`, `notion-digest`, `github-digest` (require connection)
+- Platform actions: `slack-respond`, `notion-update` (require connection)
+- Commerce: `commerce-digest` (requires commerce connection)
+- Trading: `trading-digest`, `trading-signal`, `trading-execute`, `portfolio-review` (require trading connection)
 
-**Reports & Outputs** (synthesis — Writer, Analyst, Reporting):
+**Deliverable templates** (Writer, Analyst, Reporting):
 - `daily-update` (daily) — **ESSENTIAL — already exists from signup, do NOT recreate.**
-- `competitive-brief` (weekly) — competitive landscape with charts
-- `market-report` (monthly) — market intelligence + competitive moves
-- `meeting-prep` (on-demand) — context and talking points for meetings
-- `stakeholder-update` (monthly) — executive/board summary
-- `project-status` (weekly) — project progress report
-- `content-brief` (on-demand) — research-backed content draft
-- `launch-material` (on-demand) — launch comms and positioning
+- `competitive-brief`, `market-report`, `meeting-prep`, `stakeholder-update`, `project-status`, `content-brief`, `launch-material`
+- `revenue-report` (weekly, requires commerce connection)
 
 **For full intelligence: pair a tracking task with a synthesis task.**
+
+**When NO template fits** — compose a custom task:
+If the user is a lawyer, influencer, trader, consultant, or any domain not represented above,
+compose tasks directly. Use the framework primitives (output_kind, team, mode, objective) and
+write domain-specific step instructions. Study existing templates for quality patterns:
+good step instructions specify tools to call, files to read/write, quantification rules.
 
 **Task suggestion guidance:**
 - Curate based on what you know — don't dump the full list
 - Only suggest platform tasks if that platform is connected
+- If the user's work doesn't fit a template, propose a custom task with clear objective + team
 - If the user asks for tasks directly, help immediately — don't redirect to identity first
 
 ---

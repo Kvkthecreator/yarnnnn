@@ -1,13 +1,14 @@
 """
-Workspace Initialization — ADR-152 + ADR-189 + ADR-190: Workspace Bootstrap
+Workspace Initialization — ADR-152 + ADR-188 + ADR-189 + ADR-190: Workspace Bootstrap
 
-Sets up a workspace from the three registries. Called once at signup.
-After initialization, the workspace is self-contained — registries are templates
-that were applied, the workspace filesystem is the sole source of truth.
+Sets up a workspace from the three registries (ADR-188: template libraries).
+Called once at signup. After initialization, the workspace is self-contained —
+registries are templates that were applied, the workspace filesystem is the
+sole source of truth.
 
 Phases:
   1. Directory structure (from WORKSPACE_DIRECTORIES)
-  2. Agent roster (from AGENT_TYPES + DEFAULT_ROSTER) — infrastructure rows
+  2. Agent roster (from AGENT_TEMPLATES + DEFAULT_ROSTER) — infrastructure rows
      (YARNNN, Specialists, Platform Bots); user-authored Agents filter by
      origin='system_bootstrap' per ADR-189
   3. Workspace files (IDENTITY.md, BRAND.md, AWARENESS.md, CONVENTIONS.md as
@@ -15,13 +16,21 @@ Phases:
   4. Essential tasks (daily-update heartbeat + back office tasks)
   5. Signup balance audit trail (ADR-172)
 
+After init, YARNNN customizes the workspace based on the user's work description
+(ADR-188 + ADR-190):
+  - Scaffolds domain-specific context directories on demand (ADR-188 Phase 2:
+    `_domain.md`)
+  - Creates custom tasks with domain-specific step instructions (ADR-188 Phase 1)
+  - Rich first-act input triggers `UpdateContext(target="workspace")` which
+    runs combined inference + writes IDENTITY/BRAND + scaffolds entity
+    subfolders + proposes work intent (ADR-190)
+
 ADR-190 deletions:
   - WORKSPACE.md manifest (was vestigial post-ADR-159 compact index)
   - DEFAULT_BRAND_MD filler (BRAND.md now empty skeleton; inference populates)
   - update_workspace_manifest() helper (no longer called from ManageTask etc.)
 
-After init, YARNNN and agents evolve the workspace. The registries are
-NEVER consulted at runtime — only at creation time.
+The registries are NEVER consulted at runtime — only at creation time.
 
 Version: 2.0 (2026-04-17, ADR-190)
 """

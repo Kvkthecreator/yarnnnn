@@ -50,6 +50,11 @@ export function ConnectedIntegrationsSection({
   // Commerce (API key auth, not OAuth)
   const [commerceApiKey, setCommerceApiKey] = useState("");
   const [commerceError, setCommerceError] = useState<string | null>(null);
+  // Trading (API key + secret auth — ADR-187)
+  const [tradingApiKey, setTradingApiKey] = useState("");
+  const [tradingApiSecret, setTradingApiSecret] = useState("");
+  const [tradingPaper, setTradingPaper] = useState(true);
+  const [tradingError, setTradingError] = useState<string | null>(null);
 
   const loadIntegrations = async () => {
     setIsLoadingIntegrations(true);
@@ -109,6 +114,7 @@ export function ConnectedIntegrationsSection({
   const notionConnected = platformStatuses.notion === "active";
   const githubConnected = platformStatuses.github === "active";
   const commerceConnected = platformStatuses.commerce === "active";
+  const tradingConnected = platformStatuses.trading === "active";
 
   const handleConnectCommerce = async () => {
     if (!commerceApiKey.trim()) {
@@ -123,6 +129,29 @@ export function ConnectedIntegrationsSection({
       await loadIntegrations();
     } catch (err: any) {
       setCommerceError(err?.message || "Failed to connect. Check your API key.");
+    } finally {
+      setConnectingProvider(null);
+    }
+  };
+
+  const handleConnectTrading = async () => {
+    if (!tradingApiKey.trim() || !tradingApiSecret.trim()) {
+      setTradingError("API key and secret are required");
+      return;
+    }
+    setConnectingProvider("trading");
+    setTradingError(null);
+    try {
+      await api.integrations.connectTrading(
+        tradingApiKey.trim(),
+        tradingApiSecret.trim(),
+        tradingPaper,
+      );
+      setTradingApiKey("");
+      setTradingApiSecret("");
+      await loadIntegrations();
+    } catch (err: any) {
+      setTradingError(err?.message || "Failed to connect. Check your credentials.");
     } finally {
       setConnectingProvider(null);
     }
@@ -461,6 +490,123 @@ export function ConnectedIntegrationsSection({
                               className="underline hover:text-foreground"
                             >
                               app.lemonsqueezy.com/settings/api
+                            </a>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {(() => {
+            const tradingIntegration = integrations.find((i) => i.provider === "trading");
+            return (
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-[#FFDC00] rounded-lg flex items-center justify-center shrink-0">
+                    <svg className="w-6 h-6 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                      <polyline points="16 7 22 7 22 13" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-medium">Alpaca Trading</div>
+                        <div className="text-sm text-muted-foreground">Market data, portfolio tracking, and trade execution</div>
+                      </div>
+                      {tradingConnected ? (
+                        <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1 shrink-0">
+                          <Check className="w-4 h-4" />
+                          Connected
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      {tradingIntegration ? (
+                        <>
+                          <button
+                            onClick={() => router.push("/work?task=trading-digest")}
+                            className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
+                          >
+                            Manage
+                          </button>
+                          <button
+                            onClick={() => handleDisconnectIntegration("trading")}
+                            disabled={disconnectingProvider === "trading"}
+                            className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
+                          >
+                            {disconnectingProvider === "trading" ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              "Disconnect"
+                            )}
+                          </button>
+                        </>
+                      ) : (
+                        <div className="flex flex-col gap-2 w-full">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="password"
+                              value={tradingApiKey}
+                              onChange={(e) => {
+                                setTradingApiKey(e.target.value);
+                                setTradingError(null);
+                              }}
+                              placeholder="Alpaca API key"
+                              className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            />
+                            <input
+                              type="password"
+                              value={tradingApiSecret}
+                              onChange={(e) => {
+                                setTradingApiSecret(e.target.value);
+                                setTradingError(null);
+                              }}
+                              placeholder="API secret"
+                              className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleConnectTrading();
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={tradingPaper}
+                                onChange={(e) => setTradingPaper(e.target.checked)}
+                                className="w-4 h-4 rounded border-border"
+                              />
+                              Paper trading (simulated)
+                            </label>
+                            <button
+                              onClick={handleConnectTrading}
+                              disabled={connectingProvider === "trading" || !tradingApiKey.trim() || !tradingApiSecret.trim()}
+                              className="px-4 py-2 bg-[#FFDC00] text-black rounded-md text-sm font-medium hover:bg-[#E6C600] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ml-auto"
+                            >
+                              {connectingProvider === "trading" ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "Connect"
+                              )}
+                            </button>
+                          </div>
+                          {tradingError && (
+                            <p className="text-sm text-destructive">{tradingError}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Get your API keys at{" "}
+                            <a
+                              href="https://app.alpaca.markets/brokerage/account/api-keys"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline hover:text-foreground"
+                            >
+                              app.alpaca.markets
                             </a>
                           </p>
                         </div>

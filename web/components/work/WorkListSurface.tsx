@@ -56,6 +56,10 @@ const CONNECTOR_TYPE_KEYS = new Set([
   'revenue-report',
   'slack-respond',
   'notion-update',
+  'trading-digest',
+  'trading-signal',
+  'trading-execute',
+  'portfolio-review',
 ]);
 
 function isConnectorTask(task: Task): boolean {
@@ -100,10 +104,11 @@ function connectorPlatform(task: Task): string {
   if (key.startsWith('notion')) return 'Notion';
   if (key.startsWith('github')) return 'GitHub';
   if (key.startsWith('commerce') || key.startsWith('revenue')) return 'Commerce';
+  if (key.startsWith('trading') || key.startsWith('portfolio')) return 'Trading';
   return 'Other';
 }
 
-const CONNECTOR_GROUP_ORDER = ['Slack', 'Notion', 'GitHub', 'Commerce', 'Other'];
+const CONNECTOR_GROUP_ORDER = ['Slack', 'Notion', 'GitHub', 'Commerce', 'Trading', 'Other'];
 
 // ─── Sorting ─────────────────────────────────────────────────────────────────
 
