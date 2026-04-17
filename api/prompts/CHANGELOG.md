@@ -6,6 +6,48 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.14] - ADR-192 Phase 4: Email send platform class (Resend integration)
+
+### Added
+- **New platform class: `email`** (alongside slack / notion / github / commerce / trading)
+- `api/integrations/core/resend_client.py` (NEW) — thin HTTP wrapper for Resend's send API. Methods: `validate_key`, `send`, `send_batch`, `_format_sender`. Retry-on-429 logic for rate-limited sends.
+- `api/routes/integrations.py` — new `POST /integrations/email/connect` endpoint. Validates Resend API key by listing domains, encrypts + stores in `platform_connections` with `platform='email'`, captures sender identity metadata (from_email, from_name, reply_to, verified_domains list).
+- `api/services/platform_tools.py`:
+  - `EMAIL_TOOLS` list (NEW) with 2 tool defs:
+    - `platform_email_send` — single send, supports multiple `to`, cc, bcc, reply_to
+    - `platform_email_send_bulk` — per-recipient personalized sends with shared sender defaults
+  - `PLATFORM_TOOLS_BY_PROVIDER["email"] = EMAIL_TOOLS`
+  - `PLATFORM_TOOLS_BY_CAPABILITY["write_email"] = ["platform_email_send", "platform_email_send_bulk"]`
+  - `CAPABILITY_PROVIDER_MAP["write_email"] = "email"`
+  - `handle_platform_tool()` dispatch extended with `elif provider == "email"`
+  - `_handle_email_tool()` async handler that resolves per-user Resend API key from `platform_connections`, calls Resend, emits sender-fallback warning if user has no verified domain.
+
+### Sender identity model
+- Alpha accounts with no verified domain: sends fall back to `YARNNN <onboarding@resend.dev>` (Resend's shared sender). Warning appended to every send response.
+- Production: user verifies a domain in Resend, sets `from_email` / `from_name` / `reply_to` on the `platform_connections.metadata` via re-connecting. Subsequent sends use the verified domain; no warning.
+- No domain verification enforced at connect time — user can connect first, verify later.
+
+### Expected behavior
+- E-commerce operator with email connected can send transactional messages (refund confirmations, order updates) and campaigns (segment-targeted promos, churn win-back) autonomously.
+- Cross-domain: email capability is generalizable — AI influencer alpha (scheduled) will reuse for newsletter comms; international trader (scheduled) will reuse for compliance notices.
+- Replies route to user's actual inbox via `reply_to` header; no inbound handling in this phase.
+
+### NOT in this commit
+- Frontend settings UI for email connect — backend endpoint works, UI can be added when alpha needs it.
+- Prompt teaching YARNNN when to `send` vs `send_bulk`, how to craft subject/html for typical scenarios → Phase 5.
+- Inbound email routing (customer replies parsed into YARNNN context) — deferred per ADR-192.
+- Multi-provider email abstraction — Resend only. A provider-abstraction layer lands when Resend becomes limiting.
+
+### Verification
+- AST parse clean on Resend client, platform_tools, integrations route.
+- Registry wiring end-to-end (EMAIL_TOOLS in PLATFORM_TOOLS_BY_PROVIDER + PLATFORM_TOOLS_BY_CAPABILITY + CAPABILITY_PROVIDER_MAP) confirmed via import smoke.
+- `_handle_email_tool` async handler signature verified.
+
+### Rationale (ADR-192)
+Resend selected for: dev-first API (POST /emails with JSON), no OAuth (API-key auth), free tier covers alpha (3k emails/mo), fair scale pricing. Rejected alternatives documented in ADR-192. Migration to alternative providers later is mechanical if Resend becomes limiting.
+
+---
+
 ## [2026.04.17.13] - ADR-192 Phase 3: Commerce operational tools (5 new LS primitives)
 
 ### Changed

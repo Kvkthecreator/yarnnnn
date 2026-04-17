@@ -2124,6 +2124,92 @@ class CommerceConnectRequest(BaseModel):
     api_key: str
 
 
+class EmailConnectRequest(BaseModel):
+    """Request to connect an email provider (Resend) via API key (ADR-192 Phase 4)."""
+    api_key: str
+    from_email: Optional[str] = None   # e.g. "team@company.com" — requires verified domain in Resend
+    from_name: Optional[str] = None    # e.g. "Company Name"
+    reply_to: Optional[str] = None     # where customer replies go
+
+
+@router.post("/integrations/email/connect")
+async def connect_email(
+    request: EmailConnectRequest,
+    auth: UserClient,
+):
+    """Connect an email provider (Resend) via API key (ADR-192 Phase 4).
+
+    Validates the Resend key, encrypts + stores the connection. Sender
+    identity (from_email, from_name, reply_to) is optional — if the user
+    has no verified domain in Resend, sends fall back to the shared
+    `onboarding@resend.dev` sender for alpha use.
+
+    No OAuth. No domain verification enforced at connect time — the user
+    can connect first, verify their domain later in Resend, then update
+    their connection metadata.
+    """
+    from integrations.core.resend_client import get_resend_client
+
+    user_id = auth.user_id
+    token_manager = get_token_manager()
+    resend = get_resend_client()
+
+    # 1. Validate the API key
+    try:
+        validation = await resend.validate_key(request.api_key)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # 2. Encrypt + store
+    encrypted_key = token_manager.encrypt(request.api_key)
+    service_client = get_service_client()
+
+    existing = service_client.table("platform_connections").select("id").eq(
+        "user_id", user_id
+    ).eq("platform", "email").execute()
+
+    metadata = {
+        "provider": "resend",
+        "from_email": request.from_email,
+        "from_name": request.from_name,
+        "reply_to": request.reply_to,
+        "verified_domains": [
+            d["name"] for d in validation.get("domains", [])
+            if d.get("status") == "verified"
+        ],
+        "has_verified_domain": validation.get("has_verified_domain", False),
+    }
+
+    if existing.data:
+        service_client.table("platform_connections").update({
+            "credentials_encrypted": encrypted_key,
+            "metadata": metadata,
+            "status": "active",
+        }).eq("id", existing.data[0]["id"]).execute()
+        connection_id = existing.data[0]["id"]
+        logger.info(f"[INTEGRATIONS] Updated email (Resend) connection for {user_id}")
+    else:
+        insert_result = service_client.table("platform_connections").insert({
+            "user_id": user_id,
+            "platform": "email",
+            "credentials_encrypted": encrypted_key,
+            "metadata": metadata,
+            "status": "active",
+        }).execute()
+        connection_id = insert_result.data[0]["id"] if insert_result.data else None
+        logger.info(f"[INTEGRATIONS] Created email (Resend) connection for {user_id}")
+
+    return {
+        "id": connection_id,
+        "platform": "email",
+        "provider": "resend",
+        "status": "active",
+        "has_verified_domain": metadata["has_verified_domain"],
+        "verified_domains": metadata["verified_domains"],
+        "sender_fallback_active": not metadata["has_verified_domain"],
+    }
+
+
 @router.post("/integrations/commerce/connect")
 async def connect_commerce(
     request: CommerceConnectRequest,

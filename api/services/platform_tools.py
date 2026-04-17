@@ -803,6 +803,69 @@ TRADING_WRITE_TOOLS = [
 ]
 
 
+# =============================================================================
+# ADR-192 Phase 4: Email platform class (Resend)
+# =============================================================================
+EMAIL_TOOLS = [
+    {
+        "name": "platform_email_send",
+        "description": "Send a single email to one or more recipients (all receive the same body). For per-recipient personalized sends use send_bulk. Uses the user's connected Resend account. If the user hasn't verified a sending domain in Resend yet, falls back to 'onboarding@resend.dev' (alpha only — not production-quality sender).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Recipient email addresses.",
+                },
+                "subject": {"type": "string", "description": "Email subject line."},
+                "html": {"type": "string", "description": "Email body as HTML. Use <p>, <a>, basic inline styles. Plain text falls back from HTML."},
+                "from_email": {"type": "string", "description": "Override sender email. Requires a verified domain in Resend. Omit to use the connection's default."},
+                "from_name": {"type": "string", "description": "Sender display name (appears before the email in 'Name <email>')."},
+                "reply_to": {"type": "string", "description": "Reply-To header. Replies land in this inbox."},
+                "cc": {"type": "array", "items": {"type": "string"}, "description": "CC recipients."},
+                "bcc": {"type": "array", "items": {"type": "string"}, "description": "BCC recipients."},
+            },
+            "required": ["to", "subject", "html"],
+        },
+    },
+    {
+        "name": "platform_email_send_bulk",
+        "description": "Send many personalized emails in one call — each recipient gets their own subject + body. Use for campaigns, per-customer updates, segmented announcements. Returns per-message outcome; partial failure doesn't roll back. The shared from_email / from_name apply to any message that doesn't override.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "messages": {
+                    "type": "array",
+                    "description": "List of per-recipient messages. Each has its own {to, subject, html, optional reply_to / cc / bcc / from}.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "to": {
+                                "oneOf": [
+                                    {"type": "string"},
+                                    {"type": "array", "items": {"type": "string"}},
+                                ],
+                                "description": "Recipient(s) for this message.",
+                            },
+                            "subject": {"type": "string"},
+                            "html": {"type": "string"},
+                            "reply_to": {"type": "string"},
+                            "cc": {"type": "array", "items": {"type": "string"}},
+                            "bcc": {"type": "array", "items": {"type": "string"}},
+                        },
+                        "required": ["to", "subject", "html"],
+                    },
+                },
+                "from_email": {"type": "string", "description": "Default sender email (any message may override)."},
+                "from_name": {"type": "string", "description": "Default sender display name."},
+            },
+            "required": ["messages"],
+        },
+    },
+]
+
+
 # All platform tools by provider
 PLATFORM_TOOLS_BY_PROVIDER = {
     "slack": SLACK_TOOLS,
@@ -810,6 +873,7 @@ PLATFORM_TOOLS_BY_PROVIDER = {
     "github": GITHUB_TOOLS,
     "commerce": COMMERCE_TOOLS + COMMERCE_WRITE_TOOLS,
     "trading": TRADING_TOOLS + TRADING_WRITE_TOOLS,
+    "email": EMAIL_TOOLS,
 }
 
 PLATFORM_TOOLS_BY_CAPABILITY = {
@@ -854,6 +918,10 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
         "platform_trading_add_to_watchlist",
         "platform_trading_remove_from_watchlist",
     ],
+    # ADR-192 Phase 4: Email class
+    "write_email": [
+        "platform_email_send", "platform_email_send_bulk",
+    ],
 }
 
 CAPABILITY_PROVIDER_MAP = {
@@ -866,6 +934,8 @@ CAPABILITY_PROVIDER_MAP = {
     "write_commerce": "commerce",
     "read_trading": "trading",
     "write_trading": "trading",
+    # ADR-192 Phase 4: email has no read capability (send-only in this phase)
+    "write_email": "email",
 }
 
 
@@ -1005,6 +1075,8 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
         return await _handle_commerce_tool(auth, tool, tool_input)
     elif provider == "trading":
         return await _handle_trading_tool(auth, tool, tool_input)
+    elif provider == "email":
+        return await _handle_email_tool(auth, tool, tool_input)
     else:
         return {"success": False, "error": f"Unknown provider: {provider}"}
 
@@ -1992,6 +2064,90 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         return {"success": True, "result": result}
 
     return {"success": False, "error": f"Unknown trading tool: {tool}"}
+
+
+async def _handle_email_tool(auth: Any, tool: str, tool_input: dict) -> dict:
+    """Handle email (Resend) platform tools (ADR-192 Phase 4)."""
+    from integrations.core.resend_client import get_resend_client
+
+    # Fetch credentials + metadata
+    try:
+        result = auth.client.table("platform_connections").select(
+            "credentials_encrypted, metadata"
+        ).eq("user_id", auth.user_id).eq("platform", "email").eq("status", "active").execute()
+
+        if not result.data:
+            return {"success": False, "error": "No active email (Resend) connection found. Connect via POST /integrations/email/connect first."}
+    except Exception as e:
+        return {"success": False, "error": f"Failed to fetch email credentials: {e}"}
+
+    conn = result.data[0]
+    token_manager = get_token_manager()
+    try:
+        api_key = token_manager.decrypt(conn["credentials_encrypted"])
+    except Exception as e:
+        return {"success": False, "error": f"Failed to decrypt email API key: {e}"}
+
+    metadata = conn.get("metadata") or {}
+    default_from_email = metadata.get("from_email")
+    default_from_name = metadata.get("from_name")
+    default_reply_to = metadata.get("reply_to")
+
+    resend = get_resend_client()
+
+    if tool == "send":
+        to = tool_input.get("to")
+        if isinstance(to, str):
+            to = [to]
+        subject = tool_input.get("subject")
+        html = tool_input.get("html")
+        if not to or not subject or not html:
+            return {"success": False, "error": "to, subject, and html are required"}
+
+        result = await resend.send(
+            api_key,
+            to=to,
+            subject=subject,
+            html=html,
+            from_email=tool_input.get("from_email") or default_from_email,
+            from_name=tool_input.get("from_name") or default_from_name,
+            reply_to=tool_input.get("reply_to") or default_reply_to,
+            cc=tool_input.get("cc"),
+            bcc=tool_input.get("bcc"),
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"], "message": result.get("detail", "")}
+
+        # Warn if sender fallback is active (no verified domain)
+        response = {"success": True, "result": result}
+        if not metadata.get("has_verified_domain"):
+            response["warning"] = (
+                "Email sent from Resend's shared sender (onboarding@resend.dev). "
+                "Verify a domain in Resend and set from_email/from_name on the "
+                "connection for production-quality sending."
+            )
+        return response
+
+    elif tool == "send_bulk":
+        messages = tool_input.get("messages")
+        if not isinstance(messages, list) or not messages:
+            return {"success": False, "error": "messages (non-empty list of {to, subject, html}) is required"}
+
+        result = await resend.send_batch(
+            api_key,
+            messages=messages,
+            from_email=tool_input.get("from_email") or default_from_email,
+            from_name=tool_input.get("from_name") or default_from_name,
+        )
+        response = {"success": True, "result": result}
+        if not metadata.get("has_verified_domain"):
+            response["warning"] = (
+                "Bulk emails sent from Resend's shared sender. "
+                "Verify a domain in Resend for production sending."
+            )
+        return response
+
+    return {"success": False, "error": f"Unknown email tool: {tool}"}
 
 
 def is_platform_tool(tool_name: str) -> bool:
