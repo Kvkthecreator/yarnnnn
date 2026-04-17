@@ -103,16 +103,19 @@ Output contract:
 
 The inference prompt gains explicit guidance on entity extraction (which domains are user-sovereign vs. platform-bot-owned per ADR-158) and on work-intent classification.
 
-### 4. Scaffold pass is orchestrated, not inline
+### 4. Scaffold pass is orchestrated within a single conversational round
 
-`_handle_shared_context()` in `api/services/primitives/shared_context.py` today writes identity/brand. It extends to orchestrate the full scaffold pass:
+**Implementation (commit 4):** `handle_update_context(target="workspace")` in `api/services/primitives/update_context.py` orchestrates the context-layer scaffold pass:
 
-1. Write IDENTITY.md and BRAND.md (existing).
-2. For each entity group in `entities`, ensure the context domain exists (idempotent via `ManageDomains(action="create")`) and write entity subfolders with templated skeletons.
-3. If `work_intent` is present, call `ManageAgent(create)` with a title composed from the dominant entity group + work intent, then `ManageTask(create)` with a DELIVERABLE.md shaped by the deliverable_type.
-4. Return a structured scaffold report for the chat stream to render.
+1. Write IDENTITY.md and BRAND.md (from `infer_first_act` output).
+2. For each entity group, delegate to `ManageDomains(action="scaffold", entities=...)` which creates entity subfolders with templated skeletons and rebuilds trackers.
+3. Return a structured scaffold report with `work_intent_proposal` field.
 
-The scaffold report flows back through YARNNN's response as a typed artifact (not prose), rendered in the chat UI as a tree preview + confirm/adjust buttons.
+Agent and task creation are **YARNNN's next tool calls in the same conversation turn**, not orchestrator-internal. The orchestrator writes context files; YARNNN reads the scaffold report and materializes the first Agent + first task via `ManageAgent` + `ManageTask` in the same round. This preserves primitive atomicity (ADR-168) and YARNNN's team composition judgment (ADR-176) while delivering a single-conversational-arc UX.
+
+**Why split:** The ADR's initial "one atomic pipeline" framing would have required the orchestrator to call other primitives, breaking the principle that each primitive is a single composable unit. The two-step-within-one-turn approach lands the same UX (one user submission, one chat response containing the full scaffold) without violating primitive discipline.
+
+The scaffold report currently renders via the existing `ToolResultList` component in the chat stream using the response `message` string. A richer tree-preview card is a deferred polish.
 
 ### 5. First-turn empty-state surfaces rich inputs as defaults
 

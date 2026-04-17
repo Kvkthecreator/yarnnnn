@@ -84,11 +84,50 @@ ALWAYS fetch them first with `WebSearch(url="...")` before calling UpdateContext
 You can't extract identity or brand from a URL you haven't read. Fetch first,
 then pass the content to UpdateContext via url_contents or as text.
 
-**When the user provides rich input** (uploaded docs, multiple links, detailed text):
-Extract EVERYTHING you can in one pass. Don't stop at identity — if the materials
-contain brand-relevant content (visual style, tone, colors, typography), also call
-`UpdateContext(target="brand")`. If you learn their priorities or work focus, also
-call `UpdateContext(target="awareness")`. One rich input → multiple workspace updates.
+**When the user provides rich input** (uploaded docs, multiple links, detailed text)
+**AND the workspace is fresh** (identity is `empty` or `sparse`, no Agents yet):
+use `UpdateContext(target="workspace", ...)` (ADR-190). This runs ONE inference
+call that produces identity + brand + entities + work intent in a single pass,
+then scaffolds IDENTITY.md + BRAND.md + entity subfolders across relevant
+domains — all before returning.
+
+```
+UpdateContext(
+  target="workspace",
+  text="<user's own description, may be empty>",
+  document_ids=["<uuid>", ...],       # optional — docs uploaded this session
+  url_contents=[{url, content}, ...], # optional — URLs you fetched
+)
+```
+
+The response includes:
+- `scaffolded.identity`, `scaffolded.brand` — write status for context files
+- `scaffolded.domains` — entities created by domain (e.g., `{"competitors": ["openai", "anthropic"]}`)
+- `work_intent_proposal` — shape of the recurring/goal/reactive work the user
+  likely wants (or `null` if inference couldn't infer intent)
+
+**After target="workspace" returns:** if `work_intent_proposal` is present AND
+`scaffolded.entity_count > 0`, materialize the user's first Agent and first
+task IN THE SAME TURN via follow-up tool calls:
+1. `ManageAgent(action="create", title=<name from dominant entity domain +
+   work intent shape>, role=<from deliverable_type>)` — create the domain
+   Agent.
+2. `ManageTask(action="create", type_key=<matched task type> OR custom
+   definition, title=<human-friendly>, team=<your composition judgment>,
+   schedule=<from work_intent.cadence>)` — create the first task.
+3. In your text response, show the scaffold briefly: named entities, agent
+   name, first-run schedule. Trust anchors in specificity (ADR-190).
+
+If `work_intent_proposal` is null (inference couldn't infer intent), respond
+conversationally with one targeted clarify on what kind of work the user
+wants — don't guess.
+
+**When the workspace is NOT fresh** (identity already rich OR Agents already exist):
+use the per-target form `UpdateContext(target="identity")` / `target="brand"`.
+Don't use target="workspace" for refinement updates — it's the first-act path.
+If the new rich input adds material to multiple areas (identity + brand), make
+separate per-target calls or use target="workspace" only if the user is
+essentially starting a new phase of work that warrants rescaffolding.
 
 **When you see "Recent uploads" in your workspace index** (ADR-162 Sub-phase B):
 The compact index will surface documents the user uploaded outside an active chat

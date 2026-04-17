@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.17.7] - ADR-190 commit 4: workspace scaffold orchestrator + prompt guidance
+
+### Changed
+- `api/services/primitives/update_context.py`: new `target="workspace"` value and `_handle_workspace_scaffold()` handler. Calls `infer_first_act()` (commit 3), writes IDENTITY.md + BRAND.md if inferred, delegates entity subfolder creation to `ManageDomains(action="scaffold")` (reuses existing infrastructure). Returns structured scaffold report including `work_intent_proposal` (not executed — YARNNN acts on it in same turn via follow-up `ManageAgent` + `ManageTask` calls).
+- `UPDATE_CONTEXT_TOOL` description + enum: adds `workspace` target at the top of the target list with full usage guidance. `required` narrowed from `["target", "text"]` to `["target"]` so `target="workspace"` can submit with only `document_ids` / `url_contents` (text-less rich input).
+- `api/agents/yarnnn_prompts/onboarding.py`: extended rich-input guidance. When workspace is fresh and user submits rich input, YARNNN should use `UpdateContext(target="workspace")` instead of per-target calls. After the scaffold report returns, if `work_intent_proposal` is present and entities exist, YARNNN materializes the first Agent + first task via `ManageAgent` + `ManageTask` in the same turn. If `work_intent_proposal` is null, YARNNN asks one targeted clarify rather than guessing.
+
+### Design decisions
+- **Orchestrator writes context files; it does NOT create agents or tasks.** Preserves primitive atomicity (ADR-168) and YARNNN's team composition judgment (ADR-176). The scaffold report is a brief; YARNNN decides.
+- **Entity translation from `infer_first_act` shape → `ManageDomains` shape.** First-act inference emits `{domain, name, slug, hints}`; scaffold expects `{domain, slug, name, facts, url}`. Translation keeps both surfaces clean without a shared intermediate type.
+- **Only registered domains are scaffolded in this commit.** `ManageDomains(scaffold)` filters to WORKSPACE_DIRECTORIES entries with `entity_structure`; entities in novel domains (ADR-188 territory) get skipped. Surfaced in response as `skipped_entities`. Novel-domain scaffolding is a follow-on.
+- **Token usage recorded.** `record_token_usage` entry with `metadata={"target": "workspace", "first_act": True}` for attribution (ADR-171).
+- **No new frontend artifact.** Scaffold report renders through existing `ToolResultList` via the `message` field. A tree-preview card can polish later; MVP is the structured response visible in the chat stream.
+
+### Reconciliation with ADR-190
+Proposed: "one first-act pipeline executes atomically: domains + entity subfolders + agent + task." Implementation: context files + domains + entity subfolders execute atomically; agent + task creation is YARNNN's next tool call in the same turn (two-step within one conversational round). This preserves primitive atomicity while delivering the "one conversational arc" UX. Updated ADR Decision 4.
+
+### Expected behavior
+- User at fresh workspace drops a pitch deck + says "track my competitors."
+- YARNNN calls `UpdateContext(target="workspace", text=..., document_ids=[...])`.
+- One LLM inference call extracts identity + brand + entity list + work intent.
+- Orchestrator writes IDENTITY.md, BRAND.md, creates `/workspace/context/competitors/{slug}/` for each named competitor with `_tracker.md` seeded, returns `work_intent_proposal={kind: "recurring", deliverable_type: "brief", cadence: "weekly"}`.
+- YARNNN reads proposal, calls `ManageAgent(title="Competitive Tracker", role="writer")` + `ManageTask(title="Weekly Competitor Brief", schedule="weekly", ...)` in the same turn.
+- Final chat response names specific competitors, agent name, first-run schedule. Trust anchors in specificity.
+
+---
+
 ## [2026.04.17.6] - ADR-190 commit 3: first-act inference (identity + brand + entities + work_intent)
 
 ### Changed
