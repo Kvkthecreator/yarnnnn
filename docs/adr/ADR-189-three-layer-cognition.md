@@ -105,14 +105,34 @@ See `docs/architecture/GLOSSARY.md` for the full vocabulary. That document is th
 | `docs/ESSENCE.md` | Stable Element 1 reworded: "Persistent agents, not session threads" → "Agents built around your work, not generic assistants." Canonical Positioning reworded per glossary product-promise one-liners. |
 | `docs/NARRATIVE.md` | Beat 3 ("Meet the Product") reworded to describe the authored-team experience. Review all six beats for drift against the glossary. |
 
-### Phase 2 — Signup path (code, structural)
+### Phase 2 — Signup-surface UX (pragmatic implementation, 2026-04-17)
+
+The literal ADR text proposed "zero Agent rows inserted at signup." Implementation audit revealed this would require a pipeline refactor — `task_pipeline.py` resolves Specialists via `agents` table lookups by `role`, so removing the rows would break dispatch. The pragmatic implementation preserves the DB-level scaffolding (infrastructure remains dispatchable) while delivering the authored-team UX at the API/frontend layer via the existing `origin` field.
 
 | File | Change |
 |------|--------|
-| `api/services/workspace_init.py` | Phase 4 (`_scaffold_default_roster`) removes Agent creation. Scaffolds only: YARNNN's identity files, Specialist palette metadata, Platform Bot templates (activate on connect), essential back-office tasks (ADR-164). Zero Agent rows inserted at signup. |
-| `api/services/agent_framework.py` | `DEFAULT_ROSTER` is retired. The six Specialist templates and TP template remain in `AGENT_TEMPLATES` but are no longer instantiated at signup. Platform Bot templates remain (activate on connection, unchanged). |
-| `web/app/(authenticated)/agents/page.tsx` | Empty state rewritten. Zero-Agent case becomes the default first-run experience, not an edge case. Primary CTA routes to chat with YARNNN. |
-| Migration (if needed) | Existing workspaces' scaffolded Agents are not migrated. They are treated as *de facto* authored (the user has accumulated context on them even if the provenance is system-scaffolded). Only new signups land on the empty state. |
+| `api/routes/agents.py` `list_agents()` | Added `.neq("origin", "system_bootstrap")` filter. User-facing list now excludes all scaffolded infrastructure (YARNNN, Specialists, Platform Bots). User-authored Agents (`origin='user_configured'` or `'coordinator_created'`) are the only entries. |
+| `web/components/agents/AgentRosterSurface.tsx` | Empty state rewritten as the canonical first-run surface. Headline: "Your team starts here." CTA: "Talk to YARNNN." Ratifies the authored-team thesis at the surface. |
+| `api/services/workspace_init.py` | **No change.** Continues scaffolding YARNNN + 6 Specialists + 3 Platform Bots at signup. These rows are infrastructure, required for pipeline dispatch. The UX treats them as invisible (backend filter). |
+| `api/services/agent_framework.py` | **No change to DEFAULT_ROSTER.** The six Specialist templates, TP template, and Platform Bot templates remain as signup scaffolding. Their *semantic* role is now "YARNNN's palette + infrastructure," enforced by the `origin` filter rather than by DB absence. |
+| Migration | No DB migration needed. Existing workspaces' scaffolded agents have `origin='system_bootstrap'` and are now invisible on `/agents`. Any user-authored Agents (origin `user_configured`/`coordinator_created`) continue to appear. |
+
+**Why this is preferable to the literal ADR text:**
+
+1. **Pipeline safety.** `task_pipeline.py` lines 1956–1959 and 2669–2670 resolve agents by `slug` OR `role` via `agents` table queries. Removing infrastructure rows would break this dispatch without a broader refactor.
+2. **Back-office task integrity.** YARNNN owns `back-office-agent-hygiene` and `back-office-workspace-cleanup`. The DB row is the task's agent owner — removing it breaks ADR-164.
+3. **Platform Bot lifecycle.** Platform Bots are "activated on connection" per ADR-158/183/187. The activation pattern assumes the row exists at signup (paused state). Preserved.
+4. **Zero risk of data migration.** Existing test workspaces' infrastructure rows continue to work exactly as before. The only change is what renders on `/agents`.
+
+The authored-team thesis is fully delivered:
+- User sees zero Agents on `/agents` at signup.
+- User creates Agents by chatting with YARNNN (via `ManageAgent`, which writes `origin='user_configured'`).
+- Authorship moat compounds from first user-created Agent.
+- Infrastructure is invisible.
+
+**Deferred from Phase 2:**
+- `agents.title = 'Thinking Partner'` → user-visible label. Deferred to a future UX polish commit. Frontend display mapping in `web/lib/agent-identity.ts` can surface "YARNNN" without touching the DB title or slug (`thinking-partner` is preserved by glossary exception).
+- Workspace path migration (`/agents/thinking-partner/` → `/agents/yarnnn/`). Not needed — the slug is derived from title, and the title change is deferred.
 
 ### Phase 3 — Rename pass (code, mechanical)
 
