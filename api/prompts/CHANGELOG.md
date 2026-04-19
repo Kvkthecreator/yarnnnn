@@ -6,6 +6,37 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.19.2] - ADR-195 Phase 1: action_outcomes ledger + OutcomeProvider ABC + TradingOutcomeProvider
+
+### Added
+- `supabase/migrations/150_action_outcomes.sql` (applied) — `action_outcomes` table. Scoped by `user_id` (reconciled from ADR-195 draft's `workspace_id` — matches `action_proposals` and the single-tenant runtime pattern). 4 indexes (user+executed_at, user+domain, user+action_type, proposal_id partial). RLS policies for user select/insert/update. Service-role bypasses for the back-office reconciler shipping in Phase 2.
+- `api/services/outcomes/base.py` (NEW) — `OutcomeProvider` ABC + `OutcomeCandidate` TypedDict. Contract: providers return candidates, ledger persists idempotently via `provider.idempotency_key_path`. Providers must never raise — they log and return `[]` on failure so one provider's outage can't break siblings.
+- `api/services/outcomes/ledger.py` (NEW) — `insert_outcome_candidates` (idempotent bulk insert with dedup against existing metadata keys) + `compute_since_for_provider` (returns last-reconciled timestamp or 30d bootstrap window).
+- `api/services/outcomes/trading.py` (NEW) — `TradingOutcomeProvider` for Alpaca. Pulls `list_orders(status="closed")`, filters to filled orders after `since`, emits:
+  - `outcome_label="position_opened"` for each filled BUY (qty pushed onto per-symbol FIFO entry trace, `outcome_value_cents=NULL`)
+  - `outcome_label="closed_profit|closed_loss|closed_flat"` for each filled SELL matched against the FIFO entry trace (weighted-average cost basis, realized cents = `(fill_price - avg_entry) * matched_qty`)
+  - `outcome_label="closed_unknown"` + `confidence="low"` + `outcome_value_cents=NULL` when the sell can't be matched against in-ledger entries (honest fallback — no fabricated P&L)
+  - Idempotency via `alpaca_order_id` in `outcome_metadata`.
+- `api/services/outcomes/reconciler.py` (NEW) — `reconcile_user(client, user_id)` dispatcher. Runs every provider in `DEFAULT_PROVIDERS`, isolates provider failures, returns a structured summary (per-provider counts + total_inserted). Phase 2's back-office task (`back-office-outcome-reconciliation`) is the scheduled caller; Phase 1 exposes the function for manual invocation + smoke tests.
+- `api/services/outcomes/__init__.py` (NEW) — package exports.
+
+### Expected behavior
+- No runtime change yet — nothing calls `reconcile_user` automatically until Phase 2 ships the back-office task. Phase 1 is foundation: table in production, code on `main`, ready to be invoked.
+- Manual smoke-test path: `from services.outcomes import reconcile_user; await reconcile_user(service_client, user_id)`. Imports verified locally; FIFO math unit-tested (full match → exact P&L, no prior entries → `None` + `closed_unknown`, partial coverage → correct matched portion).
+- ADR-195 status updated: Phase 1 Implemented, Phases 2–5 Proposed.
+
+### Not yet wired
+- Phase 2 back-office task (essential, daily, YARNNN-owned) → scaffolded next
+- Phase 2 `CommerceOutcomeProvider` for LS → scaffolded next
+- Phase 3 `_performance.md` regeneration from ledger
+- Phase 4 daily-update briefing integration
+- Phase 5 feedback actuation (ADR-181) + `EmailOutcomeProvider`
+
+### Render parity
+- All ADR-195 code lives under `api/services/outcomes/` — reachable by both API and Unified Scheduler from `services.outcomes.*`. No env var changes. MCP Server and Output Gateway untouched.
+
+---
+
 ## [2026.04.19.1] - Money-truth substrate foundation: ADR-194 + ADR-195 drafts + FOUNDATIONS Axiom 7
 
 ### Added

@@ -1,6 +1,6 @@
 # ADR-195: Outcome Attribution Substrate (Money-Truth)
 
-> **Status**: Proposed (2026-04-19)
+> **Status**: Phase 1 Implemented (2026-04-19). Phases 2–5 Proposed.
 > **Date**: 2026-04-19
 > **Authors**: KVK, Claude
 > **Extends**: ADR-181 (Source-Agnostic Feedback Layer), ADR-183 (Commerce Substrate), ADR-187 (Trading Integration), ADR-192 (Write Primitive Coverage Expansion), ADR-193 (Approval Loop)
@@ -54,6 +54,8 @@ Treating this as a substrate (not a table) is the difference between "we log out
 ### 1. New table: `action_outcomes`
 
 One row per reconciled outcome. Linked to `action_proposals` when the action went through approval; standalone when it didn't (direct platform tool calls from agent runs or YARNNN).
+
+> **Implementation note (Phase 1):** the shipped migration scopes by `user_id`, not `workspace_id`, to match the single-tenant runtime pattern and `action_proposals` (its sibling substrate). The sketch below is kept in its original form for design continuity; the authoritative schema is `supabase/migrations/150_action_outcomes.sql`.
 
 ```sql
 CREATE TABLE action_outcomes (
@@ -259,13 +261,13 @@ No domain hurt. No verticalization — the substrate is shape-generic (one table
 
 Five phases. Phase 1 ships independently; Phase 2+ can parallel with ADR-194 Phase 3-4.
 
-| # | Phase | Scope |
-|---|-------|-------|
-| 1 | Ledger + provider ABC | `action_outcomes` table (migration), `OutcomeProvider` ABC, `TradingOutcomeProvider` for Alpaca (highest signal-to-noise domain). Manual `reconcile()` invocation from a test script — no scheduled task yet. |
-| 2 | CommerceOutcomeProvider + reconciliation back-office task | `CommerceOutcomeProvider` for LS (revenue + refund reconciliation). Essential back-office task `back-office-outcome-reconciliation` scaffolded at signup. Seeded for existing workspaces via backfill script. |
-| 3 | `_performance.md` canonical file | Reconciler regenerates `_performance.md` per domain after each run. YAML frontmatter + human-readable body. Idempotent regeneration from ledger. |
-| 4 | Daily-update integration | Daily-update briefing reads `_performance.md` frontmatter and emits deterministic "Your book this week" section. Empty-state: no section when no outcomes yet. |
-| 5 | Feedback actuation + EmailOutcomeProvider | High-impact outcomes emit ADR-181 feedback entries. `EmailOutcomeProvider` for Resend (delivered / opened / clicked). Thresholds tunable per-workspace via future `OUTCOMES-POLICY.md` (deferred until we observe real thresholds). |
+| # | Phase | Scope | Status |
+|---|-------|-------|--------|
+| 1 | Ledger + provider ABC | `action_outcomes` table (migration 150), `OutcomeProvider` ABC + `OutcomeCandidate` TypedDict, idempotent `ledger.insert_outcome_candidates`, `TradingOutcomeProvider` (FIFO-matched realized P&L from Alpaca filled orders), `reconcile_user` dispatcher. Manual invocation — no scheduled task yet. | **Implemented 2026-04-19** |
+| 2 | CommerceOutcomeProvider + reconciliation back-office task | `CommerceOutcomeProvider` for LS (revenue + refund reconciliation). Essential back-office task `back-office-outcome-reconciliation` scaffolded at signup. Seeded for existing workspaces via backfill script. | Proposed |
+| 3 | `_performance.md` canonical file | Reconciler regenerates `_performance.md` per domain after each run. YAML frontmatter + human-readable body. Idempotent regeneration from ledger. | Proposed |
+| 4 | Daily-update integration | Daily-update briefing reads `_performance.md` frontmatter and emits deterministic "Your book this week" section. Empty-state: no section when no outcomes yet. | Proposed |
+| 5 | Feedback actuation + EmailOutcomeProvider | High-impact outcomes emit ADR-181 feedback entries. `EmailOutcomeProvider` for Resend (delivered / opened / clicked). Thresholds tunable per-workspace via future `OUTCOMES-POLICY.md` (deferred until we observe real thresholds). | Proposed |
 
 ADR-194 Phase 4 (AI reviewer reads `_performance.md`) depends on ADR-195 Phase 3. The two ADRs are sequenced:
 
@@ -303,3 +305,4 @@ No env var changes. No Render parity concerns.
 | Date | Change |
 |------|--------|
 | 2026-04-19 | v1 — Initial draft. `action_outcomes` table, `OutcomeProvider` ABC, `TradingOutcomeProvider` + `CommerceOutcomeProvider` + `EmailOutcomeProvider`, `back-office-outcome-reconciliation` essential task, `_performance.md` canonical file, integration with daily-update + AI reviewer (ADR-194) + feedback actuation (ADR-181). Ratifies FOUNDATIONS Axiom 7. Renumbers original ADR-195 (autonomous decision loop) → ADR-196. |
+| 2026-04-19 | v1.1 — Phase 1 implemented. Migration 150 applied. `api/services/outcomes/` package shipped: `base.py` (OutcomeProvider ABC + OutcomeCandidate TypedDict), `ledger.py` (idempotent insert + `compute_since_for_provider`), `trading.py` (`TradingOutcomeProvider` with FIFO-matched realized P&L from Alpaca filled orders + honest-fallback `closed_unknown` label when prior entries aren't in-ledger), `reconciler.py` (`reconcile_user` dispatcher — one entry point per user across providers, provider failures isolated). Scoping reconciled from draft `workspace_id` → shipped `user_id` to match `action_proposals`. Smoke-test: imports clean, FIFO math unit-tested (full match, no match, partial match). |
