@@ -12,14 +12,29 @@
 
 YARNNN's architecture is **agnostic by design** (ADR-188 / 189 / 190). This document prevents *verticalization by stealth* — the slow drift that happens when every feature request from whichever alpha operator shouts loudest nudges the product toward one domain.
 
-**Gate rule for every new ADR, feature, or prompt change:**
+**Gate rule for every new ADR, feature, or prompt change (two gates, both must pass):**
 
-Before shipping, the author adds one row to the *Impact* table in the ADR stating how the change affects each active alpha domain. Acceptable patterns:
+Before shipping, the author adds one row to the *Impact* table in the ADR. The table now has two required judgment columns.
+
+### Gate 1: Verticalization — the per-domain Impact column
+
+How does the change affect each active alpha domain? Acceptable patterns:
 
 - **"Helps all columns"** → green-light.
 - **"Helps most, neutral on others"** → green-light.
 - **"Helps one, neutral elsewhere"** → **verticalization warning**. Requires explicit justification or design revision.
 - **"Helps one, hurts others"** → **reject or rescope**. Verticalizing by stealth.
+
+### Gate 2: Capital-Gain Alignment — the Capital-Gain column (ratified by FOUNDATIONS Axiom 7)
+
+Does this change measurably help operators preserve or grow capital outcomes? YARNNN is a money-making platform for operators, so architectural attention spent on work with no capital mechanism is a tax on the thesis. Acceptable patterns:
+
+- **"Yes, directly"** → green-light. The change introduces a mechanism whose output is money-attributable (outcome reconciliation, EV-scoring reviewer, revenue-linked feedback, a primitive that moves capital).
+- **"Yes, enabling"** → green-light. Infrastructure change that unblocks a direct-gain ADR. (E.g., reviewer abstraction is "enabling" for EV-reasoning; outcome ledger is "directly" because it's the EV input.)
+- **"Neutral, system-coherence"** → acceptable but noted. Glossary cleanups, doc migrations, singular-implementation consolidations, internal refactors. Must still pass Gate 1.
+- **"No, surface polish with no capital mechanism"** → **rescope or defer**. Visible UI work without capital linkage should wait until the capital loop is tight enough to justify polish.
+
+**Both gates must pass.** An ADR that is Gate-1-clean but Gate-2-absent should be deferred or rescoped to attach to a capital mechanism. An ADR that is Gate-2-strong but Gate-1-failing is verticalizing — the money-making pull does not override agnostic-core.
 
 This document is append-only. Each alpha domain row expands with lived experience. New domains are added when a fifth/sixth alpha spins up. Retired domains (if any) stay in the doc as historical context with an archival banner.
 
@@ -316,16 +331,20 @@ Validation: the onboarding flow ADR-190 shipped serves all four domains without 
 
 ## Impact table for future ADRs (template)
 
-Every ADR from ADR-192 onward includes a table of this shape:
+Every ADR from ADR-194 onward includes a table of this shape (Capital-Gain column added per FOUNDATIONS Axiom 7):
 
-| Domain | Impact | Notes |
-|--------|--------|-------|
-| E-commerce | Helps / Neutral / Hurts | Brief explanation |
-| Day trader | Helps / Neutral / Hurts | Brief explanation |
-| AI influencer | Helps / Neutral / Hurts (or TBD) | Brief explanation |
-| International trader | Helps / Neutral / Hurts (or TBD) | Brief explanation |
+| Domain | Impact | Capital-Gain Alignment | Notes |
+|--------|--------|----------------------|-------|
+| E-commerce | Helps / Neutral / Hurts | Yes, directly / Yes, enabling / Neutral, system-coherence / No | Brief explanation |
+| Day trader | Helps / Neutral / Hurts | Yes, directly / Yes, enabling / Neutral, system-coherence / No | Brief explanation |
+| AI influencer | Helps / Neutral / Hurts (or TBD) | Yes, directly / Yes, enabling / Neutral / No | Brief explanation |
+| International trader | Helps / Neutral / Hurts (or TBD) | Yes, directly / Yes, enabling / Neutral / No | Brief explanation |
 
-If any row is **Hurts** or if three out of four are **Neutral** with one **Helps**, the ADR is flagged for verticalization review. Either the justification is strong enough to override (explicit verticalization decision) or the design must be revised.
+**Gate 1 (verticalization):** If any row is **Hurts** or if three out of four are **Neutral** with one **Helps**, the ADR is flagged for verticalization review. Either the justification is strong enough to override (explicit verticalization decision) or the design must be revised.
+
+**Gate 2 (capital-gain alignment):** If all four Capital-Gain cells are **No** or three out of four are **Neutral, system-coherence** with no ADR-level justification, the ADR is flagged for capital-alignment review. Visible UI work without capital linkage should wait until the capital loop is tight enough to justify polish.
+
+ADRs 193, 194, and 195 already carry this two-gate impact table — they are the reference shape.
 
 ---
 
@@ -346,3 +365,4 @@ If any row is **Hurts** or if three out of four are **Neutral** with one **Helps
 |------|--------|
 | 2026-04-17 | v1 — Initial matrix. 4 alpha domains: e-commerce + day trader active, AI influencer + international trader scheduled. E-commerce and day trader rows populated from ADR-183 + ADR-187 integration specs. Cross-domain pattern observations surfaced (all domains need all archetypes; write-primitive depth correlates with risk tolerance; autonomous decisions are signal-gated; revenue legibility universal; Day-1 rich input pattern universal). Matrix ratified by ADR-191. |
 | 2026-04-17 | v1.1 — Audit pass against shipped code. E-commerce + day trader "Write primitives needed" sections tightened from speculation to verified ground truth. Findings: basics ship live on both domains (real trade submission, real product creation), alpha not gated by ADR-192. Risk-gating identified as load-bearing gap for trading autonomy (distinct from the write primitives themselves). Matrix now distinguishes "MVP shipped" from "trusted autonomy gap" per domain. |
+| 2026-04-19 | v1.2 — Capital-Gain Alignment Gate added as Gate 2, ratified by FOUNDATIONS Axiom 7 (Money-Truth Is the Truth Test). Every ADR from ADR-194 onward now includes a Capital-Gain column in its Impact table with four possible values (Yes directly / Yes enabling / Neutral system-coherence / No surface polish). Both gates must pass. Template updated. ADRs 193, 194, 195 are the reference shape. |

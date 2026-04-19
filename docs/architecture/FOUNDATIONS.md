@@ -354,6 +354,42 @@ The schema needs three modes because the execution layer has three genuinely dif
 
 ---
 
+## Axiom 7: Money-Truth Is the Truth Test
+
+YARNNN is a money-making platform for its operators. Accumulated context, agent tenure, and reviewer judgment are all valuable *only* insofar as they produce capital outcomes for the user. Every architectural choice is evaluated against this test.
+
+This axiom is stronger than a product metric. It is a commitment that the system's **internal substrates** — context, proposals, outcomes, reviewer judgment — organize around capital attribution *from the inside*, not as a dashboard view layered on top.
+
+### Three structural properties
+
+**Property 1 — Actions must be attributable to outcomes.**
+
+Every write primitive executed by an agent or approved by a reviewer must be linkable to a later-reconciled outcome record. Unattributed action volume is noise; attributed action volume is compounding intelligence. The `action_outcomes` substrate (ADR-195) is the ledger; domain-specific `OutcomeProvider` implementations are the reconcilers that translate platform events into outcomes.
+
+**Property 2 — Accumulated context is pruned by outcome, not just staleness.**
+
+A thesis that led to a profitable trade strengthens; a thesis that led to a losing trade weakens. Context files (`/workspace/context/{domain}/*.md`) are not diaries — they are money-tested track records. The `_performance.md` canonical file per domain (ADR-195) is the objective signal against which context health is evaluated. ADR-181's feedback actuation extends naturally — high-impact outcomes become feedback entries with `source: system-outcome`.
+
+**Property 3 — Reviewers reason in capital terms.**
+
+The approval layer (human, AI, or impersonation — ADR-194) judges proposals on expected value given the operator's current book, declared strategy, and accumulated track record. Risk rules (`_risk.md`) are the floor; expected-value reasoning is the target. An AI reviewer without outcome history collapses into rule-checking, which adds nothing the risk-gate primitive already does. ADR-194 and ADR-195 ship as a pair for this reason.
+
+### Three asymmetric bets the architecture makes
+
+- **Money-truth over vibe-truth** — accumulated context wins by being money-tested, not by volume or recency alone.
+- **Attribution over aggregation** — one action linked to one outcome beats 100 actions linked to nothing.
+- **EV over rules** — the reviewer layer is a senior operator, not a compliance gate. Rules set the floor, not the ceiling.
+
+### Why this axiom, not just ADR-183/184
+
+ADR-183 introduced commerce as a fourth platform class. ADR-184 proposed product health metrics as a reporting view. Axiom 7 promotes the underlying idea: **money-truth is not a metric layered on the system; it is a substrate the system is organized around.** This reframe is why ADR-195 is a first-class substrate (ledger + providers + canonical file + consumers + reconciliation loop) rather than a reporting feature, and why ADR-194's AI reviewer is shaped around EV-reasoning rather than rule-enforcement from day one.
+
+### Revenue as the external validation (from Axiom 4)
+
+Axiom 4's "Revenue as Moat Proof" framing remains valid and is now the external-validation corollary of Axiom 7. Internally, money-truth shapes substrates. Externally, revenue trajectory is the measurable consequence. The two axioms are paired: Axiom 4 names *why it compounds visibly* (revenue is the proof); Axiom 7 names *how it compounds structurally* (actions → outcomes → context → reviewer → better actions).
+
+---
+
 ## Derived Principles
 
 These follow from the axioms and are stated explicitly for implementation guidance:
@@ -368,6 +404,8 @@ These follow from the axioms and are stated explicitly for implementation guidan
 8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes work units. Tasks are the work units. The system must have a governor that bounds total autonomous compute per user, regardless of how many agents or tasks exist. This prevents unbounded objectives from consuming infinite resources and is the basis for the service model users pay for.
 9. **Agent roles determine capabilities; output is structured, not formatted** — Agent capabilities are determined by role (universal cognitive functions, fixed at creation), not earned through seniority or feedback. Three registries define the capability substrate: Agent Types (capability bundles), Capabilities (what each enables + where it executes), Runtimes (where compute happens). The role taxonomy is a framework primitive; which agents are instantiated and what domains they serve is workspace-contextual (ADR-188). Capabilities, presentation, and export are three separate concerns: agents produce structured content, the platform renders it visually via layout modes, and legacy formats are mechanical exports. Agent development is knowledge depth (accumulated memory, preferences, domain expertise), not capability breadth. See ADR-130.
 10. **Registries are template libraries, not validation gates** — The task type registry, directory registry, and agent templates are curated libraries of domain-specific patterns. TP can draw from them or compose novel definitions. The execution pipeline reads workspace files (TASK.md, AGENT.md, _domain.md) at runtime, not the registries. What is fixed: framework primitives (output_kind, roles, modes, pipeline). What is contextual: domain structures, task definitions, step instructions, agent assignments. See ADR-188.
+11. **Every write eventually resolves to an outcome** — Actions taken through proposals (ADR-193), direct agent writes, and YARNNN-initiated writes all feed the `action_outcomes` ledger. Unreconciled writes are a leak in the learning loop. Outcome reconciliation is a daily back-office task (ADR-195) and outcomes feed three consumers: the AI reviewer's track record, the daily-update briefing's capital section, and ADR-181 feedback actuation. (Per Axiom 7.)
+12. **The reviewer is an abstraction, not a role** — The approval layer (ADR-194) accepts Human, AI, or Impersonation reviewers selected per-workspace by `REVIEWER-POLICY.md`. Policy varies by domain and primitive. The AI reviewer is shaped around capital-EV reasoning, not rule-checking — risk rules are the floor, expected value is the target. (Per Axiom 7.)
 
 ---
 
@@ -398,6 +436,8 @@ These follow from the axioms and are stated explicitly for implementation guidan
 | ADR-163 (Surface Restructure) | Four-surface nav (Chat \| Work \| Agents \| Context). Mode collapse on surface (two labels) with schema preserved (three modes). Activity absorbed. Agents shrunk to identity. Inference visibility frontend. | Proposed |
 | ADR-164 (Back Office Tasks — TP as Agent) | TP becomes the 10th agent (meta-cognitive class). Back office tasks are tasks owned by TP — same schema, same pipeline, visible by default. Agent hygiene + workspace cleanup migrated from scheduler to back office tasks. 9 task-lifecycle activity_log events removed as redundant denormalizations. Updates Axiom 1 to reflect TP-as-agent. | Implemented |
 | ADR-189 (Three-Layer Cognition) | Three-layer model (YARNNN / Specialist / Agent) ratified. TP user-facing naming retired in favor of YARNNN. ADR-140 superseded in full. ADR-176 Decision 1 (fixed roster) superseded. Axioms 1, 3, 5 revised. GLOSSARY.md ratified. | Proposed |
+| ADR-194 (Pluggable Reviewer + Impersonation) | Implements Axiom 7 Property 3 — reviewer as abstraction (Human / AI / Impersonation), EV-reasoning AI reviewer, per-domain policy, operator-persona impersonation substrate for alpha stress-testing. Ratifies Derived Principle 12. | Proposed |
+| ADR-195 (Outcome Attribution Substrate) | Ratifies Axiom 7 in full — `action_outcomes` ledger + `OutcomeProvider` ABC + `_performance.md` canonical file + reconciliation back-office task. Feeds AI reviewer (ADR-194), daily-update briefing, and feedback actuation (ADR-181). Ratifies Derived Principle 11. | Proposed |
 
 ---
 
@@ -451,3 +491,4 @@ These require further design work before implementation:
 | 2026-04-15 | v4.4 — Commerce substrate + product health metrics (ADR-183, ADR-184). Axiom 4 extended: "Revenue as Moat Proof" — revenue is the external validation of accumulated attention. Three-tier metrics hierarchy (product > task > agent). Commerce data flows into workspace as context domains (same perception substrate). Revenue is perception, not infrastructure. |
 | 2026-04-17 | v4.5 — Domain-agnostic framework (ADR-188). Axiom 3: clarified "fixed at creation" applies to role taxonomy, not roster composition; added "Universal roles, contextual application." Axiom 5: added Domain Composition as third Composer step. Axiom 6: onboarding sequence updated for TP-composed workspaces. Derived Principle 9 reworded for roles. New Derived Principle 10: "Registries are template libraries, not validation gates." |
 | 2026-04-17 | v5.0 — Three-layer cognition (ADR-189). Axiom 1 restructured: two-layer → three-layer model (YARNNN / Specialist / Agent). TP user-facing naming retired in favor of YARNNN (DB slug `thinking_partner` retained). Axiom 3 restructured: identity-layer split made explicit (Specialists develop outward through style; Agents develop inward through domain). Axiom 5 title: "TP's Compositional Capability" → "YARNNN's Compositional Capability." Agent creation moved to user-initiated conversational flow (no signup roster). Derived Principle 1 updated for three layers. GLOSSARY.md ratified as canonical terminology source. ADR-140 fully superseded; ADR-176 Decision 1 superseded. |
+| 2026-04-19 | v5.1 — Money-Truth as first-class substrate (ADR-194 + ADR-195). New **Axiom 7: Money-Truth Is the Truth Test** — three structural properties (actions attributable to outcomes, context pruned by outcome, reviewers reason in capital terms) + three asymmetric architectural bets (money-truth over vibe-truth, attribution over aggregation, EV over rules). Axiom 4's "Revenue as Moat Proof" preserved as external-validation corollary. New **Derived Principle 11**: every write eventually resolves to an outcome. New **Derived Principle 12**: the reviewer is an abstraction, not a role. ADR-194 (Pluggable Reviewer + Impersonation) and ADR-195 (Outcome Attribution Substrate) added to relationship table. |

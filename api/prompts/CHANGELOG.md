@@ -6,6 +6,34 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.19.1] - Money-truth substrate foundation: ADR-194 + ADR-195 drafts + FOUNDATIONS Axiom 7
+
+### Added
+- `docs/adr/ADR-194-pluggable-reviewer-and-impersonation.md` (NEW, Proposed) — reviewer abstraction (Human / AI / Impersonation), `REVIEWER-POLICY.md` canonical file, persona-workspace impersonation substrate for alpha stress-testing, AI reviewer shaped around capital-EV reasoning (not rule-enforcement). 4-phase implementation sequence. Ships as a pair with ADR-195.
+- `docs/adr/ADR-195-outcome-attribution-substrate.md` (NEW, Proposed) — `action_outcomes` ledger, `OutcomeProvider` ABC + TradingOutcomeProvider/CommerceOutcomeProvider/EmailOutcomeProvider, `_performance.md` canonical per-domain track-record file, `back-office-outcome-reconciliation` essential task. Feeds AI reviewer (ADR-194 Phase 4), daily-update briefing, ADR-181 feedback actuation. 5-phase sequence. Ratifies FOUNDATIONS Axiom 7.
+- `docs/architecture/FOUNDATIONS.md` — **Axiom 7: Money-Truth Is the Truth Test** (three structural properties: actions attributable to outcomes, context pruned by outcome, reviewers reason in capital terms; three asymmetric bets: money-truth over vibe-truth, attribution over aggregation, EV over rules). Axiom 4's "Revenue as Moat Proof" preserved as external-validation corollary. New **Derived Principle 11**: every write eventually resolves to an outcome. New **Derived Principle 12**: the reviewer is an abstraction, not a role. Bumped to v5.1.
+- `docs/architecture/DOMAIN-STRESS-MATRIX.md` — **Gate 2: Capital-Gain Alignment** added alongside the existing verticalization gate. Every ADR from ADR-194 onward carries a Capital-Gain column in its Impact table (4 values: Yes directly / Yes enabling / Neutral system-coherence / No surface polish). Both gates must pass. Template updated. Bumped to v1.2.
+- `docs/architecture/GLOSSARY.md` — 6 new terms: Reviewer, Impersonation, Outcome, `_performance.md`, Money-Truth, Capital-EV. Bumped to v1.1.
+- `docs/ESSENCE.md` — "What Stays Constant" extended from 4 to 5 elements: (5) Money-truth, not vibe-truth. Bumped to v12.1.
+
+### Removed
+- `docs/SESSION-HANDOFF.md` — deleted in this commit per its own instructions (one-cycle bridge doc). Its strategic state is now absorbed into ADR-194 + ADR-195 + FOUNDATIONS Axiom 7 + the glossary updates.
+
+### Expected behavior
+- No runtime behavior change this commit — docs + ADR drafts only. Strategic foundation.
+- Prompt-level behavior changes follow in phased implementation commits as ADR-194 + ADR-195 phases land.
+- ADRs originally queued as "ADR-194 (surface archetypes)" and "ADR-195 (autonomous decision loop)" are renumbered: surface archetypes → ADR-197; autonomous decision loop → ADR-196. Reason documented in both new ADRs — money-truth substrate moves ahead of autonomy because the AI reviewer (ADR-194) needs outcome track records (ADR-195) to reason in EV terms, and autonomy (ADR-196) needs a reviewer it can trust with irreversible action.
+
+### Sequencing locked in
+```
+ADR-195 Phase 1-3 (ledger + providers + _performance.md)
+  → ADR-194 Phase 1-4 (reviewer abstraction, impersonation, AI reviewer with track record)
+  → ADR-196 (autonomous decision loop — signals emit proposals, reviewer decides)
+  → ADR-197 (operator control room — dashboard + operational pane)
+```
+
+---
+
 ## [2026.04.17.21] - ADR-193 Phase 5: back-office-proposal-cleanup task (CLOSES ADR-193)
 
 ### Added

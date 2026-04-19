@@ -3,7 +3,7 @@
 **Purpose**: Canonical product narrative. What YARNNN is, what users are buying, and what must remain true as the implementation evolves.
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-04-17 (v12.0 — ADR-189 three-layer cognition, YARNNN as super-agent, authored-team positioning)
+**Updated**: 2026-04-19 (v12.1 — FOUNDATIONS Axiom 7 Money-Truth promoted to first-class; "What Stays Constant" extended)
 
 ---
 
@@ -20,7 +20,7 @@ Short form: *Your work, your agents.*
 
 ## What Stays Constant
 
-The product essence has four stable elements:
+The product essence has five stable elements:
 
 1. **Agents built around your work, not generic assistants**  
    Agents are created by the user through conversation with YARNNN, scoped to a specific domain of the user's work, with identity, directives, memory, workspace, sources, and execution history. Zero Agents are pre-scaffolded — the team is authored, not provisioned (ADR-189).
@@ -33,6 +33,9 @@ The product essence has four stable elements:
 
 4. **Recurring work products, not one-off answers**  
    The system exists to produce useful work on cadence: recaps, briefs, monitoring outputs, research, synthesis, and richer rendered artifacts when the job requires them.
+
+5. **Money-truth, not vibe-truth**  
+   YARNNN is a money-making platform for operators. Every action the team takes is attributable to a capital outcome — trades to P&L, campaigns to revenue, discounts to attribution. Accumulated context is pruned by what actually made money, not by what sounded good. Reviewers (human or AI) judge proposals in expected-value terms given the operator's book and track record. The team gets better at its job, and the job is making the operator money (FOUNDATIONS Axiom 7, ADR-194, ADR-195).
 
 ## What Changed Recently
 
