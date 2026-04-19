@@ -204,6 +204,8 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         ("back-office-workspace-cleanup", "back-office-workspace-cleanup", "Workspace Cleanup"),
         # ADR-193 Phase 5: sweep expired action_proposals
         ("back-office-proposal-cleanup", "back-office-proposal-cleanup", "Proposal Cleanup"),
+        # ADR-195 Phase 2: reconcile platform events into action_outcomes
+        ("back-office-outcome-reconciliation", "back-office-outcome-reconciliation", "Outcome Reconciliation"),
     ]:
         try:
             existing = (

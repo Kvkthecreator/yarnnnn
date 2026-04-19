@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from services.outcomes.base import OutcomeProvider
+from services.outcomes.commerce import CommerceOutcomeProvider
 from services.outcomes.ledger import (
     compute_since_for_provider,
     insert_outcome_candidates,
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 #: ordering (e.g., commerce-refund → trading-hedge).
 DEFAULT_PROVIDERS: list[OutcomeProvider] = [
     TradingOutcomeProvider(),
+    CommerceOutcomeProvider(),
 ]
 
 

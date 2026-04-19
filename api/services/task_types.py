@@ -1882,6 +1882,51 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
             ],
         },
     },
+
+    "back-office-outcome-reconciliation": {
+        "display_name": "Outcome Reconciliation",
+        "description": "Runs every OutcomeProvider (trading, commerce, ...) and appends new rows to action_outcomes. Turns agent + proposal writes into reconciled capital outcomes. ADR-195 Phase 2.",
+        "output_kind": "system_maintenance",
+        "default_delivery": "none",
+        "registry_default_team": [],
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "markdown",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "thinking_partner",
+                "step": "back-office",
+                "instruction": (
+                    "Back office maintenance: reconcile capital outcomes from "
+                    "platform events. Runs all registered OutcomeProviders, "
+                    "inserts new rows into action_outcomes with idempotency "
+                    "via provider-declared keys. Zero LLM cost (platform API "
+                    "calls only). "
+                    "executor: services.back_office.outcome_reconciliation"
+                ),
+            },
+        ],
+        "context_reads": [],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Outcome reconciliation report",
+            "audience": "User (for transparency) and the system itself",
+            "purpose": "Keep the money-truth ledger (action_outcomes) up to date with reconciled platform events so AI reviewer, daily update, and feedback actuation have current data",
+            "format": "Markdown report with per-provider insertion counts",
+        },
+        "default_deliverable": {
+            "output": {"format": "markdown", "word_count": "n/a", "layout": ["Summary", "Per-provider results"]},
+            "assets": [],
+            "quality_criteria": [
+                "Per-provider inserted/duplicate/invalid counts reported",
+                "Provider errors surfaced without blocking siblings",
+                "Disconnected platforms produce empty-result rows, not failures",
+            ],
+        },
+    },
 }
 
 

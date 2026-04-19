@@ -18,6 +18,7 @@ task that sweeps all providers daily per user.
 from __future__ import annotations
 
 from services.outcomes.base import OutcomeCandidate, OutcomeProvider
+from services.outcomes.commerce import CommerceOutcomeProvider
 from services.outcomes.ledger import (
     compute_since_for_provider,
     insert_outcome_candidates,
@@ -27,6 +28,7 @@ from services.outcomes.trading import TradingOutcomeProvider
 
 __all__ = [
     "DEFAULT_PROVIDERS",
+    "CommerceOutcomeProvider",
     "OutcomeCandidate",
     "OutcomeProvider",
     "TradingOutcomeProvider",
