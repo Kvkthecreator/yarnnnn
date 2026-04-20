@@ -1,14 +1,15 @@
-"""Back Office: Outcome Reconciliation — ADR-195 Phase 2.
+"""Back Office: Outcome Reconciliation — ADR-195 v2.
 
-Runs every registered OutcomeProvider for the user and appends new rows
-into `action_outcomes`. Daily back-office task owned by YARNNN (per
-ADR-164 pattern).
+Runs every registered OutcomeProvider and folds new outcomes into each
+domain's `/workspace/context/{domain}/_performance.md`. Daily back-office
+task owned by YARNNN (per ADR-164 pattern).
 
 Thin executor — all the interesting logic lives in
 `services.outcomes.reconciler.reconcile_user`. This module just delivers
 the standard back-office shape (`content` + `structured`) over it.
 
-Zero LLM cost. Platform API calls only on the providers' side.
+Zero LLM cost. Platform API calls only on the providers' side. Filesystem
+writes are the persistence path (per FOUNDATIONS Axiom 0).
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
     Returns the standard back-office executor shape:
       {
           "content": "<markdown report>",
-          "structured": {"total_inserted": int, "providers": {...}},
+          "structured": {"total_appended": int, "providers": {...}},
       }
     """
     started_at = datetime.now(timezone.utc)
@@ -47,7 +48,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
             "started_at": started_at.isoformat(),
             "finished_at": datetime.now(timezone.utc).isoformat(),
             "providers": {},
-            "total_inserted": 0,
+            "total_appended": 0,
             "error": str(exc),
         }
 
@@ -55,11 +56,13 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
     duration_s = (finished_at - started_at).total_seconds()
 
     # Markdown report
-    total_inserted = summary.get("total_inserted", 0)
+    total_appended = summary.get("total_appended", 0)
     report_lines = [
         f"# Outcome Reconciliation — {started_at.strftime('%Y-%m-%d %H:%M UTC')}",
         "",
-        f"Inserted **{total_inserted}** new outcome(s) across all providers.",
+        f"Appended **{total_appended}** new outcome(s) across all providers.",
+        f"Outcomes landed in `/workspace/context/{{domain}}/_performance.md` "
+        f"per each provider's domain (see per-provider results below).",
         f"Run duration: {duration_s:.2f}s",
         "",
     ]
@@ -74,7 +77,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         report_lines.append("## Per-provider results")
         report_lines.append("")
         for provider_name, result in providers.items():
-            inserted = result.get("inserted", 0)
+            appended = result.get("appended", 0)
             dup = result.get("skipped_duplicate", 0)
             invalid = result.get("skipped_invalid", 0)
             candidates = result.get("candidates", 0)
@@ -83,7 +86,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
             status_marker = "ERROR" if error else "OK"
             report_lines.append(
                 f"- **{provider_name}** ({status_marker}): "
-                f"candidates={candidates}, inserted={inserted}, "
+                f"candidates={candidates}, appended={appended}, "
                 f"duplicate={dup}, invalid={invalid}, since={since}"
             )
             if error:
@@ -94,16 +97,16 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         report_lines.append("")
 
     logger.info(
-        "[OUTCOME_RECONCILIATION] user=%s inserted=%d duration=%.2fs",
+        "[OUTCOME_RECONCILIATION] user=%s appended=%d duration=%.2fs",
         user_id[:8],
-        total_inserted,
+        total_appended,
         duration_s,
     )
 
     return {
         "content": "\n".join(report_lines),
         "structured": {
-            "total_inserted": total_inserted,
+            "total_appended": total_appended,
             "duration_seconds": duration_s,
             "providers": providers,
         },

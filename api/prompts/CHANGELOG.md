@@ -6,6 +6,64 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.19.5] - ADR-195 v2: outcomes ledger refactor — SQL INSERT → `_performance.md` append
+
+### Changed
+- `api/services/outcomes/ledger.py` — **full rewrite.** `insert_outcome_candidates` (SQL INSERT) replaced by `fold_outcome_candidates` which:
+  - Reads `/workspace/context/{domain}/_performance.md` directly from `workspace_files`.
+  - Parses JSON frontmatter (YAML-compatible single-object format — no new dep, parsed with stdlib `json`).
+  - Filters candidates against frontmatter `processed_event_keys` list, with **provider-namespaced keys** (`{idempotency_key_path}:{value}`) to prevent collision across providers sharing a `context_domain`.
+  - Folds new entries into state: updates `totals` (`reconciled_event_count`, `aggregate_value_cents`), `by_action_type` (count / value / wins / losses), `by_provider` (per-provider last_reconciled_at for `compute_since` recovery), and narrative windows (`recent_wins` + `recent_losses`, capped at 10 each).
+  - Regenerates the entire file (frontmatter + narrative body) and upserts to `workspace_files` with `on_conflict="user_id,path"`.
+  - Narrative body is **regenerated on every write** — the frontmatter is canonical, the body is a derived view.
+  - `compute_since_for_provider` reads the same file's `by_provider[provider_name].last_reconciled_at`, falling back to the 30-day bootstrap window. No SQL reads.
+- `api/services/outcomes/reconciler.py` — calls `fold_outcome_candidates` instead of `insert_outcome_candidates`. Return shape: `total_inserted` → `total_appended`; per-provider `inserted` → `appended`. No new functionality — same dispatcher, same failure isolation.
+- `api/services/outcomes/__init__.py` — exports updated (`fold_outcome_candidates` replaces `insert_outcome_candidates`). Docstring updated to reflect filesystem substrate per FOUNDATIONS Axiom 7.
+- `api/services/back_office/outcome_reconciliation.py` — report wording updated: "Inserted N new outcomes" → "Appended N new outcomes"; per-provider counts use `appended` / `duplicate` / `invalid`. Structured return key: `total_inserted` → `total_appended`. Mentions `_performance.md` landing path in the report body.
+
+### Behavior changes
+- **Substrate switched cleanly**: this commit stops all writes to `action_outcomes`. The table is immediately orphaned on landing (no writers, no readers). Commit 3 drops it. No dual-write state — singular-implementation discipline holds.
+- **New canonical paths**: `/workspace/context/{domain}/_performance.md` per domain. First-run of the reconciler against a trading-connected workspace produces `/workspace/context/trading/_performance.md`; first-run against a commerce-connected workspace produces `/workspace/context/revenue/_performance.md`.
+- **Idempotency fidelity preserved**: every alpaca_order_id / ls_event_key is still deduped, now via the frontmatter key list instead of SQL existence check.
+
+### Smoke-test results (pre-push)
+- All imports clean: `OutcomeProvider`, `TradingOutcomeProvider`, `CommerceOutcomeProvider`, `DEFAULT_PROVIDERS` (2 providers), `reconcile_user`, `fold_outcome_candidates`, `compute_since_for_provider`, `outcome_reconciliation.run`.
+- Path convention verified: `_performance_path('trading')` → `/workspace/context/trading/_performance.md` (leading slash, matches actual `workspace_files.path` format).
+- `_format_cents` unit-tested: None → `$0.00`, 12345 → `$123.45`, -12345 → `-$123.45`, 1234567 → `$12,345.67`.
+- `_apply_entries` unit-tested with synthetic entries (1 win, 1 loss, 1 open-position with NULL value): totals correct, by_action_type correct (count=3, wins=1, losses=1), narrative windows (wins=1, losses=1 — open-position skipped from narrative per design).
+- Render → parse roundtrip confirmed: rendered JSON frontmatter parses back to identical dict.
+- Bad-frontmatter handling confirmed: empty, non-frontmatter, and bad-JSON inputs all return `None` without raising.
+
+### Not yet touched (Commit 3 of this cycle)
+- Migration 151: `DROP TABLE action_outcomes` + `DROP TABLE user_memory` (ADR-196).
+- Strip dead `TABLE_MAP["memory"]` + `TABLE_MAP["domain"]` entries + entity-primitive dead branches.
+
+### Render parity
+- No env var changes. `services.outcomes.*` reachable by both API and Unified Scheduler via the existing import path. MCP Server and Output Gateway untouched.
+
+### Refs
+- FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate), Axiom 7 (money-truth home = `_performance.md` per domain)
+- ADR-195 v2 (substrate refactor)
+- ADR-194 v2 (Reviewer will read `_performance.md` in Phase 3)
+
+---
+
+## [2026.04.19.4] - Strategic foundations: FOUNDATIONS v5.1 + ADR-194/195 v2 + ADR-196/197
+
+### Changed
+- `docs/architecture/FOUNDATIONS.md` v5.1 — added Axiom 0 (filesystem is the substrate; four permitted row kinds); extended Axiom 1 from three to four cognitive layers (Reviewer added); tightened Axiom 7 to anchor money-truth at `/workspace/context/{domain}/_performance.md`; rewrote Derived Principles 11-12.
+- `docs/architecture/GLOSSARY.md` v1.2 — rewrote Reviewer / Outcome / `_performance.md` / Money-Truth / Capital-EV entries to align with Axiom 0; added `/workspace/review/` entry; extended identity-layers table with Reviewer row.
+- `docs/adr/ADR-194-pluggable-reviewer-and-impersonation.md` — full v2 rewrite. Reviewer as fourth cognitive layer (not abstraction). No `Reviewer` ABC. No REVIEWER-POLICY.md.
+- `docs/adr/ADR-195-outcome-attribution-substrate.md` — full v2 rewrite. Money-truth home = `_performance.md` per domain. `action_outcomes` SQL table retracted.
+- `docs/adr/ADR-196-user-memory-table-sunset.md` — NEW. VESTIGIAL verdict + cleanup plan for `user_memory`.
+- `docs/adr/ADR-197-filesystem-documents-migration.md` — NEW, Proposed-only. Sequences `filesystem_documents` → `/workspace/uploads/` migration as future phased effort.
+- `CLAUDE.md` — ADR at-a-glance block extended with FOUNDATIONS v5.1, ADR-194 v2, ADR-195 v2, ADR-196, ADR-197 entries.
+
+### Expected behavior
+- Doc-only commit. No runtime changes. Follow-on commits (2–4 of this cycle) refactor outcomes code, drop legacy tables, and scaffold the Reviewer filesystem substrate.
+
+---
+
 ## [2026.04.19.3] - ADR-195 Phase 2: CommerceOutcomeProvider + back-office-outcome-reconciliation
 
 ### Added

@@ -1,15 +1,17 @@
-"""Per-user outcome reconciliation dispatcher (ADR-195 Phase 1).
+"""Per-user outcome reconciliation dispatcher (ADR-195 v2).
 
 Runs every registered OutcomeProvider for a single user, in sequence, and
 returns a structured summary. Provider errors are isolated — one provider's
 outage does not block siblings.
 
-Phase 1 registers only TradingOutcomeProvider. Phase 2 adds
-CommerceOutcomeProvider. Phase 5 adds EmailOutcomeProvider.
+Per ADR-195 v2, the reconciler writes to
+`/workspace/context/{domain}/_performance.md` per domain, not to a SQL
+ledger. Providers emit OutcomeCandidate dicts; ledger.fold_outcome_candidates
+persists them via filesystem upsert with frontmatter-based idempotency.
 
-Phase 2 will also add a back-office task (`back-office-outcome-reconciliation`)
-that calls `reconcile_user` once per user per day. Phase 1 exposes the
-dispatcher so it can be smoke-tested manually.
+The back-office task `back-office-outcome-reconciliation` (ADR-195 Phase 2)
+calls `reconcile_user` once per user per day. Callers can also invoke it
+manually for smoke tests.
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from services.outcomes.base import OutcomeProvider
 from services.outcomes.commerce import CommerceOutcomeProvider
 from services.outcomes.ledger import (
     compute_since_for_provider,
-    insert_outcome_candidates,
+    fold_outcome_candidates,
 )
 from services.outcomes.trading import TradingOutcomeProvider
 
@@ -54,14 +56,14 @@ async def reconcile_user(
            "trading-reconciler-v1": {
               "since": "...",
               "candidates": int,
-              "inserted": int,
+              "appended": int,
               "skipped_duplicate": int,
               "skipped_invalid": int,
               "error": None or str,
            },
            ...
         },
-        "total_inserted": int,
+        "total_appended": int,
       }
     """
     providers = providers or DEFAULT_PROVIDERS
@@ -71,14 +73,14 @@ async def reconcile_user(
         "user_id": user_id,
         "started_at": started_at.isoformat(),
         "providers": {},
-        "total_inserted": 0,
+        "total_appended": 0,
     }
 
     for provider in providers:
         try:
             since = await compute_since_for_provider(client, user_id, provider)
             candidates = await provider.reconcile(user_id, client, since)
-            counts = await insert_outcome_candidates(
+            counts = await fold_outcome_candidates(
                 client, user_id, provider, candidates,
             )
             summary["providers"][provider.provider_name] = {
@@ -87,7 +89,7 @@ async def reconcile_user(
                 **counts,
                 "error": None,
             }
-            summary["total_inserted"] += counts["inserted"]
+            summary["total_appended"] += counts["appended"]
         except Exception as exc:  # noqa: BLE001 — dispatcher isolates failures
             logger.error(
                 "[OUTCOMES] provider=%s failed for user=%s: %s",
@@ -99,7 +101,7 @@ async def reconcile_user(
             summary["providers"][provider.provider_name] = {
                 "since": None,
                 "candidates": 0,
-                "inserted": 0,
+                "appended": 0,
                 "skipped_duplicate": 0,
                 "skipped_invalid": 0,
                 "error": str(exc),
