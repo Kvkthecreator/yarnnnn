@@ -1,519 +1,365 @@
-# Surface Architecture — Chat + Work + Files + Agents
+# Surface Architecture — The Cockpit
 
-**Version:** v14.0 (2026-04-16)
+**Version:** v15.0 (2026-04-20)
 **Status:** Canonical
-**Governed by:** [ADR-180](../adr/ADR-180-work-context-surface-split.md) — Work/Context Surface Split (amended 2026-04-16: task-scoped vs. workspace-scoped)
-**Active decisions:**
-- [ADR-180](../adr/ADR-180-work-context-surface-split.md) — nav reorder, Work = task-scoped (output + domain browsing inline), Files = workspace-scoped (cross-task knowledge + uploads)
-- [ADR-165 v5](../adr/ADR-165-workspace-state-surface.md) — `/chat` workspace state surface (TP-directed, single component, four lead views)
-- [ADR-166](../adr/ADR-166-registry-coherence-pass.md) — task `output_kind` enum (4 values)
-- [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — `/work` and `/agents` list/detail collapse. **v2 amendment**: breadcrumb in `<PageHeader />`.
-- [AGENT-AND-TASK-SURFACE-PATTERNS](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — shell and no-task-state rules
-
-**Supersedes:**
-- v13.0 (2026-04-16) — Work "operational only" thesis; Files had 4 sections (Context, Outputs, Uploads, Settings)
-- v12.0 (2026-04-15) — Work list: output_kind filter chips + group-by-agent toggle + system tasks in overflow
-- v11.0 (2026-04-14) — Nav label "Context"; modal called "Overview"; tabs "What I know / Heads up / Last time / Team activity"
-- v10.0 (2026-04-14) — Work hosted both outputs and operational detail; Agents at position 3
-- v9.5 (2026-04-09) — kind-aware detail spec, run now removed, overflow menu for lifecycle
-- v9 (2026-04-08) — list/detail collapse with separate GlobalBreadcrumb bar
-- v8 (2026-04-08) — three-panel master-detail on Work and Agents
+**Governed by:** [ADR-198 v2](../adr/ADR-198-surface-archetypes.md) — The Cockpit: Operator-Centric Service Model + Surface Archetypes
+**Grounded in:** [FOUNDATIONS v6.0](../architecture/FOUNDATIONS.md) — Axiom 2 (Identity), Axiom 3 (Purpose), Axiom 6 (Channel), Derived Principle 12 (Channel legibility gates autonomy)
+**Supersedes:** v14.0 (`Chat | Work | Files | Agents`) and all prior versions — singular implementation, no dual nav models.
 
 ---
 
-## Design Thesis: Four Surfaces, One Question Each
+## Design Thesis
 
-| Priority | Surface | Route | The question it answers | The answer |
+**YARNNN is a cockpit, not a report factory.**
+
+The operator works *inside* YARNNN. Five Purpose-labeled destinations + ambient YARNNN rail. Navigation organizes by operator *why*, not by Substrate.
+
+| Priority | Destination | Route | Purpose (the operator's *why*) | Primary substrate |
 |---|---|---|---|---|
-| 1 | **Chat** | `/chat` | "What should I do? What's happening?" | TP chat + one active structured artifact |
-| 2 | **Work** | `/work` | "What is this task doing, and what has it produced?" | Task list + task detail with inline output/domain browsing |
-| 3 | **Files** | `/context` | "What does my workspace know overall?" | Cross-task accumulated domains + user uploads |
-| 4 | **Agents** | `/agents` | "Who's on my team?" | Roster + agent detail with class-aware identity and work-shape summaries |
+| 1 | **Overview** | `/overview` (HOME) | "What's going on? What needs me?" | Temporal + Performance snapshot + Queue + Reviewer alerts |
+| 2 | **Team** | `/team` | "Let me check on my agents." | `/agents/*` — roster + identity + supervision |
+| 3 | **Work** | `/work` | "Let me check the work." | `/tasks/*` — schedules + status + outputs |
+| 4 | **Context** | `/context` | "What does my workspace know?" | `/workspace/context/*` + `/workspace/uploads/*` |
+| 5 | **Review** | `/review` | "Who decided what, why?" | `/workspace/review/*` + task `feedback.md` |
 
-**Priority order = navigation frequency.** Chat is where work is directed and results surface. Work is checked daily. Files is read when you want a cross-task knowledge view. Agents is a reference surface, visited rarely.
+**YARNNN (the super-agent) is ambient, not a destination.** A persistent rail is available on every surface; `/chat` is the expanded-focus form of the rail. Chat-as-a-tab dissolves. Operators don't *travel to* YARNNN; YARNNN is *with them*. Surface-aware prompt profiles (ADR-186) flow surface metadata into YARNNN's prompt automatically.
 
-**Work is task-scoped** (ADR-180 amendment). Everything about a single task — configuration, health, output, accumulated domain files — is reachable from the task detail page without navigating away. `produces_deliverable` tasks render output inline. `accumulates_context` tasks show an entity grid with inline domain browsing. The user's core loop (check task → see what it produced) stays on one surface.
+**Team and Work are peer destinations.** Agents and tasks are many-to-many — one agent runs several tasks; one complex task involves several agents. "Check my agents" (identity) and "check the work" (activity) are two distinct operator Purposes, not one. Collapsing them forces awkward sub-modes; separating them respects the two mental models.
 
-**Files is workspace-scoped** (ADR-180 amendment). Files shows cross-task accumulated knowledge (`/workspace/context/` domains) and user uploads (`/workspace/uploads/`). Two top-level sections: Context domains and Uploads. Domain folders show task provenance ("Written by: track-competitors · weekly"). No Outputs section (task outputs live on Work). No Settings section (Identity/Brand live on Settings page). The nav label is "Files" — accurate and non-inflated.
+**External distribution is derivative.** Email, Slack cross-posts, PDF exports flow from cockpit-approved surfaces via post-compose distribution per ADR-185. Pointer-notifications (push/SMS) deep-link back to cockpit; they do not duplicate interaction affordances.
 
-**Agents is position 4.** Under ADR-176, agents serve work — they are the labor pool, not the organizing principle. The roster is a reference, not a daily destination.
+**`produces_deliverable` outputs a surface, not a document.** The task output folder (`/tasks/{slug}/outputs/`) remains substrate per Axiom 1. What changes is the operator's consumption Channel — the surface IS the deliverable; PDFs and emails are derivatives.
 
-Four destinations. Each answers exactly one question. No overlap.
+---
 
-The old `/activity` page is **deleted**. Its content is absorbed into the surfaces that naturally own it: per-task activity to `/work`, per-agent activity to `/agents`, workspace-wide activity to the Chat briefing dashboard, diagnostic events to Settings → System Status.
+## Archetype Patterns (Channel-vocabulary inside destinations)
+
+Each destination composes from one or more **archetype patterns**. The five archetypes are the Channel-dimension vocabulary (Axiom 6) for classifying what a given pane is *doing*. They are not nav entries; they are patterns destinations compose.
+
+| # | Archetype | Substrate read | Purpose | Reading shape |
+|---|---|---|---|---|
+| 1 | **Document** | A composed output file | Consume a deliverable | One-shot read, rendered HTML or markdown |
+| 2 | **Dashboard** | Live state of a Substrate slice | See what the state *is right now* | Continuous; refreshed on visit |
+| 3 | **Queue** | Pending addressed-to-operator items | Act on what's awaiting | Actionable entries with approve/reject/defer |
+| 4 | **Briefing** | Curated selection + pointers | Receive periodic summary | Periodic push (email) or home read |
+| 5 | **Stream** | Append-only log | Audit chronologically | Newest at top, append-only |
+
+### Archetype invariants
+
+Each archetype carries invariants. Violations trigger redesign.
+
+**Document.** Read-only operator-side (edits via YARNNN rail feedback). One document = one Substrate file. Stable URLs (Briefing points *at* Documents).
+
+**Dashboard.** Always live Substrate read (no cached snapshots unless Substrate itself is snapshot-regenerated). No action affordances — a dashboard that sprouts "Approve" buttons becomes a Queue. Grouping/filtering is surface's job; data shape is Substrate's.
+
+**Queue.** Every entry has pending status. Every entry has action affordance. Resolution writes audit entry to a Stream (`decisions.md`, `feedback.md`, activity log).
+
+**Briefing.** Periodic by Trigger (Axiom 4 periodic sub-shape). **Composed by selection, not duplication** — pointers + headlines from other archetypes, not a re-render. This is the explicit rejection of ADR-195 v2 Phase 4 as originally drafted.
+
+**Stream.** Append-only Substrate (no historical-entry mutations). Chronological ordering. Always historical content (projections belong elsewhere).
+
+---
+
+## Design Invariants
+
+Three surface-level rules. These are cockpit discipline; violations trigger redesign.
+
+**I1 — No surface holds state.** Every surface reads files (Axiom 1). Pagination, filtering, sort state live in URL query params or client state, never in server-side session state. The substrate is authoritative.
+
+**I2 — No surface embeds foreign substrate.** Overview links to Team/Work/Review; it does not embed their content. Cross-substrate references are always links, never embeds. This prevents the "briefing absorbs performance" category error (ADR-195 v2 Phase 4 rejected for this reason).
+
+**I3 — Every surface has exactly one primary cognitive consumer.** If two cognitive layers need the same data, they get two views with layer-appropriate framing. The Reviewer's view of `_performance.md` (reasoning substrate, headless) is not the operator's view of `_performance.md` (supervisory dashboard). Same file, two affordances.
 
 ---
 
 ## Route Map
 
 ```
-/chat                           → Chat (home). TP chat + one active artifact tab.
-/work                           → Work LIST mode. Full-width filterable list of tasks.
-/work?agent={slug}              → Work LIST mode with the agent filter pre-applied.
-/work?task={slug}               → Work DETAIL mode. Operational detail (schedule, health, config).
-/context                        → Files. Workspace knowledge browser. (Retains left tree nav.)
-/context?domain={key}           → Files pre-filtered to a domain folder.
-/context?path={path}            → Files showing a specific workspace file.
-/agents                         → Agents LIST mode. Full-width team roster grouped by class.
-/agents?agent={slug}            → Agents DETAIL mode. Class-aware identity + work-shape summaries.
-/agents/{id}                    → Compatibility entry. Redirects to `/agents?agent={slug}`.
-/settings                       → Settings. Memory, brand, system status.
+/overview                         Overview (HOME)
+  ?since=<iso>                    optional — defaults to last-login
+
+/team                             Team roster
+/team/{slug}                      agent detail — identity, tasks owned, health, memory
+
+/work                             Task list (filterable)
+/work/{slug}                      task detail — output, schedule, feedback, run log
+
+/context                          Workspace browser
+/context/{path}                   domain / entity / file detail
+
+/review                           Reviewer surface
+/review/{proposal_id}             decision detail
+
+/chat                             Expanded YARNNN conversation (ambient rail expanded)
+
+/settings                         Account, billing, integrations, system diagnostics
 ```
 
-**ADR-167 surface mode collapse:** `/work` and `/agents` no longer have a permanent left sidebar. Each is a single surface with two modes selected by URL state — list mode (no detail key) shows the full-width list/roster, detail mode (`?task=` or `?agent=`) shows kind-aware detail. The breadcrumb (commit b033513) drives navigation between modes. Auto-select-first on mount is GONE — landing on `/work` or `/agents` shows the list, never someone else's task or agent. `/context` retains its left sidebar (filesystem tree nav is the right pattern there).
-
-**Legacy routes still live for bookmark preservation:**
-- `/tasks` and `/tasks/{slug}` → redirect to `/work` (forwards slug as `?task=`)
-- `/workfloor` → redirect to `HOME_ROUTE` (`/chat`)
-- `/orchestrator` → redirect to `HOME_ROUTE` with query params preserved (OAuth callbacks)
-
-**Deleted routes:**
-- `/activity` — returns 404; content absorbed elsewhere
+All deep-links are stable URLs. The ambient YARNNN rail is available at all routes via the surface shell.
 
 ---
 
-## Navigation
+## Destination 1 — Overview
 
-### Top Bar
+**Route:** `/overview` (HOME)
+**Purpose:** "What's going on? What needs me?"
+**Consumer:** Operator
+**Rhythm:** On-login + real-time reactive
+**Archetypes composed:** Briefing (since-last-look) + Queue (pending proposals) + Dashboard-snippets (linked, not embedded)
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ yarnnn                   [Chat | Work | Files | Agents]       Avatar │ ← global header (logo / toggle / avatar)
-└──────────────────────────────────────────────────────────────────────┘
-```
+### What it shows
 
-The global header is **just** logo + toggle bar + avatar. There is no separate breadcrumb bar below it. The breadcrumb lives **inside each surface** as a `<PageHeader />` component (ADR-167 v2) — see "Page header" below.
+Three panes reading distinct substrates. Panes are **linked, not embedded** (I2 discipline).
 
-**Toggle bar** (`web/components/shell/ToggleBar.tsx`): four-segment pill `Chat | Work | Files | Agents`. Icons: `MessageCircle`, `Briefcase`, `FolderOpen`, `Users`. `HOME_ROUTE` is `/chat` — both new and returning users land there.
+1. **Since last look** — temporal changes since previous session
+   - Agent runs completed (count + most recent) — deep-link to Work/task-detail
+   - Reviewer decisions made (count + recent; human vs AI breakdown) — deep-link to Review
+   - External deliveries sent (emails, Slack posts)
+   - Platform events reconciled (Alpaca fills, LS orders)
 
-### Page header (ADR-167 v5)
+2. **Needs me** — reactive attention
+   - Queue: pending `action_proposals` (badge = count; inline ProposalCards for top ~3; "See all N" link)
+   - Reviewer alerts: AI Reviewer deferred decisions awaiting human judgment
+   - Platform alerts: connection failures, token refresh needed, rate limits hit
 
-Every surface renders `<PageHeader />` as the first row of its center content area. It is **pure navigation chrome** — the breadcrumb and nothing else. No title, no metadata, no actions. Those all live inside the surface content as a separate `<SurfaceIdentityHeader />` block where they belong alongside the content they describe.
+3. **Snapshot** — at-a-glance state (Dashboard-snippets)
+   - Book headline: total P&L + revenue across domains — links to Context per-domain `_performance.md`
+   - Workforce headline: N agents active, M tasks running today — links to Team
+   - Context headline: freshest domain + last-accumulated entity — links to Context
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ Work › Daily Update                                                  │ ← PageHeader: breadcrumb chrome (ADR-180: task-first)
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│ Daily Update                                 [Run] [Pause] [Edit]    │ ← SurfaceIdentityHeader: the real H1
-│ Recurring · Active · Reporting · daily · Next: 9h                    │    metadata strip under title
-│                                                                      │
-│ ─────────                                                            │
-│ OBJECTIVE                                                            │
-│ · Deliverable: Daily workspace update                                │
-│ · Audience: You — quick morning scan                                 │
-│                                                                      │
-│ ─────────                                                            │
-│ LATEST OUTPUT · 2026-04-08                                           │
-│ ┌─────────────────────────────────────────────────────────┐          │
-│ │                                                         │          │ ← nested card: bordered,
-│ │   Daily Workspace Update — April 8, 2026                │          │    visually inset, muted
-│ │                                                         │          │    background. The output's
-│ │   System Status                                         │          │    own H1 is clearly scoped
-│ │   ✅ All systems operational                             │          │    as "content inside the
-│ │   …                                                     │          │    task," not as the page.
-│ │                                                         │          │
-│ └─────────────────────────────────────────────────────────┘          │
-│                                                                      │
-│ → Assigned to Reporting                                              │
-└──────────────────────────────────────────────────────────────────────┘
-```
+### Empty states
 
-**Two components, two responsibilities.** `<PageHeader />` answers "where am I?" It is chrome, always present with the same muted tone across every state (list and detail). `<SurfaceIdentityHeader />` answers "what is this page ABOUT?" It is content — rendered inside the surface's scroll area as a proper `h1.text-2xl` with metadata directly under it and optional actions inline on the right. WorkDetail and AgentContentView both render their own `<SurfaceIdentityHeader />` at the top of their content stream. No more plumbing task-shaped data through the chrome layer.
+- **Day zero:** "Your workforce is here. Connect a platform or describe your work to activate it." + chips for identity setup + platform connect + task creation. Matches ADR-161 heartbeat discipline.
+- **No changes since last look:** "Quiet day. Last run was {agent} at {time} — {outcome}." + pointers. Never silent.
 
-**Nested document pattern.** Any task-produced content (output iframes, CHANGELOG markdown, hygiene logs, AGENT.md) is wrapped in a bordered, visually inset card (`rounded-lg border border-border bg-muted/5`). This tells the user "this is a document the task produced." The card frame makes whatever H1s live inside that content clearly subordinate to the surface's own H1 above. Applied consistently across `DeliverableMiddle`, `TrackingMiddle`, `MaintenanceMiddle`, and `InstructionsBlock` (AGENT.md in AgentContentView).
+### What it does NOT do
 
-**List-mode behavior.** `<PageHeader />` falls back to `defaultLabel` and renders a single-segment breadcrumb (`Work`, `Agents`, `Context`) with the exact same muted treatment — uniform tone across all states. List-mode pages don't render `<SurfaceIdentityHeader />` at all since there's no single "page subject" to introduce; the list surface itself owns the visual hierarchy (filter chips on /work, grouped roster on /agents, file tree on /context).
+- Does not render weekly reports or rich deliverable content (that's Work/task-detail per I2)
+- Does not render full `_performance.md` content (linked via Context, not embedded)
+- Does not render the Reviewer's full decisions history (that's Review per I2)
 
-| Surface state | Breadcrumb (ADR-180) |
+Overview is the front door, not the whole house.
+
+---
+
+## Destination 2 — Team
+
+**Route:** `/team`
+**Purpose:** "Let me check on my agents."
+**Consumer:** Operator (supervising)
+**Rhythm:** Steady-state
+**Archetypes composed:** Dashboard (roster + health) + Document (agent detail: AGENT.md) + Stream (per-agent run log + reflections)
+
+### What it shows
+
+**Roster.** Agents grouped by class (domain stewards / synthesizer / platform bots / meta-cognitive). Each card shows:
+- Display name + domain
+- Active task count
+- Last run freshness
+- Approval rate (when `version_count >= 5`)
+- Status indicator (active / paused / archived)
+
+Click → `/team/{slug}`.
+
+### Agent detail
+
+- **Identity card** — AGENT.md rendered, class, domain, tenure
+- **Tasks owned** — list with mode + schedule + last run + cross-link to `/work/{slug}`
+- **Health** — recent reflection, approval rate, last feedback distillation
+- **Memory excerpts** — `memory/reflections.md` (recent) + `memory/directives.md`
+- **Actions** — edit identity (via YARNNN rail), pause / resume / archive (direct surface actions)
+
+---
+
+## Destination 3 — Work
+
+**Route:** `/work`
+**Purpose:** "Let me check the work."
+**Consumer:** Operator (supervising) + Agents (reading task context headlessly)
+**Rhythm:** Steady-state (daily check)
+**Archetypes composed:** Dashboard (task list) + Document (task detail output) + Stream (run log + feedback)
+
+### What it shows
+
+**Task list.** Filterable by:
+- `output_kind` chips (accumulates_context / produces_deliverable / external_action / system_maintenance)
+- Agent (cross-link from Team)
+- Status (active / paused / completed)
+- Schedule (today / this week / stale)
+
+Each row: title + mode badge + next run + last run + owning agent (cross-link to Team).
+
+### Task detail
+
+- **Charter** — TASK.md + DELIVERABLE.md (when `produces_deliverable`)
+- **Current output (Document archetype)** — for `produces_deliverable`, renders the latest output surface inline (cockpit-native, not PDF). For `accumulates_context`, entity grid. For `external_action`, last action log. For `system_maintenance`, status report.
+- **Schedule** — next run, mode, cadence
+- **Run history (Stream archetype)** — last N runs with outcomes
+- **Feedback (Stream archetype)** — task `feedback.md` + pending user feedback inline
+- **Actions** — edit via YARNNN rail, trigger manually, pause / resume, complete (goal mode)
+
+### Cross-links to Team
+
+Every task detail surfaces its assigned agent(s) prominently with click-through to `/team/{slug}`. Agent detail surfaces that agent's tasks with click-through to `/work/{slug}`. Team and Work are peer destinations with relational navigation.
+
+---
+
+## Destination 4 — Context
+
+**Route:** `/context`
+**Purpose:** "What does my workspace know?"
+**Consumer:** Operator (exploring) + Agents (reading accumulated context headlessly)
+**Rhythm:** On-demand (power users visit daily; casual operators occasionally)
+**Archetypes composed:** Dashboard (file browser, domain entity grid, uploads view)
+
+### What it shows
+
+Workspace filesystem browser with three roots:
+- `/workspace/context/*` — accumulated domain entities (competitors, customers, trading, revenue, etc.)
+- `/workspace/uploads/*` — user-contributed documents
+- `/workspace/{IDENTITY,BRAND,notes,style,awareness}.md` — workspace-level identity + preferences
+
+Each domain directory shows:
+- Entity grid (per-entity subfolders with tracker metadata)
+- Synthesis files (`_`-prefixed cross-entity summaries like `_performance.md`, `_risk.md`, `_tracker.md`)
+- Task provenance ("Written by: track-competitors · weekly")
+
+Inferred files render with `<!-- inference-meta: ... -->` source provenance captions per ADR-162.
+
+### What it does NOT do
+
+- No Queue (no operator decisions live here)
+- No Briefing (not periodic)
+- No direct inline edit forms — edits flow through YARNNN rail per ADR-104 (Agents-as-write-path)
+
+---
+
+## Destination 5 — Review
+
+**Route:** `/review`
+**Purpose:** "Who decided what, why? Is the Reviewer calibrated?"
+**Consumer:** Operator supervising the Reviewer
+**Rhythm:** Rolling; consulted when curious or calibrating
+**Archetypes composed:** Dashboard (Reviewer identity + principles) + Stream (decisions log) + Queue-tail (recent resolutions)
+
+### What it shows
+
+**Reviewer identity card** — `/workspace/review/IDENTITY.md` rendered
+**Principles** — `/workspace/review/principles.md` rendered; edited via YARNNN rail, not inline form
+**Decisions feed (Stream)** — rolling log from `/workspace/review/decisions.md`
+  - Each decision: proposal summary, decision (approve / reject / defer), reasoning, reviewer identity tag (`human:` / `ai:` / `impersonated:`)
+  - Filter by identity tag / domain / outcome
+  - Click → `/review/{proposal_id}` — full detail: proposal inputs, reviewer reasoning, outcome reconciliation when reconciled
+
+### Impersonation visibility
+
+Impersonated workspaces (admin acting as persona) show:
+- Top banner: "Impersonating: {persona} — all actions attributed to {admin}-as-{persona}"
+- `decisions.md` entries rendered with `impersonated:` tag visibly distinguished
+
+---
+
+## Ambient YARNNN Rail
+
+YARNNN is present on every surface. Not a tab, not a page — an always-reachable affordance.
+
+### Rail shape
+
+- Right-rail collapsible panel (keyboard shortcut to toggle)
+- Width: collapsed (icon only, 48px) / expanded (conversation, ~400px)
+- State persists per-surface and per-session
+- Surface metadata flows automatically into YARNNN's prompt (ADR-186 prompt profiles)
+
+### Three interaction modes
+
+1. **Quick-ask** — operator types a question; YARNNN responds in-rail without breaking surface context
+2. **Expand to `/chat`** — for long conversations, exploration, complex tasking; keyboard shortcut or button
+3. **Passive context** — rail can surface YARNNN-initiated ambient messages (e.g., "I noticed 3 new signals in trading/ — want to track them?") as subtle notifications
+
+### `/chat` as the expanded form
+
+- Same conversation substrate as the rail (session continuity preserved)
+- Full-height surface for focused work
+- Accessible from the rail's "expand" action or directly via URL
+- Not listed in the primary nav — operators reach it via the rail
+
+### What YARNNN is NOT
+
+- Not a reporting surface (Overview is where state is seen)
+- Not a decision surface (Queue on Overview or Review is where decisions land)
+- Not a data-editing form (operator edits via YARNNN conversation which routes through primitives per ADR-104)
+
+YARNNN is the conversation with the meta-cognitive agent. Period.
+
+---
+
+## Mode Collapse (schema preserved, surface simplified)
+
+The schema preserves three task modes (`recurring | goal | reactive`) because the execution layer needs the distinction (ADR-149). The cockpit surface shows two labels — **`Recurring`** and **`One-time`** (`goal` and `reactive` both map to "One-time"). The `WorkModeBadge` component is the single place modes are rendered; `taskModeLabel()` in `web/types/index.ts` is the canonical helper. Unchanged from prior versions.
+
+---
+
+## What the Cockpit Replaces
+
+| Old surface (v14) | New destination (v15) | Notes |
+|---|---|---|
+| `/chat` (primary nav tab) | Ambient YARNNN rail on every surface + `/chat` as expanded form | Chat-as-a-destination dissolves; YARNNN is ambient |
+| `/work` (task list + detail) | `/work` — preserved (tasks-as-activity surface) | Route unchanged; scope clarified to tasks only (no agent roster) |
+| `/agents` (roster + detail) | `/team` (agents-as-identity surface) | Rename to operator-native vocabulary; NARRATIVE-aligned |
+| `/context` (filesystem browser) | `/context` — preserved | Route unchanged; minor scope tightening |
+| `/activity` (deleted in v11) | Overview "Since last look" + Team per-agent + Work per-task + Review per-decision | Already deleted in v14; cockpit distributes further |
+| `/orchestrator` (deleted in v11) | Overview (the new HOME) | Already deleted in v14 |
+| Workspace-state modal (ADR-165) | Overview renders workspace state natively | Modal becomes unnecessary; state is the surface |
+| Daily-update "briefing dashboard" on `/chat` | Overview "Since last look" pane | Moved to the destination that owns temporal state |
+
+---
+
+## External Distribution Discipline
+
+External Channels (email, Slack, PDF, Notion write-back) are **derivatives** of cockpit-approved work per ADR-185. Four rules:
+
+1. **Expository pointer pattern for periodic external emails.** Daily-update, weekly reports, campaign briefs emitted to external stakeholders carry *legible summary content* + *deep-link pointers* back to cockpit. Neither pure-pointer (too thin) nor full-replacement (violates singular implementation).
+
+2. **Pointer-only for alerts.** Push notifications, SMS alerts for time-sensitive events deep-link into cockpit Queue or Overview. Approval/rejection happens *in cockpit*, not via SMS reply.
+
+3. **Full content for external audiences.** Weekly report to CFO, Slack digest to #team — these go to consumers who don't have operator identity. Full PDF/HTML content is the right Channel shape. The operator reviewed the surface in cockpit first; the external delivery is post-approval.
+
+4. **No replacement UX.** External Channels never duplicate cockpit's interaction affordances. An "Approve via email" link that takes a destructive action via GET is forbidden. Links always route through cockpit's auth + approval flow.
+
+---
+
+## Implementation Sequence (each phase ships green)
+
+| # | Phase / ADR | Scope |
+|---|---|---|
+| 1 | **ADR-198 v2 + this doc (SURFACE-ARCHITECTURE v15)** | Canonization. Doc-only. (Current commit cycle.) |
+| 2 | **ADR-199 — Overview surface** | `/overview` route. Since-last-look + snapshot + queue + alerts. Absorbs `/chat`-as-home. |
+| 3 | **ADR-200 — Review surface** | `/review` route. Reviewer identity + principles + decisions log. Unblocks Principle 12 for Reviewer layer. |
+| 4 | **ADR-201 — Team + Work separation + ambient YARNNN rail** | Rename `/agents` → `/team`. Preserve `/work` with tightened scope. Cross-link agent↔task detail. Ambient rail across all surfaces. Deprecate `/chat` as primary nav destination. |
+| 5 | **ADR-202 — External Channel discipline** | Daily-update stripped of embedded performance. Alert specs pointer-only. `produces_deliverable` external-distribution as derivative step. |
+
+Each ADR stands alone, each green-on-ship, singular-implementation throughout.
+
+---
+
+## Related Design Docs
+
+| Doc | Relevance under v15 |
 |---|---|
-| Chat | `Chat` |
-| Work (list) | `Work` |
-| Work (task detail, from Work) | `Work › Daily Update` — task-first, no agent middle segment |
-| Work (task detail, from Agents) | `Agents › Researcher › Daily Update` — traces navigation history |
-| Work (filtered by agent) | `Work` — agent filter shown as chip in list UI, not breadcrumb |
-| Agents (list) | `Agents` |
-| Agents (agent selected) | `Agents › Researcher` |
-| Files (no selection) | `Files` |
-| Files (domain selected) | `Files › Competitors` |
-| Files (deep file) | `Files › Competitors › cursor › profile.md` |
-| Files (task output) | `Files › Daily Update` — output as first-class knowledge item |
-
-Pages set the breadcrumb segments via `setBreadcrumb()` in a `useEffect` (unchanged contract from b033513). PageHeader reads from the same context. List-mode pages clear the breadcrumb and PageHeader falls back to the surface label via `defaultLabel`.
-
----
-
-## 1. Chat (`/chat`, HOME_ROUTE)
-
-### Purpose
-Dedicated TP (Thinking Partner) chat surface. The conversation column is the full surface — no always-on briefing side panel. Two structured modals (ADR-165 v8) opened independently: the **Workspace modal** (read-only capability dashboard, four tabs: Readiness / Attention / Last session / Activity) and the **Onboarding modal** (first-run identity capture). TP opens either via HTML-comment markers (`<!-- workspace-state: ... -->` or `<!-- onboarding -->`); the user opens the Workspace modal via the "Workspace" button in the surface header. Two markers, two modals, never conflated.
-
-For new users with an empty workspace, TP's first response opens the Onboarding modal (identity capture form). The daily-update task still runs (deterministic empty-state template from ADR-161).
-
-### Layout
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                                                                      │
-│ Thinking Partner                                [⊞ Workspace]        │ ← SurfaceIdentityHeader
-│                                                                      │    h1 + action button
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│                    (conversation thread)                             │
-│                                                                      │
-│                    [ input row ──────── → ]                          │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-`<SurfaceIdentityHeader />` with "Thinking Partner" as the real H1 and the "Workspace" button in the actions slot. The conversation column is centered at `max-w-3xl`. The Workspace toggle (icon: `LayoutDashboard`) sits alongside the page identity where it belongs, matching the Run/Pause/Edit pattern on /work detail.
-
----
-
-## 2. Work (`/work`)
-
-### Purpose
-Work is where the user looks at what their workforce is doing. First-class top-level destination (ADR-163). After ADR-167, `/work` is a single surface with **two modes** selected by URL state — list mode (no `?task=` param) and detail mode (`?task={slug}`).
-
-### Task Modes on the Surface (ADR-163)
-
-The schema has three modes (`recurring | goal | reactive`). The surface has **two labels**: `Recurring` and `One-time`. Mapping:
-
-```
-recurring  → Recurring
-goal       → One-time
-reactive   → One-time
-```
-
-The `WorkModeBadge` component is the only place modes are rendered. Every task row and task detail header uses it. The mapping is enforced by `taskModeLabel()` in `web/types/index.ts`.
-
-The execution layer still distinguishes three modes because `goal` has the revision loop and `reactive` has dispatch-and-done semantics (see ADR-149). Users never see the third option — they pick "Recurring" or "One-time", and TP resolves "One-time" to `goal` or `reactive` behind the scenes based on task type.
-
-### List Mode (default) — Three-Tab Architecture (v13)
-
-Three tabs partition tasks by user attention need, not data taxonomy:
-
-| Tab | Contents | Grouping |
-|---|---|---|
-| **My Work** (default) | User knowledge work — anything without `requires_platform` and not `system_maintenance` | Ongoing (recurring) / In Progress (goal, reactive) |
-| **Connectors** | Platform-bound tasks (`requires_platform != null`) — digests, external actions, revenue reports | By platform: Slack, Notion, GitHub, Commerce |
-| **System** | `system_maintenance` tasks (TP back-office) | Flat list |
-
-"Connectors" label + `Link2` icon matches the Settings page. Group-by-agent is **deleted** — tasks are 1:N agents, so grouping by `agent_slugs[0]` was misleading. Agent names display inline on each row instead.
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│  [📄 My Work 5] [🔗 Connectors 3] [⚙ System 2]                     │ ← tab bar with count badges
-│  Search: [____________]          [agent chip ×]  [···]               │ ← search + overflow (include archived)
-├──────────────────────────────────────────────────────────────────────┤
-│  ONGOING ──────────────────────────────────────────────── 3          │
-│  ┌──┐ Daily Update         Report · Daily · Reporting    Next: 9h   │
-│  ┌──┐ Competitive Intel    Report · Weekly · Researcher  Next: 4d   │
-│  ┌──┐ Track Competitors    Tracking · Weekly · Researcher Next: 2d  │
-│                                                                      │
-│  IN PROGRESS ──────────────────────────────────────────── 2          │
-│  ┌──┐ Meeting Prep         Report · Researcher, Writer   Last: 2d   │
-│  ┌──┐ Content Draft        Report · Writer               Last: 5d   │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-**My Work grouping**: `Ongoing` (recurring tasks — the heartbeat) and `In Progress` (goal/reactive — has a finish line). If only one group exists, headers are suppressed and the list is flat.
-
-**Search box** indexes title, all assigned agents, task type, delivery target, objective fields, and context domains. **Status filter** defaults to active + paused, with "Include completed & archived" in overflow. **Agent filter chip** appears when `?agent={slug}` is in the URL; click X to clear.
-
-The list is **sorted within each group** by lifecycle urgency: active first, then paused, then completed/archived; upcoming runs sort ahead of older work, historical items sort by most recent run. Clicking a row uses browser-history-friendly navigation (`push`, not `replace`) so Back returns to the prior list state.
-
-**Row anatomy (v13)**: icon-in-box with status dot overlay → title (bold) → sub-label (kind hint + schedule + agent names) → right-aligned time signal. Agent names show ALL assigned agents (`Researcher, Writer`), not just the first. System tab rows render at 50% opacity.
-
-### Detail Mode (`/work?task={slug}`) — Kind-Aware (v10, 2026-04-14)
-
-In detail mode the page renders `<PageHeader />` as breadcrumb chrome, then `<WorkDetail />` as the identity + content surface. The selected task is fetched through `GET /api/tasks/{slug}`.
-
-**Design principle: each output_kind answers a different question.** A single shared header/action bar is wrong because the four kinds have fundamentally different user mental models:
-
-| `output_kind` | User question | Primary affordance |
-|---|---|---|
-| `produces_deliverable` | "What did it produce?" | Output artifact — full-width hero |
-| `accumulates_context` | "Is it healthy? What's it collecting?" | Run health + compact receipts |
-| `external_action` | "What did it last send? Fire it again?" | Fire button + send history |
-| `system_maintenance` | "Is the system healthy?" | Log output, no user actions |
-
-**Header strip is kind-aware** — each kind gets a purpose-fit metadata strip and action set:
-
-| `output_kind` | Metadata strip | Actions |
-|---|---|---|
-| `produces_deliverable` | Mode badge · Schedule · `Last output: {date}` | `···` overflow (Pause/Resume, Archive) |
-| `accumulates_context` | Mode badge · Schedule · `Next: {rel}` · `Last run: {date}` · domain link | `···` overflow (Pause/Resume, Archive) |
-| `external_action` | Mode badge · `Target: {delivery}` · `Last fired: {date}` | **Fire** (primary) · `···` overflow (Archive) |
-| `system_maintenance` | Mode badge · Schedule · `Last run: {date}` | *(none)* |
-
-**Run now is removed.** Triggering a run is an intent expressed via TP ("run this now"), not a button on the detail page. The one exception is `external_action` tasks where firing IS the whole workflow — those get an explicit **Fire** primary action.
-
-**Pause/Resume moved to overflow (`···`).** Lifecycle management is rare; it doesn't warrant a persistent visible button. An overflow menu keeps it accessible without cluttering the header.
-
-**Objective block is kind-gated.** Only `produces_deliverable` tasks show the Objective block — deliverable/audience/purpose/format is meaningful for output tasks. `accumulates_context` instead shows an inline "Feeds →" summary in the header strip. `external_action` and `system_maintenance` suppress the objective block entirely.
-
-**Agent footer removed.** The assigned agent is visible in the list row and the breadcrumb. It adds no value in the detail's own footer.
-
-**Middle components by kind:**
-
-| `output_kind` | Middle component | Shape |
-|---|---|---|
-| `accumulates_context` | `<TrackingMiddle>` | Entity grid with inline domain browsing + run receipts |
-| `produces_deliverable` | `<DeliverableMiddle>` | Latest rendered HTML/markdown as full hero |
-| `external_action` | `<ActionMiddle>` | Latest payload card + fire history list |
-| `system_maintenance` | `<MaintenanceMiddle>` | Hygiene log + run history |
-
-**`TrackingMiddle` inline domain browsing** (ADR-180 amendment): `TrackingEntityGrid` renders entity cards for the primary `context_writes` domain. Clicking an entity opens a `DomainBrowser` (ContentViewer + WorkspaceTree scoped to that entity's folder) **inline within the Work detail page** — no navigation to Files. The user drills into entity files and returns to the grid without leaving the task. `DomainBrowser` reuses the same ContentViewer that Files uses (markdown, HTML, images, CSV, PDF rendering). `context_writes` registry fallback: if TASK.md parsing fails to populate `task.context_writes`, `TrackingMiddle` infers the domain from `task.type_key` via a local map.
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│  Work › Slack Bot › Slack Sync                                        │ ← PageHeader (chrome)
-├──────────────────────────────────────────────────────────────────────┤
-│  Slack Sync                                                [···]      │ ← SurfaceIdentityHeader h1
-│  Recurring · Daily · Next: in 9h · Last run: 4h ago                  │   metadata strip (no Pause btn)
-│  → /workspace/context/slack/                                         │   domain link inline
-├──────────────────────────────────────────────────────────────────────┤
-│  Apr 14 09:00  3 channels · 4 new observations                       │ ← compact run receipts
-│  Apr 13 09:00  3 channels · 1 new observation                        │   (not a document card)
-│  Apr 12 09:00  2 channels · 0 new                                    │
-└──────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────┐
-│  Work › Reporting › Daily Update                                      │ ← PageHeader (chrome)
-├──────────────────────────────────────────────────────────────────────┤
-│  Daily Update                                              [···]      │ ← SurfaceIdentityHeader h1
-│  Recurring · Daily · Last output: Apr 14                             │   metadata strip
-├──────────────────────────────────────────────────────────────────────┤
-│  Objective                                                           │ ← only for produces_deliverable
-│  · Deliverable: Daily workspace update                               │
-│  · Audience: You — quick morning scan                                │
-├──────────────────────────────────────────────────────────────────────┤
-│  Latest output  ·  2026-04-14T09:00                                  │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ [iframe with rendered HTML — DeliverableMiddle]                │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────┐
-│  Work › Slack Bot › Slack Post                                        │ ← PageHeader (chrome)
-├──────────────────────────────────────────────────────────────────────┤
-│  Slack Post                                    [Fire ↗]  [···]        │ ← Fire is primary action
-│  One-time · Target: #general · Last fired: Apr 12                    │
-├──────────────────────────────────────────────────────────────────────┤
-│  Latest payload  ·  Apr 12                                           │ ← ActionMiddle
-│  ┌──────────────────────────────────────────────┐                   │
-│  │ [sent message markdown]                       │                   │
-│  └──────────────────────────────────────────────┘                   │
-│  Fire history …                                                      │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-### Filtering and deep-links
-
-- `/work` — list mode, no filter
-- `/work?agent={slug}` — list mode with the agent filter chip pre-applied (used by the breadcrumb's "Researcher's work" segment and by AgentContentView's "See this agent's work" link)
-- `/work?task={slug}` — detail mode for that task
-- The breadcrumb (commit b033513) is the navigation between modes; clicking the `Work` segment from a detail returns you to list mode
-- Invalid or stale `/work?task={slug}` links stay in detail mode and render an explicit not-found state with a "Back to work" action
-
-### What Used to Live Here
-
-- The left sidebar `WorkList` with auto-select-first → DELETED. Replaced by `WorkListSurface` (full-width three-tab list: My Work / Connectors / System). Landing on `/work` no longer shows you someone else's task by accident.
-- The single one-shape `OutputPreview` inside `WorkDetail` → DELETED. Replaced by four kind-specific middle components in `web/components/work/details/`. The dispatch lives in `WorkDetail`.
-- `ThreePanelLayout`'s left panel on `/work` → DELETED. The page no longer passes `leftPanel`. The layout is effectively two-panel (full-width center + FAB-overlay chat), which is what the page actually wanted all along.
-- `WorkDetail`'s internal `<WorkHeader>` band (title + mode badge + status row + Next/Last run row) → DELETED in v2. The title moves to `<PageHeader />`'s breadcrumb (last segment). The metadata moves to PageHeader's `subtitle` slot. One row instead of four.
-- `WorkDetail`'s internal `<ActionsRow>` (Run/Pause/Edit-via-chat at the bottom) → DELETED in v2. Actions move up to `<PageHeader />`'s `actions` slot, inline with the breadcrumb. One cluster of buttons instead of split top/bottom.
-- The `★ Essential` badge next to the title → REMOVED in v2 (visual treatment only). The `essential` flag stays in the schema and DB and continues to gate archive in `routes/tasks.py`. Users discover it functionally — try to archive a daily-update and the API rejects it. No upfront badge needed.
-
----
-
-## 3. Agents (`/agents`)
-
-### Purpose
-Agents is where the user looks at **who** is on their team, not **what** they're doing. After ADR-167, `/agents` is a single surface with **two modes** selected by URL state — list mode (no `?agent=` param) and detail mode (`?agent={slug}`). Work observation lives on `/work`. Domain entity browsing lives on `/context`.
-
-### List Mode (default) — `AgentRosterSurface`
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│  Specialists · 6 (ADR-176 universal roles)                           │
-│  Assigned to tasks by TP. Accumulation or production phase.          │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐         │
-│  │ 🧠 Researcher             │  │ 🧠 Analyst                │         │
-│  │ specialist · accumulation │  │ specialist · accumulation │         │
-│  │ 2 tasks · 2h ago · 100%  │  │ 1 task · 16h ago          │         │
-│  └──────────────────────────┘  └──────────────────────────┘         │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐         │
-│  │ 🧠 Writer                 │  │ 🧠 Tracker                │         │
-│  │ specialist · accumulation │  │ specialist · accumulation │         │
-│  │ 2 tasks · 16h ago        │  │ 1 task · 2h ago           │         │
-│  └──────────────────────────┘  └──────────────────────────┘         │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐         │
-│  │ 🎨 Designer               │  │ 💬 Thinking Partner       │         │
-│  │ specialist · production   │  │ meta-cognitive            │         │
-│  │ 0 tasks · never run      │  │ 2 tasks · daily           │         │
-│  └──────────────────────────┘  └──────────────────────────┘         │
-│                                                                      │
-│  Platform Bots · 3                                                   │
-│  Tied to platform integrations. Bridge external surfaces.            │
-│  ┌──────────────────────────┐  ┌──────────────────────────┐         │
-│  │ 🔌 Slack Bot              │  │ 🔌 Notion Bot             │         │
-│  └──────────────────────────┘  └──────────────────────────┘         │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-**Grouping** is by class (ADR-176): Specialists (6, including TP) / Platform Bots (3). Each section has a one-line description of what that class does. Per-card health glance shows: status, phase (accumulation/production/meta-cognitive), active task count, last run (color-coded by freshness), approval rate (only if `version_count >= 5`).
-
-Click a card → URL transitions to `/agents?agent={slug}` → detail mode.
-
-### Detail Mode (`/agents?agent={slug}`) — `AgentContentView`
-
-In detail mode the page renders `<PageHeader />` followed by `<AgentContentView />`. `<SurfaceIdentityHeader />` inside AgentContentView is the real H1. The metadata strip stays compact (`Class · domain · N tasks · Ran Xh ago`); the header action area carries the single primary CTA (`Create Task`), and the detail body does the actual explanatory work.
-
-The detail body follows two routing keys:
-
-- **`agent.agent_class` chooses the component order and shell block**. Each class follows a different layout rationale:
-  - **specialist** (Researcher, Analyst, Writer, Tracker, Designer): Role → Tasks → Capability summary. Tasks come first because the work is the point; capabilities explain how this specialist contributes.
-  - **platform-bot**: Role → Connection → Source selection → Tasks. Connection state and source selection *enable* tasks, so they surface above the task list.
-  - **meta-cognitive (TP)**: Role (no highlights, no "Create Task" CTA) → Tasks. TP page is minimal — no feedback distillation, no chip noise.
-- **`task.output_kind` chooses the assigned-work card shape**. Tracking tasks say which folder they are working in, deliverable tasks say which folder they read from, external-action tasks summarize target/delivery, and maintenance tasks summarize system purpose. `type_key` is allowed to specialize labels, but it does not fork the page architecture.
-
-This keeps the surface scalable: new agent types usually fit an existing class shell, and new task types usually fit an existing `output_kind` card.
-
-No-task states vary by `agent_class`:
-
-- specialists point to TP for tracker setup (not a generic "start one" instruction)
-- synthesizer points to TP once specialists have trackers running
-- platform bots point to connection/source setup above, then TP for digest task
-- Thinking Partner names the missing maintenance work
-
-Highlight chips (the small stat pills in the role block) are suppressed when zero — showing `0 tracking tasks` is noise, not signal. TP's `highlights()` returns `[]` unconditionally.
-
-Source selection (channels, pages, repos) lives on the task page (`/work?task={slug}`), not the agent page. Platform digest tasks are auto-scaffolded when a platform connects (paused, awaiting source setup). Settings > Connectors "Manage" button navigates directly to the task. The agent page shows only identity (WHO), not source configuration (WHAT).
-
-### What Used to Live Here
-
-- The left sidebar `AgentTreeNav` with auto-select-first → DELETED. Replaced by `AgentRosterSurface` (full-width grouped roster with health glances). Landing on `/agents` no longer shows you someone else's identity card by accident.
-- `ThreePanelLayout`'s left panel on `/agents` → DELETED. Same as `/work`.
-- `AgentContentView`'s internal `<AgentHeader>` band (avatar + name + mandate + class · domain · task count · last run) → DELETED in v2. The name moves to `<PageHeader />`'s breadcrumb (last segment). The metadata moves to PageHeader's `subtitle` slot. The "first sentence as mandate" tagline is dropped — the breadcrumb already declares the current agent.
-- `meta-cognitive` (Thinking Partner class) was missing from `CLASS_LABELS` in v8/v9 — added in v2 so TP renders as "Thinking Partner" in the metadata strip instead of the raw key.
-
-### What Moved Out Of Agents (v7.2) — And Where
-| Old Tab | Content | Moved to |
-|---|---|---|
-| **Report** | Latest synthesis task outputs | `/work?task={slug}` → `DeliverableMiddle` (ADR-167) |
-| **Data** | Domain entity dashboard | `/context?domain={key}` |
-| **Pipeline** | Task config, schedule, actions | `/work` surface |
-| **Agent** | Identity, instructions, work mix, feedback | Stayed here (`AgentContentView`, now the only thing on the page) |
-
----
-
-## 4. Files (`/context`)
-
-### Purpose
-The only filesystem browser. Nav label is **Files** — accurate and non-inflated. Shows the workspace tree with domains, output folders, uploads, and IDENTITY/BRAND files. Unchanged from v7.2 structurally. ADR-163 adds one enhancement: inference-meta rendering.
-
-Platform connection management lives in Settings > Connectors. Source selection lives on the task page (`/work?task={slug}`).
-
-### Inference Visibility (ADR-162 + ADR-163)
-
-When the Files surface renders IDENTITY.md or BRAND.md, it uses `InferenceContentView` instead of the raw markdown renderer. The component:
-
-1. Parses the `<!-- inference-meta: {...} -->` HTML comment embedded at the bottom of inference output (written by `_append_inference_meta()` in `api/services/context_inference.py`).
-2. Strips the comment before rendering the markdown body.
-3. Shows a source provenance caption above the body:
-   - `Last updated from: pitch-deck.pdf · 2h ago`
-   - `Last updated from: 2 documents, 1 URL · yesterday`
-4. Shows a gap banner below the body when there's a high-severity unfilled gap from the deterministic gap detector (ADR-162 Sub-phase A):
-   ```
-   ⚠ Missing: company name
-     What company or project are you building?
-     [Chat to fill this in]
-   ```
-
-The gap banner's "Chat to fill this in" link navigates to `/chat?prompt=...` with a pre-filled message that drops the user into TP chat with a natural follow-up.
-
-Currently wired for BrandSection in Settings (via `MemorySection.tsx`). A dedicated IdentitySection surface is a future addition — TP also consumes IDENTITY.md via working memory, so it's not invisible even without a UI surface.
-
----
-
-## Component Map
-
-### Shell
-- `web/components/shell/ToggleBar.tsx` — top-level nav (4 segments)
-- `web/components/shell/AuthenticatedLayout.tsx` — shell wrapper + TP provider. ADR-167 v2: no longer renders any breadcrumb chrome itself.
-- `web/components/shell/ThreePanelLayout.tsx` — layout primitive. `leftPanel` is OPTIONAL (ADR-167) — pages omit it for the list/detail pattern; `/context` keeps it for filesystem tree nav.
-- `web/components/shell/PageHeader.tsx` — in-page breadcrumb + title row (ADR-167 v2). Consumes `BreadcrumbContext`. Optional `subtitle` slot for metadata strip and `actions` slot for inline buttons. Falls back to `defaultLabel` when no segments are set. Replaces the deleted `GlobalBreadcrumb.tsx`.
-- `web/contexts/BreadcrumbContext.tsx` — breadcrumb segment state with `kind`-tagged segments (commit b033513). Contract unchanged; only the renderer location moved.
-
-### Chat
-- `web/app/(authenticated)/chat/page.tsx` — Chat page (home). Loads scoped history, supplies first-party plus-menu actions, delegates everything else to `ChatSurface`.
-- `web/components/chat-surface/ChatSurface.tsx` — page-level controller (ADR-165 v8). Owns Workspace + Onboarding modal open state, parses both TP markers, renders both modals as siblings. "Workspace" toggle lives in `SurfaceIdentityHeader.actions`.
-- `web/components/chat-surface/WorkspaceStateView.tsx` — Workspace modal: four read-only tabs (Readiness / Attention / Last session / Activity). No `isEmpty` prop, no soft gate. (ADR-165 v8.)
-- `web/components/chat-surface/OnboardingModal.tsx` — Onboarding modal: wraps ContextSetup for first-run identity capture. Opened by TP `<!-- onboarding -->` marker only. (ADR-165 v8.)
-- `web/components/chat-surface/ContextSetup.tsx` — identity capture atom (URL inputs + file uploads + free-text). Sole consumer: `OnboardingModal`.
-- `web/lib/workspace-state-meta.ts` — TWO parsers + TWO strippers for TP markers (workspace-state leads: `overview` (Readiness) `| flags` (Attention) `| recap` (Last session) `| activity` (Activity); onboarding: presence-only). Same pattern as ADR-162 inference-meta.
-- `docs/design/WORKSPACE-STATE-SURFACE.md` — design doc for `/chat` workspace state surface (ADR-165 v7)
-
-### Work
-- `web/app/(authenticated)/work/page.tsx` — Work page. List/detail mode switched on `?task=` URL state (ADR-167).
-- `web/components/work/WorkListSurface.tsx` — three-tab list surface: My Work (Ongoing/In Progress), Connectors (by platform), System (flat). Group-by-agent deleted. (v13; replaces v10 filter-chip + group-by model)
-- `web/components/work/WorkDetail.tsx` — thin shell that dispatches the middle band on `task.output_kind` (ADR-167)
-- `web/components/work/details/DeliverableMiddle.tsx` — middle band for `produces_deliverable` (the original iframe `OutputPreview`, extracted)
-- `web/components/work/details/TrackingMiddle.tsx` — middle band for `accumulates_context` (domain folder + CHANGELOG)
-- `web/components/work/details/ActionMiddle.tsx` — middle band for `external_action` (fire history + platform link-out)
-- `web/components/work/details/MaintenanceMiddle.tsx` — middle band for `system_maintenance` (hygiene log + run history)
-- `web/components/work/WorkModeBadge.tsx` — mode badge (the only mode renderer)
-
-### Agents
-- `web/app/(authenticated)/agents/page.tsx` — Agents page. List/detail mode switched on `?agent=` URL state (ADR-167).
-- `web/components/agents/AgentRosterSurface.tsx` — full-width roster grouped by `agent_class` with health glance cards (ADR-167; replaces deleted `AgentTreeNav.tsx`)
-- `web/components/agents/AgentContentView.tsx` — class-aware shell + output-kind-aware assigned-work cards (detail mode)
-
-### Files
-- `web/app/(authenticated)/context/page.tsx` — Files page (route `/context`). Retains left filesystem tree nav.
-- `web/components/context/InferenceContentView.tsx` — meta-aware inferred content renderer (ADR-163)
-- `web/lib/inference-meta.ts` — parse helper (ADR-163)
-
-### Types
-- `web/types/index.ts` — `TaskMode` type + `taskModeLabel()` helper for surface mapping
-
-### Routes
-- `web/lib/routes.ts` — `HOME_ROUTE`, `CHAT_ROUTE`, `WORK_ROUTE`, `AGENTS_ROUTE`, `CONTEXT_ROUTE`
-
----
-
-## Migration Notes for Implementers
-
-When adding a new surface, ask: "what question does this answer?" If the answer overlaps with an existing surface, the new thing probably belongs inside that surface, not as a new nav item. Four surfaces is the stopping point — five becomes thrash again.
-
-When modifying task rendering, always use `WorkModeBadge` or the `taskModeLabel()` helper. Never render `task.mode` directly. The two-mode surface is load-bearing for avoiding user confusion.
-
-When adding a new way to render a task in detail mode, **add it as a new middle component in `web/components/work/details/` and dispatch it from `WorkDetail`'s `KindMiddle` switch on `task.output_kind`**. Do not branch inside an existing middle component. Each middle component owns one `output_kind` and its own data fetch — this is the rule ADR-167 codified.
-
-When adding per-entity activity surfaces, fold them into the entity's detail page (`/work?task=` or `/agents?agent=`). Don't build a new top-level activity destination — that's what ADR-163 deleted.
-
-When adding a new detail-mode page, prefer the list/detail collapse pattern over master-detail (ADR-167). The breadcrumb already does the navigation work; a permanent left sidebar is no longer load-bearing.
+| [AGENT-AND-TASK-SURFACE-PATTERNS.md](./AGENT-AND-TASK-SURFACE-PATTERNS.md) | Still canonical for no-task-state patterns + shell rules. Applies inside Team + Work. |
+| [FEEDBACK-WORKFLOW-REDESIGN.md](./FEEDBACK-WORKFLOW-REDESIGN.md) | Feedback flows in cockpit surfaces per I1 (substrate-authoritative). |
+| [TASK-OUTPUT-SURFACE-CONTRACT.md](./TASK-OUTPUT-SURFACE-CONTRACT.md) | Contract for how `produces_deliverable` outputs compose inside Work task-detail. May need amendment for cockpit surface-primacy. |
+| [SURFACE-ACTION-MAPPING.md](./SURFACE-ACTION-MAPPING.md) | Surface → primitive mapping. Updated per-surface in ADRs 199–202. |
+| [SURFACE-DISPLAY-MAP.md](./SURFACE-DISPLAY-MAP.md) | Likely needs rewrite under cockpit nav. Scoped to ADR-201. |
+| [USER-JOURNEY.md](./USER-JOURNEY.md) | Rewrite to reflect cockpit-primary operator journey. Scoped to standalone v15 edit. |
+| [HEADLESS-PROMPT-PROFILES.md](./HEADLESS-PROMPT-PROFILES.md) | Unchanged — prompt profiles align with cockpit surfaces automatically. |
 
 ---
 
 ## Revision History
 
-| Date | Version | Change |
+| Version | Date | Change |
 |---|---|---|
-| 2026-04-15 | v12.0 | Framing rename pass. Nav label "Context" → "Files" (accurate — it is a filesystem browser, not a knowledge concept). Chat modal "Overview" → "Workspace"; four tabs renamed: "What I know" → "Readiness", "Heads up" → "Attention", "Last time" → "Last session", "Team activity" → "Activity". "About you" section inside Readiness → "Workspace". Value labels "Not captured yet" / "Captured" → tiered Empty/Sparse/Rich. Chat plus-menu "Update context" → "Update workspace". Framing shift: from profile-completeness checklist to operational-readiness signal. |
-| 2026-04-10 | v9.6 | Agent detail UX pass. Component ordering now varies by `agent_class`: domain-stewards show Tasks before Context folder (work is the point, folder is where it lives); platform-bots keep Connection → Sources → Tasks (must connect before tasks make sense); TP/meta-cognitive omits highlights chips, `Create Task` CTA, and `LearnedBlock`. Highlight chips suppressed when zero. Domain trailing `/` removed from metadata strip. Role block titles and descriptions rewritten to be human-readable per class. Empty-state copy updated to reference TP for setup. Section labels: "Folder" → "Context folder", "Assigned work" → "Work". |
-| 2026-04-09 | v9.5 | Agent detail consolidation amendment. `/agents?agent={slug}` is the single canonical detail surface; `/agents/{id}` now resolves and redirects there. `AgentContentView` no longer behaves like a generic identity card. Its top shell dispatches on `agent.agent_class`, and its assigned-work cards dispatch on task `output_kind` with optional `type_key` label specialization. This mirrors WorkDetail's kind-aware pattern and prevents bespoke per-agent page branches. |
-| 2026-04-09 | v9.4 | ADR-167 v5 amendment — Page header split into two responsibilities. `<PageHeader />` becomes pure breadcrumb chrome (no title, no metadata, no actions — deleted `subtitle` and `actions` props). New `<SurfaceIdentityHeader />` primitive lives inside the surface content and renders the real H1 + metadata + optional actions. WorkDetail and AgentContentView each render their own SurfaceIdentityHeader at the top of their content stream. Additionally introduces the **nested document pattern**: any task-produced markdown/HTML content (output iframes in DeliverableMiddle, CHANGELOG in TrackingMiddle, hygiene log in MaintenanceMiddle, AGENT.md in InstructionsBlock) is wrapped in a bordered, visually inset card (`rounded-lg border border-border bg-muted/5`) so its internal H1s are unambiguously scoped as "content inside the task/agent" rather than competing with the surface's own H1. Uniform across all four `output_kind` middles. |
-| 2026-04-09 | v9.3 | ADR-167 v4 amendment — `<PageHeader />` rewritten as pure chrome. v3 had promoted the last breadcrumb segment to a bold `h1.text-xl`, which duplicated against content that already had its own H1 (daily-update's rendered output renders `<h1>Daily Workspace Update — April 8, 2026</h1>` immediately inside the iframe). v3 also suppressed the breadcrumb entirely in list mode, making the header tone conditional. v4: (1) breadcrumb is ALWAYS present with the same muted tone across all states — list pages render the `defaultLabel` as a single-segment breadcrumb instead of suppressing the strip; (2) no bold title promotion anywhere — the last segment reads as chrome; (3) metadata + actions row stays as an optional second row but collapses when both are absent. Content's own H1 is now unambiguously the visual page title. |
-| 2026-04-09 | v9.2 | ADR-167 v3 amendment — `<PageHeader />` restructured into two visually separated bands: Band 1 is a compact nav strip (breadcrumb path, muted), Band 2 is the title header (title + metadata subtitle + inline actions), with a divider between them. Previous v2 crammed breadcrumb + metadata + actions above one divider, which made the actual page title ambiguous against the content's own H1. v3 cleanly separates navigation (Band 1) from content-anchored header (Band 2). List-mode pages suppress Band 1 when there's only one segment. Applied uniformly across `/work`, `/agents`, `/context`. |
-| 2026-04-08 | v9.1 | ADR-167 v2 amendment — Breadcrumb collapses into in-page `<PageHeader />`. `<GlobalBreadcrumb />` floating bar DELETED. `WorkDetail`'s internal `<WorkHeader>` and `<ActionsRow>` DELETED — title moves to PageHeader breadcrumb (last segment), metadata moves to PageHeader `subtitle`, Run/Pause/Edit-via-chat moves to PageHeader `actions`. `AgentContentView`'s internal `<AgentHeader>` band DELETED for the same reason. `★ Essential` visual badge removed (the flag stays — it's load-bearing for archive guard). `meta-cognitive` class label added (TP was rendering as raw key). |
-| 2026-04-08 | v9 | ADR-167 — `/work` and `/agents` collapse from master-detail (left list + center detail + chat) into single surfaces with two URL-driven modes: list mode (full-width filterable list / roster) and detail mode (kind-aware detail dispatched on `task.output_kind`). `WorkList` and `AgentTreeNav` deleted. Auto-select-first deleted. `ThreePanelLayout.leftPanel` now optional. Four kind-aware middle components in `web/components/work/details/`. |
-| 2026-04-08 | v8.1 | ADR-165 accepted: `/chat` remains the Chat surface, but changes internally from two-panel layout to a single TP console layer with artifact tabs for onboarding, briefing, recent work, and context gaps. |
-| 2026-04-08 | v8 | ADR-163 — Four-surface restructure: Chat \| Work \| Agents \| Context. Activity absorbed. Agents page shrunk to identity. New /work surface. Mode collapse (surface only). Inference visibility via InferenceContentView. |
-| 2026-04-06 | v7.2 | Task-class-aware tabs on Agents (superseded) |
-| 2026-04-06 | v7.1 | Tabs restored (superseded) |
-| 2026-04-06 | v7 | Unified shell, flat center panel (superseded) |
-| 2026-04-06 | v6.1 | Global breadcrumb added |
-| 2026-04-05 | v6 | Dashboard + TP chat two-panel (superseded) |
+| v15.0 | 2026-04-20 | **Full rewrite to cockpit model.** ADR-198 v2 ratified. Nav model `Chat \| Work \| Files \| Agents` replaced by **Overview / Team / Work / Context / Review** + ambient YARNNN rail. Five operator-native destinations (Team and Work as peer destinations — agents-as-identity vs tasks-as-activity). Five archetype patterns (Document / Dashboard / Queue / Briefing / Stream) compose inside destinations. Three invariants (I1/I2/I3) made explicit. External Channel discipline ratified (expository pointers, pointer-only alerts, no replacement UX). Implementation phased across ADRs 199–202. Singular implementation — v14 removed; no dual nav model preserved. |
+| v14.0 | 2026-04-16 | (Superseded) Nav: Chat / Work / Files / Agents; Work task-scoped; Files workspace-scoped. |
+| v13.0 and earlier | 2026-04-16 and prior | (Superseded) Various iterations of the four-surface nav; see git history. |

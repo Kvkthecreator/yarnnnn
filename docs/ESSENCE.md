@@ -3,7 +3,7 @@
 **Purpose**: Canonical product narrative. What YARNNN is, what users are buying, and what must remain true as the implementation evolves.
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-04-20 (v12.2 — FOUNDATIONS v6.0 axiom renumber: Money-Truth is now Axiom 8. Five stable elements unchanged.)
+**Updated**: 2026-04-20 (v12.3 — Cockpit service model ratified per ADR-198 v2. "What Stays Constant" extended to six elements; operator works *inside* YARNNN rather than consuming deliverables elsewhere.)
 
 ---
 
@@ -20,7 +20,7 @@ Short form: *Your work, your agents.*
 
 ## What Stays Constant
 
-The product essence has five stable elements:
+The product essence has six stable elements:
 
 1. **Agents built around your work, not generic assistants**  
    Agents are created by the user through conversation with YARNNN, scoped to a specific domain of the user's work, with identity, directives, memory, workspace, sources, and execution history. Zero Agents are pre-scaffolded — the team is authored, not provisioned (ADR-189).
@@ -36,6 +36,9 @@ The product essence has five stable elements:
 
 5. **Money-truth, not vibe-truth**  
    YARNNN is a money-making platform for operators. Every action the team takes is attributable to a capital outcome — trades to P&L, campaigns to revenue, discounts to attribution. Accumulated context is pruned by what actually made money, not by what sounded good. Reviewers (human or AI) judge proposals in expected-value terms given the operator's book and track record. The team gets better at its job, and the job is making the operator money (FOUNDATIONS Axiom 8, ADR-194, ADR-195).
+
+6. **Cockpit, not report factory**
+   The operator works *inside* YARNNN. Five destinations — Overview (what's going on), Team (agents), Work (tasks), Context (what the workspace knows), Review (the judgment trail) — plus an always-present YARNNN rail. This is the operator's cockpit: where performance is consulted, the team is supervised, pending decisions are made, the workforce is tuned, and the judgment trail is audited. External distribution (email to stakeholders, Slack posts, PDF exports) is a **derivative Channel**, not the primary output. Autonomous writes have a legible cockpit Channel back to the operator — an operator who can't see the workforce cannot trust it. The cockpit framing is what makes trusted autonomy possible (ADR-198, FOUNDATIONS Derived Principle 12).
 
 ## What Changed Recently
 

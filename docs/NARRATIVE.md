@@ -1,9 +1,10 @@
 # YARNNN Narrative Architecture
 
 **Purpose**: Canonical reference for how the YARNNN story is structured and sequenced across all surfaces — decks, videos, applications, landing pages, conversations.
-**Status**: Active (v4)
-**Date**: 2026-04-17
-**Supersedes**: v3 (2026-03-25) — aligned product language with ADR-189 (three-layer cognition, YARNNN as super-agent, authored-team positioning)
+**Status**: Active (v4.2)
+**Date**: 2026-04-20
+**Supersedes**: v4.1 (2026-04-20 earlier same day) — nav-destination vocabulary finalized to **Overview / Team / Work / Context / Review** + ambient YARNNN rail per ADR-198 v2. Prior SaaS-dashboard drift ("Mission Control / Workshop / Ledger / Chronicle") rejected. Retired-terminology line cleaned.
+**Prior supersede**: v4 (2026-04-17) — Beat 3 reframed around cockpit model.
 
 **Related docs:**
 - [ESSENCE.md](ESSENCE.md) — What we believe and how the product works
@@ -93,9 +94,11 @@ We can't predict the future with certainty. But we can read the structural patte
 
 **Role**: Introduce YARNNN as a concrete, living product — the application layer that Beat 1 said was missing. YARNNN is the product *and* the super-agent the user talks to. There is no separate name for the conversational layer.
 
-**The claim**: Meet YARNNN — the super-agent you talk to. You describe your work; you create the Agents that do it. Each Agent is a persistent domain expert — yours, authored through conversation, with its own identity, memory, and accumulated context in its domain. YARNNN drafts the right Specialist Team for each task from a palette of six role-types (Researcher, Analyst, Writer, Tracker, Designer, Reporting). Agents connect to the platforms where your work lives (Slack, Notion, GitHub), accumulate context from every cycle, and operate autonomously. They produce on schedule. The team gets richer every cycle. You supervise — the team you built keeps working.
+**The claim**: Meet YARNNN — the super-agent you talk to. You describe your work; you create the Agents that do it. Each Agent is a persistent domain expert — yours, authored through conversation, with its own identity, memory, and accumulated context in its domain. YARNNN drafts the right Specialist Team for each task from a palette of six role-types (Researcher, Analyst, Writer, Tracker, Designer, Reporting). Agents connect to the platforms where your work lives (Slack, Notion, GitHub, Alpaca, Lemon Squeezy), accumulate context from every cycle, and operate autonomously. They produce on schedule. The team gets richer every cycle. You supervise — the team you built keeps working.
 
-This isn't a better chatbot or a memory add-on for existing LLMs. It's a new layer: an authored team, powered by your accumulated context, producing your work. The switching cost is the team itself — you built it, it's yours.
+**And you work inside YARNNN.** The operator surface is a cockpit, not a report factory. Overview shows what's happening and what needs you. Team is where you supervise your agents. Work is where you check what's running and what's producing. Context is where you see what your workspace knows. Review is the audit trail for past decisions. YARNNN is with you as an ambient rail on every surface — not a page you travel to. External distribution (emails to your CFO, Slack posts to your team, PDF exports) happens — but as a derivative of work you operated in the cockpit, not as the primary output. The operator operates *here*.
+
+This isn't a better chatbot or a memory add-on for existing LLMs. It's a new layer: an authored team operated from a cockpit, powered by your accumulated context. The switching cost is the team itself — you built it, you run it, it's yours.
 
 **Beat 3 has three internal layers** (these can be separate slides or combined depending on surface):
 
@@ -185,8 +188,11 @@ These apply across all surfaces — deck, website, video, applications:
 | "One agent, two modes" | "Chat + agent engine" | Unified architecture story, not two separate systems |
 | "The application layer for work" | "AI wrapper" or "middleware" | Category language, not diminishing language |
 | "Built for the transition" | "Future-proof" | Specific and directional vs. generic marketing speak |
+| "You work inside YARNNN" / "The cockpit" | "YARNNN sends you reports" | Cockpit framing per ADR-198 — operator operates here, not consumes documents elsewhere |
+| "External distribution" | "Deliverables" / "Output reports" | External distribution is a derivative Channel; cockpit is primary |
+| "Overview / Team / Work / Context / Review" | "Dashboard" / "Metrics page" / "Admin panel" / "Roster" | Operator-native nav vocabulary. Each label survives the sentence test — "let me check the Overview", "open Team", "see Review". SaaS-dashboard drift ("Mission Control / Workshop / Ledger / Chronicle") rejected. |
 
-**Retired terminology** (do not use in new copy): "TP," "Thinking Partner," "hire an agent," "compose a team," "author an agent," "roster" (in the workspace-scoped sense), "craft" (in the specialist sense). See [GLOSSARY.md](architecture/GLOSSARY.md).
+**Retired terminology** (do not use in new copy): "TP," "Thinking Partner," "hire an agent," "compose a team," "author an agent," "roster" (in the workspace-scoped sense), "craft" (in the specialist sense), "dashboard" (in the reporting-view sense — use "Overview"), "deliverable" as a primary noun (say "work" for what the team produces; "distribution" for what ships externally). See [GLOSSARY.md](architecture/GLOSSARY.md).
 
 ---
 

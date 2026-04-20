@@ -1,7 +1,7 @@
 # YARNNN Service Model
 
 > **Status**: Canonical
-> **Date**: 2026-03-29 (v1.5 revision 2026-04-20 for FOUNDATIONS v6.0 dimensional model)
+> **Date**: 2026-03-29 (v1.6 revision 2026-04-20 — cockpit service model ratified per ADR-198 v2)
 > **Scope**: End-to-end service model — how the system works, from user intent to delivered output.
 > **Rule**: This is the single document that describes the complete system. Deep-dive docs are linked, not duplicated.
 
@@ -9,9 +9,9 @@
 
 ## What YARNNN Is
 
-YARNNN is an **autonomous agent platform for recurring knowledge work**. Users describe their work, AI agents are assigned to tasks, and the system produces deliverables on schedule. Over time, each agent accumulates domain knowledge — a tenured agent produces better output than a fresh one.
+YARNNN is an **autonomous agent platform for recurring knowledge work — operated from a cockpit, not consumed as reports.** Users describe their work, AI agents are assigned to tasks, and the system produces work on schedule. The operator works *inside* YARNNN — reviewing performance, deciding on proposals, authoring and supervising the team, auditing past decisions. External distribution (email to stakeholders, Slack posts, PDF exports) is a **derivative Channel**, not the primary output.
 
-**The product thesis**: Accumulated attention compounds. Each execution cycle benefits from prior outputs, user feedback, and learned preferences. The system gets smarter the longer it runs.
+**The product thesis**: Accumulated attention compounds. Each execution cycle benefits from prior outputs, user feedback, and learned preferences. The system gets smarter the longer it runs. The cockpit is where the operator sees and steers that compounding in real time.
 
 ---
 
@@ -48,6 +48,26 @@ The database is narrowly permitted for four row kinds only:
 4. **Ephemeral queues / inboxes** — TTL-bounded items awaiting action (`action_proposals`). The row disappears after acceptance, rejection, or expiration.
 
 Anything else belongs in the filesystem. When you read about "the scheduler reads TASK.md" or "the reconciler writes `_performance.md`" below, that is Axiom 1 in operation — not incidental design choice. See [FOUNDATIONS.md Axiom 1](FOUNDATIONS.md).
+
+### Frame 3 — The Cockpit (ADR-198 v2)
+
+The operator works *inside* YARNNN. The front-end model is a **cockpit**, not a report factory. Five Purpose-labeled destinations + ambient YARNNN rail:
+
+| Destination | Purpose | Primary substrate read |
+|---|---|---|
+| **Overview** | "What's going on? What needs me?" | Temporal + Performance snapshot + Queue + Reviewer alerts |
+| **Team** | "Let me check on my agents." | `/agents/*` — roster + identity + health |
+| **Work** | "Let me check the work." | `/tasks/*` — schedules, status, outputs |
+| **Context** | "What does my workspace know?" | `/workspace/context/*` + `/workspace/uploads/*` |
+| **Review** | "Who decided what, why?" | `/workspace/review/*` + task `feedback.md` |
+
+**YARNNN (the super-agent) is ambient, not a destination.** A persistent rail is available on every surface; `/chat` is the expanded-focus form. Operators don't travel *to* YARNNN; YARNNN is *with* them.
+
+**Team and Work are peer destinations.** Agents and tasks are many-to-many — one agent runs several tasks, one complex task may involve several agents. "Check my agents" and "check the work" are two distinct operator Purposes (identity vs activity), so they get two destinations with cross-links between detail routes.
+
+**External Channels are derivative, not primary.** Email (daily-update, weekly reports), Slack cross-posts, PDF exports — all are derivatives of work the operator reviewed in the cockpit. Notifications to external Channels are **expository pointers** (legible summary + deep-link back to cockpit), not replacement UX. See [ADR-198](../adr/ADR-198-surface-archetypes.md) for the full service-model pivot and the five archetype patterns (Document / Dashboard / Queue / Briefing / Stream) that compose inside destinations.
+
+Implication: `produces_deliverable` task types (ADR-166) output a **cockpit-consumable surface**, not an emailable document as the primary artifact. The task output folder (`/tasks/{slug}/outputs/`) remains substrate per Axiom 1 — what changes is the operator's consumption Channel, not the filesystem. External distribution runs as a post-compose derivative per ADR-185 when a task's `## Delivery` names external recipients.
 
 ---
 
@@ -296,24 +316,31 @@ These four pieces compound: measurement validates that gap detection is helping;
 
 ---
 
-## Surface Architecture (ADR-163)
+## Surface Architecture (ADR-198 v2 — supersedes ADR-163)
 
-Four top-level destinations, each answering one question:
+Five Purpose-labeled destinations + ambient YARNNN rail. The nav organizes by operator *Purpose*, not by Substrate. Chat is ambient (always-present rail + dedicated expanded form), not a destination.
 
 | Surface | Route | Question | Contents |
 |---|---|---|---|
-| **Chat** | `/chat` (HOME) | "What should I do? What's happening?" | YARNNN chat + daily briefing dashboard fed by the `daily-update` task |
-| **Work** | `/work` | "What is my workforce doing?" | Task list sorted by upcoming + task detail with output, actions, schedule |
-| **Agents** | `/agents` | "Who's on my team?" | Agent roster + identity/health card |
-| **Context** | `/context` | "What does my workspace know?" | Workspace filesystem browser |
+| **Overview** | `/overview` (HOME) | "What's going on? What needs me?" | Temporal (since-last-look) + Performance snapshot + Queue (pending proposals) + Reviewer alerts |
+| **Team** | `/team` | "Let me check on my agents." | Agent roster + identity/health card + per-agent detail (tasks owned, memory excerpts, reflections) |
+| **Work** | `/work` | "Let me check the work." | Task list filterable by `output_kind` / agent / status / schedule; task detail with output, schedule, feedback, run log |
+| **Context** | `/context` | "What does my workspace know?" | Workspace filesystem browser — domains, entities, uploads, source provenance |
+| **Review** | `/review` | "Who decided what, why?" | Reviewer identity + principles + decisions audit trail (impersonation chrome when active) |
+
+**Ambient YARNNN rail** on every surface. `/chat` is the expanded-focus form of the rail; it is not a primary nav destination. Surface-aware prompt profiles (ADR-186) flow surface metadata into YARNNN's prompt automatically.
+
+**Archetype patterns inside destinations.** Each destination composes from five Channel-archetype patterns: **Document** (composed output files), **Dashboard** (live substrate slice, no action affordances), **Queue** (pending actionable items with approve/reject), **Briefing** (periodic summary with pointers, not duplication), **Stream** (append-only chronological log). See ADR-198 §3 for the full archetype invariants.
+
+**External Channels are derivative.** Daily-update email, weekly-report emails, Slack cross-posts, PDF exports all flow from cockpit surfaces via post-compose distribution per ADR-185. Alerts (push/SMS) are pointer-notifications into the cockpit, not replacement UX.
 
 **Mode collapse (surface only):** the schema preserves three task modes (`recurring | goal | reactive`) because the execution layer needs the distinction (ADR-149). The surface shows two labels — `Recurring` and `One-time` (`goal` and `reactive` both map to "One-time"). The `WorkModeBadge` component is the single place modes are rendered on the frontend; `taskModeLabel()` in `web/types/index.ts` is the canonical helper.
 
-**Activity absorbed:** the old `/activity` top-level page is deleted. Per-task activity lives on `/work/{slug}`, per-agent activity on `/agents`, workspace-wide on the Chat briefing dashboard, diagnostic events in Settings → System Status.
+**Activity absorbed:** the old `/activity` top-level page is deleted. Per-task activity lives in Work task-detail; per-agent activity on agent-detail within Team; workspace-wide on Overview; diagnostic events in Settings → System Status.
 
 **Inference visibility:** inferred content (IDENTITY.md, BRAND.md) is rendered via `InferenceContentView` which parses the `<!-- inference-meta: ... -->` HTML comment from ADR-162 Sub-phase D and renders source provenance captions + gap banners inline.
 
-Full design doc: [SURFACE-ARCHITECTURE.md](../design/SURFACE-ARCHITECTURE.md) (v8).
+Full design doc: [SURFACE-ARCHITECTURE.md](../design/SURFACE-ARCHITECTURE.md) (v10 — cockpit alignment).
 
 ---
 
@@ -417,3 +444,4 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | 2026-04-17 | v1.3 — Domain-agnostic framework (ADR-188). Agent roster: "Pre-scaffolded roster" → "Universal roles, contextual application." Task types: "pre-meditated definitions" → "curated template library." Workspace: context domains described as extensible. Execution flow: task creation can be from template or YARNNN-composed. |
 | 2026-04-20 | v1.4 — FOUNDATIONS v5.1 alignment. Added Architectural Preamble on Axiom 0 (filesystem is substrate; four permitted DB row kinds). "Three Layers of Cognition" → "Four Layers of Cognition, One Filesystem Substrate" (Reviewer added per ADR-194). Deployed Services reduced from 5 to 4 (yarnnn-platform-sync removed per ADR-153 — this was stale). Key files table extended with outcome reconciliation and action proposal queue. |
 | 2026-04-20 | v1.5 — FOUNDATIONS v6.0 alignment. Architectural Preamble restructured into two frames: Six Dimensions (new Axiom 0 dimensional model) + Filesystem Substrate (renumbered Axiom 1, content preserved). Axiom references updated throughout (filesystem substrate: Ax0→Ax1; money-truth: Ax7→Ax8; recursion: Ax2→Ax7). Doc now aligned with dimensional-purity discipline per Derived Principle 1. |
+| 2026-04-20 | v1.6 — Cockpit service model ratified per ADR-198 v2. Preamble extends to three frames (Six Dimensions + Filesystem Substrate + Cockpit). "What YARNNN Is" rewritten to lead with cockpit framing; operator works inside YARNNN, external distribution is derivative. Surface Architecture section rewritten: ADR-163 nav (Chat/Work/Agents/Context) superseded by ADR-198 v2 nav — **Overview / Team / Work / Context / Review** + ambient YARNNN rail. Five operator-native destinations (Team and Work are peer destinations — agents-as-identity vs tasks-as-activity). Five archetype patterns (Document / Dashboard / Queue / Briefing / Stream) compose inside destinations per ADR-198 §3. Activity-absorbed routing updated to post-cockpit locations. |
