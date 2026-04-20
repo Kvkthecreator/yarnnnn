@@ -972,48 +972,116 @@ Narrative body regenerated on each reconciler run:
 - Gmail account creation (if we need new inbox; aliases on existing Gmail work)
 - Resend API key (for YARNNN outbound email — if not already configured in Render)
 
-### Phase 0 — prerequisites (shared)
+### Phase 0 — prerequisites (locked decisions + task split)
 
-The checklist below splits into KVK-owned items + Claude-owned items. An item has one owner; coordination happens out-of-band after the owner completes it.
+All three KVK-delegated decisions resolved during v4 iteration. Locked values:
 
-**KVK-owned (required before Phase 1 starts):**
-- [ ] **Shared-credentials vault chosen.** 1Password / Bitwarden / encrypted text file — your call. Communicate location (URL or file path) to Claude.
-- [ ] **Render workspace confirmed.** Claude needs workspace ID to make env var updates. Run `mcp__render__list_workspaces` yourself, tell Claude which ID to use, and Claude runs `mcp__render__select_workspace` with confirmation.
-- [ ] **Commerce-platform decision made** (see §3B.0 below).
-- [ ] **Persona email addresses provisioned.** Simplest: Gmail aliases off your main account — `you+alpha-trader@gmail.com` and `you+alpha-commerce@gmail.com`. These are real inboxes without additional Google accounts.
-- [ ] **Alpaca paper account + API key + secret.** Signup at alpaca.markets → paper trading → API key generation.
-- [ ] **Commerce platform account + API credentials.** Depends on §3B.0 decision:
-  - Shopify (physical products): test store provisioned; Admin API token generated with appropriate scopes
-  - Lemon Squeezy (digital products): sandbox API key generated
-  - Stripe + own storefront: Stripe test API keys + storefront hosting decision
-- [ ] **Resend API key.** If already configured in Render env vars (check with `mcp__render__list_services` → `get_service` → env vars), reuse. If not, provision a Resend account key.
+- **Credentials vault:** 1Password (shared vault named `YARNNN Alpha-1`)
+- **Render workspace:** `tea-cspsq5ogph6c73f4m8t0` (KVKtheCreator's Workspace — only one exists; auto-selected by the MCP tool when Claude queried)
+- **Commerce platform:** Shopify (Option B per §3B.0) — dev store for Alpha-1, production upgrade at Alpha-2
+- **Persona emails:** Gmail aliases (`you+alpha-trader@gmail.com`, `you+alpha-commerce@gmail.com`) off KVK's existing Gmail. Resend outbound already configured; inbound-parse deferred to post-alpha ADR if friction warrants (see "Email architecture note" below).
+
+#### Pre-existing infrastructure (already on Render; Claude audited)
+
+Already-configured env vars that support the alpha without additional setup:
+
+| Env var | Purpose | Status |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | LLM calls throughout YARNNN | Configured |
+| `INTEGRATION_ENCRYPTION_KEY` | Fernet key encrypting `platform_connections` (per-user OAuth tokens + API keys) | Configured on API + Scheduler |
+| `LEMONSQUEEZY_API_KEY` + variant/store/webhook secret | Platform billing (KVK's YARNNN account billing, not alpha commerce) | Configured |
+| `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` | Outbound email + delivery-event webhooks | Configured |
+| Supabase + `SUPABASE_SERVICE_KEY` | Database + filesystem substrate | Configured |
+
+**Alpaca and Shopify API keys are NOT env vars** — they live per-user in the `platform_connections` table (encrypted via `INTEGRATION_ENCRYPTION_KEY`), populated when the operator connects the integration via YARNNN's integrations UI. This is the same pattern Slack/Notion/GitHub OAuth uses.
+
+No Render env var changes are required for Alpha-1. The infrastructure is alpha-ready.
+
+#### Email architecture note (why Resend-inbound is deferred)
+
+KVK requested agent-first email provisioning via Resend. Claude audited: Resend is an **outbound-sending service** + **delivery-event webhook receiver**, not an inbox provider. Resend *can* parse inbound email via webhook if we provision a receiving domain and a new API endpoint, but that's net-new infrastructure (new route, new substrate convention for `/workspace/uploads/inbox/`, new parser service) — an ADR candidate, not an alpha-provisioning shortcut.
+
+**Alpha-1 uses Gmail aliases.** They land in KVK's existing Gmail with `+` filter, are human-readable, and cover the critical email workflows (signup verification, platform confirmations, login/reset, daily-update briefings). Zero new accounts required.
+
+**Email-as-substrate** (Resend inbound-parse writing received email to `/workspace/uploads/inbox/{date}-{subject}.md` for YARNNN to reason over) is a genuine architectural direction. It becomes **ADR-204 candidate** if alpha friction shows operators actually need email-content to participate in substrate reasoning (beyond the expository-pointer emails YARNNN already sends outbound). Drafted only if observed, not pre-drafted.
+
+#### Phase 0 task split
+
+**KVK-owned (external signup + account provisioning):**
+- [ ] Create 1Password shared vault `YARNNN Alpha-1`. Add entries for:
+  - `alpha-trader.yarnnn-login` (will populate after YARNNN signup)
+  - `alpha-trader.alpaca-paper` (API key + secret after Alpaca signup)
+  - `alpha-trader.gmail-alias` (email address used; no password needed since it's an alias)
+  - `alpha-commerce.yarnnn-login` (will populate)
+  - `alpha-commerce.shopify-admin` (Admin API token after Shopify signup)
+  - `alpha-commerce.gmail-alias`
+- [ ] Create Gmail aliases (no separate Gmail accounts needed):
+  - `{your-gmail}+alpha-trader@gmail.com`
+  - `{your-gmail}+alpha-commerce@gmail.com`
+  - Optional: add Gmail filters routing messages with these `+` tags into dedicated labels
+- [ ] Sign up for Alpaca paper trading → alpaca.markets → create account → generate paper-account API key + secret → store in 1Password
+- [ ] Sign up for Shopify dev store (free) → partners.shopify.com → create development store → admin panel → apps → create custom app → generate Admin API token with scopes `read_products, write_products, read_inventory, write_inventory, read_orders, write_orders, read_customers, read_price_rules, write_price_rules` → store token in 1Password
+- [ ] Sign up for 2 YARNNN workspaces using the Gmail aliases:
+  - Workspace 1: email = `{your-gmail}+alpha-trader@gmail.com`, workspace name `alpha-trader`
+  - Workspace 2: email = `{your-gmail}+alpha-commerce@gmail.com`, workspace name `alpha-commerce`
+  - Store login credentials in 1Password entries
+- [ ] Share 1Password vault access with Claude's operator identity (or confirm session-based access model — see §open questions)
 
 **Claude-owned (after KVK completes the above):**
-- [ ] Verify Render env vars are set for both personas. Alpaca / commerce-platform / Resend keys must be scoped per-workspace or globally-usable.
-- [ ] Confirm inbox reachability: send a test Resend email to the two persona Gmail aliases, verify delivery.
+- [ ] Verify Render env var inventory (done during v4 audit — nothing alpha-blocking)
+- [ ] Send a test outbound email via Resend to both Gmail aliases to confirm deliverability (sanity check; can do from a small API script or the admin dashboard once alpha workspaces exist)
+- [ ] Phase 1 onboarding (paste IDENTITY.md, confirm task scaffolding, connect platforms, seed persona files — §Phase-1 below)
+- [ ] Phase 2 baseline observations
 
-### 3B.0 Commerce-platform decision (required before Phase 0 commerce-account step)
+### 3B.0 Commerce-platform decision — **Option B (Shopify) committed**
 
-The commerce persona's operating reality depends heavily on product type. **Pick one, enter the choice into this section, then proceed.**
+KVK delegated the commerce-platform decision to Claude during v4 playbook iteration. **Decision: Option B — Shopify (physical products).**
+
+#### Options considered
 
 | Option | Product type | Platform | Pros | Cons |
 |---|---|---|---|---|
-| **A. Digital products** | Info products, guides, software, digital content about dual-life/arbitrage/cultural bridging | Lemon Squeezy (sandbox) | Matches existing ADR-183 integration; lowest friction; no shipping/customs | Limits persona authenticity (your actual hypothesis is physical arbitrage, not info products) |
-| **B. Physical products** | Korean/US consumer goods with real shipping + customs + FX exposure | Shopify (test store, paid plan ~$29/mo for real but free for dev stores) | Matches the persona hypothesis exactly; real unit economics; real FX exposure; real inventory discipline | Requires Shopify paid plan (or test-store compromise); YARNNN lacks native Shopify integration (would need new ADR for platform bot); shipping logistics complexity is real |
-| **C. Hybrid** | Info products now, physical later | Lemon Squeezy (sandbox) first; add Shopify at Alpha-1.5 | Ships Alpha-1 without new integration work; physical-stress-test deferred | Delays the *real* hypothesis test; commerce persona stays partially artificial until Alpha-1.5 |
+| A. Digital products | Info products, guides, software, digital content | Lemon Squeezy (sandbox) | Matches existing ADR-183 integration; lowest friction; no shipping/customs | Doesn't test the *real* operator hypothesis (physical arbitrage is the actual thesis, not info products); low monetary upside |
+| **B. Physical products (committed)** | Korean/US consumer goods with real shipping + customs + FX exposure | Shopify (starts on dev store — free; production upgrade when going to real transactions in Alpha-2) | Matches the persona hypothesis exactly; real unit economics; real FX exposure; real inventory discipline; high monetary upside | Requires Shopify signup; YARNNN lacks native Shopify integration (platform-bot gap → ADR-203 candidate surfaced in first weeks of Alpha-1); shipping logistics complexity is real |
+| C. Hybrid | Info products now, physical later | LS first; add Shopify at Alpha-1.5 | Ships Alpha-1 without integration work | Defers the real hypothesis test; commerce persona stays partially artificial |
 
-**Claude's recommendation:** **Option A (digital) for Alpha-1**, with explicit commitment to **Option B (physical)** in Alpha-1.5 after the shared-operator flow is proven. Rationale:
+#### Why Option B (committed rationale)
 
-- LS integration is shipped (ADR-183) — no new platform-integration ADR blocks Alpha-1 start.
-- Digital products can authentically test KVK's Korea↔USA operator hypothesis via products like bilingual guides, cultural bridging content, translated industry reports, course material — real substrate for the operator's voice.
-- Physical-goods stress test is the *harder* validation and deserves its own clean phase (Alpha-1.5). Rushing it now risks conflating platform-integration-friction with architecture-friction.
+KVK framed the tradeoff honestly: *"digital / LS seems more plausible from an implementation standpoint yet lower chance of monetary success; Shopify feels more difficult but with more upside monetary chance."*
 
-**KVK's decision (fill in and commit):**
-- [ ] Chosen option: `_____` (A / B / C)
-- [ ] Product focus declared: `_____`
-- [ ] Platform credentials acquired per option
+The alpha is not about minimizing implementation friction — it's about testing whether the operator hypothesis (Korea↔USA physical arbitrage as dual-life funding mechanism) is real. Digital-info-products test a different, weaker hypothesis (can KVK productize dual-life expertise). If Alpha-1 doesn't test the real thing, it doesn't earn the right to inform Alpha-2 live-commitment or Alpha-3 external-operator onboarding.
 
-If Option A (recommended): the rest of §3B above remains accurate but the catalog specifics will skew toward information products in KVK's dual-life-operator voice (bilingual business guides, Seoul-LA executive primers, translation + cultural consultation packages) rather than physical Korean/US consumer goods. Rules 1-6 apply with minor substrate adjustment (no FX-on-inventory exposure because digital goods don't hold inventory; FX still matters for pricing).
+**Secondary reasons:**
+- The platform-integration gap (no native Shopify) is *exactly the kind of architecture-level finding alpha is supposed to surface*. Catching "Shopify bot needs ADR" in week 1-3 of alpha is an order of magnitude cheaper than catching it at external-operator launch.
+- Shopify dev stores are free — no $29/mo gate to start. Production upgrade happens at Alpha-2 paper→real transition.
+- The monetary-upside gap between B and A is substantial and real. A working physical arbitrage at retail scale has direct personal-life consequence (funding the dual-life); info products at retail scale rarely do.
+
+#### Implications for §3B content
+
+The §3B spec above (IDENTITY.md / `_operator_profile.md` / `_risk.md` / `principles.md` / task scaffolding / `_performance.md` schema) was written for physical products. All of it stands under Option B — no rewrites needed. Rules 1-6 apply directly; FX-on-inventory exposure is real; shipping/customs costs figure into landed-margin math.
+
+#### Platform-integration gap (ADR-203 candidate)
+
+YARNNN has native platform bots for Slack, Notion, GitHub, Commerce (Lemon Squeezy), Trading (Alpaca). **No Shopify bot exists yet.** For Alpha-1 this means:
+
+- `track-catalog` task initially does **manual reconciliation** — operator (KVK or Claude) fetches current inventory/listing/price state from Shopify admin and writes to `/workspace/context/commerce/skus/` via YARNNN rail
+- `rule-evaluation` still works — it reads whatever `/workspace/context/commerce/` has, regardless of how substrate got there
+- `sourcing-proposal` / `reorder-proposal` etc. still emit — they just can't autonomously execute against Shopify; operator manually executes the approved action in Shopify admin, then updates YARNNN with the result
+
+This is a **known gap**. Not a bug. It's the first real alpha friction — when operator + Claude hit "I approved a sourcing proposal but now I'm copy-pasting into Shopify admin manually," that's the observation that motivates **ADR-203: Shopify Platform Bot** (drafted organically from friction, not speculatively pre-drafted).
+
+**Expected ADR-203 shape (not written yet — surfaces in alpha):**
+- Platform bot integration pattern matching ADR-183 (Lemon Squeezy) + ADR-187 (Alpaca)
+- Shopify Admin API client in `api/integrations/core/shopify_client.py`
+- `shopify_bot` agent role
+- `commerce.*` write primitives extended with Shopify variants (`commerce.create_product_shopify`, etc.)
+- OAuth connection flow for Shopify admin
+
+**Expected timing:** ADR drafted in Week 2-3 of Alpha-1 after 15-30 manual operations surface the real pain points; shipped by Week 4 if the friction is persistent.
+
+#### Alpha-2 upgrade path
+
+When trader phase-transitions from paper to live (Alpha-2 trader), commerce likewise upgrades from Shopify dev-store to Shopify production (paid plan, real transactions, real FX exposure). The `_risk.md` budget scales from $10k operating-budget-on-paper to whatever KVK actually commits.
 
 ### Phase 1 — account creation (both accounts, KVK primary)
 
@@ -1328,3 +1396,4 @@ docs/alpha/
 | 2026-04-20 | v1 — Initial playbook (Rohn-inspired, later corrected). |
 | 2026-04-20 | v2 — Full rewrite. Persona corrected to Jim Simons (systematic quantitative) — Option B scope. Rohn persona superseded. |
 | 2026-04-20 | v3 — **Two-account scope restored** (both accounts concurrent in Alpha-1). §3B added for `alpha-commerce` persona in KVK's voice: Korea↔USA international commerce operator testing dual-life economic hypothesis. §3B symmetric to §3A structure (IDENTITY.md + `_operator_profile.md` with 5 declared rules + 3 reserved + FX regime scalar / `_risk.md` statistical limits / `principles.md` six-check Reviewer framework / `_performance.md` schema with per-SKU + per-direction + per-rule attribution). §4 setup sequence rewritten with explicit KVK-vs-Claude ownership split — honest delineation of what Claude can handle autonomously (Render env vars once workspace selected, workspace onboarding with credentials) vs. what requires KVK (vault, platform signup, email provisioning, YARNNN signup). New §3B.0 platform-choice decision (digital LS / physical Shopify / hybrid) gates commerce setup. §8 phase transitions rewritten: both accounts in Alpha-1 from the start; Alpha-1.5 becomes "physical-commerce upgrade" (if chose Option A/C in §3B.0); Alpha-2 is per-account independent (trader-paper→live and/or commerce-sandbox→real can advance separately). §2 governance extended to name both accounts explicitly. §10 open questions expanded with Render workspace selection, §3B.0 choice, commerce platform integration gap, multi-workspace Claude auth. Previous "e-commerce is deferred" framing removed — sequenced-alpha defeats the anti-verticalization gate (ADR-191). v2 singular-trader framing fully superseded. |
+| 2026-04-20 | v4 — **Decisions locked.** KVK delegated the three outstanding Phase-0 decisions to Claude. Claude resolved: commerce platform = **Option B Shopify** (physical products match the real operator hypothesis; monetary upside justifies higher implementation friction; platform-integration gap becomes ADR-203 candidate surfaced organically from alpha friction). Credentials vault = **1Password** (shared vault `YARNNN Alpha-1`). Persona email = **Gmail aliases** (Resend is outbound-only + delivery-webhook; inbound-parse deferred to ADR-204 candidate if alpha friction warrants). §4 Phase-0 checklist rewritten with locked values + KVK vs Claude task split. Env-var audit (executed via Render MCP) confirms pre-existing infrastructure supports alpha without new env var work (Alpaca + Shopify keys live per-user in `platform_connections`, not globally). §3B.0 updated with locked B commitment + ADR-203 (Shopify platform bot) expected emergence in Week 2-3 of alpha + Alpha-2 Shopify production upgrade path. |
