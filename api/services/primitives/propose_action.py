@@ -246,6 +246,29 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
             f"({reversibility}, expires in {ttl_hours}h, id={proposal_id[:8] if proposal_id else '?'})"
         )
 
+        # ADR-194 v2 Phase 2b: reactive Reviewer-layer observation.
+        # Per FOUNDATIONS v6.0 Axiom 4 (Trigger — reactive sub-shape),
+        # proposal creation is an event that fires the Reviewer layer.
+        # Current behavior: seat defers to human; writes an observation
+        # entry to /workspace/review/decisions.md so the Stream surface
+        # (ADR-198 archetype) records every proposal the Reviewer saw,
+        # even those awaiting human decision. Phase 3 replaces the
+        # defer with AI Reviewer reasoning.
+        #
+        # Never blocks. Dispatch failures log and the proposal is still
+        # returned to the caller.
+        if proposal_id:
+            try:
+                from services.review_proposal_dispatch import on_proposal_created
+                await on_proposal_created(
+                    auth.client, auth.user_id, proposal_id, created,
+                )
+            except Exception as dispatch_exc:  # noqa: BLE001
+                logger.warning(
+                    "[PROPOSE_ACTION] reviewer dispatch failed for %s: %s",
+                    proposal_id[:8], dispatch_exc,
+                )
+
         return {
             "success": True,
             "proposal_id": proposal_id,

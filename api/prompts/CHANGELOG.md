@@ -6,6 +6,46 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.20.3] - Reviewer reactive dispatch + impersonation schema prep (ADR-194 v2 Phase 2b)
+
+Scope-split: Phase 2 further divided into 2b (this commit — reactive dispatch + impersonation *schema*) and 2c (admin endpoints + persona-workspace seeding, deferred to the frontend-admin cycle).
+
+### Added
+- **Migration 153** (`supabase/migrations/153_impersonation_columns.sql`, applied): adds `workspaces.impersonation_persona text` (nullable) + new `user_admin_flags` table (`user_id` PK → auth.users, `can_impersonate boolean NOT NULL DEFAULT false`, lazy-written). RLS policies: users can read their own flags; admin updates go through service key (granted out-of-band via psql for founders). Schema-only prep — no endpoints yet.
+- **`api/services/review_proposal_dispatch.py`** (NEW, ~100 lines) — `on_proposal_created(client, user_id, proposal_id, proposal_row)` async handler. Writes an observation entry to `/workspace/review/decisions.md` via `append_decision` with `decision="defer"`, `reviewer_identity="reviewer-layer:observed"` (new namespace distinct from `human:*`/`ai:*`), and reasoning that captures the proposal's rationale + expiry time. Never raises — dispatch failures log and the proposal still returns with `status="pending"`.
+
+### Changed
+- **`api/services/primitives/propose_action.py`** (`handle_propose_action`): after the `action_proposals` row insert succeeds, invokes `on_proposal_created` as a reactive event handler per FOUNDATIONS v6.0 Axiom 4 (Trigger — reactive sub-shape). Wrapped in a try/except that logs but never blocks — the proposal creation is authoritative regardless of whether the Reviewer-layer observation lands.
+
+### Expected behavior
+- **New proposals now leave a trail in decisions.md before any human acts.** Every `ProposeAction` call produces two decisions.md entries over the proposal's lifecycle: (1) the reactive observation at creation ("reviewer-layer:observed, deferred to human, Phase 2b"), then (2) the approve/reject entry when the human or AI fills the seat (Phase 2a wiring, unchanged).
+- **Stream surface (ADR-198 archetype) gets a denser feed.** Operators who read `/workspace/review/decisions.md` (currently via Files browser, Phase 2c adds a `/review` surface) see every proposal the Reviewer layer observed, not only those that were decided. This is load-bearing for Principle 12 (Channel legibility gates autonomy).
+- **Impersonation schema in place.** Founders running conglomerate alpha (per ADR-191) can now be flagged via `INSERT INTO user_admin_flags (user_id, can_impersonate) VALUES ('<uuid>', true);` and `UPDATE workspaces SET impersonation_persona = '<slug>' WHERE id = '<uuid>';`. Endpoints + session mechanics ship in Phase 2c.
+- **No change to approve/reject flow.** `ExecuteProposal`/`RejectProposal` primitives and `/api/proposals/{id}/approve`/`reject` routes unchanged — still write the human-approved decision entry per Phase 2a.
+
+### Not wired (Phase 2c)
+- `POST /api/admin/impersonate/{workspace_id}` + `/clear` admin endpoints.
+- Session-cookie + frontend UI chrome banner for impersonation mode.
+- Persona-workspace seeding script (2–4 workspaces matching `DOMAIN-STRESS-MATRIX` alphas).
+
+### Render parity
+- Migration 153 is ALTER ADD COLUMN + CREATE TABLE IF NOT EXISTS — zero-downtime, safe across all 4 Render services. No env var changes.
+- `services.review_proposal_dispatch` reachable by API (where chat + route callers live) — the only site that invokes `handle_propose_action` outside the task pipeline. Unified Scheduler does not call `ProposeAction` today, so no scheduler-side import concern.
+- MCP Server + Output Gateway untouched.
+
+### Smoke-test results (pre-push)
+- Dispatch module imports clean; `_REVIEWER_OBSERVATION_IDENTITY` = `"reviewer-layer:observed"`.
+- `handle_propose_action` source includes `from services.review_proposal_dispatch import on_proposal_created` and the `await on_proposal_created(...)` call at the correct post-insert point.
+- Migration 153 verified in live DB: `\d user_admin_flags` shows the expected 4 columns + RLS; `impersonation_persona` present on `workspaces`.
+
+### Refs
+- FOUNDATIONS v6.0 Axiom 2 (Identity — Reviewer layer), Axiom 3 (Purpose — independent judgment), Axiom 4 (Trigger — reactive sub-shape), Axiom 6 (Channel — Stream archetype per ADR-198)
+- ADR-194 v2 (Reviewer Layer) — Phase 2b Implemented; Phase 2c + 3 + 4 Proposed
+- ADR-198 (Surface Archetypes) — Stream archetype consumes `decisions.md`
+- ADR-191 (Polymath Operator ICP) — impersonation substrate supports conglomerate alpha
+
+---
+
 ## [2026.04.20.2] - ADR-198 draft: Surface Archetypes (Channel dimension canonization)
 
 ### Added
