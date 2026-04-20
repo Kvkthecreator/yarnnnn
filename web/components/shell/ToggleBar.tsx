@@ -1,28 +1,30 @@
 'use client';
 
 /**
- * ToggleBar - top-level pill navigation
+ * ToggleBar — top-level pill navigation (cockpit nav per ADR-198 v2 + ADR-199).
  *
- * ADR-180 Work/Context Surface Split: Four segments: Chat | Work | Files | Agents
- * Each answers exactly one question:
- *   - Chat: "What should I do? What's happening?"
- *   - Work: "Is my work configured, healthy, and running?" (operational)
- *   - Files: "What does my workspace know? What has it produced?" (knowledge)
- *   - Agents: "Who's on my team?" (roster reference)
+ * Current segments (ADR-199 phase): Overview | Work | Files | Agents
+ *   - Overview: "What's going on? What needs me?" (HOME — ADR-199)
+ *   - Work: "Let me check the work." (tasks + schedules + outputs)
+ *   - Files (nav label) / Context (route): "What does my workspace know?"
+ *   - Agents: "Who's on my team?" (rename to Team in ADR-201)
  *
- * Nav order reflects user navigation frequency (ADR-180):
- *   Chat → Work → Files → Agents
- * Agents is last: under ADR-176 agents serve work, not the other way around.
- * Files precedes Agents: outputs and knowledge are consulted more often than the roster.
+ * YARNNN is ambient — available as a right-rail panel on every surface
+ * via ThreePanelLayout. /chat is the expanded form of the rail, reachable
+ * by direct URL or rail-expand — not a primary nav tab.
+ *
+ * Upcoming phases (per ADR-198 v2):
+ *   - ADR-200: Review destination (5 segments total)
+ *   - ADR-201: Agents → Team rename + cross-linking to Work
  */
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageCircle, Briefcase, Users, FolderOpen } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Users, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SEGMENTS = [
-  { id: 'chat', label: 'Chat', icon: MessageCircle, href: '/chat' },
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard, href: '/overview' },
   { id: 'work', label: 'Work', icon: Briefcase, href: '/work' },
   { id: 'context', label: 'Files', icon: FolderOpen, href: '/context' },
   { id: 'agents', label: 'Agents', icon: Users, href: '/agents' },
@@ -33,7 +35,7 @@ export function ToggleBar() {
 
   const activeId = SEGMENTS.find(s =>
     pathname === s.href || pathname.startsWith(s.href + '/')
-  )?.id ?? 'chat';
+  )?.id ?? 'overview';
 
   return (
     <div className="flex items-center gap-0.5 rounded-full bg-muted/60 p-0.5">
