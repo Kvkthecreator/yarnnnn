@@ -43,11 +43,10 @@ Use ref ending in ':new' to create. Content schema depends on entity type.""",
 
 
 # Required fields per entity type
+# ADR-196: "memory" and "domain" entries removed (user_memory dropped).
 REQUIRED_FIELDS = {
     "agent": ["title"],  # scope + role defaulted in _process_agent()
-    "memory": ["content"],
     "document": ["name"],
-    "domain": ["name"],
 }
 
 # Default values per entity type
@@ -55,13 +54,6 @@ REQUIRED_FIELDS = {
 DEFAULTS = {
     "agent": {
         "status": "active",
-    },
-    "memory": {
-        "tags": [],
-        "source": "user_stated",  # ADR-058: User-stated facts via TP
-        "entry_type": "fact",  # Default type
-        "is_active": True,
-        "importance": 0.5,
     },
 }
 
@@ -149,10 +141,9 @@ async def handle_write(auth: Any, input: dict) -> dict:
     # Entity-specific processing
     if parsed.entity_type == "agent":
         entity_data = _process_agent(entity_data)
-    elif parsed.entity_type == "memory":
-        entity_data = _process_memory(entity_data)
     elif parsed.entity_type == "document":
         entity_data = _process_document(entity_data)
+    # ADR-196: memory entity processing removed (user_memory dropped).
 
     # ADR-106: Extract workspace-only fields before DB insert
     ws_instructions = entity_data.pop("_workspace_instructions", None)
@@ -201,31 +192,9 @@ async def handle_write(auth: Any, input: dict) -> dict:
 from services.agent_creation import VALID_SCOPES, VALID_ROLES, ROLE_TO_SCOPE  # noqa: F401
 
 
-def _process_memory(data: dict) -> dict:
-    """Process memory-specific fields.
-
-    Flat field mappings (convenience for TP):
-    - note, fact, preference -> content (aliases)
-    - category, type, context -> added to tags
-    """
-    # Handle content aliases
-    for alias in ["note", "fact", "preference"]:
-        if alias in data and "content" not in data:
-            data["content"] = data.pop(alias)
-        elif alias in data:
-            data.pop(alias)  # Remove if content already set
-
-    # Add category/type/context to tags
-    tags = data.get("tags", [])
-    if isinstance(tags, list):
-        for field in ["category", "type", "context"]:
-            if field in data:
-                value = data.pop(field)
-                if value and value not in tags:
-                    tags.append(value)
-    data["tags"] = tags
-
-    return data
+# ADR-196: _process_memory() deleted. Memory writes flow through
+# UpdateContext(target="memory") which routes to /workspace/memory/*.md
+# files via the UserMemory class (ADR-156).
 
 
 def _process_document(data: dict) -> dict:
@@ -258,9 +227,7 @@ def _format_write_message(entity_type: str, data: dict) -> str:
         freq = data.get("frequency", "weekly")
         return f"Created agent: {title} ({freq})"
 
-    elif entity_type == "memory":
-        content = data.get("content", "")[:40]
-        return f"Saved: {content}..."
+    # ADR-196: memory message branch removed (user_memory dropped).
 
     elif entity_type == "document":
         name = data.get("name", "Untitled")

@@ -112,10 +112,10 @@ async def handle_lookup_entity(auth: Any, input: dict) -> dict:
 
         if data is None:
             # Provide retry hint based on entity type
+            # (ADR-196: "memory" retired — memory is filesystem-native;
+            # agents/YARNNN read /workspace/*.md directly via ReadFile.)
             if parsed.entity_type == "document":
                 retry_hint = "Use Search(scope='document') first to find documents and get their UUID refs."
-            elif parsed.entity_type == "memory":
-                retry_hint = "Use Search(scope='memory') to find memories by content."
             elif parsed.entity_type == "agent":
                 retry_hint = "Use List(pattern='agent:*') to see available agents."
             else:
@@ -178,9 +178,7 @@ def _format_read_message(parsed, data) -> str:
         status = data.get("status", "unknown")
         return f"Platform: {provider} ({status})"
 
-    elif parsed.entity_type == "memory":
-        content = data.get("content", "")[:50]
-        return f"Memory: {content}..."
+    # ADR-196: memory message branch removed (user_memory table dropped).
 
     elif parsed.entity_type == "document":
         filename = data.get("filename", "Unknown")

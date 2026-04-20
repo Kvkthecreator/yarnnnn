@@ -635,7 +635,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "sync_registry",
             "agent_context_log",
             "user_interaction_patterns",
-            "user_memory",
+            # "user_memory" — dropped by migration 151 (ADR-196)
             "user_notification_preferences",
             "user_platform_styles",
             "work_credits",

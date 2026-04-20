@@ -21,7 +21,9 @@ Entity types:
   - action: Executable actions (for discovery)
   - system: System-level targets (signals, scheduler, etc.)
 
-NOTE: Per ADR-059, 'memory' maps to user_memory (replaces knowledge_entries).
+NOTE: 'memory' and 'domain' entity types retired by ADR-196 (2026-04-19).
+Memory is filesystem-native at /workspace/*.md since ADR-156; the entity
+path is gone with the user_memory table.
 
 Special identifiers:
   - new: For Write operations (create)
@@ -71,15 +73,18 @@ ENTITY_TYPES = {
     "agent",
     "version",  # Agent versions (generated content)
     "platform",
-    "memory",  # ADR-059: user_memory
     "session",
-    "domain",
     "document",
     "task",  # ADR-138: work units
     # ADR-168 Commit 2: "action" and "system" removed. They only existed to
     # serve the Execute primitive's action discovery surface (`List(pattern="action:*")`).
     # Execute was dissolved into ManageTask/UpdateContext; these entity types
     # had no other callers.
+    # ADR-196: "memory" and "domain" removed. Memory is filesystem-native at
+    # /workspace/*.md since ADR-156; the user_memory table was dropped in
+    # migration 151. The "domain" type originally pointed at knowledge_domains
+    # (dropped by ADR-059), then at user_memory (dropped by ADR-196); never
+    # had live callers after ADR-156.
 }
 
 # Special identifiers
@@ -157,11 +162,10 @@ TABLE_MAP = {
     "agent": "agents",
     "version": "agent_runs",  # Generated agent content
     "platform": "platform_connections",
-    "memory": "user_memory",  # ADR-059: Replaces knowledge_entries
     "session": "chat_sessions",
-    "domain": "user_memory",  # ADR-059: knowledge_domains removed
-    "document": "filesystem_documents",  # ADR-058
+    "document": "filesystem_documents",  # ADR-058; see ADR-197 for planned /workspace/uploads/ migration
     "task": "tasks",  # ADR-138: work units
+    # ADR-196: "memory" and "domain" entries removed (user_memory table dropped).
 }
 
 
@@ -214,9 +218,7 @@ async def resolve_ref(
         # Collection query - apply filters from query params
         if "limit" in ref.query:
             query = query.limit(int(ref.query["limit"]))
-        if "type" in ref.query and ref.entity_type == "memory":
-            # Filter memories by type/tag
-            query = query.contains("tags", [ref.query["type"]])
+        # ADR-196: memory-by-tag query removed (user_memory table dropped).
         if ref.entity_type in ("agent", "task"):
             # Default to excluding archived unless explicitly requested
             if "status" in ref.query:

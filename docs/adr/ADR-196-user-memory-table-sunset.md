@@ -1,6 +1,6 @@
 # ADR-196: `user_memory` Table Sunset
 
-> **Status**: Proposed (2026-04-19). Targeted for implementation in the same commit cycle as this ADR.
+> **Status**: Implemented 2026-04-19 (migration 151 applied; primitive strip + purge-cascade + test removal shipped).
 > **Date**: 2026-04-19
 > **Authors**: KVK, Claude
 > **Extends**: FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate), ADR-059 (Simplified Context Model), ADR-106 (Agent Workspace Architecture), ADR-156 (Composer Sunset — in-session memory writes)
@@ -134,3 +134,4 @@ Gate passes trivially — no domain harmed.
 | Date | Change |
 |------|--------|
 | 2026-04-19 | v1 — Initial and (expected) final. VESTIGIAL verdict ratified. Migration 151 targeted to drop `user_memory` alongside `action_outcomes` (ADR-195 v2). Dead entity-primitive branches (`memory`, `domain`) stripped in the same commit. |
+| 2026-04-19 | v1.1 — **Implemented.** Migration 151 applied (drops `action_outcomes` + `user_memory` — 0 rows impacted). `ENTITY_TYPES` trimmed: `memory` + `domain` removed. `TABLE_MAP` trimmed: `memory` + `domain` removed. Dead branches stripped in `read.py` / `write.py` / `edit.py` / `list.py`. `_process_memory()` deleted. Purge cascade in `routes/account.py` + `scripts/purge_user_data.py` updated. `test_pipeline_e2e.py` (ADR-072-era manual test exercising `user_memory` + `platform_content` — both retired substrates) deleted entirely; comment in `test_quality_e2e.py` updated. Total footprint: +migration/-legacy-branches + 1007-line test deletion. |

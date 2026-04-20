@@ -10,7 +10,11 @@ This will:
 1. Delete all agent_runs for user's agents
 2. Delete all agents
 3. Delete all chat_sessions (and cascade to session_messages)
-4. Delete all user_memory rows (ADR-059)
+
+Note: workspace_files (the filesystem substrate — identity, memory,
+context domains, task charters, _performance.md) is NOT purged here.
+For a full cold-start including filesystem state, also delete
+workspace_files rows for the user.
 
 WARNING: This is destructive and cannot be undone!
 """
@@ -96,15 +100,8 @@ def purge_user_data(email: str, dry_run: bool = False):
         sessions = client.table("chat_sessions").select("id").eq("user_id", user_id).execute()
         print(f"   Would delete {len(sessions.data or [])} chat sessions")
 
-    # 3. Delete user_memory (ADR-059: replaces knowledge_entries)
-    print(f"\n🗑️  {action} user_memory...")
-    if not dry_run:
-        result = client.table("user_memory").delete().eq("user_id", user_id).execute()
-        print(f"   Deleted {len(result.data or [])} context entries")
-    else:
-        memories = client.table("user_memory").select("id").eq("user_id", user_id).execute()
-        print(f"   Would delete {len(memories.data or [])} context entries")
-
+    # ADR-196: user_memory table dropped (migration 151). Memory is
+    # filesystem-native in workspace_files since ADR-156 — not purged here.
     # knowledge_domains removed (ADR-059); work_tickets removed (ADR-090).
 
     print(f"\n{'🔍 DRY RUN COMPLETE' if dry_run else '✅ PURGE COMPLETE'}")

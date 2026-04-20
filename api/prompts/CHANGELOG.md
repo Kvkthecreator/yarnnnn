@@ -6,6 +6,50 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.19.6] - Legacy table drops + primitive strip: Migration 151 (ADR-195 v2 + ADR-196)
+
+### Changed
+- **Migration 151** (`supabase/migrations/151_drop_legacy_semantic_tables.sql`, applied to Supabase): `DROP TABLE action_outcomes CASCADE; DROP TABLE user_memory CASCADE;` Both tables held semantic content in DB rows, which FOUNDATIONS v5.1 Axiom 0 forbids. Zero rows lost (both tables dead-write and dead-read at drop time).
+- `api/services/primitives/refs.py`:
+  - `ENTITY_TYPES` trimmed: `"memory"` and `"domain"` removed.
+  - `TABLE_MAP` trimmed: `"memory": "user_memory"` and `"domain": "user_memory"` removed.
+  - `resolve_ref` collection-query path: `memory`-by-tag filter removed.
+  - Docstring updated to reflect entity-type retirement.
+- `api/services/primitives/read.py`: `memory` retry-hint branch + `memory` message branch removed.
+- `api/services/primitives/write.py`: `REQUIRED_FIELDS["memory"]` + `REQUIRED_FIELDS["domain"]` removed. `DEFAULTS["memory"]` removed. `memory` entity-processing branch removed. `memory` message branch removed. `_process_memory()` function deleted entirely.
+- `api/services/primitives/edit.py`: `memory` message branch removed.
+- `api/services/primitives/list.py`: `memory` message branch removed.
+- `api/services/primitives/search.py`: **unchanged** — its `scope="memory"` rejection already redirects to workspace/filesystem-backed working memory (filesystem substrate). The rejection is still useful guidance.
+- `api/routes/account.py` account-deletion cascade: `user_memory` removed from purge table list.
+- `api/scripts/purge_user_data.py`: `user_memory` delete step removed. Docstring updated with note that filesystem state (workspace_files) is not purged by this script.
+- `api/test_pipeline_e2e.py` (1007 lines) **DELETED.** ADR-072-era manual e2e test that exercised `user_memory` + `platform_content` — both retired substrates. Was not in CI and had been partially retired for ADR-153 but never updated for ADR-156. Comment in `api/test_quality_e2e.py` updated to reference deletion.
+- `docs/adr/ADR-195-outcome-attribution-substrate.md`: status advances to "Phases 1–2 Implemented (v2 substrate refactor + table drop shipped)." v2.1 revision entry documenting the shipped refactor.
+- `docs/adr/ADR-196-user-memory-table-sunset.md`: status advances from Proposed to Implemented. v1.1 revision entry.
+
+### Expected behavior
+- `action_outcomes` and `user_memory` tables no longer exist in production.
+- Any lingering code path that attempted to write / read these tables raises `42P01: undefined_table` from PostgREST — verified by audit that no such paths remain (TABLE_MAP is the singular source; dead primitive branches stripped; account-cascade updated).
+- Entity primitives (`ReadEntity`, `WriteEntity`, `EditEntity`, `ListEntities`, `SearchEntities`) no longer accept `memory` or `domain` as entity types. These were never exposed in the ADR-168 chat tool surface; only dead paths are affected.
+- Memory operations continue to flow through `UpdateContext(target="memory")` → `/workspace/memory/*.md` via `UserMemory` class (unchanged since ADR-156).
+
+### Render parity
+- No env var changes. MCP Server and Output Gateway untouched.
+- Schema change applied to shared Supabase — all four Render services (API, Unified Scheduler, MCP Server, Output Gateway) see the drop at the same time. None reference the dropped tables.
+
+### Smoke-test results (pre-push)
+- Import smoke-test passes: `from services.primitives import read, write, edit, list_, search, refs` all clean.
+- `TABLE_MAP` has no `memory` or `domain` keys — verified via grep.
+- `ENTITY_TYPES` has no `memory` or `domain` entries — verified via grep.
+- `psql -c "\d action_outcomes"` returns "Did not find any relation" — verified.
+- `psql -c "\d user_memory"` returns "Did not find any relation" — verified.
+
+### Refs
+- FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate; DB rows are scheduling / audit / credential / queue only)
+- ADR-195 v2 (money-truth home = `/workspace/context/{domain}/_performance.md`, not `action_outcomes`)
+- ADR-196 (user_memory VESTIGIAL → drop + strip)
+
+---
+
 ## [2026.04.19.5] - ADR-195 v2: outcomes ledger refactor — SQL INSERT → `_performance.md` append
 
 ### Changed

@@ -39,7 +39,9 @@ if env_path.exists():
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-# Persistent test user (same as test_pipeline_e2e.py)
+# Persistent test user — legacy e2e fixture (test_pipeline_e2e.py was
+# deleted by ADR-196; it exercised user_memory + platform_content which
+# were retired substrates).
 TEST_USER_ID = "2abf3f96-118b-4987-9d95-40f2d9be9a18"
 
 # Task types to test — covers key quality dimensions

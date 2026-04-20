@@ -1,6 +1,6 @@
 # ADR-195: Money-Truth Substrate — `_performance.md` as Canonical Home
 
-> **Status**: Phases 1–2 Implemented (substrate target reconciled 2026-04-19). Phases 3–5 Proposed.
+> **Status**: Phases 1–2 Implemented (v2 substrate refactor + table drop shipped 2026-04-19). Phases 3–5 Proposed.
 > **Date**: 2026-04-19 (v2 rewrite; v1 2026-04-19)
 > **Authors**: KVK, Claude
 > **Extends**: ADR-181 (Source-Agnostic Feedback Layer), ADR-183 (Commerce Substrate), ADR-187 (Trading Integration), ADR-192 (Write Primitive Coverage Expansion), ADR-193 (Approval Loop)
@@ -274,3 +274,4 @@ No domain hurt. Gate passes.
 |------|--------|
 | 2026-04-19 | v1 — Initial draft. `action_outcomes` SQL table, `OutcomeProvider` ABC, `TradingOutcomeProvider`, `back-office-outcome-reconciliation` task, five-phase sequence. Phases 1–2 implemented (migration 150 applied, code on `main` at commits `3ad3db5` + `d54d1d6`). |
 | 2026-04-19 | v2 — **Full rewrite.** Aligned to FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate). `action_outcomes` SQL table dropped; money-truth's canonical home is `/workspace/context/{domain}/_performance.md` per domain (YAML frontmatter + narrative body, regenerated idempotently by the reconciler). `OutcomeProvider` ABC and shipped providers (Trading + Commerce) preserved — only the write target changes (SQL INSERT → filesystem append with frontmatter-based idempotency). Phases 1–2 status retained as "Implemented" with the understanding that the substrate refactor (Commit 2) and table drop (Commit 3) are part of this cycle. v1 file overwritten — singular-implementation discipline. |
+| 2026-04-19 | v2.1 — **Substrate refactor shipped.** Commit 2 rewired `outcomes/ledger.py` from SQL INSERT to filesystem append against `/workspace/context/{domain}/_performance.md`. JSON-object frontmatter (valid YAML subset, stdlib parse). Idempotency via namespaced `{key_path}:{value}` entries in `processed_event_keys` list. Narrative body (Recent wins / Recent losses + by-action table) regenerated on every write — frontmatter is canonical, body is derived. Commit 3 applied migration 151 dropping `action_outcomes` (+ `user_memory` per ADR-196). Zero rows lost — `action_outcomes` never saw a daily reconciler cycle before writes were redirected. `fold_outcome_candidates` / `total_appended` replace v1 naming. Provider code + back-office task shape unchanged. |

@@ -149,8 +149,7 @@ def _format_list_message(entity_type: str, items: list) -> str:
         connected = sum(1 for i in items if i.get("status") == "active")
         return f"Found {count} platform(s) ({connected} connected)"
 
-    elif entity_type == "memory":
-        return f"Found {count} memory/memories"
+    # ADR-196: memory list branch removed (user_memory dropped).
 
     elif entity_type == "task":
         active = sum(1 for i in items if i.get("status") == "active")
