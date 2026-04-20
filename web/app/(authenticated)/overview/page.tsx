@@ -17,17 +17,35 @@
  *   I1 — No surface holds state (substrate is authoritative)
  *   I2 — No surface embeds foreign substrate (all cross-references are links)
  *   I3 — Exactly one primary cognitive consumer (the operator)
+ *
+ * Deep-link forward-compat (ADR-202):
+ *   Accepted query params: ?focus=queue|alerts (from expository-pointer emails)
+ *                          ?since=<iso> (from daily-update briefings)
+ *   Currently no-op — forward-compat so backend's deep-link rollout doesn't 404.
+ *   Pane-focus scroll behavior will wire during ADR-202 Phase 3 if observed
+ *   operator use shows the navigation value.
  */
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { OverviewSurface } from '@/components/overview/OverviewSurface';
 
 export default function OverviewPage() {
+  const searchParams = useSearchParams();
   const [chatDraftSeed, setChatDraftSeed] = useState<{ id: string; text: string } | null>(null);
   const [chatOpenSignal, setChatOpenSignal] = useState(0);
+
+  // Forward-compat: accept ?focus=queue|alerts + ?since=<iso> per ADR-202.
+  // Currently no-op; used when backend's expository-pointer emails start
+  // deep-linking here. Reading the params here (even without routing on them)
+  // prevents the URL from being cleaned up by route validation.
+  const focus = searchParams.get('focus');
+  const since = searchParams.get('since');
+  void focus; // intentional no-op — see ADR-202
+  void since; // intentional no-op — see ADR-202
 
   const plusMenuActions: PlusMenuAction[] = [];
 
