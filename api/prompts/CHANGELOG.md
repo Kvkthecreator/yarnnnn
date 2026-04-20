@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.20.2] - ADR-198 draft: Surface Archetypes (Channel dimension canonization)
+
+### Added
+- `docs/adr/ADR-198-surface-archetypes.md` (NEW, Proposed) — canonizes the five surface archetypes named by FOUNDATIONS v6.0 Derived Principle 12 and Open Question 2. Archetypes: **Document** (composed output read), **Dashboard** (live Substrate slice read), **Queue** (pending actionable items with affordances), **Briefing** (periodic curated summary with pointers), **Stream** (append-only log read chronologically). Each is a Channel cell under Axiom 6, characterized by Substrate + Consumer + Purpose + Reading shape. Each carries invariants (e.g., Queue must have action affordances; Briefing must use pointers not duplication; Stream is append-only).
+- `CLAUDE.md` — ADR-198 entry added to the ADR status block.
+
+### Not changed
+- **Nav surfaces unchanged.** ADR-180's four nav tabs (Chat / Work / Files / Agents) remain canonical per SURFACE-ARCHITECTURE v14. ADR-198 describes what archetype(s) each nav tab hosts, not a re-layout.
+- **No code.** This is a doc-only ADR that later ADRs cite as dimensional-classification prereq.
+
+### Unblocks
+- **ADR-195 Phase 4** (daily-update briefing integration) — Briefing archetype's invariant B2 (pointers, not duplication) shapes how daily-update emails cite `_performance_summary.md` rather than re-rendering it.
+- **ADR-194 Phase 2b** (review-proposal task + `/review` surface) — Queue + Stream archetype invariants shape the surface design.
+- **ADR-195 Phase 5** (feedback actuation) — Queue + Stream for high-impact outcome feedback entries.
+
+### Refs
+- FOUNDATIONS v6.0 Axiom 6 (Channel) + Derived Principle 12 (Channel legibility gates autonomy)
+- ADR-180 (four nav tabs — preserved)
+- ADR-163 (Surface Restructure — precursor)
+
+---
+
 ## [2026.04.20.1] - Alignment pass for FOUNDATIONS v6.0 (six-dimensional axiomatic model)
 
 ### Context
