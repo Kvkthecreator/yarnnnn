@@ -1019,7 +1019,10 @@ KVK requested agent-first email provisioning via Resend. Claude audited: Resend 
   - `{your-gmail}+alpha-trader@gmail.com`
   - `{your-gmail}+alpha-commerce@gmail.com`
   - Optional: add Gmail filters routing messages with these `+` tags into dedicated labels
-- [ ] Sign up for Alpaca paper trading → alpaca.markets → create account → generate paper-account API key + secret → store in 1Password
+- [ ] **Alpaca paper credentials.** *Already exists — reuse, do not re-signup.* An active Alpaca paper connection exists in YARNNN production under `kvkthecreator@gmail.com` (verified 2026-04-20 via `platform_connections` DB query; account ends AI0V, created 2026-04-16 during ADR-187 shipping). Options:
+  - **(Recommended) Option 2 — Reuse the key in a fresh `alpha-trader` workspace.** Log into alpaca.markets → paper dashboard → API keys. Copy the existing key ID (starts `PK...`). If you have the secret saved (1Password / keychain / shell history), reuse it. If you've lost the secret, regenerate — but know this invalidates the key your main YARNNN account is using and you'll need to reconnect both. Paste both into the new YARNNN alpha-trader workspace's integrations UI during Phase 1.
+  - **(Alternative) Option 1 — Use `kvkthecreator@gmail.com` YARNNN workspace as `alpha-trader`.** No second Alpaca step. Seed Simons-persona files into the existing workspace. Downside: mixed workspace (personal + persona artifacts).
+  - Claude recommends Option 2 for persona-separation discipline even at the cost of one copy-paste step.
 - [ ] Sign up for Shopify dev store (free) → partners.shopify.com → create development store → admin panel → apps → create custom app → generate Admin API token with scopes `read_products, write_products, read_inventory, write_inventory, read_orders, write_orders, read_customers, read_price_rules, write_price_rules` → store token in 1Password
 - [ ] Sign up for 2 YARNNN workspaces using the Gmail aliases:
   - Workspace 1: email = `{your-gmail}+alpha-trader@gmail.com`, workspace name `alpha-trader`
