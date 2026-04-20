@@ -6,6 +6,58 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.19.8] - Reviewer audit-trail wiring (ADR-194 v2 Phase 2a)
+
+### Added
+- **Migration 152** (`supabase/migrations/152_reviewer_identity_on_action_proposals.sql`, applied): adds two nullable columns to `action_proposals`:
+  - `reviewer_identity text` — format: `human:<user_id>` | `ai:<model-slug>` | `impersonated:<admin-user_id>-as-<persona-slug>`. Legacy rows remain NULL.
+  - `reviewer_reasoning text` — brief reasoning for proposal-card UX. Full reasoning always lands in `/workspace/review/decisions.md` per FOUNDATIONS Axiom 0.
+- **`api/services/reviewer_audit.py`** (NEW, ~175 lines) — single public function `append_decision(client, user_id, *, proposal_id, action_type, decision, reviewer_identity, reasoning, reversibility, outcome)`. Reads current `/workspace/review/decisions.md`, appends a delimited `--- decision ---` block with machine-readable fields + markdown reasoning, upserts via the same workspace_files pattern `risk_gate.py` uses. First write seeds a header; subsequent writes append chronologically. Failure is logged but never raised — audit-trail failures must not block approval or rejection flow.
+
+### Changed
+- **`api/services/primitives/propose_action.py`**:
+  - `ExecuteProposal` tool schema: adds optional `reviewer_identity` + `reviewer_reasoning` parameters (defaults to `human:<user_id>` / empty).
+  - `handle_execute_proposal`: persists `reviewer_identity` + `reviewer_reasoning` on the `action_proposals` row at *approve* time (so the audit trail captures "who approved" even if downstream execution fails). Calls `append_decision` twice: once on successful execution (outcome=`executed`), once on `rejected_at_execution` (outcome=`rejected_at_execution`, reasoning extended with the downstream failure message). Each path returns `reviewer_identity` in the response for surfacing.
+  - `RejectProposal` tool schema: adds optional `reviewer_identity` + `reviewer_reasoning` parameters.
+  - `handle_reject_proposal`: persists `reviewer_identity` + `reviewer_reasoning` on the row, calls `append_decision` with decision=`reject` and outcome=`rejected`. Returns `reviewer_identity` in the response.
+- **`api/routes/proposals.py`**:
+  - `ApproveRequest` + `RejectRequest` models extended with optional `reviewer_reasoning`.
+  - `/api/proposals/{id}/approve` passes `reviewer_identity=human:<auth.user_id>` to the primitive. Frontend approvals always fill the Reviewer seat as the authenticated user.
+  - `/api/proposals/{id}/reject` does the same for rejection.
+
+### Expected behavior
+- Every approval or rejection — whether triggered from the frontend approve/reject buttons, from the chat LLM calling `ExecuteProposal`/`RejectProposal` as tools, or from any other caller of the primitives — now:
+  1. Stamps `reviewer_identity` + `reviewer_reasoning` on the `action_proposals` row.
+  2. Appends a decision block to `/workspace/review/decisions.md`.
+- First decision in a workspace creates the file with a header. All subsequent decisions append. Newest-at-bottom chronological ordering.
+- `reviewer_identity` on any row written before this commit (and migration 152 rollout) will be NULL — acceptable; retroactive backfill not attempted because the original approver identity is not reconstructible from `approved_by` alone in the general case.
+- Existing `approved_by` column (was `"user"` | `"auto_reversible"`) is preserved — not removed in this phase. `reviewer_identity` is the richer field going forward; `approved_by` stays for ADR-193 backward-compat until Phase 2b dissolves it.
+
+### Not yet wired
+- `review-proposal` reactive task type (Phase 2b) — prerequisite for AI Reviewer invocation.
+- Impersonation substrate: `workspaces.impersonation_persona` + `users.can_impersonate` + admin endpoints (Phase 2b).
+- AI Reviewer agent with capital-EV prompt (Phase 3).
+- Judgment-calibration tuning (Phase 4).
+
+### Render parity
+- No env var changes.
+- Migration 152 is ALTER TABLE ADD COLUMN IF NOT EXISTS — safe, zero-downtime across all 4 services.
+- Shared service reachability unchanged (`services.reviewer_audit` reachable by API + Unified Scheduler via existing import path). MCP Server + Output Gateway untouched.
+
+### Smoke-test results (pre-push)
+- Imports clean: `from services.reviewer_audit import append_decision`, `DECISIONS_PATH`.
+- `DECISIONS_PATH` resolves to `/workspace/review/decisions.md`.
+- `_render_entry` round-trip: synthetic input produces a valid delimited block; fields parsed back match (verified via substring assertions against expected `timestamp:`, `decision:`, `reviewer_identity:` fields).
+- `handle_execute_proposal` + `handle_reject_proposal` modules import and parse cleanly post-edit.
+- Routes module imports cleanly with new request-model fields.
+
+### Refs
+- FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate — decisions.md IS the audit trail, row columns are narrow metadata) + Axiom 1 (four-layer cognition — Reviewer is structurally separate)
+- ADR-194 v2 Phase 2a (audit-trail wiring). Phase 2b (review-proposal task + impersonation) remains Proposed.
+- ADR-193 (approval loop, on which this phase rides).
+
+---
+
 ## [2026.04.19.7] - Reviewer substrate scaffold (ADR-194 v2 Phase 1)
 
 ### Added

@@ -33,12 +33,25 @@ router = APIRouter()
 # =============================================================================
 
 class ApproveRequest(BaseModel):
-    """Optional modified_inputs to merge over proposal.inputs before execution."""
+    """Approval payload.
+
+    modified_inputs: optional field overrides merged over proposal.inputs.
+    reviewer_reasoning: optional short reasoning; lands in action_proposals +
+      /workspace/review/decisions.md per ADR-194 v2 Phase 2a.
+    """
     modified_inputs: Optional[dict] = None
+    reviewer_reasoning: Optional[str] = None
 
 
 class RejectRequest(BaseModel):
+    """Rejection payload.
+
+    reason: short explanation (also used as reviewer_reasoning if the latter
+      is not provided).
+    reviewer_reasoning: optional override for the audit-trail reasoning.
+    """
     reason: Optional[str] = None
+    reviewer_reasoning: Optional[str] = None
 
 
 # =============================================================================
@@ -107,6 +120,10 @@ async def approve_proposal(
     Wraps `handle_execute_proposal`. Returns the execution result on
     success, or an error payload if the proposal is not pending / expired /
     fails at execution.
+
+    ADR-194 v2 Phase 2a: frontend approvals always fill the Reviewer seat
+    as `human:<user_id>`. The audit entry + proposal-row metadata are
+    written by the primitive handler.
     """
     from services.primitives.propose_action import handle_execute_proposal
 
@@ -115,6 +132,8 @@ async def approve_proposal(
         {
             "proposal_id": proposal_id,
             "modified_inputs": request.modified_inputs,
+            "reviewer_identity": f"human:{auth.user_id}",
+            "reviewer_reasoning": request.reviewer_reasoning,
         },
     )
     if not result.get("success"):
@@ -137,7 +156,12 @@ async def reject_proposal(
     request: RejectRequest,
     auth: UserClient,
 ):
-    """Reject a proposal with optional reason. Wraps `handle_reject_proposal`."""
+    """Reject a proposal with optional reason. Wraps `handle_reject_proposal`.
+
+    ADR-194 v2 Phase 2a: frontend rejections fill the Reviewer seat as
+    `human:<user_id>`. The audit entry + proposal-row metadata are
+    written by the primitive handler.
+    """
     from services.primitives.propose_action import handle_reject_proposal
 
     result = await handle_reject_proposal(
@@ -145,6 +169,8 @@ async def reject_proposal(
         {
             "proposal_id": proposal_id,
             "reason": request.reason,
+            "reviewer_identity": f"human:{auth.user_id}",
+            "reviewer_reasoning": request.reviewer_reasoning,
         },
     )
     if not result.get("success"):

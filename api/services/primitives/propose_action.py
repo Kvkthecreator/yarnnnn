@@ -271,7 +271,7 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
 
 EXECUTE_PROPOSAL_TOOL = {
     "name": "ExecuteProposal",
-    "description": """Approve-and-execute a previously proposed action by its proposal_id (ADR-193).
+    "description": """Approve-and-execute a previously proposed action by its proposal_id (ADR-193 + ADR-194 v2 Phase 2a).
 
 Validates the proposal is still pending + not expired, then dispatches the underlying platform tool
 via execute_primitive. Optionally merges modified_inputs to support user adjustments before approval.
@@ -279,9 +279,17 @@ via execute_primitive. Optionally merges modified_inputs to support user adjustm
 For trading actions, re-runs the risk gate on the final (possibly modified) inputs before executing.
 If the gate rejects at execution time, the proposal is marked rejected_at_execution.
 
+ADR-194 v2 Phase 2a: every approval writes a decision entry to
+/workspace/review/decisions.md (the Reviewer's audit trail) and stamps
+reviewer_identity + reviewer_reasoning on the action_proposals row.
+
 Args:
   proposal_id: UUID of the proposal to execute
-  modified_inputs: optional dict of field overrides (e.g., adjust qty, price)""",
+  modified_inputs: optional dict of field overrides (e.g., adjust qty, price)
+  reviewer_identity: who fills the Reviewer seat for this approval.
+    Defaults to "human:<user_id>" when invoked directly by the user.
+    Future callers will pass "ai:<model-slug>" or "impersonated:<admin-as-persona>".
+  reviewer_reasoning: short reasoning for the proposal-card UX and audit trail.""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -290,6 +298,14 @@ Args:
                 "type": "object",
                 "description": "Optional field overrides merged over proposal.inputs.",
             },
+            "reviewer_identity": {
+                "type": "string",
+                "description": "Who filled the Reviewer seat. Default: human:<user_id>.",
+            },
+            "reviewer_reasoning": {
+                "type": "string",
+                "description": "Short reasoning recorded to decisions.md + action_proposals.reviewer_reasoning.",
+            },
         },
         "required": ["proposal_id"],
     },
@@ -297,12 +313,23 @@ Args:
 
 
 async def handle_execute_proposal(auth: Any, input: dict) -> dict:
-    """Approve + execute a proposal."""
+    """Approve + execute a proposal.
+
+    ADR-194 v2 Phase 2a: persists `reviewer_identity` + `reviewer_reasoning`
+    on the action_proposals row and appends a decision entry to
+    /workspace/review/decisions.md. Default reviewer_identity is
+    "human:<user_id>" — matches the frontend approval UX; the LLM or
+    AI Reviewer can override by passing reviewer_identity explicitly.
+    """
     from services.primitives.registry import execute_primitive
+    from services.reviewer_audit import append_decision
 
     proposal_id = input.get("proposal_id")
     if not proposal_id:
         return {"success": False, "error": "proposal_id is required"}
+
+    reviewer_identity = input.get("reviewer_identity") or f"human:{auth.user_id}"
+    reviewer_reasoning = input.get("reviewer_reasoning") or ""
 
     # Fetch proposal
     try:
@@ -364,13 +391,17 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
 
     # Mark approved BEFORE executing — even if execution fails, approval was
     # recorded. We update to 'executed' on success or 'rejected_at_execution'
-    # on validation failure inside the dispatch.
+    # on validation failure inside the dispatch. Phase 2a: stamp reviewer
+    # identity + reasoning at approve time, not execute time (so the audit
+    # trail captures "who approved" even if downstream execution fails).
     now_iso = datetime.now(timezone.utc).isoformat()
     try:
         auth.client.table("action_proposals").update({
             "status": "approved",
             "approved_at": now_iso,
             "approved_by": "user",
+            "reviewer_identity": reviewer_identity,
+            "reviewer_reasoning": reviewer_reasoning or None,
         }).eq("id", proposal_id).execute()
     except Exception as e:
         logger.warning(f"[EXECUTE_PROPOSAL] approved update failed (non-fatal): {e}")
@@ -382,7 +413,8 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
         logger.error(f"[EXECUTE_PROPOSAL] dispatch raised: {e}")
         exec_result = {"success": False, "error": "dispatch_error", "message": str(e)}
 
-    # Update final status based on result
+    # Update final status + append decisions.md entry
+    reversibility = proposal.get("reversibility")
     if isinstance(exec_result, dict) and exec_result.get("success"):
         try:
             auth.client.table("action_proposals").update({
@@ -393,11 +425,23 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
         except Exception as e:
             logger.warning(f"[EXECUTE_PROPOSAL] status=executed update failed: {e}")
         logger.info(f"[EXECUTE_PROPOSAL] {proposal_id[:8]} executed successfully")
+        # Audit trail — never blocks; logs on failure.
+        await append_decision(
+            auth.client, auth.user_id,
+            proposal_id=proposal_id,
+            action_type=action_type,
+            decision="approve",
+            reviewer_identity=reviewer_identity,
+            reasoning=reviewer_reasoning,
+            reversibility=reversibility,
+            outcome="executed",
+        )
         return {
             "success": True,
             "proposal_id": proposal_id,
             "action_type": action_type,
             "execution_result": exec_result,
+            "reviewer_identity": reviewer_identity,
         }
     else:
         # Execution failed — could be risk-gate re-rejection, API failure, etc.
@@ -410,11 +454,26 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
         except Exception as e:
             logger.warning(f"[EXECUTE_PROPOSAL] status=rejected_at_execution update failed: {e}")
         logger.info(f"[EXECUTE_PROPOSAL] {proposal_id[:8]} rejected at execution: {err}")
+        # Audit trail captures the approval + downstream execution failure.
+        await append_decision(
+            auth.client, auth.user_id,
+            proposal_id=proposal_id,
+            action_type=action_type,
+            decision="approve",
+            reviewer_identity=reviewer_identity,
+            reasoning=(
+                (reviewer_reasoning + "\n\n" if reviewer_reasoning else "")
+                + f"Approval recorded, but execution failed downstream: {err}"
+            ),
+            reversibility=reversibility,
+            outcome="rejected_at_execution",
+        )
         return {
             "success": False,
             "error": "execution_failed",
             "proposal_id": proposal_id,
             "execution_result": exec_result,
+            "reviewer_identity": reviewer_identity,
         }
 
 
@@ -424,20 +483,35 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
 
 REJECT_PROPOSAL_TOOL = {
     "name": "RejectProposal",
-    "description": """Reject a pending proposal by its proposal_id (ADR-193).
+    "description": """Reject a pending proposal by its proposal_id (ADR-193 + ADR-194 v2 Phase 2a).
 
 Captures optional reason for learning. Marks proposal status='rejected'.
 Use when the user declines an approval, or when YARNNN recognizes on
 reflection that the proposal was wrong.
 
+ADR-194 v2 Phase 2a: every rejection writes a decision entry to
+/workspace/review/decisions.md (the Reviewer's audit trail) and stamps
+reviewer_identity + reviewer_reasoning on the action_proposals row.
+
 Args:
   proposal_id: UUID of the proposal
-  reason: optional short reason (shown in timeline / used for learning)""",
+  reason: optional short reason (shown in timeline / used for learning)
+  reviewer_identity: who fills the Reviewer seat for this rejection.
+    Defaults to "human:<user_id>".
+  reviewer_reasoning: short reasoning for the proposal card + audit trail.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "proposal_id": {"type": "string"},
             "reason": {"type": "string"},
+            "reviewer_identity": {
+                "type": "string",
+                "description": "Who filled the Reviewer seat. Default: human:<user_id>.",
+            },
+            "reviewer_reasoning": {
+                "type": "string",
+                "description": "Short reasoning recorded to decisions.md + action_proposals.reviewer_reasoning.",
+            },
         },
         "required": ["proposal_id"],
     },
@@ -445,12 +519,21 @@ Args:
 
 
 async def handle_reject_proposal(auth: Any, input: dict) -> dict:
-    """Mark a proposal rejected."""
+    """Mark a proposal rejected.
+
+    ADR-194 v2 Phase 2a: persists reviewer_identity + reviewer_reasoning +
+    appends to /workspace/review/decisions.md. Default reviewer_identity
+    is "human:<user_id>".
+    """
+    from services.reviewer_audit import append_decision
+
     proposal_id = input.get("proposal_id")
     if not proposal_id:
         return {"success": False, "error": "proposal_id is required"}
 
     reason = input.get("reason") or "user declined"
+    reviewer_identity = input.get("reviewer_identity") or f"human:{auth.user_id}"
+    reviewer_reasoning = input.get("reviewer_reasoning") or reason
 
     try:
         # Only update if still pending
@@ -459,6 +542,8 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
             .update({
                 "status": "rejected",
                 "rejection_reason": reason,
+                "reviewer_identity": reviewer_identity,
+                "reviewer_reasoning": reviewer_reasoning or None,
             })
             .eq("id", proposal_id)
             .eq("user_id", auth.user_id)
@@ -472,12 +557,36 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
                 "message": "Proposal may not exist, belong to another user, or already be approved/rejected/executed.",
             }
 
+        # Fetch action_type + reversibility for the audit entry.
+        action_type = None
+        reversibility = None
+        try:
+            proposal_row = result.data[0]
+            action_type = proposal_row.get("action_type")
+            reversibility = proposal_row.get("reversibility")
+        except Exception:
+            pass
+
         logger.info(f"[REJECT_PROPOSAL] {proposal_id[:8]} rejected: {reason}")
+
+        # Audit trail — never blocks; logs on failure.
+        await append_decision(
+            auth.client, auth.user_id,
+            proposal_id=proposal_id,
+            action_type=action_type or "unknown",
+            decision="reject",
+            reviewer_identity=reviewer_identity,
+            reasoning=reviewer_reasoning,
+            reversibility=reversibility,
+            outcome="rejected",
+        )
+
         return {
             "success": True,
             "proposal_id": proposal_id,
             "status": "rejected",
             "reason": reason,
+            "reviewer_identity": reviewer_identity,
         }
     except Exception as e:
         logger.error(f"[REJECT_PROPOSAL] update failed: {e}")
