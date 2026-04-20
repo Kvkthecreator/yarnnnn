@@ -1,8 +1,8 @@
 # YARNNN Design Principles
 
 **Status:** Canonical
-**Date:** 2026-04-01 (renamed from TP-DESIGN-PRINCIPLES.md 2026-04-17 per ADR-189; Spectrum section added 2026-04-20 per FOUNDATIONS v5.1)
-**Related:** FOUNDATIONS.md (Axiom 0, Axiom 1), SERVICE-MODEL.md, GLOSSARY.md, ADR-149 (task lifecycle), ADR-189 (three-layer cognition), ADR-194 (Reviewer layer)
+**Date:** 2026-04-01 (renamed from TP-DESIGN-PRINCIPLES.md 2026-04-17 per ADR-189; Spectrum section added 2026-04-20 per FOUNDATIONS v5.1; dimensional framing added 2026-04-20 per FOUNDATIONS v6.0)
+**Related:** FOUNDATIONS.md (Axiom 0 dimensional model, Axioms 1–8), SERVICE-MODEL.md, GLOSSARY.md, ADR-149 (task lifecycle), ADR-189 (three-layer cognition), ADR-194 (Reviewer layer)
 
 ---
 
@@ -10,17 +10,19 @@
 
 Two distinct design spectrums govern YARNNN. Conflating them is the most common source of design drift; naming them explicitly is the single most load-bearing discipline in this doc.
 
+**Relationship to FOUNDATIONS v6.0:** these spectrums sit beneath Derived Principle 11 ("Substrate tightens; Mechanism loosens"). Spectrum A is the Substrate dimension's discipline (Axiom 1). Spectrum B is the Mechanism dimension's posture (Axiom 5). The other four dimensions (Identity, Purpose, Trigger, Channel) each have their own disciplines inside FOUNDATIONS; this doc focuses on the two that most shape day-to-day design decisions.
+
 ### Spectrum A — Substrate strictness (locked)
 
-**Where state lives.** DB rows ↔ filesystem files.
+**Where state lives.** DB rows ↔ filesystem files. (The Substrate dimension — FOUNDATIONS Axiom 1.)
 
-FOUNDATIONS Axiom 0 decides this one categorically: the filesystem is the substrate, and the database is narrowly permitted for four row kinds (scheduling indexes, neutral audit ledgers, credentials, ephemeral queues). Anything holding semantic content belongs in a file. This spectrum is **strict by architectural conscience** — every prior collapse of a parallel substrate (platform_content → files, projects → tasks, Composer → YARNNN, knowledge tables → workspace files, user_memory → /workspace/*.md, action_outcomes → `_performance.md`) happened because semantic content was in a DB row when it belonged in a file.
+FOUNDATIONS Axiom 1 decides this one categorically: the filesystem is the substrate, and the database is narrowly permitted for four row kinds (scheduling indexes, neutral audit ledgers, credentials, ephemeral queues). Anything holding semantic content belongs in a file. This spectrum is **strict by architectural conscience** — every prior collapse of a parallel substrate (platform_content → files, projects → tasks, Composer → YARNNN, knowledge tables → workspace files, user_memory → /workspace/*.md, action_outcomes → `_performance.md`) happened because semantic content was in a DB row when it belonged in a file.
 
-Do not loosen Axiom 0. The strictness is what makes the architecture coherent across ADRs.
+Do not loosen Axiom 1. The strictness is what makes the architecture coherent across ADRs.
 
 ### Spectrum B — Runtime flexibility (deliberately procedural today, will loosen)
 
-**How agents interact with that substrate.** Fixed procedure ↔ primitive CRUD.
+**How agents interact with that substrate.** Fixed procedure ↔ primitive CRUD. (The Mechanism dimension — FOUNDATIONS Axiom 5, which is explicitly a determinism-to-judgment spectrum within one axiom.)
 
 The task execution pipeline is currently **procedural over the filesystem**: it parses TASK.md for declared process steps, pre-gathers context deterministically, dispatches a single generation call, composes the output via section-kind renderers, delivers through a typed channel, and terminates. The agent does not wander the filesystem in free-form pursuit of its task — the pipeline choreographs the run.
 

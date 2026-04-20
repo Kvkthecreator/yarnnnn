@@ -1,9 +1,9 @@
 # YARNNN Glossary
 
 > **Status**: Canonical
-> **Date**: 2026-04-17 (v1.2 revision 2026-04-19)
+> **Date**: 2026-04-17 (v1.3 revision 2026-04-20 for FOUNDATIONS v6.0 dimensional model)
 > **Authors**: KVK, Claude
-> **Ratified by**: ADR-189 (Three-Layer Cognition) + ADR-194 v2 (Reviewer as Fourth Cognitive Layer)
+> **Ratified by**: ADR-189 (Three-Layer Cognition) + ADR-194 v2 (Reviewer as Fourth Cognitive Layer) + FOUNDATIONS v6.0 (Six-Dimensional Model)
 > **Supersedes**: `naming-conventions.md` (to be retired after the ADR-189 rename pass lands)
 
 ---
@@ -16,7 +16,24 @@ This glossary is the single source of truth for YARNNN terminology. Every ADR, a
 
 The glossary exists because YARNNN operates across four layers of cognition (the product, the role palette, the authored workers, the independent judgment seat) and three kinds of readers (users, developers, investors). Without discipline, the same word collapses layers and confuses readers. With discipline, every term lands on exactly one thing at exactly one layer.
 
-One upstream discipline governs everything here: **semantic content lives in the filesystem** (FOUNDATIONS Axiom 0). When a glossary term names a "ledger," a "policy," a "log," or any accumulated object, its definition must name the file path — not a DB table. Drift from file-native terminology is drift from the architecture, and both get corrected together.
+One upstream discipline governs everything here: **semantic content lives in the filesystem** (FOUNDATIONS Axiom 1, the Substrate dimension). When a glossary term names a "ledger," a "policy," a "log," or any accumulated object, its definition must name the file path — not a DB table. Drift from file-native terminology is drift from the architecture, and both get corrected together.
+
+---
+
+## The Six Dimensions (FOUNDATIONS Axiom 0)
+
+Every mechanic in YARNNN occupies a cell in six orthogonal dimensions. These are the axiomatic vocabulary that governs every other term in this glossary. Each dimension answers one interrogative:
+
+| Term | Interrogative | Decides | Canonical reference |
+|---|---|---|---|
+| **Substrate** | What | What persists between invocations | FOUNDATIONS Axiom 1 (filesystem) |
+| **Identity** | Who | Which cognitive layer acts or authors | FOUNDATIONS Axiom 2 (four layers) |
+| **Purpose** | Why | What intent drives the work | FOUNDATIONS Axiom 3 |
+| **Trigger** | When | What invokes execution (periodic / reactive / addressed) | FOUNDATIONS Axiom 4 |
+| **Mechanism** | How | By what means — spectrum from deterministic code to LLM judgment | FOUNDATIONS Axiom 5 |
+| **Channel** | Where | To what location or surface output is addressed | FOUNDATIONS Axiom 6 |
+
+**Usage rule:** when writing an ADR, a design doc, or a code comment that introduces a new mechanic, state explicitly which dimension(s) it occupies. A mechanic that spans dimensions without explicit justification is a cross-cut — cross-cuts are legitimate only when argued for (e.g., compose substrate deliberately couples Mechanism + Channel per ADR-148). See FOUNDATIONS v6.0 Derived Principle 1 (Dimensional purity).
 
 ---
 
@@ -43,12 +60,12 @@ The things YARNNN manipulates. Each has exactly one name.
 | **Task** | A defined work unit with an objective, cadence, delivery, and success criteria. Lives in `/tasks/{slug}/TASK.md`. Unchanged from ADR-138. | Tasks are the WHAT. Agents and Specialists are the WHO. |
 | **Domain** | An accumulated context area at `/workspace/context/{domain}/`. Created by work demand, not pre-scaffolded. Shared across all tasks. Unchanged from ADR-151 / ADR-176. | Domain names come from user language (e.g., `competitors/`, `clients/`), not from a pre-declared registry key. |
 | **Workspace** | The user's YARNNN environment. Contains Agents, tasks, Domains, uploaded documents, workspace identity files (IDENTITY.md, BRAND.md). | **Not** a synonym for "roster." The word "roster" is retired — a workspace holds Agents, not a roster. |
-| **Reviewer** | The fourth cognitive layer — the independent judgment seat that gates proposed writes. Structurally separate from YARNNN, Specialists, and Agents. One Reviewer per workspace. Its identity + decisions + declared framework live at `/workspace/review/` (see separate entry). The seat is interchangeable: the same slot is filled by **Human** (user clicks approve), **AI** (a `thinking_partner`-class agent scoped to the Reviewer's workspace directory, reviewing autonomously), or **Impersonation** (admin acting as a persona). All three operate through the same `review-proposal` reactive task flow; the difference is identity, not abstraction. | Not a `Reviewer` ABC. Not a role an agent plays ad-hoc. A structurally separate cognitive layer, per FOUNDATIONS Axiom 1 and Derived Principle 12. The earlier ADR-194 v1 framing of "Reviewer as abstraction with REVIEWER-POLICY.md" is retracted — v2 replaces it. See ADR-194. |
+| **Reviewer** | The fourth cognitive layer — the independent judgment seat that gates proposed writes. Structurally separate from YARNNN, Specialists, and Agents. One Reviewer per workspace. Its identity + decisions + declared framework live at `/workspace/review/` (see separate entry). The seat is interchangeable: the same slot is filled by **Human** (user clicks approve), **AI** (a `thinking_partner`-class agent scoped to the Reviewer's workspace directory, reviewing autonomously), or **Impersonation** (admin acting as a persona). All three operate through the same `review-proposal` reactive task flow; the difference is identity, not abstraction. | Not a `Reviewer` ABC. Not a role an agent plays ad-hoc. A structurally separate cognitive layer, per FOUNDATIONS Axiom 2. **Distinctness note (v6.0):** the Reviewer layer is not distinguished from other layers by Identity (the seat is swappable). It is distinguished by occupying a unique **Purpose + Trigger** cell — independent judgment (Purpose) on proposed-write events (reactive Trigger). This is why the seat interchange works without architectural change. The earlier ADR-194 v1 framing of "Reviewer as abstraction with REVIEWER-POLICY.md" is retracted — v2 replaces it. See ADR-194. |
 | **`/workspace/review/`** | The Reviewer's filesystem home. Three canonical files: `IDENTITY.md` (who this Reviewer is), `principles.md` (its declared review framework — user-editable), `decisions.md` (rolling append-only log of approve/reject/defer calls with reasoning). Scaffolded at signup alongside the other workspace files. | Same write-discipline as any other workspace identity directory — agents/humans don't bulk-rewrite; the Reviewer appends its own decisions. See ADR-194 v2. |
 | **Impersonation** | Admin-only persona switching for alpha stress-testing. Founders operate as a designated persona workspace (day-trader-alpha, ecommerce-alpha, etc.) to exercise the system before real operators onboard. Gated by `users.can_impersonate` flag; marked via `workspaces.impersonation_persona`; surfaced by a UI chrome banner. When acting as a persona workspace, the human fills the Reviewer seat for that workspace. | Distinct from normal workspace switching. Not a tenant-isolation bypass — an explicit marking that a workspace is a test persona. See ADR-194. |
 | **Outcome** | The reconciled capital result of an executed action — signed P&L, attribution-linked to the action that produced it. Appended to `/workspace/context/{domain}/_performance.md` by domain-specific `OutcomeProvider` implementations during the daily reconciliation task. No sibling DB table (per Axiom 0). | Distinct from the *action* (what YARNNN did) and the *proposal* (what YARNNN asked to do). Outcome is the money-truth arrival. See ADR-195 v2. |
 | **`_performance.md`** | Canonical per-domain money-truth file at `/workspace/context/{domain}/_performance.md`. YAML frontmatter (rolling P&L, win rate, processed-event-key list for idempotency, last-reconciled timestamp) + human-readable body (headline numbers, by-action breakdown, recent outcomes). Regenerated idempotently by the `back-office-outcome-reconciliation` task from platform events. | Owned by the reconciler; agents and humans don't edit it — same write-discipline as `_tracker.md` (ADR-158). Consumed by the Reviewer (ADR-194), daily-update briefing, YARNNN chat. **This is the single home of money-truth** per FOUNDATIONS Axiom 7 — there is no sibling SQL ledger. See ADR-195 v2. |
-| **Money-Truth** | The architectural axiom (FOUNDATIONS Axiom 7) that every substrate organizes around capital outcomes from the inside — not as a reporting view layered on top. Three properties: actions attributable to outcomes, context pruned by outcome, reviewers reason in capital terms. Money-truth's canonical home is `_performance.md` per domain — filesystem-native, per Axiom 0. | A design principle, not a metric. The underlying reason ADR-194 and ADR-195 ship as a pair. See FOUNDATIONS.md. |
+| **Money-Truth** | The architectural axiom (FOUNDATIONS Axiom 8, v6.0) that every substrate organizes around capital outcomes from the inside — not as a reporting view layered on top. Three properties: actions attributable to outcomes, context pruned by outcome, reviewers reason in capital terms. Money-truth's canonical home is `_performance.md` per domain — filesystem-native, per Axiom 1. | A design principle, not a metric. The underlying reason ADR-194 and ADR-195 ship as a pair. See FOUNDATIONS.md. |
 | **Capital-EV** | Expected-value reasoning applied by the Reviewer. "Given the operator's book, declared strategy, and accumulated track record, does this proposal have asymmetric upside?" Sets the ceiling that risk rules (`_risk.md`) set the floor for. | Distinct from risk-rule compliance. A Reviewer that only checks rules collapses into a redundant gate. A Reviewer that reasons in EV is a senior operator. See ADR-194 §5. |
 
 ---

@@ -1,9 +1,27 @@
 # Primitives Matrix — Substrate × Mode × Capability
 
 **Status:** Canonical — reflects post-ADR-168 + post-ADR-196 state
-**Last updated:** 2026-04-20 (Axiom 0 alignment — entity-type sunset notes for `memory` + `domain` per ADR-196)
+**Last updated:** 2026-04-20 (FOUNDATIONS v6.0 alignment — primitives framed as Mechanism-dimension vocabulary)
 **Governing ADRs:** ADR-146 (Primitive Hardening), ADR-168 (this matrix — substrate/mode/capability axes + entity/file naming reform), ADR-169 (MCP as third caller), ADR-196 (user_memory table sunset)
-**Related:** ADR-154 (Who/What/How), ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-164 (YARNNN as Agent), ADR-166 (precedent for two-axis registry cleanup), FOUNDATIONS Axiom 0 (filesystem substrate)
+**Related:** ADR-154 (Who/What/How), ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-164 (YARNNN as Agent), ADR-166 (precedent for two-axis registry cleanup), FOUNDATIONS Axiom 1 (filesystem substrate) + Axiom 5 (Mechanism spectrum)
+
+---
+
+## Dimensional framing (FOUNDATIONS v6.0)
+
+Primitives are the **vocabulary of the Mechanism dimension** (Axiom 5). LLM reasoning in YARNNN speaks through primitives — typed verbs with substrate and permission scope. Prompts are the other half of Mechanism's vocabulary — they configure which primitives the LLM reaches for, in which situations. **Designing primitives without prompts, or prompts without primitives, is a dimensional conflation** (FOUNDATIONS Derived Principle 9).
+
+Primitives carry orthogonal scoping across the other five dimensions:
+
+| FOUNDATIONS dimension | How primitives encode it |
+|---|---|
+| Substrate (what) | Substrate family column (`entity` / `file` / `context` / `lifecycle` / `action` / `interaction` / `external` / `introspection`) |
+| Identity (who) | Mode availability (`chat` / `headless` / `MCP`) — which cognitive-layer runtime can call the primitive |
+| Purpose (why) | Capability tags (`user-channel`, `user-authorized`, `context-mutation`, etc.) — intent scoping |
+| Trigger (when) | Not encoded in the primitive itself — Trigger lives in the caller (scheduler / event / chat turn) |
+| Channel (where) | Implicit in return shape — some primitives write substrate, some address external destinations |
+
+**The matrix below is a view onto primitives' placement across these dimensions.** Reading it is reading Mechanism's vocabulary and its scoping.
 **Sibling reference:** [registry-matrix.md](registry-matrix.md) — for domains × tasks × agents
 **Source of truth:** [api/services/primitives/registry.py](../../api/services/primitives/registry.py)
 

@@ -1,7 +1,7 @@
 # YARNNN Cognitive Architecture — Foundations
 
 > **Status**: Canonical
-> **Date**: 2026-03-25 (v5.1 revision 2026-04-19)
+> **Date**: 2026-03-25 (v6.0 rewrite 2026-04-20)
 > **Authors**: KVK, Claude
 > **Scope**: First principles from which all architectural decisions derive.
 > **Rule**: ADRs implement these axioms. If an ADR contradicts a foundation, the ADR must justify the deviation or be revised.
@@ -14,18 +14,66 @@ This document defines the foundational axioms of YARNNN's cognitive architecture
 
 ---
 
-## Axiom 0: Filesystem Is the Substrate. Everything Else Is Stateless Over It.
+## Axiom 0: Six Dimensions, Not Phases
 
-YARNNN's containers and fundamental data handling live in the **filesystem** (`workspace_files` today; storage-agnostic by design per ADR-106). Every other architectural layer — scheduling, generation, review, reconciliation, rendering, assessment — is **stateless** computation that operates *over* the filesystem. State lives in files. Components do not hold state; they read files, act, write files, and terminate.
+Every mechanic in YARNNN — every table, every file, every service, every prompt, every surface, every ADR — occupies a cell in **six orthogonal dimensions**. The dimensions are the irreducible questions the system must answer:
 
-This axiom is the structural precondition that makes the rest of the architecture coherent. It was implicit in every prior collapse of parallel substrates (platform_content → files, projects → tasks/files, Composer → YARNNN conversation, knowledge tables → workspace files) but was never stated as an axiom. Naming it closes that gap.
+| Interrogative | Dimension | What it decides |
+|---|---|---|
+| **What** | **Substrate** | What persists; what is true between invocations |
+| **Who** | **Identity** | Which cognitive layer acts; which identity authors or consumes |
+| **Why** | **Purpose** | What intent drives the work; what the objective is |
+| **When** | **Trigger** | What invokes execution — periodic, reactive, or addressed |
+| **How** | **Mechanism** | By what means the work happens — a spectrum from deterministic code to LLM judgment |
+| **Where** | **Channel** | To what location or surface output is addressed |
+
+The six are **dimensions, not phases.** A cron firing is not "in the Trigger stage"; it is *one cell's position along the Trigger dimension*. The same invocation simultaneously occupies cells in Substrate (what it reads/writes), Identity (who is running), Purpose (why this fires now), Mechanism (how the work is done), and Channel (where output lands). Design errors happen when a mechanic is allowed to span a dimension without necessity — conflating Substrate with Identity, or Purpose with Channel, or Mechanism with Trigger.
+
+### The three pairings (mental mnemonic)
+
+As a cognitive aid, the six pair into three natural couplings:
+
+- **Substrate ⟷ Identity** — *what is*, *authored by whom*. Every file has an author; every domain has a reader.
+- **Purpose ⟷ Trigger** — *why*, *when*. Intent drives invocation. Trigger without purpose is noise; purpose without trigger is dormant.
+- **Mechanism ⟷ Channel** — *how*, *where*. Means produces a targeted artifact. Rendering is Mechanism; addressing the surface is Channel.
+
+The pairings are how humans think about the system. The dimensions are what the system must separately decide. Both frames are useful; they are not the same.
+
+### Why this axiom now
+
+The architecture grew a vocabulary faster than it acquired discipline for that vocabulary. By 2026-04 the repo had dozens of named mechanics — primitives, tool profiles, scheduling, pulse (deleted), proactive review (deleted), compose substrate, reviewer seat, feedback actuation, back-office tasks, MCP surface, surface archetypes, inference hardening, impersonation, outcome reconciliation — each designed, each defended, each ADR-ed. Many were correct. Some were cross-cuts that confused one dimension for another. Without a dimensional test, the mistakes were only caught retroactively (Composer → YARNNN, pulse → dissolved, project layer → collapsed, platform_content → sunset, action_outcomes SQL → filesystem).
+
+Axiom 0 is the architectural conscience that catches these conflations *before* shipped code accretes dependents. The previous Axiom 0 (v5.1, filesystem-is-substrate) is preserved — it is now Axiom 1 below, the Substrate dimension stated axiomatically.
+
+### Test for new features
+
+Before adding a mechanic, answer the six:
+
+1. **What** does it read/write? (Substrate cell)
+2. **Who** authors/consumes it? (Identity cell)
+3. **Why** does it exist — what intent is served? (Purpose cell)
+4. **When** does it fire — periodic, reactive, or addressed? (Trigger cell)
+5. **How** does it work — code, LLM, or a blend? (Mechanism cell)
+6. **Where** does its output go? (Channel cell)
+
+If two questions have the same answer, the mechanic is conflating dimensions — redesign. If one question has no answer, the mechanic is incomplete — specify before shipping.
+
+---
+
+## Axiom 1: Substrate — Filesystem Is the Persistence Layer
+
+**What persists lives in files. Nothing else persists.**
+
+YARNNN's semantic state lives in the filesystem (`workspace_files` today; storage-agnostic by design per ADR-106). Every other architectural layer — scheduling, reasoning, review, reconciliation, rendering, delivery — is **stateless computation** that operates *over* the filesystem. State lives in files. Components do not hold state; they read files, act, write files, and terminate.
+
+This axiom was introduced in v5.1 (previously Axiom 0). Its content is preserved; only its number changed. It remains the single most load-bearing architectural property: every prior collapse of a parallel substrate happened because semantic content was placed in a DB row when it belonged in a file.
 
 ### What this means concretely
 
 - **Semantic content lives in files.** Entities, theses, observations, track records, feedback, decisions, identities, charters — all filesystem. A DB row that holds semantic content is, by default, a violation.
 - **Computation is stateless.** The scheduler holds no work-definition state; it reads TASK.md. The pipeline holds no output state; it writes to `/tasks/{slug}/outputs/`. The reconciler holds no performance state; it edits `_performance.md`. The Reviewer holds no judgment state; it writes to `/workspace/review/`. Every component reads the filesystem, acts, writes the filesystem, and terminates. State persists only in files across invocations.
-- **Accumulation happens in files across invocations.** Each cycle adds to context. The recursive property of Axiom 2 is enabled by the filesystem being the single accumulation target.
-- **The shape of the computation varies — the stateless property does not.** Scheduling is periodic (cron); execution is one-shot per invocation (task pipeline); review is reactive (triggered by proposal creation); reconciliation is periodic (daily back-office task); rendering is invocation-scoped (compose engine). Different shapes, one invariant: none of them retain state of their own.
+- **Accumulation happens in files across invocations.** Each cycle adds to context. The recursive property (Axiom 7 below) is enabled by the filesystem being the single accumulation target.
+- **Mechanism varies; statelessness does not.** Scheduling is periodic (cron); execution is one-shot per invocation (task pipeline); review is reactive (triggered by proposal creation); reconciliation is periodic (daily back-office task); rendering is invocation-scoped (compose engine). Different shapes of Mechanism, one invariant: none retain state of their own.
 
 ### Four permitted kinds of database rows
 
@@ -36,13 +84,9 @@ DB rows are not banned — they are narrowly permitted. Every table in the schem
 3. **Credentials / auth** — encrypted secrets the filesystem cannot hold safely. Examples: `platform_connections`, `mcp_oauth_*`. Opaque to everything except the decryption path.
 4. **Ephemeral queues / inboxes** — pending items with hard TTLs awaiting action, not accumulating. Example: `action_proposals` (proposed writes, TTL-bounded, swept by back-office cleanup). The row disappears after acceptance, rejection, or expiration.
 
-Anything that doesn't fit one of these four patterns belongs in the filesystem. When in doubt: would this row be read to reconstruct what the system *is* (filesystem) or to decide what the system *should do next* (scheduling / queue)?
+Anything that doesn't fit one of these four patterns belongs in the filesystem.
 
-### Why this axiom
-
-Every prior collapse of a parallel substrate happened because semantic content was placed in a DB row when it belonged in a file. Every future collapse will have the same cause unless the rule is made explicit. Axiom 0 is the architectural conscience that makes future collapses *preventable* rather than *inevitable*.
-
-Secondary benefits of the filesystem-first discipline:
+### Secondary benefits of filesystem-first discipline
 
 - **Storage-agnostic** — Postgres today, cloud storage later, no code change (ADR-106).
 - **User-legible** — operators can read their own accumulated context. Tables are opaque; markdown is transparent.
@@ -50,134 +94,201 @@ Secondary benefits of the filesystem-first discipline:
 - **Git-compatible** (future) — filesystem state can be exported, diffed, and version-controlled.
 - **Model-agnostic** — files are the universal interface across LLM providers and interoperability protocols (MCP).
 
-### Test for new features
+---
 
-Before adding a DB table or column, answer:
-1. Is the content semantic (what the system knows) or operational (what the system should do)?
-2. If semantic — what file is it? What directory?
-3. If operational — which of the four permitted kinds is it?
+## Axiom 2: Identity — Four Cognitive Layers, Filesystem Author
 
-If neither question has a clean answer, the feature is violating Axiom 0 and should be redesigned.
+**Every act has an identity. Every file has an author. Identity is orthogonal to mechanism.**
+
+YARNNN has four distinct cognitive layers. Each develops along a different axis, each carries a different scope of judgment. All four share the same filesystem substrate (Axiom 1) — the distinction is scope and what each serves. See [GLOSSARY.md](GLOSSARY.md) for canonical terminology.
+
+### The four layers in one sentence each
+
+- **YARNNN (meta-cognitive)** — composes the future. Owns attention allocation and workforce health.
+- **Specialists (role-cognitive)** — style the craft. Six role-typed capabilities (Researcher, Analyst, Writer, Tracker, Designer, Reporting) with role-scoped stylistic memory.
+- **Agents (domain-cognitive)** — execute the work. User-created, identity-explicit, domain-scoped workers.
+- **Reviewer (review-cognitive)** — occupies the independent judgment seat. Structurally separate; seat is interchangeable between human and AI without architectural change.
+
+### The Reviewer layer's distinctness is in Purpose + Trigger, not Identity
+
+A subtle but load-bearing clarification enabled by Axiom 0's dimensional model: the Reviewer layer is *not* distinguished from other layers by having a unique Identity. The Reviewer seat is **swappable** across three identities (human user, AI reviewer agent, admin impersonation) *precisely because* Identity is not what makes it distinct. What makes the Reviewer distinct is its Purpose (independent judgment on proposed writes) and its Trigger (reactive to proposal creation). The seat is the Purpose + Trigger cell; the filler is the Identity.
+
+This is why ADR-194 v2 is correct to treat Reviewer as a fourth layer, and why swapping human ↔ AI in that seat requires no architectural change: the dimensions the swap preserves (Purpose, Trigger, Mechanism, Channel, Substrate) are all the same; only the Identity dimension changes.
+
+### Identity manifests through filesystem
+
+Per Axiom 1, identity is carried by substrate, not held in code:
+
+- **YARNNN's identity** — `/workspace/IDENTITY.md`, `/workspace/BRAND.md`, compact index, session memory
+- **Specialist identity** — ADR-117 role-keyed style distillation in `/workspace/style/{role}.md`
+- **Agent identity** — `/agents/{slug}/AGENT.md` + accumulated domain context
+- **Reviewer identity** — `/workspace/review/IDENTITY.md` + `principles.md` + `decisions.md`
+
+A file without a declared author identity is an Axiom 2 violation. An agent acting without a resolvable identity is a bug.
+
+### Development axes
+
+Each layer develops along exactly one axis. Conflating these has been a recurring source of design error (ADR-189 resolved it for the first three; ADR-194 added the fourth):
+
+| Layer | Develops | How |
+|---|---|---|
+| YARNNN | Upward — judgment about attention allocation | Workspace-level accumulation of what works for this operator |
+| Specialist | Outward — stylistic preference | Role-scoped distillation of edits across every task using the specialist |
+| Agent | Inward — deeper domain expertise | Accumulated memory, observations, learned preferences in its domain |
+| Reviewer | Through reasoning style — capital-EV calibration | Decisions accumulate in `decisions.md`; calibration against reconciled outcomes |
 
 ---
 
-## Axiom 1: Four Layers of Cognition, One Filesystem Substrate
+## Axiom 3: Purpose — Intent Lives in Substrate
 
-YARNNN has four distinct layers of cognition that develop along different axes. All four are expressed through the same underlying agent substrate — the distinction is scope and what each layer serves. See [GLOSSARY.md](GLOSSARY.md) for canonical terminology; ADR-189 ratified the original three-layer model; ADR-194 added Reviewer as the fourth layer.
+**Every mechanic has a Why. The Why lives in a file.**
 
-**The four layers in one sentence each:**
-- **YARNNN (meta-cognitive)** — composes the future.
-- **Specialists (role-cognitive)** — style the craft.
-- **Agents (domain-cognitive)** — execute the work.
-- **Reviewer (review-cognitive)** — occupies the independent judgment seat.
+Purpose is what intent drives the work. It is declared in substrate files:
 
-They do not do each other's jobs. The structural separation is load-bearing — especially the Reviewer's, whose independence *is* the property that makes the seat interchangeable between human and AI without loss of meaning.
+- **Workspace purpose** — `/workspace/IDENTITY.md`, `/workspace/BRAND.md`. What the operator is building, how they think, what they care about.
+- **Task purpose** — `/tasks/{slug}/TASK.md` (objective) + `/tasks/{slug}/DELIVERABLE.md` (output specification). Why this task exists, what it produces.
+- **Reviewer purpose** — `/workspace/review/principles.md`. How the independent judgment seat should reason; auto-approve thresholds, escalation rules.
+- **Agent purpose** — `/agents/{slug}/AGENT.md`. What domain the agent owns, how it approaches its domain.
+- **Domain purpose** — `/workspace/context/{domain}/_domain.md`. What this domain tracks, what entities belong in it.
 
-### YARNNN is the Meta-Cognitive Agent
+### Purpose can also be carried by Identity's known context
 
-**YARNNN is the user's super-agent.** The product and the conversational layer share a name — when the user "talks to YARNNN," they are addressing the meta-cognitive agent. YARNNN has a row in the agents table (internal DB slug: `thinking_partner`, retained by glossary exception), a workspace folder, and can own tasks. What makes YARNNN distinct is its *scope*: where Agents own a segment of the user's work (competitors, clients, market), YARNNN owns the user's attention allocation and the workforce's health. YARNNN's tasks are the tasks of orchestration — deciding what should run, evaluating what has run, maintaining the workspace.
+Not every Purpose needs to be substrate-declared. When an Identity takes a well-defined action (operator uploading a PDF to Context, user clicking Approve on a ProposalCard), Purpose is inferrable from the Identity's role and the interaction shape. The model allows Purpose to be carried by Identity when not substrate-declared — Substrate is preferred for persistent purposes, Identity is sufficient for per-action purposes.
 
-YARNNN develops **upward** over time — better judgment about what Agents to create, when to adjust them, how to respond to the user's evolving work patterns. Its accumulation is workspace-level: what works for this user, what attention patterns produce value, what feedback signals matter. YARNNN has two runtime modes that share this identity:
+### Rule: a mechanic without Purpose is dead code
 
-1. **Chat runtime** — invoked when the user messages YARNNN. Full conversation, streaming, all chat primitives. This is where YARNNN makes judgment calls with the user present.
-2. **Task runtime** — invoked when the scheduler dispatches a back office task owned by YARNNN. YARNNN runs a declared executor (deterministic Python function or focused prompt) defined in the task's TASK.md `## Process` section, writes a structured output, and the signal surfaces into working memory for chat-runtime YARNNN to reference next conversation turn.
-
-YARNNN's responsibilities:
-- **Conversational**: mediates between the user and the system
-- **Compositional**: assesses the user's substrate and creates Agents and tasks
-- **Supervisory**: monitors Agent health, reviews outputs, applies feedback
-- **Orchestrative**: adjusts, evolves, and dissolves Agents based on changing needs
-
-### Specialists are the Role-Cognitive Palette
-
-**Specialists are YARNNN's palette.** There are six: Researcher, Analyst, Writer, Tracker, Designer, Reporting. Each is a role-typed capability with role-scoped stylistic memory (ADR-117 — the distilled "this user prefers em-dashes, punchy leads, no hedging"). Specialists have no domain identity. They are not user-addressed, do not appear on `/agents`, and are never entries the user "hires" or creates.
-
-Specialists develop along exactly one axis: **stylistic preference**, accumulated across every task that uses the specialist. A Writer gets better at voice and tone. A Tracker gets better at what signals to surface. Their memory is role-scoped, not domain-scoped.
-
-YARNNN *drafts a Team* from the Specialist palette every time a task is created or re-run. The drafting is per-task, iterative, re-evaluated each cycle.
-
-### Agents are Domain-Cognitive, User-Created
-
-**Agents are persistent, identity-explicit, user-created workers** that develop expertise in a specific domain of the user's work. They are the only entities the user supervises as persistent workers, the only entries on `/agents`, and the only layer where the user exercises authorship. An Agent is created through conversation with YARNNN — the user describes work, YARNNN infers what Agent identity emerges, the user confirms.
-
-Agents develop **inward** — deeper domain expertise, more capable execution, accumulated tenure. An Agent created to track competitors accumulates competitor-specific observations, a competitive thesis, and learned preferences for how the user reads competitive intelligence. A different user's competitor-tracking Agent will develop differently, because it's tracking different competitors and receiving different feedback.
-
-### Reviewer is Review-Cognitive, Structurally Separate
-
-**The Reviewer is the independent judgment seat.** Structurally separate from YARNNN, from Specialists, from Agents. Its seat is interchangeable — the same slot can be filled by the human user or by an AI system without any structural change in the architecture. The independence is what makes the interchangeability meaningful: if the reviewer were embedded in YARNNN's cognition, swapping a human into that role would require special-casing. Because the seat is its own layer, the human and the AI fill it identically.
-
-Where YARNNN composes the future (decides what Agents to create, what tasks to scaffold), the Reviewer applies independent judgment to proposed writes (decides whether a specific proposal should execute, and writes the audit trail). These are orthogonal concerns with an intentional separation-of-authority property: **YARNNN emits many of the autonomous proposals; having YARNNN review YARNNN's own proposals is a conflict of interest.** The Reviewer is the objectivity the architecture buys by keeping the seat separate.
-
-The Reviewer has its own identity substrate (`/workspace/review/IDENTITY.md`), its own rolling decisions log (`/workspace/review/decisions.md`), and its own declared review framework (`/workspace/review/principles.md`, editable by the user). One Reviewer per workspace, same as YARNNN — not scaffolded per domain.
-
-The Reviewer develops along exactly one axis: **judgment calibration** — accuracy of its approve/reject decisions as measured by downstream outcome attribution (Axiom 7). Its skepticism is structural: it reads everything the operator could read (all context domains, per-domain `_performance.md`, `_risk.md`, `_operator_profile.md`) and reasons in capital-EV terms, not rule-enforcement terms. Rules set the floor; expected value sets the target.
-
-The Reviewer does not compose, does not own tasks (it executes the `review-proposal` reactive task when a proposal is created), does not create Agents, does not supervise the workforce. It reviews proposed writes, writes decisions + audit notes, and does nothing else. The narrow scope is the load-bearing property.
-
-**Why this doesn't violate "singular intelligence layer" (ADR-156):** ADR-156 sunset the Composer because Composer and YARNNN were competing for the *same* structural concern (composition). Reviewer and YARNNN do not compete — they occupy orthogonal structural concerns. One composes; one gates. Under this framing the "singular intelligence layer" rule refines to: *each structural concern has exactly one home. Review is its own concern.*
-
-Three implementations of the Reviewer exist (per ADR-194):
-- **Human** — the user reviews via the existing approval card UX. Default for irreversible / high-stakes writes.
-- **AI** — a dedicated reviewer agent (a `thinking_partner`-class agent scoped to `/workspace/review/`) reviews autonomously. Default for low-stakes reversible writes once track records are accumulated.
-- **Impersonation** — admin-only god-mode for alpha stress-testing. When KVK/Claude act as a designated persona workspace, they *are* the Reviewer for that persona.
-
-All three operate through the same reactive task flow; the difference is identity, not abstraction.
-
-### The Rule: Ownership Determines the Class of Work
-
-**Every task has a Team, and the Team determines the class of work.** A task with Researcher and Analyst Specialists assigned to an Agent whose domain is "competitors" produces competitive analysis. A task owned by YARNNN produces orchestration judgment (Agent health decisions, task freshness evaluations, workspace maintenance). If you can answer "what domain does this work serve?" the task is staffed with an Agent plus Specialists. If you can only answer "it serves the coherence of the system itself," the task belongs to YARNNN.
-
-### The Relationship
-
-YARNNN creates Agents. Agents do not create YARNNN capabilities. YARNNN monitors Agents. Agents do not monitor YARNNN. YARNNN can dissolve Agents. Agents cannot dissolve YARNNN. The flow is always: **YARNNN judges what attention is warranted → YARNNN creates Agents → YARNNN drafts Teams of Specialists per task → Teams execute that attention → Reviewer gates any consequential writes → outputs feed back to YARNNN for further judgment.**
-
-But Agents accumulate domain knowledge that YARNNN doesn't have. A mature competitor-tracking Agent understands the user's competitive landscape in a way YARNNN's general intelligence does not. YARNNN respects this — it orchestrates based on what Agents know, not despite it. And the Reviewer holds accumulated judgment about approval patterns that neither YARNNN nor Agents structurally hold — because it sits across all proposals, not inside any single domain or orchestration decision.
-
-| | YARNNN (Meta-Cognitive) | Specialist (Role-Cognitive) | Agent (Domain-Cognitive) | Reviewer (Review-Cognitive) |
-|---|---|---|---|---|
-| **Owns** | Orchestration itself | A role (Researcher, Writer, etc.) | A specific domain of the user's work | The approval layer |
-| **Scope** | Workspace | Role (across all tasks using it) | Domain (one Agent, one domain) | Workspace (across all proposals) |
-| **Develops** | Better judgment about what Agents to create/adjust/dissolve | Stylistic preference | Deeper domain expertise | Calibration of approve/reject judgments against outcomes |
-| **Created by** | Signup (one per workspace) | Framework (six per workspace, fixed) | User (through conversation) | Signup (one per workspace) |
-| **User-addressed** | Yes (talking to YARNNN) | No (infrastructure) | Yes (entries on `/agents`) | Indirect (through approval cards + decisions log) |
-| **Count per workspace** | One | Six | Zero at signup; N over time | One |
-| **Identity substrate** | `/workspace/IDENTITY.md`, `/workspace/BRAND.md` | ADR-117 role-keyed style distillation | `/agents/{slug}/AGENT.md` + accumulated domain | `/workspace/review/IDENTITY.md` + `principles.md` + `decisions.md` |
-| **Identity tagline** | "I manage this user's cognitive workforce" | "I am the role Writer; I apply style" | "I own [domain] and develop expertise in it" | "I am the independent judgment seat — yours or the system's" |
+Every shipped mechanic must be answerable to the Why question. If a mechanic fires but no substrate or identity declares *why*, it is either dead code or a drift (a mechanic that once had purpose and lost it). Axiom 3 is the conscience that prevents accumulation of purposeless mechanics.
 
 ---
 
-## Axiom 2: The Perception Substrate Is Recursive
+## Axiom 4: Trigger — Three Sub-Shapes of Invocation
 
-Perception is not just external platform data. The perception substrate is **everything the system can observe**, including its own outputs and the user's feedback on those outputs.
+**Every invocation has a When. Invocation is periodic, reactive, or addressed.**
 
-### Four Layers of Perception (ADR-142)
+Trigger is what invokes Mechanism. One dimension; three sub-shapes:
 
-1. **External perception** — Agents call platform APIs (Slack, Notion, GitHub) live during task execution. Raw platform signals are processed by agents and written as structured context to `/workspace/context/` domains. No intermediate staging (ADR-153: `platform_content` table and `/platforms/` root sunset).
+1. **Periodic** — invoked by schedule (cron). Examples: daily-update (9am UTC), back-office-agent-hygiene (daily), back-office-outcome-reconciliation (daily), workspace cleanup (daily).
+2. **Reactive** — invoked by event. Examples: OAuth webhook fires → platform sync; proposal created → `review-proposal` task fires; upload POST → working memory refresh; user feedback submitted → feedback actuation.
+3. **Addressed** — invoked by user (or foreign LLM via MCP). Examples: user sends chat message → YARNNN turn; user clicks Approve → `ExecuteProposal`; MCP `pull_context` call → primitive dispatch.
 
-2. **User-contributed perception** — uploaded documents in `/workspace/uploads/`. Permanent reference material the user explicitly shares. Triggers inference to update workspace context (IDENTITY.md, CONTEXT.md). YARNNN always knows these exist.
+All three sub-shapes resolve to the same Mechanism layer — they only differ in what begins the invocation.
 
-3. **Internal perception** — accumulated workspace context at `/workspace/context/` (primary intelligence substrate — structured by the context domain registry, ADR-151) + task outputs in `/tasks/{slug}/outputs/` (derived deliverables). Each run's output feeds the next run's context; context domains accumulate cross-task intelligence that any agent can draw from.
+### No parallel dispatch systems
 
-4. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections) and YARNNN's observations (`/workspace/notes.md`, `/workspace/style.md`). As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
+Per Axiom 0's anti-conflation rule, there should be exactly one dispatcher per Trigger sub-shape, not separate systems per mechanic type:
 
-**Context domains** (ADR-151) are the structural implementation of this recursive perception loop. Each domain (competitors, market, relationships, etc.) is a named accumulation target in `/workspace/context/` where agents deposit and refine intelligence across execution cycles. The domain registry determines what gets accumulated; the recursive property ensures it compounds.
+- **Periodic** → unified scheduler (`api/jobs/unified_scheduler.py`). All cron-invoked work flows through one dispatcher. ADR-141 + ADR-164 ratified this by dissolving `agent_pulse.py`, `proactive_review.py`, `platform_sync_scheduler.py` into unified cron + task pipeline.
+- **Reactive** → event handlers in `api/routes/` (webhook endpoints, action-proposal triggers). Fan out to the task pipeline or direct primitives.
+- **Addressed** → user-facing routes (`/chat`, `/api/proposals/*`) + MCP server (`api/mcp_server/`). All converge on `execute_primitive()`.
 
-### Three Intelligence Substrates (ADR-128 Corollary)
+If a new mechanic appears to need a new dispatcher, check first whether an existing sub-shape covers it. Usually yes.
 
-Perception flows through three distinct substrates that must stay coherent:
+---
 
-1. **Conversation** — sessions, chat messages, compaction. What was said. Append-only, compacts over time.
-2. **Filesystem** — workspace files (`AGENT.md`, `memory/`, `TASK.md`, cognitive files). What agents know. Evolves with each pulse/run.
-3. **Agent Cognition** — role prompts, pulse decisions, execution strategies. How agents think. Shaped by substrate 2.
+## Axiom 5: Mechanism — Spectrum from Code to Judgment
 
-These are not hierarchical — they are peer substrates. Intelligence degrades when they fall out of sync: a user directive in conversation that doesn't reach the filesystem evaporates on session rotation; an assessment in the filesystem that agents can't read produces blind spots.
+**Every act has a How. How varies continuously from deterministic code to LLM judgment.**
 
-The **coherence protocol** (ADR-128) defines three flows that keep substrates aligned:
-1. **Cognition → Filesystem**: Agents write self-assessments (`memory/self_assessment.md`) after each run — rolling history of mandate fitness, domain fitness, context currency, output confidence.
-2. **Filesystem → Cognition**: YARNNN reads agent self-assessments during workforce monitoring — trajectory data (not just current state) informs orchestration decisions.
-3. **Conversation → Filesystem**: Agents persist durable directives from chat to `memory/directives.md` — user guidance survives session rotation.
+Mechanism is the means by which work happens. One dimension with a spectrum:
 
-### The Recursive Property
+| Position on spectrum | Character | Examples |
+|---|---|---|
+| **Fully deterministic** | Pure Python, zero LLM. Output is a function of input. | Daily-update empty-state template, `_performance.md` frontmatter folding, workspace cleanup, section-kind renderers, risk-gate rule checks, PostgREST queries |
+| **Mixed** | LLM with tight structural contract. Output shape is declared; content is judged. | Inference (IDENTITY.md, BRAND.md, context domains), `review-proposal` task with capital-EV prompt, compose substrate's section generation |
+| **Fully judgment** | LLM orchestrating with broad latitude. Output is the model's call. | YARNNN chat-mode turns, Agent task-pipeline runs, YARNNN's autonomous workforce composition |
+
+These map cleanly to ADR-141's three-layer execution model (Mechanical / Generation / Orchestration) — which is revealed by Axiom 0 not as three separate dimensions, but as **three points on the Mechanism spectrum within one dimension.** ADR-141 stands; its framing is clarified.
+
+### Primitives are the vocabulary of Mechanism
+
+LLM reasoning in YARNNN speaks through primitives — typed verbs with substrate and permission scope (see [primitives-matrix.md](primitives-matrix.md)). Primitive design is the engineering of Mechanism's vocabulary:
+
+- **Adding a primitive** = extending Mechanism's vocabulary. Requires ADR + rename protocol sweep (CLAUDE.md rule 7b).
+- **Scoping a primitive by mode** (chat / headless / MCP) = restricting which Identity can use which vocabulary word.
+- **Prompting strategy** = configuring which vocabulary words the LLM reaches for, in which situations. Prompt profiles (ADR-186) are the configuration surface.
+
+**Tool use and prompting are not separate concerns.** They are the two halves of Mechanism's judgment spectrum — prompts shape the reasoning, primitives are the output grammar. Designing one without the other is a dimensional conflation.
+
+### The loosening rule (Spectrum B from YARNNN-DESIGN-PRINCIPLES)
+
+Mechanism loosens over time. Today's codebase is procedural-heavy (pre-gather → single generation → compose → deliver). The direction of travel is toward more judgment at the Mechanism layer, but this loosening is gated by the Reviewer layer (Axiom 2) — independent judgment over proposed writes is what makes runtime autonomy safe.
+
+Substrate rules tighten over time (Axiom 1). Mechanism rules loosen. These are the two spectrums YARNNN-DESIGN-PRINCIPLES names.
+
+---
+
+## Axiom 6: Channel — Output Is Addressed
+
+**Every act has a Where. Where is either Substrate itself or an addressed destination.**
+
+Channel is where output goes. Two sub-shapes:
+
+1. **Substrate-return** — output is written to the filesystem and becomes part of accumulation. Examples: task pipeline writes `/tasks/{slug}/outputs/`; reconciler writes `_performance.md`; Reviewer writes `decisions.md`; feedback actuation writes `memory/feedback.md`. No external addressing.
+2. **Addressed** — output is delivered to a cognitive consumer outside the substrate. Examples: email to operator; Slack/Notion/GitHub write-back to platform; ProposalCard rendered in chat; surface view in `/work` or `/agents` or `/context`; platform write-back via `submit_order`, `create_discount_code`, `send_email`.
+
+### Addressed channels have subcategories by cognitive consumer
+
+Axiom 2 says every Identity has a distinct scope. Addressed channels inherit this — the cognitive consumer determines the channel's affordance:
+
+| Consumer | Channel shape | Examples |
+|---|---|---|
+| Operator (human user) | Surfaces + email | Chat surface, Work surface, Agents surface, Context surface, daily-update email, ProposalCard |
+| External platform | Platform API writes | Slack post, Notion block write, Alpaca order submit, Lemon Squeezy discount creation |
+| Another Identity within YARNNN | Substrate (see sub-shape 1) | Agent writes to `/workspace/context/` that Reviewer later reads; YARNNN writes `awareness.md` that next chat turn reads |
+| Foreign LLM (via MCP) | MCP response to `pull_context` / `work_on_this` / `remember_this` | QueryKnowledge results, composed subject bundles |
+
+### Channel ≠ Mechanism
+
+Compose substrate (ADR-170 / ADR-177) sits at the joint between Mechanism and Channel:
+- **Rendering HTML to a file** = Mechanism (substrate-return Channel)
+- **Addressing that HTML to a surface or email** = Channel (different consumer, same file)
+
+The file is the durable artifact (Substrate). The rendering is how it was produced (Mechanism). The delivery routing is where it goes (Channel). Three dimensions, one artifact. Compose substrate is the legitimate cross-cut that deliberately couples Mechanism + Channel — and its legitimacy is justified by the singular output-substrate argument in ADR-148 + ADR-170.
+
+Cross-cuts are not always errors. They are errors when unjustified.
+
+---
+
+## Axiom 7: Recursion — The Six Dimensions Compose Over Time
+
+**When the six compose, accumulation happens. Accumulation is the compounding mechanism.**
+
+Recursion is not a seventh dimension. It is what the first six *do* over time. One cycle of the architecture:
+
+```
+Trigger (when)
+  → Identity + Purpose decide what matters (who + why)
+    → Mechanism reads Substrate, reasons, produces output (how, reading what)
+      → Channel addresses output to destination (where)
+        → Substrate accumulates (what, extended)
+          → next Trigger reads richer Substrate ...
+```
+
+The cycle is the architecture. Every mechanic participates; some mechanics visit all six cells in one firing (task pipeline), some visit a subset (cleanup cron: Trigger + Substrate + Mechanism).
+
+### Four layers of recursive perception
+
+Perception is Substrate-read (Axiom 1) with zero Mechanism. Four layers of perception feed each Mechanism cycle:
+
+1. **External perception** — Agents call platform APIs (Slack, Notion, GitHub, Alpaca, LS) live during task execution. Raw platform signals processed by agents and written as structured context to `/workspace/context/` domains. Per Axiom 1, no intermediate staging table (ADR-153: `platform_content` sunset).
+
+2. **User-contributed perception** — uploaded documents in `/workspace/uploads/`. Permanent reference material the user explicitly shares. Triggers inference to update workspace context (IDENTITY.md, BRAND.md).
+
+3. **Internal perception** — accumulated workspace context at `/workspace/context/` + task outputs in `/tasks/{slug}/outputs/`. Each run's output feeds the next run's context. Context domains accumulate cross-task intelligence that any Identity can draw from.
+
+4. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections), YARNNN's observations (`/workspace/notes.md`, `/workspace/style.md`), Reviewer decisions (`/workspace/review/decisions.md`), money-truth reconciliation (`_performance.md`). As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
+
+### Three substrates for coherence
+
+Perception flows through three distinct **views onto the same filesystem substrate** (Axiom 1) that must stay coherent:
+
+1. **Conversation** — sessions, chat messages, compaction (`/workspace/awareness.md` + session records). What was said.
+2. **Filesystem** — workspace files (`AGENT.md`, `memory/`, `TASK.md`, cognitive files, context domains). What the system knows.
+3. **Agent cognition** — role prompts, task process declarations, execution strategies. How agents think (this is Mechanism reading Substrate).
+
+Three views are not hierarchical. Intelligence degrades when they fall out of sync: a user directive in conversation that doesn't reach the filesystem evaporates on session rotation; an assessment in the filesystem that agents can't read produces blind spots.
+
+### The recursive property
 
 ```
 External platforms → live API calls → agent execution → task output →
@@ -185,300 +296,46 @@ External platforms → live API calls → agent execution → task output →
        ↑                                          |
        └── user uploads (/workspace/uploads/) ────┘
        └── user feedback (/workspace/style.md) ──┘
-       └── YARNNN observations (/workspace/notes.md) ──┘
+       └── Reviewer decisions (/workspace/review/decisions.md) ─┘
+       └── money-truth (_performance.md) ────────┘
+       └── YARNNN observations (/workspace/notes.md) ─┘
 ```
 
-The workspace filesystem (three roots: `/workspace/`, `/agents/`, `/tasks/`) acts as an **operating system for agent and human work** — a shared substrate where both contribute and both consume. The filesystem IS the information architecture (ADR-142, ADR-153).
+The workspace filesystem acts as an **operating system for agent and human work** — a shared substrate where both contribute and both consume. The filesystem IS the information architecture.
 
-### Corollary: Composition Is Projection of Accumulation (ADR-170)
+### Implication: Optimize for accumulation, not extraction
 
-The perception substrate accumulates. But accumulation without structural projection into output is invisible — each run starts fresh with no awareness of what's been built. The **compose substrate** is the layer that makes accumulation manifest in deliverables.
-
-Composition is not rendering (mechanical transformation) and not generation (LLM prose). It is the *binding* operation: given a task type's structure and the current filesystem state, what sections should the output have, what assets are available, and what references need resolving? The output is a *projection* of the filesystem through the lens of the task type's declared structure.
-
-This is why revision can be targeted rather than full regeneration. When feedback points at one section, the compose substrate knows what that section reads from, what assets it references, and whether its sources have changed. Revision is filesystem-diff routing, not a regeneration gamble.
-
-The compose substrate makes the recursive property structurally load-bearing: a tenured agent's output isn't just better because the LLM has more context — it's structurally richer because the filesystem has more entities, more assets, and more accumulated analysis for the compose substrate to bind into sections. See [compose-substrate.md](compose-substrate.md).
-
-### Implication: Optimize for Accumulation, Not Extraction
-
-The external platform integrations are the onramp. The enduring value is in the recursive accumulation: agent memory, learned preferences, domain theses, cross-agent insights. As LLM capabilities improve, the quality of each recursive cycle improves — the system's reasoning gets better at the same substrate. This compounds. The architecture must accommodate that compounding.
-
-Architecture decisions should prioritize the health of this recursive loop over the breadth of external integrations.
+External platform integrations are the onramp. The enduring value is in the recursive accumulation: agent memory, learned preferences, domain theses, cross-agent insights. As LLM capabilities improve, the quality of each recursive cycle improves — the system's reasoning gets better at the same substrate. This compounds. Architecture decisions should prioritize the health of this recursive loop over the breadth of external integrations.
 
 ---
 
-## Axiom 3: Agents and Specialists Develop Along Different Axes
+## Axiom 8: Money-Truth — Substrate Must Carry Reconciled Capital Reality
 
-Neither an Agent nor a Specialist is a static configuration that runs the same task forever. Both are **persistent entities with developmental trajectories** — but the axis each develops along is distinct, and conflating them has been a recurring source of design error (resolved by ADR-189).
+**Revenue, P&L, and reconciled outcomes belong in the filesystem, per domain, per operator, per cycle.**
 
-### Identity-Layer Split (ADR-189)
+YARNNN is not just a knowledge-work platform — it is an **action platform**. Per ADR-192 + ADR-193, agents can write to external platforms (trading orders, commerce product updates, campaign emails). Those writes have capital consequences. The system must close the loop: every action must be reconciled against external reality and the reconciled outcome must live in Substrate where Reviewer, YARNNN, and the operator can read it.
 
-Three cognitive layers, three identity substrates, three development axes:
+### Canonical home
 
-| Layer | Identity substrate | Development axis | Created by |
-|-------|-------------------|------------------|------------|
-| **Workspace** (YARNNN) | `/workspace/IDENTITY.md`, `/workspace/BRAND.md` | Judgment about user's attention and workforce health | Signup (one per workspace) |
-| **Specialist** | ADR-117 role-keyed style distillation | Stylistic preference across all tasks using the specialist | Framework (fixed six) |
-| **Agent** | `/agents/{slug}/AGENT.md` + accumulated Domain context | Domain knowledge and tenure | User (through conversation with YARNNN) |
+`/workspace/context/{domain}/_performance.md` per domain. Authored by the daily back-office reconciler (ADR-195 v2). Read by Reviewer (for EV reasoning on proposals), daily-update (for linked pointers, per ADR-198), YARNNN (for workforce judgment), and the operator (via Context surface).
 
-**Specialists develop outward through style.** A Writer reused across dozens of tasks accumulates "this user prefers punchy leads, no hedging, em-dashes over colons" — and that preference is available on every future task that drafts the Writer.
+### Three structural properties of money-truth substrate
 
-**Agents develop inward through domain.** A competitor-tracking Agent accumulates observations about specific competitors, a competitive thesis, learned preferences for how the user reads competitive intelligence. None of this transfers to a different domain — it's Agent-scoped, not Specialist-scoped.
+1. **Reconciled from external reality.** Money-truth is not what YARNNN or the agent *said* happened. It is what the platform API *confirms* happened — order fills, refunds, delivery receipts, subscription events. Reconciliation is the mechanism (`OutcomeProvider` ABC in `api/services/outcomes/`).
+2. **Filesystem-native.** Per Axiom 1. No sibling SQL ledger. `action_outcomes` table was dropped by ADR-195 v2 + ADR-196 for this reason.
+3. **Idempotent under replay.** Reconciler can run any number of times; output is deterministic modulo platform history. Idempotency via `processed_event_keys` in file frontmatter.
 
-The prior framing (pre-ADR-189) collapsed these into a single "agent memory" concept, which created two failure modes: Specialists were asked to carry domain identity they couldn't carry, and Agents' domain accumulation was read through a lens designed for role-scoped style. The split resolves both.
+### Three asymmetric bets money-truth substrate enables
 
-### Agent Identity = Type + Instructions + Domain
+1. **The AI Reviewer can reason in capital-EV.** Without `_performance.md`, AI-reviewed decisions collapse to rule-checking. With it, the Reviewer can reason "you're already 40% tech-concentrated, this trade is outside your edge" — capital-EV judgment.
+2. **Revenue becomes perception, not infrastructure.** Per ADR-184, product health (revenue, subscribers, churn) flows into the workspace as context domains. The operator's capital trajectory is legible to the same cognitive layers that read every other perception.
+3. **Accumulation compounds across action.** A tenured agent + accumulated `_performance.md` is a different product than a tenured agent without. The capital-reconciled substrate is what makes "the team gets better at its job, measured by revenue" a structurally grounded claim rather than a marketing line.
 
-An Agent's **type** (role) determines its capabilities — what tools, runtimes, and actions are available. The role taxonomy is a fixed framework primitive: `researcher | analyst | writer | tracker | designer | reporting | thinking_partner` + platform bots. These are universal cognitive functions that apply to any domain. An Agent's role is fixed at creation and defines the mechanical boundary of what it can do. See ADR-130 for the three-registry architecture (Agent Type Registry, Capability Registry, Runtime Registry).
+### Revenue as external validation of accumulated attention
 
-**Universal roles, contextual application (ADR-188 + ADR-189):** The role taxonomy is fixed framework, but which Agents exist in a workspace is entirely user-created. A brand-new workspace has zero Agents at signup (ADR-189). Over time, the user creates Agents through conversation with YARNNN. A day-trader's workspace may accumulate two Analyst-type Agents (one for market patterns, one for portfolio review) and no Writer-type Agents. A content creator's may accumulate two Writer-type Agents and no Tracker. The registries (`AGENT_TEMPLATES`, `TASK_TYPES`, `WORKSPACE_DIRECTORIES`) are a curated template library that YARNNN draws from or composes beyond.
+Accumulated attention (Axiom 7) is invisible without external validation. For content product businesses, **revenue is the proof that accumulated attention has value.** If quality genuinely improves over time, subscribers notice, retention rises, revenue grows. Switching to any other tool means starting from zero context — quality regresses, revenue declines.
 
-An Agent's **instructions** determine its persona — how it applies its capabilities, what it pays attention to, what judgment it exercises. Instructions are user-configurable and prompt-level.
-
-An Agent's **domain** is the segment of user work the Agent owns. Domain is declared at creation (from the user's own language, e.g., "my competitors," "my client roster") and is what the Agent accumulates expertise in.
-
-```
-Agent = Type (role, fixed) + Instructions (persona, configurable) + Domain (user-created)
-```
-
-### Two Dimensions of Agent Development
-
-**Knowledge depth** — what the agent knows about its domain.
-
-An agent develops inward through accumulated workspace state:
-- **Memory**: observations, domain thesis, learned preferences (workspace `memory/*.md`)
-- **Feedback**: user edits distilled into behavioral preferences (`memory/feedback.md`)
-- **Reflections**: mandate fitness, domain fitness, context currency (`memory/reflections.md`)
-- **Directives**: accumulated user guidance from conversations (`memory/directives.md`)
-
-A tenured agent produces better output because it knows more about its domain, not because it has more tools. This is the compounding mechanism — each execution cycle benefits from accumulated workspace state.
-
-**Autonomy** — how much supervision consequential actions require.
-
-Consequential external actions (posting to Slack, sending emails, updating Notion) are gated by **explicit user authorization per agent**, not earned through seniority or feedback metrics. "This agent can post to #general" is a user setting.
-
-### Agent Cognitive State (ADR-128)
-
-A developing agent is not just its outputs and feedback — it has a **cognitive state** that persists between executions. This state is materialized in workspace files, seeded at creation time, and updated on every run:
-
-- **`memory/reflections.md`** — rolling history (5 most recent) of the agent's self-evaluation: mandate clarity, domain fitness, context currency, output confidence. This is the agent's evolving self-awareness.
-- **`memory/directives.md`** — accumulated user guidance from conversations that persists across session rotations.
-
-Cognitive files are **not output** — they are coordination infrastructure. They are stripped from delivered content and exist solely to enable cross-agent coherence.
-
-### The Agent Pulse — Mechanism of Autonomy (ADR-126)
-
-An agent is alive when it has a **pulse** — an autonomous sense→decide cycle that runs independent of user interaction. The pulse is upstream of execution: a pulse that decides "generate" produces a run; a pulse that decides "observe" does not — but the pulse still happened, and that's visible intelligence.
-
-Pulse cadence is determined by agent type (ADR-130):
-- **monitor**: every 15 minutes (always alert)
-- **digest/prepare**: every 12 hours (daily rhythm)
-- **synthesize/research/custom**: on schedule (delivery rhythm)
-
-The pulse uses a cheap-first funnel:
-1. **Tier 1 (deterministic, zero LLM)**: Fresh content? Budget available? Recent enough? ~80% of pulses resolve here.
-2. **Tier 2 (self-assessment)**: Agent reads own workspace, thesis, observations, and decides whether to generate.
-
-Every pulse produces a decision: `generate | observe | wait | escalate`. Each decision is a visible event — surfaced in agent timelines and dashboards. This is what makes agents a workforce you can watch living, not just a list of outputs.
-
-### Tasks: Work Definition and Temporal Behavior (ADR-138)
-
-Tasks define what work gets done. A task has an objective — its north star — and a **mode** that determines its temporal behavior:
-
-- **`recurring`** — runs on fixed cadence (daily, weekly, monthly). Indefinite. The common case.
-- **`goal`** — runs toward a bounded objective, then completes. "Investigate this acquisition" → done when criteria met.
-- **`reactive`** — runs on demand or event-triggered. "Alert me if competitor changes pricing."
-
-Mode is a property of the task, not the agent. A Research Agent can simultaneously have a recurring task (weekly briefing) and a goal task (one-off investigation). The agent's identity and capabilities don't change — only the temporal shape of the work differs.
-
-A task objective exhibits a key paradox: **an objective is flat data from the user, but its ramifications can be wide-reaching.** Compare:
-
-- "I want a daily recap of #engineering with executive summary" — bounded objective, 1 agent, predictable cadence
-- "I want the most comprehensive analysis possible on market trends" — unbounded objective, potentially multiple agents/files/runs
-
-YARNNN's core cognitive task when creating work is **translating the user's intent into executable, bounded tasks** — decomposing what the user wants into task definitions: which Agent(s) contribute, which Specialists draft the team, what mode, what cadence, what format, and how much budget to allocate. The work budget (ADR-120) prevents unbounded objectives from consuming infinite resources.
-
-Objectives include delivery and format preferences: the user wants email delivery, or a presentation-style report, or a data-rich dashboard. These preferences are data in TASK.md's `## Objective` section — they shape assembly decisions, layout mode selection, and export format. Output is HTML-native (ADR-130): agents produce structured content, the platform renders it visually, and legacy formats (PDF, XLSX) are mechanical exports for external sharing.
-
----
-
-## Axiom 4: Value Comes from Accumulated Attention
-
-A Slack digest is not valuable because it summarizes today. It is valuable because it summarizes today **knowing what it summarized yesterday, what the user edited last time, and what its domain thesis says matters.**
-
-The agent's **tenure** — its accumulated memory, observations, learned preferences, and domain understanding — is the moat. This is why agents are persistent entities, not functions, and why destroying an agent destroys accumulated judgment.
-
-### The Information Hierarchy
-
-Accumulated attention produces layered value:
-
-| Level | What | Example | Typical Agent Phase |
-|-------|------|---------|-------------------|
-| L0 | Raw signals | Slack messages, email threads, Notion pages | (Perception layer, not agents) |
-| L1 | Digests | "Here's what happened in #engineering today" | Creation / Early Tenure |
-| L2 | Insights | "The team discussed migration 3 times this week" | Developing |
-| L3 | Analysis | "There's a misalignment between eng and product on the migration timeline" | Mature |
-| L4 | User knowledge | Learned preferences, domain theses, standing instructions | Accumulated across all phases |
-
-Lower levels feed higher levels. Higher levels refine what lower levels pay attention to. This is the recursive property (Axiom 2) applied to the agent's own development (Axiom 3).
-
-An agent's ability to operate at higher levels of the hierarchy is a function of its tenure and accumulated L4 knowledge. A new agent operates at L1. A mature agent operates at L3, informed by L4.
-
-### Revenue as Moat Proof (ADR-183, ADR-184)
-
-Accumulated attention is invisible without external validation. For content product businesses, **revenue is the proof that accumulated attention has value.** If quality genuinely improves over time, subscribers notice, retention rises, revenue grows. Switching to any other tool means starting from zero context — quality regresses, revenue declines.
-
-This creates a three-tier metrics hierarchy (ADR-184): product health (revenue, subscribers, churn) is upstream, driven by task quality, driven by agent health. Revenue trajectory *is* the quality metric — not a separate business concern, but the measurable consequence of accumulated attention.
-
-Commerce data (subscribers, revenue, churn) flows into the workspace as context domains (`customers/`, `revenue/` — ADR-183), feeding the same perception substrate as all other context. Revenue is perception, not infrastructure.
-
----
-
-## Axiom 5: YARNNN's Compositional Capability
-
-Composition is not a separate service, agent type, or subsystem. It is **YARNNN exercising judgment about what attention patterns the user's work requires.**
-
-### What YARNNN Composes
-
-1. **Substrate Assessment** — "What can I perceive?" Evaluates connected platforms, available data, existing Agents, tasks, user feedback patterns.
-2. **Need Recognition** — "What sustained attention is warranted?" Identifies cognitive patterns that would produce value (Axiom 4 — this is about sustained attention, not one-shot tasks). This includes recognizing when a user's work requires multiple Agents coordinated through a task.
-3. **Domain Composition** — "What structure does this work need?" Composes context Domains (entity structures, synthesis templates), task definitions (objectives, step instructions, process configurations), and Agent assignments from the user's work description. Draws from the template library (existing task types, domain structures) as reference, but can compose novel definitions for domains not represented. See ADR-188.
-4. **Agent Creation + Team Drafting** — "What should I create? Who drafts this task?" The user creates Agents through conversation with YARNNN; YARNNN infers the identity that emerges and confirms with the user. For each task, YARNNN drafts a Team of Specialists from the palette — this is per-task selection, re-drafted each cycle. See ADR-189 for the three-layer identity split.
-5. **Lifecycle Management** — "Are my entities developing well?" Reviews Agent health, output quality, feedback patterns. Adjusts, evolves, or dissolves Agents and tasks. Monitors workforce by reading Agent self-assessments and pulse outcomes to make compositional decisions.
-
-### Composition Triggers
-
-YARNNN's compositional capability activates when:
-- A platform is connected (new substrate — what attention is now warranted?)
-- A user provides feedback (approval/edit — should Agents adjust?)
-- A periodic self-assessment fires (are Agents healthy? is anything missing?)
-- A user conversationally requests (explicit direction — create an Agent, adjust a task)
-
-### Compositional Quality Is Measurable (ADR-162)
-
-YARNNN's substrate assessment depends on the quality of inference (IDENTITY.md, BRAND.md, domain entities). Bad inference upstream cascades into wrong compositional decisions downstream — wrong Agents, wrong tasks, wrong scaffolding, wasted work budget. ADR-162 makes inference quality testable via an offline evaluation harness, recoverable via deterministic gap detection (zero-cost post-inference loop), and proactive on document uploads. None of this introduces new autonomous LLM judgment; it tightens the inference YARNNN already does, in conversation, where the user can see and correct.
-
----
-
-## Axiom 6: Autonomy Is the Product Direction
-
-The product vision is: **sign up, describe your work, watch it work for you.**
-
-### Work-First Onboarding (ADR-132)
-
-The system must know **what to work on** before it can work autonomously. Platform connections are data sources — the user's work description determines what agents to create, how to scope them, and what matters.
-
-The onboarding sequence is:
-1. **User describes their work** — "I run a consulting practice with 3 clients" (primary input)
-2. **YARNNN composes the workspace** — creates Agents with domains appropriate to the work, scaffolds task definitions with domain-specific step instructions, drafts Specialist teams per task. YARNNN draws from the template library but composes novel structures when the user's domain isn't pre-represented (ADR-188). No Agents are scaffolded at signup — every Agent is created through conversation (ADR-189).
-3. **User connects platforms** — platform sources get mapped to tasks (Slack channels → digest tasks)
-4. **Agents activate** — scoped to work context, not platform topology
-
-Platform connection without work context produces generic digests (the fallback). Work description without platform connection produces correctly-scoped agents with task definitions (enriched when platforms connect). The work description is always more valuable than the platform connection.
-
-### The Autonomous Flow
-
-```
-1. User describes work (or connects platform, or Composer detects opportunity)
-2. YARNNN creates Agent(s) and task(s) through conversation; drafts Specialist Team per task with cadence, format, and delivery config
-3. Task pulses begin on cadence (sense→decide cycle)
-4. Agent pulse decides "generate" → run produces output to workspace
-5. Agent self-checks output quality → delivers per TASK.md
-6. For multi-agent tasks: outputs assembled and delivered as composed deliverable
-7. User feedback refines Agent outputs and YARNNN's orchestration
-8. Recursive: next cycle's pulses are smarter because agents learned
-```
-
-Steps 1-2 are the onboarding/Composer capability. Steps 3-5 are pulse-driven execution. Step 6 handles multi-agent coordination. Step 7 closes the recursive loop. Step 8 is the compounding mechanism — each pulse cycle benefits from accumulated workspace state.
-
-**Agents are persistent domain experts. Specialists are YARNNN's palette. Tasks define what work gets done. YARNNN orchestrates.**
-
-Task cadence determines when an agent runs. The agent's pulse decides whether to generate. Delivery configuration lives in TASK.md.
-
-For the canonical phase-by-phase breakdown of standalone agent flow — including timeline, separation of concerns, and the compounding mechanism — see [VALUE-CHAIN.md](VALUE-CHAIN.md).
-
-### Two Modes of Value
-
-Both are valid. The architecture optimizes for the autonomous path while fully supporting the directed path.
-
-- **Autonomous work**: System recognizes need → creates agents → delivers value → user refines
-- **Directed work**: User asks YARNNN → YARNNN responds or creates Agents → user gets what they asked for
-
-Over time, the balance shifts toward autonomous. Early users direct more; tenured users supervise more. This is the natural consequence of agents developing expertise (Axiom 3) and the recursive substrate accumulating judgment (Axiom 2).
-
-### The Floor: A System That Reaches You (ADR-161)
-
-The autonomous mode and the directed mode are peers — but neither can prove the system exists if the user is not in the application. Email is the only channel that reaches the user *outside* YARNNN. Without a default scheduled artifact, a user who signs up but never engages in chat receives no signal that the system exists at all. The product appears dead.
-
-The architectural commitment: **every workspace receives a daily artifact, by default, from day one, with content that scales with workspace maturity**. This is the heartbeat artifact (the `daily-update` task), scaffolded at signup as the only default task, marked essential, and never auto-paused. Empty workspaces still receive the daily email — with a deterministic, honest "I have nothing to tell you yet, here's how to start" template that costs near-zero to produce and serves as a daily call to action.
-
-The floor is the minimum guarantee. Above it, the system scales with engagement: more tasks, richer context, denser digests. Below it: nothing. The point is that "below it" never exists — every signup gets the floor.
-
-This is structural, not aspirational. The daily-update is the same task object as any other in the schema; it's special only in metadata. See ADR-161.
-
-### Implication: Work Context Over Configuration Breadth
-
-A user who describes their work and sees correctly-scoped agents that understand their domain has more confidence than a user who connects Slack and gets a generic recap of everything. The system should optimize for understanding the user's work over maximizing platform coverage.
-
-### Implication: Work Types Carry Lifecycle
-
-Work descriptions carry implicit lifecycle, expressed as task `mode`. "I have 3 clients" implies persistent, recurring work → `recurring` tasks. "I need a board deck" implies bounded, deliverable-scoped work → `goal` task that completes on delivery. "Alert me if competitor changes pricing" → `reactive` task. The system infers mode from the work description — the user does not configure it. Recurring tasks run indefinitely. Goal tasks dissolve on completion. Reactive tasks wait for triggers.
-
-### Implication: Surface Simplicity, Schema Fidelity (ADR-163)
-
-The schema needs three modes because the execution layer has three genuinely different behaviors (recurring heartbeat, goal revision loop, reactive dispatch-and-done). The user does not need to see three labels — from the user's perspective, there are only two kinds of work they delegate: "watch this for me" (Recurring) and "build this for me" (One-time). ADR-163 codifies this split: the schema preserves three modes, the surface shows two labels, and the mapping is fixed (`recurring → Recurring`, `goal | reactive → One-time`). This is a deliberate design decision — surface simplicity is worth the small cost of a non-identity mapping between schema and UI. The execution layer answers "what do we do?", the surface answers "what do you choose?", and those are different questions.
-
----
-
-## Axiom 7: Money-Truth Is the Truth Test
-
-YARNNN is a money-making platform for its operators. Accumulated context, agent tenure, and reviewer judgment are all valuable *only* insofar as they produce capital outcomes for the user. Every architectural choice is evaluated against this test.
-
-This axiom is stronger than a product metric. It is a commitment that the system's **internal substrates** — context, proposals, reconciled outcomes, reviewer judgment — organize around capital attribution *from the inside*, not as a dashboard view layered on top.
-
-### Three structural properties
-
-**Property 1 — Actions must be attributable to outcomes.**
-
-Every write primitive executed by an agent or approved by a reviewer must be linkable to a later-reconciled outcome. Unattributed action volume is noise; attributed action volume is compounding intelligence. Per Axiom 0, money-truth lives in the filesystem: **the canonical money-truth file is `/workspace/context/{domain}/_performance.md`**. Per-domain `OutcomeProvider` implementations (ADR-195) are the reconcilers that translate platform events into entries on that file. There is no sibling DB table — the filesystem is authoritative.
-
-**Property 2 — Accumulated context is pruned by outcome, not just staleness.**
-
-A thesis that led to a profitable trade strengthens; a thesis that led to a losing trade weakens. Context files (`/workspace/context/{domain}/*.md`) are not diaries — they are money-tested track records. `_performance.md` per domain is the objective signal against which context health is evaluated. ADR-181's feedback actuation extends naturally — high-impact outcomes become feedback entries with `source: system-outcome`.
-
-**Property 3 — Reviewers reason in capital terms.**
-
-The approval layer (Reviewer — ADR-194) judges proposals on expected value given the operator's current book, declared strategy, and accumulated track record. Risk rules (`_risk.md`) are the floor; expected-value reasoning is the target. A Reviewer without outcome history collapses into rule-checking, which adds nothing the risk-gate primitive already does. ADR-194 and ADR-195 ship as a pair for this reason.
-
-### The canonical money-truth file
-
-`/workspace/context/{domain}/_performance.md` is the single home per domain. It contains:
-
-- **YAML frontmatter** — machine-readable track record: total reconciled events, aggregate P&L / revenue, per-action-type breakdowns, rolling windows (7d/30d/90d), idempotency key list (the reconciler's dedup set).
-- **Markdown body** — operator-legible narrative: recent wins and losses with links to the actions that produced them, current book state, trend notes.
-
-The file is **regenerated idempotently** by the daily back-office reconciler (`back-office-outcome-reconciliation` — ADR-195 Phase 2) from platform events. Idempotency lives in the frontmatter's processed-event-key list, not in a DB dedup table. Readers never mutate it; they read and reason.
-
-Consumers (all file-readers — no special APIs):
-- **Reviewer** (ADR-194) — reads `_performance.md` to reason about EV on proposed writes.
-- **Daily briefing** (ADR-195 Phase 4) — emits "Your book this week" section from frontmatter.
-- **YARNNN chat / compact index** — surfaces aggregate outcome signals when relevant.
-- **Operator** — reads in Context surface; same substrate, no separate reporting view.
-
-### Three asymmetric bets the architecture makes
-
-- **Money-truth over vibe-truth** — accumulated context wins by being money-tested, not by volume or recency alone.
-- **Attribution over aggregation** — one action linked to one outcome beats 100 actions linked to nothing.
-- **EV over rules** — the Reviewer is a senior operator, not a compliance gate. Rules set the floor, not the ceiling.
-
-### Why this axiom, not just ADR-183/184
-
-ADR-183 introduced commerce as a fourth platform class. ADR-184 proposed product health metrics as a reporting view. Axiom 7 promotes the underlying idea: **money-truth is not a metric layered on the system; it is a substrate the system is organized around.** This reframe is why ADR-195 implements a first-class money-truth substrate (providers + canonical file + consumers + reconciliation loop) rather than a reporting feature, and why ADR-194's Reviewer is shaped around EV-reasoning rather than rule-enforcement from day one.
-
-### Revenue as the external validation (from Axiom 4)
-
-Axiom 4's "Revenue as Moat Proof" framing remains valid and is now the external-validation corollary of Axiom 7. Internally, money-truth shapes substrates. Externally, revenue trajectory is the measurable consequence. The two axioms are paired: Axiom 4 names *why it compounds visibly* (revenue is the proof); Axiom 7 names *how it compounds structurally* (actions → outcomes → context → reviewer → better actions).
+Three-tier metrics hierarchy (ADR-184): product health (revenue, subscribers, churn) is upstream, driven by task quality, driven by agent health. Revenue trajectory *is* the quality metric — not a separate business concern, but the measurable consequence of accumulated attention.
 
 ---
 
@@ -486,78 +343,81 @@ Axiom 4's "Revenue as Moat Proof" framing remains valid and is now the external-
 
 These follow from the axioms and are stated explicitly for implementation guidance:
 
-1. **Three layers, clear separation (ADR-189)** — YARNNN handles meta-cognition (composition, supervision, orchestration). Specialists handle role-cognition (style, preference — role-scoped, never domain-scoped). Agents handle domain-cognition (expertise, execution, accumulation — user-created, domain-scoped). Each layer develops along its own axis; none does the others' job.
-2. **Workspace is the shared OS** — All persistent state lives in three filesystem roots (ADR-142, ADR-153): `/workspace/` (user context + uploads + accumulated context domains), `/agents/{slug}/` (identity + memory), `/tasks/{slug}/` (work + outputs). The filesystem IS the information architecture. New capabilities extend paths, not database tables.
-3. **Agents are the write path** — All modifications to workspace files and agent state flow through agent primitives, not direct user manipulation. The frontend is read-only on workspace (objective editing via API is the exception — it's charter-level, not operational). User intent goes through TP → agents. This protects the structural conventions (folder hierarchy, manifests, lifecycle metadata) that agents depend on for coordination. User feedback on outputs is the exception — it flows through the feedback distillation pipeline, which is itself an agent-mediated write.
-4. **Accumulation over extraction** — Prioritize the health of the recursive accumulation loop over the breadth of external integrations. The internal/reflexive perception layers are more valuable long-term than the external layer.
-5. **Agents develop through knowledge, not capability expansion** — Agent capabilities are fixed by type. Development is about knowledge depth: accumulated memory, learned preferences, refined domain expertise. The architecture supports this deepening through workspace state (memory, feedback distillation, self-assessment), not through mechanical capability unlocking.
-6. **Feedback is perception** — User edits, approvals, and dismissals are first-class signals, equivalent in architectural importance to platform data. They drive both Agent development (Axiom 3) and YARNNN's compositional judgment (Axiom 5).
-7. **Singular implementation** — One way to do things. If YARNNN can compose, there is no separate composer service. If tasks subsume scheduling, there is no parallel trigger system.
-8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes work units. Tasks are the work units. The system must have a governor that bounds total autonomous compute per user, regardless of how many agents or tasks exist. This prevents unbounded objectives from consuming infinite resources and is the basis for the service model users pay for.
-9. **Agent roles determine capabilities; output is structured, not formatted** — Agent capabilities are determined by role (universal cognitive functions, fixed at creation), not earned through seniority or feedback. Three registries define the capability substrate: Agent Types (capability bundles), Capabilities (what each enables + where it executes), Runtimes (where compute happens). The role taxonomy is a framework primitive; which agents are instantiated and what domains they serve is workspace-contextual (ADR-188). Capabilities, presentation, and export are three separate concerns: agents produce structured content, the platform renders it visually via layout modes, and legacy formats are mechanical exports. Agent development is knowledge depth (accumulated memory, preferences, domain expertise), not capability breadth. See ADR-130.
-10. **Registries are template libraries, not validation gates** — The task type registry, directory registry, and agent templates are curated libraries of domain-specific patterns. TP can draw from them or compose novel definitions. The execution pipeline reads workspace files (TASK.md, AGENT.md, _domain.md) at runtime, not the registries. What is fixed: framework primitives (output_kind, roles, modes, pipeline). What is contextual: domain structures, task definitions, step instructions, agent assignments. See ADR-188.
-11. **Every write eventually resolves to an outcome in a file** — Actions taken through proposals (ADR-193), direct agent writes, and YARNNN-initiated writes all feed `/workspace/context/{domain}/_performance.md`. Unreconciled writes are a leak in the learning loop. Outcome reconciliation is a daily back-office task (ADR-195) that regenerates the per-domain performance file idempotently. That single file feeds three consumers: the Reviewer's track record, the daily-update briefing's capital section, and ADR-181 feedback actuation. No sibling ledger table — per Axiom 0, semantic content is filesystem-native.
-12. **The Reviewer is a structurally separate cognitive layer** — Not an ABC, not a role, not a configuration object. The Reviewer (ADR-194) is a fourth cognitive layer alongside YARNNN, Specialists, and Agents. Its implementations (Human / AI / Impersonation) differ in identity, not in abstraction. Its cognitive state lives at `/workspace/review/`. Policy for which implementation handles which proposal type lives in the `review-proposal` reactive task's definition and context files, not in a parallel policy file. The Reviewer is shaped around capital-EV reasoning, not rule-checking — risk rules are the floor, expected value is the target. (Per Axiom 0 + Axiom 7.)
+1. **Dimensional purity** — No mechanic should span dimensions without explicit justification. When a design decision conflates dimensions (e.g., ADR-195 v2 Phase 4's proposed briefing-absorbs-performance), the conflation is caught by the dimensional test and redesigned. Cross-cuts are legitimate only when argued for (e.g., compose substrate deliberately couples Mechanism + Channel per ADR-148's singular-rendering-path argument).
+
+2. **Substrate is the shared OS** — All persistent state lives in the filesystem roots: `/workspace/` (user context + uploads + accumulated domains + review + awareness), `/agents/{slug}/` (identity + memory), `/tasks/{slug}/` (work + outputs). New capabilities extend paths, not database tables.
+
+3. **Agents are the write path** — All modifications to workspace files flow through Identity-authored primitive calls, not direct user manipulation. The frontend is read-only on workspace (operator feedback is routed through primitive calls). User intent goes through YARNNN → agents. This protects the structural conventions.
+
+4. **Accumulation over extraction** — Prioritize the health of the recursive accumulation loop (Axiom 7) over the breadth of external integrations. Internal and reflexive perception layers are more valuable long-term than the external layer.
+
+5. **Identity develops by its axis; capability is fixed** — Each cognitive layer develops along one axis (YARNNN upward, Specialists outward, Agents inward, Reviewer through calibration). Capabilities are not earned through seniority — they are fixed at creation per the three-registry architecture (ADR-130).
+
+6. **Feedback is perception** — User edits, approvals, and dismissals are first-class Reflexive-perception signals, equivalent in architectural importance to platform data. They drive both Agent development (Axiom 2) and YARNNN's compositional judgment (Mechanism spectrum).
+
+7. **Singular implementation** — One way to do things. If YARNNN composes, there is no separate Composer. If tasks subsume scheduling, there is no parallel trigger system. If the Reviewer seat is a Purpose + Trigger cell, there is no `Reviewer` ABC (resolved by ADR-194 v2).
+
+8. **Work is bounded** — Autonomous work (agent runs, assemblies, renders) consumes tokens (ADR-171) and balance (ADR-172). The `balance_usd` gate is the sole budget — no parallel tier limits.
+
+9. **Mechanism is a spectrum, not a split** — ADR-141's three layers (mechanical / generation / orchestration) are three points on Mechanism's determinism-to-judgment spectrum, within one dimension. Primitives + prompts are the two halves of Mechanism's vocabulary — designing one without the other is a dimensional conflation.
+
+10. **Registries are template libraries, not validation gates** — The task type registry, directory registry, and agent templates are curated libraries of domain-specific patterns (ADR-188). YARNNN can draw from them or compose novel definitions. The execution pipeline reads workspace files (TASK.md, AGENT.md, `_domain.md`) at runtime, not the registries.
+
+11. **Substrate tightens; Mechanism loosens** — Over time, Axiom 1's substrate discipline grows stricter (fewer DB tables holding semantic content, cleaner file conventions). Axiom 5's mechanism grows looser (more agent autonomy, less procedural scaffolding). The Reviewer layer (Axiom 2) is the pivot that makes Mechanism loosening safe. See [YARNNN-DESIGN-PRINCIPLES.md](YARNNN-DESIGN-PRINCIPLES.md) "The Two Spectrums."
+
+12. **Channel legibility gates autonomy** — Autonomous writes must have a legible Channel back to the operator (approval UX, daily-update pointers, dedicated surfaces). An action without a visible channel is a trust leak — the operator cannot supervise what they cannot see. This is why surface archetype design (ADR-198) is load-bearing for the autonomous-operator ICP.
 
 ---
 
 ## Relationship to Existing ADRs
 
-| ADR | Relationship to Foundations | Status Under Foundations |
-|-----|---------------------------|------------------------|
-| ADR-072 (Unified Content Layer) | Implements Axiom 2 — shared content substrate | Aligned |
-| ADR-073 (Unified Fetch Architecture) | Implements Axiom 2 L0 — single perception path | Aligned |
-| ADR-080 (Unified Agent Modes) | Implements Axiom 1 — one agent, two modes (chat + headless) | Aligned |
-| ADR-092 (Mode Taxonomy) | Implements trigger axis — **superseded**: proactive/coordinator modes dissolved (ADR-126, ADR-138) | Superseded |
-| ADR-101 (Intelligence Model) | Implements Axiom 4 — four-layer knowledge model | Aligned |
-| ADR-102 (YARNNN Content Platform) | Implements Axiom 2 — agent outputs as perception | Aligned |
-| ADR-106 (Workspace Architecture) | Implements Axiom 2/4 — workspace as shared OS | Aligned |
-| ADR-109 (Agent Framework) | Implements taxonomy — **needs revision**: trigger axis and static skill model don't accommodate agent development (Axiom 3) | Partially superseded |
-| ADR-111 (Agent Composer) | Implements Axiom 5 — TP's compositional capability | Aligned (post v3) |
-| ADR-112 (Sync Efficiency) | Implements Axiom 2 L0 — perception reliability | Aligned |
-| ADR-118 (Skills as Capability Layer) | Implements Axiom 1 capability axis — skill library as agent toolbox. **Phase D format-builder skills partially superseded by ADR-130** | Partially superseded (Phase D) |
-| ADR-119 (Workspace Filesystem) | Implements Axiom 2 workspace-as-OS — folder conventions, manifests | Aligned |
-| ADR-120 (Project Execution & Work Budget) | Implements Axioms 1+5+6 — work budget governor. **PM and project model superseded by ADR-138** | Partially superseded |
-| ADR-121 (PM Intelligence Director) | **Superseded by ADR-138** — PM dissolved into TP | Superseded |
-| ADR-124 (Project Meeting Room) | Implements Axiom 2 (conversation as perception layer). **Project surface superseded by ADR-138** — tasks replace projects | Partially superseded |
-| ADR-128 (Multi-Agent Coherence Protocol) | Corollary to Axiom 2 (three intelligence substrates + three coherence flows), Axiom 3 (cognitive files as developmental mechanism). Agent self-assessment, chat directive persistence. | Aligned (revised) |
-| ADR-130 (HTML-Native Output Substrate) | Implements Derived Principle 9 — three-registry architecture (Agent Types, Capabilities, Runtimes). Deterministic type-based capabilities. Three-concern separation (capability/presentation/export). | Phase 1 Implemented |
-| ADR-138 (Agents as Work Units) | Implements Axioms 1+5+6 — PM dissolved into TP, projects replaced by tasks, agents are identity-only domain experts | Proposed |
-| ADR-161 (Daily Update Anchor) | Implements Axiom 6 floor — every workspace gets one essential task at signup, the heartbeat artifact, with deterministic empty-state for zero-cost dormant runs | Proposed |
-| ADR-162 (Inference Hardening) | Implements Axiom 5 quality — eval harness, deterministic gap detection, upload trigger via working memory, source provenance comments. All additive, zero shadow LLM calls. | Proposed |
-| ADR-163 (Surface Restructure) | Four-surface nav (Chat \| Work \| Agents \| Context). Mode collapse on surface (two labels) with schema preserved (three modes). Activity absorbed. Agents shrunk to identity. Inference visibility frontend. | Proposed |
-| ADR-164 (Back Office Tasks — TP as Agent) | TP becomes the 10th agent (meta-cognitive class). Back office tasks are tasks owned by TP — same schema, same pipeline, visible by default. Agent hygiene + workspace cleanup migrated from scheduler to back office tasks. 9 task-lifecycle activity_log events removed as redundant denormalizations. Updates Axiom 1 to reflect TP-as-agent. | Implemented |
-| ADR-189 (Three-Layer Cognition) | Three-layer model (YARNNN / Specialist / Agent) ratified. TP user-facing naming retired in favor of YARNNN. ADR-140 superseded in full. ADR-176 Decision 1 (fixed roster) superseded. Axioms 1, 3, 5 revised. GLOSSARY.md ratified. | Proposed |
-| ADR-194 (Pluggable Reviewer + Impersonation) | Implements Axiom 7 Property 3 — reviewer as abstraction (Human / AI / Impersonation), EV-reasoning AI reviewer, per-domain policy, operator-persona impersonation substrate for alpha stress-testing. Ratifies Derived Principle 12. | Proposed |
-| ADR-195 (Outcome Attribution Substrate) | Ratifies Axiom 7 in full — `action_outcomes` ledger + `OutcomeProvider` ABC + `_performance.md` canonical file + reconciliation back-office task. Feeds AI reviewer (ADR-194), daily-update briefing, and feedback actuation (ADR-181). Ratifies Derived Principle 11. | Proposed |
+Ax 0 (dimensional model) was the missing frame — its introduction does not invalidate prior ADRs, only clarifies their placement. The table below maps key ADRs to the dimension(s) they primarily touch.
+
+| ADR | Primary dimension(s) | Status under v6.0 |
+|-----|---------------------|------------------|
+| ADR-106 (Workspace) | Substrate | Foundational — Axiom 1 implementation |
+| ADR-138 (Agents as Work Units) | Identity + Purpose | Aligned |
+| ADR-141 (Execution Architecture) | Trigger + Mechanism | Aligned — three layers = Mechanism spectrum (Principle 9) |
+| ADR-146 + ADR-168 (Primitive Matrix) | Mechanism | Aligned — primitives are Mechanism vocabulary |
+| ADR-151 + ADR-152 + ADR-158 (Context Domains) | Substrate | Aligned |
+| ADR-153 (platform_content Sunset) | Substrate | Axiom 1 correction shipped |
+| ADR-156 (Composer Sunset) | Identity + Mechanism | Aligned — singular-implementation (Principle 7) |
+| ADR-161 (Daily Update Anchor) | Trigger + Channel + Purpose | Aligned |
+| ADR-163 (Surface Restructure) | Channel | Aligned — precursor to ADR-198 archetypes |
+| ADR-164 (Back Office Tasks) | Identity + Trigger | Aligned — YARNNN is Identity, back-office is Trigger sub-shape |
+| ADR-166 (Registry Coherence) | Purpose | Aligned — output_kind is a Purpose property |
+| ADR-168 (Primitive Matrix) | Mechanism | Aligned — substrate × mode × capability = Mechanism × Identity scoping |
+| ADR-169 (MCP as Context Hub) | Trigger (addressed) + Mechanism + Channel | Aligned — MCP is a third caller of `execute_primitive()` |
+| ADR-170 (Compose Substrate) | Mechanism + Channel (legitimate cross-cut) | Aligned — justified by singular-rendering (ADR-148) |
+| ADR-171 (Token Metering) | Substrate (audit ledger, permitted kind 2) | Aligned |
+| ADR-181 (Feedback Layer) | Substrate (feedback.md) + Mechanism (actuation) | Aligned |
+| ADR-183 + ADR-184 (Commerce + Product Health) | Substrate (money-truth) | Aligned — Axiom 8 content |
+| ADR-186 (Prompt Profiles) | Mechanism (prompt config) + Identity (profile per surface) | Aligned |
+| ADR-188 (Domain-Agnostic Framework) | Purpose + Substrate | Aligned — registries as templates (Principle 10) |
+| ADR-189 (Three-Layer Cognition) | Identity | Aligned — expanded to four layers by ADR-194 |
+| ADR-193 (ProposeAction + Approval Loop) | Trigger (reactive) + Channel (Queue) | Aligned |
+| ADR-194 v2 (Reviewer Layer) | Identity + Purpose + Trigger | Aligned — Reviewer distinctness is Purpose+Trigger (Axiom 2 clarification) |
+| ADR-195 v2 (Money-Truth Substrate) | Substrate | Axiom 8 content |
+| ADR-196 + ADR-197 (Legacy Table Sunsets) | Substrate | Axiom 1 correction |
+| ADR-198 (Surface Archetypes) | Channel | Aligned — five archetypes = five substrate-consumer-purpose cells |
+
+Any ADR that cannot be mapped to one or more dimensions is either incomplete or drifted — the dimensional test flags it for revision.
 
 ---
 
 ## Open Questions
 
-These require further design work before implementation:
+Carried forward from v5.1, updated for v6.0:
 
-1. **Intention model** — How are Agent intentions represented? Are they explicit (stored in workspace) or implicit (derived from Agent behavior)? How does YARNNN create, modify, or retire an Agent's intentions?
+1. **Agent evolution mechanics** — When an agent's domain expands (a Slack digest agent starts also monitoring email threads from the same team), does it become a new agent or does the existing agent's scope expand? Who decides? (Identity dimension — specifically, how Identity's scope mutates over time.)
 
-2. ~~**Capability gating mechanism** — How does the system track and enforce which capabilities an agent has earned?~~ → **Resolved by ADR-130.** Capabilities are determined by agent type, fixed at creation. No earning, no tracking. Three-registry architecture (Agent Types, Capabilities, Runtimes).
+2. **Surface composition at scale** — ADR-198's five archetypes map to four nav tabs. As operator workflows mature, does a sixth archetype emerge (e.g., Alerts as distinct from Queue)? How does the nav structure absorb this without fragmenting Channel? (Channel dimension, scale question.)
 
-3. ~~**Autonomy graduation criteria** — What constitutes "enough feedback" to graduate from supervised to semi-autonomous?~~ → **Resolved by ADR-130.** Consequential actions gated by explicit user authorization per agent, not earned through seniority.
+3. **Mechanism loosening rate** — Principle 11 says Mechanism loosens over time. What signal triggers the next loosening step (more agent autonomy within a task run, multi-round reasoning, filesystem browsing)? The Reviewer layer gates safety, but the *pacing* of loosening is open. (Mechanism dimension, direction of travel.)
 
-4. ~~**Multi-intention scheduling** — If an agent holds multiple intentions with different temporal profiles (daily digest + event-driven monitoring + goal-driven research), how does the scheduler express this?~~ → **Resolved by ADR-138.** Each task has its own cadence. An agent assigned to multiple tasks runs on each task's schedule independently.
+4. **Multi-workspace for polymath operators** — ADR-191 commits to polymath-operator ICP. When an operator runs multiple businesses on one YARNNN account, is each a separate workspace or sub-scopes of one? How do the six dimensions behave under nesting? (Cross-cutting — Substrate nesting affects Identity, Purpose, Channel.)
 
-5. **Agent evolution mechanics** — When an agent's domain expands (e.g., Slack digest agent starts also monitoring email threads from the same team), does it become a new agent or does the existing agent's scope expand? Who decides?
-
-6. ~~**Composer bootstrapping** — What is the minimum substrate assessment needed to scaffold a high-confidence agent within 30 seconds? This is a product question with architectural implications.~~ → **Addressed by ADR-132.** Work description is the primary onboarding input. Work units extracted → tasks scaffolded. Platform connections enrich existing agents rather than creating new ones.
-
-7. ~~**Proactive/coordinator code disposition** — The existing proactive review and coordinator primitives implement TP capabilities as agent modes. Can the mechanics be preserved while reframing conceptually, or does the code need structural changes?~~ → **Resolved by ADR-138.** Both proactive and coordinator modes deleted. Proactive self-assessment generalized into every agent's pulse (ADR-126). Coordinator dissolved — TP orchestrates directly, no PM delegation.
-
-8. ~~**Project execution mechanics** — How does the PM agent's heartbeat work? What are its primitives? How does it detect assembly readiness?~~ → **Addressed by ADR-120.**
-
-9. ~~**Work budget model** — How are work units counted, allocated, and enforced? Per-project budgets vs. global user budget?~~ → **Addressed by ADR-120.** Pricing model (credits vs. subscription) deferred to post-validation.
-
-10. **Filesystem hardening** — What frontend surfaces need read-only constraints? How do user edits on output flow through feedback distillation without bypassing agent-mediated writes? (Partially addressed by Derived Principle 3.)
-
-11. ~~**PM qualitative intelligence** — How does the PM assess contribution quality beyond freshness? How does it steer contributors toward underexplored aspects of the project objective?~~ → **Superseded by ADR-138.** PM dissolved. TP monitors agent output quality directly through Composer heartbeat and agent self-assessments.
+5. **Display vs. Substrate-rendering boundary** — Principle 12 says autonomous writes need legible Channel. When a surface renders a filesystem file, where does Substrate-read end and Channel begin? ADR-198's Invariant I2 (no surface embeds foreign substrate) is a first cut; real surface work will surface edge cases. (Channel dimension, boundary question.)
 
 ---
 
@@ -566,22 +426,22 @@ These require further design work before implementation:
 | Date | Change |
 |------|--------|
 | 2026-03-15 | v1 — Initial axioms: one intelligence, recursive perception, accumulated attention, taxonomy as configuration, TP subsumes orchestration, autonomy as direction |
-| 2026-03-15 | v2 — Major revision: two-layer intelligence model (TP meta-cognitive + agent domain-cognitive), agent developmental trajectory (intentions, capabilities, autonomy), recursive perception expanded to include internal/reflexive layers as primary long-term value, proactive/coordinator reframed as TP capabilities, trigger as intention property not agent property |
-| 2026-03-18 | v3 — Project execution evolution: PM as domain-cognitive agent (coordination domain, not third layer), project-level intentions with intent decomposition, Composer/PM separation of concerns, agents-as-write-path principle, work-is-bounded principle, project autonomous flow. Cross-refs ADR-120. |
-| 2026-03-19 | v3.1 — ADR-123 terminology: `intent` → `objective`, `intentions` consolidated into PM `memory/work_plan.md`. Ownership model: PROJECT.md = charter (User/Composer/TP), PM memory/ = operations (PM). |
-| 2026-03-20 | v3.2 — PM for all projects (no exceptions). "Agents produce, projects deliver" — delivery moves from agents to project level. PM agents excluded from tier limits. Unified autonomous flow (standalone/multi-agent distinction dissolved). |
-| 2026-03-20 | v3.3 — Agent Pulse (ADR-126). Formalized pulse as mechanism for Axiom 3 (developing entities) and Axiom 6 (autonomy). Proactive/coordinator modes dissolved — all agents pulse, PM has coordination pulse. Autonomous flow updated: pulse-driven execution replaces schedule-driven. Three concerns separated: pulse cadence, generation decision, delivery timing. |
-| 2026-03-21 | v3.4 — Multi-Agent Coherence Protocol (ADR-128). Axiom 2 corollary: three intelligence substrates (conversation, filesystem, agent cognition) + four coherence flows. Axiom 3 extension: agent cognitive state (self_assessment.md, directives.md) as developmental mechanism — agents accumulate self-awareness, not just outputs. |
-| 2026-03-22 | v3.5 — Agent Capability Substrate (ADR-130). Three-registry architecture: Agent Types (deterministic capability bundles), Capabilities (what each enables + runtime), Runtimes (where compute happens). Seniority-gated capability progression removed — agent development is knowledge depth, not capability breadth. Derived Principle 5 revised: development through knowledge, not capability expansion. Derived Principle 9 revised: types determine capabilities, three registries. Axiom 3 revised: Agent = Type (fixed capabilities) + Instructions (configurable persona). |
-| 2026-03-23 | v3.6 — Work-First Onboarding (ADR-132). Axiom 6 revised: "describe your work" replaces "connect platform" as primary onboarding input. Work description → work units → project scaffolding. Platform connections enrich existing work-scoped projects rather than creating generic digests. Work types carry implicit lifecycle (persistent vs. bounded). Open question 6 (Composer bootstrapping) resolved. |
-| 2026-03-24 | v3.7 — Project Charter Architecture (ADR-136). Filesystem IS the architecture: PROJECT.md (objective + success criteria) + TEAM.md (roster + capabilities from type registry) + PROCESS.md (output spec + cadence + delivery + phases). Strict charter vs. memory separation. PM workspace = project workspace. Cadence enforcement enables deterministic execution. Output specification enables composition intelligence. Chat as coordination substrate (ADR-135). ~$0.50/month per project cost model. |
-| 2026-03-24 | v3.8 — Declarative Pipeline Execution (ADR-137). PROCESS.md declares execution graphs: ordered steps with dependencies, executed mechanically by scheduler. PM simplified from autonomous coordinator to pipeline-embedded steps (evaluate/compose/reflect). Complexity-adaptive pipelines: simple (1 agent, direct deliver), standard (sequential), complex (retry loops). Inference produces pipeline spec, not just team. ~$0.17/cycle cost. Supersedes PM coordination model (ADR-133). |
-| 2026-03-25 | v4.0 — ADR-138 project layer collapse. PM dissolved into TP. Projects replaced by tasks. Agents are identity-only domain experts. Coherence flows reduced from 4 to 3 (PM assessment flow removed). Pulse tiers simplified (Tier 3 PM coordination removed). TP directly creates agents and tasks, monitors health, orchestrates multi-agent work. Open questions 4, 7 resolved. |
-| 2026-03-25 | v4.1 — Mode moves from agents to tasks (ADR-138 revision). `mode` (recurring/goal/reactive) is temporal behavior of work, not identity of worker. A Research Agent can simultaneously have a recurring task and a goal task. Axiom 3: "Tasks: Work Definition and Temporal Behavior" section added. Axiom 6: "Work Types Carry Lifecycle" updated with mode inference. |
-| 2026-03-25 | v4.2 — Unified filesystem (ADR-142). Axiom 2: four perception layers (external, user-contributed, internal, reflexive). `/knowledge/` dissolved — platform summaries → `/platforms/`, agent outputs stay in `/tasks/`. User-uploaded documents are first-class perception (`/workspace/documents/`). Derived Principle 2 updated: four filesystem roots. |
-| 2026-03-31 | v4.3 — platform_content sunset (ADR-153). Axiom 2 Layer 1 (External): agents call platform APIs live during task execution, no intermediate staging table or /platforms/ root. Recursive property diagram updated. Derived Principle 2: four roots → three roots (/platforms/ dissolved). |
-| 2026-04-15 | v4.4 — Commerce substrate + product health metrics (ADR-183, ADR-184). Axiom 4 extended: "Revenue as Moat Proof" — revenue is the external validation of accumulated attention. Three-tier metrics hierarchy (product > task > agent). Commerce data flows into workspace as context domains (same perception substrate). Revenue is perception, not infrastructure. |
-| 2026-04-17 | v4.5 — Domain-agnostic framework (ADR-188). Axiom 3: clarified "fixed at creation" applies to role taxonomy, not roster composition; added "Universal roles, contextual application." Axiom 5: added Domain Composition as third Composer step. Axiom 6: onboarding sequence updated for TP-composed workspaces. Derived Principle 9 reworded for roles. New Derived Principle 10: "Registries are template libraries, not validation gates." |
-| 2026-04-17 | v5.0 — Three-layer cognition (ADR-189). Axiom 1 restructured: two-layer → three-layer model (YARNNN / Specialist / Agent). TP user-facing naming retired in favor of YARNNN (DB slug `thinking_partner` retained). Axiom 3 restructured: identity-layer split made explicit (Specialists develop outward through style; Agents develop inward through domain). Axiom 5 title: "TP's Compositional Capability" → "YARNNN's Compositional Capability." Agent creation moved to user-initiated conversational flow (no signup roster). Derived Principle 1 updated for three layers. GLOSSARY.md ratified as canonical terminology source. ADR-140 fully superseded; ADR-176 Decision 1 superseded. |
-| 2026-04-19 | v5.1 — **Axiom 0 added at the top: Filesystem Is the Substrate. Everything Else Is Stateless Over It.** Names the structural precondition that was implicit in every prior collapse (platform_content, projects, Composer, knowledge tables) but never stated. "Stateless over the filesystem" is the property; the noun for the computation (loop / process / worker / engine) is intentionally unfixed — the property is the invariant, the shape varies by layer (periodic cron, one-shot pipeline, reactive handler, etc.). Defines four permitted row kinds (scheduling index / audit ledger / credential / ephemeral queue). Axiom 1 expanded: **three-layer cognition → four-layer cognition** with Reviewer added as the review-cognitive layer (per ADR-194 v2). Reviewer is framed as the **independent judgment seat** — structurally separate from YARNNN, with the seat interchangeable between human user and AI system; independence is what makes the interchangeability meaningful. Conflict-of-interest prevention (YARNNN emits proposals; YARNNN reviewing YARNNN's proposals is not audit) is the load-bearing property. Axiom 7 tightened: money-truth's canonical home is `/workspace/context/{domain}/_performance.md` (filesystem-native, per Axiom 0), not a dedicated ledger table. Derived Principles 11–12 rewritten: outcomes resolve to file entries, Reviewer is a structurally separate cognitive layer (not an abstraction). Supersedes the short-lived framing in the ADR-194/195 v1 drafts where ADR-194 used a `Reviewer` ABC and ADR-195 specified an `action_outcomes` SQL table. Both drafts being rewritten in lockstep. |
-| 2026-04-19 | v5.1 — Money-Truth as first-class substrate (ADR-194 + ADR-195). New **Axiom 7: Money-Truth Is the Truth Test** — three structural properties (actions attributable to outcomes, context pruned by outcome, reviewers reason in capital terms) + three asymmetric architectural bets (money-truth over vibe-truth, attribution over aggregation, EV over rules). Axiom 4's "Revenue as Moat Proof" preserved as external-validation corollary. New **Derived Principle 11**: every write eventually resolves to an outcome. New **Derived Principle 12**: the reviewer is an abstraction, not a role. ADR-194 (Pluggable Reviewer + Impersonation) and ADR-195 (Outcome Attribution Substrate) added to relationship table. |
+| 2026-03-15 | v2 — Two-layer intelligence model (TP meta-cognitive + agent domain-cognitive), agent developmental trajectory (intentions, capabilities, autonomy), recursive perception expanded |
+| 2026-03-18 | v3 — Project execution evolution: PM as domain-cognitive agent, project-level intentions, Composer/PM separation, agents-as-write-path, work-is-bounded, project autonomous flow |
+| 2026-03-19 | v3.1 — ADR-123 terminology: `intent` → `objective`, intentions consolidated into PM `memory/work_plan.md` |
+| 2026-03-20 | v3.2 — PM for all projects; agents produce, projects deliver |
+| 2026-03-20 | v3.3 — Agent Pulse (ADR-126); proactive/coordinator modes dissolved; autonomous flow updated |
+| 2026-03-21 | v3.4 — Multi-Agent Coherence Protocol (ADR-128); three intelligence substrates |
+| 2026-03-22 | v3.5 — Three-registry architecture (ADR-130); seniority-gated progression removed |
+| 2026-03-23 | v3.6 — Work-First Onboarding (ADR-132) |
+| 2026-03-24 | v3.7 — Project Charter Architecture (ADR-136) |
+| 2026-03-24 | v3.8 — Declarative Pipeline Execution (ADR-137) |
+| 2026-03-25 | v4.0 — ADR-138 project layer collapse. PM dissolved into TP. Projects replaced by tasks. |
+| 2026-03-25 | v4.1 — Mode moves from agents to tasks (ADR-138 revision) |
+| 2026-03-25 | v4.2 — Unified filesystem (ADR-142); four perception layers |
+| 2026-03-31 | v4.3 — platform_content sunset (ADR-153); agents call platform APIs live |
+| 2026-04-15 | v4.4 — Commerce substrate + product health metrics (ADR-183, ADR-184) |
+| 2026-04-17 | v4.5 — Domain-agnostic framework (ADR-188); universal roles, contextual application |
+| 2026-04-17 | v5.0 — Three-layer cognition (ADR-189); YARNNN / Specialist / Agent |
+| 2026-04-19 | v5.1 — Axiom 0 added (filesystem is substrate); Axiom 1 extended to four layers (Reviewer); Axiom 7 money-truth |
+| 2026-04-20 | v6.0 — **Complete restructure.** Axiom 0 reframed as the dimensional model: six orthogonal dimensions (Substrate / Identity / Purpose / Trigger / Mechanism / Channel) derived from the interrogative test (What / Who / Why / When / How / Where). Previous axioms recast: v5.1 Axiom 0 → Axiom 1 (Substrate); v5.1 Axiom 1 → Axiom 2 (Identity) with Reviewer-is-Purpose+Trigger clarification; new Axiom 3 (Purpose); new Axiom 4 (Trigger); new Axiom 5 (Mechanism as spectrum, including primitives+prompts); new Axiom 6 (Channel); v5.1 Axiom 2 → Axiom 7 (Recursion, now derivable from six-dimensional composition); v5.1 Axiom 7 → Axiom 8 (Money-Truth). Derived Principles re-numbered; three new principles (9: Mechanism is a spectrum; 11: Substrate tightens / Mechanism loosens; 12: Channel legibility gates autonomy). Relationship-to-ADRs table rewritten as dimension-mapping. The stress test that produced this rewrite resolved six real scenarios; the model survived with two refinements (Purpose can live in Substrate or Identity; Mechanism is a determinism-spectrum not a split). See [YARNNN-DESIGN-PRINCIPLES.md](YARNNN-DESIGN-PRINCIPLES.md) for Spectrum A/B framing that sits beneath Principle 11. |

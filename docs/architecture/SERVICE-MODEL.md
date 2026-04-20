@@ -1,7 +1,7 @@
 # YARNNN Service Model
 
 > **Status**: Canonical
-> **Date**: 2026-03-29 (v1.4 revision 2026-04-20)
+> **Date**: 2026-03-29 (v1.5 revision 2026-04-20 for FOUNDATIONS v6.0 dimensional model)
 > **Scope**: End-to-end service model — how the system works, from user intent to delivered output.
 > **Rule**: This is the single document that describes the complete system. Deep-dive docs are linked, not duplicated.
 
@@ -15,11 +15,30 @@ YARNNN is an **autonomous agent platform for recurring knowledge work**. Users d
 
 ---
 
-## Architectural Preamble: Filesystem Is the Substrate (FOUNDATIONS Axiom 0)
+## Architectural Preamble: Six Dimensions + Filesystem Substrate (FOUNDATIONS v6.0)
 
-Before reading the rest of this document, internalize the single most load-bearing architectural property: **the filesystem holds all semantic state; every other layer is stateless computation over it.**
+Before reading the rest of this document, internalize two axiomatic frames. Everything else in the service model derives from them.
 
-Scheduler, task pipeline, compose substrate, Reviewer, reconciler, render service — each reads the filesystem, acts, writes the filesystem, and terminates. None of them retain state of their own across invocations. Accumulation happens in files, cycle over cycle. This is what makes the recursive property (Axiom 2) work, and what made every prior substrate collapse (platform_content, projects, Composer, user_memory, action_outcomes) possible.
+### Frame 1 — The Six Dimensions (Axiom 0)
+
+Every mechanic in YARNNN occupies a cell in six orthogonal dimensions. These are the irreducible questions the system must answer:
+
+| Dimension | Interrogative | Decides |
+|---|---|---|
+| **Substrate** | What | What persists between invocations |
+| **Identity** | Who | Which cognitive layer acts or authors |
+| **Purpose** | Why | What intent drives the work |
+| **Trigger** | When | What invokes execution (periodic / reactive / addressed) |
+| **Mechanism** | How | By what means — spectrum from deterministic code to LLM judgment |
+| **Channel** | Where | To what location or surface output is addressed |
+
+When reading any section of this document, ask: which dimension(s) is this mechanic occupying? Most mechanics occupy one. Some deliberately cross-cut (e.g., compose substrate couples Mechanism + Channel per ADR-148) — these cross-cuts are justified, not accidental. A mechanic that spans dimensions without justification is a design error. See [FOUNDATIONS.md Axiom 0](FOUNDATIONS.md).
+
+### Frame 2 — Filesystem Is the Substrate (Axiom 1)
+
+The Substrate dimension has a single canonical home: **the filesystem holds all semantic state; every other layer is stateless computation over it.**
+
+Scheduler, task pipeline, compose substrate, Reviewer, reconciler, render service — each reads the filesystem, acts, writes the filesystem, and terminates. None of them retain state of their own across invocations. Accumulation happens in files, cycle over cycle. This is what makes the recursive property (Axiom 7) work, and what made every prior substrate collapse (platform_content, projects, Composer, user_memory, action_outcomes) possible.
 
 The database is narrowly permitted for four row kinds only:
 
@@ -28,7 +47,7 @@ The database is narrowly permitted for four row kinds only:
 3. **Credentials / auth** — encrypted secrets the filesystem cannot hold safely (`platform_connections`, `mcp_oauth_*`).
 4. **Ephemeral queues / inboxes** — TTL-bounded items awaiting action (`action_proposals`). The row disappears after acceptance, rejection, or expiration.
 
-Anything else belongs in the filesystem. When you read about "the scheduler reads TASK.md" or "the reconciler writes `_performance.md`" below, that is Axiom 0 in operation — not incidental design choice. See [FOUNDATIONS.md Axiom 0](FOUNDATIONS.md).
+Anything else belongs in the filesystem. When you read about "the scheduler reads TASK.md" or "the reconciler writes `_performance.md`" below, that is Axiom 1 in operation — not incidental design choice. See [FOUNDATIONS.md Axiom 1](FOUNDATIONS.md).
 
 ---
 
@@ -397,3 +416,4 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | 2026-04-15 | v1.2 — Revenue Model section rewritten for ADR-171/172 (balance model, tiers dissolved). Added "Two Commerce Surfaces" section covering platform billing vs. content commerce (ADR-183) and product health metrics (ADR-184). Composer reference removed (deleted by ADR-156). Deep-dive references updated. |
 | 2026-04-17 | v1.3 — Domain-agnostic framework (ADR-188). Agent roster: "Pre-scaffolded roster" → "Universal roles, contextual application." Task types: "pre-meditated definitions" → "curated template library." Workspace: context domains described as extensible. Execution flow: task creation can be from template or YARNNN-composed. |
 | 2026-04-20 | v1.4 — FOUNDATIONS v5.1 alignment. Added Architectural Preamble on Axiom 0 (filesystem is substrate; four permitted DB row kinds). "Three Layers of Cognition" → "Four Layers of Cognition, One Filesystem Substrate" (Reviewer added per ADR-194). Deployed Services reduced from 5 to 4 (yarnnn-platform-sync removed per ADR-153 — this was stale). Key files table extended with outcome reconciliation and action proposal queue. |
+| 2026-04-20 | v1.5 — FOUNDATIONS v6.0 alignment. Architectural Preamble restructured into two frames: Six Dimensions (new Axiom 0 dimensional model) + Filesystem Substrate (renumbered Axiom 1, content preserved). Axiom references updated throughout (filesystem substrate: Ax0→Ax1; money-truth: Ax7→Ax8; recursion: Ax2→Ax7). Doc now aligned with dimensional-purity discipline per Derived Principle 1. |
