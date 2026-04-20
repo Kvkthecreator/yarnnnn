@@ -25,6 +25,7 @@ from services.outcomes.commerce import CommerceOutcomeProvider
 from services.outcomes.ledger import (
     compute_since_for_provider,
     fold_outcome_candidates,
+    write_performance_summary,
 )
 from services.outcomes.trading import TradingOutcomeProvider
 
@@ -74,6 +75,7 @@ async def reconcile_user(
         "started_at": started_at.isoformat(),
         "providers": {},
         "total_appended": 0,
+        "cross_domain_summary_written": False,
     }
 
     for provider in providers:
@@ -106,6 +108,21 @@ async def reconcile_user(
                 "skipped_invalid": 0,
                 "error": str(exc),
             }
+
+    # Phase 3: regenerate cross-domain summary after all providers fold.
+    # Always runs (even if providers failed or had zero appends) so the
+    # summary reflects the current state of each domain's _performance.md.
+    try:
+        provider_domains = [p.context_domain for p in providers]
+        summary["cross_domain_summary_written"] = await write_performance_summary(
+            client, user_id, provider_domains,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "[OUTCOMES] cross-domain summary write failed for user=%s: %s",
+            user_id[:8], exc,
+        )
+        summary["cross_domain_summary_written"] = False
 
     summary["finished_at"] = datetime.now(timezone.utc).isoformat()
     return summary

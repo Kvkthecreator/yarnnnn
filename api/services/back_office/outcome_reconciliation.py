@@ -57,12 +57,17 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
 
     # Markdown report
     total_appended = summary.get("total_appended", 0)
+    summary_written = summary.get("cross_domain_summary_written", False)
     report_lines = [
         f"# Outcome Reconciliation — {started_at.strftime('%Y-%m-%d %H:%M UTC')}",
         "",
         f"Appended **{total_appended}** new outcome(s) across all providers.",
         f"Outcomes landed in `/workspace/context/{{domain}}/_performance.md` "
         f"per each provider's domain (see per-provider results below).",
+        (
+            f"Cross-domain summary at `/workspace/context/_performance_summary.md`: "
+            f"{'regenerated' if summary_written else '**FAILED TO WRITE** (see logs)'}."
+        ),
         f"Run duration: {duration_s:.2f}s",
         "",
     ]
@@ -107,6 +112,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         "content": "\n".join(report_lines),
         "structured": {
             "total_appended": total_appended,
+            "cross_domain_summary_written": summary_written,
             "duration_seconds": duration_s,
             "providers": providers,
         },

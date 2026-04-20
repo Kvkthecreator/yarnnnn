@@ -6,6 +6,58 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.19.9] - Money-truth rolling windows + cross-domain summary (ADR-195 Phase 3)
+
+### Added
+- **`api/services/outcomes/ledger.py` — rolling windows:**
+  - New frontmatter fields on every domain's `_performance.md`: `events` (bounded compact time-series), `rolling_7d`, `rolling_30d`, `rolling_90d`.
+  - `ROLLING_WINDOWS_DAYS = (7, 30, 90)`. `EVENT_RETENTION_DAYS` = longest window (90).
+  - `_apply_entries` now appends realized events (`value_cents != None`) to the events list with `{executed_at, action_type, value_cents}` and, after the fold, prunes events older than 90d + recomputes all three windows. Window shape: `{count, value_cents, wins, losses}`.
+  - Unrealized events (position_opened, closed_unknown) still counted in totals + by_action_type but NOT in events/windows — the windows are realized-PnL-only, which is what the Reviewer and operator actually want to reason about.
+  - `_render_performance_file` surfaces windows in the body between totals and by-action-type: `## Rolling windows` table with rows per window that has events.
+- **`api/services/outcomes/ledger.py` — cross-domain summary:**
+  - New public `write_performance_summary(client, user_id, provider_domains)` regenerates `/workspace/context/_performance_summary.md` after all providers fold.
+  - Reads each registered provider's `_performance.md`, aggregates totals + windows across USD domains, surfaces per-domain and aggregate sections.
+  - Multi-currency aggregation deferred: non-USD domains still appear in the per-domain breakout with their native currency, but are excluded from the aggregate with a note. Alpha scope (Alpaca + LS) is USD-only.
+  - Failures never raise — logged and returned as `False`. The back-office executor surfaces success/failure in its report.
+- **`api/services/outcomes/__init__.py`**: exports `write_performance_summary` + `SUMMARY_PATH` (`/workspace/context/_performance_summary.md`).
+
+### Changed
+- **`api/services/outcomes/reconciler.py`**: after all providers fold, calls `write_performance_summary`. Return shape gains `cross_domain_summary_written: bool`. Failure of the summary write does NOT fail the reconciler — providers may have appended successfully even if the summary fails.
+- **`api/services/back_office/outcome_reconciliation.py`**: report body mentions summary path + status ("regenerated" / "**FAILED TO WRITE**"). Structured return gains `cross_domain_summary_written: bool`.
+
+### Expected behavior
+- **New shape of `_performance.md`** going forward: every fold extends the frontmatter with `events` (capped at 90d) and refreshes three rolling-window objects. Bodies gain a "Rolling windows" section when any window has events.
+- **New file** `/workspace/context/_performance_summary.md` regenerated on every reconciler run. Consumers (daily-update briefing — Phase 4; AI Reviewer — ADR-194 Phase 3; operator via Context surface) read this single file to see the operator's whole book.
+- **Memory bound**: with a liberal ~20 events/day across trading + commerce, a user would accumulate ~1800 events × ~60 bytes = ~108KB per domain `_performance.md` + similar for the summary. Quieter operators (~2 events/day) stay in single-digit KB. No growth risk.
+- **Idempotency preserved** from Phase 2: `processed_event_keys` list still deduplicates across reconciliation runs. The new `events` list is a separate concern — it's the window-math source, not the dedup source.
+
+### Not yet wired (remaining ADR-195 phases)
+- **Phase 4** — daily-update briefing integration. Reads `/workspace/context/_performance_summary.md` frontmatter and emits "Your book this week" section.
+- **Phase 5** — feedback actuation on high-impact outcomes (per ADR-181) + `EmailOutcomeProvider` for Resend.
+
+### Render parity
+- No env var changes. No schema changes. All filesystem work via existing `workspace_files` upsert pattern.
+- `services.outcomes.write_performance_summary` reachable by both API and Unified Scheduler through existing imports. MCP Server + Output Gateway untouched.
+
+### Smoke-test results (pre-push)
+- All imports clean: `fold_outcome_candidates`, `write_performance_summary`, `SUMMARY_PATH`, `reconcile_user`, `ROLLING_WINDOWS_DAYS`, `EVENT_RETENTION_DAYS`.
+- `SUMMARY_PATH` resolves to `/workspace/context/_performance_summary.md`.
+- `_compute_window` math verified on synthetic events spanning 120 days: 7d bucket captures only last-week events, 30d captures last month, 90d captures last quarter. Counts + wins/losses correct per bucket.
+- `_prune_events` correctly drops events beyond `EVENT_RETENTION_DAYS`.
+- `_build_summary_state` aggregates multiple domain dicts into a single summary with correct cross-domain totals and window rollups; excluded non-USD domains tracked in `non_aggregate_domains`.
+- `_render_summary_file` JSON-frontmatter + body render round-trips.
+- `_apply_entries` with synthetic realized + unrealized entries: unrealized correctly excluded from events/windows; realized contribute to totals, by_action, AND windows.
+
+### Refs
+- FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate; windows + summary are filesystem-native)
+- FOUNDATIONS v5.1 Axiom 7 (money-truth canonical home — `_performance.md` per domain + `_performance_summary.md` cross-domain)
+- ADR-195 v2 Phase 3 (rolling windows + cross-domain summary)
+- Unlocks ADR-194 v2 Phase 3 (AI Reviewer needs windows for capital-EV reasoning)
+- Unlocks ADR-195 Phase 4 (daily-update briefing needs summary to emit "Your book this week")
+
+---
+
 ## [2026.04.19.8] - Reviewer audit-trail wiring (ADR-194 v2 Phase 2a)
 
 ### Added

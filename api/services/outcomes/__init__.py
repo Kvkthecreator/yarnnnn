@@ -21,8 +21,10 @@ from __future__ import annotations
 from services.outcomes.base import OutcomeCandidate, OutcomeProvider
 from services.outcomes.commerce import CommerceOutcomeProvider
 from services.outcomes.ledger import (
+    SUMMARY_PATH,
     compute_since_for_provider,
     fold_outcome_candidates,
+    write_performance_summary,
 )
 from services.outcomes.reconciler import DEFAULT_PROVIDERS, reconcile_user
 from services.outcomes.trading import TradingOutcomeProvider
@@ -32,8 +34,10 @@ __all__ = [
     "CommerceOutcomeProvider",
     "OutcomeCandidate",
     "OutcomeProvider",
+    "SUMMARY_PATH",
     "TradingOutcomeProvider",
     "compute_since_for_provider",
     "fold_outcome_candidates",
     "reconcile_user",
+    "write_performance_summary",
 ]

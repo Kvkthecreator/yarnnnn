@@ -48,6 +48,11 @@ BOOTSTRAP_WINDOW_DAYS = 30
 #: How many entries to keep in each narrative section (Recent wins / losses).
 NARRATIVE_WINDOW = 10
 
+#: Rolling windows (days) tracked in _performance.md frontmatter per domain.
+#: The longest window determines the event-retention horizon.
+ROLLING_WINDOWS_DAYS = (7, 30, 90)
+EVENT_RETENTION_DAYS = max(ROLLING_WINDOWS_DAYS)
+
 
 # =============================================================================
 # Public API
@@ -295,7 +300,21 @@ def _init_performance(context_domain: str) -> dict:
         "by_provider": {},
         "recent_wins": [],
         "recent_losses": [],
+        # ADR-195 Phase 3: compact time-series of reconciled events, used
+        # to compute rolling windows at fold time. Bounded by
+        # EVENT_RETENTION_DAYS — older entries are pruned on every fold.
+        "events": [],
+        # ADR-195 Phase 3: rolling-window summaries recomputed on every
+        # fold from `events`. Consumers (AI Reviewer, daily-update) read
+        # these without recomputing.
+        "rolling_7d": _empty_window(),
+        "rolling_30d": _empty_window(),
+        "rolling_90d": _empty_window(),
     }
+
+
+def _empty_window() -> dict:
+    return {"count": 0, "value_cents": 0, "wins": 0, "losses": 0}
 
 
 def _apply_entries(
@@ -303,7 +322,12 @@ def _apply_entries(
     entries: list[OutcomeCandidate],
     provider: OutcomeProvider,
 ) -> None:
-    """Apply a batch of new outcome entries to the performance state dict."""
+    """Apply a batch of new outcome entries to the performance state dict.
+
+    Phase 3: also appends to the bounded events list + recomputes rolling
+    windows. Window math is done once per fold so readers (AI Reviewer,
+    daily-update) never need to recompute.
+    """
     totals = performance.setdefault("totals", {
         "reconciled_event_count": 0,
         "aggregate_value_cents": 0,
@@ -312,6 +336,7 @@ def _apply_entries(
     by_action = performance.setdefault("by_action_type", {})
     wins: list[dict] = performance.setdefault("recent_wins", [])
     losses: list[dict] = performance.setdefault("recent_losses", [])
+    events: list[dict] = performance.setdefault("events", [])
 
     for entry in entries:
         totals["reconciled_event_count"] = int(totals.get("reconciled_event_count", 0)) + 1
@@ -343,9 +368,96 @@ def _apply_entries(
         # Entries with NULL value (position_opened, closed_unknown, etc.)
         # are counted but not narrated — narrative focuses on realized P&L.
 
+        # Phase 3: compact time-series entry for rolling-window math.
+        # Only realized events (value_cents not None) contribute to
+        # windows — open positions and unattributable outcomes don't.
+        if value is not None:
+            executed_at_iso = _executed_at_iso(entry.get("executed_at"))
+            if executed_at_iso:
+                events.append({
+                    "executed_at": executed_at_iso,
+                    "action_type": action_type,
+                    "value_cents": int(value),
+                })
+
     # Cap narrative windows
     performance["recent_wins"] = wins[:NARRATIVE_WINDOW]
     performance["recent_losses"] = losses[:NARRATIVE_WINDOW]
+
+    # Phase 3: prune events older than EVENT_RETENTION_DAYS + recompute windows.
+    performance["events"] = _prune_events(events)
+    now = datetime.now(timezone.utc)
+    for window_days in ROLLING_WINDOWS_DAYS:
+        key = f"rolling_{window_days}d"
+        performance[key] = _compute_window(performance["events"], now, window_days)
+
+
+def _executed_at_iso(value: Any) -> str | None:
+    """Normalize an executed_at field to an ISO string, or None on failure."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+    if isinstance(value, str):
+        try:
+            # Validate parseability so window math doesn't trip later.
+            _parse_iso(value)
+            return value
+        except Exception:
+            return None
+    return None
+
+
+def _prune_events(events: list[dict]) -> list[dict]:
+    """Drop events older than EVENT_RETENTION_DAYS. Returns sorted ascending."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=EVENT_RETENTION_DAYS)
+    kept: list[dict] = []
+    for ev in events:
+        raw = ev.get("executed_at")
+        if not raw:
+            continue
+        try:
+            dt = _parse_iso(raw)
+        except Exception:
+            continue
+        if dt >= cutoff:
+            kept.append(ev)
+    # Chronological ascending keeps window scans stable.
+    kept.sort(key=lambda e: e.get("executed_at") or "")
+    return kept
+
+
+def _compute_window(events: list[dict], now: datetime, window_days: int) -> dict:
+    """Compute {count, value_cents, wins, losses} for events in the last N days."""
+    cutoff = now - timedelta(days=window_days)
+    count = 0
+    value_cents = 0
+    wins = 0
+    losses = 0
+    for ev in events:
+        raw = ev.get("executed_at")
+        if not raw:
+            continue
+        try:
+            dt = _parse_iso(raw)
+        except Exception:
+            continue
+        if dt < cutoff:
+            continue
+        count += 1
+        v = int(ev.get("value_cents", 0) or 0)
+        value_cents += v
+        if v > 0:
+            wins += 1
+        elif v < 0:
+            losses += 1
+    return {
+        "count": count,
+        "value_cents": value_cents,
+        "wins": wins,
+        "losses": losses,
+    }
 
 
 def _update_provider_state(performance: dict, provider: OutcomeProvider) -> None:
@@ -404,6 +516,25 @@ def _render_performance_file(performance: dict) -> str:
     if last:
         body_lines.append(f"**Last reconciled:** {last}")
     body_lines.append("")
+
+    # Phase 3: rolling windows — "your book at three horizons"
+    window_rows = []
+    for window_days in ROLLING_WINDOWS_DAYS:
+        w = performance.get(f"rolling_{window_days}d") or _empty_window()
+        if w.get("count", 0) > 0:
+            window_rows.append((f"{window_days}d", w))
+    if window_rows:
+        body_lines.append("## Rolling windows")
+        body_lines.append("")
+        body_lines.append("| Window | Count | Value | Wins | Losses |")
+        body_lines.append("|---|---|---|---|---|")
+        for label, w in window_rows:
+            body_lines.append(
+                f"| last {label} | {w.get('count', 0)} | "
+                f"{_format_cents(w.get('value_cents', 0))} | "
+                f"{w.get('wins', 0)} | {w.get('losses', 0)} |"
+            )
+        body_lines.append("")
 
     by_action = performance.get("by_action_type") or {}
     if by_action:
@@ -504,3 +635,243 @@ def _parse_iso(raw: str) -> datetime:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+# =============================================================================
+# Cross-domain summary — /workspace/context/_performance_summary.md (Phase 3)
+# =============================================================================
+
+
+SUMMARY_PATH = "/workspace/context/_performance_summary.md"
+
+
+async def write_performance_summary(
+    client: Any, user_id: str, provider_domains: list[str],
+) -> bool:
+    """Regenerate `/workspace/context/_performance_summary.md` from per-domain files.
+
+    Reads each `_performance.md` under `/workspace/context/{domain}/`,
+    aggregates totals + rolling windows across domains, and writes a
+    single cross-domain summary. This is the file the daily-update
+    briefing (ADR-195 Phase 4) and the Reviewer (ADR-194 Phase 3) read
+    when they want the operator's whole book at a glance.
+
+    Currency assumption: USD across all domains. Alpha scope (Alpaca +
+    Lemon Squeezy) is USD-only. Multi-currency aggregation is a future
+    extension; until then, non-USD domains are included in per-domain
+    sections but excluded from the cross-domain aggregate (with a note).
+
+    Never raises — failures log and return False. The back-office task
+    surfaces success/failure in its report.
+    """
+    try:
+        domains_state: dict[str, dict] = {}
+        seen_domains: set[str] = set()
+        for domain in provider_domains:
+            if domain in seen_domains:
+                continue
+            seen_domains.add(domain)
+            perf = await _read_performance_file(client, user_id, domain)
+            if perf is None:
+                continue
+            domains_state[domain] = perf
+
+        summary = _build_summary_state(domains_state)
+        rendered = _render_summary_file(summary)
+
+        try:
+            client.table("workspace_files").upsert(
+                {
+                    "user_id": user_id,
+                    "path": SUMMARY_PATH,
+                    "content": rendered,
+                    "content_type": "text/markdown",
+                    "lifecycle": "active",
+                    "summary": "Cross-domain money-truth summary (ADR-195 Phase 3)",
+                    "tags": ["_performance_summary", "money-truth"],
+                },
+                on_conflict="user_id,path",
+            ).execute()
+            return True
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "[OUTCOMES] summary upsert failed for user=%s: %s",
+                user_id[:8], exc,
+            )
+            return False
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "[OUTCOMES] summary generation crashed for user=%s: %s",
+            user_id[:8], exc,
+        )
+        return False
+
+
+def _build_summary_state(domains_state: dict[str, dict]) -> dict:
+    """Aggregate per-domain performance state into a cross-domain summary dict."""
+    aggregate_currency = "USD"
+    non_usd_domains: list[str] = []
+
+    aggregate_totals = {
+        "reconciled_event_count": 0,
+        "aggregate_value_cents": 0,
+        "currency": aggregate_currency,
+        "domains_covered": 0,
+    }
+    aggregate_windows = {
+        f"rolling_{w}d": _empty_window() for w in ROLLING_WINDOWS_DAYS
+    }
+
+    per_domain: dict[str, dict] = {}
+    latest_reconciled_at: str | None = None
+
+    for domain, perf in domains_state.items():
+        per_domain_currency = (perf.get("totals") or {}).get("currency") or "USD"
+        per_domain[domain] = {
+            "totals": perf.get("totals") or {},
+            **{f"rolling_{w}d": perf.get(f"rolling_{w}d") or _empty_window()
+               for w in ROLLING_WINDOWS_DAYS},
+            "last_reconciled_at": perf.get("last_reconciled_at"),
+        }
+        last = perf.get("last_reconciled_at")
+        if last and (latest_reconciled_at is None or last > latest_reconciled_at):
+            latest_reconciled_at = last
+
+        if per_domain_currency != aggregate_currency:
+            non_usd_domains.append(domain)
+            continue  # excluded from cross-domain aggregate
+
+        aggregate_totals["domains_covered"] += 1
+        totals = perf.get("totals") or {}
+        aggregate_totals["reconciled_event_count"] += int(
+            totals.get("reconciled_event_count", 0) or 0
+        )
+        aggregate_totals["aggregate_value_cents"] += int(
+            totals.get("aggregate_value_cents", 0) or 0
+        )
+        for window_days in ROLLING_WINDOWS_DAYS:
+            key = f"rolling_{window_days}d"
+            src = perf.get(key) or _empty_window()
+            dst = aggregate_windows[key]
+            dst["count"] += int(src.get("count", 0) or 0)
+            dst["value_cents"] += int(src.get("value_cents", 0) or 0)
+            dst["wins"] += int(src.get("wins", 0) or 0)
+            dst["losses"] += int(src.get("losses", 0) or 0)
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "latest_reconciled_at": latest_reconciled_at,
+        "domains": per_domain,
+        "aggregate": {
+            "totals": aggregate_totals,
+            **aggregate_windows,
+        },
+        "non_aggregate_domains": non_usd_domains,
+    }
+
+
+def _render_summary_file(summary: dict) -> str:
+    """Render `_performance_summary.md` (JSON frontmatter + narrative body)."""
+    frontmatter_json = json.dumps(summary, indent=2, sort_keys=False, default=str)
+
+    body: list[str] = []
+    body.append("# Workspace Money-Truth Summary")
+    body.append("")
+    generated = summary.get("generated_at")
+    latest = summary.get("latest_reconciled_at")
+    if generated:
+        body.append(f"**Generated:** {generated}")
+    if latest:
+        body.append(f"**Latest domain reconciliation:** {latest}")
+    body.append("")
+
+    domains = summary.get("domains") or {}
+    aggregate = summary.get("aggregate") or {}
+    aggregate_totals = aggregate.get("totals") or {}
+    covered = aggregate_totals.get("domains_covered", 0) or 0
+
+    if not domains:
+        body.append(
+            "_No reconciled outcomes in any domain yet. Connect a platform "
+            "(Alpaca trading, Lemon Squeezy commerce) and the daily outcome "
+            "reconciler will populate this file._"
+        )
+        body.append("")
+    else:
+        # Cross-domain aggregate (USD-only)
+        body.append("## Across all domains (USD)")
+        body.append("")
+        body.append(
+            f"**Domains covered:** {covered} / {len(domains)}"
+        )
+        agg_value = aggregate_totals.get("aggregate_value_cents", 0) or 0
+        agg_count = aggregate_totals.get("reconciled_event_count", 0) or 0
+        body.append(f"**Reconciled events:** {agg_count}")
+        body.append(f"**Aggregate value:** {_format_cents(agg_value)}")
+        body.append("")
+
+        window_rows = []
+        for window_days in ROLLING_WINDOWS_DAYS:
+            w = aggregate.get(f"rolling_{window_days}d") or _empty_window()
+            if w.get("count", 0) > 0:
+                window_rows.append((f"{window_days}d", w))
+        if window_rows:
+            body.append("| Window | Count | Value | Wins | Losses |")
+            body.append("|---|---|---|---|---|")
+            for label, w in window_rows:
+                body.append(
+                    f"| last {label} | {w.get('count', 0)} | "
+                    f"{_format_cents(w.get('value_cents', 0))} | "
+                    f"{w.get('wins', 0)} | {w.get('losses', 0)} |"
+                )
+            body.append("")
+
+        non_agg = summary.get("non_aggregate_domains") or []
+        if non_agg:
+            body.append(
+                f"_Note: excluded {len(non_agg)} domain(s) from aggregate "
+                f"due to non-USD currency ({', '.join(non_agg)}). "
+                f"Multi-currency aggregation is a future extension._"
+            )
+            body.append("")
+
+        # Per-domain breakout
+        body.append("## By domain")
+        body.append("")
+        for domain in sorted(domains.keys()):
+            state = domains[domain]
+            totals = state.get("totals") or {}
+            value = totals.get("aggregate_value_cents", 0) or 0
+            count = totals.get("reconciled_event_count", 0) or 0
+            currency = totals.get("currency") or "USD"
+            body.append(f"### {domain}")
+            body.append("")
+            body.append(f"**Events:** {count}  |  **Value:** {_format_cents(value)} ({currency})")
+            last_dom = state.get("last_reconciled_at")
+            if last_dom:
+                body.append(f"**Last reconciled:** {last_dom}")
+
+            # Per-domain rolling windows
+            dom_rows = []
+            for window_days in ROLLING_WINDOWS_DAYS:
+                w = state.get(f"rolling_{window_days}d") or _empty_window()
+                if w.get("count", 0) > 0:
+                    dom_rows.append((f"{window_days}d", w))
+            if dom_rows:
+                body.append("")
+                body.append("| Window | Count | Value | Wins | Losses |")
+                body.append("|---|---|---|---|---|")
+                for label, w in dom_rows:
+                    body.append(
+                        f"| last {label} | {w.get('count', 0)} | "
+                        f"{_format_cents(w.get('value_cents', 0))} | "
+                        f"{w.get('wins', 0)} | {w.get('losses', 0)} |"
+                    )
+            body.append("")
+
+    body.append(
+        "<!-- Regenerated on every reconciliation run by the "
+        "back-office-outcome-reconciliation task. Do not edit by hand. -->"
+    )
+
+    return f"---\n{frontmatter_json}\n---\n\n" + "\n".join(body) + "\n"
