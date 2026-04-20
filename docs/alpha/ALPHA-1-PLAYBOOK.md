@@ -12,14 +12,16 @@
 
 The **single source of truth** for Alpha-1 alpha testing. Covers:
 
-1. **The thesis** — why we're doing this, why now, why this persona
-2. **The governance model** — who fills which cognitive seat; shared-access discipline
-3. **The persona spec** — full setup content for a Jim-Simons-inspired systematic retail trader (Option B scope: 5–8 declared signals with measured edge)
-4. **The setup sequence** — exactly how the account is created and onboarded
+1. **The thesis** — why we're doing this, why now, why these two personas
+2. **The governance model** — who fills which cognitive seat; shared-access discipline (applies identically to both accounts)
+3. **The persona specs** — full setup content for two operator personas:
+   - §3A — Jim-Simons-inspired systematic retail trader (Option B scope: 5–8 declared signals with measured edge)
+   - §3B — Korea↔USA international commerce operator (KVK's voice; dual-directional physical/digital arbitrage)
+4. **The setup sequence** — exactly how each account is created and onboarded
 5. **The operating protocol** — day-to-day rhythm, coordination between KVK and Claude
-6. **Claude's rules of engagement** — what I can do autonomously, what I escalate, what I never touch
+6. **Claude's rules of engagement** — what I can do autonomously, what I escalate, what I never touch (with persona-specific discretion adjustments)
 7. **The friction-capture loop** — how observations turn into ADR seeds
-8. **Phase transitions** — scope expansion criteria (e-commerce, real trading, external operator)
+8. **Phase transitions** — scope expansion criteria (real trading, real commerce, external operator)
 9. **Ledger of active artifacts** — what belongs in `docs/alpha/` and why
 
 If an artifact about Alpha-1 doesn't trace back to a section in this playbook, either it isn't authoritative or this playbook needs updating to name it.
@@ -32,13 +34,23 @@ If an artifact about Alpha-1 doesn't trace back to a section in this playbook, e
 
 The architecture (FOUNDATIONS v6.0 + 20+ ADRs since 189) has earned the right to be used. Every ADR after 189 was load-bearing-but-speculative — the cockpit framing, the authored-team moat, the Reviewer layer's capital-EV reasoning all bet on operator behavior we haven't observed. The next ADR built without alpha signal is probably half-right and half-wasted. The next ADR built *after* a real operator exercises the substrate is grounded.
 
-### Why one account, not two
+### Why two accounts (the conglomerate-alpha test)
 
-Original conglomerate-alpha plan called for e-commerce + trader simultaneously. Revised to **single-account scope** for Alpha-1 because:
+ADR-191's conglomerate-alpha commitment was that YARNNN should be validated across structurally-different domains simultaneously — not sequenced, because sequencing hides which frictions are architecture-level vs. domain-specific. Alpha-1 runs **two accounts in parallel:**
 
-- **Attention discipline produces sharper friction signals.** Two simultaneous personas dilute observation quality.
-- **The trader is the harder stress test.** If Reviewer capital-EV reasoning + money-truth substrate + compose pipeline work for the trader, they very likely work for commerce. Reverse is less clearly true.
-- **Circling back later is a reinforcement pattern.** When we add e-commerce as Alpha-1.5, we'll know which frictions are architecture-level (both personas feel them) vs. domain-specific (only one does). This is the anti-verticalization gate from ADR-191 operating correctly.
+- **`alpha-trader`** — Simons-inspired systematic retail trader (Option B: 5–8 declared signals with measured edge)
+- **`alpha-commerce`** — Korea↔USA international commerce operator (KVK's actual voice, testing whether the two-city dual-life can be economically self-funding)
+
+**Why these two specifically:**
+
+- **Maximum structural separation, shared architecture.** Trading and international commerce have almost nothing in common at the domain layer — different platforms, different time horizons, different units of account (shares × prices vs. SKUs × margins × FX), different risk shapes (var-budget vs. inventory-tied-up + currency swing). But they share *every architecture layer* — cockpit surfaces, Reviewer layer, money-truth substrate, primitive matrix, Axiom-1 filesystem. If the architecture is genuinely domain-agnostic, both should work. If a friction only hits one, it's a domain issue, not an architecture issue. If a friction hits both, it's an architecture issue that needs an ADR.
+
+- **Both are quantitatively reasonable.** Both are systematic operators with declared rules, measurable performance, and anti-discretion cultures. The trader declares signals and holds the discipline to honor them; the commerce operator declares sourcing/pricing/stocking rules and holds the discipline to honor them. The Reviewer's capital-EV framework (ADR-194 §5) speaks the same language to both — expected-value reasoning against a declared rule system with real money-truth to reconcile against.
+
+- **KVK can operate both authentically.** The commerce persona is literally KVK's voice — a dual-life Seoul/LA operator running arbitrage to fund the two-city lifestyle. This isn't a fictional friend; it's a real operator hypothesis you'd want to test either way. The trader persona is KVK-as-systematic-trader — not your actual trading style today, but a structured experiment in *whether systematic discipline produces real edge at retail capital level* using a paper account so the research question doesn't cost real money.
+
+**Why not sequenced (first trader, then commerce):**
+Previous playbook draft (v2) sequenced trader first, commerce as Alpha-1.5. Reversed here because **sequencing defeats the anti-verticalization gate.** If we ship the trader alone and build up a pile of ADRs from its friction, we can't tell which ADRs are architecture-level until commerce lands three months later. Running both from the start means every observation immediately categorizes as "trader-only / commerce-only / both." That's the signal quality we actually need.
 
 ### Why a Simons-inspired systematic trader
 
@@ -72,21 +84,26 @@ The Reviewer layer was designed for seat interchangeability (ADR-194 v2). Shared
 
 ## 2. Governance model
 
-### The account
+### The accounts
 
-| Account | Persona | Primary platform | Real/paper |
+| Account | Persona | Primary platform | Real/sandbox |
 |---|---|---|---|
 | `alpha-trader` | Simons-inspired systematic retail trader (Option B: 5–8 declared signals, measured edge) | Alpaca (paper throughout Alpha-1) | Paper throughout Alpha-1; live is Alpha-2 decision |
+| `alpha-commerce` | Korea↔USA international commerce operator (KVK voice) | TBD based on product choice (§3B): Shopify for physical, Lemon Squeezy for digital, Stripe + own storefront for maximum flexibility | Sandbox/test-mode throughout Alpha-1; real transactions are Alpha-2 decision |
 
-Real Supabase user + workspace, normal signup flow, OAuth to Alpaca paper, normal $3 signup grant. No special infrastructure.
+Both accounts = real Supabase user + workspace, normal signup flow, normal $3 signup grant. No special infrastructure.
 
-### Three seats, one account
+Both accounts run concurrently under the same governance model (§3-seat structure below) — they are *structurally identical at the architecture layer*, differing only in domain-specific substrate (signals vs. sourcing-rules; universe vs. SKU-catalog; var-budget vs. inventory-budget).
+
+### Three seats, per account (both accounts identical)
 
 | Seat | Filled by | Scope | `decisions.md` tag |
 |---|---|---|---|
-| **Operator (primary)** | KVK | Strategy: signal roster, capital allocation across signals, phase transitions, principles + risk edits | `human:<user_id>` |
-| **AI Reviewer** | AI Reviewer agent (ADR-194 Phase 3 — runs automatically via `review-proposal` reactive task) | Per-proposal: signal-alignment check, capital-EV evaluation, risk-rule enforcement. Approve / reject / defer. | `ai:reviewer-sonnet-v1` (or the version tag in use) |
-| **Operator (secondary) + meta-observer** | Claude (authenticated operator session, same Supabase user or a second user sharing the workspace if multi-user support lands — see §open questions) | Reviews AI Reviewer calibration. Approves reversibles within tight bounds. Escalates irreversibles + signal-incompatible trades + ambiguous deferrals. Observes friction. Writes observation notes. | `human:<user_id>` (session auth limitation, §audit-trail-limitation) |
+| **Operator (primary)** | KVK | Strategy: signal/rule roster, capital allocation, phase transitions, principles + risk edits, persona-identity edits | `human:<user_id>` |
+| **AI Reviewer** | AI Reviewer agent (ADR-194 Phase 3 — runs automatically via `review-proposal` reactive task) | Per-proposal: attribution check, capital-EV evaluation, rule/signal-rule compliance, risk-limit enforcement. Approve / reject / defer. | `ai:reviewer-sonnet-v1` (or version tag in use) |
+| **Operator (secondary) + meta-observer** | Claude (authenticated operator session, same Supabase user or separate user if multi-user support lands — see §open questions) | Reviews AI Reviewer calibration. Approves reversibles within tight bounds per the anti-discretion ladder (§6). Escalates irreversibles + attribution-missing + ambiguous deferrals. Observes friction. Writes observation notes. | `human:<user_id>` (session auth limitation, see below) |
+
+**Same seat-structure for both accounts, distinct substrate.** KVK primary-operates in both; Claude secondary-operates in both; AI Reviewer runs per workspace autonomously. No seat bleeds across workspaces — each account has its own three seats operating on its own substrate.
 
 ### What Claude can do as authenticated operator
 
@@ -119,9 +136,15 @@ If this becomes a real problem, we add session-metadata flagging or use separate
 
 ---
 
-## 3. Persona spec — `alpha-trader`
+## 3. Persona specs
 
-### 3.1 Identity (`/workspace/IDENTITY.md`)
+Two accounts, symmetric architecture, different domain substrate. §3A covers the trader (systematic quantitative); §3B covers the commerce operator (international arbitrage between Korea and LA, in KVK's voice).
+
+---
+
+## 3A. `alpha-trader` — Simons-inspired systematic retail trader
+
+### 3A.1 Identity (`/workspace/IDENTITY.md`)
 
 Seeded into the workspace during the first YARNNN conversation, pasted as rich input. YARNNN processes via `UpdateContext(target="identity")` per ADR-190 inference-driven scaffold.
 
@@ -194,7 +217,7 @@ help me not drift from the systematic discipline when emotions
 argue otherwise.
 ```
 
-### 3.2 Operator profile (`/workspace/context/trading/_operator_profile.md`)
+### 3A.2 Operator profile (`/workspace/context/trading/_operator_profile.md`)
 
 ```markdown
 # Operator profile — Alpha Trader (Simons, Option B)
@@ -280,7 +303,7 @@ retirement. Not in prediction quality. My edge compounds through:
 - Not trying to hold long-term (this is not a buy-and-hold book)
 ```
 
-### 3.3 Risk parameters (`/workspace/context/trading/_risk.md`)
+### 3A.3 Risk parameters (`/workspace/context/trading/_risk.md`)
 
 ```markdown
 # Risk parameters — Alpha Trader (Simons, Option B)
@@ -322,7 +345,7 @@ flag_signal_for_review_if_recent_20_trade_expectancy_below: -0.5   # units: R-mu
 retire_signal_recommendation_after_recent_40_trade_sharpe_below: 0.3   # recommend retirement in quarterly audit
 ```
 
-### 3.4 Reviewer principles (`/workspace/review/principles.md`)
+### 3A.4 Reviewer principles (`/workspace/review/principles.md`)
 
 ```markdown
 # Reviewer principles — Alpha Trader (Simons, Option B)
@@ -416,7 +439,7 @@ expectancy is below guardrail), Check 4's defer takes precedence.
 The operator makes the call.
 ```
 
-### 3.5 Task scaffolding target
+### 3A.5 Task scaffolding target
 
 YARNNN composes via conversation during Phase 1 onboarding. Target set (iterate if YARNNN proposes a better fit for the persona):
 
@@ -429,7 +452,7 @@ YARNNN composes via conversation during Phase 1 onboarding. Target set (iterate 
 | `weekly-performance-review` | produces_deliverable | Sunday 18:00 ET | Reads `_performance.md` (ADR-195 substrate). Per-signal P&L, win rate, expectancy, Sharpe. Flags decay. Compares to declared baselines. |
 | `quarterly-signal-audit` | goal (4-week bounded cycle, Sunday ending Mar/Jun/Sep/Dec 31) | Quarterly | Comprehensive review: which signals to retire, which to retune, candidates for Signals 6–8 slots. Operator drafts final decisions; YARNNN prepares the analysis. |
 
-### 3.6 Money-truth substrate expectations (`_performance.md` shape)
+### 3A.6 Money-truth substrate expectations (`_performance.md` shape)
 
 ADR-195 v2 establishes `_performance.md` as filesystem-native money-truth per domain. For the trading domain under Simons-persona, the reconciler must populate **per-signal attribution**. Expected frontmatter shape:
 
@@ -485,44 +508,560 @@ Narrative body regenerated on each reconciler run. Highlights:
 
 ---
 
+## 3B. `alpha-commerce` — Korea↔USA international commerce operator
+
+### 3B.1 Identity (`/workspace/IDENTITY.md`)
+
+KVK's voice. This persona is not fictional — it's an operator hypothesis about whether international product arbitrage between Seoul and LA can fund a dual-city life. Seeded into the workspace during the first YARNNN conversation as rich input.
+
+```markdown
+# Alpha Commerce — Korea↔USA dual-directional operator (KVK voice)
+
+## Who I am
+I live between Seoul and Los Angeles. I want this bilocation to be
+economically self-funding, not just personally meaningful. The
+operator hypothesis I'm testing is that my positional advantage —
+being present in both markets, speaking both languages, reading both
+cultures — is arbitrageable through carefully-declared product
+sourcing and pricing rules, across both directions simultaneously.
+
+I am not a retail generalist. I am a two-market-specialist. My edge
+is not scale; it's discernment about what transfers between markets
+and at what margin. I'd rather move 20 SKUs with 40% gross margin
+and controlled inventory risk than 200 SKUs with 15% margin and
+tied-up cash across a warehouse.
+
+I treat commerce like Jim Simons treats trading: declared rules,
+measurable per-product performance, no impulse stocking, rigorous
+retirement of products that stop working. My edge decays when I
+chase narrative instead of margin.
+
+## My book (unit economics frame)
+Starting capital: $10,000 operating budget (split between US and
+KR inventory + shipping floats). Target: 15–30 SKUs in rotation
+across both directions. Per-SKU target net margin ≥ 30% after
+shipping + payment processing + FX. Target inventory turnover
+≥ 6x/year per SKU (no SKU sits more than 2 months).
+
+Two directions, tracked separately:
+- KR→US: Korean products (beauty, fashion, K-snack, craft goods,
+  niche lifestyle) sold to US buyers
+- US→KR: US products (specialty brands, fitness/wellness niche,
+  particular media + collectibles) sold to Korean buyers
+
+## What I want YARNNN to do
+- Track each declared product in rotation: inventory levels in
+  source country, listing status in destination country, pricing
+  vs. declared margin target, competitor reference prices.
+- Surface sourcing opportunities that match my declared rules:
+  Korean trend signals (Naver shopping trends, Coupang bestseller
+  shifts) pointing at arbitrage-ready categories, and US equivalents
+  (Reddit trend chatter, relevant subreddit spikes) for the reverse
+  direction. Propose, never stock autonomously.
+- Enforce my unit-economic rules religiously. If a proposal doesn't
+  clear declared margin thresholds after all real costs, reject.
+  "Close enough" is how margin erodes.
+- Weekly unit-economic review: per-SKU margin achieved vs. target,
+  turnover, return rate, direction-level aggregated performance
+  (KR→US vs. US→KR). Which SKUs should be retired, which should be
+  reordered, which need price adjustment.
+- Currency regime awareness: track USD/KRW; flag when FX volatility
+  or directional drift crosses a threshold that materially shifts
+  per-SKU economics.
+- Quarterly direction-level audit: is KR→US outperforming US→KR or
+  vice versa? Should capital allocation shift? Are the declared
+  sourcing rules decaying?
+
+## What I don't want
+- Autonomous product creation or listing. Every product that enters
+  the catalog is proposed → human-reviewed → approved. Every price
+  change is proposed → reviewed → approved.
+- Narrative-driven sourcing ("this is trending on TikTok so let's
+  stock it"). Only sourcing proposals that map to my declared rules
+  plus a margin calculation.
+- Over-diversification. 15–30 SKUs actively managed is the ceiling.
+  Any proposal that pushes over should retire an underperformer first.
+- Currency gambling. If FX is the reason a SKU is suddenly
+  "profitable," that's a transient window, not an edge. Flag, don't
+  chase.
+- Autonomous communication with buyers. I approve every campaign,
+  every refund, every bulk message to my list.
+
+## My operator hypothesis
+Bilocation + bilingual + bicultural = declared edge in cross-market
+arbitrage. That edge is real only if I run it systematically. If I
+run it discretionarily (chasing narrative, over-stocking favorites,
+ignoring FX signals), it collapses into generic noise competing with
+actual scale operators. YARNNN's job is to keep me systematic
+through the friction — especially when I'm jet-lagged and tempted
+to "just ship it this time."
+```
+
+### 3B.2 Operator profile (`/workspace/context/commerce/_operator_profile.md`)
+
+Commerce analog to the trader's signals — declared rules for sourcing, pricing, stocking, and retirement.
+
+```markdown
+# Operator profile — Alpha Commerce (Korea↔USA, Option B)
+
+## Declared strategy
+Dual-directional product arbitrage between Korea (source) and USA
+(market), and vice versa. Small-catalog discipline: 15–30 SKUs
+actively managed. Per-SKU unit-economic targets enforced mechanically.
+
+## Declared universe (initial categories; refined quarterly)
+
+### KR→US direction (sourced in Korea, sold in US)
+- Korean beauty / skincare (niche brands not yet distributed at scale in US)
+- Korean-specific food + snacks (shelf-stable only; no cold chain for Alpha-1)
+- Korean craft goods (hanji, hanbok-adjacent fashion, artisan homeware)
+- Korean stationery + small lifestyle (Muji-adjacent but Korean-brand)
+
+### US→KR direction (sourced in US, sold in Korea)
+- US specialty supplements + wellness (brands with US-authenticity cachet)
+- Fitness / outdoor niche products (e.g., specific climbing gear brands)
+- Collectible + media (vinyl, limited-edition print, niche books)
+- US-specific cosmetics (brands unavailable or heavily marked-up in KR)
+
+## Declared sourcing + stocking rules (the equivalent of trading signals)
+
+### Rule 1: Margin-floor stocking
+- **Trigger:** product candidate has verified source-country cost + all
+  landed costs (shipping, customs, FX at current spot, payment processing,
+  platform fees) producing ≥30% gross margin at declared retail price
+- **Volume check:** minimum demand signal in destination market
+  (e.g., ≥20 searches/month for KR→US, ≥10/month for US→KR — thresholds tuned)
+- **Entry:** initial order of 10–20 units; re-order only if velocity warrants
+- **Retirement:** if velocity < 2 units/month for 2 consecutive months, retire
+
+### Rule 2: Trend-confirmed sourcing
+- **Trigger:** category is showing trend signal (Naver shopping top-100
+  for KR sourcing; Reddit subreddit surge + Amazon bestseller movement
+  for US sourcing) AND margin-floor rule is satisfied
+- **Entry:** scaled initial order (20–40 units) if category signal is
+  strong; normal 10–20 otherwise
+- **Retirement:** trend decay (signal reversed for 2+ weeks) + any
+  inventory remaining → price-reduction cycle to clear
+
+### Rule 3: Reorder discipline
+- **Trigger:** inventory on existing SKU drops below 30-day forward demand
+  AND per-SKU performance is tracking to target (margin + turnover)
+- **Entry:** reorder at current source cost, verify landed margin still clears
+  30% floor (FX may have moved)
+- **Retirement:** if FX movement has eroded landed margin below 22%
+  (margin decay buffer), do not reorder; clear existing inventory
+
+### Rule 4: Price-adjustment discipline
+- **Trigger:** per-SKU turnover has dropped below 6x/year pace for 4
+  consecutive weeks
+- **Entry:** evaluate whether price-cut closes the gap (run unit
+  economics at proposed new price; if landed margin stays ≥25%, propose
+  5–10% price drop); if price-cut doesn't help, Rule 5 applies
+- **Entry alternative:** if competitor reference price has moved, match
+  the directional shift (up or down)
+
+### Rule 5: Retirement discipline
+- **Trigger:** either (a) Rule 4 price adjustment failed to lift
+  turnover in 4 more weeks, OR (b) margin fell below 22% floor due to
+  cost or FX movement, OR (c) category signal collapsed
+- **Entry:** mark SKU for retirement — halt reorders, run clearance
+  cycle (staged price drops over 30 days), de-list once inventory
+  cleared
+- **Post-retirement:** write retirement attribution to `_performance.md`
+  so future sourcing decisions reference what worked vs. didn't
+
+### Rule 6: FX regime scalar (not a sourcing rule — a global filter)
+- **Purpose:** when USD/KRW has moved >5% in a 30-day window, apply a
+  sourcing-pause scalar to the direction adversely affected
+- **Action:** for the adversely-affected direction, do not accept new
+  Rule 1 or Rule 2 proposals for 2 weeks; reorders continue if they
+  still clear margin floor
+- **Deactivation:** FX stabilizes (moving <2% in a 14-day window)
+
+(Rules 7–8 reserved for Alpha-1.5 additions — candidates: shipping-
+consolidation rule, multi-market-launch rule. Do not add ad-hoc.)
+
+## Declared edge
+Dual-market presence + systematic discipline. Not wholesale scale,
+not brand-building, not social-media-driven. The edge is in:
+- Sourcing discrimination (only products clearing margin floor)
+- Turnover enforcement (no SKU sits; clearance cycles run)
+- FX awareness (don't mistake FX wins for sourcing wins)
+- Retirement discipline (signals that decay are retired, not rehabilitated)
+
+## Success criteria — year-over-year
+- Blended net margin (across both directions, after all costs) ≥ 22%
+- Inventory turnover across active catalog ≥ 6x/year
+- Zero SKUs retained past the 4-week-turnover-failure + 4-week-price-cut
+  window (discipline enforced)
+- Per-direction transparency: KR→US and US→KR each reported separately
+- Zero products added without rule-attribution
+
+## What I'm NOT trying to do
+- Not trying to compete with Amazon aggregators on scale or price
+- Not trying to build brand equity in either market (I sell; I don't
+  own marketing IP for these products)
+- Not trying to own warehousing — 3PL on both sides, always
+- Not trying to maximize revenue; maximizing net margin × turnover
+- Not trying to run ads at scale — organic + platform-native discovery only
+```
+
+### 3B.3 Risk parameters (`/workspace/context/commerce/_risk.md`)
+
+```markdown
+# Risk parameters — Alpha Commerce (Korea↔USA, Option B)
+
+## Capital exposure limits
+max_total_inventory_tied_up_usd: 5000       # 50% of $10k operating budget
+max_inventory_per_sku_usd: 500              # single-SKU concentration
+max_simultaneous_active_skus: 30
+max_inventory_per_direction_usd: 3500       # no direction exceeds 70% of deployed capital
+
+## Per-SKU economic limits
+min_landed_gross_margin_percent: 30         # Rule 1 stocking floor
+margin_decay_reorder_floor_percent: 22      # reorder halt (Rule 3 retirement trigger)
+min_projected_turnover_per_year: 6          # velocity floor (Rule 4 trigger)
+
+## Per-direction concentration
+max_single_category_percent_per_direction: 40  # no category > 40% of direction's inventory
+
+## FX exposure
+fx_regime_scalar_trigger_percent: 5         # 30-day move triggers Rule 6 pause
+fx_regime_scalar_deactivation_percent: 2    # 14-day stabilization deactivates
+max_fx_unhedged_inventory_days: 60          # no SKU sits longer than 60 days as FX-unhedged exposure
+
+## Discipline gates (enforced by Reviewer)
+allowed_universe_only: true                 # reject proposals outside declared categories
+require_rule_attribution: true              # every proposal names Rule 1–5
+require_margin_calculation: true            # proposal must show landed-margin math
+require_turnover_projection: true           # proposal must project 90-day turnover
+require_stop_loss_plan: true                # retirement trigger declared at entry
+
+## Communication limits
+max_email_campaign_recipients: 2000
+min_days_between_campaigns: 14
+require_human_for_refunds_over_usd: 100
+require_human_for_all_bulk_sends: true
+
+## Signal-decay guardrails (auto-flag, not auto-halt)
+flag_sku_for_review_if_turnover_pace_below: 3  # units/month (target is 6 implied)
+retire_sku_recommendation_after_30_days_below_margin_floor: true
+```
+
+### 3B.4 Reviewer principles (`/workspace/review/principles.md`)
+
+*Same file path as trader account — each workspace has its own principles.md. The structure mirrors §3A.4 but the checks operate on commerce-domain substrate.*
+
+```markdown
+# Reviewer principles — Alpha Commerce (Korea↔USA, Option B)
+
+## Auto-approve policy
+Auto-approve = NONE for Alpha-1. Every sourcing decision, every price
+change, every campaign passes through human operator review. The AI
+Reviewer evaluates and recommends; the human decides.
+
+## Always-escalate-to-human
+- All commerce.create_product (new SKU stocking)
+- All commerce.update_product when price_cents change ≥ 10%
+- All commerce.create_discount
+- All commerce.refund when amount > $100
+- All email.send_bulk regardless of recipient count
+- All rule-definition edits (these touch _operator_profile.md, a persona-identity file)
+
+## Capital-EV evaluation framework (commerce-adapted six-check chain)
+
+For each proposal, the AI Reviewer executes these checks in order.
+Each check produces a one-line verdict. Full chain written to
+decisions.md as reviewer_reasoning.
+
+### Check 1: Rule attribution
+- Does the proposal specify which rule generated it (Rule 1–5)?
+- No → reject: "no rule attribution"
+- Yes → continue
+
+### Check 2: Rule compliance
+- Read the rule's conditions from _operator_profile.md
+- Does the proposal satisfy every declared condition (category in
+  declared universe, trigger met, minimum volumes met)?
+- Any condition fails → reject with specific rule-clause citation
+- All match → continue
+
+### Check 3: Unit-economic floor
+- Read _risk.md thresholds + current USD/KRW spot
+- Does the proposal's landed-margin calculation clear the floor
+  (30% for new stocking, 22% for reorder)?
+- Verify all costs present: source cost, shipping, customs (if
+  applicable), payment processing, platform fees, FX conversion
+- Any cost missing or margin below floor → reject with specific gap
+- All clear → continue
+
+### Check 4: Category + direction concentration
+- Does the proposal push any category > 40% of its direction's inventory?
+- Does it push one direction > 70% of total deployed capital?
+- Does SKU count exceed max_simultaneous_active_skus (30)?
+- Any limit exceeded → reject with specific concentration math
+- Clean → continue
+
+### Check 5: Turnover projection + signal-decay check
+- Read recent performance from _performance.md (by-SKU attribution
+  if schema supports; by-direction and by-category aggregates
+  otherwise)
+- Is the proposed SKU's category currently in a decay state (recent
+  30-day turnover at category level below 3/month pace)?
+  - If decay → flag as defer with reason: "category decay — review needed"
+  - If healthy → continue
+- Is the proposed SKU's trend signal (if invoked via Rule 2) still active?
+  - If trend reversed → reject: "trend signal reversed before entry"
+  - If active → continue
+
+### Check 6: FX regime
+- Read USD/KRW 30-day move + current regime state
+- Is the proposal's direction in active FX-regime pause (Rule 6)?
+  - If yes → reject unless proposal is a reorder (Rule 3) that still
+    clears margin floor
+  - If no → continue
+- Is current FX unfavorable (>3% adverse move in 14 days) even
+  without full regime activation?
+  - If yes → flag as defer with reason: "FX softening — operator verify"
+  - If no → approve
+
+### Final verdict
+- All checks pass → recommend APPROVE with summary:
+  "Rule N fired. Margin <X>% after costs. Category concentration <Y>%.
+  FX stable. Turnover projection: <Z>/month."
+- Any rejection reason → recommend REJECT with that reason
+- Any defer reason → recommend DEFER with flag
+
+## Tone
+Quantitative. Specific. Every verdict references the check and the
+numeric threshold. If a proposal is rejected because landed margin
+is 27% (below 30% floor), the verdict says exactly that, with the
+cost breakdown that produced 27%.
+
+## Anti-override discipline
+No "but this product is special" approvals. Special doesn't exist
+here. Margin clears or it doesn't. Rule attribution is present or
+it isn't. FX regime is active or it isn't.
+
+## When checks conflict
+If two checks pull opposite (e.g., rule compliance passes but
+unit-economic floor fails), Check 3 (economic floor) takes
+precedence. Operator decides edge cases.
+```
+
+### 3B.5 Task scaffolding target
+
+| Task | Kind | Cadence | Purpose |
+|---|---|---|---|
+| `track-catalog` | accumulates_context | 2× daily (9am KST / 5pm PT) | Updates current inventory + listing + price state for each active SKU across both platforms. Feeds `/workspace/context/commerce/skus/{sku-slug}.md`. |
+| `track-trends` | accumulates_context | Daily (8am KST) | Pulls category signals from Korea-side (Naver shopping trends, Coupang bestseller shifts) and US-side (Reddit/Amazon signals for US→KR direction). Feeds `/workspace/context/commerce/trends/`. |
+| `track-fx` | accumulates_context | Daily (market open, USD side) | USD/KRW spot + 30-day move + regime state. Feeds `/workspace/context/commerce/fx.md`. |
+| `rule-evaluation` | accumulates_context | Daily (9am KST, after tracking) | **Commerce analog to signal-evaluation.** For each Rule 1–5, evaluates current state across catalog + trend context + FX: which SKUs hit reorder triggers, which hit retirement triggers, which new sourcing candidates pass margin-floor math. Writes rule-state to `/workspace/context/commerce/rules/{rule-slug}.md`. |
+| `daily-commerce-brief` | produces_deliverable | Daily 10am KST | Composed from rule-evaluation output. Human-readable morning brief: which rules fired, per-direction inventory status, FX regime, any SKUs flagged for retirement. Cockpit surface; email is expository pointer. |
+| `sourcing-proposal` | reactive (event-triggered by rule-evaluation) | On-demand | When rule-evaluation detects a Rule 1 or Rule 2 trigger, emits ProposeAction with full rule attribution + margin math. AI Reviewer → cockpit Queue. |
+| `reorder-proposal` | reactive (Rule 3 trigger) | On-demand | Inventory reorder with re-verified margin at current FX. |
+| `price-adjustment-proposal` | reactive (Rule 4 trigger) | On-demand | Turnover-decay price action. |
+| `retirement-proposal` | reactive (Rule 5 trigger) | On-demand | SKU retirement + clearance-cycle plan. |
+| `weekly-commerce-review` | produces_deliverable | Sunday 18:00 KST | Per-SKU + per-direction + per-rule performance. Flags decay. Compares against declared baselines. |
+| `quarterly-direction-audit` | goal (4-week bounded, end of quarter) | Quarterly | Reviews direction-level capital allocation (KR→US vs. US→KR), retires/retunes rules, evaluates candidates for Rules 7–8 slots. |
+
+### 3B.6 Money-truth substrate expectations (`_performance.md` shape, commerce variant)
+
+Commerce analog to §3A.6. Reconciler populates per-SKU + per-direction + per-rule attribution.
+
+```markdown
+---
+domain: commerce
+last_reconciled_at: <iso>
+base_currency: USD
+
+totals:
+  reconciled_event_count: <n>
+  net_revenue_cents: <n>          # revenue - refunds - returns
+  aggregate_gross_margin_percent: <float>
+  aggregate_inventory_tied_up_cents: <n>
+  turnover_30d: <float>            # aggregate across catalog
+
+by_direction:
+  kr_to_us:
+    active_skus: <n>
+    net_revenue_cents_30d: <n>
+    gross_margin_percent_30d: <float>
+    turnover_30d: <float>
+  us_to_kr:
+    active_skus: <n>
+    net_revenue_cents_30d: <n>
+    gross_margin_percent_30d: <float>
+    turnover_30d: <float>
+
+by_rule:
+  rule-1-margin-floor:
+    triggered_30d: <n>
+    proposals_approved: <n>
+    proposals_rejected: <n>
+    skus_resulting_active: <n>
+    avg_realized_margin_percent: <float>
+    state: "active" | "flagged" | "retirement-recommended"
+  rule-2-trend-confirmed: ...
+  rule-3-reorder-discipline: ...
+  rule-4-price-adjustment: ...
+  rule-5-retirement-discipline: ...
+
+by_sku:
+  {sku-slug}:
+    direction: "kr_to_us" | "us_to_kr"
+    category: <string>
+    sourced_via_rule: <string>
+    stocked_at: <iso>
+    units_sold_lifetime: <n>
+    units_sold_30d: <n>
+    net_revenue_cents_lifetime: <n>
+    realized_margin_percent: <float>
+    turnover_pace_implied_per_year: <float>
+    state: "active" | "flagged" | "price-cut-cycle" | "retirement-cycle"
+
+fx_state:
+  usd_krw_spot: <float>
+  usd_krw_30d_move_percent: <float>
+  regime_pause_active_direction: null | "kr_to_us" | "us_to_kr"
+
+---
+
+# Commerce performance
+
+Narrative body regenerated on each reconciler run:
+- Top-performing SKUs by margin × turnover (past 30 days)
+- Underperformers approaching Rule 4 or 5 triggers
+- Direction-level health (which direction is carrying which)
+- FX regime state + any adverse moves flagged
+- Rule-level: which rules are generating approvals vs. rejections
+```
+
+**Known substrate gap (same as trader):** backend reconciler may not currently support per-SKU / per-direction / per-rule attribution. This is Phase-3 verification. If the schema is gap-friendly (reconciler writes what it can, missing fields degrade gracefully), not blocking. If strict-schema failure, log as structural-gap ADR candidate.
+
+---
+
 ## 4. Setup sequence
 
-### Phase 0 — prerequisites
+### 4.0 Ownership split (what KVK does vs. what Claude does)
 
-- [ ] Shared-credentials vault chosen (1Password / Bitwarden / team vault) — KVK picks, communicates location
-- [ ] Persona email address (`alpha-trader@<domain>` or Gmail alias) — KVK creates
-- [ ] Alpaca paper API key + secret provisioned — KVK provisions
-- [ ] Inbox confirmed where daily-update expository-pointer emails will land — KVK confirms
+**This is an honest delineation of Phase 0 and Phase 1 work** — the playbook earlier implied Claude could handle "prerequisites + Phase 0-1 fully," which isn't accurate once we audit what each step requires.
 
-### Phase 1 — account creation (KVK)
+**KVK-only** (requires your identity, your payment method, your decisions):
+- Shared-credentials vault creation and population
+- External platform account signup (Alpaca paper, Shopify/LS/Stripe)
+- Email inbox provisioning (Gmail aliases simplest)
+- YARNNN account signup (requires real email confirmation from your inbox)
+- Payment / billing setup for commerce platforms
+- Phase-transition decisions (paper→live, sandbox→real)
 
-1. Sign up via normal YARNNN signup flow using the persona email. Note `user_id` from Supabase.
-2. In the first YARNNN chat session, paste the IDENTITY.md content from §3.1 as rich input. YARNNN processes via inference-driven scaffold.
-3. Confirm / refine YARNNN-proposed `/workspace/BRAND.md`. Low stakes; brand for a systematic-trader persona should be terse, quantitative, no hedging language.
-4. Approve YARNNN-proposed task scaffolding. Goal: converge on the task set in §3.5. Iterate if YARNNN proposes tasks that fit the persona better — use judgment; the `signal-evaluation` task is the specifically-Simons piece and is non-negotiable.
-5. Connect Alpaca paper via the integrations flow.
-6. Seed the four identity-domain files via YARNNN rail:
-   - `_operator_profile.md` (full content from §3.2)
-   - `_risk.md` (full content from §3.3)
-   - `principles.md` (full content from §3.4)
-   - Initial signal state files at `/workspace/context/trading/signals/signal-N-<slug>.md` (can start empty — `signal-evaluation` populates on first run)
+**Claude-can-handle autonomously** (given prerequisites):
+- Render environment-variable updates (once you select the workspace via `mcp__render__select_workspace` — I can read and update env vars after)
+- Drafting and persisting persona-file content to this playbook
+- Writing observation notes + weekly reports
+- Recommending ADR changes
+
+**Claude-can-handle with-credentials** (after KVK completes signup):
+- Logging into YARNNN web app as authenticated operator
+- First-session onboarding inside YARNNN: pasting IDENTITY.md, confirming BRAND.md, approving task scaffolding, seeding `_operator_profile.md` / `principles.md` / `_risk.md` via rail
+- Connecting platform OAuth (for platforms that allow session-based OAuth completion — may require KVK to complete the OAuth grant if 2FA or device-confirmation is enforced)
+
+**Neither can skip** (hard external dependencies):
+- Alpaca dashboard key generation (requires Alpaca signup flow)
+- Shopify store creation (requires paid plan for Shopify or commercial decision about platform)
+- Gmail account creation (if we need new inbox; aliases on existing Gmail work)
+- Resend API key (for YARNNN outbound email — if not already configured in Render)
+
+### Phase 0 — prerequisites (shared)
+
+The checklist below splits into KVK-owned items + Claude-owned items. An item has one owner; coordination happens out-of-band after the owner completes it.
+
+**KVK-owned (required before Phase 1 starts):**
+- [ ] **Shared-credentials vault chosen.** 1Password / Bitwarden / encrypted text file — your call. Communicate location (URL or file path) to Claude.
+- [ ] **Render workspace confirmed.** Claude needs workspace ID to make env var updates. Run `mcp__render__list_workspaces` yourself, tell Claude which ID to use, and Claude runs `mcp__render__select_workspace` with confirmation.
+- [ ] **Commerce-platform decision made** (see §3B.0 below).
+- [ ] **Persona email addresses provisioned.** Simplest: Gmail aliases off your main account — `you+alpha-trader@gmail.com` and `you+alpha-commerce@gmail.com`. These are real inboxes without additional Google accounts.
+- [ ] **Alpaca paper account + API key + secret.** Signup at alpaca.markets → paper trading → API key generation.
+- [ ] **Commerce platform account + API credentials.** Depends on §3B.0 decision:
+  - Shopify (physical products): test store provisioned; Admin API token generated with appropriate scopes
+  - Lemon Squeezy (digital products): sandbox API key generated
+  - Stripe + own storefront: Stripe test API keys + storefront hosting decision
+- [ ] **Resend API key.** If already configured in Render env vars (check with `mcp__render__list_services` → `get_service` → env vars), reuse. If not, provision a Resend account key.
+
+**Claude-owned (after KVK completes the above):**
+- [ ] Verify Render env vars are set for both personas. Alpaca / commerce-platform / Resend keys must be scoped per-workspace or globally-usable.
+- [ ] Confirm inbox reachability: send a test Resend email to the two persona Gmail aliases, verify delivery.
+
+### 3B.0 Commerce-platform decision (required before Phase 0 commerce-account step)
+
+The commerce persona's operating reality depends heavily on product type. **Pick one, enter the choice into this section, then proceed.**
+
+| Option | Product type | Platform | Pros | Cons |
+|---|---|---|---|---|
+| **A. Digital products** | Info products, guides, software, digital content about dual-life/arbitrage/cultural bridging | Lemon Squeezy (sandbox) | Matches existing ADR-183 integration; lowest friction; no shipping/customs | Limits persona authenticity (your actual hypothesis is physical arbitrage, not info products) |
+| **B. Physical products** | Korean/US consumer goods with real shipping + customs + FX exposure | Shopify (test store, paid plan ~$29/mo for real but free for dev stores) | Matches the persona hypothesis exactly; real unit economics; real FX exposure; real inventory discipline | Requires Shopify paid plan (or test-store compromise); YARNNN lacks native Shopify integration (would need new ADR for platform bot); shipping logistics complexity is real |
+| **C. Hybrid** | Info products now, physical later | Lemon Squeezy (sandbox) first; add Shopify at Alpha-1.5 | Ships Alpha-1 without new integration work; physical-stress-test deferred | Delays the *real* hypothesis test; commerce persona stays partially artificial until Alpha-1.5 |
+
+**Claude's recommendation:** **Option A (digital) for Alpha-1**, with explicit commitment to **Option B (physical)** in Alpha-1.5 after the shared-operator flow is proven. Rationale:
+
+- LS integration is shipped (ADR-183) — no new platform-integration ADR blocks Alpha-1 start.
+- Digital products can authentically test KVK's Korea↔USA operator hypothesis via products like bilingual guides, cultural bridging content, translated industry reports, course material — real substrate for the operator's voice.
+- Physical-goods stress test is the *harder* validation and deserves its own clean phase (Alpha-1.5). Rushing it now risks conflating platform-integration-friction with architecture-friction.
+
+**KVK's decision (fill in and commit):**
+- [ ] Chosen option: `_____` (A / B / C)
+- [ ] Product focus declared: `_____`
+- [ ] Platform credentials acquired per option
+
+If Option A (recommended): the rest of §3B above remains accurate but the catalog specifics will skew toward information products in KVK's dual-life-operator voice (bilingual business guides, Seoul-LA executive primers, translation + cultural consultation packages) rather than physical Korean/US consumer goods. Rules 1-6 apply with minor substrate adjustment (no FX-on-inventory exposure because digital goods don't hold inventory; FX still matters for pricing).
+
+### Phase 1 — account creation (both accounts, KVK primary)
+
+Run for both accounts in sequence (trader first is simpler because fewer Phase-0 dependencies; commerce follows once platform is confirmed).
+
+**For each account:**
+
+1. Sign up via normal YARNNN signup flow using the persona email alias. Note `user_id` from Supabase.
+2. In the first YARNNN chat session, paste the IDENTITY.md content from §3A.1 (for trader) or §3B.1 (for commerce) as rich input. YARNNN processes via inference-driven scaffold (ADR-190).
+3. Confirm / refine YARNNN-proposed `/workspace/BRAND.md`:
+   - Trader: terse, quantitative, no hedging language
+   - Commerce: bilingual-operator voice, practical, margin-focused
+4. Approve YARNNN-proposed task scaffolding. Goal for each account:
+   - Trader: converge on §3A.5 task set; `signal-evaluation` is non-negotiable
+   - Commerce: converge on §3B.5 task set; `rule-evaluation` is non-negotiable
+5. Connect the platform via integrations flow:
+   - Trader: Alpaca paper API key
+   - Commerce: LS sandbox / Shopify / Stripe (per §3B.0 choice)
+6. Seed the identity-domain files via YARNNN rail. For each file, say something like: *"YARNNN, write this content exactly to `/workspace/context/<domain>/_operator_profile.md`:"* followed by the block-quoted content from the playbook.
+   - `_operator_profile.md` (§3A.2 or §3B.2)
+   - `_risk.md` (§3A.3 or §3B.3)
+   - `principles.md` (§3A.4 or §3B.4)
+   - Initial signal/rule state files at `/workspace/context/<domain>/signals/` or `/rules/` (can start empty — `signal-evaluation` or `rule-evaluation` populates on first run)
 7. Store credentials in the shared vault.
-8. Wait for first `track-universe` + `signal-evaluation` runs to populate substrate. First reconciler pass will establish `_performance.md` baseline (likely empty / near-empty — signals need trade history to build expectancy).
-9. Confirm first daily-update email arrives tomorrow morning (baseline check).
+8. Wait for first tracking + evaluation runs. First reconciler pass establishes `_performance.md` baseline (likely empty — accounts need trade/sale history to build performance).
+9. Confirm first daily-update expository-pointer email arrives next morning.
 
-### Phase 2 — Claude operator onboarding
+### Phase 2 — Claude operator onboarding (both accounts)
 
-Once Phase 1 is complete and credentials shared:
+Once Phase 1 is complete for an account and credentials are shared:
 
-1. Claude logs in via authenticated web access.
+1. Claude logs in via authenticated web session (method resolved during this phase — likely a shared browser session or a KVK-initiated sign-in Claude picks up; §open questions).
 2. Lands on `/overview`.
-3. Opens YARNNN rail: *"I'm operating this account alongside KVK. Orient me: what does IDENTITY.md say about who this operator is? What signals are declared? What's scaffolded? What's pending?"*
-4. Reads IDENTITY.md + `_operator_profile.md` + `principles.md` + `_risk.md` via Context.
-5. Reviews Team — confirms scaffolded agent roster matches the persona's work.
-6. Reviews Work — confirms `signal-evaluation` is running, `track-universe` cadence is sensible, `trade-proposal` reactive task is wired.
-7. Visits `/workspace/context/trading/signals/` and skims each signal's state file. Baseline: "signals initialized, no trade history yet."
-8. Writes the baseline observation: `docs/alpha/observations/{YYYY-MM-DD}-alpha-trader-first-session.md` — include: first impressions, anything surprising, anything missing, whether the `by_signal` block in `_performance.md` is populated or degraded gracefully.
+3. Opens YARNNN rail: *"I'm operating this account alongside KVK. Orient me: what does IDENTITY.md say about who this operator is? What signals/rules are declared? What's scaffolded? What's pending?"*
+4. Reads identity-domain files via Context: IDENTITY.md + `_operator_profile.md` + `principles.md` + `_risk.md`
+5. Reviews Team — scaffolded agent roster matches persona work
+6. Reviews Work — evaluation tasks running, tracking cadence sensible, reactive proposal tasks wired
+7. Visits `/workspace/context/{trading|commerce}/{signals|rules}/` and skims each state file. Baseline: "initialized, no history yet."
+8. Writes baseline observation: `docs/alpha/observations/{YYYY-MM-DD}-{account}-first-session.md`. Capture: first impressions, anything surprising, whether per-signal / per-rule substrate populates or degrades gracefully, cockpit usability notes.
 9. Confirms to KVK: "baseline set, beginning alpha operation."
+
+### Phase 3 — first triggers, first decisions (both accounts)
+
+- First ~2 weeks is warm-up. Signals/rules need to fire, trades/sales need to execute, `_performance.md` needs to accumulate history.
+- Expect no strong Reviewer-calibration signal early (too few events per signal/rule).
+- Focus observation on: does scaffolding work? Do proposals render correctly? Does the Reviewer's six-check framework actually execute? Does `_performance.md` populate attribution correctly?
+- After ~20 events per account, preliminary calibration signal becomes available.
+- After ~40 events, quarterly-audit tasks have enough substrate to run meaningfully.
 
 ### Phase 3 — first signals, first decisions
 
@@ -709,22 +1248,24 @@ Pin at `docs/alpha/observations/{YYYY-MM-DD}-alpha-trader-{slug}.md`:
 
 Never skip phases. Each phase's clean-operation period is the license for the next.
 
-| Phase | Current? | Trigger to advance | Decision locus |
+| Phase | Current? | Scope | Trigger to advance |
 |---|---|---|---|
-| **Alpha-1** | ✅ now | — | — |
-| **Alpha-1.5** (add e-commerce persona as second shared account) | no | 2+ weeks of Alpha-1 clean operation; friction trend declining; e-commerce persona spec drafted | Joint decision captured in playbook update |
-| **Alpha-2** (switch trader from paper to live, start small — $5k initial) | no | Alpha-1.5 clean for 4+ weeks; Reviewer calibration data sufficient (≥100 AI Reviewer verdicts with attribution to outcomes via `_performance.md`); per-signal Sharpe within declared baselines; KVK comfort | Joint decision; explicit ADR amendment to this playbook |
-| **Alpha-3** (onboard first external friend as operator, could be trader or e-commerce) | no | Alpha-2 clean for 4+ weeks; ICP signal present; external-operator-onboarding scope doc drafted | Joint decision; dedicated scope doc |
+| **Alpha-1** | ✅ now | Both accounts running (`alpha-trader` Alpaca-paper + `alpha-commerce` sandbox/test-mode per §3B.0 choice). KVK + Claude operating jointly. Observations + weekly reports produce ADR seeds. | — |
+| **Alpha-1.5** (physical-commerce upgrade, if §3B.0 chose Option A/C) | no | Switch `alpha-commerce` from digital (LS sandbox) to physical (Shopify test → Shopify live). Adds physical unit-economic stress to commerce substrate. If §3B.0 chose Option B initially, this phase is a no-op. | 4+ weeks of Alpha-1 clean; per-direction commerce signals producing non-trivial attribution; KVK comfortable; platform-bot ADR drafted if Shopify needs new integration. |
+| **Alpha-2** (real money, both accounts) | no | Trader: paper → live, $5k initial book. Commerce: sandbox/test → real transactions + real FX exposure. Phases can advance independently per account if one is clean and the other isn't. | 4+ weeks of Alpha-1 (or Alpha-1.5 if applicable) clean per-account; ≥100 AI Reviewer verdicts with outcome attribution; per-signal / per-rule performance within baseline; KVK comfort; explicit ADR amendment to this playbook per account. |
+| **Alpha-3** (external operators) | no | Onboard first external friend(s) as operators. Could be trader, commerce, or both. Uses shared-operator governance model refined by Alpha-1/2 learnings. | 4+ weeks Alpha-2 clean per account; ICP signal present (operator wants to pay / refer others); external-operator-onboarding scope doc drafted. |
 
-### Why e-commerce is deferred, not cancelled
+**Phase-independence per account:** an account's readiness for the next phase is evaluated per-account. If trader is Alpha-2-ready but commerce needs more observation, trader advances while commerce stays at Alpha-1. This is *explicitly allowed* and expected — domain-specific readiness is real.
 
-Adding e-commerce as a second simultaneous alpha was the original plan. Deferring is a deliberate scope choice:
+### Why both accounts from Alpha-1 (not sequenced)
 
-- **Single-account attention produces sharper friction signals.** Two simultaneous personas dilute observation quality.
-- **The trader is the harder stress test.** Reviewer capital-EV reasoning, money-truth substrate, signal-attribution — if these work for a systematic trader, they'll very likely work for commerce. Reverse is less clearly true.
-- **Circling back later is a reinforcement pattern.** When we add e-commerce, we'll know which frictions are architecture-level (both personas feel them) vs. domain-specific (only one does). That's the anti-verticalization gate (ADR-191) operating correctly.
+Previous playbook drafts sequenced trader first, commerce as Alpha-1.5 alone. Reversed in this version because:
 
-When we add e-commerce in Alpha-1.5, this playbook's §3 expands with a second persona spec (analogous structure, adapted to commerce domain). `DOMAIN-STRESS-MATRIX.md` gains two real columns of data.
+- **Sequencing defeats the anti-verticalization gate.** Running only trader for months would pile up ADRs whose architecture-vs-domain classification we couldn't resolve until commerce finally lands. Parallel running means every observation categorizes cleanly as "trader-only / commerce-only / both."
+- **The two personas exercise different dimensions of the same architecture.** Trader stresses Reviewer's per-trade expectancy logic + var-based risk; commerce stresses Reviewer's multi-dimensional (margin × turnover × FX) reasoning + inventory-and-turnover risk. Both exercise capital-EV reasoning, money-truth substrate, and cockpit surfaces — just against different substrate shapes.
+- **KVK's operator-authenticity is real for both.** Trader is KVK-as-systematic-research; commerce is KVK-as-dual-life-entrepreneur. Neither is fictional; both are operator hypotheses KVK wants evidence on.
+
+If one account turns out to be fundamentally broken (the architecture can't support it), that's a critical ADR finding — and we learn it in weeks, not months.
 
 ---
 
@@ -760,14 +1301,23 @@ docs/alpha/
 
 ## 10. Open questions deferred to Week-1 iteration
 
+**Operational (KVK-decided, not architecture):**
+
 1. **Credentials-vault mechanics** — vault location, rotation policy, backup. KVK's operational decision.
-2. **KVK time budget** — hours/week committed to alpha observation. Shapes Claude's autonomy tolerance.
-3. **Communication cadence** — daily / weekly / ad-hoc. Start ad-hoc; formalize if needed.
-4. **Observation-doc review rhythm** — batch at weekly rollup (default), or time-sensitive escalation if friction warrants.
-5. **ADR-amendment protocol from alpha** — same PR pattern; observation subfolder is the input.
-6. **Claude's authenticated session access** — how does Claude Code (this session) actually log in to the web app? Likely via credentials passed through a browser session KVK initiates; refined during Phase 2 onboarding.
-7. **`_performance.md` per-signal schema** — backend's current reconciler shape may or may not support `by_signal` attribution. Verify during Phase 3 first-trades. If missing, log as structural-gap ADR candidate.
-8. **Reviewer reasoning format** — does the AI Reviewer actually write its six-check chain to `decisions.md`, or does it produce a shorter summary? Verify against the first few AI verdicts; may require prompt adjustment.
+2. **Render workspace selection** — Claude needs the workspace ID via `mcp__render__select_workspace`. KVK provides after listing workspaces.
+3. **Commerce-platform choice (§3B.0)** — A (digital / LS), B (physical / Shopify), or C (hybrid). KVK's call before Phase 0 commerce-step can proceed.
+4. **KVK time budget** — hours/week committed to alpha observation. Shapes Claude's autonomy tolerance.
+5. **Communication cadence** — daily / weekly / ad-hoc. Start ad-hoc; formalize if needed.
+6. **Observation-doc review rhythm** — batch at weekly rollup (default), or time-sensitive escalation if friction warrants.
+7. **ADR-amendment protocol from alpha** — same PR pattern; observation subfolder is the input.
+8. **Claude's authenticated session access** — how does Claude Code (this session) actually log in to the web app? Likely via credentials passed through a browser session KVK initiates; refined during Phase 2 onboarding.
+
+**Architectural (verify during Phase 3 first-triggers):**
+
+9. **`_performance.md` per-signal / per-rule schema** — backend's current reconciler shape may or may not support `by_signal` (trader) or `by_sku`/`by_direction`/`by_rule` (commerce) attribution. Verify during first-triggers. If missing in either, log as structural-gap ADR candidate.
+10. **Reviewer reasoning format** — does the AI Reviewer write its six-check chain to `decisions.md` in full, or produce a shorter summary? Verify against first few AI verdicts per account; may require prompt adjustment.
+11. **Commerce platform integration gap (if §3B.0 = Option B Shopify)** — YARNNN lacks native Shopify integration. Either we use LS (digital) for Alpha-1 and draft a Shopify-platform-bot ADR for Alpha-1.5 physical upgrade, or we accept initial commerce substrate that's platform-naive (operator + Claude manually reconcile until a Shopify bot ships). Decision depends on §3B.0 outcome.
+12. **Multi-workspace Claude authentication** — if Claude operates two accounts concurrently (trader + commerce), session management across two authenticated YARNNN sessions is an operational concern. Likely separate browser sessions or separate tabs; verify during Phase 2.
 
 ---
 
@@ -776,4 +1326,5 @@ docs/alpha/
 | Date | Change |
 |------|--------|
 | 2026-04-20 | v1 — Initial playbook (Rohn-inspired, later corrected). |
-| 2026-04-20 | v2 — Full rewrite. Persona corrected to Jim Simons (systematic quantitative) — Option B scope: 5–8 declared signals, measured edge, quantitative Reviewer reasoning. IDENTITY.md, `_operator_profile.md` (with 5 initial signals + 3 reserved slots), `_risk.md` (statistical limits: portfolio var, per-signal caps, sector concentration, VIX regime scalar), and `principles.md` (six-check Reviewer evaluation framework) all rewritten end-to-end. New `signal-evaluation` task added to scaffolding. Anti-discretion ladder for Claude — default is DO NOT OVERRIDE. Friction-capture extended with Simons-persona-specificity field. Section 9 added (active-artifact ledger) to make the playbook the single documentation source for Alpha-1. Section 10 expanded open questions with `_performance.md` per-signal schema + Reviewer reasoning format. Singular implementation — v1 fully superseded. |
+| 2026-04-20 | v2 — Full rewrite. Persona corrected to Jim Simons (systematic quantitative) — Option B scope. Rohn persona superseded. |
+| 2026-04-20 | v3 — **Two-account scope restored** (both accounts concurrent in Alpha-1). §3B added for `alpha-commerce` persona in KVK's voice: Korea↔USA international commerce operator testing dual-life economic hypothesis. §3B symmetric to §3A structure (IDENTITY.md + `_operator_profile.md` with 5 declared rules + 3 reserved + FX regime scalar / `_risk.md` statistical limits / `principles.md` six-check Reviewer framework / `_performance.md` schema with per-SKU + per-direction + per-rule attribution). §4 setup sequence rewritten with explicit KVK-vs-Claude ownership split — honest delineation of what Claude can handle autonomously (Render env vars once workspace selected, workspace onboarding with credentials) vs. what requires KVK (vault, platform signup, email provisioning, YARNNN signup). New §3B.0 platform-choice decision (digital LS / physical Shopify / hybrid) gates commerce setup. §8 phase transitions rewritten: both accounts in Alpha-1 from the start; Alpha-1.5 becomes "physical-commerce upgrade" (if chose Option A/C in §3B.0); Alpha-2 is per-account independent (trader-paper→live and/or commerce-sandbox→real can advance separately). §2 governance extended to name both accounts explicitly. §10 open questions expanded with Render workspace selection, §3B.0 choice, commerce platform integration gap, multi-workspace Claude auth. Previous "e-commerce is deferred" framing removed — sequenced-alpha defeats the anti-verticalization gate (ADR-191). v2 singular-trader framing fully superseded. |
