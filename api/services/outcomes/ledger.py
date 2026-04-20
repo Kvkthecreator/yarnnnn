@@ -167,6 +167,26 @@ async def fold_outcome_candidates(
             "skipped_invalid": skipped_invalid + len(new_entries),
         }
 
+    # 6) ADR-195 Phase 5: route high-impact outcomes to the originating
+    # task's feedback.md per ADR-181. Never blocks — failures log and
+    # the outcome is still persisted to _performance.md above.
+    try:
+        from services.outcomes.high_impact import (
+            load_high_impact_thresholds,
+            write_feedback_entries_for_outcomes,
+        )
+        thresholds = load_high_impact_thresholds(client, user_id)
+        if thresholds:
+            await write_feedback_entries_for_outcomes(
+                client, user_id, provider, new_entries, thresholds,
+            )
+        # When no thresholds declared, no writes happen (safe default).
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[OUTCOMES] high-impact actuation failed for %s / user=%s: %s",
+            provider.provider_name, user_id[:8], exc,
+        )
+
     logger.info(
         "[OUTCOMES] %s: user=%s domain=%s appended=%d duplicate_skipped=%d invalid_skipped=%d",
         provider.provider_name,

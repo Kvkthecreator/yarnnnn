@@ -6,6 +6,83 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.20.5] - High-impact outcome → task feedback routing (ADR-195 Phase 5a)
+
+### Frontend-relay summary (for the parallel frontend session)
+
+**No contract changes.** No new routes, no schema, no new columns. Pure filesystem substrate extension.
+
+**What changes in the filesystem** (and therefore what surfaces may observe as content):
+- `/workspace/review/principles.md` now parses a new per-domain key: `high_impact_threshold_cents`. The seed template ships with commented-out examples alongside existing `auto_approve_below_cents` examples. Same edit posture: operator uncomments to activate.
+- `/tasks/{slug}/feedback.md` may now contain entries with `source: system_outcome` (in addition to `source: system_verification`, `user_conversation`, `user_edit`, etc. that already appear). Entry format follows ADR-181 exactly — the Stream archetype (ADR-198) renders them identically.
+
+**Visual treatment suggestion** (optional, for surfaces that render feedback.md):
+- Entries tagged `source: system_outcome` carry a severity tier (`low` / `medium` / `high`) in the body. A small severity badge on these entries would help operators scan at a glance — higher severity means bigger capital magnitude.
+- If the Work surface renders per-task feedback.md (which the Review destination's Stream archetype likely will), the new entries will appear automatically.
+
+### Added
+- **`api/services/outcomes/high_impact.py`** (NEW, ~230 lines):
+  - `load_high_impact_thresholds(client, user_id)` — reads `/workspace/review/principles.md` and returns `{domain: threshold_cents}` for domains with positive declared thresholds. Empty dict = no high-impact writes (safe default).
+  - `detect_high_impact_candidates(candidates, thresholds)` — pure filter. Candidates with `None` `value_cents` skip; candidates whose domain lacks a declared threshold skip; `abs(value_cents) >= threshold` marks high-impact.
+  - `write_feedback_entries_for_outcomes(client, user_id, provider, candidates, thresholds)` — full pipeline: detect → group by `task_slug` (resolved via `action_proposals.task_slug` join on `proposal_id`) → render ADR-181 entries → prepend to task's `feedback.md`.
+  - `_render_feedback_entry` produces ADR-181 format with `source: system_outcome`, domain, action, value, severity tier (low/medium/high based on absolute magnitude), and the reconciler's provider name for attribution.
+
+### Changed
+- **`api/services/review_principles.py`**:
+  - `_KNOWN_POLICY_KEYS` extended with `high_impact_threshold_cents`.
+  - `_parse_value` handles `high_impact_threshold_cents` as int (same as `auto_approve_below_cents`).
+- **`api/services/outcomes/ledger.py`**:
+  - `fold_outcome_candidates` now calls `load_high_impact_thresholds` + `write_feedback_entries_for_outcomes` after successful `_performance.md` upsert. Wrapped in try/except — never blocks outcome reconciliation.
+  - Step ordering: (1) fold entries, (2) render, (3) upsert performance file, (4) route high-impact → feedback. If any step fails, the prior steps' state is preserved.
+- **`api/services/agent_framework.py`** `DEFAULT_REVIEW_PRINCIPLES_MD` seed template extended:
+  - `commerce`: added `high_impact_threshold_cents: 100000` (= $1,000) example in the commented block
+  - `trading`: added `high_impact_threshold_cents: 50000` (= $500) example
+  - `email`: left at no high-impact threshold (email domain has no reconciled P&L substrate yet)
+
+### Expected behavior
+- **Default state unchanged** for every workspace that hasn't edited `principles.md`: no high-impact entries written. Zero feedback churn.
+- **After operator uncomments a threshold**: reconciled outcomes in that domain with absolute value at or above the threshold automatically write a `system_outcome` feedback entry on the originating task. Next run of that task reads the new entry via `_extract_recent_feedback` (ADR-181 Tier 1) and factors it into generation — closes the money-truth → future-behavior loop per FOUNDATIONS v6.0 Axiom 7 (Recursion).
+- **Task resolution**: outcome's `proposal_id` → `action_proposals.task_slug`. Outcomes from direct platform-tool calls (no proposal_id) are still persisted to `_performance.md` but skip feedback writes — they have no task home.
+- **Rate of writes**: bounded by the feedback.md cap (`_MAX_FEEDBACK_ENTRIES`, currently 20 entries). Oldest entries rotate out on new writes. For typical alpha volumes (~5–20 proposals/day per domain), only a handful of outcomes cross threshold daily.
+
+### Safety invariants
+- **Safe default**: empty principles.md or missing `high_impact_threshold_cents` → zero writes.
+- **Never blocks reconciliation**: high-impact actuation is wrapped in try/except at the ledger call site; outcome storage is the primary path, feedback routing is secondary.
+- **Unrealized outcomes excluded**: `value_cents=None` (position_opened, closed_unknown) never trigger writes regardless of threshold.
+- **Task-attribution-failure-safe**: outcomes without a resolvable task_slug (direct platform writes, or proposals that predated ADR-193's task_slug field) are skipped with a log line, not errored.
+
+### What this unlocks (downstream effects)
+- **Next agent run on the task reads the outcome**. Since feedback.md is injected into generation prompts via `_extract_recent_feedback`, an agent whose last action produced a high-impact outcome now sees its own outcome in its next context window.
+- **AI Reviewer (ADR-194 Phase 3) gets richer track-record context**. System-outcome feedback entries on relevant tasks (e.g., "trading weekly review") surface the operator's recent big wins/losses alongside their other feedback sources.
+- **Review destination's Stream** (your five-destination nav) can now show a chronological feed of capital outcomes per task, not just approve/reject audit.
+
+### EmailOutcomeProvider deferred (ADR-195 Phase 5b)
+- Investigated Resend's API: `POST /emails`, `GET /emails/{id}`, `POST /emails/batch` exist but no event-read endpoint for account-wide delivered/bounced/complained events. Resend exposes events via webhook only.
+- Proper EmailOutcomeProvider needs: (1) webhook receiver route at `POST /api/webhooks/resend`, (2) pending event storage (new table — permitted ephemeral-queue kind per Axiom 1), (3) reconciler reads from the queue rather than from a GET endpoint.
+- Scope too large for a single phase commit pre-alpha. Skipping half-implementation (e.g., pull-loop that GET `/emails/{id}` for each recent send) because Resend's `/emails/{id}` is per-send, not per-account — no useful index to iterate.
+- Pattern is preserved for when scale justifies it: `CommerceOutcomeProvider` / `TradingOutcomeProvider` shape is the template; only the event-fetch mechanism changes.
+
+### Render parity
+- No env var changes. No schema changes.
+- `services.outcomes.high_impact` reachable by API + Unified Scheduler via existing imports (back-office-outcome-reconciliation is scheduler-invoked; it calls `reconcile_user` which calls `fold_outcome_candidates` which now routes to `high_impact`).
+- MCP Server + Output Gateway untouched.
+
+### Smoke-test results (pre-push)
+- All imports clean.
+- `high_impact_threshold_cents` now parses correctly out of principles.md; existing `auto_approve_below_cents` still parses unchanged.
+- `detect_high_impact_candidates`: verified across 5 synthetic candidates — only realized-P&L candidates whose domain has a declared threshold and whose abs-value crosses it are flagged. Unrealized, empty-threshold, and no-threshold cases all skip correctly.
+- `_render_feedback_entry`: produces ADR-181 format with all expected fields (source, domain, action, realized value, severity, reconciler, inputs, notes).
+- Severity tiers: `None` or small → `low`; `$1K–$10K` → `medium`; `$10K+` → `high`.
+- Ledger wiring: `inspect.getsource(fold_outcome_candidates)` confirms `load_high_impact_thresholds` + `write_feedback_entries_for_outcomes` are present with the ADR-195 Phase 5 marker comment.
+
+### Refs
+- FOUNDATIONS v6.0 Axiom 7 (Recursion) — the recursive loop money-truth participates in; Axiom 8 (Money-Truth) — the substrate this reads from
+- ADR-181 (Source-Agnostic Feedback Layer) — entry format + `_MAX_FEEDBACK_ENTRIES` cap
+- ADR-194 v2 Phase 3 (AI Reviewer) — consumes feedback.md as reasoning input
+- ADR-195 v2 Phase 5a Implemented; Phase 5b (EmailOutcomeProvider) Deferred; Phase 4 (daily-update briefing) Proposed, awaits ADR-198-aligned surface design
+
+---
+
 ## [2026.04.20.4] - AI Reviewer agent shipped (ADR-194 v2 Phase 3)
 
 ### Frontend-relay summary (for the parallel frontend session)

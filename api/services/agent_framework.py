@@ -982,15 +982,17 @@ within declared edge can approve.
 
 <!--
 commerce:
-  auto_approve_below_cents: 50000    # $500 reversible writes OK to auto-approve
-  never_auto_approve: [issue_refund] # irreversible-ish actions always human
+  auto_approve_below_cents: 50000           # $500 reversible writes OK to auto-approve
+  never_auto_approve: [issue_refund]        # irreversible-ish actions always human
+  high_impact_threshold_cents: 100000       # outcomes >= $1,000 route to task feedback.md (ADR-195 Phase 5)
 
 trading:
-  auto_approve_below_cents: 0        # default: every trade is human-reviewed
+  auto_approve_below_cents: 0               # default: every trade is human-reviewed
   never_auto_approve: [submit_order, submit_bracket_order, submit_trailing_stop]
+  high_impact_threshold_cents: 50000        # realized P&L >= $500 routes to task feedback.md
 
 email:
-  auto_approve_below_cents: 0        # customer-facing content is always human
+  auto_approve_below_cents: 0               # customer-facing content is always human
 -->
 
 ## What the Reviewer explicitly does NOT do

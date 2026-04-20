@@ -39,7 +39,14 @@ PRINCIPLES_PATH = "/workspace/review/principles.md"
 
 
 #: Known per-domain policy keys. Unknown keys under a domain are ignored.
-_KNOWN_POLICY_KEYS = {"auto_approve_below_cents", "never_auto_approve"}
+_KNOWN_POLICY_KEYS = {
+    "auto_approve_below_cents",
+    "never_auto_approve",
+    # ADR-195 Phase 5: threshold above which reconciled outcomes in this
+    # domain route to the originating task's feedback.md as system_outcome
+    # entries. Not set / <=0 → no high-impact entries written.
+    "high_impact_threshold_cents",
+}
 
 
 def load_principles(client: Any, user_id: str) -> dict:
@@ -138,7 +145,7 @@ def parse_principles_md(content: str) -> dict:
 
 def _parse_value(key: str, raw: str) -> Any:
     """Parse a known key's raw value. Returns None if unparseable."""
-    if key == "auto_approve_below_cents":
+    if key in ("auto_approve_below_cents", "high_impact_threshold_cents"):
         try:
             return int(raw)
         except (TypeError, ValueError):
