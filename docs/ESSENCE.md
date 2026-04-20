@@ -3,7 +3,7 @@
 **Purpose**: Canonical product narrative. What YARNNN is, what users are buying, and what must remain true as the implementation evolves.
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-04-19 (v12.1 — FOUNDATIONS Axiom 7 Money-Truth promoted to first-class; "What Stays Constant" extended)
+**Updated**: 2026-04-20 (v12.2 — FOUNDATIONS v6.0 axiom renumber: Money-Truth is now Axiom 8. Five stable elements unchanged.)
 
 ---
 
@@ -35,7 +35,7 @@ The product essence has five stable elements:
    The system exists to produce useful work on cadence: recaps, briefs, monitoring outputs, research, synthesis, and richer rendered artifacts when the job requires them.
 
 5. **Money-truth, not vibe-truth**  
-   YARNNN is a money-making platform for operators. Every action the team takes is attributable to a capital outcome — trades to P&L, campaigns to revenue, discounts to attribution. Accumulated context is pruned by what actually made money, not by what sounded good. Reviewers (human or AI) judge proposals in expected-value terms given the operator's book and track record. The team gets better at its job, and the job is making the operator money (FOUNDATIONS Axiom 7, ADR-194, ADR-195).
+   YARNNN is a money-making platform for operators. Every action the team takes is attributable to a capital outcome — trades to P&L, campaigns to revenue, discounts to attribution. Accumulated context is pruned by what actually made money, not by what sounded good. Reviewers (human or AI) judge proposals in expected-value terms given the operator's book and track record. The team gets better at its job, and the job is making the operator money (FOUNDATIONS Axiom 8, ADR-194, ADR-195).
 
 ## What Changed Recently
 
