@@ -6,6 +6,42 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.19.7] - Reviewer substrate scaffold (ADR-194 v2 Phase 1)
+
+### Added
+- `api/services/agent_framework.py`:
+  - `DEFAULT_REVIEW_IDENTITY_MD` — Reviewer identity template. Opens with the "I am the independent judgment seat" framing. Declares scope (gates `ProposeAction`-created proposals), reasoning posture (capital-EV, rules as floor), boundaries (does not compose / own tasks / create agents / mutate context), and developmental axis (judgment calibration measured against downstream `_performance.md` outcomes).
+  - `DEFAULT_REVIEW_PRINCIPLES_MD` — user-editable declared review framework. Sets default posture (skeptical over permissive), three decision categories (approve / reject / defer with precise conditions), commented-out per-domain auto-approve thresholds (commerce + trading + email defaults), explicit anti-scope ("does not enforce unstated rules", "does not override your explicit approvals", "does not accumulate style preference"), and a "defer streak" escalation signal for thin-track-record domains.
+- `api/services/workspace_init.py` Phase 3 loop extended: scaffolds `/workspace/review/IDENTITY.md` + `/workspace/review/principles.md` alongside existing identity/brand files. Uses the existing `UserMemory` write path — the filename `review/IDENTITY.md` resolves via `_full_path` to `/workspace/review/IDENTITY.md`. Idempotent (only written if absent), matches the pattern for every other scaffolded file.
+
+### Not scaffolded (by design)
+- `/workspace/review/decisions.md` is NOT scaffolded at signup. It is created on first Reviewer write (Phase 2+). This matches the pattern for other append-only logs (e.g., `/workspace/context/{domain}/_tracker.md`).
+
+### Expected behavior
+- **New signups**: 2 new files in `/workspace/review/` alongside existing IDENTITY/BRAND/etc. Total added footprint at signup: ~4KB.
+- **No runtime change yet**: the Reviewer layer does not *run* until Phase 2 ships the `review-proposal` reactive task. Current commit lays the filesystem substrate so the subsequent phases have a canonical home to read/write.
+- **Existing test workspaces are NOT auto-backfilled**: same pattern as ADR-193 Phase 5 and ADR-195 Phase 2. Next signup onward gets the Reviewer substrate. Kevin can manually invoke the scaffold for personal alpha workspaces if needed (standard UserMemory.write).
+
+### Render parity
+- No env var changes. No schema changes. `DEFAULT_REVIEW_*` constants are module-level Python — reachable by API + Unified Scheduler via the existing `services.agent_framework` import path. MCP Server and Output Gateway untouched.
+
+### Smoke-test results (pre-push)
+- AST parse of `services/agent_framework.py` confirms both new constants are defined at module scope.
+- Constants contain expected substantive strings: IDENTITY → "independent judgment seat", "decisions.md", "capital-ev"; principles → "auto_approve", "_performance.md", "_risk.md".
+- `workspace_init.py` imports both constants and includes the two new entries in the scaffold dictionary.
+- `UserMemory._full_path("review/IDENTITY.md")` resolves to `/workspace/review/IDENTITY.md` (subdirectory resolution confirmed).
+
+### Cycle close
+- This is the fourth and final commit in the FOUNDATIONS v5.1 + Axiom 0 alignment cycle.
+- Note: `docs/SESSION-HANDOFF.md` was already deleted in the earlier money-truth foundation commit (see [2026.04.19.1] CHANGELOG entry). No further cleanup needed here; the bridge was crossed earlier than this cycle assumed.
+
+### Refs
+- FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate) + Axiom 1 (four-layer cognition)
+- ADR-194 v2 (Reviewer Layer + Operator Impersonation) — Phase 1 Implemented
+- Phases 2–4 of ADR-194 remain Proposed (review-proposal reactive task, impersonation endpoints, AI Reviewer agent, calibration tuning)
+
+---
+
 ## [2026.04.19.6] - Legacy table drops + primitive strip: Migration 151 (ADR-195 v2 + ADR-196)
 
 ### Changed

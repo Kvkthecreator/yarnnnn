@@ -123,6 +123,8 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
             DEFAULT_BRAND_MD,
             DEFAULT_AWARENESS_MD,
             DEFAULT_CONVENTIONS_MD,
+            DEFAULT_REVIEW_IDENTITY_MD,
+            DEFAULT_REVIEW_PRINCIPLES_MD,
         )
 
         # Inject browser timezone so get_user_timezone() in Phase 5 resolves
@@ -148,6 +150,11 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
             "notes.md": ("# Notes\n<!-- TP-extracted facts and instructions. -->\n", "Notes placeholder"),
             # ADR-174 Phase 1: workspace structural conventions — agent-readable, TP-extensible
             "CONVENTIONS.md": (DEFAULT_CONVENTIONS_MD, "Workspace filesystem conventions"),
+            # ADR-194 v2 Phase 1: Reviewer substrate (fourth cognitive layer).
+            # Lands at /workspace/review/. decisions.md is NOT scaffolded —
+            # created on first Reviewer write in Phase 2+.
+            "review/IDENTITY.md": (DEFAULT_REVIEW_IDENTITY_MD, "Reviewer identity"),
+            "review/principles.md": (DEFAULT_REVIEW_PRINCIPLES_MD, "Reviewer declared framework (user-editable)"),
         }
 
         for filename, (content, summary) in workspace_files.items():
