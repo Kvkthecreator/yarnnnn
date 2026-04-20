@@ -53,7 +53,7 @@ export function SnapshotPane() {
           icon={<Users className="h-4 w-4" />}
           label="Workforce"
           headline={snap?.workforceHeadline ?? null}
-          href={snap?.teamHref ?? '/agents'}
+          href={snap?.teamHref ?? '/team'}
         />
         <SnapshotTile
           icon={<FolderOpen className="h-4 w-4" />}
@@ -141,7 +141,7 @@ async function loadSnapshot(): Promise<Snapshot> {
     bookHeadline,
     bookHref: '/context?path=' + encodeURIComponent('/workspace/context/_performance_summary.md'),
     workforceHeadline,
-    teamHref: '/agents',
+    teamHref: '/team',
     workHref: '/work',
     contextHeadline,
     contextHref,

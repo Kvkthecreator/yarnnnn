@@ -34,7 +34,7 @@ import { DeliverableMiddle } from './details/DeliverableMiddle';
 import { FeedbackStrip } from './details/FeedbackStrip';
 import { WorkModeBadge } from './WorkModeBadge';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
-import { AGENTS_ROUTE, CONTEXT_ROUTE } from '@/lib/routes';
+import { TEAM_ROUTE, CONTEXT_ROUTE } from '@/lib/routes';
 import { formatRelativeTime } from '@/lib/formatting';
 import { resolveTaskSurface, SURFACE_TYPE_LABELS, resolveDomainWorkspacePath } from '@/lib/task-types';
 import { cn } from '@/lib/utils';
@@ -150,7 +150,7 @@ function DeliverableMetadata({ task, assignedAgent }: { task: Task; assignedAgen
         <>
           <span className="text-muted-foreground/30">·</span>
           <Link
-            href={`${AGENTS_ROUTE}?agent=${assignedAgent.slug}`}
+            href={`${TEAM_ROUTE}?agent=${assignedAgent.slug}`}
             className="hover:text-foreground hover:underline"
           >
             {assignedAgent.title}
@@ -189,7 +189,7 @@ function TrackingMetadata({ task, assignedAgent }: { task: Task; assignedAgent: 
         <>
           <span className="text-muted-foreground/30">·</span>
           <Link
-            href={`${AGENTS_ROUTE}?agent=${assignedAgent.slug}`}
+            href={`${TEAM_ROUTE}?agent=${assignedAgent.slug}`}
             className="hover:text-foreground hover:underline"
           >
             {assignedAgent.title}
@@ -245,7 +245,7 @@ function ActionMetadata({ task, assignedAgent }: { task: Task; assignedAgent: Ag
         <>
           <span className="text-muted-foreground/30">·</span>
           <Link
-            href={`${AGENTS_ROUTE}?agent=${assignedAgent.slug}`}
+            href={`${TEAM_ROUTE}?agent=${assignedAgent.slug}`}
             className="hover:text-foreground hover:underline"
           >
             {assignedAgent.title}

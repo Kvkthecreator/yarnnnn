@@ -406,13 +406,13 @@ function OverviewTab({
             icon={Users}
             value={domainAgents.length}
             label={`${domainAgents.length === 1 ? 'specialist' : 'specialists'}`}
-            href="/agents"
+            href="/team"
           />
           <OverviewStat
             icon={Zap}
             value={bots.length}
             label={`platform ${bots.length === 1 ? 'bot' : 'bots'}`}
-            href="/agents"
+            href="/team"
           />
         </div>
       </section>

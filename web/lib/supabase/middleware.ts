@@ -4,19 +4,23 @@ import { isAdminEmail } from "@/lib/internal-access";
 import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
 
-// ADR-163 Surface Restructure: four top-level surfaces + system.
-// HOME_ROUTE is now /chat (listed explicitly below).
+// ADR-198 v2 cockpit nav: five top-level surfaces + ambient chat + system.
+// HOME_ROUTE is /overview per ADR-199.
+// /agents continues to be protected (it redirects to /team per ADR-201).
 const PROTECTED_PREFIXES = [
+  "/overview",
   "/chat",
   "/work",
-  "/agents",
+  "/team",
   "/context",
+  "/review",
   "/memory",
   "/system",
   "/settings",
   "/integrations",
   "/docs",
   // Legacy routes still protected for redirect stubs
+  "/agents",
   "/workfloor",
   "/orchestrator",
   "/tasks",

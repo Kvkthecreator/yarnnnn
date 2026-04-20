@@ -111,10 +111,10 @@ function AuthenticatedLayoutInner({
     (newSurface: DeskSurface, handoffMessage?: string) => {
       switch (newSurface.type) {
         case 'agent-list':
-          router.push('/agents');
+          router.push('/team');
           return;
         case 'agent-detail':
-          router.push(`/agents?agent=${newSurface.agentId}`);
+          router.push(`/team?agent=${newSurface.agentId}`);
           return;
         case 'document-list':
           router.push('/context');

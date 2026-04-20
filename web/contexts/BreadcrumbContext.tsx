@@ -9,8 +9,8 @@
  *
  * Examples:
  *   Home page:           [] (empty — just "yarnnn")
- *   Agents overview:     [] (empty — toggle bar shows "Agents")
- *   Agent selected:      [{ label: "Agents", href: "/agents" }, { label: "Researcher", href: "/agents?agent=..." }]
+ *   Team overview:       [] (empty — toggle bar shows "Team")
+ *   Agent selected:      [{ label: "Team", href: "/team" }, { label: "Researcher", href: "/team?agent=..." }]
  *   Context / domain:    [{ label: "Context", href: "/context" }, { label: "Competitors", href: "/context?path=..." }]
  */
 
