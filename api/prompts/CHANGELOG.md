@@ -6,6 +6,97 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.20.4] - AI Reviewer agent shipped (ADR-194 v2 Phase 3)
+
+### Frontend-relay summary (for the parallel frontend session)
+
+**Contracts unchanged.** No API route shapes changed, no schema changes, no new columns. Existing frontend reads of `action_proposals.reviewer_identity` / `reviewer_reasoning` (shipped Phase 2a) continue to work — the only new thing is that the value string may now start with `ai:reviewer-sonnet-v1` or `reviewer-layer:observed` in addition to `human:<user_id>`.
+
+**What the frontend may see going forward:**
+- Some proposals will flip `status` from `pending` → `approved` → `executed` (or → `rejected`) *without the operator clicking anything*, when policy permits AI auto-action. UI should not assume only human flips the status.
+- `action_proposals.reviewer_identity` values include:
+  - `human:<user_id>` — operator approved via frontend (existing)
+  - `ai:reviewer-sonnet-v1` — AI auto-approved or auto-rejected (new; operator sees after the fact)
+  - `reviewer-layer:observed` — reviewer layer observed creation, deferred to human (new; proposal remains pending)
+- `action_proposals.reviewer_reasoning` will contain the AI's rationale when `reviewer_identity` starts with `ai:*`. Useful for a badge/tooltip showing "why the AI decided this."
+- `/workspace/review/decisions.md` now contains AI-authored entries alongside human. The Stream surface (ADR-198) would render them identically.
+
+**How AI auto-action is gated** (safety invariant):
+- Operator must **explicitly uncomment** auto-approve thresholds in `/workspace/review/principles.md` for any AI auto-action to happen. Default state: every proposal still routes to human via ProposalCard. This is the same behavior as Phase 2b.
+- Thresholds are per-context-domain (`trading`, `revenue`) with `auto_approve_below_cents` + `never_auto_approve: [action_fragment, ...]` lists.
+- `irreversible` proposals always defer to human regardless of threshold (hardcoded safety).
+
+**Suggested frontend treatments (not required, just ideas):**
+- `/workspace/review/principles.md` in the Files/Context surface benefits from a hint banner: "Uncomment a threshold to enable AI auto-approve." Low priority.
+- A badge on ProposalCards: when `reviewer_identity` starts with `ai:`, show "Auto-approved by Reviewer" with the reasoning as tooltip. Would make the Stream feed of `decisions.md` feel less jarring when AI actions appear.
+- Stream surface visual distinction between `reviewer-layer:observed` (gray, passive) and actual decisions (colored by outcome) would help density management.
+
+### Added
+- **`api/services/review_principles.py`** (NEW, ~180 lines) — parses `/workspace/review/principles.md`:
+  - `load_principles(client, user_id)` — filesystem read, returns empty dict on missing/parse-fail.
+  - `parse_principles_md(content)` — handles both commented-out defaults (`<!-- ... -->` wrapping YAML, how the file ships) and active YAML. Minimal YAML subset parsed line-by-line — no PyYAML dep.
+  - `policy_for_domain(policies, context_domain)` — narrow accessor.
+  - `is_eligible_for_auto_approve(policy, action_type, estimated_cents, reversibility)` — returns `(eligible: bool, reason: str)`. Gates: threshold declared > 0; `action_type` not in `never_auto_approve` substring list; reversibility ≠ `irreversible`; `abs(estimated_cents) ≤ threshold`. Reason string always populated for the AI's reasoning trail.
+  - Unknown policy keys ignored (forward-compat).
+
+- **`api/agents/reviewer_agent.py`** (NEW, ~230 lines) — AI Reviewer:
+  - `REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v1"` — the canonical identity string written to `action_proposals.reviewer_identity` + `decisions.md`.
+  - `review_proposal(client, user_id, proposal_row, principles_md, performance_md, risk_md, operator_profile_md) -> ReviewDecision | None` — calls Sonnet with forced tool-call (`tool_choice={"type":"tool","name":"return_review_decision"}`). Returns `{decision, reasoning, confidence}` or None on failure.
+  - System prompt frames Capital-EV reasoning per FOUNDATIONS v6.0 Axiom 8 — "reason about upside/downside asymmetry vs operator's declared strategy + track record; prefer defer when in doubt."
+  - User message bundles proposal + principles + performance + risk + operator profile in a stable markdown envelope.
+  - Token usage recorded via `record_token_usage(caller="reviewer", ref_id=proposal_id)` — visible in `token_usage` analytics under that caller filter.
+  - Max 1024 output tokens (decision payload is tiny; room for reasoning without cost bloat).
+
+### Changed
+- **`api/services/review_proposal_dispatch.py`** — body refactored from pure-observation (Phase 2b) to policy-gated AI path + observation fallback (Phase 3):
+  - `_resolve_context_domain(action_type)` maps `trading.*` → `trading`, `commerce.*` → `revenue`, else `None`.
+  - `_estimate_proposal_value_cents(proposal_row)` extracts a scalar from `inputs` for threshold comparison (commerce direct `*_cents` fields; trading `qty * limit_price` notional).
+  - `on_proposal_created` flow: load policy → eligibility gate → if ineligible, observe-only; if eligible, run AI Reviewer; branch on decision.
+  - AI `approve` → `handle_execute_proposal(auth, {proposal_id, reviewer_identity, reviewer_reasoning})`.
+  - AI `reject` → `handle_reject_proposal(...)`.
+  - AI `defer` → `append_decision(decision="defer", reviewer_identity="ai:reviewer-sonnet-v1", reasoning=AI_reasoning)` — proposal stays pending; the AI's reasoning becomes operator-readable context for the human's eventual decision.
+  - AI failure (no tool call, parse error, exception) → observe-only fallback via `_write_observation`; human still acts via ProposalCard.
+  - `_read_workspace_file` helper for reading `principles.md` / `_performance.md` / `_risk.md` / `_operator_profile.md` — same direct-upsert pattern as `risk_gate` / `reviewer_audit`.
+
+### Expected behavior
+- **Default state unchanged** for every workspace that hasn't edited `principles.md`: all proposals route to human observer-defer, identical to Phase 2b. Zero AI auto-action.
+- **After operator uncomments a threshold**: proposals in that domain below the threshold (and matching other gates) flow through AI reviewer. Human sees the result — approved / rejected / defer-to-me — with AI's reasoning attached.
+- **decisions.md stream density**: doubles from Phase 2b. Every proposal now produces at minimum one observation entry at creation + one decision entry at resolution. AI-deferred proposals add a third entry (AI reasoning + "pending_human" outcome).
+- **Cost observable**: `SELECT SUM(cost_usd) FROM token_usage WHERE caller = 'reviewer'` gives per-user AI Reviewer spend. Each review is ~1–2K input tokens + ≤1K output, so ~$0.005/review at Sonnet pricing. A workspace with 10 auto-eligible proposals/day spends ~$0.05/day on Reviewer.
+
+### Safety invariants (preserved)
+- Human approvals via `/api/proposals/{id}/approve` ignore AI observation state entirely. The operator can always override.
+- `irreversible` proposals always defer to human, hardcoded, bypasses the AI path entirely.
+- AI failure never blocks proposal creation or human decision.
+- Dispatch wrapped in try/except in `handle_propose_action` — no failure mode propagates to the caller.
+
+### Render parity
+- No env var changes. No schema changes.
+- `services.review_principles` + `services.review_proposal_dispatch` + `agents.reviewer_agent` all reachable by API via existing imports. Unified Scheduler doesn't call `handle_propose_action` today, so no scheduler-side import concern.
+- MCP Server + Output Gateway untouched.
+
+### Smoke-test results (pre-push)
+- All imports clean across three new/changed modules.
+- Principles parser: commented-out defaults → 3 domains; active YAML → correct values; unknown keys ignored.
+- Eligibility gate: empty policy, never_auto_approve match, threshold-OK, over-threshold, irreversible, no-value-estimate — all return the expected `(eligible, reason)`.
+- Domain resolution + value estimation correct for trading notional + commerce `*_cents`.
+- Prompt construction: user message contains all substrate references + "return_review_decision" instruction; system prompt mentions EV + defer-when-in-doubt.
+- Tool schema validates: 3 required fields, enum bound.
+
+### Unblocks / waiting for
+- **Phase 4** (calibration tuning) — judgment calibration metric + feedback actuation on drifted calibration. Needs N cycles of AI decisions against reconciled outcomes to have data to calibrate against. No urgency.
+- **Phase 2c** (admin impersonation endpoints + persona-workspace seeding) — still deferred; orthogonal to Phase 3.
+- **Frontend surface changes** (optional enhancements listed in the Frontend-relay summary above) — no urgency; existing Phase 2a contracts carry Phase 3's data.
+
+### Refs
+- FOUNDATIONS v6.0 Axiom 2 (Identity — seat filled by AI), Axiom 3 (Purpose — independent judgment), Axiom 4 (Trigger — reactive), Axiom 5 (Mechanism — mixed, Sonnet with tight contract), Axiom 6 (Channel — Stream archetype via decisions.md), Axiom 8 (Money-Truth — reasons against `_performance.md` rolling windows)
+- ADR-171 (token metering) — `caller="reviewer"` is the billing-visible string
+- ADR-181 (feedback layer) — Phase 4 will actuate feedback on calibration drift
+- ADR-194 v2 Phase 3 Implemented; Phases 2c + 4 Proposed
+- ADR-195 Phases 1–3 (shipped substrate the AI reads)
+
+---
+
 ## [2026.04.20.3] - Reviewer reactive dispatch + impersonation schema prep (ADR-194 v2 Phase 2b)
 
 Scope-split: Phase 2 further divided into 2b (this commit — reactive dispatch + impersonation *schema*) and 2c (admin endpoints + persona-workspace seeding, deferred to the frontend-admin cycle).
