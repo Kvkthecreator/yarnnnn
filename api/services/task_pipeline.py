@@ -3691,10 +3691,12 @@ async def _is_workspace_empty_for_daily_update(client, user_id: str) -> bool:
 def _build_empty_workspace_html(schedule_label: str) -> str:
     """Deterministic HTML template for the empty-workspace daily-update.
 
-    No LLM call. No personalization. Honest acknowledgement that the workspace
-    is empty plus a call-to-action back to chat. The user still gets their
-    daily artifact in the inbox; it just says "I have nothing to tell you yet."
+    ADR-202 §1: expository-pointer shape. Honest acknowledgement that the
+    workspace is empty + deep-link CTA into the cockpit. No LLM call.
+    No personalization. Operator gets the heartbeat, the actual UX
+    lives in the cockpit.
     """
+    from services.deep_links import chat_url, overview_url
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3702,35 +3704,37 @@ def _build_empty_workspace_html(schedule_label: str) -> str:
 <title>Your YARNNN workforce is ready</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px; margin: 32px auto; padding: 0 24px; color: #374151; line-height: 1.6;">
-  <h1 style="color: #1a1a2e; font-size: 24px; margin-bottom: 16px;">Your workforce is ready</h1>
-  <p>Good morning. I'm <strong>Reporting</strong>, your synthesizer agent. I send you a daily operational digest of what your workforce is doing.</p>
-  <p>Right now, there's nothing for me to report — your team hasn't been told what to track yet. That's by design: I don't presume to know what matters to you until you tell me.</p>
+  <h1 style="color: #1a1a2e; font-size: 24px; margin-bottom: 8px;">Your workforce is ready</h1>
+  <p style="color: #6b7280; font-size: 14px; margin-top: 0;">0 task runs · 0 proposals pending · 0 reviewer decisions</p>
+  <p>Good morning. There's nothing for me to report yet — your team hasn't been told what to track. That's by design: I don't presume to know what matters to you until you tell me.</p>
   <p style="margin-top: 24px;">
-    <a href="https://yarnnn.com/chat" style="display: inline-block; padding: 10px 18px; background: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Open a chat with me</a>
+    <a href="{chat_url()}" style="display: inline-block; padding: 10px 18px; background: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Open YARNNN →</a>
   </p>
-  <p style="margin-top: 16px;">Tell me about your work — what you're focused on, who you're tracking, what platforms you use. I'll set up tracking, kick off research, and tomorrow's update will have something real to say.</p>
+  <p style="margin-top: 16px; color: #6b7280; font-size: 14px;">Tell me about your work — what you're focused on, who you're tracking, what platforms you use. Tomorrow's update will have something real to say.</p>
   <hr style="margin: 32px 0; border: 0; border-top: 1px solid #e5e7eb;">
-  <p style="color: #6b7280; font-size: 13px;">This is your daily update from YARNNN. It runs every morning at {schedule_label}. You can adjust the cadence or pause it from chat anytime.</p>
+  <p style="color: #6b7280; font-size: 13px;">Daily update · {schedule_label} · <a href="{overview_url()}" style="color: #6b7280;">View in cockpit</a></p>
 </body>
 </html>"""
 
 
 def _build_empty_workspace_markdown(schedule_label: str) -> str:
-    """Markdown counterpart of the empty-workspace template (for output.md)."""
+    """Markdown counterpart of the empty-workspace template (for output.md).
+
+    ADR-202 §1: expository-pointer shape.
+    """
+    from services.deep_links import chat_url, overview_url
     return (
         "# Your workforce is ready\n\n"
-        "Good morning. I'm **Reporting**, your synthesizer agent. I send you "
-        "a daily operational digest of what your workforce is doing.\n\n"
-        "Right now, there's nothing for me to report — your team hasn't been "
-        "told what to track yet. That's by design: I don't presume to know "
-        "what matters to you until you tell me.\n\n"
-        "[Open a chat with me](https://yarnnn.com/chat)\n\n"
-        "Tell me about your work — what you're focused on, who you're tracking, "
-        "what platforms you use. I'll set up tracking, kick off research, and "
-        "tomorrow's update will have something real to say.\n\n"
+        "_0 task runs · 0 proposals pending · 0 reviewer decisions_\n\n"
+        "Good morning. There's nothing for me to report yet — your team "
+        "hasn't been told what to track. That's by design: I don't "
+        "presume to know what matters to you until you tell me.\n\n"
+        f"[Open YARNNN →]({chat_url()})\n\n"
+        "Tell me about your work — what you're focused on, who you're "
+        "tracking, what platforms you use. Tomorrow's update will have "
+        "something real to say.\n\n"
         "---\n\n"
-        "*This is your daily update from YARNNN. It runs every morning at "
-        f"{schedule_label}. You can adjust the cadence or pause it from chat anytime.*\n"
+        f"*Daily update · {schedule_label} · [View in cockpit]({overview_url()})*\n"
     )
 
 

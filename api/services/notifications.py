@@ -235,21 +235,39 @@ async def _send_notification_email(
 ) -> "EmailResult":
     """Send a notification email via Resend."""
     from jobs.email import send_email, EmailResult
-    import os
+    from services.deep_links import app_url as _app_url, team_url, review_url, overview_url
 
-    app_url = os.environ.get("APP_URL", "https://yarnnn.com")
+    app_url = _app_url()
 
-    # Build context-aware CTA if available
+    # Build context-aware CTA if available.
+    # ADR-202 §2: notifications are pointer-only — deep-link CTA, never
+    # action-on-email button. All routes go through deep_links helpers.
     cta_html = ""
     cta_text = ""
     if context:
-        if context.get("agent_id"):
-            url = f"{app_url}/agents/{context['agent_id']}"
-            cta_html = f'<a href="{url}" style="display: inline-block; background: #111; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; margin-top: 16px;">View Agent</a>'
-            cta_text = f"\nView: {url}"
+        # ADR-194 Phase 2a: proposal notifications link into the Queue pane
+        # of Overview (or specific proposal on Review).
+        if context.get("proposal_id"):
+            url = review_url(proposal=context["proposal_id"])
+            cta_label = "Review in cockpit"
+        # ADR-201: agent notifications now route to /team?agent=<slug>
+        elif context.get("agent_slug"):
+            url = team_url(agent=context["agent_slug"])
+            cta_label = "View agent"
+        elif context.get("agent_id"):
+            # Legacy: agent_id instead of slug — frontend redirects. Preserved
+            # for callers that don't yet pass slug.
+            url = team_url(agent=context["agent_id"])
+            cta_label = "View agent"
         elif context.get("url"):
-            cta_html = f'<a href="{context["url"]}" style="display: inline-block; background: #111; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; margin-top: 16px;">View Details</a>'
-            cta_text = f"\nView: {context['url']}"
+            # Pre-built deep-link from caller — honor it.
+            url = context["url"]
+            cta_label = "View details"
+        else:
+            url = overview_url()
+            cta_label = "Open cockpit"
+        cta_html = f'<a href="{url}" style="display: inline-block; background: #111; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; margin-top: 16px;">{cta_label}</a>'
+        cta_text = f"\nView: {url}"
 
     # Urgency affects subject prefix
     subject_prefix = ""

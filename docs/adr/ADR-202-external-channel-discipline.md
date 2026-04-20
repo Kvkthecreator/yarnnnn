@@ -1,6 +1,6 @@
 # ADR-202: External Channel Discipline — Expository Pointers, No Replacement UX
 
-> **Status**: Proposed — backend-frontend collaboration. Specification ships this cycle (doc-only); implementation split between backend template/alert changes and frontend deep-link UX.
+> **Status**: Phase 1 (frontend forward-compat) Implemented 2026-04-20. **Phase 2 (backend — daily-update template + alert discipline + pending-distribution marker) Implemented 2026-04-20.** Phase 3 (frontend Ship-Now UX) Proposed. Phase 4 (legacy cleanup) Proposed.
 > **Date**: 2026-04-20
 > **Authors**: KVK, Claude
 > **Extends**: ADR-198 v2 (cockpit service model, Refinements 1-3 on external Channels); FOUNDATIONS v6.0 Axiom 6 (Channel) + Derived Principle 12 (Channel legibility gates autonomy); ADR-161 (daily-update heartbeat), ADR-185 (Distribution Derivatives)
@@ -139,12 +139,12 @@ No domain hurt. Gate passes. This phase hardens the cockpit commitment against e
 
 Phased backend-first, then frontend catches up:
 
-| Phase | Owner | Scope |
-|---|---|---|
-| 1 (this cycle) | Frontend (me) | ADR spec + deep-link query-param forward-compat on cockpit surfaces |
-| 2 (backend cycle) | Backend | Daily-update template rewrite + alert content discipline + output-manifest pending-distribution marker |
-| 3 (frontend cycle) | Frontend | Work task-detail pending-distribution UX (badge + Ship now affordance) after backend contract lands |
-| 4 (follow-up) | Backend | Delete legacy alert-body-with-buttons code paths — singular implementation |
+| Phase | Owner | Scope | Status |
+|---|---|---|---|
+| 1 | Frontend | ADR spec + deep-link query-param forward-compat on cockpit surfaces | **Implemented 2026-04-20** |
+| 2 | Backend | Daily-update template rewrite + alert content discipline + output-manifest pending-distribution marker | **Implemented 2026-04-20** |
+| 3 | Frontend | Work task-detail pending-distribution UX (badge + Ship now affordance) after backend contract lands | Proposed |
+| 4 | Backend | Delete legacy alert-body-with-buttons code paths — singular implementation | Proposed (no legacy found in audit; this phase may be a no-op) |
 
 ---
 
@@ -183,3 +183,4 @@ No Channel duplicates another. No external UX replaces cockpit UX. No drift poss
 | Date | Change |
 |------|--------|
 | 2026-04-20 | v1 — Initial proposal. Backend-frontend split implementation. Phase 1 (this commit): ADR spec + forward-compat for deep-link query params. Phases 2-4 follow in backend + frontend cycles as contracts land. |
+| 2026-04-20 | v1.1 — **Phase 2 shipped.** Backend implementation: `api/services/deep_links.py` (NEW) as single source of truth for cockpit URLs via APP_URL env. `api/services/daily_update_email.py` (NEW) emits expository-pointer shape for populated daily-update: deterministic headline ("3 task runs · 2 proposals pending · 1 reviewer decision") + contextual pointer cluster (queue / review / book) + empty-state. `_deliver_email_from_manifest` branches on `task_slug == "daily-update"` to use the pointer template (agent-generated digest still lives at cockpit, not in email). Empty-state template (`_build_empty_workspace_html/markdown`) rewritten to pointer shape with `0 task runs · 0 proposals pending · 0 reviewer decisions` headline + `chat_url()` CTA + `overview_url()` footer link. `notifications.py::_send_notification_email` URL routing migrated to `deep_links` helpers — `agent_id` now routes to `team_url(agent=...)` per ADR-201 (was `/agents/{id}`); new `proposal_id` context routes to `review_url(proposal=...)`. `SysManifest` dataclass extended with `pending_distribution: bool` + `pending_distribution_approved_at: Optional[str]`; backward-compatible (legacy manifests without these fields parse to defaults). `task_types.delivery_requires_approval(type_key)` helper: safe default `False` (no task type declares it yet); opt-in per-task-type by adding `"delivery_requires_approval": True` to the dict. `deliver_from_output_folder` respects the flag: when True + `pending_distribution_approved_at` is None, marks manifest and returns `ExportStatus.SKIPPED` (new enum value — distinct from FAILED because no error, output is composed and waiting). Phase 3 frontend flips `pending_distribution_approved_at` via a Ship-Now affordance. |

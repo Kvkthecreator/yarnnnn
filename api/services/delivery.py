@@ -700,6 +700,68 @@ async def deliver_from_output_folder(
             error_message="No destination configured",
         )
 
+    # ADR-202 §3: delivery_requires_approval gate.
+    # Compose writes the output + manifest to /tasks/{slug}/outputs/{date}/
+    # regardless. Distribution fires only after operator clicks Ship Now
+    # in the cockpit Work surface (Phase 3 frontend UX). Until that
+    # timestamp is set, this function returns a skipped-for-approval
+    # status and writes `pending_distribution: true` to the manifest so
+    # the cockpit can surface the pending badge.
+    if task_slug:
+        try:
+            # Read task type from TASK.md, not registry — per ADR-188,
+            # TASK.md is the source of truth. We inspect manifest's task_slug
+            # + look up the type if declared. For now, keyed by task_slug +
+            # registry (contextual task types are rare pre-alpha).
+            from services.task_types import delivery_requires_approval as _dra
+            from services.task_workspace import TaskWorkspace as _TW
+            _tw = _TW(client, user_id, task_slug)
+            _task_md = await _tw.read("TASK.md") or ""
+            # Minimal inline parse — look for `type_key:` or `**Type:**` line.
+            _type_key = None
+            import re as _re
+            for _line in _task_md.splitlines():
+                _m = _re.match(r"^\s*(?:\*\*)?type[_ ]?key(?:\*\*)?\s*:\s*`?([\w\-]+)`?", _line, _re.IGNORECASE)
+                if _m:
+                    _type_key = _m.group(1)
+                    break
+            requires_approval = _dra(_type_key) if _type_key else False
+        except Exception as _exc:  # noqa: BLE001
+            logger.warning(
+                f"[DELIVERY] delivery_requires_approval lookup failed for task={task_slug}: {_exc}"
+            )
+            requires_approval = False
+
+        if requires_approval:
+            approved_at = manifest.get("pending_distribution_approved_at")
+            if not approved_at:
+                # Write / update the manifest flag and return a skipped status.
+                # The cockpit polls this via task-detail; Phase 3 frontend
+                # surfaces the Ship Now affordance which flips the flag.
+                import json
+                manifest["pending_distribution"] = True
+                try:
+                    await ws.write(
+                        f"{output_folder}/manifest.json",
+                        json.dumps(manifest, indent=2),
+                        summary="ADR-202 §3: pending operator approval for distribution",
+                    )
+                except Exception as _exc:  # noqa: BLE001
+                    logger.warning(
+                        f"[DELIVERY] Failed to persist pending_distribution flag for {task_slug}: {_exc}"
+                    )
+                logger.info(
+                    f"[DELIVERY] task={task_slug} awaits operator approval (ADR-202 §3) — skipping ship"
+                )
+                return ExportResult(
+                    status=ExportStatus.SKIPPED,
+                    error_message="pending_distribution_approval",
+                )
+            # Approved — fall through to normal delivery path.
+            logger.info(
+                f"[DELIVERY] task={task_slug} operator-approved at {approved_at} — proceeding"
+            )
+
     platform = destination.get("platform")
     if not platform:
         return ExportResult(
@@ -725,6 +787,7 @@ async def deliver_from_output_folder(
             composed_html=composed_html,
             task_slug=task_slug,
             user_timezone=user_timezone,
+            user_id=user_id,
         )
     else:
         # Non-email platforms: fall back to existing exporter registry
@@ -872,6 +935,7 @@ async def _deliver_email_from_manifest(
     composed_html: Optional[str] = None,
     task_slug: Optional[str] = None,
     user_timezone: str = "UTC",
+    user_id: Optional[str] = None,
 ) -> ExportResult:
     """ADR-118 D.3 + ADR-148: Email delivery sourced from output folder.
 
@@ -931,26 +995,61 @@ async def _deliver_email_from_manifest(
         default_subject = f"{title} — {timestamp_str}"
     subject = options.get("subject", default_subject)
 
-    # ADR-148: Compose email-specific HTML via render service (surface_type="digest")
-    html_body = await _compose_email_html(
-        text_content,
-        title,
-        assets=_build_email_assets_from_manifest(manifest),
-    )
-    if not html_body:
-        logger.warning("[DELIVERY] Email compose failed — using HTML fallback")
-        html_body = _fallback_email_html(
-            title=title,
-            text_content=text_content,
-            composed_html=composed_html,
+    # ADR-202 §1: daily-update email is an expository pointer, not a
+    # full-content digest. The agent-generated content lives at
+    # /tasks/daily-update/outputs/{date}/ and the Overview surface
+    # (ADR-199) renders it. The email is just the invitation.
+    # Compute deterministic headline counts + swap the body for the
+    # pointer template. Empty workspace is already handled by
+    # _execute_daily_update_empty_state earlier in the pipeline.
+    html_body: Optional[str] = None
+    if task_slug == "daily-update" and user_id:
+        try:
+            from services.daily_update_email import (
+                build_pointer_html,
+                build_pointer_markdown,
+                compute_daily_headline_counts,
+            )
+            from services.supabase import get_service_client
+            from services.schedule_utils import format_daily_local_time_label
+
+            # Scheduler-invoked path — use service client for read-only counts.
+            sc = get_service_client()
+            counts = await compute_daily_headline_counts(sc, user_id)
+            schedule_label = format_daily_local_time_label(user_timezone)
+            html_body = build_pointer_html(counts, schedule_label=schedule_label)
+            # Replace plain-text body with markdown pointer form.
+            text_content = build_pointer_markdown(counts, schedule_label=schedule_label)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[DELIVERY] daily-update pointer template failed — falling back to compose: %s",
+                exc,
+            )
+            html_body = None  # falls into the normal compose path below
+
+    if html_body is None:
+        # ADR-148: Compose email-specific HTML via render service (surface_type="digest")
+        html_body = await _compose_email_html(
+            text_content,
+            title,
+            assets=_build_email_assets_from_manifest(manifest),
         )
+        if not html_body:
+            logger.warning("[DELIVERY] Email compose failed — using HTML fallback")
+            html_body = _fallback_email_html(
+                title=title,
+                text_content=text_content,
+                composed_html=composed_html,
+            )
 
     # Append email footer (feedback link + yarnnn branding)
     app_url = os.environ.get("APP_URL", "https://yarnnn.com")
+    # ADR-201: agent routes moved from /agents/ → /team?agent=. Task routes
+    # remain /tasks/ for backend-canonical deep-links (frontend may redirect).
     if task_slug:
         view_url = f"{app_url}/tasks/{task_slug}"
     elif agent_id:
-        view_url = f"{app_url}/agents/{agent_id}"
+        view_url = f"{app_url}/team?agent={agent_id}"
     else:
         view_url = app_url
 

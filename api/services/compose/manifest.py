@@ -116,6 +116,15 @@ class SysManifest:
     # Maps section slugs / asset keys → "<status>:<reason>" strings.
     # e.g. {"hero_image": "skipped:asset-exists", "competitor-profiles": "produced"}
     generation_gaps: dict[str, str] = field(default_factory=dict)
+    # ADR-202 §3: distribution-approval gating. `pending_distribution` is
+    # True when the output is composed but awaiting operator approval in
+    # the cockpit Work surface. `pending_distribution_approved_at` flips
+    # to the ISO timestamp when the operator clicks Ship Now (Phase 3
+    # frontend UX). Default: both absent / False / None — distribution
+    # fires on the normal schedule. Only set when the task type declares
+    # `delivery_requires_approval: true`.
+    pending_distribution: bool = False
+    pending_distribution_approved_at: Optional[str] = None
 
     def to_json(self) -> str:
         def _serialize(obj):
@@ -176,6 +185,8 @@ def read_manifest(content: str) -> Optional[SysManifest]:
             entity_count=data.get("entity_count", 0),
             domain_freshness=data.get("domain_freshness", {}),
             generation_gaps=data.get("generation_gaps", {}),
+            pending_distribution=bool(data.get("pending_distribution", False)),
+            pending_distribution_approved_at=data.get("pending_distribution_approved_at"),
         )
     except Exception:
         return None

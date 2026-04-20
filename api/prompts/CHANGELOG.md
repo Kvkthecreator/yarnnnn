@@ -6,6 +6,101 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.20.6] - External-Channel discipline (ADR-202 Phase 2) — daily-update pointer + deep-links + distribution gate
+
+### Frontend-relay summary (for the parallel frontend session)
+
+**Contract additions (all additive, backward-compatible):**
+
+1. **`SysManifest` (sys_manifest.json) gains two optional fields**:
+   - `pending_distribution: bool` (default `false`) — true when an output is composed but gated on operator approval.
+   - `pending_distribution_approved_at: string | null` (ISO timestamp) — set by the cockpit's Ship-Now affordance to unblock distribution.
+   Legacy manifests parse cleanly (both fields default).
+
+2. **Daily-update email shape changed** (no route contract change):
+   - Empty-state + populated both render as **expository pointers** — headline counts + deep-links only, NO full digest content.
+   - Agent-generated daily-update content still lives at `/tasks/daily-update/outputs/{date}/output.html` — the Overview surface should read from there for cockpit display. The email is no longer a content-carrying artifact.
+
+3. **Deep-link URLs standardized** via `services/deep_links.py`. All external notifications now route through these helpers:
+   - Overview: `{APP_URL}/overview?focus={queue|alerts|performance}&since={iso}`
+   - Review: `{APP_URL}/review?identity={ai|human|impersonated}&decision={approve|reject|defer}&since={iso}&proposal={id}`
+   - Team: `{APP_URL}/team?agent={slug}` (legacy `/agents/{id}` is migrated)
+   - Work: `{APP_URL}/work?task={slug}&agent={slug}`
+   - Context: `{APP_URL}/context?path={urlencoded}` or `?domain={slug}`
+   - Chat: `{APP_URL}/chat`
+
+4. **New ExportStatus value**: `SKIPPED`. Returned from `deliver_from_output_folder` when a task's `delivery_requires_approval` is true and the operator hasn't clicked Ship-Now yet. Distinct from `FAILED` — no error occurred; the output is composed and waiting. Surface treatment suggestion: pending-distribution badge on Work task-detail (ADR-202 Phase 3 frontend scope).
+
+5. **Notification CTA behavior**: `notifications.py::_send_notification_email` now uses `deep_links` helpers. The `context` dict keys drive the CTA target:
+   - `{"proposal_id": "uuid"}` → `review_url(proposal=...)`
+   - `{"agent_slug": "slug"}` → `team_url(agent=...)` (recommended new key)
+   - `{"agent_id": "uuid"}` → `team_url(agent=uuid)` (legacy key, still works)
+   - `{"url": "..."}` → honored as-is for pre-built deep-links
+
+**Frontend action needed (when ready, no urgency):**
+- Phase 3 UX: render `pending_distribution: true` manifests as a "Pending distribution" badge on Work task-detail, with a "Ship now" button that POSTs an approval mutation (backend endpoint TBD — will ship in ADR-202 Phase 3 backend wiring when frontend is ready).
+- Overview surface: ensure `?focus=queue`, `?focus=alerts`, `?since=<iso>` params are honored (forward-compat was shipped in ADR-199).
+
+**No frontend action required if:**
+- Overview / Review / Team surfaces already accept the listed query params per ADRs 199/200/201.
+- No task type opts into `delivery_requires_approval: true` yet — all existing tasks stay `SUCCESS` status.
+
+### Added
+- **`api/services/deep_links.py`** (NEW, ~130 lines): Single source of truth for cockpit URL construction. Helpers: `app_url()`, `overview_url()`, `review_url()`, `team_url()`, `work_url()`, `context_path_url()`, `context_domain_url()`, `chat_url()`. All honor `APP_URL` env (default `https://yarnnn.com`). Query params URL-encoded via stdlib `urlencode` + `quote`. No trailing slashes, no anchors (query-param-only per ADR-202 §4 design rationale).
+- **`api/services/daily_update_email.py`** (NEW, ~180 lines): Expository-pointer email template per ADR-202 §1.
+  - `compute_daily_headline_counts(client, user_id)` — deterministic SQL queries: `agent_runs` since yesterday UTC, pending `action_proposals`, reviewer decisions (approved + rejected) since yesterday.
+  - `build_headline(counts)` — formatted string with singular/plural ("1 task run · 2 proposals pending · 1 reviewer decision").
+  - `build_pointer_html(counts, schedule_label)` + `build_pointer_markdown(counts, schedule_label)` — inline-safe HTML + markdown. Pointer cluster is contextual: base `/overview` link always; Queue link when `pending > 0`; Review link when `decisions > 0`; Book link when `task_runs > 0`. All-zero path minimal.
+- **ExportStatus.SKIPPED** in `api/integrations/core/types.py`: distinct from FAILED; indicates deliberate non-delivery (pending approval).
+- **`task_types.delivery_requires_approval(type_key)`** helper: reads `"delivery_requires_approval": True` from task-type dict, defaults False. Opt-in per task type. No existing task type opts in.
+
+### Changed
+- **`api/services/task_pipeline.py::_build_empty_workspace_html/markdown`**: rewritten to expository-pointer shape. Headline = "0 task runs · 0 proposals pending · 0 reviewer decisions". CTA: `chat_url()`. Footer link: `overview_url()`.
+- **`api/services/delivery.py::_deliver_email_from_manifest`**:
+  - New `user_id: Optional[str]` parameter threaded from `deliver_from_output_folder`.
+  - When `task_slug == "daily-update"` and `user_id` is available: compute deterministic counts via service client, build pointer HTML/markdown, swap out the compose-engine output. Graceful fallback to the compose path if count queries fail.
+  - Feedback-link footer: `agent_id` → `team_url(agent=...)` per ADR-201 (was `/agents/{id}`).
+- **`api/services/delivery.py::deliver_from_output_folder`**: new gate. If `task_slug` has `delivery_requires_approval: True` in its task-type registry entry, check `sys_manifest.pending_distribution_approved_at`. If not approved, write `pending_distribution: true` to manifest and return `ExportStatus.SKIPPED`. If approved, proceed to normal delivery. No-op for existing tasks (none opt in).
+- **`api/services/notifications.py::_send_notification_email`**: URL routing migrated to `deep_links`. Supports new `proposal_id` context → Review deep-link. `agent_id` legacy key routes to `team_url(agent=uuid)` (frontend redirects).
+- **`api/services/compose/manifest.py::SysManifest`**: new fields `pending_distribution: bool` + `pending_distribution_approved_at: Optional[str]`. `read_manifest` parses both. `to_json` emits them. Backward-compatible.
+
+### Expected behavior
+- **Every daily-update email** (populated + empty-state) is now a pointer — headline + deep-link cluster. Operator opens cockpit to read the full digest (Overview surface). The agent-generated `/tasks/daily-update/outputs/{date}/output.html` is unchanged; it's the surface content, not the email body.
+- **Every notification email** (agent delivered, agent failed, event triggered) routes through `deep_links` — stable URL shape, always cockpit-targeted. `/agents/{id}` links are gone.
+- **Tasks with `delivery_requires_approval: True`**: output composed + marked `pending_distribution: true` + `ExportStatus.SKIPPED`. No email / Slack / Notion fires until the cockpit's Ship-Now flips the `approved_at` timestamp.
+- **Tasks without the flag** (everything today): no behavior change. Continue delivering on the normal schedule.
+
+### Safety invariants
+- **No action-on-email buttons** (ADR-202 §2 explicit list): verified the existing `notifications.py` CTAs are all deep-links, not destructive mutations. Phase 4 (legacy cleanup) audit: no such legacy code exists in the codebase.
+- **Graceful fallback**: if daily-update pointer template fails (count query errors), falls through to the existing compose-engine path. Email still ships.
+- **Legacy manifests**: parse cleanly; missing pending_distribution fields default to False/None.
+- **Default-off opt-in**: no task type declares `delivery_requires_approval` today, so the gate is a no-op until deliberately enabled.
+
+### Render parity
+- No env var changes (APP_URL was already in use by `notifications.py`; now canonicalized via `deep_links.app_url()`).
+- No schema changes.
+- `services.deep_links` + `services.daily_update_email` reachable by API + Unified Scheduler via existing imports (scheduler invokes `deliver_from_output_folder`; daily-update + notifications both run there).
+- MCP Server + Output Gateway untouched. Output Gateway's `/compose` endpoint still does the digest composition for non-daily-update tasks; daily-update specifically bypasses this path for email delivery (cockpit surface still composes normally).
+
+### Smoke-test results (pre-push)
+- `deep_links` helpers: APP_URL honored; query params URL-encoded correctly; slashes preserved in path-value params (e.g., `/workspace/context/_performance_summary.md` → `%2Fworkspace%2Fcontext%2F...`).
+- `daily_update_email`: singular/plural correct in headlines; pointer cluster contextual (zeros → overview-only, non-zero → richer cluster); both HTML + markdown render with expected URLs.
+- `_build_empty_workspace_html/markdown`: rewritten templates use deep_links + show "0 task runs" headline.
+- `SysManifest` roundtrip: new fields persisted + parsed; legacy manifests without the fields parse to defaults.
+- `delivery_requires_approval('does-not-exist')` → False; existing task types → False.
+- `ExportStatus.SKIPPED` enum value present and distinct.
+- `notifications._send_notification_email` imports cleanly.
+
+### Refs
+- FOUNDATIONS v6.0 Axiom 6 (Channel) + Derived Principle 12 (Channel legibility gates autonomy)
+- ADR-198 v2 (cockpit service model) — Refinements 1-3 on external Channels
+- ADR-199 (Overview surface) + ADR-200 (Review surface) + ADR-201 (Team rename) — deep-link targets
+- ADR-161 (daily-update heartbeat) — preserved; shape updated to pointer
+- ADR-185 (Distribution Derivatives) — external distribution as derivative, not primary
+- ADR-202 Phase 2 Implemented; Phase 3 (frontend Ship-Now UX) Proposed; Phase 4 (legacy cleanup — likely no-op per audit) Proposed
+
+---
+
 ## [2026.04.20.5] - High-impact outcome → task feedback routing (ADR-195 Phase 5a)
 
 ### Frontend-relay summary (for the parallel frontend session)

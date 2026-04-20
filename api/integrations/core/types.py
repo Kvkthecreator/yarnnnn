@@ -33,6 +33,11 @@ class ExportStatus(str, Enum):
     PENDING = "pending"
     SUCCESS = "success"
     FAILED = "failed"
+    # ADR-202 §3: Deliberately not-delivered — typically awaiting operator
+    # approval for tasks with `delivery_requires_approval=true`. Distinct
+    # from FAILED because no error occurred; the output is composed and
+    # available, just gated behind cockpit approval.
+    SKIPPED = "skipped"
 
 
 class ExportResult(BaseModel):

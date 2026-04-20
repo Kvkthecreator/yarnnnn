@@ -1947,6 +1947,31 @@ def get_default_mode(type_key: str) -> str:
     return task_type.get("default_mode", "recurring")
 
 
+def delivery_requires_approval(type_key: str) -> bool:
+    """ADR-202 §3: whether distribution gates on operator cockpit approval.
+
+    When True, the compose pipeline writes the output to
+    `/tasks/{slug}/outputs/{date}/` and marks `pending_distribution: true`
+    in `sys_manifest.json`. Distribution fires only after the operator
+    clicks "Ship now" in the cockpit Work surface (ADR-202 Phase 3
+    frontend UX).
+
+    When False (default for every existing task type): distribution
+    fires immediately per the task's schedule — standard recurring
+    behavior. Operator sees outputs on the cockpit surface but doesn't
+    gate delivery.
+
+    Opt in per-task-type by adding `"delivery_requires_approval": True`
+    to the task-type dict. Use for high-stakes tasks (one-off reports
+    to external stakeholders, campaign sends to subscriber lists) where
+    the operator wants to audit the composed output before the ship.
+    """
+    task_type = TASK_TYPES.get(type_key)
+    if not task_type:
+        return False
+    return bool(task_type.get("delivery_requires_approval", False))
+
+
 def get_bootstrap_criteria(type_key: str) -> Optional[dict]:
     """Get bootstrap criteria for a task type. Returns None if no bootstrap."""
     task_type = TASK_TYPES.get(type_key)
