@@ -5,7 +5,7 @@
 > **Authors**: KVK, Claude
 > **Extends**: ADR-189 (Three-Layer Cognition), ADR-191 (Polymath Operator ICP), ADR-192 (Write Primitive Coverage Expansion), ADR-193 (ProposeAction + Approval Loop)
 > **Depended on by**: ADR-195 v2 (Money-Truth Substrate — Reviewer consumes `_performance.md`), ADR-196 (Autonomous Decision Loop — signal emits proposals, Reviewer decides), ADR-197 (surface archetypes — approval surface)
-> **Supersedes**: ADR-194 v1 (2026-04-17) — retracted. v1 framed Reviewer as an abstraction with a `Reviewer` ABC and `REVIEWER-POLICY.md` policy file. Both violate FOUNDATIONS Axiom 0 (filesystem is the substrate) and the "singular implementation" discipline. v2 reframes Reviewer as a structurally separate fourth cognitive layer per FOUNDATIONS v5.1.
+> **Supersedes**: ADR-194 v1 (2026-04-17) — retracted. v1 framed Reviewer as an abstraction with a `Reviewer` ABC and `REVIEWER-POLICY.md` policy file. Both violate FOUNDATIONS Axiom 1 (Substrate — filesystem is the persistence layer) and the "singular implementation" discipline. v2 reframes Reviewer as a structurally separate fourth cognitive layer per FOUNDATIONS v6.0 Axiom 2 (Identity — four cognitive layers), with the layer's *distinctness* located in Purpose + Trigger (Axioms 3 + 4) rather than Identity — which is why the seat is interchangeable between human and AI without architectural change.
 
 ---
 
@@ -15,9 +15,9 @@
 
 ADR-194 v1 (2026-04-17) framed the Reviewer as a pluggable abstraction — a `Reviewer` ABC with three implementations (Human / AI / Impersonation), gated by a `REVIEWER-POLICY.md` config file declaring which implementation handles which proposal type. That design was reasonable under the ADR-189 three-layer cognition model, but it conflicts with two later architectural commitments:
 
-1. **FOUNDATIONS Axiom 0 (v5.1, 2026-04-19): Filesystem is the substrate.** A `Reviewer` ABC is an in-memory abstraction that holds no filesystem state; a `REVIEWER-POLICY.md` file that only the ABC's dispatcher reads is a policy container parallel to `task_types.py` task definitions. Both are violations — policy for which agent reviews which proposal type belongs in task context files, not in a parallel config container.
+1. **FOUNDATIONS Axiom 1 (v6.0): Substrate — filesystem is the persistence layer.** A `Reviewer` ABC is an in-memory abstraction that holds no filesystem state; a `REVIEWER-POLICY.md` file that only the ABC's dispatcher reads is a policy container parallel to `task_types.py` task definitions. Both are violations — policy for which agent reviews which proposal type belongs in task context files, not in a parallel config container.
 
-2. **FOUNDATIONS Axiom 1 (v5.1): Four layers of cognition, one filesystem substrate.** Reviewer is its own cognitive layer, not a plug-in slot over the other three. The three "implementations" of v1 are actually three identities that can fill the same structural seat — the seat itself is the layer.
+2. **FOUNDATIONS Axiom 2 (v6.0): Identity — four cognitive layers.** Reviewer is its own cognitive layer, not a plug-in slot over the other three. The three "implementations" of v1 are actually three identities that can fill the same structural seat — the seat itself is the layer. Crucially (v6.0 clarification): the Reviewer layer's *distinctness* is not in its Identity but in its **Purpose + Trigger cell** — independent judgment (Purpose) over proposed-write events (reactive Trigger). This is why swapping human ↔ AI in the seat requires no architectural change: Identity is the swappable axis; the distinguishing dimensions (Substrate, Purpose, Trigger, Mechanism, Channel) are all preserved.
 
 v2 replaces v1 entirely. No dual versions; v1 file is overwritten. The pre-v2 draft lives only in git history (commits before `HEAD~N`).
 
@@ -45,7 +45,7 @@ This framing is the joint at which money-reasoning lives. Under ADR-195 v2, mone
 
 ### 1. Reviewer is the fourth cognitive layer
 
-FOUNDATIONS Axiom 1 extended from three to four layers:
+FOUNDATIONS Axiom 2 names four cognitive layers (previously three, prior to ADR-194):
 
 - **YARNNN** (meta-cognitive, workspace scope) — composes the future.
 - **Specialist** (role-cognitive, role scope) — styles the craft.
@@ -56,7 +56,7 @@ One Reviewer per workspace. Scaffolded at signup alongside YARNNN. Its **sole pu
 
 ### 2. Reviewer filesystem home — `/workspace/review/`
 
-Per Axiom 0, the Reviewer's state lives in files.
+Per Axiom 1 (Substrate), the Reviewer's state lives in files.
 
 ```
 /workspace/review/
@@ -109,7 +109,7 @@ The Reviewer seat can be filled by one of three identities. Identity is chosen p
 
 ### 4. No `Reviewer` ABC. No `REVIEWER-POLICY.md`.
 
-Retracted from v1. Under Axiom 0, policy for *which identity reviews which proposal type* is declared in the task type definition for `review-proposal`, not in a parallel config file. The task type declares:
+Retracted from v1. Under Axiom 1 (Substrate), policy for *which identity reviews which proposal type* is declared in the task type definition for `review-proposal`, not in a parallel config file. The task type declares:
 
 - Which agent identity runs the task (Human via approval UX, AI via the `thinking_partner`-scoped reviewer agent)
 - What context the task reads (proposal + `_risk.md` + `_operator_profile.md` + `_performance.md` + `principles.md`)
@@ -205,7 +205,7 @@ ALTER TABLE action_proposals
       -- Full reasoning always written to /workspace/review/decisions.md.
 ```
 
-`action_proposals` remains an ephemeral-queue row (per Axiom 0, permitted row kind 4). Reviewer-identity tagging is metadata on the queue entry, not accumulation substrate. The accumulation substrate for review judgment is `decisions.md`.
+`action_proposals` remains an ephemeral-queue row (per Axiom 1, permitted row kind 4). Reviewer-identity tagging is metadata on the queue entry, not accumulation substrate. The accumulation substrate for review judgment is `decisions.md`.
 
 ---
 
@@ -242,7 +242,7 @@ No code shipped from v1 (v1 was Proposed only, never Implemented). Migration is 
 
 - v1 ADR file overwritten by v2 (this file).
 - GLOSSARY.md v1.2 rewrites the Reviewer, `/workspace/review/`, Outcome, `_performance.md`, Money-Truth, Capital-EV entries (done in the same commit cycle as this ADR).
-- FOUNDATIONS.md v5.1 adds Axiom 0 and extends Axiom 1 to four layers (done in the same commit cycle).
+- FOUNDATIONS.md v6.0 (superseding the v5.1 rewrite) names the six-dimensional model: Axiom 1 (Substrate), Axiom 2 (Identity — four layers, including Reviewer), Axiom 3 (Purpose), Axiom 4 (Trigger), Axiom 5 (Mechanism), Axiom 6 (Channel), Axiom 7 (Recursion), Axiom 8 (Money-Truth). ADR-194 v2 is dimensionally classified as Identity + Purpose + Trigger.
 - No SQL migration needed for v2 (Phase 1 is filesystem-only).
 
 ---
@@ -261,6 +261,7 @@ No code shipped from v1 (v1 was Proposed only, never Implemented). Migration is 
 | Date | Change |
 |------|--------|
 | 2026-04-17 | v1 — Initial draft. Reviewer abstraction (Human / AI / Impersonation), REVIEWER-POLICY.md, impersonation substrate with persona workspaces, AI reviewer shaped around EV-reasoning (depends on ADR-195 for track-record). Renumbered original ADR-194 (surface archetypes) → ADR-197 and original ADR-195 (autonomous decision loop) → ADR-196. |
-| 2026-04-19 | v2 — **Full rewrite.** Reviewer reframed from pluggable abstraction to structurally separate fourth cognitive layer, aligned with FOUNDATIONS v5.1 Axiom 0 (filesystem substrate) and Axiom 1 (four layers). `Reviewer` ABC dropped. `REVIEWER-POLICY.md` dropped — routing lives in `review-proposal` task type per ADR-188. Reviewer filesystem home established at `/workspace/review/` (IDENTITY.md + principles.md + decisions.md). Three identities (Human / AI / Impersonation) reframed as identities filling the same seat, not pluggable implementations. Phased sequence sharpened: Phase 1 = substrate scaffold only (shipped this cycle); Phase 2+ = reactive task, impersonation endpoints, AI reviewer agent. v1 file overwritten — singular-implementation discipline. |
+| 2026-04-19 | v2 — **Full rewrite.** Reviewer reframed from pluggable abstraction to structurally separate fourth cognitive layer. Under FOUNDATIONS v5.1 (which pre-dated the v6.0 renumber), the citations were Axiom 0 (filesystem) + Axiom 1 (four layers). `Reviewer` ABC dropped. `REVIEWER-POLICY.md` dropped — routing lives in `review-proposal` task type per ADR-188. Reviewer filesystem home established at `/workspace/review/` (IDENTITY.md + principles.md + decisions.md). Three identities (Human / AI / Impersonation) reframed as identities filling the same seat, not pluggable implementations. Phased sequence sharpened: Phase 1 = substrate scaffold only (shipped this cycle); Phase 2+ = reactive task, impersonation endpoints, AI reviewer agent. v1 file overwritten — singular-implementation discipline. |
 | 2026-04-19 | v2.1 — **Phase 1 Implemented.** `DEFAULT_REVIEW_IDENTITY_MD` + `DEFAULT_REVIEW_PRINCIPLES_MD` templates added to `api/services/agent_framework.py` (alongside existing `DEFAULT_IDENTITY_MD` / `DEFAULT_BRAND_MD` / etc). `workspace_init.py` Phase 3 loop extended to scaffold `/workspace/review/IDENTITY.md` + `/workspace/review/principles.md` at signup — same substrate, same upsert pattern, same idempotency (only written if absent). `decisions.md` NOT scaffolded — created on first review write (Phase 2+). IDENTITY template asserts the independence property ("I sit outside YARNNN's cognition so review is not self-assessment"); principles template gives operator-editable auto-approve thresholds + default posture ("skeptical over permissive") + escalation signal for thin-track-record domains. Templates are ~4KB total — lightweight. No runtime behavior change yet — the Reviewer does not run until Phase 2 (reactive `review-proposal` task). Existing test workspaces are NOT auto-backfilled; next signup onward gets the Reviewer substrate. |
 | 2026-04-19 | v2.2 — **Phase 2a Implemented.** Phase 2 split into 2a (audit-trail wiring — shippable standalone) and 2b (review-proposal task + impersonation — bigger scope, deferred). 2a ships: migration 152 adds `reviewer_identity` + `reviewer_reasoning` columns to `action_proposals`. New module `api/services/reviewer_audit.py` — single public function `append_decision` that reads `/workspace/review/decisions.md`, appends a delimited `--- decision ---` block with machine-readable fields + markdown reasoning, and upserts via the workspace_files pattern (same path as `risk_gate.py`). First write seeds a header; subsequent writes append. `ExecuteProposal` + `RejectProposal` primitives accept `reviewer_identity` + `reviewer_reasoning` (default `human:<user_id>`), persist to the row at approve/reject time, and call `append_decision` after status commit. Audit writes never block flow — failures log. `/api/proposals/{id}/approve` + `/reject` routes pass the auth'd user's identity automatically. Now every completed approval or rejection — whether from frontend, chat LLM, or primitive caller — leaves an audit trail in the Reviewer's filesystem home. |
+| 2026-04-20 | v2.3 — **Alignment pass for FOUNDATIONS v6.0.** No behavior change. Axiom citations re-numbered under the dimensional model: "Axiom 0 (filesystem is substrate)" → "Axiom 1 (Substrate)"; "Axiom 1 (four layers)" → "Axiom 2 (Identity)". Context §1 now names the v6.0 clarification that the Reviewer layer's *distinctness* lives in Purpose + Trigger (Axioms 3 + 4), which is why the seat is interchangeable between human and AI without architectural change — only Identity varies; all other dimensions are preserved. Migration-notes section updated to reflect v6.0's eight-axiom map and ADR-194's primary dimensions (Identity + Purpose + Trigger). Audit of mid-cycle references to "v5.1" now noted as the pre-renumber framing. |

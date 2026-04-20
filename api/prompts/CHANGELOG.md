@@ -6,6 +6,38 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.20.1] - Alignment pass for FOUNDATIONS v6.0 (six-dimensional axiomatic model)
+
+### Context
+FOUNDATIONS.md was restructured on 2026-04-20 (commit `3483a91`) around the six-dimensional axiomatic model. The prior "Axiom 0 (filesystem is the substrate)" was preserved as content but renumbered: it is now **Axiom 1 (Substrate)**. The "Axiom 1 (four layers of cognition)" became **Axiom 2 (Identity)**. "Axiom 7 (money-truth)" became **Axiom 8 (Money-Truth)**. Four new dimension axioms (Purpose, Trigger, Mechanism, Channel) were added at slots 3-6, and recursion was renamed to Axiom 7.
+
+This alignment pass — no code behavior change — renumbers all session-produced docs to the v6.0 framing. **Historical CHANGELOG entries below (2026.04.19.*)** remain as dated records of what was shipped under the pre-rename framing; they are history, not current guidance. Only the following forward-facing docs were updated:
+
+### Changed (doc-only, no behavior)
+- `docs/adr/ADR-194-pluggable-reviewer-and-impersonation.md` — axiom citations renumbered; §Context clarified with the v6.0 insight that Reviewer's distinctness lives in Purpose + Trigger (not Identity), which is why the seat is interchangeable between human and AI without architectural change. v2.3 revision entry appended.
+- `docs/adr/ADR-195-outcome-attribution-substrate.md` — axiom citations renumbered; Mechanism-spectrum classification made explicit (reconciler sits at the fully-deterministic end of Axiom 5's spectrum, per ADR-141). v2.3 revision entry appended.
+- `docs/adr/ADR-196-user-memory-table-sunset.md` — "Axiom 0 cleanup" → "Axiom 1 (Substrate) cleanup." v1.2 revision entry.
+- `docs/adr/ADR-197-filesystem-documents-migration.md` — same renumber. v1.1 revision entry.
+- `CLAUDE.md` — FOUNDATIONS v5.1 bullet replaced with FOUNDATIONS v6.0 bullet summarizing the six-dimensional model, renumber map, and three new Derived Principles (9, 11, 12). ADR-194 / ADR-195 / ADR-196 / ADR-197 bullets updated with v6.0 axiom references + dimensional classification (each now explicitly tagged by which of the six dimensions it primarily occupies).
+- `api/services/back_office/outcome_reconciliation.py` — docstring: "Axiom 0" → "Axiom 1 (Substrate)."
+- `api/services/agent_framework.py` — Reviewer-templates header comment: "v5.1 Axiom 0 + Axiom 1" → "v6.0 Axiom 1 (Substrate) + Axiom 2 (Identity — four cognitive layers)."
+- `api/services/reviewer_audit.py` — docstring: "v5.1 Axiom 0" → "v6.0 Axiom 1 (Substrate)."
+- `supabase/migrations/151_drop_legacy_semantic_tables.sql` — header comment renumbered with a note that v6.0 renumbers the filesystem principle as Axiom 1.
+- `supabase/migrations/152_reviewer_identity_on_action_proposals.sql` — same renumber in comment + column COMMENT string.
+
+### Not changed (by design)
+- **Historical CHANGELOG entries** (2026.04.19.*) preserved as dated records. Rewriting them would falsify history; readers can see the term migration happened on 2026-04-20.
+- **GLOSSARY.md v1.3** and **FOUNDATIONS.md v6.0** — already aligned by the canonical commit `3483a91`.
+- **No code behavior changes, no schema changes, no env var changes.** Pure terminology alignment.
+
+### Refs
+- FOUNDATIONS v6.0 Axiom 0 (dimensional model) — the conscience that catches dimensional conflation
+- Axiom 1 (Substrate) — supersedes the v5.1 Axiom-0 filesystem principle; content unchanged
+- Axiom 2 (Identity) — names four cognitive layers, including Reviewer per ADR-194 v2
+- Axiom 8 (Money-Truth) — supersedes v5.1 Axiom 7 with the same substance
+
+---
+
 ## [2026.04.19.9] - Money-truth rolling windows + cross-domain summary (ADR-195 Phase 3)
 
 ### Added

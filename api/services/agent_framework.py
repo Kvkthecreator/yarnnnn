@@ -896,7 +896,7 @@ For ManageTask(action="create") custom tasks, pass `page_structure` as a list of
 # =============================================================================
 #
 # Files land at /workspace/review/ and are the Reviewer layer's filesystem
-# home per FOUNDATIONS v5.1 Axiom 0 + Axiom 1 (four-layer cognition).
+# home per FOUNDATIONS v6.0 Axiom 1 (Substrate) + Axiom 2 (Identity — four cognitive layers).
 #
 # The Reviewer is the independent judgment seat — interchangeable between
 # the human user and an AI system. These templates are the starting state

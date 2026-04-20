@@ -4,9 +4,9 @@
 > **Date**: 2026-04-19 (v2 rewrite; v1 2026-04-19)
 > **Authors**: KVK, Claude
 > **Extends**: ADR-181 (Source-Agnostic Feedback Layer), ADR-183 (Commerce Substrate), ADR-187 (Trading Integration), ADR-192 (Write Primitive Coverage Expansion), ADR-193 (Approval Loop)
-> **Ratifies**: FOUNDATIONS Axiom 0 (filesystem is the substrate) + Axiom 7 (money-truth is the truth test)
+> **Ratifies**: FOUNDATIONS v6.0 Axiom 1 (Substrate — filesystem is the persistence layer) + Axiom 8 (Money-Truth — substrate must carry reconciled capital reality)
 > **Depended on by**: ADR-194 v2 Phase 3 (AI Reviewer consumes `_performance.md`), ADR-196 (autonomous decision loop prioritizes actions by track record)
-> **Supersedes**: ADR-195 v1 (2026-04-19) — retracted. v1 specified an `action_outcomes` SQL table as the money-truth ledger; this violates FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate; semantic content lives in files, not in DB rows). v2 reframes the money-truth substrate as `/workspace/context/{domain}/_performance.md` per domain. The `OutcomeProvider` ABC, per-provider reconcilers (Trading, Commerce), and `back-office-outcome-reconciliation` task all survive; only the write target changes — from SQL INSERT to filesystem append. See "Migration from v1" section for the code refactor plan.
+> **Supersedes**: ADR-195 v1 (2026-04-19) — retracted. v1 specified an `action_outcomes` SQL table as the money-truth ledger; this violates FOUNDATIONS Axiom 1 (Substrate — filesystem is the persistence layer; semantic content lives in files, not in DB rows). v2 reframes the money-truth substrate as `/workspace/context/{domain}/_performance.md` per domain. The `OutcomeProvider` ABC, per-provider reconcilers (Trading, Commerce), and `back-office-outcome-reconciliation` task all survive; only the write target changes — from SQL INSERT to filesystem append. See "Migration from v1" section for the code refactor plan.
 
 ---
 
@@ -14,7 +14,7 @@
 
 ### Why v1 is retracted
 
-ADR-195 v1 shipped an `action_outcomes` SQL table as the reconciled-outcomes ledger. That design was reasonable under the three-layer cognition model of ADR-189, but it conflicts with FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate; every DB table must be one of four permitted row kinds — scheduling index, audit ledger, credential, ephemeral queue). `action_outcomes` is *none of these*. It holds semantic content — accumulated track records of what the operator has done and what happened — which is the exact category the axiom says must live in files.
+ADR-195 v1 shipped an `action_outcomes` SQL table as the reconciled-outcomes ledger. That design was reasonable under the three-layer cognition model of ADR-189, but it conflicts with FOUNDATIONS Axiom 1 (Substrate — filesystem is the persistence layer; every DB table must be one of four permitted row kinds — scheduling index, audit ledger, credential, ephemeral queue). `action_outcomes` is *none of these*. It holds semantic content — accumulated track records of what the operator has done and what happened — which is the exact category the axiom says must live in files.
 
 The near-miss was instructive: every prior parallel substrate that got collapsed later (`platform_content`, projects, Composer, knowledge tables) followed the same pattern — a DB table holding semantic content, later recognized as belonging in the filesystem. v2 catches it before the shipped code accretes dependents.
 
@@ -48,7 +48,7 @@ Not all outcomes are scalar (e.g., "campaign sent, 3.2% CTR"). The substrate hol
 
 ### The architectural decision (new in v2)
 
-Per FOUNDATIONS Axiom 0, money-truth is filesystem-native. The canonical home for reconciled money-truth is:
+Per FOUNDATIONS Axiom 1 (Substrate) + Axiom 8 (Money-Truth), money-truth is filesystem-native. The canonical home for reconciled money-truth is:
 
 ```
 /workspace/context/{domain}/_performance.md
@@ -172,7 +172,7 @@ The task's markdown report changes from "per-provider inserted/duplicate/invalid
 
 ### 5. Consumers — all file-readers
 
-Under Axiom 0, consumers read files directly. No service layer over money-truth.
+Under Axiom 1 (Substrate), consumers read files directly. No service layer over money-truth.
 
 - **AI Reviewer** (ADR-194 v2 Phase 3) — reads `_performance.md` for the proposal's domain to reason about EV.
 - **Daily-update briefing** (ADR-195 v2 Phase 4) — reads `_performance.md` frontmatter across domains, emits "Your book this week" section from aggregated totals.
@@ -273,6 +273,7 @@ No domain hurt. Gate passes.
 | Date | Change |
 |------|--------|
 | 2026-04-19 | v1 — Initial draft. `action_outcomes` SQL table, `OutcomeProvider` ABC, `TradingOutcomeProvider`, `back-office-outcome-reconciliation` task, five-phase sequence. Phases 1–2 implemented (migration 150 applied, code on `main` at commits `3ad3db5` + `d54d1d6`). |
-| 2026-04-19 | v2 — **Full rewrite.** Aligned to FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate). `action_outcomes` SQL table dropped; money-truth's canonical home is `/workspace/context/{domain}/_performance.md` per domain (YAML frontmatter + narrative body, regenerated idempotently by the reconciler). `OutcomeProvider` ABC and shipped providers (Trading + Commerce) preserved — only the write target changes (SQL INSERT → filesystem append with frontmatter-based idempotency). Phases 1–2 status retained as "Implemented" with the understanding that the substrate refactor (Commit 2) and table drop (Commit 3) are part of this cycle. v1 file overwritten — singular-implementation discipline. |
+| 2026-04-19 | v2 — **Full rewrite.** Aligned to the (then v5.1) Axiom 0 filesystem-substrate principle, which v6.0 subsequently renumbered as Axiom 1 (Substrate). `action_outcomes` SQL table dropped; money-truth's canonical home is `/workspace/context/{domain}/_performance.md` per domain (YAML frontmatter + narrative body, regenerated idempotently by the reconciler). `OutcomeProvider` ABC and shipped providers (Trading + Commerce) preserved — only the write target changes (SQL INSERT → filesystem append with frontmatter-based idempotency). Phases 1–2 status retained as "Implemented" with the understanding that the substrate refactor (Commit 2) and table drop (Commit 3) are part of this cycle. v1 file overwritten — singular-implementation discipline. |
 | 2026-04-19 | v2.1 — **Substrate refactor shipped.** Commit 2 rewired `outcomes/ledger.py` from SQL INSERT to filesystem append against `/workspace/context/{domain}/_performance.md`. JSON-object frontmatter (valid YAML subset, stdlib parse). Idempotency via namespaced `{key_path}:{value}` entries in `processed_event_keys` list. Narrative body (Recent wins / Recent losses + by-action table) regenerated on every write — frontmatter is canonical, body is derived. Commit 3 applied migration 151 dropping `action_outcomes` (+ `user_memory` per ADR-196). Zero rows lost — `action_outcomes` never saw a daily reconciler cycle before writes were redirected. `fold_outcome_candidates` / `total_appended` replace v1 naming. Provider code + back-office task shape unchanged. |
 | 2026-04-19 | v2.2 — **Phase 3 shipped.** `_performance.md` frontmatter extended: new `events` list (compact `{executed_at, action_type, value_cents}` entries, pruned to 90-day retention on each fold) + new `rolling_7d` / `rolling_30d` / `rolling_90d` summaries recomputed on each fold from the pruned events. Readers (AI Reviewer, daily-update, operator) never recompute — always read the canonical fields. Rendered body gains a "Rolling windows" section between totals and by-action. Unrealized events (`value_cents=None` — position_opened, closed_unknown) counted in totals but excluded from the events list + rolling windows (which are realized-PnL-only). Cross-domain summary ships at `/workspace/context/_performance_summary.md`, regenerated after all providers fold. Frontmatter aggregates totals + rolling windows across all USD domains; body renders cross-domain + per-domain sections. Multi-currency aggregation deferred (alpha scope is USD-only; non-USD domains surface in per-domain breakout with a note). Back-office reconciler report notes whether the summary write succeeded. |
+| 2026-04-20 | v2.3 — **Alignment pass for FOUNDATIONS v6.0.** No behavior change. Axiom citations renumbered under the dimensional model: "Axiom 0 (filesystem)" → "Axiom 1 (Substrate)"; "Axiom 7 (money-truth)" → "Axiom 8 (Money-Truth)". ADR's primary dimensions per v6.0 map: **Substrate** (canonical home `/workspace/context/{domain}/_performance.md`) — with Mechanism at the fully-deterministic end of Axiom 5's spectrum (pure filesystem folding, zero LLM). Preserved: all phase status, all provider code, all file path conventions. The reconciler's position on the Mechanism spectrum (ADR-141 Layer 1) is now explicit per Axiom 5's unification. |

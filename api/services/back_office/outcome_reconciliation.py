@@ -9,7 +9,7 @@ Thin executor — all the interesting logic lives in
 the standard back-office shape (`content` + `structured`) over it.
 
 Zero LLM cost. Platform API calls only on the providers' side. Filesystem
-writes are the persistence path (per FOUNDATIONS Axiom 0).
+writes are the persistence path (per FOUNDATIONS v6.0 Axiom 1 — Substrate).
 """
 
 from __future__ import annotations

@@ -5,7 +5,7 @@
 -- a short reasoning summary for the proposal card UX.
 --
 -- Full reasoning text always lands in /workspace/review/decisions.md per
--- FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate). These columns
+-- FOUNDATIONS v6.0 Axiom 1 (Substrate — filesystem is the persistence layer). These columns
 -- are narrow metadata — not a parallel substrate.
 --
 -- reviewer_identity format (human-readable, not an FK):
@@ -24,4 +24,4 @@ COMMENT ON COLUMN action_proposals.reviewer_identity IS
     'ADR-194 v2 Phase 2a: who filled the Reviewer seat. Format: "human:<user_id>" | "ai:<model-slug>" | "impersonated:<admin-user_id>-as-<persona-slug>". NULL for legacy rows written before Phase 2a.';
 
 COMMENT ON COLUMN action_proposals.reviewer_reasoning IS
-    'ADR-194 v2 Phase 2a: brief reasoning for proposal-card UX. Full reasoning + decision context written to /workspace/review/decisions.md per Axiom 0.';
+    'ADR-194 v2 Phase 2a: brief reasoning for proposal-card UX. Full reasoning + decision context written to /workspace/review/decisions.md per FOUNDATIONS v6.0 Axiom 1 (Substrate).';

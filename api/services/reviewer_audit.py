@@ -6,7 +6,7 @@ calls `append_decision` here. The entry format is YAML-frontmatter-like
 delimited blocks so parsers (future AI Reviewer calibration loop,
 ADR-194 Phase 4) can round-trip the log cheaply.
 
-Per FOUNDATIONS v5.1 Axiom 0, decisions.md IS the audit trail. Narrow
+Per FOUNDATIONS v6.0 Axiom 1 (Substrate), decisions.md IS the audit trail. Narrow
 metadata on action_proposals (reviewer_identity / reviewer_reasoning) is
 for UX only — the full record is the filesystem append.
 

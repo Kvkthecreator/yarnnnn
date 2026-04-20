@@ -3,8 +3,8 @@
 > **Status**: Proposed (2026-04-19). **Not in scope for the current commit cycle.** Implementation sequenced as a future phased effort.
 > **Date**: 2026-04-19
 > **Authors**: KVK, Claude
-> **Extends**: FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate), ADR-106 (Agent Workspace Architecture), ADR-142 (Unified Filesystem — the original-but-unimplemented specification)
-> **Triggered by**: Axiom 0 audit of FOUNDATIONS v5.1 identified `filesystem_documents` + `filesystem_chunks` as a LIVE table pair holding semantic content (uploaded document text). Under singular-implementation discipline, this needs a migration plan to resolve.
+> **Extends**: FOUNDATIONS v6.0 Axiom 1 (Substrate — filesystem is the persistence layer), ADR-106 (Agent Workspace Architecture), ADR-142 (Unified Filesystem — the original-but-unimplemented specification)
+> **Triggered by**: Substrate-axiom audit (FOUNDATIONS v5.1, renumbered under v6.0 as Axiom 1) identified `filesystem_documents` + `filesystem_chunks` as a LIVE table pair holding semantic content (uploaded document text). Under singular-implementation discipline, this needs a migration plan to resolve.
 
 ---
 
@@ -30,19 +30,19 @@ Uploaded documents flow today through a DB-native pair of tables:
 
 **Purge references:** `api/routes/account.py:473,629` (cascade on account deletion).
 
-### Why this is an Axiom 0 violation
+### Why this is an Axiom 1 (Substrate) violation
 
-Uploaded documents are **semantic content** — the extracted text, chunked and embedded, represents what the operator has shared with the workspace. Under Axiom 0, semantic content lives in the filesystem, not in DB rows.
+Uploaded documents are **semantic content** — the extracted text, chunked and embedded, represents what the operator has shared with the workspace. Under Axiom 1 (Substrate), semantic content lives in the filesystem, not in DB rows.
 
 ### Why ADR-142 didn't fix it
 
 ADR-142 (2026-03-25, Proposed) specified exactly this migration: uploads extract text → `/workspace/uploads/{filename}.md`, `filesystem_documents` + `filesystem_chunks` dissolve. The ADR is **Proposed, not Implemented.** No code writes to `/workspace/uploads/` today. The directory is aspirational — `routes/workspace.py:164` reads from it but always gets an empty listing.
 
-ADR-197 picks up ADR-142's unfinished business, sharpens the migration plan with the Axiom 0 framing, and sequences it as a proper phased effort.
+ADR-197 picks up ADR-142's unfinished business, sharpens the migration plan with the Axiom 1 (Substrate) framing, and sequences it as a proper phased effort.
 
 ### Why NOT in the current commit cycle
 
-Under singular-implementation discipline, migrating `filesystem_documents` requires touching five+ writer/reader sites *simultaneously* to avoid dual-write during the transition. Rushing this into the current Axiom 0 commit cycle (which is already doing the Reviewer-substrate + money-truth refactor + `user_memory` drop) would:
+Under singular-implementation discipline, migrating `filesystem_documents` requires touching five+ writer/reader sites *simultaneously* to avoid dual-write during the transition. Rushing this into the current Axiom 1 (Substrate) commit cycle (which is already doing the Reviewer-substrate + money-truth refactor + `user_memory` drop) would:
 
 - Compress risk surface of a 5-site refactor into a single day.
 - Mix it with table drops that have zero live dependents (the already-dead `user_memory` + never-queried `action_outcomes`), lowering reviewer attention on the riskier work.
@@ -62,7 +62,7 @@ Each phase deserves its own commit cycle with its own validation gate. The total
 
 ### 1. Canonical home is `/workspace/uploads/{slug}.md`
 
-Per ADR-142 and Axiom 0. One markdown file per uploaded document. File structure:
+Per ADR-142 and Axiom 1 (Substrate). One markdown file per uploaded document. File structure:
 
 ```markdown
 ---
@@ -111,7 +111,7 @@ Account deletion cascades file deletion via `workspace_files` cleanup (already t
 
 **Status gate:** verify new uploads produce both representations; reconcile existing documents into filesystem via one-time backfill script.
 
-**Singular-implementation caveat:** this phase is an explicit transient dual-write. The rest of the architecture operates on Axiom 0. This is the *one* exception; it must be narrow and short-lived.
+**Singular-implementation caveat:** this phase is an explicit transient dual-write. The rest of the architecture operates on Axiom 1 (Substrate). This is the *one* exception; it must be narrow and short-lived.
 
 ### Phase 2 — Migrate readers
 
@@ -157,7 +157,7 @@ No domain hurt. All forward-help — aligns uploaded-documents substrate with ho
 
 ## Open questions (deferred to Phase 2)
 
-1. **Embedding search substrate.** Today, semantic search over chunks uses pgvector on `filesystem_chunks.embedding`. Under v2, search is filesystem-backed. Options: pgvector over a compact `upload_embeddings` index table (Axiom 0 permitted as audit-ledger-like), or a manifest-based per-file embedding stored alongside the file. Defer decision to Phase 2 kickoff.
+1. **Embedding search substrate.** Today, semantic search over chunks uses pgvector on `filesystem_chunks.embedding`. Under v2, search is filesystem-backed. Options: pgvector over a compact `upload_embeddings` index table (Axiom 1 permitted as audit-ledger-like — kind 2 of the four row kinds), or a manifest-based per-file embedding stored alongside the file. Defer decision to Phase 2 kickoff.
 2. **Binary format preservation.** Do we retain original PDF/DOCX bytes, or only extracted text? Today DB stores no bytes (extraction is lossy + one-way). Under v2, we can preserve originals in S3 alongside the markdown. Defer.
 3. **Large-document handling.** Current chunk model scales via row-level pagination. Filesystem scales differently (single-file reads). Ingesting a 500-page PDF as one file requires paging-on-read or section splitting. Defer to Phase 2.
 4. **Context-inference pipeline changes.** `context_inference.py` operates per-chunk today. Migration path TBD — either work per-file or re-chunk at read time. Defer.
@@ -168,4 +168,5 @@ No domain hurt. All forward-help — aligns uploaded-documents substrate with ho
 
 | Date | Change |
 |------|--------|
-| 2026-04-19 | v1 — Initial draft. Sequenced as a future phased effort (Phase 1 dual-write bridge → Phase 2 reader migration → Phase 3 drop). Explicitly NOT in scope for the current commit cycle. Carries forward ADR-142's unfinished intent under FOUNDATIONS v5.1 Axiom 0. |
+| 2026-04-19 | v1 — Initial draft. Sequenced as a future phased effort (Phase 1 dual-write bridge → Phase 2 reader migration → Phase 3 drop). Explicitly NOT in scope for the current commit cycle. Carries forward ADR-142's unfinished intent under the (then v5.1) Axiom 0 filesystem principle. |
+| 2026-04-20 | v1.1 — **Alignment pass for FOUNDATIONS v6.0.** No substantive change. Axiom citations renumbered: "Axiom 0 (filesystem)" → "Axiom 1 (Substrate)". ADR's primary dimension per v6.0 map: **Substrate** (planned migration of a LIVE Substrate violation). |

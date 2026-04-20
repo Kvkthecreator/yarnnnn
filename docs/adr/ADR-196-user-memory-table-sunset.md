@@ -3,8 +3,8 @@
 > **Status**: Implemented 2026-04-19 (migration 151 applied; primitive strip + purge-cascade + test removal shipped).
 > **Date**: 2026-04-19
 > **Authors**: KVK, Claude
-> **Extends**: FOUNDATIONS v5.1 Axiom 0 (filesystem is the substrate), ADR-059 (Simplified Context Model), ADR-106 (Agent Workspace Architecture), ADR-156 (Composer Sunset — in-session memory writes)
-> **Triggered by**: Axiom 0 audit of FOUNDATIONS v5.1 identified `user_memory` as holding a legacy status (declared VESTIGIAL by code audit) that needs to be resolved under singular-implementation discipline.
+> **Extends**: FOUNDATIONS v6.0 Axiom 1 (Substrate — filesystem is the persistence layer), ADR-059 (Simplified Context Model), ADR-106 (Agent Workspace Architecture), ADR-156 (Composer Sunset — in-session memory writes)
+> **Triggered by**: Substrate-axiom audit (FOUNDATIONS v5.1, renumbered under v6.0 as Axiom 1) identified `user_memory` as holding a legacy status (declared VESTIGIAL by code audit) that needs to be resolved under singular-implementation discipline.
 
 ---
 
@@ -43,7 +43,7 @@ A targeted audit identified the current state of `user_memory`:
 
 ### Why an ADR for a deletion
 
-Under Axiom 0, any DB table that holds semantic content and has a filesystem replacement should be dropped as soon as its replacement is fully implemented. `user_memory` is exactly this case. The ADR exists to:
+Under Axiom 1 (Substrate), any DB table that holds semantic content and has a filesystem replacement should be dropped as soon as its replacement is fully implemented. `user_memory` is exactly this case. The ADR exists to:
 
 1. Document the VESTIGIAL verdict so future contributors don't re-introduce it.
 2. Enumerate the code paths to strip in the same commit as the `DROP TABLE`.
@@ -96,7 +96,7 @@ The `/workspace/memory/*.md` path is already the authoritative store. No migrati
 
 Single commit (Commit 3 of this cycle):
 
-1. Migration 151: `DROP TABLE action_outcomes CASCADE; DROP TABLE user_memory CASCADE;` (both drops in one migration file — both are Axiom 0 cleanups, both have zero live dependents).
+1. Migration 151: `DROP TABLE action_outcomes CASCADE; DROP TABLE user_memory CASCADE;` (both drops in one migration file — both are Substrate-axiom (Axiom 1) cleanups, both have zero live dependents).
 2. Strip `TABLE_MAP` entries + dead primitive branches.
 3. Update `routes/account.py` and `scripts/purge_user_data.py`.
 4. Update test fixtures.
@@ -114,7 +114,7 @@ Single commit (Commit 3 of this cycle):
 | **AI influencer** | Neutral | Same as above. |
 | **International trader** | Neutral | Same as above. |
 
-**Cross-domain benefit (not a per-domain impact):** the deletion removes one of the remaining Axiom 0 violations identified in the v5.1 audit. Every future ADR reviewer can cite this one as proof that cleanup follows principle.
+**Cross-domain benefit (not a per-domain impact):** the deletion removes one of the remaining Axiom 1 (Substrate) violations identified in the v5.1 audit. Every future ADR reviewer can cite this one as proof that cleanup follows principle.
 
 Gate passes trivially — no domain harmed.
 
@@ -135,3 +135,4 @@ Gate passes trivially — no domain harmed.
 |------|--------|
 | 2026-04-19 | v1 — Initial and (expected) final. VESTIGIAL verdict ratified. Migration 151 targeted to drop `user_memory` alongside `action_outcomes` (ADR-195 v2). Dead entity-primitive branches (`memory`, `domain`) stripped in the same commit. |
 | 2026-04-19 | v1.1 — **Implemented.** Migration 151 applied (drops `action_outcomes` + `user_memory` — 0 rows impacted). `ENTITY_TYPES` trimmed: `memory` + `domain` removed. `TABLE_MAP` trimmed: `memory` + `domain` removed. Dead branches stripped in `read.py` / `write.py` / `edit.py` / `list.py`. `_process_memory()` deleted. Purge cascade in `routes/account.py` + `scripts/purge_user_data.py` updated. `test_pipeline_e2e.py` (ADR-072-era manual test exercising `user_memory` + `platform_content` — both retired substrates) deleted entirely; comment in `test_quality_e2e.py` updated. Total footprint: +migration/-legacy-branches + 1007-line test deletion. |
+| 2026-04-20 | v1.2 — **Alignment pass for FOUNDATIONS v6.0.** No behavior change. Axiom citations renumbered: "Axiom 0 (filesystem)" → "Axiom 1 (Substrate)". ADR's primary dimension per v6.0 map: **Substrate** (legacy DB-table violation resolved). |
