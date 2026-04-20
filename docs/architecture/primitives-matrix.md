@@ -1,9 +1,9 @@
 # Primitives Matrix — Substrate × Mode × Capability
 
-**Status:** Canonical — reflects post-ADR-168 state
-**Last updated:** 2026-04-09 (ADR-168 Commit 5 — marked Implemented)
-**Governing ADRs:** ADR-146 (Primitive Hardening), ADR-168 (this matrix — substrate/mode/capability axes + entity/file naming reform), ADR-169 (MCP as third caller)
-**Related:** ADR-154 (Who/What/How), ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-164 (YARNNN as Agent), ADR-166 (precedent for two-axis registry cleanup)
+**Status:** Canonical — reflects post-ADR-168 + post-ADR-196 state
+**Last updated:** 2026-04-20 (Axiom 0 alignment — entity-type sunset notes for `memory` + `domain` per ADR-196)
+**Governing ADRs:** ADR-146 (Primitive Hardening), ADR-168 (this matrix — substrate/mode/capability axes + entity/file naming reform), ADR-169 (MCP as third caller), ADR-196 (user_memory table sunset)
+**Related:** ADR-154 (Who/What/How), ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-164 (YARNNN as Agent), ADR-166 (precedent for two-axis registry cleanup), FOUNDATIONS Axiom 0 (filesystem substrate)
 **Sibling reference:** [registry-matrix.md](registry-matrix.md) — for domains × tasks × agents
 **Source of truth:** [api/services/primitives/registry.py](../../api/services/primitives/registry.py)
 
@@ -40,7 +40,9 @@ Every primitive is described by exactly two axes.
 
 ### `entity` — Relational entity layer
 
-Operates on typed entity references (`<type>:<UUID>` format). Resolves through [api/services/primitives/refs.py](../../api/services/primitives/refs.py) via `parse_ref` + `resolve_ref`. Types: `agent`, `platform`, `memory`, `session`, `domain`, `document`, `work`.
+Operates on typed entity references (`<type>:<UUID>` format). Resolves through [api/services/primitives/refs.py](../../api/services/primitives/refs.py) via `parse_ref` + `resolve_ref`. Types: `agent`, `platform`, `session`, `document`, `work`.
+
+**Axiom 0 note:** The entity layer is narrow by design — it operates only on the "scheduling index / credential / ephemeral queue" DB rows permitted by FOUNDATIONS Axiom 0. Semantic content (memory, domain state, theses, observations) lives in files, reached through the `file` substrate family below, not here. ADR-196 removed the stale `memory` and `domain` entity types from `ENTITY_TYPES` when `user_memory` was dropped — both had pointed at a table that held semantic content in DB rows, a violation of Axiom 0. The filesystem replacements (`/workspace/memory/*.md`, `/workspace/context/{domain}/`) are reached via the file substrate.
 
 Mental model: **"look up this database record by reference."**
 
@@ -360,6 +362,8 @@ Any primitive change (rename, add, remove, mode change, enum extension) writes a
 | `SearchWorkspace` | `SearchFiles` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Substrate-first naming |
 | `ListWorkspace` | `ListFiles` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Substrate-first naming |
 | `ReadAgentContext` | `ReadAgentFile` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Name was vague; it's a file read with `agent_slug` + `path` |
+| `entity:memory` type | (file substrate — `/workspace/memory/*.md` via ReadFile/WriteFile) | ADR-196 *(shipped 2026-04-20)* | Semantic content → filesystem per Axiom 0. `user_memory` table dropped. Stale branches in `refs.py`, `read.py`, `write.py`, `edit.py`, `list.py` stripped in same commit. |
+| `entity:domain` type | (file substrate — `/workspace/context/{domain}/` via ReadFile/WriteFile/QueryKnowledge) | ADR-196 *(shipped 2026-04-20)* | Same rationale — pointed at `user_memory`; semantic content lives in filesystem context domains per ADR-151. |
 
 ---
 

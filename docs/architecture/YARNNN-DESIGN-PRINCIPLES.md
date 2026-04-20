@@ -1,8 +1,61 @@
 # YARNNN Design Principles
 
 **Status:** Canonical
-**Date:** 2026-04-01 (renamed from TP-DESIGN-PRINCIPLES.md 2026-04-17 per ADR-189)
-**Related:** FOUNDATIONS.md (Axiom 1), SERVICE-MODEL.md, GLOSSARY.md, ADR-149 (task lifecycle), ADR-189 (three-layer cognition)
+**Date:** 2026-04-01 (renamed from TP-DESIGN-PRINCIPLES.md 2026-04-17 per ADR-189; Spectrum section added 2026-04-20 per FOUNDATIONS v5.1)
+**Related:** FOUNDATIONS.md (Axiom 0, Axiom 1), SERVICE-MODEL.md, GLOSSARY.md, ADR-149 (task lifecycle), ADR-189 (three-layer cognition), ADR-194 (Reviewer layer)
+
+---
+
+## The Two Spectrums: Substrate Strictness vs Runtime Flexibility
+
+Two distinct design spectrums govern YARNNN. Conflating them is the most common source of design drift; naming them explicitly is the single most load-bearing discipline in this doc.
+
+### Spectrum A — Substrate strictness (locked)
+
+**Where state lives.** DB rows ↔ filesystem files.
+
+FOUNDATIONS Axiom 0 decides this one categorically: the filesystem is the substrate, and the database is narrowly permitted for four row kinds (scheduling indexes, neutral audit ledgers, credentials, ephemeral queues). Anything holding semantic content belongs in a file. This spectrum is **strict by architectural conscience** — every prior collapse of a parallel substrate (platform_content → files, projects → tasks, Composer → YARNNN, knowledge tables → workspace files, user_memory → /workspace/*.md, action_outcomes → `_performance.md`) happened because semantic content was in a DB row when it belonged in a file.
+
+Do not loosen Axiom 0. The strictness is what makes the architecture coherent across ADRs.
+
+### Spectrum B — Runtime flexibility (deliberately procedural today, will loosen)
+
+**How agents interact with that substrate.** Fixed procedure ↔ primitive CRUD.
+
+The task execution pipeline is currently **procedural over the filesystem**: it parses TASK.md for declared process steps, pre-gathers context deterministically, dispatches a single generation call, composes the output via section-kind renderers, delivers through a typed channel, and terminates. The agent does not wander the filesystem in free-form pursuit of its task — the pipeline choreographs the run.
+
+This is a **deliberate choice**, not a permanent one. Reasons it's correct today:
+- Domain of alpha work is procedurally regular (digests, briefs, trades, reports).
+- Cost predictability matters pre-revenue — procedural pipelines have bounded token budgets.
+- The Reviewer layer (ADR-194) and approval loop (ADR-193) are the safety envelope that must land *before* runtime loosens; independent judgment over autonomous writes is the precondition.
+
+Reasons it will loosen over time:
+- As Agents accumulate tenure (FOUNDATIONS Axiom 4), the procedural ceiling becomes visible — a tenured Agent should be able to observe → decide → act across its own filesystem without the pipeline sequencing every step.
+- The four permitted DB row categories of Axiom 0 already separate *substrate* concerns from *runtime* concerns, meaning the procedural pipeline can loosen without touching substrate rules.
+- The Reviewer seat makes runtime autonomy safe by interposing independent judgment before irreversible writes. Loosen runtime *into* the Reviewer's gate, not around it.
+
+### How to tell which spectrum a proposed change touches
+
+Ask: **does this rule protect a load-bearing structural property, or is it codifying a procedural convenience?**
+
+| Rule | Spectrum | Why |
+|---|---|---|
+| Filesystem is substrate (Axiom 0) | **A — strict** | Protects storage-agnostic + legibility + every prior collapse |
+| Four permitted DB row kinds | **A — strict** | Protects semantic-content-in-files invariant |
+| Reviewer layer structurally separate | **A — strict** | Independence *is* the architectural claim; interchangeability fails without it |
+| Primitive permission modes (chat/headless/MCP) | **A — strict (auth part only)** | Auth boundaries are structural; "when to reach for this tool" is Spectrum B |
+| Task scaffolding from TASK_TYPES registry | **B — loosenable** | Fast onboarding convenience; YARNNN can compose beyond it per ADR-188 |
+| Pre-gather of context before generation | **B — loosenable** | Cost + determinism today; obsolete when agents drive own context reads |
+| Single generation call per run | **B — loosenable** | Procedural simplicity today; multi-round reasoning arrives when Reviewer gates it |
+| Declared `## Process` steps in TASK.md | **B — loosenable** | Choreography today; Agents will own their own execution shape with tenure |
+
+**When in doubt:** if loosening the rule could cause semantic content to leak into a DB row, it's Spectrum A — keep it strict. If loosening it could cause an Agent to over-spend tokens or produce inconsistent output, it's Spectrum B — loosen it carefully, with Reviewer gates, when tenure justifies.
+
+### The direction of travel
+
+The architecture is designed to **tighten Spectrum A over time** (more substrate conscience, fewer DB tables holding semantic content) and **loosen Spectrum B over time** (more agent autonomy within the substrate, fewer procedural rails). The Reviewer layer (ADR-194) is the pivot — once an Agent's proposed writes have an independent judgment seat, the pipeline can step back from choreographing every step.
+
+Today (2026-04-20): Spectrum A is nearly fully tight (post-Axiom 0 + ADR-195/196 cleanup). Spectrum B is still heavily procedural. That's the correct current posture. The ADRs following 194/195 will progressively loosen B.
 
 ---
 

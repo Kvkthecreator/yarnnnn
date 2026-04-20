@@ -1,7 +1,7 @@
 # YARNNN Service Model
 
 > **Status**: Canonical
-> **Date**: 2026-03-29
+> **Date**: 2026-03-29 (v1.4 revision 2026-04-20)
 > **Scope**: End-to-end service model — how the system works, from user intent to delivered output.
 > **Rule**: This is the single document that describes the complete system. Deep-dive docs are linked, not duplicated.
 
@@ -12,6 +12,23 @@
 YARNNN is an **autonomous agent platform for recurring knowledge work**. Users describe their work, AI agents are assigned to tasks, and the system produces deliverables on schedule. Over time, each agent accumulates domain knowledge — a tenured agent produces better output than a fresh one.
 
 **The product thesis**: Accumulated attention compounds. Each execution cycle benefits from prior outputs, user feedback, and learned preferences. The system gets smarter the longer it runs.
+
+---
+
+## Architectural Preamble: Filesystem Is the Substrate (FOUNDATIONS Axiom 0)
+
+Before reading the rest of this document, internalize the single most load-bearing architectural property: **the filesystem holds all semantic state; every other layer is stateless computation over it.**
+
+Scheduler, task pipeline, compose substrate, Reviewer, reconciler, render service — each reads the filesystem, acts, writes the filesystem, and terminates. None of them retain state of their own across invocations. Accumulation happens in files, cycle over cycle. This is what makes the recursive property (Axiom 2) work, and what made every prior substrate collapse (platform_content, projects, Composer, user_memory, action_outcomes) possible.
+
+The database is narrowly permitted for four row kinds only:
+
+1. **Scheduling indexes** — what needs to run, when (`tasks`, `agents` — lean pointers at TASK.md / AGENT.md).
+2. **Neutral audit ledgers** — what happened for billing / debugging (`agent_runs`, `token_usage`, `activity_log`, `render_usage`). No semantic content.
+3. **Credentials / auth** — encrypted secrets the filesystem cannot hold safely (`platform_connections`, `mcp_oauth_*`).
+4. **Ephemeral queues / inboxes** — TTL-bounded items awaiting action (`action_proposals`). The row disappears after acceptance, rejection, or expiration.
+
+Anything else belongs in the filesystem. When you read about "the scheduler reads TASK.md" or "the reconciler writes `_performance.md`" below, that is Axiom 0 in operation — not incidental design choice. See [FOUNDATIONS.md Axiom 0](FOUNDATIONS.md).
 
 ---
 
@@ -70,15 +87,20 @@ Virtual filesystem over Postgres (`workspace_files` table). Three content areas:
 
 ---
 
-## Three Layers of Cognition, One Agent Substrate (ADR-164 + ADR-189)
+## Four Layers of Cognition, One Filesystem Substrate (ADR-164 + ADR-189 + ADR-194)
 
 | Layer | Entity | Scope | Role | Develops |
 |-------|--------|-------|------|----------|
 | **Meta-cognitive** | YARNNN — `meta-cognitive` class | Workspace-level (the super-agent) | Composes Agents, drafts Teams, monitors health, orchestrates; owns back office tasks | Upward — better judgment about attention allocation |
 | **Role-cognitive** | Specialists (Researcher, Analyst, Writer, Tracker, Designer, Reporting) | Role-level (YARNNN's palette) | Infrastructure — drafted into Teams per task | Outward — stylistic preference across all tasks using the specialist |
 | **Domain-cognitive** | Agents (user-created) + platform bots | Domain-level (one Agent per domain) | Execute tasks, accumulate domain expertise | Inward — deeper knowledge through accumulated work in their domain |
+| **Review-cognitive** | Reviewer (human user / AI / impersonation — interchangeable seat) | Proposal-level (structurally separate) | Independent judgment on proposed writes; audit trail author | Through reasoning style — capital-EV over `_performance.md` |
 
-**All three layers are expressed through the same agent substrate.** YARNNN is an agent (ADR-164) — same DB row, same task ownership, same pipeline. What distinguishes YARNNN from Specialists and Agents is its *class* (`meta-cognitive`) and scope (orchestration itself).
+**All four layers share one substrate — the filesystem.** None retains state of its own across invocations. YARNNN, Specialists, Agents, and Reviewer all read `/workspace/`, `/agents/`, `/tasks/`, and (for Reviewer) `/workspace/review/`, act, write back, and terminate.
+
+YARNNN is an agent (ADR-164) — same DB row, same task ownership, same pipeline. What distinguishes YARNNN from Specialists and Agents is its *class* (`meta-cognitive`) and scope (orchestration itself).
+
+**The Reviewer is the structurally separate fourth layer** (ADR-194). Where YARNNN composes the future (what Agents to create, what tasks to scaffold), the Reviewer applies independent judgment to specific proposed writes. The separation is load-bearing: YARNNN emits many autonomous proposals, and having YARNNN review its own proposals is a conflict of interest. Because the Reviewer seat is its own layer, a human user and an AI system fill it interchangeably without any structural change. Reviewer state lives in `/workspace/review/` (`IDENTITY.md`, `principles.md`, `decisions.md`) — filesystem-native per Axiom 0.
 
 YARNNN has two runtime modes that share one identity:
 - **Chat runtime**: user-present conversation via `YarnnnAgent` class in `api/agents/yarnnn.py` (ADR-189)
@@ -197,17 +219,18 @@ Agents produce structured markdown with inline data tables and mermaid diagrams.
 
 ## Deployed Services
 
-5 services on Render.com (Singapore region):
+4 services on Render.com (Singapore region). Per Axiom 0, each service is stateless — it reads the filesystem (via Supabase `workspace_files`) + the four permitted DB row kinds, acts, writes back, and terminates. No service holds in-memory state across invocations.
 
 | Service | Type | What It Does |
 |---------|------|-------------|
 | **yarnnn-api** | Web (FastAPI) | API endpoints, YARNNN chat, OAuth, all user-facing operations |
-| **yarnnn-unified-scheduler** | Cron (*/5 min) | Task execution, workspace cleanup, memory extraction, Composer heartbeat |
-| **yarnnn-platform-sync** | Cron (*/5 min) | Platform connection health checks, OAuth token refresh (ADR-153: bulk content sync sunset) |
-| **yarnnn-mcp-server** | Web (FastAPI) | MCP protocol for Claude Desktop/Code access |
-| **yarnnn-render** | Web (Docker) | Output gateway — PDF, chart, mermaid, xlsx, image rendering |
+| **yarnnn-unified-scheduler** | Cron (*/5 min) | Task execution, workspace cleanup, back-office task dispatch, outcome reconciliation |
+| **yarnnn-mcp-server** | Web (FastAPI) | MCP protocol for Claude Desktop/Code/foreign LLMs (ADR-169) |
+| **yarnnn-render** | Web (Docker) | Output gateway — PDF, chart, mermaid, xlsx, image rendering (ADR-118) |
 
-**Critical shared state**: All services share Supabase (Postgres). `INTEGRATION_ENCRYPTION_KEY` must be on API + both crons. See [CLAUDE.md](/CLAUDE.md) "Render Service Parity" section for full env var matrix.
+**yarnnn-platform-sync was removed** (ADR-153, 2026-04-01) — platform_content sunset; platform data now flows through tracking tasks into `/workspace/context/` domains during task execution. OAuth token lifecycle handled inline by the task pipeline.
+
+**Critical shared state**: All services share Supabase (Postgres). `INTEGRATION_ENCRYPTION_KEY` must be on API + scheduler. See [CLAUDE.md](/CLAUDE.md) "Render Service Parity" section for full env var matrix.
 
 **Frontend**: Next.js 14 on Vercel. Supabase auth. Communicates exclusively via `/api/*` endpoints.
 
@@ -338,7 +361,8 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | Working memory (YARNNN context) | `api/services/working_memory.py` |
 | Delivery | `api/services/delivery.py` |
 | Scheduler | `api/jobs/unified_scheduler.py` |
-| Platform sync | `api/jobs/platform_sync_scheduler.py` |
+| Outcome reconciliation | `api/services/back_office/outcome_reconciliation.py` + `api/services/outcomes/` |
+| Action proposal queue | `api/services/primitives/propose_action.py` + `action_proposals` ephemeral table |
 | Commerce substrate | [commerce-substrate.md](commerce-substrate.md) |
 
 ---
@@ -372,3 +396,4 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | 2026-03-31 | v1.1 — ADR-153 platform_content sunset. Perception model updated: agents call platform APIs live, no intermediate staging. /platforms/ removed from entity model. Platform sync cron role updated. |
 | 2026-04-15 | v1.2 — Revenue Model section rewritten for ADR-171/172 (balance model, tiers dissolved). Added "Two Commerce Surfaces" section covering platform billing vs. content commerce (ADR-183) and product health metrics (ADR-184). Composer reference removed (deleted by ADR-156). Deep-dive references updated. |
 | 2026-04-17 | v1.3 — Domain-agnostic framework (ADR-188). Agent roster: "Pre-scaffolded roster" → "Universal roles, contextual application." Task types: "pre-meditated definitions" → "curated template library." Workspace: context domains described as extensible. Execution flow: task creation can be from template or YARNNN-composed. |
+| 2026-04-20 | v1.4 — FOUNDATIONS v5.1 alignment. Added Architectural Preamble on Axiom 0 (filesystem is substrate; four permitted DB row kinds). "Three Layers of Cognition" → "Four Layers of Cognition, One Filesystem Substrate" (Reviewer added per ADR-194). Deployed Services reduced from 5 to 4 (yarnnn-platform-sync removed per ADR-153 — this was stale). Key files table extended with outcome reconciliation and action proposal queue. |
