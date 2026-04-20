@@ -1,272 +1,257 @@
-# ADR-194: Pluggable Reviewer + Operator Impersonation
+# ADR-194: Reviewer Layer + Operator Impersonation
 
-> **Status**: Proposed (2026-04-19)
-> **Date**: 2026-04-19
+> **Status**: Proposed (v2, 2026-04-19). Phase 1 (substrate scaffold) targeted for implementation alongside this ADR. Later phases Proposed.
+> **Date**: 2026-04-17 (v1) / 2026-04-19 (v2 rewrite)
 > **Authors**: KVK, Claude
 > **Extends**: ADR-189 (Three-Layer Cognition), ADR-191 (Polymath Operator ICP), ADR-192 (Write Primitive Coverage Expansion), ADR-193 (ProposeAction + Approval Loop)
-> **Depended on by**: ADR-195 (Outcome Attribution — AI Reviewer consumes track record), ADR-196 (Autonomous Decision Loop — signal emits proposals, reviewer decides), ADR-197 (Operator Control Room surfaces)
-> **Supersedes (sequencing)**: The pre-2026-04-17 handoff plan slated ADR-194 as "Surface archetypes" and ADR-195 as "Autonomous decision loop." Both are renumbered: ADR-194 becomes Pluggable Reviewer + Impersonation (this doc), ADR-195 becomes Outcome Attribution, ADR-196 becomes the autonomous decision loop, ADR-197 becomes surface archetypes / control room. Reason: FOUNDATIONS Axiom 7 (Money-Truth) promotes capital attribution to a first-class substrate, and the reviewer abstraction is the joint where money-reasoning lives.
+> **Depended on by**: ADR-195 v2 (Money-Truth Substrate — Reviewer consumes `_performance.md`), ADR-196 (Autonomous Decision Loop — signal emits proposals, Reviewer decides), ADR-197 (surface archetypes — approval surface)
+> **Supersedes**: ADR-194 v1 (2026-04-17) — retracted. v1 framed Reviewer as an abstraction with a `Reviewer` ABC and `REVIEWER-POLICY.md` policy file. Both violate FOUNDATIONS Axiom 0 (filesystem is the substrate) and the "singular implementation" discipline. v2 reframes Reviewer as a structurally separate fourth cognitive layer per FOUNDATIONS v5.1.
 
 ---
 
 ## Context
 
-### The problem ADR-194 closes
+### Why v1 is retracted
 
-ADR-193 shipped the approval loop but hardcoded one reviewer shape: **the human user**. `action_proposals.status = "pending"` → `/api/proposals/{id}/approve` → `ExecuteProposal` assumes a person clicks the button.
+ADR-194 v1 (2026-04-17) framed the Reviewer as a pluggable abstraction — a `Reviewer` ABC with three implementations (Human / AI / Impersonation), gated by a `REVIEWER-POLICY.md` config file declaring which implementation handles which proposal type. That design was reasonable under the ADR-189 three-layer cognition model, but it conflicts with two later architectural commitments:
+
+1. **FOUNDATIONS Axiom 0 (v5.1, 2026-04-19): Filesystem is the substrate.** A `Reviewer` ABC is an in-memory abstraction that holds no filesystem state; a `REVIEWER-POLICY.md` file that only the ABC's dispatcher reads is a policy container parallel to `task_types.py` task definitions. Both are violations — policy for which agent reviews which proposal type belongs in task context files, not in a parallel config container.
+
+2. **FOUNDATIONS Axiom 1 (v5.1): Four layers of cognition, one filesystem substrate.** Reviewer is its own cognitive layer, not a plug-in slot over the other three. The three "implementations" of v1 are actually three identities that can fill the same structural seat — the seat itself is the layer.
+
+v2 replaces v1 entirely. No dual versions; v1 file is overwritten. The pre-v2 draft lives only in git history (commits before `HEAD~N`).
+
+### The problem ADR-194 closes (unchanged from v1)
+
+ADR-193 shipped the approval loop but hardcoded the reviewer to the human user. `action_proposals.status = "pending"` → `/api/proposals/{id}/approve` → `ExecuteProposal` assumes a person clicks the button.
 
 This blocks three distinct needs:
 
-1. **Autonomy progression.** We cannot close the loop without a human at every step if the human is the only reviewer allowed. The long-term product is "supervise, don't operate" — that requires an AI reviewer for low-stakes, high-confidence actions.
+1. **Autonomy progression.** We cannot close the loop on every step if the human is the only reviewer permitted. The long-term product is "supervise, don't operate" — that requires structural room for AI to fill the approval seat on low-stakes reversible writes once track records have accumulated.
 
-2. **Alpha stress-testing.** ADR-191 commits to conglomerate alpha (≥4 structurally different domains). Onboarding real friends onto half-built infrastructure is premature. We need a way for founders (KVK + Claude) to *act as* designated operator personas — run the trader's workspace, run the e-commerce workspace — so the system gets stress-tested before real operators touch it.
+2. **Alpha stress-testing.** ADR-191 commits to conglomerate alpha across ≥4 structurally different domains. Onboarding real friends onto half-built infrastructure is premature. We need a way for founders (KVK + Claude) to act as designated operator personas — run the trader's workspace, run the e-commerce workspace — so the system gets stress-tested before real operators onboard.
 
-3. **Mixed-policy approvals.** Different write primitives have different risk profiles. A $50 discount code is not a $50K trade. The architecture must accept per-domain, per-primitive reviewer policy: "AI auto-approves reversible commerce writes below $500; human approves all trading writes." Hardcoding human-only prevents this.
+3. **Objectivity.** The stated intuition from the architectural discourse: a good approval layer has the property of an independent audit team. A reviewer that is just another YARNNN-managed agent in the same workspace shares YARNNN's priors. An agent reviewing its own output or YARNNN reviewing its own proposal is not audit — it's self-assessment. The audit property requires structural independence.
 
-### The architectural insight
+### The key insight
 
-**The reviewer is an abstraction, not a role.** The approval loop's contract is "given a pending proposal, return approve / reject / modify with reasoning." Nothing in that contract requires the reviewer to be human. Treating reviewer as a pluggable layer unlocks:
+**Reviewer is a structurally separate cognitive layer.** Not an abstraction the other layers plug into — a layer of its own. Its defining property is *the independent judgment seat*: a structural slot that holds approval authority and is interchangeable between a human user and an AI system without any architectural change. The seat is the layer; the filler is the identity.
 
-- **Human reviewer** — ADR-193's current behavior, unchanged in spirit
-- **AI reviewer** — senior-operator reasoning in capital-EV terms (not just risk-rule compliance)
-- **Impersonation reviewer** — admin god-mode for alpha simulation
-
-All three go through one interface. Policy (which reviewer runs which proposal) is workspace-configurable.
-
-### Why EV-reasoning, not just rule-checking
-
-The AI reviewer's shape matters structurally. If we design it as "read `_risk.md`, enforce rules" it becomes a redundant compliance gate that adds nothing the risk-gate primitive (ADR-192) doesn't already do. The right shape is **senior-operator reasoning**:
-
-- Reads proposal + `/workspace/context/{domain}/_risk.md` (the floor) + `/workspace/context/{domain}/_operator_profile.md` (the operator's declared strategy) + `/workspace/context/{domain}/_performance.md` (accumulated track record — populated by ADR-195)
-- Reasons in expected-value terms: *given the operator's current book, their declared strategy, and their track record on similar actions, does this proposal have asymmetric upside?*
-- Returns structured decision: `approve | reject | defer` with reasoning text that explains the EV judgment
-
-This is why ADR-194 depends on ADR-195. An AI reviewer without outcome attribution has no track record to reason against; it collapses back into rule-checking. The two ADRs ship together as a pair.
+This framing is the joint at which money-reasoning lives. Under ADR-195 v2, money-truth accumulates at `/workspace/context/{domain}/_performance.md`. The Reviewer is the consumer with the right scope — workspace-wide, across-domain — to reason about proposed writes in capital-EV terms against accumulated track records. Specialists have role-scope, Agents have domain-scope, YARNNN has orchestration-scope. None of those three natively hold *"the operator's capital position across all domains + accumulated approval judgment"* as a view. The Reviewer layer exists to hold it.
 
 ---
 
 ## Decision
 
-### 1. Reviewer as an abstraction
+### 1. Reviewer is the fourth cognitive layer
 
-New module `api/services/reviewers/` with an ABC and three concrete implementations.
+FOUNDATIONS Axiom 1 extended from three to four layers:
 
-```python
-# api/services/reviewers/base.py
+- **YARNNN** (meta-cognitive, workspace scope) — composes the future.
+- **Specialist** (role-cognitive, role scope) — styles the craft.
+- **Agent** (domain-cognitive, domain scope) — executes the work.
+- **Reviewer** (review-cognitive, workspace scope, across all proposals) — occupies the independent judgment seat.
 
-class ReviewerDecision(TypedDict):
-    decision: Literal["approve", "reject", "defer"]
-    reasoning: str
-    modified_inputs: dict | None  # for "approve with modifications"
+One Reviewer per workspace. Scaffolded at signup alongside YARNNN. Its **sole purpose** is to review proposed writes created by ADR-193's `ProposeAction`. It does not compose, does not own tasks (it executes the `review-proposal` reactive task when a proposal is created), does not create Agents, does not supervise the workforce. The narrow scope is the load-bearing property.
 
+### 2. Reviewer filesystem home — `/workspace/review/`
 
-class Reviewer(ABC):
-    reviewer_type: str  # "human" | "ai" | "impersonated"
-
-    @abstractmethod
-    async def review(
-        self,
-        proposal: ActionProposal,
-        workspace_context: WorkspaceContext,
-    ) -> ReviewerDecision | None:
-        """
-        Return None if this reviewer defers to another (e.g., AI defers
-        to human on high-stakes). Return a ReviewerDecision otherwise.
-        """
-```
-
-Implementations:
-- `HumanReviewer` — wraps the existing `/api/proposals/{id}/approve` UX. Returns `None` until the user clicks (i.e., synchronous request/response at the HTTP boundary, not at the review call).
-- `AIReviewer` — reads proposal + domain context files, calls Sonnet with an EV-reasoning prompt, returns a decision. Auto-approve threshold is per-domain policy.
-- `ImpersonatingReviewer` — admin-only wrapper. When `workspace.impersonation_persona` is set and `request.user.can_impersonate = true`, all proposals in that workspace flow through a review prompt the admin (KVK / Claude via chat) answers *as the persona*.
-
-### 2. Reviewer policy per domain
-
-A new workspace file `/workspace/REVIEWER-POLICY.md` declares which reviewer handles which kind of proposal. Default template:
-
-```yaml
-# /workspace/REVIEWER-POLICY.md (scaffolded at signup)
-default_reviewer: human
-policies:
-  - match: {action_type_prefix: "trading."}
-    reviewer: human
-    notes: Irreversible. Always human.
-  - match: {action_type_prefix: "commerce.", reversibility: "reversible"}
-    reviewer: ai
-    ai_auto_approve_below_cents: 50000  # $500
-    notes: AI auto-approves low-value reversible writes.
-  - match: {action_type_prefix: "commerce.", reversibility: "irreversible"}
-    reviewer: human
-  - match: {action_type_prefix: "email."}
-    reviewer: human
-    notes: Customer-facing copy. Always human until we've built brand-voice alignment scoring.
-```
-
-YARNNN can edit this file via `UpdateContext(target="workspace", file="REVIEWER-POLICY.md")`. Users can edit via the workspace surface. Parser is strict YAML-in-markdown, same pattern as `_risk.md`.
-
-### 3. Impersonation substrate
-
-Admin-only god-mode for alpha stress-testing. Not a tenant-isolation bypass — an explicit marking that a workspace is a test persona.
-
-**Schema changes:**
-- `workspaces.impersonation_persona` — nullable text. When set (e.g., `"day-trader-alpha"`, `"ecommerce-alpha"`), marks this workspace as a persona test account. Visible in UI chrome.
-- `users.can_impersonate` — boolean, default false. Admin flag. Only `can_impersonate = true` users can switch into persona workspaces.
-
-**Endpoint:**
-- `POST /api/admin/impersonate/{workspace_id}` — if `user.can_impersonate`, sets session cookie to treat `workspace_id` as current. Returns the persona's compact index as a stage-setter.
-- `POST /api/admin/impersonate/clear` — drops back to admin's own workspace.
-
-**Audit:** every session action during impersonation logs `acting_as_persona=<slug>` in `activity_log.metadata`. Proposals executed during impersonation record `reviewer_type="impersonated"`, `reviewer_identity="kvk-as-day-trader-alpha"`.
-
-**Seeding:** on system bootstrap, create 2-4 persona workspaces matching `DOMAIN-STRESS-MATRIX.md` alpha domains. Each seeded with:
-- `/workspace/IDENTITY.md` from the DOMAIN-STRESS-MATRIX Identity-shape row
-- `/workspace/context/{domain}/_operator_profile.md` with declared strategy
-- `/workspace/context/{domain}/_risk.md` with reasonable defaults
-- `/workspace/REVIEWER-POLICY.md` with domain-appropriate defaults
-- Platform connections unset (admin connects real sandbox accounts: Alpaca paper, LS sandbox)
-
-### 4. Schema changes on `action_proposals`
-
-Two new columns:
-
-```sql
-ALTER TABLE action_proposals
-  ADD COLUMN reviewer_type text,  -- "human" | "ai" | "impersonated"
-  ADD COLUMN reviewer_identity text,  -- user_id / ai-model-slug / "kvk-as-<persona>"
-  ADD COLUMN reviewer_reasoning text;  -- EV analysis for AI; empty for human
-```
-
-Populated at approval time. Backfill: existing rows set `reviewer_type = "human"`, `reviewer_identity = approved_by`.
-
-### 5. AI reviewer prompt shape (v1)
-
-Lives at `api/services/reviewers/ai_prompts.py`. Key contract:
+Per Axiom 0, the Reviewer's state lives in files.
 
 ```
-You are a senior operator reviewing a proposed action in the operator's
-account. You have three documents to draw on:
+/workspace/review/
+  IDENTITY.md       # Who this Reviewer is. Opens with its one-line identity
+                    # ("I am the independent judgment seat — yours or the
+                    # system's"), declares scope (gates proposed writes for
+                    # this workspace), declares reasoning posture (EV over
+                    # rules). Edited rarely; mostly static.
 
-1. _risk.md — hard floors the operator declared. These are non-negotiable.
-2. _operator_profile.md — the operator's declared strategy, edge, style.
-3. _performance.md — accumulated track record of similar actions.
+  principles.md     # Declared review framework. User-editable. Captures
+                    # the operator's preferences for review — how strict
+                    # to be on irreversible writes, what to prioritize in
+                    # ambiguous cases, which capital horizons matter.
+                    # Seeded with a sensible default at signup; user can
+                    # edit via Context surface or conversation with YARNNN.
+
+  decisions.md      # Rolling append-only log of every review decision the
+                    # Reviewer has made. Format: timestamped entry per
+                    # decision with proposal_id, action_type, decision
+                    # (approve/reject/defer), reasoning, and whether
+                    # human or AI filled the seat. This IS the audit
+                    # trail — no sibling table.
+```
+
+**Write discipline**: `IDENTITY.md` is static after scaffolding. `principles.md` is user-edited. `decisions.md` is append-only, written by whichever identity filled the seat for a given review. Nothing else writes to `/workspace/review/`.
+
+### 3. Three identities, one seat
+
+The Reviewer seat can be filled by one of three identities. Identity is chosen per-proposal at `ProposeAction` creation time based on task context and the proposal's reversibility.
+
+**Human Reviewer (default for irreversible writes)**
+- The user clicks approve / modify / reject on the proposal card in chat.
+- The approval UX is unchanged from ADR-193 — this is simply the human filling the seat.
+- `decisions.md` entry records `reviewer_identity: human:<user_id>`.
+
+**AI Reviewer (default for reversible low-stakes writes, once track records accumulate)**
+- A `thinking_partner`-class agent scoped to `/workspace/review/` — *not* a new agent role, a scoping of the existing meta-cognitive role to the review concern.
+- Invoked as a reactive task (`review-proposal`) when a proposal is created.
+- Reads: the proposal, the task's context files (`_risk.md`, `_operator_profile.md`, `_performance.md` for the domain), `principles.md`, recent `decisions.md` entries.
+- Reasons in capital-EV terms (see §5).
+- Calls `ExecuteProposal` (approve), `RejectProposal` (reject), or writes a defer note to `decisions.md` and leaves the proposal pending for human.
+- `decisions.md` entry records `reviewer_identity: ai:thinking-partner-v<N>`.
+
+**Impersonation Reviewer (admin-only, alpha stress-testing)**
+- When an admin (KVK/Claude) is acting as a persona workspace (gated by `users.can_impersonate` + `workspaces.impersonation_persona`), all approval UX in that workspace is attributed to the admin *as* the persona.
+- The human operator and the admin-as-persona fill the seat identically — same UX, same `decisions.md` write, different `reviewer_identity` tag.
+- `decisions.md` entry records `reviewer_identity: impersonated:<admin_user_id>-as-<persona_slug>`.
+
+**All three identities operate through the same flow.** Proposal created → `review-proposal` reactive task fires → task pipeline dispatches to the reviewer identity declared in task context → reviewer reads files, reasons, writes `decisions.md`, calls `ExecuteProposal` / `RejectProposal` / defers. The difference is who fills the seat, not how the seat is implemented.
+
+### 4. No `Reviewer` ABC. No `REVIEWER-POLICY.md`.
+
+Retracted from v1. Under Axiom 0, policy for *which identity reviews which proposal type* is declared in the task type definition for `review-proposal`, not in a parallel config file. The task type declares:
+
+- Which agent identity runs the task (Human via approval UX, AI via the `thinking_partner`-scoped reviewer agent)
+- What context the task reads (proposal + `_risk.md` + `_operator_profile.md` + `_performance.md` + `principles.md`)
+- What decision categories are allowed (approve / reject / defer)
+
+Task type definitions already live in `api/services/task_types.py` (a registry per ADR-188's "registries as template libraries" principle). Adding `review-proposal` as a task type uses existing machinery; it does not invent a new policy container.
+
+Per-proposal routing decisions (which identity handles *this* proposal) are data on the proposal itself. `action_proposals` gains lean metadata (reversibility tag — already present; target-reviewer hint — new) that task dispatch reads. No parallel policy file.
+
+### 5. AI Reviewer prompt shape (v1) — Capital-EV reasoning
+
+The AI Reviewer is shaped around expected-value reasoning, not rule-checking. Risk rules (`_risk.md`) are the floor; capital-EV is the target.
+
+Prompt contract (lives in `api/agents/tp_prompts/reviewer.py` when Phase 3 lands):
+
+```
+You are the independent judgment seat for this operator's workspace.
+You are reviewing a proposed action. You have four documents:
+
+1. _risk.md              — the operator's declared hard floors. Non-negotiable.
+2. _operator_profile.md  — the operator's declared strategy, edge, style.
+3. _performance.md       — accumulated track record of similar actions.
+4. principles.md         — the operator's declared review framework.
 
 Reason in expected-value terms:
 - What's the upside if this action works out?
 - What's the downside if it doesn't?
-- Is the upside / downside ratio asymmetric?
-- Given the operator's track record on similar actions, is this inside
-  their edge or outside it?
+- Is the upside/downside ratio asymmetric?
+- Given the operator's track record on similar actions, is this
+  inside their edge or outside it?
 
 Return one of:
-- approve  — if EV is clearly positive AND proposal is within declared
-  edge AND is below the auto-approve threshold for this domain
-- reject  — if EV is clearly negative OR violates _risk.md OR is outside
+- approve — EV is clearly positive AND within declared edge AND below
+  the auto-approve threshold for this domain
+- reject  — EV is clearly negative OR violates _risk.md OR is outside
   operator's declared strategy
-- defer  — if EV is ambiguous, stakes are high enough to warrant human
+- defer   — EV is ambiguous, stakes are high enough to warrant human
   judgment, or this is an edge case the operator hasn't seen before
 
-Always include reasoning. Brevity is fine; substance is required.
+Always write reasoning to decisions.md. Brevity is fine; substance is required.
 ```
 
-Model: Claude Sonnet. Temperature 0. Output structured via tool-use.
+Model: Claude Sonnet. Temperature 0. Output structured via tool-use. Phase 3.
 
-### 6. Changes to `ExecuteProposal`
+An AI Reviewer without outcome history collapses into rule-checking. This is why ADR-194 and ADR-195 ship as a pair: without `_performance.md` populated, the AI identity has no track record to reason against.
 
-`ExecuteProposal` already accepts an optional `approver_identity`. Extended to accept `reviewer_type` and `reviewer_reasoning`:
+### 6. Impersonation substrate
 
-```python
-ExecuteProposal(
-    proposal_id: str,
-    modified_inputs: dict | None = None,
-    reviewer_type: str = "human",
-    reviewer_identity: str | None = None,
-    reviewer_reasoning: str = "",
-)
+Admin-only god-mode for alpha stress-testing. Not a tenant-isolation bypass — an explicit marking that a workspace is a test persona.
+
+**Schema changes:**
+
+```sql
+ALTER TABLE workspaces
+  ADD COLUMN impersonation_persona text NULL;
+    -- When set (e.g., "day-trader-alpha"), marks the workspace as a test
+    -- persona. Visible in UI chrome banner. Nullable — normal workspaces
+    -- are NULL.
+
+ALTER TABLE users
+  ADD COLUMN can_impersonate boolean NOT NULL DEFAULT false;
+    -- Admin flag. Only can_impersonate = true users can switch into
+    -- persona workspaces.
 ```
 
-Called by:
-- Human approval UX (unchanged UX; backend fills `reviewer_type="human"`)
-- AI reviewer worker (new — see Phase 3)
-- Impersonation UX (admin clicks approve in persona workspace; backend sets `reviewer_type="impersonated"`, `reviewer_identity="<admin-user-id>-as-<persona-slug>"`)
+**Endpoints:**
+- `POST /api/admin/impersonate/{workspace_id}` — gated on `user.can_impersonate`. Sets session cookie to treat `workspace_id` as current. Returns the persona's compact index to orient the admin.
+- `POST /api/admin/impersonate/clear` — drops back to admin's own workspace.
 
-### 7. Routing proposals through the reviewer layer
+**Audit:** every action during impersonation logs `acting_as_persona=<slug>` in `activity_log.metadata`. Proposals executed during impersonation write `reviewer_identity: impersonated:<admin_user_id>-as-<persona_slug>` to `decisions.md`.
 
-New service `api/services/reviewer_router.py`:
+**Seeding:** 2–4 persona workspaces matching `DOMAIN-STRESS-MATRIX.md` alpha domains. Each seeded with:
+- `/workspace/IDENTITY.md` from DOMAIN-STRESS-MATRIX Identity-shape row
+- `/workspace/context/{domain}/_operator_profile.md` with declared strategy
+- `/workspace/context/{domain}/_risk.md` with reasonable defaults
+- `/workspace/review/{IDENTITY,principles}.md` scaffolded
+- Platform connections unset (admin connects real sandbox: Alpaca paper, LS sandbox)
 
-```python
-async def route_proposal(
-    proposal: ActionProposal,
-    auth: AuthContext,
-) -> None:
-    policy = load_reviewer_policy(proposal.workspace_id)
-    reviewer = resolve_reviewer(policy, proposal)  # Human / AI / Impersonating
+Impersonation is **Phase 2** of this ADR — not in the initial substrate scaffold commit.
 
-    if isinstance(reviewer, HumanReviewer):
-        # No-op at proposal creation time. Human clicks approve later
-        # via existing /api/proposals/{id}/approve route.
-        return
+### 7. `action_proposals` schema additions (Phase 2+)
 
-    if isinstance(reviewer, ImpersonatingReviewer):
-        # Same as Human, but UI chrome shows persona banner so admin
-        # knows they're acting as a persona.
-        return
+Two optional columns to support reviewer-identity tagging. Neither is required for Phase 1.
 
-    if isinstance(reviewer, AIReviewer):
-        # Dispatched synchronously (~3-5s) or async via back-office task
-        # (see Phase 3). v1 inline; v2 may move to queue.
-        decision = await reviewer.review(proposal, workspace_context)
-        if decision["decision"] == "approve":
-            await ExecuteProposal(
-                proposal_id=proposal.id,
-                modified_inputs=decision.get("modified_inputs"),
-                reviewer_type="ai",
-                reviewer_identity="ai-reviewer-sonnet-v1",
-                reviewer_reasoning=decision["reasoning"],
-            )
-        elif decision["decision"] == "reject":
-            await RejectProposal(
-                proposal_id=proposal.id,
-                reason=decision["reasoning"],
-            )
-        # "defer" = leave pending for human; no-op.
+```sql
+ALTER TABLE action_proposals
+  ADD COLUMN reviewer_identity text,
+      -- Set at review time. Format:
+      --   "human:<user_id>"  |  "ai:thinking-partner-v<N>"  |
+      --   "impersonated:<admin_user_id>-as-<persona_slug>"
+  ADD COLUMN reviewer_reasoning text;
+      -- Brief summary of the reasoning (for quick proposal-card display).
+      -- Full reasoning always written to /workspace/review/decisions.md.
 ```
 
-Called from `handle_propose_action` after the row lands. Failure of the reviewer layer (AI timeout, prompt error) degrades gracefully: proposal stays pending, logged as "AI reviewer unavailable — human fallback."
+`action_proposals` remains an ephemeral-queue row (per Axiom 0, permitted row kind 4). Reviewer-identity tagging is metadata on the queue entry, not accumulation substrate. The accumulation substrate for review judgment is `decisions.md`.
 
 ---
 
 ## Impact table (per ADR-191 matrix gate)
 
 | Domain | Impact | Capital-Gain Alignment | Notes |
-|--------|--------|----------------------|-------|
-| **E-commerce** | **Helps** | **Yes, directly** | AI reviewer can auto-approve low-value reversible writes (discount codes under $500, routine product updates) without operator babysitting. Impersonation lets us stress-test LS integration without burning a real operator's trust. |
-| **Day trader** | **Helps** | **Yes, directly** | AI reviewer adds capital-EV reasoning on top of `_risk.md` rules. "You're already 40% tech-concentrated, this tech trade is outside your edge" is a reviewer-layer judgment, not a risk-rule. Human still required on all trading writes by default. |
-| **AI influencer** (scheduled) | **Forward-helps** | **Yes, enabling** | When content-publishing domain lights up, brand-voice reviewer becomes a natural AI reviewer implementation. |
-| **International trader** (scheduled) | **Forward-helps** | **Yes, enabling** | Compliance / counterparty-risk checks map cleanly to AI reviewer pattern. |
+|--------|--------|------------------------|-------|
+| **E-commerce** | **Helps** | Yes, directly | AI Reviewer can fill the seat for low-value reversible writes (discount codes under $500, routine product updates) without operator babysitting, once `_performance.md` accumulates a track record. Impersonation lets us stress-test LS integration without burning a real operator's trust. |
+| **Day trader** | **Helps** | Yes, directly | AI Reviewer adds capital-EV reasoning on top of `_risk.md` rules. "You're already 40% tech-concentrated, this tech trade is outside your edge" is a reviewer-layer judgment, not a risk-rule. Human still fills the seat for all trading writes by default. |
+| **AI influencer** (scheduled) | Forward-helps | Yes, enabling | When content-publishing domain lights up, brand-voice checks become a natural AI Reviewer case. Same substrate, same flow. |
+| **International trader** (scheduled) | Forward-helps | Yes, enabling | Compliance / counterparty-risk checks map cleanly to the same Reviewer pattern. |
 
-No domain hurt. No verticalization — the abstraction is generic and policy is per-workspace. Gate passes.
+No domain hurt. No verticalization — Reviewer is a workspace-scope structural layer, not a domain feature. Gate passes.
 
 ---
 
 ## Implementation sequence
 
-Four phases, each commits green. Phase 1-2 can land without ADR-195; Phase 3 requires ADR-195 Phase 1 (for track-record reads) or degrades to rule-only reasoning.
+Four phases. Phase 1 ships in the current commit cycle (alongside this ADR). Phases 2–4 are subsequent cycles.
 
-| # | Phase | Scope |
-|---|-------|-------|
-| 1 | Reviewer abstraction + HumanReviewer refactor | `Reviewer` ABC, `HumanReviewer`, `reviewer_type` + `reviewer_identity` columns + backfill, `reviewer_router.route_proposal()` wired into `handle_propose_action`. No behavior change for existing flows. |
-| 2 | Impersonation substrate | `workspaces.impersonation_persona`, `users.can_impersonate`, admin impersonation endpoints, 2 seeded persona workspaces (day-trader-alpha, ecommerce-alpha), UI chrome banner when impersonating. |
-| 3 | AIReviewer (rule-only v0) | `AIReviewer` class, prompt v0 (reads `_risk.md` + `_operator_profile.md` only; no track record yet), REVIEWER-POLICY.md parser + scaffold, ai-reviewer worker invoked by `reviewer_router`. Default policy: AI disabled until user opts in per domain. |
-| 4 | AIReviewer v1 (EV-reasoning) | Prompt v1 reads `_performance.md` (depends on ADR-195 Phase 4). EV-reasoning promoted from rule-check to senior-operator reasoning. Auto-approve threshold enforcement. |
+| # | Phase | Scope | Status |
+|---|-------|-------|--------|
+| 1 | Reviewer substrate scaffold | `/workspace/review/IDENTITY.md` + `principles.md` templates seeded at signup via `workspace_init.py` Phase 5. `decisions.md` not scaffolded — created on first write. No review-proposal task. No AI reviewer agent invocation. This is the filesystem substrate only. | **Targeted for same commit cycle as this ADR** |
+| 2 | `review-proposal` reactive task type + task flow | Task type in `task_types.py`. Task fires on proposal creation. Human identity path = existing approval UX (no change, but now writes `decisions.md` as a side effect). Impersonation substrate (workspace column + user flag + endpoints). Persona-workspace seeding. `reviewer_identity` + `reviewer_reasoning` columns on `action_proposals`. | Proposed |
+| 3 | AI Reviewer agent (capital-EV prompt) | `thinking_partner`-class agent scoped to `/workspace/review/` via task dispatch. Prompt v1 per §5. Reads `_performance.md` (requires ADR-195 Phase 2, already shipped). Auto-approve thresholds read from `principles.md`. | Proposed |
+| 4 | Calibration + escalation tuning | Judgment-calibration metric (approve/reject accuracy vs. downstream outcome attribution). Feedback actuation on drifted calibration. Escalation rules for edge cases. | Proposed |
+
+---
+
+## Migration notes (v1 → v2)
+
+No code shipped from v1 (v1 was Proposed only, never Implemented). Migration is doc-only:
+
+- v1 ADR file overwritten by v2 (this file).
+- GLOSSARY.md v1.2 rewrites the Reviewer, `/workspace/review/`, Outcome, `_performance.md`, Money-Truth, Capital-EV entries (done in the same commit cycle as this ADR).
+- FOUNDATIONS.md v5.1 adds Axiom 0 and extends Axiom 1 to four layers (done in the same commit cycle).
+- No SQL migration needed for v2 (Phase 1 is filesystem-only).
 
 ---
 
 ## Open questions (deferred to implementation)
 
-1. **AI reviewer inline vs async.** Phase 3 runs synchronously in `handle_propose_action`. If latency becomes a problem (3-5s per proposal), move to a back-office task that sweeps pending proposals. Deferred until observed.
-2. **Reviewer policy conflict resolution.** If two rules in REVIEWER-POLICY.md match a proposal, which wins? v1 uses first-match-wins, documented.
-3. **Impersonation audit trail depth.** Current plan: log `acting_as_persona` in activity_log. Sufficient for v1. Forensic replay deferred.
-4. **Per-agent reviewer policy.** v1 is per-domain via workspace file. If per-agent policy becomes necessary, extend REVIEWER-POLICY.md with agent-slug match. Deferred until demand.
+1. **Where does `reviewer_identity` get chosen?** v2 Phase 2 answer: by the `review-proposal` task type definition reading proposal reversibility + domain. Explicit mapping TBD during Phase 2.
+2. **`decisions.md` rotation.** If `decisions.md` grows unbounded, we rotate to `decisions-{year}.md`. Threshold TBD — defer until we see real growth.
+3. **User override of AI reviewer decisions.** If the AI approves a proposal and the user disagrees, the write has already executed. Does the user's post-hoc objection write a feedback entry? Yes — per ADR-181, user correction on an executed action is a feedback entry. Deferred to Phase 3.
+4. **Reviewer self-assessment.** The Reviewer's judgment calibration is measured against reconciled outcomes. The mechanism for writing that self-assessment (probably `/workspace/review/calibration.md`) is Phase 4.
 
 ---
 
@@ -274,4 +259,5 @@ Four phases, each commits green. Phase 1-2 can land without ADR-195; Phase 3 req
 
 | Date | Change |
 |------|--------|
-| 2026-04-19 | v1 — Initial draft. Reviewer abstraction (Human / AI / Impersonation), REVIEWER-POLICY.md, impersonation substrate with persona workspaces, AI reviewer shaped around EV-reasoning (depends on ADR-195 for track-record). Renumbers original ADR-194 (surface archetypes) → ADR-197 and original ADR-195 (autonomous decision loop) → ADR-196. |
+| 2026-04-17 | v1 — Initial draft. Reviewer abstraction (Human / AI / Impersonation), REVIEWER-POLICY.md, impersonation substrate with persona workspaces, AI reviewer shaped around EV-reasoning (depends on ADR-195 for track-record). Renumbered original ADR-194 (surface archetypes) → ADR-197 and original ADR-195 (autonomous decision loop) → ADR-196. |
+| 2026-04-19 | v2 — **Full rewrite.** Reviewer reframed from pluggable abstraction to structurally separate fourth cognitive layer, aligned with FOUNDATIONS v5.1 Axiom 0 (filesystem substrate) and Axiom 1 (four layers). `Reviewer` ABC dropped. `REVIEWER-POLICY.md` dropped — routing lives in `review-proposal` task type per ADR-188. Reviewer filesystem home established at `/workspace/review/` (IDENTITY.md + principles.md + decisions.md). Three identities (Human / AI / Impersonation) reframed as identities filling the same seat, not pluggable implementations. Phased sequence sharpened: Phase 1 = substrate scaffold only (shipped this cycle); Phase 2+ = reactive task, impersonation endpoints, AI reviewer agent. v1 file overwritten — singular-implementation discipline. |
