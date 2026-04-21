@@ -7,6 +7,7 @@
  *   - SinceLastLookPane: Briefing archetype (temporal, pointer-based)
  *   - NeedsMePane: Queue archetype (pending proposals + alerts, actionable)
  *   - SnapshotPane: Dashboard-snippets (linked, not embedded, per I2)
+ *   - IntelligenceCard: Synthesis artifact from maintain-overview task (ADR-204)
  *
  * Semantic day-zero (ADR-203): when the workspace is scaffolded but the
  * operator hasn't acted yet — no operator-authored agents
@@ -24,6 +25,7 @@ import { SinceLastLookPane } from './SinceLastLookPane';
 import { NeedsMePane } from './NeedsMePane';
 import { SnapshotPane } from './SnapshotPane';
 import { OverviewEmptyState } from './OverviewEmptyState';
+import { IntelligenceCard } from './IntelligenceCard';
 
 export interface OverviewSurfaceProps {
   onOpenChatDraft: (prompt: string) => void;
@@ -57,6 +59,7 @@ export function OverviewSurface({
         <NeedsMePane onOpenChatDraft={onOpenChatDraft} />
         <SinceLastLookPane />
         <SnapshotPane isDayZero={false} />
+        <IntelligenceCard />
       </div>
     );
   }
@@ -70,6 +73,7 @@ export function OverviewSurface({
       <NeedsMePane onOpenChatDraft={onOpenChatDraft} />
       <SinceLastLookPane />
       <SnapshotPane isDayZero={false} />
+      <IntelligenceCard />
     </div>
   );
 }
