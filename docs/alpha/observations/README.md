@@ -51,3 +51,4 @@ If money impact: what would have happened without YARNNN? Would decision quality
 |---|---|---|---|---|
 | 2026-04-21 | alpha-trader | [Cockpit first-run semantically empty](./2026-04-21-alpha-trader-cockpit-first-run-semantically-empty.md) | A-system (ui-ux) | component-patch |
 | 2026-04-21 | alpha-trader | [Phase-1 seeding bypassed architecture for 3/5 identity-domain files](./2026-04-21-alpha-trader-phase-1-seeding-bypassed-architecture.md) | A-system (systematic-workflow) | ADR-candidate (×3) |
+| 2026-04-21 | alpha-trader | [POST /api/tasks dispatches through ManageTask (architectural fix shipped)](./2026-04-21-alpha-trader-tasks-route-dispatch-fix.md) | A-system (systematic-workflow) | component-patch (landed) |

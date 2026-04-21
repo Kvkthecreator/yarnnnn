@@ -1135,8 +1135,10 @@ async def _handle_create(auth: Any, input: dict) -> dict:
         logger.error(f"[MANAGE_TASK] Agent lookup failed: {e}")
         return {"success": False, "error": "agent_lookup_failed", "message": str(e)}
 
-    # Default schedule for custom tasks
-    if not schedule:
+    # Default schedule for custom tasks. Reactive tasks are explicitly
+    # event-triggered (ADR-149); giving them a schedule would let the
+    # cron scheduler fire them, which contradicts the reactive contract.
+    if not schedule and mode != "reactive":
         schedule = "weekly"
 
     # ADR-154: First run on creation for tasks with bootstrap criteria
@@ -1148,6 +1150,10 @@ async def _handle_create(auth: Any, input: dict) -> dict:
 
     if has_bootstrap:
         next_run_at = datetime.now(timezone.utc).isoformat()
+    elif mode == "reactive":
+        # Reactive tasks have no schedule and no scheduled first run —
+        # caller triggers via POST /api/tasks/{slug}/run or an upstream event.
+        next_run_at = None
     else:
         user_timezone = get_user_timezone(auth.client, auth.user_id)
         next_run_at = _compute_next_run(schedule, user_timezone=user_timezone) if schedule else None
