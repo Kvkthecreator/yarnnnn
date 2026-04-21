@@ -65,6 +65,14 @@ class TaskCreate(BaseModel):
     delivery: Optional[str] = None      # email, cockpit-only, etc.
     page_structure: Optional[list] = None  # ADR-174 Phase 3: bespoke compose layout
 
+    # Pipeline wiring — ADR-166 (output_kind) + ADR-151/152 (context domains).
+    # Required for custom (typeless) tasks so the pipeline routes signals,
+    # scans domains, and sizes the tool budget correctly. Ignored when type_key
+    # is supplied (the registry provides these).
+    output_kind: Optional[str] = None       # accumulates_context | produces_deliverable | external_action | system_maintenance
+    context_reads: Optional[list] = None    # e.g. ["trading", "signals"]
+    context_writes: Optional[list] = None   # e.g. ["trading", "signals"]
+
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None

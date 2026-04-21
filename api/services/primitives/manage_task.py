@@ -906,6 +906,9 @@ def _build_custom_task_md(
     output_spec: Optional[list] = None,
     page_structure: Optional[list] = None,
     team: Optional[list] = None,
+    output_kind: Optional[str] = None,
+    context_reads: Optional[list] = None,
+    context_writes: Optional[list] = None,
 ) -> str:
     """Build TASK.md content for a custom task (no type_key).
 
@@ -914,6 +917,13 @@ def _build_custom_task_md(
     ADR-174 Phase 3: page_structure (list of section dicts) is serialized as a
     YAML block under ## Page Structure. The compose pipeline reads it at execution
     time, taking precedence over any registry definition.
+
+    ADR-166 (output_kind) + ADR-151/152 (context domains): the three
+    pipeline-wiring fields are emitted as TASK.md header lines so
+    parse_task_md() populates them. Without them, custom tasks default to
+    output_kind='produces_deliverable' and empty context domain sets — which
+    disables signal routing, domain scans, tracker updates, and output_kind-
+    aware tool budgeting.
     """
     lines = [f"# {title}", "", f"**Slug:** {slug}", f"**Agent:** {agent_slug}", f"**Mode:** {mode}"]
 
@@ -921,6 +931,12 @@ def _build_custom_task_md(
         lines.append(f"**Schedule:** {schedule}")
     if delivery:
         lines.append(f"**Delivery:** {delivery}")
+    if output_kind:
+        lines.append(f"**Output:** {output_kind}")
+    if context_reads:
+        lines.append(f"**Context Reads:** {', '.join(context_reads)}")
+    if context_writes:
+        lines.append(f"**Context Writes:** {', '.join(context_writes)}")
 
     if objective:
         lines.append("")
@@ -1012,6 +1028,13 @@ async def _handle_create(auth: Any, input: dict) -> dict:
     page_structure = input.get("page_structure")  # list[dict] | None
     # ADR-176 Phase 2: team composition override (list of role strings)
     team_override = input.get("team")  # list[str] | None
+    # ADR-166 + ADR-151/152: pipeline wiring for custom (typeless) tasks.
+    # Without these, the parser leaves output_kind at the default and
+    # context_writes/reads empty — which disables signal routing, domain
+    # scans, tracker updates, and output_kind-aware tool budgeting.
+    output_kind_override = input.get("output_kind")
+    context_reads_override = input.get("context_reads")
+    context_writes_override = input.get("context_writes")
 
     if mode not in ("recurring", "goal", "reactive"):
         mode = "recurring"
@@ -1218,6 +1241,9 @@ async def _handle_create(auth: Any, input: dict) -> dict:
                 output_spec=output_spec,
                 page_structure=page_structure,
                 team=team_override,
+                output_kind=output_kind_override,
+                context_reads=context_reads_override,
+                context_writes=context_writes_override,
             )
         await tw.write("TASK.md", task_md, summary=f"Task definition: {title}", tags=["task", "definition"])
 
@@ -1260,15 +1286,20 @@ async def _handle_create(auth: Any, input: dict) -> dict:
                       "# Task Awareness\n\nFirst run — no prior cycles.\n",
                       summary="ADR-154: task awareness file", tags=["awareness"])
 
-        # ADR-151: Scaffold workspace context domains for this task's context_writes
-        if type_key:
+        # ADR-151: Scaffold workspace context domains for this task's context_writes.
+        # Registry path (type_key) pulls domains from TASK_TYPES; custom path uses
+        # the caller-supplied context_writes_override (ADR-166/151/152 pipeline wiring).
+        if type_key or context_writes_override:
             try:
                 from services.task_types import get_task_type
                 from services.directory_registry import get_domain, get_domain_folder, get_synthesis_content
                 from services.workspace import UserMemory
 
-                task_type_def = get_task_type(type_key)
-                context_writes = (task_type_def or {}).get("context_writes", [])
+                if type_key:
+                    task_type_def = get_task_type(type_key)
+                    context_writes = (task_type_def or {}).get("context_writes", [])
+                else:
+                    context_writes = context_writes_override or []
 
                 if context_writes:
                     um = UserMemory(auth.client, user_id)

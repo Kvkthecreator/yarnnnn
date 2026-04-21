@@ -11,7 +11,7 @@ What this does:
   2. POST /api/memory/user/brand     — BRAND.md (no public brand framing)
   3. DB upsert review/principles.md  — §3A.4 Simons 6-check reviewer
   4. DB upsert context/trading/_operator_profile.md — §3A.2
-  5. DB upsert context/trading/_risk.md at RISK_MD_PATH — §3A.3
+  5. DB upsert /workspace/context/trading/_risk.md — §3A.3
   6. POST /api/tasks for 6 Simons-persona tasks (then PUT → paused)
 
 What this doesn't do:
@@ -374,6 +374,13 @@ TASKS = [
         "mode": "recurring",
         "schedule": "0 8,11,15 * * 1-5",  # 08:00, 11:30, 15:45 ET approx (weekday-only)
         "delivery": "cockpit-only",
+        # ADR-166 + ADR-151/152: pipeline wiring. Without these the task runs
+        # with output_kind='produces_deliverable' (default) and zero context
+        # routing — which silently disables the signals log, domain scans,
+        # tracker updates, and accumulation-appropriate tool budgeting.
+        "output_kind": "accumulates_context",
+        "context_reads": ["trading", "signals"],
+        "context_writes": ["trading", "signals"],
         "objective": {
             "deliverable": "Per-ticker price + indicator state files under /workspace/context/trading/{ticker}.md",
             "audience": "signal-evaluation task (downstream) + operator (reference)",
@@ -392,6 +399,9 @@ TASKS = [
         "mode": "recurring",
         "schedule": "5 8 * * 1-5",  # 08:05 ET weekdays
         "delivery": "cockpit-only",
+        "output_kind": "accumulates_context",
+        "context_reads": ["trading", "portfolio", "signals"],
+        "context_writes": ["trading", "signals"],
         "objective": {
             "deliverable": "Per-signal state files at /workspace/context/trading/signals/{signal-slug}.md",
             "audience": "trade-proposal task (emits on fire) + pre-market-brief (narrative summary)",
@@ -411,6 +421,9 @@ TASKS = [
         "mode": "recurring",
         "schedule": "15 8 * * 1-5",  # 08:15 ET weekdays
         "delivery": "cockpit-only",
+        "output_kind": "produces_deliverable",
+        "context_reads": ["trading", "portfolio", "signals"],
+        "context_writes": ["signals"],
         "objective": {
             "deliverable": "Daily HTML brief composed from signal-evaluation output + portfolio state",
             "audience": "Operator (cockpit Overview surface; email is expository pointer per ADR-202)",
@@ -430,6 +443,9 @@ TASKS = [
         "mode": "reactive",          # event-triggered by signal-evaluation, not scheduled
         "schedule": None,
         "delivery": "cockpit-only",
+        "output_kind": "external_action",
+        "context_reads": ["trading", "portfolio", "signals"],
+        "context_writes": ["signals"],
         "objective": {
             "deliverable": "ProposeAction with full signal attribution, forwarded to AI Reviewer → cockpit Queue",
             "audience": "AI Reviewer (evaluates via principles.md 6-check framework) → human operator (final approval)",
@@ -450,6 +466,9 @@ TASKS = [
         "mode": "recurring",
         "schedule": "0 18 * * 0",  # Sunday 18:00 ET
         "delivery": "cockpit-only",
+        "output_kind": "produces_deliverable",
+        "context_reads": ["trading", "portfolio", "signals"],
+        "context_writes": ["signals"],
         "objective": {
             "deliverable": "Weekly HTML performance report with per-signal attribution",
             "audience": "Operator (Sunday planning surface)",
@@ -469,6 +488,9 @@ TASKS = [
         "mode": "recurring",
         "schedule": "0 18 31 3,6,9,12 *",  # Mar/Jun/Sep/Dec 31 (approx quarter-end)
         "delivery": "cockpit-only",
+        "output_kind": "produces_deliverable",
+        "context_reads": ["trading", "portfolio", "signals"],
+        "context_writes": ["signals"],
         "objective": {
             "deliverable": "Quarterly audit document: signals to retire, retune, or add to Signals 6-8 slots",
             "audience": "Operator (ratifies final decisions; YARNNN prepares analysis)",
@@ -540,7 +562,7 @@ def main() -> int:
         print(f"  POST /api/memory/user/brand            ({len(BRAND_MD):,} chars)")
         print(f"  DB upsert /workspace/review/principles.md                ({len(PRINCIPLES_MD):,} chars)")
         print(f"  DB upsert /workspace/context/trading/_operator_profile.md ({len(OPERATOR_PROFILE_MD):,} chars)")
-        print(f"  DB upsert workspace/context/trading/_risk.md [no leading slash per risk_gate.py:48] ({len(RISK_MD):,} chars)")
+        print(f"  DB upsert /workspace/context/trading/_risk.md ({len(RISK_MD):,} chars)")
         print(f"  POST /api/tasks × {len(TASKS)}  (active on create — ManageTask._handle_create canonical path)")
         for t in TASKS:
             print(f"      - {t['title']}  agent={t['agent_slug']}  mode={t['mode']}  schedule={t['schedule']!r}")
@@ -614,11 +636,11 @@ def main() -> int:
         )
         print(f"  OK  ({len(OPERATOR_PROFILE_MD):,} chars)")
 
-        print("[5/6] DB upsert workspace/context/trading/_risk.md  (no leading slash per risk_gate.py:48)")
+        print("[5/6] DB upsert /workspace/context/trading/_risk.md")
         upsert_workspace_file(
             conn,
             persona.user_id,
-            "workspace/context/trading/_risk.md",
+            "/workspace/context/trading/_risk.md",
             RISK_MD,
             "Risk parameters — Simons Option B (playbook §3A.3)",
         )

@@ -45,7 +45,7 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
-RISK_MD_PATH = "workspace/context/trading/_risk.md"
+RISK_MD_PATH = "/workspace/context/trading/_risk.md"
 
 
 # =============================================================================
