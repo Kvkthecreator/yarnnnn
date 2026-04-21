@@ -228,6 +228,65 @@ function HistoryTab({ taskSlug, refreshKey }: { taskSlug: string; refreshKey: nu
 }
 
 // ---------------------------------------------------------------------------
+// TaskOutputCard — reusable iframe+markdown renderer for a task output artifact.
+// Extracted so IntelligenceCard on Overview can consume the same primitives
+// without duplicating the iframe auto-height and markdown fallback logic.
+// ---------------------------------------------------------------------------
+
+export interface TaskOutputCardProps {
+  htmlContent?: string | null;
+  mdContent?: string | null;
+  sections?: TaskSectionEntry[];
+  taskSlug: string;
+  /** Show section provenance strip above the output frame. Default true. */
+  showProvenance?: boolean;
+}
+
+export function TaskOutputCard({
+  htmlContent,
+  mdContent,
+  sections,
+  taskSlug,
+  showProvenance = true,
+}: TaskOutputCardProps) {
+  return (
+    <div>
+      {showProvenance && (sections?.length ?? 0) > 0 && (
+        <SectionProvenanceStrip sections={sections!} />
+      )}
+      <div className="px-6 pb-6">
+        <div className="rounded-lg border border-border bg-muted/5 overflow-hidden">
+          {htmlContent ? (
+            <iframe
+              srcDoc={htmlContent}
+              className="w-full border-0 bg-white block"
+              style={{ height: 'auto', minHeight: '500px' }}
+              onLoad={(e) => {
+                const iframe = e.currentTarget;
+                try {
+                  const doc = iframe.contentDocument;
+                  if (!doc) return;
+                  const h = doc.documentElement?.scrollHeight;
+                  if (h) iframe.style.height = `${h}px`;
+                } catch {}
+              }}
+              sandbox="allow-same-origin allow-scripts"
+              title={`${taskSlug} output`}
+            />
+          ) : (
+            <div className="p-5">
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                <MarkdownRenderer content={mdContent ?? ''} />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -306,45 +365,16 @@ export function DeliverableMiddle({
             )}
           </div>
 
-          {/* ADR-170: Section provenance strip */}
-          {(latest.sections?.length ?? 0) > 0 && (
-            <SectionProvenanceStrip sections={latest.sections!} />
-          )}
-
           {/* ADR-178 Phase 6: Quality Contract */}
           {deliverableSpec && <QualityContractPanel spec={deliverableSpec} />}
 
-          <div className="px-6 pb-6">
-            <div className="rounded-lg border border-border bg-muted/5 overflow-hidden">
-              {latest.html_content ? (
-                <iframe
-                  srcDoc={latest.html_content}
-                  className="w-full border-0 bg-white block"
-                  style={{ height: 'auto', minHeight: '500px' }}
-                  onLoad={(e) => {
-                    const iframe = e.currentTarget;
-                    try {
-                      const doc = iframe.contentDocument;
-                      if (!doc) return;
-                      // Deck outputs use slide-based layout — expand to full content height
-                      // so all slides are visible without a fixed viewport constraint.
-                      // Non-deck outputs (report, dashboard, etc.) also expand to content.
-                      const h = doc.documentElement?.scrollHeight;
-                      if (h) iframe.style.height = `${h}px`;
-                    } catch {}
-                  }}
-                  sandbox="allow-same-origin allow-scripts"
-                  title={`${taskSlug} output`}
-                />
-              ) : (
-                <div className="p-5">
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    <MarkdownRenderer content={latest.content ?? latest.md_content ?? ''} />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <TaskOutputCard
+            htmlContent={latest.html_content}
+            mdContent={latest.content ?? latest.md_content}
+            sections={latest.sections}
+            taskSlug={taskSlug}
+            showProvenance={true}
+          />
         </div>
       )}
     </>
