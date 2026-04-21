@@ -238,6 +238,36 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         except Exception as e:
             logger.warning(f"[WORKSPACE_INIT] Back office task ({slug}) creation failed: {e}")
 
+    # ── Workspace Intelligence task (ADR-204) ──
+    # Seeded as Phase 5c. Essential produces_deliverable task owned by the
+    # Reporting agent. Runs at 06:00 local — 4h after outcome-reconciliation
+    # (02:00) so _performance_summary.md is current when synthesis runs.
+    try:
+        existing_mo = (
+            client.table("tasks")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("slug", "maintain-overview")
+            .execute()
+        )
+        if not (existing_mo.data or []):
+            await _create_essential_deliverable_task(
+                client,
+                user_id,
+                type_key="maintain-overview",
+                slug="maintain-overview",
+                title="Workspace Intelligence",
+                schedule="0 6 * * *",
+                agent_slugs=["reporting"],
+                user_timezone=user_timezone,
+            )
+            result["tasks_created"].append("maintain-overview")
+            logger.info("[WORKSPACE_INIT] Default task: maintain-overview (essential, Reporting-owned)")
+        else:
+            logger.info("[WORKSPACE_INIT] maintain-overview task already exists, skipping")
+    except Exception as e:
+        logger.warning(f"[WORKSPACE_INIT] maintain-overview task creation failed: {e}")
+
     # =========================================================================
     # Phase 6: Signup balance audit trail (ADR-172)
     # =========================================================================
@@ -415,6 +445,58 @@ async def _create_essential_back_office_task(
 
     # ADR-149: Scaffold DELIVERABLE.md from type registry
     from services.task_types import build_deliverable_md_from_type
+    deliverable_md = build_deliverable_md_from_type(type_key)
+    if deliverable_md:
+        await tw.write("DELIVERABLE.md", deliverable_md, summary=f"Quality contract: {title}")
+
+
+async def _create_essential_deliverable_task(
+    client: Any,
+    user_id: str,
+    type_key: str,
+    slug: str,
+    title: str,
+    schedule: str,
+    agent_slugs: list[str],
+    user_timezone: str,
+) -> None:
+    """Create an essential produces_deliverable task at workspace init (ADR-204).
+
+    Unlike back-office tasks (TP-owned, system_maintenance), these run the full
+    LLM generation pipeline and write DELIVERABLE.md. Schedule accepts both
+    cadence keywords ('daily') and cron expressions ('0 6 * * *') — both are
+    supported by calculate_next_run_at() via _looks_like_cron().
+    """
+    from services.task_workspace import TaskWorkspace
+    from services.task_types import build_task_md_from_type, build_deliverable_md_from_type
+
+    now = datetime.now(timezone.utc)
+    next_run = calculate_next_run_at(schedule, last_run_at=now, user_timezone=user_timezone)
+
+    row = {
+        "user_id": user_id,
+        "slug": slug,
+        "mode": "recurring",
+        "status": "active",
+        "schedule": schedule,
+        "next_run_at": next_run.isoformat() if next_run else now.isoformat(),
+        "essential": True,
+    }
+    insert_result = client.table("tasks").insert(row).execute()
+    if not insert_result.data:
+        raise RuntimeError(f"Failed to insert essential deliverable task: {slug}")
+
+    task_md = build_task_md_from_type(
+        type_key=type_key,
+        title=title,
+        slug=slug,
+        schedule=schedule,
+        delivery="none",
+        agent_slugs=agent_slugs,
+    )
+    tw = TaskWorkspace(client, user_id, slug)
+    await tw.write("TASK.md", task_md, summary=f"Essential task definition: {title}")
+
     deliverable_md = build_deliverable_md_from_type(type_key)
     if deliverable_md:
         await tw.write("DELIVERABLE.md", deliverable_md, summary=f"Quality contract: {title}")

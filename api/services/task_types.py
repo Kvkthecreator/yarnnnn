@@ -475,6 +475,33 @@ STEP_INSTRUCTIONS = {
         "(updated synthesis)\n\n"
         "Your output: weekly performance report with charts and metrics."
     ),
+
+    "workspace-intelligence": (
+        "You are producing the Workspace Intelligence Cockpit — a daily synthesis of this "
+        "workspace's accumulated knowledge for the operator.\n\n"
+        "CRITICAL RULE: Only emit sections for which you have grounded data from files you "
+        "actually read. An absent section is honest. An empty section is noise.\n\n"
+        "STEP 1 — Read the workspace substrate:\n"
+        "- ReadFile: /workspace/context/_performance_summary.md (outcome data)\n"
+        "- ListFiles: /workspace/context/ (discover active context domains)\n"
+        "- For each active domain: ReadFile its _tracker.md and synthesis file\n"
+        "- ReadFile: /agents/reporting/AGENT.md (your own identity + prior synthesis notes)\n"
+        "- ReadFile: /tasks/maintain-overview/memory/run_log.md if it exists (prior runs)\n\n"
+        "STEP 2 — Read DELIVERABLE.md for the section catalog and archetype framing hints.\n\n"
+        "STEP 3 — Assess what the workspace actually knows:\n"
+        "- How many domains are active? How many entities per domain?\n"
+        "- Is outcome data present (_performance_summary.md non-empty)?\n"
+        "- Are any agents flagged or tasks stale?\n"
+        "- What archetype framing applies (trading / commerce / content / multi-domain / nascent)?\n\n"
+        "STEP 4 — Produce the output using ONLY the catalog sections warranted by the data. "
+        "Use exact section titles from the catalog so the compose pipeline assigns the correct "
+        "render kind. Maximum 5 sections. 'Workspace Synthesis' is always included. "
+        "Every data claim must be derivable from files you read — no fabrication.\n\n"
+        "STEP 5 — WriteFile: /tasks/maintain-overview/memory/run_log.md "
+        "Append a one-line entry: '## {date}: sections emitted, archetype applied, "
+        "key signal surfaced'. This is your handoff to the next run.\n\n"
+        "Your output: the cockpit artifact as structured markdown sections."
+    ),
 }
 
 
@@ -1750,6 +1777,131 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     # leadership/strategy/marketing audiences. One report, broader sections.
 
     # ══════════════════════════════════════════════════════════════════════════
+    # WORKSPACE INTELLIGENCE — ADR-204
+    # Essential task seeded at workspace init (Phase 5c). Runs daily at 06:00
+    # local (offset from outcome-reconciliation at 02:00 so _performance_summary.md
+    # is current). output_kind=produces_deliverable so the full compose pipeline
+    # runs and produces output.html + rich sys_manifest.json with sections array.
+    # Owned by the Reporting agent (cross-domain synthesizer).
+    # ══════════════════════════════════════════════════════════════════════════
+
+    "maintain-overview": {
+        "display_name": "Workspace Intelligence",
+        "description": "Daily cockpit synthesis of accumulated workspace knowledge — domain health, entity coverage, outcome trends, and recommended actions.",
+        "output_kind": "produces_deliverable",
+        "default_delivery": "none",
+        "registry_default_team": ["reporting"],
+        "default_mode": "recurring",
+        "default_schedule": "0 6 * * *",
+        "output_format": "html",
+        "surface_type": "dashboard",
+        "page_structure": [
+            {"kind": "narrative",     "title": "Workspace Synthesis"},
+            {"kind": "metric-cards",  "title": "Outcome Performance"},
+            {"kind": "status-matrix", "title": "Domain Health"},
+            {"kind": "metric-cards",  "title": "Workforce State"},
+            {"kind": "entity-grid",   "title": "Key Entities"},
+            {"kind": "timeline",      "title": "Signals & Trends"},
+            {"kind": "checklist",     "title": "Recommended Actions"},
+        ],
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "reporting",
+                "step": "workspace-intelligence",
+                "instruction": STEP_INSTRUCTIONS["workspace-intelligence"],
+            },
+        ],
+        "context_reads": ["*"],  # reads all active context domains
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Workspace Intelligence Cockpit",
+            "audience": "Operator — daily Overview surface",
+            "purpose": "Synthesize accumulated workspace knowledge into actionable intelligence",
+            "format": "Structured HTML cockpit with workspace-appropriate sections",
+        },
+        # ADR-204: Full catalog-driven DELIVERABLE.md — richer than the generic builder
+        # produces. build_deliverable_md_from_type() checks custom_deliverable_md first.
+        "custom_deliverable_md": """# Workspace Intelligence Cockpit — Composition Contract
+
+## Composition Intent
+
+You are composing the Workspace Intelligence Cockpit — a daily synthesis of this workspace's
+accumulated knowledge, presented as an intelligence surface for the operator.
+
+Your output must reflect what THIS workspace actually knows. Do not produce sections for which
+you have no grounded data. Every section you emit must be rooted in actual accumulated context
+(domain files, entity trackers, outcome data, agent performance). An absent section is honest.
+An empty section is noise.
+
+## Available Section Catalog
+
+Choose the subset appropriate to this workspace's current state. Use these exact titles
+so the compose pipeline can assign the correct render kind.
+
+| Title | kind | Emit when |
+|-------|------|-----------|
+| Workspace Synthesis | narrative | Always — 2–3 sentences on overall state |
+| Outcome Performance | metric-cards | Commerce or trading platform connected + outcomes recorded |
+| Domain Health | status-matrix | ≥2 context domains with entities in _tracker.md |
+| Workforce State | metric-cards | ≥1 flagged agent OR ≥1 stale task (2× cadence overdue) |
+| Key Entities | entity-grid | One domain dominates (≥5 entities) and warrants surfacing |
+| Signals & Trends | timeline | Structural changes: new domain, entity additions, coverage shifts |
+| Recommended Actions | checklist | Clear operator-actionable next steps emerge from synthesis |
+
+Maximum 5 sections total (including Workspace Synthesis). Fewer is better if data doesn't
+support more. Quality contract: every data claim must be derivable from the files you read.
+
+## Archetype Framing Hints
+
+**Trading workspace** (portfolio/ or trading/ domain active):
+  Lead with Outcome Performance. Frame Workspace Synthesis around risk/opportunity.
+  Workforce State secondary. Domain Health for instrument coverage depth.
+
+**Commerce workspace** (customers/ or revenue/ domain active):
+  Lead with Outcome Performance. Frame Workspace Synthesis around growth/churn.
+  Key Entities for top products or customers if ≥5.
+
+**Content workspace** (content_research/ or signals/ domain active):
+  Lead with Domain Health. Signals & Trends for publishing cadence.
+  Frame Workspace Synthesis around knowledge gaps and content opportunities.
+
+**Multi-domain workspace** (3+ active domains, no clear vertical):
+  Lead with Domain Health. Workspace Synthesis frames knowledge breadth and depth.
+  Recommended Actions if clear gaps emerge across domains.
+
+**Nascent workspace** (day-zero or near-zero entity accumulation):
+  Workspace Synthesis only. Honest: "Your workspace is warming up —
+  synthesis will deepen as your agents run." No empty structural sections.
+
+## Section Suppression
+
+Do not emit a section if the supporting data is absent or trivial.
+The cockpit should be honest about what the workspace knows, not optimistic about what it will know.
+
+## User Preferences (inferred)
+<!-- Populated by feedback inference (ADR-149). Empty at creation. -->
+""",
+        "default_deliverable": {
+            "output": {
+                "format": "html",
+                "word_count": "200-600",
+                "layout": ["Workspace Synthesis", "domain-appropriate sections"],
+            },
+            "assets": [],
+            "quality_criteria": [
+                "Only emit sections grounded in actual accumulated data",
+                "Every data claim derivable from files read — no fabrication",
+                "Absent section is honest; empty section is noise",
+                "Maximum 5 sections including Workspace Synthesis",
+                "Archetype framing reflects the operator's actual domain mix",
+            ],
+        },
+    },
+
+    # ══════════════════════════════════════════════════════════════════════════
     # BACK OFFICE TASKS — ADR-164
     # Owned by TP (role='thinking_partner'). Execute deterministic Python
     # functions via task_pipeline._execute_tp_task(). The executor is declared
@@ -2211,6 +2363,12 @@ def build_deliverable_md_from_type(
     task_type = TASK_TYPES.get(type_key)
     if not task_type:
         return None
+
+    # ADR-204: Task types can declare a full custom DELIVERABLE.md template
+    # when the generic builder's output is insufficient (e.g. catalog-driven tasks).
+    custom = task_type.get("custom_deliverable_md")
+    if custom:
+        return custom
 
     deliverable = task_type.get("default_deliverable")
     if not deliverable:

@@ -158,6 +158,16 @@ async def build_working_memory(
             "balance_exhausted": balance_info.get("exhausted", False),
             # Health (only flagged agents)
             "agents_flagged": agent_health,
+            # ADR-204: Intelligence Cockpit signals — domain entity coverage + outcome platform detection
+            "domain_entity_counts": {
+                d["domain"]: d.get("file_count", 0)
+                for d in (context_domains or [])
+                if not d.get("temporal") and d.get("file_count", 0) > 0
+            },
+            "outcome_connected": any(
+                p.get("platform") in {"alpaca", "lemonsqueezy"} and p.get("status") == "active"
+                for p in platforms
+            ),
         },
     }
 

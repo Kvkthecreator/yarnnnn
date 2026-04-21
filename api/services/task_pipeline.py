@@ -1897,6 +1897,26 @@ async def execute_task(
         except Exception as e:
             logger.warning(f"[TASK_EXEC] Empty-state check failed (non-fatal, falling through): {e}")
 
+    # =====================================================================
+    # ADR-204: Maintain-overview empty-state branch
+    # If the workspace has no accumulated entities in any context domain
+    # (no non-synthesis, non-tracker files under /workspace/context/),
+    # short-circuit with a deterministic "warming up" artifact — no LLM
+    # cost. The Overview Intelligence Card still renders; it honestly says
+    # the workspace is warming up. Reuses _is_workspace_empty_for_daily_update
+    # since the emptiness condition is identical.
+    # =====================================================================
+    if task_slug == "maintain-overview":
+        try:
+            is_empty = await _is_workspace_empty_for_daily_update(client, user_id)
+            if is_empty:
+                empty_result = await _execute_maintain_overview_empty_state(
+                    client, user_id, started_at
+                )
+                return empty_result
+        except Exception as e:
+            logger.warning(f"[TASK_EXEC] maintain-overview empty-state check failed (non-fatal, falling through): {e}")
+
     try:
         # =====================================================================
         # 1. Read TASK.md
@@ -3868,6 +3888,74 @@ async def _execute_daily_update_empty_state(
         "task_slug": task_slug,
         "status": "delivered",
         "message": f"Daily-update empty-state delivered ({delivery_status})",
+        "kind": "empty_state",
+    }
+
+
+async def _execute_maintain_overview_empty_state(
+    client,
+    user_id: str,
+    started_at: datetime,
+) -> dict:
+    """Deterministic warming-up artifact for maintain-overview when workspace is empty.
+
+    ADR-204 §7: Essential tasks must produce an artifact on every run. When there
+    is no accumulated workspace knowledge to synthesize, emit a single-section
+    "Workspace Synthesis" output that honestly tells the operator the workspace
+    is warming up. Zero LLM cost; no balance charged; no agent_runs row.
+    """
+    from datetime import timezone
+    from services.task_workspace import TaskWorkspace
+
+    now = datetime.now(timezone.utc)
+    tw = TaskWorkspace(client, user_id, "maintain-overview")
+
+    # Single markdown section — the compose pipeline reads page_structure and
+    # matches "Workspace Synthesis" → kind="narrative". One section, no provenance strip.
+    warming_md = (
+        "## Workspace Synthesis\n\n"
+        "Your workspace is warming up. Synthesis will deepen as your agents run and "
+        "accumulate context. Tell YARNNN what you want to track or produce to get started."
+    )
+
+    # Write output.md to task output folder (same path the pipeline writes to)
+    date_str = now.strftime("%Y-%m-%d")
+    output_folder = f"/tasks/maintain-overview/outputs/{date_str}"
+    try:
+        await tw.write("outputs/latest/output.md", warming_md, summary="maintain-overview warming-up state")
+        await tw.write(f"outputs/{date_str}/output.md", warming_md, summary="maintain-overview warming-up state")
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC] maintain-overview empty-state write failed: {e}")
+
+    # Write minimal manifest so IntelligenceCard knows the output exists
+    import json
+    manifest = {
+        "task_slug": "maintain-overview",
+        "date": date_str,
+        "created_at": now.isoformat(),
+        "sections": [{"slug": "workspace-synthesis", "title": "Workspace Synthesis", "kind": "narrative", "produced_at": now.isoformat()}],
+        "empty_state": True,
+    }
+    try:
+        await tw.write("outputs/latest/sys_manifest.json", json.dumps(manifest, indent=2), summary="maintain-overview empty-state manifest")
+        await tw.write(f"outputs/{date_str}/sys_manifest.json", json.dumps(manifest, indent=2), summary="maintain-overview empty-state manifest")
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC] maintain-overview manifest write failed: {e}")
+
+    # Update last_run_at
+    try:
+        client.table("tasks").update({
+            "last_run_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }).eq("user_id", user_id).eq("slug", "maintain-overview").execute()
+    except Exception as e:
+        logger.warning(f"[TASK_EXEC] maintain-overview empty-state last_run_at update failed: {e}")
+
+    return {
+        "success": True,
+        "task_slug": "maintain-overview",
+        "status": "delivered",
+        "message": "maintain-overview empty-state: workspace warming up",
         "kind": "empty_state",
     }
 

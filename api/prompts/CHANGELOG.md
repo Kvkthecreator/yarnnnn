@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.1] - maintain-overview task type + workspace-intelligence step instruction — ADR-204 Phase 1
+
+### Changed
+
+- `api/services/task_types.py`: new `maintain-overview` task type added (`output_kind: produces_deliverable`, `surface_type: dashboard`, `registry_default_team: ["reporting"]`, `schedule: "0 6 * * *"`). Full 7-entry `page_structure` catalog matches ADR-204 section catalog.
+- `api/services/task_types.py`: new `STEP_INSTRUCTIONS["workspace-intelligence"]` — 5-step instruction guiding the Reporting agent to: (1) read workspace substrate, (2) read DELIVERABLE.md catalog, (3) assess what the workspace knows, (4) emit only warranted sections with exact catalog titles, (5) append to run_log.md as handoff.
+- `api/services/task_types.py`: `build_deliverable_md_from_type()` extended to check `custom_deliverable_md` field first. `maintain-overview` declares a `custom_deliverable_md` with the full Composition Intent + Section Catalog + Archetype Framing Hints + Suppression Rule (ADR-204 §3).
+
+### Expected behavior
+
+- The Reporting agent receives a 5-step instruction that enforces the ADR-204 catalog discipline: read first, assess workspace state, emit only sections backed by actual data, use exact catalog titles for kind dispatch.
+- DELIVERABLE.md scaffolded at workspace init contains the full catalog table — agent consults it at generation time to decide which sections to emit. DELIVERABLE.md evolves via preference inference (ADR-149) after sufficient runs.
+- Unknown section kinds added by the agent (not in the catalog) degrade gracefully: `kind="narrative"` in parser, markdown fallback in renderer, raw-string label in frontend KIND_LABELS.
+
+### Refs
+
+- ADR-204 (Workspace Intelligence Cockpit) §2 (task type), §3 (DELIVERABLE.md catalog), §5 (scheduling)
+
+---
+
 ## [2026.04.21.1] - Cockpit first-run guidance — ADR-203 Phase 1
 
 ### Changed
