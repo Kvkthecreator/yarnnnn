@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.2] - ADR-204 Phase 2 — lazy refresh + preference inference
+
+### Changed
+
+- `web/components/overview/IntelligenceCard.tsx`: lazy refresh on Overview load — after initial output fetch, checks `sys_manifest.created_at`. If older than 6h, silently fires `POST /api/tasks/maintain-overview/run` and reloads on completion. Subtle "Updating" indicator in header. Existing (stale) content always rendered while background run executes.
+- `api/services/task_pipeline.py`: post-execution inference hook for `maintain-overview`. After every 5th successful run (`next_version % 5 == 0`), calls `infer_task_deliverable_preferences()`. Distills feedback entries (user, TP evaluation, system verification) into operator-confirmed section preferences that narrow the catalog. Non-fatal — failure is logged and never blocks the task return.
+
+### Expected behavior
+
+- Operators always see existing cockpit content immediately on Overview load. If the content is stale (>6h), a background refresh runs and the card silently updates without a page reload.
+- After accumulating 5 runs and sufficient feedback, the Reporting agent's DELIVERABLE.md gains a "User Preferences (inferred)" section that constrains which catalog sections to prioritize/suppress for that specific workspace. Inference runs again every 5 subsequent runs to pick up new patterns.
+
+### Refs
+
+- ADR-204 (Workspace Intelligence Cockpit) Phase 2
+
+---
+
 ## [2026.04.22.1] - maintain-overview task type + workspace-intelligence step instruction — ADR-204 Phase 1
 
 ### Changed

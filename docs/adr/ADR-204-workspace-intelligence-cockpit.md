@@ -1,6 +1,6 @@
 # ADR-204: Workspace Intelligence Cockpit — Overview as Synthesis Surface
 
-> **Status**: Phase 1 Implemented (2026-04-22)
+> **Status**: Fully Implemented (2026-04-22)
 > **Date**: 2026-04-21
 > **Authors**: KVK, Claude
 > **Extends**: ADR-199 (Overview surface), ADR-198 v2 (cockpit service model), ADR-203 (first-run guidance layer)
@@ -273,10 +273,10 @@ No new API endpoints. No new rendering infrastructure. The Intelligence Card reu
 | `web/components/overview/IntelligenceCard.tsx` | New component: fetch maintain-overview latest output, render TaskOutputCard, empty-state |
 | `web/components/overview/OverviewSurface.tsx` | Add `<IntelligenceCard />` below `<SnapshotPane />` |
 
-### Phase 2 (future ADR)
+### Phase 2 (Implemented 2026-04-22)
 
-- Lazy refresh: if `sys_manifest.json.created_at` > 6h, trigger async re-execution on Overview load
-- DELIVERABLE.md preference inference: after ≥5 runs, `infer_task_deliverable_preferences()` distills recurring section patterns into operator-confirmed preferences
+- **Lazy refresh** — `IntelligenceCard.tsx`: on load, if `sys_manifest.created_at` is older than 6h, silently fires `POST /api/tasks/maintain-overview/run`. Existing (stale) content remains visible while the background run executes; subtle "Updating" indicator in the card header. Reloads output when the run completes. Silent failure — stale content always preferred over a broken card.
+- **DELIVERABLE.md preference inference** — `task_pipeline.py`: after every 5th successful `maintain-overview` run (`next_version >= 5 and next_version % 5 == 0`), calls `infer_task_deliverable_preferences(client, user_id, "maintain-overview")`. Distills accumulated feedback entries (user corrections, TP evaluations, system verification signals) into operator-confirmed preferences that narrow the section catalog for future runs. Non-fatal — inference failure is logged and skipped.
 
 ---
 
@@ -357,4 +357,5 @@ Domain-agnostic by construction: the section catalog covers all operator types; 
 | 2026-04-21 | v2 — Two substantive changes from alignment: (1) OQ-2 resolved to Model B (Reporting agent, standard pipeline) — Model A (TP executor + Haiku) documented as prepared cost-fallback with explicit revert criteria and switch points. (2) OQ-4 resolved: fixed section set replaced with catalog-driven agnostic composition — DELIVERABLE.md declares a superset catalog; Reporting agent chooses the subset appropriate to the workspace. Pipeline compatibility verified (parse_draft_into_sections open parser, render service unknown-kind fallback, KIND_LABELS graceful degradation). Discourse point added on whether agnostic section pattern generalizes beyond maintain-overview. All other OQs from v1 resolved. |
 | 2026-04-21 | v2.1 — Implementation gate verified: `calculate_next_run_at()` already supports cron strings via `_looks_like_cron()` + croniter path — no scheduler enhancement needed. Implementation note updated: Phase 5c requires a new `_create_essential_deliverable_task()` helper (existing back-office helper hardcodes `"daily"`; maintain-overview also writes DELIVERABLE.md and uses non-TP agent). |
 | 2026-04-21 | v2.2 — Philosophy update (no decision change): "fixed-template vs workspace-adaptive" framing removed. Replaced with directional theme: DELIVERABLE.md catalog + archetype hints are a seed, not an endpoint. Long-term direction is user-customizable BI dashboard — open section kinds, inference-driven evolution, operator-shaped cockpit. No new scaffolding in scope. Discourse point on daily-update generalization dissolved — each task has its own seed with its own evolution path; no generalization call needed now. |
+| 2026-04-22 | **Phase 2 Implemented** — Lazy refresh wired in `IntelligenceCard.tsx` (6h staleness threshold, silent background run, "Updating" indicator). DELIVERABLE.md preference inference wired in `task_pipeline.py` post-execution hook (every 5th successful run, non-fatal). ADR status bumped to "Fully Implemented." |
 | 2026-04-22 | **Phase 1 Implemented** — Backend: `maintain-overview` task type in `task_types.py` (output_kind=produces_deliverable, 7-entry page_structure catalog, workspace-intelligence step instruction, custom_deliverable_md with full catalog + archetype framing hints); `_create_essential_deliverable_task()` helper in `workspace_init.py` (cron schedule support); Phase 5c seeds maintain-overview at signup (06:00 local); `workspace_state` in `working_memory.py` gains `domain_entity_counts` + `outcome_connected`; empty-state branch in `task_pipeline.py` writes warming-up artifact at zero LLM cost. Frontend: `TaskOutputCard` extracted from `DeliverableMiddle` (shared iframe+SectionProvenanceStrip primitive); `IntelligenceCard.tsx` created (fetch + render + empty states); `OverviewSurface.tsx` wired. Minor deviation from ADR: `custom_deliverable_md` field added to task type registry as an extension point for catalog-driven tasks — not an architectural change, consistent with ADR-188 "registries as template libraries." |

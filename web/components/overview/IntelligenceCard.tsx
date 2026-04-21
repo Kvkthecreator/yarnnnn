@@ -12,20 +12,53 @@
  * is a purpose-built artifact for Overview's exclusive consumption
  * (delivery: none, sole consumer this surface). I2 passes.
  *
+ * ADR-204 Phase 2 — Lazy refresh:
+ *   On load, if sys_manifest.created_at is older than 6 hours, silently
+ *   trigger a background re-run and reload when it completes. Existing
+ *   (stale) content remains visible during the refresh.
+ *
  * Empty states:
  *   - No output yet (day-zero or first run pending): warming-up placeholder
  *   - Load error: non-fatal, shows retry
  */
 
+import { useEffect, useState } from 'react';
 import { Brain, Loader2, RefreshCw } from 'lucide-react';
+import { api } from '@/lib/api/client';
 import { TaskOutputCard } from '@/components/work/details/DeliverableMiddle';
 import { useTaskOutputs } from '@/hooks/useTaskOutputs';
+
+const STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 export function IntelligenceCard({ refreshKey }: { refreshKey?: number }) {
   const { latest, loading, error, reload } = useTaskOutputs('maintain-overview', {
     includeLatest: true,
     refreshKey: refreshKey ?? 0,
   });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // ADR-204 Phase 2: Lazy refresh — if sys_manifest.created_at > 6h, trigger
+  // background re-execution so the next Overview load sees fresh output.
+  // Fires once after the initial load resolves. Silent failure — stale content
+  // is always better than a broken card.
+  useEffect(() => {
+    if (loading || isRefreshing || !latest) return;
+
+    const sysManifest = latest.sys_manifest as Record<string, unknown> | undefined;
+    const createdAt = sysManifest?.created_at as string | undefined;
+    if (!createdAt) return;
+
+    const ageMs = Date.now() - new Date(createdAt).getTime();
+    if (ageMs <= STALE_THRESHOLD_MS) return;
+
+    setIsRefreshing(true);
+    void api.tasks
+      .run('maintain-overview')
+      .then(() => reload())
+      .catch(() => {})
+      .finally(() => setIsRefreshing(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]); // only re-check when loading state changes (i.e., on initial load)
 
   const hasOutput = latest && (latest.html_content || latest.content || latest.md_content);
 
@@ -39,6 +72,13 @@ export function IntelligenceCard({ refreshKey }: { refreshKey?: number }) {
           <>
             <span className="text-muted-foreground/30 text-[10px]">·</span>
             <span className="text-[10px] text-muted-foreground/50">{latest.date}</span>
+          </>
+        )}
+        {isRefreshing && (
+          <>
+            <span className="text-muted-foreground/30 text-[10px]">·</span>
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/40" />
+            <span className="text-[10px] text-muted-foreground/40">Updating</span>
           </>
         )}
       </div>

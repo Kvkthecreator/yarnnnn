@@ -2540,6 +2540,21 @@ async def execute_task(
             except Exception as card_err:
                 logger.warning(f"[SYSTEM_CARD] task_complete write failed (non-fatal): {card_err}")
 
+        # =====================================================================
+        # ADR-204 Phase 2: DELIVERABLE.md preference inference for maintain-overview.
+        # After every 5th successful run, distill accumulated feedback (section
+        # patterns, TP evaluations, system verification signals) into operator-
+        # confirmed preferences that narrow the catalog for future runs.
+        # Non-fatal — inference failure never blocks the task return.
+        # =====================================================================
+        if task_slug == "maintain-overview" and final_status == "delivered" and next_version >= 5 and next_version % 5 == 0:
+            try:
+                from services.task_deliverable_inference import infer_task_deliverable_preferences
+                await infer_task_deliverable_preferences(client, user_id, task_slug)
+                logger.info(f"[TASK_EXEC] maintain-overview deliverable inference ran at v{next_version}")
+            except Exception as infer_err:
+                logger.warning(f"[TASK_EXEC] maintain-overview deliverable inference failed (non-fatal): {infer_err}")
+
         return {
             "success": final_status == "delivered",
             "task_slug": task_slug,
