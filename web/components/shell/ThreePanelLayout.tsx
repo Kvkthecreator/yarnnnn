@@ -266,7 +266,7 @@ export function ThreePanelLayout({
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background z-10 shrink-0">
               <div className="flex items-center gap-2">
                 <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
-                <span className="text-xs font-medium">TP</span>
+                <span className="text-sm font-brand">yarnnn</span>
                 {chat.contextLabel && (
                   <span className="text-[10px] text-muted-foreground/50 truncate max-w-[160px]">
                     · {chat.contextLabel}

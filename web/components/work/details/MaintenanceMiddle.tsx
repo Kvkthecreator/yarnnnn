@@ -47,7 +47,7 @@ export function MaintenanceMiddle({
         <div className="flex items-start gap-2">
           <Wrench className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground">
-            This task is owned by Thinking Partner. It runs deterministic
+            This task is owned by YARNNN. It runs deterministic
             maintenance on your workspace — no LLM call, no quality gate. The
             artifact is a hygiene log of what it touched on each run.
           </p>

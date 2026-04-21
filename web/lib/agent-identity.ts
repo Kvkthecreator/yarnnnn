@@ -149,8 +149,8 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     iconName: 'GitBranch',
   },
   thinking_partner: {
-    displayName: 'Thinking Partner',
-    shortLabel: 'TP',
+    displayName: 'YARNNN',
+    shortLabel: 'YARNNN',
     tagline: 'Orchestrates your workforce',
     avatarHex: '#1f2937',
     badgeClass: 'bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100',
@@ -173,7 +173,7 @@ const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
     description: 'Bridges one external platform into the workspace.',
   },
   'meta-cognitive': {
-    label: 'Thinking Partner',
+    label: 'YARNNN',
     description: 'Owns orchestration and back office maintenance.',
   },
 };

@@ -206,7 +206,8 @@ export function ChatSurface({
           size="md"
           bordered={false}
           icon={surfaceLogo}
-          title="YARNNN"
+          title="yarnnn"
+          brandTitle
           actions={overviewAction}
         />
       </div>

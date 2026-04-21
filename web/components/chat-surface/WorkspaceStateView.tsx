@@ -911,7 +911,7 @@ function formatRelativeTime(value?: string): string | null {
 
 function agentTitleFor(task: Task, agents: Agent[]): string {
   const slug = task.agent_slugs?.[0];
-  if (!slug) return 'TP';
+  if (!slug) return 'YARNNN';
   const agent = agents.find((a) => getAgentSlug(a) === slug);
   return agent?.title || slug;
 }

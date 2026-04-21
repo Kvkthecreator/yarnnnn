@@ -64,6 +64,12 @@ interface SurfaceIdentityHeaderProps {
    * PageHeader's own divider above already separates chrome from content.
    */
   bordered?: boolean;
+  /**
+   * When true, the title IS the yarnnn brand mark — render it in Pacifico
+   * (font-brand) instead of the regular semibold sans. Only /chat uses this,
+   * because only /chat's hero title is literally the product name.
+   */
+  brandTitle?: boolean;
 }
 
 export function SurfaceIdentityHeader({
@@ -73,11 +79,15 @@ export function SurfaceIdentityHeader({
   icon,
   size = 'lg',
   bordered = true,
+  brandTitle = false,
 }: SurfaceIdentityHeaderProps) {
-  const titleClass =
-    size === 'md'
+  const titleClass = brandTitle
+    ? (size === 'md'
+      ? 'text-xl font-brand text-foreground truncate'
+      : 'text-3xl font-brand text-foreground truncate')
+    : (size === 'md'
       ? 'text-base font-semibold text-foreground truncate'
-      : 'text-2xl font-semibold text-foreground truncate';
+      : 'text-2xl font-semibold text-foreground truncate');
 
   // When bordered (full-width, standalone mode) we own horizontal padding.
   // When unbordered (embedded inside a constrained column, e.g. /chat's

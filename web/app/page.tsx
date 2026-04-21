@@ -165,7 +165,7 @@ export default function LandingPage() {
                       { name: "Slack Bot", letter: "S", color: "#E01E5A", desc: "Reads your channels & threads" },
                       { name: "Notion Bot", letter: "N", color: "#191919", desc: "Reads your pages & databases" },
                       { name: "GitHub Bot", letter: "G", color: "#111827", desc: "Follows repos & activity" },
-                      { name: "Thinking Partner", letter: "TP", color: "#374151", desc: "Manages and orchestrates the team" },
+                      { name: "YARNNN", letter: "Y", color: "#374151", desc: "Manages and orchestrates the team" },
                     ] as const).map((agent) => (
                       <div key={agent.name} className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#1a1a1a]/[0.02] transition-colors">
                         <div

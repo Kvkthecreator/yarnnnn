@@ -40,7 +40,7 @@ interface AgentRosterSurfaceProps {
 const CLASS_ORDER = ['meta-cognitive', 'specialist', 'domain-steward', 'synthesizer', 'platform-bot'] as const;
 const CLASS_LABELS: Record<string, { title: string; description: string }> = {
   'meta-cognitive': {
-    title: 'Thinking Partner',
+    title: 'YARNNN',
     description: 'Your day-to-day collaborator. Chats with you and runs background upkeep.',
   },
   'specialist': {
