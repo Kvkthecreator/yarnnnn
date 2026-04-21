@@ -5,6 +5,11 @@
 > verification SQL, or copy-pasting credentials into ad-hoc scripts for
 > Alpha-1 personas — stop and use the harness instead. If the harness
 > doesn't do what you need, extend the harness.
+> **See also**: [CLAUDE-OPERATOR-ACCESS.md](./CLAUDE-OPERATOR-ACCESS.md)
+> for the access model (which session uses which mode, what Claude can
+> and can't do, how future connection paths fit in). This harness is
+> the machinery for Mode 1 (headless). Mode 2 (cockpit) + Mode 3
+> (conversational) are covered there.
 
 This is the operator entry point for Alpha-1. It turns the per-session
 rituals we used to bootstrap the two personas into a small set of

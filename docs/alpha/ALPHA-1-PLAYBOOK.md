@@ -949,6 +949,14 @@ Narrative body regenerated on each reconciler run:
 > (slug → email → user_id → workspace_id → expected invariants) lives in
 > [personas.yaml](./personas.yaml). If you are repeating a setup ritual
 > by hand, check the harness first.
+>
+> **Access model:** how a given Claude session actually operates on behalf
+> of KVK — which of three access modes applies, what Claude can and cannot
+> do in each, and how future connection paths (MCP, Playwright,
+> impersonation chrome) will slot in — is documented in
+> [CLAUDE-OPERATOR-ACCESS.md](./CLAUDE-OPERATOR-ACCESS.md). Read that
+> once; it pins the operational contract between KVK and any Claude
+> session without re-derivation each time.
 
 ### 4.0 Ownership split (what KVK does vs. what Claude does)
 
