@@ -943,6 +943,13 @@ Narrative body regenerated on each reconciler run:
 
 ## 4. Setup sequence
 
+> **Operational machinery:** the day-to-day connect/verify/reset commands
+> that both KVK and Claude run are documented in
+> [OPERATOR-HARNESS.md](./OPERATOR-HARNESS.md). The persona registry
+> (slug → email → user_id → workspace_id → expected invariants) lives in
+> [personas.yaml](./personas.yaml). If you are repeating a setup ritual
+> by hand, check the harness first.
+
 ### 4.0 Ownership split (what KVK does vs. what Claude does)
 
 **This is an honest delineation of Phase 0 and Phase 1 work** — the playbook earlier implied Claude could handle "prerequisites + Phase 0-1 fully," which isn't accurate once we audit what each step requires.

@@ -1,0 +1,105 @@
+# Alpha-1 Persona Registry
+#
+# Single source of truth for who each alpha persona is and where their state
+# lives. No secrets belong in this file — credentials live in 1Password +
+# local env vars (see docs/alpha/OPERATOR-HARNESS.md).
+#
+# Both KVK and Claude read this file to know which workspace to act on.
+# Any persona added here is callable via scripts/alpha_ops/*.py by slug.
+#
+# Last confirmed against DB: 2026-04-21
+
+version: 1
+
+supabase:
+  url: https://noxgqcwynkzqabljjyon.supabase.co
+  # SUPABASE_SERVICE_KEY lives in env (docs/database/ACCESS.md for value)
+
+api:
+  prod_base_url: https://yarnnn-api.onrender.com
+  # JWTs are short-lived (1h); mint fresh via scripts/alpha_ops/mint_jwt.py
+
+personas:
+
+  - slug: alpha-trader
+    label: "Simons-inspired systematic retail trader"
+    email: seulkim88@gmail.com
+    user_id: 2be30ac5-b3cf-46b1-aeb8-af39cd351af4
+    workspace_id: b7e1b9bc-ffb3-478e-bd05-dcae01a8a6b1
+    platform:
+      kind: trading
+      provider: alpaca
+      mode: paper           # paper | live — alpha stays paper through Phase 2
+      account_suffix: X4DJ  # last 4 of Alpaca account number, for sanity-check
+    context_domains:
+      - trading
+      - portfolio
+      - signals
+    # Exact cred env-var names the connect script reads.
+    # Not the values — those are in 1Password > YARNNN Alpha-1 > alpha-trader.alpaca-paper
+    credentials_env:
+      api_key:    ALPHA_TRADER_ALPACA_KEY
+      api_secret: ALPHA_TRADER_ALPACA_SECRET
+    vault_entry: "1Password > YARNNN Alpha-1 > alpha-trader.alpaca-paper"
+    # Invariants that verify.py checks on this persona.
+    expected:
+      agent_count: 12
+      active_bots: [trading_bot, thinking_partner]
+      essential_tasks:
+        - back-office-agent-hygiene
+        - back-office-outcome-reconciliation
+        - back-office-proposal-cleanup
+        - back-office-workspace-cleanup
+        - daily-update
+      scaffolded_tasks:       # non-essential but expected post-connect
+        - trading-sync
+      platform_connections: 1
+      core_files:
+        - /workspace/IDENTITY.md
+        - /workspace/CONVENTIONS.md
+        - /workspace/AWARENESS.md
+        - /workspace/BRAND.md
+        - /workspace/review/IDENTITY.md
+        - /workspace/review/principles.md
+      # Note: _risk.md is written without a leading slash per
+      # api/services/risk_gate.py:48 (RISK_MD_PATH constant). Documented drift
+      # from ADR-119 path conventions, not a bug.
+      risk_md_path: workspace/context/trading/_risk.md
+
+  - slug: alpha-commerce
+    label: "Korea↔USA international commerce operator (KVK voice)"
+    email: kvkthecreator@gmail.com
+    user_id: 2abf3f96-118b-4987-9d95-40f2d9be9a18
+    workspace_id: ff92352e-5b8a-4ba3-9a8c-eb93540df542
+    platform:
+      kind: commerce
+      provider: lemonsqueezy
+      store_name: KVKtheCreator
+    context_domains:
+      - customers
+      - revenue
+      - signals
+    credentials_env:
+      api_key: ALPHA_COMMERCE_LEMONSQUEEZY_KEY
+    vault_entry: "1Password > YARNNN Alpha-1 > alpha-commerce.lemonsqueezy"
+    expected:
+      agent_count: 12
+      active_bots: [commerce_bot, thinking_partner]
+      essential_tasks:
+        - back-office-agent-hygiene
+        - back-office-outcome-reconciliation
+        - back-office-proposal-cleanup
+        - back-office-workspace-cleanup
+        - daily-update
+      # Known asymmetry (2026-04-21): connect_commerce does NOT scaffold a
+      # commerce-digest task. connect_trading does scaffold trading-sync.
+      # Surfaced as alpha friction → candidate for ADR-203-adjacent work.
+      scaffolded_tasks: []
+      platform_connections: 1
+      core_files:
+        - /workspace/IDENTITY.md
+        - /workspace/CONVENTIONS.md
+        - /workspace/AWARENESS.md
+        - /workspace/BRAND.md
+        - /workspace/review/IDENTITY.md
+        - /workspace/review/principles.md
