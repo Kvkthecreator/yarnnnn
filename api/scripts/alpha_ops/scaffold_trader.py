@@ -361,11 +361,19 @@ The operator makes the call.
 # Tasks — playbook §3A.5
 # =============================================================================
 
+# Task payloads for POST /api/tasks → ManageTask._handle_create.
+# Each entry carries agent_slug (primary executor), mode (recurring|goal|
+# reactive), optional team (specialist roster per ADR-176 Phase 2), and
+# objective/success_criteria/delivery. Mode is explicit — the route's DB
+# default of 'recurring' is no longer silent about reactive-mode tasks.
 TASKS = [
     {
         "title": "Track universe",
-        "slug": "track-universe",
+        "agent_slug": "trading-bot",
+        "team": ["trading-bot"],
+        "mode": "recurring",
         "schedule": "0 8,11,15 * * 1-5",  # 08:00, 11:30, 15:45 ET approx (weekday-only)
+        "delivery": "cockpit-only",
         "objective": {
             "deliverable": "Per-ticker price + indicator state files under /workspace/context/trading/{ticker}.md",
             "audience": "signal-evaluation task (downstream) + operator (reference)",
@@ -379,8 +387,11 @@ TASKS = [
     },
     {
         "title": "Signal evaluation",
-        "slug": "signal-evaluation",
+        "agent_slug": "analyst",
+        "team": ["analyst", "trading-bot"],
+        "mode": "recurring",
         "schedule": "5 8 * * 1-5",  # 08:05 ET weekdays
+        "delivery": "cockpit-only",
         "objective": {
             "deliverable": "Per-signal state files at /workspace/context/trading/signals/{signal-slug}.md",
             "audience": "trade-proposal task (emits on fire) + pre-market-brief (narrative summary)",
@@ -395,8 +406,11 @@ TASKS = [
     },
     {
         "title": "Pre-market brief",
-        "slug": "pre-market-brief",
+        "agent_slug": "writer",
+        "team": ["writer", "analyst"],
+        "mode": "recurring",
         "schedule": "15 8 * * 1-5",  # 08:15 ET weekdays
+        "delivery": "cockpit-only",
         "objective": {
             "deliverable": "Daily HTML brief composed from signal-evaluation output + portfolio state",
             "audience": "Operator (cockpit Overview surface; email is expository pointer per ADR-202)",
@@ -411,8 +425,11 @@ TASKS = [
     },
     {
         "title": "Trade proposal",
-        "slug": "trade-proposal",
-        "schedule": None,  # reactive, event-triggered by signal-evaluation
+        "agent_slug": "trading-bot",
+        "team": ["trading-bot"],
+        "mode": "reactive",          # event-triggered by signal-evaluation, not scheduled
+        "schedule": None,
+        "delivery": "cockpit-only",
         "objective": {
             "deliverable": "ProposeAction with full signal attribution, forwarded to AI Reviewer → cockpit Queue",
             "audience": "AI Reviewer (evaluates via principles.md 6-check framework) → human operator (final approval)",
@@ -428,8 +445,11 @@ TASKS = [
     },
     {
         "title": "Weekly performance review",
-        "slug": "weekly-performance-review",
+        "agent_slug": "analyst",
+        "team": ["analyst", "writer"],
+        "mode": "recurring",
         "schedule": "0 18 * * 0",  # Sunday 18:00 ET
+        "delivery": "cockpit-only",
         "objective": {
             "deliverable": "Weekly HTML performance report with per-signal attribution",
             "audience": "Operator (Sunday planning surface)",
@@ -444,8 +464,11 @@ TASKS = [
     },
     {
         "title": "Quarterly signal audit",
-        "slug": "quarterly-signal-audit",
+        "agent_slug": "analyst",
+        "team": ["analyst", "writer"],
+        "mode": "recurring",
         "schedule": "0 18 31 3,6,9,12 *",  # Mar/Jun/Sep/Dec 31 (approx quarter-end)
+        "delivery": "cockpit-only",
         "objective": {
             "deliverable": "Quarterly audit document: signals to retire, retune, or add to Signals 6-8 slots",
             "audience": "Operator (ratifies final decisions; YARNNN prepares analysis)",
@@ -518,9 +541,9 @@ def main() -> int:
         print(f"  DB upsert /workspace/review/principles.md                ({len(PRINCIPLES_MD):,} chars)")
         print(f"  DB upsert /workspace/context/trading/_operator_profile.md ({len(OPERATOR_PROFILE_MD):,} chars)")
         print(f"  DB upsert workspace/context/trading/_risk.md [no leading slash per risk_gate.py:48] ({len(RISK_MD):,} chars)")
-        print(f"  POST /api/tasks × {len(TASKS)}, then PUT status=paused on each")
+        print(f"  POST /api/tasks × {len(TASKS)}  (active on create — ManageTask._handle_create canonical path)")
         for t in TASKS:
-            print(f"      - {t['slug']}  schedule={t['schedule']!r}")
+            print(f"      - {t['title']}  agent={t['agent_slug']}  mode={t['mode']}  schedule={t['schedule']!r}")
         return 0
 
     errors: list[str] = []
@@ -543,32 +566,30 @@ def main() -> int:
         else:
             print(f"  OK  ({len(BRAND_MD):,} chars)")
 
-        # ----- Step 6: Create 6 tasks (done via prod API while JWT is live) -----
-        print(f"[6/6] POST /api/tasks × {len(TASKS)}  then PUT status=paused")
+        # ----- Step 6: Create 6 tasks (canonical ManageTask._handle_create path) -----
+        # Tasks created status=active. Scheduler picks them up on their cron.
+        # No pause step — the prior version paused because TASK.md was
+        # structurally incomplete. ADR-168 singular-implementation fix
+        # makes TASK.md complete at create, so activation is immediate.
+        print(f"[6/6] POST /api/tasks × {len(TASKS)}")
         for t in TASKS:
             payload = {k: v for k, v in t.items() if v is not None}
             r = pc.post("/api/tasks", json=payload)
+            title = t["title"]
             if r.status_code == 409:
-                print(f"  SKIP {t['slug']}  (already exists)")
+                print(f"  SKIP {title}  (already exists)")
                 continue
             if r.status_code >= 300:
-                errors.append(f"task {t['slug']}: [{r.status_code}] {r.text[:200]}")
-                print(f"  FAIL {t['slug']}  [{r.status_code}]: {r.text[:200]}")
+                errors.append(f"task {title}: [{r.status_code}] {r.text[:200]}")
+                print(f"  FAIL {title}  [{r.status_code}]: {r.text[:200]}")
                 continue
-            # Flip to paused
-            r2 = pc.request(
-                "PUT",
-                f"/api/tasks/{t['slug']}",
-                json={"status": "paused"},
-            ) if hasattr(pc, "request") else pc._client.put(
-                f"{pc.base}/api/tasks/{t['slug']}",
-                json={"status": "paused"},
+            body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+            print(
+                f"  OK   {body.get('slug', title):<30} "
+                f"mode={body.get('mode','?'):<10} "
+                f"agent={(body.get('agent_slugs') or ['?'])[0]:<15} "
+                f"next={body.get('next_run_at', '—')}"
             )
-            if r2.status_code >= 300:
-                errors.append(f"task {t['slug']} pause: [{r2.status_code}] {r2.text[:200]}")
-                print(f"  CREATED but pause FAIL {t['slug']}: [{r2.status_code}] {r2.text[:200]}")
-            else:
-                print(f"  OK   {t['slug']}  (created + paused)")
 
     # ----- Step 3-5: DB writes for gated paths -----
     print("[3/6] DB upsert /workspace/review/principles.md")

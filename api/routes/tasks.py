@@ -38,13 +38,32 @@ router = APIRouter()
 # =============================================================================
 
 class TaskCreate(BaseModel):
+    """Canonical task-creation payload.
+
+    Dispatches through ManageTask._handle_create (ADR-168 Commit 3 canonical
+    path). A caller supplies EITHER type_key (registry-driven path — team +
+    process resolved from TASK_TYPES) OR agent_slug (custom-task path —
+    primary agent assignment, optional team override).
+    """
     title: str
-    slug: Optional[str] = None  # auto-generated from title if not provided
     schedule: Optional[str] = None
-    objective: Optional[dict] = None  # {deliverable, audience, purpose, format}
+
+    # Canonical targeting (ADR-168): one of these is required
+    type_key: Optional[str] = None      # registry lookup (ADR-145/166)
+    agent_slug: Optional[str] = None    # primary agent for custom tasks
+
+    # Mode — ADR-178 invariant: DB tasks.mode and TASK.md **Mode:** stay in sync
+    mode: Optional[str] = None          # recurring | goal | reactive; default=recurring
+
+    # Team composition — ADR-176 Phase 2: list of role/slug strings rendered under ## Team
+    team: Optional[list] = None
+
+    # Charter body
+    objective: Optional[dict] = None    # {deliverable, audience, purpose, format}
     success_criteria: Optional[list] = None
-    process: Optional[dict] = None  # {agents: [slug], cadence, delivery}
     output_spec: Optional[list] = None
+    delivery: Optional[str] = None      # email, cockpit-only, etc.
+    page_structure: Optional[list] = None  # ADR-174 Phase 3: bespoke compose layout
 
 
 class TaskUpdate(BaseModel):
@@ -248,50 +267,13 @@ def _parse_deliverable_md(content: str, output_kind: Optional[str] = None) -> Op
     return spec
 
 
-def _format_task_md(
-    title: str,
-    objective: Optional[dict] = None,
-    success_criteria: Optional[list] = None,
-    process: Optional[dict] = None,
-    output_spec: Optional[list] = None,
-) -> str:
-    """Build TASK.md content from structured fields."""
-    lines = [f"# {title}", ""]
-
-    if objective:
-        lines.append("## Objective")
-        for key in ("deliverable", "audience", "purpose", "format"):
-            val = objective.get(key)
-            if val:
-                lines.append(f"- **{key.capitalize()}**: {val}")
-        lines.append("")
-
-    if success_criteria:
-        lines.append("## Success Criteria")
-        for criterion in success_criteria:
-            lines.append(f"- {criterion}")
-        lines.append("")
-
-    if process:
-        lines.append("## Process")
-        agents = process.get("agents")
-        if agents:
-            lines.append(f"- **Agents**: {', '.join(agents)}")
-        cadence = process.get("cadence")
-        if cadence:
-            lines.append(f"- **Cadence**: {cadence}")
-        delivery = process.get("delivery")
-        if delivery:
-            lines.append(f"- **Delivery**: {delivery}")
-        lines.append("")
-
-    if output_spec:
-        lines.append("## Output Spec")
-        for item in output_spec:
-            lines.append(f"- {item}")
-        lines.append("")
-
-    return "\n".join(lines)
+# _format_task_md removed — ADR-168 singular-implementation cleanup.
+# TASK.md serialization now lives exclusively in services/primitives/manage_task.py
+# (_build_custom_task_md + build_task_md_from_type). Route-scoped formatter was
+# a structurally-incomplete duplicate that omitted **Mode:**, **Output:**,
+# **Agent:**, ## Team, and skipped DELIVERABLE.md/feedback.md/steering.md/
+# awareness.md/context-domain scaffolding. Create path now dispatches through
+# ManageTask._handle_create.
 
 
 def _parse_task_md(content: str) -> dict:
@@ -635,74 +617,73 @@ async def create_task(
     auth: UserClient,
 ) -> TaskResponse:
     """
-    Create a new task. Creates DB row + writes TASK.md to workspace.
+    Create a new task — dispatches through ManageTask._handle_create.
 
-    Does NOT auto-assign agents (Phase 4 will do this via TP primitives).
+    Per ADR-168 (singular implementation), the route is a thin shell over
+    the canonical primitive. The primitive handles:
+    - Slug generation + auto-suffix on collision
+    - DB row insert with mode from payload (ADR-178 invariant — DB mode
+      and TASK.md **Mode:** stay synced; the DB default 'recurring' no
+      longer silently swallows reactive/goal tasks)
+    - Full TASK.md serialization (**Slug:**, **Agent:**, **Mode:**,
+      **Schedule:**, **Delivery:**, ## Objective, ## Success Criteria,
+      ## Output Spec, ## Team, ## Page Structure) via _build_custom_task_md
+      or build_task_md_from_type
+    - DELIVERABLE.md scaffold from registry (ADR-149) or minimal custom
+      template
+    - feedback.md / memory/steering.md / awareness.md scaffolding
+      (ADR-181, ADR-149, ADR-154)
+    - Context-domain scaffolding for declared context_writes (ADR-151)
+    - First-run auto-trigger for bootstrap and goal-mode tasks (ADR-154)
+
+    Caller must supply `type_key` (registry-driven team + process) OR
+    `agent_slug` (custom task with primary-agent assignment).
     """
+    from services.primitives.manage_task import _handle_create
     from services.task_workspace import TaskWorkspace
 
-    title = request.title.strip()
+    title = (request.title or "").strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title is required")
+    if not request.type_key and not request.agent_slug:
+        raise HTTPException(
+            status_code=400,
+            detail="Either type_key or agent_slug is required",
+        )
 
-    # Generate slug
-    slug = _slugify(request.slug) if request.slug else _slugify(title)
+    payload = request.model_dump(exclude_none=True)
 
-    # Check uniqueness
-    existing = (
+    result = await _handle_create(auth, payload)
+
+    if not result.get("success"):
+        status = 409 if result.get("error") == "duplicate_slug" else 400
+        raise HTTPException(
+            status_code=status,
+            detail=result.get("message", result.get("error", "create_failed")),
+        )
+
+    # Re-read the created task so the response shape exactly matches
+    # GET /tasks/{slug}. Cheap — one row + one file read.
+    slug = result["task_slug"]
+    row_result = (
         auth.client.table("tasks")
-        .select("id")
+        .select(
+            "id, slug, status, mode, schedule, next_run_at, last_run_at, "
+            "created_at, updated_at, essential"
+        )
         .eq("user_id", auth.user_id)
         .eq("slug", slug)
         .limit(1)
         .execute()
     )
-    if existing.data:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Task with slug '{slug}' already exists",
-        )
+    rows = row_result.data or []
+    if not rows:
+        raise HTTPException(status_code=500, detail="Task created but row not found")
 
-    # Insert DB row
-    now = datetime.now(timezone.utc).isoformat()
-    insert_data = {
-        "user_id": auth.user_id,
-        "slug": slug,
-        "status": "active",
-        "created_at": now,
-        "updated_at": now,
-    }
-    if request.schedule:
-        insert_data["schedule"] = request.schedule
-
-    result = (
-        auth.client.table("tasks")
-        .insert(insert_data)
-        .execute()
-    )
-    if not result.data:
-        raise HTTPException(status_code=500, detail="Failed to create task")
-
-    row = result.data[0]
-
-    # Write TASK.md to workspace
     ws = TaskWorkspace(auth.client, auth.user_id, slug)
-    task_md = _format_task_md(
-        title=title,
-        objective=request.objective,
-        success_criteria=request.success_criteria,
-        process=request.process,
-        output_spec=request.output_spec,
-    )
-    await ws.write(
-        "TASK.md",
-        task_md,
-        summary=f"Task definition: {title}",
-        tags=["task", "charter"],
-    )
-
-    parsed = _parse_task_md(task_md)
-    return _task_row_to_response(row, parsed)
+    task_md = await ws.read_task()
+    parsed = _parse_task_md(task_md) if task_md else None
+    return _task_row_to_response(rows[0], parsed)
 
 
 @router.put("/{slug}")
