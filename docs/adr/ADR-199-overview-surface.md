@@ -1,10 +1,11 @@
 # ADR-199: Overview Surface — Cockpit Home (`/overview`)
 
-> **Status**: Proposed — implementation targeted this cycle
+> **Status**: Phase 1 Implemented (2026-04-20); **Phase 2 (first-run guidance — semantic day-zero + cockpit cold-start) extended by ADR-203 (2026-04-21)**
 > **Date**: 2026-04-20
 > **Authors**: KVK, Claude
 > **Extends**: ADR-198 v2 (Cockpit service model); FOUNDATIONS v6.0 (Axiom 3 Purpose, Axiom 6 Channel, Derived Principle 12 Channel legibility gates autonomy)
 > **Implements**: Overview destination from ADR-198 v2 — the first of four surface phases
+> **Extended by**: [ADR-203](./ADR-203-first-run-guidance-layer.md) — Phase 2 first-run guidance (cold-start landing, semantic day-zero detection, rail default-open for new signups, operator-vocabulary tile copy)
 > **Depended on by**: ADR-200 (Review surface), ADR-201 (Team rename), ADR-202 (External Channel discipline)
 
 ---
@@ -182,3 +183,4 @@ Single atomic commit. No dual nav state, no phased rollout — per singular-impl
 | Date | Change |
 |------|--------|
 | 2026-04-20 | v1 — Initial proposal. Narrower scope than ADR-198 originally estimated because ambient rail is already built via `ThreePanelLayout`. Single-commit frontend-only implementation reusing existing backend endpoints. |
+| 2026-04-21 | v1.1 — Phase 1 Implemented status recorded. Phase 2 (first-run guidance) extended by **ADR-203** following Alpha-1 observation `2026-04-21-alpha-trader-cockpit-first-run-semantically-empty.md`. ADR-203 adds: semantic-day-zero detection (agents with origin != 'system_bootstrap' + tasks with !essential + pending proposals), cold-start rail default-open with seeded prompt, rewritten `OverviewEmptyState` with structured four-section greeting, persona-aware `SnapshotPane` tile copy, and YARNNN cockpit-first-run prompt branch. See ADR-203 for full scope. |

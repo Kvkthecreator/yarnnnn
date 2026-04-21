@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.21.1] - Cockpit first-run guidance — ADR-203 Phase 1
+
+### Changed
+
+- `api/agents/yarnnn_prompts/onboarding.py`: new **Cockpit-first-run on `/overview`** paragraph added inside the "Chat Surface Modals" section. Triggers when first user message of a session arrives AND `workspace_state.identity == "empty"` AND current surface is `/overview`.
+
+### Expected behavior
+
+- On cold-start signup, the operator lands on `/overview` (HOME_ROUTE). The Overview surface renders a structured four-section greeting (`OverviewEmptyState`). The ambient YARNNN rail opens by default with a seeded first-session prompt.
+- When YARNNN processes the first message on `/overview` with empty identity:
+  - Does NOT emit any workspace-state modal marker (modal is not the /overview cold-start surface)
+  - Greets warmly, names Overview's structure briefly, offers three options: describe-work / walk-cockpit / connect-platform
+  - Harmonizes with — does not repeat — the OverviewEmptyState content
+- The `/chat` modal-marker flow is preserved for re-entry scenarios (operator comes back later to "add more context" via WorkspaceStateView).
+
+### Rationale
+
+Triggered by Alpha-1 observation `2026-04-21-alpha-trader-cockpit-first-run-semantically-empty.md` — the first real signal from alpha operation. Post-ADR-199 (HOME_ROUTE = /overview), cold-start users landed on a cockpit that reported "Nothing needs you right now · 5 tasks active across 0 agents · Book —" because the pre-cockpit onboarding flow assumed /chat entry. This prompt extension + the OverviewSurface / OverviewEmptyState / SnapshotPane changes (ADR-203 §4a-b) close that gap together.
+
+### Refs
+
+- ADR-203 (First-Run Guidance Layer) §5 — prompt extension spec
+- `docs/alpha/observations/2026-04-21-alpha-trader-cockpit-first-run-semantically-empty.md`
+- `docs/design/ONBOARDING-TP-AWARENESS.md` v5 (cockpit-aligned, updated same commit)
+
+---
+
 ## [2026.04.20.6] - External-Channel discipline (ADR-202 Phase 2) — daily-update pointer + deep-links + distribution gate
 
 ### Frontend-relay summary (for the parallel frontend session)

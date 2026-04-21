@@ -30,12 +30,37 @@ interface Snapshot {
   contextHref: string;
 }
 
-export function SnapshotPane() {
+export interface SnapshotPaneProps {
+  /**
+   * When true, tile copy shifts to teaching-mode: "No trades yet. Fires
+   * when you approve your first signal trigger." etc. Per ADR-203 §4b.
+   * Normally false; OverviewSurface swaps to OverviewEmptyState when
+   * day-zero is detected, so this flag is defensive for future "sparse"
+   * states where tiles render but still need operator-vocabulary copy.
+   */
+  isDayZero?: boolean;
+}
+
+export function SnapshotPane({ isDayZero = false }: SnapshotPaneProps) {
   const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [personaKind, setPersonaKind] = useState<'trading' | 'commerce' | 'neutral'>('neutral');
 
   useEffect(() => {
-    void loadSnapshot().then(setSnap);
+    void loadSnapshot().then(({ snapshot, persona }) => {
+      setSnap(snapshot);
+      setPersonaKind(persona);
+    });
   }, []);
+
+  const bookHeadline = isDayZero
+    ? bookTeachingCopy(personaKind)
+    : snap?.bookHeadline ?? null;
+  const workforceHeadline = isDayZero
+    ? 'YARNNN + 6 Specialists ready. Authored agents appear here as you create them.'
+    : snap?.workforceHeadline ?? null;
+  const contextHeadline = isDayZero
+    ? 'No context yet. YARNNN creates domains as you describe your work.'
+    : snap?.contextHeadline ?? null;
 
   return (
     <section>
@@ -46,24 +71,42 @@ export function SnapshotPane() {
         <SnapshotTile
           icon={<Coins className="h-4 w-4" />}
           label="Book"
-          headline={snap?.bookHeadline ?? null}
+          headline={bookHeadline}
           href={snap?.bookHref ?? '/context'}
         />
         <SnapshotTile
           icon={<Users className="h-4 w-4" />}
           label="Workforce"
-          headline={snap?.workforceHeadline ?? null}
+          headline={workforceHeadline}
           href={snap?.teamHref ?? '/team'}
         />
         <SnapshotTile
           icon={<FolderOpen className="h-4 w-4" />}
           label="Context"
-          headline={snap?.contextHeadline ?? null}
+          headline={contextHeadline}
           href={snap?.contextHref ?? '/context'}
         />
       </div>
     </section>
   );
+}
+
+/**
+ * Persona-aware teaching copy for the Book tile on day-zero / sparse
+ * states (ADR-203 §4b). Reads from platform_connections kind — trading
+ * gets P&L framing, commerce gets revenue framing, no connections gets
+ * a neutral framing.
+ */
+function bookTeachingCopy(
+  personaKind: 'trading' | 'commerce' | 'neutral',
+): string {
+  if (personaKind === 'trading') {
+    return 'No trades yet. Fires when you approve your first signal trigger.';
+  }
+  if (personaKind === 'commerce') {
+    return 'No revenue yet. Fires when your first platform records a sale.';
+  }
+  return 'No performance yet. Connect a platform and YARNNN will track it here.';
 }
 
 function SnapshotTile({
@@ -93,14 +136,34 @@ function SnapshotTile({
   );
 }
 
-async function loadSnapshot(): Promise<Snapshot> {
-  const [perfResult, agentsResult, tasksResult, contextNavResult] =
+async function loadSnapshot(): Promise<{
+  snapshot: Snapshot;
+  persona: 'trading' | 'commerce' | 'neutral';
+}> {
+  const [perfResult, agentsResult, tasksResult, contextNavResult, integrationsResult] =
     await Promise.allSettled([
       api.workspace.getFile('/workspace/context/_performance_summary.md'),
       api.agents.list('active'),
       api.tasks.list(),
       api.workspace.getNav(),
+      api.integrations.list(),
     ]);
+
+  // Detect persona from connected platforms. Trading + commerce map to
+  // known persona framings; anything else (or nothing) is neutral.
+  let persona: 'trading' | 'commerce' | 'neutral' = 'neutral';
+  if (integrationsResult.status === 'fulfilled') {
+    const providers = (integrationsResult.value.integrations ?? []).map(
+      (i) => i.provider,
+    );
+    const hasTrading = providers.some((p) => p === 'alpaca' || p === 'trading');
+    const hasCommerce = providers.some(
+      (p) => p === 'lemonsqueezy' || p === 'shopify' || p === 'stripe',
+    );
+    if (hasTrading && !hasCommerce) persona = 'trading';
+    else if (hasCommerce && !hasTrading) persona = 'commerce';
+    // both or neither → neutral
+  }
 
   // Book: parse frontmatter from _performance_summary.md if present.
   let bookHeadline: string | null = null;
@@ -138,13 +201,18 @@ async function loadSnapshot(): Promise<Snapshot> {
   }
 
   return {
-    bookHeadline,
-    bookHref: '/context?path=' + encodeURIComponent('/workspace/context/_performance_summary.md'),
-    workforceHeadline,
-    teamHref: '/team',
-    workHref: '/work',
-    contextHeadline,
-    contextHref,
+    snapshot: {
+      bookHeadline,
+      bookHref:
+        '/context?path=' +
+        encodeURIComponent('/workspace/context/_performance_summary.md'),
+      workforceHeadline,
+      teamHref: '/team',
+      workHref: '/work',
+      contextHeadline,
+      contextHref,
+    },
+    persona,
   };
 }
 
