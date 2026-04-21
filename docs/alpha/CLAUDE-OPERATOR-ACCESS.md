@@ -278,6 +278,19 @@ past ~3-4 accounts — juggling separate logins becomes friction-worthy.
 
 ## Operational rules of thumb
 
+### Session-start don't-drift checklist (ask before any substantive work)
+
+Per [DUAL-OBJECTIVE-DISCIPLINE.md](./DUAL-OBJECTIVE-DISCIPLINE.md), Alpha-1
+validates two objectives simultaneously. Default drift is toward whichever
+is nearest the keyboard (usually Objective A — architecture). Three
+questions prevent the drift:
+
+1. **Are we operating for system insight, money-truth, or both this session?** Name it. If unclear, ask KVK.
+2. **What UX friction might a non-engineer operator feel in what we're about to do?** Answer even if "none obvious." Forcing the question surfaces the gaps.
+3. **What did / will this session move on the money-truth side, even if the answer is nothing?** "Nothing, I'm on architecture today" is a valid answer; it's not valid to skip asking.
+
+These questions complement (not replace) the mode-capability + discretion-ladder checks below.
+
 ### "What mode am I in right now?"
 
 - If you're reading this in Claude Code (VSCode extension or CLI) → **Mode 1**

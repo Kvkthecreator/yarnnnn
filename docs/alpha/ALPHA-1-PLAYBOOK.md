@@ -1264,60 +1264,39 @@ Claude escalates → leaves proposal in `pending` → writes observation note na
 
 ## 7. Friction-capture loop
 
+> **Discipline pointer:** Alpha-1 validates two objectives simultaneously —
+> **A (system validation)** and **B (product / money-truth validation)**.
+> Observations and weekly reports classify against both, using the
+> **three-axis observation schema** + **dual weekly report templates**
+> defined in [DUAL-OBJECTIVE-DISCIPLINE.md](./DUAL-OBJECTIVE-DISCIPLINE.md).
+> That doc is authoritative for templates and anti-drift rules; §7.1 and
+> §7.2 below now reference it rather than duplicating.
+
 ### 7.1 Observation note format
 
-Pin at `docs/alpha/observations/{YYYY-MM-DD}-alpha-trader-{slug}.md`:
+Canonical template + three-axis schema (Objective / Within-A scope /
+FOUNDATIONS dimension) lives in
+[DUAL-OBJECTIVE-DISCIPLINE.md §observation-note-template](./DUAL-OBJECTIVE-DISCIPLINE.md#observation-note-template).
 
-```markdown
-# {YYYY-MM-DD} — alpha-trader — {one-line summary}
+Notes pin at `docs/alpha/observations/{YYYY-MM-DD}-{persona}-{slug}.md`.
 
-**Context:** what was I trying to do? (e.g., "approve proposal for NVDA Signal-1 trigger")
-**What happened:** what the cockpit / Reviewer / agent did.
-**Friction:** what was harder or more confusing than it should be.
-**Hypothesis:** what change would resolve it? (prompt tweak / component patch / ADR amendment / new ADR)
-**Dimensional classification:** which FOUNDATIONS v6.0 dimension(s) does this affect? (Substrate / Identity / Purpose / Trigger / Mechanism / Channel)
-**Simons-persona specificity:** is this friction specific to the systematic-trader character, or would any operator hit it?
-**Action:** what I did (approved / escalated / observed only / etc.).
-**ADR candidate:** yes | no | maybe — and at what trigger (1x, 2x, only-if-e-commerce-corroborates).
-```
+Key rule (from DUAL-OBJECTIVE-DISCIPLINE.md R1): *"Observations without any axis tagged are not observations — they're private thoughts or todos. Route accordingly."*
 
 ### 7.2 Weekly rollup format
 
-`docs/alpha/reports/week-{N}-alpha-trader.md`:
+Single weekly rollup superseded by **two per-objective reports** —
+`week-{N}-{persona}-A-system.md` and `week-{N}-{persona}-B-product.md`.
+Templates in
+[DUAL-OBJECTIVE-DISCIPLINE.md §dual-weekly-report-templates](./DUAL-OBJECTIVE-DISCIPLINE.md#dual-weekly-report-templates).
 
-```markdown
-# Week {N} — alpha-trader — {YYYY-MM-DD} to {YYYY-MM-DD}
+Both produced Sunday evening. Both read the same substrate
+(`_performance.md`, `decisions.md`, observation notes, activity log);
+they differ in framing (A = system-insight / ADR seeds / UX friction;
+B = capital trajectory / per-signal attribution / honesty check /
+hypothesis status).
 
-## Operational summary
-- Signals fired: {count} across {signal list}
-- Trades executed: {approvals / rejections / TTL-expired}
-- Reviewer verdict distribution: approve/reject/defer counts
-- Portfolio state: start balance → end balance, drawdown, var utilization
-- Any regime activations (Signal 5 VIX scalar)
-
-## Signal-level performance (per-signal short table)
-| Signal | Trades this week | Cumulative expectancy_r_20 | State (active/flagged/retirement) |
-
-## Friction themes this week
-- {Theme 1 with 2-3 linked observation notes}
-- {Theme 2 ...}
-
-## Reviewer calibration check
-- Did the AI Reviewer's six-check framework honor itself?
-- Any verdicts that looked wrong on reflection?
-- Any missed checks?
-
-## Cockpit usability check
-- Did Overview surface the right stuff?
-- Did Work task-detail help or hinder?
-- Did Review chronicle give a clear audit picture?
-
-## ADR candidates identified
-- {Candidate 1 — specific observation links — dimension affected — phase-2 vs. phase-3 defer}
-
-## Phase-transition signal
-- Are we on track toward Alpha-1.5 readiness (2+ weeks clean, declining friction)?
-```
+Never combine A and B into one report. Never skip B when data is thin
+— write the thin report honestly.
 
 ### 7.3 Decision tree — observation → ADR
 
@@ -1326,7 +1305,8 @@ Pin at `docs/alpha/observations/{YYYY-MM-DD}-alpha-trader-{slug}.md`:
 - **Single friction, component-fixable** → patch, no ADR
 - **Structural gap (missing primitive / missing dimension behavior / missing substrate field)** → ADR immediately, regardless of frequency
 - **Simons-persona-only friction** → defer ADR judgment until Alpha-1.5 e-commerce corroborates (anti-verticalization gate per ADR-191 DOMAIN-STRESS-MATRIX). Might still warrant a prompt tweak or task-type refinement in the interim.
-- **Reviewer-calibration friction** → feeds ADR-194 Phase 4 (calibration tuning), which explicitly waits for alpha data. Log in weekly report Reviewer Calibration section.
+- **Reviewer-calibration friction** → feeds ADR-194 Phase 4 (calibration tuning), which explicitly waits for alpha data. Log in weekly Objective-B report Reviewer Calibration section.
+- **Objective-B-only observation (money-truth impact, no architecture-level friction)** → log in weekly B report hypothesis-status section; feeds phase-transition readiness evaluation per §8; does not produce ADR work.
 
 ---
 

@@ -92,6 +92,22 @@ Run this:
   `integrations.py` (the files whose behavior determines what a
   cold-start workspace looks like)
 
+**Scope note (Objective A only):** `verify.py` validates **system-level
+shape** — agent count, bot activations, essential tasks, platform
+connections, core files, context-domain presence. It is Objective-A
+tooling per [DUAL-OBJECTIVE-DISCIPLINE.md](./DUAL-OBJECTIVE-DISCIPLINE.md).
+
+It does **NOT** validate Objective-B (money-truth / per-signal
+performance / Reviewer calibration against outcomes). A green
+`verify.py --all` means "the workspace is structurally healthy"; it
+does NOT mean "the book is growing" or "signals are producing edge."
+
+For Objective-B reads, use direct `_performance.md` inspection via
+Mode 1 (service-key Postgres read against `workspace_files`) or Mode 2
+(Context browser in the cockpit). A dedicated Objective-B harness tool
+(`perf.py` or similar) is a known gap — will be built when weekly B
+reports surface a repeated read-pattern worth scripting.
+
 ### Mint a fresh JWT
 
 ```bash
