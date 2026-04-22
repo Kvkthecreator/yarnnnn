@@ -1057,6 +1057,31 @@ async def _handle_create(auth: Any, input: dict) -> dict:
     user_id = auth.user_id
     slug = _slugify(title)
 
+    # ADR-207 D2 hard gate: MANDATE.md must be authored before any task
+    # scaffolding. The mandate declares the workspace's Primary Action — every
+    # task exists in service of it. Without a mandate, task scaffolding has
+    # no frame. Skeleton-only content (freshly seeded, operator hasn't authored
+    # yet) counts as empty.
+    try:
+        from services.workspace import UserMemory
+        from services.workspace_paths import SHARED_MANDATE_PATH
+        mandate_content = await UserMemory(auth.client, user_id).read(SHARED_MANDATE_PATH) or ""
+        # A skeleton contains the "<not yet declared" placeholder and no real
+        # content. Treat as empty for gating purposes.
+        if not mandate_content.strip() or "not yet declared" in mandate_content:
+            return {
+                "success": False,
+                "error": "mandate_required",
+                "message": (
+                    "Your workspace needs a Mandate before tasks can be scaffolded. "
+                    "Talk to YARNNN about what operation you want to run — "
+                    "YARNNN will author /workspace/context/_shared/MANDATE.md "
+                    "via UpdateContext(target='mandate'). Then retry."
+                ),
+            }
+    except Exception as gate_err:
+        logger.warning(f"[MANAGE_TASK] Mandate gate check failed (proceeding): {gate_err}")
+
     # --- Path A: Type-key based creation (ADR-145) ---
     resolved_agent_slugs: list[str] = []
     resolved_steps: list = []

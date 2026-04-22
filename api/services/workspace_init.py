@@ -150,7 +150,7 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
             DEFAULT_REVIEW_PRINCIPLES_MD,
         )
         from services.workspace_paths import (
-            SHARED_IDENTITY_PATH, SHARED_BRAND_PATH, SHARED_CONVENTIONS_PATH,
+            SHARED_MANDATE_PATH, SHARED_IDENTITY_PATH, SHARED_BRAND_PATH, SHARED_CONVENTIONS_PATH,
             MEMORY_AWARENESS_PATH, MEMORY_PLAYBOOK_PATH,
             MEMORY_STYLE_PATH, MEMORY_NOTES_PATH,
             REVIEW_IDENTITY_PATH, REVIEW_PRINCIPLES_PATH,
@@ -165,8 +165,24 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
                 identity_content = UserMemory._render_memory_md({"timezone": validated_tz})
                 logger.info(f"[WORKSPACE_INIT] Timezone inferred from browser: {validated_tz}")
 
+        # ADR-207 D2: empty Mandate skeleton. Operator authors via
+        # UpdateContext(target="mandate") in first-turn elicitation.
+        # Hard gate in ManageTask._handle_create blocks task scaffolding
+        # until Mandate is non-empty.
+        DEFAULT_MANDATE_MD = (
+            "# Mandate\n\n"
+            "<!-- This file declares what this workspace is running.\n"
+            "     Authored via YARNNN conversation at first use; revised when\n"
+            "     the operator decides. No forced revision cadence. -->\n\n"
+            "## Primary Action\n"
+            "_<not yet declared — talk to YARNNN to author your mandate>_\n\n"
+            "## Success Criteria\n\n"
+            "## Boundary Conditions\n"
+        )
+
         workspace_files = {
-            # Authored shared context (ADR-206)
+            # Authored shared context (ADR-206 + ADR-207 MANDATE)
+            SHARED_MANDATE_PATH: (DEFAULT_MANDATE_MD, "Mandate skeleton — workspace north star"),
             SHARED_IDENTITY_PATH: (identity_content, "User identity template"),
             SHARED_BRAND_PATH: (DEFAULT_BRAND_MD, "Default brand baseline"),
             SHARED_CONVENTIONS_PATH: (DEFAULT_CONVENTIONS_MD, "Workspace filesystem conventions"),

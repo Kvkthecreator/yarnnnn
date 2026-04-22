@@ -474,6 +474,35 @@ async def run_unified_scheduler():
         except Exception as probe_exc:
             logger.warning(f"[ADR-206 HYGIENE PROBE] failed: {probe_exc}")
 
+    # -------------------------------------------------------------------------
+    # Obs 07 fix: orphan-run watchdog (every scheduler tick)
+    # -------------------------------------------------------------------------
+    # Any agent_runs row stuck in status="generating" for >10 minutes is
+    # treated as orphaned (likely a Render redeploy mid-LLM-stream, OOM kill,
+    # or upstream API failure that didn't propagate status). Auto-transition
+    # to status="error" with a diagnostic so operators don't see infinite
+    # pending runs and future E2E debug paths have a finite state.
+    #
+    # Running every tick (every 5 min, not hourly) because a broken run
+    # blocks the operator's loop; fast detection > activity-log noise.
+    try:
+        stuck_cutoff = (now - timedelta(minutes=10)).isoformat()
+        stuck = (
+            supabase.table("agent_runs")
+            .update({
+                "status": "failed",
+                "final_content": "[watchdog] Run orphaned — generating status exceeded 10 minutes without completion. Likely a deploy/OOM interruption or silent upstream failure. Re-trigger the task to retry.",
+            })
+            .eq("status", "generating")
+            .lt("created_at", stuck_cutoff)
+            .execute()
+        )
+        stuck_count = len(stuck.data or [])
+        if stuck_count > 0:
+            logger.warning(f"[WATCHDOG] Reaped {stuck_count} orphaned agent_run(s) older than 10 min")
+    except Exception as wd_exc:
+        logger.warning(f"[WATCHDOG] orphan-run sweep failed: {wd_exc}")
+
     logger.info(f"Completed: {', '.join(summary_parts)}")
 
 
