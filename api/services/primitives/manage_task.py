@@ -405,6 +405,9 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
                 lines.insert(insert_pos, f"\n**Type:** {new_type_key}")
                 task_md = "\n".join(lines)
 
+            # ADR-205: lazy-ensure infrastructure agents declared by the type
+            from services.agent_creation import ensure_infrastructure_agents_for_type
+            await ensure_infrastructure_agents_for_type(auth.client, auth.user_id, new_type_key)
             # Resolve process agents from user's roster
             user_agents = auth.client.table("agents").select("slug, role, title, status").eq("user_id", auth.user_id).eq("status", "active").execute()
             resolved_steps = resolve_process_agents(new_type_key, user_agents.data or [])
@@ -1077,6 +1080,10 @@ async def _handle_create(auth: Any, input: dict) -> dict:
             from services.task_types import get_default_mode
             mode = get_default_mode(type_key)
 
+        # ADR-205: lazy-ensure infrastructure agents declared by the type
+        from services.agent_creation import ensure_infrastructure_agents_for_type
+        await ensure_infrastructure_agents_for_type(auth.client, user_id, type_key)
+
         # Resolve process agents from user's roster
         agents_result = (
             auth.client.table("agents")
@@ -1160,12 +1167,12 @@ async def _handle_create(auth: Any, input: dict) -> dict:
 
     # Default schedule for custom tasks. Reactive tasks are explicitly
     # event-triggered (ADR-149); giving them a schedule would let the
-    # cron scheduler fire them, which contradicts the reactive contract.
-    if not schedule and mode != "reactive":
-        schedule = "weekly"
-
-    # ADR-154: First run on creation for tasks with bootstrap criteria
-    # Bootstrap phase → run immediately. Otherwise → standard cadence.
+    # ADR-205: Chat-first triggering. If the caller does not provide a schedule,
+    # the task runs once now and has no recurring cadence — scheduling is an
+    # optional annotation, not a precondition. Callers wanting recurring
+    # behavior pass schedule explicitly.
+    # ADR-154: Bootstrap-criteria tasks always run immediately even when
+    # scheduled, so the context domain is seeded before the first cadence tick.
     has_bootstrap = False
     if type_key:
         from services.task_types import get_bootstrap_criteria
@@ -1174,12 +1181,16 @@ async def _handle_create(auth: Any, input: dict) -> dict:
     if has_bootstrap:
         next_run_at = datetime.now(timezone.utc).isoformat()
     elif mode == "reactive":
-        # Reactive tasks have no schedule and no scheduled first run —
-        # caller triggers via POST /api/tasks/{slug}/run or an upstream event.
+        # Reactive tasks are explicitly dispatch-and-done.
+        next_run_at = None
+    elif not schedule:
+        # No schedule → run-now task (ADR-205). Caller validates, then task is
+        # triggered inline below. next_run_at stays NULL; the scheduler never
+        # picks it up.
         next_run_at = None
     else:
         user_timezone = get_user_timezone(auth.client, auth.user_id)
-        next_run_at = _compute_next_run(schedule, user_timezone=user_timezone) if schedule else None
+        next_run_at = _compute_next_run(schedule, user_timezone=user_timezone)
 
     # Create tasks row
     now = datetime.now(timezone.utc)
@@ -1356,14 +1367,15 @@ async def _handle_create(auth: Any, input: dict) -> dict:
             step_descriptions.append(f"{agent_label} ({s['step']})")
         process_narration = " → ".join(step_descriptions)
 
-    # Run on creation: bootstrap tasks and goal mode tasks execute immediately.
-    # Bootstrap: next_run_at is already NOW — we fire inline to close the
-    #   5-minute scheduler gap so the context domain is seeded right away.
-    # Goal: user wants a specific deliverable now, not at the next cadence tick.
-    # Recurring without bootstrap: runs on its natural schedule (no change).
-    # Reactive: explicitly caller-triggered; skip.
+    # Run on creation (ADR-154 + ADR-205):
+    # - Bootstrap: fire inline to close the 5-minute scheduler gap and seed the domain.
+    # - Goal mode: user wants a specific deliverable now.
+    # - No schedule provided (ADR-205 chat-first): run-now is the default trigger;
+    #   scheduling is an annotation not a precondition.
+    # - Recurring with explicit schedule: runs on its natural cadence.
+    # - Reactive: explicitly caller-triggered; skip.
     first_run_result = None
-    should_run_now = has_bootstrap or mode == "goal"
+    should_run_now = has_bootstrap or mode == "goal" or (not schedule and mode != "reactive")
     if should_run_now:
         try:
             first_run_result = await _handle_trigger(auth, slug, {})

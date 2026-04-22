@@ -1015,30 +1015,14 @@ data.
 """
 
 
-# Default roster created at sign-up (ADR-176 v5: universal specialist model)
-# 6 specialists + 1 synthesizer + 3 platform-bots + 1 meta-cognitive = 11 agents
-# No ICP-specific domain-stewards. TP assigns domain from task context.
-# Bots activated when platform connected. TP always active.
-DEFAULT_ROSTER = [
-    # Universal specialists (ADR-176 Decision 1)
-    {"title": "Researcher", "role": "researcher"},
-    {"title": "Analyst", "role": "analyst"},
-    {"title": "Writer", "role": "writer"},
-    {"title": "Tracker", "role": "tracker"},
-    {"title": "Designer", "role": "designer"},
-    # Synthesizer (cross-domain reporting)
-    {"title": "Reporting", "role": "executive"},
-    # Platform bots (activated on platform connect — ADR-158)
-    {"title": "Slack Bot", "role": "slack_bot"},
-    {"title": "Notion Bot", "role": "notion_bot"},
-    {"title": "GitHub Bot", "role": "github_bot"},
-    # Commerce bot — ADR-183: activated on commerce provider connect
-    {"title": "Commerce Bot", "role": "commerce_bot"},
-    # Trading bot — ADR-187: activated on trading provider connect
-    {"title": "Trading Bot", "role": "trading_bot"},
-    # Meta-cognitive — ADR-164: TP owns back office tasks
-    {"title": "Thinking Partner", "role": "thinking_partner"},
-]
+# DEFAULT_ROSTER — DELETED (ADR-205 Primitive Collapse, 2026-04-22).
+# Signup no longer scaffolds a pre-seeded roster. YARNNN (role=thinking_partner)
+# is the sole infrastructure agent created at workspace init (workspace_init.py
+# Phase 2). Specialists are lazy-created on first dispatch via
+# services.agent_creation.ensure_infrastructure_agent(). Platform Bots are
+# connection-bound — created on OAuth connect (routes/integrations.py),
+# deleted on disconnect (routes/account.py, services.agent_creation.delete_platform_bot).
+# AGENT_TEMPLATES above remains as the template library consulted at lazy-ensure time.
 
 # PM_MODES — REMOVED (PM/project architecture dissolved)
 

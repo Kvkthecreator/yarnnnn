@@ -659,45 +659,13 @@ def build_tracker_md(domain_key: str, entities: list[dict]) -> str:
 CONTEXT_DOMAINS = {k: v for k, v in WORKSPACE_DIRECTORIES.items() if v.get("type") == "context"}
 
 
-async def scaffold_all_directories(client, user_id: str) -> list[str]:
-    """Scaffold workspace directories at signup.
-
-    ADR-176 Decision 5: Only signals/ is created at signup. All other context domains
-    (competitors, market, relationships, etc.) are created by TP when work first demands
-    them. Domain directories emerge from actual work intent, not from pre-declared keys.
-
-    The signals domain is the universal exception — it is the cross-domain temporal inbox,
-    present from day one because signals can arrive before any specific domain exists.
-
-    Idempotent — skips already-scaffolded directories.
-    Returns list of directory keys that were newly scaffolded.
-    """
-    from services.workspace import UserMemory
-    from datetime import datetime, timezone
-    import logging
-
-    logger = logging.getLogger(__name__)
-    um = UserMemory(client, user_id)
-    scaffolded = []
-
-    # ADR-176: Only scaffold signals/ at signup. All other context domains
-    # are demand-driven — created when TP assembles the first task that needs them.
-    signals_dir = WORKSPACE_DIRECTORIES.get("signals")
-    if signals_dir:
-        path = signals_dir["path"]
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        signal_path = f"{path}/{today}.md"
-        existing = await um.read(signal_path)
-        if not existing:
-            await um.write(
-                signal_path,
-                f"# Signals — {today}\n<!-- Cross-domain temporal signal log. -->\n",
-                summary=f"Signal log scaffold: {today}",
-            )
-            scaffolded.append("signals")
-            logger.info("[DIRECTORY_REGISTRY] Scaffolded: signals")
-
-    return scaffolded
+# scaffold_all_directories — DELETED (ADR-205 Primitive Collapse, 2026-04-22).
+# Signup no longer pre-creates any /workspace/context/ directory. The first
+# agent write to a context path materializes the directory via UserMemory's
+# virtual-filesystem write (paths are implicit until written). Platform-bound
+# domains are still scaffolded on OAuth connect — see scaffold_context_domain()
+# below and the call sites in routes/integrations.py. ADR-205 FOUNDATIONS v6.0
+# Axiom 1 corollary: substrate grows from work.
 
 
 async def scaffold_context_domain(client, user_id: str, domain_key: str) -> bool:

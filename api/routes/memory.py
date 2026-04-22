@@ -204,86 +204,10 @@ async def get_onboarding_state(request: Request, auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _scaffold_default_roster(client, user_id: str):
-    """DEPRECATED — Use workspace_init.initialize_workspace() instead.
-
-    Kept temporarily for reference. Will be deleted in next cleanup pass.
-    See: api/services/workspace_init.py (ADR-152)
-    """
-    from services.agent_framework import AGENT_TYPES, DEFAULT_ROSTER
-    from services.agent_creation import create_agent_record
-
-    for agent_def in DEFAULT_ROSTER:
-        try:
-            type_def = AGENT_TYPES.get(agent_def["role"], {})
-            is_bot = type_def.get("class") == "bot"
-
-            await create_agent_record(
-                client=client,
-                user_id=user_id,
-                title=agent_def["title"],
-                role=agent_def["role"],
-                origin="system_bootstrap",
-                agent_instructions=type_def.get("default_instructions", ""),
-            )
-            logger.info(f"[ROSTER] Created {agent_def['title']} for user {user_id[:8]}")
-        except Exception as e:
-            # Skip duplicates or errors — best effort
-            logger.warning(f"[ROSTER] Failed to create {agent_def['title']}: {e}")
-
-    # ADR-143: Seed workspace-level files
-    try:
-        from services.workspace import UserMemory
-        from services.agent_framework import (
-            TP_ORCHESTRATION_PLAYBOOK,
-            DEFAULT_IDENTITY_MD,
-            DEFAULT_BRAND_MD,
-        )
-        um = UserMemory(client, user_id)
-
-        # TP orchestration playbook
-        if not await um.read("_playbook.md"):
-            await um.write(
-                "_playbook.md",
-                TP_ORCHESTRATION_PLAYBOOK,
-                summary="ADR-143: TP orchestration playbook (seed)",
-            )
-            logger.info(f"[ROSTER] Seeded TP orchestration playbook for {user_id[:8]}")
-
-        # Default IDENTITY.md — template for user to fill
-        if not await um.read("IDENTITY.md"):
-            await um.write(
-                "IDENTITY.md",
-                DEFAULT_IDENTITY_MD,
-                summary="ADR-143: default identity template (seed)",
-            )
-            logger.info(f"[ROSTER] Seeded default IDENTITY.md for {user_id[:8]}")
-
-        # Default BRAND.md — minimal B&W professional baseline
-        if not await um.read("BRAND.md"):
-            await um.write(
-                "BRAND.md",
-                DEFAULT_BRAND_MD,
-                summary="ADR-143: default brand (seed)",
-            )
-            logger.info(f"[ROSTER] Seeded default BRAND.md for {user_id[:8]}")
-
-    except Exception as e:
-        logger.warning(f"[ROSTER] Workspace seed failed: {e}")
-
-    # ADR-151: Scaffold all context domains at onboarding
-    try:
-        from services.directory_registry import scaffold_all_directories
-        scaffolded = await scaffold_all_directories(client, user_id)
-        if scaffolded:
-            logger.info(f"[ROSTER] Scaffolded {len(scaffolded)} context domains for {user_id[:8]}: {', '.join(scaffolded)}")
-    except Exception as e:
-        logger.warning(f"[ROSTER] Context domain scaffold failed: {e}")
-
-
-
+# _scaffold_default_roster — DELETED (ADR-205 Primitive Collapse, 2026-04-22).
+# Was already deprecated in favor of workspace_init.initialize_workspace().
 # ADR-144: POST /user/onboarding DELETED — context enrichment now via
-# UpdateContext TP primitive (ADR-146). Roster scaffolding preserved above.
+# UpdateContext TP primitive (ADR-146).
 
 
 # ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────

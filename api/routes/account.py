@@ -438,7 +438,8 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
 
     Reinit (transactional — same endpoint, not deferred to next page load):
     - Full workspace initialization via `initialize_workspace()`:
-      * DEFAULT_ROSTER agents (ADR-140, 10 agents including TP)
+      * YARNNN agent row (ADR-205 — sole infrastructure scaffolded at signup;
+        Specialists + Platform Bots lazy-create on first dispatch / OAuth connect)
       * Context domain folders (ADR-151/152)
       * Workspace seed files (IDENTITY.md, BRAND.md, AWARENESS.md, _playbook.md)
       * Essential tasks (ADR-161 daily-update + ADR-164 back office tasks)
@@ -517,21 +518,20 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
     Per ADR-158 (platform bot ownership), each platform bot owns one temporal
     context directory (`/workspace/context/{slack,notion,github}/`). This
     endpoint deletes those directories (and their per-source subfolders),
-    tears down sync state, and **pauses** (not deletes) the platform-bot
-    agents so:
-      - the roster invariant from ADR-140 holds (8 domain-stewards + 1
-        synthesizer + bots = 10 agents including TP)
-      - reconnecting a platform is a simple status flip + new OAuth, not a
-        re-scaffold
-      - canonical context domains (competitors, market, etc.) owned by
-        domain-stewards are untouched
+    tears down sync state, and **deletes** the platform-bot agent rows
+    (ADR-205: Platform Bots are connection-bound — their agent row lifecycle
+    follows platform_connections). Reconnecting a platform lazy-creates a
+    fresh bot row via ensure_infrastructure_agent.
 
     Does NOT delete:
-      - Any agent (platform bots are paused, domain-stewards untouched)
-      - The three essential tasks (ADR-161 daily-update, ADR-164 back office) —
+      - YARNNN (thinking_partner row, scaffolded at signup, platform-agnostic)
+      - User-authored Agents (origin='user_configured' and similar)
+      - Specialist rows that have been lazy-created (they're role-scoped,
+        not platform-scoped — they survive platform disconnects)
+      - The essential tasks (ADR-161 daily-update, ADR-164 back office) —
         they are platform-agnostic
-      - Canonical context domains under `/workspace/context/{competitors,
-        market, relationships, projects, content_research, signals}/`
+      - Canonical context domains under `/workspace/context/` owned by
+        Specialists — unchanged by platform disconnect
       - IDENTITY.md / BRAND.md / AWARENESS.md / _playbook.md
     """
     user_id = auth.user_id
@@ -557,23 +557,26 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
             context_files_deleted += _delete_workspace_files(client, user_id, platform_dir)
         deleted["platform_context_files"] = context_files_deleted
 
-        # --- Pause platform-bot agents (do not delete — roster invariant) ---
-        # ADR-140: bots are part of the pre-scaffolded roster. Deleting them
-        # would require a re-scaffold on reconnect. Pausing lets the reconnect
-        # flow simply flip status back to 'active'.
-        paused_agents = 0
+        # --- Delete platform-bot agents on disconnect (ADR-205) ---
+        # Platform Bots are connection-bound: their agent row's lifecycle
+        # matches the platform_connections row. On disconnect we delete;
+        # reconnect lazy-creates via ensure_infrastructure_agent.
+        # FK cascades wipe associated agent_runs / agent_context_log — acceptable
+        # because the work history was bot-specific and bot-scoped.
+        deleted_bots = 0
         try:
             bot_result = (
                 client.table("agents")
-                .update({"status": "paused"})
+                .delete()
                 .eq("user_id", user_id)
-                .in_("role", ["slack_bot", "notion_bot", "github_bot"])
+                .eq("origin", "system_bootstrap")
+                .in_("role", ["slack_bot", "notion_bot", "github_bot", "commerce_bot", "trading_bot"])
                 .execute()
             )
-            paused_agents = len(bot_result.data or [])
-        except Exception as pause_err:
-            logger.warning(f"[ACCOUNT] Failed to pause platform-bot agents for {user_id}: {pause_err}")
-        deleted["platform_bots_paused"] = paused_agents
+            deleted_bots = len(bot_result.data or [])
+        except Exception as del_err:
+            logger.warning(f"[ACCOUNT] Failed to delete platform-bot agents for {user_id}: {del_err}")
+        deleted["platform_bots_deleted"] = deleted_bots
 
         # --- Platform connections last (other tables may reference them) ---
         deleted["platform_connections"] = _delete_rows(client, "platform_connections", user_id)
@@ -585,7 +588,7 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
             message=(
                 f"Disconnected {deleted['platform_connections']} platforms, "
                 f"cleared {context_files_deleted} context files, "
-                f"paused {paused_agents} platform bots"
+                f"deleted {deleted_bots} platform bots"
             ),
             deleted=deleted,
         )

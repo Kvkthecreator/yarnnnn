@@ -77,8 +77,9 @@ The current cognitive architecture evolved through a series of decisions. ADR-18
 | [164](ADR-164-back-office-tasks-tp-as-agent.md) | Back Office Tasks — TP as Agent | Phase 4 Implemented |
 | [176](ADR-176-work-first-agent-model.md) | Work-First Agent Model | Implemented (Decision 1 superseded by ADR-189) |
 | [186](ADR-186-tp-prompt-profiles.md) | TP Prompt Profiles | Phase 1-3 Implemented |
-| [188](ADR-188-domain-agnostic-framework.md) | Domain-Agnostic Framework — Registries as Template Libraries | Phases 1-2 Implemented |
-| [189](ADR-189-three-layer-cognition.md) | Three-Layer Cognition — YARNNN, Specialists, Agents | **Proposed — canonical** |
+| [188](ADR-188-domain-agnostic-framework.md) | Domain-Agnostic Framework — Registries as Template Libraries | Phases 1-2 Implemented (Phase 3+ completed by ADR-205) |
+| [189](ADR-189-three-layer-cognition.md) | Three-Layer Cognition — YARNNN, Specialists, Agents | Proposed — canonical (Phase 2 pragmatic preservation reversed by ADR-205) |
+| [205](ADR-205-primitive-collapse.md) | Workspace Primitive Collapse — YARNNN as Sole Persistent Identity | **Proposed** |
 
 ### Canonical Terminology
 

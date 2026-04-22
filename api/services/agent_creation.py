@@ -199,3 +199,230 @@ async def create_agent_record(
     except Exception as e:
         logger.error(f"[AGENT_CREATION] Failed: {e}")
         return {"success": False, "error": "creation_failed", "message": str(e)}
+
+
+# =============================================================================
+# ADR-205: Infrastructure Agent Classification + Lazy Ensure
+# =============================================================================
+# ADR-205 collapses the signup-time scaffolding of the 10-agent roster down to
+# one: YARNNN (role=thinking_partner, scaffolded at signup). Specialists and
+# Platform Bots are lazy-created — a row materializes the first time dispatch
+# resolves to that role. Platform Bots are additionally connection-bound:
+# created on OAuth connect (routes/integrations.py), deleted on disconnect
+# (routes/account.py). This preserves the agents-table FK model while
+# honouring Axiom 1's "substrate grows from work" corollary.
+
+SPECIALIST_ROLES: frozenset[str] = frozenset({
+    # ADR-176 universal specialists
+    "researcher", "analyst", "writer", "tracker", "designer",
+    # ADR-176 synthesizer
+    "executive",
+})
+
+PLATFORM_BOT_ROLES: frozenset[str] = frozenset({
+    # ADR-158 platform bots
+    "slack_bot", "notion_bot", "github_bot",
+    # ADR-183 commerce
+    "commerce_bot",
+    # ADR-187 trading
+    "trading_bot",
+})
+
+# Platform Bot role → platform_connections.platform value used for activation check
+_BOT_ROLE_TO_PLATFORM: dict[str, str] = {
+    "slack_bot": "slack",
+    "notion_bot": "notion",
+    "github_bot": "github",
+    "commerce_bot": "commerce",
+    "trading_bot": "trading",
+}
+
+# Infrastructure slug → role. Slugs are derived from AGENT_TEMPLATES display
+# names via _slugify_agent; this map is the inverse. Dispatch sites that resolve
+# by slug use it to find the underlying infrastructure role for lazy-ensure.
+_INFRA_SLUG_TO_ROLE: dict[str, str] = {
+    # Specialists (ADR-176 display names → slugs)
+    "researcher": "researcher",
+    "analyst": "analyst",
+    "writer": "writer",
+    "tracker": "tracker",
+    "designer": "designer",
+    "reporting": "executive",  # title "Reporting" → slug "reporting", role "executive"
+    # Platform bots
+    "slack-bot": "slack_bot",
+    "notion-bot": "notion_bot",
+    "github-bot": "github_bot",
+    "commerce-bot": "commerce_bot",
+    "trading-bot": "trading_bot",
+    # YARNNN
+    "thinking-partner": "thinking_partner",
+}
+
+
+def resolve_infra_role_from_ref(agent_ref: str) -> Optional[str]:
+    """Return the infrastructure role for a ref that may be a role or a slug.
+
+    ADR-205: dispatch sites may see either a slug (e.g. "reporting") or a role
+    (e.g. "executive") in TASK.md's agent_ref. This returns the canonical role
+    for lazy-ensure if the ref is an infrastructure identifier, else None.
+    """
+    if classify_role(agent_ref) != "user_authored":
+        return agent_ref
+    return _INFRA_SLUG_TO_ROLE.get(agent_ref)
+
+
+def classify_role(role: str) -> str:
+    """Classify a role for ADR-205 dispatch routing.
+
+    Returns one of:
+      - "yarnnn"        → role == thinking_partner (one per workspace, scaffolded at signup)
+      - "specialist"    → one of SPECIALIST_ROLES (lazy-ensured on first dispatch)
+      - "platform_bot"  → one of PLATFORM_BOT_ROLES (connection-bound, created on OAuth connect)
+      - "user_authored" → everything else (queried from agents table normally)
+    """
+    if role == "thinking_partner":
+        return "yarnnn"
+    if role in SPECIALIST_ROLES:
+        return "specialist"
+    if role in PLATFORM_BOT_ROLES:
+        return "platform_bot"
+    return "user_authored"
+
+
+async def ensure_infrastructure_agent(
+    client: Any,
+    user_id: str,
+    role: str,
+) -> Optional[dict]:
+    """Ensure a row exists in `agents` for this (user_id, role) infrastructure agent.
+
+    ADR-205: Specialists and Platform Bots are lazy-scaffolded. The dispatch
+    layer calls this helper before resolving a role-based agent_ref; if the
+    row doesn't exist yet, it is created from AGENT_TEMPLATES[role].
+
+    Returns:
+      - The agent dict (existing or newly created) on success.
+      - None if the role is user_authored (caller should query agents
+        table directly).
+      - None if the role is a Platform Bot without an active platform_connections
+        row (caller should surface a clear "connect the platform first" error).
+      - None if the role is unknown or creation failed.
+    """
+    classification = classify_role(role)
+
+    # User-authored agents are resolved by the caller via direct query.
+    if classification == "user_authored":
+        return None
+
+    # Try to find existing infrastructure row (idempotent).
+    existing = (
+        client.table("agents")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("role", role)
+        .eq("origin", "system_bootstrap")
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        return existing.data[0]
+
+    # Platform Bots require an active platform_connections row.
+    if classification == "platform_bot":
+        platform_value = _BOT_ROLE_TO_PLATFORM.get(role)
+        if not platform_value:
+            logger.warning(f"[ensure_infrastructure_agent] Unknown bot role: {role}")
+            return None
+        conn = (
+            client.table("platform_connections")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("platform", platform_value)
+            .eq("status", "active")
+            .limit(1)
+            .execute()
+        )
+        if not conn.data:
+            logger.info(
+                f"[ensure_infrastructure_agent] {role} not ensured — "
+                f"no active {platform_value} connection for {user_id[:8]}"
+            )
+            return None
+
+    # Lazy-create from AGENT_TEMPLATES.
+    from services.agent_framework import AGENT_TEMPLATES
+    template = AGENT_TEMPLATES.get(role)
+    if not template:
+        logger.warning(f"[ensure_infrastructure_agent] No template for role: {role}")
+        return None
+
+    title = template.get("display_name") or role.replace("_", " ").title()
+    result = await create_agent_record(
+        client=client,
+        user_id=user_id,
+        title=title,
+        role=role,
+        origin="system_bootstrap",
+        agent_instructions=template.get("default_instructions", ""),
+    )
+    if not result.get("success"):
+        logger.warning(
+            f"[ensure_infrastructure_agent] Create failed for {role}: "
+            f"{result.get('message')}"
+        )
+        return None
+    logger.info(f"[ensure_infrastructure_agent] Lazy-created {role} for {user_id[:8]}")
+    return result.get("agent")
+
+
+async def ensure_infrastructure_agents_for_type(
+    client: Any,
+    user_id: str,
+    type_key: str,
+) -> None:
+    """Ensure all infrastructure agents declared by a task type's process steps exist.
+
+    ADR-205: Called before task creation / type change so `resolve_process_agents`
+    can find Specialist rows (which are lazy-scaffolded). Platform Bots that
+    require a connection are skipped if the connection is inactive — the task
+    creation surface is responsible for surfacing that constraint.
+    """
+    from services.task_types import TASK_TYPES
+    task_type = TASK_TYPES.get(type_key)
+    if not task_type:
+        return
+    seen: set[str] = set()
+    for step in task_type.get("process", []):
+        role = step.get("agent_type")
+        if not role or role in seen:
+            continue
+        seen.add(role)
+        if classify_role(role) == "user_authored":
+            continue
+        await ensure_infrastructure_agent(client, user_id, role)
+
+
+async def delete_platform_bot(
+    client: Any,
+    user_id: str,
+    role: str,
+) -> int:
+    """Delete the platform-bot agent row on OAuth disconnect (ADR-205).
+
+    Returns the number of rows deleted (0 if bot wasn't provisioned).
+    Cascades to agent_runs, agent_context_log, etc. per FK constraints —
+    acceptable because Platform Bots are connection-bound: disconnecting
+    the platform means the bot's work history is no longer meaningful.
+    Reconnecting creates a fresh bot row on first task dispatch.
+    """
+    if role not in PLATFORM_BOT_ROLES:
+        return 0
+    result = (
+        client.table("agents")
+        .delete()
+        .eq("user_id", user_id)
+        .eq("role", role)
+        .eq("origin", "system_bootstrap")
+        .execute()
+    )
+    return len(result.data or [])

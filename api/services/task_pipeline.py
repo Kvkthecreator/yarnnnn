@@ -1969,16 +1969,28 @@ async def execute_task(
             if inline_instruction:
                 task_info.setdefault("objective", {})["step_instruction"] = inline_instruction
 
-        # ADR-152: For single-step tasks, resolve agent from TASK.md process_steps
+        # ADR-152 + ADR-205: For single-step tasks, resolve agent from TASK.md process_steps.
+        # ADR-205: Specialist + Platform Bot rows are lazy-created on first
+        # dispatch via ensure_infrastructure_agent(). If agent_ref is an
+        # infrastructure role that hasn't materialized yet, ensure it here
+        # before roster lookup so the subsequent fetch succeeds.
         if not agent_slug and process_steps:
             agent_ref = process_steps[0].get("agent_ref") or process_steps[0].get("agent_type", "")
             if agent_ref:
-                roster = client.table("agents").select("slug, role").eq("user_id", user_id).execute()
-                for a in (roster.data or []):
-                    if a.get("slug") == agent_ref or a.get("role") == agent_ref:
-                        agent_slug = a["slug"]
-                        logger.info(f"[TASK_EXEC] Resolved agent {agent_slug} from TASK.md process")
-                        break
+                from services.agent_creation import resolve_infra_role_from_ref, ensure_infrastructure_agent
+                infra_role = resolve_infra_role_from_ref(agent_ref)
+                if infra_role:
+                    ensured = await ensure_infrastructure_agent(client, user_id, infra_role)
+                    if ensured:
+                        agent_slug = ensured.get("slug")
+                        logger.info(f"[TASK_EXEC] Ensured infrastructure agent {agent_slug} for ref '{agent_ref}'")
+                if not agent_slug:
+                    roster = client.table("agents").select("slug, role").eq("user_id", user_id).execute()
+                    for a in (roster.data or []):
+                        if a.get("slug") == agent_ref or a.get("role") == agent_ref:
+                            agent_slug = a["slug"]
+                            logger.info(f"[TASK_EXEC] Resolved agent {agent_slug} from TASK.md process")
+                            break
 
         if not agent_slug:
             return _fail(task_slug, "No agent assigned in TASK.md")
@@ -2653,7 +2665,9 @@ async def _execute_pipeline(
     except Exception:
         pass  # Non-critical — progress is best-effort
 
-    # Resolve all process agents upfront
+    # Resolve all process agents upfront. ADR-205: Specialists and Platform
+    # Bots are lazy-created; the pre-seed map may miss roles whose rows don't
+    # exist yet. Misses are resolved per-step below via ensure_infrastructure_agent.
     agents_result = (
         client.table("agents")
         .select("*")
@@ -2661,8 +2675,8 @@ async def _execute_pipeline(
         .execute()
     )
     all_agents = agents_result.data or []
-    role_to_agent = {}
-    slug_to_agent = {}
+    role_to_agent: dict[str, dict] = {}
+    slug_to_agent: dict[str, dict] = {}
     for a in all_agents:
         r = a.get("role")
         s = a.get("slug")
@@ -2701,8 +2715,25 @@ async def _execute_pipeline(
             from services.task_types import STEP_INSTRUCTIONS
             step_instruction = STEP_INSTRUCTIONS.get(step_name, "")
 
-        # Resolve agent: try slug first, then role/type
+        # Resolve agent: try slug first, then role/type. ADR-205: lazy-ensure
+        # on miss — Specialists and Platform Bots may not have materialized yet.
         agent = slug_to_agent.get(agent_ref) if agent_ref in slug_to_agent else role_to_agent.get(agent_ref)
+        if not agent:
+            from services.agent_creation import resolve_infra_role_from_ref, ensure_infrastructure_agent
+            infra_role = resolve_infra_role_from_ref(agent_ref)
+            if infra_role:
+                ensured = await ensure_infrastructure_agent(client, user_id, infra_role)
+                if ensured:
+                    agent = ensured
+                    # Update maps so later steps in this run hit the cache.
+                    if ensured.get("slug"):
+                        slug_to_agent[ensured["slug"]] = ensured
+                    if ensured.get("role"):
+                        role_to_agent.setdefault(ensured["role"], ensured)
+                    logger.info(
+                        f"[PIPELINE] Step {step_num}: lazy-ensured {agent_ref} "
+                        f"→ {ensured.get('slug')}"
+                    )
         if not agent:
             logger.warning(f"[PIPELINE] Step {step_num} ({step_name}): no agent '{agent_ref}' — skipping")
             step_outputs.append(f"(Step {step_num} skipped: no {agent_ref} agent)")

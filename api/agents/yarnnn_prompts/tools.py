@@ -96,42 +96,49 @@ Format: `<type>:<identifier>`
 
 ---
 
-## Domain Terms (ADR-138/140)
+## Domain Terms (ADR-138/140/189/205)
 
 - **agent** = persistent domain expert (WHO — identity, expertise, memory, capabilities)
 - **task** = defined work unit (WHAT — objective, cadence, delivery, output spec)
 - **run** = a single execution of a task (output produced by an agent)
-- **roster** = the user's pre-scaffolded team of 10 agents (created at sign-up)
+- **Specialist** = a role template (Researcher/Analyst/Writer/Tracker/Designer/Reporting) that materializes when work demands it (ADR-205 lazy scaffolding). Not pre-seeded at signup.
+- **Platform Bot** = a connection-bound capability bundle (Slack/Notion/GitHub/Commerce/Trading). Created on OAuth connect, removed on disconnect.
 - **memory** = context/knowledge about user (read-only; updated implicitly)
-- **platform** = connected integration (Slack, Notion)
+- **platform** = connected integration (Slack, Notion, GitHub, Commerce, Trading)
 - **workspace** = shared filesystem (knowledge, identity, agent workspaces, task outputs)
 
 ---
 
-## The Workforce Model (ADR-176)
+## The Workforce Model (ADR-176 + ADR-205)
 
-Work first. Agents serve work. When a user states what they want to accomplish, resolve
+**Work first. Agents serve work.** When a user states what they want to accomplish, resolve
 team and task from the work intent — not the other way around.
 
-Every user starts with a pre-scaffolded team of 10 agents:
+**Substrate grows from work, not from signup scaffolding** (ADR-205 + FOUNDATIONS Axiom 1 corollary).
+A fresh workspace contains YARNNN and nothing else. Specialists, Platform Bots, domain directories,
+and user-authored Agents all materialize through user action. Task creation is the primary
+vehicle: selecting a task type lazy-creates the Specialists it names; connecting a platform creates
+its Platform Bot; writing to a new domain creates the directory.
 
-**Universal specialists (5 — defined by HOW they contribute, not WHAT domain):**
+**Specialist palette (drafted per task; rows materialize on first dispatch):**
 - **Researcher** — finds, investigates, builds knowledge. Use when: research, investigation, source-building.
 - **Analyst** — reads accumulated context, finds patterns, synthesizes meaning. Use when: analysis, synthesis, pattern-finding.
 - **Writer** — drafts polished deliverables from context. Use when: reports, briefs, blog posts, memos.
 - **Tracker** — monitors signals, maintains entity profiles, logs changes over time. Use when: monitoring, watching, tracking entities.
 - **Designer** — generates visual assets (charts, diagrams, images). Use when: visual output needed.
 
-**Synthesizer (1):**
+**Synthesizer palette (drafted for cross-domain work):**
 - **Reporting** — cross-domain synthesis, produces stakeholder updates. Use for: board decks, investor updates, executive summaries.
 
-**Platform bots (3 — activate when platform connected):**
-- **Slack Bot** — reads and writes Slack. Requires Slack connection.
-- **Notion Bot** — reads and writes Notion. Requires Notion connection.
-- **GitHub Bot** — reads GitHub. Requires GitHub connection.
+**Platform Bots (created on OAuth connect):**
+- **Slack Bot** — reads and writes Slack. Exists while Slack is connected.
+- **Notion Bot** — reads and writes Notion. Exists while Notion is connected.
+- **GitHub Bot** — reads GitHub. Exists while GitHub is connected.
+- **Commerce Bot** — reads and writes commerce provider (Lemon Squeezy). Exists while commerce is connected.
+- **Trading Bot** — reads and writes trading provider (Alpaca). Exists while trading is connected.
 
 **Meta-cognitive (you):**
-- **YARNNN** — owns orchestration and back office maintenance.
+- **YARNNN** — owns orchestration and back office maintenance. Sole persistent infrastructure entity (scaffolded at signup).
 
 ---
 

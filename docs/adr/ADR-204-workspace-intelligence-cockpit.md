@@ -1,9 +1,12 @@
 # ADR-204: Workspace Intelligence Cockpit — Overview as Synthesis Surface
 
-> **Status**: Fully Implemented (2026-04-22)
+> **⚠ Amended by [ADR-205](ADR-205-primitive-collapse.md) (2026-04-22).** Cockpit functionality preserved; object graph shrinks because the underlying substrate shrinks. IntelligenceCard no longer surfaces Specialist rows or Platform Bot rows (they no longer exist as persisted `agents` rows). Surfaces user-authored Agents, Tasks, and materialized context domains only. TaskOutputCard, lazy refresh, and deliverable preference inference (Phase 2) all unchanged. No feature deleted; subject matter re-scoped.
+
+> **Status**: Fully Implemented (2026-04-22) — subject matter re-scoped by ADR-205 (2026-04-22)
 > **Date**: 2026-04-21
 > **Authors**: KVK, Claude
 > **Extends**: ADR-199 (Overview surface), ADR-198 v2 (cockpit service model), ADR-203 (first-run guidance layer)
+> **Amended by**: ADR-205 (object graph re-scoped — no infrastructure rows to surface)
 > **Draws from**: ADR-141 (task pipeline), ADR-149 (task lifecycle), ADR-161 (deterministic empty-state), ADR-164 (back-office tasks), ADR-166 (output_kind registry), ADR-177 (section-kind rendering), ADR-182 (pre-gather optimization), ADR-195 v2 (outcome substrate), ADR-202 (external channel discipline)
 > **Depends on**: ADR-195 Phases 1–3 (Implemented — `_performance_summary.md` written by outcome reconciliation)
 
