@@ -105,3 +105,27 @@ moat is operative. But three primitive-layer gaps (Intent-file writes,
 search-index freshness, idempotence) need follow-up commits before
 a second E2E. ADR-207 (Intent authorship chain) is the most important
 of the three.**
+
+## Update (scheduled wakeup fired 5.5 min after trigger) — Obs 07 added
+
+The `track-universe` task trigger hung silently. `agent_runs` row sits
+at `status="generating"` with 0 bytes of draft content, no activity_log
+entry, no error propagation. **This is the most severe finding of the
+whole E2E** — the operation loop can't close because the pipeline fails
+on first real dispatch and doesn't surface the failure.
+
+Revised priority (replaces earlier action list):
+
+1. **Debug Obs 07 task-pipeline silent hang.** Check Render logs,
+   inspect TASK.md consistency, read `task_pipeline.py execute_task()`
+   for missing-context and unhandled-error paths. Add a watchdog
+   that auto-fails `generating` runs older than 5 minutes.
+2. **Fix `personas.yaml` invariants** (Obs 01) — small patch, unblocks
+   harness-based validation.
+3. **Draft ADR-207** — Intent-layer authorship chain (Obs 03+04+06).
+4. **Fix ManageTask idempotence** (Obs 05-1) + SearchEntities freshness
+   (Obs 05-3) + WebSearch prompt calibration (Obs 05-2).
+5. Re-run E2E once (1) is resolved.
+
+**Without Obs 07 fixed, no operator can run the loop. This is the
+blocker.**
