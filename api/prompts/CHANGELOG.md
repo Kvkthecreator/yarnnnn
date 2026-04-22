@@ -6,6 +6,36 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.10] - ADR-207 P5 (derive_task_set + prompt wiring)
+
+### Added
+
+- **`api/services/task_derivation.py`** — new pure-Python helper `build_derivation_report(client, user_id) -> str`. Reads Mandate + active platform connections + existing tasks + their TASK.md self-declarations; classifies each task by loop role (`sensor` / `proposer` / `reviewer` / `reconciler` / `learner` / `decision-support`); emits a markdown report listing capability surface, existing tasks grouped by role, and coverage-gap hints (no proposer, no sensor, no decision-support, missing reconciler). Pure inspection — zero LLM calls, zero writes, zero side effects.
+- **Auto-regeneration hooks** — `/workspace/memory/task_derivation.md` is rewritten:
+  - On `UpdateContext(target="mandate")` (the moment the hard-gate unblocks).
+  - On `ManageTask(action="create")` (so subsequent proposals see the updated chain).
+  Both write paths are wrapped in try/except — derivation failure is non-fatal so the primary action still succeeds.
+
+### Changed
+
+- **YARNNN workspace prompt** (`api/agents/yarnnn_prompts/workspace.py`) — new "Derivation-First Scaffolding (ADR-207 Phase 5)" section above the existing "Creating Tasks" flow. Instructs YARNNN to (1) ensure Mandate is authored, (2) read `/workspace/memory/task_derivation.md` (or reason equivalently over compact index + capability availability + existing tasks), (3) propose the minimum task set with loop-role labels, (4) confirm with operator before any `ManageTask(create)` call. Heuristic check: a Writer-only task downstream of empty context domains will fail at dispatch — propose the Sensor upstream first.
+
+### Expected behavior
+
+- First-time operator authors Mandate → derivation report writes to `/workspace/memory/task_derivation.md` → YARNNN reads it → proposes Sensor + Proposer + decision-support chain → operator confirms → YARNNN scaffolds via ManageTask(create) calls.
+- Every subsequent ManageTask(create) refreshes the report so over-scaffolding (duplicate sensors) and under-scaffolding (Writer-without-Sensor) are visible at the next proposal turn.
+- Loop-role labels match ADR-207 D1: sensor / proposer / reviewer / reconciler / learner / decision-support. Operators reading the report see the Loop shape, not a flat task list.
+
+### Deferred
+
+- **P4b** — full TASK_TYPES registry dissolution remains deferred; P5 lands additively on top of the current registry (derivation reads TASK.md self-declarations, which are present on all tasks today). The derivation helper is already compatible with a post-P4b world where TASK_TYPES is gone entirely.
+
+### ADRs
+
+`docs/adr/ADR-207-primary-action-centric-workflow.md` — Phase 5 implemented. Remaining scope is P4b (TASK_TYPES registry dissolve) + P6 (alpha persona re-author + E2E re-run per updated contract).
+
+---
+
 ## [2026.04.22.9] - ADR-207 P4a (Platform Bots dissolved into capability gates)
 
 ### Changed

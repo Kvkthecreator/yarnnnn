@@ -1412,6 +1412,19 @@ async def _handle_create(auth: Any, input: dict) -> dict:
             logger.warning(f"[MANAGE_TASK] First run exception for '{slug}' (non-fatal): {e}")
             first_run_result = None
 
+    # ADR-207 Phase 5: refresh /workspace/memory/task_derivation.md so the
+    # next YARNNN turn sees an accurate coverage snapshot for the Loop.
+    try:
+        from services.task_derivation import build_derivation_report
+        from services.workspace import UserMemory
+        report = build_derivation_report(auth.client, user_id)
+        await UserMemory(auth.client, user_id).write(
+            "memory/task_derivation.md", report,
+            summary="ADR-207 P5: derivation report refreshed after task create",
+        )
+    except Exception as derivation_err:
+        logger.warning(f"[MANAGE_TASK] derivation refresh failed (non-fatal): {derivation_err}")
+
     return {
         "success": True,
         "action": "create",

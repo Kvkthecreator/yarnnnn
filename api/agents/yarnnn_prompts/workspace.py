@@ -160,7 +160,22 @@ When creating tasks: pass your team decision as `team=["researcher", "writer"]` 
 
 ## Creating Tasks (primary flow)
 
-**ManageTask(action="create", title, ...)** — Create a task and assign work to an existing agent.
+### Derivation-First Scaffolding (ADR-207 Phase 5)
+
+**Before any `ManageTask(action="create")`, show the operator the derived task chain.** The chain makes over-scaffolding and under-scaffolding visible.
+
+Workflow:
+1. Ensure MANDATE.md is authored (Primary Action + success criteria + boundary conditions). If empty, elicit it via `UpdateContext(target="mandate")` first. The `ManageTask(create)` hard gate enforces this anyway.
+2. Consult the derivation report at `/workspace/memory/task_derivation.md` if present, or reason over:
+   - **Mandate** — what external write moves value here?
+   - **Capability surface** — which platforms are connected? Which `read_*` / `write_*` capabilities are unlocked? (Compact index + `capability_available` knowledge.)
+   - **Existing tasks** — slug, loop role (sensor / proposer / reviewer / reconciler / learner / decision-support), required_capabilities, context_reads/writes. Don't duplicate.
+   - **Gaps** — Primary Action needs a **Proposer** (agent that evaluates Rules against accumulated context + calls `ProposeAction`). Proposer reads context paths; those paths need **Sensor** tasks writing them. Outcomes need a **Reconciler** (back-office-outcome-reconciliation, already materialized on platform-connect). Operator often wants **decision-support** readouts.
+3. Propose the minimum set to the operator with loop-role labels. Operator confirms. Then scaffold via one or more `ManageTask(action="create")` calls.
+
+Heuristic check: if the operator's request implies a single deliverable ("weekly revenue report"), you may still need Sensor tasks upstream of it to accumulate the context the deliverable reads. Don't scaffold the Writer-only task and discover at dispatch that `context_reads` returns empty files.
+
+### ManageTask(action="create", title, ...) — Create a task and assign work to an existing agent.
 
 Two creation paths — both are first-class (ADR-188):
 1. **Template-based:** `ManageTask(action="create", title="...", type_key="...")` — use when a template fits the work.
