@@ -1,6 +1,8 @@
 # ADR-166: Registry Coherence Pass — Drop `category`, Refine `output_kind`
 
-**Status:** Proposed
+> **⚠ Superseded by [ADR-207](ADR-207-primary-action-centric-workflow.md) (2026-04-22).** The `output_kind` classification enum dissolves. Tasks self-declare behavior via TASK.md fields (`schedule`, `context_reads`, `context_writes`, `emits_proposal`, `required_capabilities`, `output_spec`); pipeline and surfaces derive role from declarations, not from a classification key. ADR-207 deletes `TASK_TYPES` wholesale alongside the classification.
+
+**Status:** Superseded by ADR-207 (output_kind classification dissolves)
 **Date:** 2026-04-08
 **Authors:** KVK, Claude
 **Extends:** ADR-138 (Tasks as Work Units), ADR-140 (Agent Workforce Model), ADR-145 (Task Type Registry), ADR-149 (Task Lifecycle), ADR-152 (Unified Directory Registry), ADR-163 (Surface Restructure), ADR-164 (Back Office Tasks)

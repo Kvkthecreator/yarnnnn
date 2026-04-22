@@ -80,7 +80,8 @@ The current cognitive architecture evolved through a series of decisions. ADR-18
 | [188](ADR-188-domain-agnostic-framework.md) | Domain-Agnostic Framework — Registries as Template Libraries | Phases 1-2 Implemented (Phase 3+ completed by ADR-205) |
 | [189](ADR-189-three-layer-cognition.md) | Three-Layer Cognition — YARNNN, Specialists, Agents | Proposed — canonical (Phase 2 pragmatic preservation reversed by ADR-205) |
 | [205](ADR-205-primitive-collapse.md) | Workspace Primitive Collapse — YARNNN as Sole Persistent Identity | Backend Implemented, F1+F2+F5 Shipped (F2 framing extended by ADR-206) |
-| [206](ADR-206-operation-first-scaffolding.md) | Operation-First Scaffolding — Intent / Deliverables / Operation | **Phases 1-3 Implemented** (Author/Rule modals deferred) |
+| [206](ADR-206-operation-first-scaffolding.md) | Operation-First Scaffolding — Intent / Deliverables / Operation | Phases 1-3 Implemented — refined by ADR-207 |
+| [207](ADR-207-primary-action-centric-workflow.md) | Primary-Action-Centric Workflow — Mandate, Loop, Capabilities | **Proposed — canonical operator workflow** |
 
 ### Canonical Terminology
 

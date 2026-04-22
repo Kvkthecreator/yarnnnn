@@ -1,6 +1,8 @@
 # ADR-188: Domain-Agnostic Framework — Registries as Template Libraries
 
 > **⚠ Completed by [ADR-205](ADR-205-primitive-collapse.md) (2026-04-22).** The "registries as template libraries" thesis is extended to the agent roster layer and the workspace directory layer. `AGENT_TEMPLATES` becomes a dispatch-time palette (no persisted rows at signup) and `WORKSPACE_DIRECTORIES` becomes a naming-convention reference (no directory pre-creation at signup). ADR-188's arc — "framework-fixed primitives, contextual workspace config" — now holds at both read and write paths and across all three registries.
+>
+> **⚠ Superseded by [ADR-207](ADR-207-primary-action-centric-workflow.md) (2026-04-22).** ADR-188's "registries as template libraries" thesis is finished — `TASK_TYPES` dissolves entirely. Tasks no longer reference a concrete type key; they self-declare in TASK.md (`schedule`, `context_reads`, `context_writes`, `emits_proposal`, `required_capabilities`, `output_spec`). The task-type library becomes documentation (example shapes for reference), not code. Platform Bots — the last concrete-typed roster — also dissolve into pure Capabilities per ADR-207's D5.
 
 > **Status**: Phases 1-4 Implemented, Phase 5 Complete (Phase 3+ agent/directory collapse completed by ADR-205)
 > **Date**: 2026-04-17

@@ -1,5 +1,7 @@
 # ADR-206: Operation-First Scaffolding — Intent / Deliverables / Operation as Three Cockpit Layers
 
+> **⚠ Refined by [ADR-207](ADR-207-primary-action-centric-workflow.md) (2026-04-22).** Intent layer preserved as-is (Mandate + rules + risk + principles). Operation layer preserved. **Deliverables reframed as task sub-parts**, not a first-class layer — every task has a DELIVERABLE.md output contract, but there is no separate "Deliverables" concept in the operator workflow. ADR-207 introduces Primary Action as the architectural pivot (what Mandate declares, what the Loop orbits) and names the 7-arrow Loop explicitly. ADR-206's three-layer view survives conceptually but is no longer the primary operator-facing framing — the Loop is.
+
 > **Status**: Proposed
 > **Date**: 2026-04-22
 > **Authors**: KVK, Claude
