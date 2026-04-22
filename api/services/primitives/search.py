@@ -25,7 +25,13 @@ SEARCH_ENTITIES_TOOL = {
     "description": """Find database-backed entities by content (entity layer). Returns refs for LookupEntity.
 
 Scopes: document (uploaded files), agent, version, all. Memory is not a scope — already in working memory.
-For workspace filesystem search use SearchFiles. For accumulated context domains use QueryKnowledge.""",
+
+DOES NOT SEARCH:
+- Task bodies (TASK.md, DELIVERABLE.md) — these are workspace files. Use ReadFile with path /tasks/{slug}/TASK.md instead. The compact index already lists every task by slug; pick the slug, read the file directly.
+- Context domain files (/workspace/context/**) — use QueryKnowledge for semantic search or ReadFile for a known path.
+- AGENT.md, IDENTITY.md, BRAND.md — these are workspace files. Use ReadFile with the known path.
+
+Use SearchEntities ONLY when you need database rows (agent records, uploaded document metadata, agent run history).""",
     "input_schema": {
         "type": "object",
         "properties": {

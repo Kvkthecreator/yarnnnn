@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.3] - Primitive ergonomics — trust the compact index (alpha-trader test)
+
+### Changed
+
+- `api/services/primitives/search.py`: `SEARCH_ENTITIES_TOOL.description` now explicitly enumerates what SearchEntities does NOT cover — task bodies (TASK.md, DELIVERABLE.md), context domain files, AGENT.md/IDENTITY.md/BRAND.md. Points at ReadFile / QueryKnowledge as the correct primitives for those reads.
+- `api/services/primitives/read.py`: `handle_lookup_entity` now detects slug-looking identifiers for `task:` and `agent:` refs (identifier is not a UUID and not a special keyword). Returns an `error="slug_not_uuid"` result with a targeted hint pointing the caller to `ReadFile(path="/tasks/{slug}/TASK.md")` or `ManageTask(task_slug=...)` — instead of letting Postgres explode with "invalid input syntax for type uuid" and leaving the caller to interpret it.
+- `api/agents/yarnnn_prompts/onboarding.py`: new section "Primitive ergonomics — trust the compact index" added just before Task Type Catalog. Teaches YARNNN that the compact index already lists every task (by slug) and every agent (by slug) — no re-discovery needed. Gives concrete by-scenario moves: user names a task → ReadFile on TASK.md, update via ManageTask(task_slug=...); user names an agent → ReadFile on AGENT.md. Explicitly names the failure mode it optimizes against: "10+ wasted SearchEntities/ListEntities rounds before the first real action."
+
+### Expected behavior
+
+- A real operator message that names an existing task by slug ("update my pre-market-brief ...") should resolve in 1–3 tool calls instead of 14. YARNNN trusts the compact index, goes straight to ManageTask or ReadFile.
+- When a caller still passes a slug to LookupEntity by accident, the error is self-correcting — the hint names the right next primitive and right next path.
+- SearchEntities stops being the catch-all; YARNNN stops reaching for it when looking for workspace file content.
+
+### Measurement
+
+Alpha-trader "set up a pre-market-brief" cold test (Mode 1 via alpha harness):
+- Pre-fix baseline: 14 tool calls before first ManageTask. SearchEntities returned 0 on four separate attempts (wrong primitive for workspace file content). LookupEntity on `task:pre-market-brief` errored with raw Postgres UUID cast failure.
+- Post-fix target: ≤5 tool calls. No LookupEntity-on-slug errors. No SearchEntities-for-TASK.md attempts.
+
+### Refs
+
+- Triggered by alpha-trader test run 2026-04-22 (see session transcript)
+- Observation deferred — logging to docs/alpha/observations/ if post-deploy measurement confirms reduction
+
+---
+
 ## [2026.04.22.2] - ADR-204 Phase 2 — lazy refresh + preference inference
 
 ### Changed

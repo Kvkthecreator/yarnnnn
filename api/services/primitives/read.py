@@ -108,6 +108,37 @@ async def handle_lookup_entity(auth: Any, input: dict) -> dict:
 
     try:
         parsed = parse_ref(ref_str)
+
+        # Ergonomic guard: task/agent refs must be UUIDs (or 'latest'/'*').
+        # If caller passed a slug-looking identifier, return a targeted hint
+        # instead of letting Postgres explode with "invalid input syntax for type uuid".
+        if parsed.entity_type in ("task", "agent") and parsed.identifier not in {"*", "latest", "current", "new"}:
+            import re as _re
+            _UUID_RE = _re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", _re.IGNORECASE)
+            if not _UUID_RE.match(parsed.identifier):
+                # Likely a slug. For tasks, steer the caller to the right primitive.
+                if parsed.entity_type == "task":
+                    hint = (
+                        f"'{parsed.identifier}' looks like a slug, not a UUID. "
+                        f"Task bodies live at /tasks/{parsed.identifier}/TASK.md — use "
+                        f"ReadFile(path='/tasks/{parsed.identifier}/TASK.md'). "
+                        f"For task scheduling/status/update, use ManageTask(task_slug='{parsed.identifier}', action='...'). "
+                        f"For the entity row, pass the id from ListEntities(pattern='task:*')."
+                    )
+                else:
+                    hint = (
+                        f"'{parsed.identifier}' looks like a slug, not a UUID. "
+                        f"For agent content, use ReadFile(path='/agents/{parsed.identifier}/AGENT.md'). "
+                        f"For the entity row, pass the id from ListEntities(pattern='agent:*')."
+                    )
+                return {
+                    "success": False,
+                    "error": "slug_not_uuid",
+                    "message": hint,
+                    "ref": ref_str,
+                    "retry_hint": hint,
+                }
+
         data = await resolve_ref(parsed, auth)
 
         if data is None:
