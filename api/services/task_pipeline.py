@@ -1172,6 +1172,7 @@ def parse_task_md(content: str) -> dict:
         "objective": {},
         "success_criteria": [],
         "output_spec": [],
+        "required_capabilities": [],  # ADR-207 P3
     }
 
     lines = content.strip().splitlines()
@@ -1218,6 +1219,14 @@ def parse_task_md(content: str) -> dict:
         elif line_stripped.startswith("**Context Writes:**"):
             raw = line_stripped.split("**Context Writes:**")[1].strip()
             result["context_writes"] = [d.strip() for d in raw.split(",") if d.strip() and d.strip() != "none"]
+        # ADR-207 P3: required_capabilities declared inline on TASK.md.
+        # Checked against CAPABILITIES registry + platform_connections at dispatch.
+        elif line_stripped.startswith("**Required Capabilities:**"):
+            raw = line_stripped.split("**Required Capabilities:**")[1].strip()
+            result["required_capabilities"] = [
+                c.strip() for c in raw.split(",")
+                if c.strip() and c.strip() != "none"
+            ]
         elif line_stripped.startswith("**Sources:**"):
             # ADR-158 Phase 2: per-task source selection
             # Format: slack:C123,C456; notion:page-id-1,page-id-2
@@ -1943,6 +1952,28 @@ async def execute_task(
         # 1c. Read mode from TASK.md (ADR-154 — single source of truth)
         # =====================================================================
         task_mode = task_info.get("mode", "recurring")
+
+        # =====================================================================
+        # 1c.5 ADR-207 P3: Capability availability gate (covers both single-
+        # and multi-step paths — runs before the pipeline branch).
+        # =====================================================================
+        required_caps = task_info.get("required_capabilities") or []
+        if required_caps:
+            from services.agent_framework import unavailable_capabilities
+            missing = unavailable_capabilities(user_id, required_caps, client)
+            if missing:
+                parts = []
+                for m in missing:
+                    if m["reason"] == "unknown_capability":
+                        parts.append(f"'{m['capability']}' (unknown — check TASK.md)")
+                    else:
+                        parts.append(
+                            f"'{m['capability']}' (connect {m['required_platform']} first)"
+                        )
+                return _fail(
+                    task_slug,
+                    "Required capability unavailable: " + "; ".join(parts),
+                )
 
         # =====================================================================
         # 1d. Check for multi-step process (ADR-152: read from TASK.md, not registry)

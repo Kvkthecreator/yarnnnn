@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.8] - ADR-207 P3 (Platform Bots → Capabilities, gate only)
+
+### Changed
+
+- `api/services/agent_framework.py`: Every entry in `CAPABILITIES` now declares `platform_connection_requirement`. Internal cognitive + tool + asset + composition capabilities declare `None`. Platform capabilities (`read_slack`, `write_slack`, `read_notion`, `write_notion`, `read_github`, `read_commerce`, `write_commerce`, `read_trading`, `write_trading`) declare `{platform, status: "active"}`. The registry comment is updated inline.
+- `api/services/agent_framework.py`: `get_capability_requirement(name)`, `capability_available(user_id, name, client)`, and `unavailable_capabilities(user_id, names, client)` added. Unknown capability names report `reason="unknown_capability"` so typos in TASK.md fail loudly rather than silently.
+- `api/services/task_pipeline.py::parse_task_md`: parses `**Required Capabilities:** cap1, cap2, ...` metadata field into `result["required_capabilities"]` (defaults to empty list).
+- `api/services/task_pipeline.py::execute_task`: new capability gate fires at step 1c.5 (before the single-step / multi-step branch). Any missing or unknown required capability fails the run with a clear operator-facing message ("Required capability unavailable: 'write_trading' (connect trading first)").
+
+### Expected behavior
+
+- Tasks declaring `**Required Capabilities:** read_slack` fail cleanly when Slack isn't connected. The failure message names the platform to connect.
+- Tasks declaring unknown capabilities (typos) fail with an `unknown_capability` reason instead of going through dispatch and silently producing useless output.
+- Tasks with no `**Required Capabilities:**` line run exactly as before (additive-only change).
+- No bot agent rows are deleted yet, no TASK_TYPES entries are removed, no AGENT_TEMPLATES entries are dropped — those ship in P4 as a single coupled cutover (TASK_TYPES references bot roles in `agent_type`, so the two deletions must land together to preserve a green state).
+
+### Not in this commit
+
+- Bot deletion + `TASK_TYPES` sunset + migration 157 + `agents_role_check` update → ship together in P4.
+- `derive_task_set()` helper + YARNNN prompt wiring → P5.
+
+### ADRs
+
+`docs/adr/ADR-207-primary-action-centric-workflow.md` (Phase 3 gate portion implemented; bot-row deletion deferred to P4).
+
+---
+
 ## [2026.04.22.7] - ADR-207 P2 (Mandate + hard gate) + Obs 07 watchdog
 
 ### Changed

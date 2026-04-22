@@ -48,7 +48,7 @@ Canonical references:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 
 # =============================================================================
@@ -1098,63 +1098,80 @@ def get_agent_class_and_domain(role: str) -> tuple[str, str | None]:
 # Registry 2: Capabilities — what each capability resolves to
 # =============================================================================
 
+#
+# ADR-207 P3: each entry declares `platform_connection_requirement`. `None`
+# means the capability is always available (internal runtime). A dict with
+# `{platform, status}` means the capability only fires when a matching
+# `platform_connections` row exists for the user. `capability_available()`
+# enforces this at task dispatch; callers should surface a clear
+# "connect {platform} first" error to the operator.
+
 CAPABILITIES: dict[str, dict[str, Any]] = {
     # -- Cognitive (prompt-driven, no dedicated tool) --
-    "summarize":         {"category": "cognitive", "runtime": "internal"},
-    "detect_change":     {"category": "cognitive", "runtime": "internal"},
-    "alert":             {"category": "cognitive", "runtime": "internal"},
-    "cross_reference":   {"category": "cognitive", "runtime": "internal"},
-    "data_analysis":     {"category": "cognitive", "runtime": "internal"},
-    "investigate":       {"category": "cognitive", "runtime": "internal"},
-    "produce_markdown":  {"category": "cognitive", "runtime": "internal"},
+    "summarize":         {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
+    "detect_change":     {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
+    "alert":             {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
+    "cross_reference":   {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
+    "data_analysis":     {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
+    "investigate":       {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
+    "produce_markdown":  {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
 
     # -- Tool-backed (internal primitives) --
-    "web_search":        {"category": "tool", "runtime": "internal", "tool": "WebSearch"},
-    "read_workspace":    {"category": "tool", "runtime": "internal", "tool": "ReadFile"},
-    "search_knowledge":  {"category": "tool", "runtime": "internal", "tool": "QueryKnowledge"},
+    "web_search":        {"category": "tool", "runtime": "internal", "tool": "WebSearch", "platform_connection_requirement": None},
+    "read_workspace":    {"category": "tool", "runtime": "internal", "tool": "ReadFile", "platform_connection_requirement": None},
+    "search_knowledge":  {"category": "tool", "runtime": "internal", "tool": "QueryKnowledge", "platform_connection_requirement": None},
 
     # -- Platform runtime (provider-native external capabilities) --
     "read_slack": {
         "category": "tool", "runtime": "external:slack",
         "tools": ["platform_slack_list_channels", "platform_slack_get_channel_history"],
+        "platform_connection_requirement": {"platform": "slack", "status": "active"},
     },
     "write_slack": {
         "category": "tool", "runtime": "external:slack",
         "tools": ["platform_slack_send_message"],
+        "platform_connection_requirement": {"platform": "slack", "status": "active"},
     },
     "read_notion": {
         "category": "tool", "runtime": "external:notion",
         "tools": ["platform_notion_search", "platform_notion_get_page"],
+        "platform_connection_requirement": {"platform": "notion", "status": "active"},
     },
     "write_notion": {
         "category": "tool", "runtime": "external:notion",
         "tools": ["platform_notion_create_comment"],
+        "platform_connection_requirement": {"platform": "notion", "status": "active"},
     },
     "read_github": {
         "category": "tool", "runtime": "external:github",
         "tools": ["platform_github_list_repos", "platform_github_get_issues"],
+        "platform_connection_requirement": {"platform": "github", "status": "active"},
     },
     "read_commerce": {
         "category": "tool", "runtime": "external:commerce",
         "tools": ["platform_commerce_list_products", "platform_commerce_get_subscribers",
                   "platform_commerce_get_revenue", "platform_commerce_get_customers",
                   "platform_commerce_create_checkout"],
+        "platform_connection_requirement": {"platform": "commerce", "status": "active"},
     },
     "write_commerce": {
         "category": "tool", "runtime": "external:commerce",
         "tools": ["platform_commerce_create_product", "platform_commerce_update_product",
                   "platform_commerce_create_discount"],
+        "platform_connection_requirement": {"platform": "commerce", "status": "active"},
     },
     "read_trading": {
         "category": "tool", "runtime": "external:trading",
         "tools": ["platform_trading_get_account", "platform_trading_get_positions",
                   "platform_trading_get_orders", "platform_trading_get_market_data",
                   "platform_trading_get_portfolio_history"],
+        "platform_connection_requirement": {"platform": "trading", "status": "active"},
     },
     "write_trading": {
         "category": "tool", "runtime": "external:trading",
         "tools": ["platform_trading_submit_order", "platform_trading_cancel_order",
                   "platform_trading_close_position"],
+        "platform_connection_requirement": {"platform": "trading", "status": "active"},
     },
 
     # -- Asset production (compute runtimes) --
@@ -1162,28 +1179,33 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "category": "asset", "runtime": "python_render",
         "tool": "RuntimeDispatch", "skill_docs": "chart/SKILL.md",
         "output_type": "image/png",
+        "platform_connection_requirement": None,
     },
     "mermaid": {
         "category": "asset", "runtime": "python_render",
         "tool": "RuntimeDispatch", "skill_docs": "mermaid/SKILL.md",
         "output_type": "image/svg+xml",
+        "platform_connection_requirement": None,
     },
     "image":   {
         "category": "asset", "runtime": "python_render",
         "tool": "RuntimeDispatch", "skill_docs": "image/SKILL.md",
         "output_type": "image/png",
+        "platform_connection_requirement": None,
     },
     "video_render": {
         "category": "asset", "runtime": "python_render",
         "tool": "RuntimeDispatch", "skill_docs": "video/SKILL.md",
         "output_type": "video/mp4",
         "timeout": 180,  # extended timeout for video rendering
+        "platform_connection_requirement": None,
     },
 
     # -- Composition (post-generation pipeline step) --
     "compose_html": {
         "category": "composition", "runtime": "python_render",
         "post_generation": True,
+        "platform_connection_requirement": None,
     },
 
     # PM coordination capabilities removed — PM/project architecture dissolved
@@ -1242,6 +1264,87 @@ def get_type_skill_docs(agent_type: str) -> list[str]:
         if cap_def.get("skill_docs"):
             docs.append(cap_def["skill_docs"])
     return docs
+
+
+# =============================================================================
+# ADR-207 P3: Capability Availability Gate
+# =============================================================================
+
+def get_capability_requirement(capability_name: str) -> Optional[dict]:
+    """Return the platform_connection_requirement for a capability, or None.
+
+    None means: either the capability doesn't exist, or it needs no platform
+    connection (internal runtime). Callers should treat unknown capabilities
+    as "not available" to fail loudly on typos in TASK.md.
+    """
+    cap = CAPABILITIES.get(capability_name)
+    if cap is None:
+        return None
+    return cap.get("platform_connection_requirement")
+
+
+def capability_available(user_id: str, capability_name: str, client: Any) -> bool:
+    """Check whether a capability can fire for this user right now.
+
+    Internal capabilities (no platform requirement) are always available.
+    Platform-gated capabilities require an active `platform_connections`
+    row matching the declared requirement.
+
+    Unknown capability names return False — callers should surface the
+    mismatch so the operator can correct TASK.md.
+    """
+    cap = CAPABILITIES.get(capability_name)
+    if cap is None:
+        return False
+    req = cap.get("platform_connection_requirement")
+    if req is None:
+        return True
+    try:
+        row = (
+            client.table("platform_connections")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("platform", req["platform"])
+            .eq("status", req["status"])
+            .limit(1)
+            .execute()
+        )
+        return bool(row.data)
+    except Exception:
+        # Deterministic gate — failing a lookup reports unavailable rather
+        # than masking misconfiguration.
+        return False
+
+
+def unavailable_capabilities(
+    user_id: str, capability_names: list[str], client: Any
+) -> list[dict]:
+    """Return a list of {capability, reason, required_platform} for each
+    capability that cannot fire right now. Empty list = all capabilities
+    are available.
+
+    `reason` is one of: "unknown_capability", "platform_not_connected".
+    """
+    results: list[dict] = []
+    for name in capability_names or []:
+        cap = CAPABILITIES.get(name)
+        if cap is None:
+            results.append({
+                "capability": name,
+                "reason": "unknown_capability",
+                "required_platform": None,
+            })
+            continue
+        req = cap.get("platform_connection_requirement")
+        if req is None:
+            continue
+        if not capability_available(user_id, name, client):
+            results.append({
+                "capability": name,
+                "reason": "platform_not_connected",
+                "required_platform": req.get("platform"),
+            })
+    return results
 
 
 # =============================================================================
