@@ -11,6 +11,7 @@ alpha-related is here or linked from here.
 | [DUAL-OBJECTIVE-DISCIPLINE.md](./DUAL-OBJECTIVE-DISCIPLINE.md) | Two objectives (A-system + B-product), three-axis observation schema, dual weekly report templates, anti-drift rules | Before writing any observation or report |
 | [CLAUDE-OPERATOR-ACCESS.md](./CLAUDE-OPERATOR-ACCESS.md) | Three access modes (Headless / Cockpit / Conversational); per-mode auth + discretion + future connection paths | First thing a new Claude session reads |
 | [OPERATOR-HARNESS.md](./OPERATOR-HARNESS.md) | Mode 1 machinery: `verify.py`, `mint_jwt.py`, `connect.py`, `reset.py` | When running commands |
+| [E2E-EXECUTION-CONTRACT.md](./E2E-EXECUTION-CONTRACT.md) | Pre-E2E alignment: Simons posture, feedback-loop orchestration, Claude acting-on-behalf rules, stop conditions, success criteria | Before running any persona E2E; re-read each run to prevent drift |
 | [personas.yaml](./personas.yaml) | Persona registry: slug → email → user_id → workspace_id → invariants | Read by harness scripts; humans read for cross-reference |
 
 ## Substrate subdirectories
