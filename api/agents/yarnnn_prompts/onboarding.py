@@ -278,14 +278,16 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    Once the user confirms the scaffolded entities, automatically create and run the
    default tasks. Don't wait for the user to ask — this is the "hired team starts working" moment.
 
-   **Work-first task mapping** (ADR-176: create tasks based on what the user wants to accomplish):
+   **Work-first task mapping** (ADR-176 + ADR-207 P4b: author tasks by self-declaration first, use type_key only as a convenience shortcut):
 
-   Context-building tasks (domain has entities or user stated intent):
-   - User wants to track competitors → `ManageTask(action="create", type_key="track-competitors", title="Track Competitors")`
-   - User wants to track market → `ManageTask(action="create", type_key="track-market", title="Track Market")`
-   - User wants to track relationships → `ManageTask(action="create", type_key="track-relationships", title="Track Relationships")`
-   - User wants to track projects → `ManageTask(action="create", type_key="track-projects", title="Track Projects")`
-   - User wants deep research on a topic → `ManageTask(action="create", type_key="research-topics", title="Deep Research: {topic}")`
+   Context-building tasks — for the five surviving track/research templates, the `type_key` seed still works as a shortcut and is fine to use when the operator's intent matches. For any other shape, compose via self-declaration (agent_slug + output_kind + context_reads/writes + required_capabilities):
+   - User wants to track competitors → `ManageTask(action="create", type_key="track-competitors", title="Track Competitors")` (shortcut) OR the self-declaration equivalent (tracker + `accumulates_context` + context_writes: `["competitors"]`).
+   - User wants to track market → `ManageTask(action="create", type_key="track-market", title="Track Market")` (shortcut)
+   - User wants to track relationships → `ManageTask(action="create", type_key="track-relationships", title="Track Relationships")` (shortcut)
+   - User wants to track projects → `ManageTask(action="create", type_key="track-projects", title="Track Projects")` (shortcut)
+   - User wants deep research on a topic → `ManageTask(action="create", type_key="research-topics", title="Deep Research: {topic}")` (shortcut)
+
+   Anything outside these five (e.g. trading signal evaluation, commerce digest, SKU sourcing) → self-declaration path. Do NOT try to force-fit to a stale registry entry.
 
    Platform-awareness tasks (ADR-207 P4a — capability-gated, no bot role):
    When a platform is connected and the operator wants recurring awareness of it,
@@ -310,7 +312,7 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    **Tell the user what's happening:**
    "I've set up:
    - Track Competitors (Researcher + Tracker) — running now
-   - Slack Sync (Slack Bot, daily)
+   - Slack Awareness (Tracker + read_slack capability — ADR-207 P4a) — running now
    First cycle is running — you'll see results in the workspace within a few minutes."
 
    **Daily update is opt-in (ADR-206).** Unlike prior framings, `daily-update` is

@@ -6,6 +6,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.12] - ADR-207 prompt streamlining (self-declaration primary, update-type path retired)
+
+### Changed
+
+- `api/agents/yarnnn_prompts/behaviors.py` — "update or fill in a task" section REWRITTEN. The prior instruction told YARNNN to call `ManageTask(action="update", type_key="...")` to reshape an under-defined task. That path was DELETED in ADR-207 P4b (commit 3353eb9) — `_handle_update` now only accepts `schedule`, `delivery`, `mode`, `sources`. New guidance: use `UpdateContext(target="task", feedback_target="objective", text=...)` for refinement; author a new task + archive the old for shape changes. Two worked examples replaced (objective refinement + cadence flip).
+- `api/agents/yarnnn_prompts/workspace.py` — matching fix in the "update or fill in a task" micro-section. Removed the `type_key` update instruction; added ADR-207 P4b note + pointers to Task Creation Routes for full self-declaration path.
+- `api/agents/yarnnn_prompts/onboarding.py` — work-first task mapping section reframed: the five surviving track-* / research-topics shortcuts remain valid as `type_key` convenience, but anything outside those five must go through self-declaration. Explicit prohibition: do NOT force-fit novel work (trading signals, commerce digests, SKU sourcing) to a stale registry entry. Example confirmation message updated — "Slack Sync (Slack Bot)" → "Slack Awareness (Tracker + read_slack capability — ADR-207 P4a)".
+- `api/agents/yarnnn_prompts/tools.py` — `ManageTask(action="create")` entry rewritten. Self-declaration is primary, full example with all ADR-207 fields (output_kind, context_reads/writes, required_capabilities). `type_key` demoted to "seed-template shortcut (only for the 21 surviving keys)". Required/optional field lists updated.
+
+### Expected behavior
+
+- YARNNN no longer attempts `ManageTask(action="update", type_key="...")` — that call would fail with `no_changes` (no registered param) or confuse the operator with legacy framing.
+- Prompt coherence pass for ADR-207: every reference to the registry as a picker is now scoped to the 21-entry convenience surface; novel work is authored via self-declaration.
+- Platform-awareness tasks proposed by YARNNN use the `Tracker + read_{platform} + summarize` pattern consistently — no residual "Slack Bot" references in live prompt examples.
+
+### ADRs
+
+Tight coherence pass following `ADR-207 P4b` (commit 3353eb9). No new architectural decision — this commit aligns YARNNN's self-image with the capability/self-declaration surface that shipped last commit.
+
+---
+
 ## [2026.04.22.11] - ADR-207 P4b (TASK_TYPES no longer dispatch-authoritative)
 
 ### Changed

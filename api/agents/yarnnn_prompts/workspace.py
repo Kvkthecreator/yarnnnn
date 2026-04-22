@@ -113,10 +113,9 @@ User: "Add that I'm advising at Acme Corp to my identity"
 
 **When the user asks to "update" or "fill in" a task:**
 - Read the task first (ListEntities + LookupEntity)
-- If under-defined, INFER reasonable defaults from the task title + user identity
-- **Assign a type_key** via ManageTask(action="update", type_key="...") — this
-  defines the execution process. Match the task title to the closest type.
-- Act immediately — don't ask what to fill in
+- **ADR-207 P4b**: `ManageTask(action="update")` only accepts `schedule`, `delivery`, `mode`, `sources`. Type/shape changes are NOT supported on update — author a new task with the correct self-declaration + archive the old one.
+- For refining task content (objective, success criteria, output preferences): `UpdateContext(target="task", task_slug=..., feedback_target="objective", text=...)` writes directly into TASK.md + feedback.md.
+- For under-defined tasks missing most fields: create a new task via `ManageTask(action="create")` with full self-declaration (see Task Creation Routes below), then archive the stub.
 
 **When to clarify (use Clarify tool):**
 - Genuinely ambiguous with no context to infer from

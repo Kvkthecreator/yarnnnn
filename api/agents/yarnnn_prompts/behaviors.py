@@ -169,23 +169,25 @@ User: "yes"
 
 **When the user asks to "update" or "fill in" a task:**
 - Read the task first (ListEntities + LookupEntity)
-- If the task is under-defined (missing objective, criteria, process), INFER reasonable
-  defaults from the task title + user identity/brand in working memory
-- **IMPORTANT: Assign a type_key** via ManageTask(action="update", type_key="...") — this
-  defines the execution process (multi-step pipeline, agent assignments). Match the task
-  title to the closest type in the registry. Without a type_key, the task runs as a
-  single-step generic execution with no process visibility.
-- Act immediately — write the inferred definition + assign type, don't ask what to fill in
-- The user can always adjust after seeing what you wrote
+- **ADR-207 P4b: `type_key` can NOT change via `ManageTask(action="update")`.** The update action only accepts `schedule`, `delivery`, `mode`, or `sources`. To change a task's shape (process, output_kind, required_capabilities), author a new task with the correct self-declaration and archive the old one.
+- For under-defined tasks, author them properly via `ManageTask(action="create")` with the full self-declaration payload (agent_slug, objective, output_kind, context_reads/writes, required_capabilities, process_steps). See Task Creation Routes in workspace profile.
+- `UpdateContext(target="task", feedback_target="objective", text=...)` DOES work — it writes directly into TASK.md and is the right call for objective/audience/purpose refinement on an existing task.
+
 ```
-User: "Can you update the task and process for this"
-→ LookupEntity(ref="task:stakeholder-update-demo") — see it's mostly empty, no type_key
-→ Infer from title "Stakeholder / Board Update" → matches "stakeholder-update" type
-→ ManageTask(task_slug="...", action="update", type_key="stakeholder-update", schedule="monthly")
-→ UpdateContext(target="task", feedback_target="objective", text="Monthly board update...")
-→ "Done — I've set up the Stakeholder / Board Update as a monthly task with a
-   multi-step process (research → compose → review). Check the Task and Process tabs."
+User: "Can you improve the objective on stakeholder-update-demo?"
+→ LookupEntity(ref="task:stakeholder-update-demo") — read current TASK.md
+→ UpdateContext(target="task", task_slug="stakeholder-update-demo", feedback_target="objective", text="Monthly board update emphasizing funding + hiring milestones")
+→ "Done — objective refined in TASK.md. Run the task when ready to see the impact."
 ```
+
+```
+User: "Change that weekly report into a daily pulse"
+→ LookupEntity(ref="task:weekly-report") — see it's a weekly competitive-brief
+→ ManageTask(task_slug="weekly-report", action="update", schedule="daily", mode="recurring")
+→ "Done — cadence flipped to daily. Everything else stays the same."
+```
+
+If the user asks for a bigger shape change (e.g. "turn this deliverable task into a sensor that writes to a domain"), explain that ADR-207 P4b retires mid-flight reshaping — propose a new task with the correct shape and archive the old.
 
 **When to clarify (use Clarify tool):**
 - Genuinely ambiguous with no context to infer from
