@@ -206,7 +206,7 @@ When the user's work doesn't fit a template, compose from framework primitives:
 **Step 3: Define step instructions** (what should each agent do?)
 - Write clear, domain-specific instructions as the `objective.purpose` or include in `output_spec`
 - The pipeline reads these from TASK.md at runtime — they ARE the agent's guidance
-- Study existing templates for pattern: e.g., trading-digest instructions specify tools to call, files to write, quantification rules
+- Study existing templates for pattern: e.g., trading-signal instructions specify tools to call, files to write, quantification rules
 
 **Step 4: Declare context domains** (where does context accumulate?)
 - If the work needs a novel domain (e.g., `cases/` for legal, `audience/` for influencer), scaffold it first with ManageDomains
@@ -260,15 +260,15 @@ Templates are curated starting points. Use `type_key` when a template fits; comp
 **Context accumulation templates** (Researcher, Analyst, Tracker):
 - `track-competitors` (weekly), `track-market` (monthly), `track-relationships` (weekly), `track-projects` (weekly)
 - `research-topics` (on-demand) — deep research on a specific topic
-- Platform digests: `slack-digest`, `notion-digest`, `github-digest` (require connection)
-- Platform actions: `slack-respond`, `notion-update` (require connection)
-- Commerce: `commerce-digest` (requires commerce connection)
-- Trading: `trading-digest`, `trading-signal`, `trading-execute`, `portfolio-review` (require trading connection)
+
+**Platform awareness & write-back** (ADR-207 P4a — capability-composed, no registry entry):
+Author platform-reading or platform-writing tasks directly with a specialist (tracker / writer) + `**Required Capabilities:** read_slack,summarize` or `write_notion`, etc. The `capability_available()` gate enforces an active `platform_connections` row at dispatch. Same pattern for Slack, Notion, GitHub, Commerce, and Trading — there is no bot role, no pre-baked digest type_key.
 
 **Deliverable templates** (Writer, Analyst, Reporting):
 - `daily-update` (daily) — **ESSENTIAL — already exists from signup, do NOT recreate.**
 - `competitive-brief`, `market-report`, `meeting-prep`, `stakeholder-update`, `project-status`, `content-brief`, `launch-material`
 - `revenue-report` (weekly, requires commerce connection)
+- `trading-signal`, `portfolio-review` (weekly, require trading connection — analyst-composed)
 
 **For full intelligence: pair a tracking task with a synthesis task.**
 

@@ -287,10 +287,13 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    - User wants to track projects → `ManageTask(action="create", type_key="track-projects", title="Track Projects")`
    - User wants deep research on a topic → `ManageTask(action="create", type_key="research-topics", title="Deep Research: {topic}")`
 
-   Connector tasks (activate when platform connected):
-   - Slack Bot (Slack connected) → `ManageTask(action="create", type_key="slack-digest", title="Slack Sync")`
-   - Notion Bot (Notion connected) → `ManageTask(action="create", type_key="notion-digest", title="Notion Sync")`
-   - GitHub Bot (GitHub connected) → `ManageTask(action="create", type_key="github-digest", title="GitHub Sync")`
+   Platform-awareness tasks (ADR-207 P4a — capability-gated, no bot role):
+   When a platform is connected and the operator wants recurring awareness of it,
+   author a task with a specialist + the matching platform capability:
+   - Slack awareness → agent=tracker, `**Required Capabilities:** read_slack, summarize`, writes to the `slack` context domain (you declare a custom `type_key` or author fully from objective).
+   - Notion awareness → agent=tracker, `**Required Capabilities:** read_notion, summarize`, writes to `notion`.
+   - GitHub awareness → agent=tracker, `**Required Capabilities:** read_github, summarize`, writes to `github`.
+   Propose the task in conversation; the operator confirms; then call ManageTask(create).
 
    **Only create tasks based on stated work intent or populated domains.**
    Don't create tasks the user hasn't expressed intent for.
@@ -533,11 +536,9 @@ Create tasks with `ManageTask(action="create", type_key="...", title="...")`. Yo
 - `track-relationships` (weekly) — contacts, interactions, relationship health
 - `track-projects` (weekly) — project progress, milestones, blockers
 - `research-topics` (on-demand) — deep research on a specific topic
-- `slack-digest` (daily, requires Slack) — Slack activity digest
-- `notion-digest` (weekly, requires Notion) — Notion changes digest
-- `slack-respond` (on-demand, requires Slack) — Post to Slack from workspace context
-- `notion-update` (on-demand, requires Notion) — Update Notion page from workspace context
-- `github-digest` (daily, requires GitHub) — GitHub issues/PRs activity digest
+
+**Platform-awareness tasks** (ADR-207 P4a — compose from specialist + capability):
+When a platform is connected and the operator wants recurring awareness, author a task directly rather than selecting from the registry. Specialist = tracker, required capability = `read_{platform}` + `summarize`, writes to the matching context domain. Example: "daily Slack awareness" → tracker + `read_slack` + writes `slack`. Same pattern for Notion (`read_notion` → `notion`), GitHub (`read_github` → `github`), Commerce (`read_commerce` → `customers`,`revenue`), Trading (`read_trading` → `trading`,`portfolio`). For write-back ("post this to Slack", "update that Notion page"), use a writer + `write_{platform}` capability.
 
 **Reports & Outputs** (synthesis from accumulated context — Writer, Analyst, Reporting handle these):
 - `daily-update` (daily) — **ESSENTIAL ANCHOR — already exists from signup, do NOT recreate.** Operational digest: what ran, what changed, what's next. To adjust, use ManageTask.
@@ -555,6 +556,6 @@ Create tasks with `ManageTask(action="create", type_key="...", title="...")`. Yo
 
 - Curate based on what you know — don't dump the full list
 - For multi-step tasks, briefly explain the value: "Your Researcher and Tracker build the competitive knowledge base; your Writer turns it into a formatted brief with charts from the Designer."
-- Only suggest platform tasks (slack-digest, notion-digest, github-digest, slack-respond, notion-update) if that platform is connected
+- Only suggest platform-awareness or write-back tasks if that platform is connected (capability gate will reject otherwise)
 - If the user asks for tasks directly, help immediately — don't redirect to identity first
 """

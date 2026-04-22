@@ -6,6 +6,41 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.9] - ADR-207 P4a (Platform Bots dissolved into capability gates)
+
+### Changed
+
+**Agent framework.** `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, and `trading_bot` templates DELETED from `AGENT_TEMPLATES` and `LEGACY_ROLE_MAP`. The five platform-bot agent classes no longer exist. Capabilities (`read_slack`, `write_slack`, `read_notion`, `write_notion`, `read_github`, `read_commerce`, `write_commerce`, `read_trading`, `write_trading`) survive with their `platform_connection_requirement` declaration from P3 — any specialist (researcher / analyst / writer / tracker / designer) can invoke them when the connection is active.
+
+**Agent creation.** `PLATFORM_BOT_ROLES`, `_BOT_ROLE_TO_PLATFORM`, `delete_platform_bot()` DELETED from `agent_creation.py`. `classify_role()` simplified to three classes (`yarnnn`, `specialist`, `user_authored`) — no `platform_bot` branch. `ensure_infrastructure_agent()` no longer runs the per-platform connection check; capability gating at dispatch handles that.
+
+**Task type registry.** 11 TASK_TYPES entries that routed to bot roles DELETED: `slack-digest`, `notion-digest`, `github-digest`, `commerce-digest`, `slack-respond`, `notion-update`, `commerce-create-product`, `commerce-update-product`, `commerce-create-discount`, `trading-digest`, `trading-execute`. Their matching STEP_INSTRUCTIONS entries also deleted. Remaining 21 TASK_TYPES dispatch to specialists only (verified). Registry is now a curated template library per ADR-188 — operators compose platform work directly via YARNNN using specialist + `**Required Capabilities:**` declaration.
+
+**Routes.** `routes/integrations.py`: `_PROVIDER_TO_BOT_ROLE` + bot create/delete calls on OAuth connect (Slack/Notion/GitHub/Commerce/Trading) REMOVED. `_scaffold_platform_digest_task()` + `_PROVIDER_TO_DIGEST` DELETED — platform connect no longer auto-scaffolds a digest task (per ADR-206 D5, YARNNN proposes tasks based on Mandate + connected platforms). `routes/account.py`: platform-bot deletion block removed from `clear_integrations`.
+
+**YARNNN prompts.** `agents/yarnnn_prompts/platforms.py`, `onboarding.py`, `workspace.py`, `behaviors.py`, `tools.py` all rewritten to reflect ADR-207 P4a: no bot role, no `slack-digest` / `notion-digest` / etc. type_keys, platform-awareness + write-back composed from specialist + capability + context domain. Example pattern documented: tracker + `**Required Capabilities:** read_slack, summarize` + `**Context Writes:** slack`.
+
+**Migration 157** (`supabase/migrations/157_adr207_p4a_platform_bots_dissolved.sql`): applied 2026-04-22. DELETEs tasks with bot-dispatched slugs (slack-sync, notion-sync, github-sync, commerce-sync, trading-sync, slack-respond, notion-update, commerce-create-*, commerce-update-*, commerce-create-discount, trading-execute), DELETEs any remaining bot agent rows, rebuilds `agents_role_check` without bot role values. Production state: 0 bot agents, 0 bot tasks remaining.
+
+### Expected behavior
+
+- OAuth connect (Slack / Notion / GitHub / Commerce / Trading) inserts/updates only `platform_connections`. No agent row materializes. No task scaffolds automatically.
+- Platform capabilities unlock the moment the connection goes `active` — any specialist task declaring `**Required Capabilities:** read_slack` on Slack-connected user dispatches successfully. Same task on a Slack-not-connected user fails fast with `"Required capability unavailable: 'read_slack' (connect slack first)"`.
+- OAuth disconnect only deletes `platform_connections` row + context files under `/workspace/context/{platform}/`. No bot agent rows to cascade-delete.
+- YARNNN authors platform-awareness + write-back tasks as specialist + capability + context domain. The old "create a slack-digest" shortcut is gone; YARNNN composes the TASK.md.
+- Any existing TASK.md in production that references a bot agent fails at dispatch with `no_agent_resolved` / `unknown_role`. Migration 157 proactively DELETEs these tasks to prevent silent scheduler runs into broken state.
+
+### Deferred
+
+- **P4b** — full TASK_TYPES registry dissolution. `_handle_create` + `_handle_update` accept self-declaration fields directly; 8 helpers (`get_task_type`, `get_default_mode`, `delivery_requires_approval`, `get_bootstrap_criteria`, `list_task_types`, `resolve_process_agents`, `build_task_md_from_type`, `build_deliverable_md_from_type`) deleted; 15+ callers refactored; `/api/tasks/types` endpoints removed; frontend `TaskType` interface cleanup. Dedicated session — 3+ hour refactor across ~15 files with test + frontend coverage.
+- **P5** — `derive_task_set()` helper + YARNNN prompt guidance for showing the derived task chain before scaffolding.
+
+### ADRs
+
+`docs/adr/ADR-207-primary-action-centric-workflow.md` — Phase 3 bot-row cleanup completed alongside Phase 4a bot-role dissolution. The capability gate from P3 (commit 352f8b9) is now the sole mechanism for platform access — no bot agent class exists as a parallel path.
+
+---
+
 ## [2026.04.22.8] - ADR-207 P3 (Platform Bots → Capabilities, gate only)
 
 ### Changed

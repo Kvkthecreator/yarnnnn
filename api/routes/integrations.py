@@ -705,24 +705,11 @@ async def disconnect_integration(
         if not result_data:
             raise HTTPException(status_code=404, detail=f"Integration not found: {provider}")
 
-        # ADR-205: Platform Bots are connection-bound. Delete the corresponding
-        # bot row so reconnect lazy-creates a fresh one.
-        _PROVIDER_TO_BOT_ROLE = {
-            "slack": "slack_bot",
-            "notion": "notion_bot",
-            "github": "github_bot",
-            "commerce": "commerce_bot",
-            "trading": "trading_bot",
-        }
-        for p in providers_to_try:
-            bot_role = _PROVIDER_TO_BOT_ROLE.get(p)
-            if bot_role:
-                try:
-                    from services.agent_creation import delete_platform_bot
-                    await delete_platform_bot(auth.client, user_id, bot_role)
-                except Exception as bot_err:
-                    logger.warning(f"[INTEGRATIONS] Failed to delete {bot_role} for {user_id}: {bot_err}")
-
+        # ADR-207 P4a: Platform Bots dissolved. OAuth disconnect no longer
+        # deletes a bot agent row — the row doesn't exist. The platform
+        # capability (read_slack, write_slack, ...) simply becomes unavailable
+        # via `capability_available()`, and any task declaring it in
+        # `**Required Capabilities:**` fails fast with "connect slack first".
         logger.info(f"[INTEGRATIONS] User {user_id} disconnected {provider}")
 
         # Activity log: record integration disconnection (ADR-063)
@@ -1262,7 +1249,7 @@ async def start_notion_import(
     # Platform data flows through task execution (Monitor Notion task type).
     return {
         "deprecated": True,
-        "message": "Import jobs have been replaced by digest tasks. Create a 'notion-digest' task instead.",
+        "message": "Import jobs have been replaced by platform-awareness tasks. Ask YARNNN to author a tracker task with `**Required Capabilities:** read_notion, summarize` that writes to the notion context domain.",
     }
 
 
@@ -1316,79 +1303,15 @@ async def list_destinations(
 
 
 # =============================================================================
-# Platform Digest Task Scaffolding
+# Platform Digest Task Scaffolding — DELETED (ADR-207 P4a, 2026-04-22)
 # =============================================================================
-
-_PROVIDER_TO_DIGEST = {
-    "slack": {"type_key": "slack-digest", "slug": "slack-sync", "title": "Slack Sync", "bot_slug": "slack-bot"},
-    "notion": {"type_key": "notion-digest", "slug": "notion-sync", "title": "Notion Sync", "bot_slug": "notion-bot"},
-    "github": {"type_key": "github-digest", "slug": "github-sync", "title": "GitHub Sync", "bot_slug": "github-bot"},
-    "trading": {"type_key": "trading-digest", "slug": "trading-sync", "title": "Trading Sync", "bot_slug": "trading-bot"},
-}
-
-
-async def _scaffold_platform_digest_task(
-    client: Any,
-    user_id: str,
-    provider: str,
-    smart_selected: list[dict],
-) -> None:
-    """Auto-create a platform digest task when a platform is connected.
-
-    The task is created as paused with no sources selected — the user picks
-    sources on the task page and activates. Idempotent: skips if the task
-    slug already exists.
-    """
-    digest_info = _PROVIDER_TO_DIGEST.get(provider)
-    if not digest_info:
-        return
-
-    slug = digest_info["slug"]
-
-    # Idempotent: skip if already exists
-    existing = client.table("tasks").select("id").eq("user_id", user_id).eq("slug", slug).execute()
-    if existing.data:
-        logger.info(f"[INTEGRATIONS] Platform digest task '{slug}' already exists, skipping scaffold")
-        return
-
-    from services.task_types import build_task_md_from_type, build_deliverable_md_from_type
-    from services.task_workspace import TaskWorkspace
-    from services.schedule_utils import calculate_next_run_at, get_user_timezone
-
-    user_timezone = get_user_timezone(client, user_id)
-    now = datetime.utcnow()
-
-    row = {
-        "user_id": user_id,
-        "slug": slug,
-        "mode": "recurring",
-        "status": "paused",  # User must pick sources and activate
-        "schedule": "daily",
-        "next_run_at": None,  # No next run until activated
-    }
-    insert_result = client.table("tasks").insert(row).execute()
-    if not insert_result.data:
-        raise RuntimeError(f"Failed to insert platform digest task: {slug}")
-
-    task_md = build_task_md_from_type(
-        type_key=digest_info["type_key"],
-        title=digest_info["title"],
-        slug=slug,
-        schedule="daily",
-        delivery="none",
-        agent_slugs=[digest_info["bot_slug"]],
-    )
-    tw = TaskWorkspace(client, user_id, slug)
-    await tw.write("TASK.md", task_md, summary=f"Platform digest task: {digest_info['title']}")
-
-    deliverable_md = build_deliverable_md_from_type(digest_info["type_key"])
-    if deliverable_md:
-        await tw.write("DELIVERABLE.md", deliverable_md, summary=f"Quality contract: {digest_info['title']}")
-
-    logger.info(
-        f"[INTEGRATIONS] Scaffolded platform digest task '{slug}' (paused) "
-        f"for {provider} user {user_id[:8]}"
-    )
+# Previously auto-scaffolded slack-digest / notion-digest / github-digest /
+# trading-digest TASK.md on OAuth connect. Those TASK_TYPES entries no longer
+# exist (they referenced bot roles), and per ADR-206, platform connection
+# does not imply a specific task. YARNNN proposes tasks in conversation based
+# on the operator's declared Mandate + connected platforms. The operator
+# approves, YARNNN calls ManageTask(create) with a specialist + platform
+# capability declaration.
 
 
 # =============================================================================
@@ -1515,27 +1438,10 @@ async def oauth_callback(
 
             logger.info(f"[INTEGRATIONS] Connected {provider} for user {token_data['user_id']}")
 
-        # ADR-205: Platform Bots are connection-bound. Create (or confirm) the
-        # bot row on OAuth connect via ensure_infrastructure_agent. The helper
-        # checks platform_connections, so we pass it the already-active
-        # connection (inserted moments ago above).
-        _PROVIDER_TO_BOT_ROLE = {
-            "slack": "slack_bot",
-            "notion": "notion_bot",
-            "github": "github_bot",
-        }
-        bot_role = _PROVIDER_TO_BOT_ROLE.get(provider)
-        if bot_role:
-            try:
-                from services.agent_creation import ensure_infrastructure_agent
-                await ensure_infrastructure_agent(
-                    service_client, token_data["user_id"], bot_role
-                )
-            except Exception as ensure_err:
-                logger.warning(
-                    f"[INTEGRATIONS] Failed to ensure {bot_role} for "
-                    f"{token_data['user_id']}: {ensure_err}"
-                )
+        # ADR-207 P4a: Platform Bots dissolved. OAuth connect no longer
+        # creates a bot agent row. Platform capabilities unlock the moment
+        # the connection goes active — enforced by `capability_available()`
+        # at task dispatch, not by per-platform agent scaffolding.
 
         # Activity log: record integration connection (ADR-063)
         try:
@@ -1589,21 +1495,8 @@ async def oauth_callback(
                         f"for {provider} user {user_id_for_auto[:8]}"
                     )
 
-                    # Auto-scaffold a platform digest task (paused, needs source setup).
-                    # The user lands on the task page to pick sources and activate.
-                    if smart_selected:
-                        try:
-                            await _scaffold_platform_digest_task(
-                                service_client,
-                                user_id_for_auto,
-                                provider,
-                                smart_selected,
-                            )
-                        except Exception as scaffold_err:
-                            logger.warning(
-                                f"[INTEGRATIONS] Platform digest task scaffold failed "
-                                f"for {provider}: {scaffold_err}"
-                            )
+                    # ADR-207 P4a: auto digest-task scaffold DELETED. YARNNN
+                    # proposes tasks based on Mandate + connected platforms.
                 else:
                     logger.info(
                         f"[INTEGRATIONS] ADR-113: No resources discovered for {provider} "
@@ -2286,12 +2179,8 @@ async def connect_commerce(
         connection_id = insert_result.data[0]["id"] if insert_result.data else None
         logger.info(f"[INTEGRATIONS] Created commerce connection for {user_id}")
 
-    # 3. ADR-205: Ensure Commerce Bot row exists (lazy-created on connect).
-    try:
-        from services.agent_creation import ensure_infrastructure_agent
-        await ensure_infrastructure_agent(service_client, user_id, "commerce_bot")
-    except Exception as ensure_err:
-        logger.warning(f"[INTEGRATIONS] Failed to ensure commerce_bot for {user_id}: {ensure_err}")
+    # ADR-207 P4a: Commerce Bot dissolved. read_commerce / write_commerce
+    # capabilities unlock the moment the connection is active.
 
     # 3b. ADR-206: first platform-with-money-truth materializes outcome-reconciliation.
     try:
@@ -2585,12 +2474,8 @@ async def connect_trading(
         connection_id = insert_result.data[0]["id"] if insert_result.data else None
         logger.info(f"[INTEGRATIONS] Created trading connection for {user_id}")
 
-    # 3. ADR-205: Ensure Trading Bot row exists (lazy-created on connect).
-    try:
-        from services.agent_creation import ensure_infrastructure_agent
-        await ensure_infrastructure_agent(service_client, user_id, "trading_bot")
-    except Exception as ensure_err:
-        logger.warning(f"[INTEGRATIONS] Failed to ensure trading_bot for {user_id}: {ensure_err}")
+    # ADR-207 P4a: Trading Bot dissolved. read_trading / write_trading
+    # capabilities unlock the moment the connection is active.
 
     # 3b. ADR-206: first platform-with-money-truth materializes outcome-reconciliation.
     try:
@@ -2608,10 +2493,9 @@ async def connect_trading(
     await scaffold_context_domain(service_client, user_id, "trading")
     await scaffold_context_domain(service_client, user_id, "portfolio")
 
-    # 5. Scaffold default trading-digest task (idempotent, paused)
-    await _scaffold_platform_digest_task(
-        service_client, user_id, "trading", smart_selected=[],
-    )
+    # 5. ADR-207 P4a: auto trading-digest task scaffold DELETED. YARNNN
+    # proposes trading-domain tasks (digest, signal, execute) based on the
+    # operator's Mandate and risk principles.
 
     # 6. ADR-192 Phase 5: scaffold default _risk.md if absent.
     # Conservative defaults. User is expected to review + adjust before

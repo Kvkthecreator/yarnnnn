@@ -557,26 +557,9 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
             context_files_deleted += _delete_workspace_files(client, user_id, platform_dir)
         deleted["platform_context_files"] = context_files_deleted
 
-        # --- Delete platform-bot agents on disconnect (ADR-205) ---
-        # Platform Bots are connection-bound: their agent row's lifecycle
-        # matches the platform_connections row. On disconnect we delete;
-        # reconnect lazy-creates via ensure_infrastructure_agent.
-        # FK cascades wipe associated agent_runs / agent_context_log — acceptable
-        # because the work history was bot-specific and bot-scoped.
-        deleted_bots = 0
-        try:
-            bot_result = (
-                client.table("agents")
-                .delete()
-                .eq("user_id", user_id)
-                .eq("origin", "system_bootstrap")
-                .in_("role", ["slack_bot", "notion_bot", "github_bot", "commerce_bot", "trading_bot"])
-                .execute()
-            )
-            deleted_bots = len(bot_result.data or [])
-        except Exception as del_err:
-            logger.warning(f"[ACCOUNT] Failed to delete platform-bot agents for {user_id}: {del_err}")
-        deleted["platform_bots_deleted"] = deleted_bots
+        # ADR-207 P4a: Platform Bots dissolved — no bot agent rows to delete.
+        # Migration 157 drops any stale bot rows once; new disconnects
+        # just clear the platform_connections row.
 
         # --- Platform connections last (other tables may reference them) ---
         deleted["platform_connections"] = _delete_rows(client, "platform_connections", user_id)
@@ -587,8 +570,7 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
             success=True,
             message=(
                 f"Disconnected {deleted['platform_connections']} platforms, "
-                f"cleared {context_files_deleted} context files, "
-                f"deleted {deleted_bots} platform bots"
+                f"cleared {context_files_deleted} context files"
             ),
             deleted=deleted,
         )

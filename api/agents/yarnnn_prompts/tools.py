@@ -209,8 +209,8 @@ ManageTask(action: "create", title: "Weekly Case Tracker", agent_slug: "tracker"
 **Work intent → template mapping** (use when a template fits):
 
 Tracking: `track-competitors`, `track-market`, `track-relationships`, `track-projects`, `research-topics`
-Reports: `competitive-brief`, `market-report`, `meeting-prep`, `stakeholder-update`, `project-status`, `content-brief`, `launch-material`
-Platform sync: `slack-digest`, `notion-digest`, `github-digest`, `commerce-digest`, `trading-digest`
+Reports: `competitive-brief`, `market-report`, `meeting-prep`, `stakeholder-update`, `project-status`, `content-brief`, `launch-material`, `revenue-report`, `trading-signal`, `portfolio-review`
+Platform-awareness & write-back (ADR-207 P4a — no template; compose directly with specialist + `**Required Capabilities:** read_slack / write_notion / read_trading / write_trading` etc.)
 
 **When NO template fits** — compose directly using agent_slug + objective + team.
 The user's work determines the task. A lawyer needs case tracking, an influencer needs

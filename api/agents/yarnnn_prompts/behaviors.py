@@ -211,7 +211,7 @@ If duplicate found, ask user whether to update existing or create new.
 
 If the user asks about platform activity (Slack discussions, Notion changes):
 1. **Use live platform tools** — `platform_slack_*`, `platform_notion_*` for real-time lookups and writes
-2. **If the user wants ongoing awareness** — suggest creating a digest task (e.g., `slack-digest` on Slack Bot, or a domain tracking task on the relevant agent)
+2. **If the user wants ongoing awareness** — propose a platform-awareness task: tracker specialist + `**Required Capabilities:** read_{platform}, summarize` + writes to the matching context domain (ADR-207 P4a, no bot role)
 
 Platform connections provide auth. Data flows through tracking tasks into context domains. If context domains are thin, suggest creating a monitoring or research task.
 
@@ -275,11 +275,8 @@ Use it — don't improvise types that aren't in the registry. When a user asks t
 something for a connected platform, check the `platform → task type` mapping and use
 the exact `type_key` from the registry.
 
-**For platform connector tasks** (Slack, Notion, GitHub, Commerce): There is exactly ONE sync task per platform.
-Don't offer multiple options — just create it. E.g., "Set up Notion monitoring" → `notion-digest`.
-Sources auto-populate from the user's platform connection. If the user wants specific channels/pages,
-use ManageTask(action="update", sources={"slack": ["C123"]}) after creation.
-**GitHub can track external repos** too — "watch cursor-ai/cursor" → add to sources as "cursor-ai/cursor".
+**For platform-awareness tasks** (Slack, Notion, GitHub, Commerce, Trading, per ADR-207 P4a): compose from specialist + capability — tracker + `**Required Capabilities:** read_{platform}, summarize` + `**Context Writes:** {domain}`. No pre-baked type_key; no bot role. Call `ManageTask(action="create")` with an explicit TASK.md payload (objective, process steps, required_capabilities). After creation, `ManageTask(action="update", sources={"slack": ["C123"]})` narrows scope.
+**GitHub can track external repos** — "watch cursor-ai/cursor" → add to sources as "cursor-ai/cursor".
 
 **For cross-domain synthesis work**: Use `stakeholder-update` or a custom task type.
 

@@ -203,14 +203,20 @@ async def create_agent_record(
 
 # =============================================================================
 # ADR-205: Infrastructure Agent Classification + Lazy Ensure
+# (amended by ADR-207 P4a: Platform Bots dissolved into capability gates)
 # =============================================================================
-# ADR-205 collapses the signup-time scaffolding of the 10-agent roster down to
-# one: YARNNN (role=thinking_partner, scaffolded at signup). Specialists and
-# Platform Bots are lazy-created — a row materializes the first time dispatch
-# resolves to that role. Platform Bots are additionally connection-bound:
-# created on OAuth connect (routes/integrations.py), deleted on disconnect
-# (routes/account.py). This preserves the agents-table FK model while
-# honouring Axiom 1's "substrate grows from work" corollary.
+# ADR-205 collapses signup-time scaffolding to a single workspace identity:
+# YARNNN (role=thinking_partner). Specialists are lazy-created — a row
+# materializes the first time dispatch resolves to that role.
+#
+# ADR-207 P4a (2026-04-22) dissolves Platform Bots as an agent class. Slack,
+# Notion, GitHub, Commerce, and Trading are now accessed via CAPABILITIES
+# (read_slack, write_notion, write_trading, ...) gated by
+# `platform_connection_requirement` (ADR-207 P3). No agent row — any
+# specialist can invoke a platform capability if the connection is active.
+# The `platform_bot` classification is removed; `delete_platform_bot`
+# deleted; `ensure_infrastructure_agents_for_type` deleted (callers derive
+# ensure list from TASK.md process steps).
 
 SPECIALIST_ROLES: frozenset[str] = frozenset({
     # ADR-176 universal specialists
@@ -218,24 +224,6 @@ SPECIALIST_ROLES: frozenset[str] = frozenset({
     # ADR-176 synthesizer
     "executive",
 })
-
-PLATFORM_BOT_ROLES: frozenset[str] = frozenset({
-    # ADR-158 platform bots
-    "slack_bot", "notion_bot", "github_bot",
-    # ADR-183 commerce
-    "commerce_bot",
-    # ADR-187 trading
-    "trading_bot",
-})
-
-# Platform Bot role → platform_connections.platform value used for activation check
-_BOT_ROLE_TO_PLATFORM: dict[str, str] = {
-    "slack_bot": "slack",
-    "notion_bot": "notion",
-    "github_bot": "github",
-    "commerce_bot": "commerce",
-    "trading_bot": "trading",
-}
 
 # Infrastructure slug → role. Slugs are derived from AGENT_TEMPLATES display
 # names via _slugify_agent; this map is the inverse. Dispatch sites that resolve
@@ -248,14 +236,10 @@ _INFRA_SLUG_TO_ROLE: dict[str, str] = {
     "tracker": "tracker",
     "designer": "designer",
     "reporting": "executive",  # title "Reporting" → slug "reporting", role "executive"
-    # Platform bots
-    "slack-bot": "slack_bot",
-    "notion-bot": "notion_bot",
-    "github-bot": "github_bot",
-    "commerce-bot": "commerce_bot",
-    "trading-bot": "trading_bot",
     # YARNNN
     "thinking-partner": "thinking_partner",
+    # ADR-207 P4a: Platform Bot slugs (slack-bot / notion-bot / github-bot /
+    # commerce-bot / trading-bot) removed — bots no longer exist as agent rows.
 }
 
 
@@ -277,15 +261,16 @@ def classify_role(role: str) -> str:
     Returns one of:
       - "yarnnn"        → role == thinking_partner (one per workspace, scaffolded at signup)
       - "specialist"    → one of SPECIALIST_ROLES (lazy-ensured on first dispatch)
-      - "platform_bot"  → one of PLATFORM_BOT_ROLES (connection-bound, created on OAuth connect)
       - "user_authored" → everything else (queried from agents table normally)
+
+    ADR-207 P4a: `platform_bot` classification removed. Platform access runs
+    through CAPABILITIES + capability_available() at dispatch, not through
+    a dedicated agent class.
     """
     if role == "thinking_partner":
         return "yarnnn"
     if role in SPECIALIST_ROLES:
         return "specialist"
-    if role in PLATFORM_BOT_ROLES:
-        return "platform_bot"
     return "user_authored"
 
 
@@ -296,17 +281,20 @@ async def ensure_infrastructure_agent(
 ) -> Optional[dict]:
     """Ensure a row exists in `agents` for this (user_id, role) infrastructure agent.
 
-    ADR-205: Specialists and Platform Bots are lazy-scaffolded. The dispatch
-    layer calls this helper before resolving a role-based agent_ref; if the
-    row doesn't exist yet, it is created from AGENT_TEMPLATES[role].
+    ADR-205: YARNNN and Specialists are lazy-scaffolded. The dispatch layer
+    calls this helper before resolving a role-based agent_ref; if the row
+    doesn't exist yet, it is created from AGENT_TEMPLATES[role].
 
     Returns:
       - The agent dict (existing or newly created) on success.
       - None if the role is user_authored (caller should query agents
         table directly).
-      - None if the role is a Platform Bot without an active platform_connections
-        row (caller should surface a clear "connect the platform first" error).
       - None if the role is unknown or creation failed.
+
+    ADR-207 P4a: platform_bot classification + per-platform connection check
+    removed. Platform capability gating now happens in the task pipeline via
+    `capability_available()`; no pre-dispatch "bot requires connection"
+    check is needed at the agent-ensure layer.
     """
     classification = classify_role(role)
 
@@ -326,28 +314,6 @@ async def ensure_infrastructure_agent(
     )
     if existing.data:
         return existing.data[0]
-
-    # Platform Bots require an active platform_connections row.
-    if classification == "platform_bot":
-        platform_value = _BOT_ROLE_TO_PLATFORM.get(role)
-        if not platform_value:
-            logger.warning(f"[ensure_infrastructure_agent] Unknown bot role: {role}")
-            return None
-        conn = (
-            client.table("platform_connections")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("platform", platform_value)
-            .eq("status", "active")
-            .limit(1)
-            .execute()
-        )
-        if not conn.data:
-            logger.info(
-                f"[ensure_infrastructure_agent] {role} not ensured — "
-                f"no active {platform_value} connection for {user_id[:8]}"
-            )
-            return None
 
     # Lazy-create from AGENT_TEMPLATES.
     from services.agent_framework import AGENT_TEMPLATES
@@ -382,10 +348,9 @@ async def ensure_infrastructure_agents_for_type(
 ) -> None:
     """Ensure all infrastructure agents declared by a task type's process steps exist.
 
-    ADR-205: Called before task creation / type change so `resolve_process_agents`
-    can find Specialist rows (which are lazy-scaffolded). Platform Bots that
-    require a connection are skipped if the connection is inactive — the task
-    creation surface is responsible for surfacing that constraint.
+    ADR-205: called before task creation / type change so `resolve_process_agents`
+    can find Specialist rows (which are lazy-scaffolded). ADR-207 P4a removed
+    the bot branch — only Specialists are ensured.
     """
     from services.task_types import TASK_TYPES
     task_type = TASK_TYPES.get(type_key)
@@ -402,27 +367,6 @@ async def ensure_infrastructure_agents_for_type(
         await ensure_infrastructure_agent(client, user_id, role)
 
 
-async def delete_platform_bot(
-    client: Any,
-    user_id: str,
-    role: str,
-) -> int:
-    """Delete the platform-bot agent row on OAuth disconnect (ADR-205).
-
-    Returns the number of rows deleted (0 if bot wasn't provisioned).
-    Cascades to agent_runs, agent_context_log, etc. per FK constraints —
-    acceptable because Platform Bots are connection-bound: disconnecting
-    the platform means the bot's work history is no longer meaningful.
-    Reconnecting creates a fresh bot row on first task dispatch.
-    """
-    if role not in PLATFORM_BOT_ROLES:
-        return 0
-    result = (
-        client.table("agents")
-        .delete()
-        .eq("user_id", user_id)
-        .eq("role", role)
-        .eq("origin", "system_bootstrap")
-        .execute()
-    )
-    return len(result.data or [])
+# ADR-207 P4a: delete_platform_bot() DELETED. Platform Bots no longer exist
+# as agent rows; OAuth disconnect no longer needs to cascade-delete a bot
+# row. Migration 157 drops any stale bot rows once.

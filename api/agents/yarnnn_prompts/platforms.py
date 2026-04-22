@@ -35,36 +35,43 @@ Don't ask "are you connected to Slack?" — call `list_integrations` to find out
 Platform connections provide auth, discovery, and source selection. There is no
 generic synced platform-content cache.
 
-- **Live tools for read/write** — `platform_slack_*`, `platform_notion_*` for direct platform queries and scoped delivery actions
-- **Task-first recurring sync** — platform sync task types (`slack-digest`, `notion-digest`, `github-digest`, `commerce-digest`, `trading-digest`) are the recurring workflow for ongoing platform awareness. Bots write per-source observations to their own context directory (/workspace/context/slack/, /workspace/context/notion/, /workspace/context/trading/, etc.)
+- **Live tools for read/write** — `platform_slack_*`, `platform_notion_*`, `platform_github_*`, `platform_commerce_*`, `platform_trading_*` for direct platform queries and scoped write actions
+- **Capability-gated dispatch** (ADR-207 P3/P4a) — platform access is a capability (`read_slack`, `write_notion`, `write_trading`, ...) declared in TASK.md under `**Required Capabilities:**`. `capability_available()` checks the matching `platform_connections` row at dispatch. Missing capability = "connect {platform} first" error, not a silent skip.
+
+### Platform Bots dissolved (ADR-207 P4a)
+
+There is no `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, or `trading_bot` agent role. Any specialist (researcher / analyst / writer / tracker / designer) can invoke platform tools when the corresponding capability is declared. When the operator wants platform work, author a TASK.md with:
+
+  - `**Agent:** researcher` (or whichever specialist fits)
+  - `**Required Capabilities:** read_slack, summarize`  ← gate
+  - `**Context Writes:** slack` (or whichever domain accumulates)
+  - a `## Process` step describing what the specialist reads, extracts, and writes
 
 ### Per-task source selection (ADR-158)
 
-Platform sync tasks auto-populate sources from the user's selected sources at creation time.
-Users can refine which channels/pages/repos a task reads via:
-  ManageTask(task_slug="slack-digest", action="update", sources={"slack": ["C123", "C456"]})
-  ManageTask(task_slug="github-digest", action="update", sources={"github": ["my-org/my-repo", "competitor/their-repo"]})
+Platform-reading tasks can narrow the scope via a `**Sources:**` line in TASK.md (e.g. `**Sources:** slack:C123,C456`). Update via:
 
-If the user says "only watch #engineering and #product" → update the task's sources.
-Sources are stored in TASK.md and injected into the agent's execution context.
+  ManageTask(task_slug="my-slack-sync", action="update", sources={"slack": ["C123", "C456"]})
+
+If the user says "only watch #engineering and #product" → update the task's sources. Sources are stored in TASK.md and injected into the specialist's execution context.
 
 ### GitHub: own repos + external repos (ADR-158 Phase 6)
 
-GitHub Bot can track ANY public repo — not just the user's own.
-- **Own repos** auto-populate from landscape discovery (same as Slack/Notion)
+Tasks with `**Required Capabilities:** read_github` can track ANY public repo — not just the user's own.
+- **Own repos** auto-populate from landscape discovery
 - **External repos** are added by the user: "also track cursor-ai/cursor and vercel/next.js"
-- The bot writes the same 4 files (latest.md, readme.md, releases.md, metadata.md) for all repos
+- Conventional output: write `latest.md`, `readme.md`, `releases.md`, `metadata.md` per repo
 - Use full `owner/repo` format for external repos in the sources parameter
-- GitHub tools work on any public repo the token can access (public repos don't need special auth)
+- GitHub tools work on any public repo the token can access
 
-### Trading: closed-loop market intelligence (ADR-187)
+### Trading: closed-loop market intelligence (ADR-187, revised by ADR-207 P4a)
 
-Trading Bot owns two canonical context domains: `trading/` (per-instrument market data, signals, analysis) and `portfolio/` (account state, positions, trade history, performance). Four task types:
+Two canonical context domains: `trading/` (per-instrument market data, signals, analysis) and `portfolio/` (account state, positions, trade history, performance). There is no Trading Bot — operators compose trading tasks from specialists + capability declarations:
 
-- `trading-digest` — syncs account + market data into context domains (Trading Bot, daily)
-- `trading-signal` — generates signals from accumulated context (Analyst, daily)
-- `trading-execute` — executes approved signals via Alpaca API (Trading Bot, daily, skips if no signals)
-- `portfolio-review` — weekly performance report with signal accuracy and benchmark comparison (Analyst)
+- **Trading digest** (tracker + `read_trading` + writes trading/portfolio) — sync account + market data into domain files.
+- **Trading signal** (analyst + `read_trading`) — generate signals from accumulated context (this type still lives in the registry as `trading-signal`).
+- **Trade execute** (analyst + `write_trading`) — place orders through Alpaca under approval + risk gates.
+- **Portfolio review** (analyst + `read_trading`) — weekly perf report (still in registry as `portfolio-review`).
 
 Trading tools (reads): `platform_trading_get_account`, `platform_trading_get_positions`, `platform_trading_get_orders`, `platform_trading_get_market_data`, `platform_trading_get_portfolio_history`.
 

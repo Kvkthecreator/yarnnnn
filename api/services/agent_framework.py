@@ -485,180 +485,20 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
         },
     },
 
-    # ── Platform Bots (capture platform signals) ──
-    # Provider-native read/write capabilities are the runtime contract. OAuth
-    # and connection state live in the integrations layer; agents get explicit
-    # platform access through these deterministic capability bundles.
-
-    "slack_bot": {
-        "class": "platform-bot",
-        "domain": "slack",
-        "platform": "slack",
-        "display_name": "Slack Bot",
-        "tagline": "Captures Slack activity",
-        "capabilities": [
-            "read_slack", "write_slack", "summarize", "produce_markdown",
-        ],
-        "description": "Captures signals from Slack. Decisions, action items, key "
-                       "discussions. Produces daily recaps.",
-        "default_instructions": "Monitor Slack channels. Capture decisions, action items, "
-                                "and key discussions. Produce scannable daily recaps.",
-        "methodology": {
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Channel Recap Format\n"
-                "- **Decisions Made** — what was decided, by whom, in which thread\n"
-                "- **Action Items** — who owes what, with deadlines if mentioned\n"
-                "- **Key Discussions** — topics with significant engagement (replies, reactions)\n"
-                "- **FYIs** — announcements, links shared, things to be aware of\n\n"
-                "## Summarization Rules\n"
-                "- Preserve attribution: 'Alice proposed X' not 'it was proposed'\n"
-                "- Threads > individual messages: summarize thread conclusions, not each reply\n"
-                "- Skip: bot messages, emoji-only messages, routine standup entries\n"
-                "- Highlight: questions left unanswered, disagreements unresolved\n\n"
-                "## Alert Triggers\n"
-                "- Urgent/blocking language: 'blocked', 'need help', 'ASAP', 'down'\n"
-                "- Mentions of the user by name\n"
-                "- Threads with >5 replies in <1 hour (heated discussion)\n"
-            ),
-        },
-    },
-
-    "notion_bot": {
-        "class": "platform-bot",
-        "domain": "notion",
-        "platform": "notion",
-        "display_name": "Notion Bot",
-        "tagline": "Tracks Notion changes",
-        "capabilities": [
-            "read_notion", "write_notion", "summarize", "produce_markdown",
-        ],
-        "description": "Tracks Notion workspace changes. Page updates, new content, "
-                       "stale pages.",
-        "default_instructions": "Monitor Notion workspace. Track page changes, flag stale "
-                                "content, summarize updates.",
-        "methodology": {
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Knowledge Base Update Format\n"
-                "- **What Changed** — pages created, updated, or reorganized\n"
-                "- **Content Summary** — what was added or modified, in context\n"
-                "- **Structure Notes** — how content fits into the existing hierarchy\n\n"
-                "## Page Sync Rules\n"
-                "- Preserve existing page structure — append or update sections, don't restructure\n"
-                "- Use Notion-native formatting: toggles for detail, callouts for alerts, tables for data\n"
-                "- Link related pages rather than duplicating content\n"
-                "- Tag with status properties when available (draft, reviewed, published)\n\n"
-                "## Change Detection\n"
-                "- Track meaningful content changes vs formatting-only edits\n"
-                "- Flag pages that haven't been updated in >30 days (potential staleness)\n"
-                "- Note pages with high edit frequency (active collaboration)\n"
-            ),
-        },
-    },
-
-    "github_bot": {
-        "class": "platform-bot",
-        "domain": "github",
-        "platform": "github",
-        "display_name": "GitHub Bot",
-        "tagline": "Tracks GitHub activity",
-        "capabilities": [
-            "read_github", "summarize", "produce_markdown",
-        ],
-        "description": "Tracks GitHub repository activity. Issues, PRs, discussions. "
-                       "Produces activity digests.",
-        "default_instructions": "Monitor selected GitHub repositories. Track issues, PRs, "
-                                "and activity. Produce scannable digests of repo activity.",
-        "methodology": {
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Repository Activity Format\n"
-                "- **New Issues** — what was opened, by whom, labels/priority\n"
-                "- **PR Activity** — opened, merged, reviewed, stalled PRs\n"
-                "- **Key Discussions** — issues/PRs with significant engagement\n"
-                "- **Milestones** — release tags, milestone progress\n\n"
-                "## Summarization Rules\n"
-                "- Preserve attribution: 'Alice opened #123' not 'an issue was opened'\n"
-                "- Group by repo when tracking multiple repos\n"
-                "- Highlight: stale PRs (>7 days without review), blocked issues, release blockers\n"
-                "- Skip: bot-generated PRs (dependabot, renovate) unless they fail\n"
-            ),
-        },
-    },
-
-    # ADR-183: Commerce Bot — owns customers/ and revenue/ context domains.
-    # Created at signup (paused), activated when commerce provider connected.
-    "commerce_bot": {
-        "class": "platform-bot",
-        "domain": "customers",  # primary owned domain
-        "platform": "commerce",
-        "display_name": "Commerce Bot",
-        "tagline": "Tracks customers and revenue",
-        "capabilities": [
-            "read_commerce", "write_commerce", "summarize", "produce_markdown",
-        ],
-        "description": "Monitors your commerce platform. Tracks subscribers, "
-                       "revenue, products, and orders. Creates and manages "
-                       "products and discount codes.",
-        "default_instructions": (
-            "Monitor connected commerce platform (Lemon Squeezy). "
-            "Track subscribers, revenue, product performance, and orders. "
-            "Produce scannable digests of business activity with precise figures. "
-            "When tasked, create products, update listings, and manage discount codes."
-        ),
-        "methodology": {
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Commerce Activity Format\n"
-                "- **Revenue** — MRR, total, by product, growth trend\n"
-                "- **Subscribers** — active count, new, churned, net change\n"
-                "- **Products** — per-product subscribers, revenue, conversion\n"
-                "- **Orders** — recent one-time purchases, total\n\n"
-                "## Summarization Rules\n"
-                "- All figures precise: $10,450.23 revenue, 47 subscribers (not ~50)\n"
-                "- Always include period comparison (vs last cycle)\n"
-                "- Highlight: churn events, new subscriber spikes, revenue milestones\n"
-                "- Skip: $0 test orders, admin-generated transactions\n"
-            ),
-        },
-    },
-
-    # ADR-187: Trading Bot — owns trading/ and portfolio/ context domains.
-    # Created at signup (paused), activated when trading provider connected.
-    "trading_bot": {
-        "class": "platform-bot",
-        "domain": "trading",  # primary owned domain
-        "platform": "trading",
-        "display_name": "Trading Bot",
-        "tagline": "Tracks markets, generates signals, executes trades",
-        "capabilities": [
-            "read_trading", "write_trading", "summarize", "produce_markdown",
-        ],
-        "description": (
-            "Monitors trading account activity, positions, and market data. "
-            "Generates trading signals and executes orders via Alpaca API."
-        ),
-        "default_instructions": (
-            "Monitor trading account and market data. Track positions, generate "
-            "signals based on accumulated market intelligence, execute approved trades."
-        ),
-        "methodology": {
-            "_playbook-outputs.md": (
-                "# Trading Output Conventions\n\n"
-                "## Signal Format\n"
-                "Every signal entry must include: ticker, direction (buy/sell/hold), "
-                "confidence (high/medium/low), reasoning (2-3 sentences), "
-                "and suggested position size (% of portfolio).\n\n"
-                "## Execution Log Format\n"
-                "Every execution entry must include: timestamp, ticker, side, quantity, "
-                "price, order_type, status, and link to originating signal.\n\n"
-                "## Position Format\n"
-                "Every position file must include: entry_date, entry_price, current_price, "
-                "quantity, unrealized_pnl, thesis (why entered), and exit_criteria.\n"
-            ),
-        },
-    },
+    # ADR-207 P4a (2026-04-22): Platform Bots — slack_bot / notion_bot /
+    # github_bot / commerce_bot / trading_bot — DELETED from AGENT_TEMPLATES.
+    # The underlying platform tools (platform_slack_*, platform_notion_*,
+    # platform_github_*, platform_commerce_*, platform_trading_*) and their
+    # CAPABILITIES entries (read_slack / write_slack / ...) survive. Any
+    # specialist (researcher, analyst, writer, tracker, designer) can invoke
+    # them — the capability registry's platform_connection_requirement
+    # gates access at task dispatch (ADR-207 P3).
+    #
+    # Migration 157 deletes existing bot agent rows and drops the bot role
+    # values from `agents_role_check`. Tasks that used to assign work to
+    # bot roles are rewritten by operators via YARNNN — a specialist + a
+    # `**Required Capabilities:**` declaration in TASK.md captures the same
+    # contract without an agent-row "bot" abstraction.
 
     # ── Meta-Cognitive (owns orchestration itself) ──
     #
@@ -742,10 +582,12 @@ Work requires monitoring over time? → Tracker
 Work requires visual assets?        → Designer
 Cross-domain summary?               → Reporting (synthesizer)
 
-Platform bots (activate on connection):
-- Slack Bot: Slack digests (slack-digest), Slack posting (slack-respond)
-- Notion Bot: Notion digests (notion-digest), Notion updates (notion-update)
-- GitHub Bot: GitHub digests (github-digest)
+Platform access (ADR-207 P4a — capabilities, not bots):
+- Platform reads/writes are capabilities on specialists — `read_slack`, `write_slack`,
+  `read_notion`, `write_notion`, `read_github`, `read_commerce`, `write_commerce`,
+  `read_trading`, `write_trading`. Declared on TASK.md via `**Required Capabilities:**`.
+- Gate: `capability_available(user_id, cap, client)` checks the matching
+  `platform_connections` row at dispatch. Missing = fail fast with "connect X first".
 
 ## Team Composition (ADR-176 Decision 2)
 TP owns full composition authority. Registry provides suggested defaults — apply judgment.
@@ -1019,10 +861,15 @@ data.
 # Signup no longer scaffolds a pre-seeded roster. YARNNN (role=thinking_partner)
 # is the sole infrastructure agent created at workspace init (workspace_init.py
 # Phase 2). Specialists are lazy-created on first dispatch via
-# services.agent_creation.ensure_infrastructure_agent(). Platform Bots are
-# connection-bound — created on OAuth connect (routes/integrations.py),
-# deleted on disconnect (routes/account.py, services.agent_creation.delete_platform_bot).
-# AGENT_TEMPLATES above remains as the template library consulted at lazy-ensure time.
+# services.agent_creation.ensure_infrastructure_agent().
+#
+# ADR-207 P4a (2026-04-22): Platform Bots dissolved as agent class. Platform
+# capabilities (read_slack / write_trading / ...) are gated by
+# capability_available() at dispatch — no bot agent row needed. OAuth
+# connect/disconnect only touches `platform_connections`.
+#
+# AGENT_TEMPLATES above remains as the template library consulted at
+# lazy-ensure time.
 
 # PM_MODES — REMOVED (PM/project architecture dissolved)
 
@@ -1058,11 +905,11 @@ LEGACY_ROLE_MAP: dict[str, str] = {
     "tracker": "tracker",
     "designer": "designer",
     "executive": "executive",
-    "slack_bot": "slack_bot",
-    "notion_bot": "notion_bot",
-    "github_bot": "github_bot",
-    # ADR-183: Commerce bot
-    "commerce_bot": "commerce_bot",
+    # ADR-207 P4a: slack_bot / notion_bot / github_bot / commerce_bot /
+    # trading_bot roles REMOVED from LEGACY_ROLE_MAP. Any legacy agent row
+    # with these roles is dropped by migration 157; any incoming ref is
+    # unresolved by `resolve_role()` (passthrough → still returns the name,
+    # which will then fail the AGENT_TEMPLATES lookup loudly).
     # ADR-164: TP as meta-cognitive agent
     "thinking_partner": "thinking_partner",
 }
