@@ -1,8 +1,11 @@
 # ADR-161: Daily Update as Anchor — The Heartbeat Artifact
 
+> **⚠ Amended by [ADR-205](ADR-205-primitive-collapse.md) (2026-04-22).** Daily-update task is preserved as the workspace heartbeat artifact. Owner changes from YARNNN-the-agent-row to YARNNN-the-workspace-identity (single persistent entity per workspace, tracked in `workspace_identity` table). Empty-state deterministic template, cadence, and essential guard all unchanged.
+
 **Status:** Proposed
 **Date:** 2026-04-07
 **Authors:** KVK, Claude
+**Amended by:** ADR-205 (owner is workspace identity, not agent row)
 **Extends:** ADR-138 (Agents as Work Units), ADR-140 (Agent Workforce Model), ADR-141 (Unified Execution Architecture), ADR-149 (Task Lifecycle Architecture), ADR-152 (Unified Directory Registry)
 **Related:** ADR-155 (Workspace Inference Onboarding), ADR-156 (Composer Sunset)
 

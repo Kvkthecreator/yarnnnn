@@ -247,28 +247,32 @@ async def _editorial_repurpose(auth, task_slug, output_date, output_md, target):
         # Try to find agent from TASK.md process section
         match = re.search(r'\*\*(\w[\w-]+)\*\*\)', task_md)
         if not match:
-            # Fallback: find agent slug from task_types process
+            # Fallback: find agent slug from task_types process.
+            # ADR-205: lazy-ensure infrastructure agents before lookup.
             type_match = re.search(r'\*\*Type:\*\*\s*(\S+)', task_md)
             if type_match:
                 from services.task_types import get_task_type
+                from services.agent_creation import classify_role, ensure_infrastructure_agent
                 type_def = get_task_type(type_match.group(1))
                 if type_def and type_def.get("process"):
                     agent_type = type_def["process"][-1]["agent_type"]  # last step agent
-                    roster = client.table("agents").select("slug, role").eq("user_id", user_id).execute()
-                    for a in (roster.data or []):
-                        if a.get("role") == agent_type:
-                            agent_slug = a["slug"]
-                            break
+                    if classify_role(agent_type) != "user_authored":
+                        ensured = await ensure_infrastructure_agent(client, user_id, agent_type)
+                        if ensured:
+                            agent_slug = ensured.get("slug")
+                    if not agent_slug:
+                        roster = client.table("agents").select("slug, role").eq("user_id", user_id).execute()
+                        for a in (roster.data or []):
+                            if a.get("role") == agent_type:
+                                agent_slug = a["slug"]
+                                break
 
     if not agent_slug:
-        # Default to content agent for repurpose
-        roster = client.table("agents").select("slug, role").eq("user_id", user_id).execute()
-        for a in (roster.data or []):
-            if a.get("role") == "content":
-                agent_slug = a["slug"]
-                break
-        if not agent_slug and roster.data:
-            agent_slug = roster.data[0]["slug"]
+        # Default to Writer for editorial repurpose (ADR-176).
+        from services.agent_creation import ensure_infrastructure_agent
+        ensured = await ensure_infrastructure_agent(client, user_id, "writer")
+        if ensured:
+            agent_slug = ensured.get("slug")
 
     if not agent_slug:
         return {"success": False, "error": "no_agent", "message": "No agent available for editorial repurpose"}

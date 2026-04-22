@@ -1,6 +1,8 @@
 # ADR-176: Work-First Agent Model
 
 > **⚠ Decision 1 (Hospital Principle — fixed 9-agent signup roster) SUPERSEDED by [ADR-189](ADR-189-three-layer-cognition.md) (2026-04-17).** Signup now scaffolds zero Agents; Agents are user-created through conversation with YARNNN (the authored-team model). Decisions 2–5 (universal specialist roles, work-first onboarding entry points, capability split between accumulation and production, two-namespace workspace directory model) remain in force. The universal specialist roster itself is preserved — it is now YARNNN's palette for drafting Teams per task, not a set of user-visible entries on `/agents`.
+>
+> **⚠ Further amended by [ADR-205](ADR-205-primitive-collapse.md) (2026-04-22).** Decision 4 (capability split — accumulation specialists vs. production specialists) survives as **code-level dispatch**. Specialist roles (Researcher / Analyst / Writer / Tracker / Designer / Reporting) persist as `AGENT_TEMPLATES` entries consulted at dispatch time; they no longer materialize as `agents` table rows at signup. ADR-189's origin-filter preservation of infrastructure rows is fully reversed. Universal role taxonomy preserved; roster composition as a persisted artifact is not.
 
 **Date:** 2026-04-13
 **Status:** Implemented (2026-04-13) — Decision 1 partially superseded 2026-04-17 by ADR-189

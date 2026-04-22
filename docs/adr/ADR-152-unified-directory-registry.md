@@ -1,8 +1,11 @@
 # ADR-152: Unified Directory Registry — Single Source of Truth for Workspace Filesystem
 
-**Status:** Proposed  
-**Date:** 2026-03-31  
-**Supersedes:** ADR-151 `CONTEXT_DOMAINS` (absorbed into unified registry)  
+> **⚠ Amended by [ADR-205](ADR-205-primitive-collapse.md) (2026-04-22).** `WORKSPACE_DIRECTORIES` no longer drives signup-time directory pre-creation. It becomes a naming-convention reference consulted when tasks first write to a domain. Directories materialize at first-write, not at signup. Registry shape unchanged; signup-time creation hook removed.
+
+**Status:** Proposed
+**Date:** 2026-03-31
+**Supersedes:** ADR-151 `CONTEXT_DOMAINS` (absorbed into unified registry)
+**Amended by:** ADR-205 (registry is naming-convention reference only)
 **Extends:** ADR-149 (task lifecycle), ADR-151 (shared context domains)
 
 ---

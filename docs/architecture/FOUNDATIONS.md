@@ -94,6 +94,12 @@ Anything that doesn't fit one of these four patterns belongs in the filesystem.
 - **Git-compatible** (future) — filesystem state can be exported, diffed, and version-controlled.
 - **Model-agnostic** — files are the universal interface across LLM providers and interoperability protocols (MCP).
 
+### Corollary: Substrate grows from work, not from signup scaffolding (ADR-205)
+
+The filesystem-first commitment is not only about *where* state lives — it is also about *when* state comes into being. Substrate should materialize through user action (tasks writing, conversations resolving, uploads landing), not through framework-level pre-creation at signup. A fresh workspace is textually present (identity, brand, uploads) and structurally empty (zero user-authored Agents, zero context domain directories, zero user-authored tasks beyond the deterministic daily-update heartbeat and back-office tasks). Directory registries exist as *naming conventions* consulted at first-write, not as *pre-creation manifests* run at signup.
+
+This corollary strengthens Axiom 1 rather than extending it: if the substrate is where state lives, then populating the substrate before work exists is itself a Substrate violation. It places content in the persistence layer ahead of the purpose that would justify it.
+
 ---
 
 ## Axiom 2: Identity — Four Cognitive Layers, Filesystem Author
@@ -182,6 +188,12 @@ Per Axiom 0's anti-conflation rule, there should be exactly one dispatcher per T
 - **Addressed** → user-facing routes (`/chat`, `/api/proposals/*`) + MCP server (`api/mcp_server/`). All converge on `execute_primitive()`.
 
 If a new mechanic appears to need a new dispatcher, check first whether an existing sub-shape covers it. Usually yes.
+
+### Corollary: Run-now is the default trigger; schedule is an annotation (ADR-205)
+
+For user-created tasks, immediate execution is the default invocation; scheduling is an optional annotation that converts a one-off task into a recurring one. Users validate work by seeing output; they decide cadence after they have something to judge. A task without a schedule is legitimate — it simply has no Periodic invocation. Modes (`recurring` / `goal` / `reactive`, per ADR-149) describe the management posture over the lifetime of the task; they do not dictate whether the first invocation is immediate or deferred.
+
+This corollary does not introduce a fourth Trigger sub-shape. Run-now is Addressed (invoked by user action at creation time). Schedule, when added, layers Periodic on top. Axiom 4's three sub-shapes remain the complete set.
 
 ---
 

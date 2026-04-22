@@ -705,6 +705,24 @@ async def disconnect_integration(
         if not result_data:
             raise HTTPException(status_code=404, detail=f"Integration not found: {provider}")
 
+        # ADR-205: Platform Bots are connection-bound. Delete the corresponding
+        # bot row so reconnect lazy-creates a fresh one.
+        _PROVIDER_TO_BOT_ROLE = {
+            "slack": "slack_bot",
+            "notion": "notion_bot",
+            "github": "github_bot",
+            "commerce": "commerce_bot",
+            "trading": "trading_bot",
+        }
+        for p in providers_to_try:
+            bot_role = _PROVIDER_TO_BOT_ROLE.get(p)
+            if bot_role:
+                try:
+                    from services.agent_creation import delete_platform_bot
+                    await delete_platform_bot(auth.client, user_id, bot_role)
+                except Exception as bot_err:
+                    logger.warning(f"[INTEGRATIONS] Failed to delete {bot_role} for {user_id}: {bot_err}")
+
         logger.info(f"[INTEGRATIONS] User {user_id} disconnected {provider}")
 
         # Activity log: record integration disconnection (ADR-063)
@@ -1497,9 +1515,10 @@ async def oauth_callback(
 
             logger.info(f"[INTEGRATIONS] Connected {provider} for user {token_data['user_id']}")
 
-        # Reactivate the platform-bot agent if it was previously paused (e.g. by
-        # clear_integrations). ADR-140 roster invariant: bots are part of the
-        # pre-scaffolded roster, so we flip status rather than re-create.
+        # ADR-205: Platform Bots are connection-bound. Create (or confirm) the
+        # bot row on OAuth connect via ensure_infrastructure_agent. The helper
+        # checks platform_connections, so we pass it the already-active
+        # connection (inserted moments ago above).
         _PROVIDER_TO_BOT_ROLE = {
             "slack": "slack_bot",
             "notion": "notion_bot",
@@ -1508,15 +1527,14 @@ async def oauth_callback(
         bot_role = _PROVIDER_TO_BOT_ROLE.get(provider)
         if bot_role:
             try:
-                service_client.table("agents").update(
-                    {"status": "active"}
-                ).eq("user_id", token_data["user_id"]).eq("role", bot_role).eq(
-                    "status", "paused"
-                ).execute()
-            except Exception as reactivate_err:
+                from services.agent_creation import ensure_infrastructure_agent
+                await ensure_infrastructure_agent(
+                    service_client, token_data["user_id"], bot_role
+                )
+            except Exception as ensure_err:
                 logger.warning(
-                    f"[INTEGRATIONS] Failed to reactivate {bot_role} for "
-                    f"{token_data['user_id']}: {reactivate_err}"
+                    f"[INTEGRATIONS] Failed to ensure {bot_role} for "
+                    f"{token_data['user_id']}: {ensure_err}"
                 )
 
         # Activity log: record integration connection (ADR-063)
@@ -2268,12 +2286,12 @@ async def connect_commerce(
         connection_id = insert_result.data[0]["id"] if insert_result.data else None
         logger.info(f"[INTEGRATIONS] Created commerce connection for {user_id}")
 
-    # 3. Activate Commerce Bot (reactivate if paused)
-    service_client.table("agents").update(
-        {"status": "active"}
-    ).eq("user_id", user_id).eq("role", "commerce_bot").eq(
-        "status", "paused"
-    ).execute()
+    # 3. ADR-205: Ensure Commerce Bot row exists (lazy-created on connect).
+    try:
+        from services.agent_creation import ensure_infrastructure_agent
+        await ensure_infrastructure_agent(service_client, user_id, "commerce_bot")
+    except Exception as ensure_err:
+        logger.warning(f"[INTEGRATIONS] Failed to ensure commerce_bot for {user_id}: {ensure_err}")
 
     # 4. Scaffold commerce context domains (idempotent)
     await scaffold_context_domain(service_client, user_id, "customers")
@@ -2555,12 +2573,12 @@ async def connect_trading(
         connection_id = insert_result.data[0]["id"] if insert_result.data else None
         logger.info(f"[INTEGRATIONS] Created trading connection for {user_id}")
 
-    # 3. Activate Trading Bot (reactivate if paused)
-    service_client.table("agents").update(
-        {"status": "active"}
-    ).eq("user_id", user_id).eq("role", "trading_bot").eq(
-        "status", "paused"
-    ).execute()
+    # 3. ADR-205: Ensure Trading Bot row exists (lazy-created on connect).
+    try:
+        from services.agent_creation import ensure_infrastructure_agent
+        await ensure_infrastructure_agent(service_client, user_id, "trading_bot")
+    except Exception as ensure_err:
+        logger.warning(f"[INTEGRATIONS] Failed to ensure trading_bot for {user_id}: {ensure_err}")
 
     # 4. Scaffold trading context domains (idempotent)
     await scaffold_context_domain(service_client, user_id, "trading")

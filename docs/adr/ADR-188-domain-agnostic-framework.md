@@ -1,9 +1,12 @@
 # ADR-188: Domain-Agnostic Framework — Registries as Template Libraries
 
-> **Status**: Phases 1-4 Implemented, Phase 5 Complete
+> **⚠ Completed by [ADR-205](ADR-205-primitive-collapse.md) (2026-04-22).** The "registries as template libraries" thesis is extended to the agent roster layer and the workspace directory layer. `AGENT_TEMPLATES` becomes a dispatch-time palette (no persisted rows at signup) and `WORKSPACE_DIRECTORIES` becomes a naming-convention reference (no directory pre-creation at signup). ADR-188's arc — "framework-fixed primitives, contextual workspace config" — now holds at both read and write paths and across all three registries.
+
+> **Status**: Phases 1-4 Implemented, Phase 5 Complete (Phase 3+ agent/directory collapse completed by ADR-205)
 > **Date**: 2026-04-17
 > **Related**: ADR-138 (Agents as Work Units), ADR-141 (Unified Execution), ADR-145 (Task Type Registry), ADR-151/152 (Context Domains / Directory Registry), ADR-166 (Registry Coherence Pass), ADR-176 (Work-First Agent Model), ADR-183 (Commerce Substrate), ADR-187 (Trading Integration)
 > **Supersedes**: ADR-176 "hospital principle" (fixed roster as non-negotiable)
+> **Completed by**: ADR-205 (Primitive Collapse — agent roster and directory pre-creation dissolved)
 > **Triggered by**: ADR-187 stress test — the trading integration revealed that every new user persona requires developer-authored registry entries, not TP-generated workspace configuration
 
 ---

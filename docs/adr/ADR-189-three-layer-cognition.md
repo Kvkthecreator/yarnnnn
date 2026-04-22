@@ -1,10 +1,13 @@
 # ADR-189: Three-Layer Cognition — YARNNN, Specialists, Agents
 
-> **Status**: Proposed
+> **⚠ Phase 2 (pragmatic preservation of infrastructure `agents` rows with `origin='system_bootstrap'` filter) REVERSED by [ADR-205](ADR-205-primitive-collapse.md) (2026-04-22).** Three-layer cognition model, authored-team moat, and GLOSSARY discipline all fully preserved. What changes: Specialists and Platform Bots no longer persist as `agents` rows at signup. Specialists become code-level dispatch templates; Platform Bots become connection-bound capability bundles. YARNNN-the-entity persists as a `workspace_identity` row (one per workspace), not as an agent row. The structural collapse ADR-205 executes is what ADR-189 Phase 2 deferred pending the `task_pipeline.py` dispatch refactor.
+
+> **Status**: Proposed (Phase 2 reversed by ADR-205)
 > **Date**: 2026-04-17
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-140 (Agent Workforce Model — pre-scaffolded ICP roster) in full; ADR-176 Decision 1 (Hospital Principle — fixed 9-agent signup roster)
 > **Amends**: ADR-117 (Agent Feedback Substrate — identity-layer split), ADR-164 (Back Office Tasks — TP renamed to YARNNN at user-facing layer), ADR-186 (TP Prompt Profiles — file and class renames)
+> **Amended by**: ADR-205 (Phase 2 infrastructure row preservation reversed — full collapse)
 > **Ratifies**: `docs/architecture/GLOSSARY.md` as canonical terminology source
 > **Triggered by**: Audit of ADR-188 domain-agnostic framework surfacing incoherence between registry-layer contextuality and signup-layer fixed roster
 

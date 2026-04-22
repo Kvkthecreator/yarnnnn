@@ -249,12 +249,16 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    For each created task, call `ManageTask(task_slug="...", action="trigger")`.
    This gives the user first results within minutes, not on the next scheduled run.
 
+   **ADR-205 chat-first triggering:** When you create a task without an explicit
+   `schedule`, the task runs once now and has no recurring cadence — perfect for
+   "try it and see" validation. Add a schedule (e.g. `weekly`, `daily`) later via
+   `ManageTask(action="update")` once the user confirms the output is what they want.
+
    **Tell the user what's happening:**
-   "Your team is now working. I've set up:
-   - Track Competitors (Researcher + Tracker, weekly)
+   "I've set up:
+   - Track Competitors (Researcher + Tracker) — running now
    - Slack Sync (Slack Bot, daily)
-   They're running their first research cycle now — you'll see results in the
-   workspace within a few minutes."
+   First cycle is running — you'll see results in the workspace within a few minutes."
 
    **Daily update is already active.** Every workspace has a `daily-update` task
    that runs each morning at 09:00 in the user's local timezone and emails the user an operational digest.

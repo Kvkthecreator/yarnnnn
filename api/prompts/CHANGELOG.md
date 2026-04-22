@@ -6,6 +6,42 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.4] - ADR-205 Workspace Primitive Collapse
+
+### Changed
+
+- `api/services/agent_creation.py`: new helpers `classify_role()`, `resolve_infra_role_from_ref()`, `ensure_infrastructure_agent()`, `ensure_infrastructure_agents_for_type()`, `delete_platform_bot()`. Signup scaffolding collapsed to YARNNN only; Specialists and Platform Bots lazy-create via these helpers.
+- `api/services/agent_framework.py`: `DEFAULT_ROSTER` deleted. `AGENT_TEMPLATES` retained as the template library consulted at lazy-ensure time.
+- `api/services/workspace_init.py`: Phase 2 collapsed from 11-agent roster creation to a single YARNNN row (role=`thinking_partner`, origin=`system_bootstrap`).
+- `api/services/task_pipeline.py`: single-step + multi-step dispatch refactored to lazy-ensure Specialist + Platform Bot rows on first resolution. `resolve_infra_role_from_ref` handles both role and slug agent_refs.
+- `api/services/primitives/manage_task.py`: `_handle_create` now treats `schedule` as optional — tasks without a schedule run once now (chat-first triggering). Forced-weekly fallback removed. `resolve_process_agents` is now preceded by `ensure_infrastructure_agents_for_type` to materialize the Specialists the type declares. Same pattern for `_handle_update` on type change.
+- `api/services/primitives/repurpose.py`: editorial repurpose path lazy-ensures Specialists before roster lookup; fallback uses ensure-Writer instead of "first agent in roster."
+- `api/routes/integrations.py`: Platform Bot activation sites (Slack/Notion/GitHub OAuth callback, Commerce connect, Trading connect) replaced with `ensure_infrastructure_agent()`. `disconnect_integration` now deletes the corresponding bot row so reconnect lazy-creates fresh.
+- `api/routes/account.py`: `clear_integrations` disconnect flow now deletes Platform Bot rows instead of pausing them. Docstring rewritten to reflect connection-bound bot lifecycle.
+- `api/routes/memory.py`: dead `_scaffold_default_roster()` function deleted (was already marked DEPRECATED pre-ADR-205).
+- `api/agents/yarnnn_prompts/tools.py` + `tools_core.py`: "pre-scaffolded team of 10 agents" framing removed. New "Substrate grows from work" subsection teaches YARNNN that fresh workspaces contain YARNNN and nothing else; Specialists materialize on first task dispatch; Platform Bots materialize on OAuth connect.
+- `api/agents/yarnnn_prompts/onboarding.py`: task-creation guidance notes the ADR-205 chat-first trigger convention — omit `schedule` to run once now; add schedule later via `ManageTask(action="update")`.
+- `supabase/migrations/154_adr205_primitive_collapse.sql`: drops all `origin='system_bootstrap'` rows with `role <> 'thinking_partner'`, dedupes to one YARNNN per user, backfills YARNNN for any workspace missing one. Applied 2026-04-22: 31 rows deleted, 9 YARNNN backfilled, 11 total infrastructure rows remain (1 YARNNN per workspace).
+- `api/services/directory_registry.py` + `api/services/workspace_init.py`: `scaffold_all_directories()` DELETED. Signup no longer pre-creates any `/workspace/context/` directory (including `signals/`). First agent write to a context path materializes the directory via UserMemory's virtual-filesystem write. Platform-bound domains (customers/revenue, trading/portfolio, slack/notion/github) remain scaffolded on OAuth connect via `scaffold_context_domain()` — connection-bound, analogous to Platform Bot row lifecycle.
+- `api/services/task_types.py`: `build_task_md_from_type` distinguishes `schedule=None` (ADR-205 chat-first, writes "**Schedule:** on-demand") from a falsy override (legacy falls through to registry `default_schedule`). Ensures TASK.md reflects DB truth when a chat-first task has no cadence.
+
+### Expected behavior
+
+- A freshly-signed-up workspace shows exactly one `agents` row (YARNNN) — not ten.
+- First task creation that names a Specialist (e.g. `type_key="track-competitor"` → Researcher + Tracker) lazy-creates those rows on first dispatch.
+- Creating a task in chat without specifying `schedule` triggers the task immediately once; the task has no recurring cadence until the user adds one.
+- Connecting Slack creates a Slack Bot row; disconnecting Slack deletes it. Same for Notion, GitHub, Commerce, Trading.
+
+### Dimensional classification (FOUNDATIONS v6.0)
+
+Primary: **Substrate** (Axiom 1 corollary — substrate grows from work, not from signup scaffolding). Secondary: **Identity** (Specialists as code-level templates, Platform Bots as connection-bound bundles), **Trigger** (Axiom 4 corollary — run-now is the default trigger, schedule is an annotation).
+
+### ADR
+
+`docs/adr/ADR-205-primitive-collapse.md`. Implementation Notes section documents the Architecture Y pivot (lazy scaffolding within the existing `agents` table) from the literal ADR text (separate `workspace_identity` table + Specialists-never-in-DB). Both produce the same substrate semantics; Y preserves the FK model.
+
+---
+
 ## [2026.04.22.3] - Primitive ergonomics — trust the compact index (alpha-trader test)
 
 ### Changed

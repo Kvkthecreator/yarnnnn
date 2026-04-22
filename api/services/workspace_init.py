@@ -1,18 +1,22 @@
 """
-Workspace Initialization — ADR-152 + ADR-188 + ADR-189 + ADR-190: Workspace Bootstrap
+Workspace Initialization — ADR-152 + ADR-188 + ADR-189 + ADR-190 + ADR-205: Workspace Bootstrap
 
 Sets up a workspace from the three registries (ADR-188: template libraries).
 Called once at signup. After initialization, the workspace is self-contained —
 registries are templates that were applied, the workspace filesystem is the
 sole source of truth.
 
+ADR-205: Only YARNNN is scaffolded at signup. Specialists are lazy-created
+on first dispatch via ensure_infrastructure_agent(); Platform Bots are
+connection-bound, created on OAuth connect. Substrate grows from work.
+
 Phases:
   1. Directory structure (from WORKSPACE_DIRECTORIES)
-  2. Agent roster (from AGENT_TEMPLATES + DEFAULT_ROSTER) — infrastructure rows
-     (YARNNN, Specialists, Platform Bots); user-authored Agents filter by
-     origin='system_bootstrap' per ADR-189
+  2. YARNNN agent row (role=thinking_partner, origin=system_bootstrap)
+     — sole infrastructure row scaffolded at signup per ADR-205
   3. Workspace files (IDENTITY.md, BRAND.md, AWARENESS.md, CONVENTIONS.md as
-     empty/minimal skeletons — ADR-190 strips pre-committed filler)
+     empty/minimal skeletons — ADR-190 strips pre-committed filler) +
+     review substrate (ADR-194)
   4. Essential tasks (daily-update heartbeat + back office tasks)
   5. Signup balance audit trail (ADR-172)
 
@@ -77,41 +81,53 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         logger.info(f"[WORKSPACE_INIT] Workspace already initialized for {user_id[:8]}")
 
     # =========================================================================
-    # Phase 1: Directory Structure (from WORKSPACE_DIRECTORIES)
+    # Phase 1: Directory Structure — DELETED (ADR-205)
     # =========================================================================
-    try:
-        from services.directory_registry import scaffold_all_directories
-        scaffolded = await scaffold_all_directories(client, user_id)
-        result["directories_scaffolded"] = scaffolded
-        if scaffolded:
-            logger.info(f"[WORKSPACE_INIT] Directories: {', '.join(scaffolded)}")
-    except Exception as e:
-        logger.warning(f"[WORKSPACE_INIT] Directory scaffold failed: {e}")
+    # ADR-205: Substrate grows from work. Context domain directories (incl.
+    # signals) materialize on first agent write via UserMemory (virtual
+    # filesystem — a write to a path creates the containing directory
+    # implicitly). Signup no longer pre-creates anything under /workspace/context/.
+    # Platform-bound domains (customers/revenue, trading/portfolio, slack/notion/github)
+    # are still scaffolded at OAuth connect via scaffold_context_domain() — that's
+    # connection-bound, not signup-bound, and matches ADR-158/183/187 platform
+    # ownership semantics.
+    result["directories_scaffolded"] = []
 
     # =========================================================================
-    # Phase 2: Agent Roster (from AGENT_TYPES + DEFAULT_ROSTER)
+    # Phase 2: YARNNN — sole infrastructure agent scaffolded at signup (ADR-205)
     # =========================================================================
+    # Specialists + Platform Bots are lazy-created. YARNNN is scaffolded here
+    # because it owns back-office tasks (ADR-164) which run on the workspace
+    # heartbeat from day one. Idempotent — skips if already present.
     try:
-        from services.agent_framework import AGENT_TYPES, DEFAULT_ROSTER
+        from services.agent_framework import AGENT_TEMPLATES
         from services.agent_creation import create_agent_record
 
-        for agent_def in DEFAULT_ROSTER:
-            try:
-                type_def = AGENT_TYPES.get(agent_def["role"], {})
-                await create_agent_record(
-                    client=client,
-                    user_id=user_id,
-                    title=agent_def["title"],
-                    role=agent_def["role"],
-                    origin="system_bootstrap",
-                    agent_instructions=type_def.get("default_instructions", ""),
-                )
-                result["agents_created"].append(agent_def["title"])
-                logger.info(f"[WORKSPACE_INIT] Agent: {agent_def['title']}")
-            except Exception as e:
-                logger.warning(f"[WORKSPACE_INIT] Agent {agent_def['title']} failed (may exist): {e}")
+        yarnnn_existing = (
+            client.table("agents")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("role", "thinking_partner")
+            .eq("origin", "system_bootstrap")
+            .limit(1)
+            .execute()
+        )
+        if not (yarnnn_existing.data or []):
+            yarnnn_template = AGENT_TEMPLATES.get("thinking_partner", {})
+            await create_agent_record(
+                client=client,
+                user_id=user_id,
+                title=yarnnn_template.get("display_name", "Thinking Partner"),
+                role="thinking_partner",
+                origin="system_bootstrap",
+                agent_instructions=yarnnn_template.get("default_instructions", ""),
+            )
+            result["agents_created"].append("Thinking Partner")
+            logger.info(f"[WORKSPACE_INIT] Agent: YARNNN (thinking_partner) — sole signup scaffold (ADR-205)")
+        else:
+            logger.info(f"[WORKSPACE_INIT] YARNNN already exists, skipping")
     except Exception as e:
-        logger.error(f"[WORKSPACE_INIT] Agent roster FAILED — no agents created: {e}")
+        logger.error(f"[WORKSPACE_INIT] YARNNN scaffold FAILED — workspace has no heartbeat: {e}")
 
     # =========================================================================
     # Phase 3: Workspace Files (identity, brand, playbook, preferences)

@@ -2255,7 +2255,13 @@ def build_task_md_from_type(
     if not task_type:
         return None
 
-    effective_schedule = schedule or task_type["default_schedule"]
+    # ADR-205 chat-first triggering: an explicit None (not just falsy) means
+    # "no cadence — run now, schedule may be added later." We write "on-demand"
+    # so TASK.md reflects the truth instead of the registry's default cadence.
+    if schedule is None:
+        effective_schedule = "on-demand"
+    else:
+        effective_schedule = schedule or task_type["default_schedule"]
     # Caller-supplied delivery takes precedence; registry default_delivery is the fallback.
     # This ensures produces_deliverable tasks get email by default without the caller
     # (TP or workspace_init) having to know the delivery policy.
