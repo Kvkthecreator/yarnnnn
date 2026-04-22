@@ -37,6 +37,37 @@ Primary Actions are structurally alike: external platform writes, rule-governabl
 
 This reframe is falsifiable. A workspace with no Primary Action is not YARNNN's ICP (it's a research workspace, a notebook, a Claude Code project — not a money-generating operation). An operator whose Primary Action's capability isn't connected has a *Knowledge-mode* workspace — no execution, but the same loop structure minus the closing arrow.
 
+### The Loop is prompt strategy, not pipeline architecture
+
+**Load-bearing clarification.** The seven-arrow Loop (D3 below) is YARNNN's **cognitive framework + prompt strategy**, not an engineered state machine. No pipeline orchestrator enforces "now we're at arrow 3, next is arrow 4." No code-level Loop-awareness exists in any primitive or dispatcher.
+
+Instead, the architecture is:
+
+- **Context** — the filesystem (workspace_files, `_performance.md`, `decisions.md`, `_shared/*`, per-task TASK.md/DELIVERABLE.md/awareness.md)
+- **Primitives** — unbiased substrate operations (ManageTask, UpdateContext, ProposeAction, WriteFile, ReadFile, Clarify, RuntimeDispatch, etc.) — none of them know about the Loop
+- **Configuration** — `MANDATE.md`, `RULES` (operator_profile + risk + review/principles) — operator-authored intent that frames reasoning
+- **Conversation** — chat is where YARNNN carries the Loop as its reasoning scaffold
+
+When YARNNN reasons about what to do next, it uses the Loop metaphor to structure its thinking: *"The operator just authored rules; next we need a Proposer — is one scaffolded? If not, create one. When it fires, its output needs the Verdict arrow, which means Reviewer gating — is principles.md authored? And so on."* The Loop is a conceptual scaffold for reasoning, made visible through chat responses, filesystem reads/writes, and eventually the cockpit Queue.
+
+**This is the same pattern as Claude Code.** Claude Code doesn't have a pipeline for "now we plan, now we implement, now we review." It has context (the codebase + CLAUDE.md), primitives (Read, Write, Edit, Bash, Agent, etc.), and the operator's conversation. The coding workflow emerges from those four ingredients without a code-level state machine enforcing phases.
+
+YARNNN adopts this exact posture:
+- YARNNN's substrate does not dictate workflow.
+- YARNNN's primitives do not assume a workflow.
+- YARNNN's chat prompts + MANDATE.md carry the workflow.
+- The filesystem accumulates the workflow's state.
+
+What remains code-enforced under ADR-207:
+- **The MANDATE.md hard gate** (D2) — operator must author Mandate before task scaffolding. Prevents ungrounded workflow drift.
+- **Task self-declaration** (D7) — each TASK.md declares what it reads/writes/needs; pipeline dispatches from declarations.
+- **Capabilities gating** (D5) — primitive dispatch checks `required_capabilities` against active `platform_connections`.
+- **Reviewer routing** (ADR-194, unchanged) — proposal insert fires `review-proposal` task; Reviewer reads principles.md + _performance.md.
+
+Everything else — "how YARNNN knows we're ready to propose," "when a weekly-review triggers rule refinement," "whether a Mandate revision is overdue" — is **chat-level reasoning over the filesystem**, not pipeline logic.
+
+**Consequence for ADR-207 scope:** the Loop narrative (D3) describes the *conceptual shape* of the workflow for documentation + prompt authoring purposes. Implementation scope is D1, D2, D4, D5, D6, D7, D8 — each of which is primitive-level, agnostic work. No "Loop orchestrator" gets built because none is needed.
+
 ### Relationship to FOUNDATIONS and prior ADRs
 
 This ADR is a cohesive synthesis, not a rewrite of axioms. FOUNDATIONS v6.0 (six-dimensional model + Axiom 8 money-truth) is fully preserved. ADR-206's Intent layer survives (what the operator declares: Mandate, rules, risk, principles). ADR-194's Reviewer is the Identity-layer cell that gates proposals. ADR-195's `_performance.md` is the money-truth substrate that closes the loop.
@@ -352,6 +383,7 @@ The ADR itself lands. Cross-ADR amendment banners updated. No code changes.
 - **Deliverables stop overloading.** No more conflation of "the brief the operator reads" with "the proposal that triggers execution." Tasks produce outputs; outputs carry semantics from the task that produced them.
 - **Derivation + operator-confirmed scaffolding eliminates over-scaffolding drift.** The alpha-trader E2E's duplicate `track-universe-2` and redundant-task risks both disappear.
 - **ADR count net decreases as understanding increases.** ADR-207 supersedes ADR-166 + ADR-188 and refines ADR-206 + amends ADR-205/149/194/195 — one ADR consolidates what previously spanned five.
+- **Claude Code pattern alignment.** The chat-centric Loop matches how Claude Code structures a coding session: context (codebase + CLAUDE.md) + primitives (Read/Write/Edit/Bash/Agent) + configuration (CLAUDE.md) + conversation, without a pipeline orchestrator enforcing phases. YARNNN adopts the same ingredients (context = filesystem; primitives = ManageTask/UpdateContext/ProposeAction/etc.; configuration = MANDATE.md; conversation = chat). The workflow emerges from the ingredients rather than being imposed on them. This is the deepest simplification in the ADR — the architecture stops pretending to orchestrate a Loop and instead just provides substrate + tools for YARNNN's prompt strategy to enact one.
 
 ### Costs
 
@@ -386,10 +418,20 @@ Secondary:
 
 ## Open questions
 
-1. **Does every operator workspace really have a Primary Action?** The Loop-centered claim depends on this. Research-only workspaces (where the operator is *studying* an operation, not running one) may be Knowledge-mode workspaces by definition. Worth testing whether any near-ICP operator fits neither mode cleanly.
-2. **Does the Learner arrow need a named task?** Current draft says the recursion runs via whichever task reads `_performance.md` and writes Rule-delta proposals. The alpha-trader `weekly-performance-review` is such a task. But if no weekly task exists, who closes the recursion? Possibly a default Instrument at Mandate-authoring time; defer until alpha signal answers.
-3. **Knowledge-mode cockpit Queue semantics.** Proposals still emit; still get Reviewer verdicts. What does "Approval" mean when ACTION can't fire? Probably an advisory mark ("would have approved") written to decisions.md for post-hoc analysis if/when capability connects. Worth prototype-testing.
-4. **Mandate granularity.** Can a single Mandate declare multiple Primary Action classes (e.g. both trading AND publishing)? Current frame says one per workspace. If operator has multiple ICP-shaped operations, they're separate workspaces. Test against real alpha personas.
+The chat-centric Loop clarification (see §"The Loop is prompt strategy, not pipeline architecture" above) collapses most of the questions that were open in v1. They dissolve because each one assumed the Loop was a code-level structure requiring enforcement. With the Loop living in prompt strategy + filesystem state + conversation, each question becomes a chat-level reasoning concern rather than an architectural gap:
+
+| Prior question | Collapse under chat-centric framing |
+|---|---|
+| Does every workspace have a Primary Action? | If MANDATE.md declares one, yes. If not, the workspace is Knowledge-mode (proposals advisory-only). YARNNN detects this at chat-time; no architectural enforcement beyond Mandate existence. |
+| Does the Learner arrow need a named task? | No. Rule refinement is whichever task the operator scaffolds that reads `_performance.md` and writes Rule-delta proposals — typically a weekly-review instrument, but YARNNN can also do it conversationally when the operator asks "how's my operation performing?" |
+| Knowledge-mode Queue semantics? | YARNNN surfaces it conversationally: *"you're in Knowledge mode; proposals are advisory until Alpaca connects."* Proposals still emit, Reviewer still evaluates, decisions still log. No primitive-layer branching. |
+| Mandate granularity? | Chat-level constraint. If an operator declares two Primary Actions, YARNNN pushes back conversationally or recommends splitting into two workspaces. No primitive enforcement. |
+
+**Remaining genuine open questions** (not chat-collapsible):
+
+1. **Workspace-level MANDATE.md revision history semantics.** When the operator revises Mandate (via `UpdateContext(target="mandate")`), is the prior version preserved in `/workspace/context/_shared/history/MANDATE.md/v{N}.md` per ADR-119 convention? My default: yes, high-value file, version-preserved. Worth a brief code-level decision rather than leaving implicit.
+2. **Capability availability in the compact index.** The two-mode detection (D6) is a computed property. Should it also surface in YARNNN's compact index every turn, so YARNNN reasons about connection gaps without re-computing? Probably yes — cheap signal, valuable framing. Part of the P2 compact-index update.
+3. **Pre-existing alpha-trader `trading-operator` Agent (from the E2E).** YARNNN authored this during the E2E as a stand-in for "operator spec lives somewhere." Under ADR-207, the operator spec lives in MANDATE.md + `_operator_profile.md`. Is the `trading-operator` Agent still needed, or does it dissolve? Likely: dissolves — it was a workaround for missing primitives (Obs 03). Confirm at Phase 6 alpha re-author.
 
 ---
 
@@ -398,3 +440,4 @@ Secondary:
 | Date | Change |
 |------|--------|
 | 2026-04-22 | v1 — Initial proposal. Primary Action as pivot, Mandate as workspace north-star file, seven-arrow Loop using only existing Axiom 2 layers (no invented actors), Deliverables reframed as task sub-parts, Platform Bots → Capabilities completion, two-mode service (Operational / Knowledge), TASK_TYPES registry full sunset with task self-declaration, derivation from filesystem graph. Supersedes ADR-166 + ADR-188; refines ADR-206; amends ADR-149/194/195/205. Implementation plan in six phases. |
+| 2026-04-22 | v1.1 — **Chat-centric Loop clarification** added as new §"The Loop is prompt strategy, not pipeline architecture" early in the ADR. Makes explicit: the seven-arrow Loop is YARNNN's cognitive framework + prompt strategy, not a code-level orchestrator. Primitives remain unbiased. Implementation scope is D1/D2/D4-D8; no Loop orchestrator gets built. Pattern aligns with Claude Code (context + primitives + configuration + conversation, no pipeline). Open Questions section rewritten — most of the v1 questions collapse under chat-centric framing; three genuine open questions remain (Mandate revision history semantics, capability-availability in compact index, fate of the E2E-scaffolded trading-operator Agent). Claude Code pattern alignment added to Consequences §Positive. |
