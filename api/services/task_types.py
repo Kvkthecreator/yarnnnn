@@ -1521,7 +1521,7 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         "surface_type": "deck",
         "page_structure": [
             {"kind": "narrative", "title": "Opening",
-             "reads_from": ["workspace/IDENTITY.md"]},
+             "reads_from": ["workspace/context/_shared/IDENTITY.md"]},
             {"kind": "metric-cards", "title": "Key Metrics",
              "reads_from": ["market/overview.md", "projects/status.md"],
              "assets": [{"type": "derivative", "render": "chart"}]},

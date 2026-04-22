@@ -735,16 +735,21 @@ class AgentWorkspace:
 
 class UserMemory:
     """
-    User workspace context: /workspace/ (ADR-133)
+    User workspace context: /workspace/ (ADR-133, relocated by ADR-206).
 
-    Two canonical files at workspace scope:
-    - /workspace/IDENTITY.md — who you are (name, role, company, industry, timezone, summary)
-    - /workspace/BRAND.md    — how outputs look and sound (colors, typography, tone, voice)
+    Authored shared context lives under /workspace/context/_shared/:
+    - /workspace/context/_shared/IDENTITY.md    — who you are (name, role, company, timezone, summary)
+    - /workspace/context/_shared/BRAND.md       — how outputs look and sound
+    - /workspace/context/_shared/CONVENTIONS.md — workspace filesystem rules (agent-readable)
 
-    TP-accumulated knowledge stays at /memory/:
-    - /memory/notes.md       — standing instructions, observed facts (extracted nightly)
+    YARNNN working memory lives under /workspace/memory/:
+    - /workspace/memory/awareness.md — situational notes, shift handoff
+    - /workspace/memory/_playbook.md — orchestration playbook (hidden)
+    - /workspace/memory/style.md     — inferred style from edit patterns
+    - /workspace/memory/notes.md     — standing instructions, observed facts
 
-    Seeded into projects at scaffold time → agents read project-level copies.
+    Callers pass full workspace-relative paths (e.g. "context/_shared/IDENTITY.md");
+    paths are defined as canonical constants in services.workspace_paths.
     """
 
     def __init__(self, db_client, user_id: str):
@@ -824,75 +829,59 @@ class UserMemory:
             return False
 
     async def read_all(self) -> dict[str, str]:
-        """Read workspace context files. Returns {filename: content}.
+        """Read workspace context files. Returns {basename: content}.
 
-        ADR-156: Workspace context files + memory files.
-        Charter files (UPPERCASE) + system files (_prefixed) + content files (lowercase).
+        ADR-206: reads shared context from /workspace/context/_shared/ and
+        working-memory files from /workspace/memory/. Keys are basenames
+        so downstream formatters (working_memory.format_compact_index,
+        daily-update template) get stable identifiers independent of
+        layout changes.
         """
-        files = {}
-        for filename in ("IDENTITY.md", "BRAND.md", "style.md"):
-            content = await self.read(filename)
+        from services.workspace_paths import (
+            SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
+            MEMORY_STYLE_PATH, MEMORY_NOTES_PATH,
+        )
+        files: dict[str, str] = {}
+        for path in (SHARED_IDENTITY_PATH, SHARED_BRAND_PATH, MEMORY_STYLE_PATH, MEMORY_NOTES_PATH):
+            content = await self.read(path)
             if content:
-                files[filename] = content
-        # Notes at /memory/ path
-        try:
-            result = (
-                self._db.table("workspace_files")
-                .select("content")
-                .eq("user_id", self._user_id)
-                .eq("path", "/memory/notes.md")
-                .limit(1)
-                .execute()
-            )
-            rows = result.data or []
-            if rows and rows[0].get("content"):
-                files["notes.md"] = rows[0]["content"]
-        except Exception:
-            pass
+                files[path.rsplit("/", 1)[-1]] = content
         return files
 
     def read_all_sync(self) -> dict[str, str]:
-        """Synchronous read_all for thread pool use. ADR-156: naming convention."""
-        files = {}
-        for filename in ("IDENTITY.md", "BRAND.md", "style.md"):
-            content = self.read_sync(filename)
+        """Synchronous read_all for thread pool use."""
+        from services.workspace_paths import (
+            SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
+            MEMORY_STYLE_PATH, MEMORY_NOTES_PATH,
+        )
+        files: dict[str, str] = {}
+        for path in (SHARED_IDENTITY_PATH, SHARED_BRAND_PATH, MEMORY_STYLE_PATH, MEMORY_NOTES_PATH):
+            content = self.read_sync(path)
             if content:
-                files[filename] = content
-        try:
-            result = (
-                self._db.table("workspace_files")
-                .select("content")
-                .eq("user_id", self._user_id)
-                .eq("path", "/memory/notes.md")
-                .limit(1)
-                .execute()
-            )
-            rows = result.data or []
-            if rows and rows[0].get("content"):
-                files["notes.md"] = rows[0]["content"]
-        except Exception:
-            pass
+                files[path.rsplit("/", 1)[-1]] = content
         return files
 
     async def get_profile(self) -> dict:
         """Parse IDENTITY.md into structured profile dict."""
-        content = await self.read("IDENTITY.md")
+        from services.workspace_paths import SHARED_IDENTITY_PATH
+        content = await self.read(SHARED_IDENTITY_PATH)
         return self._parse_memory_md(content)
 
     async def update_profile(self, updates: dict) -> bool:
         """Update profile fields in IDENTITY.md (read-merge-write)."""
+        from services.workspace_paths import SHARED_IDENTITY_PATH
         current = await self.get_profile()
         current.update({k: v for k, v in updates.items() if v is not None})
-        # Remove cleared fields
         for k, v in updates.items():
             if v is None or v == "":
                 current.pop(k, None)
-        return await self.write("IDENTITY.md", self._render_memory_md(current),
+        return await self.write(SHARED_IDENTITY_PATH, self._render_memory_md(current),
                                 summary="User identity")
 
     async def get_preferences(self) -> dict:
         """Parse style.md into structured dict."""
-        content = await self.read("style.md")
+        from services.workspace_paths import MEMORY_STYLE_PATH
+        content = await self.read(MEMORY_STYLE_PATH)
         return self._parse_preferences_md(content)
 
     async def update_preferences(self, platform: str, updates: dict) -> bool:
@@ -910,31 +899,36 @@ class UserMemory:
                     del prefs[platform][k]
             if platform in prefs and not prefs[platform]:
                 del prefs[platform]
-        return await self.write("style.md", self._render_preferences_md(prefs),
+        from services.workspace_paths import MEMORY_STYLE_PATH
+        return await self.write(MEMORY_STYLE_PATH, self._render_preferences_md(prefs),
                                 summary="Communication and content preferences")
 
     async def get_notes(self) -> list[dict]:
         """Parse notes.md into list of {type, content}."""
-        content = await self.read("notes.md")
+        from services.workspace_paths import MEMORY_NOTES_PATH
+        content = await self.read(MEMORY_NOTES_PATH)
         return self._parse_notes_md(content)
 
     async def add_note(self, note_type: str, content: str) -> bool:
         """Append a note to notes.md."""
+        from services.workspace_paths import MEMORY_NOTES_PATH
         notes = await self.get_notes()
         notes.append({"type": note_type, "content": content})
-        return await self.write("notes.md", self._render_notes_md(notes),
+        return await self.write(MEMORY_NOTES_PATH, self._render_notes_md(notes),
                                 summary="Standing instructions and observed facts")
 
     async def remove_note(self, content: str) -> bool:
         """Remove a note by content match."""
+        from services.workspace_paths import MEMORY_NOTES_PATH
         notes = await self.get_notes()
         notes = [n for n in notes if n["content"] != content]
-        return await self.write("notes.md", self._render_notes_md(notes),
+        return await self.write(MEMORY_NOTES_PATH, self._render_notes_md(notes),
                                 summary="Standing instructions and observed facts")
 
     async def replace_notes(self, notes: list[dict]) -> bool:
         """Replace all notes (used by extraction cron read-merge-write)."""
-        return await self.write("notes.md", self._render_notes_md(notes),
+        from services.workspace_paths import MEMORY_NOTES_PATH
+        return await self.write(MEMORY_NOTES_PATH, self._render_notes_md(notes),
                                 summary="Standing instructions and observed facts")
 
     # =========================================================================

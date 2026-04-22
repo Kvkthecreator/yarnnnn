@@ -843,9 +843,9 @@ not prose paragraphs.
 - `/tasks/{slug}/outputs/{datetime}/` — dated output snapshot (preserved)
 - `/tasks/{slug}/memory/` — task working memory (agent-managed)
 - `/agents/{slug}/` — agent identity (AGENT.md) and memory
-- `/workspace/IDENTITY.md` — who the user is
-- `/workspace/BRAND.md` — visual style and voice
-- `/workspace/AWARENESS.md` — TP shift notes across sessions
+- `/workspace/context/_shared/IDENTITY.md` — who the user is (ADR-206)
+- `/workspace/context/_shared/BRAND.md` — visual style and voice (ADR-206)
+- `/workspace/memory/awareness.md` — YARNNN shift notes across sessions (ADR-206)
 
 ### Entity File Conventions
 

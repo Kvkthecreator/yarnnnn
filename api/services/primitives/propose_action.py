@@ -269,6 +269,22 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
                     proposal_id[:8], dispatch_exc,
                 )
 
+            # ADR-206: first-proposal trigger materializes back-office-proposal-cleanup.
+            # Idempotent — no-op if the task already exists for this workspace.
+            try:
+                from services.workspace_init import materialize_back_office_task
+                await materialize_back_office_task(
+                    auth.client, auth.user_id,
+                    type_key="back-office-proposal-cleanup",
+                    slug="back-office-proposal-cleanup",
+                    title="Proposal Cleanup",
+                )
+            except Exception as materialize_exc:  # noqa: BLE001
+                logger.warning(
+                    "[PROPOSE_ACTION] proposal-cleanup materialize failed: %s",
+                    materialize_exc,
+                )
+
         return {
             "success": True,
             "proposal_id": proposal_id,

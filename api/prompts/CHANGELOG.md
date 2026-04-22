@@ -6,6 +6,54 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.5] - ADR-206 Operation-First Scaffolding (Phase 1 backend)
+
+### Changed
+
+- `api/services/workspace_paths.py` (NEW): canonical path constants for the ADR-206 relocation. `SHARED_IDENTITY_PATH`, `SHARED_BRAND_PATH`, `SHARED_CONVENTIONS_PATH` under `context/_shared/`; `MEMORY_AWARENESS_PATH`, `MEMORY_PLAYBOOK_PATH`, `MEMORY_STYLE_PATH`, `MEMORY_NOTES_PATH` under `memory/`; `REVIEW_IDENTITY_PATH`, `REVIEW_PRINCIPLES_PATH`, `REVIEW_DECISIONS_PATH` unchanged.
+- `api/services/workspace.py`: `UserMemory` class docstring updated for ADR-206 layout. `read_all` / `read_all_sync` / `get_profile` / `update_profile` / `get_preferences` / `update_preferences` / `get_notes` / `add_note` / `remove_note` / `replace_notes` all import `workspace_paths` and read/write the relocated paths. Keys in `read_all()` result still basenames so `memory_files.get("BRAND.md")`-style consumers (agent_execution.py) work unchanged.
+- `api/services/working_memory.py`: `_get_workspace_file_sync` callers pass relocated paths. Compact-index + /chat hints updated to show the new `/workspace/context/_shared/...` and `/workspace/memory/awareness.md` paths.
+- `api/services/primitives/update_context.py`: `_apply_workspace_scaffold` + `_apply_workspace_scaffold_ai` + `_update_target_file` all write identity to `SHARED_IDENTITY_PATH` / brand to `SHARED_BRAND_PATH`. Awareness writes to `MEMORY_AWARENESS_PATH`.
+- `api/services/workspace_init.py`: ADR-206 re-scope. Docstring updated. Phase 2 seeds skeletons at new ADR-206 paths (three `_shared/*` authored-context files + four `memory/*` YARNNN working-memory files + two `review/*` Reviewer substrate files). `daily-update` + all `back-office-*` + `maintain-overview` scaffolding deleted. Two helpers deleted (`_create_essential_daily_update`, `_create_essential_deliverable_task`); `_create_essential_back_office_task` renamed to `materialize_back_office_task` (public, idempotent) for on-trigger materialization.
+- `api/services/primitives/propose_action.py`: `handle_propose_action` post-insert triggers `materialize_back_office_task("back-office-proposal-cleanup")` idempotently — proposal cleanup materializes on first proposal per ADR-206.
+- `api/routes/integrations.py`: Commerce + Trading connect paths trigger `materialize_back_office_task("back-office-outcome-reconciliation")` — outcome reconciliation materializes when the first money-truth platform connects.
+- `api/jobs/unified_scheduler.py`: hourly probe materializes `back-office-agent-hygiene` when ≥1 user-authored agent has accumulated ≥5 runs. Idempotent.
+- `api/routes/tasks.py`: `GET /api/tasks` default response filters out `back-office-*` slugs. `include_system=true` query param restores them (for `/settings/system` diagnostic view, not yet built).
+- `api/routes/memory.py`: `/user/identity` + `/user/brand` endpoints read/write the ADR-206 paths. Module docstring refreshed. Dead `_scaffold_default_roster` already deleted by ADR-205.
+- `api/routes/workspace.py`: `/workspace/settings` reports the ADR-206 paths. `PUT /workspace/file` editable-prefixes widened to permit `/workspace/context/_shared/*.md` + `/workspace/memory/*.md` + `/tasks/*` + `/workspace/uploads/*`.
+- `api/routes/system.py`: timezone resolution reads the ADR-206 `SHARED_IDENTITY_PATH`.
+- `api/services/schedule_utils.py`: `get_user_timezone` reads the ADR-206 `SHARED_IDENTITY_PATH`.
+- `api/services/directory_registry.py`: `WORKSPACE_DIRECTORIES` gains `_shared` entry (`type: "shared_context"`, `path: "context/_shared"`, scaffolded files list). `scaffold_all_directories` was already deleted by ADR-205.
+- `api/services/agent_framework.py`: docstring path references in the inline workspace-conventions section updated to ADR-206 paths.
+- `api/services/task_types.py`: `maintain-overview` type `page_structure` `reads_from` updated to new path (the task itself is being dropped by migration 155 — the registry entry can be cleaned up in a follow-up when `maintain-overview` is confirmed unused).
+- `supabase/migrations/155_adr206_operation_first.sql` (NEW): file relocations via `UPDATE workspace_files SET path = <new>`. `UPDATE tasks SET essential=false WHERE slug='daily-update'`. `DELETE FROM tasks WHERE slug='maintain-overview'` + its workspace files. Applied 2026-04-22: 20 file relocations, 2 daily-update rows de-essential-ed, 0 maintain-overview (none existed in DB).
+
+### Docs
+
+- `docs/architecture/FOUNDATIONS.md`: Axiom 3 (Purpose) gains a corollary — the three-layer operator view (Intent / Deliverables / Operation). Workspace-purpose files now cited at ADR-206 paths.
+- `docs/architecture/GLOSSARY.md`: `Intent`, `Deliverable`, `Operation`, `Loop` added as canonical operator-facing terms.
+- `docs/architecture/workspace-conventions.md`: `/workspace/` layout redrawn for ADR-206 — only operational folders at root; `_shared/` + `memory/` + `review/` nested; directory tree updated.
+- `docs/architecture/primitives-matrix.md`: adds the CRUD-split note (create via modal, update/delete via chat, approve/reject via surface click).
+
+### Expected behavior
+
+- Freshly-signed-up workspaces have: one YARNNN row, three `_shared/*` files, four `memory/*` files, two `review/*` files. **Zero operational tasks**. Zero context domain directories.
+- Existing workspaces: all of IDENTITY/BRAND/CONVENTIONS/AWARENESS/_playbook/style/notes are relocated via migration 155. Their existing `back-office-*` tasks continue running; new workspaces don't get them at signup but materialize on trigger.
+- `GET /api/tasks` returns only operator-facing tasks by default. Alpha operators see their user-created tasks + daily-update (if still scheduled); back-office plumbing is hidden unless `include_system=true` is passed.
+- A proposal landing for the first time in a workspace where `back-office-proposal-cleanup` doesn't exist: proposal-cleanup is created silently alongside the proposal insert. No user-visible disruption.
+- A commerce/trading OAuth connect in a workspace without `back-office-outcome-reconciliation`: the task is created during the connect flow.
+
+### What doesn't ship in Phase 1 (queued for Phase 2 + 3)
+
+- **Phase 2 (prompt layer)**: YARNNN first-turn operation-elicitation posture rewrite (`yarnnn_prompts/onboarding.py`); compact-index Intent/Deliverables/Operation labeled sections (`working_memory.format_compact_index`); tool-guidance updates (`tools.py`, `tools_core.py`).
+- **Phase 3 (frontend)**: `/work` deliverables-first reshape with BriefingStrip pane re-ordering; `/context` grouping (`_shared/` / domains / review); `CreateTaskModal` / `AuthorAgentModal` / `CreateRuleModal` (F3); `ManageContextModal` (F4); `/settings/system` diagnostic view.
+
+### ADR
+
+`docs/adr/ADR-206-operation-first-scaffolding.md`. Phase 1 Implemented 2026-04-22. Phases 2 + 3 proposed.
+
+---
+
 ## [2026.04.22.4] - ADR-205 Workspace Primitive Collapse
 
 ### Changed

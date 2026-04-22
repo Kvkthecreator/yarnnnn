@@ -545,9 +545,14 @@ async def list_tasks(
     auth: UserClient,
     status: Optional[str] = None,
     limit: int = 50,
+    include_system: bool = False,
 ) -> list[TaskResponse]:
     """
     List user's tasks, enriched with TASK.md content from workspace.
+
+    ADR-206: `back-office-*` tasks are infrastructure plumbing, not
+    operator-facing work. Excluded from default response. Diagnostic surfaces
+    (e.g. /settings/system) pass `include_system=true` to see them.
     """
     import asyncio
     from services.task_workspace import TaskWorkspace
@@ -565,6 +570,9 @@ async def list_tasks(
 
     result = query.execute()
     rows = result.data or []
+
+    if not include_system:
+        rows = [r for r in rows if not (r.get("slug") or "").startswith("back-office-")]
 
     # Enrich each task with TASK.md content in parallel
     async def _enrich(row: dict) -> TaskResponse:

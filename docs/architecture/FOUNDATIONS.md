@@ -151,9 +151,10 @@ Each layer develops along exactly one axis. Conflating these has been a recurrin
 
 Purpose is what intent drives the work. It is declared in substrate files:
 
-- **Workspace purpose** — `/workspace/IDENTITY.md`, `/workspace/BRAND.md`. What the operator is building, how they think, what they care about.
+- **Workspace purpose** — `/workspace/context/_shared/IDENTITY.md`, `/workspace/context/_shared/BRAND.md`, `/workspace/context/_shared/CONVENTIONS.md` (post-ADR-206 relocation; previously at `/workspace/` root). What the operator is building, how they think, what they care about, and the structural rules all agents honor.
+- **Operation purpose** — `/workspace/context/{domain}/_operator_profile.md` + `/workspace/context/{domain}/_risk.md`. Declared rules, signals, limits — the *edge hypothesis* the operator is running. Post-ADR-206 these files are the Intent artifacts that drive the loop.
 - **Task purpose** — `/tasks/{slug}/TASK.md` (objective) + `/tasks/{slug}/DELIVERABLE.md` (output specification). Why this task exists, what it produces.
-- **Reviewer purpose** — `/workspace/review/principles.md`. How the independent judgment seat should reason; auto-approve thresholds, escalation rules.
+- **Reviewer purpose** — `/workspace/review/principles.md`. How the independent judgment seat should reason; auto-approve thresholds, escalation rules. Post-ADR-206 this is the Reviewer's capital-EV framework the operator authors once, the Reviewer executes per-proposal.
 - **Agent purpose** — `/agents/{slug}/AGENT.md`. What domain the agent owns, how it approaches its domain.
 - **Domain purpose** — `/workspace/context/{domain}/_domain.md`. What this domain tracks, what entities belong in it.
 
@@ -164,6 +165,20 @@ Not every Purpose needs to be substrate-declared. When an Identity takes a well-
 ### Rule: a mechanic without Purpose is dead code
 
 Every shipped mechanic must be answerable to the Why question. If a mechanic fires but no substrate or identity declares *why*, it is either dead code or a drift (a mechanic that once had purpose and lost it). Axiom 3 is the conscience that prevents accumulation of purposeless mechanics.
+
+### Corollary: the operator-facing three-layer view (ADR-206)
+
+Purpose, from the operator's perspective, is triangulated across three orthogonal layers. The layers are orthogonal to Axiom 2's four-layer cognition model (which describes *who acts*); these three describe *what the operator interacts with*.
+
+| Layer | What it is | Where it's authored / surfaced |
+|-------|-----------|--------------------------------|
+| **Intent** | Declared rules, risk limits, principles, success criteria. The operator's edge hypothesis. | Authored at `/workspace/context/_shared/*` + domain `_operator_profile.md` + `_risk.md` + `/workspace/review/principles.md`. Rendered on `/context`. |
+| **Deliverables** | Externalized outputs of the operation. Proposals awaiting approval, briefs, weekly reviews, `_performance.md` snapshots. | Surfaced on `/work` list-mode (primary) and `/review`. |
+| **Operation** | Execution substrate: tasks, agents, reconcilers, scheduler. | Drill-down on `/work` detail mode and `/team` — second-class to the operator. |
+
+The loop the operator runs: **Intent → Operation → Deliverables → Intent (refined).** Reports and briefs are side-effects of the loop running, not the point of the loop. Axiom 3 Purpose is first-class in the Intent layer; Axiom 2 Identity fills the Operation layer; Axiom 6 Channel renders the Deliverables layer.
+
+Axiom 3's "Purpose can also be carried by Identity" rule maps directly here: substrate-declared Purpose lives in Intent; interaction-inferred Purpose (operator clicks Approve on a proposal) lives in the Deliverables layer's action affordance.
 
 ---
 

@@ -1,5 +1,5 @@
 """
-Workspace Initialization — ADR-152 + ADR-188 + ADR-189 + ADR-190 + ADR-205: Workspace Bootstrap
+Workspace Initialization — ADR-152 + ADR-188 + ADR-189 + ADR-190 + ADR-205 + ADR-206: Workspace Bootstrap
 
 Sets up a workspace from the three registries (ADR-188: template libraries).
 Called once at signup. After initialization, the workspace is self-contained —
@@ -7,18 +7,22 @@ registries are templates that were applied, the workspace filesystem is the
 sole source of truth.
 
 ADR-205: Only YARNNN is scaffolded at signup. Specialists are lazy-created
-on first dispatch via ensure_infrastructure_agent(); Platform Bots are
-connection-bound, created on OAuth connect. Substrate grows from work.
+on first dispatch; Platform Bots are connection-bound. Substrate grows from work.
+
+ADR-206: Further collapse — zero operational tasks at signup. `daily-update`
+and `back-office-*` are no longer scaffolded; they materialize on trigger
+conditions (proposals created, platform connected, agent threshold, etc.).
+IDENTITY/BRAND/CONVENTIONS relocated under `/workspace/context/_shared/`;
+YARNNN working-memory files relocated under `/workspace/memory/`.
+The workspace is textually present + structurally empty.
 
 Phases:
-  1. Directory structure (from WORKSPACE_DIRECTORIES)
-  2. YARNNN agent row (role=thinking_partner, origin=system_bootstrap)
-     — sole infrastructure row scaffolded at signup per ADR-205
-  3. Workspace files (IDENTITY.md, BRAND.md, AWARENESS.md, CONVENTIONS.md as
-     empty/minimal skeletons — ADR-190 strips pre-committed filler) +
-     review substrate (ADR-194)
-  4. Essential tasks (daily-update heartbeat + back office tasks)
-  5. Signup balance audit trail (ADR-172)
+  1. YARNNN agent row (role=thinking_partner, origin=system_bootstrap)
+     — sole infrastructure row at signup per ADR-205
+  2. Authored shared context skeletons under `/workspace/context/_shared/`
+     (IDENTITY, BRAND, CONVENTIONS) + YARNNN memory skeletons under
+     `/workspace/memory/` + Reviewer substrate under `/workspace/review/`
+  3. Signup balance audit trail (ADR-172)
 
 After init, YARNNN customizes the workspace based on the user's work description
 (ADR-188 + ADR-190):
@@ -69,12 +73,12 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         "already_initialized": False,
     }
 
-    # Check if already initialized. ADR-190: WORKSPACE.md manifest deleted;
-    # idempotency now gated on IDENTITY.md presence (always scaffolded at
-    # Phase 3). Per-phase idempotency guards the rest.
+    # Check if already initialized. ADR-206: idempotency gated on presence
+    # of /workspace/context/_shared/IDENTITY.md (always scaffolded in Phase 2).
     from services.workspace import UserMemory
+    from services.workspace_paths import SHARED_IDENTITY_PATH
     um = UserMemory(client, user_id)
-    existing_identity = await um.read("IDENTITY.md")
+    existing_identity = await um.read(SHARED_IDENTITY_PATH)
     if existing_identity:
         result["already_initialized"] = True
         # Still run idempotent steps in case of partial init
@@ -130,8 +134,11 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         logger.error(f"[WORKSPACE_INIT] YARNNN scaffold FAILED — workspace has no heartbeat: {e}")
 
     # =========================================================================
-    # Phase 3: Workspace Files (identity, brand, playbook, preferences)
+    # Phase 2: Workspace skeletons (ADR-206 relocations)
     # =========================================================================
+    # Shared authored context under /workspace/context/_shared/,
+    # YARNNN working memory under /workspace/memory/,
+    # Reviewer substrate under /workspace/review/ (ADR-194).
     try:
         from services.agent_framework import (
             TP_ORCHESTRATION_PLAYBOOK,
@@ -142,12 +149,13 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
             DEFAULT_REVIEW_IDENTITY_MD,
             DEFAULT_REVIEW_PRINCIPLES_MD,
         )
+        from services.workspace_paths import (
+            SHARED_IDENTITY_PATH, SHARED_BRAND_PATH, SHARED_CONVENTIONS_PATH,
+            MEMORY_AWARENESS_PATH, MEMORY_PLAYBOOK_PATH,
+            MEMORY_STYLE_PATH, MEMORY_NOTES_PATH,
+            REVIEW_IDENTITY_PATH, REVIEW_PRINCIPLES_PATH,
+        )
 
-        # Inject browser timezone so get_user_timezone() in Phase 5 resolves
-        # correctly without asking the user.
-        # _parse_memory_md reads plain "key: value" lines (not bold markdown),
-        # so we write a separate plain-format IDENTITY.md when a timezone is
-        # known, and fall back to the display template otherwise.
         identity_content = DEFAULT_IDENTITY_MD
         if browser_tz:
             from services.platform_limits import normalize_timezone_name
@@ -158,131 +166,37 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
                 logger.info(f"[WORKSPACE_INIT] Timezone inferred from browser: {validated_tz}")
 
         workspace_files = {
-            "IDENTITY.md": (identity_content, "User identity template"),
-            "BRAND.md": (DEFAULT_BRAND_MD, "Default brand baseline"),
-            "AWARENESS.md": (DEFAULT_AWARENESS_MD, "TP situational awareness"),
-            "_playbook.md": (TP_ORCHESTRATION_PLAYBOOK, "TP orchestration playbook"),
-            "style.md": ("# Style\n<!-- System-inferred from edit patterns. -->\n", "Style placeholder"),
-            "notes.md": ("# Notes\n<!-- TP-extracted facts and instructions. -->\n", "Notes placeholder"),
-            # ADR-174 Phase 1: workspace structural conventions — agent-readable, TP-extensible
-            "CONVENTIONS.md": (DEFAULT_CONVENTIONS_MD, "Workspace filesystem conventions"),
-            # ADR-194 v2 Phase 1: Reviewer substrate (fourth cognitive layer).
-            # Lands at /workspace/review/. decisions.md is NOT scaffolded —
-            # created on first Reviewer write in Phase 2+.
-            "review/IDENTITY.md": (DEFAULT_REVIEW_IDENTITY_MD, "Reviewer identity"),
-            "review/principles.md": (DEFAULT_REVIEW_PRINCIPLES_MD, "Reviewer declared framework (user-editable)"),
+            # Authored shared context (ADR-206)
+            SHARED_IDENTITY_PATH: (identity_content, "User identity template"),
+            SHARED_BRAND_PATH: (DEFAULT_BRAND_MD, "Default brand baseline"),
+            SHARED_CONVENTIONS_PATH: (DEFAULT_CONVENTIONS_MD, "Workspace filesystem conventions"),
+            # YARNNN working memory (ADR-206)
+            MEMORY_AWARENESS_PATH: (DEFAULT_AWARENESS_MD, "YARNNN situational awareness"),
+            MEMORY_PLAYBOOK_PATH: (TP_ORCHESTRATION_PLAYBOOK, "YARNNN orchestration playbook"),
+            MEMORY_STYLE_PATH: ("# Style\n<!-- System-inferred from edit patterns. -->\n", "Style placeholder"),
+            MEMORY_NOTES_PATH: ("# Notes\n<!-- YARNNN-extracted facts and instructions. -->\n", "Notes placeholder"),
+            # Reviewer substrate (ADR-194 — unchanged location)
+            REVIEW_IDENTITY_PATH: (DEFAULT_REVIEW_IDENTITY_MD, "Reviewer identity"),
+            REVIEW_PRINCIPLES_PATH: (DEFAULT_REVIEW_PRINCIPLES_MD, "Reviewer declared framework (user-editable)"),
         }
 
-        for filename, (content, summary) in workspace_files.items():
-            existing = await um.read(filename)
+        for path, (content, summary) in workspace_files.items():
+            existing = await um.read(path)
             if not existing:
-                await um.write(filename, content, summary=f"Workspace init: {summary}")
-                result["workspace_files_seeded"].append(filename)
-                logger.info(f"[WORKSPACE_INIT] File: {filename}")
+                await um.write(path, content, summary=f"Workspace init: {summary}")
+                result["workspace_files_seeded"].append(path)
+                logger.info(f"[WORKSPACE_INIT] File: {path}")
     except Exception as e:
         logger.warning(f"[WORKSPACE_INIT] Workspace files failed: {e}")
 
     # =========================================================================
-    # Phase 4 (was WORKSPACE.md manifest) DELETED per ADR-190. The manifest
-    # was vestigial — ADR-159 compact index replaced it as the session-start
-    # meta-awareness source. YARNNN queries DB for current state via working
-    # memory; no static file needed. Phase numbering below preserved as 5/6
-    # for commit diff readability.
+    # Operational tasks — NOT scaffolded at signup (ADR-206)
     # =========================================================================
-
-    # =========================================================================
-    # Phase 5: Default Tasks — the heartbeat anchor (ADR-161)
-    # =========================================================================
-    user_timezone = get_user_timezone(client, user_id)
-
-    # Every workspace gets exactly one default task: daily-update.
-    # It is essential — cannot be deleted or auto-paused. It is the user-facing
-    # manifestation of the system being alive, and runs daily at 09:00 local time.
-    # Empty workspaces produce a deterministic "honest empty" template (zero
-    # LLM cost). Populated workspaces produce a real operational digest.
-    # ── Daily update (user-facing heartbeat, ADR-161) ──
-    try:
-        existing_task = (
-            client.table("tasks")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("slug", "daily-update")
-            .execute()
-        )
-        if not (existing_task.data or []):
-            await _create_essential_daily_update(client, user_id, user_timezone)
-            result["tasks_created"].append("daily-update")
-            logger.info(f"[WORKSPACE_INIT] Default task: daily-update (essential)")
-        else:
-            logger.info(f"[WORKSPACE_INIT] daily-update task already exists, skipping")
-    except Exception as e:
-        logger.error(f"[WORKSPACE_INIT] Default task (daily-update) FAILED — user has no heartbeat: {e}")
-
-    # ── Back office tasks (ADR-164) ──
-    # Scheduled maintenance owned by TP. Same substrate as user tasks; runs
-    # through the same pipeline via the TP dispatch branch in execute_task().
-    # Essential — users can pause but not archive.
-    for type_key, slug, title in [
-        ("back-office-agent-hygiene", "back-office-agent-hygiene", "Agent Hygiene"),
-        ("back-office-workspace-cleanup", "back-office-workspace-cleanup", "Workspace Cleanup"),
-        # ADR-193 Phase 5: sweep expired action_proposals
-        ("back-office-proposal-cleanup", "back-office-proposal-cleanup", "Proposal Cleanup"),
-        # ADR-195 Phase 2: reconcile platform events into action_outcomes
-        ("back-office-outcome-reconciliation", "back-office-outcome-reconciliation", "Outcome Reconciliation"),
-    ]:
-        try:
-            existing = (
-                client.table("tasks")
-                .select("id")
-                .eq("user_id", user_id)
-                .eq("slug", slug)
-                .execute()
-            )
-            if not (existing.data or []):
-                await _create_essential_back_office_task(
-                    client,
-                    user_id,
-                    type_key,
-                    slug,
-                    title,
-                    user_timezone,
-                )
-                result["tasks_created"].append(slug)
-                logger.info(f"[WORKSPACE_INIT] Default task: {slug} (essential, TP-owned)")
-            else:
-                logger.info(f"[WORKSPACE_INIT] {slug} already exists, skipping")
-        except Exception as e:
-            logger.warning(f"[WORKSPACE_INIT] Back office task ({slug}) creation failed: {e}")
-
-    # ── Workspace Intelligence task (ADR-204) ──
-    # Seeded as Phase 5c. Essential produces_deliverable task owned by the
-    # Reporting agent. Runs at 06:00 local — 4h after outcome-reconciliation
-    # (02:00) so _performance_summary.md is current when synthesis runs.
-    try:
-        existing_mo = (
-            client.table("tasks")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("slug", "maintain-overview")
-            .execute()
-        )
-        if not (existing_mo.data or []):
-            await _create_essential_deliverable_task(
-                client,
-                user_id,
-                type_key="maintain-overview",
-                slug="maintain-overview",
-                title="Workspace Intelligence",
-                schedule="0 6 * * *",
-                agent_slugs=["reporting"],
-                user_timezone=user_timezone,
-            )
-            result["tasks_created"].append("maintain-overview")
-            logger.info("[WORKSPACE_INIT] Default task: maintain-overview (essential, Reporting-owned)")
-        else:
-            logger.info("[WORKSPACE_INIT] maintain-overview task already exists, skipping")
-    except Exception as e:
-        logger.warning(f"[WORKSPACE_INIT] maintain-overview task creation failed: {e}")
+    # ADR-206: the workspace is textually present, structurally empty. No
+    # daily-update, no back-office tasks, no maintain-overview at signup.
+    # Back-office tasks materialize on trigger (first proposal, platform
+    # connect, agent threshold). daily-update is opt-in offered by YARNNN
+    # once the operator's declared operation is running.
 
     # =========================================================================
     # Phase 6: Signup balance audit trail (ADR-172)
@@ -326,19 +240,13 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
     # =========================================================================
     # Post-init validation — check critical invariants
     # =========================================================================
+    from services.workspace_paths import SHARED_IDENTITY_PATH
     problems = []
     if len(result["agents_created"]) == 0 and not result["already_initialized"]:
         problems.append("zero agents created")
-    if "IDENTITY.md" not in result["workspace_files_seeded"] and not result["already_initialized"]:
-        problems.append("IDENTITY.md not seeded")
-    if "daily-update" not in result["tasks_created"] and not result["already_initialized"]:
-        # Check if it existed already (idempotent case is fine)
-        try:
-            check = client.table("tasks").select("id").eq("user_id", user_id).eq("slug", "daily-update").execute()
-            if not (check.data or []):
-                problems.append("daily-update task missing")
-        except Exception:
-            problems.append("daily-update task check failed")
+    if SHARED_IDENTITY_PATH not in result["workspace_files_seeded"] and not result["already_initialized"]:
+        problems.append(f"{SHARED_IDENTITY_PATH} not seeded")
+    # ADR-206: daily-update is no longer an essential signup task — removed from validation.
 
     if problems:
         logger.error(
@@ -359,163 +267,73 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
     return result
 
 
-async def _create_essential_daily_update(
-    client: Any,
-    user_id: str,
-    user_timezone: str,
-) -> None:
-    """Create the essential daily-update task at workspace initialization.
-
-    ADR-161: This is the heartbeat artifact. Every workspace gets one.
-    The task runs at 09:00 in the user's local timezone. Empty workspaces produce a
-    deterministic template; populated workspaces produce a real digest.
-
-    The `essential=true` flag prevents archive and (future) auto-pause.
-    Users can manually pause via ManageTask if they explicitly opt out.
-    """
-    from services.task_workspace import TaskWorkspace
-    from services.task_types import build_task_md_from_type
-
-    now = datetime.now(timezone.utc)
-    next_run = calculate_next_run_at("daily", last_run_at=now, user_timezone=user_timezone)
-
-    row = {
-        "user_id": user_id,
-        "slug": "daily-update",
-        "mode": "recurring",
-        "status": "active",
-        "schedule": "daily",
-        "next_run_at": next_run.isoformat() if next_run else now.isoformat(),
-        "essential": True,
-    }
-    insert_result = client.table("tasks").insert(row).execute()
-    if not insert_result.data:
-        raise RuntimeError("Failed to insert daily-update task")
-
-    # Write TASK.md so the pipeline has a charter to read
-    task_md = build_task_md_from_type(
-        type_key="daily-update",
-        title="Daily Update",
-        slug="daily-update",
-        schedule="daily",
-        delivery="email",
-        agent_slugs=["reporting"],
-    )
-    tw = TaskWorkspace(client, user_id, "daily-update")
-    await tw.write("TASK.md", task_md, summary="Essential task definition: Daily Update")
-
-    # ADR-149: Scaffold DELIVERABLE.md from type registry
-    from services.task_types import build_deliverable_md_from_type
-    deliverable_md = build_deliverable_md_from_type("daily-update")
-    if deliverable_md:
-        await tw.write("DELIVERABLE.md", deliverable_md, summary="Quality contract: Daily Update")
-
-
-async def _create_essential_back_office_task(
+async def materialize_back_office_task(
     client: Any,
     user_id: str,
     type_key: str,
     slug: str,
     title: str,
-    user_timezone: str,
+    user_timezone: str | None = None,
 ) -> None:
-    """Create an essential back office task owned by TP (ADR-164).
+    """Materialize a back-office task on trigger (ADR-206).
 
-    Back office tasks execute via the TP dispatch branch in the task pipeline.
-    They scaffold with `essential=true` so users can't accidentally archive
-    them. Same substrate as user tasks, executed through the same pipeline,
-    producing the same output artifacts.
-    """
-    from services.task_workspace import TaskWorkspace
-    from services.task_types import build_task_md_from_type
+    ADR-206: back-office tasks are no longer scaffolded at signup. This helper
+    is called by trigger-site hooks (first proposal created, platform connected,
+    agent-threshold probe) to materialize the task at the moment it becomes
+    meaningful. Idempotent — no-op if the task already exists for this user.
 
-    now = datetime.now(timezone.utc)
-    # Same local morning cadence as daily-update.
-    next_run = calculate_next_run_at("daily", last_run_at=now, user_timezone=user_timezone)
-
-    row = {
-        "user_id": user_id,
-        "slug": slug,
-        "mode": "recurring",
-        "status": "active",
-        "schedule": "daily",
-        "next_run_at": next_run.isoformat() if next_run else now.isoformat(),
-        "essential": True,
-    }
-    insert_result = client.table("tasks").insert(row).execute()
-    if not insert_result.data:
-        raise RuntimeError(f"Failed to insert back office task: {slug}")
-
-    # Write TASK.md. agent_slugs=["thinking-partner"] matches the slug that
-    # get_agent_slug() derives from the "Thinking Partner" title.
-    task_md = build_task_md_from_type(
-        type_key=type_key,
-        title=title,
-        slug=slug,
-        schedule="daily",
-        delivery="none",  # Back office tasks don't deliver externally
-        agent_slugs=["thinking-partner"],
-    )
-    tw = TaskWorkspace(client, user_id, slug)
-    await tw.write("TASK.md", task_md, summary=f"Essential task definition: {title}")
-
-    # ADR-149: Scaffold DELIVERABLE.md from type registry
-    from services.task_types import build_deliverable_md_from_type
-    deliverable_md = build_deliverable_md_from_type(type_key)
-    if deliverable_md:
-        await tw.write("DELIVERABLE.md", deliverable_md, summary=f"Quality contract: {title}")
-
-
-async def _create_essential_deliverable_task(
-    client: Any,
-    user_id: str,
-    type_key: str,
-    slug: str,
-    title: str,
-    schedule: str,
-    agent_slugs: list[str],
-    user_timezone: str,
-) -> None:
-    """Create an essential produces_deliverable task at workspace init (ADR-204).
-
-    Unlike back-office tasks (TP-owned, system_maintenance), these run the full
-    LLM generation pipeline and write DELIVERABLE.md. Schedule accepts both
-    cadence keywords ('daily') and cron expressions ('0 6 * * *') — both are
-    supported by calculate_next_run_at() via _looks_like_cron().
+    Tasks created here are `essential=true` so they can't be accidentally
+    archived; they are still plumbing the workspace needs.
     """
     from services.task_workspace import TaskWorkspace
     from services.task_types import build_task_md_from_type, build_deliverable_md_from_type
+    from services.schedule_utils import get_user_timezone as _get_user_timezone
+
+    if user_timezone is None:
+        user_timezone = _get_user_timezone(client, user_id)
+
+    # Idempotency
+    existing = (
+        client.table("tasks")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("slug", slug)
+        .execute()
+    )
+    if existing.data:
+        return
 
     now = datetime.now(timezone.utc)
-    next_run = calculate_next_run_at(schedule, last_run_at=now, user_timezone=user_timezone)
-
+    next_run = calculate_next_run_at("daily", last_run_at=now, user_timezone=user_timezone)
     row = {
         "user_id": user_id,
         "slug": slug,
         "mode": "recurring",
         "status": "active",
-        "schedule": schedule,
+        "schedule": "daily",
         "next_run_at": next_run.isoformat() if next_run else now.isoformat(),
         "essential": True,
     }
     insert_result = client.table("tasks").insert(row).execute()
     if not insert_result.data:
-        raise RuntimeError(f"Failed to insert essential deliverable task: {slug}")
+        raise RuntimeError(f"Failed to materialize back office task: {slug}")
 
     task_md = build_task_md_from_type(
         type_key=type_key,
         title=title,
         slug=slug,
-        schedule=schedule,
+        schedule="daily",
         delivery="none",
-        agent_slugs=agent_slugs,
+        agent_slugs=["thinking-partner"],
     )
     tw = TaskWorkspace(client, user_id, slug)
-    await tw.write("TASK.md", task_md, summary=f"Essential task definition: {title}")
+    await tw.write("TASK.md", task_md, summary=f"Materialized back-office task: {title}")
 
     deliverable_md = build_deliverable_md_from_type(type_key)
     if deliverable_md:
         await tw.write("DELIVERABLE.md", deliverable_md, summary=f"Quality contract: {title}")
+
+    logger.info(f"[MATERIALIZE] Back-office task created on trigger: {slug} for {user_id[:8]}")
 
 
 # ADR-190: `update_workspace_manifest()` and `_build_workspace_manifest()`

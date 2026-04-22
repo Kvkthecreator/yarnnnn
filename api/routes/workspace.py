@@ -176,19 +176,23 @@ async def get_workspace_nav(auth: UserClient) -> dict:
         except Exception:
             pass
 
-        # ── Settings (user config files at workspace root) ──
-        # These are user-visible and editable: Identity, Brand, Awareness, etc.
-        # System files (_playbook.md, WORKSPACE.md) are hidden.
+        # ── Settings (user-visible and editable) ──
+        # ADR-206: authored shared context under /workspace/context/_shared/,
+        # YARNNN working-memory files under /workspace/memory/.
+        from services.workspace_paths import (
+            SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
+            MEMORY_AWARENESS_PATH, MEMORY_NOTES_PATH, MEMORY_STYLE_PATH,
+        )
         SETTINGS_FILES = [
-            ("IDENTITY.md", "Identity"),
-            ("BRAND.md", "Brand"),
-            ("AWARENESS.md", "Awareness"),
-            ("notes.md", "Notes"),
-            ("style.md", "Style"),
+            (SHARED_IDENTITY_PATH, "IDENTITY.md", "Identity"),
+            (SHARED_BRAND_PATH, "BRAND.md", "Brand"),
+            (MEMORY_AWARENESS_PATH, "awareness.md", "Awareness"),
+            (MEMORY_NOTES_PATH, "notes.md", "Notes"),
+            (MEMORY_STYLE_PATH, "style.md", "Style"),
         ]
         settings = []
-        for filename, label in SETTINGS_FILES:
-            path = f"/workspace/{filename}"
+        for relative_path, filename, label in SETTINGS_FILES:
+            path = f"/workspace/{relative_path}"
             try:
                 check = (
                     auth.client.table("workspace_files")
@@ -218,7 +222,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
                     auth.client.table("workspace_files")
                     .select("content")
                     .eq("user_id", auth.user_id)
-                    .eq("path", "/workspace/IDENTITY.md")
+                    .eq("path", f"/workspace/{SHARED_IDENTITY_PATH}")
                     .limit(1)
                     .execute()
                 )
@@ -474,12 +478,14 @@ async def edit_workspace_file(
     path = body.path
     content = body.content
 
-    # Safety: only allow editing certain paths
+    # Safety: only allow editing certain paths (ADR-206 relocation).
     editable_prefixes = [
-        "/workspace/IDENTITY.md",
-        "/workspace/BRAND.md",
+        "/workspace/context/_shared/IDENTITY.md",
+        "/workspace/context/_shared/BRAND.md",
+        "/workspace/context/_shared/CONVENTIONS.md",
+        "/workspace/memory/",     # awareness.md, notes.md, style.md
         "/workspace/uploads/",
-        "/tasks/",  # TASK.md, DELIVERABLE.md within task folders
+        "/tasks/",                # TASK.md, DELIVERABLE.md within task folders
     ]
     if not any(path.startswith(p) or path == p for p in editable_prefixes):
         raise HTTPException(

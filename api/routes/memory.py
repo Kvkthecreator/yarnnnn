@@ -1,15 +1,15 @@
 """
-Memory routes — ADR-133: Workspace Context Architecture
+Memory routes — ADR-133 + ADR-206: Workspace Context Architecture
 
 Mounted at /api/memory. Reads/writes workspace context files:
-  /workspace/IDENTITY.md  → User identity (name, role, company, industry)
-  /workspace/BRAND.md     → Brand identity (colors, tone, voice)
-  /memory/notes.md        → TP-accumulated knowledge (facts, instructions)
+  /workspace/context/_shared/IDENTITY.md  → User identity (ADR-206 relocation)
+  /workspace/context/_shared/BRAND.md     → Brand identity (ADR-206 relocation)
+  /workspace/memory/notes.md              → YARNNN-accumulated knowledge (ADR-206 relocation)
 
 Endpoints:
-  GET  /profile              - Get identity from /workspace/IDENTITY.md
+  GET  /profile              - Get identity from /workspace/context/_shared/IDENTITY.md
   PATCH /profile             - Update identity fields
-  GET  /user/brand           - Get brand from /workspace/BRAND.md
+  GET  /user/brand           - Get brand from /workspace/context/_shared/BRAND.md
   POST /user/brand           - Save brand
   GET  /user/memories        - List notes from /memory/notes.md
   POST /user/memories        - Add a note
@@ -216,10 +216,11 @@ async def get_onboarding_state(request: Request, auth: UserClient):
 
 @router.get("/user/identity")
 async def get_identity(auth: UserClient):
-    """Get workspace identity. Reads /workspace/IDENTITY.md."""
+    """Get workspace identity. Reads /workspace/context/_shared/IDENTITY.md (ADR-206)."""
     try:
+        from services.workspace_paths import SHARED_IDENTITY_PATH
         um = UserMemory(auth.client, auth.user_id)
-        content = await um.read("IDENTITY.md")
+        content = await um.read(SHARED_IDENTITY_PATH)
         if content and content.strip():
             return {"content": content, "exists": True}
         return {"content": None, "exists": False}
@@ -233,10 +234,11 @@ class IdentitySaveRequest(BaseModel):
 
 @router.post("/user/identity")
 async def save_identity(body: IdentitySaveRequest, auth: UserClient):
-    """Save workspace identity. Writes /workspace/IDENTITY.md."""
+    """Save workspace identity. Writes /workspace/context/_shared/IDENTITY.md (ADR-206)."""
     try:
+        from services.workspace_paths import SHARED_IDENTITY_PATH
         um = UserMemory(auth.client, auth.user_id)
-        success = await um.write("IDENTITY.md", body.content, summary="User identity")
+        success = await um.write(SHARED_IDENTITY_PATH, body.content, summary="User identity")
         if not success:
             raise HTTPException(status_code=500, detail="Failed to write IDENTITY.md")
         return {"exists": True}
@@ -250,10 +252,11 @@ async def save_identity(body: IdentitySaveRequest, auth: UserClient):
 
 @router.get("/user/brand")
 async def get_brand(auth: UserClient):
-    """Get workspace brand. Reads /workspace/BRAND.md."""
+    """Get workspace brand. Reads /workspace/context/_shared/BRAND.md (ADR-206)."""
     try:
+        from services.workspace_paths import SHARED_BRAND_PATH
         um = UserMemory(auth.client, auth.user_id)
-        content = await um.read("BRAND.md")
+        content = await um.read(SHARED_BRAND_PATH)
         if content and content.strip():
             return {"content": content, "exists": True}
         return {"content": None, "exists": False}
@@ -267,10 +270,11 @@ class BrandSaveRequest(BaseModel):
 
 @router.post("/user/brand")
 async def save_brand(body: BrandSaveRequest, auth: UserClient):
-    """Save workspace brand. Writes /workspace/BRAND.md."""
+    """Save workspace brand. Writes /workspace/context/_shared/BRAND.md (ADR-206)."""
     try:
+        from services.workspace_paths import SHARED_BRAND_PATH
         um = UserMemory(auth.client, auth.user_id)
-        success = await um.write("BRAND.md", body.content, summary="Brand identity")
+        success = await um.write(SHARED_BRAND_PATH, body.content, summary="Brand identity")
         if not success:
             raise HTTPException(status_code=500, detail="Failed to write BRAND.md")
         return {"exists": True}

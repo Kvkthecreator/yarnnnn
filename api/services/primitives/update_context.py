@@ -224,21 +224,22 @@ async def _handle_workspace_scaffold(auth: Any, input: dict) -> dict:
         "entity_count": 0,
     }
 
-    # 1. Write IDENTITY.md if produced.
+    # 1. Write IDENTITY.md if produced (ADR-206 relocation to context/_shared/).
+    from services.workspace_paths import SHARED_IDENTITY_PATH, SHARED_BRAND_PATH
     identity_md = inference_result.get("identity_md")
     if identity_md:
-        ok = await um.write("IDENTITY.md", identity_md, summary="First-act identity inference")
+        ok = await um.write(SHARED_IDENTITY_PATH, identity_md, summary="First-act identity inference")
         scaffolded["identity"] = "written" if ok else "failed"
         if ok:
-            logger.info(f"[WORKSPACE_SCAFFOLD] Wrote IDENTITY.md ({len(identity_md)} chars)")
+            logger.info(f"[WORKSPACE_SCAFFOLD] Wrote {SHARED_IDENTITY_PATH} ({len(identity_md)} chars)")
 
     # 2. Write BRAND.md if produced.
     brand_md = inference_result.get("brand_md")
     if brand_md:
-        ok = await um.write("BRAND.md", brand_md, summary="First-act brand inference")
+        ok = await um.write(SHARED_BRAND_PATH, brand_md, summary="First-act brand inference")
         scaffolded["brand"] = "written" if ok else "failed"
         if ok:
-            logger.info(f"[WORKSPACE_SCAFFOLD] Wrote BRAND.md ({len(brand_md)} chars)")
+            logger.info(f"[WORKSPACE_SCAFFOLD] Wrote {SHARED_BRAND_PATH} ({len(brand_md)} chars)")
 
     # 3. Scaffold entities into domains (delegate to ManageDomains scaffold).
     entities = inference_result.get("entities") or []
@@ -315,10 +316,11 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
     from services.context_inference import infer_shared_context, detect_inference_gaps, read_uploaded_documents
     from services.workspace import UserMemory
 
+    from services.workspace_paths import SHARED_IDENTITY_PATH, SHARED_BRAND_PATH
     text = input.get("text", "")
     document_ids = input.get("document_ids", [])
     url_contents = input.get("url_contents", [])
-    filename = "IDENTITY.md" if target == "identity" else "BRAND.md"
+    filename = SHARED_IDENTITY_PATH if target == "identity" else SHARED_BRAND_PATH
 
     try:
         um = UserMemory(auth.client, auth.user_id)
@@ -456,7 +458,8 @@ async def _handle_awareness(auth: Any, text: str) -> dict:
         if len(content) > 2000:
             content = content[:2000] + "\n\n(truncated — keep awareness notes concise)"
 
-        ok = await um.write("AWARENESS.md", content, summary="TP awareness updated")
+        from services.workspace_paths import MEMORY_AWARENESS_PATH
+        ok = await um.write(MEMORY_AWARENESS_PATH, content, summary="YARNNN awareness updated")
         if not ok:
             return {"success": False, "error": "write_failed", "message": "Failed to write AWARENESS.md"}
 
