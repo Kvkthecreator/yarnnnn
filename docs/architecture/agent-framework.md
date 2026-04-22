@@ -1,16 +1,18 @@
 # Agent Framework: Scope × Role × Trigger
 
-**Status:** Partially superseded — see ADR-176 (universal specialist roster) and ADR-164 (TP as agent) for current canonical model
-**Date:** 2026-03-12 (updated 2026-03-17: `skill` → `role` per ADR-118; updated 2026-03-20: pulse model + role cadence per ADR-126; updated 2026-03-22: ADR-130 three-registry architecture — seniority/portfolios removed; updated 2026-04-08: ADR-164 added meta-cognitive class; updated 2026-04-13: ADR-176 universal specialist roster)
+**Status:** Partially superseded — see ADR-176 (universal specialist roster), ADR-164 (TP as agent), and **ADR-207 P4a (2026-04-22): platform-bot class dissolved** for current canonical model
+**Date:** 2026-03-12 (updated 2026-03-17: `skill` → `role` per ADR-118; updated 2026-03-20: pulse model + role cadence per ADR-126; updated 2026-03-22: ADR-130 three-registry architecture — seniority/portfolios removed; updated 2026-04-08: ADR-164 added meta-cognitive class; updated 2026-04-13: ADR-176 universal specialist roster; updated 2026-04-22: **ADR-207 P4a — platform-bot class DELETED; platform access is a specialist capability, not a dedicated agent class**)
 **Supersedes:** ADR-093 (7 purpose-first types), ADR-082 (8-type consolidation), ADR-044 (type reconceptualization)
 
-> **2026-04-13 update (ADR-176):** This document describes the earlier Scope × Role × Trigger taxonomy. The current roster model (9 agents: 6 universal specialists + 3 platform bots) is defined in [ADR-176](../adr/ADR-176-work-first-agent-model.md). Canonical references for current state:
+> **2026-04-22 update (ADR-207 P4a):** Platform-bot agent class DELETED. `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, `trading_bot` removed from `AGENT_TEMPLATES` and `agents_role_check` (migration 157). Platform access (read_slack, write_trading, etc.) is now a **capability** declared on any specialist (tracker, writer, analyst) via TASK.md `**Required Capabilities:**` + gated at dispatch by `capability_available()`. See [ADR-207](../adr/ADR-207-primary-action-centric-workflow.md) P3 + P4a.
+>
+> **2026-04-13 update (ADR-176):** This document describes the earlier Scope × Role × Trigger taxonomy. The current roster model (post-ADR-207 P4a: 7 agents — 5 universal specialists + 1 synthesizer + 1 meta-cognitive) is defined in [ADR-176](../adr/ADR-176-work-first-agent-model.md). Canonical references for current state:
 > - [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 1 — two-layer intelligence model (TP as the meta-cognitive agent)
 > - [SERVICE-MODEL.md](SERVICE-MODEL.md) — entity model, roster, back office tasks
-> - [registry-matrix.md](registry-matrix.md) — 9-agent roster table
+> - [registry-matrix.md](registry-matrix.md) — roster table (with ADR-207 P4a/P4b amendment header)
 > - [docs/features/agent-types.md](../features/agent-types.md) — user-facing catalog of agent classes
 >
-> The scope-derivation logic and older role enum (digest/prepare/monitor/research/synthesize/act) retained below for historical reference. Current role values live in `api/services/agent_framework.py` `AGENT_TEMPLATES`. The current classes: `specialist` (Researcher, Analyst, Writer, Tracker, Designer), `meta-cognitive` (TP), `platform-bot`.
+> The scope-derivation logic and older role enum (digest/prepare/monitor/research/synthesize/act) retained below for historical reference. Current role values live in `api/services/agent_framework.py` `AGENT_TEMPLATES`. The current classes: `specialist` (Researcher, Analyst, Writer, Tracker, Designer), `synthesizer` (Executive / Reporting), `meta-cognitive` (TP). **Platform-bot class dissolved under ADR-207 P4a.**
 **Related:**
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — mode system (preserved as Trigger axis)
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, archetype-driven strategies
