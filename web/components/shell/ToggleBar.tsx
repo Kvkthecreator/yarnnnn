@@ -1,30 +1,32 @@
 'use client';
 
 /**
- * ToggleBar — top-level pill navigation (cockpit nav per ADR-198 v2).
+ * ToggleBar — top-level pill navigation (cockpit nav per ADR-205 F1).
  *
- * Final segments (post-ADR-199 + ADR-200 + ADR-201): Overview | Work | Files | Team | Review
- *   - Overview: "What's going on? What needs me?" (HOME — ADR-199)
- *   - Work: "Let me check the work." (tasks + schedules + outputs)
+ * Current segments: Chat | Work | Files | Team | Review
+ *   - Chat: "Tell YARNNN what you want." (authoring surface, HOME — ADR-205 F1)
+ *   - Work: "Let me check the work." (tasks + schedules + outputs + briefing strip post-F2)
  *   - Files (nav label) / Context (route): "What does my workspace know?"
  *   - Team: "Let me check on my agents." (agents-as-identity surface — ADR-201)
  *   - Review: "Who decided what, why?" (Reviewer identity + principles + decisions — ADR-200)
  *
- * YARNNN is ambient — available as a right-rail panel on every surface
- * via ThreePanelLayout. /chat is the expanded form of the rail, reachable
- * by direct URL or rail-expand — not a primary nav tab.
+ * ADR-205 F1 (2026-04-22): Chat returns as the first nav tab. ADR-205 dissolves most of
+ * what /overview used to surface (pre-scaffolded roster intelligence cards). A brand-new
+ * workspace has zero authored agents and zero authored tasks — the user's first
+ * meaningful action must be conversational. Overview is removed from nav; its
+ * remaining Briefing content (recent outputs, pending proposals, upcoming runs,
+ * reviewer decisions) merges into /work as a BriefingStrip in ADR-205 F2.
  *
- * Remaining phase (per ADR-198 v2):
- *   - ADR-202: External Channel discipline (daily-update + alerts + derivative distribution)
+ * Remaining phase (ADR-205 F2): merge Overview content into /work, delete /overview route.
  */
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Briefcase, Users, FolderOpen, ShieldCheck } from 'lucide-react';
+import { MessageSquare, Briefcase, Users, FolderOpen, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SEGMENTS = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard, href: '/overview' },
+  { id: 'chat', label: 'Chat', icon: MessageSquare, href: '/chat' },
   { id: 'work', label: 'Work', icon: Briefcase, href: '/work' },
   { id: 'context', label: 'Files', icon: FolderOpen, href: '/context' },
   { id: 'team', label: 'Team', icon: Users, href: '/team' },
@@ -36,7 +38,7 @@ export function ToggleBar() {
 
   const activeId = SEGMENTS.find(s =>
     pathname === s.href || pathname.startsWith(s.href + '/')
-  )?.id ?? 'overview';
+  )?.id ?? 'chat';
 
   return (
     <div className="flex items-center gap-0.5 rounded-full bg-muted/60 p-0.5">
