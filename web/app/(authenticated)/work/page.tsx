@@ -31,7 +31,7 @@ import { WorkDetail } from '@/components/work/WorkDetail';
 import { BriefingStrip } from '@/components/work/briefing/BriefingStrip';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
-import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
+import { CreateTaskModal } from '@/components/work/CreateTaskModal';
 import { getAgentSlug } from '@/lib/agent-identity';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { DeskSurface } from '@/types/desk';
@@ -389,10 +389,14 @@ export default function WorkPage() {
       )}
     </ThreePanelLayout>
 
-    <TaskSetupModal
+    <CreateTaskModal
       open={taskSetupOpen}
       onClose={() => setTaskSetupOpen(false)}
-      onSubmit={(msg) => { setTaskSetupOpen(false); sendMessage(msg); }}
+      onCreated={(slug) => {
+        setTaskSetupOpen(false);
+        void reload();
+        router.push(`/work?task=${encodeURIComponent(slug)}`, { scroll: false });
+      }}
     />
     </>
   );

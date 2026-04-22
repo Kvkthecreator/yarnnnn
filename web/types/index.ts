@@ -774,15 +774,25 @@ export interface TaskDetail extends Task {
 
 export interface TaskCreate {
   title: string;
-  agent_slug: string;          // primary assigned agent
+  /** ADR-145/206: type_key drives default team + pipeline. Prefer over agent_slug. */
+  type_key?: string;
+  /** Fallback when no type_key is chosen — primary assigned agent. */
+  agent_slug?: string;
+  /** ADR-149: task management posture. Omit for default (run-now via chat-first per ADR-205). */
+  mode?: "recurring" | "goal" | "reactive";
+  /** Free-text context / intent (lands in objective.deliverable by convention). */
+  focus?: string;
   objective?: {
     deliverable?: string;
     audience?: string;
     purpose?: string;
     format?: string;
   };
+  /** ADR-205: omit for run-now; provide a cadence (daily/weekly/cron) for recurring. */
   schedule?: string;
   delivery?: string;
+  /** ADR-158 Phase 2: initial source selection keyed by platform. */
+  sources?: Record<string, string[]>;
 }
 
 // ADR-170: Section provenance from sys_manifest.json

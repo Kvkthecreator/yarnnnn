@@ -500,9 +500,17 @@ export const api = {
 
   // ADR-138: Tasks endpoints
   tasks: {
-    list: (status?: string) => {
-      const params = status ? `?status=${status}` : "";
-      return request<Task[]>(`/api/tasks${params}`);
+    list: (statusOrOpts?: string | { status?: string; include_system?: boolean }) => {
+      let qs = "";
+      if (typeof statusOrOpts === "string") {
+        qs = statusOrOpts ? `?status=${statusOrOpts}` : "";
+      } else if (statusOrOpts) {
+        const parts: string[] = [];
+        if (statusOrOpts.status) parts.push(`status=${encodeURIComponent(statusOrOpts.status)}`);
+        if (statusOrOpts.include_system) parts.push(`include_system=true`);
+        if (parts.length > 0) qs = `?${parts.join("&")}`;
+      }
+      return request<Task[]>(`/api/tasks${qs}`);
     },
 
     get: (slug: string) =>

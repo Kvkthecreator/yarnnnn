@@ -950,34 +950,51 @@ def format_compact_index(
     docs = ws.get("documents", 0)
     domains_active = ws.get("context_domains", 0)
 
-    lines.append(f"Identity: {identity} | Brand: {brand} | {tasks_active} active tasks | {domains_active} context domains | {docs} documents")
+    # ADR-206: Three operator-facing layers. Compact index now renders
+    # Intent (authored rules), Deliverables (what the operator sees and acts on),
+    # Operation (execution substrate) as labeled sections so YARNNN reasons in
+    # the operator's vocabulary, not task-slug internals.
 
-    # Gaps (only if present)
+    # === Intent (authored rules) ===
+    lines.append("### Intent (authored rules)")
+    lines.append(f"- Identity: {identity} · Brand: {brand} · {docs} uploaded documents")
     if identity in ("empty", "sparse"):
-        lines.append("- Gap: identity not set — ask user about themselves")
-    if tasks_active == 0 and identity == "rich":
-        lines.append("- Gap: no tasks — suggest from catalog")
-    if tasks_stale > 0:
-        lines.append(f"- Gap: {tasks_stale} stale task{'s' if tasks_stale != 1 else ''}")
+        lines.append("- Gap: workspace identity not declared — elicit operation + domain + platform + rules")
     if ws.get("budget_exhausted"):
         lines.append(f"- Budget: EXHAUSTED ({ws.get('credits_used', 0)}/{ws.get('credits_limit', 0)})")
 
-    # --- Team summary (one line per agent class) ---
+    # === Deliverables (what the operator sees and acts on) ===
+    lines.append("\n### Deliverables (the operator's surface)")
+    proposals_pending = ws.get("proposals_pending", 0)
+    if proposals_pending:
+        lines.append(f"- {proposals_pending} proposal{'s' if proposals_pending != 1 else ''} awaiting review (/review)")
+    active_tasks = working_memory.get("active_tasks", [])
+    produces_deliverable = [t for t in active_tasks if (t.get("output_kind") or "").strip() == "produces_deliverable"]
+    if produces_deliverable:
+        lines.append(f"- {len(produces_deliverable)} deliverable-producing task{'s' if len(produces_deliverable) != 1 else ''} in the loop")
+    if tasks_stale > 0:
+        lines.append(f"- {tasks_stale} task{'s' if tasks_stale != 1 else ''} stale (past expected cadence)")
+    if proposals_pending == 0 and not produces_deliverable and tasks_stale == 0 and identity == "rich":
+        lines.append("- No proposals pending, no deliverables scheduled. Offer to start a loop.")
+
+    # === Operation (execution substrate — drill-down only) ===
+    lines.append("\n### Operation (infrastructure — drill-down only)")
+    lines.append(f"- {tasks_active} active task{'s' if tasks_active != 1 else ''} · {domains_active} context domain{'s' if domains_active != 1 else ''}")
     agents = working_memory.get("agents", [])
     real_agents = [a for a in agents if "_note" not in a]
-    if real_agents:
-        stewards = [a for a in real_agents if a.get("agent_class") == "domain-steward" or a.get("role") not in ("executive_reporting", "slack_bot", "notion_bot", "github_bot")]
-        bots = [a for a in real_agents if a.get("role") in ("slack_bot", "notion_bot", "github_bot")]
-        lines.append(f"\nTeam: {len(stewards)} domain agents, {len(bots)} integrations")
+    user_authored = [a for a in real_agents if a.get("origin") not in ("system_bootstrap",)]
+    if user_authored:
+        lines.append(f"- {len(user_authored)} user-authored agent{'s' if len(user_authored) != 1 else ''}")
 
     # --- Active tasks (compact: slug + schedule + freshness) ---
-    active_tasks = working_memory.get("active_tasks", [])
     if active_tasks:
-        lines.append(f"\nTasks ({len(active_tasks)}):")
+        lines.append(f"\nActive tasks ({len(active_tasks)}):")
         for t in active_tasks[:8]:  # Cap at 8
             parts = [f"**{t['slug']}**"]
             if t.get("schedule"):
                 parts.append(t["schedule"])
+            else:
+                parts.append("on-demand")
             if t.get("last_run"):
                 parts.append(f"ran {t['last_run']}")
             if t.get("next_run"):

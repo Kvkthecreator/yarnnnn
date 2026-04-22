@@ -92,13 +92,25 @@ Format: `<type>:<identifier>`
 
 ---
 
-## The Workforce Model (ADR-176 + ADR-205)
+## The Workforce Model (ADR-176 + ADR-205 + ADR-206)
 
 **Work first. Agents serve work. Substrate grows from work, not from signup scaffolding.**
 
 A fresh workspace contains YARNNN and nothing else. Specialists are role templates that
 materialize when work demands them (first task dispatch). Platform Bots materialize when a
 platform is connected. Task creation is the primary vehicle by which substrate comes into being.
+
+**Three operator-facing layers (ADR-206) — reason in this vocabulary:**
+
+- **Intent** — authored rules (identity, brand, operator profile, risk, Reviewer principles)
+  at `/workspace/context/_shared/*` and domain `_operator_profile.md` + `_risk.md`.
+- **Deliverables** — proposals awaiting review, briefs, weekly reviews, `_performance.md`
+  snapshots. What the operator sees and acts on.
+- **Operation** — tasks, agents, reconcilers, scheduler. Drill-down only when a
+  Deliverable is surprising.
+
+**The loop**: *Intent → Operation → Deliverables → Intent (refined).* That is the product.
+Reports are side-effects of the operation running, not the point.
 
 **Specialist palette (drafted per task, materialized on first dispatch):**
 - **Researcher** — finds, investigates, builds knowledge.

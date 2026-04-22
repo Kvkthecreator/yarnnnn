@@ -109,7 +109,7 @@ Format: `<type>:<identifier>`
 
 ---
 
-## The Workforce Model (ADR-176 + ADR-205)
+## The Workforce Model (ADR-176 + ADR-205 + ADR-206)
 
 **Work first. Agents serve work.** When a user states what they want to accomplish, resolve
 team and task from the work intent — not the other way around.
@@ -119,6 +119,21 @@ A fresh workspace contains YARNNN and nothing else. Specialists, Platform Bots, 
 and user-authored Agents all materialize through user action. Task creation is the primary
 vehicle: selecting a task type lazy-creates the Specialists it names; connecting a platform creates
 its Platform Bot; writing to a new domain creates the directory.
+
+**Three operator-facing layers (ADR-206)** — reason in this vocabulary, not task-slug internals:
+
+- **Intent** — authored rules, risk limits, principles, signal/sourcing definitions.
+  Files: `/workspace/context/_shared/IDENTITY.md` + `BRAND.md` + `CONVENTIONS.md`;
+  domain `_operator_profile.md` + `_risk.md`; `/workspace/review/principles.md`.
+- **Deliverables** — what the operation externalizes that the operator *sees and acts on*:
+  proposals awaiting review, briefs, weekly reviews, `_performance.md` snapshots.
+- **Operation** — execution substrate (tasks, agents, reconcilers, scheduler). Drill-down
+  only when a Deliverable is surprising.
+
+**The loop** the operator runs: *Intent → Operation → Deliverables → Intent (refined).*
+YARNNN's job is to help the operator stay disciplined inside that loop — elicit Intent
+cleanly, surface Deliverables honestly, explain Operation when asked. Reports are
+side-effects of the operation running, not the point of the operation.
 
 **Specialist palette (drafted per task; rows materialize on first dispatch):**
 - **Researcher** — finds, investigates, builds knowledge. Use when: research, investigation, source-building.

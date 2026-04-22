@@ -6,6 +6,48 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.6] - ADR-206 Phases 2+3 (prompts + frontend cockpit reshape)
+
+### Data
+
+- **Test-data purge (2026-04-22):** with user consent, purged operational state across 11 test workspaces. Wiped: `agents`, `tasks`, `workspace_files`, `action_proposals`, `chat_sessions`, `activity_log`, `token_usage`, `balance_transactions` (signup_grant only). Preserved: `workspaces`, `platform_connections`, `mcp_oauth_*`, `auth.users`. Next login per user triggers fresh ADR-206 `workspace_init` → clean `_shared/` + `memory/` + `review/` skeletons + 1 YARNNN agent, zero operational tasks.
+
+### Phase 2 — Prompt layer
+
+- `api/agents/yarnnn_prompts/onboarding.py`: the Priority section rewritten from "Identity → Brand → Tasks" to **"Operation → Identity → Brand"** per ADR-206. First-turn posture becomes *operation elicitation* — domain + platform + declared rules are the three gateway artifacts that unlock the loop. `daily-update` paragraph rewritten as **opt-in** ("offer once operation is running"); back-office plumbing paragraph added (auto-materialize on trigger, don't pre-create). Names the three authored artifacts explicitly: `_operator_profile.md` + `_risk.md` + Reviewer `principles.md`.
+- `api/services/working_memory.py` `format_compact_index`: rewritten into three ADR-206-labeled sections — **`### Intent (authored rules)`**, **`### Deliverables (the operator's surface)`**, **`### Operation (infrastructure — drill-down only)`**. Intent surfaces identity/brand/budget. Deliverables surfaces pending proposals, deliverable-producing tasks, stale-task signals. Operation surfaces active-task/domain/agent counts. Downstream compact index readers (YARNNN prompt) now reason in the operator's vocabulary, not task-slug internals.
+- `api/agents/yarnnn_prompts/tools.py` + `api/agents/yarnnn_prompts/tools_core.py`: "The Workforce Model" section extended with **"Three operator-facing layers (ADR-206)"** subsection — Intent / Deliverables / Operation definitions + the loop framing. Reports explicitly named as side-effects, not the product.
+
+### Phase 3 — Frontend cockpit reshape
+
+- `web/components/work/briefing/BriefingStrip.tsx`: pane ordering re-prioritized per ADR-206 Deliverables-first commitment — **NeedsMePane (proposals awaiting review) → SnapshotPane (money-truth tile via `_performance.md`) → SinceLastLookPane → IntelligenceCard**. Docstring rewritten around the Deliverables-first rationale.
+- `web/app/(authenticated)/context/page.tsx`: top-level sections re-ordered **Identity → Context → Reports → Uploads** (was Context → Reports → Uploads → Settings). "Settings" renamed to "Identity" to match the ADR-206 Intent-layer vocabulary. Intent-first ordering puts authored artifacts at the top of the explorer.
+- `web/components/work/CreateTaskModal.tsx` (NEW): explicit-intent task creation per ADR-206 CRUD split. Fields: title, type_key (from registry catalog), mode, schedule (optional — blank = ADR-205 run-now), context/focus free text. Submits via `api.tasks.create` → routes through `ManageTask._handle_create`. Replaces `TaskSetupModal` in the `/work` plus-menu.
+- `web/components/context/ManageContextModal.tsx` (NEW): explicit editor for the ADR-206 Intent layer — three tabs for IDENTITY.md / BRAND.md / CONVENTIONS.md at `/workspace/context/_shared/`. Uses `api.identity.save` + `api.brand.save` + `api.workspace.editFile` for CONVENTIONS. Wired into the `/context` plus-menu via "Edit identity / brand / conventions".
+- `web/app/(authenticated)/settings/system/page.tsx` (NEW): diagnostic view for back-office plumbing per ADR-206. Passes `include_system=true` to `api.tasks.list` (new options signature) and filters to `back-office-*` slugs. Shows status + schedule + last/next run + pause/resume per task. Not a primary nav destination — reachable by direct URL.
+- `web/lib/api/client.ts`: `api.tasks.list()` signature extended to accept an options object `{status, include_system}` alongside the existing string signature. Backward compatible — existing `api.tasks.list('active')` still works.
+- `web/types/index.ts`: `TaskCreate` extended with `type_key`, `mode`, `focus`, `sources` to cover the ManageTask primitive surface.
+
+### Expected behavior
+
+- Fresh login (after purge) → `workspace_init` scaffolds per ADR-206: one YARNNN row, three `_shared/*` skeletons, four `memory/*` skeletons, two `review/*` skeletons. Zero operational tasks. `/agents` list is empty; `/work` list is empty; `/context` shows "Identity" section with three unfilled files.
+- YARNNN's first-turn response (per the rewritten `onboarding.py` prompt) leads with operation elicitation — *"What operation do you want YARNNN to run for you? Trading, commerce arbitrage, content publishing cadence, competitive tracking?"* — instead of *"Tell me about yourself."*
+- The compact index YARNNN sees renders three labeled sections (Intent / Deliverables / Operation) — enforces three-layer operator vocabulary in every turn.
+- `/work` list-mode BriefingStrip shows NeedsMe first (proposals are the heartbeat), then Snapshot tiles (money-truth visible), then temporal changes and synthesis.
+- `/work` "Start new work" opens the direct-create `CreateTaskModal` (was TaskSetupModal wizard). Clear-intent creation in seconds; chat remains available for judgment-shaped iteration.
+- `/context` "Edit identity / brand / conventions" opens `ManageContextModal` for operators who want to directly author the Intent layer; chat + YARNNN remains the judgment-shaped alternative.
+- `/settings/system` renders back-office task state — pause toggle included — without surfacing the plumbing on `/work`.
+
+### Status
+
+ADR-206 Phases 1, 2, 3 all **Implemented** 2026-04-22. F4 `ManageContextModal` (originally deferred from ADR-205) ships here. F3 `CreateTaskModal` ships here. `AuthorAgentModal` + `CreateRuleModal` remain **deferred** — the alpha operators use chat to author agents and rules today, which is the ADR-206-correct path for judgment-shaped creation.
+
+### ADR
+
+`docs/adr/ADR-206-operation-first-scaffolding.md` — revision history updated.
+
+---
+
 ## [2026.04.22.5] - ADR-206 Operation-First Scaffolding (Phase 1 backend)
 
 ### Changed
