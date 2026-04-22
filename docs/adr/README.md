@@ -82,6 +82,7 @@ The current cognitive architecture evolved through a series of decisions. ADR-18
 | [205](ADR-205-primitive-collapse.md) | Workspace Primitive Collapse — YARNNN as Sole Persistent Identity | Backend Implemented, F1+F2+F5 Shipped (F2 framing extended by ADR-206) |
 | [206](ADR-206-operation-first-scaffolding.md) | Operation-First Scaffolding — Intent / Deliverables / Operation | Phases 1-3 Implemented — refined by ADR-207 |
 | [207](ADR-207-primary-action-centric-workflow.md) | Primary-Action-Centric Workflow — Mandate, Loop, Capabilities | **Proposed — canonical operator workflow** |
+| [208](ADR-208-workspace-git-backend.md) | Workspace Git Backend for Operator-Authored Files | **Proposed — authored-file versioning** |
 
 ### Canonical Terminology
 
