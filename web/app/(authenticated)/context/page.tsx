@@ -1,15 +1,17 @@
 'use client';
 
 /**
- * Context Surface — Workspace knowledge browser (ADR-180, v11).
+ * Context Surface — Workspace knowledge browser (ADR-180, v12 / ADR-206).
  *
  * Context answers: "What does my workspace know? What has it produced?"
  *
- * Four top-level sections:
- *   Context  — accumulated domain knowledge (/workspace/context/)
- *   Reports  — rendered deliverables from produces_deliverable tasks (/tasks/{slug}/outputs/latest/) [ADR-180]
- *   Uploads  — user-contributed files (/workspace/uploads/)
- *   Settings — workspace identity/brand/conventions files
+ * Four top-level sections, ordered Intent-first per ADR-206 three-layer view:
+ *   Identity  — workspace identity/brand/conventions + domain _operator_profile.md
+ *               + _risk.md + Reviewer principles.md. The Intent layer (ADR-206).
+ *   Context   — accumulated domain knowledge (/workspace/context/{domain}/).
+ *   Reports   — rendered deliverables from produces_deliverable tasks
+ *               (/tasks/{slug}/outputs/latest/). The Deliverables layer (ADR-206).
+ *   Uploads   — user-contributed source material (/workspace/uploads/).
  *
  * Deep-link params:
  *   ?domain={key}  — navigate to a context domain folder
@@ -37,6 +39,7 @@ import { PageHeader } from '@/components/shell/PageHeader';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
+import { ManageContextModal } from '@/components/context/ManageContextModal';
 
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
@@ -115,7 +118,23 @@ function buildContextNodes(input: {
     summary: task.last_run_at ? `Latest output` : 'No output yet',
   }));
 
+  // ADR-206 Intent-first ordering: Identity → Context → Reports → Uploads.
+  // Identity is the authored Intent layer (ADR-206); Context is the accumulated
+  // working substrate; Reports is the Deliverables layer; Uploads is raw input.
   return [
+    {
+      name: 'Identity',
+      path: `${EXPLORER_ROOT_PATH}/settings`,
+      type: 'folder' as const,
+      summary: settingsFiles.length ? `${settingsFiles.length} files` : 'Declare identity, brand, conventions',
+      children: settingsFiles.map((file) => ({
+        name: file.filename,
+        path: file.path,
+        type: 'file' as const,
+        updated_at: file.updated_at || undefined,
+        summary: file.name,
+      })),
+    },
     {
       name: 'Context',
       path: `${EXPLORER_ROOT_PATH}/context`,
@@ -136,19 +155,6 @@ function buildContextNodes(input: {
       type: 'folder' as const,
       summary: uploadChildren.length ? `${uploadChildren.length} items` : 'No uploads yet',
       children: uploadChildren,
-    },
-    {
-      name: 'Settings',
-      path: `${EXPLORER_ROOT_PATH}/settings`,
-      type: 'folder' as const,
-      summary: settingsFiles.length ? `${settingsFiles.length} files` : 'No settings files yet',
-      children: settingsFiles.map((file) => ({
-        name: file.filename,
-        path: file.path,
-        type: 'file' as const,
-        updated_at: file.updated_at || undefined,
-        summary: file.name,
-      })),
     },
   ];
 }
@@ -204,6 +210,8 @@ export default function ContextPage() {
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
   const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
   const [taskSetupOpen, setTaskSetupOpen] = useState(false);
+  const [contextModalOpen, setContextModalOpen] = useState(false);
+  const [contextModalTab, setContextModalTab] = useState<'identity' | 'brand' | 'conventions'>('identity');
 
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
 
@@ -367,14 +375,11 @@ export default function ContextPage() {
   const plusMenuActions: PlusMenuAction[] = [
     { id: 'create-task', label: 'Start new work', icon: ListChecks, verb: 'show', onSelect: () => setTaskSetupOpen(true) },
     {
-      id: 'update-info',
-      label: 'Update my info',
+      id: 'manage-context',
+      label: 'Edit identity / brand / conventions',
       icon: Settings2,
-      verb: 'prompt',
-      onSelect: () => sendMessage(
-        'I want to update my identity or brand. I can share a doc, paste a URL, or describe what you should know.',
-        { surface: effectiveSurface },
-      ),
+      verb: 'show',
+      onSelect: () => { setContextModalTab('identity'); setContextModalOpen(true); },
     },
     {
       id: 'web-search',
@@ -486,6 +491,12 @@ export default function ContextPage() {
         open={taskSetupOpen}
         onClose={() => setTaskSetupOpen(false)}
         onSubmit={(msg) => { setTaskSetupOpen(false); sendMessage(msg, { surface: effectiveSurface }); }}
+      />
+      <ManageContextModal
+        open={contextModalOpen}
+        onClose={() => setContextModalOpen(false)}
+        initialTab={contextModalTab}
+        onSaved={() => { void loadExplorer(); }}
       />
     </>
   );
