@@ -8,7 +8,8 @@ Post-ADR-206 layout:
 
     /workspace/
       ├── context/
-      │   ├── _shared/              ← authored shared context (new under ADR-206)
+      │   ├── _shared/              ← authored shared context (ADR-206 + ADR-207 MANDATE)
+      │   │   ├── MANDATE.md        ← workspace's CLAUDE.md equivalent (ADR-207 D2)
       │   │   ├── IDENTITY.md
       │   │   ├── BRAND.md
       │   │   └── CONVENTIONS.md
@@ -33,11 +34,13 @@ notes moved under `memory/` because they are *YARNNN's own working memory*.
 # -----------------------------------------------------------------------------
 # Authored shared context (`/workspace/context/_shared/`)
 # -----------------------------------------------------------------------------
+SHARED_MANDATE_PATH = "context/_shared/MANDATE.md"
 SHARED_IDENTITY_PATH = "context/_shared/IDENTITY.md"
 SHARED_BRAND_PATH = "context/_shared/BRAND.md"
 SHARED_CONVENTIONS_PATH = "context/_shared/CONVENTIONS.md"
 
 SHARED_CONTEXT_FILES = (
+    SHARED_MANDATE_PATH,
     SHARED_IDENTITY_PATH,
     SHARED_BRAND_PATH,
     SHARED_CONVENTIONS_PATH,

@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.7] - ADR-207 P2 (Mandate + hard gate) + Obs 07 watchdog
+
+### Changed
+
+- `api/jobs/unified_scheduler.py`: orphan-run watchdog added. Every scheduler tick (5 min), any `agent_runs` row stuck in `status='generating'` for >10 minutes gets auto-flipped to `status='failed'` with a diagnostic `final_content`. Closes Obs 07 — the E2E's `track-universe` hang (Render redeploy mid-stream) would now reap within one tick.
+- `api/services/workspace_paths.py`: `SHARED_MANDATE_PATH = "context/_shared/MANDATE.md"` added. `SHARED_CONTEXT_FILES` tuple extended to include Mandate as the first entry. Docstring tree diagram updated.
+- `api/services/workspace_init.py` Phase 2: seeds empty `MANDATE.md` skeleton at `/workspace/context/_shared/MANDATE.md` alongside IDENTITY/BRAND/CONVENTIONS. Skeleton contains the `<not yet declared — talk to YARNNN>` placeholder that the hard gate detects.
+- `api/services/primitives/update_context.py`: `target="mandate"` added as new case. `_handle_mandate()` writes operator-declared text verbatim to `SHARED_MANDATE_PATH` via `UserMemory.write`. No inference pass — Mandate is operator-authored substrate, preserved in the operator's own language. Tool schema + docstring updated.
+- `api/services/primitives/manage_task.py` `_handle_create`: hard gate added. Before accepting create, reads MANDATE.md; returns `error="mandate_required"` if empty or if skeleton's `<not yet declared>` placeholder is still present. Operator sees a clear message pointing them to `UpdateContext(target="mandate")`.
+- `api/agents/yarnnn_prompts/onboarding.py`: Priority section rewritten from "Operation → Identity → Brand" to **"Mandate → Operation → Identity → Brand"**. YARNNN's first-turn posture now explicitly elicits the Mandate (Primary Action + success criteria + boundary conditions) as the gateway step. Revision-cadence discipline from ADR-207 D2 documented inline.
+- `supabase/migrations/156_adr207_p2_mandate_plus_obs07.sql`: applied 2026-04-22. Backfilled 11 MANDATE.md skeletons (one per workspace). Reaped 2 stuck `agent_runs` rows from `generating` status (including alpha-trader's `de13d82f` from Obs 07).
+
+### Expected behavior
+
+- A fresh workspace has a MANDATE.md skeleton from signup. YARNNN's first turn elicits the Mandate before any other scaffolding.
+- Task creation via `ManageTask(action="create")` or `CreateTaskModal` returns `error="mandate_required"` if the operator hasn't authored their Mandate. Operator gets routed back to chat with YARNNN.
+- Once the operator authors via `UpdateContext(target="mandate", text="...")`, task scaffolding unblocks.
+- Any future run stuck in `generating` for >10 min auto-fails with a diagnostic. Operators and engineers get finite state to debug from instead of infinite pending.
+
+### Not in this commit (per ADR-207 v1.2 + ADR-208)
+
+- No file-level versioning for Mandate writes. Overwrites acceptable until ADR-208 (git backend) lands. The operator can re-author at any time; prior versions are not preserved within ADR-207 scope.
+
+### ADRs
+
+`docs/adr/ADR-207-primary-action-centric-workflow.md` (D2 Mandate hard gate implemented). `docs/alpha/observations/2026-04-22-adr206-trader-e2e-07.md` (Obs 07 — watchdog fix implemented).
+
+---
+
 ## [2026.04.22.6] - ADR-206 Phases 2+3 (prompts + frontend cockpit reshape)
 
 ### Data

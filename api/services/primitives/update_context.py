@@ -64,8 +64,8 @@ For awareness: full replacement — write your current understanding as a living
         "properties": {
             "target": {
                 "type": "string",
-                "enum": ["workspace", "identity", "brand", "memory", "agent", "task", "awareness"],
-                "description": "What to update: workspace (first-act scaffold — ADR-190), identity (IDENTITY.md), brand (BRAND.md), memory (notes), agent (agent feedback), task (task feedback), awareness (your situational notes)"
+                "enum": ["workspace", "mandate", "identity", "brand", "memory", "agent", "task", "awareness"],
+                "description": "What to update: workspace (first-act scaffold — ADR-190), mandate (MANDATE.md — workspace's Primary Action declaration per ADR-207 D2; required before any task scaffolding), identity (IDENTITY.md), brand (BRAND.md), memory (notes), agent (agent feedback), task (task feedback), awareness (your situational notes)"
             },
             "text": {
                 "type": "string",
@@ -116,7 +116,8 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
     text = input.get("text", "").strip()
 
     # ADR-190 "workspace" target added: rich-input first-act scaffold pass.
-    valid_targets = ("identity", "brand", "memory", "agent", "task", "awareness", "workspace")
+    # ADR-207 D2 "mandate" target added: workspace Primary Action declaration.
+    valid_targets = ("mandate", "identity", "brand", "memory", "agent", "task", "awareness", "workspace")
     if target not in valid_targets:
         return {"success": False, "error": "invalid_target", "message": f"target must be one of: {', '.join(valid_targets)}"}
 
@@ -126,6 +127,8 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
 
     if target == "workspace":
         return await _handle_workspace_scaffold(auth, input)
+    elif target == "mandate":
+        return await _handle_mandate(auth, text)
     elif target in ("identity", "brand"):
         return await _handle_shared_context(auth, target, input)
     elif target == "memory":
@@ -138,6 +141,34 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
         return await _handle_awareness(auth, text)
 
     return {"success": False, "error": "unknown_target", "message": f"Unhandled target: {target}"}
+
+
+async def _handle_mandate(auth: Any, text: str) -> dict:
+    """Write workspace MANDATE.md (ADR-207 D2).
+
+    Accepts operator-declared operation content and writes verbatim to
+    `/workspace/context/_shared/MANDATE.md`. This is the workspace's
+    CLAUDE.md equivalent — declares Primary Action + success criteria +
+    boundary conditions. No forced revision cadence; operator edits when
+    operator decides. Versioning deferred to ADR-208 (git backend).
+
+    Plain-text write (no inference pass). YARNNN passes the text as
+    authored during first-turn operation elicitation or subsequent
+    operator-driven revision.
+    """
+    from services.workspace import UserMemory
+    from services.workspace_paths import SHARED_MANDATE_PATH
+
+    um = UserMemory(auth.client, auth.user_id)
+    ok = await um.write(SHARED_MANDATE_PATH, text, summary="Mandate authored")
+    if not ok:
+        return {"success": False, "error": "write_failed", "message": "Failed to write MANDATE.md"}
+    return {
+        "success": True,
+        "target": "mandate",
+        "filename": SHARED_MANDATE_PATH,
+        "message": "Mandate authored. Task scaffolding is now unblocked.",
+    }
 
 
 async def _handle_workspace_scaffold(auth: Any, input: dict) -> dict:
