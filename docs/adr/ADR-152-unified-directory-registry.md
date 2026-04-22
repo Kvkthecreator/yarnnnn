@@ -1,11 +1,13 @@
 # ADR-152: Unified Directory Registry — Single Source of Truth for Workspace Filesystem
 
 > **⚠ Amended by [ADR-205](ADR-205-primitive-collapse.md) (2026-04-22).** `WORKSPACE_DIRECTORIES` no longer drives signup-time directory pre-creation. It becomes a naming-convention reference consulted when tasks first write to a domain. Directories materialize at first-write, not at signup. Registry shape unchanged; signup-time creation hook removed.
+>
+> **⚠ Further amended by [ADR-206](ADR-206-operation-first-scaffolding.md) (2026-04-22).** Adds `_shared/` as a named directory type under `/workspace/context/`. Files previously at workspace root (`IDENTITY.md`, `BRAND.md`, `CONVENTIONS.md`) relocate to `/workspace/context/_shared/`. The underscore-prefix convention extends: `_shared/` (authored cross-domain context), `_tracker.md` (domain-scoped materialized view), `_playbook-*.md` (agent-scoped playbooks), `_performance.md` (money-truth per domain). Post-ADR-206, `/workspace/` root contains only operational folders (`/tasks/`, `/agents/`, `/context/`, `/memory/`, `/review/`, `/working/`, `/uploads/`) — no loose files at root.
 
 **Status:** Proposed
 **Date:** 2026-03-31
 **Supersedes:** ADR-151 `CONTEXT_DOMAINS` (absorbed into unified registry)
-**Amended by:** ADR-205 (registry is naming-convention reference only)
+**Amended by:** ADR-205 (registry is naming-convention reference only), ADR-206 (`_shared/` directory type added; workspace-root files relocate under `/context/_shared/`)
 **Extends:** ADR-149 (task lifecycle), ADR-151 (shared context domains)
 
 ---

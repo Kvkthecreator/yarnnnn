@@ -1,11 +1,14 @@
 # ADR-161: Daily Update as Anchor — The Heartbeat Artifact
 
 > **⚠ Amended by [ADR-205](ADR-205-primitive-collapse.md) (2026-04-22).** Daily-update task is preserved as the workspace heartbeat artifact. Owner changes from YARNNN-the-agent-row to YARNNN-the-workspace-identity (single persistent entity per workspace, tracked in `workspace_identity` table). Empty-state deterministic template, cadence, and essential guard all unchanged.
+>
+> **⚠ Superseded by [ADR-206](ADR-206-operation-first-scaffolding.md) (2026-04-22).** The "essential heartbeat at signup" framing is dissolved. Post-ADR-206, daily-update is **not** scaffolded at signup and is **not** flagged essential. It becomes an **opt-in task** offered by YARNNN in chat once the operator's declared operation is running and producing deliverables. The loop itself (proposals → review → execute → reconcile) is what makes the service feel alive; an email digest is an optional surfacing of the loop, not the heartbeat. The original ADR-161 rationale (prevent dormant signups from going silent) is addressed differently in ADR-206: a workspace with no declared operation IS meant to be silent until the operator declares one.
 
 **Status:** Proposed
 **Date:** 2026-04-07
 **Authors:** KVK, Claude
-**Amended by:** ADR-205 (owner is workspace identity, not agent row)
+**Amended by:** ADR-205 (owner = workspace identity)
+**Superseded by:** ADR-206 (essential-heartbeat-at-signup framing dissolved; daily-update is opt-in post-operation-declared)
 **Extends:** ADR-138 (Agents as Work Units), ADR-140 (Agent Workforce Model), ADR-141 (Unified Execution Architecture), ADR-149 (Task Lifecycle Architecture), ADR-152 (Unified Directory Registry)
 **Related:** ADR-155 (Workspace Inference Onboarding), ADR-156 (Composer Sunset)
 
