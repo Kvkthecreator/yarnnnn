@@ -1,5 +1,7 @@
 # ADR-149: Task Lifecycle Architecture — TP as Context Manager
 
+> **⚠ Amended by [ADR-207](ADR-207-primary-action-centric-workflow.md) (2026-04-22).** DELIVERABLE.md semantics unchanged — it remains the task's output contract. Reframed: it is no longer a "first-class layer" in the operator workflow; it is a task sub-part. The operator-facing center of gravity is the Mandate + Primary Action (ADR-207 D1/D2), and task outputs (proposals, briefings, reconciliations) are what the operator sees — labeled by the producing task's role in the Loop, not by a separate Deliverables concept.
+
 **Status:** Phase 1-5 Implemented. Phase 6 (DELIVERABLE.md frontend surface) **now active** per ADR-178.
 **Date:** 2026-03-31 (amended 2026-04-13: Phase 6 activated, mode sync invariant added)
 **Supersedes:** Portions of ADR-145 (task type registry stays, execution model evolves)
