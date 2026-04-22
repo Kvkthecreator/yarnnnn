@@ -1,8 +1,12 @@
 # Registry Matrix — Domains, Tasks, Agents
 
-**Status:** Canonical  
-**Date:** 2026-04-13 (ADR-176 universal specialist roster)
-**Related:** ADR-176 (Work-First Agent Model), ADR-145 (Task Type Registry), ADR-151 (Context Domains), ADR-152 (Unified Directory Registry), ADR-164 (Back Office Tasks), ADR-166 (Registry Coherence)
+**Status:** Canonical (ADR-207 P4a/P4b amendment)
+**Date:** 2026-04-13 (original) / 2026-04-22 (ADR-207 amendment — bots dissolved, TASK_TYPES no longer dispatch-authoritative)
+**Related:** ADR-207 (Primary-Action-Centric Workflow), ADR-176 (Work-First Agent Model), ADR-145 (Task Type Registry), ADR-151 (Context Domains), ADR-152 (Unified Directory Registry), ADR-164 (Back Office Tasks), ADR-166 (Registry Coherence)
+
+> **ADR-207 P4a/P4b amendment (2026-04-22):** Platform Bots (slack_bot / notion_bot / github_bot / commerce_bot / trading_bot) DELETED from `AGENT_TEMPLATES` (commit 0be70e6). Platform access is now a **capability** on specialists — gated at dispatch by `capability_available()` against `platform_connections`. The "Slack Bot / Notion Bot / GitHub Bot / Commerce Bot" rows below reflect the *legacy* agent-row model; post-ADR-207, the equivalent work runs on a `tracker` or `writer` specialist with `**Required Capabilities:** read_slack` (or the relevant capability).
+>
+> `TASK_TYPES` survives as a **frozen seed-template library** — 21 entries remain (11 bot-dispatched types deleted), 8 helpers callable only from `_handle_create` type_key convenience + `workspace_init.materialize_back_office_task`. The pipeline reads TASK.md, never the registry. `GET /api/tasks/types` endpoints DELETED (commit 3353eb9).
 
 ---
 

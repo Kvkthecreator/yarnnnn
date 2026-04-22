@@ -1,12 +1,26 @@
 # ADR-207: Primary-Action-Centric Workflow — Mandate, Loop, Capabilities
 
-> **Status**: Proposed
+> **Status**: **Phases 1–5 Implemented** (2026-04-22, commits 49496c0 / d1334eb / 352f8b9 / 0be70e6 / 01fd609 / 3353eb9 / d6a6a53). Phase 6 (alpha persona re-author + E2E re-run) mandate-authoring artifacts landed (d6a6a53); E2E re-run pending.
 > **Date**: 2026-04-22
 > **Authors**: KVK, Claude
 > **Triggered by**: Alpha-trader E2E (2026-04-22, docs/alpha/observations/2026-04-22-adr206-trader-e2e-*.md) — substrate + prompt layers validated, but the E2E exposed that ADR-206's three-layer Intent/Deliverables/Operation model left the *center of gravity* undefined. The operator-facing consolidation came from realizing every operator workspace has exactly one **Primary Action class** (the external write that moves value) and everything else exists in service of it.
-> **Supersedes**: ADR-166 output_kind classification (enum dissolves); ADR-188 task_types as template library (goes further — concrete types dissolve entirely, tasks self-declare).
+> **Supersedes**: ADR-166 output_kind classification (enum survives as self-declaration value, not a classification key); ADR-188 task_types as template library (TASK_TYPES no longer dispatch-authoritative; 11 bot-dispatched entries deleted; 21 remain as frozen seed-template library).
 > **Extends / refines**: ADR-206 three-layer operator view (Intent preserved; Deliverables reframed as task sub-parts, not a first-class layer; Operation preserved).
-> **Amends**: ADR-149 DELIVERABLE.md (semantics unchanged; reframed as "a task's output contract", not an independent layer); ADR-194 Reviewer (unchanged structurally; role in the Loop made explicit); ADR-195 Money-Truth (unchanged; role in the Loop made explicit); ADR-205 Platform Bots (finishes the collapse — bots dissolve as agent entities, become pure Capabilities bound to `platform_connections`).
+> **Amends**: ADR-149 DELIVERABLE.md (semantics unchanged; reframed as "a task's output contract", not an independent layer); ADR-194 Reviewer (unchanged structurally; role in the Loop made explicit); ADR-195 Money-Truth (unchanged; role in the Loop made explicit); ADR-205 Platform Bots (**finished — bots deleted as agent entities under P4a (commit 0be70e6), migration 157 dropped all bot rows + updated agents_role_check, capability gating replaces the bot abstraction**).
+
+## Implementation status (2026-04-22)
+
+| Phase | Commit | Status | Summary |
+|---|---|---|---|
+| 1 — ADR ratification | — | ✅ Landed | This document |
+| 2 — Mandate hard gate | d1334eb | ✅ Landed | `SHARED_MANDATE_PATH`, `_handle_mandate`, `ManageTask(create)` mandate_required gate, migration 156, onboarding prompt rewrite |
+| 3 — Capability gate | 352f8b9 | ✅ Landed | `platform_connection_requirement` on every CAPABILITIES entry; `capability_available()` + `unavailable_capabilities()`; `parse_task_md` reads `**Required Capabilities:**`; dispatch-time gate in `execute_task` |
+| 4a — Platform Bots → Capabilities | 0be70e6 | ✅ Landed | 5 bot roles deleted from AGENT_TEMPLATES + LEGACY_ROLE_MAP + `classify_role`; `delete_platform_bot` gone; routes/integrations + routes/account bot lifecycle removed; 11 bot-dispatched TASK_TYPES entries + STEP_INSTRUCTIONS deleted; migration 157 drops bot agent rows + updates `agents_role_check` |
+| 4b — TASK_TYPES not dispatch-authoritative | 3353eb9 | ✅ Landed | All registry fallbacks in `task_pipeline.py` deleted; ManageTask schema gains 7 self-declaration fields (output_kind, context_reads/writes, required_capabilities, emits_proposal, process_steps, deliverable_md); `_handle_update` type_key change path removed; `/api/tasks/types` endpoints deleted + frontend client `listTypes`/`getType` removed; YARNNN workspace prompt rewritten around self-declaration primary |
+| 5 — Derivation helper + prompt | 01fd609 | ✅ Landed | `api/services/task_derivation.py::build_derivation_report()`; auto-refresh on mandate write + task create; YARNNN workspace prompt "Derivation-First Scaffolding" section; loop-role classification (sensor/proposer/reviewer/reconciler/learner/decision-support) |
+| 6 — Alpha persona re-author | d6a6a53 | 🟡 Partial | `docs/alpha/personas/alpha-trader/MANDATE.md` + `docs/alpha/personas/alpha-commerce/MANDATE.md` authored; E2E-EXECUTION-CONTRACT v2 updated to start with Mandate authoring. **E2E re-run pending.** |
+
+**Follow-on work (not blocking):** full TASK_TYPES deletion once operators migrate off `type_key` convenience + back-office templates move inline to `workspace_init.py`. CreateTaskModal full self-declaration UI (current change is stop-fetching-types only). See commit 3353eb9 CHANGELOG for details.
 
 ---
 

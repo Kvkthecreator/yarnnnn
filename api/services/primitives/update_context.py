@@ -163,11 +163,25 @@ async def _handle_mandate(auth: Any, text: str) -> dict:
     ok = await um.write(SHARED_MANDATE_PATH, text, summary="Mandate authored")
     if not ok:
         return {"success": False, "error": "write_failed", "message": "Failed to write MANDATE.md"}
+
+    # ADR-207 Phase 5: regenerate /workspace/memory/task_derivation.md so
+    # YARNNN has a fresh derivation report the moment Mandate is authored.
+    # This makes the proposed task chain visible before any ManageTask(create).
+    try:
+        from services.task_derivation import build_derivation_report
+        report = build_derivation_report(auth.client, auth.user_id)
+        await um.write("memory/task_derivation.md", report,
+                       summary="ADR-207 P5: derivation report refreshed after mandate write")
+    except Exception as derivation_err:
+        logger.warning(f"[UpdateContext mandate] derivation refresh failed (non-fatal): {derivation_err}")
+
     return {
         "success": True,
         "target": "mandate",
         "filename": SHARED_MANDATE_PATH,
-        "message": "Mandate authored. Task scaffolding is now unblocked.",
+        "message": "Mandate authored. Task scaffolding is now unblocked. "
+                   "A fresh derivation report is at /workspace/memory/task_derivation.md — "
+                   "read it before proposing tasks so the loop-role coverage is visible.",
     }
 
 

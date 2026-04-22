@@ -183,23 +183,34 @@ When YARNNN judgment differs from registry default, always pass `team` explicitl
 
 ## Creating Tasks (primary flow)
 
-**ManageTask(action="create", title, ...)** — Create a task and assign work to an existing agent (ADR-168).
-Tasks are WHAT — they define objective, cadence, delivery, and success criteria.
+**ManageTask(action="create", title, ...)** — Create a task (ADR-168 + ADR-207 P4b self-declaration).
+Tasks are WHAT — they define objective, cadence, delivery, capabilities, output_kind, context reads/writes, and success criteria.
 
-Two creation paths — both first-class (ADR-188):
-1. **Template-based:** `ManageTask(action="create", title="...", type_key="...")` — auto-populates from template library.
-2. **Composed:** `ManageTask(action="create", title="...", agent_slug="...", objective={...})` — compose from primitives for any domain.
+**ADR-207 P4b primary path = self-declaration.** `type_key` is a deprecated convenience that reads defaults from the 21-entry seed-template library. Prefer full self-declaration for anything novel.
 
 ```
-# Template-based
+# Self-declaration (preferred — any domain, no template dependency)
+ManageTask(
+  action: "create",
+  title: "Weekly Case Tracker",
+  agent_slug: "tracker",
+  mode: "recurring",
+  schedule: "weekly",
+  output_kind: "accumulates_context",
+  context_reads: ["cases"],
+  context_writes: ["cases"],
+  required_capabilities: ["web_search", "summarize"],
+  objective: {deliverable: "Case status updates", audience: "Legal team", purpose: "Active case tracking", format: "report"},
+  team: ["researcher", "tracker"]
+)
+
+# Seed-template shortcut (only for the 21 surviving track-* / *-brief / *-report / back-office-* keys)
 ManageTask(action: "create", title: "Weekly Competitive Intel", type_key: "competitive-brief", schedule: "weekly", delivery: "email")
-
-# Composed (any domain)
-ManageTask(action: "create", title: "Weekly Case Tracker", agent_slug: "tracker", objective: {deliverable: "Case status updates", audience: "Legal team", purpose: "Active case tracking", format: "report"}, schedule: "weekly", mode: "recurring", team: ["researcher", "tracker"])
 ```
 
-**Required:** action="create", title, and one of {type_key, agent_slug}
-**Optional:** mode, objective, schedule, delivery, success_criteria, output_spec, page_structure, focus, sources, team
+**Required:** action="create", title, agent_slug (unless `type_key` is provided for the convenience shortcut).
+**Strongly recommended (self-declaration):** output_kind, context_reads, context_writes, required_capabilities. Without these, dispatch falls back to minimal defaults.
+**Optional:** mode, objective, schedule, delivery, success_criteria, output_spec, page_structure, emits_proposal, focus, sources, team, process_steps, deliverable_md.
 
 **mode** determines temporal behavior:
 - `recurring` (default) — runs on fixed cadence indefinitely (weekly reports, daily recaps)
@@ -209,8 +220,8 @@ ManageTask(action: "create", title: "Weekly Case Tracker", agent_slug: "tracker"
 **Work intent → template mapping** (use when a template fits):
 
 Tracking: `track-competitors`, `track-market`, `track-relationships`, `track-projects`, `research-topics`
-Reports: `competitive-brief`, `market-report`, `meeting-prep`, `stakeholder-update`, `project-status`, `content-brief`, `launch-material`
-Platform sync: `slack-digest`, `notion-digest`, `github-digest`, `commerce-digest`, `trading-digest`
+Reports: `competitive-brief`, `market-report`, `meeting-prep`, `stakeholder-update`, `project-status`, `content-brief`, `launch-material`, `revenue-report`, `trading-signal`, `portfolio-review`
+Platform-awareness & write-back (ADR-207 P4a — no template; compose directly with specialist + `**Required Capabilities:** read_slack / write_notion / read_trading / write_trading` etc.)
 
 **When NO template fits** — compose directly using agent_slug + objective + team.
 The user's work determines the task. A lawyer needs case tracking, an influencer needs

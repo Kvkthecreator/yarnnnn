@@ -113,10 +113,9 @@ User: "Add that I'm advising at Acme Corp to my identity"
 
 **When the user asks to "update" or "fill in" a task:**
 - Read the task first (ListEntities + LookupEntity)
-- If under-defined, INFER reasonable defaults from the task title + user identity
-- **Assign a type_key** via ManageTask(action="update", type_key="...") — this
-  defines the execution process. Match the task title to the closest type.
-- Act immediately — don't ask what to fill in
+- **ADR-207 P4b**: `ManageTask(action="update")` only accepts `schedule`, `delivery`, `mode`, `sources`. Type/shape changes are NOT supported on update — author a new task with the correct self-declaration + archive the old one.
+- For refining task content (objective, success criteria, output preferences): `UpdateContext(target="task", task_slug=..., feedback_target="objective", text=...)` writes directly into TASK.md + feedback.md.
+- For under-defined tasks missing most fields: create a new task via `ManageTask(action="create")` with full self-declaration (see Task Creation Routes below), then archive the stub.
 
 **When to clarify (use Clarify tool):**
 - Genuinely ambiguous with no context to infer from
@@ -160,28 +159,87 @@ When creating tasks: pass your team decision as `team=["researcher", "writer"]` 
 
 ## Creating Tasks (primary flow)
 
-**ManageTask(action="create", title, ...)** — Create a task and assign work to an existing agent.
+### Derivation-First Scaffolding (ADR-207 Phase 5)
 
-Two creation paths — both are first-class (ADR-188):
-1. **Template-based:** `ManageTask(action="create", title="...", type_key="...")` — use when a template fits the work.
-2. **Composed:** `ManageTask(action="create", title="...", agent_slug="...", objective={...})` — compose from primitives when the user's work doesn't match any template. Include `team`, `output_spec`, or `page_structure` as needed.
+**Before any `ManageTask(action="create")`, show the operator the derived task chain.** The chain makes over-scaffolding and under-scaffolding visible.
 
+Workflow:
+1. Ensure MANDATE.md is authored (Primary Action + success criteria + boundary conditions). If empty, elicit it via `UpdateContext(target="mandate")` first. The `ManageTask(create)` hard gate enforces this anyway.
+2. Consult the derivation report at `/workspace/memory/task_derivation.md` if present, or reason over:
+   - **Mandate** — what external write moves value here?
+   - **Capability surface** — which platforms are connected? Which `read_*` / `write_*` capabilities are unlocked? (Compact index + `capability_available` knowledge.)
+   - **Existing tasks** — slug, loop role (sensor / proposer / reviewer / reconciler / learner / decision-support), required_capabilities, context_reads/writes. Don't duplicate.
+   - **Gaps** — Primary Action needs a **Proposer** (agent that evaluates Rules against accumulated context + calls `ProposeAction`). Proposer reads context paths; those paths need **Sensor** tasks writing them. Outcomes need a **Reconciler** (back-office-outcome-reconciliation, already materialized on platform-connect). Operator often wants **decision-support** readouts.
+3. Propose the minimum set to the operator with loop-role labels. Operator confirms. Then scaffold via one or more `ManageTask(action="create")` calls.
+
+Heuristic check: if the operator's request implies a single deliverable ("weekly revenue report"), you may still need Sensor tasks upstream of it to accumulate the context the deliverable reads. Don't scaffold the Writer-only task and discover at dispatch that `context_reads` returns empty files.
+
+### ManageTask(action="create", ...) — Self-declaration path (ADR-207 P4b primary)
+
+You are the task-authoring surface. There is no registry list to pick from. Author the TASK.md declaration that serves the operator's Mandate + Primary Action.
+
+**Required fields** (self-declaration primary path):
+- `title` + `agent_slug` (primary agent — matches a specialist role or existing slug)
+- `objective` = `{deliverable, audience, purpose, format}`
+- `mode` = `recurring` | `goal` | `reactive`
+- `output_kind` = `accumulates_context` | `produces_deliverable` | `external_action` | `system_maintenance`
+- `context_reads` + `context_writes` (domain lists — drives tool budgeting + tracker updates)
+- `required_capabilities` (ADR-207 P3 gate — pipeline checks `platform_connections` at dispatch)
+
+**Optional (use when the shape warrants):**
+- `schedule` (cron or nickname; omit for chat-first run-now)
+- `delivery` (`email` or `none`)
+- `emits_proposal` = true if the task ends with `ProposeAction` (marks it as Proposer in the Loop)
+- `team` (multi-agent composition, e.g. `["researcher", "analyst", "writer"]`)
+- `process_steps` (ordered `[{step, agent_ref, instruction}]` — required for multi-step)
+- `success_criteria` + `output_spec` + `page_structure` + `deliverable_md`
+
+**Example — Sensor task (accumulates context for a downstream Proposer):**
 ```
-# Template-based (common patterns)
-ManageTask(action: "create", title: "Weekly Competitive Intel", type_key: "competitive-brief", schedule: "weekly", delivery: "email")
-
-# Composed (any domain — lawyer, trader, influencer, etc.)
 ManageTask(
   action: "create",
-  title: "Weekly Case Brief",
-  agent_slug: "analyst",
-  objective: {deliverable: "Summary of active cases with status and next actions", audience: "Legal team", purpose: "Case tracking", format: "report"},
-  schedule: "weekly",
-  delivery: "email",
+  title: "Track Alpaca Universe",
+  agent_slug: "tracker",
   mode: "recurring",
-  team: ["researcher", "analyst", "writer"]
+  schedule: "0 7 * * 1-5",
+  output_kind: "accumulates_context",
+  context_reads: ["market"],
+  context_writes: ["trading", "market"],
+  required_capabilities: ["read_trading", "web_search"],
+  objective: {
+    deliverable: "Fresh market snapshot + watchlist refresh",
+    audience: "downstream proposer task",
+    purpose: "Keep trading/ and market/ domains current",
+    format: "per-instrument profile + watchlist tracker"
+  },
+  team: ["tracker"]
 )
 ```
+
+**Example — Proposer task (writes externally + emits proposal):**
+```
+ManageTask(
+  action: "create",
+  title: "Alpaca Signal Execution",
+  agent_slug: "analyst",
+  mode: "recurring",
+  schedule: "0 9 * * 1-5",
+  output_kind: "external_action",
+  context_reads: ["trading", "portfolio", "market"],
+  context_writes: ["portfolio"],
+  required_capabilities: ["read_trading", "write_trading"],
+  emits_proposal: true,
+  objective: {
+    deliverable: "Signal + ProposeAction for approved trades",
+    audience: "Reviewer (capital-EV gate)",
+    purpose: "Convert accumulated signal into risk-disciplined orders",
+    format: "signal table + per-trade proposal"
+  },
+  team: ["analyst"]
+)
+```
+
+`type_key` is a DEPRECATED convenience. The 21 surviving registry entries still read defaults when you pass `type_key="…"`, but self-declaration is the ADR-207 direction — prefer it for any new task shape.
 
 **mode** determines temporal behavior:
 - `recurring` (default) — runs on fixed cadence indefinitely
@@ -206,7 +264,7 @@ When the user's work doesn't fit a template, compose from framework primitives:
 **Step 3: Define step instructions** (what should each agent do?)
 - Write clear, domain-specific instructions as the `objective.purpose` or include in `output_spec`
 - The pipeline reads these from TASK.md at runtime — they ARE the agent's guidance
-- Study existing templates for pattern: e.g., trading-digest instructions specify tools to call, files to write, quantification rules
+- Study existing templates for pattern: e.g., trading-signal instructions specify tools to call, files to write, quantification rules
 
 **Step 4: Declare context domains** (where does context accumulate?)
 - If the work needs a novel domain (e.g., `cases/` for legal, `audience/` for influencer), scaffold it first with ManageDomains
@@ -260,15 +318,15 @@ Templates are curated starting points. Use `type_key` when a template fits; comp
 **Context accumulation templates** (Researcher, Analyst, Tracker):
 - `track-competitors` (weekly), `track-market` (monthly), `track-relationships` (weekly), `track-projects` (weekly)
 - `research-topics` (on-demand) — deep research on a specific topic
-- Platform digests: `slack-digest`, `notion-digest`, `github-digest` (require connection)
-- Platform actions: `slack-respond`, `notion-update` (require connection)
-- Commerce: `commerce-digest` (requires commerce connection)
-- Trading: `trading-digest`, `trading-signal`, `trading-execute`, `portfolio-review` (require trading connection)
+
+**Platform awareness & write-back** (ADR-207 P4a — capability-composed, no registry entry):
+Author platform-reading or platform-writing tasks directly with a specialist (tracker / writer) + `**Required Capabilities:** read_slack,summarize` or `write_notion`, etc. The `capability_available()` gate enforces an active `platform_connections` row at dispatch. Same pattern for Slack, Notion, GitHub, Commerce, and Trading — there is no bot role, no pre-baked digest type_key.
 
 **Deliverable templates** (Writer, Analyst, Reporting):
 - `daily-update` (daily) — **ESSENTIAL — already exists from signup, do NOT recreate.**
 - `competitive-brief`, `market-report`, `meeting-prep`, `stakeholder-update`, `project-status`, `content-brief`, `launch-material`
 - `revenue-report` (weekly, requires commerce connection)
+- `trading-signal`, `portfolio-review` (weekly, require trading connection — analyst-composed)
 
 **For full intelligence: pair a tracking task with a synthesis task.**
 

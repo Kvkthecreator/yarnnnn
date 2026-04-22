@@ -1,4 +1,45 @@
 """
+Task Type Registry — ADR-152 + ADR-154 + ADR-166 + ADR-170 (ADR-207 P4b: DEPRECATED as dispatch authority)
+
+**ADR-207 P4b (2026-04-22) status:**
+
+This module no longer dictates dispatch behavior. `task_pipeline.py` and all
+execution paths read TASK.md exclusively — no more `get_task_type(type_key)`
+lookups in the pipeline, no more `get_bootstrap_criteria` gates, no more
+`STEP_INSTRUCTIONS` fallbacks. TASK.md self-declaration is authoritative
+for every runtime decision (capability gate, page structure, process steps,
+output kind, context reads/writes, surface type).
+
+What survives here, and why:
+
+  - `TASK_TYPES` dict (21 entries) + `STEP_INSTRUCTIONS` dict — kept as a
+    *seed-template library*. Two callers consume these at creation time:
+      * `_handle_create`'s `type_key` path (deprecated convenience).
+      * `workspace_init.materialize_back_office_task` (scaffolds 4 back-office
+        tasks whose TASK.md is identical for every workspace).
+    Neither reads the registry at dispatch — both write finished TASK.md to
+    workspace and the pipeline reads from there.
+
+  - 8 helper functions (`get_task_type`, `get_default_mode`,
+    `delivery_requires_approval`, `get_bootstrap_criteria`, `list_task_types`,
+    `resolve_process_agents`, `build_task_md_from_type`,
+    `build_deliverable_md_from_type`) — kept functional for the two callers
+    above. Callers should not add new imports.
+
+What's been deleted under P4b:
+  - `GET /api/tasks/types` and `GET /api/tasks/types/{type_key}` endpoints.
+  - `_handle_update`'s `new_type_key` change path (rewrote TASK.md process
+    section from registry; now operators self-declare).
+  - All `task_pipeline.py` registry fallbacks (surface_type, page_structure,
+    bootstrap criteria, STEP_INSTRUCTIONS).
+  - 11 bot-dispatched TASK_TYPES entries (see ADR-207 P4a for list).
+
+Removal trajectory: when `_handle_create`'s type_key path is retired and the
+4 back-office templates move to inline fixtures in `workspace_init.py`, this
+module can be deleted wholesale. Until then, treat TASK_TYPES + its helpers
+as frozen — add nothing, refactor nothing, prefer self-declaration.
+
+--- Original module header ---
 Task Type Registry — ADR-152 + ADR-154 + ADR-166 + ADR-170: Atomic Task Types
 
 Each task type has one `output_kind` (ADR-166) describing what shape of work
@@ -181,219 +222,13 @@ STEP_INSTRUCTIONS = {
         "Produce the deliverable emphasizing what's new since last cycle."
     ),
 
-    # ADR-158: Platform-specific digest instructions
-    "slack-digest": (
-        "You are the Slack Bot. Your job is to read selected Slack channels and "
-        "write per-channel observation files to your context domain.\n\n"
-        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
-        "If one exists, follow it — it was written by you while context was fresh.\n\n"
-        "For EACH selected channel:\n"
-        "1. Read recent messages using your Slack tools\n"
-        "2. Extract: decisions made, action items assigned, key discussions, FYIs\n"
-        "3. Write findings to your context domain: WriteFile(scope='context', "
-        "domain='slack', path='{channel-slug}/latest.md')\n\n"
-        "Summarization rules:\n"
-        "- Preserve attribution: 'Alice proposed X' not 'it was proposed'\n"
-        "- Threads > individual messages: summarize thread conclusions\n"
-        "- Skip: bot messages, emoji-only, routine standup entries\n"
-        "- Highlight: unanswered questions, unresolved disagreements\n"
-        "- Flag urgency: 'blocked', 'need help', 'ASAP', mentions of the user\n\n"
-        "Also append a dated signal entry to /workspace/context/signals/ with "
-        "a one-line summary per channel of what was notable.\n\n"
-        "Your output: a digest of what happened across all observed channels."
-    ),
-
-    # ADR-158 Phase 3: Write-back task instructions
-    "slack-respond": (
-        "You are the Slack Bot. Your job is to post a message to a specific Slack "
-        "channel or the user's DM based on the task objective.\n\n"
-        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
-        "If one exists, follow it.\n\n"
-        "Steps:\n"
-        "1. Read relevant context from your domain (/workspace/context/slack/) "
-        "and other workspace context as needed\n"
-        "2. Compose the message according to the objective and output spec\n"
-        "3. Send using platform_slack_send_message with the target channel_id\n\n"
-        "Message rules:\n"
-        "- Keep messages concise and scannable — Slack is not a document surface\n"
-        "- Use bullet points, not paragraphs\n"
-        "- Attribution: name sources when referencing workspace context\n"
-        "- Tone: match the channel's communication style\n\n"
-        "Your output: confirmation of what was sent and where."
-    ),
-
-    "notion-update": (
-        "You are the Notion Bot. Your job is to update or comment on a specific "
-        "Notion page based on the task objective.\n\n"
-        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
-        "If one exists, follow it.\n\n"
-        "Steps:\n"
-        "1. Read the target Notion page using your Notion tools\n"
-        "2. Read relevant workspace context as needed\n"
-        "3. Compose the update or comment according to the objective\n"
-        "4. Post using platform_notion_create_comment with the target page_id\n\n"
-        "Update rules:\n"
-        "- Preserve existing page structure — don't restructure\n"
-        "- Use Notion-native formatting (toggles, callouts, tables)\n"
-        "- Link related pages rather than duplicating content\n"
-        "- Keep updates focused — one update per objective\n\n"
-        "Your output: confirmation of what was posted and where."
-    ),
-
-    "github-digest": (
-        "You are the GitHub Bot. Read selected GitHub repositories and write context files. "
-        "You have a limited tool budget — be efficient.\n\n"
-        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
-        "If one exists, follow it — it was written by you while context was fresh.\n\n"
-        "**Every cycle — for each repo (one tool call per repo):**\n"
-        "1. platform_github_get_issues(repo='owner/repo', state='open', limit=20)\n"
-        "2. WriteFile: issues/PRs summary → scope='context', domain='github', "
-        "path='{owner}/{repo}/latest.md'\n\n"
-        "**First run or weekly refresh only (check Execution Awareness — skip if already done this week):**\n"
-        "- platform_github_get_readme → summarize in readme.md (what it does, key features — NOT the full README)\n"
-        "- platform_github_get_releases → releases.md (what shipped, with dates)\n"
-        "- platform_github_get_repo_metadata → metadata.md (description, topics, language, stars)\n\n"
-        "Summarization rules:\n"
-        "- Preserve attribution: 'Alice opened #123' not 'an issue was opened'\n"
-        "- Highlight: stale PRs (>7 days no review), blocked issues, release blockers\n"
-        "- Skip: bot PRs (dependabot, renovate) unless they fail\n"
-        "- For external/competitor repos: what shipped and what it signals\n\n"
-        "After all repos: append one dated signal entry per repo to /workspace/context/signals/.\n\n"
-        "Your output: a concise activity digest across observed repositories."
-    ),
-
-    # ADR-183: Commerce digest step
-    "commerce-digest": (
-        "You are the Commerce Bot. Your job is to read your commerce platform "
-        "and write business data to your context domains.\n\n"
-        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
-        "If one exists, follow it — it was written by you while context was fresh.\n\n"
-        "For EACH cycle:\n"
-        "1. Fetch products: platform_commerce_list_products\n"
-        "2. Fetch subscribers: platform_commerce_get_subscribers\n"
-        "3. Fetch revenue: platform_commerce_get_revenue\n"
-        "4. Fetch customers: platform_commerce_get_customers\n"
-        "5. Write revenue summary: WriteFile(scope='context', "
-        "domain='revenue', path='summary.md')\n"
-        "6. Write per-product performance: WriteFile(scope='context', "
-        "domain='revenue', path='products/{product-slug}/performance.md') for each product\n"
-        "7. Write customer tracker: WriteFile(scope='context', "
-        "domain='customers', path='_tracker.md')\n\n"
-        "Quantification rules:\n"
-        "- All figures precise: $10,450.23 MRR, 47 active subscribers (not ~50)\n"
-        "- Always include period comparison vs prior cycle when data exists\n"
-        "- Highlight: churn events, new subscriber spikes, revenue milestones\n"
-        "- Skip: $0 test orders, admin-generated transactions\n\n"
-        "Also append a dated signal entry to /workspace/context/signals/ with "
-        "key business metrics.\n\n"
-        "Your output: a business activity digest with precise revenue and subscriber data."
-    ),
-
-    # ADR-183 Phase 3: Commerce write-back step instructions
-    "commerce-create-product": (
-        "You are the Commerce Bot. Your job is to create a new product in the "
-        "user's commerce store based on the task objective.\n\n"
-        "Steps:\n"
-        "1. Read workspace context for product details — check the task objective "
-        "for product name, description, pricing, and billing interval\n"
-        "2. If a related task output exists (e.g., a report or brief to sell), "
-        "read it from /tasks/ outputs to inform the product description\n"
-        "3. Create the product: platform_commerce_create_product(name, description, "
-        "price_cents, interval)\n"
-        "4. Note: product is created as 'draft'. If the objective says to publish, "
-        "call platform_commerce_update_product(product_id, status='published')\n"
-        "5. Generate a checkout URL: platform_commerce_create_checkout(product_id)\n\n"
-        "Product rules:\n"
-        "- Description must be compelling — this is a store listing, not internal notes\n"
-        "- Price should match the objective. If not specified, do NOT guess — ask via output\n"
-        "- Include checkout URL in your output confirmation\n\n"
-        "Your output: confirmation of the created product with ID, name, price, "
-        "status, and checkout URL."
-    ),
-
-    "commerce-update-product": (
-        "You are the Commerce Bot. Your job is to update an existing product in "
-        "the user's commerce store based on the task objective.\n\n"
-        "Steps:\n"
-        "1. If you don't have the product_id, list products first: "
-        "platform_commerce_list_products()\n"
-        "2. Read the task objective for what to change (name, description, status)\n"
-        "3. Update: platform_commerce_update_product(product_id, ...changed fields)\n\n"
-        "Update rules:\n"
-        "- Only change what the objective requests — don't alter unmentioned fields\n"
-        "- When publishing (status='published'), verify the product has a name and price\n"
-        "- When archiving, note that existing subscribers are unaffected\n\n"
-        "Your output: confirmation of what was changed, with updated product details."
-    ),
-
-    "commerce-create-discount": (
-        "You are the Commerce Bot. Your job is to create a discount code in the "
-        "user's commerce store based on the task objective.\n\n"
-        "Steps:\n"
-        "1. Read the task objective for discount details: code, amount, type, scope\n"
-        "2. If scoped to a product and you don't have the product_id, list products: "
-        "platform_commerce_list_products()\n"
-        "3. Create: platform_commerce_create_discount(name, code, amount, "
-        "amount_type, product_id)\n\n"
-        "Discount rules:\n"
-        "- Code should be uppercase and memorable (e.g., LAUNCH20, WELCOME10)\n"
-        "- Default to percent unless the objective specifies a fixed amount\n"
-        "- If no product_id specified, create store-wide\n\n"
-        "Your output: confirmation of the created discount with code, amount, "
-        "type, and scope."
-    ),
-
-    "notion-digest": (
-        "You are the Notion Bot. Your job is to read selected Notion pages and "
-        "write per-page observation files to your context domain.\n\n"
-        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
-        "If one exists, follow it — it was written by you while context was fresh.\n\n"
-        "For EACH selected page/database:\n"
-        "1. Read the page using your Notion tools\n"
-        "2. Identify: what changed since last observation, new content, stale sections\n"
-        "3. Write findings to your context domain: WriteFile(scope='context', "
-        "domain='notion', path='{page-slug}/latest.md')\n\n"
-        "Change detection rules:\n"
-        "- Track meaningful content changes vs formatting-only edits\n"
-        "- Flag pages not updated in >30 days (potential staleness)\n"
-        "- Note high-frequency edit pages (active collaboration)\n"
-        "- Preserve page structure context — what fits where in the hierarchy\n\n"
-        "Also append a dated signal entry to /workspace/context/signals/ with "
-        "a one-line summary per page of what changed.\n\n"
-        "Your output: a change digest across all observed pages."
-    ),
-
-    # ADR-187: Trading step instructions
-    "trading-digest": (
-        "You are the Trading Bot. Your job is to sync your trading account "
-        "and market data into the workspace.\n\n"
-        "IMPORTANT: Check your Execution Awareness for a ## Next Cycle Directive. "
-        "If one exists, follow it — it was written by you while context was fresh.\n\n"
-        "Steps:\n"
-        "1. Read account status: platform_trading_get_account\n"
-        "2. Read current positions: platform_trading_get_positions\n"
-        "3. Read recent orders: platform_trading_get_orders\n"
-        "4. For each asset on the watchlist, read market data: "
-        "platform_trading_get_market_data\n"
-        "5. Update portfolio/ domain:\n"
-        "   - WriteFile(scope='context', domain='portfolio', path='_tracker.md') "
-        "(account snapshot: equity, cash, buying power)\n"
-        "   - WriteFile(scope='context', domain='portfolio', "
-        "path='{ticker}/profile.md') for each open position\n"
-        "   - WriteFile(scope='context', domain='portfolio', "
-        "path='history/{YYYY-MM}.md') (append new executions)\n"
-        "6. Update trading/ domain:\n"
-        "   - WriteFile(scope='context', domain='trading', "
-        "path='{ticker}/profile.md') (price + volume update)\n"
-        "   - WriteFile(scope='context', domain='trading', path='_tracker.md') "
-        "(freshness update per asset)\n\n"
-        "Quantification rules:\n"
-        "- All figures precise: $10,450.23 equity, 47.5 shares (not ~50)\n"
-        "- Always include period comparison (vs last cycle)\n\n"
-        "Also append a dated signal entry to /workspace/context/signals/ with "
-        "key portfolio metrics.\n\n"
-        "Your output: a digest of account state and market observations."
-    ),
+    # ADR-207 P4a: slack-digest / slack-respond / notion-digest / notion-update /
+    # github-digest / commerce-digest / commerce-create-product /
+    # commerce-update-product / commerce-create-discount / trading-digest /
+    # trading-execute step instructions DELETED along with their TASK_TYPES
+    # entries. The bot roles they addressed ("You are the Slack Bot...") no
+    # longer exist. Operators author equivalent work via YARNNN using a
+    # specialist + required_capabilities declaration in TASK.md.
 
     "trading-signal": (
         "You are generating trading signals based on accumulated market "
@@ -420,35 +255,7 @@ STEP_INSTRUCTIONS = {
         "Your output: today's signal report with actionable recommendations."
     ),
 
-    "trading-execute": (
-        "You are the Trading Bot. Your job is to execute trades based on "
-        "approved trading signals.\n\n"
-        "IMPORTANT: This task places real orders (or paper orders). "
-        "Execute ONLY signals marked as approved in the signal output.\n\n"
-        "Pre-check: Read the latest signal output from the trading-signal task. "
-        "If no new approved signals exist since last execution, SKIP — produce "
-        "a brief 'no signals to execute' output and exit.\n\n"
-        "Steps:\n"
-        "1. Read the latest signal output from the trading-signal task\n"
-        "2. Read current positions: platform_trading_get_positions\n"
-        "3. Read account status: platform_trading_get_account\n"
-        "4. For each approved signal:\n"
-        "   - Validate: sufficient buying power, position size within limits\n"
-        "   - Execute: platform_trading_submit_order\n"
-        "   - Log: WriteFile(scope='context', domain='portfolio', "
-        "path='history/{YYYY-MM}.md') (append execution)\n"
-        "   - Update: WriteFile(scope='context', domain='portfolio', "
-        "path='{ticker}/profile.md')\n"
-        "5. Update portfolio/_tracker.md with new account state\n\n"
-        "Position sizing rules:\n"
-        "- Never exceed 10%% of portfolio in a single position\n"
-        "- Never exceed 5 open positions simultaneously\n"
-        "- Always use limit orders (not market orders)\n"
-        "- Set stop-loss at 5%% below entry for all new positions\n\n"
-        "Daily loss limit: if portfolio drops >3%% in a day, skip remaining "
-        "signals and log escalation to portfolio/_tracker.md.\n\n"
-        "Your output: execution confirmation with order details."
-    ),
+    # ADR-207 P4a: trading-execute step instruction DELETED (was bot-addressed).
 
     "portfolio-review": (
         "You are producing a weekly portfolio performance review.\n\n"
@@ -750,163 +557,11 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     # directory + signal log. Cross-pollination into canonical domains is out
     # of scope — these are awareness surfaces for TP, not steward inputs.
 
-    "slack-digest": {
-        "display_name": "Slack Sync",
-        "default_title": "Slack Sync",
-        "description": "Reads your selected Slack channels and captures decisions, action items, and key discussions.",
-        "output_kind": "accumulates_context",
-        "default_delivery": "none",
-        "registry_default_team": [],
-        "default_mode": "recurring",
-        "default_schedule": "daily",
-        "output_format": "html",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "slack_bot",
-                "step": "slack-digest",
-                "instruction": STEP_INSTRUCTIONS["slack-digest"],
-            },
-        ],
-        "context_reads": ["slack", "signals"],
-        "context_writes": ["slack", "signals"],
-        "context_sources": ["platforms"],
-        "requires_platform": "slack",
-        "default_objective": {
-            "deliverable": "Slack activity digest",
-            "audience": "You and your team",
-            "purpose": "Capture decisions, action items, and key discussions",
-            "format": "Scannable digest with attribution",
-        },
-        "default_deliverable": {
-            "output": {"format": "html", "word_count": "500-1500", "layout": ["Decisions", "Action Items", "Key Discussions", "FYIs"]},
-            "assets": [],
-            "quality_criteria": [
-                "Decisions and action items attributed to people",
-                "Thread-level summary, not message-level",
-                "Skip bot messages and routine posts",
-            ],
-        },
-    },
-
-    "notion-digest": {
-        "display_name": "Notion Sync",
-        "default_title": "Notion Sync",
-        "description": "Reads your selected Notion pages and tracks changes, new content, and updates.",
-        "output_kind": "accumulates_context",
-        "default_delivery": "none",
-        "registry_default_team": [],
-        "default_mode": "recurring",
-        "default_schedule": "daily",
-        "output_format": "html",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "notion_bot",
-                "step": "notion-digest",
-                "instruction": STEP_INSTRUCTIONS["notion-digest"],
-            },
-        ],
-        "context_reads": ["notion", "signals"],
-        "context_writes": ["notion", "signals"],
-        "context_sources": ["platforms"],
-        "requires_platform": "notion",
-        "default_objective": {
-            "deliverable": "Notion change digest",
-            "audience": "You and your team",
-            "purpose": "Track content changes and flag stale pages",
-            "format": "Change log with staleness flags",
-        },
-        "default_deliverable": {
-            "output": {"format": "html", "word_count": "500-1500", "layout": ["Changes Summary", "Updated Pages", "Stale Content"]},
-            "assets": [],
-            "quality_criteria": [
-                "Distinguish meaningful edits from formatting changes",
-                "Flag pages not updated in >30 days",
-                "Links to original Notion pages",
-            ],
-        },
-    },
-
-    "github-digest": {
-        "display_name": "GitHub Sync",
-        "default_title": "GitHub Sync",
-        "description": "Reads your selected GitHub repos and tracks issues, PRs, and recent activity.",
-        "output_kind": "accumulates_context",
-        "default_delivery": "none",
-        "registry_default_team": [],
-        "default_mode": "recurring",
-        "default_schedule": "daily",
-        "output_format": "html",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "github_bot",
-                "step": "github-digest",
-                "instruction": STEP_INSTRUCTIONS["github-digest"],
-            },
-        ],
-        "context_reads": ["github", "signals"],
-        "context_writes": ["github", "signals"],
-        "context_sources": ["platforms"],
-        "requires_platform": "github",
-        "default_objective": {
-            "deliverable": "GitHub activity digest",
-            "audience": "You and your team",
-            "purpose": "Track issues, PRs, and repository activity",
-            "format": "Scannable digest with attribution",
-        },
-        "default_deliverable": {
-            "output": {"format": "html", "word_count": "500-1500", "layout": ["Issues", "Pull Requests", "Activity Summary"]},
-            "assets": [],
-            "quality_criteria": [
-                "Issues and PRs attributed to authors",
-                "Stale PRs (>7 days) flagged",
-                "Skip bot-generated PRs unless they fail",
-            ],
-        },
-    },
-
-    # ── Commerce Tasks (ADR-183: Commerce Substrate) ──
-
-    "commerce-digest": {
-        "display_name": "Commerce Sync",
-        "default_title": "Commerce Sync",
-        "description": "Reads your commerce platform and tracks subscribers, revenue, and product performance.",
-        "output_kind": "accumulates_context",
-        "default_delivery": "none",
-        "registry_default_team": [],
-        "default_mode": "recurring",
-        "default_schedule": "daily",
-        "output_format": "html",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "commerce_bot",
-                "step": "commerce-digest",
-                "instruction": STEP_INSTRUCTIONS["commerce-digest"],
-            },
-        ],
-        "context_reads": ["customers", "revenue", "signals"],
-        "context_writes": ["customers", "revenue", "signals"],
-        "context_sources": ["platforms"],
-        "requires_platform": "commerce",
-        "default_objective": {
-            "deliverable": "Commerce activity digest",
-            "audience": "You",
-            "purpose": "Track subscribers, revenue, and product performance",
-            "format": "Scannable digest with precise figures",
-        },
-        "default_deliverable": {
-            "output": {"format": "html", "word_count": "500-1500", "layout": ["Revenue", "Subscribers", "Products", "Orders"]},
-            "assets": [],
-            "quality_criteria": [
-                "Revenue and subscriber counts precise (not rounded)",
-                "Period-over-period comparison included",
-                "Churn events and new subscriber spikes highlighted",
-            ],
-        },
-    },
+    # ADR-207 P4a: slack-digest / notion-digest / github-digest / commerce-digest
+    # DELETED. Bot roles they dispatched to (slack_bot / notion_bot / github_bot /
+    # commerce_bot) no longer exist. Operators requesting a platform digest ask
+    # YARNNN, who authors the TASK.md directly via ManageTask(create) with the
+    # appropriate specialist + required_capabilities declaration.
 
     "revenue-report": {
         "display_name": "Revenue Report",
@@ -966,239 +621,15 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     # Bots can write back to their platform — distinct from digest (read) tasks.
     # Write-back is intentional delivery, not observation.
 
-    "slack-respond": {
-        "display_name": "Slack Post",
-        "description": "Posts a message to a Slack channel or DM, composed from your workspace context.",
-        "output_kind": "external_action",
-        "default_delivery": "none",
-        "registry_default_team": ["tracker", "writer"],
-        "default_mode": "reactive",
-        "default_schedule": "on-demand",
-        "output_format": "text",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "slack_bot",
-                "step": "slack-respond",
-                "instruction": STEP_INSTRUCTIONS["slack-respond"],
-            },
-        ],
-        "context_reads": ["slack", "signals"],
-        "context_writes": [],
-        "context_sources": ["platforms", "workspace"],
-        "requires_platform": "slack",
-        "default_objective": {
-            "deliverable": "Slack message",
-            "audience": "Channel participants",
-            "purpose": "Deliver workspace intelligence to Slack",
-            "format": "Concise Slack message with bullet points",
-        },
-        "default_deliverable": {
-            "output": {"format": "text", "word_count": "50-300", "layout": ["Key Points", "Context"]},
-            "assets": [],
-            "quality_criteria": [
-                "Concise and scannable — Slack is not a document surface",
-                "Sources attributed when referencing workspace context",
-                "Appropriate tone for the target channel",
-            ],
-        },
-    },
+    # ADR-207 P4a: slack-respond / notion-update DELETED (bot-dispatched external
+    # actions). Operators author Slack / Notion write tasks via YARNNN with a
+    # specialist + `**Required Capabilities:** write_slack` / `write_notion`.
 
-    "notion-update": {
-        "display_name": "Notion Update",
-        "description": "Posts a comment or update to a Notion page, composed from your workspace context.",
-        "output_kind": "external_action",
-        "default_delivery": "none",
-        "registry_default_team": ["tracker", "writer"],
-        "default_mode": "reactive",
-        "default_schedule": "on-demand",
-        "output_format": "text",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "notion_bot",
-                "step": "notion-update",
-                "instruction": STEP_INSTRUCTIONS["notion-update"],
-            },
-        ],
-        "context_reads": ["notion", "signals"],
-        "context_writes": [],
-        "context_sources": ["platforms", "workspace"],
-        "requires_platform": "notion",
-        "default_objective": {
-            "deliverable": "Notion page comment or update",
-            "audience": "Page collaborators",
-            "purpose": "Deliver workspace intelligence to Notion",
-            "format": "Structured comment with Notion formatting",
-        },
-        "default_deliverable": {
-            "output": {"format": "text", "word_count": "100-500", "layout": ["Summary", "Details"]},
-            "assets": [],
-            "quality_criteria": [
-                "Preserves existing page structure",
-                "Uses Notion-native formatting",
-                "Focused — one update per objective",
-            ],
-        },
-    },
-
-    # ── Commerce Write-Back Tasks (ADR-183 Phase 3: agent-driven commerce ops) ──
-    # Commerce Bot creates/updates products and discount codes on the commerce
-    # platform. Same external_action pattern as slack-respond / notion-update.
-
-    "commerce-create-product": {
-        "display_name": "Create Product",
-        "description": "Creates a new product in the commerce store with pricing and description.",
-        "output_kind": "external_action",
-        "default_delivery": "none",
-        "registry_default_team": ["commerce_bot"],
-        "default_mode": "reactive",
-        "default_schedule": "on-demand",
-        "output_format": "text",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "commerce_bot",
-                "step": "commerce-create-product",
-                "instruction": STEP_INSTRUCTIONS["commerce-create-product"],
-            },
-        ],
-        "context_reads": ["revenue", "customers"],
-        "context_writes": [],
-        "context_sources": ["workspace"],
-        "requires_platform": "commerce",
-        "default_objective": {
-            "deliverable": "Commerce product listing",
-            "audience": "Potential subscribers/buyers",
-            "purpose": "Create a product in the commerce store for sale",
-            "format": "Product with name, description, pricing, and checkout URL",
-        },
-        "default_deliverable": {
-            "output": {"format": "text", "word_count": "50-200", "layout": ["Confirmation"]},
-            "assets": [],
-            "quality_criteria": [
-                "Product name is clear and descriptive",
-                "Price matches the stated objective",
-                "Checkout URL is included in confirmation",
-            ],
-        },
-    },
-
-    "commerce-update-product": {
-        "display_name": "Update Product",
-        "description": "Updates an existing product's name, description, or status (publish/archive).",
-        "output_kind": "external_action",
-        "default_delivery": "none",
-        "registry_default_team": ["commerce_bot"],
-        "default_mode": "reactive",
-        "default_schedule": "on-demand",
-        "output_format": "text",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "commerce_bot",
-                "step": "commerce-update-product",
-                "instruction": STEP_INSTRUCTIONS["commerce-update-product"],
-            },
-        ],
-        "context_reads": ["revenue"],
-        "context_writes": [],
-        "context_sources": ["workspace"],
-        "requires_platform": "commerce",
-        "default_objective": {
-            "deliverable": "Updated product listing",
-            "audience": "Existing and potential subscribers",
-            "purpose": "Update product details or status on the commerce store",
-            "format": "Confirmation of changes applied",
-        },
-        "default_deliverable": {
-            "output": {"format": "text", "word_count": "50-150", "layout": ["Confirmation"]},
-            "assets": [],
-            "quality_criteria": [
-                "Only requested fields were changed",
-                "Updated details confirmed in output",
-            ],
-        },
-    },
-
-    "commerce-create-discount": {
-        "display_name": "Create Discount Code",
-        "description": "Creates a discount code — percentage or fixed amount, store-wide or product-scoped.",
-        "output_kind": "external_action",
-        "default_delivery": "none",
-        "registry_default_team": ["commerce_bot"],
-        "default_mode": "reactive",
-        "default_schedule": "on-demand",
-        "output_format": "text",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "commerce_bot",
-                "step": "commerce-create-discount",
-                "instruction": STEP_INSTRUCTIONS["commerce-create-discount"],
-            },
-        ],
-        "context_reads": ["revenue", "customers"],
-        "context_writes": [],
-        "context_sources": ["workspace"],
-        "requires_platform": "commerce",
-        "default_objective": {
-            "deliverable": "Discount code",
-            "audience": "Customers and prospects",
-            "purpose": "Create a promotional discount code",
-            "format": "Discount code with amount, type, and applicable products",
-        },
-        "default_deliverable": {
-            "output": {"format": "text", "word_count": "30-100", "layout": ["Confirmation"]},
-            "assets": [],
-            "quality_criteria": [
-                "Code is uppercase and memorable",
-                "Amount and type match the objective",
-                "Scope (store-wide or product) confirmed",
-            ],
-        },
-    },
-
-    # ── Trading Tasks (ADR-187: Trading Integration) ──
-
-    "trading-digest": {
-        "display_name": "Trading Sync",
-        "default_title": "Trading Sync",
-        "description": "Reads your trading account and market data, updates trading and portfolio context domains.",
-        "output_kind": "accumulates_context",
-        "default_delivery": "none",
-        "registry_default_team": [],
-        "default_mode": "recurring",
-        "default_schedule": "daily",
-        "output_format": "html",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "trading_bot",
-                "step": "trading-digest",
-                "instruction": STEP_INSTRUCTIONS["trading-digest"],
-            },
-        ],
-        "context_reads": ["trading", "portfolio"],
-        "context_writes": ["trading", "portfolio"],
-        "context_sources": ["platforms"],
-        "requires_platform": "trading",
-        "default_objective": {
-            "deliverable": "Trading account and market data digest",
-            "audience": "You",
-            "purpose": "Track positions, market data, and portfolio state",
-            "format": "Scannable digest with precise figures",
-        },
-        "default_deliverable": {
-            "output": {"format": "html", "word_count": "500-1500", "layout": ["Account", "Positions", "Market Data"]},
-            "assets": [],
-            "quality_criteria": [
-                "All figures precise (not rounded)",
-                "Period-over-period comparison included",
-                "Watchlist coverage and freshness noted",
-            ],
-        },
-    },
+    # ADR-207 P4a: commerce-create-product / commerce-update-product /
+    # commerce-create-discount / trading-digest DELETED. commerce_bot /
+    # trading_bot roles no longer exist. Operators author commerce + trading
+    # write tasks via YARNNN with a specialist + `**Required Capabilities:**
+    # write_commerce` / `write_trading` declarations (and corresponding reads).
 
     "trading-signal": {
         "display_name": "Trading Signals",
@@ -1239,44 +670,9 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
         },
     },
 
-    "trading-execute": {
-        "display_name": "Trade Execution",
-        "default_title": "Trade Execution",
-        "description": "Executes approved trading signals via Alpaca API. Skips if no new approved signals.",
-        "output_kind": "external_action",
-        "default_delivery": "none",
-        "registry_default_team": [],
-        "default_mode": "recurring",
-        "default_schedule": "daily",
-        "output_format": "html",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "trading_bot",
-                "step": "trading-execute",
-                "instruction": STEP_INSTRUCTIONS["trading-execute"],
-            },
-        ],
-        "context_reads": ["portfolio"],
-        "context_writes": ["portfolio"],
-        "context_sources": ["workspace"],
-        "requires_platform": "trading",
-        "default_objective": {
-            "deliverable": "Trade execution confirmation",
-            "audience": "You",
-            "purpose": "Execute approved signals with position sizing guardrails",
-            "format": "Execution log with order details",
-        },
-        "default_deliverable": {
-            "output": {"format": "html", "word_count": "100-500", "layout": ["Executions", "Portfolio Update"]},
-            "assets": [],
-            "quality_criteria": [
-                "Only approved signals executed",
-                "Position sizing limits enforced",
-                "Order details precise (price, qty, type)",
-            ],
-        },
-    },
+    # ADR-207 P4a: trading-execute DELETED. trading_bot role no longer exists.
+    # Operators author trade-execute tasks via YARNNN with a specialist +
+    # `**Required Capabilities:** write_trading` declaration.
 
     "portfolio-review": {
         "display_name": "Portfolio Review",

@@ -6,6 +6,168 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.12] - ADR-207 prompt streamlining (self-declaration primary, update-type path retired)
+
+### Changed
+
+- `api/agents/yarnnn_prompts/behaviors.py` — "update or fill in a task" section REWRITTEN. The prior instruction told YARNNN to call `ManageTask(action="update", type_key="...")` to reshape an under-defined task. That path was DELETED in ADR-207 P4b (commit 3353eb9) — `_handle_update` now only accepts `schedule`, `delivery`, `mode`, `sources`. New guidance: use `UpdateContext(target="task", feedback_target="objective", text=...)` for refinement; author a new task + archive the old for shape changes. Two worked examples replaced (objective refinement + cadence flip).
+- `api/agents/yarnnn_prompts/workspace.py` — matching fix in the "update or fill in a task" micro-section. Removed the `type_key` update instruction; added ADR-207 P4b note + pointers to Task Creation Routes for full self-declaration path.
+- `api/agents/yarnnn_prompts/onboarding.py` — work-first task mapping section reframed: the five surviving track-* / research-topics shortcuts remain valid as `type_key` convenience, but anything outside those five must go through self-declaration. Explicit prohibition: do NOT force-fit novel work (trading signals, commerce digests, SKU sourcing) to a stale registry entry. Example confirmation message updated — "Slack Sync (Slack Bot)" → "Slack Awareness (Tracker + read_slack capability — ADR-207 P4a)".
+- `api/agents/yarnnn_prompts/tools.py` — `ManageTask(action="create")` entry rewritten. Self-declaration is primary, full example with all ADR-207 fields (output_kind, context_reads/writes, required_capabilities). `type_key` demoted to "seed-template shortcut (only for the 21 surviving keys)". Required/optional field lists updated.
+
+### Expected behavior
+
+- YARNNN no longer attempts `ManageTask(action="update", type_key="...")` — that call would fail with `no_changes` (no registered param) or confuse the operator with legacy framing.
+- Prompt coherence pass for ADR-207: every reference to the registry as a picker is now scoped to the 21-entry convenience surface; novel work is authored via self-declaration.
+- Platform-awareness tasks proposed by YARNNN use the `Tracker + read_{platform} + summarize` pattern consistently — no residual "Slack Bot" references in live prompt examples.
+
+### ADRs
+
+Tight coherence pass following `ADR-207 P4b` (commit 3353eb9). No new architectural decision — this commit aligns YARNNN's self-image with the capability/self-declaration surface that shipped last commit.
+
+---
+
+## [2026.04.22.11] - ADR-207 P4b (TASK_TYPES no longer dispatch-authoritative)
+
+### Changed
+
+**Dispatch is TASK.md-only (task_pipeline.py).** Every registry fallback deleted:
+- `get_task_type(type_key).surface_type` → use `task_info["surface_type"]` or default `"report"`
+- `get_task_type(type_key).page_structure` → use `task_info["page_structure"]` exclusively (both compose sites: single-step 6d and pipeline derive-output)
+- `get_bootstrap_criteria(type_key)` → DELETED from awareness/phase detection + system-verification coverage check. Phase progression now tracked through `_tracker.md` content only.
+- `STEP_INSTRUCTIONS` fallbacks → DELETED from both single-step and pipeline paths. TASK.md `## Process` is authoritative.
+- `parse_task_md` extended: parses `**Required Capabilities:** ...` (ADR-207 P3) and `**Emits Proposal:** true` (ADR-207 D7).
+
+**ManageTask schema extended for self-declaration** (`api/services/primitives/manage_task.py`):
+- New fields on `action="create"`: `output_kind`, `context_reads`, `context_writes`, `required_capabilities`, `emits_proposal`, `process_steps`, `deliverable_md`.
+- `_build_custom_task_md` serializes all of them into TASK.md metadata/sections so `parse_task_md` round-trips.
+- `type_key` is flagged DEPRECATED in the tool schema description — documentation points operators to the self-declaration path.
+- `_handle_update` `new_type_key` change path DELETED. Changing task shape is now "author a new task + archive old".
+
+**Routes:**
+- `GET /api/tasks/types` and `GET /api/tasks/types/{key}` DELETED. YARNNN is the sole task-authoring surface — no user-facing type catalog.
+- `/api/tasks/{slug}/outputs/{date}/steps` pipeline_definition now reads parsed TASK.md `process_steps` directly (no `get_task_type` import).
+
+**Frontend (`web/`):**
+- `api.tasks.listTypes` + `api.tasks.getType` methods DELETED from the client (server endpoints gone).
+- `CreateTaskModal.useEffect` registry fetch DELETED — modal is a minimal quick-capture form only. Full task authoring happens via YARNNN chat.
+
+**YARNNN workspace prompt (`api/agents/yarnnn_prompts/workspace.py`):**
+- Rewrote the `ManageTask(action="create", ...)` section around self-declaration as the primary (and only recommended) path. Two worked examples shipped: Sensor task (`accumulates_context`, `read_trading` + `web_search`, writes trading/market domains) and Proposer task (`external_action`, `write_trading`, `emits_proposal=true`). `type_key` is framed as a deprecated convenience only.
+
+**`services/task_types.py` module docstring** rewritten to flag registry status under ADR-207 P4b: TASK_TYPES + 8 helpers preserved as a frozen seed-template library used only by two creation-time callers (`_handle_create`'s type_key convenience + `workspace_init.materialize_back_office_task`). No caller reads TASK_TYPES at dispatch time. Removal trajectory documented.
+
+### Expected behavior
+
+- A task created via self-declaration (no `type_key`) writes a complete TASK.md and dispatches identically to a type_key-seeded task — same pipeline, same capability gate, same compose flow.
+- Tasks with `**Required Capabilities:** write_trading` fail fast when Alpaca isn't connected; with `**Emits Proposal:** true` they're labeled "proposer" in the derivation report (ADR-207 P5).
+- `_handle_update` now only accepts `schedule`, `delivery`, `mode`, or `sources`. Operators wanting a shape change create a new task + archive the old.
+- Frontend `/work` Create Task modal no longer attempts to fetch the type catalog — silent graceful degradation if any consumer calls the deleted client methods (will error at call site, visible during review).
+- `task_pipeline.execute_task` no longer imports from `services.task_types` anywhere in the hot path. Registry is callable only from the two creation-time seed callers.
+
+### Deferred
+
+- **Full TASK_TYPES deletion** — depends on (a) operator migrating off type_key convenience for new tasks, (b) back-office TASK.md templates moving inline to `workspace_init.py`. Until both, the 21 surviving registry entries + 8 helpers stay frozen and callable.
+- **CreateTaskModal full rework** — current change is a minimal "stop fetching types" patch. Full self-declaration form (agent picker + required_capabilities chips + context domain selector) is a separate frontend effort.
+
+### ADRs
+
+`docs/adr/ADR-207-primary-action-centric-workflow.md` — Phase 4b partially implemented. Remaining scope: full registry deletion + CreateTaskModal self-declaration UI + P6 alpha persona re-author.
+
+---
+
+## [2026.04.22.10] - ADR-207 P5 (derive_task_set + prompt wiring)
+
+### Added
+
+- **`api/services/task_derivation.py`** — new pure-Python helper `build_derivation_report(client, user_id) -> str`. Reads Mandate + active platform connections + existing tasks + their TASK.md self-declarations; classifies each task by loop role (`sensor` / `proposer` / `reviewer` / `reconciler` / `learner` / `decision-support`); emits a markdown report listing capability surface, existing tasks grouped by role, and coverage-gap hints (no proposer, no sensor, no decision-support, missing reconciler). Pure inspection — zero LLM calls, zero writes, zero side effects.
+- **Auto-regeneration hooks** — `/workspace/memory/task_derivation.md` is rewritten:
+  - On `UpdateContext(target="mandate")` (the moment the hard-gate unblocks).
+  - On `ManageTask(action="create")` (so subsequent proposals see the updated chain).
+  Both write paths are wrapped in try/except — derivation failure is non-fatal so the primary action still succeeds.
+
+### Changed
+
+- **YARNNN workspace prompt** (`api/agents/yarnnn_prompts/workspace.py`) — new "Derivation-First Scaffolding (ADR-207 Phase 5)" section above the existing "Creating Tasks" flow. Instructs YARNNN to (1) ensure Mandate is authored, (2) read `/workspace/memory/task_derivation.md` (or reason equivalently over compact index + capability availability + existing tasks), (3) propose the minimum task set with loop-role labels, (4) confirm with operator before any `ManageTask(create)` call. Heuristic check: a Writer-only task downstream of empty context domains will fail at dispatch — propose the Sensor upstream first.
+
+### Expected behavior
+
+- First-time operator authors Mandate → derivation report writes to `/workspace/memory/task_derivation.md` → YARNNN reads it → proposes Sensor + Proposer + decision-support chain → operator confirms → YARNNN scaffolds via ManageTask(create) calls.
+- Every subsequent ManageTask(create) refreshes the report so over-scaffolding (duplicate sensors) and under-scaffolding (Writer-without-Sensor) are visible at the next proposal turn.
+- Loop-role labels match ADR-207 D1: sensor / proposer / reviewer / reconciler / learner / decision-support. Operators reading the report see the Loop shape, not a flat task list.
+
+### Deferred
+
+- **P4b** — full TASK_TYPES registry dissolution remains deferred; P5 lands additively on top of the current registry (derivation reads TASK.md self-declarations, which are present on all tasks today). The derivation helper is already compatible with a post-P4b world where TASK_TYPES is gone entirely.
+
+### ADRs
+
+`docs/adr/ADR-207-primary-action-centric-workflow.md` — Phase 5 implemented. Remaining scope is P4b (TASK_TYPES registry dissolve) + P6 (alpha persona re-author + E2E re-run per updated contract).
+
+---
+
+## [2026.04.22.9] - ADR-207 P4a (Platform Bots dissolved into capability gates)
+
+### Changed
+
+**Agent framework.** `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, and `trading_bot` templates DELETED from `AGENT_TEMPLATES` and `LEGACY_ROLE_MAP`. The five platform-bot agent classes no longer exist. Capabilities (`read_slack`, `write_slack`, `read_notion`, `write_notion`, `read_github`, `read_commerce`, `write_commerce`, `read_trading`, `write_trading`) survive with their `platform_connection_requirement` declaration from P3 — any specialist (researcher / analyst / writer / tracker / designer) can invoke them when the connection is active.
+
+**Agent creation.** `PLATFORM_BOT_ROLES`, `_BOT_ROLE_TO_PLATFORM`, `delete_platform_bot()` DELETED from `agent_creation.py`. `classify_role()` simplified to three classes (`yarnnn`, `specialist`, `user_authored`) — no `platform_bot` branch. `ensure_infrastructure_agent()` no longer runs the per-platform connection check; capability gating at dispatch handles that.
+
+**Task type registry.** 11 TASK_TYPES entries that routed to bot roles DELETED: `slack-digest`, `notion-digest`, `github-digest`, `commerce-digest`, `slack-respond`, `notion-update`, `commerce-create-product`, `commerce-update-product`, `commerce-create-discount`, `trading-digest`, `trading-execute`. Their matching STEP_INSTRUCTIONS entries also deleted. Remaining 21 TASK_TYPES dispatch to specialists only (verified). Registry is now a curated template library per ADR-188 — operators compose platform work directly via YARNNN using specialist + `**Required Capabilities:**` declaration.
+
+**Routes.** `routes/integrations.py`: `_PROVIDER_TO_BOT_ROLE` + bot create/delete calls on OAuth connect (Slack/Notion/GitHub/Commerce/Trading) REMOVED. `_scaffold_platform_digest_task()` + `_PROVIDER_TO_DIGEST` DELETED — platform connect no longer auto-scaffolds a digest task (per ADR-206 D5, YARNNN proposes tasks based on Mandate + connected platforms). `routes/account.py`: platform-bot deletion block removed from `clear_integrations`.
+
+**YARNNN prompts.** `agents/yarnnn_prompts/platforms.py`, `onboarding.py`, `workspace.py`, `behaviors.py`, `tools.py` all rewritten to reflect ADR-207 P4a: no bot role, no `slack-digest` / `notion-digest` / etc. type_keys, platform-awareness + write-back composed from specialist + capability + context domain. Example pattern documented: tracker + `**Required Capabilities:** read_slack, summarize` + `**Context Writes:** slack`.
+
+**Migration 157** (`supabase/migrations/157_adr207_p4a_platform_bots_dissolved.sql`): applied 2026-04-22. DELETEs tasks with bot-dispatched slugs (slack-sync, notion-sync, github-sync, commerce-sync, trading-sync, slack-respond, notion-update, commerce-create-*, commerce-update-*, commerce-create-discount, trading-execute), DELETEs any remaining bot agent rows, rebuilds `agents_role_check` without bot role values. Production state: 0 bot agents, 0 bot tasks remaining.
+
+### Expected behavior
+
+- OAuth connect (Slack / Notion / GitHub / Commerce / Trading) inserts/updates only `platform_connections`. No agent row materializes. No task scaffolds automatically.
+- Platform capabilities unlock the moment the connection goes `active` — any specialist task declaring `**Required Capabilities:** read_slack` on Slack-connected user dispatches successfully. Same task on a Slack-not-connected user fails fast with `"Required capability unavailable: 'read_slack' (connect slack first)"`.
+- OAuth disconnect only deletes `platform_connections` row + context files under `/workspace/context/{platform}/`. No bot agent rows to cascade-delete.
+- YARNNN authors platform-awareness + write-back tasks as specialist + capability + context domain. The old "create a slack-digest" shortcut is gone; YARNNN composes the TASK.md.
+- Any existing TASK.md in production that references a bot agent fails at dispatch with `no_agent_resolved` / `unknown_role`. Migration 157 proactively DELETEs these tasks to prevent silent scheduler runs into broken state.
+
+### Deferred
+
+- **P4b** — full TASK_TYPES registry dissolution. `_handle_create` + `_handle_update` accept self-declaration fields directly; 8 helpers (`get_task_type`, `get_default_mode`, `delivery_requires_approval`, `get_bootstrap_criteria`, `list_task_types`, `resolve_process_agents`, `build_task_md_from_type`, `build_deliverable_md_from_type`) deleted; 15+ callers refactored; `/api/tasks/types` endpoints removed; frontend `TaskType` interface cleanup. Dedicated session — 3+ hour refactor across ~15 files with test + frontend coverage.
+- **P5** — `derive_task_set()` helper + YARNNN prompt guidance for showing the derived task chain before scaffolding.
+
+### ADRs
+
+`docs/adr/ADR-207-primary-action-centric-workflow.md` — Phase 3 bot-row cleanup completed alongside Phase 4a bot-role dissolution. The capability gate from P3 (commit 352f8b9) is now the sole mechanism for platform access — no bot agent class exists as a parallel path.
+
+---
+
+## [2026.04.22.8] - ADR-207 P3 (Platform Bots → Capabilities, gate only)
+
+### Changed
+
+- `api/services/agent_framework.py`: Every entry in `CAPABILITIES` now declares `platform_connection_requirement`. Internal cognitive + tool + asset + composition capabilities declare `None`. Platform capabilities (`read_slack`, `write_slack`, `read_notion`, `write_notion`, `read_github`, `read_commerce`, `write_commerce`, `read_trading`, `write_trading`) declare `{platform, status: "active"}`. The registry comment is updated inline.
+- `api/services/agent_framework.py`: `get_capability_requirement(name)`, `capability_available(user_id, name, client)`, and `unavailable_capabilities(user_id, names, client)` added. Unknown capability names report `reason="unknown_capability"` so typos in TASK.md fail loudly rather than silently.
+- `api/services/task_pipeline.py::parse_task_md`: parses `**Required Capabilities:** cap1, cap2, ...` metadata field into `result["required_capabilities"]` (defaults to empty list).
+- `api/services/task_pipeline.py::execute_task`: new capability gate fires at step 1c.5 (before the single-step / multi-step branch). Any missing or unknown required capability fails the run with a clear operator-facing message ("Required capability unavailable: 'write_trading' (connect trading first)").
+
+### Expected behavior
+
+- Tasks declaring `**Required Capabilities:** read_slack` fail cleanly when Slack isn't connected. The failure message names the platform to connect.
+- Tasks declaring unknown capabilities (typos) fail with an `unknown_capability` reason instead of going through dispatch and silently producing useless output.
+- Tasks with no `**Required Capabilities:**` line run exactly as before (additive-only change).
+- No bot agent rows are deleted yet, no TASK_TYPES entries are removed, no AGENT_TEMPLATES entries are dropped — those ship in P4 as a single coupled cutover (TASK_TYPES references bot roles in `agent_type`, so the two deletions must land together to preserve a green state).
+
+### Not in this commit
+
+- Bot deletion + `TASK_TYPES` sunset + migration 157 + `agents_role_check` update → ship together in P4.
+- `derive_task_set()` helper + YARNNN prompt wiring → P5.
+
+### ADRs
+
+`docs/adr/ADR-207-primary-action-centric-workflow.md` (Phase 3 gate portion implemented; bot-row deletion deferred to P4).
+
+---
+
 ## [2026.04.22.7] - ADR-207 P2 (Mandate + hard gate) + Obs 07 watchdog
 
 ### Changed
