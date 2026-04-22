@@ -1,9 +1,9 @@
-# E2E Execution Contract — alpha-trader post-ADR-205/206 validation
+# E2E Execution Contract — alpha-trader post-ADR-205/206/207 validation
 
-> **Status**: Canonical for the first post-purge E2E run (2026-04-22+)
+> **Status**: Canonical for the first post-purge E2E run (2026-04-22+). v2 revision adds ADR-207 Mandate-first flow + capability gate + self-declaration task authoring.
 > **Scope**: alpha-trader workspace (`user_id=2be30ac5-b3cf-46b1-aeb8-af39cd351af4`), paper Alpaca
-> **Grounded in**: `ALPHA-1-PLAYBOOK.md` (§3A alpha-trader persona, §2 governance, §6 anti-discretion ladder), ADR-206 (three-layer operator view), ADR-194 v2 (Reviewer seat), ADR-195 v2 (money-truth)
-> **Purpose**: explicit alignment on how Claude acts on behalf of the operator during the first end-to-end exercise of the post-purge ADR-206 substrate. Written before the E2E so drift is visible during the run.
+> **Grounded in**: `ALPHA-1-PLAYBOOK.md` (§3A alpha-trader persona, §2 governance, §6 anti-discretion ladder), ADR-206 (three-layer operator view), ADR-207 (Mandate + Primary Action + capability-gated dispatch + self-declaration), ADR-194 v2 (Reviewer seat), ADR-195 v2 (money-truth)
+> **Purpose**: explicit alignment on how Claude acts on behalf of the operator during the first end-to-end exercise of the post-purge ADR-205/206/207 substrate. Written before the E2E so drift is visible during the run.
 
 ---
 
@@ -178,9 +178,12 @@ Batch commit of observations at end of E2E, one commit with message `observe(alp
 
 **In scope**:
 - Clean-slate `workspace_init` first-login simulation.
-- Operation elicitation turn with YARNNN via chat.
-- Scaffolding of `_operator_profile.md`, `_risk.md`, `principles.md` via `UpdateContext`.
-- Creation of task scaffold per playbook §3A.5 (`track-universe`, `signal-evaluation`, `pre-market-brief`) — exercising both chat-composed and `CreateTaskModal` paths.
+- **Mandate authoring as the gateway turn (ADR-207).** YARNNN's first turn elicits the Primary Action + success criteria + boundary conditions. Claude pastes the canonical mandate from `docs/alpha/personas/alpha-trader/MANDATE.md` verbatim; YARNNN routes it through `UpdateContext(target="mandate")` which writes `/workspace/context/_shared/MANDATE.md`. Observation: does YARNNN lead with Mandate (not Identity) per the rewritten `onboarding.py` priority?
+- **Mandate hard-gate verification.** Any `ManageTask(action="create")` attempt BEFORE the mandate is authored must return `error="mandate_required"`. Claude intentionally tries to create a task pre-mandate once to confirm the gate fires, logs the observation, then authors mandate.
+- **Derivation report verification (ADR-207 P5).** After Mandate is authored, Claude reads `/workspace/memory/task_derivation.md` and confirms it lists loop-role coverage gaps (no Proposer yet, no Sensor yet).
+- Operation elicitation turn continues — scaffolding of `_operator_profile.md`, `_risk.md`, `principles.md` via `UpdateContext`.
+- **Self-declaration task authoring (ADR-207 P4b).** Creation of task scaffold per playbook §3A.5 (`track-universe`, `signal-evaluation`, `pre-market-brief`, `trade-proposal`) via `ManageTask(action="create")` with full self-declaration fields: `output_kind`, `context_reads`, `context_writes`, `required_capabilities` (`read_trading`, `write_trading`), `emits_proposal: true` on `trade-proposal`. No `type_key` used for any of these — the self-declaration path is what's being exercised. `CreateTaskModal` path also tested for one simple sensor task.
+- **Capability gate verification (ADR-207 P3).** Observation: does a task declaring `**Required Capabilities:** write_trading` fail fast at dispatch with "connect trading first" if the platform_connections row is inactive? Deliberate probe before the Alpaca connection is active.
 - One full cycle of track → evaluate → (attempted) propose → Review → Queue observation.
 - Read of the compact index and `/work` BriefingStrip to verify ADR-206 three-section rendering.
 
@@ -197,16 +200,18 @@ Batch commit of observations at end of E2E, one commit with message `observe(alp
 
 The E2E succeeds if:
 
-- The three authored artifacts (`_operator_profile.md`, `_risk.md`, `principles.md`) exist in the correct paths with Simons-consistent content after the elicitation turn.
-- The task scaffold materializes and tasks register in `/work`.
-- `track-universe` + `signal-evaluation` run without pipeline errors (whether or not they produce interesting output — first run may have thin data).
-- `/work` list-mode renders the BriefingStrip in ADR-206 order (NeedsMe → Snapshot → SinceLastLook → IntelligenceCard).
-- The compact index renders the three labeled sections (Intent / Deliverables / Operation).
-- YARNNN uses operation-first vocabulary on the elicitation turn (not "tell me about yourself").
-- CreateTaskModal can be opened from `/work` and submits without error.
-- ManageContextModal can be opened from `/context` and reads the three authored files from `_shared/`.
-- `/settings/system` renders (likely empty — no back-office tasks materialized yet without a proposal firing).
-- At least 3 observations written capturing real friction (absence of friction itself is a signal worth noting).
+- **Mandate (ADR-207)** — `/workspace/context/_shared/MANDATE.md` contains the pasted content from `docs/alpha/personas/alpha-trader/MANDATE.md` (not skeleton) after the gateway turn. YARNNN's first turn leads with Mandate elicitation, not identity or soft onboarding.
+- **Mandate hard-gate fires** — any pre-mandate `ManageTask(create)` attempt returns `error="mandate_required"` with the operator-facing message pointing to `UpdateContext(target="mandate")`.
+- **Derivation report (ADR-207 P5)** — `/workspace/memory/task_derivation.md` auto-generates on mandate write, lists the active platforms, and flags missing Proposer / Sensor / decision-support roles pre-task scaffolding.
+- **Intent artifacts** — `_operator_profile.md`, `_risk.md`, `principles.md` exist in the correct `_shared/` and domain-scoped paths with Simons-consistent content.
+- **Self-declaration task authoring (ADR-207 P4b)** — all 4 trader tasks (`track-universe`, `signal-evaluation`, `trade-proposal`, `pre-market-brief`) are created via `ManageTask(action="create")` with self-declaration fields (no `type_key` used). TASK.md files contain `**Required Capabilities:** ...`, `**Context Reads:** ...`, `**Context Writes:** ...`, and the proposer task has `**Emits Proposal:** true`.
+- **Capability gate (ADR-207 P3)** — a pre-Alpaca-connect attempt to trigger the `trade-proposal` task fails fast with the "Required capability unavailable: 'write_trading' (connect trading first)" message. Post-connect, dispatch proceeds.
+- **Pipeline execution** — `track-universe` + `signal-evaluation` run without pipeline errors (whether or not they produce interesting output — first run may have thin data).
+- **Cockpit rendering** — `/work` list-mode renders the BriefingStrip in ADR-206 order (NeedsMe → Snapshot → SinceLastLook → IntelligenceCard). Compact index renders the three labeled sections (Intent / Deliverables / Operation).
+- **YARNNN prompt** — uses operation-first vocabulary on the elicitation turn (not "tell me about yourself"). Mandate-first posture visible in first response per ADR-207 onboarding rewrite.
+- **Creation UI** — `CreateTaskModal` can be opened from `/work` and submits without error. It no longer fetches a type catalog (ADR-207 P4b — `/api/tasks/types` deleted). `ManageContextModal` opens from `/context` and reads the four authored files from `_shared/` (IDENTITY, BRAND, CONVENTIONS, MANDATE).
+- **Diagnostic surface** — `/settings/system` renders (likely empty — no back-office tasks materialized yet without a proposal firing).
+- **Observations** — at least 3 captured covering real friction. Absence of friction itself is a signal worth noting (the substrate may be genuinely solid, or the E2E path may be too narrow).
 
 The E2E exposes a bug if any success criterion fails — that's what we're here to find.
 
@@ -229,3 +234,4 @@ When any of the following occur, pause and deliberate before proceeding:
 | Date | Change |
 |------|--------|
 | 2026-04-22 | v1 — Initial contract. Written pre-E2E to freeze Claude's posture + loop framing + acting-on-behalf rules before the ADR-205/206 post-purge validation run. |
+| 2026-04-22 | v2 — ADR-207 folded in. Added Mandate-first gateway turn to §5 scope + §6 success criteria. Added capability-gate verification (ADR-207 P3) + self-declaration task authoring (ADR-207 P4b) + derivation report verification (ADR-207 P5). Canonical mandate artifacts: `docs/alpha/personas/alpha-trader/MANDATE.md`, `docs/alpha/personas/alpha-commerce/MANDATE.md`. |
