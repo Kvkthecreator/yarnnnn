@@ -93,16 +93,20 @@ async def build_working_memory(
         _get_user_shared_files_sync, user_id, _make_client()
     )
 
-    # ADR-143: Read brand + orchestration playbook from workspace
+    # ADR-143 + ADR-206: Read brand + orchestration playbook from workspace
+    from services.workspace_paths import (
+        SHARED_BRAND_PATH, SHARED_IDENTITY_PATH,
+        MEMORY_PLAYBOOK_PATH, MEMORY_AWARENESS_PATH,
+    )
     brand_content = memory_files.get("BRAND.md", "")
     orchestration_playbook = await asyncio.to_thread(
-        _get_workspace_file_sync, user_id, "_playbook.md", _make_client()
+        _get_workspace_file_sync, user_id, MEMORY_PLAYBOOK_PATH, _make_client()
     )
 
-    # ADR-144: Read identity + awareness + conversation summary + compute context readiness
+    # ADR-144 + ADR-206: Read identity + awareness + conversation summary + compute context readiness
     identity_content, awareness_content, conversation_summary = await asyncio.gather(
-        asyncio.to_thread(_get_workspace_file_sync, user_id, "IDENTITY.md", _make_client()),
-        asyncio.to_thread(_get_workspace_file_sync, user_id, "AWARENESS.md", _make_client()),
+        asyncio.to_thread(_get_workspace_file_sync, user_id, SHARED_IDENTITY_PATH, _make_client()),
+        asyncio.to_thread(_get_workspace_file_sync, user_id, MEMORY_AWARENESS_PATH, _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "memory/conversation.md", _make_client()),
     )
     task_count, doc_count, recent_uploads = await asyncio.gather(
@@ -902,8 +906,8 @@ def _format_entity_index(working_memory: dict, surface_context: Optional[dict] =
 
     # --- Memory file references (always included) ---
     lines.append("\n### Memory files (read with LookupEntity or entity-layer tools)")
-    lines.append("- `/workspace/IDENTITY.md` — who the user is")
-    lines.append("- `/workspace/AWARENESS.md` — your shift notes")
+    lines.append("- `/workspace/context/_shared/IDENTITY.md` — who the user is")
+    lines.append("- `/workspace/memory/awareness.md` — your shift notes")
     lines.append("- `/workspace/memory/notes.md` — stable facts and preferences")
 
     return "\n".join(lines)
@@ -1053,9 +1057,9 @@ def format_compact_index(
 
     # --- File references (TP reads on demand) ---
     lines.append("\n### Memory files (read with ReadFile if you need detail)")
-    lines.append("- `/workspace/IDENTITY.md` — who the user is")
-    lines.append("- `/workspace/BRAND.md` — visual style and voice")
-    lines.append("- `/workspace/AWARENESS.md` — your shift notes from prior sessions")
+    lines.append("- `/workspace/context/_shared/IDENTITY.md` — who the user is")
+    lines.append("- `/workspace/context/_shared/BRAND.md` — visual style and voice")
+    lines.append("- `/workspace/memory/awareness.md` — your shift notes from prior sessions")
     lines.append("- `/workspace/memory/conversation.md` — summary of earlier conversation")
     lines.append("- `/workspace/memory/notes.md` — stable facts and user preferences")
 

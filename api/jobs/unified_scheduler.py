@@ -424,6 +424,56 @@ async def run_unified_scheduler():
         except Exception as e:
             logger.warning(f"[SCHEDULER] Failed to write heartbeat event: {e}")
 
+    # -------------------------------------------------------------------------
+    # ADR-206: Back-office agent-hygiene probe (materializes on threshold)
+    # -------------------------------------------------------------------------
+    # Hourly probe — materialize back-office-agent-hygiene for any workspace
+    # where ≥1 user-authored agent has accumulated ≥5 agent_runs. Idempotent.
+    if is_hourly_tick:
+        try:
+            from services.workspace_init import materialize_back_office_task
+
+            # Count runs per user across user-authored agents only.
+            # 5-run threshold = enough signal for hygiene to reason about approval rates.
+            runs_rows = (
+                supabase.rpc(
+                    "select",
+                    {},
+                ).execute() if False else None  # placeholder; real query via table() below
+            )
+            # Pure SQL via table query (Supabase client doesn't support GROUP BY directly,
+            # so we fetch agents + counts in Python — small N at alpha scale).
+            authored_agents = (
+                supabase.table("agents")
+                .select("id, user_id")
+                .neq("origin", "system_bootstrap")
+                .execute()
+            )
+            users_over_threshold: set[str] = set()
+            for a in (authored_agents.data or []):
+                run_count = (
+                    supabase.table("agent_runs")
+                    .select("id", count="exact")
+                    .eq("agent_id", a["id"])
+                    .limit(1)
+                    .execute()
+                )
+                if getattr(run_count, "count", 0) and run_count.count >= 5:
+                    users_over_threshold.add(a["user_id"])
+
+            for hy_user_id in users_over_threshold:
+                try:
+                    await materialize_back_office_task(
+                        supabase, hy_user_id,
+                        type_key="back-office-agent-hygiene",
+                        slug="back-office-agent-hygiene",
+                        title="Agent Hygiene",
+                    )
+                except Exception as mat_exc:
+                    logger.warning(f"[ADR-206 HYGIENE PROBE] materialize failed for {hy_user_id[:8]}: {mat_exc}")
+        except Exception as probe_exc:
+            logger.warning(f"[ADR-206 HYGIENE PROBE] failed: {probe_exc}")
+
     logger.info(f"Completed: {', '.join(summary_parts)}")
 
 

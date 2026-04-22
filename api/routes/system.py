@@ -122,12 +122,13 @@ async def get_system_status(auth: UserClient):
     }
     hours_between = freshness_hours.get(sync_frequency, 12)
 
-    # ─── User Timezone (ADR-108: from /memory/MEMORY.md) ────────────────────
+    # ─── User Timezone (ADR-206: from /workspace/context/_shared/IDENTITY.md) ───
     user_tz_str = "UTC"
     try:
         from services.workspace import UserMemory
+        from services.workspace_paths import SHARED_IDENTITY_PATH
         um = UserMemory(auth.client, user_id)
-        profile = UserMemory._parse_memory_md(um.read_sync("IDENTITY.md"))
+        profile = UserMemory._parse_memory_md(um.read_sync(SHARED_IDENTITY_PATH))
         user_tz_str = profile.get("timezone") or "UTC"
     except Exception as e:
         logger.debug(f"Failed to fetch user timezone: {e}")

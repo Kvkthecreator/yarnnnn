@@ -2293,6 +2293,18 @@ async def connect_commerce(
     except Exception as ensure_err:
         logger.warning(f"[INTEGRATIONS] Failed to ensure commerce_bot for {user_id}: {ensure_err}")
 
+    # 3b. ADR-206: first platform-with-money-truth materializes outcome-reconciliation.
+    try:
+        from services.workspace_init import materialize_back_office_task
+        await materialize_back_office_task(
+            service_client, user_id,
+            type_key="back-office-outcome-reconciliation",
+            slug="back-office-outcome-reconciliation",
+            title="Outcome Reconciliation",
+        )
+    except Exception as materialize_err:
+        logger.warning(f"[INTEGRATIONS] outcome-reconciliation materialize failed: {materialize_err}")
+
     # 4. Scaffold commerce context domains (idempotent)
     await scaffold_context_domain(service_client, user_id, "customers")
     await scaffold_context_domain(service_client, user_id, "revenue")
@@ -2579,6 +2591,18 @@ async def connect_trading(
         await ensure_infrastructure_agent(service_client, user_id, "trading_bot")
     except Exception as ensure_err:
         logger.warning(f"[INTEGRATIONS] Failed to ensure trading_bot for {user_id}: {ensure_err}")
+
+    # 3b. ADR-206: first platform-with-money-truth materializes outcome-reconciliation.
+    try:
+        from services.workspace_init import materialize_back_office_task
+        await materialize_back_office_task(
+            service_client, user_id,
+            type_key="back-office-outcome-reconciliation",
+            slug="back-office-outcome-reconciliation",
+            title="Outcome Reconciliation",
+        )
+    except Exception as materialize_err:
+        logger.warning(f"[INTEGRATIONS] outcome-reconciliation materialize failed: {materialize_err}")
 
     # 4. Scaffold trading context domains (idempotent)
     await scaffold_context_domain(service_client, user_id, "trading")

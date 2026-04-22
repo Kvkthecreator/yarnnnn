@@ -1456,8 +1456,9 @@ async def gather_task_context(
 
     # 4. User notes — workspace-level standing instructions
     try:
+        from services.workspace_paths import MEMORY_NOTES_PATH
         um = UserMemory(client, user_id)
-        notes = await um.read("notes.md")
+        notes = await um.read(MEMORY_NOTES_PATH)
         if notes:
             sections.append(f"## User Notes\n{notes}")
     except Exception as e:
@@ -1596,7 +1597,7 @@ Write files to consistent paths so they accumulate and are searchable:
 - New domain: create `/workspace/context/{new-domain}/landscape.md` — no approval needed
 
 Write modes: entity files **overwrite** (current best), signal/log files **append** (dated history), synthesis **overwrite**.
-Full conventions: `ReadFile(path="/workspace/CONVENTIONS.md")`"""
+Full conventions: `ReadFile(path="/workspace/context/_shared/CONVENTIONS.md")`"""
 
     # Tool usage guidance
     system += """

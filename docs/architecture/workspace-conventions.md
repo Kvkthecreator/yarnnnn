@@ -36,15 +36,16 @@ YARNNN's workspace is a **virtual filesystem of human-readable files** backed by
 Everything the workspace "knows" — user identity, learned preferences, reference material the user explicitly uploaded, accumulated context domains built up by agents over time, and promoted agent outputs.
 
 > **ADR-152:** `documents/` renamed to `uploads/` for clarity. "documents" was ambiguous (user uploads vs system-produced). "uploads" = user-contributed. "outputs" = system-produced.
+>
+> **ADR-206 (2026-04-22):** `IDENTITY.md`, `BRAND.md`, `CONVENTIONS.md` relocated from `/workspace/` root to `/workspace/context/_shared/` (authored shared context — readable by all agents and tasks). YARNNN working-memory files (`AWARENESS.md`, `_playbook.md`, `style.md`, `notes.md`) relocated from root to `/workspace/memory/`. Post-ADR-206, `/workspace/` root contains only operational folders — no loose files at root.
 
 ```
 /workspace/
-├── IDENTITY.md                    # Who the user is (name, role, company, industry)
-├── BRAND.md                       # Output identity (tone, style, visual preferences)
-├── AWARENESS.md                   # TP's situational notes (shift handoff, cross-session)
-├── _playbook.md                   # System: TP orchestration playbook (hidden)
-├── style.md                       # Inferred style from edit patterns (visible — user can review/correct)
-├── notes.md                       # TP-written facts and standing instructions
+├── memory/                        # YARNNN's working memory (ADR-206 relocation)
+│   ├── AWARENESS.md               # YARNNN's situational notes (shift handoff, cross-session)
+│   ├── _playbook.md               # System: YARNNN orchestration playbook (hidden)
+│   ├── style.md                   # Inferred style from edit patterns (visible — user can review/correct)
+│   └── notes.md                   # YARNNN-written facts and standing instructions
 ├── uploads/                       # User-uploaded reference material (was: documents/)
 │   ├── ir-deck-march-2026.md      # Extracted text from uploaded PDF
 │   └── product-roadmap.md         # Extracted text from uploaded DOCX
@@ -52,7 +53,11 @@ Everything the workspace "knows" — user identity, learned preferences, referen
 │   ├── reports/                   # Reports, analyses, digests
 │   ├── briefs/                    # Briefs, summaries, prep docs
 │   └── content/                   # Blog drafts, comms, launch material
-└── context/                       # Accumulated context domains (ADR-151, ADR-158)
+└── context/                       # Accumulated context domains + authored shared context
+    ├── _shared/                   # ADR-206: authored workspace-level shared context
+    │   ├── IDENTITY.md            # Who the user is (name, role, company, industry)
+    │   ├── BRAND.md               # Output identity (tone, style, visual preferences)
+    │   └── CONVENTIONS.md         # Workspace filesystem conventions (agent-readable)
     ├── competitors/               # Per-competitor entity folders (canonical)
     │   ├── _tracker.md            # System: entity registry + freshness (hidden)
     │   ├── landscape.md           # Content: cross-entity synthesis (agent-written, visible)

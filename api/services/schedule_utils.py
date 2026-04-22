@@ -16,15 +16,16 @@ DEFAULT_LOCAL_TIME = "09:00"
 
 
 def get_user_timezone(client, user_id: str, default: str = DEFAULT_TIMEZONE) -> str:
-    """Resolve user's configured timezone from /workspace/IDENTITY.md.
+    """Resolve user's configured timezone from /workspace/context/_shared/IDENTITY.md (ADR-206).
 
     Falls back to UTC when missing or invalid.
     """
     try:
         from services.workspace import UserMemory
+        from services.workspace_paths import SHARED_IDENTITY_PATH
 
         um = UserMemory(client, user_id)
-        profile = UserMemory._parse_memory_md(um.read_sync("IDENTITY.md"))
+        profile = UserMemory._parse_memory_md(um.read_sync(SHARED_IDENTITY_PATH))
         return normalize_timezone_name(profile.get("timezone") or default)
     except Exception as e:
         logger.debug(f"[SCHEDULE] Failed to resolve user timezone for {user_id[:8]}: {e}")

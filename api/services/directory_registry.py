@@ -86,6 +86,24 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
         "managed_by": "user",
     },
 
+    # ── Authored Shared Context (ADR-206) ──
+    # Workspace-level authored context readable by all agents and tasks.
+    # Relocated from /workspace/ root by ADR-206. The operator edits these
+    # via YARNNN chat + inference (ADR-190) or via an explicit ManageContextModal.
+
+    "_shared": {
+        "type": "shared_context",
+        "path": "context/_shared",
+        "display_name": "Shared Context",
+        "description": "Workspace identity, brand, and filesystem conventions (authored)",
+        "managed_by": "user_and_yarnnn",
+        "scaffolded_files": (
+            "IDENTITY.md",
+            "BRAND.md",
+            "CONVENTIONS.md",
+        ),
+    },
+
     # ── Context Domains (agent-accumulated intelligence) ──
 
     "competitors": {

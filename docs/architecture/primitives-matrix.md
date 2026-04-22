@@ -52,6 +52,20 @@ Every primitive is described by exactly two axes.
 
 **Plus capability tags** (orthogonal, descriptive): `entity-layer`, `file-layer`, `semantic-query`, `context-mutation`, `lifecycle`, `user-channel`, `user-authorized`, `external`, `introspection`, `asset-render`, `inter-agent`. Tags are metadata on this table, not part of primitive names.
 
+### CRUD split (ADR-206 — operator-facing surface convention)
+
+The primitive set is runtime-neutral, but the *operator surface* convention per ADR-206 routes CRUD actions by cognitive weight:
+
+| Operation | Surface | Primitive path |
+|-----------|---------|----------------|
+| **Create** (task, agent, rule, signal, SKU) | Modal (`CreateTaskModal`, `AuthorAgentModal`, `CreateRuleModal`) | `ManageTask(action="create")` / `ManageAgent(action="create")` / `UpdateContext` for rule authoring. High-precision, well-specified; modal provides structured fields. |
+| **Read** | Direct surface view | Any read primitive (`ReadFile`, `LookupEntity`, `SearchFiles`, `QueryKnowledge`). No modal or chat required. |
+| **Update** | Chat + YARNNN | `ManageTask(action="update")`, `ManageAgent(action="update")`, `UpdateContext`, `EditEntity`, `WriteFile`. Judgment-shaped — YARNNN asks "why", proposes alternatives, remembers reasoning. |
+| **Delete / archive** | Chat + YARNNN, confirmation required | `ManageTask(action="archive")`, `ManageAgent(action="archive")`. Irreversibility warrants conversation; YARNNN writes attribution to `/workspace/memory/awareness.md`. |
+| **Approve / reject proposal** (money-bearing) | Direct click on cockpit Queue | `handle_execute_proposal` / `handle_reject_proposal`. Not CRUD — surface-level action on a Deliverable. YARNNN observes via compact index. |
+
+**Rule of thumb:** direct surface action for *high-precision actions on a known artifact*; chat for *judgment-shaped or context-rich actions*. YARNNN observes all of them regardless — the operator never leaves YARNNN's awareness, but YARNNN is not a mandatory mediator for every click.
+
 ---
 
 ## The Substrate Families
