@@ -1,6 +1,8 @@
 # ADR-205: Workspace Primitive Collapse — YARNNN as Sole Persistent Identity, Emergent Scaffolding, Chat-First Triggering
 
-> **Status**: Proposed
+> **⚠ F2 "deliverable-first" framing extended by [ADR-206](ADR-206-operation-first-scaffolding.md) (2026-04-22).** ADR-205 F2 merged Overview into /work as a BriefingStrip. ADR-206 re-prioritizes /work's primary surface as *deliverables-first in service of a running operation*, not as "tasks + briefing strip." The BriefingStrip composition (NeedsMePane, SinceLastLookPane, SnapshotPane, IntelligenceCard) survives; pane ordering re-prioritizes proposals-awaiting-review + `_performance.md` snapshot to the top. ADR-205's backend collapse (lazy scaffolding, Architecture Y) is preserved and extended: ADR-206 collapses signup scaffolding further (zero essential tasks at signup, `_shared/` relocation of IDENTITY/BRAND/CONVENTIONS, back-office auto-materialize on trigger). F3 (CreateTaskModal) + F4 (ManageContextModal) explicitly in scope under ADR-206 Phase 3.
+
+> **Status**: Backend + F1 + F2 + F5 Shipped (v1.3). F3 + F4 + further scaffolding collapse picked up by ADR-206.
 > **Date**: 2026-04-22
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-189 Phase 2 (pragmatic preservation of infrastructure `agents` rows — now reversed); ADR-204 (Workspace Intelligence Cockpit — subject matter dissolves, see "Consequences → ADR-204 re-scope")

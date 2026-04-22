@@ -1,8 +1,10 @@
 # ADR-189: Three-Layer Cognition — YARNNN, Specialists, Agents
 
 > **⚠ Phase 2 (pragmatic preservation of infrastructure `agents` rows with `origin='system_bootstrap'` filter) REVERSED by [ADR-205](ADR-205-primitive-collapse.md) (2026-04-22).** Three-layer cognition model, authored-team moat, and GLOSSARY discipline all fully preserved. What changes: Specialists and Platform Bots no longer persist as `agents` rows at signup. Specialists become code-level dispatch templates; Platform Bots become connection-bound capability bundles. YARNNN-the-entity persists as a `workspace_identity` row (one per workspace), not as an agent row. The structural collapse ADR-205 executes is what ADR-189 Phase 2 deferred pending the `task_pipeline.py` dispatch refactor.
+>
+> **⚠ Extended (not amended) by [ADR-206](ADR-206-operation-first-scaffolding.md) (2026-04-22).** ADR-189's three-layer cognition model (YARNNN / Specialists / Agents + Reviewer) describes *who acts*. ADR-206 adds an orthogonal three-layer *operator-facing view* (Intent / Deliverables / Operation) describing *what the operator interacts with*. The two are complementary and both hold; no ADR-189 decision is revised.
 
-> **Status**: Proposed (Phase 2 reversed by ADR-205)
+> **Status**: Proposed (Phase 2 reversed by ADR-205, extended by ADR-206)
 > **Date**: 2026-04-17
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-140 (Agent Workforce Model — pre-scaffolded ICP roster) in full; ADR-176 Decision 1 (Hospital Principle — fixed 9-agent signup roster)
