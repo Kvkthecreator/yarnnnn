@@ -335,14 +335,86 @@ scaffolding replaces eager signup scaffolding — using the existing storage pri
 | Phase 7 — Docs sweep | Per ADR text | ADR-152/161/176/188/189/204 amendment banners already landed in the documentation commit; CLAUDE.md updated. |
 | Phase 8 — Prompt updates | Per ADR text | tools.py + tools_core.py framing updated; onboarding.py adds chat-first creation note. |
 
+### Frontend Phase 4+5 — concrete spec (aligned 2026-04-22)
+
+Post-backend-ship UX decisions (user confirmed 2026-04-22). Frontend work breaks into five
+sequenced pieces, ordered by leverage-per-effort:
+
+**F1. `HOME_ROUTE` flip to `/chat`** (smallest, highest leverage)
+
+ADR-205 dissolves most of the substrate that makes `/work` valuable as a landing page —
+a brand-new workspace has zero user-authored Agents and zero user-authored Tasks, so
+`/work` renders near-empty. The user's first meaningful action must be conversational:
+describe what they want to track/produce/monitor. Chat is the authoring surface;
+landing on Chat re-aligns with ADR-189's authored-team moat.
+
+- `web/lib/routes.ts`: `HOME_ROUTE = "/chat"` (currently `/work`).
+- `/chat` empty-state becomes the canonical first-run surface with explicit suggestion chips
+  (aligns with ADR-144 cold-start suggestions already in place).
+
+**F2. Overview → Work merge** (medium)
+
+User-aligned: the Overview functionality **survives as a Briefing strip inside `/work`**,
+not as a separate surface. The Briefing strip occupies the top of `/work` list-mode and
+surfaces ADR-198 Briefing archetype content as **pointers, not embedded widgets**:
+
+- Recent outputs (pointer → output detail)
+- Pending proposals (pointer → `/review`)
+- Upcoming runs (task + next_run_at)
+- Reviewer decisions (pointer → `/workspace/review/decisions.md`)
+
+What dissolves from ADR-204 cockpit: workforce-health cards (IntelligenceCard surfacing
+the roster). Substrate is now ~1 row at signup; health-of-roster is not a real surface
+area until the user authors agents. TaskOutputCard + lazy refresh + deliverable preference
+inference (ADR-204 Phase 2) survive unchanged.
+
+- Delete `/overview` as a standalone route.
+- Extract Briefing strip as `web/components/work/BriefingStrip.tsx`.
+- `/work` list-mode renders `<BriefingStrip />` above the task list.
+
+**F3. `CreateTaskModal`** (medium-small)
+
+Explicit-intent CRUD affordance alongside chat. Fields per ADR-205 §Phase 4:
+
+- Title (required)
+- `output_kind` selector (4 values per ADR-166)
+- `mode` selector (recurring / goal / reactive per ADR-149)
+- Context injection (free text)
+- Schedule (optional — empty = run-now, matches chat-first trigger)
+- Sources (optional, filtered by active `platform_connections`)
+
+Submits to `POST /api/tasks` via `ManageTask._handle_create`. Opens from `/work` "New task"
+primary CTA and from a chat mention (`@new-task` or similar chip).
+
+**F4. `ManageContextModal`** (small)
+
+Explicit edit surface for `/workspace/IDENTITY.md` + `/workspace/BRAND.md` + uploads.
+Alongside ADR-144's inference-first context update path. Not a replacement for
+inference-driven updates — an explicit alternative for deliberate user edits.
+
+**F5. Onboarding re-scope** (small)
+
+The existing onboarding flow is already context-injection-leaning (ADR-144). What remains:
+
+- Remove any residual references to "pre-scaffolded team" in onboarding copy.
+- Post-submit redirect targets `/chat` (matches F1's `HOME_ROUTE` flip).
+- Optional first-task intent field that, when populated, opens `CreateTaskModal` pre-filled
+  after redirect.
+
+**Layout rule (applies to all of F1–F5):**
+
+- Chat: single panel, full width (authoring surface, no list+detail confusion).
+- Work list-mode: single panel with Briefing strip at top.
+- Work detail-mode: two panels (list + detail, ADR-167 pattern preserved).
+- Agents: one panel in list, two panels in detail (ADR-167 preserved).
+
+Chat being single-panel is the load-bearing asymmetry — Cursor/Linear/Claude Code all share
+this pattern: the authoring surface is undivided; inspection surfaces are master-detail.
+
 ### What remains proposed (not implemented in this commit)
 
-- **Phase 4 (explicit modal affordances).** `CreateTaskModal` + `ManageContextModal` frontend work.
-- **Phase 5 (onboarding re-scope).** Web flow rewrite — the existing onboarding flow is
-  context-injection-leaning already, but a full re-scope remains frontend work.
-- **Directory Registry Phase 1 signup-time pre-creation collapse.** `directory_registry.scaffold_all_directories`
-  still runs at Phase 1 of `workspace_init.py`. Collapsing that to write-time-only is a separate, smaller
-  refactor deferred to keep this commit focused on the agent-layer collapse.
+- **Phase 4 pieces F1–F5** above. F1 lands in the same implementation cycle as this ADR.
+  F2–F5 ship in follow-up session(s).
 - **`/workspace/specialists/{role}/style.md` as ADR-117 Specialist memory location.** For now,
   Specialist memory continues to live on the (now lazy) agent row via the existing `agent_memory`
   JSONB / workspace AGENT.md pattern. No user-authored content exists on the dropped rows,
