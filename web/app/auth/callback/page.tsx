@@ -44,10 +44,11 @@ function CallbackHandler() {
       }
 
       if (session) {
-        // ADR-144: Ensure roster is scaffolded (lazy creation on first login)
-        // ADR-163: HOME_ROUTE is now /chat — both new and returning users land
-        // on chat by default. The briefing dashboard shows whatever the workspace
-        // has (empty-state from ADR-161 for dormant users, real digest otherwise).
+        // ADR-205: HOME_ROUTE is /chat. initialize_workspace scaffolds exactly
+        // one agent (YARNNN); Specialists + Platform Bots are lazy-created on
+        // first dispatch / OAuth connect. Both new and returning users land
+        // on /chat — OnboardingModal auto-opens via TP's workspace_state signal
+        // when identity is empty.
         if (next === HOME_ROUTE) {
           try {
             setStatus("Setting up...");

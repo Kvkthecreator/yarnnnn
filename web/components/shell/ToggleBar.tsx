@@ -1,23 +1,22 @@
 'use client';
 
 /**
- * ToggleBar — top-level pill navigation (cockpit nav per ADR-205 F1).
+ * ToggleBar — top-level pill navigation (cockpit nav per ADR-205 F1+F2).
  *
  * Current segments: Chat | Work | Files | Team | Review
  *   - Chat: "Tell YARNNN what you want." (authoring surface, HOME — ADR-205 F1)
- *   - Work: "Let me check the work." (tasks + schedules + outputs + briefing strip post-F2)
+ *   - Work: "Let me check the work." (task list with briefing strip + detail — ADR-205 F2)
  *   - Files (nav label) / Context (route): "What does my workspace know?"
  *   - Team: "Let me check on my agents." (agents-as-identity surface — ADR-201)
  *   - Review: "Who decided what, why?" (Reviewer identity + principles + decisions — ADR-200)
  *
- * ADR-205 F1 (2026-04-22): Chat returns as the first nav tab. ADR-205 dissolves most of
- * what /overview used to surface (pre-scaffolded roster intelligence cards). A brand-new
- * workspace has zero authored agents and zero authored tasks — the user's first
- * meaningful action must be conversational. Overview is removed from nav; its
- * remaining Briefing content (recent outputs, pending proposals, upcoming runs,
- * reviewer decisions) merges into /work as a BriefingStrip in ADR-205 F2.
+ * ADR-205 F1 (2026-04-22): Chat returns as the first nav tab — a brand-new workspace
+ * has zero authored agents and zero authored tasks, so the first meaningful action
+ * must be conversational.
  *
- * Remaining phase (ADR-205 F2): merge Overview content into /work, delete /overview route.
+ * ADR-205 F2 (2026-04-22): Overview's Briefing panes (NeedsMe queue, Since-last-look,
+ * snapshot tiles, IntelligenceCard) moved into /work list-mode as a BriefingStrip.
+ * /overview is a redirect stub for old bookmarks.
  */
 
 import Link from 'next/link';
