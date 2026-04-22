@@ -4,11 +4,11 @@ import { isAdminEmail } from "@/lib/internal-access";
 import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
 
-// ADR-198 v2 cockpit nav: five top-level surfaces + ambient chat + system.
-// HOME_ROUTE is /overview per ADR-199.
-// /agents continues to be protected (it redirects to /team per ADR-201).
+// ADR-205 F1+F2 cockpit nav: Chat | Work | Files | Team | Review.
+// HOME_ROUTE is /chat. /overview was absorbed into /work as a BriefingStrip
+// (F2); the /overview path itself is a redirect stub for old bookmarks.
+// /agents continues to be protected (redirect to /team per ADR-201).
 const PROTECTED_PREFIXES = [
-  "/overview",
   "/chat",
   "/work",
   "/team",
@@ -20,6 +20,7 @@ const PROTECTED_PREFIXES = [
   "/integrations",
   "/docs",
   // Legacy routes still protected for redirect stubs
+  "/overview",
   "/agents",
   "/workfloor",
   "/orchestrator",

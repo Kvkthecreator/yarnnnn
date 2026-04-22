@@ -392,14 +392,18 @@ Explicit edit surface for `/workspace/IDENTITY.md` + `/workspace/BRAND.md` + upl
 Alongside ADR-144's inference-first context update path. Not a replacement for
 inference-driven updates — an explicit alternative for deliberate user edits.
 
-**F5. Onboarding re-scope** (small)
+**F5. Onboarding re-scope** (small — verified minimal change needed)
 
-The existing onboarding flow is already context-injection-leaning (ADR-144). What remains:
+Audit findings: the onboarding flow is already minimal and ADR-205-compliant. `OnboardingModal`
+wraps `ContextSetup` (identity/brand/uploads capture). No roster/scaffold language. TP triggers
+the modal via `<!-- onboarding -->` marker when `workspace_state.identity == "empty"`. Post-submit
+forwards to TP via `sendMessage` which calls `UpdateContext + ManageDomains`.
 
-- Remove any residual references to "pre-scaffolded team" in onboarding copy.
-- Post-submit redirect targets `/chat` (matches F1's `HOME_ROUTE` flip).
-- Optional first-task intent field that, when populated, opens `CreateTaskModal` pre-filled
-  after redirect.
+The only F5 change shipped: `auth/callback/page.tsx` comment updated to reference ADR-205 instead
+of ADR-144/163 (reflects the YARNNN-only signup scaffolding + Specialist lazy creation).
+
+The "optional first-task intent field" sub-item of F5 is deferred with F3 (CreateTaskModal),
+since it depends on that modal existing to route the intent through.
 
 **Layout rule (applies to all of F1–F5):**
 
@@ -436,3 +440,5 @@ Post-migration state (2026-04-22 05:13 UTC):
 |------|--------|
 | 2026-04-22 | v1 — Initial proposal. Infrastructure row collapse, chat-first triggering, emergent directory scaffolding, explicit modal affordances, ADR-204 re-scope. Supersedes ADR-189 Phase 2. Amends ADR-152, ADR-161, ADR-176, ADR-188, ADR-204. Preserves FOUNDATIONS v6.0, ADR-141, ADR-168, ADR-189 three-layer cognition, ADR-194, ADR-181, ADR-195. |
 | 2026-04-22 | v1.1 — Backend implementation landed (Architecture Y — lazy scaffolding within the existing `agents` table rather than a separate `workspace_identity` table). Migration 154 applied. Implementation Notes section added above documenting the pivot and its equivalence to the ADR thesis. Frontend modals + onboarding re-scope deferred to a follow-up commit. |
+| 2026-04-22 | v1.2 — Frontend F1 shipped: HOME_ROUTE flipped to `/chat`, ToggleBar nav reordered to `Chat \| Work \| Files \| Team \| Review`, Overview tab removed from nav. |
+| 2026-04-22 | v1.3 — Frontend F2 + F5 shipped: (F2) Overview→Work merge — four Briefing panes (NeedsMePane, SinceLastLookPane, SnapshotPane, IntelligenceCard) relocated from `web/components/overview/` to `web/components/work/briefing/`; new `BriefingStrip` composition mounted above `WorkListSurface` in /work list-mode; `OverviewSurface` + `OverviewEmptyState` deleted; `/overview/page.tsx` becomes a redirect stub to `/work`; `OVERVIEW_ROUTE` constant deleted; middleware comment + ToggleBar comment updated. (F5) onboarding flow audited — already ADR-205-compliant; only the auth/callback comment needed refreshing. F3 (CreateTaskModal) + F4 (ManageContextModal) deferred for downstream consideration. |

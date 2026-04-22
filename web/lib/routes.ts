@@ -8,13 +8,11 @@
 // action is conversational. Landing on /chat re-aligns with ADR-189's
 // authored-team moat and matches how users actually validate work.
 //
-// Current nav (post-ADR-205 F1): Chat | Work | Context | Team | Review
-// /overview remains reachable by direct URL until ADR-205 F2 merges its
-// Briefing content into /work (BriefingStrip component) and deletes the route.
-// Legacy /agents redirects to /team per ADR-201 migration bridge.
+// Current nav (post-ADR-205 F1+F2): Chat | Work | Context | Team | Review
+// /overview is a redirect stub (ADR-205 F2 merged its Briefing content into
+// /work as BriefingStrip). Legacy /agents redirects to /team per ADR-201.
 export const HOME_ROUTE = "/chat";
 export const HOME_LABEL = "Chat";
-export const OVERVIEW_ROUTE = "/overview"; // deprecated — ADR-205 F2 will delete
 export const CHAT_ROUTE = "/chat";
 export const WORK_ROUTE = "/work";
 export const TEAM_ROUTE = "/team"; // Renamed from AGENTS_ROUTE by ADR-201.
