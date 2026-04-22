@@ -175,28 +175,72 @@ Workflow:
 
 Heuristic check: if the operator's request implies a single deliverable ("weekly revenue report"), you may still need Sensor tasks upstream of it to accumulate the context the deliverable reads. Don't scaffold the Writer-only task and discover at dispatch that `context_reads` returns empty files.
 
-### ManageTask(action="create", title, ...) — Create a task and assign work to an existing agent.
+### ManageTask(action="create", ...) — Self-declaration path (ADR-207 P4b primary)
 
-Two creation paths — both are first-class (ADR-188):
-1. **Template-based:** `ManageTask(action="create", title="...", type_key="...")` — use when a template fits the work.
-2. **Composed:** `ManageTask(action="create", title="...", agent_slug="...", objective={...})` — compose from primitives when the user's work doesn't match any template. Include `team`, `output_spec`, or `page_structure` as needed.
+You are the task-authoring surface. There is no registry list to pick from. Author the TASK.md declaration that serves the operator's Mandate + Primary Action.
 
+**Required fields** (self-declaration primary path):
+- `title` + `agent_slug` (primary agent — matches a specialist role or existing slug)
+- `objective` = `{deliverable, audience, purpose, format}`
+- `mode` = `recurring` | `goal` | `reactive`
+- `output_kind` = `accumulates_context` | `produces_deliverable` | `external_action` | `system_maintenance`
+- `context_reads` + `context_writes` (domain lists — drives tool budgeting + tracker updates)
+- `required_capabilities` (ADR-207 P3 gate — pipeline checks `platform_connections` at dispatch)
+
+**Optional (use when the shape warrants):**
+- `schedule` (cron or nickname; omit for chat-first run-now)
+- `delivery` (`email` or `none`)
+- `emits_proposal` = true if the task ends with `ProposeAction` (marks it as Proposer in the Loop)
+- `team` (multi-agent composition, e.g. `["researcher", "analyst", "writer"]`)
+- `process_steps` (ordered `[{step, agent_ref, instruction}]` — required for multi-step)
+- `success_criteria` + `output_spec` + `page_structure` + `deliverable_md`
+
+**Example — Sensor task (accumulates context for a downstream Proposer):**
 ```
-# Template-based (common patterns)
-ManageTask(action: "create", title: "Weekly Competitive Intel", type_key: "competitive-brief", schedule: "weekly", delivery: "email")
-
-# Composed (any domain — lawyer, trader, influencer, etc.)
 ManageTask(
   action: "create",
-  title: "Weekly Case Brief",
-  agent_slug: "analyst",
-  objective: {deliverable: "Summary of active cases with status and next actions", audience: "Legal team", purpose: "Case tracking", format: "report"},
-  schedule: "weekly",
-  delivery: "email",
+  title: "Track Alpaca Universe",
+  agent_slug: "tracker",
   mode: "recurring",
-  team: ["researcher", "analyst", "writer"]
+  schedule: "0 7 * * 1-5",
+  output_kind: "accumulates_context",
+  context_reads: ["market"],
+  context_writes: ["trading", "market"],
+  required_capabilities: ["read_trading", "web_search"],
+  objective: {
+    deliverable: "Fresh market snapshot + watchlist refresh",
+    audience: "downstream proposer task",
+    purpose: "Keep trading/ and market/ domains current",
+    format: "per-instrument profile + watchlist tracker"
+  },
+  team: ["tracker"]
 )
 ```
+
+**Example — Proposer task (writes externally + emits proposal):**
+```
+ManageTask(
+  action: "create",
+  title: "Alpaca Signal Execution",
+  agent_slug: "analyst",
+  mode: "recurring",
+  schedule: "0 9 * * 1-5",
+  output_kind: "external_action",
+  context_reads: ["trading", "portfolio", "market"],
+  context_writes: ["portfolio"],
+  required_capabilities: ["read_trading", "write_trading"],
+  emits_proposal: true,
+  objective: {
+    deliverable: "Signal + ProposeAction for approved trades",
+    audience: "Reviewer (capital-EV gate)",
+    purpose: "Convert accumulated signal into risk-disciplined orders",
+    format: "signal table + per-trade proposal"
+  },
+  team: ["analyst"]
+)
+```
+
+`type_key` is a DEPRECATED convenience. The 21 surviving registry entries still read defaults when you pass `type_key="…"`, but self-declaration is the ADR-207 direction — prefer it for any new task shape.
 
 **mode** determines temporal behavior:
 - `recurring` (default) — runs on fixed cadence indefinitely

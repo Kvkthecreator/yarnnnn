@@ -59,18 +59,16 @@ export function CreateTaskModal({ open, onClose, onCreated }: CreateTaskModalPro
     };
   }, [open, submitting, onClose]);
 
-  // Load task type catalog once on first open.
+  // ADR-207 P4b (2026-04-22): `/api/tasks/types` catalog endpoint DELETED.
+  // The modal no longer fetches a type list. YARNNN is the authoring surface;
+  // the modal survives only as a quick-capture form that forwards a minimal
+  // title + context (focus) to YARNNN via the create endpoint. The legacy
+  // type picker is hidden but the `types` state is kept (always empty) so the
+  // rest of the component renders without breakage.
   useEffect(() => {
-    if (!open || types.length > 0) return;
-    let cancelled = false;
-    void api.tasks
-      .listTypes()
-      .then(data => {
-        if (!cancelled) setTypes(data.types ?? []);
-      })
-      .catch(() => { /* silent — modal still works with manual fields */ });
-    return () => { cancelled = true; };
-  }, [open, types.length]);
+    if (!open) return;
+    setTypes([]);
+  }, [open]);
 
   // When the operator picks a type, pre-fill mode (type registry declares defaults).
   useEffect(() => {

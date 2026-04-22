@@ -490,50 +490,14 @@ def _task_row_to_response(row: dict, task_md_parsed: Optional[dict] = None) -> T
 
 
 # =============================================================================
-# Task Type Catalog (ADR-145)
+# Task Type Catalog — DELETED (ADR-207 P4b, 2026-04-22)
 # =============================================================================
-
-@router.get("/types")
-async def list_task_types_endpoint(
-    output_kind: Optional[str] = None,
-):
-    """List available task types from the registry (ADR-166).
-
-    Optionally filter by output_kind:
-        accumulates_context | produces_deliverable | external_action | system_maintenance
-    """
-    from services.task_types import list_task_types
-
-    types = list_task_types(output_kind=output_kind)
-
-    # Slim down process for API response (don't expose full instructions)
-    for t in types:
-        t["pipeline_summary"] = [
-            {"agent_type": step["agent_type"], "step": step["step"]}
-            for step in t.get("process", [])
-        ]
-        # Don't send full process instructions to frontend
-        t.pop("process", None)
-        # Don't send internal fields
-        t.pop("default_objective", None)
-
-    return {"types": types}
-
-
-@router.get("/types/{type_key}")
-async def get_task_type_endpoint(type_key: str):
-    """Get a single task type definition with full detail."""
-    from services.task_types import get_task_type, get_process_agent_types
-
-    task_type = get_task_type(type_key)
-    if not task_type:
-        raise HTTPException(status_code=404, detail=f"Task type '{type_key}' not found")
-
-    return {
-        "type_key": type_key,
-        **task_type,
-        "process_agent_types": get_process_agent_types(type_key),
-    }
+# `GET /api/tasks/types` and `GET /api/tasks/types/{type_key}` REMOVED. Per
+# ADR-207 P4b, TASK_TYPES is no longer a user-facing catalog — task creation
+# happens via YARNNN self-declaration (agent + objective + capabilities +
+# context domains) OR via the `type_key` convenience field on
+# ManageTask(action="create"). The frontend CreateTaskModal stops fetching a
+# type list; YARNNN is the sole task authoring surface.
 
 
 # =============================================================================
@@ -1138,7 +1102,7 @@ async def get_pipeline_steps(
     Returns step manifests + content for the pipeline visualization tab.
     """
     from services.task_workspace import TaskWorkspace
-    from services.task_types import get_task_type
+    from services.task_pipeline import parse_task_md
 
     # Verify task exists and belongs to user
     existing = (
@@ -1154,22 +1118,21 @@ async def get_pipeline_steps(
 
     ws = TaskWorkspace(auth.client, auth.user_id, slug)
 
-    # Read TASK.md to get type_key for pipeline definition
-    task_md = await ws.read("TASK.md")
-    type_key = None
+    # ADR-207 P4b: read pipeline definition directly from parsed TASK.md
+    # process_steps — no registry lookup. TASK.md is authoritative.
+    task_md = await ws.read("TASK.md") or ""
     pipeline_definition = None
     if task_md:
-        for line in task_md.split("\n"):
-            if line.strip().startswith("type:"):
-                type_key = line.split(":", 1)[1].strip()
-                break
-        if type_key:
-            task_type_def = get_task_type(type_key)
-            if task_type_def:
-                pipeline_definition = [
-                    {"agent_type": s["agent_type"], "step": s["step"]}
-                    for s in task_type_def.get("process", [])
-                ]
+        parsed = parse_task_md(task_md)
+        process_steps = parsed.get("process_steps", [])
+        if process_steps:
+            pipeline_definition = [
+                {
+                    "agent_type": step.get("agent_ref", "unknown"),
+                    "step": step.get("step", "step"),
+                }
+                for step in process_steps
+            ]
 
     # Enumerate step folders by querying workspace for step manifests
     prefix = f"/tasks/{slug}/outputs/{date_folder}/step-"

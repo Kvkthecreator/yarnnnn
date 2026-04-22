@@ -35,9 +35,9 @@ MANAGE_TASK_TOOL = {
     "name": "ManageTask",
     "description": """Manage task lifecycle: create, trigger, update, pause, resume, evaluate, steer, complete, or archive.
 
-- create: scaffold from type_key (preferred, auto-populates pipeline/agent/schedule) or agent_slug + objective
+- create: self-declare the task (ADR-207 P4b): agent_slug + objective + output_kind + context_reads/writes + required_capabilities + optional process_steps/page_structure/deliverable_md. `type_key` is a DEPRECATED convenience that reads defaults from the surviving 21-entry registry; prefer explicit self-declaration for any new task shape.
 - trigger: run immediately; pass context= to focus this run only
-- update: change schedule, delivery, mode, type_key, or sources
+- update: change schedule, delivery, mode, or sources (type_key change path removed in ADR-207 P4b)
 - pause/resume: stop or restore scheduled runs
 - evaluate: assess latest output against DELIVERABLE.md; returns criteria_met, gaps, recommendation
 - steer: write guidance for next run (steering=); pass target_section= to force one section to regenerate
@@ -55,18 +55,18 @@ MANAGE_TASK_TOOL = {
                 "type": "string",
                 "description": "The task to manage. Required for all actions EXCEPT 'create' (where slug is generated from title)."
             },
-            # --- action="create" fields (ADR-168 Commit 3: absorbed from former CreateTask primitive) ---
+            # --- action="create" fields (ADR-207 P4b: self-declaration is primary; ADR-168 Commit 3: absorbed from former CreateTask primitive) ---
             "title": {
                 "type": "string",
                 "description": "For action='create': task name, e.g. 'Weekly Competitive Briefing'"
             },
             "type_key": {
                 "type": "string",
-                "description": "For action='create' or 'update': task type from the registry (auto-populates pipeline + schedule + agents). Required for action='create' unless agent_slug is provided."
+                "description": "For action='create': DEPRECATED seed-template convenience (ADR-207 P4b). One of the 21 surviving registry keys (track-competitors, revenue-report, etc.). Reads defaults from task_types.TASK_TYPES. Prefer explicit self-declaration (agent_slug + objective + all fields) for any new task shape."
             },
             "agent_slug": {
                 "type": "string",
-                "description": "For action='create': agent to assign (for custom tasks without type_key)."
+                "description": "For action='create': primary agent to assign. Required in the self-declaration path (ADR-207 P4b primary). Optional if type_key is provided (legacy convenience)."
             },
             "focus": {
                 "type": "string",
@@ -80,7 +80,7 @@ MANAGE_TASK_TOOL = {
                     "purpose": {"type": "string"},
                     "format": {"type": "string"},
                 },
-                "description": "For action='create' with a custom task: task objective (auto-populated from type_key if provided)"
+                "description": "For action='create' self-declaration path: task objective (deliverable, audience, purpose, format). With type_key, auto-populated from registry defaults."
             },
             "success_criteria": {
                 "type": "array",
@@ -100,7 +100,40 @@ MANAGE_TASK_TOOL = {
             "team": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "For action='create': explicit team composition for this task — list of specialist role keys (e.g. ['researcher', 'analyst', 'writer']). Overrides registry_default_team. TP uses this when the work intent warrants a non-default composition. Omit to use registry default."
+                "description": "For action='create': explicit team composition — list of specialist role keys (e.g. ['researcher', 'analyst', 'writer']). TP uses this to declare which specialists participate in multi-step process."
+            },
+            "output_kind": {
+                "type": "string",
+                "enum": ["accumulates_context", "produces_deliverable", "external_action", "system_maintenance"],
+                "description": "For action='create' self-declaration path (ADR-207 P4b): the shape of the task. Required when type_key is omitted."
+            },
+            "context_reads": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "For action='create' self-declaration: context domains the task reads from (e.g. ['trading', 'signals']). Drives tool budgeting + freshness checks."
+            },
+            "context_writes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "For action='create' self-declaration: context domains the task writes to (e.g. ['trading']). Drives tracker updates + domain scans."
+            },
+            "required_capabilities": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "For action='create' (ADR-207 P3 gate): capability names the task requires, e.g. ['read_slack', 'summarize']. Task pipeline checks each against CAPABILITIES registry + active platform_connections at dispatch. Missing capability = fail fast with 'connect X first'."
+            },
+            "emits_proposal": {
+                "type": "boolean",
+                "description": "For action='create' (ADR-207 D7): true if this task ends by calling ProposeAction. Marks the task as a Proposer in the Loop; derivation report (ADR-207 P5) shows it under 'proposer' role."
+            },
+            "process_steps": {
+                "type": "array",
+                "items": {"type": "object"},
+                "description": "For action='create' self-declaration: ordered list of {step, agent_ref, instruction}. Multi-step tasks dispatch each step to the named agent. Single-step tasks can omit this and rely on agent_slug."
+            },
+            "deliverable_md": {
+                "type": "string",
+                "description": "For action='create' self-declaration: full DELIVERABLE.md content (output contract, expected assets, quality criteria, audience, user preferences). Provide when the task needs a specific output shape; otherwise a minimal scaffold is written."
             },
             # --- Shared fields used by multiple actions ---
             "context": {
@@ -311,11 +344,15 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
     if new_delivery is not None:
         changes.append(f"delivery → {new_delivery}")
 
-    new_type_key = input.get("type_key", "").strip() or None
+    # ADR-207 P4b: `type_key` change path REMOVED from _handle_update.
+    # Changing a task's "type" used to resolve a new process + agents from the
+    # registry — that's a classification-gated dispatch that ADR-207 dissolves.
+    # To change a task's shape, create a new task with the correct
+    # self-declaration and archive the old one.
     new_sources = input.get("sources")  # ADR-158 Phase 2
 
-    if not changes and not new_type_key and not new_sources:
-        return {"success": False, "error": "no_changes", "message": "No changes specified. Use schedule, delivery, mode, or type_key parameters."}
+    if not changes and not new_sources:
+        return {"success": False, "error": "no_changes", "message": "No changes specified. Use schedule, delivery, mode, or sources parameters."}
 
     # Apply DB update
     try:
@@ -383,66 +420,10 @@ async def _handle_update(auth: Any, task_slug: str, input: dict) -> dict:
         except Exception as e:
             logger.warning(f"[MANAGE_TASK] TASK.md sources update failed (non-fatal): {e}")
 
-    # Assign type_key → updates TASK.md with type + process definition from registry
-    if new_type_key:
-        try:
-            from services.task_types import get_task_type, resolve_process_agents
-
-            task_type_def = get_task_type(new_type_key)
-            if not task_type_def:
-                return {"success": False, "error": "unknown_type", "message": f"Task type '{new_type_key}' not found in registry."}
-
-            # Read current TASK.md
-            task_md = await tw.read_task() or ""
-
-            # Update or add **Type:** line
-            if "**Type:**" in task_md:
-                task_md = re.sub(r"\*\*Type:\*\*.*", f"**Type:** {new_type_key}", task_md)
-            else:
-                # Insert after first line (title)
-                lines = task_md.split("\n")
-                insert_pos = 1 if len(lines) > 0 else 0
-                lines.insert(insert_pos, f"\n**Type:** {new_type_key}")
-                task_md = "\n".join(lines)
-
-            # ADR-205: lazy-ensure infrastructure agents declared by the type
-            from services.agent_creation import ensure_infrastructure_agents_for_type
-            await ensure_infrastructure_agents_for_type(auth.client, auth.user_id, new_type_key)
-            # Resolve process agents from user's roster
-            user_agents = auth.client.table("agents").select("slug, role, title, status").eq("user_id", auth.user_id).eq("status", "active").execute()
-            resolved_steps = resolve_process_agents(new_type_key, user_agents.data or [])
-
-            # Replace or add ## Process section
-            if "## Process" in task_md:
-                # Remove existing process section
-                before_process = task_md[:task_md.index("## Process")]
-                after_idx = task_md.find("\n## ", task_md.index("## Process") + 1)
-                after_process = task_md[after_idx:] if after_idx != -1 else ""
-                task_md = before_process.rstrip() + "\n\n"
-            else:
-                task_md = task_md.rstrip() + "\n\n"
-
-            # Build process section from resolved steps
-            process_lines = ["## Process\n"]
-            for i, step in enumerate(resolved_steps, 1):
-                process_lines.append(f"### Step {i}: {step.get('step', f'Step {i}')}")
-                process_lines.append(f"- **Agent:** {step.get('agent_slug', 'unassigned')}")
-                process_lines.append(f"- **Type:** {step.get('agent_type', 'unknown')}")
-                if step.get("instruction"):
-                    process_lines.append(f"- **Instruction:** {step['instruction']}")
-                process_lines.append("")
-
-            if "## Process" in task_md:
-                task_md += "\n".join(process_lines) + after_process
-            else:
-                task_md += "\n".join(process_lines)
-
-            await tw.write("TASK.md", task_md, summary=f"Assigned type: {new_type_key} with {len(resolved_steps)} process steps")
-            changes.append(f"type → {new_type_key} ({len(resolved_steps)} steps)")
-
-        except Exception as e:
-            logger.error(f"[MANAGE_TASK] type_key assignment failed: {e}", exc_info=True)
-            return {"success": False, "error": "type_assignment_failed", "message": f"Failed to assign type: {str(e)}"}
+    # ADR-207 P4b: the previous `new_type_key` path that resolved process + agents
+    # from the registry and rewrote the TASK.md process section has been DELETED.
+    # Tasks self-declare their process in TASK.md; to change the shape of a task,
+    # author a new task with the correct declaration and archive the old one.
 
     return {
         "success": True,
@@ -912,21 +893,29 @@ def _build_custom_task_md(
     output_kind: Optional[str] = None,
     context_reads: Optional[list] = None,
     context_writes: Optional[list] = None,
+    required_capabilities: Optional[list] = None,
+    emits_proposal: bool = False,
+    sources: Optional[dict] = None,
+    process_steps: Optional[list] = None,
 ) -> str:
-    """Build TASK.md content for a custom task (no type_key).
+    """Build TASK.md content for a self-declared task (ADR-207).
 
-    Type-key tasks use `build_task_md_from_type()` from task_types registry.
+    ADR-207 P4b: this is the primary path. type_key-based creation still exists
+    as a convenience that reads defaults from `task_types.TASK_TYPES` (deprecated),
+    but dispatch, compose, and every pipeline caller read from parsed TASK.md only.
+    No registry classification at runtime.
 
-    ADR-174 Phase 3: page_structure (list of section dicts) is serialized as a
-    YAML block under ## Page Structure. The compose pipeline reads it at execution
-    time, taking precedence over any registry definition.
+    Serializes every ADR-207 self-declaration field as a TASK.md metadata line
+    so `parse_task_md()` populates:
+      - mode, schedule, delivery
+      - output (output_kind)
+      - context_reads / context_writes
+      - required_capabilities (ADR-207 P3 gate)
+      - emits_proposal (ADR-207 D7 — proposer role)
+      - sources (ADR-158 per-task platform source selection)
 
-    ADR-166 (output_kind) + ADR-151/152 (context domains): the three
-    pipeline-wiring fields are emitted as TASK.md header lines so
-    parse_task_md() populates them. Without them, custom tasks default to
-    output_kind='produces_deliverable' and empty context domain sets — which
-    disables signal routing, domain scans, tracker updates, and output_kind-
-    aware tool budgeting.
+    Plus the structured sections: objective, success_criteria, output_spec,
+    team, page_structure, process steps.
     """
     lines = [f"# {title}", "", f"**Slug:** {slug}", f"**Agent:** {agent_slug}", f"**Mode:** {mode}"]
 
@@ -940,6 +929,17 @@ def _build_custom_task_md(
         lines.append(f"**Context Reads:** {', '.join(context_reads)}")
     if context_writes:
         lines.append(f"**Context Writes:** {', '.join(context_writes)}")
+    if required_capabilities:
+        lines.append(f"**Required Capabilities:** {', '.join(required_capabilities)}")
+    if emits_proposal:
+        lines.append("**Emits Proposal:** true")
+    if sources and isinstance(sources, dict):
+        parts = []
+        for platform, ids in sources.items():
+            if ids:
+                parts.append(f"{platform}:{','.join(ids)}")
+        if parts:
+            lines.append(f"**Sources:** {'; '.join(parts)}")
 
     if objective:
         lines.append("")
@@ -961,12 +961,24 @@ def _build_custom_task_md(
         for section in output_spec:
             lines.append(f"- {section}")
 
-    # ADR-176 Phase 2: team composition for custom tasks
+    # ADR-176 Phase 2: team composition
     if team and isinstance(team, list):
         lines.append("")
         lines.append("## Team")
         for role in team:
             lines.append(f"- {role}")
+
+    # ADR-207 P4b: serialize explicit process steps when the caller supplies them.
+    # Each step is {step, agent_ref, instruction}. parse_task_md consumes this
+    # and the pipeline dispatches per step.
+    if process_steps and isinstance(process_steps, list):
+        lines.append("")
+        lines.append("## Process")
+        for i, step in enumerate(process_steps, 1):
+            step_name = step.get("step") or f"step-{i}"
+            agent_ref = step.get("agent_ref") or step.get("agent_slug") or agent_slug
+            instruction = step.get("instruction", "")
+            lines.append(f"{i}. **{step_name}** ({agent_ref}): {instruction}")
 
     # ADR-174 Phase 3: bespoke compose layout — YAML block readable by parse_task_md()
     if page_structure and isinstance(page_structure, list):
@@ -1038,6 +1050,13 @@ async def _handle_create(auth: Any, input: dict) -> dict:
     output_kind_override = input.get("output_kind")
     context_reads_override = input.get("context_reads")
     context_writes_override = input.get("context_writes")
+    # ADR-207 P4b: self-declaration fields. The caller (YARNNN) supplies these
+    # directly so dispatch + compose + the capability gate all fire correctly
+    # without any registry lookup.
+    required_capabilities_override = input.get("required_capabilities")
+    emits_proposal_override = bool(input.get("emits_proposal", False))
+    process_steps_override = input.get("process_steps")
+    custom_deliverable_md = input.get("deliverable_md")
 
     if mode not in ("recurring", "goal", "reactive"):
         mode = "recurring"
@@ -1264,7 +1283,8 @@ async def _handle_create(auth: Any, input: dict) -> dict:
             # Type-based: use pre-built TASK.md from registry
             task_md = task_md_content
         else:
-            # Custom: build manually
+            # ADR-207 P4b: self-declaration path (primary). Caller provides every
+            # field needed for dispatch, compose, and capability gating.
             task_md = _build_custom_task_md(
                 title=title,
                 slug=slug,
@@ -1280,6 +1300,10 @@ async def _handle_create(auth: Any, input: dict) -> dict:
                 output_kind=output_kind_override,
                 context_reads=context_reads_override,
                 context_writes=context_writes_override,
+                required_capabilities=required_capabilities_override,
+                emits_proposal=emits_proposal_override,
+                sources=input.get("sources"),
+                process_steps=process_steps_override,
             )
         await tw.write("TASK.md", task_md, summary=f"Task definition: {title}", tags=["task", "definition"])
 
@@ -1291,22 +1315,28 @@ async def _handle_create(auth: Any, input: dict) -> dict:
                 await tw.write("DELIVERABLE.md", deliverable_md,
                               summary=f"Deliverable spec for {title}", tags=["deliverable", "spec"])
         else:
-            # Custom task — minimal deliverable scaffold
-            custom_deliverable = (
-                "# Deliverable Specification\n\n"
-                "## Expected Output\n"
-                f"- Format: HTML document\n"
-                f"- Layout: As specified in objective\n\n"
-                "## Expected Assets\n"
-                "- Visual assets optional where data supports\n\n"
-                "## Quality Criteria\n"
-                + ("\n".join(f"- {c}" for c in success_criteria) + "\n" if success_criteria else "- Output addresses the stated objective\n")
-                + "\n## Audience\n"
-                + (objective.get("audience", "") if isinstance(objective, dict) else "")
-                + "\n\n## User Preferences (inferred)\n"
-                "<!-- Populated by feedback inference (ADR-149). Empty at creation. -->\n"
-            )
-            await tw.write("DELIVERABLE.md", custom_deliverable,
+            # ADR-207 P4b: self-declared path. Caller may supply a full
+            # DELIVERABLE.md via `deliverable_md`; otherwise we scaffold a
+            # minimal deliverable that downstream feedback inference (ADR-149)
+            # will flesh out over cycles.
+            if custom_deliverable_md and isinstance(custom_deliverable_md, str) and custom_deliverable_md.strip():
+                deliverable_content = custom_deliverable_md
+            else:
+                deliverable_content = (
+                    "# Deliverable Specification\n\n"
+                    "## Expected Output\n"
+                    f"- Format: HTML document\n"
+                    f"- Layout: As specified in objective\n\n"
+                    "## Expected Assets\n"
+                    "- Visual assets optional where data supports\n\n"
+                    "## Quality Criteria\n"
+                    + ("\n".join(f"- {c}" for c in success_criteria) + "\n" if success_criteria else "- Output addresses the stated objective\n")
+                    + "\n## Audience\n"
+                    + (objective.get("audience", "") if isinstance(objective, dict) else "")
+                    + "\n\n## User Preferences (inferred)\n"
+                    "<!-- Populated by feedback inference (ADR-149). Empty at creation. -->\n"
+                )
+            await tw.write("DELIVERABLE.md", deliverable_content,
                           summary=f"Deliverable spec for {title}", tags=["deliverable", "spec"])
 
         # ADR-181: Seed empty feedback file at task root (source-agnostic layer)

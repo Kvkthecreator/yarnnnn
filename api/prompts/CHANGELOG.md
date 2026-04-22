@@ -6,6 +6,55 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.22.11] - ADR-207 P4b (TASK_TYPES no longer dispatch-authoritative)
+
+### Changed
+
+**Dispatch is TASK.md-only (task_pipeline.py).** Every registry fallback deleted:
+- `get_task_type(type_key).surface_type` → use `task_info["surface_type"]` or default `"report"`
+- `get_task_type(type_key).page_structure` → use `task_info["page_structure"]` exclusively (both compose sites: single-step 6d and pipeline derive-output)
+- `get_bootstrap_criteria(type_key)` → DELETED from awareness/phase detection + system-verification coverage check. Phase progression now tracked through `_tracker.md` content only.
+- `STEP_INSTRUCTIONS` fallbacks → DELETED from both single-step and pipeline paths. TASK.md `## Process` is authoritative.
+- `parse_task_md` extended: parses `**Required Capabilities:** ...` (ADR-207 P3) and `**Emits Proposal:** true` (ADR-207 D7).
+
+**ManageTask schema extended for self-declaration** (`api/services/primitives/manage_task.py`):
+- New fields on `action="create"`: `output_kind`, `context_reads`, `context_writes`, `required_capabilities`, `emits_proposal`, `process_steps`, `deliverable_md`.
+- `_build_custom_task_md` serializes all of them into TASK.md metadata/sections so `parse_task_md` round-trips.
+- `type_key` is flagged DEPRECATED in the tool schema description — documentation points operators to the self-declaration path.
+- `_handle_update` `new_type_key` change path DELETED. Changing task shape is now "author a new task + archive old".
+
+**Routes:**
+- `GET /api/tasks/types` and `GET /api/tasks/types/{key}` DELETED. YARNNN is the sole task-authoring surface — no user-facing type catalog.
+- `/api/tasks/{slug}/outputs/{date}/steps` pipeline_definition now reads parsed TASK.md `process_steps` directly (no `get_task_type` import).
+
+**Frontend (`web/`):**
+- `api.tasks.listTypes` + `api.tasks.getType` methods DELETED from the client (server endpoints gone).
+- `CreateTaskModal.useEffect` registry fetch DELETED — modal is a minimal quick-capture form only. Full task authoring happens via YARNNN chat.
+
+**YARNNN workspace prompt (`api/agents/yarnnn_prompts/workspace.py`):**
+- Rewrote the `ManageTask(action="create", ...)` section around self-declaration as the primary (and only recommended) path. Two worked examples shipped: Sensor task (`accumulates_context`, `read_trading` + `web_search`, writes trading/market domains) and Proposer task (`external_action`, `write_trading`, `emits_proposal=true`). `type_key` is framed as a deprecated convenience only.
+
+**`services/task_types.py` module docstring** rewritten to flag registry status under ADR-207 P4b: TASK_TYPES + 8 helpers preserved as a frozen seed-template library used only by two creation-time callers (`_handle_create`'s type_key convenience + `workspace_init.materialize_back_office_task`). No caller reads TASK_TYPES at dispatch time. Removal trajectory documented.
+
+### Expected behavior
+
+- A task created via self-declaration (no `type_key`) writes a complete TASK.md and dispatches identically to a type_key-seeded task — same pipeline, same capability gate, same compose flow.
+- Tasks with `**Required Capabilities:** write_trading` fail fast when Alpaca isn't connected; with `**Emits Proposal:** true` they're labeled "proposer" in the derivation report (ADR-207 P5).
+- `_handle_update` now only accepts `schedule`, `delivery`, `mode`, or `sources`. Operators wanting a shape change create a new task + archive the old.
+- Frontend `/work` Create Task modal no longer attempts to fetch the type catalog — silent graceful degradation if any consumer calls the deleted client methods (will error at call site, visible during review).
+- `task_pipeline.execute_task` no longer imports from `services.task_types` anywhere in the hot path. Registry is callable only from the two creation-time seed callers.
+
+### Deferred
+
+- **Full TASK_TYPES deletion** — depends on (a) operator migrating off type_key convenience for new tasks, (b) back-office TASK.md templates moving inline to `workspace_init.py`. Until both, the 21 surviving registry entries + 8 helpers stay frozen and callable.
+- **CreateTaskModal full rework** — current change is a minimal "stop fetching types" patch. Full self-declaration form (agent picker + required_capabilities chips + context domain selector) is a separate frontend effort.
+
+### ADRs
+
+`docs/adr/ADR-207-primary-action-centric-workflow.md` — Phase 4b partially implemented. Remaining scope: full registry deletion + CreateTaskModal self-declaration UI + P6 alpha persona re-author.
+
+---
+
 ## [2026.04.22.10] - ADR-207 P5 (derive_task_set + prompt wiring)
 
 ### Added

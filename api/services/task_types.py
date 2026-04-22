@@ -1,4 +1,45 @@
 """
+Task Type Registry — ADR-152 + ADR-154 + ADR-166 + ADR-170 (ADR-207 P4b: DEPRECATED as dispatch authority)
+
+**ADR-207 P4b (2026-04-22) status:**
+
+This module no longer dictates dispatch behavior. `task_pipeline.py` and all
+execution paths read TASK.md exclusively — no more `get_task_type(type_key)`
+lookups in the pipeline, no more `get_bootstrap_criteria` gates, no more
+`STEP_INSTRUCTIONS` fallbacks. TASK.md self-declaration is authoritative
+for every runtime decision (capability gate, page structure, process steps,
+output kind, context reads/writes, surface type).
+
+What survives here, and why:
+
+  - `TASK_TYPES` dict (21 entries) + `STEP_INSTRUCTIONS` dict — kept as a
+    *seed-template library*. Two callers consume these at creation time:
+      * `_handle_create`'s `type_key` path (deprecated convenience).
+      * `workspace_init.materialize_back_office_task` (scaffolds 4 back-office
+        tasks whose TASK.md is identical for every workspace).
+    Neither reads the registry at dispatch — both write finished TASK.md to
+    workspace and the pipeline reads from there.
+
+  - 8 helper functions (`get_task_type`, `get_default_mode`,
+    `delivery_requires_approval`, `get_bootstrap_criteria`, `list_task_types`,
+    `resolve_process_agents`, `build_task_md_from_type`,
+    `build_deliverable_md_from_type`) — kept functional for the two callers
+    above. Callers should not add new imports.
+
+What's been deleted under P4b:
+  - `GET /api/tasks/types` and `GET /api/tasks/types/{type_key}` endpoints.
+  - `_handle_update`'s `new_type_key` change path (rewrote TASK.md process
+    section from registry; now operators self-declare).
+  - All `task_pipeline.py` registry fallbacks (surface_type, page_structure,
+    bootstrap criteria, STEP_INSTRUCTIONS).
+  - 11 bot-dispatched TASK_TYPES entries (see ADR-207 P4a for list).
+
+Removal trajectory: when `_handle_create`'s type_key path is retired and the
+4 back-office templates move to inline fixtures in `workspace_init.py`, this
+module can be deleted wholesale. Until then, treat TASK_TYPES + its helpers
+as frozen — add nothing, refactor nothing, prefer self-declaration.
+
+--- Original module header ---
 Task Type Registry — ADR-152 + ADR-154 + ADR-166 + ADR-170: Atomic Task Types
 
 Each task type has one `output_kind` (ADR-166) describing what shape of work

@@ -474,34 +474,13 @@ async def _compose_and_persist(
     # Strip "outputs/" prefix from task_output_folder for tw.write paths
     _tf = task_output_folder.removeprefix("outputs/")
 
-    # Resolve surface_type
-    _surface = task_info.get("surface_type", "")
-    if not _surface:
-        _type_key = task_info.get("type_key", "").strip()
-        if _type_key:
-            try:
-                from services.task_types import get_task_type
-                _tdef = get_task_type(_type_key)
-                if _tdef:
-                    _surface = _tdef.get("surface_type", "report")
-            except Exception:
-                pass
-    if not _surface:
-        _surface = "report"
+    # ADR-207 P4b: surface_type + page_structure come from parsed TASK.md
+    # (self-declaration) exclusively. Registry fallback deleted.
+    _surface = task_info.get("surface_type") or "report"
 
     # ── Step 1: Parse sections FIRST ──────────────────────────────────────────
     sections_parsed = {}
     _page_structure = task_info.get("page_structure")
-    if not _page_structure:
-        _type_key = task_info.get("type_key", "").strip()
-        if _type_key:
-            try:
-                from services.task_types import get_task_type
-                _tdef_ps = get_task_type(_type_key)
-                if _tdef_ps:
-                    _page_structure = _tdef_ps.get("page_structure")
-            except Exception:
-                pass
 
     if _page_structure:
         try:
@@ -824,49 +803,14 @@ async def _post_run_domain_scan(
         # Phase detection (ADR-154)
         type_key = (task_info or {}).get("type_key", "")
         task_phase = "steady"
-        if type_key and context_writes:
-            from services.task_types import get_bootstrap_criteria, evaluate_bootstrap_status
-            bootstrap = get_bootstrap_criteria(type_key)
-            if bootstrap:
-                required_files = bootstrap.get("required_files", [])
-                # Count entities that have all required files across all write domains
-                total_qualified = 0
-                total_entities = 0
-                for dk in context_writes:
-                    if dk == "signals" or not has_entity_tracker(dk):
-                        continue
-                    for slug, edata in entities_touched.get(dk, []) and [] or []:
-                        pass  # entities_touched only has slugs
-                # Use the tracker data we already built
-                for dk in context_writes:
-                    if dk == "signals" or dk not in entities_touched and dk not in all_domains:
-                        continue
-                    tracker_path_check = get_tracker_path(dk)
-                    if not tracker_path_check:
-                        continue
-                    tracker_content_check = await um.read(tracker_path_check)
-                    if not tracker_content_check:
-                        continue
-                    for line in tracker_content_check.split("\n"):
-                        if line.startswith("|") and "Slug" not in line and "---" not in line:
-                            parts = [p.strip() for p in line.split("|")]
-                            if len(parts) >= 5:
-                                total_entities += 1
-                                files_str = parts[3] if len(parts) > 3 else ""
-                                entity_files = [f.strip() for f in files_str.split(",") if f.strip() and f.strip() != "—"]
-                                if all(rf in entity_files for rf in required_files):
-                                    total_qualified += 1
-                task_phase = evaluate_bootstrap_status(type_key, total_entities, total_qualified)
-
-        # Domain state + phase section
+        # ADR-207 P4b: bootstrap-phase detection DELETED from awareness injection.
+        # The old logic read `get_bootstrap_criteria(type_key)` from the registry
+        # to decide min_entities / required_files per task type. Post-P4b,
+        # tasks self-declare the shape of their work; phase progression is
+        # visible to the agent via `_tracker.md` content and the domain's
+        # accumulated state, not a classification-gated threshold.
         awareness_lines.append(f"\n## Phase: {task_phase}")
-        if task_phase == "bootstrap":
-            bootstrap_info = get_bootstrap_criteria(type_key) or {}
-            min_e = bootstrap_info.get("min_entities", "?")
-            awareness_lines.append(f"- Bootstrap in progress: {total_qualified}/{min_e} entities meet criteria")
-            awareness_lines.append(f"- Total entities discovered: {total_entities}")
-        else:
-            awareness_lines.append("- Domain established. Normal cadence.")
+        awareness_lines.append("- Domain established. Normal cadence.")
 
         if context_writes:
             awareness_lines.append("\n## Domain State")
@@ -1013,47 +957,10 @@ async def _compute_system_verification(
                 f"- Action: flag stale entity {se} | severity: medium\n"
             )
 
-    # ── Check 2: Coverage gap ──
-    # Only for tasks with context_writes that have bootstrap criteria
-    if task_phase == "steady":
-        type_key = task_info.get("type_key", "")
-        context_writes = task_info.get("context_writes", [])
-        if type_key and context_writes:
-            try:
-                from services.task_types import get_bootstrap_criteria
-                bootstrap = get_bootstrap_criteria(type_key)
-                if bootstrap:
-                    min_entities = bootstrap.get("min_entities", 0)
-                    # Count current entities across write domains
-                    from services.directory_registry import (
-                        get_domain_folder, has_entity_tracker, get_tracker_path,
-                    )
-                    from services.workspace import UserMemory
-                    um = UserMemory(tw._db, tw._user_id)
-                    for dk in context_writes:
-                        if dk == "signals" or not has_entity_tracker(dk):
-                            continue
-                        tracker_path = get_tracker_path(dk)
-                        if not tracker_path:
-                            continue
-                        tracker_content = await um.read(tracker_path)
-                        if not tracker_content:
-                            continue
-                        # Count active entities in tracker
-                        active_count = 0
-                        for line in tracker_content.split("\n"):
-                            if line.startswith("|") and "Slug" not in line and "---" not in line:
-                                if "| stale |" not in line.lower() and "| inactive |" not in line.lower():
-                                    active_count += 1
-                        if min_entities > 0 and active_count < min_entities:
-                            entries_to_write.append(
-                                f"## System Verification ({now}, source: system_verification)\n"
-                                f"- Domain {dk} has {active_count} active entities "
-                                f"(min expected: {min_entities} for {type_key})\n"
-                                f"- Action: expand coverage {dk} | severity: low\n"
-                            )
-            except Exception as e:
-                logger.warning(f"[SYS_VERIFY] Coverage check failed: {e}")
+    # ADR-207 P4b: coverage-gap check that read `get_bootstrap_criteria(type_key)`
+    # from the registry DELETED. Tasks self-declare their shape; under-coverage
+    # surfaces through `_tracker.md` staleness + the agent's own reflections,
+    # not through a classification-gated threshold.
 
     # ── Check 3: Agent low confidence ──
     if agent_reflection:
@@ -1173,6 +1080,7 @@ def parse_task_md(content: str) -> dict:
         "success_criteria": [],
         "output_spec": [],
         "required_capabilities": [],  # ADR-207 P3
+        "emits_proposal": False,      # ADR-207 D7
     }
 
     lines = content.strip().splitlines()
@@ -1227,6 +1135,12 @@ def parse_task_md(content: str) -> dict:
                 c.strip() for c in raw.split(",")
                 if c.strip() and c.strip() != "none"
             ]
+        # ADR-207 D7: tasks that emit proposals declare themselves as Proposers.
+        # Derivation report (ADR-207 P5) uses this to label the Loop's arrow-3
+        # position. `true`, `yes`, `1` all count as truthy.
+        elif line_stripped.startswith("**Emits Proposal:**"):
+            raw = line_stripped.split("**Emits Proposal:**")[1].strip().lower()
+            result["emits_proposal"] = raw in ("true", "yes", "1")
         elif line_stripped.startswith("**Sources:**"):
             # ADR-158 Phase 2: per-task source selection
             # Format: slack:C123,C456; notion:page-id-1,page-id-2
@@ -1705,22 +1619,11 @@ If context says "(No context available)" or tools return no results:
         type_key = task_info.get("type_key", "")
         is_context_task = output_kind == "accumulates_context"
 
-        # ADR-188: TASK.md instruction is primary source. Registry is fallback
-        # for tasks created before ADR-188 or from registry templates where
-        # TASK.md instruction was truncated.
-        if task_phase == "bootstrap" and is_context_task and not step_instruction:
-            # Bootstrap context task without TASK.md instruction — use registry
-            from services.task_types import STEP_INSTRUCTIONS
-            bootstrap_instruction = STEP_INSTRUCTIONS.get("update-context:bootstrap", "")
-            if bootstrap_instruction:
-                context_writes = task_info.get("context_writes", [])
-                primary_domain = next((d for d in context_writes if d != "signals"), "")
-                step_instruction = bootstrap_instruction.replace("{domain}", primary_domain)
-        elif not step_instruction and is_context_task:
-            # Steady-state context task without explicit step instruction — registry fallback
-            from services.task_types import STEP_INSTRUCTIONS
-            step_instruction = STEP_INSTRUCTIONS.get("update-context", "")
-
+        # ADR-207 P4b: STEP_INSTRUCTIONS registry fallback DELETED. TASK.md's
+        # `## Process` section is the sole source of step instructions. Tasks
+        # without inline instructions run with just the objective + success
+        # criteria — YARNNN authors a proper `## Process` step when the task
+        # needs more specific guidance.
         if step_instruction:
             user_parts.append(f"\n**Your specific role:** {step_instruction}")
 
@@ -2149,14 +2052,10 @@ async def execute_task(
         prior_manifest = None   # ADR-173: also used at 12b for generation_gaps
         revision_scope = None   # ADR-173: also used at 12b for generation_gaps
         if output_kind == "produces_deliverable":
-            from services.task_types import get_task_type
-            type_key = task_info.get("type_key", "")
-            task_type_def = get_task_type(type_key) if type_key else None
-            # ADR-174 Phase 3: TASK.md page_structure takes precedence over registry
-            _page_structure_6d = (
-                task_info.get("page_structure")
-                or (task_type_def.get("page_structure") if task_type_def else None)
-            )
+            # ADR-207 P4b: page_structure comes from TASK.md only. Registry
+            # fallback (get_task_type(type_key).get("page_structure"))
+            # DELETED — TASK.md is authoritative.
+            _page_structure_6d = task_info.get("page_structure")
             if _page_structure_6d:
 
                 # Read prior manifest for staleness detection + revision routing
@@ -2738,14 +2637,13 @@ async def _execute_pipeline(
 
     for step_idx, step in enumerate(steps):
         step_num = step_idx + 1
-        # ADR-152: Steps from TASK.md have agent_ref; registry steps have agent_type
+        # ADR-207 P4b: steps are sourced from TASK.md (self-declared) only.
+        # Registry STEP_INSTRUCTIONS fallback DELETED. Tasks with empty step
+        # instructions rely on their objective + success criteria + domain
+        # context — YARNNN authors proper step text if more guidance is needed.
         agent_ref = step.get("agent_ref") or step.get("agent_type", "")
         step_name = step["step"]
         step_instruction = step.get("instruction", "")
-        # If instruction is empty (TASK.md may truncate), use generic template
-        if not step_instruction:
-            from services.task_types import STEP_INSTRUCTIONS
-            step_instruction = STEP_INSTRUCTIONS.get(step_name, "")
 
         # Resolve agent: try slug first, then role/type. ADR-205: lazy-ensure
         # on miss — Specialists and Platform Bots may not have materialized yet.
@@ -2799,14 +2697,9 @@ async def _execute_pipeline(
         # ADR-170: Generation brief + revision scope on derive-output step only
         step_generation_brief = ""
         if step_name == "derive-output" and task_info.get("output_kind") == "produces_deliverable":
-            from services.task_types import get_task_type
-            type_key = task_info.get("type_key", "")
-            task_type_def = get_task_type(type_key) if type_key else None
-            # ADR-174 Phase 3: TASK.md page_structure takes precedence over registry
-            _ps = (
-                task_info.get("page_structure")
-                or (task_type_def.get("page_structure") if task_type_def else None)
-            )
+            # ADR-207 P4b: page_structure read from TASK.md only; registry
+            # fallback DELETED.
+            _ps = task_info.get("page_structure")
             if _ps:
                 prior_manifest_content = await tw.read("outputs/latest/sys_manifest.json") or ""
                 prior_manifest = None

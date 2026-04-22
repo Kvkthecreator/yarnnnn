@@ -38,6 +38,9 @@ import type {
   TaskCreate,
   TaskOutput,
   // ADR-145: Task type registry
+  // ADR-207 P4b: TaskType + TaskTypesResponse imports retained for any
+  // remaining consumer (CreateTaskModal) until frontend cutover; API client
+  // no longer exposes listTypes/getType endpoints.
   TaskType,
   TaskTypesResponse,
   ProcessStepsResponse,
@@ -570,14 +573,11 @@ export const api = {
       );
     },
 
-    // ADR-145 / ADR-166: Task type registry filtered by output_kind
-    listTypes: (output_kind?: string) => {
-      const params = output_kind ? `?output_kind=${output_kind}` : "";
-      return request<TaskTypesResponse>(`/api/tasks/types${params}`);
-    },
-
-    getType: (typeKey: string) =>
-      request<TaskType>(`/api/tasks/types/${typeKey}`),
+    // ADR-207 P4b (2026-04-22): `listTypes` + `getType` DELETED. The
+    // `/api/tasks/types` and `/api/tasks/types/{key}` endpoints no longer
+    // exist server-side. Task creation happens via YARNNN self-declaration
+    // (agent + objective + required_capabilities + context domains) via
+    // ManageTask(action="create"), not a catalog pick.
 
     // ADR-145: Process step outputs for a given run
     getStepOutputs: (slug: string, dateFolder: string) =>
