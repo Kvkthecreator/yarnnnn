@@ -16,7 +16,7 @@ conversation turn via the compact index.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -58,6 +58,63 @@ class RejectRequest(BaseModel):
 # Endpoints
 # =============================================================================
 
+async def _current_occupant_for_user(client: Any, user_id: str) -> dict:
+    """Read OCCUPANT.md for this user and return a compact display dict.
+
+    Implements ADR-211 D7 prospective-attribution contract invariants
+    I1 (pending proposals display current occupant) and I2 (verdicts
+    display occupant identity inline). Returns the same shape whether
+    the proposal is pending or rendered, so the frontend can display
+    consistently.
+
+    Shape:
+        {
+            "occupant": "human:<id>" | "ai:<model>-<ver>" | ...,
+            "occupant_class": "human" | "ai" | "external" | "impersonated",
+            "display_label": short human-readable label
+        }
+
+    Returns an empty dict if OCCUPANT.md is missing (pre-Phase-4 workspaces);
+    callers MUST treat missing current_occupant as "unknown / default
+    human" — do NOT assume a specific occupant from absence.
+    """
+    try:
+        from services.workspace import UserMemory
+        from services.review_rotation import read_current_occupant
+        um = UserMemory(client=client, user_id=user_id)
+        current = await read_current_occupant(um)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[PROPOSALS] current_occupant read failed: %s", exc)
+        return {}
+
+    occupant = current.get("occupant") or ""
+    oc = current.get("occupant_class") or ""
+    if not occupant:
+        return {}
+
+    # Display label — concise, frontend-friendly
+    if oc == "human":
+        label = "You (human occupant)"
+    elif oc == "ai":
+        # Extract model identifier from "ai:reviewer-sonnet-v1"
+        _, _, rest = occupant.partition(":")
+        label = f"AI reviewer ({rest})"
+    elif oc == "external":
+        _, _, rest = occupant.partition(":")
+        label = f"External reviewer ({rest})"
+    elif oc == "impersonated":
+        _, _, rest = occupant.partition(":")
+        label = f"Impersonated ({rest})"
+    else:
+        label = occupant
+
+    return {
+        "occupant": occupant,
+        "occupant_class": oc,
+        "display_label": label,
+    }
+
+
 @router.get("/proposals")
 async def list_proposals(
     auth: UserClient,
@@ -69,6 +126,21 @@ async def list_proposals(
     Args:
         status: filter by status (default 'pending'). Use 'all' for no filter.
         limit: max rows to return.
+
+    Response shape (ADR-211 D7 attribution contract):
+        {
+            "proposals": [<proposal rows>],
+            "current_occupant": {
+                "occupant": str,       # identity, e.g. "human:<id>"
+                "occupant_class": str, # human | ai | external | impersonated
+                "display_label": str,  # "You (human occupant)" etc.
+            }
+        }
+
+    The `current_occupant` field satisfies Invariant I1: any surface
+    displaying pending proposals must display who currently fills the
+    Reviewer seat. Frontend reads this value to render seat attribution
+    alongside proposal cards.
     """
     try:
         query = (
@@ -81,7 +153,11 @@ async def list_proposals(
         if status and status != "all":
             query = query.eq("status", status)
         result = query.execute()
-        return {"proposals": result.data or []}
+        current_occupant = await _current_occupant_for_user(auth.client, auth.user_id)
+        return {
+            "proposals": result.data or [],
+            "current_occupant": current_occupant,
+        }
     except Exception as e:
         logger.error(f"[PROPOSALS] list failed for {auth.user_id[:8]}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -89,7 +165,19 @@ async def list_proposals(
 
 @router.get("/proposals/{proposal_id}")
 async def get_proposal(proposal_id: str, auth: UserClient):
-    """Fetch a single proposal."""
+    """Fetch a single proposal with seat attribution.
+
+    Response envelope (ADR-211 D7 attribution contract):
+        {
+            "proposal": <proposal row>,
+            "current_occupant": {...}  # same shape as /proposals list
+        }
+
+    The `current_occupant` field satisfies Invariant I1 (for pending)
+    and Invariant I2 (for rendered — frontend displays occupant identity
+    inline with the verdict, sourced from proposal.reviewer_identity for
+    rendered verdicts, or from current_occupant for pending).
+    """
     try:
         result = (
             auth.client.table("action_proposals")
@@ -101,7 +189,11 @@ async def get_proposal(proposal_id: str, auth: UserClient):
         )
         if not result.data:
             raise HTTPException(status_code=404, detail="Proposal not found")
-        return result.data[0]
+        current_occupant = await _current_occupant_for_user(auth.client, auth.user_id)
+        return {
+            "proposal": result.data[0],
+            "current_occupant": current_occupant,
+        }
     except HTTPException:
         raise
     except Exception as e:

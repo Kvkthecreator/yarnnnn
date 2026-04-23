@@ -1228,21 +1228,48 @@ export const api = {
           rejection_reason: string | null;
           approved_by: string | null;
         }>;
+        /**
+         * ADR-211 D7 prospective-attribution contract (Invariant I1):
+         * the current occupant of the Reviewer seat. Frontend displays
+         * this alongside pending proposals so the operator knows who
+         * is set to render the verdict. Empty object for pre-Phase-4
+         * workspaces (treat as "unknown — default human occupant").
+         */
+        current_occupant: {
+          occupant: string;
+          occupant_class: "human" | "ai" | "external" | "impersonated" | "";
+          display_label: string;
+        } | Record<string, never>;
       }>(`/api/proposals?status=${encodeURIComponent(status)}&limit=${limit}`),
 
-    /** Fetch a single proposal by id. */
+    /**
+     * Fetch a single proposal by id. Response is enveloped per ADR-211
+     * D7 Invariant I1 + I2 — `current_occupant` sits alongside `proposal`
+     * so the frontend can display seat attribution for both pending and
+     * rendered verdicts (for rendered, use proposal.reviewer_identity;
+     * for pending, use current_occupant).
+     */
     get: (id: string) =>
       request<{
-        id: string;
-        action_type: string;
-        inputs: Record<string, unknown>;
-        rationale: string | null;
-        expected_effect: string | null;
-        reversibility: "reversible" | "soft-reversible" | "irreversible";
-        status: string;
-        expires_at: string;
-        created_at: string;
-        risk_warnings: string[] | null;
+        proposal: {
+          id: string;
+          action_type: string;
+          inputs: Record<string, unknown>;
+          rationale: string | null;
+          expected_effect: string | null;
+          reversibility: "reversible" | "soft-reversible" | "irreversible";
+          status: string;
+          expires_at: string;
+          created_at: string;
+          risk_warnings: string[] | null;
+          reviewer_identity?: string | null;
+          reviewer_reasoning?: string | null;
+        };
+        current_occupant: {
+          occupant: string;
+          occupant_class: "human" | "ai" | "external" | "impersonated" | "";
+          display_label: string;
+        } | Record<string, never>;
       }>(`/api/proposals/${id}`),
 
     /** Approve + execute. Optional modified_inputs merged over proposal.inputs. */
