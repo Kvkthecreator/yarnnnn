@@ -26,7 +26,7 @@ The current product story:
 | [architecture/YARNNN-DESIGN-PRINCIPLES.md](architecture/YARNNN-DESIGN-PRINCIPLES.md) | Design principles including Spectrum A/B (substrate strict, runtime flexible) |
 | [ESSENCE.md](ESSENCE.md) | Product narrative and value proposition |
 | [NARRATIVE.md](NARRATIVE.md) | External storytelling beats and vocabulary rules |
-| [architecture/agent-orchestration.md](architecture/agent-orchestration.md) | Agent taxonomy and type registry |
+| [architecture/orchestration.md](architecture/orchestration.md) | Agent taxonomy and type registry |
 | [architecture/agent-execution-model.md](architecture/agent-execution-model.md) | Execution model and trigger taxonomy |
 | [architecture/task-type-orchestration.md](architecture/task-type-orchestration.md) | Task type registry and process execution |
 | [architecture/workspace-conventions.md](architecture/workspace-conventions.md) | Workspace filesystem conventions |
@@ -49,7 +49,7 @@ docs/
 │
 ├── architecture/        # Canonical architecture specifications
 │   ├── FOUNDATIONS.md
-│   ├── agent-orchestration.md
+│   ├── orchestration.md
 │   └── ...
 │
 ├── analysis/            # Research and comparative analysis
@@ -105,7 +105,7 @@ See [adr/README.md](adr/README.md) for template.
 | Design principles | Current | [architecture/YARNNN-DESIGN-PRINCIPLES.md](architecture/YARNNN-DESIGN-PRINCIPLES.md) |
 | Product narrative | Current (v12.2) | [ESSENCE.md](ESSENCE.md) |
 | External narrative | Current (v4) | [NARRATIVE.md](NARRATIVE.md) |
-| Agent taxonomy | Current | [architecture/agent-orchestration.md](architecture/agent-orchestration.md) |
+| Agent taxonomy | Current | [architecture/orchestration.md](architecture/orchestration.md) |
 | Task type registry | Shipped (ADR-145) | [architecture/task-type-orchestration.md](architecture/task-type-orchestration.md) |
 | Execution model | Current (ADR-141) | [architecture/agent-execution-model.md](architecture/agent-execution-model.md) |
 | Workspace filesystem | Shipped (ADR-142) | [architecture/workspace-conventions.md](architecture/workspace-conventions.md) |

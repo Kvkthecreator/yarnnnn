@@ -1,55 +1,61 @@
 """
-Agent Orchestration — Work-First Universal Specialist Model (v5)
+Orchestration — Production Machinery Registry (post-LAYER-MAPPING flip, 2026-04-23)
 
-**Renamed from `agent_framework.py` on 2026-04-23** for semantic precision
-under THESIS.md + GLOSSARY.md v1.6 + FOUNDATIONS Principle 7
-(singular implementation). This module is the **production-orchestration-
-layer** canonical module, parallel to `docs/architecture/reviewer-substrate.md`
-which canonizes the judgment layer. "Framework" (the former name) suggested
-runtime machinery, which this file is not. It is the canonical source of
-both PRODUCTION-LAYER TYPE DEFINITIONS and DISPATCH ORCHESTRATION METADATA
-— the two together describe how the production layer gets orchestrated
-through the task pipeline.
+This module is YARNNN's orchestration-layer canonical source. Per
+[LAYER-MAPPING.md](../../docs/architecture/LAYER-MAPPING.md), it holds the
+registries that describe *what production roles exist* and *how the
+Orchestrator dispatches them*. It is explicitly NOT an Agent module —
+Agents live in `api/agents/`; this is orchestration machinery they use.
 
-Two concerns under one orchestration-layer roof:
+Structure (post-Commit B registry split):
 
-  **Type definitions** (the WHAT of production-layer orchestration):
-    1. AGENT_TEMPLATES — workforce roster: templates are starting points,
-       AGENT.md is the runtime source of truth for each agent's identity
-    2. CAPABILITIES    — implementation: what each capability resolves to
-    3. RUNTIMES        — infrastructure: where compute happens
+1. SYSTEMIC_AGENTS — systemic Agent templates (Identity-bearing, one
+   per workspace). Today: `thinking_partner` (YARNNN). Future systemic
+   archetypes (Auditor, Advocate) land here. NOTE: the Reviewer Agent's
+   seat is substrate (`/workspace/review/`) not a template entry here;
+   Reviewer default content (DEFAULT_REVIEW_*_MD below) is a convenience
+   for workspace_init scaffolding, NOT a registered template.
+2. PRODUCTION_ROLES — orchestration capability bundles for production
+   work: researcher, analyst, writer, tracker, designer, executive (the
+   Reporting synthesizer). NOT Agents. No standing intent. No fiduciary
+   standing. Packaged production configurations the Orchestrator
+   dispatches against.
+3. CAPABILITIES — per-capability metadata (runtime, tool, platform
+   connection requirement). Platform-gated capabilities (read_slack,
+   write_trading, etc.) live here with `platform_connection_requirement`.
+   ADR-207 P4a dissolved Platform Bots as an agent class; "platform
+   integration" under LAYER-MAPPING is the union of platform-gated
+   capabilities sharing a connection.
+4. RUNTIMES — infrastructure registry (where compute happens).
+5. PLAYBOOK_METADATA + TASK_OUTPUT_PLAYBOOK_ROUTING — which playbooks
+   apply to which (role × output_kind) combinations.
+6. Capability-gate helpers — capability_available() etc.
 
-  **Dispatch metadata** (the HOW of production-layer orchestration):
-    4. PLAYBOOK_METADATA + TASK_OUTPUT_PLAYBOOK_ROUTING — which rendering
-       playbooks apply to which (agent_type × output_kind) combinations
-    5. Role cadence defaults — scheduling posture per role
-    6. Capability-gate helpers — capability_available(), unavailable_capabilities(),
-       get_capability_requirement()
+ALL_ROLES — union of SYSTEMIC_AGENTS + PRODUCTION_ROLES. Used for
+"is role X known at all?" lookups that don't care about class. Not a
+backward-compat shim — it answers a genuinely distinct question.
 
-Both groups are orchestration-layer concerns. Type definitions describe
-*what* production entities exist; dispatch metadata describes *how those
-entities get resolved through the pipeline*. Naming the module
-`agent_orchestration` captures both.
+Previous `AGENT_TEMPLATES` + `AGENT_TYPES` aliases (pre-Commit B) are DELETED.
+No dual paths. Callers route to SYSTEMIC_AGENTS / PRODUCTION_ROLES /
+ALL_ROLES based on the question they're asking.
 
-Scope note — Reviewer-seat content defaults (DEFAULT_REVIEW_IDENTITY_MD,
+Scope note — Reviewer default content (DEFAULT_REVIEW_IDENTITY_MD,
 DEFAULT_REVIEW_PRINCIPLES_MD, DEFAULT_REVIEW_MODES_MD,
-DEFAULT_REVIEW_CALIBRATION_MD): these live here at the workspace-scaffold
-layer as default-content strings consumed by `workspace_init.py`. They
-are NOT type definitions in the AGENT_TEMPLATES sense — the Reviewer is
-a judgment-layer seat, not a listed agent type (per ADR-211 D9 + Option
-2 feasibility audit). The seat's architectural shape lives in
-`reviewer-substrate.md`; only the scaffold-time default content lives here.
+DEFAULT_REVIEW_CALIBRATION_MD): these live here as scaffold-time
+defaults consumed by `workspace_init.py`. The Reviewer Agent's seat is
+substrate; these constants are content loaded into that substrate at
+signup. Architectural shape lives in `docs/architecture/reviewer-substrate.md`.
 
-History: `agent_framework.py` (original) → `agent_registry.py` (same-day
-intermediate, 2026-04-23 commit 740e414; audit v1 framed it as a registry
-of type definitions) → `agent_orchestration.py` (final, audit v2 same
-day; recognized that "registry" undersells the dispatch metadata also
-contained). Two git-mv operations preserve history through the chain.
-This is the final name for this module.
+History: `agent_framework.py` (original) → `agent_registry.py` (audit v1)
+→ `orchestration.py` (audit v2, current) → `orchestration.py`
+(Commit C, next). The file's content is correct; the filename's
+`agent_` prefix is dropped in Commit C now that LAYER-MAPPING makes
+explicit this module has no Agent content.
 
-Three independent axes per agent (ADR-140, ADR-176):
-  - Identity (AGENT.md): name, domain, evolves with use
-  - Capabilities (AGENT_TEMPLATES): tool access, fixed at creation
+Three independent axes per role/Agent (ADR-140, ADR-176):
+  - Identity (AGENT.md, for Agents): name, domain, evolves with use
+  - Capabilities (role's template in SYSTEMIC_AGENTS or PRODUCTION_ROLES):
+    tool access, fixed at template definition
   - Tasks (TASK.md): work assignments, come and go
 
 Four agent classes:
@@ -168,7 +174,25 @@ _PLAYBOOK_RENDERING = (
 )
 
 
-AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
+# =============================================================================
+# PRODUCTION_ROLES — orchestration capability bundles for production work
+# =============================================================================
+# Per LAYER-MAPPING.md (2026-04-23), these are NOT Agents. No standing
+# intent. No fiduciary relationship. They are packaged production
+# configurations the Orchestrator dispatches against when a task requires
+# a particular style of production (research, analysis, writing,
+# tracking, visual design, synthesis).
+#
+# The *name* of a production role (Researcher, Writer, etc.) labels the
+# bundle's content. It does not name a personified worker.
+#
+# Operator-scoped calibration of role output (per ADR-117 role-keyed
+# style distillation at /workspace/style/{role}.md) is substrate the
+# *operator* owns, not identity the role owns. The role itself does not
+# accumulate; what accumulates is the operator's calibration of how that
+# role's output should read.
+
+PRODUCTION_ROLES: dict[str, dict[str, Any]] = {
 
     # ── Universal Specialists (ADR-176) ──
     # Six roles defined by HOW they contribute, not WHAT domain they work in.
@@ -526,63 +550,79 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
     },
 
     # ADR-207 P4a (2026-04-22): Platform Bots — slack_bot / notion_bot /
-    # github_bot / commerce_bot / trading_bot — DELETED from AGENT_TEMPLATES.
-    # The underlying platform tools (platform_slack_*, platform_notion_*,
-    # platform_github_*, platform_commerce_*, platform_trading_*) and their
-    # CAPABILITIES entries (read_slack / write_slack / ...) survive. Any
-    # specialist (researcher, analyst, writer, tracker, designer) can invoke
-    # them — the capability registry's platform_connection_requirement
-    # gates access at task dispatch (ADR-207 P3).
+    # github_bot / commerce_bot / trading_bot — were deleted from the
+    # registry. The underlying platform tools (platform_slack_*, etc.)
+    # and their CAPABILITIES entries (read_slack / write_slack / ...)
+    # survive. Any production role (researcher, analyst, writer, tracker,
+    # designer) can invoke them — the capability registry's
+    # platform_connection_requirement gates access at task dispatch.
     #
-    # Migration 157 deletes existing bot agent rows and drops the bot role
-    # values from `agents_role_check`. Tasks that used to assign work to
-    # bot roles are rewritten by operators via YARNNN — a specialist + a
-    # `**Required Capabilities:**` declaration in TASK.md captures the same
-    # contract without an agent-row "bot" abstraction.
+    # Under LAYER-MAPPING (2026-04-23): a "platform integration" is the
+    # union of platform-gated capabilities sharing a connection — not a
+    # separate entity-level registry. ADR-207 P4a's capability-level
+    # collapse is the platform-integration primitive in this architecture.
+}
 
-    # ── Meta-Cognitive (owns orchestration itself) ──
+
+# =============================================================================
+# SYSTEMIC_AGENTS — Identity-bearing Agents scaffolded at workspace init
+# =============================================================================
+# Per LAYER-MAPPING.md (2026-04-23), these are the judgment-bearing
+# Agents the system scaffolds systemically (one per workspace). Today
+# holds `thinking_partner` (YARNNN, the conversational super-agent).
+# Future systemic Agent archetypes (Auditor, Advocate, Custodian, etc.)
+# register here.
+#
+# NOTE: the Reviewer Agent is systemic but does NOT register as a
+# template here. The Reviewer's seat is substrate (`/workspace/review/`,
+# seven canonical files per reviewer-substrate.md). Reviewer scaffold-
+# time default content (DEFAULT_REVIEW_*_MD constants below) is loaded
+# at workspace_init by the rotation primitive; it is not a registry
+# entry in the template-lookup sense.
+
+SYSTEMIC_AGENTS: dict[str, dict[str, Any]] = {
+
+    # ── YARNNN (meta-cognitive Agent) ──
     #
-    # ADR-164: TP is an agent. It is the single meta-cognitive agent —
-    # structurally the same kind of entity as the domain agents, but its
-    # domain is the user's attention allocation and the workforce's health
-    # rather than a segment of user work.
+    # ADR-164: YARNNN is an Agent. It is the single meta-cognitive Agent
+    # per workspace. Its "domain" is the operator's attention allocation
+    # and the workforce's health — not a segment of user work. Two
+    # runtime modes share this identity:
+    #   1. Chat runtime — invoked from routes/chat.py via YarnnnAgent
+    #      class. Full conversation, streaming, all CHAT_PRIMITIVES.
+    #   2. Task runtime — invoked from task_pipeline._execute_tp_task()
+    #      when the scheduler dispatches a back office task owned by
+    #      YARNNN. Runs a declarative executor declared in TASK.md.
     #
-    # YARNNN has two runtime modes that share this identity:
-    #   1. Chat runtime — invoked from routes/chat.py via YarnnnAgent (ADR-189)
-    #      class. Full conversation, streaming, all CHAT_PRIMITIVES available.
-    #   2. Task runtime — invoked from task_pipeline._execute_tp_task() when
-    #      the scheduler dispatches a back office task owned by YARNNN. Runs a
-    #      declarative executor (deterministic Python function or focused
-    #      LLM prompt) declared in the task's TASK.md ## Process section.
+    # Back office tasks (agent-hygiene, workspace-cleanup, outcome-
+    # reconciliation, reviewer-calibration) are tasks owned by YARNNN.
+    # No separate data model — a task is a task; owner determines class.
     #
-    # Back office tasks (e.g., back-office-agent-hygiene,
-    # back-office-workspace-cleanup, future back-office-task-freshness) are
-    # simply tasks owned by TP. There is no separate data model for them —
-    # a task is a task, and the owner determines the class of work. Every
-    # scheduled action in YARNNN is a task; TP owns the ones whose outputs
-    # serve the coherence of the system itself.
+    # DB slug `thinking_partner` retained as exception (migration 142;
+    # GLOSSARY exception table). External user-facing name is YARNNN.
 
     "thinking_partner": {
         "class": "meta-cognitive",
-        "domain": None,  # TP does not own a context domain
+        "domain": None,
         "display_name": "Thinking Partner",
         "tagline": "Orchestrates your workforce",
         "capabilities": [
             "read_workspace", "write_workspace", "search_knowledge",
             "produce_markdown",
         ],
-        "description": "Manages the user's attention allocation and the workforce's "
-                       "health. Creates tasks, evaluates outputs, steers agents, and "
-                       "runs back office maintenance (agent hygiene, workspace cleanup, "
-                       "task freshness). TP is the single meta-cognitive agent; its "
-                       "outputs serve the coherence of the system itself.",
+        "description": "The conversational meta-cognitive Agent. Manages the "
+                       "operator's attention allocation and the workforce's health. "
+                       "Creates tasks, evaluates outputs, steers agents, and runs "
+                       "back office maintenance via task runtime. YARNNN's outputs "
+                       "serve the coherence of the system itself.",
         "default_instructions": (
-            "You are Thinking Partner — the meta-cognitive agent. Your domain is the "
-            "user's workforce itself, not any segment of user work. When you execute "
-            "tasks, you are running back office maintenance: evaluating agent health, "
-            "cleaning up the workspace, reviewing task freshness. You never produce "
-            "domain content (reports, briefs, analyses). You produce orchestration "
-            "signals that keep the rest of the workforce coherent.\n\n"
+            "You are Thinking Partner — the meta-cognitive Agent. Your domain is the "
+            "operator's workforce itself, not any segment of operator work. When you "
+            "execute tasks in task runtime, you are running back office maintenance: "
+            "evaluating agent health, cleaning up the workspace, reviewing task "
+            "freshness, reconciling outcomes, rebuilding reviewer calibration. You "
+            "never produce domain content (reports, briefs, analyses). You produce "
+            "orchestration signals that keep the rest of the workforce coherent.\n\n"
             "In task runtime, read the TASK.md ## Process section to find your "
             "declared executor. Run it. Write a structured output summarizing what "
             "you observed and any actions taken."
@@ -591,8 +631,15 @@ AGENT_TEMPLATES: dict[str, dict[str, Any]] = {
     },
 }
 
-# Backward compat alias — all existing callers import AGENT_TYPES
-AGENT_TYPES = AGENT_TEMPLATES
+
+# =============================================================================
+# ALL_ROLES — union of SYSTEMIC_AGENTS + PRODUCTION_ROLES
+# =============================================================================
+# Used for lookups that don't care about class ("is role X known?",
+# "iterate every role the system knows about"). Not a back-compat alias
+# — it answers a genuinely distinct question from the per-class dicts.
+
+ALL_ROLES: dict[str, dict[str, Any]] = {**SYSTEMIC_AGENTS, **PRODUCTION_ROLES}
 
 
 # =============================================================================
@@ -1023,7 +1070,7 @@ for proposals with verdicts in `decisions.md`.
 # capability_available() at dispatch — no bot agent row needed. OAuth
 # connect/disconnect only touches `platform_connections`.
 #
-# AGENT_TEMPLATES above remains as the template library consulted at
+# ALL_ROLES above remains as the template library consulted at
 # lazy-ensure time.
 
 # PM_MODES — REMOVED (PM/project architecture dissolved)
@@ -1064,7 +1111,7 @@ LEGACY_ROLE_MAP: dict[str, str] = {
     # trading_bot roles REMOVED from LEGACY_ROLE_MAP. Any legacy agent row
     # with these roles is dropped by migration 157; any incoming ref is
     # unresolved by `resolve_role()` (passthrough → still returns the name,
-    # which will then fail the AGENT_TEMPLATES lookup loudly).
+    # which will then fail the ALL_ROLES lookup loudly).
     # ADR-164: TP as meta-cognitive agent
     "thinking_partner": "thinking_partner",
 }
@@ -1072,7 +1119,7 @@ LEGACY_ROLE_MAP: dict[str, str] = {
 
 def resolve_role(role: str) -> str:
     """Map legacy role names to current types. Passthrough for current types."""
-    if role in AGENT_TEMPLATES:
+    if role in ALL_ROLES:
         return role
     return LEGACY_ROLE_MAP.get(role, role)
 
@@ -1090,7 +1137,7 @@ def get_agent_class_and_domain(role: str) -> tuple[str, str | None]:
     Falls back to "domain-steward" / None for unknown roles.
     """
     resolved = resolve_role(role)
-    template = AGENT_TEMPLATES.get(resolved)
+    template = ALL_ROLES.get(resolved)
     if template:
         return template["class"], template.get("domain")
     return "domain-steward", None
@@ -1234,9 +1281,9 @@ RUNTIMES: dict[str, dict[str, Any]] = {
 def get_type_capabilities(agent_type: str) -> list[str]:
     """Return the capability list for an agent type. Falls back to researcher for unknown."""
     resolved = resolve_role(agent_type)
-    type_def = AGENT_TEMPLATES.get(resolved)
+    type_def = ALL_ROLES.get(resolved)
     if not type_def:
-        return AGENT_TEMPLATES["researcher"]["capabilities"]
+        return ALL_ROLES["researcher"]["capabilities"]
     return type_def["capabilities"]
 
 
@@ -1399,7 +1446,7 @@ def get_type_playbook(agent_type: str) -> dict[str, str]:
     to be written to the agent's memory/ directory at creation.
     """
     resolved = resolve_role(agent_type)
-    type_def = AGENT_TEMPLATES.get(resolved)
+    type_def = ALL_ROLES.get(resolved)
     if not type_def:
         return {}
     return type_def.get("methodology", {})
@@ -1455,7 +1502,7 @@ def get_relevant_playbooks(agent_type: str, output_kind: str | None = None) -> d
 def get_type_display(agent_type: str) -> dict[str, str]:
     """Return display_name and tagline for a type. Used by frontend + TP prompt."""
     resolved = resolve_role(agent_type)
-    type_def = AGENT_TEMPLATES.get(resolved, AGENT_TEMPLATES.get("researcher", {}))
+    type_def = ALL_ROLES.get(resolved, ALL_ROLES.get("researcher", {}))
     return {
         "display_name": type_def.get("display_name", agent_type.title()),
         "tagline": type_def.get("tagline", ""),
@@ -1465,7 +1512,7 @@ def get_type_display(agent_type: str) -> dict[str, str]:
 def list_agent_types(include_pm: bool = False) -> list[dict]:
     """List all agent types for system reference / TP prompt injection."""
     types = []
-    for key, tdef in AGENT_TEMPLATES.items():
+    for key, tdef in ALL_ROLES.items():
         if key == "pm" and not include_pm:
             continue
         types.append({
@@ -1480,7 +1527,7 @@ def list_agent_types(include_pm: bool = False) -> list[dict]:
 
 def get_agent_domain(agent_type: str) -> str | None:
     """Get the context domain owned by an agent template. None for synthesizers/bots."""
-    template = AGENT_TEMPLATES.get(agent_type)
+    template = ALL_ROLES.get(agent_type)
     return template.get("domain") if template else None
 
 

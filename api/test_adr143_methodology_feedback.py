@@ -74,11 +74,11 @@ def get_service_client():
 
 def test_playbook_in_registry():
     """Verify all 6 agent types have playbook entries."""
-    logger.info("Test 1: Playbook in AGENT_TYPES registry")
+    logger.info("Test 1: Playbook in ALL_ROLES registry")
 
-    from services.agent_orchestration import AGENT_TYPES, get_type_playbook
+    from services.orchestration import ALL_ROLES, get_type_playbook
 
-    for type_key, type_def in AGENT_TYPES.items():
+    for type_key, type_def in ALL_ROLES.items():
         playbook = type_def.get("methodology", {})
         record(
             f"  {type_key} has playbook",
@@ -464,7 +464,7 @@ def test_import_validation():
 
     # agent_framework imports
     try:
-        from services.agent_orchestration import get_type_playbook
+        from services.orchestration import get_type_playbook
         record("  get_type_playbook importable", True)
     except ImportError as e:
         record("  get_type_playbook importable", False, str(e))

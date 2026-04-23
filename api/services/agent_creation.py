@@ -26,9 +26,9 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 VALID_SCOPES = {"platform", "cross_platform", "knowledge", "research", "autonomous"}
-# ADR-130 v2: Valid roles derived from AGENT_TYPES registry + legacy names for DB compat
-from services.agent_orchestration import AGENT_TYPES, LEGACY_ROLE_MAP
-VALID_ROLES = set(AGENT_TYPES.keys()) | set(LEGACY_ROLE_MAP.keys()) | {"act"}
+# ADR-130 v2: Valid roles derived from ALL_ROLES registry + legacy names for DB compat
+from services.orchestration import ALL_ROLES, LEGACY_ROLE_MAP
+VALID_ROLES = set(ALL_ROLES.keys()) | set(LEGACY_ROLE_MAP.keys()) | {"act"}
 
 # Fallback scope from role (used when infer_scope can't reason about sources)
 ROLE_TO_SCOPE = {
@@ -167,7 +167,7 @@ async def create_agent_record(
                 ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
                 # ADR-118: Append capability reference for agents that may produce rich outputs
                 agent_md = instructions_text
-                from services.agent_orchestration import has_asset_capabilities
+                from services.orchestration import has_asset_capabilities
                 if has_asset_capabilities(role):
                     agent_md += "\n\n## Available Capabilities\nThis agent can produce rich outputs via RuntimeDispatch: PNG/SVG charts, diagrams, and images. Use these when visual data or formatted reports would serve the recipient better than plain text."
                 # ADR-154: Coherence protocol removed from agent level — reflections
@@ -176,7 +176,7 @@ async def create_agent_record(
                                summary="Agent identity and behavioral instructions")
 
                 # ADR-143: Seed playbook files from type registry
-                from services.agent_orchestration import get_type_playbook
+                from services.orchestration import get_type_playbook
                 playbook = get_type_playbook(role)
                 for filename, content in playbook.items():
                     await ws.write(
@@ -225,7 +225,7 @@ SPECIALIST_ROLES: frozenset[str] = frozenset({
     "executive",
 })
 
-# Infrastructure slug → role. Slugs are derived from AGENT_TEMPLATES display
+# Infrastructure slug → role. Slugs are derived from ALL_ROLES display
 # names via _slugify_agent; this map is the inverse. Dispatch sites that resolve
 # by slug use it to find the underlying infrastructure role for lazy-ensure.
 _INFRA_SLUG_TO_ROLE: dict[str, str] = {
@@ -283,7 +283,7 @@ async def ensure_infrastructure_agent(
 
     ADR-205: YARNNN and Specialists are lazy-scaffolded. The dispatch layer
     calls this helper before resolving a role-based agent_ref; if the row
-    doesn't exist yet, it is created from AGENT_TEMPLATES[role].
+    doesn't exist yet, it is created from ALL_ROLES[role].
 
     Returns:
       - The agent dict (existing or newly created) on success.
@@ -315,9 +315,9 @@ async def ensure_infrastructure_agent(
     if existing.data:
         return existing.data[0]
 
-    # Lazy-create from AGENT_TEMPLATES.
-    from services.agent_orchestration import AGENT_TEMPLATES
-    template = AGENT_TEMPLATES.get(role)
+    # Lazy-create from ALL_ROLES.
+    from services.orchestration import ALL_ROLES
+    template = ALL_ROLES.get(role)
     if not template:
         logger.warning(f"[ensure_infrastructure_agent] No template for role: {role}")
         return None

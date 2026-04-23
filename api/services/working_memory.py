@@ -599,14 +599,14 @@ def _build_system_reference(platforms: list) -> dict:
     platforms can do. Maintained by code, not by hand.
 
     Generated from:
-      - agent_framework.py (AGENT_TYPES — capability bundles per type)
+      - agent_framework.py (ALL_ROLES — capability bundles per type)
       - Connected platforms (from working memory query)
     """
-    from services.agent_orchestration import AGENT_TYPES, has_asset_capabilities
+    from services.orchestration import ALL_ROLES, has_asset_capabilities
 
     # --- Agent types (ADR-130: deterministic capability bundles) ---
     roles = []
-    for type_name, type_def in AGENT_TYPES.items():
+    for type_name, type_def in ALL_ROLES.items():
         if type_name == "pm":
             continue  # PM type removed
         roles.append({

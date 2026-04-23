@@ -50,7 +50,7 @@ class*. YARNNN is a production-layer entity (composes, scaffolds,
 writes memory); this occupant is a judgment-layer occupant (renders
 verdicts). The architectural distinction is expressed through scope,
 substrate, trigger, and development axis — not through a separate
-`AGENT_TEMPLATES` entry. See docs/architecture/THESIS.md §"Vocabulary"
+`ALL_ROLES` entry. See docs/architecture/THESIS.md §"Vocabulary"
 and docs/architecture/reviewer-substrate.md §"Review orchestration
 vs. reviewer entity — the split".
 

@@ -17,7 +17,7 @@ YARNNN has three registries that work together. **These are curated template lib
 | Registry | Governs | File | Key constant |
 |---|---|---|---|
 | **Directory Registry** | Workspace structure + context domain templates | `directory_registry.py` | `WORKSPACE_DIRECTORIES` |
-| **Agent Templates** (v5 universal specialists — ADR-176) | Universal roles — 6 specialists + platform bots | `agent_orchestration.py` | `AGENT_TEMPLATES` |
+| **Agent Templates** (v5 universal specialists — ADR-176) | Universal roles — 6 specialists + platform bots | `orchestration.py` | `AGENT_TEMPLATES` |
 | **Task Types** (v6 — ADR-166) | Task definition templates — classified by `output_kind` | `task_types.py` | `TASK_TYPES` |
 
 **Read direction:** Domains are upstream → context-accumulating tasks WRITE to domains → deliverable-producing tasks READ from domains → agent types execute task steps. External-action and system-maintenance tasks sit alongside, governed by the same pipeline.
@@ -222,7 +222,7 @@ Favicons fetched automatically via ManageDomains when entities have a `url` fiel
 5. Update docs/features/task-types.md
 
 ### Adding a New Agent Type
-1. Add entry to `AGENT_TYPES` in `agent_orchestration.py`
+1. Add entry to `AGENT_TYPES` in `orchestration.py`
 2. Define capabilities, methodology playbooks, default_instructions
 3. Update DB role constraint (migration)
 4. Add to DEFAULT_ROSTER if pre-scaffolded

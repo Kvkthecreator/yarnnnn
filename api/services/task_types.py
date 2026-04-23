@@ -122,7 +122,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from services.agent_orchestration import AGENT_TYPES
+from services.orchestration import ALL_ROLES
 
 
 # =============================================================================
@@ -1632,14 +1632,14 @@ def get_process_agent_types(type_key: str) -> list[str]:
 
 
 def validate_process(type_key: str) -> list[str]:
-    """Validate that all agent types in the process exist in AGENT_TYPES."""
+    """Validate that all agent types in the process exist in ALL_ROLES."""
     task_type = TASK_TYPES.get(type_key)
     if not task_type:
         return [f"Unknown task type: {type_key}"]
     errors = []
     for i, step in enumerate(task_type["process"]):
         agent_type = step["agent_type"]
-        if agent_type not in AGENT_TYPES:
+        if agent_type not in ALL_ROLES:
             errors.append(f"Step {i+1} ({step['step']}): unknown agent type '{agent_type}'")
     return errors
 

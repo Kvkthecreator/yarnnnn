@@ -559,7 +559,7 @@ def build_role_prompt(
     """Build the role-specific synthesis prompt (ADR-109)."""
 
     # ADR-130 v2: resolve new type names to existing prompt keys via legacy map
-    from services.agent_orchestration import resolve_role, LEGACY_ROLE_MAP
+    from services.orchestration import resolve_role, LEGACY_ROLE_MAP
     prompt_role = LEGACY_ROLE_MAP.get(role, role) if role not in ROLE_PROMPTS else role
     template = ROLE_PROMPTS.get(prompt_role, ROLE_PROMPTS["custom"])
 
@@ -712,7 +712,7 @@ def validate_output(role: str, content: str, config: dict) -> dict:
     issues = _validate_minimum_content(content)
 
     # ADR-130 v2: map new type names to validation keys
-    from services.agent_orchestration import LEGACY_ROLE_MAP
+    from services.orchestration import LEGACY_ROLE_MAP
     v_role = LEGACY_ROLE_MAP.get(role, role)
 
     if v_role in ("synthesize", "analyst"):

@@ -120,7 +120,7 @@ def _available_platform_capabilities(active_platforms: list[str]) -> list[str]:
     listed here — the report focuses on what the connections unlocked.
     """
     try:
-        from services.agent_orchestration import CAPABILITIES
+        from services.orchestration import CAPABILITIES
     except Exception:
         return []
     available: list[str] = []

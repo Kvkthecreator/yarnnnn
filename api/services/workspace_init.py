@@ -104,7 +104,7 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
     # because it owns back-office tasks (ADR-164) which run on the workspace
     # heartbeat from day one. Idempotent — skips if already present.
     try:
-        from services.agent_orchestration import AGENT_TEMPLATES
+        from services.orchestration import ALL_ROLES
         from services.agent_creation import create_agent_record
 
         yarnnn_existing = (
@@ -117,7 +117,7 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
             .execute()
         )
         if not (yarnnn_existing.data or []):
-            yarnnn_template = AGENT_TEMPLATES.get("thinking_partner", {})
+            yarnnn_template = ALL_ROLES.get("thinking_partner", {})
             await create_agent_record(
                 client=client,
                 user_id=user_id,
@@ -140,7 +140,7 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
     # YARNNN working memory under /workspace/memory/,
     # Reviewer substrate under /workspace/review/ (ADR-194).
     try:
-        from services.agent_orchestration import (
+        from services.orchestration import (
             TP_ORCHESTRATION_PLAYBOOK,
             DEFAULT_IDENTITY_MD,
             DEFAULT_BRAND_MD,

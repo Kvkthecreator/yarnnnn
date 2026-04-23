@@ -20,34 +20,34 @@ role-cadence maps, capability-gate helpers).
 The session's architectural move was to name each cognitive-layer class
 at the filesystem level:
 - Judgment layer:  `docs/architecture/reviewer-substrate.md`
-- Orchestration (production) layer: `docs/architecture/agent-orchestration.md`
+- Orchestration (production) layer: `docs/architecture/orchestration.md`
 
 Historical note — same-day correction:
 This rename landed in two passes within one day. Commit `740e414`
 initially renamed `agent_framework.py` → `agent_registry.py` based on a
 first naming audit that focused on the type-registry aspect of the file's
 content. The correction immediately after (this entry's commit) landed
-the final `agent_orchestration.py` name, which captures both the type
+the final `orchestration.py` name, which captures both the type
 definitions and the dispatch metadata. Both `git mv` operations preserve
 history through the chain `agent_framework.py` → `agent_registry.py` →
-`agent_orchestration.py`. No dual paths remain. The brief `agent_registry`
+`orchestration.py`. No dual paths remain. The brief `agent_registry`
 intermediate state is a same-day artifact of the audit iteration, visible
 only in `git log`, not in any live code or canon doc.
 
 ### Changed (final state — singular implementation)
 
-- `api/services/agent_framework.py` → `api/services/agent_orchestration.py`
+- `api/services/agent_framework.py` → `api/services/orchestration.py`
   (via the two-step git mv chain). Module docstring reflects the
   orchestration-layer framing: the file holds production-layer type
   definitions AND dispatch orchestration metadata, both of which describe
   how the orchestration layer resolves production-entity work.
 - 25 import sites across 12 files updated:
-  `from services.agent_framework` → `from services.agent_orchestration`.
+  `from services.agent_framework` → `from services.orchestration`.
   Callers: `agent_creation.py`, `agent_execution.py`, `agent_pipeline.py`,
   `task_pipeline.py`, `workspace_init.py`, `workspace.py`, `task_types.py`,
   `task_derivation.py`, `working_memory.py`, `platform_tools.py`,
   `routes/agents.py`, `test_adr143_methodology_feedback.py`.
-- `docs/architecture/agent-framework.md` → `docs/architecture/agent-orchestration.md`
+- `docs/architecture/agent-framework.md` → `docs/architecture/orchestration.md`
   (two-step git mv chain, same history preservation).
 - Active canon cross-references updated in
   `docs/architecture/{GLOSSARY,README,SERVICE-MODEL,primitives-matrix,registry-matrix,task-type-orchestration,agent-orchestration}.md`,
@@ -63,9 +63,9 @@ only in `git log`, not in any live code or canon doc.
 ### Naming audit v2 verdict
 
 Naming audit v2 (correction of v1, same day):
-`agent_framework.py` → `agent_orchestration.py`. The v1 audit's
+`agent_framework.py` → `orchestration.py`. The v1 audit's
 "registry" framing captured type-definition content but missed the
-orchestration metadata. `agent_orchestration.py` captures both and lands
+orchestration metadata. `orchestration.py` captures both and lands
 the production-orchestration-layer symmetry with `reviewer-substrate.md`
 at the judgment layer.
 

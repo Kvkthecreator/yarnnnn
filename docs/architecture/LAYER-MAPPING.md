@@ -120,9 +120,9 @@ The canon's earlier hedge said "we use the industry word." We now say: **we use 
 |---|---|---|
 | `api/services/agent_orchestration.py` | `api/services/orchestration.py` | Drop "agent_" prefix. The file IS orchestration (production machinery, capability bundles, dispatch metadata). The word "agent" in the name was an artifact of the pre-flip vocabulary. |
 | `api/agents/yarnnn.py` | `api/agents/yarnnn.py` (stays) + extract orchestration-side to `api/services/orchestrator.py` | YARNNN-the-Agent class stays. Orchestration logic inside YarnnnAgent (if any bleeds) gets extracted. |
-| `api/services/agent_creation.py` | `api/services/orchestration_scaffolding.py` | This module scaffolds production-layer entities (Specialists, YARNNN bootstrap). It's orchestration-side. |
-| `api/services/agent_execution.py` | `api/services/orchestration_execution.py` | This module is the full generation-to-delivery pipeline for production work. Orchestration. |
-| `api/services/agent_pipeline.py` | `api/services/orchestration_prompts.py` | This module holds role-specific prompts and prompt assembly for production-style agents. Orchestration-side. |
+| `api/services/agent_creation.py` | **Kept as `agent_creation.py`** — creates Agent DB rows (systemic YARNNN + user-authored instance Agents). Operates on Agents. Name is correct under the sharp mapping. |
+| `api/services/agent_execution.py` | **Kept as `agent_execution.py`** — runs the full Agent generation-to-delivery pipeline. Operates on Agents. Name is correct under the sharp mapping. |
+| `api/services/agent_pipeline.py` | `api/services/orchestration_prompts.py` | Holds production-role prompt templates + prompt assembly — orchestration-side. (Renamed in Commit C.) |
 | `api/agents/` directory | Keep Agent-class entities (yarnnn.py, reviewer_agent.py, chat_agent.py, base.py) | The directory is now explicitly "entities-that-are-Agents-in-the-sharp-sense." |
 | `api/agents/integration/` | `api/orchestration/integration/` (future, if actual content) | Today it only has `__init__.py` — empty. Move or delete. |
 
@@ -200,14 +200,14 @@ Each commit lands independently reviewable and green (backend imports resolve, A
 - Outcome: orchestration-side modules explicitly named.
 
 **Commit D — Service module renames.**
-- `agent_creation.py` → `orchestration_scaffolding.py`
-- `agent_execution.py` → `orchestration_execution.py`
-- `agent_pipeline.py` → `orchestration_prompts.py`
-- Update all import sites.
-- Outcome: service-layer file names reflect orchestration-vs-agent split.
+- `agent_pipeline.py` → `orchestration_prompts.py` (only module-level rename post-audit — production-role prompts are orchestration content)
+- `agent_creation.py` **kept** — creates Agents
+- `agent_execution.py` **kept** — runs Agents
+- Update all import sites for the one rename.
+- Outcome: service-layer file names reflect orchestration-vs-agent split accurately.
 
-**Commit E — `/api/agents/` directory cleanup.**
-- Move `api/agents/integration/` → `api/orchestration/integration/` (if non-empty) or delete (if empty).
+**Commit D — `/api/agents/` directory cleanup.**
+- Delete empty `api/agents/integration/` directory.
 - Confirm `api/agents/` contains only Agent-class entities.
 - Outcome: directory boundary clean.
 
@@ -323,9 +323,9 @@ PLATFORM_INTEGRATIONS = {
 |---|---|---|
 | `api/services/agent_orchestration.py` | `api/services/orchestration.py` | Third and final rename in the chain (agent_framework → agent_registry → agent_orchestration → orchestration). Drops "agent_" prefix entirely. |
 | `docs/architecture/agent-orchestration.md` | `docs/architecture/orchestration.md` | Same. |
-| `api/services/agent_creation.py` | `api/services/orchestration_scaffolding.py` | Creates production-layer entities via registries. |
-| `api/services/agent_execution.py` | `api/services/orchestration_execution.py` | Runs the production-layer generation-to-delivery pipeline. |
-| `api/services/agent_pipeline.py` | `api/services/orchestration_prompts.py` | Holds production-role prompt templates. |
+| `api/services/agent_creation.py` | **Kept** — creates Agents. Name is correct. |
+| `api/services/agent_execution.py` | **Kept** — runs Agents. Name is correct. |
+| `api/services/agent_pipeline.py` | `api/services/orchestration_prompts.py` | Holds production-role prompt templates — orchestration content. |
 | `api/agents/` | `api/agents/` (stays; holds only Agent-class entities) | Keeps YarnnnAgent, ReviewerAgent, ChatAgent, BaseAgent. |
 | `api/agents/integration/` | Delete (empty today) | Nothing there; removes a dead directory. |
 | `api/routes/agents.py` | `api/routes/agents.py` (stays) | This route surfaces user-authored domain Agents on `/agents` — they ARE Agents. |
@@ -380,11 +380,10 @@ Six atomic commits. Each green-state reviewable. No dual paths.
 - Outcome: orchestration-side module explicitly named; end of the three-rename chain
 
 **Commit D — Service module renames.**
-- `agent_creation.py` → `orchestration_scaffolding.py`
-- `agent_execution.py` → `orchestration_execution.py`
-- `agent_pipeline.py` → `orchestration_prompts.py`
-- Update all import sites
-- Outcome: service-layer file names reflect orchestration-vs-agent split
+- `agent_pipeline.py` → `orchestration_prompts.py` (only rename — it holds production-role prompts, which is orchestration content)
+- `agent_creation.py` + `agent_execution.py` **kept** — they operate on Agents (create Agents, run Agents), so the `agent_` prefix is correct under the sharp mapping. Commit D scope narrowed post-audit.
+- Update all import sites for the one rename
+- Outcome: service-layer file names reflect orchestration-vs-agent split accurately
 
 **Commit E — `/api/agents/` directory cleanup + integration/ removal.**
 - Delete empty `api/agents/integration/`

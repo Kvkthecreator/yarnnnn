@@ -332,7 +332,7 @@ class AgentWorkspace:
         # agent_framework.py after agent was created). Idempotent — skips existing.
         role = agent.get("role", "")
         if role:
-            from services.agent_orchestration import get_type_playbook
+            from services.orchestration import get_type_playbook
             playbooks = get_type_playbook(role)
             for filename, content in playbooks.items():
                 existing = await self.read(f"memory/{filename}")
@@ -436,7 +436,7 @@ class AgentWorkspace:
             parts.append(f"## Agent Feedback (cross-task)\n{feedback}")
 
         # Playbook index — referential, not full content (Claude Code pattern)
-        from services.agent_orchestration import PLAYBOOK_METADATA, TASK_OUTPUT_PLAYBOOK_ROUTING
+        from services.orchestration import PLAYBOOK_METADATA, TASK_OUTPUT_PLAYBOOK_ROUTING
 
         memory_files = await self.list("memory/")
         playbook_files = [
