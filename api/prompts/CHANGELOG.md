@@ -6,6 +6,40 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.23.1] - ADR-209 Phase 3: revision-aware primitives + compact-index authorship signal
+
+### Added
+
+- **Three new primitives** registered in both CHAT_PRIMITIVES and HEADLESS_PRIMITIVES (chat parity intentional per ADR-209):
+  - `ListRevisions(path, limit?)` — revision chain for a workspace file, newest first
+  - `ReadRevision(path, offset? | revision_id?)` — read a specific historical revision
+  - `DiffRevisions(path, from_rev, to_rev)` — pure-Python unified diff between two revisions
+- `ListFiles` tool-definition extended with three optional filters: `authored_by` (prefix match — `"operator"` / `"agent:"` / `"yarnnn:"`), `since` (ISO 8601), `until` (ISO 8601). Handler applies the filters via a `workspace_file_versions` query intersected with the file list.
+- New working-memory signal `recent_authorship`: 24h aggregation of revision counts by cognitive-layer prefix, loaded via `_get_recent_authorship_sync` in `api/services/working_memory.py`.
+- Compact index renders a one-line activity summary when `recent_authorship.total > 0`: `"Recent activity (24h, N revisions): operator (X), yarnnn (Y), … — use ListRevisions/ReadRevision/DiffRevisions to inspect."` Silent when quiet. ~20-40 tokens in the busiest case.
+- New "Revision-Aware Reading (Authored Substrate, ADR-209)" section in `api/agents/yarnnn_prompts/tools_core.py` documenting the three primitives, the `ListFiles` filters, the `authored_by` taxonomy across four cognitive layers, and the "check authorship and freshness before acting" posture. Second-order accumulation-first posture layered on top of ADR-173's "read before generating."
+
+### Changed
+
+- `api/services/primitives/workspace.py::handle_list_files` gained the ADR-209 filter logic. When any filter is present, the handler queries `workspace_file_versions` ordered by `created_at DESC`, deduplicates to the newest revision per path, and intersects with the file list. Response includes a new `filters_applied` key when filters are active.
+- Primitive registry: CHAT_PRIMITIVES count 17→20; HEADLESS_PRIMITIVES count 17→20 (ADR-209 Phase 3 primitives added to both). `HANDLERS` dict gained three new entries.
+- `docs/architecture/primitives-matrix.md` — three new rows added to The Full Matrix; mode totals section updated; new "authored-substrate" capability tag. MCP mode column remains `○` for the three new primitives by design — MCP's intent-shaped contract (ADR-169) does not include substrate archaeology.
+
+### Expected behavior
+
+- YARNNN, when asked "what have I edited this week?", calls `ListFiles(authored_by="operator", since=<7d ago>)` and summarizes from the filtered result.
+- When the compact-index activity line shows high `operator` count with low `yarnnn` count, YARNNN treats that as "the operator is actively iterating" and defaults to less autonomous proposal.
+- When the operator asks "how did my risk profile change last week?", YARNNN calls `ListRevisions(path="/workspace/context/trading/_risk.md", limit=10)` then `DiffRevisions(path=..., from_rev=<7d ago>, to_rev=-1)` to produce a concrete diff.
+- Agents in headless mode can inspect their own memory's drift via `ListRevisions(path="/agents/{slug}/memory/...")` to reason about whether their domain stance is stable or shifting — feeds ADR-117 style distillation telemetry.
+
+### ADRs
+
+- ADR-209 Phase 3 (this entry). Phases 1–2 shipped previously.
+- Extends ADR-173 (accumulation-first) — revision-aware reading is the second-order posture.
+- Extends ADR-186 (prompt profiles) — the new section lands in `tools_core.py`, so both `workspace` and `entity` profiles pick it up.
+
+---
+
 ## [2026.04.22.12] - ADR-207 prompt streamlining (self-declaration primary, update-type path retired)
 
 ### Changed

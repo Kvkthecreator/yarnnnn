@@ -1,6 +1,6 @@
 # ADR-209: Authored Substrate — Content-Addressed Revisions with Authored-By Attribution
 
-> **Status**: **Phases 1–2 Implemented 2026-04-23.** Phase 1: substrate foundation + backfill. Phase 2: write-path unification across every call site + legacy deletion (no dual approaches remain). Phases 3–5 proposed per the phased-implementation section below.
+> **Status**: **Phases 1–3 Implemented 2026-04-23.** Phase 1: substrate foundation + backfill. Phase 2: write-path unification + legacy deletion. Phase 3: read-side primitives (`ListRevisions`, `ReadRevision`, `DiffRevisions`), `ListFiles` filters (`authored_by`/`since`/`until`), compact-index authorship signal, "Revision-aware reading" prompt posture. Phases 4–5 proposed per the phased-implementation section below.
 > **Date**: 2026-04-23
 > **Authors**: KVK, Claude
 > **Ratifies**: [docs/architecture/authored-substrate.md](../architecture/authored-substrate.md) (canonical deep-dive) + FOUNDATIONS v6.1 Axiom 1 second clause + Derived Principle 13
@@ -265,20 +265,45 @@ The class wrappers synthesize sensible `authored_by` defaults from their class-s
 13. Phase 1 backfill preserved (99 `system:backfill-158` revisions still present)
 14. Phase 1 test suite (11/11) also still passes — no regressions
 
-### Phase 3 — Read-side primitives + prompt posture
+### Phase 3 — Read-side primitives + prompt posture — **IMPLEMENTED 2026-04-23**
 
 Scope:
-- New primitives: `ReadRevision`, `DiffRevisions`, `ListRevisions` — add to `api/services/primitives/` + `registry.py` CHAT_PRIMITIVES / HEADLESS_PRIMITIVES / MCP surface
-- Extend `ListFiles` / `ListEntities` with `authored_by` / `since` / `until` filters
-- Extend `SearchFiles` results with revision metadata
-- Compact index: `working_memory.format_compact_index()` gains revision summary column
-- Prompt posture: "Revision-aware reading" section in `api/agents/tp_prompts/tools_core.py`, referenced from workspace + entity profiles
-- `docs/architecture/primitives-matrix.md` updated with new rows + modes
-- `api/prompts/CHANGELOG.md` entry
+- New primitives landed in [api/services/primitives/revisions.py](../../api/services/primitives/revisions.py):
+  - `ListRevisions(path, limit?)` — revision chain for a workspace path, newest first
+  - `ReadRevision(path, offset? | revision_id?)` — read a specific historical revision
+  - `DiffRevisions(path, from_rev, to_rev)` — pure-Python unified diff, zero LLM cost
+- Registered in both `CHAT_PRIMITIVES` and `HEADLESS_PRIMITIVES` — chat parity intentional (operators + YARNNN both need to inspect authored files through the same API for cockpit supervision per ADR-198)
+- `ListFiles` extended with optional `authored_by` (prefix match) + `since` / `until` (ISO 8601) filters — handler applies them via a `workspace_file_versions` query intersected with the path list
+- `format_compact_index()` gains a one-line activity summary when `recent_authorship.total > 0`: renders revision counts grouped by cognitive-layer prefix (operator / yarnnn / reviewer / agent / specialist / system). ~20-40 tokens in the busiest case — well under the 600-token ceiling (measured char_count=835 ≈ 208 tokens in test)
+- New working-memory signal `recent_authorship` loaded via `_get_recent_authorship_sync()` in `api/services/working_memory.py` — 24h rolling aggregation over `workspace_file_versions.authored_by`
+- "Revision-Aware Reading (Authored Substrate, ADR-209)" section added to [api/agents/yarnnn_prompts/tools_core.py](../../api/agents/yarnnn_prompts/tools_core.py) documenting the three primitives, the `ListFiles` filters, the authored_by taxonomy, and the posture: *"Before acting on accumulated context, check its authorship and freshness."* Second-order accumulation-first posture layered on ADR-173's "read before generating"
+- [docs/architecture/primitives-matrix.md](../architecture/primitives-matrix.md) updated: three new rows with `file` substrate + `chat ● headless ● MCP ○` availability + `authored-substrate` capability tag; mode totals updated (chat 14→17, headless 16→19); Hard boundaries note acknowledges the chat exception for revision primitives
 
-**Legacy deleted in Phase 3**: none structural (Phase 3 is additive on the read side).
+**Scope adjustments from original ADR-209 draft**:
+- `ListEntities` filters (original scope) — **dropped**. `ListEntities` operates on the relational entity layer (agents, memory, tasks), not on the Authored Substrate (which lives in `workspace_files`). Applying `authored_by` / `since` / `until` to `ListEntities` would be a category confusion: it would require `workspace_file_versions` joins for every entity type. The filters live on `ListFiles` (and implicitly on `ListRevisions` via its natural shape).
+- `SearchFiles` revision-metadata enrichment (original scope) — **deferred**. Low marginal value given `ListRevisions` exists; callers needing revision-aware search can list revisions per result. Revisit if operator signal shows need.
+- `ReadRevision` / `ListRevisions` / `DiffRevisions` **not exposed on MCP surface** — the MCP contract (ADR-169) is intent-shaped (`work_on_this`, `pull_context`, `remember_this`), not substrate-archaeology-shaped. Foreign LLMs that need revision context receive it through `pull_context` results when relevant; adding revision primitives to the MCP surface would break the three-tool intent-shape discipline. This is a conscious departure from original ADR-209 D5 phrasing and is noted in the primitives-matrix MCP row.
 
-**Gate**: new primitives callable from chat + headless + MCP; compact index renders revision metadata; rename-protocol grep sweep (CLAUDE.md 7b) confirms primitives-matrix alignment.
+**Legacy deleted in Phase 3**: none (Phase 3 is additive on the read side).
+
+**Gates** ([api/test_adr209_phase3.py](../../api/test_adr209_phase3.py) — 15/15 assertions pass):
+1. CHAT_PRIMITIVES includes all three new primitives
+2. HEADLESS_PRIMITIVES includes all three new primitives
+3. HANDLERS dict has all three handler mappings
+4. ListRevisions returns chain newest-first with correct attribution
+5. ReadRevision with offset=-1 returns previous revision
+6. ReadRevision with revision_id returns exact revision
+7. ReadRevision rejects ambiguous input (both offset + revision_id)
+8. DiffRevisions produces unified diff with correct from/to headers
+9. DiffRevisions flags identical blobs (empty diff, identical=True)
+10. ListFiles with `authored_by` filter correctly intersects results
+11. `_get_recent_authorship_sync` returns correct shape + buckets by cognitive-layer prefix
+12. Compact index renders the activity line with revision counts
+13. Compact index stays under 600-token ceiling (measured 208 tokens)
+14. Phase 1 regression: all 11/11 still pass
+15. Phase 2 regression: all 14/14 still pass
+
+**Grep sweep (CLAUDE.md rule 7b)**: 26 consistent references to new primitive names across `api/agents/yarnnn_prompts/`, `docs/architecture/primitives-matrix.md`, `docs/adr/ADR-209-authored-substrate.md`, `CLAUDE.md`, and the primitive service files.
 
 ### Phase 4 — Cockpit UI + inference-meta simplification
 
@@ -400,4 +425,5 @@ The complete list of what gets deleted and in which phase. Every item has a phas
 |------|--------|
 | 2026-04-23 | v1 — Initial decision record. Ratifies [authored-substrate.md](../architecture/authored-substrate.md) + FOUNDATIONS v6.1 Axiom 1 second clause + Derived Principle 13. Five-phase implementation. Deprecation manifest authoritative. Supersedes ADR-208 v1 (withdrawn) + ADR-119 Phase 3. Amends ADR-106, ADR-162 Sub-phase D, ADR-194 v2, ADR-207 v1.2. |
 | 2026-04-23 | **Phase 1 Implemented.** Migration 158 (`workspace_blobs` + `workspace_file_versions` + `workspace_files.head_version_id`) applied to dev DB. Backfill: 99 files → 99 revisions → 69 unique blobs (content-addressed dedup confirmed). `api/services/authored_substrate.py` lands `write_revision()` + `list_revisions()` + `read_revision()` + `count_revisions()` + `is_valid_author()`. Test gate [api/test_adr209_phase1.py](../api/test_adr209_phase1.py) — 11/11 assertions pass (tables, backfill, head/blob integrity, dedup, end-to-end write, empty-attribution rejection, list+read round-trip, parent-pointer chain). Implementation note: parent resolution queries the revision chain directly, not the denormalized `head_version_id` pointer — decouples Phase 1 from Phase 2's call-site migration. Phases 2–5 proposed. |
+| 2026-04-23 | **Phase 3 Implemented.** Three new read-side primitives live at `api/services/primitives/revisions.py`: `ListRevisions`, `ReadRevision`, `DiffRevisions`. Registered in both CHAT_PRIMITIVES and HEADLESS_PRIMITIVES — chat parity is intentional because operators + YARNNN both need to inspect authored files via the same API (cockpit supervision per ADR-198). `ListFiles` extended with `authored_by` / `since` / `until` filters. Compact index (`format_compact_index`) renders a one-line activity summary when substrate has been written in the last 24h — grouped by cognitive-layer prefix (operator / yarnnn / reviewer / agent / specialist / system), measured at ~208 tokens total (well under 600-token ceiling). "Revision-Aware Reading" posture section added to `yarnnn_prompts/tools_core.py` (picked up by both workspace + entity profiles per ADR-186). Three scope adjustments from original Phase 3 draft: (1) `ListEntities` filters dropped — category confusion (relational layer ≠ Authored Substrate); (2) `SearchFiles` revision-metadata enrichment deferred — low marginal value given `ListRevisions` exists; (3) revision primitives NOT exposed on MCP surface — MCP's intent-shaped contract (ADR-169) rejects substrate archaeology. Test gate [api/test_adr209_phase3.py](../../api/test_adr209_phase3.py) — 15/15 assertions pass. Full suite across all phases: 40/40 (11 Phase 1 + 14 Phase 2 + 15 Phase 3). Phases 4–5 proposed. |
 | 2026-04-23 | **Phase 2 Implemented.** Write-path unification across every call site in the codebase; legacy deletion complete. `write_revision()` extended to keep `workspace_files.head_version_id` + `content` + `updated_at` + optional metadata columns in sync on every write. Class wrappers (`AgentWorkspace.write`, `UserMemory.write`, `TaskWorkspace.write`) now route through `write_revision` internally with class-scoped `authored_by` defaults that callers can override via keyword args. `reviewer_audit._write_sync` threads `f"reviewer:{reviewer_identity}"` from `append_decision`. Route-layer direct writes (`routes/documents.py`, `routes/chat.py`, `routes/workspace.py`, `routes/integrations.py`) migrated with explicit attribution. `outcomes/ledger.py` + `primitives/runtime_dispatch.py` migrated. ADR-176 Phase 4 entity-profile `v{N}.md` archive block in `primitives/workspace.py` deleted. **Zero live-code references** to `_archive_to_history`, `_cap_history`, `_is_evolving_file`, `list_history`, `_EVOLVING_PATTERNS`, `_EVOLVING_DIRS`, `_MAX_HISTORY_VERSIONS`, `_MAX_PROFILE_VERSIONS`, `_ENTITY_PROFILE_FILENAMES` anywhere in the codebase. **Only two** `workspace_files` content-layer mutation call sites remain: `authored_substrate._upsert_workspace_file` (the write target) and `primitives/workspace._embed_workspace_file` (permitted metadata-only update for the embedding column). Test gate [api/test_adr209_phase2.py](../api/test_adr209_phase2.py) — 14/14 assertions pass. Phase 1 test suite also re-verified: 11/11 still passing, no regressions. **Key Phase 2 decision**: class wrappers carry `authored_by` defaults derived from class-scoped context rather than forcing ~60 uniform-edit call-site changes — the substrate still enforces the Axiom 2 contract; the wrappers translate class context into substrate-required format. Phases 3–5 proposed. |

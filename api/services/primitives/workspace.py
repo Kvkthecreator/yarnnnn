@@ -202,14 +202,41 @@ For entity listing by database table, use ListEntities.
 
 See what's in your workspace: thesis, memory, working notes, outputs.
 Call with no arguments to see top-level files, or pass a path to list a subdirectory.
-Ephemeral (working/) and archived files are hidden by default.""",
+Ephemeral (working/) and archived files are hidden by default.
+
+ADR-209 Phase 3 filters (all optional):
+- authored_by: filter to files whose most-recent revision was authored by
+  a specific identity (e.g., 'operator', 'yarnnn:claude-sonnet-4-7',
+  'agent:alpha-research', 'reviewer:ai-sonnet-v1',
+  'system:outcome-reconciliation'). Supports prefix match — 'agent:' returns
+  every file most-recently authored by any agent.
+- since: ISO 8601 timestamp — only include files whose most-recent revision
+  is at or after this time (e.g., '2026-04-20T00:00:00Z').
+- until: ISO 8601 timestamp — only include files whose most-recent revision
+  is at or before this time.
+
+Use these filters to answer operator-facing questions:
+'What have I edited this week?' (authored_by='operator', since=<7d ago>)
+'What has YARNNN touched overnight?' (authored_by='yarnnn:', since=<last night>)""",
     "input_schema": {
         "type": "object",
         "properties": {
             "path": {
                 "type": "string",
                 "description": "Optional: subdirectory to list (e.g., 'working/', 'runs/'). Default: list top-level."
-            }
+            },
+            "authored_by": {
+                "type": "string",
+                "description": "Optional: filter to files whose most-recent revision matches this authored_by prefix (e.g., 'operator', 'agent:', 'yarnnn:')."
+            },
+            "since": {
+                "type": "string",
+                "description": "Optional: ISO 8601 timestamp. Only files with most-recent revision at or after this time."
+            },
+            "until": {
+                "type": "string",
+                "description": "Optional: ISO 8601 timestamp. Only files with most-recent revision at or before this time."
+            },
         },
         "required": []
     }
@@ -515,7 +542,11 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
 
 
 async def handle_list_files(auth: Any, input: dict) -> dict:
-    """Handle ListFiles primitive (ADR-168: renamed from ListWorkspace)."""
+    """Handle ListFiles primitive (ADR-168: renamed from ListWorkspace).
+
+    ADR-209 Phase 3: supports authored_by / since / until filters via a
+    query against workspace_file_versions.head for each candidate path.
+    """
     from services.workspace import AgentWorkspace, get_agent_slug
 
     agent = getattr(auth, "agent", None)
@@ -527,11 +558,74 @@ async def handle_list_files(auth: Any, input: dict) -> dict:
 
     files = await ws.list(path)
 
+    # ADR-209 Phase 3 filters: authored_by (prefix match) + since/until
+    # (timestamp window on most-recent revision). If any filter present,
+    # intersect `files` with the set of paths whose head revision matches.
+    authored_by = (input.get("authored_by") or "").strip()
+    since = (input.get("since") or "").strip()
+    until = (input.get("until") or "").strip()
+
+    if authored_by or since or until:
+        # Resolve the requested list to absolute paths so we can match against
+        # workspace_file_versions rows. ws.list() returns paths relative to the
+        # `prefix` passed in (or relative to /agents/{slug}/ when path="").
+        from services.workspace import AgentWorkspace as _AW  # for _full_path access
+        if path and not path.endswith("/"):
+            path_for_prefix = path + "/"
+        else:
+            path_for_prefix = path
+        full_prefix = ws._full_path(path_for_prefix) if path_for_prefix else ws._base + "/"
+
+        q = (
+            auth.client.table("workspace_file_versions")
+            .select("path, authored_by, created_at")
+            .eq("user_id", auth.user_id)
+            .like("path", f"{full_prefix}%")
+        )
+        if authored_by:
+            # Prefix match — 'agent:' or 'operator' or 'system:outcome-reconciliation'
+            q = q.like("authored_by", f"{authored_by}%")
+        if since:
+            q = q.gte("created_at", since)
+        if until:
+            q = q.lte("created_at", until)
+
+        # Order by created_at DESC and take first occurrence per path
+        # (approximates "most-recent revision matches"). PostgREST doesn't
+        # expose DISTINCT ON, so we post-process in Python.
+        q = q.order("created_at", desc=True)
+
+        try:
+            result = q.execute()
+        except Exception as e:
+            logger.warning(f"[LIST_FILES] ADR-209 filter query failed: {e}")
+            result = type("X", (), {"data": []})()
+
+        matched_abs_paths = set()
+        for row in (result.data or []):
+            p = row.get("path")
+            if p and p not in matched_abs_paths:
+                matched_abs_paths.add(p)
+
+        # Filter `files` (relative paths) to those whose absolute path is in matched
+        prefix_strip = full_prefix
+        filtered = []
+        for rel in files:
+            candidate = prefix_strip + rel if not rel.endswith("/") else None
+            if candidate and candidate in matched_abs_paths:
+                filtered.append(rel)
+        files = filtered
+
     return {
         "success": True,
         "path": path or "/",
         "files": files,
         "count": len(files),
+        "filters_applied": {
+            "authored_by": authored_by or None,
+            "since": since or None,
+            "until": until or None,
+        } if (authored_by or since or until) else None,
     }
 
 

@@ -38,6 +38,12 @@ from .workspace import (
     DISCOVER_AGENTS_TOOL, handle_discover_agents,
     READ_AGENT_FILE_TOOL, handle_read_agent_file,
 )
+# ADR-209 Phase 3: revision-aware read primitives (Authored Substrate).
+from .revisions import (
+    LIST_REVISIONS_TOOL, handle_list_revisions,
+    READ_REVISION_TOOL, handle_read_revision,
+    DIFF_REVISIONS_TOOL, handle_diff_revisions,
+)
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
 from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
 from .propose_action import (
@@ -209,7 +215,11 @@ CHAT_PRIMITIVES = [
     REJECT_PROPOSAL_TOOL,
     # Interaction (1)
     CLARIFY_TOOL,
-]  # 17 tools — ADR-193 added ProposeAction / ExecuteProposal / RejectProposal
+    # Authored Substrate — revision-aware reads (ADR-209 Phase 3)
+    LIST_REVISIONS_TOOL,
+    READ_REVISION_TOOL,
+    DIFF_REVISIONS_TOOL,
+]  # 20 tools — ADR-209 Phase 3 added ListRevisions / ReadRevision / DiffRevisions
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per
@@ -240,7 +250,14 @@ HEADLESS_PRIMITIVES = [
     # Approval loop (ADR-193) — headless agents must propose when action is
     # soft/irreversible; autonomous execution without approval is unsafe.
     PROPOSE_ACTION_TOOL,
-]  # 17 tools — RuntimeDispatch for assets; ProposeAction for approval-gated writes
+    # Authored Substrate — revision-aware reads (ADR-209 Phase 3).
+    # Agents can inspect prior revisions of their own memory, upstream
+    # context domains, or delivered outputs to track their own drift and
+    # reason about accumulated change. Chat parity.
+    LIST_REVISIONS_TOOL,
+    READ_REVISION_TOOL,
+    DIFF_REVISIONS_TOOL,
+]  # 20 tools — ADR-209 Phase 3 added ListRevisions / ReadRevision / DiffRevisions
 
 # Combined list — for handler registration and backwards compatibility
 PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
@@ -281,6 +298,10 @@ HANDLERS: dict[str, Callable] = {
     "ProposeAction": handle_propose_action,
     "ExecuteProposal": handle_execute_proposal,
     "RejectProposal": handle_reject_proposal,
+    # ADR-209 Phase 3: Authored Substrate revision-aware reads
+    "ListRevisions": handle_list_revisions,
+    "ReadRevision": handle_read_revision,
+    "DiffRevisions": handle_diff_revisions,
 }
 
 

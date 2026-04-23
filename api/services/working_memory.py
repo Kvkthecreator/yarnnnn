@@ -109,10 +109,12 @@ async def build_working_memory(
         asyncio.to_thread(_get_workspace_file_sync, user_id, MEMORY_AWARENESS_PATH, _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "memory/conversation.md", _make_client()),
     )
-    task_count, doc_count, recent_uploads = await asyncio.gather(
+    task_count, doc_count, recent_uploads, recent_authorship = await asyncio.gather(
         asyncio.to_thread(_count_tasks_sync, user_id, _make_client()),
         asyncio.to_thread(_count_documents_sync, user_id, _make_client()),
         asyncio.to_thread(_get_recent_uploads_sync, user_id, _make_client()),
+        # ADR-209 Phase 3: recent substrate authorship aggregation
+        asyncio.to_thread(_get_recent_authorship_sync, user_id, _make_client()),
     )
 
     # ADR-151: Fetch active tasks + context domain health for TP meta-awareness
@@ -146,6 +148,8 @@ async def build_working_memory(
         "context_domains": context_domains,
         # ADR-162 Sub-phase B: Recent uploads — TP should consider processing these
         "recent_uploads": recent_uploads,
+        # ADR-209 Phase 3: Recent substrate authorship — one-line "what happened" signal
+        "recent_authorship": recent_authorship,
         # ADR-156: Unified workspace state — single signal for TP awareness
         "workspace_state": {
             # Identity
@@ -268,6 +272,54 @@ def _count_documents_sync(user_id: str, client: Any) -> int:
         return result.count or 0
     except Exception:
         return 0
+
+
+def _get_recent_authorship_sync(user_id: str, client: Any) -> dict:
+    """Recent substrate authorship counts (ADR-209 Phase 3).
+
+    Returns counts of revisions landed in the last 24 hours, grouped by
+    the cognitive-layer prefix of authored_by. Used by the compact index
+    to surface a one-line "what has been happening" signal so YARNNN
+    can reason about recent substrate activity without reading files.
+
+    Example return:
+        {
+            "window_hours": 24,
+            "total": 23,
+            "by_layer": {"operator": 3, "yarnnn": 12, "agent": 5, "system": 3},
+        }
+
+    Returns {"window_hours": 24, "total": 0, "by_layer": {}} when quiet
+    or on error (non-fatal).
+    """
+    try:
+        from datetime import datetime, timezone, timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        result = (
+            client.table("workspace_file_versions")
+            .select("authored_by")
+            .eq("user_id", user_id)
+            .gte("created_at", cutoff)
+            .limit(500)  # cap the window — one line of output, don't need more
+            .execute()
+        )
+        rows = result.data or []
+        by_layer: dict[str, int] = {}
+        for r in rows:
+            author = (r.get("authored_by") or "").strip()
+            if not author:
+                continue
+            # Prefix before ":" is the cognitive layer (operator, yarnnn,
+            # agent, specialist, reviewer, system). "operator" has no colon.
+            layer = author.split(":", 1)[0] if ":" in author else author
+            by_layer[layer] = by_layer.get(layer, 0) + 1
+        return {
+            "window_hours": 24,
+            "total": sum(by_layer.values()),
+            "by_layer": by_layer,
+        }
+    except Exception:
+        return {"window_hours": 24, "total": 0, "by_layer": {}}
 
 
 def _get_recent_uploads_sync(user_id: str, client: Any) -> list[dict]:
@@ -1033,6 +1085,23 @@ def format_compact_index(
         lines.append(f"\nRecent uploads ({len(recent_uploads)} in last 7 days) — consider offering to process via UpdateContext:")
         for u in recent_uploads[:3]:
             lines.append(f"- {u.get('filename', 'document')} (uploaded {u.get('uploaded_at', '')[:10]})")
+
+    # --- Recent substrate authorship (ADR-209 Phase 3) ---
+    # One compact line: who has been writing to the workspace lately. Helps
+    # YARNNN reason about current activity ("the operator just edited X"
+    # / "the reconciler ran") without reading files. Silent when quiet.
+    authorship = working_memory.get("recent_authorship") or {}
+    if authorship.get("total", 0) > 0:
+        by_layer = authorship.get("by_layer") or {}
+        # Render in priority order so the operator's activity leads.
+        priority = ["operator", "yarnnn", "reviewer", "agent", "specialist", "system"]
+        parts = []
+        for layer in priority:
+            n = by_layer.get(layer, 0)
+            if n:
+                parts.append(f"{layer} ({n})")
+        if parts:
+            lines.append(f"\nRecent activity (24h, {authorship['total']} revisions): {', '.join(parts)} — use ListRevisions/ReadRevision/DiffRevisions to inspect.")
 
     # --- Surface context (what user is currently viewing) ---
     if surface_context:
