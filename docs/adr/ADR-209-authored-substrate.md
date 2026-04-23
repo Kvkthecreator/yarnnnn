@@ -1,6 +1,6 @@
 # ADR-209: Authored Substrate — Content-Addressed Revisions with Authored-By Attribution
 
-> **Status**: Proposed
+> **Status**: **Phase 1 Implemented 2026-04-23** (substrate foundation + backfill + test gate). Phases 2–5 proposed per the phased-implementation section below.
 > **Date**: 2026-04-23
 > **Authors**: KVK, Claude
 > **Ratifies**: [docs/architecture/authored-substrate.md](../architecture/authored-substrate.md) (canonical deep-dive) + FOUNDATIONS v6.1 Axiom 1 second clause + Derived Principle 13
@@ -206,17 +206,21 @@ Neither ships in ADR-209. Each ships when a concrete operator signal demands it 
 
 Five phases. Each phase is individually shippable; each phase **must** land with its corresponding legacy deletion in the same PR — no "clean up later" allowances. This is the anti-dual-approach discipline that ADR-194, ADR-195, and ADR-153 lessons all reinforce.
 
-### Phase 1 — Substrate foundation (additive only)
+### Phase 1 — Substrate foundation (additive only) — **IMPLEMENTED 2026-04-23**
 
 Scope:
 - Migration 158: create `workspace_blobs` + `workspace_file_versions`; add `head_version_id` column to `workspace_files`
-- Backfill: every existing `workspace_files` row produces one synthetic initial revision (`authored_by='system:backfill-158'`, `message='initial backfill'`, one blob per distinct content)
-- New service: `api/services/authored_substrate.py` with `write_revision()` as the sole write function
+- Backfill: every existing `workspace_files` row produces one synthetic initial revision (`authored_by='system:backfill-158'`, `message='initial backfill — pre-ADR-209 content'`, one blob per distinct content)
+- New service: `api/services/authored_substrate.py` with `write_revision()` as the sole write function + `list_revisions()` / `read_revision()` / `count_revisions()` read helpers + `is_valid_author()` taxonomy validator
 - No call-site migration yet
 
 **Legacy deleted in Phase 1**: none (additive only).
 
-**Gate**: `workspace_files` reads unchanged; new test writes land revisions correctly; backfill produces exactly one revision per existing file.
+**Phase 1 implementation notes**:
+- Parent-pointer resolution in `write_revision()` queries `workspace_file_versions` directly (newest row by `created_at DESC`), not the denormalized `workspace_files.head_version_id`. The revision chain is authoritative; the `head_version_id` column is a Phase 2 read-optimization layer kept in sync by the full write path. This decouples Phase 1 from the call-site migration — new revisions chain correctly against the backfilled revisions even though `workspace_files.head_version_id` is not updated by Phase 1 writes on new paths.
+- Backfill results against dev DB (user: kvkthecreator@gmail.com): 99 files → 99 revisions → 69 unique blobs (content-addressed dedup confirmed). Every file has `head_version_id` set; every head resolves to a real revision; every revision's `blob_sha` resolves to a real blob.
+
+**Gate**: [api/test_adr209_phase1.py](../api/test_adr209_phase1.py) — 11/11 assertions pass. Table creation, column add, backfill completeness, attribution, head integrity, blob integrity, blob dedup, write round-trip, validation rejection, list+read round-trip, parent-pointer chain all verified against live dev DB.
 
 ### Phase 2 — Write path unification + legacy deletion
 
@@ -371,3 +375,4 @@ The complete list of what gets deleted and in which phase. Every item has a phas
 | Date | Change |
 |------|--------|
 | 2026-04-23 | v1 — Initial decision record. Ratifies [authored-substrate.md](../architecture/authored-substrate.md) + FOUNDATIONS v6.1 Axiom 1 second clause + Derived Principle 13. Five-phase implementation. Deprecation manifest authoritative. Supersedes ADR-208 v1 (withdrawn) + ADR-119 Phase 3. Amends ADR-106, ADR-162 Sub-phase D, ADR-194 v2, ADR-207 v1.2. |
+| 2026-04-23 | **Phase 1 Implemented.** Migration 158 (`workspace_blobs` + `workspace_file_versions` + `workspace_files.head_version_id`) applied to dev DB. Backfill: 99 files → 99 revisions → 69 unique blobs (content-addressed dedup confirmed). `api/services/authored_substrate.py` lands `write_revision()` + `list_revisions()` + `read_revision()` + `count_revisions()` + `is_valid_author()`. Test gate [api/test_adr209_phase1.py](../api/test_adr209_phase1.py) — 11/11 assertions pass (tables, backfill, head/blob integrity, dedup, end-to-end write, empty-attribution rejection, list+read round-trip, parent-pointer chain). Implementation note: parent resolution queries the revision chain directly, not the denormalized `head_version_id` pointer — decouples Phase 1 from Phase 2's call-site migration. Phases 2–5 proposed. |
