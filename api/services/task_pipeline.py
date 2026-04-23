@@ -434,39 +434,36 @@ async def _gather_context_domains(
     return "\n\n".join(sections) if sections else ""
 
 
-async def _compose_and_persist(
+async def _persist_sections_and_manifest(
     client,
     user_id: str,
     task_slug: str,
     draft: str,
     task_info: dict,
     task_output_folder: str,
-    pending_renders: list,
-    title: str,
     next_version: int,
     started_at,
     prior_manifest,
     revision_scope: str,
-) -> Optional[str]:
+) -> None:
     """
-    ADR-177: Unified parse-then-compose step replacing the split steps 12 + 12b.
+    ADR-213: Substrate-only persistence. Tasks write section partials +
+    sys_manifest.json; the render service is called on-demand by surfaces
+    (API render endpoint, email delivery, repurpose) via
+    services.compose.compose_task_output_html.
 
-    Ordering fix: parse sections FIRST, then compose with that structural knowledge.
-    The old order (compose → parse) meant the render service always received flat
-    markdown — section kind metadata was in memory but came too late to use.
+    Replaces the previous _compose_and_persist() which force-called /compose
+    and wrote output.html on every run. That call site moved to the surface
+    layer. Composition became an opt-in pull, not a task-coupled push.
 
     Pipeline:
       1. Parse draft into SectionContent objects (parse_draft_into_sections)
-      2. Call /compose with pre-parsed sections (render service receives section kinds)
-      3. Write output.html directly to task workspace (no agent workspace round-trip)
-      4. Write section partials + sys_manifest.json to task workspace
-      5. Keep outputs/latest/ in sync
+      2. Validate section kinds against lightweight contracts (ADR-177 5e)
+      3. Write section partials → outputs/{_tf}/sections/{slug}.md
+      4. Build + write sys_manifest.json → outputs/{_tf}/ and outputs/latest/
 
-    Non-fatal — task run succeeds even if compose fails.
-    Returns the composed HTML string, or None on failure.
+    Non-fatal — task run succeeds even if persistence fails.
     """
-    import os
-    import httpx
     from services.task_workspace import TaskWorkspace
 
     tw = TaskWorkspace(client, user_id, task_slug)
@@ -478,7 +475,7 @@ async def _compose_and_persist(
     # (self-declaration) exclusively. Registry fallback deleted.
     _surface = task_info.get("surface_type") or "report"
 
-    # ── Step 1: Parse sections FIRST ──────────────────────────────────────────
+    # ── Step 1: Parse sections ────────────────────────────────────────────────
     sections_parsed = {}
     _page_structure = task_info.get("page_structure")
 
@@ -489,13 +486,11 @@ async def _compose_and_persist(
         except Exception as e:
             logger.warning(f"[COMPOSE] Section parsing failed (non-fatal): {e}")
 
-    # ── Step 1b: Output contract validation (ADR-177 Phase 5e) ───────────────────
-    # Validate each parsed section's kind against a lightweight structural contract.
-    # Mismatches are logged and kind is downgraded to "narrative" (safe fallback).
-    # No LLM calls — pure string/regex checks. Non-blocking.
+    # ── Step 1b: Output contract validation (ADR-177 Phase 5e) ───────────────
+    # Validate each parsed section's kind against a lightweight structural
+    # contract. Mismatches are logged and kind is downgraded to "narrative".
     if sections_parsed:
         _kind_contracts = {
-            # kind → callable(content: str) -> bool
             "metric-cards": lambda c: bool(re.search(r'.+:.+', c)),
             "entity-grid": lambda c: bool(re.search(r'##\s+\S|^\s*-\s+\S', c, re.MULTILINE)),
             "comparison-table": lambda c: "|" in c,
@@ -513,7 +508,7 @@ async def _compose_and_persist(
                 try:
                     _valid = _contract(_content)
                 except Exception:
-                    _valid = True  # don't fail on contract error
+                    _valid = True
                 if not _valid:
                     logger.warning(
                         f"[COMPOSE] Section '{sec_slug}' kind='{_kind}' failed "
@@ -521,125 +516,56 @@ async def _compose_and_persist(
                     )
                     sec_data["kind"] = "narrative"
 
-    # ── Step 2: Build sections payload for render service ─────────────────────
-    # ADR-177: send sections list; render service dispatches on kind.
-    sections_payload = [
-        {
-            "kind": sec_data.get("kind", "narrative"),
-            "title": sec_data.get("title", sec_slug),
-            "content": sec_data.get("content", ""),
-        }
-        for sec_slug, sec_data in sections_parsed.items()
-        if sec_data.get("content")
-    ] if sections_parsed else []
+    if not sections_parsed:
+        return
 
-    # Build asset references from pending_renders
-    assets = []
-    for r in (pending_renders or []):
-        url = r.get("output_url") or r.get("content_url")
-        path = r.get("path", "")
-        if url and path:
-            ref = path.split("/")[-1] if "/" in path else path
-            assets.append({"ref": ref, "url": url})
-
-    # ── Step 3: Call /compose on render service ────────────────────────────────
-    html = None
+    # ── Step 2: Write section partials + sys_manifest.json ────────────────────
     try:
-        RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
-        render_secret = os.environ.get("RENDER_SERVICE_SECRET", "")
-        headers = {}
-        if render_secret:
-            headers["X-Render-Secret"] = render_secret
+        from services.compose.assembly import (
+            build_post_generation_manifest,
+            _query_domain_state,
+        )
 
-        async with httpx.AsyncClient(timeout=30.0) as http:
-            resp = await http.post(
-                f"{RENDER_SERVICE_URL}/compose",
-                json={
-                    # ADR-177 Phase D1: sections list (kind-aware) + flat markdown fallback
-                    "sections": sections_payload,
-                    "markdown": draft,   # fallback for render service until D2 lands
-                    "title": title,
-                    "surface_type": _surface,
-                    "assets": assets,
-                    "user_id": user_id,
-                },
-                headers=headers,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get("success"):
-                    html = data.get("html", "") or None
+        for sec_slug, sec_data in sections_parsed.items():
+            if sec_data.get("content"):
+                await tw.write(
+                    f"outputs/{_tf}/sections/{sec_slug}.md",
+                    sec_data["content"],
+                    summary=f"Section: {sec_data.get('title', sec_slug)}",
+                    tags=["output", "section"],
+                )
+
+        context_reads = task_info.get("context_reads", [])
+        domain_state = await _query_domain_state(client, user_id, context_reads)
+        manifest = build_post_generation_manifest(
+            task_slug=task_slug,
+            surface_type=_surface,
+            sections_parsed=sections_parsed,
+            domain_state=domain_state,
+            task_info=task_info,
+            run_started_at=started_at.isoformat(),
+            prior_manifest=prior_manifest,
+            revision_scope=revision_scope,
+        )
+        manifest_json = manifest.to_json()
+        await tw.write(
+            f"outputs/{_tf}/sys_manifest.json",
+            manifest_json,
+            summary=f"Compose manifest v{next_version}",
+            tags=["output", "manifest"],
+        )
+        await tw.write(
+            "outputs/latest/sys_manifest.json",
+            manifest_json,
+            summary="Latest compose manifest",
+            tags=["output", "manifest", "latest"],
+        )
+        logger.info(
+            f"[COMPOSE] _persist_sections_and_manifest: "
+            f"{len(sections_parsed)} sections → outputs/{_tf}/"
+        )
     except Exception as e:
-        logger.warning(f"[COMPOSE] /compose request failed (non-fatal): {e}")
-
-    # ── Step 4: Write output.html directly to task workspace ──────────────────
-    if html:
-        try:
-            await tw.write(
-                f"outputs/{_tf}/output.html", html,
-                summary=f"Composed HTML for {title}",
-                tags=["output", "html"],
-            )
-            await tw.write(
-                "outputs/latest/output.html", html,
-                summary=f"Latest composed HTML for {title}",
-                tags=["output", "html", "latest"],
-            )
-        except Exception as e:
-            logger.warning(f"[COMPOSE] HTML write to task workspace failed (non-fatal): {e}")
-
-    # ── Step 5: Write section partials + sys_manifest.json ────────────────────
-    if sections_parsed:
-        try:
-            from services.compose.assembly import (
-                build_post_generation_manifest,
-                _query_domain_state,
-            )
-
-            # Write section partials
-            for sec_slug, sec_data in sections_parsed.items():
-                if sec_data.get("content"):
-                    await tw.write(
-                        f"outputs/{_tf}/sections/{sec_slug}.md",
-                        sec_data["content"],
-                        summary=f"Section: {sec_data.get('title', sec_slug)}",
-                        tags=["output", "section"],
-                    )
-
-            # Build sys_manifest.json
-            context_reads = task_info.get("context_reads", [])
-            domain_state = await _query_domain_state(client, user_id, context_reads)
-            manifest = build_post_generation_manifest(
-                task_slug=task_slug,
-                surface_type=_surface,
-                sections_parsed=sections_parsed,
-                domain_state=domain_state,
-                task_info=task_info,
-                run_started_at=started_at.isoformat(),
-                prior_manifest=prior_manifest,
-                revision_scope=revision_scope,
-            )
-            manifest_json = manifest.to_json()
-            await tw.write(
-                f"outputs/{_tf}/sys_manifest.json",
-                manifest_json,
-                summary=f"Compose manifest v{next_version}",
-                tags=["output", "manifest"],
-            )
-            await tw.write(
-                "outputs/latest/sys_manifest.json",
-                manifest_json,
-                summary="Latest compose manifest",
-                tags=["output", "manifest", "latest"],
-            )
-            logger.info(
-                f"[COMPOSE] _compose_and_persist: {len(sections_parsed)} sections, "
-                f"html={'yes' if html else 'no'} → outputs/{_tf}/"
-            )
-        except Exception as e:
-            logger.warning(f"[COMPOSE] Manifest/sections write failed (non-fatal): {e}")
-
-    return html
+        logger.warning(f"[COMPOSE] Manifest/sections write failed (non-fatal): {e}")
 
 
 async def _post_run_domain_scan(
@@ -2251,29 +2177,27 @@ async def execute_task(
         )
 
         # =====================================================================
-        # 12. Compose HTML + section partials + sys_manifest.json (ADR-177)
+        # 12. Persist section partials + sys_manifest.json (ADR-213)
         # =====================================================================
-        # _compose_and_persist() fixes the ordering bug: parse sections first,
-        # then compose — render service receives section kinds, not flat markdown.
-        # Also eliminates the agent-workspace→task-workspace copy seam.
+        # Substrate-only persistence. HTML is composed on demand by surfaces
+        # (API render endpoint, email delivery, repurpose) via
+        # services.compose.compose_task_output_html.
         if task_output_folder:
             try:
-                await _compose_and_persist(
+                await _persist_sections_and_manifest(
                     client=client,
                     user_id=user_id,
                     task_slug=task_slug,
                     draft=draft,
                     task_info=task_info,
                     task_output_folder=task_output_folder,
-                    pending_renders=pending_renders,
-                    title=title,
                     next_version=next_version,
                     started_at=started_at,
                     prior_manifest=prior_manifest,
                     revision_scope=revision_scope,
                 )
             except Exception as e:
-                logger.warning(f"[TASK_EXEC] _compose_and_persist failed (non-fatal): {e}")
+                logger.warning(f"[TASK_EXEC] _persist_sections_and_manifest failed (non-fatal): {e}")
 
         # =====================================================================
         # 13. Deliver
@@ -2968,25 +2892,23 @@ async def _execute_pipeline(
         duration_s=pipeline_duration,
     )
 
-    # Compose HTML + section partials + sys_manifest.json (ADR-177)
-    # _compose_and_persist() fixes ordering: parse sections FIRST, then compose.
+    # Persist section partials + sys_manifest.json (ADR-213)
+    # Composition happens on demand at the surface layer.
     try:
-        await _compose_and_persist(
+        await _persist_sections_and_manifest(
             client=client,
             user_id=user_id,
             task_slug=task_slug,
             draft=final_draft,
             task_info=task_info,
             task_output_folder=f"outputs/{date_folder}",
-            pending_renders=all_renders,
-            title=title,
             next_version=next_version,
             started_at=started_at,
             prior_manifest=None,       # multi-agent path: no prior manifest in scope
             revision_scope="full",     # multi-agent path: always full regeneration
         )
     except Exception as e:
-        logger.warning(f"[PIPELINE] _compose_and_persist failed (non-fatal): {e}")
+        logger.warning(f"[PIPELINE] _persist_sections_and_manifest failed (non-fatal): {e}")
 
     # Deliver
     final_status = "delivered"
@@ -3679,35 +3601,6 @@ async def _is_workspace_empty_for_daily_update(client, user_id: str) -> bool:
         return False
 
 
-def _build_empty_workspace_html(schedule_label: str) -> str:
-    """Deterministic HTML template for the empty-workspace daily-update.
-
-    ADR-202 §1: expository-pointer shape. Honest acknowledgement that the
-    workspace is empty + deep-link CTA into the cockpit. No LLM call.
-    No personalization. Operator gets the heartbeat, the actual UX
-    lives in the cockpit.
-    """
-    from services.deep_links import chat_url, overview_url
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Your YARNNN workforce is ready</title>
-</head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px; margin: 32px auto; padding: 0 24px; color: #374151; line-height: 1.6;">
-  <h1 style="color: #1a1a2e; font-size: 24px; margin-bottom: 8px;">Your workforce is ready</h1>
-  <p style="color: #6b7280; font-size: 14px; margin-top: 0;">0 task runs · 0 proposals pending · 0 reviewer decisions</p>
-  <p>Good morning. There's nothing for me to report yet — your team hasn't been told what to track. That's by design: I don't presume to know what matters to you until you tell me.</p>
-  <p style="margin-top: 24px;">
-    <a href="{chat_url()}" style="display: inline-block; padding: 10px 18px; background: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Open YARNNN →</a>
-  </p>
-  <p style="margin-top: 16px; color: #6b7280; font-size: 14px;">Tell me about your work — what you're focused on, who you're tracking, what platforms you use. Tomorrow's update will have something real to say.</p>
-  <hr style="margin: 32px 0; border: 0; border-top: 1px solid #e5e7eb;">
-  <p style="color: #6b7280; font-size: 13px;">Daily update · {schedule_label} · <a href="{overview_url()}" style="color: #6b7280;">View in cockpit</a></p>
-</body>
-</html>"""
-
-
 def _build_empty_workspace_markdown(schedule_label: str) -> str:
     """Markdown counterpart of the empty-workspace template (for output.md).
 
@@ -3758,7 +3651,6 @@ async def _execute_daily_update_empty_state(
 
     schedule_label = format_daily_local_time_label(user_timezone)
     md_content = _build_empty_workspace_markdown(schedule_label)
-    html_content = _build_empty_workspace_html(schedule_label)
 
     await tw.write(
         f"{folder_path}/output.md",
@@ -3766,14 +3658,10 @@ async def _execute_daily_update_empty_state(
         summary="Daily-update empty-state (deterministic template)",
         tags=["output", "empty_state", "daily_update"],
     )
-    await tw.write(
-        f"{folder_path}/output.html",
-        html_content,
-        summary="Daily-update empty-state HTML",
-        tags=["output", "empty_state", "daily_update", "html"],
-    )
 
     import json as _json
+    # ADR-213: HTML composed on demand by surfaces. Manifest lists only
+    # substrate files — no pre-rendered output.html artifact.
     manifest = {
         "agent_slug": "reporting",
         "created_at": started_at.isoformat(),
@@ -3781,7 +3669,6 @@ async def _execute_daily_update_empty_state(
         "kind": "empty_state",
         "files": [
             {"path": "output.md", "type": "text/markdown", "role": "primary"},
-            {"path": "output.html", "type": "text/html", "role": "composed"},
         ],
     }
     await tw.write(

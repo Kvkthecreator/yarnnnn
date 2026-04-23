@@ -1176,8 +1176,9 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     # WORKSPACE INTELLIGENCE — ADR-204
     # Essential task seeded at workspace init (Phase 5c). Runs daily at 06:00
     # local (offset from outcome-reconciliation at 02:00 so _performance_summary.md
-    # is current). output_kind=produces_deliverable so the full compose pipeline
-    # runs and produces output.html + rich sys_manifest.json with sections array.
+    # is current). output_kind=produces_deliverable so the pipeline persists
+    # section partials + a rich sys_manifest.json with sections array; HTML is
+    # composed on demand at surface pull time (ADR-213).
     # Owned by the Reporting agent (cross-domain synthesizer).
     # ══════════════════════════════════════════════════════════════════════════
 

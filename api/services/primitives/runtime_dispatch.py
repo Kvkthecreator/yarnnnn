@@ -149,7 +149,7 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
         title = filename or skill_input.get("title") or skill_type
         safe_title = "".join(c if c.isalnum() or c in "-_ " else "" for c in title).strip().replace(" ", "-")[:50]
         if task_slug:
-            # Headless task execution — write into task output folder alongside output.html
+            # Headless task execution — write into task output folder alongside section partials
             ws_path = f"/tasks/{task_slug}/outputs/latest/{safe_title}.{output_format}"
         else:
             # TP chat — write to agent workspace outputs

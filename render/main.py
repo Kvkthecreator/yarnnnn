@@ -269,17 +269,85 @@ async def render(req: RenderRequest, request: Request):
 
 # ---------------------------------------------------------------------------
 # ADR-130: HTML Composition Engine
+# ADR-213: Content-addressed cache for surface-pull composition
 # ---------------------------------------------------------------------------
 
-from compose import ComposeRequest, ComposeResponse, compose_html
+import hashlib
+
+from compose import ComposeRequest, ComposeResponse, compose_html, COMPOSE_ENGINE_VERSION
+
+
+def _compose_cache_key(req: ComposeRequest) -> str:
+    """ADR-213: content-addressed cache key for /compose.
+
+    Hashes all inputs that affect output. Any substrate change (new sections,
+    new assets, brand CSS edit) or engine bump produces a new hash, so the
+    cache invalidates automatically with no explicit eviction code.
+    """
+    payload = {
+        "v": COMPOSE_ENGINE_VERSION,
+        "surface_type": req.surface_type,
+        "title": req.title,
+        "brand_css": req.brand_css or "",
+        "markdown": req.markdown or "",
+        "sections": [
+            {"kind": s.kind, "title": s.title, "content": s.content}
+            for s in (req.sections or [])
+        ],
+        "assets": sorted(
+            [{"ref": a.get("ref", ""), "url": a.get("url", "")} for a in (req.assets or [])],
+            key=lambda a: a["ref"],
+        ),
+    }
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()
+
+
+async def _compose_cache_get(hash_key: str) -> Optional[bytes]:
+    """Read cached composed HTML from Supabase Storage. None on miss or error."""
+    if not (SUPABASE_URL and SUPABASE_SERVICE_KEY):
+        return None
+    url = f"{SUPABASE_URL}/storage/v1/object/{STORAGE_BUCKET}/_compose-cache/{hash_key}.html"
+    headers = {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                return resp.content
+    except Exception as e:
+        logger.warning(f"[COMPOSE] Cache read error for {hash_key[:12]}: {e}")
+    return None
+
+
+async def _compose_cache_put(hash_key: str, html_bytes: bytes) -> Optional[str]:
+    """Write composed HTML to content-addressed cache. Returns public URL or None."""
+    if not (SUPABASE_URL and SUPABASE_SERVICE_KEY):
+        return None
+    try:
+        storage_path = f"_compose-cache/{hash_key}.html"
+        return await _upload_to_storage(html_bytes, storage_path, "text/html")
+    except Exception as e:
+        logger.warning(f"[COMPOSE] Cache write error for {hash_key[:12]}: {e}")
+        return None
+
+
+# import json at module scope for cache key serialization
+import json
 
 
 @app.post("/compose", response_model=ComposeResponse)
 async def compose(req: ComposeRequest, request: Request):
-    """ADR-130 Phase 1 + ADR-170: Compose markdown + assets into styled HTML.
+    """ADR-130 + ADR-213: Compose markdown/sections + assets into styled HTML.
 
     Surface types: report (default), deck, dashboard, digest, workbook, preview, video.
-    Optionally uploads the HTML to Supabase Storage.
+
+    Content-addressed cache short-circuits repeat composes of identical
+    substrate — hash on sections + surface_type + assets + brand_css +
+    engine version. Cache storage: Supabase `{bucket}/_compose-cache/{hash}.html`.
+    No explicit invalidation — substrate changes produce new hashes.
     """
     _validate_render_secret(request)
 
@@ -296,6 +364,20 @@ async def compose(req: ComposeRequest, request: Request):
         return ComposeResponse(
             success=False,
             error=f"Invalid surface_type: {req.surface_type}. Valid: {valid_surfaces}",
+        )
+
+    # ADR-213: content-addressed cache hit
+    cache_key = _compose_cache_key(req)
+    cached = await _compose_cache_get(cache_key)
+    if cached is not None:
+        logger.info(f"[COMPOSE] Cache hit {cache_key[:12]} ({len(cached)} bytes)")
+        cache_url = f"{SUPABASE_URL}/storage/v1/object/public/{STORAGE_BUCKET}/_compose-cache/{cache_key}.html"
+        return ComposeResponse(
+            success=True,
+            html=cached.decode("utf-8"),
+            output_url=cache_url,
+            content_type="text/html",
+            size_bytes=len(cached),
         )
 
     try:
@@ -316,22 +398,15 @@ async def compose(req: ComposeRequest, request: Request):
     html_bytes = html.encode("utf-8")
     size_bytes = len(html_bytes)
 
-    # Upload to storage if user_id provided and storage is configured
-    output_url = None
-    if req.user_id and SUPABASE_URL and SUPABASE_SERVICE_KEY:
-        try:
-            date_prefix = datetime.now(timezone.utc).strftime("%Y/%m/%d")
-            safe_title = "".join(c if c.isalnum() or c in "-_ " else "" for c in req.title).strip().replace(" ", "-")[:50]
-            filename = safe_title or "output"
-            storage_path = f"{req.user_id}/{date_prefix}/{filename}.html"
-            output_url = await _upload_to_storage(html_bytes, storage_path, "text/html")
-        except Exception as e:
-            logger.warning(f"[COMPOSE] Storage upload failed (non-fatal): {e}")
+    # ADR-213: populate cache (best-effort — miss does not block response)
+    cache_url = await _compose_cache_put(cache_key, html_bytes)
+    if cache_url:
+        logger.info(f"[COMPOSE] Cache miss → stored {cache_key[:12]} ({size_bytes} bytes)")
 
     return ComposeResponse(
         success=True,
         html=html,
-        output_url=output_url,
+        output_url=cache_url,
         content_type="text/html",
         size_bytes=size_bytes,
     )

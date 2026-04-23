@@ -1,6 +1,6 @@
 # ADR-213: Surface-Pull Composition — Tasks Write Substrate, Surfaces Render
 
-**Status:** Proposed
+**Status:** Phases 1–2 Implemented (2026-04-23). Phase 3 reclassification audit Proposed.
 **Date:** 2026-04-23
 **Dimensional classification:** **Channel** (primary, Axiom 6) + **Substrate** (Axiom 1) + **Mechanism** (Axiom 5)
 
@@ -81,25 +81,34 @@ ADR-209 already commits us to content-addressed identity for substrate (workspac
 
 ### Deleted
 
-- `_compose_and_persist()` as currently structured — collapses to substrate-write only. The `/compose` POST from the task pipeline is removed.
-- `outputs/{date}/output.html` + `outputs/latest/output.html` writes from the pipeline. (Cockpit readers switch to the new render endpoint in Phase 2.)
+- `_compose_and_persist()` — renamed and collapsed to `_persist_sections_and_manifest()` (substrate-write only). The `/compose` POST from the task pipeline is removed.
+- `_build_empty_workspace_html()` — deleted; empty-state composes from markdown on demand like any other output.
+- `outputs/{date}/output.html` + `outputs/latest/output.html` writes from the pipeline and the daily-update empty-state path.
+- `TaskOutputEntry.has_html` — renamed to `renderable`. Semantics sharpen from "pre-written HTML exists" to "substrate exists and can be composed".
 
 ## Implementation
 
-### Phase 1 — Substrate-only task pipeline (no user-visible change)
+### Phase 1 — Substrate-only task pipeline (Implemented 2026-04-23)
 
-- Rename `_compose_and_persist()` → `_persist_sections_and_manifest()`. Keep it writing section partials + `sys_manifest.json`. Delete the `/compose` POST from inside it.
-- Add `GET /api/tasks/{slug}/outputs/{version}/render?surface_type={kind}` in `api/routes/tasks.py`. Reads sections + manifest from the task workspace, calls `/compose`, returns HTML.
-- Render service: add content-addressed cache at `/compose` entry. `composed-html/{hash}.html` in Supabase Storage. Hit → fetch + return. Miss → compose → write + return.
-- **Continuity shim**: keep writing `output.html` at the pipeline for one release so the cockpit's current iframe readers don't break. Mark with `# ADR-213 Phase 1 shim — delete in Phase 2`.
+- `_compose_and_persist()` renamed and collapsed to `_persist_sections_and_manifest()` in `api/services/task_pipeline.py:437`. The `/compose` POST and `output.html` writes are deleted. The function now writes only section partials (`outputs/{date}/sections/{slug}.md`) and `sys_manifest.json` (dated + `latest/`). Both call sites (single-agent path at `:2187`, multi-agent path at `:2898`) call the renamed function.
+- Empty-state daily-update path (`_execute_daily_update_empty_state`) no longer writes `output.html`; `_build_empty_workspace_html()` deleted. Manifest `files` array lists only the markdown substrate.
+- Single shared helper added: `api/services/compose/task_html.py::compose_task_output_html()` reads sections + manifest from the task workspace, POSTs to render service `/compose`, returns HTML. All three consumers now route through it (route readers, delivery, repurpose).
 
-### Phase 2 — Cockpit switches to pull
+### Phase 2 — Pull-through composition (Implemented 2026-04-23 — same commit as Phase 1)
 
-- Frontend `DeliverableMiddle.tsx` (and other cockpit Document readers) switch their iframe `src` from `/api/workspace/file?path=outputs/latest/output.html` to the new render endpoint.
-- **Delete** the `output.html` write from the task pipeline. Delete the shim.
-- Permanent CI regression test: grep asserts `output.html` is never written by code under `api/services/task_pipeline.py`.
+No shim. All four consumers of the ex-`output.html` artifact migrated atomically:
 
-### Phase 3 — Reclassification audit
+- **`api/routes/tasks.py`** — `get_latest_task_output()` + `get_task_output_by_date()` replace `ws.read(output.html)` with `compose_task_output_html()`. `TaskOutputEntry.has_html` renamed to `TaskOutputEntry.renderable` and recomputed from `sys_manifest.json` or `output.md` existence. `/export` endpoint composes on demand for PDF/DOCX conversion.
+- **`api/services/delivery.py`** — `deliver_from_output_folder()` composes HTML on demand (from the task workspace, keyed by `task_slug`) instead of reading `output.html` from the agent workspace.
+- **`api/services/primitives/repurpose.py`** — `_primitive_handler` composes HTML on demand for format targets.
+
+### Content-addressed cache (Implemented 2026-04-23)
+
+`render/main.py::compose()` computes `sha256` of `{engine_version, surface_type, title, brand_css, markdown, sections, assets}` before invoking `compose_html()`. Cache storage: `{agent-outputs}/_compose-cache/{hash}.html` in Supabase Storage (reuses existing bucket + credentials — no migration needed). Hit path fetches bytes and returns; miss path composes, stores, returns. `render/compose.py::COMPOSE_ENGINE_VERSION = "1"` is bumped on any semantic output change.
+
+Invalidation is automatic: any substrate change (section edit, brand CSS edit, asset URL change) or engine bump produces a new hash. No explicit eviction code; old hashes age out.
+
+### Phase 3 — Reclassification audit (Proposed)
 
 - Audit all 12 current `produces_deliverable` task types against the five ADR-198 archetypes.
 - Expected reclassifications (candidates, subject to review):
@@ -109,11 +118,13 @@ ADR-209 already commits us to content-addressed identity for substrate (workspac
   - Any task whose "generation" is really "synthesize the state of these context domains into prose" is a Dashboard candidate.
 - Reclassified tasks get their synthesis step deleted. The Dashboard surface composes substrate live.
 - Task types that remain `produces_deliverable` are the ones doing genuine synthesis work that doesn't reduce to substrate read-through (e.g., `competitive-brief`, `meeting-prep`, `stakeholder-update`).
+- **This is where the LLM cost savings accrue.**
 
-### Phase 4 — Surface-scoped renders (deferred)
+### Phase 4 — Surface-scoped renders (Deferred)
 
 - `GET /api/surfaces/overview/render` for Dashboard-archetype surfaces not tied to a specific task.
 - Cross-task Dashboard compositions (e.g., "all trackers rollup").
+- The original Proposed plan included a `GET /api/tasks/{slug}/outputs/{date}/render` endpoint; dropped in the Phase 1–2 implementation because no current caller needed it (all three consumers run server-side through the helper). If a future non-task surface (alpha-trader daily-universe Dashboard) needs a direct HTML URL, add it then.
 
 ## Rejected alternatives
 

@@ -125,7 +125,10 @@ class TaskOutputEntry(BaseModel):
     folder: str           # date folder name (e.g., "2026-03-25T1400")
     date: str             # same as folder — display-friendly alias
     status: str           # from manifest or default "active"
-    has_html: bool
+    # ADR-213: was `has_html` when output.html was pre-rendered by the pipeline.
+    # Now every output folder with sys_manifest.json or output.md is renderable
+    # on demand via compose_task_output_html().
+    renderable: bool
     manifest: Optional[dict] = None
 
 
@@ -941,8 +944,12 @@ async def list_task_outputs(
         relative = path[len(prefix):]  # "2026-03-25T1400/output.md"
         date_folder = relative.split("/")[0] if "/" in relative else relative
 
-        # Check if output.html exists in same folder
-        html_exists = await ws.exists(f"outputs/{date_folder}/output.html")
+        # ADR-213: a folder is renderable when substrate is present
+        # (sys_manifest.json for section-based composition, or output.md for
+        # markdown fallback). HTML is composed on demand, not pre-written.
+        sys_manifest_exists = await ws.exists(f"outputs/{date_folder}/sys_manifest.json")
+        output_md_exists = await ws.exists(f"outputs/{date_folder}/output.md")
+        renderable = sys_manifest_exists or output_md_exists
 
         # Read manifest.json if available
         manifest_content = await ws.read(f"outputs/{date_folder}/manifest.json")
@@ -957,14 +964,14 @@ async def list_task_outputs(
         output_status = "active"
         if manifest:
             output_status = manifest.get("status", "active")
-        if html_exists:
+        if renderable:
             output_status = "delivered"
 
         entries.append(TaskOutputEntry(
             folder=date_folder,
             date=date_folder,
             status=output_status,
-            has_html=html_exists,
+            renderable=renderable,
             manifest=manifest,
         ))
 
@@ -1049,8 +1056,13 @@ async def get_latest_task_output(
     relative = path[len(prefix):]
     date_folder = relative.split("/")[0] if "/" in relative else relative
 
-    # Read output.html if it exists
-    html_content = await ws.read(f"outputs/{date_folder}/output.html")
+    # ADR-213: Compose HTML on demand via the shared helper. The render
+    # service caches by content hash, so repeat reads on unchanged substrate
+    # are ~10ms.
+    from services.compose.task_html import compose_task_output_html
+    html_content = await compose_task_output_html(
+        auth.client, auth.user_id, slug, date_folder
+    )
 
     # Read manifest.json if available
     manifest_content = await ws.read(f"outputs/{date_folder}/manifest.json")
@@ -1266,7 +1278,12 @@ async def get_task_output_by_date(
     ws = TaskWorkspace(auth.client, auth.user_id, slug)
 
     content = await ws.read(f"outputs/{date_folder}/output.md")
-    html_content = await ws.read(f"outputs/{date_folder}/output.html")
+
+    # ADR-213: compose on demand through the shared helper
+    from services.compose.task_html import compose_task_output_html
+    html_content = await compose_task_output_html(
+        auth.client, auth.user_id, slug, date_folder
+    )
 
     manifest_content = await ws.read(f"outputs/{date_folder}/manifest.json")
     manifest = None
@@ -1350,7 +1367,7 @@ async def trigger_task_run(
 
 
 # =============================================================================
-# Export — ADR-148: Derive PDF/XLSX from composed output.html
+# Export — ADR-148 + ADR-213: Derive PDF/XLSX from on-demand composed HTML
 # =============================================================================
 
 @router.get("/{slug}/export")
@@ -1363,12 +1380,14 @@ async def export_task_output(
     """
     Export a task's composed output as PDF, XLSX, or DOCX.
 
-    ADR-148: Exports derive from composed output.html (singular rendering path).
-    Calls render service to convert HTML → requested format.
+    ADR-148 + ADR-213: Composes HTML on demand (via compose_task_output_html),
+    then calls render service to convert HTML → requested format. The pipeline
+    no longer pre-writes output.html; composition is a pull, not a push.
     Returns a redirect to the storage URL of the exported file.
     """
     import httpx
     import os
+    from services.compose.task_html import compose_task_output_html
 
     RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
     RENDER_SERVICE_SECRET = os.environ.get("RENDER_SERVICE_SECRET", "")
@@ -1376,57 +1395,31 @@ async def export_task_output(
     if format not in ("pdf", "xlsx", "docx"):
         raise HTTPException(status_code=400, detail=f"Unsupported export format: {format}. Use: pdf, xlsx, docx")
 
-    # Get the latest output
-    if date_folder:
-        html_path = f"/tasks/{slug}/outputs/{date_folder}/output.html"
-        md_path = f"/tasks/{slug}/outputs/{date_folder}/output.md"
-    else:
-        # Find latest output
-        result = (
+    # Resolve date_folder — explicit or latest output.md in workspace
+    if not date_folder:
+        md_result = (
             auth.client.table("workspace_files")
             .select("path")
             .eq("user_id", auth.user_id)
-            .like("path", f"/tasks/{slug}/outputs/%/output.html")
+            .like("path", f"/tasks/{slug}/outputs/%/output.md")
             .order("updated_at", desc=True)
             .limit(1)
             .execute()
         )
-        if result.data:
-            html_path = result.data[0]["path"]
-            md_path = html_path.replace("/output.html", "/output.md")
-        else:
-            # Try markdown
-            md_result = (
-                auth.client.table("workspace_files")
-                .select("path")
-                .eq("user_id", auth.user_id)
-                .like("path", f"/tasks/{slug}/outputs/%/output.md")
-                .order("updated_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-            if md_result.data:
-                html_path = None
-                md_path = md_result.data[0]["path"]
-            else:
-                raise HTTPException(status_code=404, detail="No output found for this task")
+        if not md_result.data:
+            raise HTTPException(status_code=404, detail="No output found for this task")
+        md_path = md_result.data[0]["path"]
+        prefix = f"/tasks/{slug}/outputs/"
+        date_folder = md_path[len(prefix):].split("/")[0]
 
-    # Read content
-    html_content = None
-    md_content = None
+    md_path = f"/tasks/{slug}/outputs/{date_folder}/output.md"
 
-    if html_path:
-        html_result = (
-            auth.client.table("workspace_files")
-            .select("content")
-            .eq("user_id", auth.user_id)
-            .eq("path", html_path)
-            .limit(1)
-            .execute()
-        )
-        if html_result.data:
-            html_content = html_result.data[0]["content"]
+    # Compose HTML on demand (cache-hit path inside the helper)
+    html_content = await compose_task_output_html(
+        auth.client, auth.user_id, slug, date_folder
+    )
 
+    # Read source markdown (still needed for xlsx table extraction path)
     md_result = (
         auth.client.table("workspace_files")
         .select("content")
@@ -1435,8 +1428,7 @@ async def export_task_output(
         .limit(1)
         .execute()
     )
-    if md_result.data:
-        md_content = md_result.data[0]["content"]
+    md_content = md_result.data[0]["content"] if md_result.data else None
 
     if not html_content and not md_content:
         raise HTTPException(status_code=404, detail="Output content not found")
