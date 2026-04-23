@@ -19,7 +19,14 @@ Post-ADR-206 layout:
       │   ├── _playbook.md
       │   ├── style.md
       │   └── notes.md
-      ├── review/                   ← Reviewer substrate (ADR-194)
+      ├── review/                   ← Reviewer substrate (ADR-194 + ADR-211 Phase 4)
+      │   ├── IDENTITY.md           ← who the seat is (role-level, static)
+      │   ├── OCCUPANT.md           ← who currently fills it (rotates via handoffs)
+      │   ├── principles.md         ← declared judgment framework (narrative)
+      │   ├── modes.md              ← operational modes (autonomy × scope × posture)
+      │   ├── decisions.md          ← append-only verdict trail
+      │   ├── handoffs.md           ← append-only occupant-rotation log
+      │   └── calibration.md        ← auto-generated judgments-vs-outcomes trail
       ├── tasks/                    ← task substrate (ADR-138)
       ├── agents/                   ← agent substrate (ADR-106)
       ├── uploads/                  ← user-contributed reference material (ADR-152)
@@ -65,7 +72,24 @@ MEMORY_FILES = (
 
 # -----------------------------------------------------------------------------
 # Reviewer substrate (`/workspace/review/`, ADR-194 — unchanged by ADR-206)
+# Phase 4 (ADR-211) extends to seven files: the three original (Phase 1–3)
+# plus OCCUPANT, modes, handoffs, calibration.
 # -----------------------------------------------------------------------------
 REVIEW_IDENTITY_PATH = "review/IDENTITY.md"
 REVIEW_PRINCIPLES_PATH = "review/principles.md"
 REVIEW_DECISIONS_PATH = "review/decisions.md"
+# Phase 4 (ADR-211):
+REVIEW_OCCUPANT_PATH = "review/OCCUPANT.md"
+REVIEW_MODES_PATH = "review/modes.md"
+REVIEW_HANDOFFS_PATH = "review/handoffs.md"
+REVIEW_CALIBRATION_PATH = "review/calibration.md"
+
+REVIEW_FILES = (
+    REVIEW_IDENTITY_PATH,
+    REVIEW_PRINCIPLES_PATH,
+    REVIEW_DECISIONS_PATH,
+    REVIEW_OCCUPANT_PATH,
+    REVIEW_MODES_PATH,
+    REVIEW_HANDOFFS_PATH,
+    REVIEW_CALIBRATION_PATH,
+)
