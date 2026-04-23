@@ -818,23 +818,27 @@ within declared edge can approve.
   judgment, or this is an edge case not yet represented in
   `_performance.md`.
 
-## Per-domain auto-approve thresholds
+## Per-domain high-impact thresholds
+
+These thresholds declare what *you* consider high-impact — reconciled
+outcomes above these amounts route to the originating task's
+`feedback.md` as `source: system_outcome` entries (ADR-195 Phase 5).
+This is a *principle* (what you consider significant), not an
+operational autonomy gate. Operational autonomy (auto-approve
+thresholds, never-auto-approve lists) lives in `modes.md` per
+ADR-211.
 
 (Operator-editable. Leave commented out to keep defaults.)
 
 <!--
 commerce:
-  auto_approve_below_cents: 50000           # $500 reversible writes OK to auto-approve
-  never_auto_approve: [issue_refund]        # irreversible-ish actions always human
-  high_impact_threshold_cents: 100000       # outcomes >= $1,000 route to task feedback.md (ADR-195 Phase 5)
+  high_impact_threshold_cents: 100000       # outcomes >= $1,000 route to task feedback.md
 
 trading:
-  auto_approve_below_cents: 0               # default: every trade is human-reviewed
-  never_auto_approve: [submit_order, submit_bracket_order, submit_trailing_stop]
   high_impact_threshold_cents: 50000        # realized P&L >= $500 routes to task feedback.md
 
 email:
-  auto_approve_below_cents: 0               # customer-facing content is always human
+  # No high-impact threshold — customer-facing content outcomes surface differently
 -->
 
 ## What the Reviewer explicitly does NOT do

@@ -137,16 +137,18 @@ async def write_feedback_entries_for_outcomes(
 def load_high_impact_thresholds(client: Any, user_id: str) -> dict[str, int]:
     """Extract per-domain high-impact thresholds from principles.md.
 
-    Reuses `review_principles.load_principles` — the policy parser
-    already handles commented-out defaults and active YAML, and
-    accepts unknown keys without erroring. `high_impact_threshold_cents`
-    lands under the same per-domain block as `auto_approve_below_cents`.
+    Uses `review_policy.load_principles` — principles.md holds
+    `high_impact_threshold_cents` per domain per ADR-211 D2 (this is a
+    principle about what the operator considers high-impact, not an
+    operational autonomy gate). After the ADR-211 principles-vs-modes
+    split, auto-approve thresholds moved to modes.md; high-impact
+    thresholds stayed in principles.md.
 
     Returns `{domain: threshold_cents}` for domains that declared a
     positive threshold. Empty dict = no high-impact writes happen.
     """
     try:
-        from services.review_principles import load_principles
+        from services.review_policy import load_principles
         policies = load_principles(client, user_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning(
