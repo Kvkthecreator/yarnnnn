@@ -67,19 +67,23 @@ Record any crashes, vocabulary drift, or structural surprises in the Observation
 
 ### 6. Paste persona seeds (operator-authored intent)
 
+**Canonical source: `docs/alpha/ALPHA-1-PLAYBOOK.md` §3A (alpha-trader).** The playbook is the single source of truth for the four seed files' content; it has been the canonical spec since before today and was not duplicated here.
+
 Via chat with YARNNN, paste in order (each is a separate turn or direct edit):
 
 **a. MANDATE**: Paste contents of `docs/alpha/personas/alpha-trader/MANDATE.md` into YARNNN chat with framing like "Please store this as my workspace mandate." YARNNN should use `UpdateContext(target="mandate")` to write to `/workspace/context/_shared/MANDATE.md`. Verify via Context surface.
 
-**b. Reviewer principles**: Paste contents of `docs/alpha/personas/alpha-trader/reviewer-principles.md` with framing "This is how I want the Reviewer to judge my proposals. Please overwrite `/workspace/review/principles.md`." YARNNN should use `UpdateContext(target="principles")` (or equivalent write to the review substrate). Verify via Context surface or `/review`.
+**b. Reviewer principles**: Copy the code block from ALPHA-1-PLAYBOOK.md §3A.4 (Reviewer principles — Alpha Trader, Simons, Option B) into YARNNN chat with framing "This is how I want the Reviewer to judge my proposals. Please overwrite `/workspace/review/principles.md`." YARNNN should use `UpdateContext(target="principles")` (or equivalent write to the review substrate). Verify via Context surface or `/review`.
 
-**c. Operator profile (trading domain)**: Paste contents of `docs/alpha/personas/alpha-trader/operator-profile.md` with framing "These are my 5 declared trading signals. Please write them to `/workspace/context/trading/_operator_profile.md`." YARNNN should use `UpdateContext(target="context", domain="trading")`. Verify.
+**c. Operator profile (trading domain)**: Copy the code block from ALPHA-1-PLAYBOOK.md §3A.2 (Operator profile — Alpha Trader, Simons, Option B) with framing "These are my declared trading signals. Please write them to `/workspace/context/trading/_operator_profile.md`." YARNNN should use `UpdateContext(target="context", domain="trading")`. Verify.
 
-**d. Risk rules (trading domain)**: Paste contents of `docs/alpha/personas/alpha-trader/risk.md` with framing "These are my trading risk rules. Please write them to `/workspace/context/trading/_risk.md`." Verify.
+**d. Risk rules (trading domain)**: Copy the code block from ALPHA-1-PLAYBOOK.md §3A.3 (Risk parameters — Alpha Trader, Simons, Option B) with framing "These are my trading risk rules. Please write them to `/workspace/context/trading/_risk.md`." Verify.
 
 **e. Verify all four pasted**:
 - Context surface shows MANDATE.md, `/workspace/context/trading/_operator_profile.md`, `_risk.md`
 - `/review` surface shows updated principles
+
+**Note**: ALPHA-1-PLAYBOOK.md §3A signals are: Momentum-breakout, Mean-reversion-oversold, Post-earnings drift (PEAD), Sector-rotation-momentum, Volatility-regime filter. The PEAD signal is real and important — YARNNN asks about earnings calendars during the evaluation — and was missing from earlier drafts of E2E materials.
 
 ### 7. Connect Alpaca paper account
 
@@ -124,11 +128,20 @@ The dry-run proposal in the next section shows exactly what a proposal must look
 
 ## Dry-run proposal (reference — what a passing proposal looks like)
 
-If the operator needs to simulate a proposal for Scenario B, this is the shape it should take. The Reviewer should approve this proposal because it passes all six checks.
+If the operator needs to simulate a proposal for Scenario B, this is the shape it should take. Signals + risk rules cited are from **ALPHA-1-PLAYBOOK.md §3A.2 / §3A.3** (authoritative). The Reviewer should approve this proposal because it passes all Six Checks per §3A.4.
 
 ```yaml
-# Example proposal — Signal 2 oversold bounce on a hypothetical universe stock
+# Example proposal — Signal 2 (Mean-reversion-oversold) on NVDA
 # Submitted via ProposeAction primitive to the action_proposals table
+# Signal rules per ALPHA-1-PLAYBOOK §3A.2:
+#   Trigger: RSI(14) < 25 + price within 5% of 200-day SMA (quality
+#            filter) + not in confirmed downtrend (20-day SMA above
+#            50-day SMA)
+#   Entry: next-day open
+#   Stop-loss: 1.5× ATR(14) below entry
+#   Target: RSI returns to 50 OR 2× ATR(14) above entry, whichever first
+#   Sizing: 0.75% portfolio risk
+#   Max hold: 10 trading days
 
 action_type: trading.submit_order_paper
 action_class: external_action
@@ -138,66 +151,77 @@ task_slug: trading-signal
 inputs:
   ticker: NVDA
   side: buy
-  qty: 4
+  qty: 10
   order_type: limit
-  limit_price: 847.50
+  limit_price: 847.50                # next-day open-approximation (Signal 2 says "next-day open")
   time_in_force: day
-  stop_loss_price: 829.20    # 1.5 × ATR(14) = 18.30 below entry
-  take_profit_price: 865.80  # 1R target = entry + stop_distance
+  stop_loss_price: 829.20            # 1.5 × ATR(14) = 18.30 below entry
+  # target management: exit on RSI(14) back to 50 OR price reaches
+  # 847.50 + 2 × 12.20 = 871.90 — whichever first. Time stop: day 10.
 
 rationale: |
-  Signal 2 (oversold bounce) fired on NVDA at 2026-04-23T14:32 EDT.
+  Signal 2 (Mean-reversion-oversold) fired on NVDA at 2026-04-23T14:32 EDT.
 
-  Check 1 — Signal attribution: Signal 2 (oversold bounce, long-only)
-  from _operator_profile.md.
+  Check 1 — Signal attribution: Signal 2 per ALPHA-1-PLAYBOOK §3A.2.
 
-  Check 2 — Mechanical rule evaluation:
+  Check 2 — Signal rule compliance:
     - RSI(14) = 23.4 (< 25: PASS)
     - Price = $847.50, 200-day SMA = $832.10, distance = 1.85% (< 5%: PASS)
-    - Confirmed downtrend check: 50-day SMA > 200-day SMA, no 50/200 cross
-      in last 10 trading days (not in downtrend: PASS)
-    - Universe filter: NVDA in declared universe, mega-cap, S&P 500
-      constituent since 2001 (PASS)
+    - Not in confirmed downtrend: 20-day SMA ($849.10) > 50-day SMA
+      ($846.80) — PASS
+    - Universe filter: NVDA is in declared universe (§3A.2) — PASS
+    - Not a day-trade (hold minimum 1 day per §3A.3) — PASS
 
-  Check 3 — Sizing formula:
+  Check 3 — Risk-limit compliance (vs §3A.3):
+    Starting capital: $25,000, current equity: $25,000 (fresh workspace)
+    Position size: 10 × $847.50 = $8,475 = 33.9% of book
+    max_position_percent_of_portfolio: 15 → 33.9% EXCEEDS the 15% limit.
+    FAIL CHECK 3. (See note below — this proposal needs recalibrated
+    sizing for the smaller $25K book. Pasting this dry-run verbatim
+    produces a Reviewer REJECT on Check 3, which is also useful E2E
+    signal — proves the risk-layer check actually fires. Adjust qty
+    downward to pass, or keep as-is to exercise the rejection path.)
+
+    For the approve variant: qty = 4 (4 × $847.50 = $3,390 = 13.6% of book)
+    Check max_position_risk_percent (2%): 4 × $18.30 = $73.20 stop-distance
+      = 0.29% of book → PASS
+    Check sector concentration (40% max any one sector): 13.6% Tech → PASS
+    Check max_open_positions_per_signal (3): 1 → PASS
+    Check allowed_universe_only: PASS (NVDA in list)
+    Check require_signal_attribution: PASS
+    Check require_stop_loss: PASS ($829.20)
+    Check require_position_sizing_formula: PASS (shown in Check 5)
+
+  Check 4 — Signal expectancy (vs §3A.3 guardrails):
+    Signal 2 recent-20-trade expectancy from _performance.md: +0.31R
+      (above -0.5R decay guardrail: PASS)
+    Signal 2 recent-40-trade Sharpe: +0.68
+      (above 0.3 retirement-recommendation threshold: PASS)
+
+  Check 5 — Position-sizing math (vs §3A.2 Signal 2 sizing rule):
     account_equity = $25,000
     risk_percent (Signal 2) = 0.75% = $187.50
-    regime_scalar (VIX = 18.2, "normal" regime, no drawdown overlay) = 1.0
+    regime_scalar (VIX = 18.2, below 25 threshold in Signal 5): 1.0
     stop_distance = 1.5 × ATR(14) = 1.5 × $12.20 = $18.30
     position_size_shares = ($25,000 × 0.0075 × 1.0) / $18.30
-                         = $187.50 / $18.30
                          = 10.2 shares → rounded down to 4 shares
-    (rounded further due to per-position ceiling — see Check 5)
+    (further constrained by per-position ceiling — Check 3 forced reduction)
 
-  Check 4 — Expectancy decay guardrail:
-    Signal 2 rolling 20-trade expectancy from _performance.md: +0.31R
-    (above retire-flag threshold of -0.5R: PASS)
+  Check 6 — Portfolio-level diversification:
+    Current open positions: 0 (fresh workspace)
+    Sector concentration (Tech after add): 13.6% → PASS (under 40%)
+    No stacking (no existing NVDA position) → PASS
 
-  Check 5 — Risk-layer enforcement:
-    Current positions: 0 (fresh E2E workspace)
-    This position size: 4 shares × $847.50 = $3,390 = 13.6% of equity
-    Per-position ceiling (Check 5 risk.md): 15% = $3,750 (PASS, under)
-    Cumulative Signal 2 ceiling: 15% = $3,750 (PASS, this is first position)
-    Sector concentration (Tech): 13.6% (PASS, under 35%)
-    Cash floor after: $21,610 = 86.4% (PASS, above 5%)
-
-  Check 6 — Reversibility + action-class:
-    Action: trading.submit_order_paper (reversible, not in never_auto_approve list)
-    Paper account (not live trading, which is in never_auto_approve)
-    Modes.md for trading domain: autonomy_level = manual for E2E
-    → AI occupant may NOT auto-approve; routes to human occupant.
-
-  Capital-EV:
-    Signal 2's declared target is 1R profit = +$73.20 (4 × $18.30)
-    Expected value at 55% hit rate = 0.55 × $73.20 + 0.45 × -$73.20
-                                    = $40.26 - $32.94 = +$7.32
-    At declared expectancy of +0.31R per trade: expected +$22.70 realized P&L
-    Position sized within tolerance. Green-light for human review.
+  Final Reviewer verdict (per §3A.4 framework):
+    Recommend DEFER.
+    Reasoning: proposal passes all six checks at qty=4 variant. Autonomy
+    policy for Alpha-1 is "Auto-approve = NONE" — every trade routes to
+    human operator for Queue approval per §3A.4 Auto-approve policy.
 
 expected_effect: |
   Buy 4 NVDA at $847.50 limit (day order). Stop at $829.20 (-$73.20 max risk).
-  Target $865.80 (+$73.20 profit). Time stop: exit in 5 trading days regardless
-  if neither stop nor target hit.
+  Target: RSI(14) back to 50 OR $871.90 (2× ATR above entry), whichever
+  first. Time stop: exit on day 10 regardless.
 
 expires_at: <+4 hours from now>
 ```
@@ -206,28 +230,33 @@ expires_at: <+4 hours from now>
 
 ## Expected Reviewer verdict (what should happen)
 
-Per the AI occupant defined in `reviewer_agent.py`, a well-formed proposal that passes all six checks and has `autonomy_level: manual` in modes.md should produce:
+Per ALPHA-1-PLAYBOOK §3A.4 Auto-approve policy ("Auto-approve = NONE for Alpha-1 — every trade passes through human operator review in cockpit Queue; AI Reviewer's role is to EVALUATE and recommend, not to gate execution"), a well-formed proposal that passes all Six Checks should produce:
 
 ```yaml
-decision: defer
+decision: defer                           # per §3A.4 always defer — human approves in Queue
 reviewer_identity: ai:reviewer-sonnet-v1
 confidence: high
 reasoning: |
-  Proposal passes all six mechanical checks against the declared
-  operator-profile and risk floors. Signal 2 attribution correct.
-  Rule evaluation shows RSI 23.4 < 25, price within 1.85% of 200-SMA,
-  not in downtrend — all PASS with explicit numbers. Sizing formula
-  matches: 0.75% risk × 1.0 regime × stop distance $18.30 = 10.2
-  shares, correctly rounded down. Expectancy for Signal 2 at +0.31R
-  is above the retire-flag threshold. Risk floors all satisfied.
+  Recommend APPROVE (deferred to human per §3A.4 policy).
 
-  Capital-EV: expected +$22.70 realized at Signal 2's historical
-  expectancy. Position size (13.6% of equity) within per-position
-  ceiling with comfortable headroom.
+  Signal 2 (Mean-reversion-oversold) fired within rules per §3A.2:
+    - RSI(14) = 23.4 < 25 ✓
+    - Price within 1.85% of 200-SMA (< 5% quality filter) ✓
+    - Not in confirmed downtrend (20-SMA > 50-SMA) ✓
+    - NVDA in declared universe ✓
 
-  Autonomy_level for trading domain is 'manual' — AI occupant does
-  not auto-approve. Deferring to human occupant for final approval
-  and order submission.
+  Expectancy +0.31R (above -0.5R decay guardrail, above 0.3 Sharpe retire
+  recommendation threshold) per §3A.3.
+
+  Sizing formula-compliant: 0.75% risk × 1.0 regime × $18.30 stop =
+  10.2 shares, rounded down to 4 per per-position 15% ceiling.
+
+  Portfolio impact: 13.6% position size, 13.6% Tech sector, zero
+  existing positions. All §3A.3 limits satisfied.
+
+  Autonomy policy for Alpha-1: Auto-approve = NONE. Every trade
+  defers to human occupant in Queue regardless of check outcome.
+  Recommendation is APPROVE; execution gates on operator's click.
 ```
 
 Operator then clicks Approve in the cockpit Queue → ExecuteProposal runs → Alpaca paper order submits → outcome eventually reconciles (next trading day or when stop/target/time-stop hits) → _performance.md updates → calibration.md rebuilds at next back-office cycle.
