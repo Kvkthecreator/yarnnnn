@@ -4,17 +4,28 @@ Purge all data for a specific user to test cold-start/onboarding flow.
 
 Usage:
     cd /Users/macbook/yarnnn/api
-    python scripts/purge_user_data.py seulkim88@gmail.com
+    python scripts/purge_user_data.py <email> [--dry-run]
 
-This will:
-1. Delete all agent_runs for user's agents
-2. Delete all agents
-3. Delete all chat_sessions (and cascade to session_messages)
+This gives a TRUE cold-start:
+1. Delete workspace_files (Axiom 1 substrate — IDENTITY, MANDATE, context
+   domains, task charters, /workspace/review/, agent workspaces, etc.)
+2. Delete workspace_file_versions (Authored Substrate revision chain)
+3. Delete action_proposals (pending + historical proposals)
+4. Delete tasks
+5. Delete agents + agent_runs
+6. Delete chat_sessions (cascades session_messages)
+7. Delete platform_connections (OAuth tokens)
+8. Delete token_usage rows (billing/audit ledger)
+9. Delete notifications
 
-Note: workspace_files (the filesystem substrate — identity, memory,
-context domains, task charters, _performance.md) is NOT purged here.
-For a full cold-start including filesystem state, also delete
-workspace_files rows for the user.
+NOT deleted (intentional):
+- auth.users row — keep the login; we just wipe their workspace state
+- workspace row itself — balance + signup audit preserved (per ADR-172)
+- Historical agent_runs once agents are gone are orphaned but harmless
+
+After purge, next login should trigger workspace_init which scaffolds the
+post-LAYER-MAPPING-flip substrate (YARNNN + Reviewer seat + 7 review files
+at /workspace/review/).
 
 WARNING: This is destructive and cannot be undone!
 """
@@ -22,7 +33,7 @@ WARNING: This is destructive and cannot be undone!
 import os
 import sys
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -56,11 +67,39 @@ def get_user_id_by_email(client, email: str) -> Optional[str]:
     return None
 
 
+def _count(client, table: str, user_id: str, column: str = "user_id") -> int:
+    """Return row count for table where column == user_id."""
+    try:
+        result = client.table(table).select("id", count="exact").eq(column, user_id).limit(1).execute()
+        return result.count or 0
+    except Exception as e:
+        print(f"   (count failed for {table}: {e})")
+        return 0
+
+
+def _delete(client, table: str, user_id: str, column: str = "user_id", dry_run: bool = False) -> int:
+    """Delete rows from table where column == user_id. Returns deleted count (or would-delete on dry-run)."""
+    n = _count(client, table, user_id, column)
+    if n == 0:
+        return 0
+    if dry_run:
+        return n
+    try:
+        client.table(table).delete().eq(column, user_id).execute()
+        return n
+    except Exception as e:
+        print(f"   (delete failed for {table}: {e})")
+        return 0
+
+
 def purge_user_data(email: str, dry_run: bool = False):
-    """Purge all data for a user to reset to cold-start state."""
+    """Purge all data for a user to reset to cold-start state.
+
+    Order matters for referential integrity: delete child rows before parents
+    where CASCADE isn't sufficient.
+    """
     client = get_service_client()
 
-    # Find the user_id
     print(f"\n🔍 Looking up user: {email}")
     user_id = get_user_id_by_email(client, email)
 
@@ -69,59 +108,146 @@ def purge_user_data(email: str, dry_run: bool = False):
         return
 
     print(f"✓ Found user_id: {user_id}")
-    action = "Would delete" if dry_run else "Deleting"
+    label = "Would delete" if dry_run else "Deleting"
+    print()
 
-    # 1. Delete agent_runs and agents
-    print(f"\n📦 Fetching agents...")
-    agents = client.table("agents").select("id, title").eq("user_id", user_id).execute()
-    agent_ids = [d["id"] for d in (agents.data or [])]
-    print(f"   Found {len(agent_ids)} agents")
+    # ──────────────────────────────────────────────────────────────────────
+    # 1. Authored Substrate (ADR-209) — delete revisions first, then files
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} workspace_file_versions (Authored Substrate revisions)...")
+    n = _delete(client, "workspace_file_versions", user_id, dry_run=dry_run)
+    print(f"   {n} revision rows")
 
+    print(f"🗑️  {label} workspace_files (filesystem substrate)...")
+    n = _delete(client, "workspace_files", user_id, dry_run=dry_run)
+    print(f"   {n} workspace files")
+
+    # ──────────────────────────────────────────────────────────────────────
+    # 2. Proposals + outcomes (ADR-193 + ADR-195)
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} action_proposals...")
+    n = _delete(client, "action_proposals", user_id, dry_run=dry_run)
+    print(f"   {n} proposals")
+
+    # action_outcomes — ADR-195 v2 substrate-migrated; table may exist
+    # historically. Attempt delete but don't block on failure.
+    print(f"🗑️  {label} action_outcomes (legacy ADR-195 v1 — may not exist)...")
+    n = _delete(client, "action_outcomes", user_id, dry_run=dry_run)
+    print(f"   {n} outcomes (0 expected post-ADR-195-v2)")
+
+    # ──────────────────────────────────────────────────────────────────────
+    # 3. Tasks (ADR-138)
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} tasks...")
+    n = _delete(client, "tasks", user_id, dry_run=dry_run)
+    print(f"   {n} tasks")
+
+    # ──────────────────────────────────────────────────────────────────────
+    # 4. Agent runs + agents (ADR-103 renames from deliverable_versions)
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} agent_runs (joining through agent_id)...")
+    agents_result = client.table("agents").select("id").eq("user_id", user_id).execute()
+    agent_ids = [a["id"] for a in (agents_result.data or [])]
+    runs_total = 0
     if agent_ids:
-        print(f"\n🗑️  {action} agent_runs...")
-        for did in agent_ids:
-            if not dry_run:
-                client.table("agent_runs").delete().eq("agent_id", did).execute()
-            print(f"   - Versions for {did[:8]}...")
+        for aid in agent_ids:
+            if dry_run:
+                c = _count(client, "agent_runs", aid, column="agent_id")
+                runs_total += c
+            else:
+                try:
+                    client.table("agent_runs").delete().eq("agent_id", aid).execute()
+                    runs_total += 1  # count of agents whose runs were purged
+                except Exception as e:
+                    print(f"   (delete failed for agent {aid[:8]}: {e})")
+    print(f"   {runs_total} agent run batches")
 
-    print(f"\n🗑️  {action} agents...")
-    if not dry_run:
-        result = client.table("agents").delete().eq("user_id", user_id).execute()
-        print(f"   Deleted {len(result.data or [])} agents")
-    else:
-        print(f"   Would delete {len(agent_ids)} agents")
+    print(f"🗑️  {label} agents...")
+    n = _delete(client, "agents", user_id, dry_run=dry_run)
+    print(f"   {n} agents")
 
-    # 2. Delete chat_sessions (session_messages cascade automatically)
-    print(f"\n🗑️  {action} chat_sessions...")
-    if not dry_run:
-        result = client.table("chat_sessions").delete().eq("user_id", user_id).execute()
-        print(f"   Deleted {len(result.data or [])} chat sessions (messages cascade)")
-    else:
-        sessions = client.table("chat_sessions").select("id").eq("user_id", user_id).execute()
-        print(f"   Would delete {len(sessions.data or [])} chat sessions")
+    # ──────────────────────────────────────────────────────────────────────
+    # 5. Chat sessions (cascades session_messages) — ADR-125
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} chat_sessions (cascades session_messages)...")
+    n = _delete(client, "chat_sessions", user_id, dry_run=dry_run)
+    print(f"   {n} chat sessions")
 
-    # ADR-196: user_memory table dropped (migration 151). Memory is
-    # filesystem-native in workspace_files since ADR-156 — not purged here.
-    # knowledge_domains removed (ADR-059); work_tickets removed (ADR-090).
+    # ──────────────────────────────────────────────────────────────────────
+    # 6. Platform connections (OAuth tokens) — ADR-059 rename
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} platform_connections (OAuth tokens)...")
+    n = _delete(client, "platform_connections", user_id, dry_run=dry_run)
+    print(f"   {n} platform connections")
+
+    # ──────────────────────────────────────────────────────────────────────
+    # 7. Billing/audit ledger (ADR-171)
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} token_usage (billing/audit ledger)...")
+    n = _delete(client, "token_usage", user_id, dry_run=dry_run)
+    print(f"   {n} token usage rows")
+
+    print(f"🗑️  {label} render_usage (render-service tier limits)...")
+    n = _delete(client, "render_usage", user_id, dry_run=dry_run)
+    print(f"   {n} render usage rows")
+
+    # ──────────────────────────────────────────────────────────────────────
+    # 8. Notifications (ADR-041)
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} notifications...")
+    n = _delete(client, "notifications", user_id, dry_run=dry_run)
+    print(f"   {n} notifications")
+
+    # ──────────────────────────────────────────────────────────────────────
+    # 9. Documents (ADR-142 uploads)
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} filesystem_documents (uploaded docs)...")
+    n = _delete(client, "filesystem_documents", user_id, dry_run=dry_run)
+    print(f"   {n} documents")
+
+    print(f"🗑️  {label} filesystem_chunks (doc embeddings)...")
+    n = _delete(client, "filesystem_chunks", user_id, dry_run=dry_run)
+    print(f"   {n} chunks")
+
+    # ──────────────────────────────────────────────────────────────────────
+    # 10. Activity log
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} activity_log...")
+    n = _delete(client, "activity_log", user_id, dry_run=dry_run)
+    print(f"   {n} activity events")
+
+    # ──────────────────────────────────────────────────────────────────────
+    # 11. Balance transactions audit (preserve signup_grant for re-signup test)
+    # ──────────────────────────────────────────────────────────────────────
+    # Intentionally NOT deleted — the balance_transactions ledger tracks
+    # lifecycle events (signup, topups, refunds); wiping it would make
+    # re-signup attempts look like fresh signups and grant duplicate balance.
 
     print(f"\n{'🔍 DRY RUN COMPLETE' if dry_run else '✅ PURGE COMPLETE'}")
-    print(f"User {email} is now in cold-start state (zero agents, no chat history).")
+    print(f"\nUser {email} workspace state wiped.")
+    print("Auth.users row preserved — user can log in again.")
+    print("workspaces row + balance_transactions preserved — signup grant")
+    print("  is not re-awarded, balance state continuous.")
+    print()
+    print("Next login should trigger workspace_init → post-flip substrate")
+    print("scaffold (YARNNN + Reviewer seat + 7 /workspace/review/ files).")
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python purge_user_data.py <email> [--dry-run]")
         print("\nExample:")
-        print("  python scripts/purge_user_data.py seulkim88@gmail.com --dry-run")
-        print("  python scripts/purge_user_data.py seulkim88@gmail.com")
+        print("  python scripts/purge_user_data.py kvkthecreator@gmail.com --dry-run")
+        print("  python scripts/purge_user_data.py kvkthecreator@gmail.com")
         sys.exit(1)
 
     email = sys.argv[1]
     dry_run = "--dry-run" in sys.argv
 
     if not dry_run:
-        print(f"\n⚠️  WARNING: This will permanently delete ALL data for {email}")
-        print("This includes: agents, chat history, memories")
+        print(f"\n⚠️  WARNING: This will permanently delete ALL workspace state for {email}")
+        print("This includes: agents, tasks, proposals, workspace_files, chat, platform")
+        print("connections, tokens, notifications, activity log. Auth + balance preserved.")
         confirm = input("Type 'yes' to confirm: ")
         if confirm.lower() != "yes":
             print("Aborted.")
