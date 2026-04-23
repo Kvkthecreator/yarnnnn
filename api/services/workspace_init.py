@@ -6,8 +6,13 @@ Called once at signup. After initialization, the workspace is self-contained —
 registries are templates that were applied, the workspace filesystem is the
 sole source of truth.
 
-ADR-205: Only YARNNN is scaffolded at signup. Specialists are lazy-created
-on first dispatch; Platform Bots are connection-bound. Substrate grows from work.
+ADR-205 + ADR-212: Two systemic Agents are scaffolded at signup — YARNNN
+(meta-cognitive Agent) and the Reviewer seat (at /workspace/review/).
+Production roles (orchestration capability bundles — Researcher, Analyst,
+Writer, Tracker, Designer, Reporting) are lazy-created on first dispatch
+as agents-table rows for pipeline dispatch; they are NOT Agents in the
+sharp sense. Platform integrations are connection-bound capability bundles,
+not Agents. Substrate grows from work.
 
 ADR-206: Further collapse — zero operational tasks at signup. `daily-update`
 and `back-office-*` are no longer scaffolded; they materialize on trigger

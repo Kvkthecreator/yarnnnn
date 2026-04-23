@@ -218,7 +218,7 @@ async def create_agent_record(
 # deleted; `ensure_infrastructure_agents_for_type` deleted (callers derive
 # ensure list from TASK.md process steps).
 
-SPECIALIST_ROLES: frozenset[str] = frozenset({
+PRODUCTION_ROLE_SLUGS: frozenset[str] = frozenset({
     # ADR-176 universal specialists
     "researcher", "analyst", "writer", "tracker", "designer",
     # ADR-176 synthesizer
@@ -259,17 +259,22 @@ def classify_role(role: str) -> str:
     """Classify a role for ADR-205 dispatch routing.
 
     Returns one of:
-      - "yarnnn"        → role == thinking_partner (one per workspace, scaffolded at signup)
-      - "specialist"    → one of SPECIALIST_ROLES (lazy-ensured on first dispatch)
-      - "user_authored" → everything else (queried from agents table normally)
+      - "yarnnn"        → role == thinking_partner (YARNNN Agent, scaffolded at signup)
+      - "specialist"    → one of PRODUCTION_ROLE_SLUGS (lazy-ensured production-
+                          role row on first dispatch). The string "specialist"
+                          is retained as an enum-slug exception per GLOSSARY
+                          (cross-cutting Python/TS/revision-data stability);
+                          the canonical concept is "production role" under
+                          ADR-212's sharp Agent/Orchestration mapping.
+      - "user_authored" → user-authored domain Agent (Agent in the strict sense)
 
-    ADR-207 P4a: `platform_bot` classification removed. Platform access runs
-    through CAPABILITIES + capability_available() at dispatch, not through
+    ADR-207 P4a: `platform_bot` classification removed. Platform integrations
+    run through CAPABILITIES + capability_available() at dispatch, not through
     a dedicated agent class.
     """
     if role == "thinking_partner":
         return "yarnnn"
-    if role in SPECIALIST_ROLES:
+    if role in PRODUCTION_ROLE_SLUGS:
         return "specialist"
     return "user_authored"
 
@@ -279,9 +284,13 @@ async def ensure_infrastructure_agent(
     user_id: str,
     role: str,
 ) -> Optional[dict]:
-    """Ensure a row exists in `agents` for this (user_id, role) infrastructure agent.
+    """Ensure a row exists in `agents` for this (user_id, role) infrastructure entity.
 
-    ADR-205: YARNNN and Specialists are lazy-scaffolded. The dispatch layer
+    Per ADR-205 + ADR-212: YARNNN (the systemic meta-cognitive Agent) is
+    scaffolded at signup. Production roles (Researcher, Analyst, Writer,
+    Tracker, Designer, Reporting — orchestration capability bundles, NOT
+    Agents under the sharp mapping) are lazy-ensured — a row materializes
+    the first time dispatch resolves to that role. The dispatch layer
     calls this helper before resolving a role-based agent_ref; if the row
     doesn't exist yet, it is created from ALL_ROLES[role].
 

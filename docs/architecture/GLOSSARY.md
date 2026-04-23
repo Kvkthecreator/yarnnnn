@@ -169,7 +169,9 @@ Cases where a retired term persists by necessity, and the migration cost exceeds
 |----------|-------------------|-----|
 | `agents.role` DB column value | `thinking_partner` | Migration 142 (ADR-164) locked this value into the constraint. Renaming would require a DB migration with negligible user benefit — the value is never surfaced outside DB internals. |
 | `api/services/orchestration.py` `ROLE_PULSE_CADENCE` key | `thinking_partner` | Matches DB slug. Internal only. |
-| Historical ADRs (140, 164, 176, 186, etc.) | References to "TP" and "Thinking Partner" | ADRs are historical artifacts. They are not rewritten when terms change; they stand as dated records of the decisions in force at their time. New ADRs supersede them; the supersession is the record. |
+| `orchestration.py` `PRODUCTION_ROLES[*]["class"]` value | `"specialist"` (enum string) | Cross-cutting enum value: Python template field → API response `agent_class` → frontend TS literal type → `RevisionHistoryPanel` author-layer tag → ADR-209 `authored_by="specialist:<role>"` revision records. Renaming the string would require a coordinated Python+TS+revision-backfill change with zero user-visible benefit. The string is an internal enum slug; the human-readable concept is "production role" per the sharp mapping. GLOSSARY Production role entry owns the canonical vocabulary; the enum is pragmatic data-compatibility. |
+| `authored_by` string prefix `specialist:<role>` | Unchanged | Revision-chain data format. Historical revisions carry the prefix. ADR-209 Authored Substrate is stable across the LAYER-MAPPING flip — only the human-readable taxonomy changed, not the data format. |
+| Historical ADRs (140, 164, 176, 186, etc.) | References to "TP", "Thinking Partner", "Specialist" (entity term), "Platform Bot" | ADRs are historical artifacts. They are not rewritten when terms change; they stand as dated records of the decisions in force at their time. New ADRs supersede them; the supersession is the record. |
 
 All other appearances of retired terms — prompts, active architecture docs, new code, UI strings, marketing — must use replacements.
 

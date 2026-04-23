@@ -43,13 +43,16 @@ class ToolExecution:
 
 class YarnnnAgent(BaseAgent):
     """
-    YARNNN — the conversational super-agent (ADR-189).
+    YARNNN — the conversational super-agent (ADR-189 + ADR-212).
 
-    The product and the conversational layer share a name. Users address YARNNN
-    directly. YARNNN is the meta-cognitive agent — it composes, supervises, and
-    orchestrates. Agents (user-created domain workers) and Specialists (role
-    palette) are distinct layers beneath YARNNN in the three-layer cognition
-    model.
+    The product and the conversational Agent share a name. Users address YARNNN
+    directly. YARNNN is the systemic meta-cognitive Agent in YARNNN's Agent
+    layer (LAYER-MAPPING.md) — it composes, supervises, and orchestrates.
+    Other Agents: Reviewer (systemic, judgment seat at /workspace/review/) and
+    user-authored domain Agents (instance, on /agents). Production roles
+    (Researcher, Analyst, Writer, Tracker, Designer, Reporting) and platform
+    integrations are orchestration capability bundles — NOT Agents — that
+    YARNNN draws from when dispatching production work.
 
     Uses memories from two scopes (ADR-034):
     - Default domain: User's portable profile (preferences, patterns, business facts)

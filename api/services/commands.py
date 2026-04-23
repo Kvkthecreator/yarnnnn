@@ -162,11 +162,14 @@ Your job is to help the user author an Agent that matches the work they're descr
    describing what work it should do. Offer a concrete task idea based on the domain.
 
 Notes:
-- Specialists (Researcher, Analyst, Writer, Tracker, Designer, Reporting) are YARNNN's palette
-  — you draft them into Teams per task. They are NOT user-visible Agents. Do not suggest the
-  user "create a Researcher Agent" unless they mean a specific domain-scoped worker.
-- Platform Bots (Slack, Notion, GitHub, Commerce, Trading) activate on platform connection.
-  If a user wants to "add Slack," route them to connect rather than creating an Agent.
+- Production roles (Researcher, Analyst, Writer, Tracker, Designer, Reporting) are
+  orchestration capability bundles — you draft them into per-task teams the Orchestrator
+  dispatches against. They are NOT Agents and are NOT user-visible as agent rows. Do not
+  suggest the user "create a Researcher Agent" unless they mean a specific domain-scoped
+  worker (which would be an actual user-authored Agent).
+- Platform integrations (Slack, Notion, GitHub, Commerce, Trading) activate on platform
+  connection. Not Agents. If a user wants to "add Slack," route them to connect rather
+  than creating an Agent.
 """,
     },
 
