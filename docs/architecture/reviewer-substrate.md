@@ -5,7 +5,7 @@
 > **Authors**: KVK, Claude
 > **Scope**: The architectural layer that renders judgment on proposed actions. The filesystem substrate that expresses the Reviewer seat, the occupant declaration and rotation protocol, the operational modes vocabulary, the calibration trail semantics, and the prospective-attribution contract with chat surfaces.
 > **Upstream**: [THESIS.md](THESIS.md) — the Reviewer commitment is the thesis's second architectural commitment. [FOUNDATIONS.md](FOUNDATIONS.md) — Axiom 2 (Identity, four cognitive layers), Derived Principle 14 (Roles persist; occupants rotate).
-> **Implementation**: ADR-194 v2 (current code lands Phases 1 + 2a + 2b + 3).
+> **Implementation**: [ADR-194 v2](../adr/ADR-194-pluggable-reviewer-and-impersonation.md) (current code lands Phases 1 + 2a + 2b + 3). [ADR-211](../adr/ADR-211-reviewer-substrate-phase-4.md) scopes Phase 4 (OCCUPANT + modes + handoffs + calibration + rotation protocol + dispatch refactor + prospective-attribution contract) as a bounded coordinated landing.
 
 ---
 
