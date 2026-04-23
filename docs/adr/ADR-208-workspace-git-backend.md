@@ -1,8 +1,17 @@
 # ADR-208: Workspace Git Backend for Operator-Authored Files
 
-> **Status**: Proposed
-> **Date**: 2026-04-22
+> **Status**: **WITHDRAWN (2026-04-23)** — never implemented. Superseded by [ADR-209](ADR-209-authored-substrate.md) (Authored Substrate).
+> **Withdrawal reason (summary)**: ADR-208 v1 proposed a per-workspace bare git repo on Supabase Storage backing seven operator-authored paths, with `workspace_files` demoted to a cache. Withdrawn before implementation because (1) it created a Postgres-vs-git substrate bifurcation that the FOUNDATIONS Axiom 0 dimensional test flagged as Substrate/Mechanism conflation; (2) it imported coordination infrastructure (branches, clone/push, smart-HTTP, merge UX) that alpha operators do not need; (3) it applied versioning to a curated subset when the same benefits apply uniformly to every `workspace_files` entry.
+> **Replacement**: [ADR-209 — Authored Substrate](ADR-209-authored-substrate.md) commits to three of git's five capabilities (content-addressed immutability, parent-pointer history, authored-by attribution) natively in Postgres, applied universally across every file. Branching + distributed replication deferred as cheaply-recoverable extensions. See [authored-substrate.md](../architecture/authored-substrate.md) for the full rationale.
+> **Original date**: 2026-04-22
 > **Authors**: KVK, Claude
+
+---
+
+> ⚠️ **This ADR is withdrawn. The content below is preserved as a historical artifact of the rejected design path.** Active architecture: [ADR-209](ADR-209-authored-substrate.md).
+
+---
+
 > **Triggered by**: ADR-207 v1.2 deferral. Operator-authored configuration files (MANDATE.md, IDENTITY.md, BRAND.md, CONVENTIONS.md, domain `_operator_profile.md` + `_risk.md`, `review/principles.md`) are the workspace's CLAUDE.md equivalent. They deserve git-native semantics — version history, branch-based experimentation, diff/revert, push/pull portability — not a middle-ground in-DB versioning substrate that would churn against a real-git migration.
 > **Extends**: ADR-106 (Agent Workspace Architecture — filesystem-over-Postgres substrate). Doesn't replace it for accumulated/output files; adds a git backing path for a specific class of authored files.
 > **Amends**: ADR-119 (`/history/` subfolder convention). The subfolder convention stays for per-agent memory history on accumulation-style files; git backend handles the workspace-authored configuration set.
@@ -280,3 +289,4 @@ Secondary:
 | Date | Change |
 |------|--------|
 | 2026-04-22 | v1 — Initial proposal. Git-backed substrate for the seven operator-authored configuration files (MANDATE, IDENTITY, BRAND, CONVENTIONS, operator_profile per domain, risk per domain, review/principles). S3-backed bare repo per workspace. Every `UpdateContext` write to these paths becomes a commit. Branches + clone + push/pull as operator-facing git-native semantics. Six-phase implementation roadmap. Supersedes ADR-207 Level-1 in-DB versioning that was considered and explicitly deferred to this ADR. Extends ADR-106 substrate commitment to include a git-over-S3 backing path for this authored-file subset. |
+| 2026-04-23 | **WITHDRAWN.** Superseded by [ADR-209 — Authored Substrate](ADR-209-authored-substrate.md). Never implemented. The core insight — "operator-authored files deserve versioning + attribution + history" — survives, but the delivery mechanism changes: instead of git-over-S3 backing a seven-path subset, Authored Substrate delivers content-addressed revisions + parent-pointer history + authored-by attribution natively in Postgres, applied uniformly to every file in `workspace_files`. Branching and distributed replication (the two git capabilities alpha doesn't need) deferred as cheaply-recoverable extensions. See ADR-209 and [authored-substrate.md](../architecture/authored-substrate.md) for the full rejection rationale. |

@@ -1,10 +1,12 @@
 # ADR-119: Workspace Filesystem Architecture
 
-> **Status**: Phases 1-4 Implemented. **Evolved by ADR-136**: PROJECT.md split into PROJECT.md + TEAM.md + PROCESS.md (charter vs. memory separation).
+> **Status**: Phases 1, 2, 4 Implemented. **Phase 3 (`/history/{filename}/v{N}.md` subfolder version history) SUPERSEDED by [ADR-209](ADR-209-authored-substrate.md) (2026-04-23)** — versioning moves from the filesystem namespace to a substrate-native revision chain (Authored Substrate). See ADR-209 Deprecation Manifest Phase 2 for the implementation-time deletion ownership. **Evolved by ADR-136**: PROJECT.md split into PROJECT.md + TEAM.md + PROCESS.md (charter vs. memory separation).
 > **Date**: 2026-03-17
 > **Authors**: KVK, Claude
 > **Extends**: ADR-106 (Agent Workspace Architecture), ADR-118 (Skills as Capability Layer)
 > **Related**: ADR-116 (Inter-Agent Knowledge), ADR-117 (Feedback Substrate), ADR-111 (Composer), ADR-120 (Project Execution — PM agents execute within project folders, assembly uses skill library)
+
+> ⚠️ **Phase 3 notice**: Phase 3 below ("Version History for Evolving Files via `/history/` subfolder") is the implementation target that ADR-209 supersedes. Phase 3 shipped (commits through 2026-03) and the `/history/` convention was in live use until ADR-209. Do NOT treat Phase 3 as a new-work implementation target — consult ADR-209 Phase 2 for the active migration path that deletes the `/history/` pattern in favor of the revision chain.
 
 ---
 
@@ -308,7 +310,11 @@ This is simpler, more intuitive, and more extensible than relational tables for 
 - API routes: `/api/projects` CRUD + `/api/projects/{slug}/contributors` management
 - Full design: `docs/design/PROJECTS-PRODUCT-DIRECTION.md`
 
-### Phase 3: Version History for Evolving Files (After Phase 2)
+### Phase 3: Version History for Evolving Files — **SUPERSEDED by [ADR-209](ADR-209-authored-substrate.md) (2026-04-23)**
+
+> ⚠️ This phase shipped (2026-03) and is being dismantled by ADR-209 Phase 2. **Do not treat as a new-work reference.** The `/history/` subfolder pattern, `_archive_to_history()`, `_cap_history()`, and `list_history()` methods are all deleted by ADR-209. The reason: versioning in the filesystem namespace has no attribution, requires manual reversion/comparison, and pollutes every read path with version-decoding logic. Authored Substrate (ADR-209) replaces the convention with a substrate-native revision chain (`workspace_blobs` + `workspace_file_versions` + `head_version_id`) that carries authorship, applies universally, and is queryable without convention-awareness.
+
+Original Phase 3 scope (historical record):
 - Version history via `/history/` subfolder for evolving files (thesis.md, memory/*.md, AGENT.md)
 - On overwrite of high-value file: copy previous to `/agents/{slug}/history/{filename}-v{N}.md`
 - `ReadWorkspace(version=N)` resolves to history subfolder

@@ -91,7 +91,7 @@ Anything that doesn't fit one of these four patterns belongs in the filesystem.
 - **Storage-agnostic** — Postgres today, cloud storage later, no code change (ADR-106).
 - **User-legible** — operators can read their own accumulated context. Tables are opaque; markdown is transparent.
 - **Agent-legible** — every agent reads files natively. No ORM, no schema coupling.
-- **Git-compatible** (future) — filesystem state can be exported, diffed, and version-controlled.
+- **Version-history-native** — every write is attributed and retained in-substrate; no sibling audit store (see "Every write is attributed and retained" below, and `authored-substrate.md`).
 - **Model-agnostic** — files are the universal interface across LLM providers and interoperability protocols (MCP).
 
 ### Corollary: Substrate grows from work, not from signup scaffolding (ADR-205)
@@ -99,6 +99,22 @@ Anything that doesn't fit one of these four patterns belongs in the filesystem.
 The filesystem-first commitment is not only about *where* state lives — it is also about *when* state comes into being. Substrate should materialize through user action (tasks writing, conversations resolving, uploads landing), not through framework-level pre-creation at signup. A fresh workspace is textually present (identity, brand, uploads) and structurally empty (zero user-authored Agents, zero context domain directories, zero user-authored tasks beyond the deterministic daily-update heartbeat and back-office tasks). Directory registries exist as *naming conventions* consulted at first-write, not as *pre-creation manifests* run at signup.
 
 This corollary strengthens Axiom 1 rather than extending it: if the substrate is where state lives, then populating the substrate before work exists is itself a Substrate violation. It places content in the persistence layer ahead of the purpose that would justify it.
+
+### Every write is attributed and retained (Authored Substrate — ADR-209)
+
+Axiom 1's first clause says *where* state lives (the filesystem). This second clause says *how* state evolves: **every mutation to the substrate is attributed, purposeful, and retained.** No write is anonymous; no prior state is silently lost.
+
+Three sub-properties, enforced at the substrate layer (not by convention, not by sibling audit tables):
+
+1. **Content-addressed retention.** Every revision of every file is stored immutably. The current state is a pointer at a `head` revision; every prior revision remains queryable. Overwrites are never destructive — they add a revision.
+2. **Parent-pointered history.** Each revision records the revision it descended from. The revision chain for any path is walkable backward — diff, revert, and history traversal are substrate operations, not application features layered on top.
+3. **Authored-by attribution.** Every revision carries an author identity (operator, YARNNN, an Agent, the Reviewer, the reconciler, or a named system actor) and a short message. Writes without attribution are rejected at the write-path boundary.
+
+This is the substrate-level enforcement of Axiom 2 (Identity). Axiom 2 says *"every file has an author"*; Axiom 1's Authored Substrate clause makes that enforceable rather than aspirational. It is also what makes Axiom 7 (Recursion) legible at fine grain: the recursive accumulation loop becomes auditable revision-by-revision, not just file-by-file.
+
+The architecture is canonically named **Authored Substrate**. The naming deliberately avoids "git" — YARNNN adopts three of git's five core capabilities (content-addressed immutability, parent-pointer history, authored attribution) without inheriting the other two (branching, distributed replication) or git's implementation. See [authored-substrate.md](authored-substrate.md) for the full design, the git-inspiration framing, and what is deliberately deferred.
+
+This clause supersedes the `/history/` subfolder convention that ADR-119 Phase 3 introduced as an interim versioning approach. Filename-encoded versioning (`thesis-v2.md`, `-archive` suffixes, per-file `/history/v{N}.md` subfolders) is also retired — versioning lives in a separate metadata plane, never in the namespace. See ADR-209 for the full deprecation manifest.
 
 ---
 
@@ -394,6 +410,8 @@ These follow from the axioms and are stated explicitly for implementation guidan
 
 12. **Channel legibility gates autonomy** — Autonomous writes must have a legible Channel back to the operator (approval UX, daily-update pointers, dedicated surfaces). An action without a visible channel is a trust leak — the operator cannot supervise what they cannot see. This is why surface archetype design (ADR-198) is load-bearing for the autonomous-operator ICP.
 
+13. **Substrate writes are attributed and retained (Authored Substrate)** — Every mutation to `workspace_files` carries an `authored_by` identity and a short message, and every prior revision is retained in-substrate. There is no parallel audit table, no `/history/` subfolder, no filename-encoded versioning. This completes Axiom 1 (content-addressed retention + parent-pointer history) and operationalizes Axiom 2 (every file has an author, enforceable at the write path). See ADR-209 and [authored-substrate.md](authored-substrate.md).
+
 ---
 
 ## Relationship to Existing ADRs
@@ -472,3 +490,4 @@ Carried forward from v5.1, updated for v6.0:
 | 2026-04-17 | v5.0 — Three-layer cognition (ADR-189); YARNNN / Specialist / Agent |
 | 2026-04-19 | v5.1 — Axiom 0 added (filesystem is substrate); Axiom 1 extended to four layers (Reviewer); Axiom 7 money-truth |
 | 2026-04-20 | v6.0 — **Complete restructure.** Axiom 0 reframed as the dimensional model: six orthogonal dimensions (Substrate / Identity / Purpose / Trigger / Mechanism / Channel) derived from the interrogative test (What / Who / Why / When / How / Where). Previous axioms recast: v5.1 Axiom 0 → Axiom 1 (Substrate); v5.1 Axiom 1 → Axiom 2 (Identity) with Reviewer-is-Purpose+Trigger clarification; new Axiom 3 (Purpose); new Axiom 4 (Trigger); new Axiom 5 (Mechanism as spectrum, including primitives+prompts); new Axiom 6 (Channel); v5.1 Axiom 2 → Axiom 7 (Recursion, now derivable from six-dimensional composition); v5.1 Axiom 7 → Axiom 8 (Money-Truth). Derived Principles re-numbered; three new principles (9: Mechanism is a spectrum; 11: Substrate tightens / Mechanism loosens; 12: Channel legibility gates autonomy). Relationship-to-ADRs table rewritten as dimension-mapping. The stress test that produced this rewrite resolved six real scenarios; the model survived with two refinements (Purpose can live in Substrate or Identity; Mechanism is a determinism-spectrum not a split). See [YARNNN-DESIGN-PRINCIPLES.md](YARNNN-DESIGN-PRINCIPLES.md) for Spectrum A/B framing that sits beneath Principle 11. |
+| 2026-04-23 | v6.1 — **Authored Substrate completes Axiom 1.** Added new Axiom 1 subsection "Every write is attributed and retained" stating the substrate-level enforcement of content-addressed retention + parent-pointer history + authored-by attribution. Adds canonical name "Authored Substrate" (three of five git capabilities adopted; branching + distributed replication deliberately deferred). Explicitly supersedes the `/history/` subfolder convention (ADR-119 Phase 3) and filename-encoded versioning. Added Derived Principle 13 ("Substrate writes are attributed and retained"). Secondary-benefits bullet rewritten: "Git-compatible (future)" → "Version-history-native" — the property is now substrate-level, not aspirational. Ratified by ADR-209. Deep-dive: [authored-substrate.md](authored-substrate.md). |
