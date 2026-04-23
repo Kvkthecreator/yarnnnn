@@ -225,7 +225,7 @@ When any of the following occur, pause and deliberate before proceeding:
 - The compact index renders without the three ADR-206 section headers. → Observation: compact index rewrite didn't propagate to live path.
 - A path-not-found error when reading `_shared/IDENTITY.md` or similar. → Observation: migration 155 missed a reader site; investigate.
 - `CreateTaskModal` submission fails. → Observation: `TaskCreate` type shape or `/api/tasks` POST contract mismatch.
-- A task dispatches without the Specialists it names being lazy-materialized. → Observation: `ensure_infrastructure_agent` call site missed.
+- A task dispatches without the production roles it names being lazy-materialized. → Observation: `ensure_infrastructure_agent` call site missed. (Under LAYER-MAPPING.md / ADR-212, "production role" replaces the retired entity term "Specialist"; per-workspace production-role rows in the `agents` table still carry `class="specialist"` as a data-compatibility enum slug.)
 
 ---
 

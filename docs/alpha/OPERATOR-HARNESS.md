@@ -88,7 +88,7 @@ Run this:
 
 - At the start of any alpha session, as a sanity check
 - Before and after every ADR-affecting change to `workspace_init.py`,
-  `agent_framework.py`, `task_types.py`, `directory_registry.py`,
+  `orchestration.py`, `task_types.py`, `directory_registry.py`,
   `integrations.py` (the files whose behavior determines what a
   cold-start workspace looks like)
 

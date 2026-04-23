@@ -1086,10 +1086,10 @@ YARNNN has native platform bots for Slack, Notion, GitHub, Commerce (Lemon Squee
 - `rule-evaluation` still works — it reads whatever `/workspace/context/commerce/` has, regardless of how substrate got there
 - `sourcing-proposal` / `reorder-proposal` etc. still emit — they just can't autonomously execute against Shopify; operator manually executes the approved action in Shopify admin, then updates YARNNN with the result
 
-This is a **known gap**. Not a bug. It's the first real alpha friction — when operator + Claude hit "I approved a sourcing proposal but now I'm copy-pasting into Shopify admin manually," that's the observation that motivates **ADR-203: Shopify Platform Bot** (drafted organically from friction, not speculatively pre-drafted).
+This is a **known gap**. Not a bug. It's the first real alpha friction — when operator + Claude hit "I approved a sourcing proposal but now I'm copy-pasting into Shopify admin manually," that's the observation that motivates **ADR-203: Shopify Platform Integration** (drafted organically from friction, not speculatively pre-drafted).
 
 **Expected ADR-203 shape (not written yet — surfaces in alpha):**
-- Platform bot integration pattern matching ADR-183 (Lemon Squeezy) + ADR-187 (Alpaca)
+- Platform integration pattern matching ADR-183 (Lemon Squeezy) + ADR-187 (Alpaca) — capability-gated per ADR-207 P4a, NOT a personified bot
 - Shopify Admin API client in `api/integrations/core/shopify_client.py`
 - `shopify_bot` agent role
 - `commerce.*` write primitives extended with Shopify variants (`commerce.create_product_shopify`, etc.)
