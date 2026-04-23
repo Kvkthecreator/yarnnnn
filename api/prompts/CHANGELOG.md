@@ -6,6 +6,41 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.23.3] - ADR-209 Phase 5: schema cleanup, regression guard, ADR closed
+
+### Changed
+
+- Migration 159 applied to dev DB — schema cleanup closing the Phase 5 deprecation manifest:
+  - `workspace_files.version` integer column dropped (post-audit: zero live writers, zero meaningful readers)
+  - `workspace_files_lifecycle_check` constraint tightened to `(ephemeral | active | delivered)` — `archived` enum value removed
+  - One residual `/agents/trading-operator/history/AGENT.md/v1.md` row deleted (last pre-Phase 2 `/history/` artifact)
+- `workspace_files.content` denormalization **retained** after measurement (read-latency delta negligible, FTS + embedding indexes require the column). Decision documented in Migration 159 comment + `authored-substrate.md §3`.
+
+### Added
+
+- Permanent CI regression guard at `api/test_adr209_no_filename_versioning.py` — 12 banned-pattern greps with an explicit allowlist for deprecation-record files. Fails the build if any banned pattern (e.g., `_archive_to_history`, `thesis-v2.md`, `_MAX_HISTORY_VERSIONS`) reappears in live code.
+- Phase 5 test suite at `api/test_adr209_phase5.py` — 12 assertions covering schema state (column drop, lifecycle constraint, zero history artifacts, content + index preservation), constraint enforcement (insert rejection), smoke write post-migration, regression-guard run, and full Phase 1–4 regression.
+
+### Documentation
+
+- **`docs/architecture/authored-substrate.md` bumped to v1.1.** Branches + distributed replication reframed from "deferred-but-recoverable future work" to **explicitly out of scope**. §7 retitled "Out of scope: branches and distributed replication." §2 table bullets changed from "❌ Deferred" to "❌ **Explicitly out of scope**". Stability guarantee added: the singular-head invariant is the authored-substrate shape on its own merits, not a provisional pre-branching stance. This rewrite corrects drift in the v1 language.
+- `docs/adr/ADR-209-authored-substrate.md` D10 rewritten to match. Status promoted to **Phases 1–5 Implemented — ADR FULLY IMPLEMENTED**. Deprecation manifest marked **CLOSED 2026-04-23** with ✅ status on every row.
+- `CLAUDE.md` File Locations row updated to reflect Phase 5 + the closed state.
+
+### Expected behavior
+
+- No behavioral change for users — the Authored Substrate's write path, revision primitives, and cockpit revision panel all continue to work as in Phase 4.
+- Attempting to `INSERT INTO workspace_files ... lifecycle='archived'` now fails at the DB check constraint. No live code does this; the constraint is a guardrail against regression.
+- Future PRs that reintroduce `/history/` versioning patterns or filename-versioning (e.g., `thesis-v2.md`) will fail `test_adr209_no_filename_versioning.py` and must either route through `write_revision` or explicitly allowlist the file with justification.
+
+### ADRs
+
+- ADR-209 Phase 5 (this entry). Final phase. Full test suite: 65/65.
+- Closes ADR-209 deprecation manifest.
+- Amends `docs/architecture/authored-substrate.md` to v1.1 (exclusion framing correction).
+
+---
+
 ## [2026.04.23.2] - ADR-209 Phase 4: cockpit revision UI + inference-meta simplification
 
 ### Added

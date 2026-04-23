@@ -7,6 +7,28 @@ To run a migration:
 psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/<file>.sql
 ```
 
+Note: this log has gaps between 100 and 158. Authoritative source is `supabase/migrations/*.sql` — recent entries below are added as they ship; intermediate migrations are preserved in-repo.
+
+---
+
+### 159 — ADR-209 Phase 5 cleanup (2026-04-23) ✅
+
+- Drops `workspace_files.version` integer column (zero live writers post-Phase 2; Authored Substrate revision chain is authoritative)
+- Tightens `workspace_files_lifecycle_check` constraint to `(ephemeral | active | delivered)` — `archived` enum value removed (no live producers after `_archive_to_history` deletion in Phase 2)
+- Deletes the one residual `/agents/trading-operator/history/AGENT.md/v1.md` row (last artifact of the superseded `/history/` convention)
+- Retains `workspace_files.content` denormalization — post-measurement decision (FTS + embedding indexes live on the column)
+
+---
+
+### 158 — ADR-209 Phases 1 + 2 foundation (2026-04-23) ✅
+
+- Adds `workspace_blobs` (content-addressed store keyed by sha256)
+- Adds `workspace_file_versions` (parent-pointered revision chain per `user_id, path` with required `authored_by` + `message`)
+- Adds `workspace_files.head_version_id` (nullable FK → `workspace_file_versions.id`)
+- Enables pgcrypto extension (idempotent)
+- Backfill: every existing `workspace_files` row produces one synthetic initial revision with `authored_by='system:backfill-158'`
+- RLS: service role manages both new tables; authenticated users can SELECT their own revisions (blobs are shared content, readable by all authenticated for join purposes, with scoping enforced at the revision layer)
+
 ---
 
 ### 100 — Workspace Files (2026-03-11) ✅

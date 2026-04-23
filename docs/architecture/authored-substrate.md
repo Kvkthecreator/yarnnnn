@@ -50,8 +50,8 @@ Git is the default reference because it is the most widely understood system tha
 | **Content-addressed immutability** | Every version has a stable hash; nothing is lost to overwrite | ✅ Yes — via `workspace_blobs` |
 | **Parent-pointer history (DAG)** | Every version knows what it came from | ✅ Yes — via `workspace_file_versions.parent_version_id` |
 | **Authored-by attribution** | Every change has a declared author + intent | ✅ Yes — via `authored_by` + `message` columns |
-| **Branching (divergent parallel histories)** | Alternate timelines for experimentation | ❌ Deferred — recoverable as a `workspace_refs` table when operator demand emerges |
-| **Distributed replication (clone/push/pull)** | Multiple working copies diverge and reconcile | ❌ Deferred — recoverable as an export-as-git-bundle endpoint when portability demand emerges |
+| **Branching (divergent parallel histories)** | Alternate timelines for experimentation | ❌ **Explicitly out of scope** — see §7 |
+| **Distributed replication (clone/push/pull)** | Multiple working copies diverge and reconcile | ❌ **Explicitly out of scope** — see §7 |
 
 ### Why the 3/5 split is the right cut
 
@@ -61,14 +61,11 @@ For YARNNN's alpha-operator ICP, coordination is not required. There is one auth
 
 The singular-implementation principle (FOUNDATIONS Derived Principle 7) says: *if YARNNN composes, there is no separate Composer.* Applied here: *if the substrate carries authored history, there is no separate git backend.* Adopt the properties; reject the bundled infrastructure.
 
-### What "deferred" means concretely
+### The exclusion is structural, not a "not yet"
 
-Deferred means *recoverable cheaply if demanded*, not *architecturally precluded*:
+Branches and distributed replication are **explicitly out of scope** for the Authored Substrate — not items sitting on a backlog. See §7 for the full statement. The short version: YARNNN hosts one authoritative copy of each file, operators supervise through the cockpit (ADR-198), foreign LLMs consult through MCP (ADR-169). The cockpit + MCP surfaces are what replace the coordination affordances in the git toolkit, not deferred placeholders for them.
 
-- **Branches** become a `workspace_refs` table keyed `(workspace_id, ref_name) → head_version_id`. Creating a branch is an INSERT; merging is writing a revision with two parents (or flattening). The DAG substrate already supports it.
-- **Git portability** becomes an export endpoint that walks `workspace_file_versions` + `workspace_blobs` and synthesizes a git pack file. Operators can `git clone workspace.bundle` and work locally; push-back is a bundle upload that replays each incoming commit as a revision. YARNNN never runs a git server — it speaks git only at the boundary.
-
-Both are additive. Neither is required for Authored Substrate to be complete.
+The three adopted capabilities (content-addressed retention, parent-pointer history, authored-by attribution) are the complete Authored Substrate. Nothing else is required, nothing else is pending.
 
 ### Why not literal git (the rejected ADR-208 v1 path)
 
@@ -289,27 +286,17 @@ The boundary is sharp: **semantic content goes through Authored Substrate; the f
 
 ---
 
-## 7. Future extensions (gated on real operator signal)
+## 7. Out of scope: branches and distributed replication
 
-Two capabilities are deferred-but-recoverable. Neither should ship speculatively; each has a concrete signal to gate on.
+The two git capabilities we deliberately did not adopt (§2) are **not a roadmap**. They are explicit exclusions from the Authored Substrate's remit, for the reasons §2 lays out: coordination infrastructure serves a use case the cockpit (ADR-198) already replaces, and dragging it in would reintroduce the exact Postgres-vs-git bifurcation that ADR-208 v1 was withdrawn to avoid.
 
-### Branches (`workspace_refs` table)
+**Branches are out of scope.** YARNNN hosts one authoritative copy of each file per workspace. The `head_version_id` pointer is singular. There is no `workspace_refs` table, no `ManageBranch` primitive, no divergent-revision-chain walking. If an operator needs to compare alternatives, they compare two revisions of the same file (via `DiffRevisions`). If they need to experiment, they revert if the experiment fails (revert is itself a revision, Axiom 7).
 
-**Signal to ship:** an operator asks, *"can I try a looser risk profile for a month without losing my current one?"* — and asks it twice, unprompted, from different personas.
+**Git portability is out of scope.** There is no `git clone` of a workspace, no git pack export, no `workspace.bundle` endpoint, no smart-HTTP protocol. Operators consume and supervise the workspace through the cockpit; foreign LLMs consult it through the MCP tool surface (ADR-169). Speaking git at the boundary would recreate the coordination-infrastructure tax we rejected.
 
-**What it takes:** a `workspace_refs` table keyed `(workspace_id, ref_name)`, a `ManageBranch` primitive, divergent revision-chain walking in `ListRevisions`. The DAG substrate already supports branching — `parent_version_id` can be many-to-one — so schema-wise it's purely additive.
+**Stability guarantee.** The substrate's data-model shape — `parent_version_id` being many-to-one-capable, the one-authoritative-head invariant, the singular `head_version_id` pointer — is not "keeping the door open" for branches or replication. It's the shape the authored-substrate model has on its own merits. If YARNNN ever needs multi-head coordination (it does not today and has no signal it will), that would be a new ADR that would have to argue on its own terms against the ADR-208 v1 withdrawal rationale.
 
-**What it costs:** merge semantics. Two divergent heads meeting back at `main` requires either a three-way merge (with conflict UX) or flatten-onto-main. Flatten is cheaper and probably correct for operator-authored files at alpha scale.
-
-### Git portability (export endpoint)
-
-**Signal to ship:** an operator asks to `git clone` their workspace configuration locally, OR a compliance use case demands git-native audit trail format.
-
-**What it takes:** an endpoint that walks `workspace_file_versions` + `workspace_blobs` and synthesizes a git pack file (via `pygit2` / `dulwich` at the boundary, not at rest). Push-back is a bundle upload that replays each incoming commit as a revision through the standard write path.
-
-**What it costs:** conflict handling when operator's local clone is dirty at push time. Cheapest policy: YARNNN's head wins, operator's commits rebase on top — surfaced as a rebase conflict to the operator if auto-resolution fails.
-
-Neither extension alters the core substrate. Both are boundary additions — they change what YARNNN *speaks to the outside world*, not what it stores.
+This section exists to prevent drift. An earlier draft of this document framed branches + portability as "deferred-but-recoverable future work," which reads as a roadmap. It was not. The intent was always explicit exclusion. This rewrite makes that clear.
 
 ---
 
@@ -342,3 +329,4 @@ YARNNN's substrate is the filesystem (Axiom 1). Every mutation to that filesyste
 | Date | Change |
 |------|--------|
 | 2026-04-23 | v1 — Initial canonical doc. Ratified by FOUNDATIONS v6.1 Axiom 1 second clause + ADR-209. Captures the git-inspiration framing (3 of 5 capabilities), the CAS + revision-chain model, the `authored_by` taxonomy, the deprecation manifest (`/history/` pattern and filename-versioning retired), and the deferred-extension gating for branches + git portability. Supersedes ADR-208 v1 (withdrawn) and ADR-119 Phase 3. |
+| 2026-04-23 | v1.1 — Branches + distributed replication **reframed as explicitly out of scope, not deferred-future-work.** §7 rewritten from "Future extensions (gated on real operator signal)" to "Out of scope: branches and distributed replication." §2 table bullets changed from "❌ Deferred" to "❌ **Explicitly out of scope**". The "What 'deferred' means concretely" subsection replaced with "The exclusion is structural, not a 'not yet'." Rationale: the v1 phrasing read as a roadmap; the intent was always exclusion. The cockpit (ADR-198) + MCP surface (ADR-169) are what replace git's coordination affordances, not placeholders for them. Corrects drift without altering any shipped code or the three-of-five capability commitment. |

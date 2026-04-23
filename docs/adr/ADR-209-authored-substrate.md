@@ -1,6 +1,6 @@
 # ADR-209: Authored Substrate — Content-Addressed Revisions with Authored-By Attribution
 
-> **Status**: **Phases 1–4 Implemented 2026-04-23.** Phase 1: substrate foundation + backfill. Phase 2: write-path unification + legacy deletion. Phase 3: read-side primitives + compact-index authorship signal + prompt posture. Phase 4: HTTP revision endpoints, `RevisionHistoryPanel` component wired into BrandSection / TaskContentView / AgentContentView, inference-meta schema simplified (dropped `inferred_at` — timestamp lives in the revision chain), operator-attributed `save_identity` / `save_brand` routes. Phase 5 proposed per the phased-implementation section below.
+> **Status**: **Phases 1–5 Implemented 2026-04-23 — ADR FULLY IMPLEMENTED.** Deprecation manifest closed. Phase 1: substrate foundation + backfill. Phase 2: write-path unification + legacy deletion. Phase 3: read-side primitives + compact-index authorship signal + prompt posture. Phase 4: HTTP revision endpoints + cockpit UI + inference-meta simplification. Phase 5: schema cleanup (Migration 159 — dropped `workspace_files.version`, tightened lifecycle constraint, deleted legacy `/history/` artifact row), regression-guard test, final grep gate. Full test suite: 65/65 (11 Phase 1 + 14 Phase 2 + 15 Phase 3 + 13 Phase 4 + 12 Phase 5).
 > **Date**: 2026-04-23
 > **Authors**: KVK, Claude
 > **Ratifies**: [docs/architecture/authored-substrate.md](../architecture/authored-substrate.md) (canonical deep-dive) + FOUNDATIONS v6.1 Axiom 1 second clause + Derived Principle 13
@@ -192,13 +192,17 @@ Authored Substrate applies to **every file in `workspace_files`**. There is no P
 
 The FOUNDATIONS Axiom 1 four permitted DB row kinds are unaffected — scheduling indexes (`tasks`, `agents`), neutral audit ledgers (`agent_runs`, `token_usage`), credentials (`platform_connections`), and ephemeral queues (`action_proposals`) do not go through `write_revision`. They are not semantic content. The boundary is sharp: semantic content → Authored Substrate; four permitted row kinds → unchanged.
 
-### D10 — Branches and git portability are deferred, not excluded
+### D10 — Branches and distributed replication are explicitly out of scope
 
-**Branches** are recoverable via a `workspace_refs` table keyed `(workspace_id, ref_name) → head_version_id` + a `ManageBranch` primitive + divergent revision-chain walking. The DAG substrate (`parent_version_id` can be many-to-one) already supports branching structurally.
+The two git capabilities the Authored Substrate does not adopt (D1 §2) are **not a roadmap**. They are explicit exclusions for the same reasons ADR-208 v1 was withdrawn.
 
-**Git portability** is recoverable via an export endpoint that walks `workspace_file_versions` + `workspace_blobs` and synthesizes a git pack file (pygit2/dulwich at the boundary, not at rest). Operators can `git clone workspace.bundle` and work locally; push-back replays incoming commits as revisions through the standard write path.
+**Branches are out of scope.** YARNNN hosts one authoritative copy of each file per workspace. There is no `workspace_refs` table, no `ManageBranch` primitive, no divergent head-pointer walking. The `head_version_id` column is singular by design. Operators who need to compare alternatives use `DiffRevisions` across two revisions of the same file; operators who need to revert from an experiment use the revert path (which is itself a new revision, Axiom 7).
 
-Neither ships in ADR-209. Each ships when a concrete operator signal demands it (see [authored-substrate.md §7](../architecture/authored-substrate.md)).
+**Distributed replication (clone/push/pull) is out of scope.** There is no `git clone` of a workspace, no git pack export, no `workspace.bundle` endpoint, no smart-HTTP protocol. Operators supervise through the cockpit (ADR-198); foreign LLMs consult through the MCP tool surface (ADR-169). Those two surfaces **replace** the coordination affordances in the git toolkit for YARNNN's ICP — they are not placeholders for them.
+
+**Stability guarantee.** The substrate shape (singular `head_version_id`, one authoritative head per path) is what the Authored Substrate is on its own merits. The `parent_version_id` column being nullable/many-to-one is a general DAG property, not an accommodation for future branching. If a multi-head coordination use case ever emerged, a new ADR would have to argue on its own terms against the withdrawal rationale of ADR-208 v1. Until then, this section exists to prevent roadmap drift.
+
+See [authored-substrate.md §7](../architecture/authored-substrate.md) for the canonical statement.
 
 ---
 
@@ -351,47 +355,66 @@ Scope:
 
 **Frontend build gate**: `npx next build` — 0 TypeScript errors from Phase 4 changes. Full production build compiles all routes.
 
-### Phase 5 — Schema cleanup + final grep gate
+### Phase 5 — Schema cleanup + final grep gate — **IMPLEMENTED 2026-04-23**
 
 Scope:
-- Audit `workspace_files.version` usage across entire codebase; drop column if unused (Migration 159)
-- Audit `workspace_files.lifecycle='archived'` usage; retain only if still serving ephemeral TTL (`working/`, `user_shared/`); otherwise drop or simplify
-- Audit `workspace_files.content` denormalization — keep if read-path performance justifies, drop if join-through is acceptable
-- Final grep gate: zero live-code references to `history/` versioning pattern, `_archive_to_history`, `thesis-v2`, filename-versioning patterns across `api/`, `web/`, `docs/architecture/`, `docs/features/`
-- CLAUDE.md updated: `/history/` convention reference removed; pointer added to `authored-substrate.md`
-- `api/prompts/CHANGELOG.md` entry
+- Migration 159 applied to dev DB:
+  - Dropped `workspace_files.version` integer column (post-audit: zero live writers, zero meaningful readers; DB state had 100 rows at default `1`, one residual at `2` from pre-Phase 2 legacy path — now gone)
+  - Tightened `workspace_files_lifecycle_check` to `(ephemeral | active | delivered)` — `archived` enum value dropped (no live producers after Phase 2 deleted `_archive_to_history`)
+  - Deleted the one residual `/history/{filename}/v{N}.md` artifact row (`/agents/trading-operator/history/AGENT.md/v1.md`) — the last remnant of the superseded ADR-119 Phase 3 convention
+- `workspace_files.content` denormalization **retained** after measurement: read-latency delta between denormalized read (0.05ms) and three-table join-through (0.065ms) is negligible, but the FTS index (`idx_ws_fts`) + embedding index (`idx_ws_embedding`) are both defined on `workspace_files.content`. Dropping the column would require rebuilding both indexes on a joined view or on `workspace_blobs` — materially invasive for zero measurable benefit. Decision documented in Migration 159 comment + [authored-substrate.md §3](../architecture/authored-substrate.md).
+- Final grep-gate sweep: zero live-code references to `_archive_to_history`, `_cap_history`, `_is_evolving_file`, `list_history`, `_MAX_HISTORY_VERSIONS`, `_MAX_PROFILE_VERSIONS`, `_ENTITY_PROFILE_FILENAMES`, `_EVOLVING_PATTERNS`, `_EVOLVING_DIRS`, `/history/{...}/v{N}.md` literal paths, `thesis-v2.md`-style filename versioning, or `-archive.md` suffix across `api/`, `web/`, `docs/architecture/`, `docs/features/`. Only `docs/adr/ADR-119-*`, `docs/adr/ADR-209-*`, `docs/architecture/authored-substrate.md`, `docs/architecture/GLOSSARY.md`, and `docs/architecture/FOUNDATIONS.md` mention the retired patterns — every mention is part of an explicit deprecation record.
+- Permanent CI regression guard: [api/test_adr209_no_filename_versioning.py](../../api/test_adr209_no_filename_versioning.py) runs the grep gate with an allowlist of legitimate deprecation-record files. Any future reintroduction of a banned pattern fails the guard.
+- Branches + distributed replication reframed as **explicitly out of scope** (not "deferred future work"). See D10 above and [authored-substrate.md §7](../architecture/authored-substrate.md).
+- `docs/database/ACCESS.md` unchanged — Phase 5 schema changes (drop `version`, tighten `lifecycle`) are fully reflected by the migration file itself; access.md doesn't enumerate column lists.
 
 **Legacy deleted in Phase 5**:
-- `workspace_files.version` integer column (if audit confirms unused)
-- Stale `lifecycle` states tied to `/history/` pattern
-- Any residual filename-versioning patterns (`thesis-v2.md`, `-archive` suffix) — grep-gated
+- `workspace_files.version` integer column
+- `lifecycle='archived'` enum value from the `workspace_files_lifecycle_check` constraint
+- The last residual `/history/{filename}/v{N}.md` artifact row in `workspace_files`
 
-**Gate**: final grep returns zero. CI lint rule (or repo test) added to enforce no-filename-versioning going forward.
+**Gates** ([api/test_adr209_phase5.py](../../api/test_adr209_phase5.py) — 12/12 assertions pass; full ADR-209 suite 65/65):
+1. `workspace_files.version` column dropped (`information_schema.columns` lookup)
+2. Lifecycle check constraint excludes `archived`
+3. Zero `%/history/%/v%.md` artifact rows remain
+4. `workspace_files.content` column preserved (denormalization intact)
+5. FTS + embedding indexes preserved on `workspace_files.content`
+6. DB rejects inserts with `lifecycle='archived'` (direct check-constraint test)
+7. Smoke write through `write_revision` post-migration round-trips correctly
+8. Filename-versioning regression guard passes (`test_adr209_no_filename_versioning.py` — 12 banned-pattern checks)
+9. Phase 1 regression: 11/11 still pass
+10. Phase 2 regression: 14/14 still pass
+11. Phase 3 regression: 15/15 still pass
+12. Phase 4 regression: 13/13 still pass
 
 ---
 
-## Deprecation manifest (authoritative)
+## Deprecation manifest (authoritative — **CLOSED 2026-04-23**)
 
-The complete list of what gets deleted and in which phase. Every item has a phase ownership. No item is "TBD."
+The complete list of what gets deleted and in which phase. Every item has a phase ownership. No item is "TBD." Every item has shipped.
 
-| Legacy surface | Phase | Replacement |
-|---|---|---|
-| `/history/{filename}/v{N}.md` subfolder convention (ADR-119 Phase 3) | 2 | Revision chain + `ReadRevision(path, offset=-N)` |
-| `AgentWorkspace._archive_to_history()` | 2 | `write_revision()` — automatic history |
-| `AgentWorkspace._cap_history()` | 2 | No application-layer cap (optional future workspace-wide revision gc) |
-| `AgentWorkspace.list_history()` | 2 | `ListRevisions(path)` primitive |
-| `AgentWorkspace._is_evolving_file()` | 2 | Irrelevant — all files get revisions, not only "evolving" ones |
-| `KnowledgeBase._archive_to_history()` | 2 | `write_revision()` |
-| `KnowledgeBase.list_history()` | 2 | `ListRevisions` |
-| `/history/{filename}/v{N}.md` write pattern in `primitives/workspace.py` | 2 | `write_revision()` |
-| `reviewer_audit.py` per-entry attribution header duplication | 2 | Authorship trailer on the revision (in-file entry simplifies) |
-| Filename-versioning patterns (`thesis-v2.md`, `-archive` suffix, dated-for-version-rather-than-content suffix) | Convention-banned in Phase 2; grep-gated in Phase 5 | Revision chain on the canonical filename |
-| `workspace_files.version` integer column | 5 (drop after audit) | `head_version_id` → `workspace_file_versions` |
-| `workspace_files.lifecycle='archived'` state | 5 (review + possibly drop) | Revision chain; lifecycle kept only for ephemeral TTL |
-| `<!-- inference-meta -->` HTML comment **authorship fields** | 4 | Authorship trailer on the revision |
-| `<!-- inference-meta -->` HTML comment **source-summary fields** | *kept* | No deletion — distinct concern (which documents/URLs the inference consumed) |
-| ADR-119 Phase 3 as an active implementation target | Phase 2 lands; ADR-119 status banner updated same PR | Marked Superseded in-place |
-| ADR-208 v1 as Proposed | Same PR as ADR-209 lands | Marked Withdrawn in-place |
+| Legacy surface | Phase | Status | Replacement |
+|---|---|---|---|
+| `/history/{filename}/v{N}.md` subfolder convention (ADR-119 Phase 3) | 2 | ✅ Deleted | Revision chain + `ReadRevision(path, offset=-N)` |
+| `AgentWorkspace._archive_to_history()` | 2 | ✅ Deleted | `write_revision()` — automatic history |
+| `AgentWorkspace._cap_history()` | 2 | ✅ Deleted | No application-layer cap |
+| `AgentWorkspace.list_history()` | 2 | ✅ Deleted | `ListRevisions(path)` primitive |
+| `AgentWorkspace._is_evolving_file()` | 2 | ✅ Deleted | Irrelevant — all files get revisions |
+| `KnowledgeBase._archive_to_history()` | 2 | ✅ Deleted | `write_revision()` |
+| `KnowledgeBase.list_history()` | 2 | ✅ Deleted | `ListRevisions` |
+| `/history/{filename}/v{N}.md` write pattern in `primitives/workspace.py` | 2 | ✅ Deleted | `write_revision()` |
+| `reviewer_audit.py` per-entry attribution header duplication | 2 | ✅ Deleted | Authorship trailer on the revision |
+| Filename-versioning patterns (`thesis-v2.md`, `-archive` suffix, dated-for-version-rather-than-content suffix) | 2 banned; 5 grep-gated | ✅ Enforced | Revision chain on the canonical filename |
+| `workspace_files.version` integer column | 5 | ✅ Dropped (Migration 159) | `head_version_id` → `workspace_file_versions` |
+| `workspace_files.lifecycle='archived'` state | 5 | ✅ Dropped (Migration 159 — removed from constraint + purged residual row) | Revision chain; lifecycle kept only for ephemeral TTL |
+| The one residual `/agents/trading-operator/history/AGENT.md/v1.md` row | 5 | ✅ Deleted (Migration 159) | — |
+| `<!-- inference-meta -->` HTML comment **`inferred_at` field** | 4 | ✅ Dropped | Revision chain's `created_at` |
+| `<!-- inference-meta -->` HTML comment **source-summary fields** | *kept* | ✅ Retained | No deletion — distinct concern (which documents/URLs the inference consumed) |
+| Default `"system:user-memory"` attribution for operator identity/brand saves | 4 | ✅ Replaced with explicit `"operator"` | `save_identity` / `save_brand` now pass attribution |
+| ADR-119 Phase 3 as an active implementation target | 2 | ✅ Superseded in-place | Marked Superseded with inline banner |
+| ADR-208 v1 as Proposed | 1+2 | ✅ Withdrawn in-place | Marked Withdrawn with historical banner |
+
+**Permanent regression guard**: [api/test_adr209_no_filename_versioning.py](../../api/test_adr209_no_filename_versioning.py) enforces zero reintroduction of any banned pattern. Ran Phase 5 with 12/12 checks green.
 
 ---
 
@@ -456,6 +479,7 @@ The complete list of what gets deleted and in which phase. Every item has a phas
 |------|--------|
 | 2026-04-23 | v1 — Initial decision record. Ratifies [authored-substrate.md](../architecture/authored-substrate.md) + FOUNDATIONS v6.1 Axiom 1 second clause + Derived Principle 13. Five-phase implementation. Deprecation manifest authoritative. Supersedes ADR-208 v1 (withdrawn) + ADR-119 Phase 3. Amends ADR-106, ADR-162 Sub-phase D, ADR-194 v2, ADR-207 v1.2. |
 | 2026-04-23 | **Phase 1 Implemented.** Migration 158 (`workspace_blobs` + `workspace_file_versions` + `workspace_files.head_version_id`) applied to dev DB. Backfill: 99 files → 99 revisions → 69 unique blobs (content-addressed dedup confirmed). `api/services/authored_substrate.py` lands `write_revision()` + `list_revisions()` + `read_revision()` + `count_revisions()` + `is_valid_author()`. Test gate [api/test_adr209_phase1.py](../api/test_adr209_phase1.py) — 11/11 assertions pass (tables, backfill, head/blob integrity, dedup, end-to-end write, empty-attribution rejection, list+read round-trip, parent-pointer chain). Implementation note: parent resolution queries the revision chain directly, not the denormalized `head_version_id` pointer — decouples Phase 1 from Phase 2's call-site migration. Phases 2–5 proposed. |
+| 2026-04-23 | **Phase 5 Implemented — ADR FULLY CLOSED.** Migration 159 applied: `workspace_files.version` column dropped, lifecycle check constraint tightened (`archived` enum value removed), residual `/agents/trading-operator/history/AGENT.md/v1.md` row deleted (last pre-Phase 2 `/history/` artifact). `workspace_files.content` denormalization retained after measurement (0.05ms vs 0.065ms, plus FTS + embedding indexes are defined on that column). Final grep gate confirmed zero live-code references to any banned pattern across `api/`, `web/`, `docs/architecture/`, `docs/features/`. Permanent CI regression guard at [api/test_adr209_no_filename_versioning.py](../../api/test_adr209_no_filename_versioning.py) — 12 banned-pattern checks with an explicit allowlist for deprecation-record files (ADR-119, ADR-209, authored-substrate.md, GLOSSARY.md, FOUNDATIONS.md, CHANGELOG.md, Phase 2+ test files, Migrations 158/159). **Branches and distributed replication reframed as explicitly out of scope** (D10 rewrite, §7 rewrite in authored-substrate.md v1.1) — correcting v1 drift that read as "deferred future work." The three adopted git capabilities are the complete Authored Substrate; nothing is pending. Test gate [api/test_adr209_phase5.py](../../api/test_adr209_phase5.py) — 12/12 assertions pass. **Full ADR-209 suite across all five phases: 65/65** (11+14+15+13+12). Frontend `npx tsc` clean; Phase 4 Next.js build remains green. Deprecation manifest closed — every row shipped. |
 | 2026-04-23 | **Phase 4 Implemented.** Three HTTP endpoints expose the revision-aware primitives (`GET /api/workspace/revisions`, `GET /api/workspace/revisions/{id}`, `GET /api/workspace/revisions/diff/two`). `PATCH /api/workspace/file` accepts an optional `message` field used by the UI revert action. New frontend component `RevisionHistoryPanel` wired into BrandSection (MemorySection), TaskContentView (TASK.md), AgentContentView (AGENT.md, read-only). Panel shows `r{N} · <author chip> · "<message>" · <ago>` newest first, with cognitive-layer color coding (operator=blue, yarnnn=purple, agent=emerald, reviewer=amber, specialist=cyan, system=zinc). Non-head revisions are clickable → inline unified diff vs. current; revert button on editable-path surfaces writes the old content back through PATCH `/api/workspace/file` with message `"revert to revision {shortId}"`, landing a new revision in the chain (revert is itself an authored event, not a pointer-flip — preserves FOUNDATIONS Axiom 7 recursion). `save_identity` + `save_brand` routes now pass explicit `authored_by="operator"` so the panel correctly distinguishes operator edits from YARNNN inference writes. `_append_inference_meta` schema simplified: `inferred_at` dropped (substrate's `created_at` is authoritative — dual timestamps violate FOUNDATIONS v6.1 Axiom 1); retained `target` + `sources` + `gaps`. `InferenceContentView` dropped the "Inferred N ago" caption; age now surfaces via the adjacent `RevisionHistoryPanel` when callers want it. `web/lib/inference-meta.ts` `InferenceMeta` interface updated to match backend. Test gate [api/test_adr209_phase4.py](../../api/test_adr209_phase4.py) — 13/13 assertions pass. Full ADR-209 suite across all phases: 53/53 (11 Phase 1 + 14 Phase 2 + 15 Phase 3 + 13 Phase 4). `npx next build` passes cleanly — zero TypeScript errors from Phase 4. **Scope adjustments from original draft**: (a) `ManageContextModal` not wired — transient modal is wrong surface for persistent history; (b) no new `revert_to_revision=N` primitive parameter — UI round-trips through existing readRevision + editFile, reuses Phase 2–hardened write path. Phase 5 (schema cleanup + grep gate) proposed. |
 | 2026-04-23 | **Phase 3 Implemented.** Three new read-side primitives live at `api/services/primitives/revisions.py`: `ListRevisions`, `ReadRevision`, `DiffRevisions`. Registered in both CHAT_PRIMITIVES and HEADLESS_PRIMITIVES — chat parity is intentional because operators + YARNNN both need to inspect authored files via the same API (cockpit supervision per ADR-198). `ListFiles` extended with `authored_by` / `since` / `until` filters. Compact index (`format_compact_index`) renders a one-line activity summary when substrate has been written in the last 24h — grouped by cognitive-layer prefix (operator / yarnnn / reviewer / agent / specialist / system), measured at ~208 tokens total (well under 600-token ceiling). "Revision-Aware Reading" posture section added to `yarnnn_prompts/tools_core.py` (picked up by both workspace + entity profiles per ADR-186). Three scope adjustments from original Phase 3 draft: (1) `ListEntities` filters dropped — category confusion (relational layer ≠ Authored Substrate); (2) `SearchFiles` revision-metadata enrichment deferred — low marginal value given `ListRevisions` exists; (3) revision primitives NOT exposed on MCP surface — MCP's intent-shaped contract (ADR-169) rejects substrate archaeology. Test gate [api/test_adr209_phase3.py](../../api/test_adr209_phase3.py) — 15/15 assertions pass. Full suite across all phases: 40/40 (11 Phase 1 + 14 Phase 2 + 15 Phase 3). Phases 4–5 proposed. |
 | 2026-04-23 | **Phase 2 Implemented.** Write-path unification across every call site in the codebase; legacy deletion complete. `write_revision()` extended to keep `workspace_files.head_version_id` + `content` + `updated_at` + optional metadata columns in sync on every write. Class wrappers (`AgentWorkspace.write`, `UserMemory.write`, `TaskWorkspace.write`) now route through `write_revision` internally with class-scoped `authored_by` defaults that callers can override via keyword args. `reviewer_audit._write_sync` threads `f"reviewer:{reviewer_identity}"` from `append_decision`. Route-layer direct writes (`routes/documents.py`, `routes/chat.py`, `routes/workspace.py`, `routes/integrations.py`) migrated with explicit attribution. `outcomes/ledger.py` + `primitives/runtime_dispatch.py` migrated. ADR-176 Phase 4 entity-profile `v{N}.md` archive block in `primitives/workspace.py` deleted. **Zero live-code references** to `_archive_to_history`, `_cap_history`, `_is_evolving_file`, `list_history`, `_EVOLVING_PATTERNS`, `_EVOLVING_DIRS`, `_MAX_HISTORY_VERSIONS`, `_MAX_PROFILE_VERSIONS`, `_ENTITY_PROFILE_FILENAMES` anywhere in the codebase. **Only two** `workspace_files` content-layer mutation call sites remain: `authored_substrate._upsert_workspace_file` (the write target) and `primitives/workspace._embed_workspace_file` (permitted metadata-only update for the embedding column). Test gate [api/test_adr209_phase2.py](../api/test_adr209_phase2.py) — 14/14 assertions pass. Phase 1 test suite also re-verified: 11/11 still passing, no regressions. **Key Phase 2 decision**: class wrappers carry `authored_by` defaults derived from class-scoped context rather than forcing ~60 uniform-edit call-site changes — the substrate still enforces the Axiom 2 contract; the wrappers translate class context into substrate-required format. Phases 3–5 proposed. |
