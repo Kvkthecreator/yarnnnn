@@ -304,7 +304,9 @@ This section exists to prevent drift. An earlier draft of this document framed b
 
 | Doc | Relationship |
 |---|---|
+| [THESIS.md](THESIS.md) | Authored Substrate is the substrate expression of THESIS commitment 4 (*"Authored accumulation — substrate with attribution, not inferred context"*). |
 | [FOUNDATIONS.md](FOUNDATIONS.md) | Authored Substrate completes Axiom 1's second clause (v6.1). Derived Principle 13 is the implementation rule. |
+| [reviewer-substrate.md](reviewer-substrate.md) | Sibling canon doc. The Reviewer seat's writes (`OCCUPANT.md`, `decisions.md`, `handoffs.md`, `calibration.md`) flow through Authored Substrate with required `authored_by` attribution — every verdict and every occupant rotation is revision-chain-tracked. Together the two canons cover the write path (here) and the judgment seat (there). |
 | [GLOSSARY.md](GLOSSARY.md) | Canonical vocabulary: Authored Substrate, Revision, Revision chain, Head, Authorship trailer (v1.4). |
 | [SERVICE-MODEL.md](SERVICE-MODEL.md) | Entity Model gains an Authored-Substrate subsection (Phase 1 doc sweep). |
 | [workspace-conventions.md](workspace-conventions.md) | `/history/` convention removed (Phase 2). Authorship-trailer requirement added. Filename-versioning banned. |

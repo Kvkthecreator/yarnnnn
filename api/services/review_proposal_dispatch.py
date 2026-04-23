@@ -1,11 +1,22 @@
-"""Review Proposal Dispatch — ADR-194 v2 Phase 2b + Phase 3.
+"""Review-seat orchestration — ADR-194 v2 Phase 2b + Phase 3.
+
+**This module is review orchestration, not the reviewer entity.** It is
+runtime coordination — the plumbing that routes a proposal from
+creation to whichever occupant currently fills the Reviewer seat, then
+to the verdict-consumers. The judgment itself is rendered elsewhere
+(see `reviewer_agent.py` for the AI occupant's judgment logic; human
+occupants render judgment through the approval UX). Per
+docs/architecture/reviewer-substrate.md §"Review orchestration vs.
+reviewer entity — the split", the two are architecturally distinct:
+this is plumbing, agency lives in the entity.
 
 Reactive handler for proposal creation events. Fires from
 `handle_propose_action` after `action_proposals` row insert, before the
 handler returns. Per FOUNDATIONS v6.0 Axiom 4 (Trigger — reactive
 sub-shape), this is an event handler, not a scheduled task.
 
-**Phase 3 scope:** policy-gated AI Reviewer invocation.
+**Phase 3 scope:** policy-gated routing between observe-only and
+AI-occupant invocation.
 
 On proposal creation, the dispatcher:
 
@@ -14,23 +25,26 @@ On proposal creation, the dispatcher:
    `review_principles.is_eligible_for_auto_approve`).
 3. If ineligible → observe-only path (Phase 2b behavior): appends a
    `decision="defer"` entry with `reviewer_identity="reviewer-layer:
-   observed"` so the Stream surface still records the event.
-4. If eligible → AI Reviewer path (Phase 3 behavior): reads the domain's
-   `_performance.md` + `_risk.md` + operator profile, asks the AI
-   reviewer for a decision, and:
+   observed"` so the Stream surface still records the event. The
+   seat stays open for the human occupant (proposal remains pending).
+4. If eligible → AI-occupant invocation (Phase 3 behavior): reads the
+   domain's `_performance.md` + `_risk.md` + operator profile, calls
+   the AI occupant (`reviewer_agent.review_proposal`) for a verdict, and:
      - `approve` → calls `handle_execute_proposal` with
        `reviewer_identity="ai:reviewer-sonnet-v1"`
      - `reject`  → calls `handle_reject_proposal` with the same identity
-     - `defer`   → falls through to observe-only (human decides later)
+     - `defer`   → falls through to observe-only (human occupant decides later)
 
 **Never raises.** Dispatch failures degrade gracefully — the proposal
 remains pending, the operator can still act via ProposalCard.
 
-**Invariant:** the AI Reviewer never gates *human* approvals. If the
-operator clicks Approve on the ProposalCard, the existing routes run
-through `handle_execute_proposal` with `reviewer_identity="human:
-<user_id>"` — the AI observation becomes a historical note in
-decisions.md but does not block or alter the human decision.
+**Invariant:** AI-occupant verdicts never gate *human-occupant* approvals.
+If the operator clicks Approve on the ProposalCard, the existing routes
+run through `handle_execute_proposal` with
+`reviewer_identity="human:<user_id>"` — the AI observation becomes a
+historical note in decisions.md but does not block or alter the human
+decision. This preserves Principle 14: both occupants render independent
+verdicts into the same seat; neither is subordinate to the other.
 """
 
 from __future__ import annotations
@@ -43,10 +57,12 @@ from services.reviewer_audit import append_decision
 logger = logging.getLogger(__name__)
 
 
-#: Reviewer identity used when the seat defers to human review without
-#: AI assessment (no auto-approve policy for this domain, or the AI
-#: reviewer itself deferred). Distinct from human:* and ai:* — this is
-#: a layer-observes tag, not a filled-seat tag.
+#: Observation tag — written to decisions.md when the orchestration layer
+#: records that a proposal was seen but no occupant has yet rendered a
+#: verdict (either no auto-approve policy applies for this domain, or the
+#: AI occupant itself deferred). Distinct from human:* and ai:* occupant
+#: identities — this is an ORCHESTRATION-LAYER tag, not an occupant verdict.
+#: Functions as "seat saw the proposal, waiting for occupant" marker.
 _REVIEWER_OBSERVATION_IDENTITY = "reviewer-layer:observed"
 
 #: Prefix for all action_type values that map to context_domain="trading".

@@ -175,6 +175,7 @@ The task's markdown report changes from "per-provider inserted/duplicate/invalid
 Under Axiom 1 (Substrate), consumers read files directly. No service layer over money-truth.
 
 - **AI Reviewer** (ADR-194 v2 Phase 3) — reads `_performance.md` for the proposal's domain to reason about EV.
+- **Reviewer calibration loop** (target per [reviewer-substrate.md](../architecture/reviewer-substrate.md), not yet implemented) — `/workspace/review/calibration.md` is rebuilt periodically from decisions.md × reconciled outcomes in `_performance.md` across domains. This closes the money-truth → future-judgment loop at the reviewer-seat level (Axiom 7 recursion). When implemented, the reconciler task (or a sibling task) reads `_performance.md` after fold and cross-references the proposal's outcome with the verdict recorded on it, updating calibration per occupant. The reviewer seat gains tenure — AI occupant suitability is measured, not asserted. See reviewer-substrate.md §"The calibration loop".
 - **Daily-update briefing** (ADR-195 v2 Phase 4) — reads `_performance.md` frontmatter across domains, emits "Your book this week" section from aggregated totals.
 - **YARNNN chat** — surfaces aggregate money-truth signals in the compact index (Phase 4).
 - **Operator** — reads directly via the Context surface (ADR-163's four-surface nav).

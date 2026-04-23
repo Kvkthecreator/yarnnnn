@@ -1,8 +1,8 @@
 # YARNNN Design Principles
 
 **Status:** Canonical
-**Date:** 2026-04-01 (renamed from TP-DESIGN-PRINCIPLES.md 2026-04-17 per ADR-189; Spectrum section added 2026-04-20 per FOUNDATIONS v5.1; dimensional framing added 2026-04-20 per FOUNDATIONS v6.0)
-**Related:** FOUNDATIONS.md (Axiom 0 dimensional model, Axioms 1–8), SERVICE-MODEL.md, GLOSSARY.md, ADR-149 (task lifecycle), ADR-189 (three-layer cognition), ADR-194 (Reviewer layer)
+**Date:** 2026-04-01 (renamed from TP-DESIGN-PRINCIPLES.md 2026-04-17 per ADR-189; Spectrum section added 2026-04-20 per FOUNDATIONS v5.1; dimensional framing added 2026-04-20 per FOUNDATIONS v6.0; THESIS + reviewer-substrate cross-refs added 2026-04-23)
+**Related:** [THESIS.md](THESIS.md) (the philosophical thesis upstream of FOUNDATIONS), FOUNDATIONS.md (Axiom 0 dimensional model, Axioms 1–8, Derived Principles 1–14), SERVICE-MODEL.md, GLOSSARY.md, [authored-substrate.md](authored-substrate.md) (substrate canon for writes), [reviewer-substrate.md](reviewer-substrate.md) (substrate canon for the judgment seat), ADR-149 (task lifecycle), ADR-189 (three-layer cognition), ADR-194 (Reviewer layer — current implementation).
 
 ---
 

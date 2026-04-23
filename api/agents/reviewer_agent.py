@@ -1,24 +1,58 @@
-"""AI Reviewer Agent — ADR-194 v2 Phase 3.
+"""AI occupant of the Reviewer seat — ADR-194 v2 Phase 3.
 
+This module implements ONE occupant class (AI, Sonnet-backed) of the
+Reviewer seat. It is not the Reviewer seat itself — the seat is the
+architectural role and its substrate lives at `/workspace/review/`
+(IDENTITY, principles, decisions, + Phase 4 roadmap files). This module
+is what runs when the AI occupant fills the seat; a different file
+would run when a different occupant (human via UI, external service
+via adapter) fills the seat. The seat persists; occupants rotate
+(FOUNDATIONS Derived Principle 14).
+
+Role vs. occupant in two sentences:
+- **The Reviewer seat** is the judgment-layer role — substrate-expressed
+  at `/workspace/review/`, canonical in `docs/architecture/reviewer-substrate.md`.
+- **This module** is an occupant implementation — swappable, not
+  architectural. Renaming or replacing this file does not change the
+  architecture; it changes which occupant class is currently available.
+
+What this occupant does:
 Fills the Reviewer seat when policy permits auto-handling. Reads the
 operator's declared framework (`/workspace/review/principles.md`), the
 domain's accumulated track record (`/workspace/context/{domain}/
 _performance.md`), and the proposed action, then reasons in capital-EV
-terms to return `approve | reject | defer`.
+terms to return `approve | reject | defer`. Output is a verdict, not an
+artifact — judgment-layer output shape (see THESIS "Vocabulary:
+production layers vs. judgment layers").
 
 Per FOUNDATIONS v6.0:
-- Axiom 2 (Identity): this is an `ai:reviewer-sonnet-v1` identity
-  filling the seat the human normally fills.
-- Axiom 3 (Purpose): independent judgment gating proposed writes.
+- Axiom 2 (Identity): this occupant is tagged `ai:reviewer-sonnet-v1`
+  and fills the seat the human occupant normally fills. Principle 14:
+  identical seat, different occupant.
+- Axiom 3 (Purpose): independent judgment gating proposed writes — the
+  fiduciary function, not production.
 - Axiom 4 (Trigger): reactive — invoked by `review_proposal_dispatch`
-  after proposal creation.
+  after proposal creation. Distinct from addressed (chat) and periodic
+  (cron) triggers that production-layer entities use.
 - Axiom 5 (Mechanism): mixed — Sonnet with tight structural contract;
   output shape is declared (tool use forces approve/reject/defer),
   content is judged.
 - Axiom 6 (Channel): decision writes to `decisions.md` via
   `append_decision` (Stream archetype per ADR-198).
 - Axiom 8 (Money-Truth): reasons against `_performance.md` rolling
-  windows (ADR-195 Phase 3) — capital-EV is floor ceiling.
+  windows (ADR-195 Phase 3) — capital-EV is the reasoning posture.
+
+On the `thinking_partner`-class designation:
+This occupant shares the `thinking_partner` capability class with
+YARNNN itself at the LLM-invocation level (both reason meta-cognitively
+with Sonnet). This is a shared *capability class*, not a shared *layer
+class*. YARNNN is a production-layer entity (composes, scaffolds,
+writes memory); this occupant is a judgment-layer occupant (renders
+verdicts). The architectural distinction is expressed through scope,
+substrate, trigger, and development axis — not through a separate
+`AGENT_TEMPLATES` entry. See docs/architecture/THESIS.md §"Vocabulary"
+and docs/architecture/reviewer-substrate.md §"Review orchestration
+vs. reviewer entity — the split".
 
 Cost ceiling: ~1–2K tokens per review (small prompt + 3 short files +
 structured tool output). Metered via `token_usage` ledger per ADR-171.
@@ -36,8 +70,11 @@ from services.platform_limits import record_token_usage
 logger = logging.getLogger(__name__)
 
 
-#: Model identity persisted on action_proposals.reviewer_identity for
-#: decisions reached by this agent. Bumped when prompt/model changes.
+#: Occupant identity string persisted on action_proposals.reviewer_identity
+#: and on decisions.md entries when this occupant fills the Reviewer seat.
+#: Identifies the CURRENT OCCUPANT CLASS (AI, Sonnet-backed, version 1) —
+#: not the seat itself. The seat is identified structurally by the filesystem
+#: home `/workspace/review/`. Bumped when prompt/model changes materially.
 REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v1"
 
 #: Model slug passed to Anthropic. Keep parallel to REVIEWER_MODEL_IDENTITY.
