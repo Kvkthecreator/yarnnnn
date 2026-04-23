@@ -733,7 +733,7 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
-    // Data & Privacy — ADR-122 Phase 5: workspace-aware purge
+    // Data & Privacy — ADR-122 Phase 5 + 2026-04-24 streamline (docs/features/data-privacy.md Phase 5)
     getDangerZoneStats: () =>
       request<{
         workspace_files: number;
@@ -743,6 +743,8 @@ export const api = {
         platform_connections: number;
         platform_context_files: number;
         agent_runs: number;
+        // ADR-194 Reviewer queue — pending proposals surfaced for L2/L4 confirmation copy
+        action_proposals: number;
       }>("/api/account/danger-zone/stats"),
 
     // L1: Clear work history (docs/features/data-privacy.md). Lightest

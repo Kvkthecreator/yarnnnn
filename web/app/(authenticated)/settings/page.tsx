@@ -41,6 +41,9 @@ interface DangerZoneStats {
   platform_context_files: number;
   // Phase 3 (L1): count of past task runs — drives the "Clear Work History" card.
   agent_runs: number;
+  // ADR-194 Reviewer queue — pending proposals; surfaced so L2/L4 confirmation
+  // copy can tell the user what gets discarded.
+  action_proposals: number;
 }
 
 interface NotificationPreferences {
@@ -588,12 +591,12 @@ export default function SettingsPage() {
                         Clear Workspace
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Delete {dangerStats.agents} agents, {dangerStats.workspace_files} workspace files, and all activity
+                        Delete {dangerStats.agents} agents, {dangerStats.workspace_files} workspace files, {dangerStats.action_proposals} pending proposals, and all activity
                       </div>
                     </div>
                     <button
                       onClick={() => initiateDangerAction("workspace")}
-                      disabled={dangerStats.workspace_files === 0 && dangerStats.agents === 0}
+                      disabled={dangerStats.workspace_files === 0 && dangerStats.agents === 0 && dangerStats.action_proposals === 0}
                       className="px-4 py-2 text-orange-700 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-md text-sm font-medium hover:bg-orange-50 dark:hover:bg-orange-950/40 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Clear

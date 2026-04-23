@@ -66,6 +66,10 @@ class DangerZoneStats(BaseModel):
     # ADR-166 / Phase 3: count of past task runs (work history). Sum of
     # `agent_runs` rows. Drives the L1 "Clear Work History" card stats.
     agent_runs: int
+    # ADR-194 Reviewer queue — pending proposals the user has in flight.
+    # Surfaced so Clear Workspace / Full Reset confirmation copy can tell
+    # the user what will be discarded.
+    action_proposals: int
 
 
 class OperationResult(BaseModel):
@@ -176,6 +180,39 @@ def _count_workspace_pattern(client, user_id: str, like_pattern: str) -> int:
         )
         return result.count or 0
     except Exception:
+        return 0
+
+
+def _delete_workspace_file_versions_by_path(client, user_id: str, path_prefix: str) -> int:
+    """Delete workspace_file_versions rows under a path prefix. ADR-209 keys
+    the revision chain by `(user_id, path)` directly — no FK to workspace_files
+    — so path-based scoping is the correct delete criterion. Used by L3
+    (platform disconnect) so that disconnecting a platform also wipes the
+    Authored Substrate revision chain under the platform-owned context
+    directory.
+    """
+    try:
+        count_result = (
+            client.table("workspace_file_versions")
+            .select("*", count="exact")
+            .eq("user_id", user_id)
+            .like("path", f"{path_prefix}%")
+            .execute()
+        )
+        count = count_result.count or 0
+        if count > 0:
+            (
+                client.table("workspace_file_versions")
+                .delete()
+                .eq("user_id", user_id)
+                .like("path", f"{path_prefix}%")
+                .execute()
+            )
+        return count
+    except Exception as e:
+        logger.warning(
+            f"[ACCOUNT] workspace_file_versions delete failed (prefix={path_prefix}): {e}"
+        )
         return 0
 
 
@@ -331,6 +368,9 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         # Phase 3: count of past task runs (drives the L1 "Clear Work History" card).
         agent_runs = _count_user_agent_runs(client, user_id)
 
+        # ADR-194 Reviewer queue — in-flight proposals
+        action_proposals = _count_rows(client, "action_proposals", user_id, optional=True)
+
         return DangerZoneStats(
             workspace_files=workspace_files,
             agents=agents,
@@ -339,6 +379,7 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             platform_connections=platform_connections,
             platform_context_files=platform_context_files,
             agent_runs=agent_runs,
+            action_proposals=action_proposals,
         )
     except Exception as e:
         logger.error(f"[ACCOUNT] Failed to get danger zone stats: {e}")
@@ -424,24 +465,36 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
 @router.delete("/account/workspace")
 async def clear_workspace(auth: UserClient) -> OperationResult:
     """
-    Clear all workspace data, then re-scaffold the workspace to a fresh-account state.
+    L2 — Clear all workspace data, then re-scaffold the workspace to a fresh-account state.
 
-    Purge:
+    Purge (current post-flip schema):
+    - workspace_file_versions (ADR-209 authored substrate revision chain — MUST
+      wipe before workspace_files since revisions reference files)
     - workspace_files (all paths — agents, context, tasks, memory)
+    - tasks table (including essential tasks — they are re-scaffolded below)
     - agents table (cascades agent_runs, export_log)
-    - tasks table (including the three essential tasks — they are re-scaffolded below)
+    - action_proposals (ADR-194 Reviewer queue — prior proposals must not
+      survive a workspace reset)
     - chat_sessions (cascades session_messages)
-    - work_credits, activity_log, agent_proposals, agent_context_log
-    - filesystem_documents (cascades filesystem_chunks)
+    - activity_log (remaining diagnostic events per ADR-164)
+    - filesystem_documents (cascades filesystem_chunks via FK)
     - notifications
+    - event_trigger_log (ADR-040 cooldown tracking)
     - mcp_oauth_codes/access_tokens/refresh_tokens (MCP sessions)
 
+    Preserved (L2 invariant):
+    - platform_connections (user should not re-OAuth on a workspace reset)
+    - user_admin_flags (admin identity survives workspace wipe — L4 only)
+    - user_notification_preferences (email prefs survive workspace wipe)
+    - token_usage (billing ledger — L4 only, never L2)
+
     Reinit (transactional — same endpoint, not deferred to next page load):
-    - Full workspace initialization via `initialize_workspace()`:
-      * YARNNN agent row (ADR-205 — sole infrastructure scaffolded at signup;
-        Specialists + Platform Bots lazy-create on first dispatch / OAuth connect)
-      * Context domain folders (ADR-151/152)
-      * Workspace seed files (IDENTITY.md, BRAND.md, AWARENESS.md, _playbook.md)
+    - Full workspace initialization via `initialize_workspace()` per ADR-205:
+      * YARNNN agent row (sole infrastructure scaffolded at signup;
+        Specialists lazy-create on first dispatch, Platform Bots via ADR-207
+        are capability bundles bound to platform_connections, not agent rows)
+      * Reviewer substrate at /workspace/review/ (ADR-194 seven files)
+      * _shared/ workspace context (IDENTITY, BRAND, CONVENTIONS per ADR-206)
       * Essential tasks (ADR-161 daily-update + ADR-164 back office tasks)
 
     The reinit is *not* optional. A workspace without the essential task set is
@@ -456,20 +509,21 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         client = get_service_client()
 
         # --- Phase 1: Purge ---
+        # ADR-209 authored substrate revisions MUST delete before workspace_files
+        # (FK on workspace_file_versions.file_id → workspace_files.id with no cascade).
+        deleted["workspace_file_versions"] = _delete_rows(client, "workspace_file_versions", user_id)
+
         # Workspace filesystem — the primary data store
         deleted["workspace_files"] = _delete_workspace_files(client, user_id)
 
-        # Relational tables that reference agents/tasks
+        # Relational tables referencing agents/tasks
         deleted["tasks"] = _delete_rows(client, "tasks", user_id, optional=True)
         deleted["agents"] = _delete_rows(client, "agents", user_id)
-        deleted["agent_proposals"] = _delete_rows(client, "agent_proposals", user_id, optional=True)
-        deleted["agent_context_log"] = _delete_rows(client, "agent_context_log", user_id, optional=True)
-        deleted["work_credits"] = _delete_rows(client, "work_credits", user_id, optional=True)
+        # ADR-194 Reviewer proposal queue — prior proposals must not survive reset
+        deleted["action_proposals"] = _delete_rows(client, "action_proposals", user_id)
         deleted["chat_sessions"] = _delete_rows(client, "chat_sessions", user_id)
         deleted["activity_log"] = _delete_rows(client, "activity_log", user_id)
-        deleted["user_interaction_patterns"] = _delete_rows(client, "user_interaction_patterns", user_id, optional=True)
         deleted["event_trigger_log"] = _delete_rows(client, "event_trigger_log", user_id, optional=True)
-        deleted["trigger_event_log"] = _delete_rows(client, "trigger_event_log", user_id, optional=True)
         # Uploaded documents (filesystem_documents + chunks cascade from FK)
         deleted["filesystem_documents"] = _delete_rows(client, "filesystem_documents", user_id, optional=True)
         # Notifications scoped to this user
@@ -532,7 +586,14 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
         they are platform-agnostic
       - Canonical context domains under `/workspace/context/` owned by
         Specialists — unchanged by platform disconnect
-      - IDENTITY.md / BRAND.md / AWARENESS.md / _playbook.md
+      - _shared/ context (IDENTITY.md / BRAND.md / CONVENTIONS.md per ADR-206)
+
+    ADR-207 P4a: Platform Bots are NOT agent rows — they're capability bundles
+    bound to active platform_connections. Disconnect = delete connection row,
+    no bot to pause. Migration 157 dropped stale bot rows once.
+
+    ADR-209: workspace_file_versions rows under platform-owned paths must
+    wipe alongside the files (no cascade on that FK).
     """
     user_id = auth.user_id
     deleted: dict[str, int] = {}
@@ -542,24 +603,21 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
 
         # --- Sync state ---
         deleted["export_log"] = _delete_rows(client, "export_log", user_id)
-        # ADR-156: integration_import_jobs table dropped (migration 139)
         deleted["sync_registry"] = _delete_rows(client, "sync_registry", user_id)
         deleted["integration_sync_config"] = _delete_rows(client, "integration_sync_config", user_id)
-        # ADR-153: platform_content table dropped
-        deleted["slack_user_cache"] = _delete_rows(client, "slack_user_cache", user_id, optional=True)
 
         # --- Platform-owned context directories (ADR-158) ---
-        # Each platform bot owns exactly one temporal directory. Deleting here
-        # removes all per-source subfolders (channels, pages, repos) and their
-        # _tracker.md files in one shot.
+        # Each platform bot (as capability bundle per ADR-207) owns exactly one
+        # temporal directory. Deleting here removes all per-source subfolders
+        # (channels, pages, repos) and their _tracker.md files in one shot.
+        # ADR-209: delete revisions under these paths first (FK order).
         context_files_deleted = 0
+        revision_files_deleted = 0
         for platform_dir in ("/workspace/context/slack/", "/workspace/context/notion/", "/workspace/context/github/"):
+            revision_files_deleted += _delete_workspace_file_versions_by_path(client, user_id, platform_dir)
             context_files_deleted += _delete_workspace_files(client, user_id, platform_dir)
+        deleted["workspace_file_versions_platform"] = revision_files_deleted
         deleted["platform_context_files"] = context_files_deleted
-
-        # ADR-207 P4a: Platform Bots dissolved — no bot agent rows to delete.
-        # Migration 157 drops any stale bot rows once; new disconnects
-        # just clear the platform_connections row.
 
         # --- Platform connections last (other tables may reference them) ---
         deleted["platform_connections"] = _delete_rows(client, "platform_connections", user_id)
@@ -582,14 +640,29 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
 @router.delete("/account/reset")
 async def full_account_reset(auth: UserClient) -> OperationResult:
     """
-    Full account reset: delete all user data, keep auth account active.
+    L4 — Full account reset: delete all user data, keep auth account active.
 
     Purges every user-scoped table + workspace_files + MCP OAuth state, recreates
     the `workspaces` row, then synchronously re-scaffolds the workspace via
     `initialize_workspace()` so the endpoint returns with the fresh-account
-    invariants intact (roster, context domains, seed files, essential tasks).
+    invariants intact (roster, Reviewer substrate, seed files, essential tasks).
 
     See `clear_workspace` for the reasoning on why reinit is transactional.
+
+    Current (post-flip) purge set:
+      - ADR-209 Authored Substrate: workspace_file_versions (revision chain) +
+        workspace_files (content). Revisions delete first — no FK cascade.
+      - ADR-194 Reviewer queue: action_proposals. user_admin_flags preserved
+        only when operator is a platform admin; L4 deliberately wipes it so
+        a reset is a true fresh start.
+      - Task / agent state: tasks, agents, agent_runs (cascaded from agents).
+      - Interaction: chat_sessions (cascades session_messages), activity_log,
+        notifications, token_usage (ADR-171 ledger).
+      - Integrations: platform_connections, sync_registry, integration_sync_config,
+        export_log, destination_delivery_log, event_trigger_log.
+      - Uploads: filesystem_documents (cascades filesystem_chunks).
+      - MCP: mcp_oauth_codes / _access_tokens / _refresh_tokens.
+      - Prefs: user_notification_preferences.
     """
     user_id = auth.user_id
     deleted: dict[str, int] = {}
@@ -598,6 +671,9 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         client = get_service_client()
 
         # --- Phase 1: Purge ---
+        # ADR-209 authored substrate revisions MUST delete before workspace_files
+        deleted["workspace_file_versions"] = _delete_rows(client, "workspace_file_versions", user_id)
+
         # All workspace files — the primary data store
         deleted["workspace_files"] = _delete_workspace_files(client, user_id)
 
@@ -605,38 +681,29 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         tables = [
             "activity_log",
             "chat_sessions",
-            "agent_proposals",
+            "action_proposals",           # ADR-194 Reviewer queue
             "tasks",
-            "agents",
+            "agents",                     # cascades agent_runs
             "destination_delivery_log",
             "event_trigger_log",
             "export_log",
-            "filesystem_documents",
-            # "integration_import_jobs" — dropped (migration 139)
+            "filesystem_documents",       # cascades filesystem_chunks via FK
             "integration_sync_config",
             "notifications",
             "platform_connections",
-            "project_resources",
             "sync_registry",
-            "agent_context_log",
-            "user_interaction_patterns",
-            # "user_memory" — dropped by migration 151 (ADR-196)
+            "token_usage",                # ADR-171 universal billing ledger
+            "user_admin_flags",           # ADR-194 v2 Phase 2b admin scope
             "user_notification_preferences",
-            "user_platform_styles",
-            "work_credits",
         ]
         for table in tables:
-            deleted[table] = _delete_rows(client, table, user_id, optional=True)
-
-        # Optional tables
-        for table in ("trigger_event_log", "slack_user_cache"):
             deleted[table] = _delete_rows(client, table, user_id, optional=True)
 
         # MCP OAuth tables
         for table in ("mcp_oauth_codes", "mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
             deleted[table] = _delete_rows(client, table, user_id, optional=True)
 
-        # Reset workspace to default
+        # Reset workspace row to default
         deleted["workspaces"] = _delete_rows(client, "workspaces", user_id, user_column="owner_id")
         client.table("workspaces").insert({
             "name": "My Workspace",
@@ -684,7 +751,9 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
     try:
         service_client = get_service_client()
 
-        # Best-effort: delete workspace_files and MCP oauth before auth cascade
+        # Best-effort: delete workspace_files + revisions + MCP oauth before auth cascade
+        # (ADR-209 revision rows are not FK-cascaded from auth.users — wipe explicitly).
+        deleted["workspace_file_versions"] = _delete_rows(service_client, "workspace_file_versions", user_id, optional=True)
         deleted["workspace_files"] = _delete_workspace_files(service_client, user_id)
         for table in ("mcp_oauth_codes", "mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
             deleted[table] = _delete_rows(service_client, table, user_id, optional=True)

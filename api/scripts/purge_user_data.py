@@ -6,26 +6,33 @@ Usage:
     cd /Users/macbook/yarnnn/api
     python scripts/purge_user_data.py <email> [--dry-run]
 
-This gives a TRUE cold-start:
-1. Delete workspace_files (Axiom 1 substrate — IDENTITY, MANDATE, context
-   domains, task charters, /workspace/review/, agent workspaces, etc.)
-2. Delete workspace_file_versions (Authored Substrate revision chain)
-3. Delete action_proposals (pending + historical proposals)
-4. Delete tasks
-5. Delete agents + agent_runs
-6. Delete chat_sessions (cascades session_messages)
-7. Delete platform_connections (OAuth tokens)
-8. Delete token_usage rows (billing/audit ledger)
-9. Delete notifications
+This gives a TRUE cold-start. Wipe order (FK-safe):
+1. workspace_file_versions (ADR-209 Authored Substrate revisions — delete
+   before workspace_files; no FK cascade on (user_id, path))
+2. workspace_files (Axiom 1 substrate — IDENTITY, MANDATE, context domains,
+   task charters, /workspace/review/, agent workspaces)
+3. action_proposals (ADR-194 Reviewer queue)
+4. tasks (ADR-138)
+5. agents + agent_runs (cascaded via agent_id)
+6. chat_sessions (cascades session_messages — ADR-125)
+7. platform_connections (OAuth tokens)
+8. token_usage (ADR-171 billing ledger)
+9. notifications (ADR-041)
+10. filesystem_documents (ADR-142 uploads — chunks cascade via FK)
+11. user_admin_flags (ADR-194 v2 Phase 2b impersonation scope)
+12. activity_log
 
 NOT deleted (intentional):
 - auth.users row — keep the login; we just wipe their workspace state
-- workspace row itself — balance + signup audit preserved (per ADR-172)
-- Historical agent_runs once agents are gone are orphaned but harmless
+- workspaces row itself — balance + signup audit preserved (ADR-172)
+- balance_transactions ledger — lifecycle audit, signup grant idempotency
+- user_notification_preferences — email prefs survive workspace wipe
+  (the account-level reset at Settings L4 handles them)
 
 After purge, next login should trigger workspace_init which scaffolds the
-post-LAYER-MAPPING-flip substrate (YARNNN + Reviewer seat + 7 review files
-at /workspace/review/).
+post-LAYER-MAPPING-flip substrate: YARNNN agent row + Reviewer substrate
+at /workspace/review/ (seven files) + _shared/ context skeleton + essential
+tasks (daily-update + back-office set per ADR-161/164).
 
 WARNING: This is destructive and cannot be undone!
 """
@@ -68,9 +75,13 @@ def get_user_id_by_email(client, email: str) -> Optional[str]:
 
 
 def _count(client, table: str, user_id: str, column: str = "user_id") -> int:
-    """Return row count for table where column == user_id."""
+    """Return row count for table where column == user_id.
+
+    Uses `*` rather than a specific column so it works for tables without an
+    `id` surrogate key (e.g. `user_admin_flags` is PK'd on `user_id`).
+    """
     try:
-        result = client.table(table).select("id", count="exact").eq(column, user_id).limit(1).execute()
+        result = client.table(table).select("*", count="exact", head=True).eq(column, user_id).execute()
         return result.count or 0
     except Exception as e:
         print(f"   (count failed for {table}: {e})")
@@ -123,17 +134,13 @@ def purge_user_data(email: str, dry_run: bool = False):
     print(f"   {n} workspace files")
 
     # ──────────────────────────────────────────────────────────────────────
-    # 2. Proposals + outcomes (ADR-193 + ADR-195)
+    # 2. Proposals (ADR-194 — Reviewer queue)
     # ──────────────────────────────────────────────────────────────────────
+    # ADR-195 v2 migrated outcomes out of SQL onto the filesystem
+    # (_performance.md per domain) — no action_outcomes table to wipe.
     print(f"🗑️  {label} action_proposals...")
     n = _delete(client, "action_proposals", user_id, dry_run=dry_run)
     print(f"   {n} proposals")
-
-    # action_outcomes — ADR-195 v2 substrate-migrated; table may exist
-    # historically. Attempt delete but don't block on failure.
-    print(f"🗑️  {label} action_outcomes (legacy ADR-195 v1 — may not exist)...")
-    n = _delete(client, "action_outcomes", user_id, dry_run=dry_run)
-    print(f"   {n} outcomes (0 expected post-ADR-195-v2)")
 
     # ──────────────────────────────────────────────────────────────────────
     # 3. Tasks (ADR-138)
@@ -187,10 +194,6 @@ def purge_user_data(email: str, dry_run: bool = False):
     n = _delete(client, "token_usage", user_id, dry_run=dry_run)
     print(f"   {n} token usage rows")
 
-    print(f"🗑️  {label} render_usage (render-service tier limits)...")
-    n = _delete(client, "render_usage", user_id, dry_run=dry_run)
-    print(f"   {n} render usage rows")
-
     # ──────────────────────────────────────────────────────────────────────
     # 8. Notifications (ADR-041)
     # ──────────────────────────────────────────────────────────────────────
@@ -199,18 +202,21 @@ def purge_user_data(email: str, dry_run: bool = False):
     print(f"   {n} notifications")
 
     # ──────────────────────────────────────────────────────────────────────
-    # 9. Documents (ADR-142 uploads)
+    # 9. Uploaded documents (ADR-142 — chunks cascade via FK)
     # ──────────────────────────────────────────────────────────────────────
-    print(f"🗑️  {label} filesystem_documents (uploaded docs)...")
+    print(f"🗑️  {label} filesystem_documents (uploaded docs — chunks cascade)...")
     n = _delete(client, "filesystem_documents", user_id, dry_run=dry_run)
     print(f"   {n} documents")
 
-    print(f"🗑️  {label} filesystem_chunks (doc embeddings)...")
-    n = _delete(client, "filesystem_chunks", user_id, dry_run=dry_run)
-    print(f"   {n} chunks")
+    # ──────────────────────────────────────────────────────────────────────
+    # 10. Admin flags (ADR-194 v2 Phase 2b — impersonation scope)
+    # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} user_admin_flags...")
+    n = _delete(client, "user_admin_flags", user_id, dry_run=dry_run)
+    print(f"   {n} admin flag rows")
 
     # ──────────────────────────────────────────────────────────────────────
-    # 10. Activity log
+    # 11. Activity log
     # ──────────────────────────────────────────────────────────────────────
     print(f"🗑️  {label} activity_log...")
     n = _delete(client, "activity_log", user_id, dry_run=dry_run)

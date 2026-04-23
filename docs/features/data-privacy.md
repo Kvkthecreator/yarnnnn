@@ -1,7 +1,7 @@
 # Data & Privacy — Purge Layering & Workspace Reinit
 
 > **Surface**: Settings → Account tab ("Data & Privacy" section)
-> **Status**: Layered model fully shipped. All five layers (L1–L5) live in production. The purge thread is closed.
+> **Status**: Layered model fully shipped. All five layers (L1–L5) live in production. Post-flip streamline pass landed 2026-04-24 — purge coverage now matches the post-ADR-194/205/206/207/209 schema. The purge thread is closed.
 > **History**: This doc lived at `docs/design/PURGE-LAYERING.md` through Phases 1–3 and was moved to `docs/features/data-privacy.md` in Phase 4 (2026-04-09) — it belongs with user-facing feature docs, not architectural design notes, now that the design is stable and shipped. It also supersedes the stale archived `docs/features/previous_versions/data-privacy.md` (deleted in the same commit).
 >
 > **Phase 1** (commit 16c7f0e, 2026-04-08): Transactional reinit on L2/L4 + ADR-158 platform context cleanup + OAuth bot reactivation. Fixed the latent correctness bug where post-purge workspace state depended on a lazy `/onboarding-state` race window.
@@ -10,9 +10,11 @@
 >
 > **Phase 3** (commit f3068a3, 2026-04-08): L1 endpoint shipped — `DELETE /account/work-history` with the "Clear Work History" Settings card. Reassessment after Phase 2 found that all three "blockers" the memo claimed for L1 were already resolved: (1) the per-user, per-path `workspace_files` purge primitive already exists in `back_office/workspace_cleanup.py`, (2) the `agent_runs → task_runs` rename has no commit timeline so L1 references the table as it exists today, (3) ADR-164 already removed task-lifecycle events from `activity_log` so L1 has nothing to delete there.
 >
-> **Phase 4** (this commit, 2026-04-09): Doc move only. No code changes. `docs/design/PURGE-LAYERING.md` → `docs/features/data-privacy.md`; stale archived `docs/features/previous_versions/data-privacy.md` deleted (superseded by this doc); inbound references in `account.py` and `client.ts` updated to the new path.
+> **Phase 4** (commit f90f3b4 lineage, 2026-04-09): Doc move only. No code changes. `docs/design/PURGE-LAYERING.md` → `docs/features/data-privacy.md`; stale archived `docs/features/previous_versions/data-privacy.md` deleted (superseded by this doc); inbound references in `account.py` and `client.ts` updated to the new path.
 >
-> **Related ADRs**: ADR-140 (roster), ADR-151/152 (directory registry), ADR-153 (platform_content sunset), ADR-158 (platform bot ownership), ADR-161 (daily-update anchor), ADR-164 (back office tasks), ADR-166 (output_kind taxonomy — the axis L1 slices on), ADR-167 (list/detail surfaces — `/work` is a meaningful post-purge landing).
+> **Phase 5** (this commit, 2026-04-24): **Post-flip streamline pass.** Several ADR waves landed since Phase 4 — ADR-194 (Reviewer + `action_proposals`), ADR-205 (workspace scaffold collapse to YARNNN-only), ADR-206 (`_shared/` relocation), ADR-207 P4a (Platform Bots dissolve into capability bundles — no agent rows), ADR-209 (Authored Substrate `workspace_file_versions`). None of the new tables were in the purge paths. Streamline adds `workspace_file_versions` + `action_proposals` + `user_admin_flags` + `token_usage` to the right layers; deletes dead references (`work_credits`, `project_resources`, `agent_proposals`, `agent_context_log`, `user_interaction_patterns`, `trigger_event_log`, `user_platform_styles`, `slack_user_cache`, `action_outcomes`, `render_usage`, `filesystem_chunks.user_id`); adds `action_proposals` count to `DangerZoneStats`; rewrites the confirmation copy on the L2 card. Harness script `api/scripts/purge_user_data.py` receives the same pass (no functional shim — singular implementation, one canonical table set across prod routes + harness).
+>
+> **Related ADRs**: ADR-194 (Reviewer + `action_proposals`), ADR-205 (scaffold collapse), ADR-206 (`_shared/`), ADR-207 (Platform Bots as capabilities), ADR-209 (Authored Substrate), ADR-161 (daily-update anchor), ADR-164 (back office tasks), ADR-166 (output_kind taxonomy — the axis L1 slices on), ADR-167 (list/detail surfaces — `/work` is a meaningful post-purge landing). Historical: ADR-140 (original roster — superseded by ADR-205), ADR-151/152 (directory registry), ADR-153 (platform_content sunset), ADR-158 (platform bot ownership — superseded by ADR-207 P4a).
 
 ## The problem this memo exists to preserve
 
@@ -38,30 +40,52 @@ Three narrow fixes. Singular implementation, no dual paths:
 4. **`DangerZoneStats` field cleanup.**
    `platform_content` (a dropped table, ADR-153) → `platform_context_files` (a real count from `/workspace/context/{slack,notion,github}/` prefixes). Frontend types + settings page UI + confirmation copy all updated in the same commit.
 
+## Post-flip purge architecture (current, 2026-04-24)
+
+ADRs 194 / 205 / 207 / 209 moved the invariants. The table rows below reflect
+the **current** post-LAYER-MAPPING-flip world. If you arrived via an older
+commit or an older doc, the key shifts are:
+
+- **Workforce at signup collapsed from 9 agents to 1** (ADR-205: YARNNN only).
+  Specialists lazy-create on dispatch; Platform Bots dissolved to capability
+  bundles bound to `platform_connections`, not agent rows (ADR-207 P4a).
+- **Reviewer substrate at `/workspace/review/`** is scaffolded at signup too —
+  seven files per ADR-194 v2, substrate-first (no table, filesystem is the
+  authority).
+- **Workspace context moved to `/workspace/context/_shared/`** (ADR-206):
+  IDENTITY.md / BRAND.md / CONVENTIONS.md no longer at workspace root.
+- **Authored Substrate** (ADR-209): every content-layer write produces a
+  `workspace_file_versions` revision. Purges must wipe the revision chain
+  before the files (no FK cascade).
+- **Reviewer proposal queue** (ADR-194): `action_proposals` table must wipe
+  on L2 / L4 — prior proposals must not survive a workspace reset.
+
 ## What the 4 purge actions now guarantee
 
 | Action | Purges | Reinit | Preserves |
 |---|---|---|---|
-| **Clear Workspace** | agents, tasks, workspace_files, chat, activity, work_credits | Full `initialize_workspace()`: 9 agents, seed files, 3 essential tasks | platform_connections (so user doesn't re-OAuth) |
-| **Disconnect Platforms** | sync state, `/workspace/context/{slack,notion,github}/`, platform_connections | Pauses platform bots (reconnect flips back to active) | Specialists, accumulated context domains, IDENTITY/BRAND, all tasks including essential ones |
-| **Full Data Reset** | Everything user-scoped + workspaces row | Recreates workspaces row, then full `initialize_workspace()` | Nothing (auth user only) |
-| **Deactivate** | Auth user (cascades everything) | N/A (account gone) | Nothing |
+| **Clear Work History (L1)** | `agent_runs` · `/tasks/%/outputs/%` files · `/tasks/%/memory/_run_log.md` | None — invariants untouched | Tasks, agents, identity, accumulated context, chat, integrations |
+| **Clear Workspace (L2)** | `workspace_file_versions` + `workspace_files`, agents, tasks, chat, activity, `action_proposals`, event_trigger_log, filesystem_documents, notifications, MCP OAuth | Full `initialize_workspace()`: YARNNN + Reviewer substrate + `_shared/` context + essential tasks | `platform_connections` (user doesn't re-OAuth) · `user_admin_flags` · `user_notification_preferences` · `token_usage` billing ledger |
+| **Disconnect Platforms (L3)** | sync state, `/workspace/context/{slack,notion,github}/` (files **and** revisions), `platform_connections`, `export_log` | None (platform bots are not rows — reconnecting re-enables capabilities automatically) | YARNNN, specialists, user Agents, canonical context domains, `_shared/`, all tasks |
+| **Full Data Reset (L4)** | Everything user-scoped + `workspaces` row + MCP OAuth + `token_usage` + `user_admin_flags` + `user_notification_preferences` | Recreates `workspaces` row, then full `initialize_workspace()` | Nothing (auth user only) |
+| **Deactivate (L5)** | `workspace_file_versions` + `workspace_files` + MCP OAuth pre-wipe, then auth user delete cascades the rest | N/A (account gone) | Nothing |
 
-### Invariants that now hold post-purge
+### Invariants that hold post-purge
 
-For `clear_workspace` / `full_account_reset`, the endpoint returns only when all of these are true:
+For `clear_workspace (L2)` / `full_account_reset (L4)`, the endpoint returns only when all of these are true:
 
-- 9 agents exist (6 specialists + 3 platform bots, per DEFAULT_ROSTER — ADR-176)
-- Seed workspace files (IDENTITY.md, BRAND.md, etc.) — context domain directories created on demand by work, not at signup
-- IDENTITY.md / BRAND.md / AWARENESS.md / _playbook.md / style.md / notes.md / WORKSPACE.md seeded
-- Three essential tasks exist: `daily-update`, `back-office-agent-hygiene`, `back-office-workspace-cleanup`
+- Exactly **1 agent row** exists: YARNNN (`role='thinking_partner'`, `origin='system_bootstrap'`, per ADR-205). Specialists are not rows at signup; they lazy-create on first dispatch.
+- Reviewer substrate exists at `/workspace/review/` (seven canonical files per ADR-194 v2 workspace_init Phase 4: IDENTITY.md, OCCUPANT.md, principles.md, modes.md, decisions.md, handoffs.md, calibration.md).
+- `_shared/` skeleton exists at `/workspace/context/_shared/` (IDENTITY.md, BRAND.md, CONVENTIONS.md, MANDATE.md — ADR-206 + ADR-207).
+- Essential tasks exist: `daily-update` (ADR-161) + `back-office-agent-hygiene` + `back-office-workspace-cleanup` + `back-office-outcome-reconciliation` (ADR-164 + ADR-195 v2).
 
-For `clear_integrations`:
+For `clear_integrations (L3)`:
 
-- All 9 agents still exist (platform bots paused, not deleted)
-- Canonical context domains untouched
-- Essential tasks untouched
-- Reconnect flow will reactivate paused bots automatically
+- YARNNN + specialists + user-authored Agents all still exist.
+- `_shared/` untouched.
+- Canonical context domains (non-platform) untouched.
+- Essential tasks untouched.
+- Platform Bots were never agent rows — they're capability bundles gated by active `platform_connections` per ADR-207 P4a. Reconnecting restores the capability automatically.
 
 ## The layered purge model — fully shipped (L1–L5)
 
@@ -70,10 +94,10 @@ For `clear_integrations`:
 | Layer | Endpoint | Purges | Preserves | Reinit |
 |---|---|---|---|---|
 | **L1** | `DELETE /account/work-history` | All `agent_runs` rows · all `/tasks/%/outputs/%` files · all `/tasks/%/memory/_run_log.md` files | Tasks, agents, identity, accumulated context, chat sessions, platform connections, all per-task learning files (steering, feedback, reflections) | None — invariants untouched |
-| **L2** | `DELETE /account/workspace` | All `workspace_files` · agents · tasks · chat sessions · activity log · work credits · agent proposals | Platform connections | Full `initialize_workspace()`: roster + domains + seed files + 3 essential tasks |
-| **L3** | `DELETE /account/integrations` | `/workspace/context/{slack,notion,github}/` · `platform_connections` · sync state · `slack_user_cache` | Domain stewards, canonical context domains, IDENTITY/BRAND, all tasks | Pauses (does not delete) `slack_bot`/`notion_bot`/`github_bot` agents; OAuth reconnect reactivates |
-| **L4** | `DELETE /account/reset` | Everything user-scoped · `workspaces` row · MCP OAuth tables | Nothing (auth user only) | Recreates `workspaces` row, then full `initialize_workspace()` |
-| **L5** | `DELETE /account/deactivate` | Auth user (cascades all data) | Nothing | N/A |
+| **L2** | `DELETE /account/workspace` | `workspace_file_versions` + `workspace_files` · agents · tasks · chat sessions · activity log · `action_proposals` · event_trigger_log · filesystem_documents · notifications · MCP OAuth | `platform_connections` · `user_admin_flags` · `user_notification_preferences` · `token_usage` | Full `initialize_workspace()`: YARNNN agent + Reviewer substrate + `_shared/` + essential tasks |
+| **L3** | `DELETE /account/integrations` | `/workspace/context/{slack,notion,github}/` (files **and** `workspace_file_versions` under those paths) · `platform_connections` · `sync_registry` · `integration_sync_config` · `export_log` | YARNNN, specialists, user-authored agents, canonical context domains, `_shared/`, all tasks (including essentials) | No agent rows to touch — Platform Bots are capability bundles per ADR-207 P4a; reconnecting restores automatically |
+| **L4** | `DELETE /account/reset` | Everything user-scoped (L2 set + `platform_connections` + `sync_registry` + `export_log` + `destination_delivery_log` + `token_usage` + `user_admin_flags` + `user_notification_preferences`) · `workspaces` row · MCP OAuth tables | Nothing (auth user only) | Recreates `workspaces` row, then full `initialize_workspace()` |
+| **L5** | `DELETE /account/deactivate` | `workspace_file_versions` + `workspace_files` + MCP OAuth pre-wipe, then auth user delete cascades all remaining user-scoped rows | Nothing | N/A |
 
 ### L1 contract — what is and isn't touched
 
@@ -200,7 +224,8 @@ The purge thread is **closed** as of Phase 3. The five-layer model is fully ship
 
 Triggers that would warrant reopening this memo:
 
-- **Any change to `DEFAULT_ROSTER` or the essential task set** (ADR-140 / ADR-161 / ADR-164) — the L2/L4 reinit invariants would shift, and L1's "preserved" set might need to grow if new always-present files are added under `/tasks/{slug}/`.
+- **Any change to the signup scaffold invariants** (ADR-205 YARNNN-only rule · ADR-194 v2 Reviewer substrate · ADR-206 `_shared/` skeleton · ADR-161 daily-update · ADR-164 back-office tasks) — the L2/L4 reinit invariants would shift, and L1's "preserved" set might need to grow if new always-present files are added under `/tasks/{slug}/`.
+- **Any new user-scoped table added to the schema** — purge audit required. Historical misses (ADR-194 `action_proposals` added 2026-04-19, ADR-209 `workspace_file_versions` added 2026-04-23) both went unpurged for weeks before a 2026-04-24 streamline pass. New tables must land with purge coverage in the same commit.
 - **Any new file convention added under `/tasks/{slug}/`** that the L1 contract should preserve. If a future ADR introduces, say, `/tasks/{slug}/memory/notes_for_user.md` or similar, decide whether L1 should keep it (and update the path filter accordingly).
 - **`agent_runs → task_runs` rename**, when it eventually happens. L1 references `agent_runs` directly and will sweep along with every other consumer.
 - **Discovery of a real bug** in any layer's reinit or invariant guarantee during canary observation.
