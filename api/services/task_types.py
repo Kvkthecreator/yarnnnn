@@ -122,7 +122,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from services.agent_registry import AGENT_TYPES
+from services.agent_orchestration import AGENT_TYPES
 
 
 # =============================================================================

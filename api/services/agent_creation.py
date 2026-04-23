@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 VALID_SCOPES = {"platform", "cross_platform", "knowledge", "research", "autonomous"}
 # ADR-130 v2: Valid roles derived from AGENT_TYPES registry + legacy names for DB compat
-from services.agent_registry import AGENT_TYPES, LEGACY_ROLE_MAP
+from services.agent_orchestration import AGENT_TYPES, LEGACY_ROLE_MAP
 VALID_ROLES = set(AGENT_TYPES.keys()) | set(LEGACY_ROLE_MAP.keys()) | {"act"}
 
 # Fallback scope from role (used when infer_scope can't reason about sources)
@@ -167,7 +167,7 @@ async def create_agent_record(
                 ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
                 # ADR-118: Append capability reference for agents that may produce rich outputs
                 agent_md = instructions_text
-                from services.agent_registry import has_asset_capabilities
+                from services.agent_orchestration import has_asset_capabilities
                 if has_asset_capabilities(role):
                     agent_md += "\n\n## Available Capabilities\nThis agent can produce rich outputs via RuntimeDispatch: PNG/SVG charts, diagrams, and images. Use these when visual data or formatted reports would serve the recipient better than plain text."
                 # ADR-154: Coherence protocol removed from agent level — reflections
@@ -176,7 +176,7 @@ async def create_agent_record(
                                summary="Agent identity and behavioral instructions")
 
                 # ADR-143: Seed playbook files from type registry
-                from services.agent_registry import get_type_playbook
+                from services.agent_orchestration import get_type_playbook
                 playbook = get_type_playbook(role)
                 for filename, content in playbook.items():
                     await ws.write(
@@ -316,7 +316,7 @@ async def ensure_infrastructure_agent(
         return existing.data[0]
 
     # Lazy-create from AGENT_TEMPLATES.
-    from services.agent_registry import AGENT_TEMPLATES
+    from services.agent_orchestration import AGENT_TEMPLATES
     template = AGENT_TEMPLATES.get(role)
     if not template:
         logger.warning(f"[ensure_infrastructure_agent] No template for role: {role}")

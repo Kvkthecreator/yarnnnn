@@ -24,7 +24,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from services.supabase import UserClient
-from services.agent_registry import get_agent_class_and_domain
+from services.agent_orchestration import get_agent_class_and_domain
 
 logger = logging.getLogger(__name__)
 

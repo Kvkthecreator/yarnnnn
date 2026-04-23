@@ -157,7 +157,7 @@ Cases where a retired term persists by necessity, and the migration cost exceeds
 | Location | Term that persists | Why |
 |----------|-------------------|-----|
 | `agents.role` DB column value | `thinking_partner` | Migration 142 (ADR-164) locked this value into the constraint. Renaming would require a DB migration with negligible user benefit — the value is never surfaced outside DB internals. |
-| `api/services/agent_registry.py` `ROLE_PULSE_CADENCE` key | `thinking_partner` | Matches DB slug. Internal only. |
+| `api/services/agent_orchestration.py` `ROLE_PULSE_CADENCE` key | `thinking_partner` | Matches DB slug. Internal only. |
 | Historical ADRs (140, 164, 176, 186, etc.) | References to "TP" and "Thinking Partner" | ADRs are historical artifacts. They are not rewritten when terms change; they stand as dated records of the decisions in force at their time. New ADRs supersede them; the supersession is the record. |
 
 All other appearances of retired terms — prompts, active architecture docs, new code, UI strings, marketing — must use replacements.

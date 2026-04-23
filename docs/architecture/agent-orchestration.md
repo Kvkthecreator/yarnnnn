@@ -12,7 +12,7 @@
 > - [registry-matrix.md](registry-matrix.md) — roster table (with ADR-207 P4a/P4b amendment header)
 > - [docs/features/agent-types.md](../features/agent-types.md) — user-facing catalog of agent classes
 >
-> The scope-derivation logic and older role enum (digest/prepare/monitor/research/synthesize/act) retained below for historical reference. Current role values live in `api/services/agent_registry.py` `AGENT_TEMPLATES`. The current classes: `specialist` (Researcher, Analyst, Writer, Tracker, Designer), `synthesizer` (Executive / Reporting), `meta-cognitive` (TP). **Platform-bot class dissolved under ADR-207 P4a.**
+> The scope-derivation logic and older role enum (digest/prepare/monitor/research/synthesize/act) retained below for historical reference. Current role values live in `api/services/agent_orchestration.py` `AGENT_TEMPLATES`. The current classes: `specialist` (Researcher, Analyst, Writer, Tracker, Designer), `synthesizer` (Executive / Reporting), `meta-cognitive` (TP). **Platform-bot class dissolved under ADR-207 P4a.**
 **Related:**
 - [ADR-092: Agent Intelligence & Mode Taxonomy](../adr/ADR-092-agent-intelligence-mode-taxonomy.md) — mode system (preserved as Trigger axis)
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — workspace filesystem, archetype-driven strategies
@@ -316,7 +316,7 @@ Agents develop inward — accumulating domain expertise, not unlocking new capab
 
 There is no seniority system, no promotion flow, no duty expansion. An agent improves by knowing its domain better, not by gaining new tools.
 
-> **ADR-130 supersedes ADR-117 Phase 3**: Seniority levels, role portfolios, duty mechanics, and promotion flow have been removed. `classify_seniority()`, `ROLE_PORTFOLIOS`, and `SKILL_ENABLED_ROLES` in `agent_registry.py` are deleted. See [ADR-130](../adr/ADR-130-html-native-output-substrate.md).
+> **ADR-130 supersedes ADR-117 Phase 3**: Seniority levels, role portfolios, duty mechanics, and promotion flow have been removed. `classify_seniority()`, `ROLE_PORTFOLIOS`, and `SKILL_ENABLED_ROLES` in `agent_orchestration.py` are deleted. See [ADR-130](../adr/ADR-130-html-native-output-substrate.md).
 
 ### Delivery Model — Agents Produce, Projects Deliver
 
@@ -391,7 +391,7 @@ The role defines the natural sensing pace — think personification. A monitor i
 
 "Schedule" means the agent pulses on its configured delivery frequency (daily, weekly, etc.).
 
-Registry: `ROLE_PULSE_CADENCE` in `api/services/agent_registry.py`.
+Registry: `ROLE_PULSE_CADENCE` in `api/services/agent_orchestration.py`.
 Engine: `api/services/agent_pulse.py`.
 
 ### Key separations
@@ -624,8 +624,8 @@ UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'cust
 
 | Concern | Location |
 |---------|----------|
-| This document | `docs/architecture/agent-registry.md` |
-| Agent type registry & pulse cadence | `api/services/agent_registry.py` (ADR-130, ADR-126 Phase 5) |
+| This document | `docs/architecture/agent-orchestration.md` |
+| Agent type registry & pulse cadence | `api/services/agent_orchestration.py` (ADR-130, ADR-126 Phase 5) |
 | Pulse engine | `api/services/agent_pulse.py` (ADR-126) |
 | Discourse & stress-testing | `docs/analysis/agent-taxonomy-first-principles-2026-03-12.md` |
 | Execution strategies | `api/services/execution_strategies.py` |

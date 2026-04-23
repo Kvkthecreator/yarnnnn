@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 RENDER_SERVICE_URL = os.environ.get("RENDER_SERVICE_URL", "https://yarnnn-render.onrender.com")
 
 # ADR-130: Type-scoped capability check replaces role-based SKILL_ENABLED_ROLES
-from services.agent_registry import has_asset_capabilities
+from services.agent_orchestration import has_asset_capabilities
 
 async def _fetch_skill_docs() -> Optional[str]:
     """Fetch SKILL.md content from the output gateway for all available skills.

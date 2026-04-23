@@ -1,30 +1,51 @@
 """
-Agent Registry — Work-First Universal Specialist Model (v5)
+Agent Orchestration — Work-First Universal Specialist Model (v5)
 
 **Renamed from `agent_framework.py` on 2026-04-23** for semantic precision
-under THESIS.md + GLOSSARY.md v1.6. This module is a REGISTRY of production-
-layer type definitions and orchestration metadata — structured data — not a
-FRAMEWORK (which would be runtime machinery). The rename surfaces the
-architectural distinction at the code level; no structural change beyond
-the filename. Content, API, and import-level behavior unchanged.
+under THESIS.md + GLOSSARY.md v1.6 + FOUNDATIONS Principle 7
+(singular implementation). This module is the **production-orchestration-
+layer** canonical module, parallel to `docs/architecture/reviewer-substrate.md`
+which canonizes the judgment layer. "Framework" (the former name) suggested
+runtime machinery, which this file is not. It is the canonical source of
+both PRODUCTION-LAYER TYPE DEFINITIONS and DISPATCH ORCHESTRATION METADATA
+— the two together describe how the production layer gets orchestrated
+through the task pipeline.
 
-Pre-scaffolded production-layer roster. Three sub-registries, three concerns:
-  1. AGENT_TEMPLATES — workforce roster: templates are starting points,
-     AGENT.md is the runtime source of truth for each agent's identity
-  2. CAPABILITIES    — implementation: what each capability resolves to
-  3. RUNTIMES        — infrastructure: where compute happens
+Two concerns under one orchestration-layer roof:
 
-Note on scope under the production-vs-judgment layer framing
-(THESIS.md + reviewer-substrate.md): this registry holds PRODUCTION-layer
-entity definitions (Specialists, YARNNN-as-producer, Platform Bots). It
-also holds JUDGMENT-layer default content for the Reviewer seat
-(DEFAULT_REVIEW_IDENTITY_MD, DEFAULT_REVIEW_PRINCIPLES_MD,
-DEFAULT_REVIEW_MODES_MD, DEFAULT_REVIEW_CALIBRATION_MD). The judgment-
-layer constants live here for registry-level consolidation — they are
-*content* defaults consumed at workspace scaffold time, not *type
-definitions* in the AGENT_TEMPLATES sense. The Reviewer is not a listed
-agent type (per ADR-211 D9 + Option 2 feasibility audit); the seat's
-architectural shape lives in reviewer-substrate.md.
+  **Type definitions** (the WHAT of production-layer orchestration):
+    1. AGENT_TEMPLATES — workforce roster: templates are starting points,
+       AGENT.md is the runtime source of truth for each agent's identity
+    2. CAPABILITIES    — implementation: what each capability resolves to
+    3. RUNTIMES        — infrastructure: where compute happens
+
+  **Dispatch metadata** (the HOW of production-layer orchestration):
+    4. PLAYBOOK_METADATA + TASK_OUTPUT_PLAYBOOK_ROUTING — which rendering
+       playbooks apply to which (agent_type × output_kind) combinations
+    5. Role cadence defaults — scheduling posture per role
+    6. Capability-gate helpers — capability_available(), unavailable_capabilities(),
+       get_capability_requirement()
+
+Both groups are orchestration-layer concerns. Type definitions describe
+*what* production entities exist; dispatch metadata describes *how those
+entities get resolved through the pipeline*. Naming the module
+`agent_orchestration` captures both.
+
+Scope note — Reviewer-seat content defaults (DEFAULT_REVIEW_IDENTITY_MD,
+DEFAULT_REVIEW_PRINCIPLES_MD, DEFAULT_REVIEW_MODES_MD,
+DEFAULT_REVIEW_CALIBRATION_MD): these live here at the workspace-scaffold
+layer as default-content strings consumed by `workspace_init.py`. They
+are NOT type definitions in the AGENT_TEMPLATES sense — the Reviewer is
+a judgment-layer seat, not a listed agent type (per ADR-211 D9 + Option
+2 feasibility audit). The seat's architectural shape lives in
+`reviewer-substrate.md`; only the scaffold-time default content lives here.
+
+History: `agent_framework.py` (original) → `agent_registry.py` (same-day
+intermediate, 2026-04-23 commit 740e414; audit v1 framed it as a registry
+of type definitions) → `agent_orchestration.py` (final, audit v2 same
+day; recognized that "registry" undersells the dispatch metadata also
+contained). Two git-mv operations preserve history through the chain.
+This is the final name for this module.
 
 Three independent axes per agent (ADR-140, ADR-176):
   - Identity (AGENT.md): name, domain, evolves with use

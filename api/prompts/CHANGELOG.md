@@ -6,61 +6,84 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.04.23.5] - Naming alignment: agent_framework → agent_registry
+## [2026.04.23.6] - Naming alignment: agent_framework → agent_orchestration (finalized same day)
 
 Context: after ADR-211 Phase 4 landed and the production-vs-judgment layer
-distinction was canonized (THESIS.md + GLOSSARY.md v1.6 "Vocabulary note:
-Agent and agency-proper"), a naming audit flagged `agent_framework.py` as
-drifted — the module is a REGISTRY of production-layer type definitions
-and orchestration metadata, not a FRAMEWORK (runtime machinery). Rename
-surfaces the architectural distinction at code level under the new
-vocabulary.
+distinction was canonized (THESIS.md §"Vocabulary: production layers vs.
+judgment layers" + GLOSSARY v1.6 "Vocabulary note: Agent and agency-proper"),
+the file `agent_framework.py` was identified as drifted. It is not a
+framework (runtime machinery); it holds production-layer type definitions
+(AGENT_TEMPLATES, CAPABILITIES, RUNTIMES, DEFAULT_REVIEW_*_MD) AND
+orchestration metadata (PLAYBOOK_METADATA, TASK_OUTPUT_PLAYBOOK_ROUTING,
+role-cadence maps, capability-gate helpers).
 
-### Changed
+The session's architectural move was to name each cognitive-layer class
+at the filesystem level:
+- Judgment layer:  `docs/architecture/reviewer-substrate.md`
+- Orchestration (production) layer: `docs/architecture/agent-orchestration.md`
 
-- `api/services/agent_framework.py` → `api/services/agent_registry.py`
-  (git mv, history preserved). Module docstring updated with rename
-  rationale and a note about production-vs-judgment scope (the file holds
-  production-layer definitions + Reviewer-seat *content* defaults, which
-  is a consolidation choice — the Reviewer is not a listed agent type).
-- 25 import sites across 12 files updated via sed:
-  `from services.agent_framework` → `from services.agent_registry`.
+Historical note — same-day correction:
+This rename landed in two passes within one day. Commit `740e414`
+initially renamed `agent_framework.py` → `agent_registry.py` based on a
+first naming audit that focused on the type-registry aspect of the file's
+content. The correction immediately after (this entry's commit) landed
+the final `agent_orchestration.py` name, which captures both the type
+definitions and the dispatch metadata. Both `git mv` operations preserve
+history through the chain `agent_framework.py` → `agent_registry.py` →
+`agent_orchestration.py`. No dual paths remain. The brief `agent_registry`
+intermediate state is a same-day artifact of the audit iteration, visible
+only in `git log`, not in any live code or canon doc.
+
+### Changed (final state — singular implementation)
+
+- `api/services/agent_framework.py` → `api/services/agent_orchestration.py`
+  (via the two-step git mv chain). Module docstring reflects the
+  orchestration-layer framing: the file holds production-layer type
+  definitions AND dispatch orchestration metadata, both of which describe
+  how the orchestration layer resolves production-entity work.
+- 25 import sites across 12 files updated:
+  `from services.agent_framework` → `from services.agent_orchestration`.
   Callers: `agent_creation.py`, `agent_execution.py`, `agent_pipeline.py`,
   `task_pipeline.py`, `workspace_init.py`, `workspace.py`, `task_types.py`,
   `task_derivation.py`, `working_memory.py`, `platform_tools.py`,
   `routes/agents.py`, `test_adr143_methodology_feedback.py`.
-- `docs/architecture/agent-framework.md` → `docs/architecture/agent-registry.md`
-  (same git mv rationale — doc was already marked "partially superseded";
-  rename aligns the artifact name with the current module name it points to).
+- `docs/architecture/agent-framework.md` → `docs/architecture/agent-orchestration.md`
+  (two-step git mv chain, same history preservation).
 - Active canon cross-references updated in
-  `docs/architecture/{GLOSSARY,README,SERVICE-MODEL,primitives-matrix,registry-matrix,task-type-orchestration,agent-registry}.md`,
+  `docs/architecture/{GLOSSARY,README,SERVICE-MODEL,primitives-matrix,registry-matrix,task-type-orchestration,agent-orchestration}.md`,
   `docs/README.md`, `docs/ESSENCE.md`, and `CLAUDE.md`.
 
-### Preserved
+### Preserved (frozen historical artifacts)
 
 - Historical ADRs that reference `agent_framework.py` or
-  `agent-framework.md` — frozen artifacts of their decision moment,
-  not rewritten.
-- Historical `api/prompts/CHANGELOG.md` entries preserved verbatim.
+  `agent-framework.md` — not rewritten.
+- Historical CHANGELOG entries prior to this rename — preserved verbatim.
 - `docs/design/archive/` references preserved.
 
-### Audit provenance
+### Naming audit v2 verdict
 
-Naming audit (2026-04-23) verdict-of-one: `agent_framework.py` is the
-single high-priority rename. Other `*agent*.py` modules
-(`agent_creation.py`, `agent_execution.py`) retain their names — accurate
-under the new vocabulary. `agent_pipeline.py` is a defer-rename candidate
-(mildly vague, touch only if needed for other work). `reviewer_agent.py`
-keeps its name; location move to `api/services/review/` deferred (code is
-correct, docstring clarifies seat-vs-occupant distinction).
+Naming audit v2 (correction of v1, same day):
+`agent_framework.py` → `agent_orchestration.py`. The v1 audit's
+"registry" framing captured type-definition content but missed the
+orchestration metadata. `agent_orchestration.py` captures both and lands
+the production-orchestration-layer symmetry with `reviewer-substrate.md`
+at the judgment layer.
+
+Other `*agent*.py` modules (`agent_creation.py`, `agent_execution.py`)
+retain their names — accurate under the new vocabulary.
+`agent_pipeline.py` is a defer-rename candidate (mildly vague; touch only
+if needed for other work). `reviewer_agent.py` keeps its name; location
+move to `api/services/review/` deferred (code is correct, docstring
+clarifies seat-vs-occupant distinction).
 
 ### Why this is low-risk
 
-- File rename via `git mv` preserves blame/history.
+- All renames via `git mv` preserve blame/history through the chain.
 - All imports resolved via deterministic sed — grep-verified zero
-  remaining `from services.agent_framework` imports in live code.
+  remaining `services.agent_framework` or `services.agent_registry`
+  imports in live code.
 - No DB schema changes. No public API changes. No behavioral changes.
-- AST parse confirmed clean for all 13 touched files.
+- AST parse confirmed clean for all 13 touched Python files.
 
 ---
 
