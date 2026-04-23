@@ -380,8 +380,10 @@ export interface Agent {
   quality_trend?: QualityTrend;
   avg_edit_distance?: number;
   description?: string;
-  // SURFACE-ARCHITECTURE v3: agent class + owned context domain
-  agent_class?: 'specialist' | 'domain-steward' | 'synthesizer' | 'platform-bot' | 'meta-cognitive';
+  // SURFACE-ARCHITECTURE v3 + ADR-214: agent class + owned context domain
+  // 'reviewer' added by ADR-214 — Reviewer is a synthesized systemic pseudo-agent
+  // (no DB row; substrate at /workspace/review/*.md per ADR-194 v2).
+  agent_class?: 'specialist' | 'domain-steward' | 'synthesizer' | 'platform-bot' | 'meta-cognitive' | 'reviewer';
   context_domain?: string;  // owned domain key (e.g., "competitors"), null for synthesizers
 }
 

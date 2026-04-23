@@ -1,35 +1,30 @@
 'use client';
 
 /**
- * ToggleBar — top-level pill navigation (cockpit nav per ADR-205 F1+F2).
+ * ToggleBar — top-level pill navigation (cockpit nav per ADR-205 F1 + ADR-214).
  *
- * Current segments: Chat | Work | Files | Team | Review
+ * Current segments: Chat | Work | Agents | Files
  *   - Chat: "Tell YARNNN what you want." (authoring surface, HOME — ADR-205 F1)
  *   - Work: "Let me check the work." (task list with briefing strip + detail — ADR-205 F2)
- *   - Files (nav label) / Context (route): "What does my workspace know?"
- *   - Team: "Let me check on my agents." (agents-as-identity surface — ADR-201)
- *   - Review: "Who decided what, why?" (Reviewer identity + principles + decisions — ADR-200)
+ *   - Agents: "Let me check on my agents." (systemic + domain Agents — ADR-214)
+ *   - Files (nav label) / Context (route): "What does my workspace know?" (ADR-180)
  *
- * ADR-205 F1 (2026-04-22): Chat returns as the first nav tab — a brand-new workspace
- * has zero authored agents and zero authored tasks, so the first meaningful action
- * must be conversational.
- *
- * ADR-205 F2 (2026-04-22): Overview's Briefing panes (NeedsMe queue, Since-last-look,
- * snapshot tiles, IntelligenceCard) moved into /work list-mode as a BriefingStrip.
- * /overview is a redirect stub for old bookmarks.
+ * ADR-214 (2026-04-23): Four-tab consolidation. /review is deleted; Reviewer
+ * lives as a systemic agent detail at /agents?agent=reviewer. /team reverses
+ * back to /agents per ADR-212 vocabulary (only judgment-bearing entities are
+ * Agents — production roles + integrations are Orchestration, not shown here).
  */
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageSquare, Briefcase, Users, FolderOpen, ShieldCheck } from 'lucide-react';
+import { MessageSquare, Briefcase, Users, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SEGMENTS = [
   { id: 'chat', label: 'Chat', icon: MessageSquare, href: '/chat' },
   { id: 'work', label: 'Work', icon: Briefcase, href: '/work' },
+  { id: 'agents', label: 'Agents', icon: Users, href: '/agents' },
   { id: 'context', label: 'Files', icon: FolderOpen, href: '/context' },
-  { id: 'team', label: 'Team', icon: Users, href: '/team' },
-  { id: 'review', label: 'Review', icon: ShieldCheck, href: '/review' },
 ] as const;
 
 export function ToggleBar() {

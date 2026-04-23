@@ -405,14 +405,14 @@ function OverviewTab({
           <OverviewStat
             icon={Users}
             value={domainAgents.length}
-            label={`${domainAgents.length === 1 ? 'specialist' : 'specialists'}`}
-            href="/team"
+            label={`${domainAgents.length === 1 ? 'Production Role' : 'Production Roles'}`}
+            href="/work"
           />
           <OverviewStat
             icon={Zap}
             value={bots.length}
-            label={`platform ${bots.length === 1 ? 'bot' : 'bots'}`}
-            href="/team"
+            label={`Platform ${bots.length === 1 ? 'Integration' : 'Integrations'}`}
+            href="/settings?tab=connectors"
           />
         </div>
       </section>

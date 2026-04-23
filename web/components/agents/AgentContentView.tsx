@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentIcon } from './AgentIcon';
+import { ReviewerDetailView } from './reviewer/ReviewerDetailView';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -323,7 +324,7 @@ function summarizeRoleContract(agent: Agent, tasks: Task[]) {
       return `Selected ${platform} sources`;
     }
     if (cls === 'meta-cognitive') return 'Workspace state, task health, and orchestration signals';
-    if (cls === 'synthesizer') return 'Specialist domain outputs';
+    if (cls === 'synthesizer') return 'Production Role domain outputs';
     return agent.context_domain
       ? `${formatKeyLabel(agent.context_domain, false)} context folder`
       : 'Assigned context domain';
@@ -697,6 +698,14 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 
 export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, 'onCreateTask'>) {
   const cls = agent.agent_class || 'specialist';
+
+  // ADR-214: Reviewer is a systemic pseudo-agent — no agents row, no
+  // agent_runs history, no TASK.md binding. Dispatch to the specialized
+  // ReviewerDetailView that reads /workspace/review/*.md directly.
+  if (cls === 'reviewer') {
+    return <ReviewerDetailView />;
+  }
+
   const isPlatformBot = cls === 'platform-bot';
   const isMetaCognitive = cls === 'meta-cognitive';
 

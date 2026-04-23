@@ -78,7 +78,7 @@ export function SnapshotPane({ isDayZero = false }: SnapshotPaneProps) {
           icon={<Users className="h-4 w-4" />}
           label="Workforce"
           headline={workforceHeadline}
-          href={snap?.teamHref ?? '/team'}
+          href={snap?.teamHref ?? '/agents'}
         />
         <SnapshotTile
           icon={<FolderOpen className="h-4 w-4" />}
@@ -207,7 +207,7 @@ async function loadSnapshot(): Promise<{
         '/context?path=' +
         encodeURIComponent('/workspace/context/_performance_summary.md'),
       workforceHeadline,
-      teamHref: '/team',
+      teamHref: '/agents',
       workHref: '/work',
       contextHeadline,
       contextHref,

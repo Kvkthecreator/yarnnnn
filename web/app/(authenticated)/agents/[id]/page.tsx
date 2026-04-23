@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * Compatibility entry for legacy `/team/[id]` (and transitively `/agents/[id]`) links.
+ * Compatibility entry for legacy `/agents/[id]` (and transitively `/team/[id]`) links.
  *
  * ADR-167 made `?agent={slug}` the canonical agent detail surface.
- * ADR-201 renamed /agents → /team. This route resolves the requested agent
- * id and redirects into the canonical `/team?agent={slug}` surface so the
- * product keeps one agent-detail implementation.
+ * ADR-214 (2026-04-23) reversed ADR-201 — `/agents` is canonical again.
+ * This route resolves the requested agent id and redirects into
+ * `/agents?agent={slug}` so the product keeps one agent-detail implementation.
  */
 
 import { useEffect } from 'react';
@@ -15,7 +15,7 @@ import { Loader2 } from 'lucide-react';
 import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
 import { getAgentSlug } from '@/lib/agent-identity';
 
-export default function TeamIdRedirectPage() {
+export default function AgentIdRedirectPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { agents, loading } = useAgentsAndTasks({ pollInterval: 0, refreshOnFocus: false });
@@ -25,11 +25,11 @@ export default function TeamIdRedirectPage() {
 
     const agent = agents.find((item) => item.id === params.id || getAgentSlug(item) === params.id);
     if (agent) {
-      router.replace(`/team?agent=${encodeURIComponent(getAgentSlug(agent))}`);
+      router.replace(`/agents?agent=${encodeURIComponent(getAgentSlug(agent))}`);
       return;
     }
 
-    router.replace('/team');
+    router.replace('/agents');
   }, [agents, loading, params.id, router]);
 
   return (

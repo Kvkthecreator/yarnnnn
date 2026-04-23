@@ -1,17 +1,22 @@
 'use client';
 
 /**
- * AgentRosterSurface — Full-width roster view for /agents (ADR-167).
+ * AgentRosterSurface — Full-width roster view for /agents (ADR-167 + ADR-214).
  *
- * Replaces the old left-sidebar AgentTreeNav. This is what you see when you
- * land on /agents with no `?agent=` param: the team roster grouped by class,
- * with health glances per agent.
+ * Post-ADR-214 (2026-04-23), the roster shows Agents only (ADR-212 taxonomy —
+ * judgment-bearing entities). Two sections:
  *
- * Grouping (ADR-176 v5 + ADR-164):
- *   - Thinking Partner: 1 meta-cognitive agent that owns back office work (shown first)
- *   - Specialists: 6 universal specialist agents (Researcher, Analyst, Writer, Tracker, Designer)
- *   - Reporting: 1 synthesizer agent that reads cross-domain
- *   - Integrations: 3 platform-bot agents (Slack, Notion, GitHub)
+ *   Systemic — Always two cards: YARNNN (meta-cognitive) + Reviewer. Both are
+ *              systemic Agents scaffolded at signup (YARNNN as agents row,
+ *              Reviewer as filesystem substrate at /workspace/review/ and
+ *              synthesized in the list response per ADR-214).
+ *   Domain   — User-authored instance Agents (zero-to-many). This is the
+ *              authored-team moat (ADR-189). Empty at signup; the user
+ *              builds the list by chatting with YARNNN.
+ *
+ * Production roles + integrations (formerly grouped here) are Orchestration,
+ * not Agents (ADR-212). Production role composition appears on /work
+ * task-detail; integrations are configured at /settings?tab=connectors.
  *
  * Per-card health glance:
  *   - Status indicator (active/paused)
@@ -20,7 +25,7 @@
  *   - Approval rate (only if version_count >= 5, with trend)
  *
  * Click a card → onSelect(agentId) → page transitions to detail mode by
- * updating URL to `?agent={slug}`.
+ * updating URL to `?agent={slug}`. Reviewer slug is "reviewer".
  */
 
 import { useMemo } from 'react';
@@ -36,30 +41,30 @@ interface AgentRosterSurfaceProps {
   onSelect: (agentId: string) => void;
 }
 
-// 'specialist' is the v5 class; 'domain-steward' kept for backward compat with old DB rows
-const CLASS_ORDER = ['meta-cognitive', 'specialist', 'domain-steward', 'synthesizer', 'platform-bot'] as const;
-const CLASS_LABELS: Record<string, { title: string; description: string }> = {
-  'meta-cognitive': {
-    title: 'YARNNN',
-    description: 'Your day-to-day collaborator. Chats with you and runs background upkeep.',
+type GroupKey = 'systemic' | 'domain';
+
+const GROUP_ORDER: readonly GroupKey[] = ['systemic', 'domain'] as const;
+const GROUP_LABELS: Record<GroupKey, { title: string; description: string }> = {
+  systemic: {
+    title: 'Systemic',
+    description: 'YARNNN (your collaborator) and Reviewer (the judgment seat). Always present.',
   },
-  'specialist': {
-    title: 'Production Roles',
-    description: 'Orchestration capability bundles — research, analysis, writing, tracking, or design.',
-  },
-  'domain-steward': {
-    title: 'Production Roles',
-    description: 'Orchestration capability bundles — research, analysis, writing, tracking, or design.',
-  },
-  'synthesizer': {
-    title: 'Reporting',
-    description: 'Pulls from every production role to write your cross-topic reports.',
-  },
-  'platform-bot': {
-    title: 'Integrations',
-    description: 'Connect your tools (Slack, Notion, GitHub) so the team can see what is happening there.',
+  domain: {
+    title: 'Domain',
+    description: 'Agents you authored through YARNNN. They accumulate expertise run over run.',
   },
 };
+
+// ADR-214: Classify an agent into Systemic (YARNNN, Reviewer) or Domain
+// (user-authored). Origin is the truth per ADR-189 — system_bootstrap rows
+// are systemic; user_configured rows are domain. Reviewer arrives as a
+// synthesized envelope with agent_class='reviewer'; we treat it as systemic.
+function classifyAgent(agent: Agent): GroupKey {
+  if (agent.agent_class === 'reviewer') return 'systemic';
+  if (agent.agent_class === 'meta-cognitive') return 'systemic';
+  if (agent.origin === 'system_bootstrap') return 'systemic';
+  return 'domain';
+}
 
 function formatRelativeUntil(dateStr: string): string {
   const diff = new Date(dateStr).getTime() - Date.now();
@@ -92,26 +97,29 @@ function fmtDomain(value?: string | null): string {
 
 export function AgentRosterSurface({ agents, tasks, onSelect }: AgentRosterSurfaceProps) {
   const grouped = useMemo(() => {
-    // Group agents: 'specialist' is v5 class; 'domain-steward' is v4 backward compat
-    // Both render under the same "Specialists" label — merge them into one group
-    const groups = CLASS_ORDER.map(cls => ({
-      cls,
-      label: CLASS_LABELS[cls],
-      agents: agents.filter(a => {
-        const agentCls = a.agent_class || 'specialist';
-        if (cls === 'specialist') return agentCls === 'specialist' || agentCls === 'domain-steward';
-        if (cls === 'domain-steward') return false; // handled by 'specialist' group
-        return agentCls === cls;
-      }),
-    })).filter(g => g.agents.length > 0);
+    // ADR-214: Two-group classification — Systemic (YARNNN + Reviewer) +
+    // Domain (user-authored). Systemic section is always shown, even when
+    // only one of the two synthetic slots resolves. Domain section is
+    // elided when empty (the authored-team empty state below handles that
+    // case by checking for zero Domain agents).
+    const groups = GROUP_ORDER.map(key => ({
+      key,
+      label: GROUP_LABELS[key],
+      agents: agents.filter(a => classifyAgent(a) === key),
+    })).filter(g => g.key === 'systemic' || g.agents.length > 0);
     return groups;
   }, [agents]);
 
-  if (agents.length === 0) {
-    // ADR-189: Authored-team empty state. The /agents list starts empty;
-    // the user builds the team by chatting with YARNNN. Infrastructure
-    // (YARNNN, Specialists, Platform Bots) is present at the DB layer but
-    // never shown here — those are YARNNN's palette, not user-visible Agents.
+  const domainAgents = useMemo(
+    () => agents.filter(a => classifyAgent(a) === 'domain'),
+    [agents],
+  );
+
+  if (domainAgents.length === 0) {
+    // ADR-189: Authored-team empty state triggers when no Domain Agents exist.
+    // Systemic cards (YARNNN + Reviewer) are always present in the agents
+    // list post-ADR-214, so the raw-count check would never fire — we key
+    // off Domain emptiness instead, preserving the moat CTA.
     return (
       <div className="flex items-center justify-center h-full px-6">
         <div className="text-center max-w-md">
@@ -141,7 +149,7 @@ export function AgentRosterSurface({ agents, tasks, onSelect }: AgentRosterSurfa
     <div className="flex flex-col h-full overflow-auto">
       <div className="px-6 py-6 max-w-5xl space-y-8">
         {grouped.map(group => (
-          <section key={group.cls}>
+          <section key={group.key}>
             <header className="mb-3">
               <h3 className="text-sm font-semibold text-foreground">
                 {group.label.title}
@@ -229,11 +237,13 @@ function AgentCard({
           text: 'text-muted-foreground/70',
         };
 
-  // Subline: human-readable domain for specialists, role tagline for others
+  // Subline: human-readable domain for domain agents, systemic tagline for
+  // YARNNN + Reviewer, role tagline otherwise.
   const subline = agent.context_domain
     ? `Tracks ${fmtDomain(agent.context_domain)}`
     : roleTagline(agent.role) || (
-      cls === 'synthesizer' ? 'Assembles cross-domain reports'
+      cls === 'reviewer' ? 'Independent judgment on proposed actions'
+      : cls === 'synthesizer' ? 'Assembles cross-domain reports'
       : cls === 'meta-cognitive' ? 'Orchestrates your workforce'
       : ''
     );
@@ -251,6 +261,7 @@ function AgentCard({
           className={cn(
             'w-9 h-9 rounded-md flex items-center justify-center shrink-0',
             cls === 'meta-cognitive' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+            cls === 'reviewer' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' :
             cls === 'platform-bot' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
             cls === 'synthesizer' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400' :
             'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
