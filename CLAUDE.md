@@ -8,15 +8,27 @@ YARNNN is an **autonomous agent platform for recurring knowledge work**. Persist
 
 **Architecture**: Next.js frontend → FastAPI backend → Supabase (Postgres) → Claude API. Agents (identity) + Tasks (work units) as core model.
 
-**Key terminology** (ADR-138, ADR-176):
-- **Agent** — persistent specialist (WHO). Three axes: identity (AGENT.md, evolves), capabilities (type registry, fixed), tasks (assigned, come and go). Pre-scaffolded at sign-up. Work exists first; agents serve work.
-- **Agent Types** (ADR-176, universal specialist model) — 6 specialist roles: `researcher`, `analyst`, `writer`, `tracker`, `designer` (universal specialists) + `reporting` (synthesizer) + `slack_bot`, `notion_bot`, `github_bot` (platform-bots) + `thinking_partner` (meta-cognitive). Four classes: **universal-specialist** (domain assigned by task, not by identity) vs **synthesizer** (cross-domain composition) vs **platform-bot** (mechanical, scoped to one API) vs **meta-cognitive** (YARNNN — orchestration). Capability split: accumulation agents (researcher, analyst, writer, tracker) vs production agents (designer).
-- **Task** — defined work unit (WHAT). Objective, cadence, delivery, success criteria. Lives in `/tasks/{slug}/TASK.md`. Team of agents assigned via `## Team` section. Thin `tasks` DB table for scheduling.
-- **Agent Run** — a single execution of an agent on behalf of a task, producing draft/final content
-- **Orchestrator / YARNNN** — the user-facing conversational agent and meta-cognitive agent (ADR-164). Creates tasks, monitors agents, orchestrates multi-agent work, owns back office tasks. YARNNN has full judgment over team composition per task.
-- **Workfloor** — the shared workspace substrate. `/workspace/` (identity + context domains), `/agents/` (team), `/tasks/` (work).
-- **Context Domains** — accumulated intelligence at `/workspace/context/{domain}/`. Created by work demand (ADR-176), not pre-scaffolded. Shared across all tasks. Domain names come from user language.
-- **CONVENTIONS.md** (ADR-174) — living workspace document at `/workspace/CONVENTIONS.md`. Declares structural rules agents follow. YARNNN can extend it. Injected into every task execution prompt.
+> **Vocabulary note (as of 2026-04-23, ADR-212)**: "Agent" in YARNNN canon means a judgment-bearing entity (YARNNN, Reviewer, user-authored domain Agents). Production machinery (task pipeline, production roles like Researcher/Writer/etc., platform integrations) is **Orchestration**, not Agents. See [docs/architecture/LAYER-MAPPING.md](docs/architecture/LAYER-MAPPING.md) for the authoritative taxonomy. Historical ADR summaries below may use pre-flip vocabulary ("Specialist" / "Platform Bot" as entity terms); those are historical artifacts preserved verbatim — for current framing read the Key terminology section below.
+
+**Key terminology** (current canon, 2026-04-23 — ADR-212 LAYER-MAPPING flip):
+
+> **Authoritative taxonomy**: [docs/architecture/LAYER-MAPPING.md](docs/architecture/LAYER-MAPPING.md). The definitions below are the quick-reference; LAYER-MAPPING is the deep one. Historical ADR summaries below may use pre-flip vocabulary (Specialist, Platform Bot as entity terms); those are preserved as historical artifact — for current framing, read this section and LAYER-MAPPING first.
+
+- **Agent** — judgment-bearing entity with standing intent on behalf of the operator (the principal). Three members today:
+  - **YARNNN** — the systemic meta-cognitive Agent, one per workspace. The conversational super-agent the user addresses. Scaffolded at signup.
+  - **Reviewer** — the systemic judgment-seat Agent, one per workspace. Independent judgment on proposed actions. Substrate at `/workspace/review/`.
+  - **User-authored domain Agents** — instance Agents, zero-to-many per workspace, user-authored through YARNNN chat. On `/agents`.
+  Future systemic Agents (Auditor, Advocate, etc.) register under SYSTEMIC_AGENTS in `api/services/orchestration.py`.
+- **Orchestration** — production machinery (task pipeline, dispatch routing, capability bundles, back-office scheduling). Stateless infrastructure, no standing intent, never personified. Never an Agent.
+  - **Orchestrator** — the system-level dispatch machinery that Agents use to get production work done.
+  - **Production roles** — orchestration capability bundles: `researcher`, `analyst`, `writer`, `tracker`, `designer`, `reporting` (synthesizer). NOT Agents. Packaged production configurations. Registered in `PRODUCTION_ROLES`. (Previously called "Specialists" — retired as entity term.)
+  - **Platform integrations** — orchestration capability bundles for platform APIs (Slack, Notion, GitHub, Commerce, Trading). NOT Agents. Capability-gated by active `platform_connections` per ADR-207 P4a. (Previously called "Platform Bots" — retired as entity term.)
+- **Enum-slug exceptions** (GLOSSARY): internal enum strings `"specialist"` (Python `class` field + API `agent_class` + frontend TS type + `authored_by="specialist:<role>"` revision data) and `"platform-bot"` (same cross-cutting pattern) are retained as data-compatibility slugs. The **human-readable concept** is "production role" / "platform integration"; the **enum string** is stable for code dispatch + data format.
+- **Task** — defined work unit (WHAT). Objective, cadence, delivery, success criteria. Lives in `/tasks/{slug}/TASK.md`. Team (Agents + production roles) assigned via `## Team` section. Thin `tasks` DB table for scheduling.
+- **Agent Run** — a single execution of an Agent / production-role on behalf of a task, producing draft/final content.
+- **Workfloor** — the shared workspace substrate. `/workspace/` (context + memory + Reviewer seat), `/agents/` (instance Agents), `/tasks/` (work). Systemic Agents are path-named by role; instance Agents slug-named.
+- **Context Domains** — accumulated intelligence at `/workspace/context/{domain}/`. Created by work demand, not pre-scaffolded. Shared across all tasks.
+- **Mandate** — the operator's authored Primary-Action declaration at `/workspace/context/_shared/MANDATE.md` (ADR-207). Hard gate on task creation.
 
 ## Core Execution Disciplines
 
