@@ -1486,7 +1486,7 @@ def build_task_execution_prompt(
     # Injecting full content (1,500-2,000 tokens) into every tool round is
     # wasteful — the index (~150 tokens) is enough to guide behavior and
     # tell the agent where to look for detail.
-    from services.agent_framework import PLAYBOOK_METADATA, TASK_OUTPUT_PLAYBOOK_ROUTING, get_type_playbook
+    from services.agent_registry import PLAYBOOK_METADATA, TASK_OUTPUT_PLAYBOOK_ROUTING, get_type_playbook
     playbooks = get_type_playbook(role)
     output_kind_for_playbook = task_info.get("output_kind") if task_info else None
     if playbooks:
@@ -1771,7 +1771,7 @@ async def execute_task(
     """
     from services.task_workspace import TaskWorkspace
     from services.workspace import AgentWorkspace, UserMemory, get_agent_slug
-    from services.agent_framework import has_asset_capabilities, has_capability
+    from services.agent_registry import has_asset_capabilities, has_capability
 
     started_at = datetime.now(timezone.utc)
     user_timezone = get_user_timezone(client, user_id)
@@ -1862,7 +1862,7 @@ async def execute_task(
         # =====================================================================
         required_caps = task_info.get("required_capabilities") or []
         if required_caps:
-            from services.agent_framework import unavailable_capabilities
+            from services.agent_registry import unavailable_capabilities
             missing = unavailable_capabilities(user_id, required_caps, client)
             if missing:
                 parts = []
@@ -2564,7 +2564,7 @@ async def _execute_pipeline(
     """
     from services.task_workspace import TaskWorkspace
     from services.workspace import AgentWorkspace
-    from services.agent_framework import has_asset_capabilities, has_capability
+    from services.agent_registry import has_asset_capabilities, has_capability
     from services.agent_execution import (
         get_next_run_number, create_version_record,
         update_version_for_delivery, SONNET_MODEL,
@@ -3178,7 +3178,7 @@ async def _generate(
             max_tool_rounds = max_tool_rounds * _BOOTSTRAP_ROUND_MULTIPLIER
 
         # Agents with asset capabilities (chart, mermaid, image) need more rounds
-        from services.agent_framework import has_asset_capabilities
+        from services.agent_registry import has_asset_capabilities
         if has_asset_capabilities(role):
             max_tool_rounds = max(max_tool_rounds, 6)
 
@@ -4020,7 +4020,7 @@ async def _execute_direct(
     No delivery, no scheduling update (no TASK.md to read config from).
     """
     from services.workspace import AgentWorkspace, get_agent_slug
-    from services.agent_framework import has_asset_capabilities, has_capability
+    from services.agent_registry import has_asset_capabilities, has_capability
     from services.agent_execution import (
         get_next_run_number, create_version_record, update_version_for_delivery,
         SONNET_MODEL, _extract_agent_reflection,
@@ -4062,7 +4062,7 @@ async def _execute_direct(
         # Skill reference — compact index, not full SKILL.md injection (~50t vs ~1500t)
         # Agent can read full specs via ReadFile (ADR-168) if needed
         if has_asset_capabilities(role):
-            from services.agent_framework import get_type_capabilities, CAPABILITIES
+            from services.agent_registry import get_type_capabilities, CAPABILITIES
             asset_caps = [
                 c for c in get_type_capabilities(role)
                 if CAPABILITIES.get(c, {}).get("category") == "asset"

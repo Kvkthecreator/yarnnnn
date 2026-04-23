@@ -1,11 +1,30 @@
 """
-Agent Framework — Work-First Universal Specialist Model (v5)
+Agent Registry — Work-First Universal Specialist Model (v5)
 
-Pre-scaffolded agent roster. Three registries, three concerns:
+**Renamed from `agent_framework.py` on 2026-04-23** for semantic precision
+under THESIS.md + GLOSSARY.md v1.6. This module is a REGISTRY of production-
+layer type definitions and orchestration metadata — structured data — not a
+FRAMEWORK (which would be runtime machinery). The rename surfaces the
+architectural distinction at the code level; no structural change beyond
+the filename. Content, API, and import-level behavior unchanged.
+
+Pre-scaffolded production-layer roster. Three sub-registries, three concerns:
   1. AGENT_TEMPLATES — workforce roster: templates are starting points,
      AGENT.md is the runtime source of truth for each agent's identity
   2. CAPABILITIES    — implementation: what each capability resolves to
   3. RUNTIMES        — infrastructure: where compute happens
+
+Note on scope under the production-vs-judgment layer framing
+(THESIS.md + reviewer-substrate.md): this registry holds PRODUCTION-layer
+entity definitions (Specialists, YARNNN-as-producer, Platform Bots). It
+also holds JUDGMENT-layer default content for the Reviewer seat
+(DEFAULT_REVIEW_IDENTITY_MD, DEFAULT_REVIEW_PRINCIPLES_MD,
+DEFAULT_REVIEW_MODES_MD, DEFAULT_REVIEW_CALIBRATION_MD). The judgment-
+layer constants live here for registry-level consolidation — they are
+*content* defaults consumed at workspace scaffold time, not *type
+definitions* in the AGENT_TEMPLATES sense. The Reviewer is not a listed
+agent type (per ADR-211 D9 + Option 2 feasibility audit); the seat's
+architectural shape lives in reviewer-substrate.md.
 
 Three independent axes per agent (ADR-140, ADR-176):
   - Identity (AGENT.md): name, domain, evolves with use

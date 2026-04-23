@@ -30,7 +30,7 @@ Parallel deep-dives on the two sharpest architectural substrates — the write p
 | Document | Covers |
 |----------|--------|
 | [**SERVICE-MODEL.md**](SERVICE-MODEL.md) | End-to-end system description — entities, execution, services, primitives, perception |
-| [agent-framework.md](agent-framework.md) | Agent type registry (v4 domain-steward model), capabilities, runtimes |
+| [agent-registry.md](agent-registry.md) | Agent type registry (v4 domain-steward model), capabilities, runtimes |
 | [agent-execution-model.md](agent-execution-model.md) | 3-layer execution model (mechanical scheduling, LLM generation, TP orchestration) |
 | [**execution-loop.md**](execution-loop.md) | The accumulation cycle — how run N feeds run N+1 (awareness, tracker, feedback, actuation) |
 | [backend-orchestration.md](backend-orchestration.md) | 4 Render services, scheduler phase map, LLM cost surface, env var matrix |
@@ -52,7 +52,7 @@ For someone new to the codebase:
 2. **[FOUNDATIONS.md](FOUNDATIONS.md)** — why it works this way, axiomatically
 3. **[THESIS.md](THESIS.md)** — the philosophical claim the axioms exist to express (internal canon)
 4. **[authored-substrate.md](authored-substrate.md)** + **[reviewer-substrate.md](reviewer-substrate.md)** — the two sharpest architectural substrates (write path + judgment seat)
-5. **[agent-framework.md](agent-framework.md)** — agent types and capabilities
+5. **[agent-registry.md](agent-registry.md)** — agent types and capabilities
 6. **[execution-loop.md](execution-loop.md)** — the accumulation cycle (how recurring work compounds)
 7. **[workspace-conventions.md](workspace-conventions.md)** — the filesystem model
 8. **[backend-orchestration.md](backend-orchestration.md)** — how everything runs

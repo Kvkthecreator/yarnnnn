@@ -99,7 +99,7 @@ Capability split (ADR-176): accumulation specialists (Researcher, Analyst, Write
 
 YARNNN is an agent (ADR-164 + ADR-189). It has the same structural shape as other agents — row in the agents table, slug (`thinking-partner`, retained by glossary exception), workspace folder, can own tasks. What distinguishes YARNNN is its class (`meta-cognitive`) and domain (orchestration itself, no context domain). YARNNN's tasks are back office tasks: agent hygiene, workspace cleanup, future task-freshness review.
 
-Agent roles determine capabilities. Development is knowledge depth (accumulated memory, preferences, observations), not capability breadth. See [agent-framework.md](agent-framework.md).
+Agent roles determine capabilities. Development is knowledge depth (accumulated memory, preferences, observations), not capability breadth. See [agent-registry.md](agent-registry.md).
 
 ### Tasks (WHAT)
 
@@ -400,7 +400,7 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 |---------|------|
 | YARNNN (orchestrator) | `api/agents/yarnnn.py` |
 | Task execution | `api/services/task_pipeline.py` |
-| Agent types & capabilities | `api/services/agent_framework.py` |
+| Agent types & capabilities | `api/services/agent_registry.py` |
 | Task type registry | `api/services/task_types.py` |
 | Primitive registry | `api/services/primitives/registry.py` |
 | Workspace abstraction | `api/services/workspace.py` |
@@ -418,7 +418,7 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | Topic | Document |
 |-------|----------|
 | First principles & axioms | [FOUNDATIONS.md](FOUNDATIONS.md) |
-| Agent taxonomy & type registry | [agent-framework.md](agent-framework.md) |
+| Agent taxonomy & type registry | [agent-registry.md](agent-registry.md) |
 | Execution model & trigger taxonomy | [agent-execution-model.md](agent-execution-model.md) |
 | Execution loop & accumulation cycle | [execution-loop.md](execution-loop.md) |
 | Task type orchestration | [task-type-orchestration.md](task-type-orchestration.md) |

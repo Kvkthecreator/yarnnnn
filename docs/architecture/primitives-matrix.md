@@ -342,7 +342,7 @@ When renaming, adding, or removing a primitive, perform a grep sweep across thes
 - `docs/architecture/primitives-matrix.md` — **this file** (update first)
 - `docs/architecture/registry-matrix.md` — if the primitive appears in task-type examples
 - `docs/architecture/SERVICE-MODEL.md` — primitive references in the service description
-- `docs/architecture/agent-framework.md` — capabilities → tool mapping
+- `docs/architecture/agent-registry.md` — capabilities → tool mapping
 - `docs/architecture/agent-execution-model.md`
 - `docs/architecture/YARNNN-DESIGN-PRINCIPLES.md`
 - `docs/architecture/workspace-conventions.md`
@@ -417,7 +417,7 @@ If you are new to this doc:
 ## Cross-references
 
 - [registry-matrix.md](registry-matrix.md) — what the system works on (domains × tasks × agents). This doc is its sibling covering *how* the system acts on it.
-- [agent-framework.md](agent-framework.md) — agent types and the `capabilities` → primitive mapping.
+- [agent-registry.md](agent-registry.md) — agent types and the `capabilities` → primitive mapping.
 - [SERVICE-MODEL.md](SERVICE-MODEL.md) — system-level description; this doc is the primitive-level deep dive.
 - [YARNNN-DESIGN-PRINCIPLES.md](YARNNN-DESIGN-PRINCIPLES.md) — design principles for YARNNN's use of chat-mode primitives.
 - [workspace-conventions.md](workspace-conventions.md) — filesystem layout that the `file` substrate family operates on.

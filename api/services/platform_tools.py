@@ -1026,7 +1026,7 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
 
 async def get_platform_tools_for_agent(auth: Any, agent: dict) -> list[dict]:
     """Get platform tools for a specific agent based on its explicit capabilities."""
-    from services.agent_framework import get_type_capabilities
+    from services.agent_registry import get_type_capabilities
 
     role = (agent or {}).get("role", "")
     capabilities = get_type_capabilities(role) if role else []

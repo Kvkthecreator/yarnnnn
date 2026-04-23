@@ -298,6 +298,6 @@ Pipeline orchestration is not an agent's capability — it's the platform's. Thi
 | `api/services/task_pipeline.py` | Pipeline-aware execution (extends ADR-141), writes status.json for live progress |
 | `web/components/tasks/ProcessTab.tsx` | Process visualization with live progress polling |
 | `api/services/task_workspace.py` | Step-scoped output storage |
-| `api/services/agent_framework.py` | Agent type + capability registries (ADR-140) |
+| `api/services/agent_registry.py` | Agent type + capability registries (ADR-140) |
 | `api/routes/tasks.py` | `GET /api/tasks/types` endpoint |
 | `docs/features/task-types.md` | User-facing catalog |

@@ -6,6 +6,64 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.23.5] - Naming alignment: agent_framework → agent_registry
+
+Context: after ADR-211 Phase 4 landed and the production-vs-judgment layer
+distinction was canonized (THESIS.md + GLOSSARY.md v1.6 "Vocabulary note:
+Agent and agency-proper"), a naming audit flagged `agent_framework.py` as
+drifted — the module is a REGISTRY of production-layer type definitions
+and orchestration metadata, not a FRAMEWORK (runtime machinery). Rename
+surfaces the architectural distinction at code level under the new
+vocabulary.
+
+### Changed
+
+- `api/services/agent_framework.py` → `api/services/agent_registry.py`
+  (git mv, history preserved). Module docstring updated with rename
+  rationale and a note about production-vs-judgment scope (the file holds
+  production-layer definitions + Reviewer-seat *content* defaults, which
+  is a consolidation choice — the Reviewer is not a listed agent type).
+- 25 import sites across 12 files updated via sed:
+  `from services.agent_framework` → `from services.agent_registry`.
+  Callers: `agent_creation.py`, `agent_execution.py`, `agent_pipeline.py`,
+  `task_pipeline.py`, `workspace_init.py`, `workspace.py`, `task_types.py`,
+  `task_derivation.py`, `working_memory.py`, `platform_tools.py`,
+  `routes/agents.py`, `test_adr143_methodology_feedback.py`.
+- `docs/architecture/agent-framework.md` → `docs/architecture/agent-registry.md`
+  (same git mv rationale — doc was already marked "partially superseded";
+  rename aligns the artifact name with the current module name it points to).
+- Active canon cross-references updated in
+  `docs/architecture/{GLOSSARY,README,SERVICE-MODEL,primitives-matrix,registry-matrix,task-type-orchestration,agent-registry}.md`,
+  `docs/README.md`, `docs/ESSENCE.md`, and `CLAUDE.md`.
+
+### Preserved
+
+- Historical ADRs that reference `agent_framework.py` or
+  `agent-framework.md` — frozen artifacts of their decision moment,
+  not rewritten.
+- Historical `api/prompts/CHANGELOG.md` entries preserved verbatim.
+- `docs/design/archive/` references preserved.
+
+### Audit provenance
+
+Naming audit (2026-04-23) verdict-of-one: `agent_framework.py` is the
+single high-priority rename. Other `*agent*.py` modules
+(`agent_creation.py`, `agent_execution.py`) retain their names — accurate
+under the new vocabulary. `agent_pipeline.py` is a defer-rename candidate
+(mildly vague, touch only if needed for other work). `reviewer_agent.py`
+keeps its name; location move to `api/services/review/` deferred (code is
+correct, docstring clarifies seat-vs-occupant distinction).
+
+### Why this is low-risk
+
+- File rename via `git mv` preserves blame/history.
+- All imports resolved via deterministic sed — grep-verified zero
+  remaining `from services.agent_framework` imports in live code.
+- No DB schema changes. No public API changes. No behavioral changes.
+- AST parse confirmed clean for all 13 touched files.
+
+---
+
 ## [2026.04.23.3] - ADR-209 Phase 5: schema cleanup, regression guard, ADR closed
 
 ### Changed

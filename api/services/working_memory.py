@@ -602,7 +602,7 @@ def _build_system_reference(platforms: list) -> dict:
       - agent_framework.py (AGENT_TYPES — capability bundles per type)
       - Connected platforms (from working memory query)
     """
-    from services.agent_framework import AGENT_TYPES, has_asset_capabilities
+    from services.agent_registry import AGENT_TYPES, has_asset_capabilities
 
     # --- Agent types (ADR-130: deterministic capability bundles) ---
     roles = []

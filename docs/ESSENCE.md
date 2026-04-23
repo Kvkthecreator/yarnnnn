@@ -279,7 +279,7 @@ For product narrative and architecture, use this order:
 2. `docs/architecture/FOUNDATIONS.md` — first-principles cognitive architecture
 3. `docs/adr/ADR-138-agents-as-work-units.md` — agents + tasks architecture (supersedes projects)
 4. `docs/adr/ADR-139-workfloor-task-surface-architecture.md` — frontend surfaces
-5. `docs/architecture/agent-framework.md` — canonical agent taxonomy
+5. `docs/architecture/agent-registry.md` — canonical agent taxonomy
 6. `docs/adr/ADR-118-skills-as-capability-layer.md` — output skills and output gateway
 
 If lower-level docs contradict this essence without justification, the lower-level docs should be revised.
