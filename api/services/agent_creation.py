@@ -126,7 +126,7 @@ async def create_agent_record(
     # Resolve instructions
     instructions_text = agent_instructions
     if not instructions_text:
-        from services.agent_pipeline import DEFAULT_INSTRUCTIONS
+        from services.orchestration_prompts import DEFAULT_INSTRUCTIONS
         instructions_text = DEFAULT_INSTRUCTIONS.get(role, DEFAULT_INSTRUCTIONS.get("custom", ""))
 
     now = datetime.now(timezone.utc)

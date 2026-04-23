@@ -1593,7 +1593,7 @@ If context says "(No context available)" or tools return no results:
             system += f"\n\n## Deliverable Specification\nYour output MUST match this quality contract:\n{spec_clean}"
 
     # Reflection postamble (ADR-128/149 + success criteria eval)
-    from services.agent_pipeline import _REFLECTION_POSTAMBLE, _CRITERIA_EVAL_SECTION
+    from services.orchestration_prompts import _REFLECTION_POSTAMBLE, _CRITERIA_EVAL_SECTION
     criteria = task_info.get("success_criteria", [])
     if criteria:
         criteria_list = "\n".join(f"  - {c}" for c in criteria)
@@ -3161,7 +3161,7 @@ async def _generate(
     """
     from services.anthropic import chat_completion_with_tools
     from services.primitives.registry import get_headless_tools_for_agent, create_headless_executor
-    from services.agent_pipeline import validate_output
+    from services.orchestration_prompts import validate_output
     from services.agent_execution import (
         SONNET_MODEL, _is_narration, _strip_tool_narration,
     )

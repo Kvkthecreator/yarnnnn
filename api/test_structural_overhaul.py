@@ -390,7 +390,7 @@ async def phase_4_default_instructions(auth: MockAuth) -> PhaseResult:
     logger.info(f"Phase 4: DEFAULT_INSTRUCTIONS + Write Seeding")
     logger.info(f"{'='*60}")
 
-    from services.agent_pipeline import DEFAULT_INSTRUCTIONS
+    from services.orchestration_prompts import DEFAULT_INSTRUCTIONS
     from services.primitives import execute_primitive
 
     # 4a: All expected role types have instructions (ADR-109: keyed by role name)

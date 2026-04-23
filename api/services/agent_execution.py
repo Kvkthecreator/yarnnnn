@@ -29,7 +29,7 @@ This module replaces:
 - execute_synthesize_step() - separate synthesize work_ticket
 - execute_stage_step() - validation/staging step
 
-Preserves from agent_pipeline.py:
+Preserves from orchestration_prompts.py:
 - Role-specific prompts (ROLE_PROMPTS, build_role_prompt)
 - Output validation (validate_output)
 """
@@ -585,7 +585,7 @@ async def generate_draft_inline(
         get_headless_tools_for_agent,
         create_headless_executor,
     )
-    from services.agent_pipeline import (
+    from services.orchestration_prompts import (
         build_role_prompt,
         validate_output,
     )

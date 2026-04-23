@@ -1,17 +1,31 @@
 """
-Agent Pipeline Utilities
+Orchestration Prompts — Production-Role Prompt Templates + Assembly
+
+**Renamed from `agent_pipeline.py` on 2026-04-23** (LAYER-MAPPING flip,
+Commit C). This module holds prompt templates keyed by production-role
+(researcher, analyst, writer, tracker, designer, executive) — i.e.,
+orchestration content. It does not operate on Agents. It provides the
+prompt-assembly infrastructure the Orchestrator uses when dispatching
+a task to a production-role capability bundle.
+
+Per LAYER-MAPPING.md: production roles are NOT Agents. They are
+orchestration capability bundles. Their prompts live here; Agent
+identity and prompts live in `api/agents/*.py`.
 
 ADR-109: Role-keyed prompt templates and validation.
-         Scope × Role × Trigger framework (skill renamed to role for agent behavioral axis).
+         Scope × Role × Trigger framework (skill renamed to role for
+         role behavioral axis).
 
-Prompt assembly operates over workspace context, task files, and tool-returned
-source material. It no longer assumes a generic synced platform-content layer.
+Prompt assembly operates over workspace context, task files, and
+tool-returned source material. It no longer assumes a generic synced
+platform-content layer.
 
 Contains:
-- ROLE_PROMPTS: Per-role prompt templates for LLM synthesis
-- build_role_prompt(): Assembles prompt from agent config
-- validate_output(): Per-role output validation
-- (ADR-117: get_past_versions_context removed — feedback in workspace style.md)
+- ROLE_PROMPTS: per-production-role prompt templates for LLM synthesis
+- build_role_prompt(): assembles prompt from role config + task context
+- validate_output(): per-role output validation
+- (ADR-117: get_past_versions_context removed — feedback in workspace
+  style.md)
 """
 
 import logging

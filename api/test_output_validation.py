@@ -78,7 +78,7 @@ def test_strip_tool_narration():
 
 def test_validate_output():
     """Test validate_output catches quality issues per skill type."""
-    from services.agent_pipeline import validate_output
+    from services.orchestration_prompts import validate_output
 
     results = []
 
