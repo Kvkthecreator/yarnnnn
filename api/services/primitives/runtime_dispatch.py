@@ -156,22 +156,30 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
             ws_path = f"/agents/{agent_slug}/outputs/{safe_title}.{output_format}"
 
     try:
-        auth.client.table("workspace_files").upsert(
-            {
-                "user_id": auth.user_id,
-                "path": ws_path,
-                "content": f"Rendered {skill_type}: {title}",
-                "content_type": content_type,
-                "content_url": output_url,
-                "metadata": {
-                    "skill_type": skill_type,
-                    "output_format": output_format,
-                    "size_bytes": size_bytes,
-                },
-                "tags": ["rendered", skill_type, output_format],
+        # ADR-209: rendered assets route through Authored Substrate. The
+        # author is the agent that triggered the render (agent_slug is
+        # present in RuntimeDispatch context); falls back to
+        # system:runtime-dispatch when the invoking context is YARNNN-only.
+        from services.authored_substrate import write_revision
+
+        author = f"agent:{agent_slug}" if agent_slug else "system:runtime-dispatch"
+
+        write_revision(
+            auth.client,
+            user_id=auth.user_id,
+            path=ws_path,
+            content=f"Rendered {skill_type}: {title}",
+            authored_by=author,
+            message=f"render {skill_type} ({output_format})",
+            content_type=content_type,
+            content_url=output_url,
+            metadata={
+                "skill_type": skill_type,
+                "output_format": output_format,
+                "size_bytes": size_bytes,
             },
-            on_conflict="user_id,path",
-        ).execute()
+            tags=["rendered", skill_type, output_format],
+        )
     except Exception as e:
         logger.error(f"[RUNTIME_DISPATCH] Workspace write FAILED (fatal): {e}")
         return {

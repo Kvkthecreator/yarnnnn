@@ -89,7 +89,14 @@ async def append_decision(
             # Append with a blank-line separator for readability
             content = existing.rstrip() + "\n\n" + block
 
-        ok = _write_sync(client, user_id, content)
+        ok = _write_sync(
+            client,
+            user_id,
+            content,
+            reviewer_identity=reviewer_identity,
+            proposal_id=proposal_id,
+            decision=decision,
+        )
         if not ok:
             logger.warning(
                 "[REVIEWER_AUDIT] upsert failed for user=%s proposal=%s",
@@ -184,21 +191,39 @@ def _read_sync(client: Any, user_id: str) -> str | None:
     return rows[0].get("content") or ""
 
 
-def _write_sync(client: Any, user_id: str, content: str) -> bool:
-    """Upsert decisions.md content."""
+def _write_sync(
+    client: Any,
+    user_id: str,
+    content: str,
+    *,
+    reviewer_identity: str,
+    proposal_id: str,
+    decision: str,
+) -> bool:
+    """Write decisions.md through the Authored Substrate (ADR-209).
+
+    authored_by carries the reviewer identity: `reviewer:<identity>`.
+    This preserves structural author attribution in the revision chain
+    while the in-file block retains reasoning + full decision context.
+    The revision-chain author becomes the machine-indexable source of
+    "who decided what" — the in-file block is the human-readable
+    reasoning accompanying it.
+    """
     try:
-        client.table("workspace_files").upsert(
-            {
-                "user_id": user_id,
-                "path": DECISIONS_PATH,
-                "content": content,
-                "content_type": "text/markdown",
-                "lifecycle": "active",
-                "summary": "Reviewer decisions log",
-                "tags": ["_decisions", "review", "audit"],
-            },
-            on_conflict="user_id,path",
-        ).execute()
+        from services.authored_substrate import write_revision
+
+        write_revision(
+            client,
+            user_id=user_id,
+            path=DECISIONS_PATH,
+            content=content,
+            authored_by=f"reviewer:{reviewer_identity}",
+            message=f"{decision} proposal {proposal_id[:8] if proposal_id else '?'}",
+            summary="Reviewer decisions log",
+            tags=["_decisions", "review", "audit"],
+            lifecycle="active",
+            content_type="text/markdown",
+        )
         return True
     except Exception as exc:  # noqa: BLE001
         logger.warning(

@@ -55,32 +55,47 @@ class TaskWorkspace:
             logger.warning(f"[TASK_WORKSPACE] Read failed: {path}: {e}")
             return None
 
-    async def write(self, relative_path: str, content: str,
-                    summary: Optional[str] = None,
-                    tags: Optional[list] = None,
-                    lifecycle: Optional[str] = None,
-                    metadata: Optional[dict] = None) -> bool:
-        """Write a file (upsert). Returns True on success."""
-        path = self._full_path(relative_path)
-        try:
-            data = {
-                "user_id": self._user_id,
-                "path": path,
-                "content": content,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-                "lifecycle": lifecycle or "active",
-            }
-            if summary is not None:
-                data["summary"] = summary
-            if tags is not None:
-                data["tags"] = tags
-            if metadata is not None:
-                data["metadata"] = metadata
+    async def write(
+        self,
+        relative_path: str,
+        content: str,
+        summary: Optional[str] = None,
+        tags: Optional[list] = None,
+        lifecycle: Optional[str] = None,
+        metadata: Optional[dict] = None,
+        *,
+        authored_by: Optional[str] = None,
+        message: Optional[str] = None,
+    ) -> bool:
+        """Write a file through the Authored Substrate (ADR-209).
 
-            self._db.table("workspace_files").upsert(
-                data,
-                on_conflict="user_id,path",
-            ).execute()
+        Routes through services.authored_substrate.write_revision() — every
+        write lands a revision with authored_by + message attribution.
+
+        Default `authored_by`: f"task:{self._slug}". Pipeline + agent writes
+        that represent a specific agent's work (e.g., save_output) override
+        with `agent:<slug>`.
+        """
+        from services.authored_substrate import write_revision
+
+        path = self._full_path(relative_path)
+        resolved_author = authored_by or f"task:{self._slug}"
+        resolved_message = message or f"write {relative_path}"
+        resolved_lifecycle = lifecycle or "active"
+
+        try:
+            write_revision(
+                self._db,
+                user_id=self._user_id,
+                path=path,
+                content=content,
+                authored_by=resolved_author,
+                message=resolved_message,
+                summary=summary,
+                tags=tags,
+                lifecycle=resolved_lifecycle,
+                metadata=metadata,
+            )
             return True
         except Exception as e:
             logger.error(f"[TASK_WORKSPACE] Write failed: {path}: {e}")
@@ -143,12 +158,15 @@ class TaskWorkspace:
             date_folder = now.strftime("%Y-%m-%dT%H00")
         folder_path = f"outputs/{date_folder}"
 
-        # 1. Write the text output
+        # 1. Write the text output (attributed to the agent that produced it)
+        author = f"agent:{agent_slug}"
         text_ok = await self.write(
             f"{folder_path}/output.md",
             content,
             summary=f"Task output by {agent_slug}",
             tags=["output", agent_slug],
+            authored_by=author,
+            message=f"produce output.md for task {self._slug}",
         )
         if not text_ok:
             return None
@@ -170,15 +188,22 @@ class TaskWorkspace:
             _json.dumps(manifest, indent=2),
             summary=f"Output manifest — {agent_slug}",
             tags=["manifest"],
+            authored_by=author,
+            message=f"produce manifest.json for task {self._slug}",
         )
 
         logger.info(f"[TASK_WORKSPACE] Saved output: {self._slug}/{folder_path}")
         return folder_path
 
-    async def append_run_log(self, entry: str) -> bool:
+    async def append_run_log(
+        self, entry: str, *, authored_by: str = "system:task-pipeline"
+    ) -> bool:
         """Append an entry to memory/_run_log.md.
 
-        Each entry is a line with date, outcome, observations.
+        Each entry is a line with date, outcome, observations. Defaults to
+        `system:task-pipeline` attribution since the run log is the
+        pipeline's own record of its execution; callers can override with
+        `agent:<slug>` when an agent is appending context.
         """
         existing = await self.read("memory/_run_log.md")
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -191,6 +216,8 @@ class TaskWorkspace:
             "memory/_run_log.md",
             content,
             summary="Task run history",
+            authored_by=authored_by,
+            message="append run log entry",
         )
 
     async def read_task(self) -> Optional[str]:

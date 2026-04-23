@@ -247,21 +247,29 @@ async def _read_performance_file(
 async def _upsert_performance_file(
     client: Any, user_id: str, context_domain: str, content: str,
 ) -> bool:
-    """Upsert `_performance.md` for the domain. Returns True on success."""
+    """Upsert `_performance.md` for the domain through Authored Substrate.
+
+    ADR-209: authored_by="system:outcome-reconciliation" — the
+    reconciler is a deterministic system actor (daily back-office task),
+    not a cognitive layer. The revision chain captures each reconciliation
+    cycle as an attributed revision.
+    """
     path = _performance_path(context_domain)
     try:
-        client.table("workspace_files").upsert(
-            {
-                "user_id": user_id,
-                "path": path,
-                "content": content,
-                "content_type": "text/markdown",
-                "lifecycle": "active",
-                "summary": f"Money-truth track record for domain={context_domain}",
-                "tags": ["_performance", context_domain, "money-truth"],
-            },
-            on_conflict="user_id,path",
-        ).execute()
+        from services.authored_substrate import write_revision
+
+        write_revision(
+            client,
+            user_id=user_id,
+            path=path,
+            content=content,
+            authored_by="system:outcome-reconciliation",
+            message=f"reconcile {context_domain} outcomes",
+            summary=f"Money-truth track record for domain={context_domain}",
+            tags=["_performance", context_domain, "money-truth"],
+            lifecycle="active",
+            content_type="text/markdown",
+        )
         return True
     except Exception as exc:  # noqa: BLE001
         logger.error(
@@ -700,18 +708,20 @@ async def write_performance_summary(
         rendered = _render_summary_file(summary)
 
         try:
-            client.table("workspace_files").upsert(
-                {
-                    "user_id": user_id,
-                    "path": SUMMARY_PATH,
-                    "content": rendered,
-                    "content_type": "text/markdown",
-                    "lifecycle": "active",
-                    "summary": "Cross-domain money-truth summary (ADR-195 Phase 3)",
-                    "tags": ["_performance_summary", "money-truth"],
-                },
-                on_conflict="user_id,path",
-            ).execute()
+            from services.authored_substrate import write_revision
+
+            write_revision(
+                client,
+                user_id=user_id,
+                path=SUMMARY_PATH,
+                content=rendered,
+                authored_by="system:outcome-reconciliation",
+                message="rebuild cross-domain performance summary",
+                summary="Cross-domain money-truth summary (ADR-195 Phase 3)",
+                tags=["_performance_summary", "money-truth"],
+                lifecycle="active",
+                content_type="text/markdown",
+            )
             return True
         except Exception as exc:  # noqa: BLE001
             logger.error(

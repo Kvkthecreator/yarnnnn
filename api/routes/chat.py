@@ -419,28 +419,24 @@ async def _write_conversation_summary(auth, messages: list[dict]) -> None:
 
         summary_content = "\n".join(summary_parts)
 
-        # Write to workspace
+        # Write to workspace (ADR-209: through Authored Substrate).
+        # authored_by="system:conversation-summary" — this is an automatic
+        # inline summary at session close (ADR-159), not an authored edit.
         from services.supabase import get_service_client
+        from services.authored_substrate import write_revision
+
         svc = get_service_client()
         path = "/workspace/memory/conversation.md"
 
-        # Upsert
-        existing = svc.table("workspace_files").select("id").eq(
-            "user_id", auth.user_id
-        ).eq("path", path).execute()
-
-        if existing.data:
-            svc.table("workspace_files").update({
-                "content": summary_content,
-                "updated_at": now,
-            }).eq("id", existing.data[0]["id"]).execute()
-        else:
-            svc.table("workspace_files").insert({
-                "user_id": auth.user_id,
-                "path": path,
-                "content": summary_content,
-                "tags": ["memory", "conversation"],
-            }).execute()
+        write_revision(
+            svc,
+            user_id=auth.user_id,
+            path=path,
+            content=summary_content,
+            authored_by="system:conversation-summary",
+            message=f"summarize session ({len(decisions)} decisions, {len(topics)} topics)",
+            tags=["memory", "conversation"],
+        )
 
         logger.debug(f"[ADR-159] Wrote conversation.md ({len(decisions)} decisions, {len(topics)} topics)")
 

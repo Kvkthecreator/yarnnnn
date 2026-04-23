@@ -1,6 +1,6 @@
 # ADR-209: Authored Substrate — Content-Addressed Revisions with Authored-By Attribution
 
-> **Status**: **Phase 1 Implemented 2026-04-23** (substrate foundation + backfill + test gate). Phases 2–5 proposed per the phased-implementation section below.
+> **Status**: **Phases 1–2 Implemented 2026-04-23.** Phase 1: substrate foundation + backfill. Phase 2: write-path unification across every call site + legacy deletion (no dual approaches remain). Phases 3–5 proposed per the phased-implementation section below.
 > **Date**: 2026-04-23
 > **Authors**: KVK, Claude
 > **Ratifies**: [docs/architecture/authored-substrate.md](../architecture/authored-substrate.md) (canonical deep-dive) + FOUNDATIONS v6.1 Axiom 1 second clause + Derived Principle 13
@@ -222,24 +222,48 @@ Scope:
 
 **Gate**: [api/test_adr209_phase1.py](../api/test_adr209_phase1.py) — 11/11 assertions pass. Table creation, column add, backfill completeness, attribution, head integrity, blob integrity, blob dedup, write round-trip, validation rejection, list+read round-trip, parent-pointer chain all verified against live dev DB.
 
-### Phase 2 — Write path unification + legacy deletion
+### Phase 2 — Write path unification + legacy deletion — **IMPLEMENTED 2026-04-23**
 
 Scope:
-- Every `workspace_files` write routes through `write_revision` internally. Call sites affected:
-  - `api/services/workspace.py` — `AgentWorkspace.write`, `KnowledgeBase.write`, `TaskWorkspace.write` (wrappers over `write_revision`)
-  - `api/services/memory.py` — `UserMemory.write`
-  - `api/services/reviewer_audit.py` — `append_decision` (decision file becomes a revision)
-  - Any direct `workspace_files` INSERT/UPDATE in primitives, services, or routes (grep-sweep in Phase 2)
-- `authored_by` threaded through every call site from the invoking primitive's context
+- Every `workspace_files` write at the content layer routes through `write_revision()`. Call sites migrated:
+  - `api/services/workspace.py` — `AgentWorkspace.write` (default `authored_by=f"agent:{self._slug}"`), `UserMemory.write` (default `"system:user-memory"`, overridden to `"operator"` / `"yarnnn:<model>"` where context is known)
+  - `api/services/task_workspace.py` — `TaskWorkspace.write` (default `f"task:{self._slug}"`), `save_output` (threads `f"agent:{agent_slug}"`), `append_run_log` (`"system:task-pipeline"`)
+  - `api/services/reviewer_audit.py` — `_write_sync` (threads `f"reviewer:{reviewer_identity}"` from `append_decision`)
+  - `api/services/primitives/workspace.py` — context writes via `um.write` with caller-driven attribution; ADR-176 Phase 4 entity-profile `history/v{N}.md` archive block DELETED
+  - `api/services/primitives/runtime_dispatch.py` — rendered-asset write (`f"agent:{agent_slug}"` when available, else `"system:runtime-dispatch"`)
+  - `api/services/outcomes/ledger.py` — `_upsert_performance_file` + summary write (both `"system:outcome-reconciliation"`)
+  - `api/routes/documents.py` — operator file share (`"operator"`)
+  - `api/routes/chat.py` — conversation.md summary (`"system:conversation-summary"`)
+  - `api/routes/workspace.py` — operator file edit (`"operator"`)
+  - `api/routes/integrations.py` — trading risk scaffold (`"system:trading-risk-scaffold"`)
+- `authored_by` enforcement: `write_revision()` rejects empty attribution with `ValueError`; class wrappers (`AgentWorkspace`, `UserMemory`, `TaskWorkspace`) carry sensible class-scoped defaults that callers with better context can override via the `authored_by` + `message` keyword args
 
-**Legacy deleted in Phase 2** (singular-implementation discipline):
-- `AgentWorkspace._archive_to_history()`, `_cap_history()`, `_is_evolving_file()`, `list_history()` (`api/services/workspace.py` lines 116–237) — revision chain replaces `/history/` subfolder pattern
-- `KnowledgeBase._archive_to_history()`, `list_history()`
-- `/history/{filename}/v{N}.md` write pattern in `api/services/primitives/workspace.py` lines 341–346
-- `_MAX_HISTORY_VERSIONS` cap constant
-- `reviewer_audit.py` per-entry attribution header duplication (authorship now comes from revision, in-file entry simplifies to decision content only)
+**Class-level defaults rationale** (decision made during Phase 2):
+The class wrappers synthesize sensible `authored_by` defaults from their class-scoped context (e.g., `f"agent:{self._slug}"` for `AgentWorkspace` since it's always scoped to one agent). This preserves singular-implementation — there is still exactly one write path enforcing one contract — while avoiding a ~60-call-site uniform-edit diff where most call sites would pass the same class-derivable value explicitly. Callers that represent a different Identity (YARNNN writing an agent file via `UpdateContext` primitive, operator editing via route) override with the `authored_by` keyword argument. The substrate remains the Axiom 2 enforcement point; the wrappers translate class context into substrate-required format.
 
-**Gate**: `grep -rn "history/" api/services/ api/routes/` returns zero live-code references to the versioning pattern (output-folder `history/` references in prompts are fine); `_archive_to_history` returns zero hits; all call sites write successfully with attribution.
+**Legacy deleted in Phase 2** (singular-implementation discipline, all in same PR as migration):
+- `AgentWorkspace._archive_to_history()`, `_cap_history()`, `_is_evolving_file()`, `list_history()` — deleted
+- `AgentWorkspace._EVOLVING_PATTERNS`, `_EVOLVING_DIRS`, `_MAX_HISTORY_VERSIONS` class constants — deleted
+- `/history/{filename}/v{N}.md` write pattern in `AgentWorkspace.write()` — deleted
+- ADR-176 Phase 4 entity-profile `v{N}.md` archive block in `primitives/workspace.py` — deleted (including `_MAX_PROFILE_VERSIONS` cap + `_ENTITY_PROFILE_FILENAMES` constant)
+- `workspace_files.version` integer increment in `AgentWorkspace.write()` — deleted (column scheduled for drop in Phase 5)
+- All direct `workspace_files` INSERT/UPDATE/UPSERT at the content layer — only two permitted: `authored_substrate._upsert_workspace_file` (the write target itself) and `primitives/workspace._embed_workspace_file` (metadata-only embedding column update, documented as a substrate-permitted exception)
+
+**Gates** ([api/test_adr209_phase2.py](../api/test_adr209_phase2.py) — 14/14 assertions pass against live dev DB):
+1. `write_revision` syncs `workspace_files.head_version_id` + `content`
+2. `AgentWorkspace.write` routes through substrate with default `authored_by=f"agent:{slug}"`
+3. `AgentWorkspace.write` override works
+4. `UserMemory.write` defaults to `"system:user-memory"`, operator override works
+5. `TaskWorkspace.write` defaults to `f"task:{slug}"`
+6. `TaskWorkspace.save_output` attributes to `f"agent:{agent_slug}"`
+7. `TaskWorkspace.append_run_log` attributes to `"system:task-pipeline"`
+8. `reviewer_audit.append_decision` attributes to `f"reviewer:{identity}"`
+9. Parent chain on rewrite: second revision's `parent_version_id` = first revision's id
+10. Content + head stay in sync across multiple writes
+11. **Grep gate 1**: zero live-code references to any deleted history methods/constants across `api/services/`, `api/routes/`, `api/agents/`, `api/integrations/`, `api/jobs/`, `api/mcp_server/`
+12. **Grep gate 2**: only `authored_substrate.py` (the write target) and `primitives/workspace.py` embedding-update (permitted exception) touch `workspace_files` with `insert/update/upsert` — every other mutation routes through `write_revision()`
+13. Phase 1 backfill preserved (99 `system:backfill-158` revisions still present)
+14. Phase 1 test suite (11/11) also still passes — no regressions
 
 ### Phase 3 — Read-side primitives + prompt posture
 
@@ -376,3 +400,4 @@ The complete list of what gets deleted and in which phase. Every item has a phas
 |------|--------|
 | 2026-04-23 | v1 — Initial decision record. Ratifies [authored-substrate.md](../architecture/authored-substrate.md) + FOUNDATIONS v6.1 Axiom 1 second clause + Derived Principle 13. Five-phase implementation. Deprecation manifest authoritative. Supersedes ADR-208 v1 (withdrawn) + ADR-119 Phase 3. Amends ADR-106, ADR-162 Sub-phase D, ADR-194 v2, ADR-207 v1.2. |
 | 2026-04-23 | **Phase 1 Implemented.** Migration 158 (`workspace_blobs` + `workspace_file_versions` + `workspace_files.head_version_id`) applied to dev DB. Backfill: 99 files → 99 revisions → 69 unique blobs (content-addressed dedup confirmed). `api/services/authored_substrate.py` lands `write_revision()` + `list_revisions()` + `read_revision()` + `count_revisions()` + `is_valid_author()`. Test gate [api/test_adr209_phase1.py](../api/test_adr209_phase1.py) — 11/11 assertions pass (tables, backfill, head/blob integrity, dedup, end-to-end write, empty-attribution rejection, list+read round-trip, parent-pointer chain). Implementation note: parent resolution queries the revision chain directly, not the denormalized `head_version_id` pointer — decouples Phase 1 from Phase 2's call-site migration. Phases 2–5 proposed. |
+| 2026-04-23 | **Phase 2 Implemented.** Write-path unification across every call site in the codebase; legacy deletion complete. `write_revision()` extended to keep `workspace_files.head_version_id` + `content` + `updated_at` + optional metadata columns in sync on every write. Class wrappers (`AgentWorkspace.write`, `UserMemory.write`, `TaskWorkspace.write`) now route through `write_revision` internally with class-scoped `authored_by` defaults that callers can override via keyword args. `reviewer_audit._write_sync` threads `f"reviewer:{reviewer_identity}"` from `append_decision`. Route-layer direct writes (`routes/documents.py`, `routes/chat.py`, `routes/workspace.py`, `routes/integrations.py`) migrated with explicit attribution. `outcomes/ledger.py` + `primitives/runtime_dispatch.py` migrated. ADR-176 Phase 4 entity-profile `v{N}.md` archive block in `primitives/workspace.py` deleted. **Zero live-code references** to `_archive_to_history`, `_cap_history`, `_is_evolving_file`, `list_history`, `_EVOLVING_PATTERNS`, `_EVOLVING_DIRS`, `_MAX_HISTORY_VERSIONS`, `_MAX_PROFILE_VERSIONS`, `_ENTITY_PROFILE_FILENAMES` anywhere in the codebase. **Only two** `workspace_files` content-layer mutation call sites remain: `authored_substrate._upsert_workspace_file` (the write target) and `primitives/workspace._embed_workspace_file` (permitted metadata-only update for the embedding column). Test gate [api/test_adr209_phase2.py](../api/test_adr209_phase2.py) — 14/14 assertions pass. Phase 1 test suite also re-verified: 11/11 still passing, no regressions. **Key Phase 2 decision**: class wrappers carry `authored_by` defaults derived from class-scoped context rather than forcing ~60 uniform-edit call-site changes — the substrate still enforces the Axiom 2 contract; the wrappers translate class context into substrate-required format. Phases 3–5 proposed. |

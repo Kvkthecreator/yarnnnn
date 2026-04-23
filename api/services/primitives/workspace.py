@@ -37,6 +37,12 @@ async def _embed_workspace_file(client: Any, user_id: str, abs_path: str, conten
     try:
         from services.embeddings import get_embedding
         embedding = await get_embedding(content)
+        # ADR-209 permitted exception: metadata-only updates (no content
+        # mutation) bypass the revision chain. Embedding is a derived index
+        # over content that was already recorded by write_revision, not a
+        # new authored change — so we update workspace_files.embedding
+        # directly. See authored_substrate.py docstring "NOT routed through
+        # write_revision".
         client.table("workspace_files").update(
             {"embedding": embedding}
         ).eq("user_id", user_id).eq("path", abs_path).execute()
@@ -326,9 +332,12 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
             # ADR-176 Phase 4: Content hash dedup — skip write if content unchanged.
             # Cheap SHA-256 comparison avoids unnecessary DB writes and embedding calls.
             filename = path.rsplit("/", 1)[-1] if "/" in path else path
-            _ENTITY_PROFILE_FILENAMES = {"profile.md", "strategy.md", "product.md"}
-            is_entity_profile = filename in _ENTITY_PROFILE_FILENAMES
-
+            # ADR-209: versioning is substrate-native — every write to the
+            # Authored Substrate (via um.write → write_revision) lands a new
+            # revision with authored_by + message attribution and preserves
+            # prior content in the revision chain. The explicit dedup check
+            # below remains a short-circuit optimization (avoids creating a
+            # no-op revision for idempotent writes).
             existing_content = await um.read(full_path)
             if existing_content is not None:
                 existing_hash = hashlib.sha256(existing_content.encode()).hexdigest()
@@ -337,39 +346,18 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
                     return {"success": True, "path": abs_path, "domain": domain,
                             "scope": "context", "skipped": True, "reason": "content_unchanged"}
 
-                # ADR-176 Phase 4: Entity profile versioning — archive profile.md,
-                # strategy.md, product.md to /workspace/context/{domain}/history/ before overwrite.
-                if is_entity_profile:
-                    try:
-                        entity_dir = path.rsplit("/", 1)[0] if "/" in path else ""
-                        hist_prefix = (f"{domain_folder}/{entity_dir}/history/"
-                                       if entity_dir else f"{domain_folder}/history/")
-                        # Count existing versions
-                        ver_result = um._db.table("workspace_files").select("path, updated_at") \
-                            .eq("user_id", auth.user_id) \
-                            .like("path", f"/workspace/{hist_prefix}{filename.replace('.md', '')}-v%.md") \
-                            .order("updated_at", desc=True).execute()
-                        existing_versions = ver_result.data or []
-                        next_v = len(existing_versions) + 1
-                        hist_path = f"{hist_prefix}{filename.replace('.md', '')}-v{next_v}.md"
-                        await um.write(hist_path, existing_content,
-                                      summary=f"v{next_v} archive of {filename}")
-                        # Cap at 5 versions — delete oldest beyond limit
-                        _MAX_PROFILE_VERSIONS = 5
-                        if len(existing_versions) >= _MAX_PROFILE_VERSIONS:
-                            for old in existing_versions[_MAX_PROFILE_VERSIONS - 1:]:
-                                try:
-                                    um._db.table("workspace_files").delete() \
-                                        .eq("user_id", auth.user_id) \
-                                        .eq("path", old["path"]).execute()
-                                except Exception:
-                                    pass
-                    except Exception as e:
-                        logger.warning(f"[WORKSPACE] Entity profile archive failed for {full_path}: {e}")
-
             new_content = content
-            success = await um.write(full_path, new_content,
-                                     summary=f"Context write: {domain}/{path}")
+            # authored_by derives from the invoking caller identity:
+            # context writes typically come through WriteFile primitive invoked by
+            # an agent or by YARNNN. We pass the agent slug when known
+            # (via write_context_ref) or fall back to "yarnnn:<model>" for
+            # YARNNN-authored context. UserMemory.write's default
+            # ("system:user-memory") is the safety net.
+            success = await um.write(
+                full_path, new_content,
+                summary=f"Context write: {domain}/{path}",
+                message=f"WriteFile context {domain}/{path}",
+            )
 
         if success:
             # ADR-174 Phase 2: embed context files async (fire-and-forget).

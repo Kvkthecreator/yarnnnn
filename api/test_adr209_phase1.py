@@ -247,7 +247,9 @@ def test_write_revision_end_to_end(client) -> None:
     try:
         from services.authored_substrate import write_revision, count_revisions
 
-        # Clean up any prior test revisions on the scratch path
+        # Clean up any prior test revisions on the scratch path.
+        # FK order: workspace_files first (head_version_id references revisions).
+        client.table("workspace_files").delete().eq("user_id", TEST_USER_ID).eq("path", SCRATCH_PATH).execute()
         client.table("workspace_file_versions").delete().eq("user_id", TEST_USER_ID).eq("path", SCRATCH_PATH).execute()
 
         rev_id = write_revision(
@@ -390,6 +392,11 @@ def test_parent_pointer_chain(client) -> None:
 
 def cleanup(client) -> None:
     try:
+        # FK order: workspace_files first (head_version_id references the
+        # revision chain), then workspace_file_versions. Phase 2 call paths
+        # may have populated workspace_files.head_version_id during the
+        # scratch writes, requiring this order.
+        client.table("workspace_files").delete().eq("user_id", TEST_USER_ID).eq("path", SCRATCH_PATH).execute()
         client.table("workspace_file_versions").delete().eq("user_id", TEST_USER_ID).eq("path", SCRATCH_PATH).execute()
         logger.info("Cleanup: scratch revisions deleted")
     except Exception as e:

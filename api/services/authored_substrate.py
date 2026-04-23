@@ -1,5 +1,5 @@
 """
-Authored Substrate — ADR-209 (Phase 1)
+Authored Substrate — ADR-209 (Phase 2)
 
 The substrate-level commitment that every mutation to workspace_files is
 attributed, purposeful, and retained. Three of git's five capabilities
@@ -11,17 +11,24 @@ implemented natively in Postgres:
 Branching and distributed replication deferred as cheaply-recoverable
 extensions — see docs/architecture/authored-substrate.md §7.
 
-PHASE 1 STATUS (this PR): additive foundation only. This module exposes
-write_revision() and helper read functions, but no call sites in the
-codebase route through it yet. Phase 2 (next PR) migrates every existing
-write path (AgentWorkspace.write, KnowledgeBase.write, TaskWorkspace.write,
-UserMemory.write, reviewer_audit.append_decision, etc.) to use this
-module, and deletes the /history/ subfolder convention (ADR-119 Phase 3).
+PHASE 2 STATUS: the singular write path. write_revision() is the ONE
+function every workspace_files mutation routes through. It:
+  1. Upserts the content as a content-addressed blob
+  2. Reads the current newest revision for (user_id, path); becomes
+     the new revision's parent_version_id
+  3. Inserts a revision row with required authored_by + message
+  4. Upserts workspace_files with head_version_id set to the new
+     revision, plus content / updated_at / optional metadata columns
 
-Do not import write_revision from application code yet — Phase 2 will
-add the call-site migration as one coherent PR. The function exists
-now so Phase 1 can ship the substrate foundation + backfill + tests
-without touching live write paths.
+Every direct workspace_files INSERT/UPDATE/UPSERT at the content layer
+has been removed — callers MUST go through write_revision(). The
+Phase 2 grep gate (api/test_adr209_phase2.py) enforces this.
+
+NOT routed through write_revision (by design):
+  - workspace_files.delete() — deletion is a distinct operation;
+    ephemeral cleanup + account wipe are the only legitimate uses
+  - workspace_files.embedding updates (metadata-only, no content change)
+  - workspace_files.metadata-only updates that do NOT mutate content
 
 Canonical references:
   - docs/architecture/authored-substrate.md (design rationale)
@@ -187,6 +194,53 @@ def _insert_revision(
     return result.data[0]["id"]
 
 
+def _upsert_workspace_file(
+    db_client: Any,
+    *,
+    user_id: str,
+    path: str,
+    content: str,
+    head_version_id: str,
+    summary: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    lifecycle: Optional[str] = None,
+    content_type: Optional[str] = None,
+    content_url: Optional[str] = None,
+    metadata: Optional[dict] = None,
+) -> None:
+    """Upsert the workspace_files row to reflect the new head revision.
+
+    Carries the denormalized content + head pointer + optional metadata
+    columns. Idempotent via ON CONFLICT (user_id, path).
+    """
+    from datetime import datetime, timezone
+
+    data = {
+        "user_id": user_id,
+        "path": path,
+        "content": content,
+        "head_version_id": head_version_id,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if summary is not None:
+        data["summary"] = summary
+    if tags is not None:
+        data["tags"] = tags
+    if lifecycle is not None:
+        data["lifecycle"] = lifecycle
+    if content_type is not None:
+        data["content_type"] = content_type
+    if content_url is not None:
+        data["content_url"] = content_url
+    if metadata is not None:
+        data["metadata"] = metadata
+
+    db_client.table("workspace_files").upsert(
+        data,
+        on_conflict="user_id,path",
+    ).execute()
+
+
 def write_revision(
     db_client: Any,
     *,
@@ -196,25 +250,34 @@ def write_revision(
     authored_by: str,
     message: str,
     author_identity_uuid: Optional[str] = None,
+    summary: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    lifecycle: Optional[str] = None,
+    content_type: Optional[str] = None,
+    content_url: Optional[str] = None,
+    metadata: Optional[dict] = None,
 ) -> str:
     """The single write path for every substrate mutation.
 
-    Semantics:
+    Semantics (Phase 2 — complete):
       1. Compute sha256 of content; upsert workspace_blobs.
       2. Read the newest revision for (user_id, path) from the revision
          chain; becomes the new revision's parent_version_id (NULL if
          this path has no prior revision).
       3. Insert workspace_file_versions row with authored_by + message.
+      4. Upsert workspace_files with head_version_id = new revision id,
+         plus denormalized content + updated_at + optional metadata
+         columns.
 
-    Phase 2 will additionally update workspace_files.head_version_id +
-    content + updated_at in the same transaction — so that the
-    denormalized pointer + content columns on workspace_files stay in
-    sync with the revision chain for read-path performance. That
-    migration is intentionally deferred so Phase 1 doesn't touch live
-    write paths. Phase 1 usage of write_revision() is limited to tests
-    and the backfill context; parent resolution already works correctly
-    because it queries workspace_file_versions directly, not the
-    denormalized pointer.
+    Every caller in the codebase MUST route through this function. Direct
+    INSERT/UPDATE/UPSERT against workspace_files at the content layer is
+    disallowed — the Phase 2 grep gate enforces it.
+
+    Metadata-only updates (e.g., embedding refresh, metadata JSONB
+    tweaks that don't change content) can update workspace_files
+    directly — they don't mutate substrate content and shouldn't
+    produce a revision. Likewise, deletions use workspace_files.delete()
+    directly.
 
     Returns the new revision id.
 
@@ -222,13 +285,18 @@ def write_revision(
       ValueError — if authored_by or message is empty.
       RuntimeError — if the revision insert fails.
 
-    Note on atomicity: Supabase client does not expose a multi-statement
-    transaction helper in the same way raw psycopg does. Phase 2 will
-    introduce a single RPC (stored function) that performs blob upsert +
-    revision insert + workspace_files sync atomically in one call. For
-    Phase 1, the three-step sequence here is acceptable because no live
-    call sites yet rely on atomicity — only tests and the backfill, both
-    of which run in controlled contexts.
+    Note on atomicity: the four-step sequence is not wrapped in a single
+    transaction — Supabase's Python client doesn't expose one-shot
+    multi-statement transactions the way raw psycopg does. In practice
+    the operations are independent and idempotent: a failure between
+    step 3 and step 4 leaves a revision row without a head pointer
+    update, which is reconciled by the next write to the same path
+    (the next write's parent_version_id resolution reads the newest
+    revision, which is the orphan — and then the workspace_files upsert
+    advances the head past it). The orphan revision remains in the
+    chain and is walkable, which is the substrate invariant we care
+    about. A future optimization may introduce a stored procedure to
+    collapse the sequence, but it is not required for correctness.
     """
     if not authored_by or not authored_by.strip():
         raise ValueError("authored_by is required and must be non-empty")
@@ -249,6 +317,20 @@ def write_revision(
         authored_by=authored_by,
         author_identity_uuid=author_identity_uuid,
         message=message,
+    )
+
+    _upsert_workspace_file(
+        db_client,
+        user_id=user_id,
+        path=path,
+        content=content,
+        head_version_id=new_revision_id,
+        summary=summary,
+        tags=tags,
+        lifecycle=lifecycle,
+        content_type=content_type,
+        content_url=content_url,
+        metadata=metadata,
     )
 
     logger.debug(

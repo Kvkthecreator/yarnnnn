@@ -121,191 +121,90 @@ class AgentWorkspace:
             return "ephemeral"
         return "active"
 
-    # ADR-119 Phase 3: Evolving files that get version history on overwrite.
-    # Output folders version by date accumulation, not overwrite history.
-    _EVOLVING_PATTERNS = {"AGENT.md"}  # ADR-154: thesis.md dissolved
-    _EVOLVING_DIRS = {"memory/"}
-    _MAX_HISTORY_VERSIONS = 5
+    async def write(
+        self,
+        relative_path: str,
+        content: str,
+        summary: str = None,
+        tags: list[str] = None,
+        lifecycle: str = None,
+        content_type: str = None,
+        content_url: str = None,
+        metadata: dict = None,
+        *,
+        authored_by: str = None,
+        message: str = None,
+    ) -> bool:
+        """Write a file through the Authored Substrate (ADR-209).
 
-    @staticmethod
-    def _is_evolving_file(relative_path: str) -> bool:
-        """ADR-119 Phase 3: Check if a file should get version history on overwrite."""
-        filename = relative_path.rsplit("/", 1)[-1] if "/" in relative_path else relative_path
-        if filename in AgentWorkspace._EVOLVING_PATTERNS:
-            return True
-        if any(relative_path.startswith(d) for d in AgentWorkspace._EVOLVING_DIRS):
-            return True
-        return False
+        Routes through services.authored_substrate.write_revision() — every
+        write lands a revision with authored_by + message attribution and
+        preserves the prior content in the revision chain.
 
-    async def _archive_to_history(self, relative_path: str) -> Optional[str]:
-        """ADR-119 Phase 3: Archive current content to /history/{filename}/v{N}.md before overwrite.
+        authored_by default (when not supplied): f"agent:{self._slug}" — the
+        class is scoped to one agent, so the agent slug is the correct
+        Identity unless the caller has better context (e.g., YARNNN writing
+        an agent's file on operator behalf → override with "yarnnn:<model>"
+        or "operator").
 
-        Only called for evolving files. Capped at _MAX_HISTORY_VERSIONS — oldest
-        versions are deleted when the cap is reached.
+        message default: f"write {relative_path}". Callers are encouraged
+        to supply a specific message (e.g., "seed AGENT.md" or "append
+        observation"); the default exists so class wrappers don't force
+        every internal caller to synthesize one.
 
-        Returns the history path if archived, None otherwise.
+        ADR-119: lifecycle auto-inferred from path (/working/ → ephemeral)
+        when not supplied. Version history is no longer an application
+        concern — every write creates a revision automatically.
         """
-        path = self._full_path(relative_path)
-        try:
-            result = (
-                self._db.table("workspace_files")
-                .select("content, summary, version")
-                .eq("user_id", self._user_id)
-                .eq("path", path)
-                .limit(1)
-                .execute()
-            )
-            rows = result.data or []
-            if not rows or not rows[0].get("content"):
-                return None
-
-            existing = rows[0]
-            current_version = existing.get("version", 1)
-
-            # Build history path: /agents/{slug}/history/{filename}/v{N}.md
-            filename = relative_path.rsplit("/", 1)[-1] if "/" in relative_path else relative_path
-            history_path = self._full_path(f"history/{filename}/v{current_version}.md")
-
-            self._db.table("workspace_files").insert({
-                "user_id": self._user_id,
-                "path": history_path,
-                "content": existing["content"],
-                "summary": existing.get("summary") or f"v{current_version} archive",
-                "lifecycle": "archived",
-                "metadata": {
-                    "archived_from": path,
-                    "version_number": current_version,
-                },
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).execute()
-
-            # Cap: delete oldest versions beyond limit
-            await self._cap_history(f"history/{filename}/")
-
-            logger.info(f"[WORKSPACE] ADR-119 P3: Archived {relative_path} v{current_version} → {history_path}")
-            return history_path
-        except Exception as e:
-            logger.warning(f"[WORKSPACE] ADR-119 P3: Archive failed for {relative_path}: {e}")
-            return None
-
-    async def _cap_history(self, history_prefix: str) -> None:
-        """Remove oldest history versions beyond _MAX_HISTORY_VERSIONS."""
-        try:
-            prefix = self._full_path(history_prefix)
-            result = (
-                self._db.table("workspace_files")
-                .select("path, updated_at")
-                .eq("user_id", self._user_id)
-                .like("path", f"{prefix}%")
-                .order("updated_at", desc=True)
-                .execute()
-            )
-            versions = result.data or []
-            if len(versions) > self._MAX_HISTORY_VERSIONS:
-                for old in versions[self._MAX_HISTORY_VERSIONS:]:
-                    self._db.table("workspace_files").delete().eq(
-                        "user_id", self._user_id
-                    ).eq("path", old["path"]).execute()
-        except Exception:
-            pass  # Non-fatal — cap is best-effort
-
-    async def list_history(self, relative_path: str) -> list[dict]:
-        """ADR-119 Phase 3: List version history for an evolving file.
-
-        Returns list of {path, version_number, updated_at} sorted newest first.
-        """
-        filename = relative_path.rsplit("/", 1)[-1] if "/" in relative_path else relative_path
-        prefix = self._full_path(f"history/{filename}/")
-        try:
-            result = (
-                self._db.table("workspace_files")
-                .select("path, metadata, updated_at")
-                .eq("user_id", self._user_id)
-                .like("path", f"{prefix}%")
-                .eq("lifecycle", "archived")
-                .order("updated_at", desc=True)
-                .execute()
-            )
-            return [
-                {
-                    "path": r["path"],
-                    "version_number": (r.get("metadata") or {}).get("version_number", 0),
-                    "updated_at": r.get("updated_at"),
-                }
-                for r in (result.data or [])
-            ]
-        except Exception as e:
-            logger.warning(f"[WORKSPACE] List history failed for {relative_path}: {e}")
-            return []
-
-    async def write(self, relative_path: str, content: str, summary: str = None,
-                    tags: list[str] = None, lifecycle: str = None,
-                    content_type: str = None, content_url: str = None,
-                    metadata: dict = None) -> bool:
-        """Write a file (upsert). Returns True on success.
-
-        ADR-119: lifecycle auto-inferred from path (/working/ → ephemeral).
-        Can be overridden via lifecycle parameter.
-        ADR-119 Phase 3: Evolving files (AGENT.md, thesis.md, memory/*) get
-        version history archived to /history/ before overwrite.
-        """
-        # ADR-119 Phase 3: Archive evolving files before overwrite
-        if self._is_evolving_file(relative_path):
-            await self._archive_to_history(relative_path)
+        from services.authored_substrate import write_revision
 
         path = self._full_path(relative_path)
+        resolved_author = authored_by or f"agent:{self._slug}"
+        resolved_message = message or f"write {relative_path}"
+        resolved_lifecycle = lifecycle or self._infer_lifecycle(path)
+
         try:
-            # Read current version to increment
-            current_version = 1
-            if self._is_evolving_file(relative_path):
-                try:
-                    ver_result = (
-                        self._db.table("workspace_files")
-                        .select("version")
-                        .eq("user_id", self._user_id)
-                        .eq("path", path)
-                        .limit(1)
-                        .execute()
-                    )
-                    if ver_result.data:
-                        current_version = (ver_result.data[0].get("version") or 1) + 1
-                except Exception:
-                    pass
-
-            data = {
-                "user_id": self._user_id,
-                "path": path,
-                "content": content,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-                "lifecycle": lifecycle or self._infer_lifecycle(path),
-                "version": current_version,
-            }
-            if summary is not None:
-                data["summary"] = summary
-            if tags is not None:
-                data["tags"] = tags
-            if content_type is not None:
-                data["content_type"] = content_type
-            if content_url is not None:
-                data["content_url"] = content_url
-            if metadata is not None:
-                data["metadata"] = metadata
-
-            self._db.table("workspace_files").upsert(
-                data,
-                on_conflict="user_id,path",
-            ).execute()
+            write_revision(
+                self._db,
+                user_id=self._user_id,
+                path=path,
+                content=content,
+                authored_by=resolved_author,
+                message=resolved_message,
+                summary=summary,
+                tags=tags,
+                lifecycle=resolved_lifecycle,
+                content_type=content_type,
+                content_url=content_url,
+                metadata=metadata,
+            )
             return True
         except Exception as e:
             logger.error(f"[WORKSPACE] Write failed: {path}: {e}")
             return False
 
-    async def append(self, relative_path: str, content: str) -> bool:
-        """Append content to a file. Creates if doesn't exist."""
+    async def append(
+        self,
+        relative_path: str,
+        content: str,
+        *,
+        authored_by: str = None,
+        message: str = None,
+    ) -> bool:
+        """Append content to a file. Creates if doesn't exist.
+
+        Each append lands a new revision capturing prior-content + new
+        content concatenated. Callers can pass authored_by / message
+        to attribute the append; defaults are AgentWorkspace.write()'s.
+        """
         existing = await self.read(relative_path)
-        if existing is None:
-            return await self.write(relative_path, content)
-        return await self.write(relative_path, existing + "\n" + content)
+        new_content = content if existing is None else (existing + "\n" + content)
+        return await self.write(
+            relative_path,
+            new_content,
+            authored_by=authored_by,
+            message=message or f"append to {relative_path}",
+        )
 
     async def list(self, relative_path: str = "", recursive: bool = False,
                    include_lifecycle: list[str] = None) -> list[str]:
@@ -419,8 +318,13 @@ class AgentWorkspace:
             # Full seed from DB columns
             instructions = (agent.get("agent_instructions") or "").strip()
             if instructions:
-                await self.write("AGENT.md", instructions,
-                                 summary="Agent identity and behavioral instructions")
+                await self.write(
+                    "AGENT.md",
+                    instructions,
+                    summary="Agent identity and behavioral instructions",
+                    authored_by="system:agent-seed",
+                    message="seed AGENT.md from agent DB columns",
+                )
             logger.info(f"[WORKSPACE] Seeded workspace from DB columns: {self._slug}")
 
         # ADR-157: Seed any missing playbooks from type registry
@@ -434,8 +338,11 @@ class AgentWorkspace:
                 existing = await self.read(f"memory/{filename}")
                 if not existing:
                     await self.write(
-                        f"memory/{filename}", content,
+                        f"memory/{filename}",
+                        content,
                         summary=f"Playbook seed: {filename}",
+                        authored_by="system:playbook-seed",
+                        message=f"seed playbook {filename} for role={role}",
                     )
                     logger.info(f"[WORKSPACE] Seeded missing playbook: {self._slug}/memory/{filename}")
 
@@ -797,32 +704,55 @@ class UserMemory:
             logger.warning(f"[USER_MEMORY] Read sync failed: {path}: {e}")
             return None
 
-    async def write(self, filename: str, content: str, summary: str = None,
-                    content_type: str = None, content_url: str = None,
-                    metadata: dict = None) -> bool:
-        """Write a memory file (upsert). Returns True on success.
+    async def write(
+        self,
+        filename: str,
+        content: str,
+        summary: str = None,
+        content_type: str = None,
+        content_url: str = None,
+        metadata: dict = None,
+        *,
+        authored_by: str = None,
+        message: str = None,
+    ) -> bool:
+        """Write a memory file through the Authored Substrate (ADR-209).
 
-        ADR-157: Supports content_url for binary asset references (favicons, images).
+        UserMemory spans two content classes with different typical authors:
+          - /workspace/context/_shared/* — authored shared context
+            (IDENTITY.md, BRAND.md, CONVENTIONS.md). Typical author:
+            `operator` (via route handlers) or `yarnnn:<model>` (via
+            inference primitives).
+          - /workspace/memory/* — YARNNN working memory (awareness, notes,
+            conversation summary, style distillation). Typical author:
+            `yarnnn:<model>` or `system:*`.
+
+        Default `authored_by` is `"system:user-memory"` — callers that
+        know better context MUST override. Leaving the default is a
+        correctness smell, not a bug (the substrate still records the
+        write, but with weaker attribution than possible).
+
+        ADR-157: Supports content_url for binary asset references.
         """
+        from services.authored_substrate import write_revision
+
         path = self._full_path(filename)
+        resolved_author = authored_by or "system:user-memory"
+        resolved_message = message or f"write {filename}"
+
         try:
-            data = {
-                "user_id": self._user_id,
-                "path": path,
-                "content": content,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-            if summary is not None:
-                data["summary"] = summary
-            if content_type is not None:
-                data["content_type"] = content_type
-            if content_url is not None:
-                data["content_url"] = content_url
-            if metadata is not None:
-                data["metadata"] = metadata
-            self._db.table("workspace_files").upsert(
-                data, on_conflict="user_id,path"
-            ).execute()
+            write_revision(
+                self._db,
+                user_id=self._user_id,
+                path=path,
+                content=content,
+                authored_by=resolved_author,
+                message=resolved_message,
+                summary=summary,
+                content_type=content_type,
+                content_url=content_url,
+                metadata=metadata,
+            )
             return True
         except Exception as e:
             logger.error(f"[USER_MEMORY] Write failed: {path}: {e}")
@@ -867,16 +797,26 @@ class UserMemory:
         content = await self.read(SHARED_IDENTITY_PATH)
         return self._parse_memory_md(content)
 
-    async def update_profile(self, updates: dict) -> bool:
-        """Update profile fields in IDENTITY.md (read-merge-write)."""
+    async def update_profile(self, updates: dict, *, authored_by: str = "operator") -> bool:
+        """Update profile fields in IDENTITY.md (read-merge-write).
+
+        Defaults to `authored_by="operator"` since identity edits typically
+        come through routes/memory.py (operator action). YARNNN inference
+        updates should override with `yarnnn:<model>`.
+        """
         from services.workspace_paths import SHARED_IDENTITY_PATH
         current = await self.get_profile()
         current.update({k: v for k, v in updates.items() if v is not None})
         for k, v in updates.items():
             if v is None or v == "":
                 current.pop(k, None)
-        return await self.write(SHARED_IDENTITY_PATH, self._render_memory_md(current),
-                                summary="User identity")
+        return await self.write(
+            SHARED_IDENTITY_PATH,
+            self._render_memory_md(current),
+            summary="User identity",
+            authored_by=authored_by,
+            message="update user identity profile",
+        )
 
     async def get_preferences(self) -> dict:
         """Parse style.md into structured dict."""
@@ -884,8 +824,16 @@ class UserMemory:
         content = await self.read(MEMORY_STYLE_PATH)
         return self._parse_preferences_md(content)
 
-    async def update_preferences(self, platform: str, updates: dict) -> bool:
-        """Update preferences for a platform (read-merge-write)."""
+    async def update_preferences(
+        self, platform: str, updates: dict, *, authored_by: str = "operator"
+    ) -> bool:
+        """Update preferences for a platform (read-merge-write).
+
+        Defaults `authored_by="operator"` — preferences are typically edited
+        by the user via the Context surface. ADR-117 style distillation
+        should override with `system:feedback-distillation` when
+        auto-updating.
+        """
         prefs = await self.get_preferences()
         if not any(v for v in updates.values()):
             prefs.pop(platform, None)
@@ -900,8 +848,13 @@ class UserMemory:
             if platform in prefs and not prefs[platform]:
                 del prefs[platform]
         from services.workspace_paths import MEMORY_STYLE_PATH
-        return await self.write(MEMORY_STYLE_PATH, self._render_preferences_md(prefs),
-                                summary="Communication and content preferences")
+        return await self.write(
+            MEMORY_STYLE_PATH,
+            self._render_preferences_md(prefs),
+            summary="Communication and content preferences",
+            authored_by=authored_by,
+            message=f"update preferences for {platform}",
+        )
 
     async def get_notes(self) -> list[dict]:
         """Parse notes.md into list of {type, content}."""
@@ -909,27 +862,46 @@ class UserMemory:
         content = await self.read(MEMORY_NOTES_PATH)
         return self._parse_notes_md(content)
 
-    async def add_note(self, note_type: str, content: str) -> bool:
-        """Append a note to notes.md."""
+    async def add_note(
+        self, note_type: str, content: str, *, authored_by: str = "operator"
+    ) -> bool:
+        """Append a note to notes.md. Defaults to operator attribution."""
         from services.workspace_paths import MEMORY_NOTES_PATH
         notes = await self.get_notes()
         notes.append({"type": note_type, "content": content})
-        return await self.write(MEMORY_NOTES_PATH, self._render_notes_md(notes),
-                                summary="Standing instructions and observed facts")
+        return await self.write(
+            MEMORY_NOTES_PATH,
+            self._render_notes_md(notes),
+            summary="Standing instructions and observed facts",
+            authored_by=authored_by,
+            message=f"add {note_type} note",
+        )
 
-    async def remove_note(self, content: str) -> bool:
-        """Remove a note by content match."""
+    async def remove_note(self, content: str, *, authored_by: str = "operator") -> bool:
+        """Remove a note by content match. Defaults to operator attribution."""
         from services.workspace_paths import MEMORY_NOTES_PATH
         notes = await self.get_notes()
         notes = [n for n in notes if n["content"] != content]
-        return await self.write(MEMORY_NOTES_PATH, self._render_notes_md(notes),
-                                summary="Standing instructions and observed facts")
+        return await self.write(
+            MEMORY_NOTES_PATH,
+            self._render_notes_md(notes),
+            summary="Standing instructions and observed facts",
+            authored_by=authored_by,
+            message="remove note",
+        )
 
-    async def replace_notes(self, notes: list[dict]) -> bool:
+    async def replace_notes(
+        self, notes: list[dict], *, authored_by: str = "system:memory-extraction"
+    ) -> bool:
         """Replace all notes (used by extraction cron read-merge-write)."""
         from services.workspace_paths import MEMORY_NOTES_PATH
-        return await self.write(MEMORY_NOTES_PATH, self._render_notes_md(notes),
-                                summary="Standing instructions and observed facts")
+        return await self.write(
+            MEMORY_NOTES_PATH,
+            self._render_notes_md(notes),
+            summary="Standing instructions and observed facts",
+            authored_by=authored_by,
+            message="replace notes (bulk)",
+        )
 
     # =========================================================================
     # Markdown parsing/rendering

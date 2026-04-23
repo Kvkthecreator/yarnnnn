@@ -2535,15 +2535,20 @@ async def _scaffold_risk_md(service_client: Any, user_id: str) -> bool:
             logger.info(f"[TRADING] _risk.md already exists for {user_id}; skipping scaffold")
             return False
 
-        # Create with conservative defaults
+        # Create with conservative defaults (ADR-209: through Authored Substrate).
+        from services.authored_substrate import write_revision
+
         content = scaffold_default_risk_md()
-        service_client.table("workspace_files").insert({
-            "user_id": user_id,
-            "path": RISK_MD_PATH,
-            "content": content,
-            "summary": "Default risk parameters (conservative). Review + adjust before autonomous trading.",
-            "content_type": "text/markdown",
-        }).execute()
+        write_revision(
+            service_client,
+            user_id=user_id,
+            path=RISK_MD_PATH,
+            content=content,
+            authored_by="system:trading-risk-scaffold",
+            message="scaffold _risk.md with conservative defaults",
+            summary="Default risk parameters (conservative). Review + adjust before autonomous trading.",
+            content_type="text/markdown",
+        )
         logger.info(f"[TRADING] Scaffolded _risk.md with conservative defaults for {user_id}")
         return True
     except Exception as e:

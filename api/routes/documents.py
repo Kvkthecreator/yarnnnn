@@ -413,28 +413,22 @@ async def share_file_global(
     path = f"/user_shared/{safe_filename}"
 
     try:
-        existing = (
-            auth.client.table("workspace_files")
-            .select("id, version")
-            .eq("user_id", auth.user_id)
-            .eq("path", path)
-            .maybe_single()
-            .execute()
+        # ADR-209: operator-initiated share routes through the Authored Substrate.
+        # authored_by="operator" because the share is a direct user action.
+        # Versioning is substrate-native — the `version` integer column is
+        # being retired in Phase 5 and is not set here.
+        from services.authored_substrate import write_revision
+
+        write_revision(
+            auth.client,
+            user_id=auth.user_id,
+            path=path,
+            content=content,
+            authored_by="operator",
+            message=f"share user file {safe_filename}",
+            summary=f"User shared: {safe_filename}",
+            lifecycle="ephemeral",
         )
-
-        row = {
-            "user_id": auth.user_id,
-            "path": path,
-            "content": content,
-            "summary": f"User shared: {safe_filename}",
-            "lifecycle": "ephemeral",
-            "version": (existing.data.get("version", 0) + 1) if existing and existing.data else 1,
-        }
-
-        if existing and existing.data:
-            auth.client.table("workspace_files").update(row).eq("id", existing.data["id"]).execute()
-        else:
-            auth.client.table("workspace_files").insert(row).execute()
 
     except Exception as e:
         logger.error(f"[SHARE] Failed to write user_shared file: {e}")

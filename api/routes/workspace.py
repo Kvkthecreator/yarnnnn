@@ -495,20 +495,22 @@ async def edit_workspace_file(
 
     try:
         from datetime import datetime, timezone
+        from services.authored_substrate import write_revision
+
         now = datetime.now(timezone.utc).isoformat()
 
-        data = {
-            "user_id": auth.user_id,
-            "path": path,
-            "content": content,
-            "updated_at": now,
-        }
-        if body.summary:
-            data["summary"] = body.summary
-
-        auth.client.table("workspace_files").upsert(
-            data, on_conflict="user_id,path"
-        ).execute()
+        # ADR-209: operator's direct file edit routes through the Authored
+        # Substrate. authored_by="operator" because this is a user-initiated
+        # edit via the Context surface.
+        write_revision(
+            auth.client,
+            user_id=auth.user_id,
+            path=path,
+            content=content,
+            authored_by="operator",
+            message=f"edit file {path}",
+            summary=body.summary,
+        )
 
         logger.info(f"[WORKSPACE_API] File edited: {path}")
 
