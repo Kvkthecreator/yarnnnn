@@ -1475,6 +1475,51 @@ The cockpit should be honest about what the workspace knows, not optimistic abou
             ],
         },
     },
+    "back-office-reviewer-calibration": {
+        "display_name": "Reviewer Calibration",
+        "description": "Rebuilds /workspace/review/calibration.md from decisions.md × reconciled _performance.md. Closes the money-truth → future-judgment loop per FOUNDATIONS Axiom 7 + Axiom 8. ADR-211 D6.",
+        "output_kind": "system_maintenance",
+        "default_delivery": "none",
+        "registry_default_team": [],
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "markdown",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "thinking_partner",
+                "step": "back-office",
+                "instruction": (
+                    "Back office maintenance: rebuild the Reviewer seat's "
+                    "calibration.md from decisions.md × reconciled outcomes. "
+                    "Zero LLM cost (filesystem reads + deterministic "
+                    "aggregation). Runs after back-office-outcome-reconciliation "
+                    "so _performance.md is fresh. "
+                    "executor: services.back_office.reviewer_calibration"
+                ),
+            },
+        ],
+        "context_reads": [],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Reviewer calibration trail",
+            "audience": "AI occupants of the Reviewer seat (prior context) and the operator (rotation + modes tuning decisions)",
+            "purpose": "Keep /workspace/review/calibration.md current so the seat's judgment quality is measured against money-truth rather than asserted. Enables seat interchangeability (Principle 14) to be evidence-based.",
+            "format": "Markdown with YAML frontmatter — rolling 7d/30d/90d aggregates per occupant × verdict category",
+        },
+        "default_deliverable": {
+            "output": {"format": "markdown", "word_count": "n/a", "layout": ["Summary", "Per-window aggregates"]},
+            "assets": [],
+            "quality_criteria": [
+                "Decisions parsed count reported",
+                "Per-occupant verdict tallies (approve / reject / defer) in all three windows",
+                "Idempotent rebuild — no drift between consecutive runs with identical decisions",
+                "Missing decisions.md / empty file produces an empty-state report, not a failure",
+            ],
+        },
+    },
 }
 
 
