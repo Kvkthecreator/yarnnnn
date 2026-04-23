@@ -43,6 +43,8 @@ interface AgentContentViewProps {
 }
 
 type AgentClass = NonNullable<Agent['agent_class']>;
+// Reviewer is dispatched to ReviewerDetailView before any registry lookup (ADR-214).
+type RegistryAgentClass = Exclude<AgentClass, 'reviewer'>;
 type TaskOutputKind = NonNullable<Task['output_kind']>;
 
 interface AgentShellDescriptor {
@@ -92,7 +94,7 @@ const _SPECIALIST_SHELL: AgentShellDescriptor = {
   },
 };
 
-const AGENT_SHELL_REGISTRY: Record<AgentClass, AgentShellDescriptor> = {
+const AGENT_SHELL_REGISTRY: Record<RegistryAgentClass, AgentShellDescriptor> = {
   'specialist': _SPECIALIST_SHELL,
   'domain-steward': _SPECIALIST_SHELL, // backward compat — v4 DB rows
   synthesizer: {
@@ -144,7 +146,7 @@ const _SPECIALIST_EMPTY_STATE: AgentEmptyStateDescriptor = {
   description: () => 'Ask your thinking partner to set up a task for this specialist.',
 };
 
-const AGENT_EMPTY_STATE_REGISTRY: Record<AgentClass, AgentEmptyStateDescriptor> = {
+const AGENT_EMPTY_STATE_REGISTRY: Record<RegistryAgentClass, AgentEmptyStateDescriptor> = {
   'specialist': _SPECIALIST_EMPTY_STATE,
   'domain-steward': _SPECIALIST_EMPTY_STATE, // backward compat
   synthesizer: {
@@ -183,7 +185,7 @@ const _SPECIALIST_GUIDANCE: RoleGuidanceDescriptor = {
   ],
 };
 
-const ROLE_GUIDANCE_REGISTRY: Record<AgentClass, RoleGuidanceDescriptor> = {
+const ROLE_GUIDANCE_REGISTRY: Record<RegistryAgentClass, RoleGuidanceDescriptor> = {
   'specialist': _SPECIALIST_GUIDANCE,
   'domain-steward': _SPECIALIST_GUIDANCE, // backward compat
   synthesizer: {
@@ -302,7 +304,7 @@ function normalizeCadenceLabel(schedule?: string | null): string {
 }
 
 function summarizeRoleContract(agent: Agent, tasks: Task[]) {
-  const cls = (agent.agent_class || 'specialist') as AgentClass;
+  const cls = (agent.agent_class || 'specialist') as RegistryAgentClass;
   const liveTasks = tasks.filter((task) => task.status !== 'archived');
   const activeTasks = liveTasks.filter((task) => task.status === 'active');
 
@@ -411,8 +413,8 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
 }
 
 function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
-  const descriptor = AGENT_SHELL_REGISTRY[(agent.agent_class || 'specialist') as AgentClass];
-  const guidance = ROLE_GUIDANCE_REGISTRY[(agent.agent_class || 'specialist') as AgentClass];
+  const descriptor = AGENT_SHELL_REGISTRY[(agent.agent_class || 'specialist') as RegistryAgentClass];
+  const guidance = ROLE_GUIDANCE_REGISTRY[(agent.agent_class || 'specialist') as RegistryAgentClass];
   const contract = summarizeRoleContract(agent, tasks);
   const instructions = agent.agent_instructions
     ? stripLeadingH1IfMatchesTitle(agent.agent_instructions, agent.title).trim()
@@ -589,7 +591,7 @@ function platformManagementLabel(provider: string | null, connected: boolean): s
 
 function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   const agentSlug = getAgentSlug(agent);
-  const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'specialist') as AgentClass];
+  const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'specialist') as RegistryAgentClass];
   const platformProvider = agent.agent_class === 'platform-bot' ? platformProviderForRole(agent.role) : null;
 
   if (tasks.length === 0) {

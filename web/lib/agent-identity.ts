@@ -195,6 +195,10 @@ const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
     label: 'YARNNN',
     description: 'Owns orchestration and back office maintenance.',
   },
+  reviewer: {
+    label: 'Reviewer',
+    description: 'Judgment seat — independent approval on proposed actions (ADR-194 / ADR-214).',
+  },
 };
 
 function isCanonicalRole(role: string): role is CanonicalAgentRole {
