@@ -22,6 +22,7 @@ import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
+import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import type { TaskDetail, TaskOutput } from '@/types';
 import type { TaskView } from './TaskTreeNav';
 
@@ -324,14 +325,17 @@ function RunHistoryView({
 function TaskDefinitionView({ task }: { task: TaskDetail }) {
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const taskMdPath = `/tasks/${task.slug}/TASK.md`;
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     setLoading(true);
-    api.workspace.getFile(`/tasks/${task.slug}/TASK.md`)
+    return api.workspace.getFile(taskMdPath)
       .then(file => setContent(file?.content || null))
       .catch(() => setContent(null))
       .finally(() => setLoading(false));
-  }, [task.slug]);
+  }, [taskMdPath]);
+
+  useEffect(() => { refetch(); }, [refetch]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
@@ -342,10 +346,12 @@ function TaskDefinitionView({ task }: { task: TaskDetail }) {
   }
 
   return (
-    <div className="p-6 overflow-auto h-full">
+    <div className="p-6 overflow-auto h-full space-y-4">
       <div className="prose prose-sm max-w-none dark:prose-invert">
         <MarkdownRenderer content={content} />
       </div>
+      {/* ADR-209 Phase 4: revision history for TASK.md — who has edited it and when */}
+      <RevisionHistoryPanel path={taskMdPath} onRevert={refetch} initiallyCollapsed />
     </div>
   );
 }

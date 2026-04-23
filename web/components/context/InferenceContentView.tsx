@@ -4,14 +4,22 @@
  * InferenceContentView — Renders inferred content (IDENTITY.md, BRAND.md)
  * with source provenance and gap markers.
  *
- * ADR-162 Sub-phase D + ADR-163: Parses the `<!-- inference-meta: ... -->`
- * comment embedded in inference output by `_append_inference_meta()` on the
- * backend. The parsed body (without the comment) is rendered via the normal
- * markdown renderer. The parsed meta drives two inline signals:
+ * ADR-162 Sub-phase D + ADR-163 + ADR-209 Phase 4: Parses the
+ * `<!-- inference-meta: ... -->` comment embedded in inference output by
+ * `_append_inference_meta()` on the backend. The parsed body (without the
+ * comment) is rendered via the normal markdown renderer. The parsed meta
+ * drives two inline signals:
  *
  *   1. Source caption — "Last updated from: pitch-deck.pdf" above the body
  *   2. Gap banner — "Missing: company name" below the body, with an action
  *      to drop a pre-filled message into TP chat
+ *
+ * ADR-209 Phase 4 removed the "Inferred Nh ago" timestamp from this view.
+ * Timestamp authority now lives in the Authored Substrate revision chain —
+ * callers that want age alongside this view mount the RevisionHistoryPanel
+ * adjacent (see BrandSection in MemorySection.tsx). Duplicating timestamp
+ * here would conflict with substrate-as-source-of-truth per FOUNDATIONS
+ * v6.1 Axiom 1.
  *
  * If no meta comment is present (e.g., a manually-edited file), the component
  * falls back to just rendering the body. No captions, no banners.
@@ -34,26 +42,10 @@ interface InferenceContentViewProps {
   className?: string;
 }
 
-function formatRelativeAge(iso: string): string {
-  try {
-    const then = new Date(iso).getTime();
-    const now = Date.now();
-    const seconds = Math.floor((now - then) / 1000);
-    if (seconds < 60) return 'just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-    return new Date(iso).toLocaleDateString();
-  } catch {
-    return '';
-  }
-}
-
 export function InferenceContentView({ content, target, className }: InferenceContentViewProps) {
   const { body, meta } = parseInferenceMeta(content);
   const sourceCaption = formatSourceCaption(meta);
   const primaryGap = getPrimaryGap(meta);
-  const ageLabel = meta?.inferred_at ? formatRelativeAge(meta.inferred_at) : null;
 
   const gapChatPrompt = primaryGap
     ? encodeURIComponent(
@@ -71,13 +63,11 @@ export function InferenceContentView({ content, target, className }: InferenceCo
 
   return (
     <div className={cn('space-y-3', className)}>
-      {/* Source caption */}
-      {(sourceCaption || ageLabel) && (
+      {/* Source caption (no longer carries "inferred ago" — revision chain is authoritative). */}
+      {sourceCaption && (
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground/60">
           <Info className="w-3 h-3" />
-          {sourceCaption && <span>{sourceCaption}</span>}
-          {sourceCaption && ageLabel && <span className="text-muted-foreground/30">·</span>}
-          {ageLabel && <span>Inferred {ageLabel}</span>}
+          <span>{sourceCaption}</span>
         </div>
       )}
 

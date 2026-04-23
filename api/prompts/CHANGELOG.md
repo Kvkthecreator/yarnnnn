@@ -6,6 +6,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.23.2] - ADR-209 Phase 4: cockpit revision UI + inference-meta simplification
+
+### Added
+
+- HTTP surface for the revision-aware primitives (backend):
+  - `GET /api/workspace/revisions?path=...&limit=10` — thin wrapper over `services.authored_substrate.list_revisions`
+  - `GET /api/workspace/revisions/{id}?path=...` — thin wrapper over `read_revision`
+  - `GET /api/workspace/revisions/diff/two?path=...&from_rev=...&to_rev=...` — pure-Python unified diff between two revisions
+- `FileEditRequest.message` field (optional) — `PATCH /api/workspace/file` accepts an explicit short message for the revision's authorship trailer. UI revert sends `"revert to revision {shortId}"`; default when omitted remains `"edit file {path}"`.
+- New frontend component `web/components/workspace/RevisionHistoryPanel.tsx` — collapsible panel that reads `listRevisions` for an absolute workspace path and renders the chain as `r{N} · <author chip> · "<message>" · <ago>` newest first. Author chips color-coded by cognitive layer. Inline diff-vs-current on click. Revert action on editable-path surfaces.
+- Panel wired at three sites:
+  - `BrandSection` in `MemorySection.tsx` (path: `/workspace/context/_shared/BRAND.md`; refetches via `api.brand.get()` on revert)
+  - `TaskDefinitionView` in `TaskContentView.tsx` (path: `/tasks/{slug}/TASK.md`; refetches via `api.workspace.getFile`)
+  - `AgentRoleBlock` in `AgentContentView.tsx` (path: `/agents/{slug}/AGENT.md`; `revertDisabled` — agent writes flow via primitives, not PATCH)
+- Frontend API client: `api.workspace.listRevisions`, `api.workspace.readRevision`, `api.workspace.diffRevisions`. `api.workspace.editFile` signature extended with optional `message` argument.
+
+### Changed
+
+- `services.context_inference._append_inference_meta` no longer emits `inferred_at`. The Authored Substrate revision chain's `created_at` is authoritative for timestamp; duplicating it in the HTML comment would violate FOUNDATIONS v6.1 Axiom 1 (substrate-as-source-of-truth). Retained meta fields: `target`, `sources`, `gaps`.
+- `web/lib/inference-meta.ts` `InferenceMeta` interface no longer declares `inferred_at`. `parseInferenceMeta` signature unchanged; frontend regex still matches since the trailing HTML comment shape is preserved.
+- `web/components/context/InferenceContentView.tsx` — `formatRelativeAge()` helper + "Inferred N ago" caption path deleted. Age now comes from the adjacent `RevisionHistoryPanel` mount when surfaces want it. Source-caption + gap-banner paths unchanged.
+- `save_identity` + `save_brand` routes in `api/routes/memory.py` now pass `authored_by="operator"` + an explicit message (`"edit IDENTITY.md (settings surface)"` / `"edit BRAND.md (settings surface)"`) through `UserMemory.write`. Was defaulting to `"system:user-memory"` in Phase 2, which was correct-but-unhelpful for the RevisionHistoryPanel's cognitive-layer color coding.
+
+### Expected behavior
+
+- Operator viewing BrandSection / Task detail / Agent detail sees a collapsible "Revision history (N)" panel below the main content. Clicking any past revision renders an inline unified diff vs. current.
+- Operator clicking "revert" on a past revision lands a new revision attributed to `operator` with message `"revert to revision {shortId}"`. The chain grows by one entry; `workspace_files.head_version_id` advances to the new revision; content flips to the restored bytes. Fully Axiom-1 conformant — revert is an authored write, not a substrate mutation.
+- YARNNN's "Recent activity" line in the compact index (Phase 3) now correctly attributes operator IDENTITY.md / BRAND.md edits to the `operator` bucket rather than `system`. Meta-awareness reads become accurate: YARNNN can reason "the operator just edited their brand" instead of "some system actor touched it."
+- Inference outputs (IDENTITY.md / BRAND.md via `infer_shared_context`) continue to emit the HTML comment with source-summary + gaps, but no longer duplicate timestamp. Frontend surfaces reading via InferenceContentView show the source caption + gap banner with no "inferred ago" suffix.
+
+### ADRs
+
+- ADR-209 Phase 4 (this entry). Phases 1–3 shipped previously.
+- Amends ADR-162 Sub-phase D — inference-meta schema reduced to source-summary + gaps only.
+- Amends ADR-163 — InferenceContentView no longer renders age; revision chain carries timestamp.
+
+---
+
 ## [2026.04.23.1] - ADR-209 Phase 3: revision-aware primitives + compact-index authorship signal
 
 ### Added

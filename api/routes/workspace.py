@@ -49,6 +49,11 @@ class FileEditRequest(BaseModel):
     path: str
     content: str
     summary: Optional[str] = None
+    # ADR-209 Phase 4: optional message for the revision's authorship trailer.
+    # Default is "edit file {path}"; UI revert sends "revert to r{N}"; bulk
+    # edits can send any short description. Always attributed to "operator"
+    # via this route.
+    message: Optional[str] = None
 
 
 # =============================================================================
@@ -501,14 +506,15 @@ async def edit_workspace_file(
 
         # ADR-209: operator's direct file edit routes through the Authored
         # Substrate. authored_by="operator" because this is a user-initiated
-        # edit via the Context surface.
+        # edit via the Context surface. Phase 4: message accepts an explicit
+        # short description from UI (revert action sends "revert to r{N}").
         write_revision(
             auth.client,
             user_id=auth.user_id,
             path=path,
             content=content,
             authored_by="operator",
-            message=f"edit file {path}",
+            message=body.message or f"edit file {path}",
             summary=body.summary,
         )
 
@@ -522,6 +528,182 @@ async def edit_workspace_file(
 
     except Exception as e:
         logger.error(f"[WORKSPACE_API] File edit failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# ADR-209 Phase 4: Authored Substrate revision endpoints
+#
+# HTTP surface for the revision-aware primitives. Thin wrappers around the
+# substrate helpers in services.authored_substrate — RLS via auth.user_id.
+# =============================================================================
+
+class RevisionSummary(BaseModel):
+    id: str
+    authored_by: str
+    author_identity_uuid: Optional[str] = None
+    message: str
+    created_at: str
+    parent_version_id: Optional[str] = None
+
+
+class RevisionDetail(BaseModel):
+    id: str
+    path: str
+    authored_by: str
+    author_identity_uuid: Optional[str] = None
+    message: str
+    created_at: str
+    parent_version_id: Optional[str] = None
+    blob_sha: str
+    content: Optional[str] = None
+
+
+class RevisionListResponse(BaseModel):
+    path: str
+    count: int
+    revisions: list[RevisionSummary]
+
+
+class RevisionDiffResponse(BaseModel):
+    path: str
+    from_revision: RevisionSummary
+    to_revision: RevisionSummary
+    diff: str
+    identical: bool
+
+
+@router.get("/workspace/revisions", response_model=RevisionListResponse)
+async def list_revisions_route(
+    auth: UserClient,
+    path: str = Query(..., description="Absolute workspace path (e.g., /workspace/context/_shared/MANDATE.md)"),
+    limit: int = Query(10, ge=1, le=100, description="Max revisions to return (newest first)"),
+) -> RevisionListResponse:
+    """ADR-209 Phase 4: return the revision chain for a workspace path.
+
+    Newest first. Used by the RevisionHistoryPanel component to render
+    "who has edited this file, when, with what message."
+    """
+    try:
+        from services.authored_substrate import list_revisions
+
+        rows = list_revisions(
+            auth.client,
+            user_id=auth.user_id,
+            path=path,
+            limit=limit,
+        )
+        revisions = [RevisionSummary(**r) for r in rows]
+        return RevisionListResponse(path=path, count=len(revisions), revisions=revisions)
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] list_revisions failed for {path}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/workspace/revisions/{revision_id}", response_model=RevisionDetail)
+async def read_revision_route(
+    auth: UserClient,
+    revision_id: str,
+    path: str = Query(..., description="Absolute workspace path for ownership scope"),
+) -> RevisionDetail:
+    """ADR-209 Phase 4: read a specific historical revision's content + metadata.
+
+    The client passes the path alongside the revision_id for clarity + RLS
+    cross-check — the substrate helper enforces user scoping at the query
+    layer. Used by RevisionHistoryPanel to fetch a selected revision's
+    content for diff/revert preview.
+    """
+    try:
+        from services.authored_substrate import read_revision
+
+        rev = read_revision(
+            auth.client,
+            user_id=auth.user_id,
+            path=path,
+            revision_id=revision_id,
+        )
+        if rev is None:
+            raise HTTPException(status_code=404, detail=f"Revision {revision_id} not found for {path}")
+        return RevisionDetail(
+            id=rev.id,
+            path=rev.path,
+            authored_by=rev.authored_by,
+            author_identity_uuid=rev.author_identity_uuid,
+            message=rev.message,
+            created_at=str(rev.created_at) if rev.created_at else "",
+            parent_version_id=rev.parent_version_id,
+            blob_sha=rev.blob_sha,
+            content=rev.content,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] read_revision failed for {revision_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/workspace/revisions/diff/two", response_model=RevisionDiffResponse)
+async def diff_revisions_route(
+    auth: UserClient,
+    path: str = Query(..., description="Absolute workspace path"),
+    from_rev: str = Query(..., description="Revision UUID (from) — typically older"),
+    to_rev: str = Query(..., description="Revision UUID (to) — typically newer"),
+) -> RevisionDiffResponse:
+    """ADR-209 Phase 4: unified diff between two revisions of the same path.
+
+    Pure-Python deterministic diff. Zero LLM cost. Used by RevisionHistoryPanel
+    inline-diff view.
+
+    Route segment is /diff/two (not /diff) to avoid colliding with the
+    /revisions/{revision_id} pattern above — FastAPI would otherwise treat
+    "diff" as a revision_id.
+    """
+    import difflib
+
+    try:
+        from services.authored_substrate import read_revision
+
+        rev_from = read_revision(auth.client, user_id=auth.user_id, path=path, revision_id=from_rev)
+        rev_to = read_revision(auth.client, user_id=auth.user_id, path=path, revision_id=to_rev)
+
+        if rev_from is None or rev_to is None:
+            raise HTTPException(status_code=404, detail="One or both revisions not found")
+
+        from_content = rev_from.content or ""
+        to_content = rev_to.content or ""
+
+        diff_lines = list(
+            difflib.unified_diff(
+                from_content.splitlines(keepends=True),
+                to_content.splitlines(keepends=True),
+                fromfile=f"{path}@{rev_from.id[:8]}",
+                tofile=f"{path}@{rev_to.id[:8]}",
+                n=3,
+            )
+        )
+        diff_text = "".join(diff_lines)
+
+        def _summary(r) -> RevisionSummary:
+            return RevisionSummary(
+                id=r.id,
+                authored_by=r.authored_by,
+                author_identity_uuid=r.author_identity_uuid,
+                message=r.message,
+                created_at=str(r.created_at) if r.created_at else "",
+                parent_version_id=r.parent_version_id,
+            )
+
+        return RevisionDiffResponse(
+            path=path,
+            from_revision=_summary(rev_from),
+            to_revision=_summary(rev_to),
+            diff=diff_text,
+            identical=rev_from.blob_sha == rev_to.blob_sha,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] diff_revisions failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

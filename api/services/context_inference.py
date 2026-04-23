@@ -456,20 +456,26 @@ def _append_inference_meta(
 ) -> str:
     """Append an inference-meta HTML comment to the end of inference output.
 
-    ADR-162 Sub-phase D: Source provenance. Frontend can parse this to show
-    "Last updated from: 2 documents + 1 URL · 2h ago" captions on the Context
-    tab. Backend can read it to detect re-inference patterns.
+    ADR-162 Sub-phase D + ADR-209 Phase 4: Source-summary + gap provenance.
+    Frontend parses this to show "Last updated from: 2 documents + 1 URL"
+    captions on the Context surface, and "Missing: company name" gap banners.
 
-    ADR-163: Optional gap_report is embedded alongside source provenance so
-    the Context tab can render "needs more info" markers inline without
-    a separate API call. Gaps are computed at inference time and stored with
-    the content they describe.
+    Two concerns carried in this comment:
+      - `target` — which inferred domain (identity / brand / …)
+      - `sources` — what external material the inference consumed
+      - `gaps` — optional structured gap report (high/medium/low severity)
+
+    Authorship + timestamp are NOT in this comment. Those live in the
+    Authored Substrate revision chain (ADR-209) — every write to IDENTITY.md
+    / BRAND.md / similar inferred files lands a revision with an `authored_by`
+    trailer (`yarnnn:<model>` for inference, `operator` for direct edits) and
+    a `created_at`. The frontend reads age from the revision chain now, not
+    from `inferred_at` in this comment. Duplicating timestamp here would
+    conflict with substrate-as-source-of-truth per FOUNDATIONS v6.1 Axiom 1.
 
     The comment is JSON-shaped inside an HTML comment so it survives markdown
     rendering and is easy to parse on the frontend.
     """
-    from datetime import datetime, timezone
-
     # Strip any prior inference-meta comment so we don't accumulate them
     content = re.sub(
         r"\n*<!--\s*inference-meta:.*?-->\s*$",
@@ -480,7 +486,6 @@ def _append_inference_meta(
 
     meta = {
         "target": target,
-        "inferred_at": datetime.now(timezone.utc).isoformat(),
         "sources": {
             "from_chat": source_summary.get("has_text", False),
             "documents": source_summary.get("doc_filenames", []),

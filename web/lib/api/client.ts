@@ -648,10 +648,59 @@ export const api = {
     getFile: (path: string) =>
       request<WorkspaceFile>(`/api/workspace/file?path=${encodeURIComponent(path)}`),
 
-    editFile: (path: string, content: string, summary?: string) =>
+    editFile: (path: string, content: string, summary?: string, message?: string) =>
       request<{ success: boolean; path: string; updated_at: string }>(
         `/api/workspace/file`,
-        { method: "PATCH", body: JSON.stringify({ path, content, summary }) }
+        { method: "PATCH", body: JSON.stringify({ path, content, summary, message }) }
+      ),
+
+    // ADR-209 Phase 4: Authored Substrate revision API
+    listRevisions: (path: string, limit: number = 10) =>
+      request<{
+        path: string;
+        count: number;
+        revisions: Array<{
+          id: string;
+          authored_by: string;
+          author_identity_uuid: string | null;
+          message: string;
+          created_at: string;
+          parent_version_id: string | null;
+        }>;
+      }>(
+        `/api/workspace/revisions?path=${encodeURIComponent(path)}&limit=${limit}`
+      ),
+
+    readRevision: (path: string, revisionId: string) =>
+      request<{
+        id: string;
+        path: string;
+        authored_by: string;
+        author_identity_uuid: string | null;
+        message: string;
+        created_at: string;
+        parent_version_id: string | null;
+        blob_sha: string;
+        content: string | null;
+      }>(
+        `/api/workspace/revisions/${encodeURIComponent(revisionId)}?path=${encodeURIComponent(path)}`
+      ),
+
+    diffRevisions: (path: string, fromRev: string, toRev: string) =>
+      request<{
+        path: string;
+        from_revision: {
+          id: string; authored_by: string; message: string; created_at: string;
+          parent_version_id: string | null; author_identity_uuid: string | null;
+        };
+        to_revision: {
+          id: string; authored_by: string; message: string; created_at: string;
+          parent_version_id: string | null; author_identity_uuid: string | null;
+        };
+        diff: string;
+        identical: boolean;
+      }>(
+        `/api/workspace/revisions/diff/two?path=${encodeURIComponent(path)}&from_rev=${encodeURIComponent(fromRev)}&to_rev=${encodeURIComponent(toRev)}`
       ),
   },
 

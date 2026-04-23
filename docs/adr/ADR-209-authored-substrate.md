@@ -1,6 +1,6 @@
 # ADR-209: Authored Substrate — Content-Addressed Revisions with Authored-By Attribution
 
-> **Status**: **Phases 1–3 Implemented 2026-04-23.** Phase 1: substrate foundation + backfill. Phase 2: write-path unification + legacy deletion. Phase 3: read-side primitives (`ListRevisions`, `ReadRevision`, `DiffRevisions`), `ListFiles` filters (`authored_by`/`since`/`until`), compact-index authorship signal, "Revision-aware reading" prompt posture. Phases 4–5 proposed per the phased-implementation section below.
+> **Status**: **Phases 1–4 Implemented 2026-04-23.** Phase 1: substrate foundation + backfill. Phase 2: write-path unification + legacy deletion. Phase 3: read-side primitives + compact-index authorship signal + prompt posture. Phase 4: HTTP revision endpoints, `RevisionHistoryPanel` component wired into BrandSection / TaskContentView / AgentContentView, inference-meta schema simplified (dropped `inferred_at` — timestamp lives in the revision chain), operator-attributed `save_identity` / `save_brand` routes. Phase 5 proposed per the phased-implementation section below.
 > **Date**: 2026-04-23
 > **Authors**: KVK, Claude
 > **Ratifies**: [docs/architecture/authored-substrate.md](../architecture/authored-substrate.md) (canonical deep-dive) + FOUNDATIONS v6.1 Axiom 1 second clause + Derived Principle 13
@@ -305,20 +305,51 @@ Scope:
 
 **Grep sweep (CLAUDE.md rule 7b)**: 26 consistent references to new primitive names across `api/agents/yarnnn_prompts/`, `docs/architecture/primitives-matrix.md`, `docs/adr/ADR-209-authored-substrate.md`, `CLAUDE.md`, and the primitive service files.
 
-### Phase 4 — Cockpit UI + inference-meta simplification
+### Phase 4 — Cockpit UI + inference-meta simplification — **IMPLEMENTED 2026-04-23**
 
 Scope:
-- Revision history panel on Work / Context / Agents detail routes (reads `ListRevisions`, shows `r{N}, authored_by, message, ago`)
-- Click a revision → diff against current (reads `DiffRevisions`)
-- Revert action routes through `UpdateContext` / `WriteFile` with `revert_to_revision=N` ergonomics
-- `InferenceContentView` (ADR-162 frontend) simplifies: provenance caption source = revision chain (authorship) + HTML comment (source summary only)
-- `api/services/context_inference.py` `_append_inference_meta()` schema reduced to source-summary fields only — authorship fields removed
+- Three HTTP endpoints expose the revision-aware primitives to the frontend (`routes/workspace.py`):
+  - `GET /api/workspace/revisions?path=...&limit=10` — revision chain newest-first
+  - `GET /api/workspace/revisions/{id}?path=...` — specific revision content + trailer
+  - `GET /api/workspace/revisions/diff/two?path=...&from_rev=...&to_rev=...` — pure-Python unified diff
+- `PATCH /api/workspace/file` gained an optional `message` field. The UI revert action passes `message="revert to revision {shortId}"`; default when omitted is `"edit file {path}"`.
+- New frontend component: [web/components/workspace/RevisionHistoryPanel.tsx](../../web/components/workspace/RevisionHistoryPanel.tsx). Reads `listRevisions`, renders as `r{N} · <author chip> · "<message>" · <ago>` newest first. Author chips color-coded by cognitive layer (operator=blue, yarnnn=purple, agent=emerald, reviewer=amber, specialist=cyan, system=zinc) so the ADR-189 four-layer model is visible at a glance. Click a non-head revision → inline diff vs. current via `diffRevisions`. Revert button (non-head rows) → reads old revision content → PATCH `/api/workspace/file` with revert message → chain grows. `revertDisabled` prop hides revert on surfaces where the edit path doesn't route through `PATCH /api/workspace/file` (Agent AGENT.md).
+- Panel wired into three surfaces:
+  - `MemorySection.tsx` `BrandSection` for `/workspace/context/_shared/BRAND.md` (revert refetches via `api.brand.get()`)
+  - `TaskContentView.tsx` `TaskDefinitionView` for `/tasks/{slug}/TASK.md` (revert refetches TASK.md)
+  - `AgentContentView.tsx` `AgentRoleBlock` for `/agents/{slug}/AGENT.md` (read-only; agent writes flow via primitives, not PATCH)
+- `save_identity` + `save_brand` routes now pass `authored_by="operator"` explicitly (was defaulting to `"system:user-memory"` in Phase 2). Required for the RevisionHistoryPanel to correctly distinguish operator edits from YARNNN inference writes on the same paths.
+- `_append_inference_meta` schema simplified: `inferred_at` field dropped. The revision chain already carries `created_at` authoritatively; duplicating timestamp in the HTML comment would violate FOUNDATIONS v6.1 Axiom 1 (substrate-as-source-of-truth). Retained: `target`, `sources`, `gaps`.
+- `InferenceContentView.tsx` dropped `formatRelativeAge` + the "Inferred Nh ago" caption. Age now comes from the adjacent `RevisionHistoryPanel` mount when surfaces want it. `parseInferenceMeta` + `InferenceMeta` interface updated to match.
+- `web/lib/api/client.ts` gained `listRevisions` / `readRevision` / `diffRevisions` functions.
+
+**Scope adjustment**:
+- `ManageContextModal` (CONVENTIONS.md editor) not wired. It's a tab-based transient modal — the panel is a persistent-surface pattern; embedding it in a modal would be awkward and low-value. Users needing convention revision history can read it from the dedicated Context surface (future work) or the Settings / Work surfaces where the panel is mounted on related paths.
+- No new `revert_to_revision=N` primitive parameter. Frontend revert is a two-call round-trip (`readRevision` to fetch content → `editFile` with content + explicit message). Reuses the Phase 2–hardened `write_revision` path. The revert IS a new revision in the chain, not a pointer-flip — which is architecturally cleaner (FOUNDATIONS Axiom 7 recursion preserved; revert is itself an authored event).
 
 **Legacy deleted in Phase 4**:
-- `<!-- inference-meta -->` authorship fields (kept: source-summary fields — distinct concern)
-- Frontend components that assumed old `workspace_files.version` integer
+- `inferred_at` field in `_append_inference_meta` output
+- `inferred_at: string` in the TS `InferenceMeta` interface
+- `formatRelativeAge()` helper in `InferenceContentView.tsx` (no callers)
+- "Inferred N ago" caption path in `InferenceContentView.tsx` JSX
+- Default `"system:user-memory"` attribution for operator-initiated identity/brand saves (now explicit `"operator"`)
 
-**Gate**: revert round-trip works via UI; inference-meta HTML comment renders only source summary; frontend grep for `workspace_files.version` returns zero.
+**Gates** ([api/test_adr209_phase4.py](../../api/test_adr209_phase4.py) — 13/13 assertions pass; full ADR-209 suite 53/53):
+1. `GET /workspace/revisions` returns chain newest-first with correct attribution
+2. `GET /workspace/revisions/{id}` returns specific revision + content
+3. `GET /workspace/revisions/{id}` 404 for unknown id
+4. `GET /workspace/revisions/diff/two` returns unified diff with correct from/to
+5. `PATCH /workspace/file` with `message` lands the custom message on the revision
+6. Revert round-trip: read old → PATCH with content + revert message → chain has 4 revisions, head.parent = prior head
+7. `_append_inference_meta` drops `inferred_at` (fields = ['sources', 'target'])
+8. `_append_inference_meta` keeps target + sources + gaps
+9. Backend emits inference-meta comment matching frontend's `META_COMMENT_RE` parser
+10. `save_brand` routes operator-attributed revision (`authored_by="operator"`, message "edit BRAND.md (settings surface)")
+11. Phase 1 regression: 11/11 still pass
+12. Phase 2 regression: 14/14 still pass
+13. Phase 3 regression: 15/15 still pass
+
+**Frontend build gate**: `npx next build` — 0 TypeScript errors from Phase 4 changes. Full production build compiles all routes.
 
 ### Phase 5 — Schema cleanup + final grep gate
 
@@ -425,5 +456,6 @@ The complete list of what gets deleted and in which phase. Every item has a phas
 |------|--------|
 | 2026-04-23 | v1 — Initial decision record. Ratifies [authored-substrate.md](../architecture/authored-substrate.md) + FOUNDATIONS v6.1 Axiom 1 second clause + Derived Principle 13. Five-phase implementation. Deprecation manifest authoritative. Supersedes ADR-208 v1 (withdrawn) + ADR-119 Phase 3. Amends ADR-106, ADR-162 Sub-phase D, ADR-194 v2, ADR-207 v1.2. |
 | 2026-04-23 | **Phase 1 Implemented.** Migration 158 (`workspace_blobs` + `workspace_file_versions` + `workspace_files.head_version_id`) applied to dev DB. Backfill: 99 files → 99 revisions → 69 unique blobs (content-addressed dedup confirmed). `api/services/authored_substrate.py` lands `write_revision()` + `list_revisions()` + `read_revision()` + `count_revisions()` + `is_valid_author()`. Test gate [api/test_adr209_phase1.py](../api/test_adr209_phase1.py) — 11/11 assertions pass (tables, backfill, head/blob integrity, dedup, end-to-end write, empty-attribution rejection, list+read round-trip, parent-pointer chain). Implementation note: parent resolution queries the revision chain directly, not the denormalized `head_version_id` pointer — decouples Phase 1 from Phase 2's call-site migration. Phases 2–5 proposed. |
+| 2026-04-23 | **Phase 4 Implemented.** Three HTTP endpoints expose the revision-aware primitives (`GET /api/workspace/revisions`, `GET /api/workspace/revisions/{id}`, `GET /api/workspace/revisions/diff/two`). `PATCH /api/workspace/file` accepts an optional `message` field used by the UI revert action. New frontend component `RevisionHistoryPanel` wired into BrandSection (MemorySection), TaskContentView (TASK.md), AgentContentView (AGENT.md, read-only). Panel shows `r{N} · <author chip> · "<message>" · <ago>` newest first, with cognitive-layer color coding (operator=blue, yarnnn=purple, agent=emerald, reviewer=amber, specialist=cyan, system=zinc). Non-head revisions are clickable → inline unified diff vs. current; revert button on editable-path surfaces writes the old content back through PATCH `/api/workspace/file` with message `"revert to revision {shortId}"`, landing a new revision in the chain (revert is itself an authored event, not a pointer-flip — preserves FOUNDATIONS Axiom 7 recursion). `save_identity` + `save_brand` routes now pass explicit `authored_by="operator"` so the panel correctly distinguishes operator edits from YARNNN inference writes. `_append_inference_meta` schema simplified: `inferred_at` dropped (substrate's `created_at` is authoritative — dual timestamps violate FOUNDATIONS v6.1 Axiom 1); retained `target` + `sources` + `gaps`. `InferenceContentView` dropped the "Inferred N ago" caption; age now surfaces via the adjacent `RevisionHistoryPanel` when callers want it. `web/lib/inference-meta.ts` `InferenceMeta` interface updated to match backend. Test gate [api/test_adr209_phase4.py](../../api/test_adr209_phase4.py) — 13/13 assertions pass. Full ADR-209 suite across all phases: 53/53 (11 Phase 1 + 14 Phase 2 + 15 Phase 3 + 13 Phase 4). `npx next build` passes cleanly — zero TypeScript errors from Phase 4. **Scope adjustments from original draft**: (a) `ManageContextModal` not wired — transient modal is wrong surface for persistent history; (b) no new `revert_to_revision=N` primitive parameter — UI round-trips through existing readRevision + editFile, reuses Phase 2–hardened write path. Phase 5 (schema cleanup + grep gate) proposed. |
 | 2026-04-23 | **Phase 3 Implemented.** Three new read-side primitives live at `api/services/primitives/revisions.py`: `ListRevisions`, `ReadRevision`, `DiffRevisions`. Registered in both CHAT_PRIMITIVES and HEADLESS_PRIMITIVES — chat parity is intentional because operators + YARNNN both need to inspect authored files via the same API (cockpit supervision per ADR-198). `ListFiles` extended with `authored_by` / `since` / `until` filters. Compact index (`format_compact_index`) renders a one-line activity summary when substrate has been written in the last 24h — grouped by cognitive-layer prefix (operator / yarnnn / reviewer / agent / specialist / system), measured at ~208 tokens total (well under 600-token ceiling). "Revision-Aware Reading" posture section added to `yarnnn_prompts/tools_core.py` (picked up by both workspace + entity profiles per ADR-186). Three scope adjustments from original Phase 3 draft: (1) `ListEntities` filters dropped — category confusion (relational layer ≠ Authored Substrate); (2) `SearchFiles` revision-metadata enrichment deferred — low marginal value given `ListRevisions` exists; (3) revision primitives NOT exposed on MCP surface — MCP's intent-shaped contract (ADR-169) rejects substrate archaeology. Test gate [api/test_adr209_phase3.py](../../api/test_adr209_phase3.py) — 15/15 assertions pass. Full suite across all phases: 40/40 (11 Phase 1 + 14 Phase 2 + 15 Phase 3). Phases 4–5 proposed. |
 | 2026-04-23 | **Phase 2 Implemented.** Write-path unification across every call site in the codebase; legacy deletion complete. `write_revision()` extended to keep `workspace_files.head_version_id` + `content` + `updated_at` + optional metadata columns in sync on every write. Class wrappers (`AgentWorkspace.write`, `UserMemory.write`, `TaskWorkspace.write`) now route through `write_revision` internally with class-scoped `authored_by` defaults that callers can override via keyword args. `reviewer_audit._write_sync` threads `f"reviewer:{reviewer_identity}"` from `append_decision`. Route-layer direct writes (`routes/documents.py`, `routes/chat.py`, `routes/workspace.py`, `routes/integrations.py`) migrated with explicit attribution. `outcomes/ledger.py` + `primitives/runtime_dispatch.py` migrated. ADR-176 Phase 4 entity-profile `v{N}.md` archive block in `primitives/workspace.py` deleted. **Zero live-code references** to `_archive_to_history`, `_cap_history`, `_is_evolving_file`, `list_history`, `_EVOLVING_PATTERNS`, `_EVOLVING_DIRS`, `_MAX_HISTORY_VERSIONS`, `_MAX_PROFILE_VERSIONS`, `_ENTITY_PROFILE_FILENAMES` anywhere in the codebase. **Only two** `workspace_files` content-layer mutation call sites remain: `authored_substrate._upsert_workspace_file` (the write target) and `primitives/workspace._embed_workspace_file` (permitted metadata-only update for the embedding column). Test gate [api/test_adr209_phase2.py](../api/test_adr209_phase2.py) — 14/14 assertions pass. Phase 1 test suite also re-verified: 11/11 still passing, no regressions. **Key Phase 2 decision**: class wrappers carry `authored_by` defaults derived from class-scoped context rather than forcing ~60 uniform-edit call-site changes — the substrate still enforces the Axiom 2 contract; the wrappers translate class context into substrate-required format. Phases 3–5 proposed. |

@@ -234,11 +234,22 @@ class IdentitySaveRequest(BaseModel):
 
 @router.post("/user/identity")
 async def save_identity(body: IdentitySaveRequest, auth: UserClient):
-    """Save workspace identity. Writes /workspace/context/_shared/IDENTITY.md (ADR-206)."""
+    """Save workspace identity. Writes /workspace/context/_shared/IDENTITY.md (ADR-206).
+
+    ADR-209 Phase 4: operator-initiated edit — attribute to `operator` so the
+    RevisionHistoryPanel correctly surfaces this as an operator edit, not a
+    system write.
+    """
     try:
         from services.workspace_paths import SHARED_IDENTITY_PATH
         um = UserMemory(auth.client, auth.user_id)
-        success = await um.write(SHARED_IDENTITY_PATH, body.content, summary="User identity")
+        success = await um.write(
+            SHARED_IDENTITY_PATH,
+            body.content,
+            summary="User identity",
+            authored_by="operator",
+            message="edit IDENTITY.md (settings surface)",
+        )
         if not success:
             raise HTTPException(status_code=500, detail="Failed to write IDENTITY.md")
         return {"exists": True}
@@ -270,11 +281,20 @@ class BrandSaveRequest(BaseModel):
 
 @router.post("/user/brand")
 async def save_brand(body: BrandSaveRequest, auth: UserClient):
-    """Save workspace brand. Writes /workspace/context/_shared/BRAND.md (ADR-206)."""
+    """Save workspace brand. Writes /workspace/context/_shared/BRAND.md (ADR-206).
+
+    ADR-209 Phase 4: operator-initiated edit — attribute to `operator`.
+    """
     try:
         from services.workspace_paths import SHARED_BRAND_PATH
         um = UserMemory(auth.client, auth.user_id)
-        success = await um.write(SHARED_BRAND_PATH, body.content, summary="Brand identity")
+        success = await um.write(
+            SHARED_BRAND_PATH,
+            body.content,
+            summary="Brand identity",
+            authored_by="operator",
+            message="edit BRAND.md (settings surface)",
+        )
         if not success:
             raise HTTPException(status_code=500, detail="Failed to write BRAND.md")
         return {"exists": True}

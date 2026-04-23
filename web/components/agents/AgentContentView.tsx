@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentIcon } from './AgentIcon';
+import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
 import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
@@ -502,6 +503,20 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
                 </div>
               </details>
             )}
+
+            {/* ADR-209 Phase 4: revision history for the agent's AGENT.md.
+                The panel reads workspace_file_versions for /agents/{slug}/AGENT.md.
+                Read-only on this surface — agent AGENT.md edits flow via
+                primitives (UpdateContext(target="agent") / ManageAgent
+                update), not PATCH /api/workspace/file, so we hide the revert
+                button to avoid a path-mismatch surprise. */}
+            <div className="mt-4">
+              <RevisionHistoryPanel
+                path={`/agents/${getAgentSlug(agent)}/AGENT.md`}
+                initiallyCollapsed
+                revertDisabled
+              />
+            </div>
           </div>
         </div>
       </div>

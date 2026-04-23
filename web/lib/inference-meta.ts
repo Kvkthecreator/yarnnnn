@@ -1,13 +1,21 @@
 /**
- * Inference meta parsing — ADR-162 Sub-phase D + ADR-163.
+ * Inference meta parsing — ADR-162 Sub-phase D + ADR-163 + ADR-209 Phase 4.
  *
  * The backend's `infer_shared_context()` appends an HTML comment at the end
  * of every inference output:
  *
- *   <!-- inference-meta: {"target":"identity","inferred_at":"...","sources":{...},"gaps":{...}} -->
+ *   <!-- inference-meta: {"target":"identity","sources":{...},"gaps":{...}} -->
  *
  * This module parses that comment (if present) into a structured object and
  * returns the markdown body with the comment stripped for clean rendering.
+ *
+ * ADR-209 Phase 4: `inferred_at` is no longer part of the meta schema.
+ * Timestamp authority lives in the Authored Substrate revision chain —
+ * every write to an inferred file (IDENTITY.md, BRAND.md) lands a revision
+ * with `created_at` on the authorship trailer. Surfaces that need "inferred
+ * N ago" read it from the revision chain via `RevisionHistoryPanel`, not
+ * from this comment. Keeping timestamp here would duplicate substrate and
+ * invite drift (FOUNDATIONS v6.1 Axiom 1).
  *
  * The meta comment is written atomically with the content it describes, so
  * the parsed gap report and source provenance are always in sync with the
@@ -34,7 +42,6 @@ export interface InferenceGaps {
 
 export interface InferenceMeta {
   target: 'identity' | 'brand' | string;
-  inferred_at: string;
   sources: InferenceMetaSources;
   gaps?: InferenceGaps;
 }

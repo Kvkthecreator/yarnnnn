@@ -29,6 +29,11 @@ import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { CHAT_ROUTE } from '@/lib/routes';
 import { InferenceContentView } from '@/components/context/InferenceContentView';
+import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
+
+// ADR-209 Phase 4: Authored Substrate surfaces use absolute workspace paths
+// for revision-chain queries. Brand lives at /workspace/context/_shared/BRAND.md.
+const BRAND_PATH = '/workspace/context/_shared/BRAND.md';
 
 // =============================================================================
 // Types
@@ -274,12 +279,19 @@ export function BrandSection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    api.brand.get().then((data) => {
-      if (data.exists && data.content) setBrandContent(data.content);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+  const refetchBrand = useCallback(() => {
+    return api.brand
+      .get()
+      .then(data => {
+        if (data.exists && data.content) setBrandContent(data.content);
+        else setBrandContent(null);
+      })
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    refetchBrand().finally(() => setLoading(false));
+  }, [refetchBrand]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -348,7 +360,18 @@ export function BrandSection() {
         // and gap banner if the content was produced by infer_shared_context.
         // Manually-edited content (no meta comment) falls through to plain
         // markdown rendering.
-        <InferenceContentView content={brandContent} target="brand" />
+        <>
+          <InferenceContentView content={brandContent} target="brand" />
+          {/* ADR-209 Phase 4: revision history below the body. Revert round-trips
+              through PATCH /api/workspace/file which lands a new "operator"
+              revision; refetch brand content on success so the surface reflects
+              the new head. */}
+          <RevisionHistoryPanel
+            path={BRAND_PATH}
+            onRevert={refetchBrand}
+            initiallyCollapsed
+          />
+        </>
       ) : (
         <div className="border border-dashed border-border rounded-lg p-6 text-center">
           <Palette className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
