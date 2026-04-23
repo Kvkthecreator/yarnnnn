@@ -3,25 +3,29 @@
 > **Status**: Canonical
 > **Date**: 2026-04-23
 > **Authors**: KVK, Claude
-> **Scope**: The architectural layer that renders judgment on proposed actions. The filesystem substrate that expresses the Reviewer seat, the occupant declaration and rotation protocol, the operational modes vocabulary, the calibration trail semantics, and the prospective-attribution contract with chat surfaces.
-> **Upstream**: [THESIS.md](THESIS.md) — the Reviewer commitment is the thesis's second architectural commitment. [FOUNDATIONS.md](FOUNDATIONS.md) — Axiom 2 (Identity, four cognitive layers), Derived Principle 14 (Roles persist; occupants rotate).
-> **Implementation**: [ADR-194 v2](../adr/ADR-194-pluggable-reviewer-and-impersonation.md) (current code lands Phases 1 + 2a + 2b + 3). [ADR-211](../adr/ADR-211-reviewer-substrate-phase-4.md) scopes Phase 4 (OCCUPANT + modes + handoffs + calibration + rotation protocol + dispatch refactor + prospective-attribution contract) as a bounded coordinated landing.
+> **Scope**: The filesystem substrate that expresses the Reviewer Agent — occupant declaration and rotation protocol, operational modes vocabulary, calibration trail semantics, and prospective-attribution contract with chat surfaces.
+> **Upstream**: [THESIS.md](THESIS.md) §"Independent judgment" (the Reviewer is the second architectural commitment). [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 2 (Agents vs Orchestration — the Reviewer is an Agent). [LAYER-MAPPING.md](LAYER-MAPPING.md) (authoritative Agent/Orchestration taxonomy). Derived Principle 14 (Agent seats persist; occupants rotate).
+> **Implementation**: [ADR-194 v2](../adr/ADR-194-pluggable-reviewer-and-impersonation.md) (Phases 1–3). [ADR-211](../adr/ADR-211-reviewer-substrate-phase-4.md) (Phase 4 — seven-file canonical target: OCCUPANT + modes + handoffs + calibration + rotation primitive + dispatch refactor + attribution contract I1+I2).
 
 ---
 
 ## Purpose
 
-This document is the technical canon for the Reviewer layer. It specifies what the Reviewer substrate *is*, independent of the current implementation, so that future occupants (human, internal AI, external AI) and future implementations can be evaluated against a stable specification.
+This document is the technical canon for the **Reviewer Agent** — a systemic Agent (one per workspace) that occupies the independent judgment seat. It specifies what the Reviewer's substrate *is*, independent of the current occupant, so that future occupants (human operator, YARNNN-internal AI, external AI service) and future implementations can be evaluated against a stable specification.
 
-It is sibling to [authored-substrate.md](authored-substrate.md): where `authored-substrate.md` is the canon for how files are written with attribution, this document is the canon for how the seat of judgment reads those files and renders verdicts.
+Sibling to [authored-substrate.md](authored-substrate.md): where `authored-substrate.md` is the canon for how files are written with attribution, this document is the canon for how the Reviewer Agent reads those files and renders verdicts.
+
+Sibling to [orchestration.md](orchestration.md): where `orchestration.md` is the canon for production machinery (task pipeline, capability bundles, dispatch routing) — *what the Orchestrator is and does* — this document is the canon for one of the Agent seats the Orchestrator serves. The Reviewer Agent uses orchestration machinery (to read proposals, dispatch calibration rebuilds) but is not itself orchestration.
 
 ---
 
 ## The claim
 
-**The Reviewer is an architecturally independent cognitive seat that reads the operator's declared intent, the accumulated track record, and a proposed action; renders a verdict with reasoning; and maintains a durable trail of judgment that calibrates over time.**
+**The Reviewer is an Agent** — a judgment-bearing entity that reads the operator's declared intent, the accumulated track record, and a proposed action; renders a verdict with reasoning; and maintains a durable trail of judgment that calibrates over time.
 
-The seat is interchangeable between occupant classes — human, YARNNN-internal AI, external AI service — without architectural change. The architectural value compounds in the **seat** (the substrate it reads and the trail it writes), not in the **occupant** (who happens to be rendering verdicts this cycle). This is Derived Principle 14 ("Roles persist; occupants rotate") applied to its canonical case.
+The **seat** (the Reviewer Agent's architectural role) is interchangeable between occupant classes — human, YARNNN-internal AI, external AI service — without architectural change. The architectural value compounds in the **seat's substrate** (what it reads and writes) and the **accumulated calibration** over tenure, not in the **occupant** (who happens to be rendering verdicts this cycle). This is Derived Principle 14 ("Agent seats persist; occupants rotate") applied to its canonical case.
+
+The Reviewer is one of YARNNN's Agents (see [LAYER-MAPPING.md](LAYER-MAPPING.md) + [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 2). The others today are YARNNN (the conversational super-agent) and user-authored domain Agents. Future Agents (Auditor, Advocate, etc.) would live alongside the Reviewer as parallel systemic seats at `/workspace/{role}/`.
 
 ---
 

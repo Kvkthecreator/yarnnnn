@@ -88,61 +88,62 @@ This is the single sharpest technical differentiator YARNNN has. Inferred contex
 
 ---
 
-## Vocabulary: production layers vs. judgment layers
+## Vocabulary: Agents and Orchestration
 
-The four commitments above describe the architecture. This section names something that falls out of the architecture but deserves explicit statement: **YARNNN's cognitive layers divide into two structurally distinct classes**, and the word "agent" is used deliberately across the boundary in a way that both honors industry vocabulary and preserves philosophical precision.
+The four commitments above describe the architecture. This section names the two-class taxonomy that falls out of them: **YARNNN has Agents (judgment-bearing entities) and Orchestration (production machinery). The word "Agent" belongs to the first class in the sharp sense; the second class is not Agents and is never called such.** The full authoritative taxonomy lives in [LAYER-MAPPING.md](LAYER-MAPPING.md); this section states the philosophical claim.
 
-### The two classes of cognitive layer
+### Agents (judgment-bearing entities)
 
-Under FOUNDATIONS Axiom 2 (four cognitive layers: YARNNN, Specialists, Agents, Reviewer), the layers sub-classify into two classes by what they do:
+An **Agent** in YARNNN is an entity that holds standing intent on behalf of a principal (the operator), reasons from principles against inputs, and renders judgments that carry fiduciary weight. Agents have persistent identity, accumulate calibration or domain expertise over tenure, and *use* tools and orchestration capabilities to do their work — but their essence is judgment, not production.
 
-- **Production layers** — take inputs, produce new artifacts into the substrate. YARNNN-as-producer (compositions, scaffolds, memory writes), Specialists (role-styled outputs), Agents (domain-scoped outputs), Platform Bots (platform-specific outputs, mechanical). Output is artifacts.
-- **Judgment layers** — take produced artifacts, render verdicts on them, accumulate judgment quality. Reviewer is the current instance. Output is verdicts + reasoning + calibration.
+Members of this class in YARNNN today:
 
-The two classes differ on three axes that matter architecturally:
+- **YARNNN** (the super-agent) — the conversational meta-cognitive Agent the operator addresses. Composes team, scaffolds tasks, surfaces state. Fiduciary at the workspace level. Lives at `/workspace/memory/` (awareness, playbook, style, notes).
+- **Reviewer** — the judgment seat that reads proposed actions and renders approve/reject/defer. Fiduciary at the proposal level. Lives at `/workspace/review/` (seven canonical files).
+- **User-authored domain Agents** — persistent domain experts authored by the operator through YARNNN chat. Hold domain intent, accumulate domain context. Live at `/agents/{slug}/` with AGENT.md identity files.
+- **Future judgment archetypes** — Auditor, Advocate, Custodian, etc. Any future seat that holds standing intent. Would live at `/workspace/{role}/`.
 
-| Axis | Production layers | Judgment layers |
-|---|---|---|
-| Output type | Artifacts | Verdicts + reasoning |
-| Independence from producers | Not required | Structurally required |
-| What accumulates | Domain/role expertise | Calibration, judgment quality |
-| Relationship to money-truth | Produces the actions that eventually land as money-truth | Uses money-truth as ground-truth for calibration |
+Systemic Agents (YARNNN, Reviewer, future archetypes) are one-per-workspace and path-named by role. Instance Agents (user-authored) are many-per-workspace and slug-named. The path shape encodes the cardinality distinction.
 
-### Where agency (in the strict sense) lives
+### Orchestration (production machinery)
 
-In the philosophical and legal sense (principal-agent theory), *agency* is the capacity to act on declared intent, with reasoning from principles, on behalf of a principal. Tested against each class:
+**Orchestration** in YARNNN is the machinery that dispatches production work, bundles capabilities, and routes tasks to the right tool surface. Orchestration has **no standing intent, no fiduciary relationship, no accumulated identity**. It is stateless infrastructure that runs *under* Agents. It is never an Agent and is never personified.
 
-- **Production layers** satisfy agency partially — they reason to produce output, but in service of an externally-given goal. They are closer to *skilled contractors* than to agents-proper: they produce what they are commissioned to produce.
-- **Judgment layers** satisfy agency fully — they hold standing intent between verdicts (the operator's declared principles live in their substrate), they reason from that intent against track record and proposal, they render verdicts *on behalf of* the operator's declared judgment framework.
+Members of this class in YARNNN today:
 
-**Strict principal-agent reading**: the Reviewer seat is the operator's fiduciary representative. The production-layer entities are the instruments the agency wields. Agency-proper lives in the judgment layer.
+- **The Orchestrator** (system machinery) — task pipeline, dispatch routing, team composition logic, capability gating, back-office scheduling. Tooling that Agents (YARNNN, Reviewer, user-Agents) use to get production work dispatched.
+- **Production roles** — pre-packaged production-style capability bundles: Researcher, Analyst, Writer, Tracker, Designer, Reporting. These are capability bundles, not entities. The Orchestrator dispatches against them when a task requires that style of production. (Previously called "Specialists" — the term is retired for the orchestration concept.)
+- **Platform integrations** — pre-packaged platform-API capability bundles: Slack, Notion, GitHub, Commerce, Trading. Capability-gated by active `platform_connections`. (Previously called "Platform Bots" — the term is retired; ADR-207 P4a already dissolved them as an agent class.)
+- **Primitive dispatch, back-office tasks, scheduler** — core orchestration plumbing. Runtime coordination, no judgment.
 
-### Why we still call production-layer entities "Agents"
+### The split in one sentence
 
-The tech industry has consolidated the word "agent" around production-layer entities: LLM + tools + loop + memory = "agent." OpenAI, Anthropic, Google, Salesforce, Microsoft, and every major startup use the word this way. This usage is **philosophically imprecise but market-locked**. YARNNN uses "Agent" in the industry-standard sense — a production-layer entity with identity, domain, memory, and tool use — because fighting market vocabulary is a losing battle and would create more confusion than it solves.
+*Agents hold intent and render judgment. Orchestration runs under them, bundles capabilities, and dispatches production.*
 
-**The vocabulary split is deliberate, not accidental:**
+### Where agency-proper lives
 
-- In **external communication, UI, ADRs, code, and operator-facing surfaces**, "Agent" means a production-layer entity (industry-aligned).
-- In **THESIS.md, FOUNDATIONS philosophical layer, and strict architectural analysis**, agency-in-the-principal-agent-sense is named as *residing in the judgment layer (Reviewer)*. Reviewer is where agency-proper lives even though it is not surfaced as an "Agent" in the industry sense.
+In the philosophical and legal sense (principal-agent theory), *agency* is the capacity to act on declared intent, with reasoning from principles, on behalf of a principal. This is exactly what Agents in YARNNN do. The word is sharp here, not industry-loose.
 
-This is one of the few places where YARNNN deliberately accepts a vocabulary imprecision for communication-layer pragmatism. The imprecision is named here so it cannot drift unnoticed.
+Industry's "agent" vocabulary (LLM + tools + loop + memory) maps most closely to YARNNN's **production roles** — packaged production capabilities, not Agents. Industry has consolidated the word around the wrong referent. YARNNN does not follow; the word belongs to judgment-bearing entities and is used accordingly.
+
+External UI and marketing happen to align with the sharp mapping naturally: the "Agents" the operator sees in the product (their domain workers on `/agents`) ARE Agents in the sharp sense — they hold operator-authored domain intent, they represent the operator's interests, they accumulate. No external vocabulary shift required.
 
 ### Why this matters
 
-Three consequences follow from the production-vs-judgment distinction:
+Three consequences follow from the sharp mapping:
 
-1. **It clarifies why the market struggles to build "agentic frameworks."** Most "agentic" systems are production layers with longer loops, broader tools, and more memory — and call the result an agent. They lack the judgment layer. Failure modes (drift from intent, no accountable judgment, low trust with irreversible actions, no meaningful calibration) all trace to this missing layer. YARNNN's architectural differentiation is not that its producer-agents are better, but that it has a *judgment layer at all*.
+1. **It clarifies why the market struggles to build "agentic frameworks."** Most "agentic" systems are production pipelines with longer loops, broader tools, more memory — but no Agent layer at all. Every failure mode (drift from intent, no accountable judgment, low trust with irreversible actions, no meaningful calibration) traces to the missing Agent class. YARNNN's architectural differentiation is not that its orchestration is better, but that it *has an Agent class*.
 
-2. **It explains why Principle 14 (Roles persist; occupants rotate) is load-bearing specifically for judgment layers.** Occupant-interchangeability is what makes independence credible in the judgment layer — the seat evaluates against the operator's principles, not against the producer's incentives, and any occupant meeting the input-output contract can fill it. Producer-layer occupant-interchangeability is architecturally supported but less central to those layers' reason-to-exist.
+2. **It makes Principle 14 (Roles persist; occupants rotate) load-bearing where it belongs.** Occupant-interchangeability is the property that makes Agent seats durable — the seat evaluates against the operator's principles, not against any particular occupant's incentives. Orchestration capability bundles do not have occupants to rotate; they have configurations to tune.
 
-3. **It names the growth axis of judgment layers.** Production layers grow by accumulating domain/role expertise. Judgment layers grow by accumulating *calibration* — the history of verdicts-vs-outcomes in `calibration.md` per [reviewer-substrate.md](reviewer-substrate.md). Judgment quality is the moat for this class, distinct from domain expertise which is the moat for the production class.
+3. **It names two distinct growth axes.** Agents grow by accumulating calibration (Reviewer) or domain expertise (user-authored). Orchestration does not grow by accumulation — it grows by *adding capabilities* (new production roles, new platform integrations). Confusing these two axes produces category errors.
 
-### What this does NOT imply
+### What this does imply (concretely)
 
-- It does not imply renaming the internal agent framework, yarnnn-agent, or any shipped code. The vocabulary alignment with industry is deliberate; renames are deferred indefinitely unless strategic pressure forces them.
-- It does not imply elevating the Reviewer to a first-class "Agent" in the industry-standard UI sense. The Reviewer is the judgment seat; it surfaces as "Reviewer" in UI, not as "Agent."
-- It does not imply a new axiomatic category. Production vs. judgment is a sub-classification *within* Axiom 2 (cognitive layers), not a new axiom.
+- Internal canon, code, and ADRs going forward use "Agent" only for judgment-bearing entities. Production roles and platform integrations are never called Agents.
+- The orchestration module is named for what it is (orchestration), not for the legacy "agent_framework" framing.
+- Systemic Agents (YARNNN, Reviewer) are path-named by role; instance Agents (user-authored) are slug-named. The filesystem encodes the distinction.
+- ADR-212 + LAYER-MAPPING.md ratify this mapping as canonical. Historical ADRs preserve old vocabulary as frozen artifacts and are not rewritten.
 
 ---
 

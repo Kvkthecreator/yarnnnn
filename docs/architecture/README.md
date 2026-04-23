@@ -1,19 +1,20 @@
 # Architecture Documentation Index
 
-> **Last updated**: 2026-04-23 (THESIS.md + reviewer-substrate.md added as canonical)
+> **Last updated**: 2026-04-23 (LAYER-MAPPING.md added; Agent/Orchestration vocabulary flipped)
 
 ---
 
 ## Canonical Docs (`docs/architecture/`)
 
-The canon is stacked: **THESIS** (the philosophical claim the architecture exists to express) → **FOUNDATIONS** (the axiomatic structure that must hold) → **substrate canons** (how specific architectural commitments are expressed in files). Start with SERVICE-MODEL.md to understand how the system works today; start with THESIS.md to understand why the system is shaped the way it is.
+The canon is stacked: **THESIS** (the philosophical claim the architecture exists to express) → **FOUNDATIONS** (the axiomatic structure that must hold) → **LAYER-MAPPING** (the Agent-vs-Orchestration taxonomy) → **substrate canons** (how specific architectural commitments are expressed in files). Start with SERVICE-MODEL.md to understand how the system works today; start with THESIS.md + LAYER-MAPPING.md to understand why the system is shaped the way it is.
 
-### Thesis + Axioms
+### Thesis + Axioms + Taxonomy
 
 | Document | Covers |
 |----------|--------|
 | [**THESIS.md**](THESIS.md) | The philosophical thesis — four architectural commitments (declared intent, independent judgment, ground-truth evaluation, authored accumulation), falsifiable predictions, dual-use terminal vision. **Internal canon; not external messaging.** |
-| [**FOUNDATIONS.md**](FOUNDATIONS.md) | First-principles axioms — all ADRs derive from these. Six-dimensional model, filesystem-as-substrate, four cognitive layers, money-truth, fourteen Derived Principles. |
+| [**FOUNDATIONS.md**](FOUNDATIONS.md) | First-principles axioms — all ADRs derive from these. Six-dimensional model, filesystem-as-substrate, Axiom 2 (Agents vs Orchestration), money-truth, fourteen Derived Principles. |
+| [**LAYER-MAPPING.md**](LAYER-MAPPING.md) | **Authoritative taxonomy** for the Agent-vs-Orchestration split. Names every entity, classifies it, specifies where it lives in code + docs. Supersedes earlier "production vs judgment layer" hedge. |
 | [**GLOSSARY.md**](GLOSSARY.md) | Canonical vocabulary — one word, one concept, one layer. |
 
 ### Substrate canons

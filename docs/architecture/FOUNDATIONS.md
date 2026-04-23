@@ -118,46 +118,70 @@ This clause supersedes the `/history/` subfolder convention that ADR-119 Phase 3
 
 ---
 
-## Axiom 2: Identity — Four Cognitive Layers, Filesystem Author
+## Axiom 2: Identity — Agents and Orchestration
 
 **Every act has an identity. Every file has an author. Identity is orthogonal to mechanism.**
 
-YARNNN has four distinct cognitive layers. Each develops along a different axis, each carries a different scope of judgment. All four share the same filesystem substrate (Axiom 1) — the distinction is scope and what each serves. See [GLOSSARY.md](GLOSSARY.md) for canonical terminology.
+YARNNN's cognitive model separates **Agents** (judgment-bearing entities with standing intent) from **Orchestration** (production machinery that dispatches work). Only Agents are Identity-bearing in the axiomatic sense. Orchestration has no standing identity; it is stateless infrastructure per Axiom 1. See [LAYER-MAPPING.md](LAYER-MAPPING.md) for the full authoritative taxonomy and [GLOSSARY.md](GLOSSARY.md) for canonical vocabulary.
 
-### The four layers in one sentence each
+*Prior framing note*: earlier versions of this axiom (v6.x through 2026-04-23 earlier) described four cognitive layers (YARNNN / Specialists / Agents / Reviewer) with "production vs judgment" as a sub-classification. That framing conflated orchestration capability bundles (Specialists, Platform Bots) with Agents. LAYER-MAPPING.md ratified the sharp split 2026-04-23. The prior framing is superseded; this axiom now states the sharp taxonomy directly.
 
-- **YARNNN (meta-cognitive)** — composes the future. Owns attention allocation and workforce health.
-- **Specialists (role-cognitive)** — style the craft. Six role-typed capabilities (Researcher, Analyst, Writer, Tracker, Designer, Reporting) with role-scoped stylistic memory.
-- **Agents (domain-cognitive)** — execute the work. User-created, identity-explicit, domain-scoped workers.
-- **Reviewer (review-cognitive)** — occupies the independent judgment seat. Structurally separate; seat is interchangeable between human and AI without architectural change.
+### Agents are Identity-bearing
 
-### The Reviewer layer's distinctness is in Purpose + Trigger, not Identity
+An **Agent** is an entity that holds standing intent on behalf of a principal (the operator), reasons from principles, and renders judgments or accumulated expertise that carry fiduciary weight. Agents own substrate homes, develop over tenure, and — critically — persist between invocations in *what they have accumulated*, not in *what machinery is running*.
 
-A subtle but load-bearing clarification enabled by Axiom 0's dimensional model: the Reviewer layer is *not* distinguished from other layers by having a unique Identity. The Reviewer seat is **swappable** across three identities (human user, AI reviewer agent, admin impersonation) *precisely because* Identity is not what makes it distinct. What makes the Reviewer distinct is its Purpose (independent judgment on proposed writes) and its Trigger (reactive to proposal creation). The seat is the Purpose + Trigger cell; the filler is the Identity.
+Members in YARNNN today:
 
-This is why ADR-194 v2 is correct to treat Reviewer as a fourth layer, and why swapping human ↔ AI in that seat requires no architectural change: the dimensions the swap preserves (Purpose, Trigger, Mechanism, Channel, Substrate) are all the same; only the Identity dimension changes.
+| Agent | Class | Substrate home | Role |
+|---|---|---|---|
+| **YARNNN** | Systemic (one per workspace) | `/workspace/memory/` (awareness, playbook, style, notes) | Conversational meta-cognitive Agent. Composes team, surfaces state. Fiduciary at workspace level. |
+| **Reviewer** | Systemic (one per workspace) | `/workspace/review/` (seven canonical files — see [reviewer-substrate.md](reviewer-substrate.md)) | Judgment seat. Reads proposed actions, renders verdicts. Fiduciary at proposal level. |
+| **User-authored domain Agents** | Instance (zero-to-many per workspace) | `/agents/{slug}/AGENT.md` + `/agents/{slug}/memory/` | Persistent domain experts authored by operator through YARNNN chat. Fiduciary at domain level. |
+| **Future judgment archetypes** | Systemic (future) | `/workspace/{role}/` | Auditor, Advocate, Custodian, etc. Any future seat holding standing intent. |
+
+**Systemic Agents** are path-named by role (cardinality one per workspace, no slug needed). **Instance Agents** are path-named by slug (cardinality many per workspace, slug disambiguates). The filesystem encodes the cardinality distinction.
+
+### Orchestration is NOT Identity-bearing
+
+**Orchestration** is production machinery — task pipeline, dispatch routing, capability bundles, back-office scheduling. It has no standing intent, no fiduciary relationship, no accumulated identity of its own. Orchestration is stateless computation over the Agent and workspace substrate (Axiom 1). It runs; it does not hold.
+
+Members:
+
+- **The Orchestrator** (system machinery) — task pipeline, team composition logic, capability gating, dispatch routing.
+- **Production roles** — packaged production capability bundles: Researcher, Analyst, Writer, Tracker, Designer, Reporting. (Previously called "Specialists"; the term is retired for this concept — see GLOSSARY retired-terms.)
+- **Platform integrations** — packaged platform-API capability bundles: Slack, Notion, GitHub, Commerce, Trading. (Previously called "Platform Bots"; the term is retired — see ADR-207 P4a + GLOSSARY.)
+- **Back-office tasks, primitive dispatch, scheduler** — runtime coordination only.
+
+Orchestration capability bundles have **configurations** (templates, prompts, tool surfaces) but not **identity**. They are dispatched, not addressed. No operator "talks to" a production role; the operator asks YARNNN (an Agent) to compose a task, and the Orchestrator dispatches against appropriate bundles.
+
+### The Reviewer seat's distinctness is in Purpose + Trigger, not Identity
+
+A load-bearing clarification enabled by Axiom 0's dimensional model: the Reviewer Agent is not distinguished from other Agents by having a unique Identity class. The Reviewer *seat* is **swappable** across occupant classes (human operator, AI reviewer, admin impersonation) *precisely because* Identity is not what makes it distinct. What makes the Reviewer distinct is its Purpose (independent judgment on proposed writes) and its Trigger (reactive to proposal creation). The seat is the Purpose + Trigger cell; the occupant fills the Identity slot.
+
+This is why ADR-194 v2 + ADR-211 are correct to treat Reviewer as a distinct Agent, and why swapping human ↔ AI in that seat requires no architectural change: the dimensions the swap preserves (Purpose, Trigger, Mechanism, Channel, Substrate) are all the same; only the Identity occupant rotates.
 
 ### Identity manifests through filesystem
 
 Per Axiom 1, identity is carried by substrate, not held in code:
 
-- **YARNNN's identity** — `/workspace/IDENTITY.md`, `/workspace/BRAND.md`, compact index, session memory
-- **Specialist identity** — ADR-117 role-keyed style distillation in `/workspace/style/{role}.md`
-- **Agent identity** — `/agents/{slug}/AGENT.md` + accumulated domain context
-- **Reviewer identity** — `/workspace/review/IDENTITY.md` + `principles.md` + `decisions.md`
+- **YARNNN's identity** — `/workspace/memory/awareness.md`, `/workspace/memory/_playbook.md`, `/workspace/memory/style.md`, `/workspace/memory/notes.md` + `/workspace/context/_shared/IDENTITY.md` (workspace operator identity)
+- **Reviewer's identity** — `/workspace/review/IDENTITY.md` + `OCCUPANT.md` (declares current seat occupant) + `principles.md` + `decisions.md` + `modes.md` + `handoffs.md` + `calibration.md`
+- **User-authored Agent identity** — `/agents/{slug}/AGENT.md` + accumulated domain context
+- **Future systemic Agent identity** — `/workspace/{role}/IDENTITY.md` + role-specific substrate
 
-A file without a declared author identity is an Axiom 2 violation. An agent acting without a resolvable identity is a bug.
+A file without a declared author identity is an Axiom 2 violation. An Agent acting without a resolvable identity is a bug. Orchestration, by contrast, does not author files in its own name — writes done through the Orchestrator carry the identity of the Agent that invoked it (operator, YARNNN, Reviewer, user-authored Agent, or `system:*` for mechanical back-office work).
 
-### Development axes
+### Development axes — Agents develop, Orchestration does not
 
-Each layer develops along exactly one axis. Conflating these has been a recurring source of design error (ADR-189 resolved it for the first three; ADR-194 added the fourth):
+Each Agent develops along exactly one axis. Orchestration does not develop; it evolves by adding capabilities.
 
-| Layer | Develops | How |
+| Agent | Develops | How |
 |---|---|---|
 | YARNNN | Upward — judgment about attention allocation | Workspace-level accumulation of what works for this operator |
-| Specialist | Outward — stylistic preference | Role-scoped distillation of edits across every task using the specialist |
-| Agent | Inward — deeper domain expertise | Accumulated memory, observations, learned preferences in its domain |
-| Reviewer | Through reasoning style — capital-EV calibration | Decisions accumulate in `decisions.md`; calibration against reconciled outcomes |
+| Reviewer | Through calibration — judgment quality | Decisions accumulate in `decisions.md`; calibration against reconciled outcomes in `calibration.md` |
+| User-authored domain Agent | Inward — deeper domain expertise | Accumulated memory, observations, learned preferences in its domain |
+
+Orchestration capability bundles (production roles, platform integrations) do not have a development axis in this sense. ADR-117 role-keyed style distillation (at `/workspace/style/{role}.md`) is an **operator-scoped accumulation** about the operator's preferences for that role's output — it is substrate the operator owns, not identity the role owns. The role itself does not accumulate; what accumulates is the operator's calibration of how that role's output should read, which is Agent-owned context that happens to be role-keyed.
 
 ---
 
@@ -412,7 +436,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 
 13. **Substrate writes are attributed and retained (Authored Substrate)** — Every mutation to `workspace_files` carries an `authored_by` identity and a short message, and every prior revision is retained in-substrate. There is no parallel audit table, no `/history/` subfolder, no filename-encoded versioning. This completes Axiom 1 (content-addressed retention + parent-pointer history) and operationalizes Axiom 2 (every file has an author, enforceable at the write path). See ADR-209 and [authored-substrate.md](authored-substrate.md).
 
-14. **Roles persist; occupants rotate** — The cognitive layers in Axiom 2 are architectural *roles* (seats), not identity commitments. The Reviewer seat is the canonical example: today the occupant is human, tomorrow the occupant may be an AI reviewer (ADR-194 v2 Phase 3), and either occupant fills the same seat with the same inputs (mandate, `_performance.md`, track record, proposal) and produces the same artifact (verdict + reasoning written to `/workspace/review/decisions.md`). The architectural value compounds in the *role* — the substrate it reads, the judgments it accumulates, the calibration it enables — not in the occupant. The same applies, more narrowly, to producer seats (Specialists) and platform seats (Platform Bots as capability bundles): the seat is architectural, the occupant is swappable. This principle makes the seat-interchangeability claim in [THESIS.md](THESIS.md) structurally enforceable: code must never couple a role to a specific occupant class. See THESIS "Independent judgment" commitment; canonical substrate spec for the Reviewer seat lives at [reviewer-substrate.md](reviewer-substrate.md).
+14. **Agent seats persist; occupants rotate** — Agent-class entities (Axiom 2 — YARNNN, Reviewer, user-authored domain Agents, future archetypes) are architectural *seats*, not identity commitments. The Reviewer seat is the canonical example: today the occupant is human, tomorrow the occupant may be an AI reviewer (ADR-194 v2 Phase 3), and either occupant fills the same seat with the same inputs (mandate, `_performance.md`, track record, proposal) and produces the same artifact (verdict + reasoning written to `/workspace/review/decisions.md`). The architectural value compounds in the *seat* — the substrate it reads, the judgments it accumulates, the calibration it enables — not in the occupant. This principle applies canonically to Agent seats. Orchestration capability bundles (production roles, platform integrations) are not seats in this sense — they have configurations to tune, not occupants to rotate. This principle makes the seat-interchangeability claim in [THESIS.md](THESIS.md) structurally enforceable: code must never couple an Agent seat to a specific occupant class. See THESIS "Independent judgment" commitment; canonical substrate spec for the Reviewer seat lives at [reviewer-substrate.md](reviewer-substrate.md); authoritative Agent/Orchestration taxonomy lives at [LAYER-MAPPING.md](LAYER-MAPPING.md).
 
 ---
 
@@ -497,3 +521,4 @@ Carried forward from v5.1, updated for v6.0:
 | 2026-04-23 | v6.3 — **Reviewer substrate canonized.** Added [reviewer-substrate.md](reviewer-substrate.md) as the technical canon for the Reviewer seat's filesystem expression. Specifies seven substrate files at `/workspace/review/` (IDENTITY, OCCUPANT, principles, modes, decisions, handoffs, calibration), the prospective-attribution contract with chat surfaces (four invariants), the operational modes vocabulary (autonomy level × scope × on-behalf posture), and the calibration loop that closes money-truth → future-judgment. Principle 14 and THESIS commitment 2 both cross-reference this doc. THESIS language tightened: dropped "pure objectivity" overstatement; replaced with "architecturally independent, such that the seat's judgment is informative rather than confirmatory." Replacement framing softened to prediction ("as AI judgment becomes credible") rather than axiom; architecture commits to occupant-class-agnosticism, not to any specific future occupant. Sibling to [authored-substrate.md](authored-substrate.md) in the canonical substrate docs. |
 | 2026-04-23 | v6.4 — **Production vs. judgment layer vocabulary + Phase 4 scoping.** THESIS gains §"Vocabulary: production layers vs. judgment layers" explicitly naming the two-class split inside Axiom 2 (production = YARNNN / Specialists / Agents / Platform Bots; judgment = Reviewer) and the deliberate "agent" industry-vocabulary alignment. reviewer-substrate.md gains §"Review orchestration vs. reviewer entity — the split" distinguishing plumbing from agency-locus. GLOSSARY v1.6 adds the top-level "Vocabulary note: Agent and agency-proper" discipline note. [ADR-211](../adr/ADR-211-reviewer-substrate-phase-4.md) scopes Phase 4 (OCCUPANT + modes + handoffs + calibration + rotation protocol + dispatch refactor + prospective-attribution contract) as a bounded coordinated landing; the ADR decisions resolve the principles-vs-modes split, occupant-rotation protocol, calibration cadence, and minimum-UX attribution-contract footprint. No class restructure: Option 2 feasibility audit (2026-04-23) confirmed the layer-class distinction is already structurally expressed in code via scope + substrate + trigger + development axis; creating a `reviewer` class would violate Principle 14 by coupling the seat to an agent class. |
 | 2026-04-23 | v6.5 — **ADR-211 Phase 4 Implemented.** Reviewer substrate completion shipped in five atomic commits (`49bfeb3` substrate scaffolding, `5fb0b69` principles/modes split, `bcdeaae` rotation primitive, `af9cf44` calibration loop, final I1+I2 attribution + ADR-194 v2.6 status). All seven canonical files under `/workspace/review/` now exist in shipped code. Singular-implementation discipline enforced: rotation primitive (`services.review_rotation.rotate_occupant`) is the sole write path for OCCUPANT.md + handoffs.md — previous static templates deleted. Principles/modes split enforced: `review_principles.py` deleted entirely, replaced by `review_policy.py` with `load_principles()` + `load_modes()` parsers reading the two distinct substrate files. Calibration loop closes Axiom 7 + Axiom 8 at the reviewer-seat level: `back-office-reviewer-calibration` runs daily, aggregates per-occupant × verdict over 7d/30d/90d windows, rebuilds calibration.md idempotently. Principle 14 now structurally enforceable: occupant is a file-declared identity; rotation is a substrate write; code path is occupant-class-agnostic at the dispatch level. No DB migrations. |
+| 2026-04-23 | v6.6 — **Axiom 2 rewritten for sharp Agent/Orchestration mapping (supersedes v6.4 hedge).** Axiom 2 previously described four cognitive layers (YARNNN / Specialists / Agents / Reviewer) with "production vs judgment" as a sub-classification — that framing conflated orchestration capability bundles (Specialists, Platform Bots) with Agents. [LAYER-MAPPING.md](LAYER-MAPPING.md) ratifies the sharp split: **Agents** (judgment-bearing — YARNNN, Reviewer, user-authored domain Agents, future archetypes) are Identity-bearing; **Orchestration** (production machinery — production roles previously called Specialists, platform integrations previously called Platform Bots, task pipeline, back-office tasks) is stateless infrastructure with no Identity. Axiom 2 now states this directly. Principle 14 retargeted — "Agent seats persist; occupants rotate" applies canonically to Agent seats; orchestration bundles have configurations to tune, not occupants to rotate. THESIS §Vocabulary rewritten to drop the "we call production entities Agents because industry" hedge — the word belongs to judgment-bearing entities and is used accordingly. External product vocabulary unchanged (user-authored domain Agents ARE Agents in the sharp sense, so external UI naturally aligns). ADR-212 (proposed) is the decision record. |
