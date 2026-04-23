@@ -362,6 +362,7 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
     """
     from services.primitives.registry import execute_primitive
     from services.reviewer_audit import append_decision
+    from services.reviewer_chat_surfacing import write_reviewer_message
 
     proposal_id = input.get("proposal_id")
     if not proposal_id:
@@ -475,6 +476,17 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
             reversibility=reversibility,
             outcome="executed",
         )
+        # Unified chat thread — surface verdict to operator's active session.
+        # Best-effort; decisions.md + action_proposals remain authoritative.
+        await write_reviewer_message(
+            auth.client, auth.user_id,
+            content=(reviewer_reasoning or f"Approved {action_type}."),
+            proposal_id=proposal_id,
+            verdict="approve",
+            occupant=reviewer_identity,
+            action_type=action_type,
+            task_slug=proposal.get("task_slug"),
+        )
         return {
             "success": True,
             "proposal_id": proposal_id,
@@ -494,18 +506,28 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
             logger.warning(f"[EXECUTE_PROPOSAL] status=rejected_at_execution update failed: {e}")
         logger.info(f"[EXECUTE_PROPOSAL] {proposal_id[:8]} rejected at execution: {err}")
         # Audit trail captures the approval + downstream execution failure.
+        downstream_msg = (
+            (reviewer_reasoning + "\n\n" if reviewer_reasoning else "")
+            + f"Approval recorded, but execution failed downstream: {err}"
+        )
         await append_decision(
             auth.client, auth.user_id,
             proposal_id=proposal_id,
             action_type=action_type,
             decision="approve",
             reviewer_identity=reviewer_identity,
-            reasoning=(
-                (reviewer_reasoning + "\n\n" if reviewer_reasoning else "")
-                + f"Approval recorded, but execution failed downstream: {err}"
-            ),
+            reasoning=downstream_msg,
             reversibility=reversibility,
             outcome="rejected_at_execution",
+        )
+        await write_reviewer_message(
+            auth.client, auth.user_id,
+            content=downstream_msg,
+            proposal_id=proposal_id,
+            verdict="approve",
+            occupant=reviewer_identity,
+            action_type=action_type,
+            task_slug=proposal.get("task_slug"),
         )
         return {
             "success": False,
@@ -565,6 +587,7 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
     is "human:<user_id>".
     """
     from services.reviewer_audit import append_decision
+    from services.reviewer_chat_surfacing import write_reviewer_message
 
     proposal_id = input.get("proposal_id")
     if not proposal_id:
@@ -618,6 +641,22 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
             reasoning=reviewer_reasoning,
             reversibility=reversibility,
             outcome="rejected",
+        )
+
+        # Unified chat thread — surface verdict to operator's active session.
+        task_slug = None
+        try:
+            task_slug = proposal_row.get("task_slug")
+        except Exception:
+            pass
+        await write_reviewer_message(
+            auth.client, auth.user_id,
+            content=(reviewer_reasoning or f"Rejected: {reason}"),
+            proposal_id=proposal_id,
+            verdict="reject",
+            occupant=reviewer_identity,
+            action_type=action_type or "unknown",
+            task_slug=task_slug,
         )
 
         return {

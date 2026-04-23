@@ -33,6 +33,7 @@ import {
   InlineActionCard,
   type ActionCardConfig,
 } from '@/components/tp/InlineActionCard';
+import { ReviewerCard } from '@/components/tp/ReviewerCard';
 import { stripWorkspaceStateMeta, stripOnboardingMeta } from '@/lib/workspace-state-meta';
 
 export interface ChatPanelProps {
@@ -198,7 +199,16 @@ export function ChatPanel({
           </div>
         )}
 
-        {messages.map(msg => (
+        {messages.map(msg => {
+          // ADR-212: reviewer verdicts render as full-width cards, not chat bubbles.
+          if (msg.role === 'reviewer') {
+            return (
+              <div key={msg.id} className="max-w-[92%]">
+                <ReviewerCard data={msg.reviewer ?? {}} content={msg.content} />
+              </div>
+            );
+          }
+          return (
           <div key={msg.id} className={cn('text-[13px] rounded-2xl px-3 py-2 max-w-[92%]', msg.role === 'user' ? 'bg-primary/10 ml-auto rounded-br-md' : 'bg-muted rounded-bl-md')}>
             <span className={cn("text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1", msg.role === 'user' ? 'uppercase' : 'font-brand text-[10px]')}>
               {msg.role === 'user' ? 'You' : 'yarnnn'}
@@ -218,7 +228,8 @@ export function ChatPanel({
               </>
             )}
           </div>
-        ))}
+          );
+        })}
 
         {status.type === 'thinking' && messages[messages.length - 1]?.role === 'user' && (
           <div className="flex items-center gap-1.5 text-muted-foreground text-xs"><Loader2 className="w-3 h-3 animate-spin" />Thinking...</div>

@@ -1,0 +1,99 @@
+/**
+ * ADR-212 / 2026-04-23: Reviewer verdict card for unified chat thread.
+ *
+ * Renders a role='reviewer' session_messages row as an inline card showing
+ * the verdict (approve/reject/defer/observation), the occupant who rendered
+ * it (human:<uid>, ai:reviewer-sonnet-v1, reviewer-layer:observed, …), the
+ * action it concerned, and a link back to /review for the full audit trail.
+ *
+ * Content is the reviewer's reasoning — same text persisted to decisions.md.
+ */
+
+import Link from 'next/link';
+import { CheckCircle2, XCircle, Eye, PauseCircle } from 'lucide-react';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import type { ReviewerCardData } from '@/types/desk';
+import { cn } from '@/lib/utils';
+
+interface ReviewerCardProps {
+  data: ReviewerCardData;
+  content: string;
+}
+
+function verdictIcon(verdict: string | undefined) {
+  switch (verdict) {
+    case 'approve':
+      return <CheckCircle2 className="w-4 h-4 text-green-600" />;
+    case 'reject':
+      return <XCircle className="w-4 h-4 text-red-600" />;
+    case 'defer':
+      return <PauseCircle className="w-4 h-4 text-amber-600" />;
+    case 'observation':
+    default:
+      return <Eye className="w-4 h-4 text-muted-foreground" />;
+  }
+}
+
+function verdictLabel(verdict: string | undefined) {
+  switch (verdict) {
+    case 'approve':
+      return 'Approved';
+    case 'reject':
+      return 'Rejected';
+    case 'defer':
+      return 'Deferred';
+    case 'observation':
+      return 'Observed';
+    default:
+      return 'Reviewer';
+  }
+}
+
+function occupantLabel(occupant: string | undefined): string {
+  if (!occupant) return 'Reviewer';
+  if (occupant.startsWith('human:')) return 'You';
+  if (occupant.startsWith('ai:')) return 'AI Reviewer';
+  if (occupant === 'reviewer-layer:observed') return 'Reviewer (observing)';
+  return occupant;
+}
+
+export function ReviewerCard({ data, content }: ReviewerCardProps) {
+  const { verdict, occupant, actionType, proposalId } = data;
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border border-border bg-muted/30 px-3 py-2.5 my-1',
+        'animate-in fade-in slide-in-from-bottom-1 duration-150',
+      )}
+    >
+      <div className="flex items-center gap-2 mb-1.5">
+        {verdictIcon(verdict)}
+        <span className="text-[11px] font-medium">{verdictLabel(verdict)}</span>
+        <span className="text-[10px] text-muted-foreground">·</span>
+        <span className="text-[10px] text-muted-foreground">{occupantLabel(occupant)}</span>
+        {actionType && (
+          <>
+            <span className="text-[10px] text-muted-foreground">·</span>
+            <span className="text-[10px] font-mono text-muted-foreground">{actionType}</span>
+          </>
+        )}
+      </div>
+      {content && (
+        <div className="text-[12px] leading-relaxed">
+          <MarkdownRenderer content={content} compact />
+        </div>
+      )}
+      {proposalId && (
+        <div className="mt-2">
+          <Link
+            href="/review"
+            className="text-[10px] text-primary hover:underline"
+          >
+            View in /review →
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}

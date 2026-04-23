@@ -6,6 +6,85 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.23.9] - Unified chat thread — Reviewer verdicts surface as role='reviewer' messages
+
+Under FOUNDATIONS v6.0 Axiom 6 (Channel) + Derived Principle 12 (channel
+legibility gates autonomy), Reviewer verdicts — previously invisible
+unless the operator navigated to /review — now surface inline in the
+operator's active chat session as a new role='reviewer' message kind.
+The operator sees verdicts in the same conversation stream YARNNN
+speaks in, rather than context-switching to /review.
+
+### Added
+
+- `supabase/migrations/160_session_messages_reviewer_role.sql` — widens
+  `session_messages.role` CHECK from `('user','assistant','system')` to
+  `('user','assistant','system','reviewer')`. Applied to prod
+  2026-04-23.
+
+- `api/services/reviewer_chat_surfacing.py` — single-entry helper
+  `write_reviewer_message(client, user_id, *, content, proposal_id,
+  verdict, occupant, action_type, task_slug)`. Finds the operator's
+  most-recent-active chat session and inserts a `role='reviewer'`
+  message with the verdict metadata. Best-effort; never raises.
+  `/workspace/review/decisions.md` + `action_proposals` remain
+  authoritative.
+
+- `web/components/tp/ReviewerCard.tsx` — renders `role='reviewer'`
+  messages inline in ChatPanel: verdict icon (approve / reject /
+  defer / observation), occupant label, action_type, and a link to
+  `/review`.
+
+### Changed
+
+- `api/services/primitives/propose_action.py`:
+  * `handle_execute_proposal` approve-success branch surfaces
+    `verdict="approve"` after `append_decision`.
+  * `handle_execute_proposal` approve-but-downstream-failed branch also
+    surfaces `verdict="approve"` with the failure note (the approval
+    itself was recorded).
+  * `handle_reject_proposal` surfaces `verdict="reject"` after the
+    audit write.
+
+- `api/services/review_proposal_dispatch.py`:
+  * `_write_observation` surfaces `verdict="observation"` with the
+    `reviewer-layer:observed` occupant.
+  * AI-defer branch surfaces `verdict="defer"` with the AI occupant
+    identity. AI-approve / AI-reject inherit surfacing transitively
+    via the primitive handlers.
+
+- `web/types/desk.ts`:
+  * `TPMessage.role` widened: `'user' | 'assistant'` →
+    `'user' | 'assistant' | 'reviewer'`.
+  * New `ReviewerCardData` interface + optional `reviewer` field on
+    `TPMessage`.
+
+- `web/lib/api/client.ts` — `/api/chat/history` response metadata type
+  gains `proposal_id`, `verdict`, `occupant`, `action_type`.
+
+- `web/contexts/TPContext.tsx` — session-history mapper populates
+  `TPMessage.reviewer` from metadata when `role === 'reviewer'`.
+
+- `web/components/tp/ChatPanel.tsx` — renders reviewer messages as
+  full-width `ReviewerCard` outside the normal chat bubble.
+
+### Expected behavior
+
+- Every approve / reject / defer / observe-only flow the Reviewer layer
+  runs writes both to `/workspace/review/decisions.md` (authoritative
+  audit) AND to the operator's active chat session as a
+  `role='reviewer'` message.
+- If the operator has no active session (hasn't chatted today), no
+  surfacing happens — /review remains the audit trail; next chat-open
+  does not retroactively receive the verdict. Accepted tradeoff; see
+  `reviewer_chat_surfacing.py` docstring.
+- Surfacing is best-effort. Failures log `[REVIEWER_CHAT] ...` and do
+  not affect the primitive's return value.
+- On session-history reload, reviewer messages hydrate as
+  ReviewerCards via the TPContext mapper.
+
+---
+
 ## [2026.04.23.8] - LLM-facing prompts aligned to LAYER-MAPPING sharp vocabulary
 
 Closes the prompts-side gap from the 2026-04-23.7 flip. The canonical

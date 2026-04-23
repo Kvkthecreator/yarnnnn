@@ -289,9 +289,21 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
               messageBlocks.push(...blocks);
             }
 
+            // ADR-212: reviewer verdict metadata (role === 'reviewer')
+            const reviewerMeta =
+              m.role === 'reviewer' && m.metadata
+                ? {
+                    proposalId: m.metadata.proposal_id,
+                    verdict: m.metadata.verdict,
+                    occupant: m.metadata.occupant,
+                    actionType: m.metadata.action_type,
+                    taskSlug: m.metadata.task_slug,
+                  }
+                : undefined;
+
             return {
               id: m.id,
-              role: m.role as 'user' | 'assistant',
+              role: m.role as 'user' | 'assistant' | 'reviewer',
               content: m.content,
               timestamp: new Date(m.created_at),
               toolResults: toolResults?.length ? toolResults : undefined,
@@ -300,6 +312,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
               ...(m.metadata?.author_agent_id && { authorAgentId: m.metadata.author_agent_id }),
               ...(m.metadata?.author_agent_slug && { authorAgentSlug: m.metadata.author_agent_slug }),
               ...(m.metadata?.author_role && { authorRole: m.metadata.author_role }),
+              ...(reviewerMeta && { reviewer: reviewerMeta }),
             };
           });
           dispatch({ type: 'SET_MESSAGES', messages });

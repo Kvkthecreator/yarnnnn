@@ -55,6 +55,7 @@ import logging
 from typing import Any
 
 from services.reviewer_audit import append_decision
+from services.reviewer_chat_surfacing import write_reviewer_message
 
 logger = logging.getLogger(__name__)
 
@@ -233,13 +234,14 @@ async def _write_observation(
     if expires_at:
         reasoning_lines.append(f"Proposal expires: {expires_at}")
 
+    reasoning_text = "\n".join(reasoning_lines)
     ok = await append_decision(
         client, user_id,
         proposal_id=proposal_id,
         action_type=action_type,
         decision="defer",
         reviewer_identity=_REVIEWER_OBSERVATION_IDENTITY,
-        reasoning="\n".join(reasoning_lines),
+        reasoning=reasoning_text,
         reversibility=reversibility,
         outcome="pending_human",
     )
@@ -251,6 +253,18 @@ async def _write_observation(
             action_type,
             gate_reason,
         )
+
+    # Unified chat thread — surface observation to operator's active session.
+    # Observe-only means "Reviewer layer saw this, seat defers to human."
+    await write_reviewer_message(
+        client, user_id,
+        content=reasoning_text,
+        proposal_id=proposal_id,
+        verdict="observation",
+        occupant=_REVIEWER_OBSERVATION_IDENTITY,
+        action_type=action_type,
+        task_slug=proposal_row.get("task_slug"),
+    )
 
 
 async def _run_ai_reviewer(
@@ -370,6 +384,16 @@ async def _run_ai_reviewer(
         reasoning=full_reasoning,
         reversibility=reversibility,
         outcome="pending_human",
+    )
+    # Unified chat thread — AI reviewed, chose to defer. Human will decide.
+    await write_reviewer_message(
+        client, user_id,
+        content=full_reasoning,
+        proposal_id=proposal_id,
+        verdict="defer",
+        occupant=REVIEWER_MODEL_IDENTITY,
+        action_type=action_type,
+        task_slug=proposal_row.get("task_slug"),
     )
     logger.info(
         "[REVIEW_DISPATCH] AI deferred proposal=%s user=%s action=%s — human to decide",

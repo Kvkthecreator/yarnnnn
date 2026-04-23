@@ -68,9 +68,21 @@ export type MessageBlock =
   | { type: 'notification'; title: string; description?: string; toolName: string }
   | { type: 'system_card'; card_type: SystemCardType; data: Record<string, unknown> };
 
+/**
+ * ADR-212 / 2026-04-23: Reviewer verdict metadata surfaced as chat messages.
+ * Populated when role === 'reviewer'. Enables ReviewerCard rendering.
+ */
+export interface ReviewerCardData {
+  proposalId?: string;
+  verdict?: 'approve' | 'reject' | 'defer' | 'observation' | string;
+  occupant?: string;
+  actionType?: string;
+  taskSlug?: string;
+}
+
 export interface TPMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'reviewer';
   content: string;
   /** Images attached to this message (user messages only) */
   images?: TPImageAttachment[];
@@ -84,6 +96,8 @@ export interface TPMessage {
   authorAgentSlug?: string;
   authorRole?: string;
   authorName?: string;
+  /** ADR-212: reviewer verdict metadata (role === 'reviewer') */
+  reviewer?: ReviewerCardData;
 }
 
 export interface TPToolResult {

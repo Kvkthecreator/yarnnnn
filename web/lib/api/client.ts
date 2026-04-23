@@ -342,6 +342,11 @@ export const api = {
               task_title?: string;
               output_path?: string;
               run_at?: string;
+              // ADR-212: Reviewer verdict cards (role === 'reviewer')
+              proposal_id?: string;
+              verdict?: string;
+              occupant?: string;
+              action_type?: string;
             };
           }>;
         }>;
