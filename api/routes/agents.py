@@ -432,20 +432,18 @@ async def list_agents(
     - avg_edit_distance: Average over recent versions
     """
     # Fetch agents with versions
-    # Note: ADR-034 removed projects table, agents are now user-scoped
-    #
-    # ADR-189: The /agents list shows ONLY user-authored Agents. Infrastructure
-    # rows (YARNNN, Specialists, Platform Bots) are scaffolded at signup with
-    # origin='system_bootstrap' and excluded here. This is the authored-team
-    # model: `/agents` empty at signup; the user builds the list by creating
-    # Agents through conversation with YARNNN. Infrastructure remains in the
-    # agents table so the pipeline can dispatch to Specialists by role.
+    # ADR-214: The /agents list shows judgment-bearing Agents only (ADR-212
+    # taxonomy): Systemic (YARNNN + Reviewer) + Domain (user-authored). YARNNN
+    # is a real row with origin='system_bootstrap' and role='thinking_partner';
+    # we keep it visible. Other system_bootstrap rows (if any legacy
+    # infrastructure survives) stay hidden per ADR-189. Reviewer is synthesized
+    # below as a pseudo-agent — its substrate lives at /workspace/review/*.md
+    # per ADR-194 v2 Axiom 1, not in the agents table.
     query = (
         auth.client.table("agents")
         .select("*, agent_runs(id, status, version_number, edit_distance_score, approved_at)")
         .eq("user_id", auth.user_id)
         .neq("role", "pm")  # PM agents are project infrastructure, not user-facing
-        .neq("origin", "system_bootstrap")  # ADR-189: infrastructure hidden from user-facing list
         .order("created_at", desc=True)
         .limit(limit)
     )
@@ -454,7 +452,13 @@ async def list_agents(
         query = query.eq("status", status)
 
     result = query.execute()
-    agents = result.data or []
+    raw_agents = result.data or []
+    # ADR-214: keep YARNNN (thinking_partner) regardless of origin; hide other
+    # system_bootstrap rows to preserve the authored-team moat (ADR-189).
+    agents = [
+        a for a in raw_agents
+        if a.get("origin") != "system_bootstrap" or a.get("role") == "thinking_partner"
+    ]
 
     # ADR-106: Read workspace intelligence for all agents in parallel
     import asyncio
@@ -550,6 +554,32 @@ async def list_agents(
             avatar_url=d.get("avatar_url"),
             agent_class=agent_class,
             context_domain=context_domain,
+        ))
+
+    # ADR-214: Synthesize Reviewer as a systemic pseudo-agent. No DB row —
+    # substrate at /workspace/review/{IDENTITY,principles,decisions}.md stays
+    # authoritative per ADR-194 v2 Axiom 1. Frontend dispatches on
+    # agent_class='reviewer' to render ReviewerDetailView.
+    # Status filter: Reviewer is always 'active'; skip synthesis only if
+    # caller asked to filter to a different status.
+    if not status or status == "active":
+        _now_iso = datetime.now(timezone.utc).isoformat()
+        responses.insert(0, AgentResponse(
+            id="reviewer",
+            title="Reviewer",
+            scope="workspace",
+            role="reviewer",
+            type_config=None,
+            status="active",
+            created_at=_now_iso,
+            updated_at=_now_iso,
+            version_count=0,
+            origin="system_bootstrap",
+            agent_instructions=None,
+            agent_memory=None,
+            avatar_url=None,
+            agent_class="reviewer",
+            context_domain=None,
         ))
 
     return responses

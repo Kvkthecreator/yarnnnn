@@ -26,9 +26,10 @@ type CanonicalAgentRole =
   | 'slack_bot'
   | 'notion_bot'
   | 'github_bot'
-  | 'thinking_partner';
+  | 'thinking_partner'
+  | 'reviewer';
 
-type AgentClass = 'specialist' | 'synthesizer' | 'platform-bot' | 'meta-cognitive';
+type AgentClass = 'specialist' | 'synthesizer' | 'platform-bot' | 'meta-cognitive' | 'reviewer';
 export type PlatformBotProvider = 'slack' | 'notion' | 'github';
 
 interface RoleMeta {
@@ -156,6 +157,17 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     badgeClass: 'bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100',
     authorClass: 'text-gray-900 dark:text-gray-100',
     iconName: 'MessageCircle',
+  },
+  // ADR-214: Reviewer as systemic pseudo-agent. Substrate at /workspace/review/
+  // per ADR-194 v2 Axiom 1.
+  reviewer: {
+    displayName: 'Reviewer',
+    shortLabel: 'Review',
+    tagline: 'Independent judgment on proposed actions',
+    avatarHex: '#e11d48',
+    badgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+    authorClass: 'text-rose-600 dark:text-rose-400',
+    iconName: 'ShieldCheck',
   },
 };
 

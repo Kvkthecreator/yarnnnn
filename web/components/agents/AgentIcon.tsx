@@ -20,6 +20,7 @@ import {
   Megaphone,
   MessageCircle,
   Settings2,
+  ShieldCheck,
   TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -36,6 +37,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Megaphone,
   MessageCircle,
   Settings2,
+  ShieldCheck,  // ADR-214: Reviewer role icon
   TrendingUp,
 };
 

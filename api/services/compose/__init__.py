@@ -26,6 +26,7 @@ from services.compose.revision import (
     build_revision_brief,
     RevisionScope,
 )
+from services.compose.task_html import compose_task_output_html
 
 __all__ = [
     "build_generation_brief",
@@ -37,4 +38,5 @@ __all__ = [
     "classify_revision_scope",
     "build_revision_brief",
     "RevisionScope",
+    "compose_task_output_html",
 ]

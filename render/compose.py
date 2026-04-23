@@ -24,6 +24,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
+# ADR-213: Engine version constant — bump on any semantic change to compose
+# output (CSS, section dispatch, matplotlib defaults, etc.). Included in the
+# content-addressed cache key so deploys invalidate previously-cached HTML
+# without explicit flush logic.
+COMPOSE_ENGINE_VERSION = "1"
+
+
 # ---------------------------------------------------------------------------
 # Request / Response models
 # ---------------------------------------------------------------------------

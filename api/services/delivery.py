@@ -679,8 +679,21 @@ async def deliver_from_output_folder(
             error_message=f"Output content not found at {output_folder}/output.md",
         )
 
-    # 1b. ADR-130 Phase 2: Check for composed HTML (post-generation compose step)
-    composed_html = await ws.read(f"{output_folder}/output.html")
+    # 1b. ADR-213: compose HTML on demand via the shared helper. The render
+    # service caches by content hash, so repeat deliveries on unchanged
+    # substrate are ~10ms. Requires task_slug to resolve the task workspace
+    # (where section partials + sys_manifest.json live); without it, email
+    # delivery falls back to markdown-only body.
+    composed_html: Optional[str] = None
+    if task_slug:
+        try:
+            from services.compose.task_html import compose_task_output_html
+            _date_folder = output_folder.removeprefix("outputs/").split("/", 1)[0]
+            composed_html = await compose_task_output_html(
+                client, user_id, task_slug, _date_folder
+            )
+        except Exception as _e:  # noqa: BLE001
+            logger.warning(f"[DELIVERY] On-demand compose failed for {task_slug}/{output_folder}: {_e}")
 
     # 2. Read manifest
     manifest_raw = await ws.read(f"{output_folder}/manifest.json")
@@ -937,11 +950,12 @@ async def _deliver_email_from_manifest(
     user_timezone: str = "UTC",
     user_id: Optional[str] = None,
 ) -> ExportResult:
-    """ADR-118 D.3 + ADR-148: Email delivery sourced from output folder.
+    """ADR-118 D.3 + ADR-148 + ADR-213: Email delivery sourced from output folder.
 
-    Always composes email-optimized HTML via compose engine (surface_type="digest").
-    The pre-composed HTML (output.html) is for web display — email needs its own
-    rendering with inline-safe CSS, no CSS variables, no external scripts.
+    Composes email-optimized HTML via compose engine (surface_type="digest")
+    with inline-safe CSS, no CSS variables, no external scripts. Web display
+    composition happens separately via compose_task_output_html() (ADR-213 —
+    no pre-rendered output.html exists in the workspace).
     Includes rendered binary download links from the manifest.
     """
     import os

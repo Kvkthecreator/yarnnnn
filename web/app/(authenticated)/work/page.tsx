@@ -125,14 +125,14 @@ export default function WorkPage() {
       const breadcrumbTask = selectedTask;
 
       if (agentFilter) {
-        // Came from Team surface — trace navigation history, not ownership
+        // Came from Agents surface — trace navigation history, not ownership
         const agent = agents.find(a => getAgentSlug(a) === agentFilter);
         const agentCrumbLabel = agent?.title ?? agentFilter;
         setBreadcrumb([
-          { label: 'Team', href: '/team', kind: 'surface' },
+          { label: 'Agents', href: '/agents', kind: 'surface' },
           {
             label: agentCrumbLabel,
-            href: `/team?agent=${encodeURIComponent(agentFilter)}`,
+            href: `/agents?agent=${encodeURIComponent(agentFilter)}`,
             kind: 'agent' as const,
           },
           {

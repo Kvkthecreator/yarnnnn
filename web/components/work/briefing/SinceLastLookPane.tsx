@@ -114,7 +114,7 @@ export function SinceLastLookPane() {
         {summary.recentDecisions.length > 0 && (
           <li>
             <Link
-              href="/review"
+              href="/agents?agent=reviewer"
               className="group flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm hover:bg-muted/40"
             >
               <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />

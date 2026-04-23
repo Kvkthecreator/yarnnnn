@@ -131,9 +131,12 @@ async def handle_repurpose_output(auth: Any, input: dict) -> dict:
         parts = path.split("/")
         output_date = parts[-2]
 
-    # Read the output
+    # Read the output (ADR-213: HTML composed on demand via the shared helper)
     output_md = await tw.read(f"outputs/{output_date}/output.md")
-    output_html = await tw.read(f"outputs/{output_date}/output.html")
+    from services.compose.task_html import compose_task_output_html
+    output_html = await compose_task_output_html(
+        client, user_id, task_slug, output_date
+    )
 
     if not output_md:
         return {"success": False, "error": "output_not_found", "message": f"No output.md at outputs/{output_date}/"}
