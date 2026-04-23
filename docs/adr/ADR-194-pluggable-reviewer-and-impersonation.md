@@ -1,6 +1,7 @@
 # ADR-194: Reviewer Layer + Operator Impersonation
 
 > **Status**: Phases 1 + 2a + 2b + 3 + 4 Implemented (Phase 4 landed 2026-04-23 per ADR-211). Phase 2c Proposed.
+> **Vocabulary note**: per [ADR-212](ADR-212-layer-mapping-correction.md) (same-day, 2026-04-23), the Reviewer is canonically named as an **Agent** under the sharp Agent/Orchestration mapping. Earlier text in this ADR calls the Reviewer a "layer" — that framing is superseded by LAYER-MAPPING.md; the Reviewer is a systemic Agent (one per workspace) whose seat substrate lives at `/workspace/review/`. Historical ADR text preserved verbatim.
 > **Date**: 2026-04-17 (v1) / 2026-04-19 (v2 rewrite)
 > **Authors**: KVK, Claude
 > **Extends**: ADR-189 (Three-Layer Cognition), ADR-191 (Polymath Operator ICP), ADR-192 (Write Primitive Coverage Expansion), ADR-193 (ProposeAction + Approval Loop)

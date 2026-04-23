@@ -1,6 +1,6 @@
 # ADR-211: Reviewer Substrate — Phase 4 Completion
 
-> **Status**: Proposed (2026-04-23). Implementation deferred to dedicated sprint.
+> **Status**: Implemented 2026-04-23 (five atomic commits 49bfeb3 / 5fb0b69 / bcdeaae / af9cf44 / b0a93e4). Vocabulary updated same-day per [ADR-212](ADR-212-layer-mapping-correction.md): the Reviewer is a systemic **Agent** (not "layer"); earlier text referring to "Reviewer layer" is superseded by LAYER-MAPPING.md but preserved verbatim as historical artifact.
 > **Date**: 2026-04-23
 > **Authors**: KVK, Claude
 > **Extends**: ADR-194 v2 (Reviewer Layer — implementation record through Phase 3)

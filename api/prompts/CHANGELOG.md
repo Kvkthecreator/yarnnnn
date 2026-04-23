@@ -6,6 +6,99 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.23.7] - LAYER-MAPPING flip: Agent/Orchestration sharp taxonomy
+
+Context: over the course of 2026-04-23, the session evolved a
+"production layer vs judgment layer" framing (morning, entries 3–5),
+attempted two incremental module renames (midday, entries 6), and
+finally landed a first-principles FLIP of the vocabulary (afternoon,
+this entry).
+
+The flip: under [LAYER-MAPPING.md](../../docs/architecture/LAYER-MAPPING.md)
+(canonical, 2026-04-23), **Agents** are judgment-bearing entities
+(YARNNN, Reviewer, user-authored domain Agents, future archetypes)
+with standing intent, fiduciary posture, and accumulated identity.
+**Orchestration** is production machinery (task pipeline, dispatch
+routing, capability bundles, back-office scheduling) — stateless
+infrastructure with no Identity, never personified.
+
+Previous "production layer" / "judgment layer" framing is superseded.
+The hedge "we call production entities Agents because industry" is
+rejected. The word "Agent" belongs to judgment-bearing entities in
+YARNNN canon and code; industry's loose "agent" vocabulary maps most
+closely to YARNNN's **production roles** (orchestration capability
+bundles), which are not Agents.
+
+External product vocabulary unchanged — user-authored domain Agents on
+`/agents` ARE Agents in the sharp sense.
+
+### Shipped in five atomic commits this date
+
+- Commit A (fef8fbe): canon doc flip — LAYER-MAPPING.md + THESIS
+  §"Vocabulary: Agents and Orchestration" rewrite + FOUNDATIONS Axiom 2
+  + Principle 14 rewrites + GLOSSARY Entities + retired-terms updates +
+  reviewer-substrate opening + architecture/README.
+- Commit B (c4194a1): registry rewrite — `AGENT_TEMPLATES` + `AGENT_TYPES`
+  DELETED. Split into three registries: SYSTEMIC_AGENTS (YARNNN +
+  future archetypes) + PRODUCTION_ROLES (researcher/analyst/writer/
+  tracker/designer/executive) + ALL_ROLES (union, for class-agnostic
+  lookups — not a back-compat shim). Module rename:
+  agent_orchestration.py → orchestration.py (third rename in chain;
+  the `agent_` prefix dropped because this module has zero Agent
+  content). Doc rename: agent-orchestration.md → orchestration.md.
+  All 14 import sites updated; all active canon cross-refs updated.
+- Commit C (455fec3): agent_pipeline.py → orchestration_prompts.py.
+  Holds production-role prompt templates, which is orchestration
+  content. Kept `agent_creation.py` + `agent_execution.py` — they
+  operate on Agents (create Agents, run Agents) so the `agent_`
+  prefix is correct under the sharp mapping.
+- Commit D (e9dec28): deleted empty api/agents/integration/ directory
+  (tombstone-only since ADR-153).
+- Commit E (this): ADR-212 + ADR-194/211 vocabulary-note amendments +
+  CLAUDE.md update + this CHANGELOG entry.
+
+### What does NOT change
+
+- DB schema: `agents.role` strings persist (migration cost exceeds
+  reader benefit; GLOSSARY exception table).
+- External UI / marketing / website: already aligned with sharp
+  meaning.
+- Historical ADRs: preserved verbatim (ADR-109, 116, 128, 130, 138,
+  140, 149, 151, 158, 164, 166, 168, 174, 176, 183, 187, 189, 192,
+  194, 205, 207, 211 and others that reference the old names).
+
+### Verification
+
+- AST parse clean for all 20+ touched Python files across commits.
+- Grep-verified: zero remaining `services.agent_framework`,
+  `services.agent_registry`, `services.agent_orchestration`,
+  `services.agent_pipeline`, `AGENT_TEMPLATES`, or `AGENT_TYPES`
+  references in live code.
+- No DB migrations.
+- No public API changes.
+- No behavioral changes.
+
+### Final module surface (post-flip, agent-vs-orchestration)
+
+Agent-class modules (in `api/agents/`):
+- yarnnn.py — YARNNN Agent
+- reviewer_agent.py — Reviewer Agent's AI occupant
+- chat_agent.py — user-authored Agent chat runtime
+- base.py — BaseAgent abstract
+
+Orchestration modules (in `api/services/`):
+- orchestration.py — registries + helpers (renamed from
+  agent_orchestration.py)
+- orchestration_prompts.py — production-role prompts (renamed from
+  agent_pipeline.py)
+- task_pipeline.py — runtime dispatch (already correctly named)
+
+Agent-ops modules (in `api/services/`, operate on Agents — kept):
+- agent_creation.py — creates Agents
+- agent_execution.py — runs Agents
+
+---
+
 ## [2026.04.23.6] - Naming alignment: agent_framework → agent_orchestration (finalized same day)
 
 Context: after ADR-211 Phase 4 landed and the production-vs-judgment layer
