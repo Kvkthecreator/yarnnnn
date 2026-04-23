@@ -6,6 +6,84 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.23.8] - LLM-facing prompts aligned to LAYER-MAPPING sharp vocabulary
+
+Closes the prompts-side gap from the 2026-04-23.7 flip. The canonical
+Agent/Orchestration taxonomy (LAYER-MAPPING.md, ADR-212) now lands in
+every prompt the LLM reads at runtime.
+
+### Changed
+
+- `api/agents/yarnnn_prompts/base.py` BASE_PROMPT §Terminology rewritten:
+  * "three-layer cognition" → "sharp Agent/Orchestration mapping" (ADR-212)
+  * YARNNN explicitly named as an Agent in the strict sense
+  * "Specialists as your palette" → "production roles are orchestration
+    capability bundles the Orchestrator dispatches against; not Agents"
+  * "Platform Bots" → "platform integrations (connection-bound capability
+    bundles, not Agents)"
+  * Agents list sharpened: YARNNN, Reviewer, user-authored domain Agents
+    all named as Agents; production roles and platform integrations
+    explicitly NOT Agents.
+  * Verb discipline: "draft a Specialist Team" → "draft a production-role
+    team". "Never personify production roles or platform integrations."
+
+- `api/agents/yarnnn_prompts/tools.py` + `tools_core.py` §Domain Terms
+  and §Workforce Model rewritten with the same sharp vocabulary:
+  * agent/Agent term defined per sharp mapping
+  * "Specialist" entity term retired → "production role"
+  * "Platform Bot" entity term retired → "platform integration"
+  * Workspace-scaffold note updated: fresh workspace contains YARNNN +
+    Reviewer seat (two systemic Agents); production roles materialize on
+    first dispatch; platform integrations activate on OAuth connect.
+
+- `api/agents/yarnnn_prompts/platforms.py` — "Platform Bots dissolved"
+  section rewritten. Now titled "Platform integrations are capability
+  bundles, not Agents (ADR-207 P4a + ADR-212)". "Any specialist can
+  invoke platform tools" → "Any production role can invoke platform
+  tools".
+
+- `api/agents/yarnnn_prompts/onboarding.py` — platform-awareness-tasks
+  section uses "production role = tracker" instead of "Specialist =
+  tracker".
+
+- `api/services/orchestration.py` TP_ORCHESTRATION_PLAYBOOK (LLM-facing):
+  "Specialist Assignment" → "Production-role Assignment (ADR-176
+  Decision 1 + ADR-212)". DEFAULT_REVIEW_IDENTITY_MD Reviewer explicit-
+  not-do clause updated: "that is the production-role calibration axis,
+  not the Reviewer's".
+
+### Preserved (historical)
+
+- Historical comments referencing ADR-176/ADR-207 P4a preserved verbatim
+  where they describe what happened at the time (e.g., "ADR-207 P4a
+  dissolved Platform Bots as an agent class" is a historical statement).
+- Module header docstrings that describe module history (e.g.,
+  orchestration.py v5 header) preserved.
+- `/workspace/style/{role}.md` path unchanged — the word "role" in the
+  path refers to production roles (Researcher, Writer, etc.) which is
+  accurate under the new mapping.
+
+### Verification
+
+- AST parse clean for all 6 touched files.
+- Grep-verified: zero "Specialist" / "Platform Bot" occurrences remain
+  in live LLM-facing content (base.py, tools.py, tools_core.py,
+  platforms.py, onboarding.py, orchestration.py playbook + Reviewer
+  defaults). Occurrences in historical comments (ADR references)
+  preserved as artifact.
+
+### Why this matters behaviorally
+
+Every chat turn YARNNN runs reads these prompts as its system prompt.
+Pre-flip, YARNNN's own system prompt described "Specialists" and
+"Platform Bots" as palette/entities — so the LLM's output would also
+use those terms. Post-flip, YARNNN will describe and reason about
+production roles and platform integrations as capability bundles (not
+Agents) consistent with the canon. This closes the gap where canon
+had flipped but the system's behavior still spoke in retired vocabulary.
+
+---
+
 ## [2026.04.23.7] - LAYER-MAPPING flip: Agent/Orchestration sharp taxonomy
 
 Context: over the course of 2026-04-23, the session evolved a

@@ -539,8 +539,8 @@ Create tasks with `ManageTask(action="create", type_key="...", title="...")`. Yo
 - `track-projects` (weekly) — project progress, milestones, blockers
 - `research-topics` (on-demand) — deep research on a specific topic
 
-**Platform-awareness tasks** (ADR-207 P4a — compose from specialist + capability):
-When a platform is connected and the operator wants recurring awareness, author a task directly rather than selecting from the registry. Specialist = tracker, required capability = `read_{platform}` + `summarize`, writes to the matching context domain. Example: "daily Slack awareness" → tracker + `read_slack` + writes `slack`. Same pattern for Notion (`read_notion` → `notion`), GitHub (`read_github` → `github`), Commerce (`read_commerce` → `customers`,`revenue`), Trading (`read_trading` → `trading`,`portfolio`). For write-back ("post this to Slack", "update that Notion page"), use a writer + `write_{platform}` capability.
+**Platform-awareness tasks** (ADR-207 P4a + ADR-212 — compose from production role + capability):
+When a platform is connected and the operator wants recurring awareness, author a task directly rather than selecting from the registry. Production role = tracker, required capability = `read_{platform}` + `summarize`, writes to the matching context domain. Example: "daily Slack awareness" → tracker + `read_slack` + writes `slack`. Same pattern for Notion (`read_notion` → `notion`), GitHub (`read_github` → `github`), Commerce (`read_commerce` → `customers`,`revenue`), Trading (`read_trading` → `trading`,`portfolio`). For write-back ("post this to Slack", "update that Notion page"), use a writer + `write_{platform}` capability.
 
 **Reports & Outputs** (synthesis from accumulated context — Writer, Analyst, Reporting handle these):
 - `daily-update` (daily) — **ESSENTIAL ANCHOR — already exists from signup, do NOT recreate.** Operational digest: what ran, what changed, what's next. To adjust, use ManageTask.

@@ -38,11 +38,11 @@ generic synced platform-content cache.
 - **Live tools for read/write** — `platform_slack_*`, `platform_notion_*`, `platform_github_*`, `platform_commerce_*`, `platform_trading_*` for direct platform queries and scoped write actions
 - **Capability-gated dispatch** (ADR-207 P3/P4a) — platform access is a capability (`read_slack`, `write_notion`, `write_trading`, ...) declared in TASK.md under `**Required Capabilities:**`. `capability_available()` checks the matching `platform_connections` row at dispatch. Missing capability = "connect {platform} first" error, not a silent skip.
 
-### Platform Bots dissolved (ADR-207 P4a)
+### Platform integrations are capability bundles, not Agents (ADR-207 P4a + ADR-212)
 
-There is no `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, or `trading_bot` agent role. Any specialist (researcher / analyst / writer / tracker / designer) can invoke platform tools when the corresponding capability is declared. When the operator wants platform work, author a TASK.md with:
+There is no `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, or `trading_bot` agent role. A "platform integration" under the sharp mapping is the union of platform-gated capabilities sharing a `platform_connections` row. Any production role (researcher / analyst / writer / tracker / designer) can invoke platform tools when the corresponding capability is declared. When the operator wants platform work, author a TASK.md with:
 
-  - `**Agent:** researcher` (or whichever specialist fits)
+  - `**Agent:** researcher` (or whichever production role fits)
   - `**Required Capabilities:** read_slack, summarize`  ← gate
   - `**Context Writes:** slack` (or whichever domain accumulates)
   - a `## Process` step describing what the specialist reads, extracts, and writes

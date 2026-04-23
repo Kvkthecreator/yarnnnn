@@ -661,7 +661,7 @@ resolve team composition from the work intent — not the other way around.
 - Recurring work → create task with schedule, not one-off run
 - Bounded investigation → create goal-mode task with clear completion criteria
 
-## Specialist Assignment (ADR-176 Decision 1)
+## Production-role Assignment (ADR-176 Decision 1 + ADR-212)
 Work requires finding info?        → Researcher
 Work requires synthesizing patterns? → Analyst
 Work requires a polished deliverable? → Writer
@@ -934,8 +934,9 @@ email:
   it is not a floor.
 - Does not override your explicit approvals. If you approve something
   manually, the AI Reviewer does not second-guess it.
-- Does not accumulate "style preference" (that is the Specialists'
-  axis, not the Reviewer's).
+- Does not accumulate "style preference" (that is the production-role
+  calibration axis at `/workspace/style/{role}.md`, not the Reviewer's
+  axis). The Reviewer accumulates calibration against outcomes instead.
 
 ## Escalation signal
 
