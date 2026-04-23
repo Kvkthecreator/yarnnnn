@@ -869,33 +869,11 @@ data.
 # workspace_init.py Phase 2. See ADR-211 D1–D3 + D6 for schemas.
 
 
-DEFAULT_REVIEW_OCCUPANT_MD = """\
----
-occupant: human:{user_id}
-occupant_class: human
-activated_at: {activated_at}
-activated_by: system
-config: {{}}
----
-
-# Review Seat — Current Occupant
-
-This file declares who currently fills the Reviewer seat. The seat is
-the architectural role (see `IDENTITY.md`); the **occupant** is who
-fills it right now. Per FOUNDATIONS Derived Principle 14, the seat
-persists and the occupant rotates.
-
-At signup the occupant is the human operator. You can rotate the
-occupant via chat with YARNNN (e.g., "let the AI reviewer handle
-commerce proposals below $500"). Every rotation appends an entry to
-`handoffs.md`.
-
-Occupant-class taxonomy:
-- `human:<user_id>` — the operator via approval UX
-- `ai:<model>-<version>` — a YARNNN-internal AI reviewer
-- `external:<service>-<identifier>` — an external AI service via adapter
-- `impersonated:<admin>-as-<persona>` — admin alpha-stress-testing
-"""
+# DEFAULT_REVIEW_OCCUPANT_MD DELETED — the rotation primitive
+# (services/review_rotation.py::_render_occupant_md) is the single source
+# of truth for OCCUPANT.md content. Per ADR-211 D4 singular-implementation,
+# every write to OCCUPANT.md flows through rotate_occupant(), including
+# the signup scaffold in workspace_init.py.
 
 
 DEFAULT_REVIEW_MODES_MD = """\
@@ -958,26 +936,10 @@ dispatch cycle.
 """
 
 
-DEFAULT_REVIEW_HANDOFFS_MD = """\
-# Review Seat — Occupant Rotation Log
-
-Append-only log of every change to `OCCUPANT.md`. Each rotation records:
-when, from whom, to whom, what triggered it, who authorized it, and
-(optionally) the operator's reason.
-
-This file makes FOUNDATIONS Derived Principle 14 ("Roles persist;
-occupants rotate") auditable end-to-end. An operator or future auditor
-can reconstruct the full occupancy history of the seat by reading this
-file alone.
-
-## {activated_at} — system scaffold
-
-- **From**: (none)
-- **To**: `human:{user_id}`
-- **Trigger**: signup
-- **Authorized by**: system
-- **Decisions.md range**: starts here
-"""
+# DEFAULT_REVIEW_HANDOFFS_MD DELETED — the rotation primitive
+# (services/review_rotation.py::_render_handoff_entry) is the single source
+# of truth for handoffs.md entries. Per ADR-211 D4 singular-implementation,
+# every append to handoffs.md flows through rotate_occupant().
 
 
 DEFAULT_REVIEW_CALIBRATION_MD = """\
