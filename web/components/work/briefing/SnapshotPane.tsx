@@ -56,7 +56,7 @@ export function SnapshotPane({ isDayZero = false }: SnapshotPaneProps) {
     ? bookTeachingCopy(personaKind)
     : snap?.bookHeadline ?? null;
   const workforceHeadline = isDayZero
-    ? 'YARNNN + 6 Specialists ready. Authored agents appear here as you create them.'
+    ? 'YARNNN + Reviewer ready. Authored agents appear here as you create them.'
     : snap?.workforceHeadline ?? null;
   const contextHeadline = isDayZero
     ? 'No context yet. YARNNN creates domains as you describe your work.'

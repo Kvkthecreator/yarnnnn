@@ -160,17 +160,24 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
 };
 
 const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
+  // NB: the enum key "specialist" is retained as a data-compatibility
+  // exception (Python `PRODUCTION_ROLES[*]["class"]` + API + ADR-209
+  // revision records). The human-readable label here is sharpened to
+  // "Production Role" per LAYER-MAPPING.md (ADR-212).
   specialist: {
-    label: 'Specialist',
-    description: 'Does one thing well — research, analysis, writing, tracking, or design.',
+    label: 'Production Role',
+    description: 'Orchestration capability bundle — research, analysis, writing, tracking, or design.',
   },
   synthesizer: {
     label: 'Reporting',
     description: 'Reads across domains and produces cross-domain synthesis.',
   },
+  // NB: the enum key "platform-bot" is retained as a data-compatibility
+  // exception. Under LAYER-MAPPING.md, what was called "Platform Bot" is
+  // now "platform integration" — a capability bundle, not an Agent.
   'platform-bot': {
-    label: 'Integration',
-    description: 'Bridges one external platform into the workspace.',
+    label: 'Platform Integration',
+    description: 'Platform-API capability bundle — activates when the platform is connected.',
   },
   'meta-cognitive': {
     label: 'YARNNN',
@@ -218,9 +225,9 @@ export function roleTagline(role?: string | null): string {
 }
 
 export function agentClassLabel(agentClass?: string | null): string {
-  if (!agentClass) return 'Specialist';
-  // backward compat: 'domain-steward' from old DB rows maps to 'specialist'
-  if (agentClass === 'domain-steward') return 'Specialist';
+  if (!agentClass) return 'Production Role';
+  // backward compat: 'domain-steward' from old DB rows maps to 'specialist' enum
+  if (agentClass === 'domain-steward') return 'Production Role';
   return CLASS_META[agentClass as AgentClass]?.label || agentClass.replace(/-/g, ' ');
 }
 

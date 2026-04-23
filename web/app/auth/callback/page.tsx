@@ -44,10 +44,13 @@ function CallbackHandler() {
       }
 
       if (session) {
-        // ADR-205: HOME_ROUTE is /chat. initialize_workspace scaffolds exactly
-        // one agent (YARNNN); Specialists + Platform Bots are lazy-created on
-        // first dispatch / OAuth connect. Both new and returning users land
-        // on /chat — OnboardingModal auto-opens via TP's workspace_state signal
+        // ADR-205 + ADR-212: HOME_ROUTE is /chat. initialize_workspace
+        // scaffolds the two systemic Agents (YARNNN + Reviewer seat).
+        // Production roles + platform integrations are orchestration
+        // capability bundles (not Agents) — production-role rows are
+        // lazy-created on first dispatch; platform integrations activate
+        // on OAuth connect. Both new and returning users land on /chat —
+        // OnboardingModal auto-opens via YARNNN's workspace_state signal
         // when identity is empty.
         if (next === HOME_ROUTE) {
           try {

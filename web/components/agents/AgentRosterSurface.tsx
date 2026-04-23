@@ -44,16 +44,16 @@ const CLASS_LABELS: Record<string, { title: string; description: string }> = {
     description: 'Your day-to-day collaborator. Chats with you and runs background upkeep.',
   },
   'specialist': {
-    title: 'Specialists',
-    description: 'Each one does one thing well — research, analysis, writing, tracking, or design.',
+    title: 'Production Roles',
+    description: 'Orchestration capability bundles — research, analysis, writing, tracking, or design.',
   },
   'domain-steward': {
-    title: 'Specialists',
-    description: 'Each one does one thing well — research, analysis, writing, tracking, or design.',
+    title: 'Production Roles',
+    description: 'Orchestration capability bundles — research, analysis, writing, tracking, or design.',
   },
   'synthesizer': {
     title: 'Reporting',
-    description: 'Pulls from every specialist to write your cross-topic reports.',
+    description: 'Pulls from every production role to write your cross-topic reports.',
   },
   'platform-bot': {
     title: 'Integrations',

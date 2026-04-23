@@ -35,9 +35,9 @@ const faqSections: FaqSection[] = [
           "Tasks run on schedule or by trigger without you re-prompting from zero. Agents pull fresh context, execute the work, and deliver outputs. You review and redirect when needed.",
       },
       {
-        question: "What's the difference between YARNNN, Agents, Specialists, and Platform Bots?",
+        question: "What's the difference between YARNNN and the Agents I create?",
         answer:
-          "YARNNN is the super-agent you talk to — the product and the conversational layer share a name. Agents are identity-explicit workers you create by chatting with YARNNN, each scoped to a domain of your work (competitors, clients, etc.). Specialists (Researcher, Analyst, Writer, Tracker, Designer, Reporting) are YARNNN's palette — it drafts a Team of Specialists for each task. Platform Bots (Slack, Notion, GitHub) activate on platform connection. Tasks are the work units: objective, cadence, delivery, assignment.",
+          "YARNNN is the super-agent you talk to — the product and the conversational agent share a name. Agents are identity-explicit workers you create by chatting with YARNNN, each scoped to a domain of your work (competitors, clients, revenue, etc.). When you assign a task, YARNNN drafts a team of behind-the-scenes roles (researcher, writer, analyst, tracker, designer) to produce the work — you don't manage those directly. Platforms you connect (Slack, Notion, GitHub, commerce, trading) become capabilities Agents can use. Tasks are the work units: objective, cadence, delivery, assignment.",
       },
     ],
   },
@@ -47,7 +47,7 @@ const faqSections: FaqSection[] = [
       {
         question: "Do I create Agents, or do they come pre-built?",
         answer:
-          "You create them. Signup starts you with zero Agents on the /agents page — the team is yours, authored through conversation with YARNNN. YARNNN has a palette of six Specialist roles (Researcher, Analyst, Writer, Tracker, Designer, Reporting) it draws from when drafting a Team for each task. Platform Bots (Slack, Notion, GitHub) activate on platform connection. The authored-team model means the switching cost compounds from your first Agent.",
+          "You create them. Signup starts you with zero Agents on the /agents page — the team is yours, authored through conversation with YARNNN. YARNNN handles the behind-the-scenes production work (research, writing, analysis, tracking, visual design, synthesis) for each task your Agents run. Platforms you connect (Slack, Notion, GitHub) become capabilities Agents can use. The authored-team model means the switching cost compounds from your first Agent.",
       },
       {
         question: "How do I build my team?",
