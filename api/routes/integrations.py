@@ -2199,8 +2199,18 @@ async def connect_commerce(
             slug="back-office-reviewer-calibration",
             title="Reviewer Calibration",
         )
+        # ADR-218: reflection materializes alongside calibration. Same
+        # trigger condition — a platform that produces Reviewer-gated
+        # outcomes means the Reviewer's framework can evolve against its
+        # own track record.
+        await materialize_back_office_task(
+            service_client, user_id,
+            type_key="back-office-reviewer-reflection",
+            slug="back-office-reviewer-reflection",
+            title="Reviewer Reflection",
+        )
     except Exception as materialize_err:
-        logger.warning(f"[INTEGRATIONS] outcome-reconciliation/calibration materialize failed: {materialize_err}")
+        logger.warning(f"[INTEGRATIONS] outcome-reconciliation/calibration/reflection materialize failed: {materialize_err}")
 
     # 4. Scaffold commerce context domains (idempotent)
     await scaffold_context_domain(service_client, user_id, "customers")
@@ -2502,8 +2512,15 @@ async def connect_trading(
             slug="back-office-reviewer-calibration",
             title="Reviewer Calibration",
         )
+        # ADR-218: reflection materializes alongside calibration.
+        await materialize_back_office_task(
+            service_client, user_id,
+            type_key="back-office-reviewer-reflection",
+            slug="back-office-reviewer-reflection",
+            title="Reviewer Reflection",
+        )
     except Exception as materialize_err:
-        logger.warning(f"[INTEGRATIONS] outcome-reconciliation/calibration materialize failed: {materialize_err}")
+        logger.warning(f"[INTEGRATIONS] outcome-reconciliation/calibration/reflection materialize failed: {materialize_err}")
 
     # 4. Scaffold trading context domains (idempotent)
     await scaffold_context_domain(service_client, user_id, "trading")

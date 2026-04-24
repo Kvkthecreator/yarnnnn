@@ -6,6 +6,96 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.24.6] - ADR-218 Commit 2 — Reviewer reflection Phase A (zero-LLM trigger evaluation)
+
+Back-office task + condition-check module shipped. No prompt change
+(Phase B reflection-mode prompt lands in ADR-218 Commit 3). This
+entry documents the Phase A zero-LLM scaffold + the seeded
+`## Reflection triggers` block in `DEFAULT_REVIEW_PRINCIPLES_MD`.
+
+### Added
+
+- `api/services/back_office/reviewer_reflection.py` — Phase A module.
+  `run()` entry point returns `(triggered, winning_trigger,
+  substrate_snapshot)` structured verdict. Zero LLM cost: reads
+  `decisions.md` (via `reviewer_calibration._read_decisions`), per-
+  domain `_performance.md` (via `_read_domain_outcome_totals`),
+  operator-declared triggers (parsed from principles.md), and the
+  last-reflection timestamp (from reflections.md). Evaluates
+  operator-declared `when` expressions against the substrate snapshot.
+- `_parse_triggers` + `_eval_expr` + `_evaluate_trigger` — restricted
+  expression grammar (identifier + comparator + number, joined by
+  AND/OR). Left-to-right eval, no precedence, case-sensitive keywords.
+  Unknown metrics / malformed clauses fail safe (trigger skipped
+  with legible reason, no crash).
+- `back-office-reviewer-reflection` task type in `task_types.py`.
+  output_kind=system_maintenance, daily cadence, executor=
+  `services.back_office.reviewer_reflection`. Materializes on
+  platform connect (commerce + trading) alongside
+  `back-office-reviewer-calibration`, symmetric with ADR-211 D6
+  pattern.
+- `routes/integrations.py` commerce + trading connect paths now
+  materialize `back-office-reviewer-reflection` alongside calibration.
+- `DEFAULT_REVIEW_PRINCIPLES_MD` gains a `## Reflection triggers`
+  section at end with three default triggers active at signup:
+  `cold_start_threshold_crossed`, `twenty_trade_calibration`,
+  `defer_rate_anomaly`. Operator edits principles.md to tune or
+  remove them. Phase B + C stubbed, so these triggers log-only until
+  ADR-218 Commits 3 + 4 land.
+
+### Metric keys available in triggers
+
+Boolean: `performance_md_first_populated`, `performance_md_exists`.
+Counters: `verdicts_since_last_reflection`, `approvals_last_30d`,
+`rejections_last_30d`, `defers_last_30d`.
+Rates: `defer_rate_last_50`, `approve_rate_last_50`,
+`reject_rate_last_50`.
+Deltas (V1 stubbed — future enhancement): `sharpe_delta_vs_baseline`,
+`expectancy_delta_vs_baseline`.
+
+### Invariants enforced in Phase A
+
+- Rate-limit: each trigger declares `min_days_between`; gate fires
+  before `when` evaluation. Prevents reactive cascades.
+- Scope ceiling awareness: Phase A only READS substrate. No writes.
+  Commits 3 + 4 land the write-back path; until then the task logs
+  "would reflect" on trigger crossing.
+- Empty / missing substrate: clean no-op. No triggers declared →
+  "no triggers declared" exit. Missing reflections.md → all rate
+  gates pass (treated as "never reflected"). Missing `_performance.md`
+  → `performance_md_exists` metric is 0.0.
+- Malformed YAML / unknown metric: trigger skipped with warning
+  log, task continues to evaluate subsequent triggers.
+
+### Expected behavior change
+
+- Workspaces without commerce/trading platforms: no change. Task
+  materializes only when outcomes-producing platforms connect.
+- Workspaces with commerce or trading: `back-office-reviewer-reflection`
+  now appears in `/work` list mode alongside calibration +
+  outcome-reconciliation. Daily runs log trigger evaluation verdicts
+  to the task output folder. No file mutations until Commits 3 + 4.
+- Fresh alpha-trader-style workspaces: first verdict + first outcome
+  will cross `cold_start_threshold_crossed` the following day.
+  Phase A logs the crossing; Phase B invocation stubbed.
+
+### Stubbed (Commits 3 + 4 of ADR-218)
+
+- `_PHASE_B_STUBBED = True` in `reviewer_reflection.py`. Commit 3
+  flips this + wires `agents.reviewer_agent.run_reflection()` + new
+  `_REFLECTION_SYSTEM_PROMPT` + `return_reflection_proposals`
+  forced tool. Commit 4 wires `services.reflection_writer` for
+  structured-output application + revision-chain writes + chat
+  notification + reflections.md append.
+
+### Related
+
+- `docs/architecture/persona-reflection.md` v1.1 — canon thesis.
+- `docs/adr/ADR-218-persona-reflection.md` — decision record.
+- ADR-211 D6 + `back-office-reviewer-calibration` — pattern mirror.
+
+---
+
 ## [2026.04.24.5] - Reviewer v4 + task pipeline PRECEDENT injection (persona-reflection.md v1.1 alignment)
 
 `REVIEWER_MODEL_IDENTITY` bumped `ai:reviewer-sonnet-v3` → `ai:reviewer-sonnet-v4`.
