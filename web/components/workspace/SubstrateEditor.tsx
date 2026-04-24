@@ -9,15 +9,19 @@
  * button on substrate files — Chat would invoke UpdateContext anyway, and
  * direct substrate edit produces the same write with clearer provenance.
  *
- * Scope (Phase 2): `/workspace/context/_shared/*.md` — the four authored
- * rules files (IDENTITY, BRAND, CONVENTIONS, MANDATE). These are the files
- * the now-retired ManageContextModal used to edit.
+ * Scope:
+ *   - `/workspace/context/_shared/*.md` — the four authored rules files
+ *     (IDENTITY, BRAND, CONVENTIONS, MANDATE). Phase 2 landing.
+ *   - `/workspace/review/principles.md` — Reviewer principles. Phase 3
+ *     landing (ADR-215 Phase 3 — R3 compliance for the last remaining
+ *     operator-authored substrate file editable via chat).
  *
- * Out of scope for Phase 2:
+ * Out of scope:
  *   - Task files (TASK.md, DELIVERABLE.md, feedback.md) — edit path is Chat
  *     per R1 (task lifecycle is judgment-shaped).
  *   - Uploads — re-upload is the edit path; no inline text editor.
- *   - Reviewer principles.md — retires to Files in Phase 3 per ADR-215.
+ *   - Agent AGENT.md files — edits flow through ManageAgent / UpdateContext
+ *     primitives (judgment-shaped), not direct operator substrate writes.
  *
  * Writes route through `api.workspace.editFile()` (PATCH /api/workspace/file),
  * which invokes `write_revision()` with `authored_by="operator"` on the server
@@ -38,6 +42,7 @@ const SHARED_EDITABLE_PATHS = new Set<string>([
   '/workspace/context/_shared/BRAND.md',
   '/workspace/context/_shared/CONVENTIONS.md',
   '/workspace/context/_shared/MANDATE.md',
+  '/workspace/review/principles.md',  // ADR-215 Phase 3
 ]);
 
 export function isSubstrateEditable(path: string | null | undefined): boolean {

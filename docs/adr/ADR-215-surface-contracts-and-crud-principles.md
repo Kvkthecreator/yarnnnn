@@ -1,6 +1,6 @@
 # ADR-215: Surface Contracts and CRUD Principles
 
-**Status:** Phase 1 + Phase 2 Implemented — Phases 3–5 Proposed
+**Status:** Phases 1–3 Implemented — Phases 4–5 Proposed
 **Date:** 2026-04-24
 **Dimensional classification:** **Channel** (primary, Axiom 6) + **Purpose** (Axiom 3) — establishes per-surface contracts and the CRUD shape matrix that governs all affordances
 
@@ -94,7 +94,7 @@ Phased to match the tab-hardening sequence:
 
 - **Phase 1 (Implemented 2026-04-24, commit `936eacc`).** ADR-215 + SURFACE-CONTRACTS.md + archive supersedes + CHANGELOG entry. Docs-only.
 - **Phase 2 (Files hardening) — Implemented 2026-04-24.** `<EditInChatButton>` shared component at `web/components/shared/EditInChatButton.tsx` (R5 single label, two variants). `<SubstrateEditor>` at `web/components/workspace/SubstrateEditor.tsx` with `isSubstrateEditable()` predicate covering `/workspace/context/_shared/{IDENTITY,BRAND,CONVENTIONS,MANDATE}.md`. `ManageContextModal.tsx` deleted. `ContentViewer.tsx` refactored — substrate files render inline editor; non-substrate files keep chat-draft affordance. Backend `api/routes/workspace.py` editable-prefixes gained `MANDATE.md`. `PrinciplesPane.tsx` + `WorkDetail.tsx` + `PageHeader.tsx` doc comment normalized to R5. TypeScript pass. Known follow-up: `web/components/settings/MemorySection.tsx` retains a parallel IDENTITY/BRAND edit path on `/settings` — to retire in a future sweep (not blocking Phase 3).
-- **Phase 3 (Agents hardening).** Systemic (YARNNN + Reviewer) and Domain detail shapes finalized. `PrinciplesPane` retired in favor of substrate-native editing on Files (per R3) — the decisions pane stays as a Stream embed.
+- **Phase 3 (Agents hardening) — Implemented 2026-04-24.** `PrinciplesPane.tsx` retired the "Edit via YARNNN" chat-seed path (R3 compliance). `/workspace/review/principles.md` added to both `SHARED_EDITABLE_PATHS` (frontend `SubstrateEditor.tsx`) and `editable_prefixes` (backend `api/routes/workspace.py`) — principles.md now edits on Files with `authored_by=operator` attribution via the same revision-chain path as the four `_shared/` rules. PrinciplesPane renders read-only with a deep-link "Edit on Files" button (`/context?path=/workspace/review/principles.md`). `ReviewerDetailView` prop surface simplified (no `onOpenChatDraft` required). `AgentContentView` dispatch paths for YARNNN/domain/platform-bot/reviewer audited — clean (no R5 label drift; AGENT.md edits continue to route through primitives per R1 judgment-shaped). TypeScript pass. Known follow-up: `TaskSetupModal` on `/agents` `+` menu is an R2 gray area (modal that seeds chat rather than direct-create); `/work` already uses `CreateTaskModal` for direct-create — reconciled in Phase 4.
 - **Phase 4 (Work hardening).** Cockpit-zone treatment on `/work` list mode (defer the tab-ify-vs-stack call to this phase with Files + Agents contracts already stable). IntelligenceCard silent-degrade fix (ADR-198 Briefing invariant I2). Four kind-aware detail middles (ADR-167 v2) reviewed against the contract.
 - **Phase 5 (Chat hardening).** Empty-state, suggestion chips, artifact card shape, Reviewer verdict thread (ADR-212) reviewed against the contract. Chat converges to the shapes the other three tabs now stably expose.
 

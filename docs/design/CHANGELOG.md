@@ -4,6 +4,31 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-24 — ADR-215 Phase 3: Agents hardening (principles.md → substrate, PrinciplesPane retired)
+
+**Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Agents hardening (Phase 3).
+
+SURFACE-CONTRACTS.md bumped to v1.2. Agents contract in Part 1 updated to reflect principles pane is Dashboard-read with deep-link to Files (R3-compliant); affordance cookbook row for principles.md updated; Part 4 Phase 3 marked Implemented + Phase 4 scope amended to include CreateTaskModal/TaskSetupModal reconciliation.
+
+**Code landed:**
+- `web/components/agents/reviewer/PrinciplesPane.tsx` — full rewrite. No more chat-seeder button. Renders the file read-only with an "Edit on Files" link (`/context?path=/workspace/review/principles.md`). Props surface simplified from `{ onOpenChatDraft }` to `{}`.
+- `web/components/agents/reviewer/ReviewerDetailView.tsx` — drops the `onOpenChatDraft` prop (no consumer after PrinciplesPane retirement). The existing call site in `AgentContentView.tsx` already mounted `<ReviewerDetailView />` without the prop — dead wire confirmed and cleaned.
+- `web/components/workspace/SubstrateEditor.tsx` — `SHARED_EDITABLE_PATHS` gains `/workspace/review/principles.md`. Docstring updated to document Phase 3 scope expansion.
+- `api/routes/workspace.py` — `editable_prefixes` gains `/workspace/review/principles.md`. Same `write_revision(authored_by="operator")` path as the four `_shared/` rules.
+
+**Behavior shift:** operator edits to Reviewer principles now go through the Files tab (substrate editor + revision chain) instead of seeding YARNNN chat. This means principles edits get `authored_by=operator` on their revisions — important for the audit trail on a file the AI Reviewer reads during judgment (ADR-194 v2 Phase 3).
+
+**R-compliance check after Phase 3:**
+- R1 (one verb, one shape): preserved. Reviewer substrate (IDENTITY, principles) → Substrate. AGENT.md for domain/YARNNN agents → Chat (via primitives, judgment-shaped).
+- R2 (create is Modal, update/delete never Modal): still clean from Phase 2. Known gray area: `TaskSetupModal` on `/agents` seeds chat (hybrid) — targeted for Phase 4 reconciliation.
+- R3 (substrate bypasses Chat): enforced — principles.md joins the `_shared/` rules on the substrate edit path. No chat seeder remains for any operator-authored substrate file.
+- R4 (`+` menu is modal launcher): `/agents` `+` menu has "Assign a new task" (modal launcher) and conditional "Run task" (chat seeder) — the run-task entry is an execution action, not an edit, and R4 governs edit authorship. Documenting as intentional.
+- R5 (one label "Edit in chat"): clean. `grep -rn "Edit via" web/` returns zero. PrinciplesPane replaces its prior "Edit via YARNNN" with "Edit on Files" (deep-link verb, not the R5 chat label — they are different affordances, different destinations).
+
+**TypeScript:** `tsc --noEmit` passes.
+
+---
+
 ## 2026-04-24 — ADR-215 Phase 2: Files hardening (substrate edits + EditInChatButton)
 
 **Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Files hardening (Phase 2).

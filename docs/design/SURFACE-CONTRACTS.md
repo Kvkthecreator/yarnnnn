@@ -1,6 +1,6 @@
 # Surface Contracts
 
-**Version:** v1.1 (2026-04-24)
+**Version:** v1.2 (2026-04-24)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
 **Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [FOUNDATIONS v6.1](../architecture/FOUNDATIONS.md) Axiom 6 (Channel)
@@ -62,9 +62,9 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
   - **Systemic** — exactly two cards: YARNNN and Reviewer. Unconditional. Rendered even on cold-start workspaces.
   - **Domain** — user-authored instance agents, zero-to-many. This is the authored-team moat (ADR-189); empty state is a real product state, not an error.
 - **Detail mode** (`?agent={slug}`): dispatches on `agent_class` per ADR-214:
-  - `thinking_partner` (YARNNN) → IDENTITY card + health card + memory substrate panes
-  - `reviewer` → ReviewerDetailView: identity card + principles pane + decisions stream (the three panes absorbed from the deleted `/review` route)
-  - domain agents → IDENTITY card + health card + AGENT.md + memory/style substrate panes
+  - `thinking_partner` (YARNNN) → IDENTITY card + health card + memory substrate panes (AGENT.md edits flow through primitives — judgment-shaped per R1)
+  - `reviewer` → ReviewerDetailView: identity card + principles pane (Dashboard read + "Edit on Files" deep-link per R3) + decisions stream (Stream archetype, append-only)
+  - domain agents → IDENTITY card + health card + AGENT.md + memory/style substrate panes (AGENT.md edits flow through primitives)
 - **`+` menu:** none. Authoring a domain agent is **judgment-shaped** (operator describes a gap; YARNNN proposes the agent shape; substrate gets written) — this is Chat territory per R1 + R2. The Agents tab's header carries an "Author in chat" button (R5 phrasing: "Edit in chat") seeding the prompt. No `AuthorAgentModal`.
 - **Deep-links out:** each agent's files on Files (`/context?path=/workspace/agents/{slug}/AGENT.md`), the agent's tasks filtered on Work (`/work?agent={slug}`), and Chat with the agent preselected (`/chat?agent={slug}`).
 - **Refuses:**
@@ -150,7 +150,7 @@ Quick lookup for common verb-object pairs. When adding a new affordance, add it 
 | Edit | Task (mode, pause/resume, run now, archive) | Direct | Work detail → header buttons | R1, R2 |
 | Edit | Agent identity (IDENTITY.md, memory/style) | Chat or Substrate | Substrate if file; Chat if judgment-shaped | R1 per field |
 | Edit | `_shared/` authored rules (IDENTITY · BRAND · CONVENTIONS · MANDATE) | Substrate | Files detail → inline edit | R3 |
-| Edit | Reviewer principles.md | Substrate | Files detail → inline edit | R3 (retires PrinciplesPane edit path in Phase 3) |
+| Edit | Reviewer principles.md | Substrate | Files detail → inline edit | R3 (Phase 3 — retired PrinciplesPane chat edit path; PrinciplesPane links to Files) |
 | Edit | `feedback.md` on a task | Chat | Work detail → FeedbackStrip → "Edit in chat" | R1 |
 | Approve | Proposal | Direct | Work NeedsMe pane → Approve button | R1 |
 | Reject | Proposal | Direct | Work NeedsMe pane → Reject button | R1 |
@@ -182,9 +182,11 @@ Each phase lands with: code changes + this doc's contract section updated in the
 
 - **Phase 1 — Contracts + CRUD matrix** — **Implemented 2026-04-24** (commit `936eacc`). ADR-215 + this doc + four archive supersedes + CHANGELOG entry.
 - **Phase 2 — Files hardening** — **Implemented 2026-04-24**. `<EditInChatButton>` shared component landed at `web/components/shared/EditInChatButton.tsx` (R5 single label). `<SubstrateEditor>` landed at `web/components/workspace/SubstrateEditor.tsx` with `isSubstrateEditable()` predicate covering `/workspace/context/_shared/{IDENTITY,BRAND,CONVENTIONS,MANDATE}.md`. `ManageContextModal.tsx` deleted. `ContentViewer.tsx` refactored — substrate-editable files render inline editor, non-substrate files keep chat-draft affordance. Backend `editable_prefixes` gained `MANDATE.md`. Labels normalized across `WorkDetail.tsx` and `PrinciplesPane.tsx` to R5 ("Edit in chat"). TypeScript pass.
-  - **Follow-up (not blocking Phase 3):** `web/components/settings/MemorySection.tsx` retains a parallel IDENTITY/BRAND edit path on `/settings`. It's a second mouth for the same substrate — Files is now canonical. Route to retire in a later sweep so the signed-in UI has one and only one edit surface for `_shared/` rules.
-- **Phase 3 — Agents hardening** — Pending. Retires `PrinciplesPane` inline chat path (R3); principles.md becomes substrate-editable on Files (add `/workspace/review/principles.md` to `editable_prefixes` and extend `SHARED_EDITABLE_PATHS`). Reviewer detail + Systemic/Domain split harden.
-- **Phase 4 — Work hardening** — Pending. Cockpit-zone treatment on `/work` list mode, IntelligenceCard silent-degrade fix (ADR-198 I2), 4 kind-middles reviewed against contract.
+- **Phase 3 — Agents hardening** — **Implemented 2026-04-24**. `PrinciplesPane` retired from chat-seeded edit path (R3 compliance). `/workspace/review/principles.md` added to both `SHARED_EDITABLE_PATHS` (frontend) and `editable_prefixes` (backend `api/routes/workspace.py`). PrinciplesPane now renders read-only with a deep-link to Files (`/context?path=/workspace/review/principles.md`) — same substrate editor as the four `_shared/` rules. `ReviewerDetailView` prop surface simplified (no `onOpenChatDraft` required; decisions stream was already read-only). `AgentContentView` YARNNN + domain + platform-bot + reviewer dispatch audited clean — no R5 label drift, AGENT.md edits continue to flow through primitives (judgment-shaped per R1). TypeScript pass.
+  - **Known follow-ups (not blocking Phase 4):**
+    - `web/components/settings/MemorySection.tsx` retains a parallel IDENTITY/BRAND edit path on `/settings`. Files is canonical; Settings mouth retires in a later sweep.
+    - `TaskSetupModal` remains as the `/agents` `+` menu entry "Assign a new task" — it's a modal that seeds chat rather than a direct-create API call. R2 gray area. `/work` already uses `CreateTaskModal` for direct-create; Phase 4 reconciles the two creation modals into a single model per ADR-215 R2.
+- **Phase 4 — Work hardening** — Pending. Cockpit-zone treatment on `/work` list mode, IntelligenceCard silent-degrade fix (ADR-198 I2), 4 kind-middles reviewed against contract. Also reconciles `CreateTaskModal` vs `TaskSetupModal` into a single creation flow.
 - **Phase 5 — Chat hardening** — Pending. Empty-state, suggestion chips, artifact cards, Reviewer verdict thread reviewed against contract.
 
 ---
