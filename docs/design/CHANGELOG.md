@@ -4,6 +4,36 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-24 — ADR-215 Phase 5: Chat hardening (onboarding modal retired, R-compliance complete)
+
+**Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Chat hardening (Phase 5). **ADR closed**.
+
+SURFACE-CONTRACTS.md bumped to v1.4. Chat contract in Part 1 rewritten with Workspace overlay + Reviewer verdict thread documented; empty state clarified; `+` menu codified at exactly one entry. Part 4 Phase 5 marked Implemented; ADR-215 closed.
+
+**Code landed:**
+- `web/components/chat-surface/OnboardingModal.tsx` — **deleted**. Auto-trigger was already retired by ADR-190 (conversational onboarding); the manual "Update workspace" `+` menu entry violated R2 (update is never Modal) and R3 (identity/brand/conventions are substrate, edited on Files).
+- `web/components/chat-surface/ContextSetup.tsx` — **deleted**. Only consumer was `OnboardingModal`.
+- `web/components/chat-surface/ChatSurface.tsx` — removed OnboardingModal mount, `handleOpenOnboarding`, `handleOnboardingSubmit`, `SlidersHorizontal` import. `+` menu now has exactly one built-in entry: "Start new work" → `TaskSetupModal`. `onContextSubmit` prop removed (orphan after retirement).
+- `web/app/(authenticated)/chat/page.tsx` — simplified to drop the orphaned `onContextSubmit` wiring.
+- `web/components/chat-surface/WorkspaceStateView.tsx` — `onOpenOnboarding` prop removed (root + OverviewTab + FlagsTab). Identity-empty CTAs seed chat prompts via `onAskTP` — YARNNN infers identity from the conversation per ADR-190, writes IDENTITY.md via `UpdateContext`. R3-compliant substrate path preserved.
+- `web/components/tp/ReviewerCard.tsx` — deep-link migrated `/review` → `/agents?agent=reviewer` (ADR-214 canonical route). Docstring updated with Stream archetype invariants (append-only, verdict cards are historical, never mutated inline).
+- `web/lib/workspace-state-meta.ts` — dead `parseOnboardingMeta` export removed. `stripOnboardingMeta` retained for display hygiene on historical messages that may still carry the retired marker. File header updated.
+- Stale doc comments cleaned: `web/app/auth/callback/page.tsx`, `web/components/chat-surface/ComposerInput.tsx`, `web/components/chat-surface/TaskSetupModal.tsx`.
+
+**R-compliance across all four tabs after Phase 5:**
+- **R1** — one verb, one shape per object. Clean across Chat · Work · Agents · Files.
+- **R2** — Create is Modal (exactly one: `TaskSetupModal`, used by all four tabs). Update/Delete is Direct or Chat. Zero edit-modals remain anywhere in the cockpit.
+- **R3** — substrate-editable paths (IDENTITY · BRAND · CONVENTIONS · MANDATE · principles.md) edit on Files with `authored_by=operator` revision attribution. Chat never edits substrate.
+- **R4** — `+` menu is modal launcher only. `/chat` has one entry, `/work` has one, `/context` has two (both modal/web-search), `/agents` has one or two (modal + conditional run action).
+- **R5** — single label "Edit in chat". `grep -rn "Edit via" web/` returns zero live hits.
+
+**ADR-215 close-out:**
+All five phases implemented. Four surface contracts + four-shape CRUD matrix + five rules govern the cockpit. Future cockpit additions consume `SURFACE-CONTRACTS.md` as the contract doc; phase structure is historical reference.
+
+**TypeScript:** `tsc --noEmit` passes.
+
+---
+
 ## 2026-04-24 — ADR-215 Phase 4: Work hardening (silent-degrade + cockpit zone + modal unification)
 
 **Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Work hardening (Phase 4).

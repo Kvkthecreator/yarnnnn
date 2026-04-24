@@ -15,8 +15,10 @@
  * the modal is open. Default tab on manual open is `overview` — the honest
  * "show me the state" answer.
  *
- * The Onboarding modal is a separate sibling surface (OnboardingModal.tsx).
- * This modal does NOT handle cold-start capture.
+ * Cold-start identity capture is conversational with YARNNN per ADR-190
+ * (no onboarding modal — retired in ADR-215 Phase 5). This modal's
+ * identity-empty CTAs seed a chat prompt that YARNNN answers, which in
+ * turn writes IDENTITY.md via UpdateContext/inference.
  *
  * The only action affordance in this modal is the "Ask TP" button in the
  * Heads up tab, which sends a pre-composed prompt to TP via sendMessage.
@@ -68,11 +70,6 @@ interface WorkspaceStateViewProps {
    */
   onAskTP: (prompt: string) => void;
   /**
-   * Called when the user clicks the identity-empty "Ask TP" card,
-   * which routes to opening the Onboarding modal instead of chat.
-   */
-  onOpenOnboarding: () => void;
-  /**
    * Called when the user clicks "Set up work" from the idle-agents Heads Up flag.
    * Opens TaskSetupModal, pre-filled with idle agent names as notes.
    */
@@ -92,7 +89,6 @@ export function WorkspaceStateView({
   reason,
   onClose,
   onAskTP,
-  onOpenOnboarding,
   onOpenTaskSetup,
 }: WorkspaceStateViewProps) {
   // Active tab — initialized from `lead` prop, falls back to `overview`.
@@ -190,7 +186,7 @@ export function WorkspaceStateView({
           {/* Active tab content */}
           <div className="max-h-[60vh] overflow-y-auto">
             {activeTab === 'overview' && (
-              <OverviewTab agents={agents} tasks={tasks} loading={dataLoading} onAskTP={onAskTP} onClose={onClose} onOpenOnboarding={onOpenOnboarding} />
+              <OverviewTab agents={agents} tasks={tasks} loading={dataLoading} onAskTP={onAskTP} onClose={onClose} />
             )}
             {activeTab === 'flags' && (
               <FlagsTab
@@ -198,7 +194,6 @@ export function WorkspaceStateView({
                 tasks={tasks}
                 loading={dataLoading}
                 onAskTP={onAskTP}
-                onOpenOnboarding={onOpenOnboarding}
                 onClose={onClose}
                 onOpenTaskSetup={onOpenTaskSetup}
               />
@@ -286,14 +281,12 @@ function OverviewTab({
   loading,
   onAskTP,
   onClose,
-  onOpenOnboarding,
 }: {
   agents: Agent[];
   tasks: Task[];
   loading: boolean;
   onAskTP: (prompt: string) => void;
   onClose: () => void;
-  onOpenOnboarding: () => void;
 }) {
   const [profile, setProfile] = useState<ProfileInfo | null>(null);
   const [brand, setBrand] = useState<BrandInfo | null>(null);
@@ -379,7 +372,13 @@ function OverviewTab({
             }
             badge={richnessBadge(identityRichness)}
             href={identityRichness !== 'empty' ? '/context' : undefined}
-            onEmpty={identityRichness === 'empty' ? () => { onClose(); onOpenOnboarding(); } : undefined}
+            onEmpty={identityRichness === 'empty' ? () => {
+              // ADR-215 R3 + ADR-190: identity is substrate; empty identity is
+              // authored conversationally with YARNNN, which writes to
+              // IDENTITY.md via UpdateContext/inference.
+              onClose();
+              onAskTP('I want to tell you about myself and my work so you can tailor the team to me.');
+            } : undefined}
           />
           <OverviewRow
             label="Brand"
@@ -570,7 +569,6 @@ function FlagsTab({
   tasks,
   loading,
   onAskTP,
-  onOpenOnboarding,
   onClose,
   onOpenTaskSetup,
 }: {
@@ -578,7 +576,6 @@ function FlagsTab({
   tasks: Task[];
   loading: boolean;
   onAskTP: (prompt: string) => void;
-  onOpenOnboarding: () => void;
   onClose: () => void;
   onOpenTaskSetup: (initialNotes: string) => void;
 }) {
@@ -610,7 +607,7 @@ function FlagsTab({
   const flags = useMemo<FlagCard[]>(() => {
     const items: FlagCard[] = [];
 
-    // Identity empty → opens Onboarding modal
+    // Identity empty → chat seed (ADR-190 conversational onboarding, ADR-215 R3 substrate)
     if (identityMissing) {
       items.push({
         id: 'identity-empty',
@@ -619,7 +616,10 @@ function FlagsTab({
         detail: 'A few quick details will help me infer your context.',
         action: {
           label: 'Tell me about yourself',
-          onClick: onOpenOnboarding,
+          onClick: () => {
+            onClose();
+            onAskTP('I want to tell you about myself and my work so you can tailor the team to me.');
+          },
         },
       });
     }
@@ -710,7 +710,7 @@ function FlagsTab({
     }
 
     return items;
-  }, [identityMissing, agents, tasks, onAskTP, onOpenOnboarding, onClose, onOpenTaskSetup]);
+  }, [identityMissing, agents, tasks, onAskTP, onClose, onOpenTaskSetup]);
 
   if (loading || fetching) {
     return (

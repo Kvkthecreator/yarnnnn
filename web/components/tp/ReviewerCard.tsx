@@ -4,9 +4,17 @@
  * Renders a role='reviewer' session_messages row as an inline card showing
  * the verdict (approve/reject/defer/observation), the occupant who rendered
  * it (human:<uid>, ai:reviewer-sonnet-v1, reviewer-layer:observed, …), the
- * action it concerned, and a link back to /review for the full audit trail.
+ * action it concerned, and a link to the Reviewer detail view for the full
+ * audit trail. Content is the reviewer's reasoning — same text persisted to
+ * decisions.md.
  *
- * Content is the reviewer's reasoning — same text persisted to decisions.md.
+ * Stream archetype (ADR-198 §3): chat stream is append-only; verdict cards
+ * are historical entries, never mutated inline. The operator can click
+ * through to the Reviewer detail view (`/agents?agent=reviewer`) for the
+ * full decisions stream per ADR-214.
+ *
+ * ADR-215 Phase 5: deep-link points to `/agents?agent=reviewer` (ADR-214
+ * canonical route). The prior `/review` path was retired by ADR-214.
  */
 
 import Link from 'next/link';
@@ -87,10 +95,10 @@ export function ReviewerCard({ data, content }: ReviewerCardProps) {
       {proposalId && (
         <div className="mt-2">
           <Link
-            href="/review"
+            href="/agents?agent=reviewer"
             className="text-[10px] text-primary hover:underline"
           >
-            View in /review →
+            Open Reviewer decisions →
           </Link>
         </div>
       )}

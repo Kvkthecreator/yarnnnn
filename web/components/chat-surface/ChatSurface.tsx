@@ -1,29 +1,34 @@
 'use client';
 
 /**
- * ChatSurface — YARNNN chat surface (ADR-165 v8, ADR-189, ADR-190).
+ * ChatSurface — YARNNN chat surface (ADR-165 v8, ADR-189, ADR-190, ADR-215 Phase 5).
  *
  *   <SurfaceIdentityHeader title="YARNNN" actions={Overview toggle} />
  *   <ChatPanel emptyState={<ChatEmptyState onChipClick={seedComposer} />} />
  *
- * Three sibling modals, opened independently:
+ * Two sibling modals, opened independently:
  *   1. WorkspaceStateView (Overview) — read-only diagnostic dashboard
  *      Opened by: YARNNN `<!-- workspace-state: ... -->` marker or user "Overview" button
- *   2. OnboardingModal — first-run identity capture (wraps ContextSetup)
- *      Opened by: YARNNN `<!-- onboarding -->` marker only (auto-trigger sunsets in ADR-190 commit 2)
- *   3. TaskSetupModal — structured task creation (wraps TaskSetup)
+ *   2. TaskSetupModal — structured task creation (wraps TaskSetup)
  *      Opened by: "Start new work" plus-menu action or Heads Up idle-agents flag
+ *
+ * ADR-215 Phase 5 (2026-04-24): OnboardingModal / ContextSetup retired.
+ *   - Auto-trigger was already retired by ADR-190 (onboarding is conversational
+ *     — YARNNN infers identity/brand from first-turn conversation).
+ *   - Manual "Update workspace" plus-menu entry violated R2 ("Update is never
+ *     Modal"). Per R3, identity/brand/conventions are substrate — they edit
+ *     on Files. Per ADR-190, first-time capture is conversational with YARNNN.
+ *   - Remaining `+` menu entries: exactly one — "Start new work" → TaskSetupModal.
  *
  * ADR-165 v8 (2026-04-09): Onboarding split from workspace state.
  * ADR-178 (2026-04-13): TaskSetup added as third modal.
  * ADR-189 (2026-04-17): TP → YARNNN user-facing rename.
  * ADR-190 (2026-04-17): Empty state renders ChatEmptyState — deterministic
- *   client-side welcome + 4 chips prompting rich-input behaviors. Replaces
- *   prior silent-canvas empty state. Zero LLM cost on first load.
+ *   client-side welcome + 4 chips prompting rich-input behaviors.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { LayoutDashboard, ListChecks, SlidersHorizontal } from 'lucide-react';
+import { LayoutDashboard, ListChecks } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -34,7 +39,6 @@ import {
   type WorkspaceStateLead,
 } from '@/lib/workspace-state-meta';
 import { WorkspaceStateView } from './WorkspaceStateView';
-import { OnboardingModal } from './OnboardingModal';
 import { TaskSetupModal } from './TaskSetupModal';
 import { ChatEmptyState } from './ChatEmptyState';
 
@@ -44,7 +48,6 @@ interface ChatSurfaceProps {
   dataLoading: boolean;
   /** Additional plus-menu actions from the page. ChatSurface prepends its own built-in actions. */
   plusMenuActions?: PlusMenuAction[];
-  onContextSubmit: (message: string) => void;
 }
 
 export function ChatSurface({
@@ -52,7 +55,6 @@ export function ChatSurface({
   tasks,
   dataLoading,
   plusMenuActions = [],
-  onContextSubmit,
 }: ChatSurfaceProps) {
   const { messages, sendMessage } = useTP();
 
@@ -60,9 +62,6 @@ export function ChatSurface({
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [overviewLead, setOverviewLead] = useState<WorkspaceStateLead | null>(null);
   const [overviewReason, setOverviewReason] = useState<string | null>(null);
-
-  // --- Onboarding modal state ---
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   // --- Task setup modal state ---
   const [taskSetupOpen, setTaskSetupOpen] = useState(false);
@@ -95,7 +94,6 @@ export function ChatSurface({
 
     const { directive } = parseWorkspaceStateMeta(latest.content);
     if (directive) {
-      setOnboardingOpen(false);
       setOverviewOpen(true);
       setOverviewLead(directive.lead);
       setOverviewReason(directive.reason ?? null);
@@ -107,7 +105,6 @@ export function ChatSurface({
     setOverviewOpen((prev) => {
       if (prev) return false;
       // Manual open: default tab, no TP call.
-      setOnboardingOpen(false);
       setOverviewLead(null); // null tells WorkspaceStateView to default to 'overview'
       setOverviewReason(null);
       return true;
@@ -115,7 +112,6 @@ export function ChatSurface({
   }, []);
 
   const handleOverviewClose = useCallback(() => setOverviewOpen(false), []);
-  const handleOnboardingClose = useCallback(() => setOnboardingOpen(false), []);
 
   // "Ask TP" from Overview modal flags tab — sends prompt and closes modal.
   const handleAskTP = useCallback(
@@ -126,25 +122,9 @@ export function ChatSurface({
     [sendMessage],
   );
 
-  // "Open Onboarding" from Overview modal flags tab (identity-empty card).
-  const handleOpenOnboarding = useCallback(() => {
-    setOverviewOpen(false);
-    setOnboardingOpen(true);
-  }, []);
-
-  // Onboarding form submit — sends composed message to TP and closes modal.
-  const handleOnboardingSubmit = useCallback(
-    (msg: string) => {
-      setOnboardingOpen(false);
-      onContextSubmit(msg);
-    },
-    [onContextSubmit],
-  );
-
   // Task setup modal — opened from plus-menu or Heads Up idle-agents flag.
   const handleOpenTaskSetup = useCallback((initialNotes = '') => {
     setOverviewOpen(false);
-    setOnboardingOpen(false);
     setTaskSetupInitialNotes(initialNotes);
     setTaskSetupOpen(true);
   }, []);
@@ -160,6 +140,11 @@ export function ChatSurface({
   );
 
   // Built-in plus-menu actions — prepended to any page-supplied actions.
+  // ADR-215 R4: + menu is a modal launcher only. Exactly one built-in —
+  // "Start new work" → TaskSetupModal. The prior "Update workspace" entry
+  // was retired in Phase 5 (violated R2 — update is never Modal; per R3
+  // identity/brand/conventions edit on Files as substrate, or via
+  // conversation with YARNNN per ADR-190).
   const allPlusMenuActions = useMemo<PlusMenuAction[]>(() => [
     {
       id: 'create-task',
@@ -168,15 +153,8 @@ export function ChatSurface({
       verb: 'show',
       onSelect: () => handleOpenTaskSetup(),
     },
-    {
-      id: 'update-context',
-      label: 'Update workspace',
-      icon: SlidersHorizontal,
-      verb: 'show',
-      onSelect: () => handleOpenOnboarding(),
-    },
     ...plusMenuActions,
-  ], [plusMenuActions, handleOpenTaskSetup, handleOpenOnboarding]);
+  ], [plusMenuActions, handleOpenTaskSetup]);
 
   // Overview toggle button — lives in the surface header.
   const overviewAction = (
@@ -240,15 +218,7 @@ export function ChatSurface({
         reason={overviewReason}
         onClose={handleOverviewClose}
         onAskTP={handleAskTP}
-        onOpenOnboarding={handleOpenOnboarding}
         onOpenTaskSetup={handleOpenTaskSetup}
-      />
-
-      {/* Onboarding modal — first-run identity capture */}
-      <OnboardingModal
-        open={onboardingOpen}
-        onClose={handleOnboardingClose}
-        onSubmit={handleOnboardingSubmit}
       />
 
       {/* Task setup modal — structured task creation (ADR-178) */}

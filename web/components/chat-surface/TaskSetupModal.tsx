@@ -3,7 +3,8 @@
 /**
  * TaskSetupModal — Structured task creation modal (ADR-178).
  *
- * Wraps TaskSetup in the same modal shell pattern as OnboardingModal.
+ * Wraps TaskSetup in a modal shell — the singular creation modal across the
+ * cockpit per ADR-215 Phase 4.
  * Opened by:
  *   - "Start new work" plus-menu action (ChatSurface)
  *   - "Set up work for them" CTA in WorkspaceStateView Heads Up tab

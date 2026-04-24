@@ -16,11 +16,14 @@
  * Data handling is identical across all callers:
  *   links + files + text → caller composes a message string → TP primitive
  *
- * Two consumers (as of 2026-04-14):
- *   ContextSetup  — identity capture (onboarding). Composed message targets
- *                   UpdateContext + ManageDomains.
+ * Consumer (as of ADR-215 Phase 5 / 2026-04-24):
  *   TaskSetup     — task creation (all surfaces). Composed message targets
  *                   ManageTask(action="create").
+ *
+ * Historical: ContextSetup (onboarding form) was the second consumer; it
+ * was retired by ADR-215 Phase 5 as onboarding became conversational
+ * (ADR-190) and identity/brand became substrate-editable on Files (ADR-215
+ * R3, Phase 2). The shared primitive survives on the TaskSetup path.
  *
  * When to extract vs keep separate:
  *   Two consumers sharing identical data shape and layout → extract (done).

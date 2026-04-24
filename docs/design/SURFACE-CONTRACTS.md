@@ -1,6 +1,6 @@
 # Surface Contracts
 
-**Version:** v1.3 (2026-04-24)
+**Version:** v1.4 (2026-04-24)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
 **Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [FOUNDATIONS v6.1](../architecture/FOUNDATIONS.md) Axiom 6 (Channel)
@@ -106,13 +106,16 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
 - **Reads:** `chat_sessions` + `session_messages` (windowed per ADR-159), compact index (`format_compact_index()` per ADR-186 profile), all substrate indirectly via YARNNN's tool calls.
 - **Writes:** through primitives (`UpdateContext`, `ManageTask`, `ManageAgent`, `ProposeAction`, etc. per ADR-168). Chat never writes substrate directly; it writes through YARNNN's primitive invocations.
 - **Stream mode** (default, conversation active): append-only message log. Reviewer verdicts appear as `role='reviewer'` messages per ADR-212. Artifact cards render inline when a primitive's response carries one (task preview, file summary, proposal draft). "Edit in chat" entries from other tabs open Chat with a seeded first message.
-- **Empty state** (cold start per ADR-205 F1): landing panel with suggestion chips ("Connect a platform" · "Upload a document" · "Describe your work") — the only surface in the cockpit that overrides its archetype for first-run guidance.
-- **`+` menu:** none. Chat is the mutation surface for judgment-shaped actions; Chat seeds don't need a `+` entry point.
-- **Deep-links out:** any file YARNNN cites (`/context?path=...`), any task ManageTask creates or updates (`/work?task=...`), any agent ManageAgent touches (`/agents?agent=...`). Artifacts carry links, not embeds.
+- **Empty state** (cold start per ADR-205 F1): `<ChatEmptyState>` — deterministic client-side landing with four suggestion chips (Upload a doc, Paste a URL, Track something recurring, Build a recurring report). Zero LLM cost on first load. The only surface in the cockpit that overrides its archetype for first-run guidance.
+- **`+` menu:** exactly one entry per ADR-215 Phase 5 — "Start new work" → `TaskSetupModal` (R4 modal launcher). The prior "Update workspace" entry was retired — it violated R2 (update is never Modal) and R3 (identity/brand/conventions are substrate, edited on Files).
+- **Deep-links out:** any file YARNNN cites (`/context?path=...`), any task ManageTask creates or updates (`/work?task=...`), any agent ManageAgent touches (`/agents?agent=...`). Reviewer verdict cards (role='reviewer' messages per ADR-212) link to `/agents?agent=reviewer` (ADR-214 canonical route). Artifacts carry links, not embeds.
+- **Workspace overlay** (`<WorkspaceStateView>`): modal opened by YARNNN-emitted `<!-- workspace-state: ... -->` marker OR the surface header "Workspace" button. Read-only diagnostic dashboard (Overview / Flags / Recap / Activity tabs). Identity-empty flag CTAs seed chat prompts (conversational onboarding per ADR-190, no modal form).
+- **Reviewer verdict thread** (ADR-212): `role='reviewer'` session messages render as `<ReviewerCard>` inline in the stream — verdict + occupant + reasoning + deep-link to `/agents?agent=reviewer`. Stream archetype invariant: append-only; verdict cards are historical entries, never mutated inline.
 - **Refuses:**
   - Full CRUD forms (modal-shape — those are on other tabs per R2)
   - Heavy data tables (those are Dashboard archetype — other tabs)
   - Replacing direct affordances on other tabs (approve buttons stay on Work; pause buttons stay on Work; no Chat-only paths for Direct-shape operations per R1)
+  - Onboarding forms — onboarding is conversational per ADR-190; no `OnboardingModal` / `ContextSetup` after ADR-215 Phase 5
 
 ---
 
@@ -192,7 +195,15 @@ Each phase lands with: code changes + this doc's contract section updated in the
   - `CreateTaskModal` retired; `/work` `+` menu uses `TaskSetupModal` (singular creation flow across all four tabs). `api.tasks.create` client method removed (YARNNN is the sole frontend consumer of task creation via `ManageTask(action="create")`; backend POST `/api/tasks` endpoint preserved for the primitive). R2 singular-implementation achieved.
   - Cockpit-zone visual treatment on `/work` list mode: section labels "Cockpit" + "Work", subtle zone tint on Cockpit, zone padding. Single vertical scroll preserved per ADR-205 F2 — tab-ify was considered and rejected (would force proposals behind a click, undoes ADR-206 deliverables-first).
   - 4 kind-middles audited: zero R1/R3/R5 violations. Middles are content-only; edit affordances live in `WorkDetail` header (Run/Pause = Direct, Edit in chat = Chat) with R5-compliant labels from Phase 2.
-- **Phase 5 — Chat hardening** — Pending. Empty-state, suggestion chips, artifact cards, Reviewer verdict thread reviewed against contract.
+- **Phase 5 — Chat hardening** — **Implemented 2026-04-24**.
+  - `OnboardingModal` + `ContextSetup` retired. Auto-trigger was already retired by ADR-190 (onboarding is conversational); the manual "Update workspace" `+` menu entry violated R2 (update is never Modal) and R3 (identity/brand/conventions are substrate). `WorkspaceStateView` identity-empty CTAs now seed chat prompts — YARNNN infers identity/brand from the conversation and writes via `UpdateContext`.
+  - `/chat` `+` menu now has exactly one built-in entry: "Start new work" → `TaskSetupModal`. R4 fully enforced on Chat.
+  - `ChatSurface.onContextSubmit` prop removed (orphan after OnboardingModal retirement); `/chat` page simplified.
+  - `ReviewerCard` deep-link migrated `/review` → `/agents?agent=reviewer` (ADR-214 canonical route). Docstring updated with Stream archetype invariants.
+  - `parseOnboardingMeta` export removed (dead code). `stripOnboardingMeta` retained — display hygiene for historical messages that may still carry the retired marker.
+  - `ChatEmptyState` + 4-chip cold-start landing retained as-is — already R-compliant (seed composer text or open file picker).
+  - Stale doc comments cleaned in `auth/callback/page.tsx`, `ComposerInput.tsx`, `TaskSetupModal.tsx`, `WorkspaceStateView.tsx`, `workspace-state-meta.ts`.
+  - TypeScript pass. `grep -rn "Edit via" web/`: zero live hits. Full R1–R5 compliance across all four tabs.
 
 ---
 

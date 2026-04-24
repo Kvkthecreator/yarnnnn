@@ -50,8 +50,8 @@ function CallbackHandler() {
         // capability bundles (not Agents) — production-role rows are
         // lazy-created on first dispatch; platform integrations activate
         // on OAuth connect. Both new and returning users land on /chat —
-        // OnboardingModal auto-opens via YARNNN's workspace_state signal
-        // when identity is empty.
+        // when identity is empty, YARNNN starts the onboarding conversation
+        // directly per ADR-190 (no modal, no marker, ADR-215 Phase 5).
         if (next === HOME_ROUTE) {
           try {
             setStatus("Setting up...");

@@ -1,22 +1,19 @@
 /**
- * Workspace state surface marker parsing — ADR-165 v8.
+ * Workspace state surface marker parsing — ADR-165 v8, ADR-215 Phase 5.
  *
- * `/chat` has TWO structured modals with TWO independent markers:
+ * `/chat` has ONE structured modal driven by a YARNNN-emitted marker:
  *
  *   <!-- workspace-state: {"lead":"overview","reason":"..."} -->   → Overview modal
- *   <!-- onboarding -->                                             → Onboarding modal
  *
- * TP emits at most one of these per message. Both markers are HTML comments
- * appended as the LAST line of an assistant message. The chat client parses
- * both on every new assistant message, opens the matching modal if present,
- * and strips both markers from the rendered message body.
+ * The onboarding marker (`<!-- onboarding -->`) was retired by ADR-190
+ * (onboarding became conversational) and its corresponding modal was
+ * deleted by ADR-215 Phase 5. Only `stripOnboardingMeta` remains, for
+ * display hygiene on historical messages that may still carry the marker.
  *
- * v8 (2026-04-09): Onboarding split from workspace-state — they were the
- * same marker in v7 (`lead=context`) but conflated diagnostic with capture.
- * The two modals now have distinct markers, distinct parsers, and distinct
- * lifecycles. Lead enum changed: `context | briefing | recent | gaps` →
- * `overview | flags | recap | activity`. No backwards-compat shim — legacy
- * markers silently no-op on parse.
+ * The workspace-state marker is an HTML comment appended as the LAST line
+ * of an assistant message. The chat client parses every new assistant
+ * message, opens the Overview modal if a directive is present, and strips
+ * both markers from the rendered body.
  *
  * Same parsing approach as ADR-162's inference-meta marker.
  */
@@ -94,43 +91,23 @@ export function stripWorkspaceStateMeta(content: string | null | undefined): str
 }
 
 // =============================================================================
-// Onboarding marker (Onboarding modal)
+// Onboarding marker — retired emission (ADR-190 + ADR-215 Phase 5)
 // =============================================================================
-
-export interface ParsedOnboardingContent {
-  /** The markdown body with the onboarding comment stripped. */
-  body: string;
-  /** True if an onboarding marker was present. */
-  present: boolean;
-}
+//
+// YARNNN no longer emits `<!-- onboarding -->` — onboarding became
+// conversational in ADR-190. The corresponding OnboardingModal was deleted
+// in ADR-215 Phase 5 (violated R2 for updates / R3 for substrate).
+//
+// `stripOnboardingMeta` remains for display hygiene: historical messages in
+// older sessions may still carry the marker, and chat rendering should
+// scrub it from the rendered body regardless.
 
 // Matches `<!-- onboarding -->` on its own line at the end of a message.
-// The marker carries no JSON payload — its presence alone is the directive.
 const ONBOARDING_RE = /\n*<!--\s*onboarding\s*-->\s*$/;
 
-/**
- * Parse and strip the onboarding HTML comment from a TP message.
- *
- * Returns the markdown body (comment removed) and whether the marker was present.
- */
-export function parseOnboardingMeta(
-  content: string | null | undefined,
-): ParsedOnboardingContent {
-  if (!content) return { body: '', present: false };
-
-  const match = content.match(ONBOARDING_RE);
-  if (!match) {
-    return { body: content, present: false };
-  }
-
-  const body = content.slice(0, match.index ?? 0).trimEnd();
-  return { body, present: true };
-}
-
-/**
- * Strip the onboarding marker from message content for display.
- * Convenience wrapper. Chainable with stripWorkspaceStateMeta.
- */
 export function stripOnboardingMeta(content: string | null | undefined): string {
-  return parseOnboardingMeta(content).body;
+  if (!content) return '';
+  const match = content.match(ONBOARDING_RE);
+  if (!match) return content;
+  return content.slice(0, match.index ?? 0).trimEnd();
 }
