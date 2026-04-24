@@ -37,10 +37,8 @@ import type {
   TaskDetail,
   TaskCreate,
   TaskOutput,
-  // ADR-145: Task type registry
-  // ADR-207 P4b: TaskType + TaskTypesResponse imports retained for any
-  // remaining consumer (CreateTaskModal) until frontend cutover; API client
-  // no longer exposes listTypes/getType endpoints.
+  // ADR-145: Task type registry. Retained for typing around update/list;
+  // create path removed in ADR-215 Phase 4 (YARNNN is the sole creator).
   TaskType,
   TaskTypesResponse,
   ProcessStepsResponse,
@@ -524,11 +522,10 @@ export const api = {
     get: (slug: string) =>
       request<TaskDetail>(`/api/tasks/${slug}`),
 
-    create: (data: TaskCreate) =>
-      request<Task>("/api/tasks", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+    // ADR-215 Phase 4: frontend no longer POSTs /api/tasks directly.
+    // Task creation routes through YARNNN via TaskSetupModal →
+    // ManageTask(action="create") per ADR-206 CRUD split. The backend
+    // POST /api/tasks endpoint stays in place for the primitive's use.
 
     update: (slug: string, data: Partial<TaskCreate> & { status?: string }) =>
       request<Task>(`/api/tasks/${slug}`, {

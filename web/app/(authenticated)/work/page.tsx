@@ -31,7 +31,7 @@ import { WorkDetail } from '@/components/work/WorkDetail';
 import { BriefingStrip } from '@/components/work/briefing/BriefingStrip';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
-import { CreateTaskModal } from '@/components/work/CreateTaskModal';
+import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
 import { getAgentSlug } from '@/lib/agent-identity';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { DeskSurface } from '@/types/desk';
@@ -389,13 +389,16 @@ export default function WorkPage() {
       )}
     </ThreePanelLayout>
 
-    <CreateTaskModal
+    {/* ADR-215 Phase 4: singular implementation — /work uses TaskSetupModal,
+        same as /chat, /agents, /context. CreateTaskModal retired; one
+        creation modal across the cockpit (ADR-178 rich intake routes
+        through YARNNN self-declaration on submit). */}
+    <TaskSetupModal
       open={taskSetupOpen}
       onClose={() => setTaskSetupOpen(false)}
-      onCreated={(slug) => {
+      onSubmit={(msg) => {
         setTaskSetupOpen(false);
-        void reload();
-        router.push(`/work?task=${encodeURIComponent(slug)}`, { scroll: false });
+        sendMessage(msg, chatSurfaceOverride ? { surface: chatSurfaceOverride } : undefined);
       }}
     />
     </>

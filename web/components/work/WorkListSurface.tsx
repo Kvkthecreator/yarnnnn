@@ -319,8 +319,21 @@ export function WorkListSurface({
 
   return (
     <div className="flex flex-col h-full">
+      {/* ADR-215 Phase 4: zone header pair with Cockpit (BriefingStrip above).
+          The two zones — "Cockpit" (glance) and "Work" (manage) — share
+          the /work surface under one vertical scroll per ADR-205 F2. The
+          section labels make the zones legible without tabs. */}
+      <div className="flex items-baseline justify-between px-4 sm:px-6 pt-5 pb-2 shrink-0">
+        <h2 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+          Work
+        </h2>
+        <span className="text-[10px] text-muted-foreground/40">
+          Tasks you own — my work · connectors · system
+        </span>
+      </div>
+
       {/* ── Toolbar ── */}
-      <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-border/40 shrink-0 space-y-3">
+      <div className="px-4 sm:px-6 pb-3 border-b border-border/40 shrink-0 space-y-3">
         {dataError && (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700">
             Showing last available data — refresh to retry.

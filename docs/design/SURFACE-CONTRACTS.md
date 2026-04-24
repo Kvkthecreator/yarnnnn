@@ -1,6 +1,6 @@
 # Surface Contracts
 
-**Version:** v1.2 (2026-04-24)
+**Version:** v1.3 (2026-04-24)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
 **Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [FOUNDATIONS v6.1](../architecture/FOUNDATIONS.md) Axiom 6 (Channel)
@@ -78,19 +78,20 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
 
 - **Archetype:** Briefing + Queue (list-mode composition) → Document/Dashboard/Stream (detail mode, per output_kind).
 - **Reads:** `tasks` table, `/workspace/tasks/{slug}/*` (TASK.md, DELIVERABLE.md, feedback.md, outputs, memory), `/workspace/review/decisions.md` (for the SinceLastLook pane), `/workspace/context/_performance_summary.md` (for the Snapshot pane per ADR-195 Phase 3), `agent_runs` (for the SinceLastLook pane's run history).
-- **List mode** (no `?task=`): BriefingStrip stacked above the task list.
-  - **BriefingStrip** (panes in ADR-206 deliverables-first order):
+- **List mode** (no `?task=`): single vertical scroll with two visually-distinct zones per ADR-215 Phase 4.
+  - **Cockpit zone** (`<BriefingStrip>`) — section label "Cockpit", subtle tint, Briefing+Queue archetypes. Panes in ADR-206 deliverables-first order:
     1. NeedsMe — Queue (pending proposals)
     2. Snapshot — Dashboard tiles (book / workforce / context)
     3. SinceLastLook — Briefing (temporal changes)
-    4. Workspace Intelligence — synthesis card (silent-degrade on absence per ADR-198 §3 I2 — Phase 4 fixes current "API Error 404" leak)
-  - **Task list** below the strip, grouped by output_kind (Reports · Tracking · Connected · Actions), with My Work / Connectors / System tab switcher for scope.
-- **Detail mode** (`?task={slug}`): ADR-167 v2 four kind-aware middles:
+    4. Workspace Intelligence — synthesis card. Silent-degrade per ADR-198 §3 Briefing invariant: 404 / missing output / transient error all collapse into "Synthesis pending" empty state. No Retry box inside the list surface.
+  - **Work zone** (`<WorkListSurface>`) — section label "Work". Task list grouped by output_kind (Reports · Tracking · Connected · Actions), with My Work / Connectors / System tab switcher for scope.
+  - Zones share one vertical scroll (ADR-205 F2 — deliberate: glance-then-drill mental model; tab-ify was considered and rejected because it would force proposals behind a click).
+- **Detail mode** (`?task={slug}`): ADR-167 v2 four kind-aware middles. Middles are content-only — edit affordances live in `WorkDetail` header row (Run/Pause = Direct; Edit in chat = Chat per R1+R5):
   - `produces_deliverable` → DeliverableMiddle (rendered output + quality contract panel)
   - `accumulates_context` → TrackingMiddle (domain folder link + CHANGELOG)
   - `external_action` → ActionMiddle (fire history + platform link-out)
   - `system_maintenance` → MaintenanceMiddle (hygiene log + run history)
-- **`+` menu:** CreateTaskModal (creation is Modal per R2). Title + type_key + mode + schedule + context. No other modals.
+- **`+` menu:** `TaskSetupModal` (singular creation modal across the cockpit — ADR-178 two-route rich intake; forwards to YARNNN via `sendMessage` which calls `ManageTask(action="create")` in the same turn). Per ADR-215 Phase 4 singular-implementation, `CreateTaskModal` was retired — one creation modal across `/chat`, `/work`, `/agents`, `/context`.
 - **Deep-links out:** task files on Files (`/context?path=/workspace/tasks/{slug}/DELIVERABLE.md`), assigned agents on Agents (`/agents?agent={slug}`), Chat with task preselected for "Edit in chat" (`/chat?task={slug}`).
 - **Refuses:**
   - File browsing outside task scope (goes to Files)
@@ -142,7 +143,7 @@ Quick lookup for common verb-object pairs. When adding a new affordance, add it 
 
 | Verb | Object | Shape | Location | Notes |
 |---|---|---|---|---|
-| Create | Task | Modal | Work `+` menu → CreateTaskModal | R2 |
+| Create | Task | Modal | Any tab `+` menu → TaskSetupModal (singular per ADR-215 Phase 4) | R2 |
 | Create | Domain agent | Chat | Agents header → "Edit in chat" | R1 (judgment-shaped) |
 | Create | Proposal | Chat | Agent proposes via ProposeAction primitive | Not operator-initiated |
 | Upload | Document | Modal | Files `+` menu → UploadFileModal | R2 |
@@ -186,7 +187,11 @@ Each phase lands with: code changes + this doc's contract section updated in the
   - **Known follow-ups (not blocking Phase 4):**
     - `web/components/settings/MemorySection.tsx` retains a parallel IDENTITY/BRAND edit path on `/settings`. Files is canonical; Settings mouth retires in a later sweep.
     - `TaskSetupModal` remains as the `/agents` `+` menu entry "Assign a new task" — it's a modal that seeds chat rather than a direct-create API call. R2 gray area. `/work` already uses `CreateTaskModal` for direct-create; Phase 4 reconciles the two creation modals into a single model per ADR-215 R2.
-- **Phase 4 — Work hardening** — Pending. Cockpit-zone treatment on `/work` list mode, IntelligenceCard silent-degrade fix (ADR-198 I2), 4 kind-middles reviewed against contract. Also reconciles `CreateTaskModal` vs `TaskSetupModal` into a single creation flow.
+- **Phase 4 — Work hardening** — **Implemented 2026-04-24**.
+  - `IntelligenceCard` silent-degrade fix per ADR-198 §3 Briefing invariant. The 404-before-first-run path is a normal empty state (task not scaffolded at signup per ADR-206), not an error. Missing output + transient HTTP failure both collapse to "Synthesis pending" placeholder. Retry box removed — Briefing never sprouts error chrome inside a list surface.
+  - `CreateTaskModal` retired; `/work` `+` menu uses `TaskSetupModal` (singular creation flow across all four tabs). `api.tasks.create` client method removed (YARNNN is the sole frontend consumer of task creation via `ManageTask(action="create")`; backend POST `/api/tasks` endpoint preserved for the primitive). R2 singular-implementation achieved.
+  - Cockpit-zone visual treatment on `/work` list mode: section labels "Cockpit" + "Work", subtle zone tint on Cockpit, zone padding. Single vertical scroll preserved per ADR-205 F2 — tab-ify was considered and rejected (would force proposals behind a click, undoes ADR-206 deliverables-first).
+  - 4 kind-middles audited: zero R1/R3/R5 violations. Middles are content-only; edit affordances live in `WorkDetail` header (Run/Pause = Direct, Edit in chat = Chat) with R5-compliant labels from Phase 2.
 - **Phase 5 — Chat hardening** — Pending. Empty-state, suggestion chips, artifact cards, Reviewer verdict thread reviewed against contract.
 
 ---

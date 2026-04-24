@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * IntelligenceCard — fourth pane on Overview (ADR-204).
+ * IntelligenceCard — fourth pane in BriefingStrip (ADR-204 + ADR-205 F2).
  *
  * Renders the latest output of the `maintain-overview` task as the
  * Workspace Intelligence Cockpit. Uses the same TaskOutputCard primitive
@@ -9,21 +9,23 @@
  * and markdown fallback are shared — no duplicate logic.
  *
  * ADR-198 I2 amendment: this is not "foreign substrate" — maintain-overview
- * is a purpose-built artifact for Overview's exclusive consumption
+ * is a purpose-built artifact for BriefingStrip's exclusive consumption
  * (delivery: none, sole consumer this surface). I2 passes.
  *
- * ADR-204 Phase 2 — Lazy refresh:
- *   On load, if sys_manifest.created_at is older than 6 hours, silently
- *   trigger a background re-run and reload when it completes. Existing
- *   (stale) content remains visible during the refresh.
+ * ADR-215 Phase 4: silent-degrade per ADR-198 §3 Briefing invariant.
+ * The task is not scaffolded at signup (ADR-206), so the 404-before-
+ * first-run path is a normal empty state, not an error. Absent output
+ * always renders the "Synthesis pending" placeholder. Broken HTTP (5xx,
+ * network) is also absorbed into the placeholder — Briefing never
+ * sprouts a Retry box inside a list surface.
  *
- * Empty states:
- *   - No output yet (day-zero or first run pending): warming-up placeholder
- *   - Load error: non-fatal, shows retry
+ * ADR-204 Phase 2 — Lazy refresh:
+ *   When output exists and is >6h old, trigger a background re-run.
+ *   Skipped on empty-state (nothing to refresh yet).
  */
 
 import { useEffect, useState } from 'react';
-import { Brain, Loader2, RefreshCw } from 'lucide-react';
+import { Brain, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { TaskOutputCard } from '@/components/work/details/DeliverableMiddle';
 import { useTaskOutputs } from '@/hooks/useTaskOutputs';
@@ -31,16 +33,16 @@ import { useTaskOutputs } from '@/hooks/useTaskOutputs';
 const STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 export function IntelligenceCard({ refreshKey }: { refreshKey?: number }) {
-  const { latest, loading, error, reload } = useTaskOutputs('maintain-overview', {
+  const { latest, loading, reload } = useTaskOutputs('maintain-overview', {
     includeLatest: true,
     refreshKey: refreshKey ?? 0,
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // ADR-204 Phase 2: Lazy refresh — if sys_manifest.created_at > 6h, trigger
-  // background re-execution so the next Overview load sees fresh output.
-  // Fires once after the initial load resolves. Silent failure — stale content
-  // is always better than a broken card.
+  // background re-execution. Skipped when no output exists yet (task not
+  // scaffolded per ADR-206 until the operator's mandate is declared).
+  // Silent failure — stale content is always better than a broken card.
   useEffect(() => {
     if (loading || isRefreshing || !latest) return;
 
@@ -83,26 +85,19 @@ export function IntelligenceCard({ refreshKey }: { refreshKey?: number }) {
         )}
       </div>
 
-      {/* Body */}
+      {/* Body. ADR-215 R4-adjacent: no Retry affordance inside Briefing.
+          Missing output (404) and transient load errors both collapse into
+          the "Synthesis pending" empty state — the Briefing archetype
+          surfaces pointers, not error chrome. */}
       {loading ? (
         <div className="flex items-center justify-center py-10">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
-        </div>
-      ) : error ? (
-        <div className="px-6 py-8 text-center">
-          <p className="text-xs text-muted-foreground/60 mb-3">{error}</p>
-          <button
-            onClick={() => void reload()}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <RefreshCw className="h-3 w-3" /> Retry
-          </button>
         </div>
       ) : !hasOutput ? (
         <div className="px-6 py-8 text-center">
           <Brain className="w-6 h-6 text-muted-foreground/15 mx-auto mb-2" />
           <p className="text-xs text-muted-foreground/60">
-            Synthesis pending — runs at 06:00 as your workspace accumulates knowledge.
+            Synthesis pending — runs daily as your workspace accumulates knowledge.
           </p>
         </div>
       ) : (

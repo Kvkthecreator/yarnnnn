@@ -4,6 +4,40 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-24 — ADR-215 Phase 4: Work hardening (silent-degrade + cockpit zone + modal unification)
+
+**Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Work hardening (Phase 4).
+
+SURFACE-CONTRACTS.md bumped to v1.3. Work contract in Part 1 rewritten to document the two-zone ("Cockpit" / "Work") list-mode layout and the singular TaskSetupModal creation path. Affordance cookbook entry for Create-Task updated. Part 4 Phase 4 marked Implemented.
+
+**Code landed:**
+- `web/components/work/briefing/IntelligenceCard.tsx` — silent-degrade fix per ADR-198 §3 Briefing invariant. The `maintain-overview` task isn't scaffolded at signup (ADR-206), so `GET /api/tasks/maintain-overview/outputs/latest` 404s on fresh workspaces. That 404 (and any transient HTTP failure) now collapses into the "Synthesis pending" empty state instead of rendering an "API Error: 404" + Retry box. Briefing archetype never sprouts error chrome inside a list surface.
+- `web/components/work/briefing/BriefingStrip.tsx` — wrapped in a `<section>` with zone header "Cockpit" + subtle tint (`bg-muted/20`) + zone description ("What needs you · book · since last look · intelligence"). Single vertical scroll preserved per ADR-205 F2.
+- `web/components/work/WorkListSurface.tsx` — matching "Work" zone header added above the toolbar. Zones are legible without tabs.
+- `web/app/(authenticated)/work/page.tsx` — `/work` now uses `TaskSetupModal` like `/chat`, `/agents`, `/context`. Singular creation flow across the cockpit.
+- `web/components/work/CreateTaskModal.tsx` — **deleted**. R2 is satisfied by `TaskSetupModal` alone across all four tabs.
+- `web/lib/api/client.ts` — `api.tasks.create` method removed (zero frontend consumers). Backend POST `/api/tasks` endpoint preserved — it now only serves `ManageTask(action="create")` invocations from YARNNN. `TaskType` / `TaskTypesResponse` imports retained for update/list typing.
+
+**Tab-ify vs single-scroll decision:**
+The operator's initial feedback was "should we tab-ify the cockpit vs the list?" Considered and rejected. Reasons: (1) tab-ify forces proposals behind a click, which undoes ADR-206 deliverables-first ordering; (2) ADR-205 F2 deliberately merged Overview into Work to collapse a click; tabs would reverse that; (3) ADR-198 §3 allows one surface to host multiple archetypes (Briefing + Queue on top of List). The fix is visual zone separation, not navigation restructure. "Cockpit" zone tinted and labeled above "Work" zone — glance-then-drill.
+
+**R-compliance check after Phase 4:**
+- R1 (one verb, one shape): preserved. Task lifecycle verbs route Direct (Pause/Run/Archive on WorkDetail) or Chat (Edit in chat for judgment-shaped edits).
+- R2 (create is Modal, update/delete never Modal): **clean**. `TaskSetupModal` is the one creation modal. The prior parallel path (`CreateTaskModal` on `/work`) is deleted.
+- R3 (substrate bypasses Chat): preserved from Phase 2+3.
+- R4 (`+` menu is modal launcher): preserved. `/work` `+` menu has exactly one entry (Start new work → `TaskSetupModal`).
+- R5 (one label "Edit in chat"): preserved. `grep -rn "Edit via" web/` remains zero live hits.
+
+**Other invariants checked:**
+- ADR-198 §3 Briefing I2 (no error chrome inside a list surface): restored by IntelligenceCard fix.
+- ADR-205 F2 (single vertical scroll on /work merged surface): preserved by zone approach.
+- ADR-206 deliverables-first ordering (NeedsMe → Snapshot → SinceLastLook → Intelligence): preserved inside Cockpit zone.
+- ADR-167 v2 kind-middles (four content-only middles): audited clean.
+
+**TypeScript:** `tsc --noEmit` passes.
+
+---
+
 ## 2026-04-24 — ADR-215 Phase 3: Agents hardening (principles.md → substrate, PrinciplesPane retired)
 
 **Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Agents hardening (Phase 3).
