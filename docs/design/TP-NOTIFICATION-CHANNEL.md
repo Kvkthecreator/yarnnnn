@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-02 (scoped down 2026-04-14 — ADR-179)
 **Status:** Partially superseded by [ADR-179](../adr/ADR-179-system-event-cards.md)
-**Depends on:** Chat-as-drawer (SURFACE-ARCHITECTURE.md), InlineActionCard pattern, TPContext streaming
+**Depends on:** Chat as a destination tab (SURFACE-CONTRACTS.md, ADR-215), InlineActionCard pattern, TPContext streaming
 
 > **Scope clarification (2026-04-14):** The notification channel doc below describes the full vision including FAB states and a rich notification type system. ADR-179 scopes the first implementation to two bookend cards per task (triggered + completed), zero LLM cost, no progress tracking. The FAB ambient state and queued notification patterns below remain valid for future extension but are not in the first build. The "in-progress" state for task execution is explicitly out of scope — users are not waiting at the screen, and the completion card is sufficient.
 
@@ -169,7 +169,7 @@ This decouples the refresh trigger from the notification display — they use th
 ## Relation to Existing Patterns
 
 - **InlineActionCard** (existing): styled cards for task actions (run, adjust, research, feedback). Same visual pattern, extended to tool result side effects.
-- **Chat drawer** (SURFACE-ARCHITECTURE.md): FAB trigger, right-edge drawer. Preserved — FAB gains ambient state.
+- **Chat tab** (SURFACE-CONTRACTS.md, ADR-215): the conversation surface. FAB/ambient notifications in-stream, per the Chat contract.
 - **TP streaming** (anthropic.py): tool_use and tool_result events already in stream. Frontend already processes them. This adds a post-processing layer.
 
 ## Future Extensions

@@ -1,7 +1,10 @@
 # Surface → Primitives → Actions Map
 
+> **SUPERSEDED 2026-04-24 — ADR-215.** This doc duplicated [`docs/architecture/primitives-matrix.md`](../../architecture/primitives-matrix.md) (ADR-168, canonical) for the primitive definitions, and the surface→action layer is now in [`docs/design/SURFACE-CONTRACTS.md`](../SURFACE-CONTRACTS.md) Part 3 (Affordance Cookbook). Preserved here as historical artifact.
+
 **Date:** 2026-04-04 (v2 — Chat + Agents + Context surfaces)
 **Updated:** 2026-04-15 (v3 — aligned to v12 four-surface nav: /work added, /activity deleted, TriggerTask→ManageTask, navigate targets fixed)
+**Status:** Archived (superseded by ADR-215)
 **Supersedes:** v1 (2026-03-25, Workfloor + Task Page)
 **Note:** Primitive names in this doc may drift from canonical. For the authoritative primitive surface × mode × capability matrix, see [`docs/architecture/primitives-matrix.md`](../architecture/primitives-matrix.md) (ADR-168). This doc's value is the surface→action mapping layer, not the primitive definitions.
 

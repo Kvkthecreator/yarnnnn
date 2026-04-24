@@ -3,7 +3,7 @@
 **Status:** Implemented (ADR-165 v8)
 **Date:** 2026-04-09
 **Governing ADR:** [ADR-165 v8](../adr/ADR-165-workspace-state-surface.md)
-**Extends:** [SURFACE-ARCHITECTURE](./SURFACE-ARCHITECTURE.md)
+**Extends:** [SURFACE-CONTRACTS](./SURFACE-CONTRACTS.md) (ADR-215)
 
 ---
 

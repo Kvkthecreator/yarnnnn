@@ -58,7 +58,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-102**: yarnnn Content Platform - agent outputs written as `platform_content` rows with `platform="yarnnn"`, closing the accumulation loop; always retained; searchable by YARNNN and headless agents; no OAuth, no sync
 - **ADR-103**: Agentic Framework Reframe - terminology migration from "deliverable" to "agent" throughout codebase. Agents are persistent autonomous entities, not document generators.
 - **ADR-104**: Agent Instructions as Unified Targeting - `agent_instructions` is the single targeting layer; dual-injected into system prompt (behavioral constraints) and user message (priority lens); dead infrastructure deleted (DataSource.scope/filters, SECTION_TEMPLATES, unused type_config fields, template_structure)
-- **ADR-105**: Instructions to Chat Surface Migration - directives (instructions, audience) flow through chat; configuration (schedule, sources) stays in drawer; design principle in `docs/design/SURFACE-ACTION-MAPPING.md`
+- **ADR-105**: Instructions to Chat Surface Migration - directives (instructions, audience) flow through chat; configuration (schedule, sources) stays in drawer. Superseded by ADR-215's four-shape CRUD matrix — see `docs/design/SURFACE-CONTRACTS.md`.
 - **ADR-106**: Agent Workspace Architecture - virtual filesystem over Postgres (`workspace_files` table); agents interact via path-based operations; archetype-driven strategies (reporter/analyst/researcher/operator); reasoning agents drive own context gathering from workspace instead of receiving platform dumps; replaces `agent_memory` JSONB; storage-agnostic abstraction layer preserves optionality for cloud storage
 - **ADR-109**: Agent Framework — Scope × Role × Trigger taxonomy replacing the 7-type system (ADR-093). Scope (what it knows: platform/cross_platform/knowledge/research/autonomous) determines context strategy. Role (what it does: digest/prepare/monitor/research/synthesize/act) determines prompt + primitives. Trigger (when it acts) = preserved ADR-092 modes. `agent_type` column → `scope` + `role` columns (was `skill`, renamed by ADR-118 Resolved Decision #4 to eliminate naming overload with output gateway skills). Templates are user-facing convenience layer. Canonical reference: `docs/architecture/agent-orchestration.md`. (Implemented — `skill` → `role` column rename completed in ADR-118 D.1, migration 114.)
 - **ADR-110**: Onboarding Bootstrap — deterministic, zero-LLM agent creation on platform connection. Post-sync, auto-creates matching digest agent (Slack→Recap, Notion→Summary) with `origin=system_bootstrap`. Executes first run immediately. Becomes Bootstrap bounded context within Composer (ADR-111). (Implemented.)
@@ -478,9 +478,9 @@ You MUST:
 | Sync Error Categorization | `web/lib/sync-errors.ts` (ADR-086) |
 | Onboarding UI | `web/components/onboarding/` |
 | Agents Page (Home) | `web/app/(authenticated)/agents/page.tsx` |
-| Chat Page | `web/app/(authenticated)/chat/page.tsx` (planned — SURFACE-ARCHITECTURE.md v3) |
-| Route Constants | `web/lib/routes.ts` (HOME_ROUTE = "/agents") |
-| Surface Architecture | `docs/design/SURFACE-ARCHITECTURE.md` (v3: Chat + Agents + Context + Activity) |
+| Chat Page | `web/app/(authenticated)/chat/page.tsx` |
+| Route Constants | `web/lib/routes.ts` (HOME_ROUTE = "/chat" per ADR-205 F1) |
+| Surface Contracts | `docs/design/SURFACE-CONTRACTS.md` (ADR-215: per-tab contracts + 4-shape CRUD matrix for Chat · Work · Agents · Files) |
 
 ---
 

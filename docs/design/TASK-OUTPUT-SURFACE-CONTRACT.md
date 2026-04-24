@@ -4,7 +4,7 @@
 **Status:** Decision
 **Related:**
 - [AGENT-AND-TASK-SURFACE-PATTERNS.md](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — shell rules for agent and task surfaces
-- [SURFACE-ARCHITECTURE.md](./SURFACE-ARCHITECTURE.md) — canonical `/work` list/detail surface
+- [SURFACE-CONTRACTS.md](./SURFACE-CONTRACTS.md) — canonical per-tab contracts (ADR-215), including `/work` list/detail surface
 - [../architecture/task-type-orchestration.md](../architecture/task-type-orchestration.md) — task registry and process model
 - [../adr/ADR-130-html-native-output-substrate.md](../adr/ADR-130-html-native-output-substrate.md) — `output.md` + `output.html` substrate
 - [../adr/ADR-166-registry-coherence-pass.md](../adr/ADR-166-registry-coherence-pass.md) — `output_kind` taxonomy

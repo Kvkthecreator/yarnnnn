@@ -352,7 +352,7 @@ When renaming, adding, or removing a primitive, perform a grep sweep across thes
 - `docs/features/sessions.md`
 - `docs/features/memory.md`
 - `docs/features/task-types.md`
-- `docs/design/SURFACE-PRIMITIVES-MAP.md`
+- `docs/design/SURFACE-CONTRACTS.md` (ADR-215)
 - `docs/design/` — grep the rest
 - `docs/adr/` — **reference-only sweep**. ADRs are immutable history. For a rename, add a one-line note in the superseding ADR's status header. Do not rewrite prior ADR prose.
 - `CLAUDE.md` — ADR list entry for the change, File Locations table if affected

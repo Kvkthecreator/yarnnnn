@@ -1,7 +1,9 @@
 # Surface-Action Mapping — Design Principle
 
+> **SUPERSEDED 2026-04-24 — ADR-215.** The two-surface chat/drawer dichotomy described below is replaced by the four-shape CRUD matrix (Direct · Modal · Chat · Substrate) in [`docs/design/SURFACE-CONTRACTS.md`](../SURFACE-CONTRACTS.md). This doc references retired vocabulary (TP, `agent_instructions` column, drawers). Preserved here as historical artifact.
+
 **Date:** 2026-03-10
-**Status:** Active
+**Status:** Archived (superseded by ADR-215)
 **Updated:** 2026-04-15 (route names aligned to v12: /work added, /activity deleted, Context→Files)
 **Related:**
 - [Surface Architecture](SURFACE-ARCHITECTURE.md) v12 — Chat + Work + Files + Agents

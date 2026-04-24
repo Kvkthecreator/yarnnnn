@@ -340,7 +340,7 @@ Five Purpose-labeled destinations + ambient YARNNN rail. The nav organizes by op
 
 **Inference visibility:** inferred content (IDENTITY.md, BRAND.md) is rendered via `InferenceContentView` which parses the `<!-- inference-meta: ... -->` HTML comment from ADR-162 Sub-phase D and renders source provenance captions + gap banners inline.
 
-Full design doc: [SURFACE-ARCHITECTURE.md](../design/SURFACE-ARCHITECTURE.md) (v10 — cockpit alignment).
+Full design doc: [SURFACE-CONTRACTS.md](../design/SURFACE-CONTRACTS.md) (ADR-215 — per-tab contracts + CRUD matrix).
 
 ---
 

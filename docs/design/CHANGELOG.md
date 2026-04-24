@@ -4,6 +4,26 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-24 — ADR-215: SURFACE-CONTRACTS unification + four-shape CRUD matrix
+
+**Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles.
+
+**New canonical doc**: `SURFACE-CONTRACTS.md` — single design reference for the four cockpit tabs (Chat · Work · Agents · Files). Four sections: per-tab contracts (archetype · reads · list mode · detail mode · `+` menu · deep-links out · refuses), the four-shape CRUD matrix (Direct · Modal · Chat · Substrate) with five rules, the affordance cookbook (verb-object → shape lookup), and the tab-hardening sequence (Files → Agents → Work → Chat).
+
+**Archived to `docs/design/archive/`** (all superseded by `SURFACE-CONTRACTS.md` per ADR-215):
+- `SURFACE-ARCHITECTURE.md` v15 (2026-04-20) — five-destination cockpit framing retired by ADR-214's four-tab nav collapse.
+- `SURFACE-ACTION-MAPPING.md` (2026-03-10) — two-surface chat/drawer dichotomy with retired TP/agent_instructions vocabulary; replaced by the four-shape CRUD matrix.
+- `SURFACE-DISPLAY-MAP.md` (2026-04-15) — pre-ADR-214 three-surface code snapshot; display catalog absorbed into SURFACE-CONTRACTS per-tab sections.
+- `SURFACE-PRIMITIVES-MAP.md` (2026-04-04) — duplicated `docs/architecture/primitives-matrix.md` (ADR-168 canonical); surface→action layer absorbed into SURFACE-CONTRACTS Part 3 (Affordance Cookbook).
+
+**Cross-references updated** in active docs: `AGENT-AND-TASK-SURFACE-PATTERNS.md`, `INLINE-PLUS-MENU.md` (notes ADR-215 R4 — `+` menu is strictly a modal launcher), `ONBOARDING-TP-AWARENESS.md`, `TP-NOTIFICATION-CHANNEL.md`, `TASK-OUTPUT-SURFACE-CONTRACT.md`, `WORKSPACE-STATE-SURFACE.md`.
+
+**Decisions locked in** (full detail in ADR-215): four surface contracts, one per tab; four CRUD shapes with R1–R5 discipline; "Edit in chat" as the single label (retires "Edit via chat" / "Edit via YARNNN" / "Edit via yarnnn" drift); `ManageContextModal` to be retired in the Files hardening phase (substrate files edit directly on Files per R3); tab hardening proceeds Files → Agents → Work → Chat.
+
+**Code changes:** none in this commit (docs-only). Follow-on phases land with code + contract update in the same commit per ADR-215 Phase 2–5 plan.
+
+---
+
 ## 2026-04-15 — SURFACE-DISPLAY-MAP.md: ground-truth component matrix
 
 **New doc**: `SURFACE-DISPLAY-MAP.md` — single reference for what each surface actually renders. Covers Work (list mode + detail mode per output_kind) and Context/Files (tree roots + center panel dispatch per node type). Ground-truth from code (`WorkDetail.tsx`, `*Middle.tsx`, `context/page.tsx`, `WorkspaceTree.tsx`, `ContentViewer.tsx`), not narrative docs. Establishes the three-surface user journey (Work → judgment gap → Context), cross-surface correspondence table (which output_kinds have Context representation vs. not), and component inventory. Documents known gaps (no FeedbackStrip yet, ObjectiveBlock renders for all kinds in code vs. spec saying produces_deliverable only).

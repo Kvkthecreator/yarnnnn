@@ -3,7 +3,7 @@
 **Date:** 2026-04-09  
 **Status:** Active  
 **Related:**
-- [SURFACE-ARCHITECTURE.md](./SURFACE-ARCHITECTURE.md) — canonical route and surface model
+- [SURFACE-CONTRACTS.md](./SURFACE-CONTRACTS.md) — canonical per-tab surface contracts (ADR-215)
 - [TASK-OUTPUT-SURFACE-CONTRACT.md](./TASK-OUTPUT-SURFACE-CONTRACT.md) — proposed run-level API contract for `/work`
 - [AGENT-PRESENTATION-PRINCIPLES.md](./AGENT-PRESENTATION-PRINCIPLES.md) — historical framing and prior agent-surface principles
 - [../features/task-types.md](../features/task-types.md) — task registry grouped by `output_kind`

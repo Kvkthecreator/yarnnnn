@@ -1,7 +1,9 @@
 # Surface Architecture — The Cockpit
 
+> **SUPERSEDED 2026-04-24 — ADR-215.** Canonical design substrate for cockpit surfaces is now [`docs/design/SURFACE-CONTRACTS.md`](../SURFACE-CONTRACTS.md). This doc's five-destination framing (Overview · Team · Work · Context · Review) was retired by [ADR-214](../../adr/ADR-214-agents-page-consolidation.md) which collapsed nav to four tabs (Chat · Work · Agents · Files). Preserved here as historical artifact.
+
 **Version:** v15.0 (2026-04-20)
-**Status:** Canonical
+**Status:** Archived (superseded by ADR-215)
 **Governed by:** [ADR-198 v2](../adr/ADR-198-surface-archetypes.md) — The Cockpit: Operator-Centric Service Model + Surface Archetypes
 **Grounded in:** [FOUNDATIONS v6.0](../architecture/FOUNDATIONS.md) — Axiom 2 (Identity), Axiom 3 (Purpose), Axiom 6 (Channel), Derived Principle 12 (Channel legibility gates autonomy)
 **Supersedes:** v14.0 (`Chat | Work | Files | Agents`) and all prior versions — singular implementation, no dual nav models.
