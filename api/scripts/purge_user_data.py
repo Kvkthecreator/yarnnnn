@@ -123,8 +123,36 @@ def purge_user_data(email: str, dry_run: bool = False):
     print()
 
     # ──────────────────────────────────────────────────────────────────────
-    # 1. Authored Substrate (ADR-209) — delete revisions first, then files
+    # 1. Authored Substrate (ADR-209) — FK order matters:
+    #    workspace_files.head_version_id → workspace_file_versions.id, so
+    #    null the pointer first, then wipe revisions, then wipe files.
     # ──────────────────────────────────────────────────────────────────────
+    print(f"🗑️  {label} null workspace_files.head_version_id pointers...")
+    if dry_run:
+        # Count rows we'd update
+        try:
+            r = (
+                client.table("workspace_files")
+                .select("*", count="exact", head=True)
+                .eq("user_id", user_id)
+                .not_.is_("head_version_id", "null")
+                .execute()
+            )
+            print(f"   {r.count or 0} pointers would be nulled")
+        except Exception as e:
+            print(f"   (count failed: {e})")
+    else:
+        try:
+            (
+                client.table("workspace_files")
+                .update({"head_version_id": None})
+                .eq("user_id", user_id)
+                .execute()
+            )
+            print("   OK (pointers nulled)")
+        except Exception as e:
+            print(f"   (update failed: {e})")
+
     print(f"🗑️  {label} workspace_file_versions (Authored Substrate revisions)...")
     n = _delete(client, "workspace_file_versions", user_id, dry_run=dry_run)
     print(f"   {n} revision rows")

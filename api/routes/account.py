@@ -183,6 +183,32 @@ def _count_workspace_pattern(client, user_id: str, like_pattern: str) -> int:
         return 0
 
 
+def _null_head_version_pointers(client, user_id: str) -> None:
+    """Null out `workspace_files.head_version_id` for the user before
+    wiping `workspace_file_versions`.
+
+    ADR-209 added `workspace_files.head_version_id → workspace_file_versions.id`
+    as a FK without ON DELETE semantics. Deleting the revision first
+    violates the constraint; deleting files first violates the inverse
+    relationship. Correct order: null pointers → delete revisions →
+    delete files. This helper is L2/L4/L5's prerequisite for a clean
+    wipe.
+
+    No-op when the user has no rows. Swallows errors (best-effort cleanup)
+    because the subsequent delete will surface the real constraint
+    violation if something is still wrong.
+    """
+    try:
+        (
+            client.table("workspace_files")
+            .update({"head_version_id": None})
+            .eq("user_id", user_id)
+            .execute()
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[ACCOUNT] null head_version_id failed for {user_id}: {e}")
+
+
 def _delete_workspace_file_versions_by_path(client, user_id: str, path_prefix: str) -> int:
     """Delete workspace_file_versions rows under a path prefix. ADR-209 keys
     the revision chain by `(user_id, path)` directly — no FK to workspace_files
@@ -509,8 +535,10 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         client = get_service_client()
 
         # --- Phase 1: Purge ---
-        # ADR-209 authored substrate revisions MUST delete before workspace_files
-        # (FK on workspace_file_versions.file_id → workspace_files.id with no cascade).
+        # ADR-209 FK order: workspace_files.head_version_id → workspace_file_versions.id.
+        # Null the pointer first so revisions can be wiped without violating
+        # the FK; then wipe the revision chain; then wipe the files.
+        _null_head_version_pointers(client, user_id)
         deleted["workspace_file_versions"] = _delete_rows(client, "workspace_file_versions", user_id)
 
         # Workspace filesystem — the primary data store
@@ -671,7 +699,9 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         client = get_service_client()
 
         # --- Phase 1: Purge ---
-        # ADR-209 authored substrate revisions MUST delete before workspace_files
+        # ADR-209 FK order: workspace_files.head_version_id → workspace_file_versions.id.
+        # Null the pointer first, then wipe revisions, then wipe files.
+        _null_head_version_pointers(client, user_id)
         deleted["workspace_file_versions"] = _delete_rows(client, "workspace_file_versions", user_id)
 
         # All workspace files — the primary data store
@@ -753,6 +783,8 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
 
         # Best-effort: delete workspace_files + revisions + MCP oauth before auth cascade
         # (ADR-209 revision rows are not FK-cascaded from auth.users — wipe explicitly).
+        # Null head_version_id pointers first to avoid the files→versions FK violation.
+        _null_head_version_pointers(service_client, user_id)
         deleted["workspace_file_versions"] = _delete_rows(service_client, "workspace_file_versions", user_id, optional=True)
         deleted["workspace_files"] = _delete_workspace_files(service_client, user_id)
         for table in ("mcp_oauth_codes", "mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
