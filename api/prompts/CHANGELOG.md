@@ -6,6 +6,66 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.24.2] - Reviewer persona-aware reasoning (ADR-216 Commit 2) — IDENTITY.md read at reasoning time
+
+`REVIEWER_MODEL_IDENTITY` bumped `ai:reviewer-sonnet-v1` → `ai:reviewer-sonnet-v2`.
+Load-bearing fix: pre-v2, `/workspace/review/IDENTITY.md` was scaffolded
+at signup but **never read** by the Reviewer's reasoning path.
+Authoring a persona (e.g. Simons-character for a trading Reviewer) into
+IDENTITY.md changed nothing about model behavior. v2 closes that gap —
+IDENTITY.md is now read by `review_proposal_dispatch.py` and injected as
+the opening section of the Reviewer's user message, ahead of
+principles.md, operator_profile.md, _risk.md, and _performance.md.
+
+### Changed
+
+- `api/agents/reviewer_agent.py::review_proposal()` — required parameter
+  `identity_md: str` added between `proposal_row` and `principles_md`.
+  All callers (currently one: `review_proposal_dispatch.py`) must
+  provide the persona content.
+- `api/agents/reviewer_agent.py::_build_user_message()` — opens with a
+  `## /workspace/review/IDENTITY.md — Your persona` section, then the
+  proposal, then principles, operator_profile, _risk, _performance. Order
+  is load-bearing: persona first, framework second, substrate third.
+- `api/agents/reviewer_agent.py::_SYSTEM_PROMPT` — rewritten to name
+  IDENTITY.md as substrate item 1 and explicitly distinguish persona
+  (who reviews) from framework (what checks) from substrate (data). New
+  closing paragraph: "Same framework, same data, different persona →
+  legitimately different reasoning and different defer/approve
+  boundaries. That is the point."
+- `api/services/review_proposal_dispatch.py` — reads
+  `/workspace/review/IDENTITY.md` alongside the existing four
+  substrate files and passes `identity_md` through to
+  `review_proposal()`. Fall-back on missing file is empty string; the
+  model treats empty IDENTITY as neutral skeptical baseline.
+
+### Expected behavior change
+
+- Workspaces with default generic IDENTITY.md: reasoning should remain
+  approximately the same as v1 — the default content explicitly tells
+  the model to reason as a neutral skeptical seat.
+- Workspaces with operator-authored persona IDENTITY.md (e.g. alpha-
+  trader with a Simons-character declaration): reasoning voice, defer
+  thresholds, and approve/reject boundaries should visibly shift to
+  match the declared persona. `decisions.md` entries should reference
+  persona-specific priorities (for Simons: measurable edge, no
+  override, signal retirement discipline, no conviction talk).
+- **This is the persona-embodiment mechanism ADR-216 makes load-bearing.**
+  Pre-v2 the platform's "the Reviewer is persona-bearing" claim was
+  aspirational; post-v2 it is implemented.
+
+### Related
+
+- ADR-216 (Orchestration Surface vs Judgment Persona) — ratifying doc.
+- ADR-194 v2 — Reviewer seat interchangeability. v2 extends by making
+  persona content the load-bearing artifact that flows through seat
+  rotations (OCCUPANT.md changes; IDENTITY.md persona does not, unless
+  operator rewrites it).
+- ADR-211 — Reviewer substrate Phase 4. Completes the Phase 4 substrate
+  vision by wiring the IDENTITY file the phase scaffolded.
+
+---
+
 ## [2026.04.23.9] - Unified chat thread — Reviewer verdicts surface as role='reviewer' messages
 
 Under FOUNDATIONS v6.0 Axiom 6 (Channel) + Derived Principle 12 (channel

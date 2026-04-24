@@ -72,10 +72,16 @@ logger = logging.getLogger(__name__)
 
 #: Occupant identity string persisted on action_proposals.reviewer_identity
 #: and on decisions.md entries when this occupant fills the Reviewer seat.
-#: Identifies the CURRENT OCCUPANT CLASS (AI, Sonnet-backed, version 1) —
+#: Identifies the CURRENT OCCUPANT CLASS (AI, Sonnet-backed, version 2) —
 #: not the seat itself. The seat is identified structurally by the filesystem
 #: home `/workspace/review/`. Bumped when prompt/model changes materially.
-REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v1"
+#:
+#: v1 → v2 (2026-04-24, ADR-216 Commit 2): persona-aware reasoning.
+#: IDENTITY.md now read at reasoning time and injected into the user message
+#: as the opening persona section, so operator-authored persona content
+#: (e.g. Simons-character for a trading Reviewer) actually flows into the
+#: model's reasoning. Previously IDENTITY.md was scaffolded but ignored.
+REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v2"
 
 #: Model slug passed to Anthropic. Keep parallel to REVIEWER_MODEL_IDENTITY.
 _MODEL_SLUG = "claude-sonnet-4-6"
@@ -150,13 +156,28 @@ You are reviewing a proposed action. You reason in **expected-value
 terms**, not rule-enforcement terms.
 
 Substrate available to you (passed in the user message):
-1. principles.md    — the operator's declared review framework
-2. _risk.md (if trading domain) — hard floors, non-negotiable
-3. _operator_profile.md — declared strategy + style (if present)
-4. _performance.md  — accumulated track record of similar actions
+1. IDENTITY.md      — your declared persona. This is the judgment character
+                      you embody. It may be a named figure (e.g. Simons,
+                      Buffett, Deming), an operator-authored original, or
+                      the generic default "independent judgment seat."
+                      Your reasoning voice, priorities, and defer/approve
+                      thresholds should reflect this persona. If the file
+                      is generic default, reason as a neutral skeptical
+                      judgment seat.
+2. principles.md    — the operator's declared review framework (the checks
+                      your persona applies to proposals)
+3. _risk.md (if trading domain) — hard floors, non-negotiable
+4. _operator_profile.md — declared strategy + style (if present)
+5. _performance.md  — accumulated track record of similar actions
                       (rolling 7d / 30d / 90d windows)
-5. The proposal itself — action_type, inputs, rationale, reversibility,
+6. The proposal itself — action_type, inputs, rationale, reversibility,
                          expected_effect
+
+The persona (IDENTITY.md) is *who* is reviewing. The framework
+(principles.md) is *what* you check. The substrate (risk, performance,
+operator profile) is the data you reason against. Same framework, same
+data, different persona → legitimately different reasoning and different
+defer/approve boundaries. That is the point.
 
 Your decision categories:
 - **approve** — EV is clearly positive AND within declared edge AND
@@ -196,6 +217,7 @@ async def review_proposal(
     client: Any,
     user_id: str,
     proposal_row: dict,
+    identity_md: str,
     principles_md: str,
     performance_md: str | None,
     risk_md: str | None,
@@ -205,6 +227,13 @@ async def review_proposal(
     structured decision, or None on failure (seat then defers to
     human — never auto-approves a failed review).
 
+    ADR-216 Commit 2: `identity_md` is the Reviewer's operator-authored
+    persona content (`/workspace/review/IDENTITY.md`). Required
+    parameter — callers must read and pass it. When the operator has
+    not overwritten the default, pass the generic scaffolded content;
+    the model is instructed to treat generic IDENTITY as neutral
+    skeptical baseline.
+
     Token usage is always recorded via `record_token_usage`; the
     cost is borne by the workspace owner even for defer decisions.
 
@@ -213,6 +242,7 @@ async def review_proposal(
     try:
         user_message = _build_user_message(
             proposal_row=proposal_row,
+            identity_md=identity_md,
             principles_md=principles_md,
             performance_md=performance_md,
             risk_md=risk_md,
@@ -300,13 +330,28 @@ async def review_proposal(
 def _build_user_message(
     *,
     proposal_row: dict,
+    identity_md: str,
     principles_md: str,
     performance_md: str | None,
     risk_md: str | None,
     operator_profile_md: str | None,
 ) -> str:
-    """Assemble the user-message envelope the model reads against."""
+    """Assemble the user-message envelope the model reads against.
+
+    Order is load-bearing: persona (IDENTITY.md) opens the envelope so
+    the model knows who it's reasoning as before it sees the framework
+    (principles.md) or the substrate (risk/performance/operator_profile).
+    Same framework + same substrate, different persona → legitimately
+    different reasoning; that divergence is the persona's point.
+    """
     parts: list[str] = []
+
+    # Persona section — ADR-216 Commit 2. First thing the model reads.
+    parts.append("## /workspace/review/IDENTITY.md — Your persona")
+    parts.append("")
+    parts.append(identity_md or "_(empty — reason as a neutral skeptical judgment seat)_")
+    parts.append("")
+
     parts.append("## Proposed action")
     parts.append("")
     parts.append(f"**action_type:** `{proposal_row.get('action_type', '?')}`")

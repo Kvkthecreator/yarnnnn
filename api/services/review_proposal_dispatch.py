@@ -289,6 +289,15 @@ async def _run_ai_reviewer(
     principles_md = _read_workspace_file(
         client, user_id, "/workspace/review/principles.md",
     ) or ""
+    # ADR-216 Commit 2: IDENTITY.md is the persona the Reviewer embodies.
+    # Read at reasoning time and injected as the opening section of the
+    # user message so operator-authored persona content (e.g. Simons-
+    # character for a trading Reviewer) flows into the model. Fall back
+    # to empty string — the model treats empty as neutral skeptical
+    # baseline.
+    identity_md = _read_workspace_file(
+        client, user_id, "/workspace/review/IDENTITY.md",
+    ) or ""
     performance_md = _read_workspace_file(
         client, user_id, f"/workspace/context/{context_domain}/_performance.md",
     )
@@ -306,6 +315,7 @@ async def _run_ai_reviewer(
         client=client,
         user_id=user_id,
         proposal_row=proposal_row,
+        identity_md=identity_md,
         principles_md=principles_md,
         performance_md=performance_md,
         risk_md=risk_md,
