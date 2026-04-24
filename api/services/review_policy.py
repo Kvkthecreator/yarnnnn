@@ -1,34 +1,43 @@
-"""Review policy — ADR-211 Phase 4 D2 + D5.
+"""Review policy — ADR-211 Phase 4 D2 + D5 + ADR-217 delegation split.
 
-Reads the operator's declared framework and operational modes from the
-Reviewer seat's substrate (`/workspace/review/principles.md` and
-`/workspace/review/modes.md`), and provides the gating helpers that
-dispatch uses to decide whether the current occupant may auto-act.
+Reads two operator-authored files and provides the gating helpers dispatch
+uses to decide whether the current Reviewer occupant may auto-act:
 
-**Split from the former `review_principles.py`** per ADR-211 D2:
+- `/workspace/review/principles.md` — Reviewer-seat framework (operator-
+  authored, seat-bound). Narrative posture + decision categories +
+  per-domain `high_impact_threshold_cents` (a *principle* about what
+  outcomes are significant enough to route to task-level feedback per
+  ADR-195 Phase 5). Slow-moving; captures what the operator *believes*
+  about good judgment.
+- `/workspace/context/_shared/AUTONOMY.md` — Workspace delegation
+  declaration (ADR-217, operator-authored, workspace-scoped — NOT
+  Reviewer-owned). Per-domain `level` + `ceiling_cents` + `never_auto`
+  under a `default:` fallback block. Fast-moving; captures how much
+  autonomy the operator *grants* today as calibration accumulates.
 
-- `principles.md` holds the operator's declared review FRAMEWORK —
-  narrative posture + decision category definitions + per-domain
-  `high_impact_threshold_cents` (a *principle* about what outcomes
-  are significant enough to route to task-level feedback per ADR-195
-  Phase 5). Changes slowly; it captures what the operator *believes*.
-- `modes.md` holds OPERATIONAL modes — autonomy level × scope ×
-  on-behalf posture + per-domain `auto_approve_below_cents` +
-  `never_auto_approve`. Changes faster; it captures how much autonomy
-  the operator *grants* today as calibration accumulates.
+The two-file split lives on different axes (principles = Purpose at the
+agent level, framework the persona applies; autonomy = Purpose at the
+workspace level, operator's delegation ceiling). Principles can *narrow*
+autonomy (add defer conditions in the Reviewer agent's reasoning) but
+can never *widen* it — the servant can be more conservative than the
+master permits, never more permissive.
 
-This file parses both and exposes:
+Public API:
 
 - `load_principles(client, user_id)` — dict keyed by domain, currently
   carries `high_impact_threshold_cents` per domain.
-- `load_modes(client, user_id)` — dict keyed by domain with the modes
-  schema: autonomy_level, scope, on_behalf_posture, auto_approve_below_cents,
-  never_auto_approve.
-- `is_eligible_for_auto_approve(modes_policy, action_type, estimated_cents,
-  reversibility)` — the dispatch gate. Reads MODES (not principles) —
-  auto-approve is operational, not principled.
+- `load_autonomy(client, user_id)` — dict keyed by domain (including the
+  synthetic `default` fallback) with `level`, `ceiling_cents`, `never_auto`.
+  Replaces the retired `load_modes()` per ADR-217 D3.
+- `autonomy_for_domain(autonomy, context_domain)` — resolves a domain to
+  its specific policy, falling back to the `default` block if no
+  per-domain override exists.
+- `is_eligible_for_auto_approve(autonomy_policy, action_type, estimated_cents,
+  reversibility)` — the dispatch gate. Reads AUTONOMY (not principles) —
+  auto-approve eligibility is the operator's delegation ceiling.
 
-Parser contract (unchanged from the prior `review_principles.py`):
+Parser contract (unchanged structure, widened to handle block-list YAML
+and inline `#` comments per the 681368c hardening pass):
 - Never raises; on parse failure returns empty policy.
 - Recognizes both commented-out (`<!-- ... -->`) and active YAML blocks.
 - Only accepts known fields per policy-type. Unknown fields ignored.
@@ -40,7 +49,7 @@ import logging
 import re
 from typing import Any
 
-from services.workspace_paths import REVIEW_PRINCIPLES_PATH, REVIEW_MODES_PATH
+from services.workspace_paths import REVIEW_PRINCIPLES_PATH, SHARED_AUTONOMY_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +57,10 @@ logger = logging.getLogger(__name__)
 # Path constants (re-exported for backward-compat; prefer importing from
 # workspace_paths directly).
 PRINCIPLES_PATH = f"/workspace/{REVIEW_PRINCIPLES_PATH}"
-MODES_PATH = f"/workspace/{REVIEW_MODES_PATH}"
+# ADR-217: Autonomy delegation moved from /workspace/review/modes.md to
+# /workspace/context/_shared/AUTONOMY.md. Operator-authored workspace
+# declaration; the Reviewer reads it but does not own it.
+AUTONOMY_PATH = f"/workspace/{SHARED_AUTONOMY_PATH}"
 
 
 # -----------------------------------------------------------------------------
@@ -65,19 +77,26 @@ _KNOWN_PRINCIPLES_KEYS = {
 
 
 # -----------------------------------------------------------------------------
-# modes.md — operational configuration keys
+# AUTONOMY.md — operator's delegation declaration (ADR-217)
 # -----------------------------------------------------------------------------
-#: Known per-domain keys parseable from modes.md.
-_KNOWN_MODES_KEYS = {
-    "autonomy_level",       # manual | assisted | bounded_autonomous | autonomous
-    "scope",                # list of domain slugs (e.g., [commerce])
-    "on_behalf_posture",    # silent_defer | recommend | shortlist
-    "auto_approve_below_cents",  # int — operational threshold for auto-act
-    "never_auto_approve",        # list[str] — action_type fragments always deferred
+#: Known per-domain keys parseable from AUTONOMY.md. Shorter names than the
+#: retired modes.md schema — the file's scope narrowed to pure delegation.
+#: `scope` (redundant with the domain key itself) and `on_behalf_posture`
+#: (Reviewer's verdict presentation derives from IDENTITY + principles,
+#: not a separate axis) were dropped per ADR-217 D3.
+_KNOWN_AUTONOMY_KEYS = {
+    "level",          # manual | assisted | bounded_autonomous | autonomous
+    "ceiling_cents",  # int — threshold for bounded_autonomous
+    "never_auto",     # list[str] — action_type fragments always deferred
 }
 
+#: Synthetic domain key the parser treats as the fallback policy. When a
+#: proposal's context domain isn't present in AUTONOMY.md, the Reviewer
+#: dispatcher uses the `default` block. Matches the AUTONOMY.md
+#: authoring shape declared in ADR-217 D2.
+_DEFAULT_DOMAIN_KEY = "default"
+
 _VALID_AUTONOMY_LEVELS = {"manual", "assisted", "bounded_autonomous", "autonomous"}
-_VALID_POSTURES = {"silent_defer", "recommend", "shortlist"}
 
 
 # =============================================================================
@@ -97,28 +116,37 @@ def load_principles(client: Any, user_id: str) -> dict:
     return _parse_keyed_yaml(content, _KNOWN_PRINCIPLES_KEYS, "principles")
 
 
-def load_modes(client: Any, user_id: str) -> dict:
-    """Load the operator's declared operational modes from modes.md.
+def load_autonomy(client: Any, user_id: str) -> dict:
+    """Load the operator's delegation declaration from AUTONOMY.md (ADR-217).
 
-    Returns a dict keyed by domain:
-        {"<domain>": {
-            "autonomy_level": str,
-            "scope": list[str],
-            "on_behalf_posture": str,
-            "auto_approve_below_cents": int,
-            "never_auto_approve": list[str],
-        }, ...}
+    Returns a dict keyed by domain (including the synthetic `default`
+    fallback key):
+        {"default": {"level": str, "ceiling_cents": int, "never_auto": list[str]},
+         "<domain>": {...per-domain override...}, ...}
 
-    Empty dict on missing file, parse failure, or no active modes.
-    Never raises.
+    Empty dict on missing file, parse failure, or no active delegation.
+    Never raises. Replaces the retired load_modes() per ADR-217 D3 —
+    autonomy is operator-authored workspace delegation, not Reviewer-
+    owned operational config.
     """
-    content = _read_file(client, user_id, MODES_PATH)
-    return _parse_keyed_yaml(content, _KNOWN_MODES_KEYS, "modes")
+    content = _read_file(client, user_id, AUTONOMY_PATH)
+    return _parse_keyed_yaml(content, _KNOWN_AUTONOMY_KEYS, "autonomy")
 
 
-def modes_for_domain(modes: dict, context_domain: str) -> dict:
-    """Return the modes for a domain, or empty dict (= manual by default)."""
-    return modes.get(context_domain) or {}
+def autonomy_for_domain(autonomy: dict, context_domain: str) -> dict:
+    """Return the delegation policy for a domain (ADR-217).
+
+    Resolution order:
+      1. Per-domain block under `<context_domain>:` if present.
+      2. `default:` fallback block if present.
+      3. Empty dict (= manual-by-default under is_eligible_for_auto_approve).
+
+    Equivalent of modes_for_domain() under the retired modes.md schema.
+    """
+    domain_policy = autonomy.get(context_domain)
+    if domain_policy:
+        return domain_policy
+    return autonomy.get(_DEFAULT_DOMAIN_KEY) or {}
 
 
 def principles_for_domain(principles: dict, context_domain: str) -> dict:
@@ -127,67 +155,71 @@ def principles_for_domain(principles: dict, context_domain: str) -> dict:
 
 
 def is_eligible_for_auto_approve(
-    modes_policy: dict,
+    autonomy_policy: dict,
     action_type: str,
     estimated_cents: int | None,
     reversibility: str,
 ) -> tuple[bool, str]:
-    """Given a domain's operational modes and a proposal, decide whether the
-    AI occupant may auto-act. Reads MODES (not principles) — auto-approve
-    is operational config, not declared principle.
+    """Given a domain's delegation policy and a proposal, decide whether
+    the AI occupant may auto-act. Reads AUTONOMY.md (ADR-217) — the
+    operator's declared delegation ceiling.
 
     Returns (eligible, reason). Reason is always populated — used in the
-    AI occupant's reasoning trail.
+    AI occupant's reasoning trail. Per ADR-217 D4, the Reviewer's
+    principles.md can narrow this result (add defer conditions) but
+    never widen it; that narrowing happens outside this function in the
+    Reviewer agent's persona reasoning.
     """
-    # Operational gate 1: autonomy level must permit auto-action.
-    autonomy = modes_policy.get("autonomy_level", "manual")
-    if autonomy == "manual":
-        return False, "autonomy_level=manual — every verdict defers to human occupant"
-    if autonomy not in _VALID_AUTONOMY_LEVELS:
-        return False, f"autonomy_level={autonomy} unrecognized — defaulting to manual"
+    # Operational gate 1: level must permit auto-action.
+    level = autonomy_policy.get("level", "manual")
+    if level == "manual":
+        return False, "autonomy.level=manual — every verdict defers to human occupant"
+    if level not in _VALID_AUTONOMY_LEVELS:
+        return False, f"autonomy.level={level} unrecognized — defaulting to manual"
     # `assisted` = AI recommends, human renders verdict. Not auto-approve.
-    if autonomy == "assisted":
-        return False, "autonomy_level=assisted — AI recommends, human renders verdict"
+    if level == "assisted":
+        return False, "autonomy.level=assisted — AI recommends, human renders verdict"
 
     # Operational gate 2: threshold-based (bounded_autonomous) or unbounded (autonomous).
-    threshold = modes_policy.get("auto_approve_below_cents")
+    ceiling = autonomy_policy.get("ceiling_cents")
 
-    if autonomy == "bounded_autonomous":
-        if threshold is None or threshold <= 0:
-            return False, "autonomy_level=bounded_autonomous but no auto_approve_below_cents threshold set"
-    # autonomy == "autonomous" — no threshold gate; thresholds apply only to bounded.
+    if level == "bounded_autonomous":
+        if ceiling is None or ceiling <= 0:
+            return False, "autonomy.level=bounded_autonomous but no ceiling_cents set"
+    # level == "autonomous" — no threshold gate; thresholds apply only to bounded.
 
-    # Operational gate 3: never_auto_approve.
-    blocked = modes_policy.get("never_auto_approve") or []
+    # Operational gate 3: never_auto.
+    blocked = autonomy_policy.get("never_auto") or []
     for blocked_fragment in blocked:
         if blocked_fragment and blocked_fragment in action_type:
-            return False, f"action_type matches never_auto_approve entry '{blocked_fragment}'"
+            return False, f"action_type matches autonomy.never_auto entry '{blocked_fragment}'"
 
     # Operational gate 4: reversibility (irreversible writes always defer).
     if reversibility == "irreversible":
         return False, "reversibility=irreversible — irreversible writes always defer to human"
 
     # Operational gate 5: threshold check (bounded_autonomous only).
-    if autonomy == "bounded_autonomous":
+    if level == "bounded_autonomous":
         if estimated_cents is None:
-            return False, "proposal has no estimated value — cannot compare against threshold"
-        if abs(estimated_cents) > threshold:
+            return False, "proposal has no estimated value — cannot compare against ceiling"
+        if abs(estimated_cents) > ceiling:
             return (
                 False,
-                f"estimated ${abs(estimated_cents)/100:.2f} exceeds auto_approve "
-                f"threshold ${threshold/100:.2f}",
+                f"estimated ${abs(estimated_cents)/100:.2f} exceeds autonomy "
+                f"ceiling ${ceiling/100:.2f}",
             )
         return (
             True,
-            f"within auto_approve threshold (${abs(estimated_cents)/100:.2f} "
-            f"≤ ${threshold/100:.2f}), reversibility={reversibility}, "
-            f"autonomy=bounded_autonomous, action_type not blocked",
+            f"within autonomy ceiling (${abs(estimated_cents)/100:.2f} "
+            f"≤ ${ceiling/100:.2f}), reversibility={reversibility}, "
+            f"level=bounded_autonomous, action_type not blocked",
         )
 
     # autonomy == "autonomous"
+    # level == "autonomous"
     return (
         True,
-        f"autonomy_level=autonomous for this domain, reversibility={reversibility}, "
+        f"autonomy.level=autonomous for this domain, reversibility={reversibility}, "
         f"action_type not blocked",
     )
 
@@ -338,18 +370,18 @@ def _parse_value(key: str, raw: Any) -> Any:
     """
     # Block-list case: parser handed us the collected list items directly.
     if isinstance(raw, list):
-        if key in ("never_auto_approve", "scope"):
+        if key == "never_auto":
             return [str(item).strip() for item in raw if str(item).strip()]
         return None
 
     # Integer keys
-    if key in ("auto_approve_below_cents", "high_impact_threshold_cents"):
+    if key in ("ceiling_cents", "high_impact_threshold_cents"):
         try:
             return int(raw)
         except (TypeError, ValueError):
             return None
     # List keys (inline form only)
-    if key in ("never_auto_approve", "scope"):
+    if key == "never_auto":
         raw = raw.strip()
         if raw.startswith("[") and raw.endswith("]"):
             inner = raw[1:-1]
@@ -357,10 +389,7 @@ def _parse_value(key: str, raw: Any) -> Any:
             return items
         return [raw]
     # Enum string keys
-    if key == "autonomy_level":
+    if key == "level":
         raw = raw.strip().strip('"\'')
         return raw if raw in _VALID_AUTONOMY_LEVELS else None
-    if key == "on_behalf_posture":
-        raw = raw.strip().strip('"\'')
-        return raw if raw in _VALID_POSTURES else None
     return None

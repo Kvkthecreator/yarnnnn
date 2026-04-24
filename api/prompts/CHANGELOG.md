@@ -6,6 +6,98 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.24.3] - Workspace autonomy substrate (ADR-217 Commit 2) — AUTONOMY.md replaces modes.md
+
+`REVIEWER_MODEL_IDENTITY` bumped `ai:reviewer-sonnet-v2` → `ai:reviewer-sonnet-v3`.
+Material change to the Reviewer's system prompt: autonomy-narrowing rule
+made explicit. Prior v2 implicitly relied on Sonnet's own reasoning to
+resolve principles-vs-delegation conflicts; v3 declares the invariant
+directly: "Your principles can narrow delegation (add defer conditions)
+but never widen it. If your principles and the raw delegation conflict
+on auto-approve eligibility, apply the stricter. The servant can be more
+conservative than the master permits, never more permissive."
+
+Load-bearing architectural change accompanying the prompt bump: the
+operator's delegation declaration moved from `/workspace/review/modes.md`
+(Reviewer-seat-owned) to `/workspace/context/_shared/AUTONOMY.md`
+(operator-authored, workspace-scoped, sibling to MANDATE/IDENTITY/BRAND/
+CONVENTIONS). See ADR-217 for the full reframe.
+
+### Changed
+
+- `api/agents/reviewer_agent.py::_SYSTEM_PROMPT` — adds "Autonomy
+  delegation (ADR-217)" section explaining the separation between
+  the dispatcher's eligibility gate (reads AUTONOMY.md) and the
+  persona's verdict (reads IDENTITY + principles + substrate), plus
+  the narrow-never-widen invariant. Updates the decision-category
+  descriptions to reflect that the ceiling lives outside the persona's
+  own reasoning (dispatcher enforces it).
+- `api/services/review_policy.py`:
+  - `load_modes()` → `load_autonomy()` (name change).
+  - `modes_for_domain()` → `autonomy_for_domain()` (adds `default`
+    fallback resolution per ADR-217 D2).
+  - `is_eligible_for_auto_approve(modes_policy=...)` →
+    `is_eligible_for_auto_approve(autonomy_policy=...)` (keyword rename
+    + reason-string updates to use `autonomy.level`/`autonomy.ceiling`
+    vocabulary).
+  - `_KNOWN_MODES_KEYS` → `_KNOWN_AUTONOMY_KEYS` (schema narrowed:
+    `autonomy_level` → `level`, `auto_approve_below_cents` →
+    `ceiling_cents`, `never_auto_approve` → `never_auto`. `scope` +
+    `on_behalf_posture` dropped per ADR-217 D3).
+  - Path constant `MODES_PATH` → `AUTONOMY_PATH` pointing at
+    `/workspace/context/_shared/AUTONOMY.md`.
+- `api/services/review_proposal_dispatch.py` — call-site updates for
+  the renames above; module docstring updated to reference AUTONOMY.md.
+- `api/services/workspace_paths.py` — `SHARED_AUTONOMY_PATH` added to
+  `SHARED_CONTEXT_FILES`. `REVIEW_MODES_PATH` deleted. `REVIEW_FILES`
+  tuple shrinks from seven to six entries.
+- `api/services/orchestration.py` — `DEFAULT_REVIEW_MODES_MD` deleted
+  and replaced by `DEFAULT_AUTONOMY_MD`. Module docstring updated to
+  reflect the scaffold split (Reviewer defaults under `/workspace/review/`
+  vs workspace delegation under `/workspace/context/_shared/`).
+- `api/services/workspace_init.py` — swaps `REVIEW_MODES_PATH` scaffold
+  for `SHARED_AUTONOMY_PATH` scaffold. Import block updated.
+- `api/services/primitives/update_context.py` — new `target="autonomy"`
+  branch routes to `_handle_autonomy()` which writes
+  `/workspace/context/_shared/AUTONOMY.md`. Valid-targets set extended.
+
+### Expected behavior change
+
+- Workspaces with default-scaffold AUTONOMY.md (manual-everywhere):
+  dispatcher eligibility unchanged from v2 semantics — every proposal
+  defers to human Queue.
+- Workspaces with operator-authored per-domain autonomy (e.g.
+  alpha-trader with `trading.level: bounded_autonomous`, `ceiling_cents:
+  2000000`, `never_auto: [cancel_order]`): dispatcher routes to AI
+  Reviewer; approved proposals auto-execute via the orchestrator
+  without Queue hop, respecting the declared ceiling + never_auto list.
+- Reviewer reasoning voice (IDENTITY.md-driven) unchanged; the v3
+  prompt edit only affects how explicit the persona is about the
+  narrow-never-widen rule when its principles conflict with the raw
+  delegation grant.
+
+### Migration
+
+Existing workspaces with `/workspace/review/modes.md` content carry
+forward only by scaffold re-run (workspace_init reads AUTONOMY.md path;
+modes.md is no longer read by anything). A dedicated migration script
+is NOT provided — the field-rename + key-narrowing means existing
+modes.md files would not parse under the new schema anyway. Operators
+with bespoke modes.md content re-author via `UpdateContext(target=
+"autonomy")` through YARNNN chat, or edit AUTONOMY.md directly in the
+Files tab.
+
+### Related
+
+- ADR-217 (Workspace Autonomy Substrate) — ratifying doc.
+- ADR-194 v2 + ADR-211 — Reviewer substrate seven-file canon now six
+  (modes.md removed; status banners amended).
+- ADR-216 — YARNNN/Reviewer/domain-Agent taxonomy preserved; autonomy
+  is operator-authored (orchestration), not persona-bearing (judgment).
+- ADR-209 — AUTONOMY.md is revision-chained like any `_shared/` file.
+
+---
+
 ## [2026.04.24.2] - Reviewer persona-aware reasoning (ADR-216 Commit 2) — IDENTITY.md read at reasoning time
 
 `REVIEWER_MODEL_IDENTITY` bumped `ai:reviewer-sonnet-v1` → `ai:reviewer-sonnet-v2`.

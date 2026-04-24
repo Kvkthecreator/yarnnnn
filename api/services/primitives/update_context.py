@@ -117,7 +117,8 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
 
     # ADR-190 "workspace" target added: rich-input first-act scaffold pass.
     # ADR-207 D2 "mandate" target added: workspace Primary Action declaration.
-    valid_targets = ("mandate", "identity", "brand", "memory", "agent", "task", "awareness", "workspace")
+    # ADR-217 D2 "autonomy" target added: workspace delegation declaration.
+    valid_targets = ("mandate", "identity", "brand", "autonomy", "memory", "agent", "task", "awareness", "workspace")
     if target not in valid_targets:
         return {"success": False, "error": "invalid_target", "message": f"target must be one of: {', '.join(valid_targets)}"}
 
@@ -129,6 +130,8 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
         return await _handle_workspace_scaffold(auth, input)
     elif target == "mandate":
         return await _handle_mandate(auth, text)
+    elif target == "autonomy":
+        return await _handle_autonomy(auth, text)
     elif target in ("identity", "brand"):
         return await _handle_shared_context(auth, target, input)
     elif target == "memory":
@@ -182,6 +185,42 @@ async def _handle_mandate(auth: Any, text: str) -> dict:
         "message": "Mandate authored. Task scaffolding is now unblocked. "
                    "A fresh derivation report is at /workspace/memory/task_derivation.md — "
                    "read it before proposing tasks so the loop-role coverage is visible.",
+    }
+
+
+async def _handle_autonomy(auth: Any, text: str) -> dict:
+    """Write workspace AUTONOMY.md (ADR-217 D2).
+
+    Accepts operator-declared delegation content and writes verbatim to
+    `/workspace/context/_shared/AUTONOMY.md`. This is the operator's
+    standing intent about how autonomous the AI is allowed to be on their
+    behalf. Read at reasoning time by the Reviewer dispatcher; read at
+    execution time by the task pipeline capability gate.
+
+    Plain-text write (no inference pass). YARNNN passes the text as
+    authored during operator conversation about autonomy tuning.
+
+    Revision-chained via ADR-209 Authored Substrate: every edit lands a
+    `workspace_file_versions` row with `authored_by=operator`.
+    """
+    from services.workspace import UserMemory
+    from services.workspace_paths import SHARED_AUTONOMY_PATH
+
+    um = UserMemory(auth.client, auth.user_id)
+    ok = await um.write(SHARED_AUTONOMY_PATH, text, summary="Autonomy authored")
+    if not ok:
+        return {"success": False, "error": "write_failed", "message": "Failed to write AUTONOMY.md"}
+
+    return {
+        "success": True,
+        "target": "autonomy",
+        "filename": SHARED_AUTONOMY_PATH,
+        "message": "Autonomy authored. The Reviewer dispatcher reads this on the "
+                   "next proposal. Remember: principles in /workspace/review/principles.md "
+                   "can narrow this delegation (add defer conditions) but never widen it — "
+                   "the servant can be more conservative than you permit, never more "
+                   "permissive. When tightening (e.g. before live-broker flip), edit this "
+                   "file alone; the Reviewer will apply the new ceiling at the next verdict.",
     }
 
 

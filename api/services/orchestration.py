@@ -46,11 +46,15 @@ No dual paths. Callers route to SYSTEMIC_AGENTS / PRODUCTION_ROLES /
 ALL_ROLES based on the question they're asking.
 
 Scope note — Reviewer default content (DEFAULT_REVIEW_IDENTITY_MD,
-DEFAULT_REVIEW_PRINCIPLES_MD, DEFAULT_REVIEW_MODES_MD,
-DEFAULT_REVIEW_CALIBRATION_MD): these live here as scaffold-time
+DEFAULT_REVIEW_PRINCIPLES_MD, DEFAULT_REVIEW_CALIBRATION_MD) plus the
+workspace-scoped DEFAULT_AUTONOMY_MD: these live here as scaffold-time
 defaults consumed by `workspace_init.py`. The Reviewer Agent's seat is
-substrate; these constants are content loaded into that substrate at
-signup. Architectural shape lives in `docs/architecture/reviewer-substrate.md`.
+substrate; Reviewer-specific constants are content loaded into
+`/workspace/review/` at signup. DEFAULT_AUTONOMY_MD (ADR-217) is
+operator-authored delegation under `/workspace/context/_shared/` —
+loaded here for scaffold convenience but is not Reviewer-owned.
+Architectural shape lives in `docs/architecture/reviewer-substrate.md`
+(seat) and ADR-217 (delegation).
 
 History: `agent_framework.py` (original) → `agent_registry.py` (audit v1)
 → `orchestration.py` (audit v2, current) → `orchestration.py`
@@ -1000,63 +1004,98 @@ data.
 # the signup scaffold in workspace_init.py.
 
 
-DEFAULT_REVIEW_MODES_MD = """\
----
-# Per-domain operational modes. Domain key matches context domain slug.
-# Edit this frontmatter to tune the Reviewer seat's autonomy per domain.
-# Leave domains commented out to keep defaults (everything defers to human).
+# DEFAULT_REVIEW_MODES_MD DELETED (ADR-217, 2026-04-24). Autonomy delegation
+# is the operator's standing intent about how much judgment authority the
+# AI carries on their behalf — it is not Reviewer-owned config. The file
+# relocated to `/workspace/context/_shared/AUTONOMY.md` as a sibling to
+# MANDATE/IDENTITY/BRAND/CONVENTIONS; its default content is now
+# DEFAULT_AUTONOMY_MD below. The retired schema (`autonomy_level`,
+# `scope`, `on_behalf_posture`, `auto_approve_below_cents`,
+# `never_auto_approve`) was absorbed and narrowed to the three-key
+# AUTONOMY.md schema (`level`, `ceiling_cents`, `never_auto`) per
+# ADR-217 D3 — `scope` dropped as redundant-with-domain-key,
+# `on_behalf_posture` dropped as derivable-from-persona.
 
+
+DEFAULT_AUTONOMY_MD = """\
+---
+# Workspace autonomy delegation (ADR-217). Read at reasoning time by the
+# Reviewer dispatcher and at execution time by the task pipeline
+# capability gate. Operator-authored; no agent writes here.
+#
+# Edit the frontmatter to tune the AI's delegation ceiling per domain.
+# The `default` block applies to any domain without a specific override.
+# Uncomment per-domain keys to activate them.
+
+default:
+  level: manual                 # manual | assisted | bounded_autonomous | autonomous
+  # ceiling_cents: 0            # threshold for bounded_autonomous (omit for manual/assisted/autonomous)
+  # never_auto: []              # action_type substrings that always require human approval
+
+# Per-domain overrides. Each key is a context domain slug.
 # Example — uncomment and tune to activate:
 #
 # commerce:
-#   autonomy_level: bounded_autonomous
-#   scope: [commerce]
-#   on_behalf_posture: recommend
-#   auto_approve_below_cents: 50000
-#   never_auto_approve: [issue_refund]
+#   level: bounded_autonomous
+#   ceiling_cents: 50000        # $500 notional ceiling per action
+#   never_auto:
+#     - issue_refund
 #
 # trading:
-#   autonomy_level: manual
-#   scope: [trading]
-#   on_behalf_posture: recommend
-#   auto_approve_below_cents: 0
-#   never_auto_approve: [submit_order, submit_bracket_order, submit_trailing_stop]
+#   level: manual
+#   # Leave ceiling_cents + never_auto commented out until you calibrate.
 ---
 
-# Review Seat — Operational Modes
+# Autonomy — how I delegate judgment authority to the AI
 
-This file declares **operational configuration** for the Reviewer seat,
-per domain. It is separate from `principles.md` (declared framework)
-because the two evolve at different rates: principles capture what you
-believe about good judgment (slow-moving); modes capture how much
-autonomy you grant the seat today (fast-moving, tunable as calibration
-data accumulates).
+This file declares how autonomously the AI is allowed to act on my behalf.
+
+## What autonomy means here
+
+Autonomy is the **delegation ceiling** for AI-rendered verdicts. When the
+Reviewer approves a proposal, the dispatcher checks this file to decide
+whether the approval auto-executes or routes to the cockpit Queue for my
+click. Principles in `/workspace/review/principles.md` can *narrow* this
+ceiling (add defer conditions) but never *widen* it — the servant can be
+more conservative than I permit, never more permissive.
 
 ## Vocabulary
 
-**Autonomy level** (continuum, per domain):
-- `manual` — every verdict defers to human occupant
-- `assisted` — AI occupant renders recommendation, human renders verdict
-- `bounded_autonomous` — AI auto-acts below declared thresholds, defers above
-- `autonomous` — AI auto-acts on all verdicts within scope
+**Level** (per domain):
+- `manual` — every verdict defers to me. No auto-execution.
+- `assisted` — AI recommends; I render the verdict. Effectively manual
+  from an execution standpoint; the difference is tone + effort.
+- `bounded_autonomous` — AI auto-executes within declared ceiling; defers
+  beyond. Requires `ceiling_cents` to be set.
+- `autonomous` — AI auto-executes every verdict within scope. No ceiling
+  check. Reserved for low-stakes domains where the operator trusts the
+  persona's calibration fully.
 
-**Scope** — list of domain slugs the current occupant has authority over.
-A verdict in a domain not covered by a modes entry defaults to `manual`.
+**Ceiling** (bounded_autonomous only):
+- `ceiling_cents` — a notional-value threshold. Proposals whose estimated
+  value (e.g. trade notional, commerce transaction amount) exceeds this
+  cap defer regardless of the persona's verdict.
 
-**On-behalf posture** — when the occupant defers upward:
-- `silent_defer` — pass proposal upward with no opinion
-- `recommend` — pass with a single recommended verdict + reasoning
-- `shortlist` — pass with ranked options + reasoning per option
-
-**Thresholds** (operational):
-- `auto_approve_below_cents` — AI may auto-approve reversible writes up to this amount
-- `never_auto_approve` — list of action_type fragments always routed to human
+**Never-auto list**:
+- `never_auto` — action_type substrings that always defer, even when
+  under the ceiling. Use this for classes of actions where the
+  consequences are categorically worse than the ceiling can express
+  (e.g. cancel flows, refund flows, anything irreversible-ish).
 
 ## How changes take effect
 
-Changes to this file are read on the next proposal verdict. No restart,
-no migration. The seat reads the current state of `modes.md` at every
-dispatch cycle.
+Changes read on the next proposal verdict. No restart, no migration.
+The Reviewer dispatcher reads the current state of AUTONOMY.md at
+every proposal dispatch cycle.
+
+## When to revisit
+
+- After 20+ verdicts in a domain: review calibration.md + decisions.md.
+  Consider raising or lowering the ceiling based on realized outcomes.
+- Before connecting a live (non-paper / non-sandbox) platform: tighten
+  to `manual` first; recalibrate from zero.
+- After a persona change (IDENTITY.md rotation): reset to `manual` and
+  recalibrate — a new persona has no track record yet.
 """
 
 

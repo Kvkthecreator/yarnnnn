@@ -20,11 +20,12 @@ AI-occupant invocation.
 
 On proposal creation, the dispatcher:
 
-1. Loads the operator's declared operational modes (`modes.md`) per
-   ADR-211 D2+D5 split (operational config lives in modes.md;
-   declared framework lives in principles.md).
+1. Loads the operator's delegation declaration (`AUTONOMY.md` per
+   ADR-217 — moved from ADR-211's `modes.md` under the operator-authored
+   delegation model. Principles.md carries the persona's declared
+   framework separately.)
 2. Checks per-domain auto-approve eligibility (via
-   `review_policy.is_eligible_for_auto_approve` reading modes.md).
+   `review_policy.is_eligible_for_auto_approve` reading AUTONOMY.md).
 3. If ineligible → observe-only path (Phase 2b behavior): appends a
    `decision="defer"` entry with `reviewer_identity="reviewer-layer:
    observed"` so the Stream surface still records the event. The
@@ -100,22 +101,27 @@ async def on_proposal_created(
         # 1. Resolve context_domain from action_type
         context_domain = _resolve_context_domain(action_type)
 
-        # 2. Load operational modes from modes.md (ADR-211 D2+D5 split —
-        #    operational config lives in modes.md, not principles.md).
+        # 2. Load the workspace's autonomy delegation from AUTONOMY.md
+        #    (ADR-217 — moved from /workspace/review/modes.md to
+        #    /workspace/context/_shared/AUTONOMY.md under the operator-
+        #    authored-delegation model; autonomy is operator's standing
+        #    intent, not Reviewer-owned config).
         from services.review_policy import (
-            load_modes,
-            modes_for_domain,
+            load_autonomy,
+            autonomy_for_domain,
             is_eligible_for_auto_approve,
         )
-        modes = load_modes(client, user_id)
-        modes_policy = modes_for_domain(modes, context_domain) if context_domain else {}
+        autonomy = load_autonomy(client, user_id)
+        autonomy_policy = autonomy_for_domain(autonomy, context_domain) if context_domain else {}
 
         # 3. Estimate action value (for threshold comparison)
         estimated_cents = _estimate_proposal_value_cents(proposal_row)
 
-        # 4. Eligibility gate — operational, reads modes (not principles)
+        # 4. Eligibility gate — reads autonomy (not principles). Principles
+        #    can narrow this result in the AI occupant's reasoning but
+        #    cannot widen it (ADR-217 D4).
         eligible, reason = is_eligible_for_auto_approve(
-            modes_policy=modes_policy,
+            autonomy_policy=autonomy_policy,
             action_type=action_type,
             estimated_cents=estimated_cents,
             reversibility=reversibility,
@@ -132,16 +138,16 @@ async def on_proposal_created(
             return
 
         # 5. AI occupant path (Phase 3)
-        # NOTE: AI occupant still receives modes_policy as its operational
-        # context (threshold, posture). The occupant's reasoning reads
-        # principles.md directly for the declared framework — see
-        # reviewer_agent.review_proposal.
+        # NOTE: AI occupant receives autonomy_policy as its operational
+        # context (level, ceiling). The occupant's reasoning reads
+        # IDENTITY.md + principles.md directly for persona + framework —
+        # see reviewer_agent.review_proposal.
         await _run_ai_reviewer(
             client, user_id,
             proposal_id=proposal_id,
             proposal_row=proposal_row,
             context_domain=context_domain,
-            policy=modes_policy,
+            policy=autonomy_policy,
         )
     except Exception as exc:  # noqa: BLE001 — must not block proposal creation
         logger.warning(

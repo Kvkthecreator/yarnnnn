@@ -45,12 +45,17 @@ SHARED_MANDATE_PATH = "context/_shared/MANDATE.md"
 SHARED_IDENTITY_PATH = "context/_shared/IDENTITY.md"
 SHARED_BRAND_PATH = "context/_shared/BRAND.md"
 SHARED_CONVENTIONS_PATH = "context/_shared/CONVENTIONS.md"
+# ADR-217: Workspace-scoped autonomy delegation. Sibling to MANDATE/IDENTITY/
+# BRAND/CONVENTIONS. Operator-authored; read by Reviewer dispatcher (replaces
+# the deleted review/modes.md) and task pipeline capability gate.
+SHARED_AUTONOMY_PATH = "context/_shared/AUTONOMY.md"
 
 SHARED_CONTEXT_FILES = (
     SHARED_MANDATE_PATH,
     SHARED_IDENTITY_PATH,
     SHARED_BRAND_PATH,
     SHARED_CONVENTIONS_PATH,
+    SHARED_AUTONOMY_PATH,
 )
 
 
@@ -72,15 +77,17 @@ MEMORY_FILES = (
 
 # -----------------------------------------------------------------------------
 # Reviewer substrate (`/workspace/review/`, ADR-194 — unchanged by ADR-206)
-# Phase 4 (ADR-211) extends to seven files: the three original (Phase 1–3)
-# plus OCCUPANT, modes, handoffs, calibration.
+# Phase 4 (ADR-211) reached seven files: IDENTITY + principles + decisions +
+# OCCUPANT + modes + handoffs + calibration.
+# ADR-217 (2026-04-24): modes.md removed — autonomy is operator-authored
+# delegation and now lives at SHARED_AUTONOMY_PATH. Seat substrate shrinks
+# to six files. Singular implementation — no dual path.
 # -----------------------------------------------------------------------------
 REVIEW_IDENTITY_PATH = "review/IDENTITY.md"
 REVIEW_PRINCIPLES_PATH = "review/principles.md"
 REVIEW_DECISIONS_PATH = "review/decisions.md"
-# Phase 4 (ADR-211):
+# Phase 4 (ADR-211) minus modes.md (ADR-217):
 REVIEW_OCCUPANT_PATH = "review/OCCUPANT.md"
-REVIEW_MODES_PATH = "review/modes.md"
 REVIEW_HANDOFFS_PATH = "review/handoffs.md"
 REVIEW_CALIBRATION_PATH = "review/calibration.md"
 
@@ -89,7 +96,6 @@ REVIEW_FILES = (
     REVIEW_PRINCIPLES_PATH,
     REVIEW_DECISIONS_PATH,
     REVIEW_OCCUPANT_PATH,
-    REVIEW_MODES_PATH,
     REVIEW_HANDOFFS_PATH,
     REVIEW_CALIBRATION_PATH,
 )
