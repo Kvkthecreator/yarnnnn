@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Settings,
-  Brain,
   AlertTriangle,
   Loader2,
   Check,
@@ -27,7 +26,6 @@ import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useTP } from "@/contexts/TPContext";
-import { MemorySection } from "@/components/settings/MemorySection";
 import { SystemSection } from "@/components/settings/SystemSection";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 
@@ -51,7 +49,7 @@ interface NotificationPreferences {
   email_agent_failed: boolean;
 }
 
-type SettingsTab = "billing" | "usage" | "memory" | "system" | "connectors" | "account";
+type SettingsTab = "billing" | "usage" | "system" | "connectors" | "account";
 type DangerAction =
   | "work-history"
   | "workspace"
@@ -65,9 +63,11 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const { clearMessages } = useTP();
   const tabParam = searchParams.get("tab");
+  // ADR-215 R3 (2026-04-24): `memory` tab retired — identity/brand/profile
+  // are substrate, edited on Files (/context?path=/workspace/context/_shared/…).
+  // Legacy `?tab=memory` redirects to Files IDENTITY.md via effect below.
   const initialTab: SettingsTab =
     tabParam === "usage" ? "usage" :
-    tabParam === "memory" ? "memory" :
     tabParam === "system" ? "system" :
     tabParam === "connectors" ? "connectors" :
     tabParam === "account" ? "account" :
@@ -75,6 +75,15 @@ export default function SettingsPage() {
   const subscriptionSuccess = searchParams.get("subscription") === "success";
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+
+  // ADR-215 R3: legacy `/settings?tab=memory` redirects to Files with
+  // IDENTITY.md preselected. One edit surface for substrate (Files).
+  useEffect(() => {
+    if (tabParam === "memory") {
+      router.replace("/context?path=%2Fworkspace%2Fcontext%2F_shared%2FIDENTITY.md");
+    }
+  }, [tabParam, router]);
+
   const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
   const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
@@ -354,19 +363,6 @@ export default function SettingsPage() {
           </span>
         </button>
         <button
-          onClick={() => setActiveTab("memory")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "memory"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Brain className="w-4 h-4" />
-            Profile
-          </span>
-        </button>
-        <button
           onClick={() => setActiveTab("system")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "system"
@@ -480,13 +476,6 @@ export default function SettingsPage() {
           ) : (
               <p className="text-sm text-muted-foreground">Unable to load usage data.</p>
           )}
-        </section>
-      )}
-
-      {/* Memory Tab */}
-      {activeTab === "memory" && (
-        <section className="mb-8">
-          <MemorySection />
         </section>
       )}
 

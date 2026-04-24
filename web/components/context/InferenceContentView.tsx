@@ -16,10 +16,13 @@
  *
  * ADR-209 Phase 4 removed the "Inferred Nh ago" timestamp from this view.
  * Timestamp authority now lives in the Authored Substrate revision chain —
- * callers that want age alongside this view mount the RevisionHistoryPanel
- * adjacent (see BrandSection in MemorySection.tsx). Duplicating timestamp
- * here would conflict with substrate-as-source-of-truth per FOUNDATIONS
- * v6.1 Axiom 1.
+ * duplicating a timestamp here would conflict with substrate-as-source-of-truth
+ * per FOUNDATIONS v6.1 Axiom 1.
+ *
+ * ADR-215 Phase 2 consumer: `ContentViewer` (Files) renders this wrapper for
+ * IDENTITY.md and BRAND.md so inference provenance shows alongside the file
+ * body. The prior Settings > Memory tab mount was retired by ADR-215's
+ * MemorySection follow-up; Files is the single edit surface for these paths.
  *
  * If no meta comment is present (e.g., a manually-edited file), the component
  * falls back to just rendering the body. No captions, no banners.

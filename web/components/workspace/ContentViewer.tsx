@@ -14,7 +14,20 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
 import { FileIcon } from '@/components/workspace/FileIcon';
 import { SubstrateEditor, isSubstrateEditable } from '@/components/workspace/SubstrateEditor';
+import { InferenceContentView } from '@/components/context/InferenceContentView';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
+
+// ADR-162 Sub-phase D / ADR-215: IDENTITY and BRAND files carry an
+// `<!-- inference-meta: ... -->` comment injected by `_append_inference_meta()`
+// on the backend. When rendered on Files, we surface that provenance (source
+// caption + gap banner) above the markdown body via InferenceContentView.
+const IDENTITY_PATH = '/workspace/context/_shared/IDENTITY.md';
+const BRAND_PATH = '/workspace/context/_shared/BRAND.md';
+function inferenceTarget(path: string): 'identity' | 'brand' | null {
+  if (path === IDENTITY_PATH) return 'identity';
+  if (path === BRAND_PATH) return 'brand';
+  return null;
+}
 
 interface ContentViewerProps {
   selectedNode: WorkspaceTreeNode | null;
@@ -296,11 +309,19 @@ function FileView({
           />
         )}
 
-        {kind === 'markdown' && file.content && (
-          <div className="prose prose-sm max-w-none dark:prose-invert">
-            <MarkdownRenderer content={file.content} />
-          </div>
-        )}
+        {kind === 'markdown' && file.content && (() => {
+          const target = inferenceTarget(file.path);
+          if (target) {
+            // ADR-162 Sub-phase D: IDENTITY/BRAND carry inference-meta comments
+            // surfaced as a source caption + gap banner above the body.
+            return <InferenceContentView content={file.content} target={target} />;
+          }
+          return (
+            <div className="prose prose-sm max-w-none dark:prose-invert">
+              <MarkdownRenderer content={file.content} />
+            </div>
+          );
+        })()}
 
         {kind === 'html' && (
           <iframe

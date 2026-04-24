@@ -4,6 +4,34 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-24 — Settings > Memory tab retirement (ADR-215 Phase 2 follow-up closed)
+
+**Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) R3 — substrate operations edit on Files.
+
+SURFACE-CONTRACTS.md bumped to v1.5. The Phase 2 follow-up flagged in earlier CHANGELOG entries (MemorySection on `/settings` as a parallel IDENTITY/BRAND edit mouth) is now closed: the Memory tab is retired, and Files is the singular substrate edit surface.
+
+**What /settings keeps, and why:**
+`/settings` is retained as **account-scoped infrastructure that isn't cockpit substrate** — Billing, Usage, System (diagnostics), Connectors (OAuth), Account (notification prefs + Danger Zone). None of these fit cleanly into the four-tab cockpit (Chat / Work / Agents / Files); they're the account plumbing every SaaS keeps out of the main surface. The separation is clean, not redundant.
+
+**Memory tab retired:**
+Identity / Brand / Profile / preferences editing moves to Files with `authored_by=operator` revision attribution via `<SubstrateEditor>`. One edit surface per substrate per R3.
+
+**Code landed:**
+- `web/components/settings/MemorySection.tsx` — **deleted**. 709 lines of parallel IDENTITY/BRAND edit UI retired.
+- `web/app/(authenticated)/settings/page.tsx` — Memory tab removed: `SettingsTab` union narrowed (`billing | usage | system | connectors | account`), tab button removed, render case removed, `Brain` icon import removed, `MemorySection` import removed. Added `useEffect` redirect for legacy `?tab=memory` → Files IDENTITY.md.
+- `web/app/(authenticated)/memory/page.tsx` — redirect target updated from `/settings?tab=memory` → `/context?path=/workspace/context/_shared/IDENTITY.md`. Bookmark-safety stub preserved.
+- `web/components/workspace/ContentViewer.tsx` — wires `<InferenceContentView>` for IDENTITY.md + BRAND.md so ADR-162 Sub-phase D inference-meta (source caption + gap banner) still surfaces on Files. No rendering regression from the MemorySection retirement.
+- `web/components/context/InferenceContentView.tsx` — docstring updated (MemorySection reference replaced with ContentViewer mount).
+
+**Singular-implementation check:**
+- `grep -rn "MemorySection" web/` — only comments explaining the retirement.
+- `grep -rn "tab=memory" web/` — zero live callers (redirects in place for bookmarks).
+- `InferenceContentView` preserved with new Files mount — inference provenance caption + gap banner continue to surface alongside the substrate edit path.
+
+**TypeScript:** `tsc --noEmit` passes.
+
+---
+
 ## 2026-04-24 — ADR-215 Phase 5: Chat hardening (onboarding modal retired, R-compliance complete)
 
 **Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Chat hardening (Phase 5). **ADR closed**.
