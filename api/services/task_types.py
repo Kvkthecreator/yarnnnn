@@ -1476,59 +1476,6 @@ The cockpit should be honest about what the workspace knows, not optimistic abou
             ],
         },
     },
-    "back-office-reviewer-reflection": {
-        "display_name": "Reviewer Reflection",
-        "description": "ADR-218 Phase A: evaluates operator-declared reflection triggers against substrate (decisions.md + _performance.md + calibration.md) on daily cadence. Zero LLM cost in Phase A — deterministic trigger evaluation. When a trigger crosses, future Phase B (ADR-218 Commit 3) invokes reflection-mode LLM + Phase C (Commit 4) applies write-back. Until Phase B+C land, trigger crossing is logged to the task output and reflections.md for operator audit; no files mutated.",
-        "output_kind": "system_maintenance",
-        "default_delivery": "none",
-        "registry_default_team": [],
-        "default_mode": "recurring",
-        "default_schedule": "daily",
-        "output_format": "markdown",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "thinking_partner",
-                "step": "back-office",
-                "instruction": (
-                    "Back office maintenance: Phase A of Reviewer reflection "
-                    "(persona-reflection.md + ADR-218). Read the operator's "
-                    "declared triggers in /workspace/review/principles.md under "
-                    "## Reflection triggers, snapshot substrate metrics from "
-                    "decisions.md + calibration.md + per-domain _performance.md, "
-                    "evaluate each trigger (zero LLM — restricted expression "
-                    "parser in services/back_office/reviewer_reflection.py). "
-                    "Rate-limited by per-trigger min_days_between against the "
-                    "last reflections.md entry. First trigger whose `when` "
-                    "crosses AND rate-limit elapsed wins; report verdict in "
-                    "the task output. Phase B + C (LLM invocation + write-back) "
-                    "land in ADR-218 Commits 3 + 4. "
-                    "executor: services.back_office.reviewer_reflection"
-                ),
-            },
-        ],
-        "context_reads": [],
-        "context_writes": [],
-        "context_sources": ["workspace"],
-        "requires_platform": None,
-        "default_objective": {
-            "deliverable": "Reflection trigger evaluation verdict + substrate snapshot",
-            "audience": "The Reviewer seat itself (next cycle's Phase B invocation) + operator (retrospective audit via reflections.md)",
-            "purpose": "Persona-as-accumulator per persona-reflection.md — detect when the Reviewer's framework warrants self-evolution against its own track record, without interrupting verdict-mode reasoning.",
-            "format": "Markdown report — started_at, triggers declared, triggered verdict, winning trigger (if any), substrate snapshot",
-        },
-        "default_deliverable": {
-            "output": {"format": "markdown", "word_count": "n/a", "layout": ["Phase A verdict", "Winning trigger (if any)", "Substrate snapshot"]},
-            "assets": [],
-            "quality_criteria": [
-                "Zero LLM cost when no trigger crosses",
-                "Rate-limit gate respected per-trigger via min_days_between",
-                "Unknown metrics in trigger `when` expressions fail safe (trigger skipped with legible reason, no crash)",
-                "Empty / missing reflections.md treated as 'no prior reflection' (all rate gates pass)",
-                "Empty / missing principles.md ## Reflection triggers block treated as 'no triggers declared' (task exits clean)",
-            ],
-        },
-    },
     "back-office-reviewer-calibration": {
         "display_name": "Reviewer Calibration",
         "description": "Rebuilds /workspace/review/calibration.md from decisions.md × reconciled _performance.md. Closes the money-truth → future-judgment loop per FOUNDATIONS Axiom 7 + Axiom 8. ADR-211 D6.",

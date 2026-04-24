@@ -988,54 +988,6 @@ signal in the daily update — the `_performance.md` track record is
 likely too thin for that domain's proposal pattern, and you may want to
 run those proposals manually for a while to give it more calibration
 data.
-
-## Reflection triggers
-
-ADR-218: the Reviewer evolves its own framework on cadence when
-operator-declared triggers cross. Each trigger is a condition +
-rate-limit tuple. The back-office `back-office-reviewer-reflection`
-task evaluates them daily (zero LLM), invokes reflection-mode LLM
-when a trigger fires, and write-backs revisions to IDENTITY.md /
-principles.md per ADR-209 with `authored_by="reviewer:{occupant}"`.
-
-Grammar for `when`:
-
-    clause      := <metric> [comparator number]
-    comparator  := >= | <= | == | != | > | <
-    expr        := clause (('AND' | 'OR') clause)*   # left-to-right
-
-Known metrics: `performance_md_first_populated`, `performance_md_exists`,
-`verdicts_since_last_reflection`, `approvals_last_30d`, `rejections_last_30d`,
-`defers_last_30d`, `defer_rate_last_50`, `approve_rate_last_50`,
-`reject_rate_last_50`, `sharpe_delta_vs_baseline`,
-`expectancy_delta_vs_baseline`.
-
-Boolean metrics (like `performance_md_first_populated`) can be used
-as a bare identifier — evaluates True when the metric is True.
-
-Edit the YAML below to tune or remove triggers. The three default
-triggers below ship active at signup: cold-start, twenty-trade
-calibration, and defer-rate anomaly. Delete a trigger's block to
-disable it. Principle: only declare triggers you want the Reviewer to
-use as reasons to reflect on its own framework. Over-triggering
-produces noisy reflections.md; under-triggering lets the framework go
-stale.
-
----
-triggers:
-  - name: cold_start_threshold_crossed
-    description: "_performance.md transitioned from empty to non-empty — the persona should reconsider its cold-start narrowing conditions now that real outcomes exist"
-    when: performance_md_first_populated
-    min_days_between: 1
-  - name: twenty_trade_calibration
-    description: "Reviewer has rendered ≥20 verdicts since last reflection — enough history to notice patterns in its own defer/approve distribution"
-    when: verdicts_since_last_reflection >= 20
-    min_days_between: 7
-  - name: defer_rate_anomaly
-    description: "Defer rate on last 50 verdicts is extreme (≥80% or ≤10%) — the persona may be mis-calibrated (too conservative or too permissive)"
-    when: defer_rate_last_50 >= 0.8 OR defer_rate_last_50 <= 0.1
-    min_days_between: 7
----
 """
 
 
