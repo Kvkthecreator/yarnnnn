@@ -57,44 +57,25 @@ The Reviewer during proposal verdicts (verdict mode) never enters reflection mod
 
 This separation is structural. Verdict mode doesn't know reflection exists; reflection mode doesn't interrupt verdicts.
 
-### D3 — Triggers are operator-declared thresholds, substrate-detected
+### D3 — Invocation gate is a cost floor, not a threshold DSL
 
-Reflection triggers are authored in `principles.md` under a new `## Reflection triggers` section. Operator-friendly syntax, zero-LLM parseable. Default seeded template:
+**Amended 2026-04-24 (Commit 2 rewrite).** An earlier draft of this ADR proposed an operator-authored trigger DSL — YAML `when` expressions with comparator operators, metric names, AND/OR composition — that would fire reflections when thresholds crossed. That design re-imposed continuous config-authoring on the operator (the canon thesis explicitly wants to eliminate this) and put *the noticing of drift* in a zero-LLM expression parser rather than in the persona's judgment (which is what `docs/architecture/persona-reflection.md` actually asks for).
 
-```yaml
----
-# Reflection triggers — operator-declared conditions under which the
-# Reviewer should reflect on its own framework. Each trigger is a
-# condition + rate-limit tuple. Any trigger that fires invokes one
-# reflection run; multiple firing triggers still run one reflection
-# (rate-limited per §3 Invariants).
+The correct shape — mirroring `ManageTask(action="evaluate")` exactly — is:
 
-triggers:
-  - name: cold_start_threshold_crossed
-    description: "_performance.md transitioned from empty to non-empty"
-    when: performance_md_first_populated
-    min_days_between: 1
+- **Invocation gate** (zero LLM, cost floor only): *is it worth invoking the persona?* Two rules:
+  1. At least one new decision in `decisions.md` since the last reflection (nothing to reflect on otherwise).
+  2. At least 24 hours since the last reflection (rate limit, prevents reactive cascades).
+- **Persona judgment** (one LLM call, Haiku): the persona itself reads IDENTITY + principles + PRECEDENT + MANDATE + AUTONOMY + recent decisions + per-domain `_performance.md`, and *it* decides whether anything warrants framework change. Same shape as task-evaluation deciding whether a task output is on-spec.
+- **Structured verdict**: `no_change | narrow | relax | character_note` + reasoning + evidence citations. `no_change` is the common outcome — invocation cost is cheap vs the thesis value.
 
-  - name: twenty_trade_calibration
-    description: "Reviewer has rendered ≥20 verdicts since last reflection"
-    when: verdicts_since_last_reflection >= 20
-    min_days_between: 7
+No operator-authored metrics. No YAML `when` expressions. No threshold arithmetic. The persona is the judgment; the task runner is the cadence.
 
-  - name: sharpe_drift
-    description: "Realized Sharpe on approved trades drops ≥1.5× below declared baseline"
-    when: sharpe_delta_vs_baseline >= 1.5
-    min_days_between: 14
+The two gate constants live in `services/back_office/reviewer_reflection.py` as module-level constants (`_MIN_NEW_DECISIONS = 1`, `_MIN_HOURS_BETWEEN_REFLECTIONS = 24`). Future work may let operators tune these via principles.md prose, but the zero-knob default is correct for V1 — same "operator seeds direction, persona lives its lifecycle" thesis.
 
-  - name: defer_rate_anomaly
-    description: "Defer rate on last 50 verdicts ≥ 80% or ≤ 10%"
-    when: defer_rate_last_50 >= 0.8 OR defer_rate_last_50 <= 0.1
-    min_days_between: 7
----
-```
+### D3 rationale — why this isn't the same mistake as a DSL
 
-Zero-LLM trigger evaluation: Phase A reads the YAML, computes each `when` expression against substrate (all observable from `decisions.md` counts + `_performance.md` fields + `calibration.md` rolling windows), returns `(triggered: bool, which_trigger: str | None)`.
-
-Operators can add, remove, or tune triggers by editing principles.md. The triggers YAML lives inside principles.md because it is *framework* (what conditions warrant framework reflection) rather than *delegation* (AUTONOMY) or *interpretation* (PRECEDENT).
+A DSL *could* have zero-width — a trivial DSL like `every_day_after_one_new_decision` is still a tiny language, still operator-authored, still re-imposing config work. Reducing DSL expressiveness doesn't solve the category mistake; deleting the DSL does. The module has two constants, the operator has no YAML to write, and the persona does the judging. If a pattern emerges where operators *need* to tune invocation cadence, it surfaces as a single `min_hours_between_reflections:` prose line in principles.md — not as an expression grammar.
 
 ### D4 — Reflection-mode prompt is distinct from verdict-mode prompt
 
@@ -203,7 +184,7 @@ All six invariants from the canon doc carry through:
 ### D8 — Staging: five commits, same discipline as ADR-216 / ADR-217
 
 - **Commit 1** (this ADR): Ratification only. Docs.
-- **Commit 2**: Back-office task `back-office-reviewer-reflection` + condition-check module `services/back_office/reviewer_reflection.py`. Phase A zero-LLM logic, trigger evaluation against substrate, exits on "no trigger crossed" without invoking LLM. Task scaffolded at workspace_init Phase 5 as an essential YARNNN-owned task. Also: principles.md default template gains the "Reflection triggers" YAML block.
+- **Commit 2**: Back-office task `back-office-reviewer-reflection` + invocation-gate module `services/back_office/reviewer_reflection.py`. Zero-LLM gate (new-decisions + hours-elapsed floors), substrate gather, exits when gate doesn't pass. Phase B (LLM invocation) + Phase C (write-back) stubbed behind `_APPLY_WRITEBACK = False` so Commit 2 ships green. Task materializes on commerce + trading connect (same trigger as reviewer-calibration per ADR-211 D6). No operator-authored DSL, no YAML triggers in principles.md — the original DSL-style draft of this commit was reverted; the gate is two module-level constants and the persona does the judgment.
 - **Commit 3**: Reflection-mode invocation. `reviewer_agent.py::run_reflection()` sibling function to `review_proposal()`. `_REFLECTION_SYSTEM_PROMPT` constant. `_REFLECTION_TOOL` forced tool-call schema (`return_reflection_proposals` returning structured list of proposed changes + reasoning + evidence citations + `no_change` fallback). Reads IDENTITY + current principles + PRECEDENT + decisions tail + calibration + relevant _performance.md.
 - **Commit 4**: Write-back + visibility. `services/reflection_writer.py` applies the structured output via ADR-209 `write_revision()`. Mandate-preservation sanity check. `role='system'` chat notification via existing `write_reviewer_message` (or sibling). Daily-update briefing template gains "Reviewer evolution" section. reflections.md append.
 - **Commit 5**: alpha-trader E2E validation. Let Simons-persona accumulate real + synthetic decisions, force-trigger reflection, observe the full loop: condition check → reflection invocation → proposed changes → write-back → chat notification → revision chain audit. Write observation log documenting the first cycle.
@@ -216,49 +197,37 @@ Each commit lands independently green. Commit 1 docs-only; Commits 2–4 are cod
 
 ### Back-office task declaration
 
-Task TASK.md in `api/services/task_types.py`:
-
-```python
-"back-office-reviewer-reflection": {
-    "agent_slug": "thinking-partner",
-    "team": ["thinking-partner"],
-    "required_capabilities": [],
-    "mode": "recurring",
-    "schedule": "0 3 * * *",  # Daily 03:00 UTC
-    "delivery": "cockpit-only",
-    "output_kind": "system_maintenance",
-    "context_reads": [],
-    "context_writes": [],
-    "essential": True,
-    "executor": "services.back_office.reviewer_reflection.run",
-    "objective": {
-        "deliverable": "Reviewer framework evolution (revisions to /workspace/review/IDENTITY.md + principles.md + reflections.md) when operator-declared triggers fire",
-        "audience": "Operator (retrospective audit) + future Reviewer invocations (reads evolved substrate)",
-        "purpose": "Persona-as-accumulator — the Reviewer evolves its framework from its own operational record per persona-reflection.md + ADR-218",
-    },
-    ...
-}
-```
-
-Workspace-init Phase 5 scaffolds the task like other essential YARNNN-owned back-office tasks.
+Registered in `api/services/task_types.py` with `output_kind="system_maintenance"`, `default_schedule="daily"`, `executor="services.back_office.reviewer_reflection"`. Materializes on commerce or trading platform connect (`api/routes/integrations.py`) alongside `back-office-outcome-reconciliation` and `back-office-reviewer-calibration` — same trigger, same substrate lineage (reconciler writes `_performance.md`; calibration summarizes per-occupant verdict tallies; reflection reads both plus raw decisions to let the persona notice drift).
 
 ### reviewer_reflection module
 
 ```
 services/back_office/reviewer_reflection.py
 
-- run(client, user_id, task_slug) -> dict  # entry point called by task pipeline
-  - Phase A: load_triggers(principles_md), evaluate_triggers(substrate), decide
-  - Phase B: if triggered, invoke run_reflection() from reviewer_agent
-  - Phase C: if changes proposed, apply_reflection_writes(), publish notifications
-  - Returns structured run record for the task output folder
+- run(client, user_id, task_slug) -> dict  # task executor entry point
+  Same task-assessment shape as ManageTask._handle_evaluate:
+    1. Read substrate (decisions.md + _performance.md + last-reflection ts)
+    2. Invocation gate (two constants, zero LLM):
+         - at least _MIN_NEW_DECISIONS since last reflection, AND
+         - at least _MIN_HOURS_BETWEEN_REFLECTIONS elapsed
+       If gate doesn't pass: return "skipped: reason" verdict. Zero cost.
+    3. If gate passes: gather full persona substrate (IDENTITY +
+       principles + PRECEDENT + MANDATE + AUTONOMY + recent decisions +
+       performance summary) for the Commit 3 reflection-mode prompt.
+    4. Commit 2 stops here with _APPLY_WRITEBACK=False; returns
+       "would invoke" verdict + evidence summary. Commits 3 + 4 wire
+       the LLM call + reflection_writer.
+  Returns the standard back-office executor shape
+    {"content": "<markdown report>", "structured": {...}}
 
-- load_triggers(principles_md: str) -> list[dict]
-- evaluate_triggers(triggers, decisions_summary, performance_summary, calibration)
-    -> tuple[bool, dict | None]  # (crossed, winning_trigger)
-- decisions_summary(client, user_id, since_ts) -> dict
-- performance_summary(client, user_id) -> dict  # aggregated across domains
+- _decisions_since(decisions, cutoff) -> list[dict]
+- _hours_since(then, now) -> float | None
+- _format_recent_decisions(decisions, limit=30) -> str  # for prompt
+- _format_performance_summary(outcome_totals) -> str     # for prompt
+- _read_last_reflection_ts(client, user_id) -> datetime | None
 ```
+
+Reuses `reviewer_calibration._read_decisions` + `_read_domain_outcome_totals` via import (singular-implementation, no duplicated parsing).
 
 ### reflection_writer
 
@@ -339,8 +308,8 @@ Let reflection run every verdict. Rejected — violates persona-reflection.md §
 
 ## Implementation status
 
-- **Commit 1** (this ADR): Proposed.
-- **Commit 2** (back-office task + condition-check): Pending.
+- **Commit 1** (this ADR): Implemented 2026-04-24 (commit `e457474`).
+- **Commit 2** (back-office task + invocation-gate module): Implemented 2026-04-24. Note: an earlier DSL-style draft of Commit 2 (`34c5822`) was reverted (`d4c0d88`) before the cleaner task-assessment-shape version landed. D3 rewritten in-place on the same day to reflect the simpler approach.
 - **Commit 3** (reflection-mode invocation): Pending.
 - **Commit 4** (write-back + visibility): Pending.
 - **Commit 5** (alpha-trader E2E validation): Pending.
@@ -352,3 +321,4 @@ Let reflection run every verdict. Rejected — violates persona-reflection.md §
 | Date | Change |
 |------|--------|
 | 2026-04-24 | v1 — initial draft. Implements persona-reflection.md v1.1 thesis. Eight decisions (D1 scope, D2 substrate-triggered, D3 operator-declared thresholds, D4 reflection-mode prompt, D5 revision-chained write-back, D6 chat + briefing visibility, D7 invariants, D8 five-commit staging). Implementation details for back-office task + reflection_writer module. Stress tests lifted from persona-reflection.md §8 as acceptance criteria. Five alternatives considered and rejected. |
+| 2026-04-24 | v1.1 — D3 rewritten in-place during Commit 2 work. The original D3 (operator-authored trigger DSL with YAML `when` expressions, comparator grammar, metric table) re-imposed continuous config-authoring on the operator — contradicting the canon thesis "operator's standing role shifts from config authoring to seeding direction." Commit 2's DSL-shape implementation (`34c5822`) was reverted (`d4c0d88`). Rewritten D3: invocation gate is two module-level constants (`_MIN_NEW_DECISIONS = 1`, `_MIN_HOURS_BETWEEN_REFLECTIONS = 24`) and the persona itself is the judgment that notices its own drift. Same task-assessment shape as `ManageTask._handle_evaluate`. No DSL. Implementation details + Staging §Commit 2 updated accordingly. Other decisions (D1 scope, D2 substrate-triggered, D4 reflection-mode prompt, D5–D8) unchanged. |

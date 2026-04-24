@@ -6,6 +6,74 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.24.7] - ADR-218 Commit 2 (clean) — Reviewer reflection invocation gate
+
+Supersedes a reverted DSL-shape draft (`[2026.04.24.6]` removed with
+the revert commit `d4c0d88`). The earlier draft built an
+operator-authored YAML trigger DSL with comparator grammar + metric
+expressions. That re-imposed continuous config-authoring on the
+operator — contradicting the canon thesis in
+`docs/architecture/persona-reflection.md` that the operator's role
+should shift to "seeding direction + auditing evolution," not
+"writing threshold configs."
+
+Corrected shape — task-assessment applied to persona substrate,
+mirroring `ManageTask._handle_evaluate` exactly:
+
+1. **Invocation gate** (two module-level constants, zero LLM):
+   - `_MIN_NEW_DECISIONS = 1` (nothing to reflect on otherwise)
+   - `_MIN_HOURS_BETWEEN_REFLECTIONS = 24` (rate limit)
+2. **Substrate gather** when gate passes — IDENTITY + principles +
+   PRECEDENT + MANDATE + AUTONOMY + recent decisions + per-domain
+   `_performance.md` assembled for the reflection-mode prompt.
+3. **Phase B/C stubbed** in Commit 2 (`_APPLY_WRITEBACK = False`).
+   Commit 3 adds reflection-mode LLM invocation; Commit 4 adds
+   `reflection_writer` for write-back + chat notification.
+
+The persona — not a DSL parser — is the judgment that notices its
+own drift. Same pattern as how Haiku judges whether a task output
+meets its DELIVERABLE spec; now applied to letting the Reviewer
+(via reflection-mode, Commit 3) judge whether its own framework
+warrants adjustment against its accumulated track record.
+
+No prompt changes in Commit 2. `REVIEWER_MODEL_IDENTITY` stays at
+`ai:reviewer-sonnet-v4`. Reflection-mode prompt lands in Commit 3.
+
+### Changed
+
+- `api/services/back_office/reviewer_reflection.py` — rewritten from
+  scratch. ~310 lines (vs 510 in the reverted DSL version). No
+  trigger parser, no expression evaluator, no metric table. Just
+  substrate read + invocation gate + report shape.
+- `api/services/task_types.py` — `back-office-reviewer-reflection`
+  task type registered. Instruction text reflects the cleaner gate.
+- `api/routes/integrations.py` — commerce + trading connect paths
+  materialize the reflection task alongside calibration (same
+  trigger as ADR-211 D6; outcomes-producing platforms give the
+  persona substrate to reflect on).
+- `docs/adr/ADR-218-persona-reflection.md` — D3 rewritten in-place.
+  Implementation Details + Staging §Commit 2 updated. Revision
+  history v1.1 entry documents the in-place rewrite.
+
+### Expected behavior
+
+- Zero LLM cost when the gate doesn't pass.
+- Phase B/C stubbed, so even when the gate passes, no LLM call
+  fires in Commit 2. Task outputs a "would invoke" verdict +
+  evidence summary.
+- Materialization on commerce/trading connect — workspaces without
+  outcomes-producing platforms don't get the task.
+
+### Related
+
+- `docs/architecture/persona-reflection.md` v1.1 — canon thesis.
+- `docs/adr/ADR-218-persona-reflection.md` v1.1 (D3 rewritten).
+- `services/primitives/manage_task.py::_handle_evaluate` — the
+  pattern reflection mirrors.
+- Reverted DSL commit: `34c5822`. Revert commit: `d4c0d88`.
+
+---
+
 ## [2026.04.24.5] - Reviewer v4 + task pipeline PRECEDENT injection (persona-reflection.md v1.1 alignment)
 
 `REVIEWER_MODEL_IDENTITY` bumped `ai:reviewer-sonnet-v3` → `ai:reviewer-sonnet-v4`.

@@ -1476,6 +1476,55 @@ The cockpit should be honest about what the workspace knows, not optimistic abou
             ],
         },
     },
+    "back-office-reviewer-reflection": {
+        "display_name": "Reviewer Reflection",
+        "description": "ADR-218: the Reviewer persona reads its own substrate (IDENTITY + principles + PRECEDENT + MANDATE + AUTONOMY + recent decisions + per-domain _performance.md) on cadence and produces a structured reflection verdict about whether its framework warrants change. Same task-assessment shape as ManageTask(evaluate) — one Haiku call, structured verdict, write-back. No DSL, no operator-authored triggers: the persona itself is the judgment that notices its own drift. Commit 2 implements invocation gate + substrate snapshot; Commits 3 + 4 add reflection-mode prompt + write-back.",
+        "output_kind": "system_maintenance",
+        "default_delivery": "none",
+        "registry_default_team": [],
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "markdown",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "thinking_partner",
+                "step": "back-office",
+                "instruction": (
+                    "Back office maintenance: run the Reviewer's reflection "
+                    "cycle per ADR-218 + persona-reflection.md. Invocation "
+                    "gate: at least one new decision since last reflection "
+                    "AND at least 24h elapsed (zero LLM). If gate passes, "
+                    "gather full Reviewer substrate + recent decisions + "
+                    "per-domain _performance.md, invoke the persona in "
+                    "reflection mode (Commit 3), and apply the structured "
+                    "verdict via reflection_writer (Commit 4). "
+                    "executor: services.back_office.reviewer_reflection"
+                ),
+            },
+        ],
+        "context_reads": [],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Structured reflection verdict (no_change | narrow | relax | character_note) + evidence citations",
+            "audience": "The Reviewer seat itself (evolved framework drives future verdicts) + operator (retrospective audit via reflections.md + revision chain)",
+            "purpose": "Persona-as-accumulator — the Reviewer evolves its framework from its own track record, symmetric to how _performance.md accumulates money-truth. Closes the autonomous loop without operator having to re-author principles.md manually.",
+            "format": "Markdown report — invocation gate verdict + evidence summary + structured proposals (when Phase B + C live)",
+        },
+        "default_deliverable": {
+            "output": {"format": "markdown", "word_count": "n/a", "layout": ["Invocation verdict", "Evidence summary", "Proposals (if any)"]},
+            "assets": [],
+            "quality_criteria": [
+                "Zero LLM cost when invocation gate doesn't pass",
+                "Persona returning no_change is the common outcome — that's correct",
+                "Every proposed change cites substrate evidence (decision count, outcome deltas, performance-md deltas)",
+                "Writes revision-chained per ADR-209 with authored_by=reviewer:{occupant_identity}",
+                "Never widens AUTONOMY — scope ceiling enforced in reflection_writer",
+            ],
+        },
+    },
     "back-office-reviewer-calibration": {
         "display_name": "Reviewer Calibration",
         "description": "Rebuilds /workspace/review/calibration.md from decisions.md × reconciled _performance.md. Closes the money-truth → future-judgment loop per FOUNDATIONS Axiom 7 + Axiom 8. ADR-211 D6.",
