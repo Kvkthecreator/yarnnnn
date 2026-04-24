@@ -1184,7 +1184,14 @@ async def gather_task_context(
     1. Task awareness (HOW) — cycle-to-cycle execution state
     2. Domain tracker (WHAT) — entity registry + freshness (context tasks)
     3. Accumulated context domains (WHAT) — /workspace/context/ files
-    4. Agent identity (WHO) — AGENT.md only (no thesis, no working notes)
+    4. Agent identity (WHO) — AGENT.md only (no thesis, no working notes).
+       Per ADR-216 D9: for domain Agents, AGENT.md is the single-file
+       persona+framework convention. Persona (character) and framework
+       (directives) are authored together because domain Agents are
+       single-domain — they don't have the edit-cadence orthogonality
+       that makes the Reviewer's IDENTITY.md / principles.md split
+       meaningful. The persona-read-at-reasoning-time invariant (ADR-216
+       D4) holds: AGENT.md IS the persona file for domain Agents.
     5. User notes — workspace-level standing instructions
     6. Prior output + output inventory (ADR-182) — pre-gathered for all modes
 

@@ -98,6 +98,18 @@ This ADR does not:
 
 ADR-212's "YARNNN is a systemic meta-cognitive Agent" classification is preserved verbatim in ADR-212. ADR-216 supersedes that specific classification but does not rewrite ADR-212's historical text. Future readers of ADR-212 see the "Supersedes" banner in ADR-216 and the amendment note added to ADR-212's status line.
 
+### D9 — Domain Agent persona convention: single-file AGENT.md
+
+Audit of `api/services/task_pipeline.py` (Commit 4, 2026-04-24) confirmed that user-authored domain Agents use a single-file convention for persona + directives: `/agents/{slug}/AGENT.md`. The file is seeded at agent creation from the `agent_instructions` DB column (operator-authored via YARNNN chat), read at dispatch time at three execution-path sites (`task_pipeline.py:1930`, `:2606`, `:3931`), and passed into the agent pipeline as `agent_instructions`.
+
+This is **deliberately different from the Reviewer's split**. The Reviewer has two files — `/workspace/review/IDENTITY.md` (persona) + `/workspace/review/principles.md` (framework) — because the Reviewer evaluates proposals across multiple domains; persona (*how* it reasons) and framework (*what* it checks) have distinct edit cadences and orthogonal authoring workflows.
+
+Domain Agents are single-domain by design. Their AGENT.md conflates persona and framework into one authored artifact, because for a domain-scoped Agent the two concepts don't have edit-cadence orthogonality — the operator authors the Agent as a single entity with character + directives combined. Splitting AGENT.md into IDENTITY.md + FRAMEWORK.md for domain Agents would be spurious uniformity.
+
+**The invariant that survives both conventions**: every persona-bearing Agent has its persona content read at reasoning time from an operator-authored file at its canonical path. For Reviewer that file is IDENTITY.md; for domain Agents that file is AGENT.md. The persona-read-at-reasoning-time mechanism holds uniformly.
+
+Commit 4 also adds a short clarifying comment to `task_pipeline.py` above the first AGENT.md read site noting this convention and cross-referencing ADR-216 D9.
+
 ---
 
 ## Dimensional test
@@ -181,10 +193,10 @@ Merge IDENTITY.md and principles.md into one file per Agent. Rejected because th
 
 ## Implementation status
 
-- **Commit 1** (this ADR): Proposed.
-- **Commit 2** (Reviewer persona wiring): Pending.
-- **Commit 3** (Vocabulary unification): Pending.
-- **Commit 4** (Domain Agent persona reads): Pending.
+- **Commit 1** (this ADR): Implemented 2026-04-24 (commit `5edc289`).
+- **Commit 2** (Reviewer persona wiring): Implemented 2026-04-24 (commit `2f6b49f`). `reviewer_agent.py::review_proposal()` now accepts `identity_md`; `_build_user_message()` opens with the persona section; `_SYSTEM_PROMPT` names IDENTITY.md as substrate item 1. `review_proposal_dispatch.py` reads `/workspace/review/IDENTITY.md` and passes it through. `REVIEWER_MODEL_IDENTITY` bumped v1 → v2.
+- **Commit 3** (Vocabulary unification): Implemented 2026-04-24 (commit `898fdf6`). CLAUDE.md Key terminology rewritten; GLOSSARY.md adds Persona row + reclassifies YARNNN in the Entities table; `orchestration.py` docstrings + `DEFAULT_REVIEW_IDENTITY_MD` gain operator-instruction header; stale `tp_prompts/` + `thinking_partner.py` paths in CLAUDE.md File Locations table corrected to `yarnnn_prompts/` + `yarnnn.py` (ADR-189 propagation that never completed).
+- **Commit 4** (Domain Agent persona reads): Implemented 2026-04-24. Audit confirmed domain Agents use single-file `AGENT.md` convention for persona + framework (read at 3 sites in `task_pipeline.py`). D9 added to this ADR documenting the convention and its rationale (domain Agents are single-domain; persona and framework do not have edit-cadence orthogonality). `task_pipeline.py` gains a clarifying comment cross-referencing D9.
 - **Commit 5** (scaffold_trader.py + E2E proof): Pending.
 
 ---
