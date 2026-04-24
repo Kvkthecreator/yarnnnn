@@ -6,6 +6,106 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.24.9] - ADR-218 Commit 4 — reflection_writer (apply + reflections.md + chat)
+
+No prompt change in Commit 4. Reviewer v5 prompt (from Commit 3)
+already declares the scope-ceiling + full-content-replacement
+invariants. This entry documents the write-back path that turns
+reflection-mode structured verdicts into actual substrate mutations.
+
+### Added
+
+- `api/services/reflection_writer.py` (~330 lines):
+  - `apply_reflection_writes(client, user_id, verdict, started_at)` —
+    entry point called by `back_office/reviewer_reflection.run()` when
+    the gate passes and reflection-mode returns a verdict.
+  - `_validate_proposal` — enforces the scope ceiling structurally:
+    only `principles.md` / `IDENTITY.md` writable. Additional guards:
+    `_MIN_CONTENT_LENGTH = 50` (rejects accidental mass-deletion);
+    `_FORBIDDEN_PHRASES` string-match heuristic against obvious
+    delegation-widening attempts ("override mandate", "bypass
+    autonomy", etc.).
+  - `write_revision` calls with `authored_by="reviewer:{occupant_identity}"`
+    — each applied proposal lands as a new revision per ADR-209.
+    Revision message composed from persona's `reasoning` + `evidence`.
+  - `reflections.md` append-only log at `/workspace/review/reflections.md`
+    — always written (even on `no_change`) so the reflection itself
+    is audit-logged. Header preserved across appends. Entries follow
+    stable format so the back-office task's `_read_last_reflection_ts`
+    parser finds them.
+  - Chat notification via existing `write_reviewer_message`
+    (ADR-212 pattern) with `verdict=f"reflection:{overall}"` — only
+    fires for material verdicts (not `no_change`). Full reasoning +
+    evidence stays in reflections.md; chat gets a ~300-char summary
+    with a pointer.
+
+### Changed
+
+- `api/services/back_office/reviewer_reflection.py` — `_APPLY_WRITEBACK`
+  flipped from `False` to `True`. Stubbed write-back branch replaced
+  with real `apply_reflection_writes` invocation. `structured` dict
+  shape clarified: `evidence_summary` is the model's string (lands
+  in reflections.md); `evidence_snapshot` is the zero-LLM metric
+  dict (for task-output report only). `_shape_result` renders both
+  plus the writer's `write_summary` when present.
+- `docs/adr/ADR-218-persona-reflection.md` — Commit 4 marked
+  Implemented.
+
+### Validation summary
+
+Smoke tests run locally pre-commit:
+- Valid narrow proposal → validator returns `(True, "valid")`.
+- `target_file="MANDATE.md"` → rejected with scope-ceiling reason.
+- Short content (<50 chars) → rejected with mass-deletion reason.
+- New content containing "override mandate" → rejected with
+  forbidden-phrase reason.
+- `change_type="no_change"` proposal → skipped as no-op.
+- `reflections.md` append: first write creates header + entry;
+  subsequent appends preserve header and add newest-last.
+- Chat notification renders material-verdict summary with reasoning
+  trimmed to ~300 chars.
+
+### Expected behavior end-to-end
+
+When the daily back-office task runs on a commerce / trading
+workspace with the Reviewer active:
+
+1. Gate checks (≥1 new decision, ≥24h since last reflection). Skip if
+   not met — zero LLM.
+2. Substrate gathered; reflection-mode Haiku invoked (v5).
+3. Persona returns structured verdict. `no_change` is the common
+   outcome; `narrow` / `relax` / `character_note` are rarer and
+   evidence-gated.
+4. Writer validates each proposal; applies valid ones via
+   `write_revision`; appends reflections.md entry; notifies chat on
+   material verdict.
+5. Task output records the full run — invoked=True,
+   verdict=<overall>, proposals, write_summary. Operator audits via
+   `/work` task detail or directly in reflections.md.
+
+If at any step something fails (validation rejects all proposals,
+writer exception, chat surfacing no active session), the task still
+produces a clean output + logs the reason. Operator revert path via
+ADR-209 revision chain is the definitive safety floor.
+
+### Primitive audit reaffirmed
+
+Reflection remains NOT a primitive. The writer is called only from
+the back-office executor; no tool-surface invocation needed.
+
+### Related
+
+- ADR-218 Commits 1-3 (previous commits in this sequence).
+- ADR-209 Authored Substrate — `write_revision` is the single write
+  path; `authored_by="reviewer:..."` distinguishes reflection
+  revisions from operator revisions in the chain for operator-revert
+  purposes.
+- ADR-212 unified chat thread — `write_reviewer_message` pattern.
+- `persona-reflection.md` §2 scope boundary, §4 invariants — all
+  enforced by `_validate_proposal`.
+
+---
+
 ## [2026.04.24.8] - ADR-218 Commit 3 — reflection-mode invocation (v5)
 
 `REVIEWER_MODEL_IDENTITY` bumped `ai:reviewer-sonnet-v4` → `ai:reviewer-sonnet-v5`.

@@ -65,14 +65,16 @@ REFLECTION_MODEL = "claude-haiku-4-5-20251001"
 _MIN_NEW_DECISIONS = 1
 _MIN_HOURS_BETWEEN_REFLECTIONS = 24
 
-# ADR-218 Commit 3: `run_reflection()` in reviewer_agent.py is live.
-# The back-office task invokes it when the gate passes and returns the
-# structured verdict in `structured.verdict` + `structured.proposals`.
-# Write-back (revision-chained apply + chat notification + reflections.md
-# append) is Commit 4 — stubbed by `_APPLY_WRITEBACK = False`. When
-# Commit 4 lands, this flips True and the verdict actually mutates
-# `/workspace/review/` substrate.
-_APPLY_WRITEBACK = False
+# ADR-218 Commit 4: `reflection_writer.apply_reflection_writes` is live.
+# When the gate passes AND reflection-mode returns a valid verdict, the
+# writer validates each proposal against scope ceiling + mandate-
+# preservation heuristics, applies valid ones via ADR-209
+# `write_revision(authored_by="reviewer:{occupant}")`, appends the
+# reflection entry to `/workspace/review/reflections.md`, and
+# publishes a role='reviewer' chat notification via the ADR-212
+# reviewer_chat_surfacing pattern when the verdict is material
+# (not `no_change`).
+_APPLY_WRITEBACK = True
 
 
 REFLECTIONS_PATH = "review/reflections.md"
@@ -88,9 +90,12 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
               "invoked": bool,                  # did we actually call Haiku
               "reason": str,                    # why invoked or skipped
               "verdict": "no_change" | "narrow" | "relax" | "character_note" | None,
-              "proposals": list[dict] | None,   # structured changes (Commit 3+4)
-              "evidence_summary": dict,         # counts + last timestamps
+              "proposals": list[dict] | None,   # structured changes from reflection-mode
+              "reasoning": str,                 # persona voice, from verdict
+              "evidence_summary": str,          # substrate citations, from verdict
+              "evidence_snapshot": dict,        # zero-LLM metric snapshot for the report
               "writeback_applied": bool,
+              "write_summary": dict | None,     # reflection_writer outcome (Commit 4)
           },
       }
     """
@@ -100,8 +105,11 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         "reason": "",
         "verdict": None,
         "proposals": None,
-        "evidence_summary": {},
+        "reasoning": "",
+        "evidence_summary": "",
+        "evidence_snapshot": {},
         "writeback_applied": False,
+        "write_summary": None,
     }
 
     try:
@@ -117,7 +125,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         new_decisions = _decisions_since(decisions, last_reflection_at)
         hours_since_last = _hours_since(last_reflection_at, started_at)
 
-        structured["evidence_summary"] = {
+        structured["evidence_snapshot"] = {
             "total_decisions": len(decisions),
             "new_decisions_since_last_reflection": len(new_decisions),
             "hours_since_last_reflection": (
@@ -200,30 +208,36 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
             len(structured["proposals"]),
         )
 
-        # --- 5. Write-back stubbed in Commit 3 ---
-        # Commit 4 adds services/reflection_writer.py which:
-        #  - validates each proposal against scope ceiling + mandate
-        #    preservation,
-        #  - writes revisions to IDENTITY.md / principles.md via
-        #    ADR-209 write_revision(authored_by="reviewer:{...}"),
-        #  - appends a structured entry to /workspace/review/reflections.md,
-        #  - publishes a role='system' chat notification per ADR-212.
-        # For Commit 3 we return the verdict only — operator can audit
-        # by reading the task output folder. No files mutated.
+        # --- 5. Write-back (ADR-218 Commit 4) ---
+        # reflection_writer validates each proposal against scope ceiling +
+        # mandate-preservation heuristics, applies valid ones via ADR-209
+        # write_revision with authored_by="reviewer:{occupant_identity}",
+        # appends the reflection entry to /workspace/review/reflections.md,
+        # and (for material verdicts) publishes a role='reviewer' chat
+        # notification. Never raises — partial failures still produce a
+        # summary the task output records.
         if not _APPLY_WRITEBACK:
+            # Safety branch — leave in place in case a future commit needs
+            # to disable write-back temporarily without reverting code.
             structured["reason"] = (
-                f"{structured['reason']} (Commit 3 returns verdict only; "
-                f"write-back lands in Commit 4)"
+                f"{structured['reason']} (write-back disabled via "
+                f"_APPLY_WRITEBACK flag; verdict returned only)"
             )
             return _shape_result(started_at, structured)
 
-        # Commit 4 wiring target (not live yet):
-        # from services.reflection_writer import apply_reflection_writes
-        # write_summary = await apply_reflection_writes(
-        #     client, user_id, verdict, started_at,
-        # )
-        # structured["writeback_applied"] = True
-        # structured["write_summary"] = write_summary
+        from services.reflection_writer import apply_reflection_writes
+        write_summary = await apply_reflection_writes(
+            client, user_id,
+            verdict={
+                "overall": structured["verdict"],
+                "reasoning": structured["reasoning"],
+                "evidence_summary": structured["evidence_summary"],
+                "proposals": structured["proposals"],
+            },
+            started_at=started_at,
+        )
+        structured["writeback_applied"] = bool(write_summary.get("writeback_applied"))
+        structured["write_summary"] = write_summary
         return _shape_result(started_at, structured)
 
     except Exception as exc:  # noqa: BLE001
@@ -368,7 +382,7 @@ async def _read_last_reflection_ts(
 
 def _shape_result(started_at: datetime, structured: dict) -> dict:
     """Produce the back-office executor return shape."""
-    es = structured.get("evidence_summary") or {}
+    es = structured.get("evidence_snapshot") or {}
     lines = [
         "# Reviewer Reflection",
         "",
@@ -393,16 +407,44 @@ def _shape_result(started_at: datetime, structured: dict) -> dict:
     else:
         lines.append("- Domains with _performance.md: none yet")
 
-    if structured.get("proposals"):
+    # Persona reasoning + evidence summary from the reflection-mode LLM
+    # (present when invoked). These land verbatim in reflections.md via
+    # reflection_writer; duplicated here for operator task-output audit.
+    if structured.get("reasoning"):
+        lines += ["", "## Persona reasoning", "", structured["reasoning"]]
+    if structured.get("evidence_summary"):
+        lines += ["", "## Persona evidence summary", "", structured["evidence_summary"]]
+
+    proposals = structured.get("proposals") or []
+    if proposals:
         lines += ["", "## Proposals", ""]
-        for p in structured["proposals"]:
-            lines.append(f"- **{p.get('type', '?')}** on `{p.get('target', '?')}`: {p.get('reasoning', '')}")
+        for p in proposals:
+            lines.append(
+                f"- **{p.get('change_type', '?')}** on `{p.get('target_file', '?')}`: "
+                f"{p.get('reasoning', '')}"
+            )
+
+    write_summary = structured.get("write_summary")
+    if write_summary:
+        lines += [
+            "",
+            "## Write-back",
+            "",
+            f"- Applied: {write_summary.get('proposals_applied', 0)} / {write_summary.get('proposals_total', 0)} proposals",
+            f"- Rejected: {write_summary.get('proposals_rejected', 0)}",
+            f"- reflections.md appended: {write_summary.get('reflections_md_appended', False)}",
+            f"- Chat notified: {write_summary.get('chat_notified', False)}",
+        ]
+        for rej in write_summary.get("rejections") or []:
+            lines.append(
+                f"  - rejected `{rej.get('target_file', '?')}`: {rej.get('reason', '?')}"
+            )
 
     if not _APPLY_WRITEBACK:
         lines += [
             "",
-            "_Phase B (reflection-mode LLM invocation) + Phase C (write-back) land in ADR-218 Commits 3 + 4. "
-            "This commit (Commit 2) implements the invocation gate + substrate snapshot only._",
+            "_Write-back disabled via `_APPLY_WRITEBACK` flag — verdict returned "
+            "for operator audit but no files mutated._",
         ]
 
     return {
