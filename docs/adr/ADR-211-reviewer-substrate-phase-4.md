@@ -1,6 +1,6 @@
 # ADR-211: Reviewer Substrate — Phase 4 Completion
 
-> **Status**: Implemented 2026-04-23 (five atomic commits 49bfeb3 / 5fb0b69 / bcdeaae / af9cf44 / b0a93e4). Vocabulary updated same-day per [ADR-212](ADR-212-layer-mapping-correction.md): the Reviewer is a systemic **Agent** (not "layer"); earlier text referring to "Reviewer layer" is superseded by LAYER-MAPPING.md but preserved verbatim as historical artifact.
+> **Status**: Implemented 2026-04-23 (five atomic commits 49bfeb3 / 5fb0b69 / bcdeaae / af9cf44 / b0a93e4). Vocabulary updated same-day per [ADR-212](ADR-212-layer-mapping-correction.md): the Reviewer is a systemic **Agent** (not "layer"); earlier text referring to "Reviewer layer" is superseded by LAYER-MAPPING.md but preserved verbatim as historical artifact. **D1 seven-file canon partially superseded by [ADR-217](./ADR-217-workspace-autonomy-substrate.md) (2026-04-24)**: `modes.md` removed from Reviewer substrate; autonomy declaration moved to `/workspace/context/_shared/AUTONOMY.md` under the operator-authored-delegation model. Reviewer substrate now six files: IDENTITY + principles + OCCUPANT + handoffs + decisions + calibration.
 > **Date**: 2026-04-23
 > **Authors**: KVK, Claude
 > **Extends**: ADR-194 v2 (Reviewer Layer — implementation record through Phase 3)
