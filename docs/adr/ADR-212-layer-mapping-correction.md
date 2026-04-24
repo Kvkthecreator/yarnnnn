@@ -1,11 +1,12 @@
 # ADR-212: Layer Mapping Correction — Agent vs. Orchestration Taxonomy
 
-> **Status**: Implemented (2026-04-23, shipped in five atomic commits).
+> **Status**: Implemented (2026-04-23, shipped in five atomic commits). **D1 YARNNN classification partially superseded by [ADR-216](./ADR-216-orchestration-surface-vs-judgment-persona.md) (2026-04-24)** — YARNNN reclassified from "systemic meta-cognitive Agent" to "orchestration chat surface." Reviewer and user-authored domain Agents remain in the Agent class per ADR-212 D1. The historical text below is preserved verbatim; see ADR-216 for the refined taxonomy.
 > **Date**: 2026-04-23
 > **Authors**: KVK, Claude
 > **Ratifies**: [LAYER-MAPPING.md](../architecture/LAYER-MAPPING.md) as authoritative taxonomy.
 > **Supersedes**: The "Vocabulary: production layers vs. judgment layers" hedge in THESIS.md v1 (same-day earlier) + the GLOSSARY v1.6 "Vocabulary note: Agent and agency-proper" industry-alignment compromise.
 > **Amends**: FOUNDATIONS Axiom 2 + Derived Principle 14.
+> **Partially superseded by**: ADR-216 (YARNNN reclassification — see status banner above).
 
 ---
 
