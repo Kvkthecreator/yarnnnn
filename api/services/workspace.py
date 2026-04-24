@@ -645,9 +645,12 @@ class UserMemory:
     User workspace context: /workspace/ (ADR-133, relocated by ADR-206).
 
     Authored shared context lives under /workspace/context/_shared/:
+    - /workspace/context/_shared/MANDATE.md     — what the workspace is running
     - /workspace/context/_shared/IDENTITY.md    — who you are (name, role, company, timezone, summary)
     - /workspace/context/_shared/BRAND.md       — how outputs look and sound
     - /workspace/context/_shared/CONVENTIONS.md — workspace filesystem rules (agent-readable)
+    - /workspace/context/_shared/AUTONOMY.md    — delegation ceiling for AI judgment
+    - /workspace/context/_shared/PRECEDENT.md   — durable interpretations and boundary cases
 
     YARNNN working memory lives under /workspace/memory/:
     - /workspace/memory/awareness.md — situational notes, shift handoff

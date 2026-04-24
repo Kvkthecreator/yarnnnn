@@ -362,7 +362,7 @@ def test_handler_registry_complete():
 
 
 def test_update_context_tool_schema():
-    """UpdateContext schema has all 5 targets and required fields."""
+    """UpdateContext schema tracks the live target set and field surface."""
     from services.primitives.update_context import UPDATE_CONTEXT_TOOL
 
     schema = UPDATE_CONTEXT_TOOL["input_schema"]
@@ -370,18 +370,36 @@ def test_update_context_tool_schema():
     required = schema["required"]
 
     targets = props["target"]["enum"]
-    # ADR-168 Commit 2: stale assertion updated. ADR-144 added "awareness" as
-    # a 6th target for TP situational notes (shift handoff). Not a primitive-
-    # level change, just a drift-catching update while we're in the file.
-    record("UpdateContext has 6 targets",
-           set(targets) == {"identity", "brand", "memory", "agent", "task", "awareness"})
-    record("UpdateContext requires target+text",
-           set(required) == {"target", "text"})
+    record(
+        "UpdateContext has 10 targets",
+        set(targets)
+        == {
+            "workspace",
+            "mandate",
+            "identity",
+            "brand",
+            "autonomy",
+            "precedent",
+            "memory",
+            "agent",
+            "task",
+            "awareness",
+        },
+    )
+    record("UpdateContext requires target only", set(required) == {"target"})
     record("UpdateContext has agent_slug field", "agent_slug" in props)
     record("UpdateContext has task_slug field", "task_slug" in props)
     record("UpdateContext has feedback_target field", "feedback_target" in props)
     record("UpdateContext has document_ids field", "document_ids" in props)
     record("UpdateContext has url_contents field", "url_contents" in props)
+
+
+def test_shared_context_cluster_constants():
+    """Shared operator-authored substrate includes precedent alongside autonomy."""
+    from services.workspace_paths import SHARED_AUTONOMY_PATH, SHARED_CONTEXT_FILES, SHARED_PRECEDENT_PATH
+
+    record("Shared context has AUTONOMY.md", SHARED_AUTONOMY_PATH in SHARED_CONTEXT_FILES)
+    record("Shared context has PRECEDENT.md", SHARED_PRECEDENT_PATH in SHARED_CONTEXT_FILES)
 
 
 def test_manage_task_tool_schema():

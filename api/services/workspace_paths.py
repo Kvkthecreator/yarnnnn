@@ -8,11 +8,13 @@ Post-ADR-206 layout:
 
     /workspace/
       ├── context/
-      │   ├── _shared/              ← authored shared context (ADR-206 + ADR-207 MANDATE)
+      │   ├── _shared/              ← authored shared context + governance declarations
       │   │   ├── MANDATE.md        ← workspace's CLAUDE.md equivalent (ADR-207 D2)
       │   │   ├── IDENTITY.md
       │   │   ├── BRAND.md
-      │   │   └── CONVENTIONS.md
+      │   │   ├── CONVENTIONS.md
+      │   │   ├── AUTONOMY.md      ← delegation ceiling (ADR-217)
+      │   │   └── PRECEDENT.md     ← durable interpretations / boundary cases
       │   └── {domain}/             ← accumulated domain context (ADR-151)
       ├── memory/                   ← YARNNN working memory (ADR-206 relocation)
       │   ├── awareness.md
@@ -23,7 +25,6 @@ Post-ADR-206 layout:
       │   ├── IDENTITY.md           ← who the seat is (role-level, static)
       │   ├── OCCUPANT.md           ← who currently fills it (rotates via handoffs)
       │   ├── principles.md         ← declared judgment framework (narrative)
-      │   ├── modes.md              ← operational modes (autonomy × scope × posture)
       │   ├── decisions.md          ← append-only verdict trail
       │   ├── handoffs.md           ← append-only occupant-rotation log
       │   └── calibration.md        ← auto-generated judgments-vs-outcomes trail
@@ -49,6 +50,9 @@ SHARED_CONVENTIONS_PATH = "context/_shared/CONVENTIONS.md"
 # BRAND/CONVENTIONS. Operator-authored; read by Reviewer dispatcher (replaces
 # the deleted review/modes.md) and task pipeline capability gate.
 SHARED_AUTONOMY_PATH = "context/_shared/AUTONOMY.md"
+# Shared durable interpretations: operator-authored precedent that survives
+# seat rotation and is readable by YARNNN, Reviewer, and domain Agents alike.
+SHARED_PRECEDENT_PATH = "context/_shared/PRECEDENT.md"
 
 SHARED_CONTEXT_FILES = (
     SHARED_MANDATE_PATH,
@@ -56,6 +60,7 @@ SHARED_CONTEXT_FILES = (
     SHARED_BRAND_PATH,
     SHARED_CONVENTIONS_PATH,
     SHARED_AUTONOMY_PATH,
+    SHARED_PRECEDENT_PATH,
 )
 
 

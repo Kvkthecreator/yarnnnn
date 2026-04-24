@@ -956,8 +956,11 @@ def _format_entity_index(working_memory: dict, surface_context: Optional[dict] =
         for ah in flagged:
             lines.append(f"- {ah['title']}: {ah['flag']}")
 
-    # --- Memory file references (always included) ---
-    lines.append("\n### Memory files (read with LookupEntity or entity-layer tools)")
+    # --- Key file references (always included) ---
+    lines.append("\n### Key files (read with LookupEntity or entity-layer tools)")
+    lines.append("- `/workspace/context/_shared/MANDATE.md` — what the workspace is running")
+    lines.append("- `/workspace/context/_shared/AUTONOMY.md` — delegation ceiling")
+    lines.append("- `/workspace/context/_shared/PRECEDENT.md` — durable interpretations and boundary cases")
     lines.append("- `/workspace/context/_shared/IDENTITY.md` — who the user is")
     lines.append("- `/workspace/memory/awareness.md` — your shift notes")
     lines.append("- `/workspace/memory/notes.md` — stable facts and preferences")
@@ -1142,7 +1145,10 @@ def format_compact_index(
             lines.append(f"\nPrior conversation: {preview}")
 
     # --- File references (TP reads on demand) ---
-    lines.append("\n### Memory files (read with ReadFile if you need detail)")
+    lines.append("\n### Key files (read with ReadFile if you need detail)")
+    lines.append("- `/workspace/context/_shared/MANDATE.md` — what the workspace is running")
+    lines.append("- `/workspace/context/_shared/AUTONOMY.md` — delegation ceiling")
+    lines.append("- `/workspace/context/_shared/PRECEDENT.md` — durable interpretations and boundary cases")
     lines.append("- `/workspace/context/_shared/IDENTITY.md` — who the user is")
     lines.append("- `/workspace/context/_shared/BRAND.md` — visual style and voice")
     lines.append("- `/workspace/memory/awareness.md` — your shift notes from prior sessions")

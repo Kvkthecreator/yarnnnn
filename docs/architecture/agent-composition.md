@@ -208,6 +208,7 @@ Operator-authored standing declarations under `/workspace/context/_shared/`:
 | BRAND.md | ADR-206 | Voice, tone, audience-facing presentation rules. |
 | CONVENTIONS.md | ADR-206 | Filesystem + behavioral conventions. |
 | AUTONOMY.md | ADR-217 | Delegation ceiling — how autonomously AI may act. |
+| PRECEDENT.md | 2026-04-24 shared-governance hardening | Durable interpretations and boundary-case rules that should compound across future decisions. |
 
 Both YARNNN (orchestration) and Reviewer (judgment) read these. They are the operator's standing intent and bind every agent.
 
@@ -236,7 +237,7 @@ Both YARNNN (orchestration) and Reviewer (judgment) read these. They are the ope
 
 ### 4.3 Asymmetry rule
 
-The operator's standing declarations under `_shared/` are **read by every agent**. No agent ever writes to them directly — operator writes via YARNNN chat + `UpdateContext` primitive (targets: `mandate`, `identity`, `brand`, `autonomy`, plus legacy paths).
+The operator's standing declarations under `_shared/` are **read by every agent**. No agent ever writes to them directly — operator writes via YARNNN chat + `UpdateContext` primitive (targets: `mandate`, `identity`, `brand`, `autonomy`, `precedent`, plus legacy paths).
 
 The Reviewer's seat substrate under `/workspace/review/` is **read by the Reviewer agent and its dispatcher only**. Rotation primitive writes to OCCUPANT + handoffs. Reviewer agent writes to decisions. Back-office task writes to calibration. IDENTITY + principles are operator-authored and revision-chained.
 

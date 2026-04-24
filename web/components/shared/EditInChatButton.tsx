@@ -13,8 +13,9 @@
  * page as this button.
  *
  * R3 corollary: this button NEVER belongs on a substrate file's detail view.
- * Substrate files (IDENTITY / BRAND / CONVENTIONS / MANDATE / principles.md /
- * uploaded documents) are edited directly on Files with revision-chain
+ * Substrate files (IDENTITY / BRAND / CONVENTIONS / MANDATE / AUTONOMY /
+ * PRECEDENT / principles.md / uploaded documents) are edited directly on
+ * Files with revision-chain
  * attribution. Using "Edit in chat" on substrate would skip `authored_by`
  * clarity.
  *

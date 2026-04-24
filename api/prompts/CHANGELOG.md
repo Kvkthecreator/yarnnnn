@@ -6,6 +6,51 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.24.4] - Shared precedent substrate + Files parity for shared governance files
+
+No model-identity bump. This is a tooling and prompt-surface hardening pass:
+the shared-governance cluster under `/workspace/context/_shared/` now
+includes `PRECEDENT.md`, and the prompt/tooling layer names it explicitly
+so YARNNN can promote recurring boundary-case decisions into durable
+workspace state instead of letting them decay into chat history.
+
+### Changed
+
+- `api/services/workspace_paths.py` — adds `SHARED_PRECEDENT_PATH` and
+  extends `SHARED_CONTEXT_FILES`.
+- `api/services/orchestration.py` — adds `DEFAULT_PRECEDENT_MD` scaffold
+  content; adjacent Reviewer default copy updated to reference
+  `AUTONOMY.md` rather than retired `modes.md`.
+- `api/services/workspace_init.py` — signup scaffold now seeds
+  `/workspace/context/_shared/PRECEDENT.md`.
+- `api/services/primitives/update_context.py` — tool schema and handler
+  gain `target="precedent"`, routing durable interpretations to
+  `PRECEDENT.md`. Operator-authored shared-file writes (`mandate`,
+  `identity`, `brand`, `autonomy`, `precedent`) now pass explicit
+  `authored_by="operator"` attribution.
+- `api/agents/yarnnn_prompts/tools_core.py` — UpdateContext docs now
+  name `mandate`, `autonomy`, and `precedent` as first-class targets.
+- `api/services/working_memory.py` — compact index / entity index file
+  references now surface `MANDATE.md`, `AUTONOMY.md`, and
+  `PRECEDENT.md` as key operator substrate files.
+- Files editing parity:
+  - `api/routes/workspace.py` editable allowlist now includes
+    `/workspace/context/_shared/AUTONOMY.md` and
+    `/workspace/context/_shared/PRECEDENT.md`
+  - `web/components/workspace/SubstrateEditor.tsx` mirrors the same
+    allowlist so frontend and backend stay in lockstep.
+
+### Expected behavior change
+
+- Shared governance no longer relies on raw chat alone. The operator can
+  author or directly edit precedent in the same substrate cluster as
+  mandate and autonomy.
+- YARNNN now sees precedent as a named workspace file in its key-file
+  references, making promotion and retrieval of durable governance
+  decisions more legible at reasoning time.
+- AUTONOMY.md now has direct Files edit parity with the rest of the
+  shared operator-authored substrate.
+
 ## [2026.04.24.3] - Workspace autonomy substrate (ADR-217 Commit 2) — AUTONOMY.md replaces modes.md
 
 `REVIEWER_MODEL_IDENTITY` bumped `ai:reviewer-sonnet-v2` → `ai:reviewer-sonnet-v3`.

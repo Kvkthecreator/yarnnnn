@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 UPDATE_CONTEXT_TOOL = {
     "name": "UpdateContext",
-    "description": """Update workspace context — identity, brand, memory, agent feedback, task feedback, or the full first-act workspace scaffold.
+    "description": """Update workspace context — shared declarations, memory, agent feedback, task feedback, or the full first-act workspace scaffold.
 
 Call this whenever you learn something worth persisting. Pick the right target:
 
@@ -42,6 +42,17 @@ Use for targeted updates, not first-act. See "workspace" for first-act.
 **target="brand"** — User shares brand/voice/style (often from URLs or docs)
   UpdateContext(target="brand", text="...", url_contents=[{url, content}])
 
+**target="mandate"** — User declares what this workspace is running
+  UpdateContext(target="mandate", text="Run a systematic retail trading operation with explicit signal attribution")
+
+**target="autonomy"** — User declares how much authority the AI may carry
+on their behalf
+  UpdateContext(target="autonomy", text="...")
+
+**target="precedent"** — User resolves a recurring ambiguity or boundary case
+that should compound across future decisions
+  UpdateContext(target="precedent", text="If a signal family has fewer than 20 realized outcomes, recommend or clarify instead of auto-executing")
+
 **target="memory"** — User states a fact, preference, or standing instruction
   UpdateContext(target="memory", text="Always include a TL;DR in reports")
 
@@ -57,6 +68,7 @@ Use for targeted updates, not first-act. See "workspace" for first-act.
 
 For workspace: combined inference produces identity + brand + entities + work_intent in one call. Scaffolds identity/brand files + entity subfolders. Returns `work_intent_proposal` for you to materialize via ManageAgent + ManageTask in the same turn.
 For identity/brand: inference merges with existing content — nothing is lost.
+For mandate/autonomy/precedent: writes the operator's declaration verbatim to the canonical shared substrate file.
 For memory: appends (deduped). For agent/task: appends feedback entry.
 For awareness: full replacement — write your current understanding as a living document.""",
     "input_schema": {
@@ -64,8 +76,8 @@ For awareness: full replacement — write your current understanding as a living
         "properties": {
             "target": {
                 "type": "string",
-                "enum": ["workspace", "mandate", "identity", "brand", "memory", "agent", "task", "awareness"],
-                "description": "What to update: workspace (first-act scaffold — ADR-190), mandate (MANDATE.md — workspace's Primary Action declaration per ADR-207 D2; required before any task scaffolding), identity (IDENTITY.md), brand (BRAND.md), memory (notes), agent (agent feedback), task (task feedback), awareness (your situational notes)"
+                "enum": ["workspace", "mandate", "identity", "brand", "autonomy", "precedent", "memory", "agent", "task", "awareness"],
+                "description": "What to update: workspace (first-act scaffold — ADR-190), mandate (MANDATE.md), identity (IDENTITY.md), brand (BRAND.md), autonomy (AUTONOMY.md delegation ceiling), precedent (PRECEDENT.md durable interpretations), memory (notes), agent (agent feedback), task (task feedback), awareness (your situational notes)"
             },
             "text": {
                 "type": "string",
@@ -118,7 +130,8 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
     # ADR-190 "workspace" target added: rich-input first-act scaffold pass.
     # ADR-207 D2 "mandate" target added: workspace Primary Action declaration.
     # ADR-217 D2 "autonomy" target added: workspace delegation declaration.
-    valid_targets = ("mandate", "identity", "brand", "autonomy", "memory", "agent", "task", "awareness", "workspace")
+    # Shared precedent target added: durable interpretations / boundary cases.
+    valid_targets = ("mandate", "identity", "brand", "autonomy", "precedent", "memory", "agent", "task", "awareness", "workspace")
     if target not in valid_targets:
         return {"success": False, "error": "invalid_target", "message": f"target must be one of: {', '.join(valid_targets)}"}
 
@@ -132,6 +145,8 @@ async def handle_update_context(auth: Any, input: dict) -> dict:
         return await _handle_mandate(auth, text)
     elif target == "autonomy":
         return await _handle_autonomy(auth, text)
+    elif target == "precedent":
+        return await _handle_precedent(auth, text)
     elif target in ("identity", "brand"):
         return await _handle_shared_context(auth, target, input)
     elif target == "memory":
@@ -163,7 +178,13 @@ async def _handle_mandate(auth: Any, text: str) -> dict:
     from services.workspace_paths import SHARED_MANDATE_PATH
 
     um = UserMemory(auth.client, auth.user_id)
-    ok = await um.write(SHARED_MANDATE_PATH, text, summary="Mandate authored")
+    ok = await um.write(
+        SHARED_MANDATE_PATH,
+        text,
+        summary="Mandate authored",
+        authored_by="operator",
+        message="author mandate",
+    )
     if not ok:
         return {"success": False, "error": "write_failed", "message": "Failed to write MANDATE.md"}
 
@@ -173,8 +194,13 @@ async def _handle_mandate(auth: Any, text: str) -> dict:
     try:
         from services.task_derivation import build_derivation_report
         report = build_derivation_report(auth.client, auth.user_id)
-        await um.write("memory/task_derivation.md", report,
-                       summary="ADR-207 P5: derivation report refreshed after mandate write")
+        await um.write(
+            "memory/task_derivation.md",
+            report,
+            summary="ADR-207 P5: derivation report refreshed after mandate write",
+            authored_by="system:task-derivation",
+            message="refresh task derivation after mandate write",
+        )
     except Exception as derivation_err:
         logger.warning(f"[UpdateContext mandate] derivation refresh failed (non-fatal): {derivation_err}")
 
@@ -207,7 +233,13 @@ async def _handle_autonomy(auth: Any, text: str) -> dict:
     from services.workspace_paths import SHARED_AUTONOMY_PATH
 
     um = UserMemory(auth.client, auth.user_id)
-    ok = await um.write(SHARED_AUTONOMY_PATH, text, summary="Autonomy authored")
+    ok = await um.write(
+        SHARED_AUTONOMY_PATH,
+        text,
+        summary="Autonomy authored",
+        authored_by="operator",
+        message="author autonomy",
+    )
     if not ok:
         return {"success": False, "error": "write_failed", "message": "Failed to write AUTONOMY.md"}
 
@@ -221,6 +253,38 @@ async def _handle_autonomy(auth: Any, text: str) -> dict:
                    "the servant can be more conservative than you permit, never more "
                    "permissive. When tightening (e.g. before live-broker flip), edit this "
                    "file alone; the Reviewer will apply the new ceiling at the next verdict.",
+    }
+
+
+async def _handle_precedent(auth: Any, text: str) -> dict:
+    """Write workspace PRECEDENT.md.
+
+    Accepts operator-declared durable interpretations and boundary-case
+    guidance and writes verbatim to `/workspace/context/_shared/PRECEDENT.md`.
+    Use when a chat decision should compound across future runs without
+    widening mandate or autonomy.
+    """
+    from services.workspace import UserMemory
+    from services.workspace_paths import SHARED_PRECEDENT_PATH
+
+    um = UserMemory(auth.client, auth.user_id)
+    ok = await um.write(
+        SHARED_PRECEDENT_PATH,
+        text,
+        summary="Precedent authored",
+        authored_by="operator",
+        message="author precedent",
+    )
+    if not ok:
+        return {"success": False, "error": "write_failed", "message": "Failed to write PRECEDENT.md"}
+
+    return {
+        "success": True,
+        "target": "precedent",
+        "filename": SHARED_PRECEDENT_PATH,
+        "message": "Precedent recorded. Use this file for durable interpretations "
+                   "and boundary-case rules that should compound across future "
+                   "decisions without rewriting mandate, autonomy, or reviewer principles.",
     }
 
 
@@ -312,7 +376,13 @@ async def _handle_workspace_scaffold(auth: Any, input: dict) -> dict:
     from services.workspace_paths import SHARED_IDENTITY_PATH, SHARED_BRAND_PATH
     identity_md = inference_result.get("identity_md")
     if identity_md:
-        ok = await um.write(SHARED_IDENTITY_PATH, identity_md, summary="First-act identity inference")
+        ok = await um.write(
+            SHARED_IDENTITY_PATH,
+            identity_md,
+            summary="First-act identity inference",
+            authored_by="operator",
+            message="infer identity from first-act input",
+        )
         scaffolded["identity"] = "written" if ok else "failed"
         if ok:
             logger.info(f"[WORKSPACE_SCAFFOLD] Wrote {SHARED_IDENTITY_PATH} ({len(identity_md)} chars)")
@@ -320,7 +390,13 @@ async def _handle_workspace_scaffold(auth: Any, input: dict) -> dict:
     # 2. Write BRAND.md if produced.
     brand_md = inference_result.get("brand_md")
     if brand_md:
-        ok = await um.write(SHARED_BRAND_PATH, brand_md, summary="First-act brand inference")
+        ok = await um.write(
+            SHARED_BRAND_PATH,
+            brand_md,
+            summary="First-act brand inference",
+            authored_by="operator",
+            message="infer brand from first-act input",
+        )
         scaffolded["brand"] = "written" if ok else "failed"
         if ok:
             logger.info(f"[WORKSPACE_SCAFFOLD] Wrote {SHARED_BRAND_PATH} ({len(brand_md)} chars)")
@@ -445,7 +521,13 @@ async def _handle_shared_context(auth: Any, target: str, input: dict) -> dict:
         if not new_content or not new_content.strip():
             return {"success": False, "error": "inference_empty", "message": "Inference produced no content — try providing more detail"}
 
-        ok = await um.write(filename, new_content, summary=f"{target.capitalize()} updated via inference")
+        ok = await um.write(
+            filename,
+            new_content,
+            summary=f"{target.capitalize()} updated via inference",
+            authored_by="operator",
+            message=f"infer {target}",
+        )
         if not ok:
             return {"success": False, "error": "write_failed", "message": f"Failed to write {filename}"}
 
@@ -543,7 +625,13 @@ async def _handle_awareness(auth: Any, text: str) -> dict:
             content = content[:2000] + "\n\n(truncated — keep awareness notes concise)"
 
         from services.workspace_paths import MEMORY_AWARENESS_PATH
-        ok = await um.write(MEMORY_AWARENESS_PATH, content, summary="YARNNN awareness updated")
+        ok = await um.write(
+            MEMORY_AWARENESS_PATH,
+            content,
+            summary="YARNNN awareness updated",
+            authored_by="yarnnn:chat",
+            message="update awareness",
+        )
         if not ok:
             return {"success": False, "error": "write_failed", "message": "Failed to write AWARENESS.md"}
 

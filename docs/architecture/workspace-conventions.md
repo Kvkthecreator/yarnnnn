@@ -55,9 +55,12 @@ Everything the workspace "knows" — user identity, learned preferences, referen
 │   └── content/                   # Blog drafts, comms, launch material
 └── context/                       # Accumulated context domains + authored shared context
     ├── _shared/                   # ADR-206: authored workspace-level shared context
+    │   ├── MANDATE.md             # What the workspace is running
     │   ├── IDENTITY.md            # Who the user is (name, role, company, industry)
     │   ├── BRAND.md               # Output identity (tone, style, visual preferences)
-    │   └── CONVENTIONS.md         # Workspace filesystem conventions (agent-readable)
+    │   ├── CONVENTIONS.md         # Workspace filesystem conventions (agent-readable)
+    │   ├── AUTONOMY.md            # Delegation ceiling for AI judgment
+    │   └── PRECEDENT.md           # Durable interpretations / boundary cases
     ├── competitors/               # Per-competitor entity folders (canonical)
     │   ├── _tracker.md            # System: entity registry + freshness (hidden)
     │   ├── landscape.md           # Content: cross-entity synthesis (agent-written, visible)

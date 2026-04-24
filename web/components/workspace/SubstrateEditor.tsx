@@ -10,8 +10,9 @@
  * direct substrate edit produces the same write with clearer provenance.
  *
  * Scope:
- *   - `/workspace/context/_shared/*.md` — the four authored rules files
- *     (IDENTITY, BRAND, CONVENTIONS, MANDATE). Phase 2 landing.
+ *   - `/workspace/context/_shared/*.md` — the operator-authored shared
+ *     substrate files (IDENTITY, BRAND, CONVENTIONS, MANDATE, AUTONOMY,
+ *     PRECEDENT).
  *   - `/workspace/review/principles.md` — Reviewer principles. Phase 3
  *     landing (ADR-215 Phase 3 — R3 compliance for the last remaining
  *     operator-authored substrate file editable via chat).
@@ -42,6 +43,8 @@ const SHARED_EDITABLE_PATHS = new Set<string>([
   '/workspace/context/_shared/BRAND.md',
   '/workspace/context/_shared/CONVENTIONS.md',
   '/workspace/context/_shared/MANDATE.md',
+  '/workspace/context/_shared/AUTONOMY.md',
+  '/workspace/context/_shared/PRECEDENT.md',
   '/workspace/review/principles.md',  // ADR-215 Phase 3
 ]);
 

@@ -152,8 +152,9 @@ creation is the primary vehicle by which substrate comes into being.
 
 **Three operator-facing layers (ADR-206) — reason in this vocabulary:**
 
-- **Intent** — authored rules (identity, brand, operator profile, risk, Reviewer principles)
-  at `/workspace/context/_shared/*` and domain `_operator_profile.md` + `_risk.md`.
+- **Intent** — authored rules (mandate, identity, brand, autonomy, precedent,
+  operator profile, risk, Reviewer principles) at `/workspace/context/_shared/*`
+  and domain `_operator_profile.md` + `_risk.md`.
 - **Deliverables** — proposals awaiting review, briefs, weekly reviews, `_performance.md`
   snapshots. What the operator sees and acts on.
 - **Operation** — tasks, agents, reconcilers, scheduler. Drill-down only when a
@@ -218,16 +219,22 @@ Use when the user asks for a visual, or when a visual would materially improve a
 Pick the right target:
 
 ```
+UpdateContext(target: "mandate", text: "Run a systematic small-cap swing-trading operation with explicit signal attribution")
 UpdateContext(target: "identity", text: "I'm Sarah, VP Eng at Acme, building ML infrastructure")
 UpdateContext(target: "brand", text: "Professional but approachable", url_contents: [{url: "acme.com", content: "..."}])
+UpdateContext(target: "autonomy", text: "default:\n  level: manual\n\ndomains:\n  trading:\n    level: bounded_autonomous\n    ceiling_cents: 2000000")
+UpdateContext(target: "precedent", text: "If a signal family has fewer than 20 realized outcomes, recommend or clarify instead of auto-executing.")
 UpdateContext(target: "memory", text: "Always include a TL;DR in reports")
 UpdateContext(target: "agent", agent_slug: "research-agent", text: "Reports are too long, be more concise")
 UpdateContext(target: "task", task_slug: "weekly-briefing", text: "Focus on pricing", feedback_target: "criteria")
 ```
 
 **Targets:**
+- `mandate` — what the workspace is running. Primary Action + success criteria + boundaries.
 - `identity` — who the user is (role, domain, background). Inference merges with existing.
 - `brand` — voice, tone, style. Pass url_contents or document_ids for richer inference.
+- `autonomy` — delegation ceiling. How much authority the AI may carry on the operator's behalf.
+- `precedent` — durable interpretations and boundary-case rules that should compound across future decisions.
 - `memory` — stable fact, preference, or standing instruction. Appended to notes.
 - `agent` — feedback about an agent's work quality. Applies to ALL the agent's tasks.
 - `task` — feedback about a specific task's output. Applies to THIS task only.

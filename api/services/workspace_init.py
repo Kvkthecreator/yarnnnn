@@ -151,6 +151,7 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
             DEFAULT_BRAND_MD,
             DEFAULT_AWARENESS_MD,
             DEFAULT_CONVENTIONS_MD,
+            DEFAULT_PRECEDENT_MD,
             DEFAULT_REVIEW_IDENTITY_MD,
             DEFAULT_REVIEW_PRINCIPLES_MD,
             # DEFAULT_REVIEW_OCCUPANT_MD + DEFAULT_REVIEW_HANDOFFS_MD deleted
@@ -164,6 +165,7 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         from services.workspace_paths import (
             SHARED_MANDATE_PATH, SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
             SHARED_CONVENTIONS_PATH, SHARED_AUTONOMY_PATH,
+            SHARED_PRECEDENT_PATH,
             MEMORY_AWARENESS_PATH, MEMORY_PLAYBOOK_PATH,
             MEMORY_STYLE_PATH, MEMORY_NOTES_PATH,
             REVIEW_IDENTITY_PATH, REVIEW_PRINCIPLES_PATH,
@@ -199,12 +201,13 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         # handoffs.md are seeded via the rotation primitive below — single
         # write path per ADR-211 D4 (rotation is a substrate write).
         workspace_files = {
-            # Authored shared context (ADR-206 MANDATE/IDENTITY/BRAND/CONVENTIONS + ADR-217 AUTONOMY)
+            # Authored shared context (operator-scoped declarations + precedent).
             SHARED_MANDATE_PATH: (DEFAULT_MANDATE_MD, "Mandate skeleton — workspace north star"),
             SHARED_IDENTITY_PATH: (identity_content, "User identity template"),
             SHARED_BRAND_PATH: (DEFAULT_BRAND_MD, "Default brand baseline"),
             SHARED_CONVENTIONS_PATH: (DEFAULT_CONVENTIONS_MD, "Workspace filesystem conventions"),
             SHARED_AUTONOMY_PATH: (DEFAULT_AUTONOMY_MD, "Autonomy delegation — default manual, operator-authored (ADR-217)"),
+            SHARED_PRECEDENT_PATH: (DEFAULT_PRECEDENT_MD, "Precedent substrate — durable boundary-case guidance"),
             # YARNNN working memory (ADR-206)
             MEMORY_AWARENESS_PATH: (DEFAULT_AWARENESS_MD, "YARNNN situational awareness"),
             MEMORY_PLAYBOOK_PATH: (TP_ORCHESTRATION_PLAYBOOK, "YARNNN orchestration playbook"),

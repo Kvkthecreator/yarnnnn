@@ -477,8 +477,9 @@ async def edit_workspace_file(
     """
     Edit a workspace file. Upserts by path.
 
-    Allowed for user-editable files: IDENTITY.md, BRAND.md, TASK.md,
-    DELIVERABLE.md, and files in /workspace/uploads/.
+    Allowed for user-editable files: operator-authored substrate under
+    `/workspace/context/_shared/`, reviewer principles, memory files,
+    task files, and uploads.
     """
     path = body.path
     content = body.content
@@ -492,6 +493,8 @@ async def edit_workspace_file(
         "/workspace/context/_shared/BRAND.md",
         "/workspace/context/_shared/CONVENTIONS.md",
         "/workspace/context/_shared/MANDATE.md",
+        "/workspace/context/_shared/AUTONOMY.md",
+        "/workspace/context/_shared/PRECEDENT.md",
         "/workspace/review/principles.md",  # ADR-215 Phase 3 (Reviewer principles)
         "/workspace/memory/",     # awareness.md, notes.md, style.md
         "/workspace/uploads/",

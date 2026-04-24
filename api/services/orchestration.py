@@ -47,12 +47,13 @@ ALL_ROLES based on the question they're asking.
 
 Scope note — Reviewer default content (DEFAULT_REVIEW_IDENTITY_MD,
 DEFAULT_REVIEW_PRINCIPLES_MD, DEFAULT_REVIEW_CALIBRATION_MD) plus the
-workspace-scoped DEFAULT_AUTONOMY_MD: these live here as scaffold-time
-defaults consumed by `workspace_init.py`. The Reviewer Agent's seat is
-substrate; Reviewer-specific constants are content loaded into
-`/workspace/review/` at signup. DEFAULT_AUTONOMY_MD (ADR-217) is
-operator-authored delegation under `/workspace/context/_shared/` —
-loaded here for scaffold convenience but is not Reviewer-owned.
+workspace-scoped DEFAULT_AUTONOMY_MD and DEFAULT_PRECEDENT_MD: these
+live here as scaffold-time defaults consumed by `workspace_init.py`.
+The Reviewer Agent's seat is substrate; Reviewer-specific constants are
+content loaded into `/workspace/review/` at signup. DEFAULT_AUTONOMY_MD
+(ADR-217) and DEFAULT_PRECEDENT_MD are operator-authored shared files
+under `/workspace/context/_shared/` — loaded here for scaffold
+convenience but not Reviewer-owned.
 Architectural shape lives in `docs/architecture/reviewer-substrate.md`
 (seat) and ADR-217 (delegation).
 
@@ -867,8 +868,9 @@ that character's declared priorities, reasoning style, refusal patterns,
 and calibration axis.
 
 Distinct from principles.md (the framework the persona applies). Distinct
-from modes.md (the per-domain autonomy posture). Identity is WHO reviews;
-principles is WHAT checks they run; modes is HOW autonomous they are.
+from AUTONOMY.md (the delegation ceiling the persona must stay within).
+Identity is WHO reviews; principles is WHAT checks they run; autonomy is
+HOW much authority the operator has granted.
 
 See ADR-216 + api/agents/reviewer_agent.py for the reasoning-time read path.
 -->
@@ -952,8 +954,8 @@ outcomes above these amounts route to the originating task's
 `feedback.md` as `source: system_outcome` entries (ADR-195 Phase 5).
 This is a *principle* (what you consider significant), not an
 operational autonomy gate. Operational autonomy (auto-approve
-thresholds, never-auto-approve lists) lives in `modes.md` per
-ADR-211.
+thresholds, never-auto lists) lives in
+`/workspace/context/_shared/AUTONOMY.md` per ADR-217.
 
 (Operator-editable. Leave commented out to keep defaults.)
 
@@ -1096,6 +1098,48 @@ every proposal dispatch cycle.
   to `manual` first; recalibrate from zero.
 - After a persona change (IDENTITY.md rotation): reset to `manual` and
   recalibrate — a new persona has no track record yet.
+"""
+
+
+DEFAULT_PRECEDENT_MD = """\
+# Precedent
+
+This file records durable interpretations and boundary-case decisions
+that should shape future behavior across the workspace.
+
+Use it for decisions that are:
+- broader than one task run
+- narrower than a mandate or autonomy rewrite
+- likely to recur
+- valuable for YARNNN, the Reviewer, and domain Agents to read the same way
+
+Do not use it for:
+- one-off execution instructions
+- raw notes or scratch thinking
+- operator identity or brand rules
+- Reviewer persona/framework content that belongs in `/workspace/review/`
+
+## Active precedents
+
+<!--
+Create one block per durable interpretation.
+
+### <slug>
+- Scope:
+- Rule:
+- Why:
+- Source:
+- Review trigger:
+- Status: active
+-->
+
+## Notes
+
+Promote a chat decision here when it should compound.
+If the decision changes what the workspace is trying to do, edit
+`MANDATE.md` instead.
+If it changes how much authority the AI has, edit `AUTONOMY.md` instead.
+If it changes how the Reviewer reasons, edit `/workspace/review/principles.md`.
 """
 
 
