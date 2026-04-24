@@ -96,73 +96,86 @@ function fmtDomain(value?: string | null): string {
 }
 
 export function AgentRosterSurface({ agents, tasks, onSelect }: AgentRosterSurfaceProps) {
-  const grouped = useMemo(() => {
-    // ADR-214: Two-group classification — Systemic (YARNNN + Reviewer) +
-    // Domain (user-authored). Systemic section is always shown, even when
-    // only one of the two synthetic slots resolves. Domain section is
-    // elided when empty (the authored-team empty state below handles that
-    // case by checking for zero Domain agents).
-    const groups = GROUP_ORDER.map(key => ({
-      key,
-      label: GROUP_LABELS[key],
-      agents: agents.filter(a => classifyAgent(a) === key),
-    })).filter(g => g.key === 'systemic' || g.agents.length > 0);
-    return groups;
-  }, [agents]);
-
+  // ADR-212 + ADR-214: two sections, always both rendered.
+  //   Systemic — YARNNN + Reviewer. Unconditional; ADR-214 synthesizes Reviewer
+  //              in the list response and YARNNN is a real `thinking_partner`
+  //              row. Even a brand-new workspace shows two cards here.
+  //   Domain   — User-authored instance Agents (ADR-189 authored-team moat).
+  //              Empty at signup; the user builds the list by chatting.
+  //              Rendered with an inline empty-state CTA when zero agents
+  //              exist, so the Systemic section isn't hidden behind a
+  //              full-surface overlay.
+  const systemicAgents = useMemo(
+    () => agents.filter(a => classifyAgent(a) === 'systemic'),
+    [agents],
+  );
   const domainAgents = useMemo(
     () => agents.filter(a => classifyAgent(a) === 'domain'),
     [agents],
   );
 
-  if (domainAgents.length === 0) {
-    // ADR-189: Authored-team empty state triggers when no Domain Agents exist.
-    // Systemic cards (YARNNN + Reviewer) are always present in the agents
-    // list post-ADR-214, so the raw-count check would never fire — we key
-    // off Domain emptiness instead, preserving the moat CTA.
-    return (
-      <div className="flex items-center justify-center h-full px-6">
-        <div className="text-center max-w-md">
-          <Sparkles className="w-8 h-8 text-muted-foreground/30 mx-auto mb-4" />
-          <h3 className="text-base font-semibold mb-2">Your team starts here</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Describe your work to YARNNN. Create the Agents that do it.
-          </p>
-          <p className="text-xs text-muted-foreground/60">
-            Agents are yours — you build them by chatting. They accumulate
-            domain expertise over every run.
-          </p>
-          <div className="mt-6">
-            <a
-              href="/chat"
-              className="inline-flex items-center gap-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90 transition-colors"
-            >
-              Talk to YARNNN
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full overflow-auto">
       <div className="px-6 py-6 max-w-5xl space-y-8">
-        {grouped.map(group => (
-          <section key={group.key}>
-            <header className="mb-3">
-              <h3 className="text-sm font-semibold text-foreground">
-                {group.label.title}
-                <span className="ml-2 text-xs font-normal text-muted-foreground/50">
-                  · {group.agents.length}
-                </span>
-              </h3>
-              <p className="text-xs text-muted-foreground/70 mt-0.5">
-                {group.label.description}
+        {/* Systemic — always present. */}
+        <section>
+          <header className="mb-3">
+            <h3 className="text-sm font-semibold text-foreground">
+              {GROUP_LABELS.systemic.title}
+              <span className="ml-2 text-xs font-normal text-muted-foreground/50">
+                · {systemicAgents.length}
+              </span>
+            </h3>
+            <p className="text-xs text-muted-foreground/70 mt-0.5">
+              {GROUP_LABELS.systemic.description}
+            </p>
+          </header>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {systemicAgents.map(agent => (
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                tasks={tasks}
+                onSelect={() => onSelect(agent.id)}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Domain — rendered with an inline empty-state CTA when zero.
+            ADR-189 authored-team moat: the empty state is a real product
+            state (the user hasn't authored yet), not an error. */}
+        <section>
+          <header className="mb-3">
+            <h3 className="text-sm font-semibold text-foreground">
+              {GROUP_LABELS.domain.title}
+              <span className="ml-2 text-xs font-normal text-muted-foreground/50">
+                · {domainAgents.length}
+              </span>
+            </h3>
+            <p className="text-xs text-muted-foreground/70 mt-0.5">
+              {GROUP_LABELS.domain.description}
+            </p>
+          </header>
+          {domainAgents.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-6 py-8 text-center">
+              <Sparkles className="w-6 h-6 text-muted-foreground/30 mx-auto mb-3" />
+              <h4 className="text-sm font-medium text-foreground mb-1">
+                Your team starts here
+              </h4>
+              <p className="text-xs text-muted-foreground mb-3">
+                Describe your work to YARNNN. Create the Agents that do it.
               </p>
-            </header>
+              <a
+                href="/chat"
+                className="inline-flex items-center gap-2 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 transition-colors"
+              >
+                Talk to YARNNN
+              </a>
+            </div>
+          ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {group.agents.map(agent => (
+              {domainAgents.map(agent => (
                 <AgentCard
                   key={agent.id}
                   agent={agent}
@@ -171,8 +184,8 @@ export function AgentRosterSurface({ agents, tasks, onSelect }: AgentRosterSurfa
                 />
               ))}
             </div>
-          </section>
-        ))}
+          )}
+        </section>
       </div>
     </div>
   );
