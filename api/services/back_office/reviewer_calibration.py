@@ -165,25 +165,30 @@ async def _read_decisions(client: Any, user_id: str) -> list[dict]:
     return _parse_decisions_md(content)
 
 
-# decisions.md entry pattern. Entries are markdown ## sections with
-# deterministic fields. We look for:
+# decisions.md entry format (source of truth: services/reviewer_audit.py::_render_entry).
+# Each entry is a `--- decision ---` YAML-like block followed by free-form
+# reasoning, terminated by the next `--- decision ---` header or EOF:
 #
-#   ## 2026-04-15T10:23:05+00:00 — approve
+#   --- decision ---
+#   timestamp: 2026-04-24T06:04:24.872124+00:00
+#   proposal_id: eefef827-4cb8-4d43-9b1e-f97999feaee2
+#   action_type: trading.submit_order
+#   decision: defer
+#   reviewer_identity: ai:reviewer-sonnet-v5
+#   reversibility: reversible
+#   outcome: pending_human
+#   ---
+#   <free-form reasoning body, may span multiple paragraphs>
 #
-#   - **Proposal**: `<uuid>`
-#   - **Action**: `trading.submit_order`
-#   - **Reviewer**: `ai:reviewer-sonnet-v1`
-#   - **Reasoning**: <free text>
-#
-# Tolerant: as long as the header timestamp + verdict parse, a missing
-# field leaves that field empty; the entry is still counted.
+# Tolerant: as long as the timestamp + decision parse, missing optional
+# fields leave that field empty; the entry is still counted.
 
-_SECTION_HEADER_RE = re.compile(
-    r"^##\s+(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2})\s*[—–-]\s*(?P<verdict>approve|reject|defer)\b",
+_BLOCK_OPEN = "--- decision ---"
+_BLOCK_CLOSE = "---"
+
+_FIELD_LINE_RE = re.compile(
+    r"^(?P<key>[a-z_][a-z0-9_]*)\s*:\s*(?P<value>.+?)\s*$",
     re.IGNORECASE,
-)
-_FIELD_RE = re.compile(
-    r"^-\s*\*\*(?P<key>[A-Za-z][A-Za-z0-9_ -]*)\*\*\s*:\s*(?P<value>.+?)\s*$"
 )
 
 
@@ -192,55 +197,72 @@ def _parse_decisions_md(content: str) -> list[dict]:
         return []
 
     entries: list[dict] = []
-    current: dict | None = None
-
-    for raw in content.split("\n"):
-        line = raw.rstrip()
-        sh = _SECTION_HEADER_RE.match(line)
-        if sh:
-            if current is not None:
-                entries.append(current)
-            try:
-                ts = datetime.fromisoformat(sh.group("ts"))
-            except ValueError:
-                current = None
-                continue
-            current = {
-                "ts": ts,
-                "proposal_id": "",
-                "action_type": "",
-                "verdict": sh.group("verdict").lower(),
-                "occupant": "",
-                "reasoning": "",
-            }
-            continue
-
-        if current is None:
-            continue
-
-        fm = _FIELD_RE.match(line)
-        if not fm:
-            continue
-        key = fm.group("key").strip().lower()
-        value = fm.group("value").strip()
-
-        # Strip backticks around inline-code values
-        if value.startswith("`") and value.endswith("`"):
-            value = value[1:-1]
-
-        if key == "proposal":
-            current["proposal_id"] = value
-        elif key == "action":
-            current["action_type"] = value
-        elif key in ("reviewer", "reviewer identity", "occupant"):
-            current["occupant"] = value
-        elif key == "reasoning" and not current["reasoning"]:
-            current["reasoning"] = value
-
-    if current is not None:
-        entries.append(current)
-
+    # Split into blocks by _BLOCK_OPEN marker. Skip the preamble (first chunk
+    # before any opener).
+    chunks = content.split(_BLOCK_OPEN)
+    for chunk in chunks[1:]:
+        entry = _parse_block(chunk)
+        if entry is not None:
+            entries.append(entry)
     return entries
+
+
+def _parse_block(chunk: str) -> dict | None:
+    """Parse a single decision block body (everything after `--- decision ---`).
+
+    The block body is: field-lines, then a `---` line, then reasoning. We
+    tolerate the reasoning being absent.
+    """
+    # Split into header (fields) and body (reasoning) on the first lone
+    # `---` line after the field block.
+    lines = chunk.split("\n")
+    field_lines: list[str] = []
+    reasoning_lines: list[str] = []
+    in_reasoning = False
+    for raw in lines:
+        line = raw.rstrip()
+        if not in_reasoning:
+            if line.strip() == _BLOCK_CLOSE:
+                in_reasoning = True
+                continue
+            field_lines.append(line)
+        else:
+            reasoning_lines.append(line)
+
+    fields: dict[str, str] = {}
+    for line in field_lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        m = _FIELD_LINE_RE.match(stripped)
+        if not m:
+            continue
+        key = m.group("key").strip().lower()
+        value = m.group("value").strip()
+        fields[key] = value
+
+    ts_raw = fields.get("timestamp", "")
+    if not ts_raw:
+        return None
+    try:
+        ts = datetime.fromisoformat(ts_raw)
+    except ValueError:
+        return None
+
+    verdict_raw = fields.get("decision", "").lower()
+    if verdict_raw not in ("approve", "reject", "defer"):
+        return None
+
+    reasoning = "\n".join(reasoning_lines).strip()
+
+    return {
+        "ts": ts,
+        "proposal_id": fields.get("proposal_id", ""),
+        "action_type": fields.get("action_type", ""),
+        "verdict": verdict_raw,
+        "occupant": fields.get("reviewer_identity", ""),
+        "reasoning": reasoning,
+    }
 
 
 # ---------------------------------------------------------------------------

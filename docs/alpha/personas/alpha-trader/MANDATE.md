@@ -18,6 +18,19 @@ Submit equity orders to the Alpaca API that match one of the 5–8 declared sign
 - **Expectancy decay honored.** When `_performance.md` shows a signal's recent 20-trade expectancy below its retire-flag threshold, proposals from that signal defer automatically — no "maybe it'll come back" override.
 - **Measurable portfolio-level discipline.** Target portfolio volatility ≤1.5% daily σ. Var budget never exceeded, not even for "strong" setups. Sector concentration, single-name exposure, total gross, all tracked against `_risk.md` limits.
 
+## Daily Discipline
+
+The daily milestone is process obedience, not P&L. A day is successful when every box is ticked, regardless of account equity change. P&L is evaluated at the weekly/monthly/quarterly horizon; daily P&L is variance.
+
+- Every proposal today named its signal (Signal 1–8, no discretionary framing).
+- Every sizing today used `position_size = account × risk_percent / stop_distance` with current regime scalar — no conviction-based overrides.
+- Every fill today has a pre-declared stop loaded with the order.
+- `_performance.md` reconciled at EOD — no stale expectancy carrying into tomorrow.
+- Any signal hitting retire-flag threshold auto-defers on the next session.
+- Portfolio volatility measured and logged ≤1.5% daily σ.
+
+Rationale: daily-P&L targeting corrupts expectancy (cuts winners, holds losers, skips positive-EV variance). Daily-discipline targeting compounds — discipline has positive autocorrelation; P&L does not. This is the separation between MANDATE (ambition) and principles.md (systematic truth-seeking).
+
 ## Boundary Conditions
 
 - **Paper account only during Alpha-1.** Starting capital $25,000 (Alpaca paper). No live trading until phase transition is explicit in the playbook ledger.
