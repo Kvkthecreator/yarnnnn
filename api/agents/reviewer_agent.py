@@ -98,7 +98,21 @@ logger = logging.getLogger(__name__)
 #: applies on top of AUTONOMY.md. Precedent takes precedence over
 #: persona principles when the two disagree — the operator's explicit
 #: interpretation always wins over the persona's framework default.
-REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v4"
+#:
+#: v4 → v5 (2026-04-24, ADR-218 Commit 3). Adds reflection-mode
+#: invocation — a second call path distinct from verdict-mode. In
+#: reflection mode the persona reads its own IDENTITY + principles +
+#: PRECEDENT + MANDATE + AUTONOMY + recent decisions + per-domain
+#: performance summary, and returns a structured verdict about whether
+#: its framework warrants change (no_change | narrow | relax |
+#: character_note). Same tool-call pattern as verdict mode; same
+#: REVIEWER_MODEL_IDENTITY string — the persona IS the same, just
+#: thinking about itself vs thinking about a proposal. Cost-conscious:
+#: reflection mode uses Haiku (REFLECTION_MODEL) while verdict mode
+#: stays on Sonnet (_MODEL_SLUG). Same as the ManageTask evaluate /
+#: task-pipeline split pattern — expensive judgment gets the big
+#: model; assessment of accumulated state gets the cheap one.
+REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v5"
 
 #: Model slug passed to Anthropic. Keep parallel to REVIEWER_MODEL_IDENTITY.
 _MODEL_SLUG = "claude-sonnet-4-6"
@@ -480,6 +494,443 @@ def _build_user_message(
         "Call `return_review_decision` exactly once with your decision, "
         "concrete reasoning referencing the substrate above, and "
         "confidence level."
+    )
+
+    return "\n".join(parts)
+
+
+# ============================================================================
+# Reflection mode (ADR-218 Commit 3)
+# ============================================================================
+# Distinct invocation from verdict mode. The persona reads its own track
+# record + accumulated substrate and produces a structured verdict about
+# whether its framework warrants change. Same tool-call pattern as
+# verdict mode (forced tool call returning structured output). Different
+# model tier — Haiku for reflection, matching ManageTask(evaluate) cost
+# posture. Verdict mode stays on Sonnet.
+#
+# Called by services/back_office/reviewer_reflection.py when the
+# invocation gate passes (≥1 new decision since last reflection AND
+# ≥24h elapsed). This function does NOT write any files — Commit 4's
+# reflection_writer handles write-back. This function returns the
+# structured proposals; the caller decides what to do with them.
+
+
+#: Cost-conscious model for reflection — matches EVALUATE_MODEL in
+#: ManageTask._handle_evaluate. Verdict mode stays on _MODEL_SLUG
+#: (Sonnet) because verdict reasoning is time-sensitive + higher-stakes.
+REFLECTION_MODEL_SLUG = "claude-haiku-4-5-20251001"
+
+#: Caller string for token_usage records (distinct from verdict-mode
+#: _TOKEN_CALLER so reflection spend shows up separately in the ledger).
+_REFLECTION_TOKEN_CALLER = "reviewer-reflection"
+
+
+class ReflectionProposal(TypedDict):
+    """A single proposed change to the Reviewer's substrate."""
+    #: Which kind of change — shapes how reflection_writer applies it.
+    change_type: Literal["narrow", "relax", "character_note", "no_change"]
+    #: Which file to edit. Commit 4's writer enforces the scope ceiling
+    #: (only IDENTITY.md or principles.md allowed; anything else rejected).
+    target_file: Literal["principles.md", "IDENTITY.md", ""]
+    #: Concise description of what to change and why. Written into the
+    #: revision message + reflections.md entry.
+    reasoning: str
+    #: Specific substrate citations — decision counts, outcome deltas,
+    #: pattern observations. Evidence-citation invariant per
+    #: persona-reflection.md §4 + ADR-218 D7.
+    evidence: str
+    #: Full proposed new content for target_file. For narrow/relax this
+    #: is the revised principles.md; for character_note it's the
+    #: revised IDENTITY.md; for no_change this is empty and writer
+    #: skips the write.
+    new_content: str
+
+
+class ReflectionVerdict(TypedDict):
+    """Structured output of a reflection-mode invocation.
+
+    Returned by run_reflection() on successful model call. A verdict
+    with `overall="no_change"` is the common outcome — reflection that
+    concludes "nothing to adjust" is valuable data (it means the
+    framework is working) and should be common, not rare.
+    """
+    #: Top-level verdict — controls whether writer applies any changes.
+    overall: Literal["no_change", "narrow", "relax", "character_note"]
+    #: The persona's own one-paragraph reasoning about what it noticed
+    #: (or didn't notice) in its track record. This is the meta-commentary
+    #: appended to reflections.md verbatim regardless of overall verdict.
+    reasoning: str
+    #: Evidence summary the persona cites — decisions reviewed, outcomes
+    #: observed, notable patterns. Appended to reflections.md verbatim.
+    evidence_summary: str
+    #: List of concrete proposed changes. Empty for no_change. Writer
+    #: applies each in order after scope-ceiling + mandate-preservation
+    #: sanity checks.
+    proposals: list[ReflectionProposal]
+
+
+_REFLECTION_TOOL = {
+    "name": "return_reflection_verdict",
+    "description": (
+        "Return your reflection verdict — whether your framework warrants "
+        "change based on your own track record. Call this tool exactly "
+        "once. Returning overall='no_change' with an empty proposals list "
+        "is a valid and common outcome."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "overall": {
+                "type": "string",
+                "enum": ["no_change", "narrow", "relax", "character_note"],
+                "description": (
+                    "Top-level verdict. 'no_change' — framework is working, "
+                    "no adjustment warranted; common and expected. "
+                    "'narrow' — add a defer condition or tighten a rule. "
+                    "'relax' — remove an overly-conservative rule; evidence "
+                    "bar is higher than narrow. 'character_note' — propose "
+                    "an IDENTITY.md edit; rare, only when decisions reveal "
+                    "a persona trait not in the declared character."
+                ),
+            },
+            "reasoning": {
+                "type": "string",
+                "description": (
+                    "One paragraph in your persona's voice describing what "
+                    "you noticed (or didn't notice) in your track record. "
+                    "Appended to reflections.md verbatim. Write for the "
+                    "operator's retrospective audit."
+                ),
+            },
+            "evidence_summary": {
+                "type": "string",
+                "description": (
+                    "Concrete substrate citations — how many decisions "
+                    "reviewed, what outcome patterns observed, specific "
+                    "examples. Appended to reflections.md verbatim."
+                ),
+            },
+            "proposals": {
+                "type": "array",
+                "description": (
+                    "Concrete proposed changes. Empty for no_change. Each "
+                    "proposal carries the full revised file content — the "
+                    "writer does NOT construct diffs from partial edits."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "change_type": {
+                            "type": "string",
+                            "enum": ["narrow", "relax", "character_note", "no_change"],
+                        },
+                        "target_file": {
+                            "type": "string",
+                            "enum": ["principles.md", "IDENTITY.md", ""],
+                            "description": (
+                                "Scope ceiling: only principles.md or IDENTITY.md. "
+                                "Empty string for no-op proposals (rare; typically "
+                                "the outer verdict captures no_change)."
+                            ),
+                        },
+                        "reasoning": {"type": "string"},
+                        "evidence": {"type": "string"},
+                        "new_content": {
+                            "type": "string",
+                            "description": (
+                                "Full new content for target_file. The writer "
+                                "replaces the file wholesale (via ADR-209 "
+                                "write_revision). If you want to keep most of "
+                                "the file, echo it back with your changes."
+                            ),
+                        },
+                    },
+                    "required": ["change_type", "target_file", "reasoning", "evidence", "new_content"],
+                },
+            },
+        },
+        "required": ["overall", "reasoning", "evidence_summary", "proposals"],
+    },
+}
+
+
+_REFLECTION_SYSTEM_PROMPT = """\
+You are the independent judgment seat for this operator's workspace,
+reflecting on your own track record.
+
+This is a different invocation mode from verdict mode. You are not
+judging a proposal right now; you are judging **your own framework**.
+Your question is: given the decisions I've rendered and the outcomes
+they produced, does my framework warrant change?
+
+**The common outcome is `no_change`.** Frameworks that change on every
+cycle aren't learning — they're reacting. You should only propose
+adjustments when substrate evidence clearly warrants them. A workspace
+where you reflect weekly and return `no_change` 80% of the time is a
+well-calibrated workspace, not a broken one.
+
+Substrate available to you (passed in the user message):
+
+1. Your IDENTITY.md — who you are. Your character shapes how you reason
+   about your own track record. The voice you use in your reflection
+   reasoning should match this persona.
+2. Your current principles.md — the framework you've been applying.
+   This is what you're potentially revising.
+3. PRECEDENT.md — operator-authored durable interpretations. You must
+   respect these in any proposed change. Precedent always wins over
+   your framework; you cannot propose changes that contradict precedent.
+4. MANDATE.md — the operator's declared Primary Action. You cannot
+   propose changes that contradict the mandate. If you notice the
+   mandate seems ambiguous or inconsistent with observed outcomes, say
+   so in your reasoning — the operator will decide whether to revise
+   the mandate; you do not.
+5. AUTONOMY.md — the operator's delegation ceiling. You cannot propose
+   changes that would widen this ceiling. Your framework can narrow
+   delegation (add defer conditions) but never widen it.
+6. Recent decisions.md — your verdict trail since last reflection.
+   Look for patterns: are you deferring to human judgment more than
+   the substrate warrants? Approving in contexts where later outcomes
+   reveal the approval was premature? Rejecting on grounds that have
+   been consistently overturned by operator override?
+7. Per-domain _performance.md — realized outcomes. Did your approvals
+   generate expected value? Did your defers turn out to be over-
+   cautious or well-placed?
+
+**Scope ceiling (enforced structurally).** You can propose changes
+to:
+  - `principles.md` — your declared framework
+  - `IDENTITY.md` — your persona character (rare; high bar)
+
+You CANNOT propose changes to: MANDATE.md, AUTONOMY.md, PRECEDENT.md,
+any file under `/workspace/context/{domain}/`, any file outside
+`/workspace/review/`. The writer will reject any proposal targeting
+files outside the scope ceiling.
+
+**Evidence requirement.** Every proposal must cite specific substrate
+evidence — decision counts, outcome deltas, pattern observations.
+Proposals without evidence should be declared `no_change` instead.
+
+**Change-type discipline.**
+- `narrow` — adding a defer condition or tightening a rule. Evidence
+  bar: observe at least 3 decisions where the narrowing would have
+  improved outcomes.
+- `relax` — removing an overly-conservative rule. Evidence bar is
+  higher — observe at least 5 decisions where the conservative rule
+  deferred things that later turned out fine. Servants should err
+  toward conservative; relaxing requires clearer evidence.
+- `character_note` — IDENTITY.md edit. Rarest. Only when decisions
+  reveal a persona trait not in the declared character or a
+  contradiction between declared character and actual behavior.
+- `no_change` — framework is working. Return this whenever evidence
+  is ambiguous or the patterns you observe don't clearly warrant
+  change. Include reasoning about what you looked at and why it
+  didn't warrant change — that reasoning itself is valuable data.
+
+**Full-content replacement.** For each proposal, return the FULL new
+content of `target_file`. The writer replaces the file wholesale (via
+ADR-209 revision chain). If you want to keep most of the file, echo
+it back with your specific changes. This is deliberate — structured
+diff-over-tool-call is error-prone and review is cleaner with full
+content in the revision message.
+
+Call `return_reflection_verdict` exactly once with your overall
+verdict, one-paragraph reasoning in your persona's voice, evidence
+summary, and (if applicable) the list of concrete proposals.
+"""
+
+
+async def run_reflection(
+    client: Any,
+    user_id: str,
+    *,
+    identity_md: str,
+    principles_md: str,
+    precedent_md: str,
+    mandate_md: str,
+    autonomy_md: str,
+    recent_decisions_md: str,
+    performance_summary: str,
+) -> ReflectionVerdict | None:
+    """Invoke the Reviewer in reflection mode.
+
+    Called by `services.back_office.reviewer_reflection.run()` after the
+    invocation gate passes. Returns the structured verdict, or None on
+    failure (caller treats as "no change, reflection unavailable" —
+    never fabricates proposals on model failure).
+
+    ADR-218 Commit 3. Same tool-call pattern as `review_proposal()` but
+    distinct system prompt, distinct tool schema, cheaper model
+    (Haiku). REVIEWER_MODEL_IDENTITY stays unchanged — the persona IS
+    the same persona, just thinking about itself vs thinking about a
+    proposal.
+
+    Token usage recorded under caller="reviewer-reflection" so the
+    ledger separates reflection spend from verdict spend.
+
+    Never raises.
+    """
+    try:
+        user_message = _build_reflection_user_message(
+            identity_md=identity_md,
+            principles_md=principles_md,
+            precedent_md=precedent_md,
+            mandate_md=mandate_md,
+            autonomy_md=autonomy_md,
+            recent_decisions_md=recent_decisions_md,
+            performance_summary=performance_summary,
+        )
+
+        response = await chat_completion_with_tools(
+            messages=[{"role": "user", "content": user_message}],
+            system=_REFLECTION_SYSTEM_PROMPT,
+            tools=[_REFLECTION_TOOL],
+            model=REFLECTION_MODEL_SLUG,
+            max_tokens=2048,
+            tool_choice={"type": "tool", "name": "return_reflection_verdict"},
+        )
+
+        tool_uses = getattr(response, "tool_uses", None) or []
+        usage = getattr(response, "usage", None) or {}
+
+        record_token_usage(
+            client,
+            user_id=user_id,
+            caller=_REFLECTION_TOKEN_CALLER,
+            model=REFLECTION_MODEL_SLUG,
+            input_tokens=int(usage.get("input_tokens", 0) or 0),
+            output_tokens=int(usage.get("output_tokens", 0) or 0),
+            ref_id=None,
+            metadata={"mode": "reflection"},
+        )
+
+        verdict_call = None
+        for tu in tool_uses:
+            if getattr(tu, "name", None) == "return_reflection_verdict":
+                verdict_call = tu
+                break
+
+        if verdict_call is None:
+            logger.warning(
+                "[REVIEWER_REFLECTION] model produced no tool call for user=%s — "
+                "treating as no-change",
+                user_id[:8],
+            )
+            return None
+
+        tool_input = getattr(verdict_call, "input", None) or {}
+        overall = tool_input.get("overall")
+        reasoning = (tool_input.get("reasoning") or "").strip()
+        evidence_summary = (tool_input.get("evidence_summary") or "").strip()
+        proposals_raw = tool_input.get("proposals") or []
+
+        if overall not in ("no_change", "narrow", "relax", "character_note"):
+            logger.warning(
+                "[REVIEWER_REFLECTION] invalid overall=%r for user=%s — "
+                "treating as no-change",
+                overall, user_id[:8],
+            )
+            return None
+        if not reasoning:
+            logger.warning(
+                "[REVIEWER_REFLECTION] empty reasoning for user=%s — "
+                "treating as no-change",
+                user_id[:8],
+            )
+            return None
+
+        # Normalize proposals — coerce missing fields to safe defaults;
+        # writer will apply scope-ceiling + mandate-preservation checks.
+        proposals: list[ReflectionProposal] = []
+        for p in proposals_raw:
+            if not isinstance(p, dict):
+                continue
+            proposals.append(ReflectionProposal(
+                change_type=p.get("change_type", "no_change"),
+                target_file=p.get("target_file", ""),
+                reasoning=(p.get("reasoning") or "").strip(),
+                evidence=(p.get("evidence") or "").strip(),
+                new_content=p.get("new_content") or "",
+            ))
+
+        return ReflectionVerdict(
+            overall=overall,
+            reasoning=reasoning,
+            evidence_summary=evidence_summary,
+            proposals=proposals,
+        )
+
+    except Exception as exc:  # noqa: BLE001 — never raise
+        logger.warning(
+            "[REVIEWER_REFLECTION] run_reflection failed for user=%s: %s",
+            user_id[:8], exc,
+        )
+        return None
+
+
+def _build_reflection_user_message(
+    *,
+    identity_md: str,
+    principles_md: str,
+    precedent_md: str,
+    mandate_md: str,
+    autonomy_md: str,
+    recent_decisions_md: str,
+    performance_summary: str,
+) -> str:
+    """Assemble the user message for reflection mode.
+
+    Order matters: persona first (IDENTITY), then framework under
+    consideration (principles), then the operator-declared boundaries
+    (PRECEDENT, MANDATE, AUTONOMY), then the track record (decisions +
+    performance). The persona reads its own character before looking
+    at its own record — matching the verdict-mode pattern of
+    persona-before-substrate.
+    """
+    parts: list[str] = []
+
+    parts.append("## /workspace/review/IDENTITY.md — Your persona")
+    parts.append("")
+    parts.append(identity_md or "_(empty — reason as a neutral skeptical judgment seat)_")
+    parts.append("")
+
+    parts.append("## /workspace/review/principles.md — The framework you are considering revising")
+    parts.append("")
+    parts.append(principles_md or "_(empty — operator has not declared a framework yet)_")
+    parts.append("")
+
+    parts.append("## /workspace/context/_shared/PRECEDENT.md — Operator-declared durable interpretations (you cannot contradict these)")
+    parts.append("")
+    parts.append(precedent_md or "_(empty — operator has not authored precedent yet)_")
+    parts.append("")
+
+    parts.append("## /workspace/context/_shared/MANDATE.md — The operator's Primary Action (you cannot contradict this)")
+    parts.append("")
+    parts.append(mandate_md or "_(empty — no mandate declared)_")
+    parts.append("")
+
+    parts.append("## /workspace/context/_shared/AUTONOMY.md — The operator's delegation ceiling (you cannot widen this)")
+    parts.append("")
+    parts.append(autonomy_md or "_(empty — default manual posture)_")
+    parts.append("")
+
+    parts.append("## Recent decisions.md — Your verdict trail since last reflection")
+    parts.append("")
+    parts.append(recent_decisions_md or "_(no decisions yet)_")
+    parts.append("")
+
+    parts.append("## Per-domain _performance.md — Realized outcomes")
+    parts.append("")
+    parts.append(performance_summary or "_(no _performance.md files yet)_")
+    parts.append("")
+
+    parts.append(
+        "## Instruction\n\n"
+        "Reflect on whether your framework warrants change. Remember: "
+        "`no_change` is the common and expected outcome. If you notice "
+        "patterns that warrant adjustment, propose concrete changes "
+        "with full new file content and evidence citations. "
+        "Call `return_reflection_verdict` exactly once."
     )
 
     return "\n".join(parts)

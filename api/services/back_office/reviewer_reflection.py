@@ -65,9 +65,13 @@ REFLECTION_MODEL = "claude-haiku-4-5-20251001"
 _MIN_NEW_DECISIONS = 1
 _MIN_HOURS_BETWEEN_REFLECTIONS = 24
 
-# Feature flag: Phase B (write-back) + Phase C (chat notification) land
-# in ADR-218 Commits 3 + 4. When True, this module returns the structured
-# verdict but does not mutate any files. Commit 4 flips this False.
+# ADR-218 Commit 3: `run_reflection()` in reviewer_agent.py is live.
+# The back-office task invokes it when the gate passes and returns the
+# structured verdict in `structured.verdict` + `structured.proposals`.
+# Write-back (revision-chained apply + chat notification + reflections.md
+# append) is Commit 4 — stubbed by `_APPLY_WRITEBACK = False`. When
+# Commit 4 lands, this flips True and the verdict actually mutates
+# `/workspace/review/` substrate.
 _APPLY_WRITEBACK = False
 
 
@@ -151,44 +155,75 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         recent_decisions_md = _format_recent_decisions(decisions, limit=30)
         performance_md_summary = _format_performance_summary(outcome_totals)
 
-        # --- 4. Phase B/C stubbed in Commit 2 ---
-        # Commit 3 adds `run_reflection()` in reviewer_agent.py with a
-        # reflection-mode prompt + forced tool call returning structured
-        # proposals. Commit 4 adds reflection_writer to apply revisions.
-        # In Commit 2 we log the substrate snapshot and return early.
-        if not _APPLY_WRITEBACK:
-            structured["invoked"] = False
+        # --- 4. Invoke reflection-mode LLM (ADR-218 Commit 3) ---
+        # The persona reads its own substrate + track record + performance
+        # summary and returns a structured verdict. run_reflection() never
+        # raises — on failure it returns None and we treat it as "no
+        # reflection available right now," log it, and exit cleanly.
+        from agents.reviewer_agent import run_reflection
+
+        verdict = await run_reflection(
+            client=client,
+            user_id=user_id,
+            identity_md=identity_md,
+            principles_md=principles_md,
+            precedent_md=precedent_md,
+            mandate_md=mandate_md,
+            autonomy_md=autonomy_md,
+            recent_decisions_md=recent_decisions_md,
+            performance_summary=performance_md_summary,
+        )
+
+        if verdict is None:
+            structured["invoked"] = True
             structured["reason"] = (
-                f"would invoke: {len(new_decisions)} new decisions, "
-                f"{hours_since_last:.1f}h elapsed. Phase B (LLM invocation) "
-                f"+ Phase C (write-back) pending ADR-218 Commits 3 + 4."
+                "reflection-mode LLM returned no verdict (model failure or "
+                "invalid structured output); treated as no_change"
             )
-            logger.info(
-                "[REFLECTION] would-invoke user=%s new_decisions=%d elapsed_h=%.1f",
-                user_id[:8], len(new_decisions), hours_since_last or 0.0,
+            structured["verdict"] = "no_change"
+            return _shape_result(started_at, structured)
+
+        structured["invoked"] = True
+        structured["verdict"] = verdict.get("overall", "no_change")
+        structured["proposals"] = verdict.get("proposals") or []
+        structured["reasoning"] = verdict.get("reasoning", "")
+        structured["evidence_summary"] = verdict.get("evidence_summary", "")
+        structured["reason"] = (
+            f"reflection verdict: {structured['verdict']} "
+            f"({len(structured['proposals'])} proposals)"
+        )
+
+        logger.info(
+            "[REFLECTION] user=%s verdict=%s proposals=%d",
+            user_id[:8],
+            structured["verdict"],
+            len(structured["proposals"]),
+        )
+
+        # --- 5. Write-back stubbed in Commit 3 ---
+        # Commit 4 adds services/reflection_writer.py which:
+        #  - validates each proposal against scope ceiling + mandate
+        #    preservation,
+        #  - writes revisions to IDENTITY.md / principles.md via
+        #    ADR-209 write_revision(authored_by="reviewer:{...}"),
+        #  - appends a structured entry to /workspace/review/reflections.md,
+        #  - publishes a role='system' chat notification per ADR-212.
+        # For Commit 3 we return the verdict only — operator can audit
+        # by reading the task output folder. No files mutated.
+        if not _APPLY_WRITEBACK:
+            structured["reason"] = (
+                f"{structured['reason']} (Commit 3 returns verdict only; "
+                f"write-back lands in Commit 4)"
             )
             return _shape_result(started_at, structured)
 
-        # Commit 3+4 wiring target (not live yet):
-        # from agents.reviewer_agent import run_reflection
+        # Commit 4 wiring target (not live yet):
         # from services.reflection_writer import apply_reflection_writes
-        # verdict = await run_reflection(
-        #     client=client, user_id=user_id,
-        #     identity_md=identity_md, principles_md=principles_md,
-        #     precedent_md=precedent_md, mandate_md=mandate_md,
-        #     autonomy_md=autonomy_md,
-        #     recent_decisions_md=recent_decisions_md,
-        #     performance_summary=performance_md_summary,
+        # write_summary = await apply_reflection_writes(
+        #     client, user_id, verdict, started_at,
         # )
-        # structured["invoked"] = True
-        # structured["verdict"] = verdict.get("verdict")
-        # structured["proposals"] = verdict.get("proposals")
-        # if verdict.get("proposals"):
-        #     write_summary = await apply_reflection_writes(
-        #         client, user_id, verdict, started_at,
-        #     )
-        #     structured["writeback_applied"] = True
-        #     structured["write_summary"] = write_summary
+        # structured["writeback_applied"] = True
+        # structured["write_summary"] = write_summary
         return _shape_result(started_at, structured)
 
     except Exception as exc:  # noqa: BLE001

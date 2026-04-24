@@ -309,8 +309,8 @@ Let reflection run every verdict. Rejected — violates persona-reflection.md §
 ## Implementation status
 
 - **Commit 1** (this ADR): Implemented 2026-04-24 (commit `e457474`).
-- **Commit 2** (back-office task + invocation-gate module): Implemented 2026-04-24. Note: an earlier DSL-style draft of Commit 2 (`34c5822`) was reverted (`d4c0d88`) before the cleaner task-assessment-shape version landed. D3 rewritten in-place on the same day to reflect the simpler approach.
-- **Commit 3** (reflection-mode invocation): Pending.
+- **Commit 2** (back-office task + invocation-gate module): Implemented 2026-04-24 (clean version `9f8480e`). Note: an earlier DSL-style draft of Commit 2 (`34c5822`) was reverted (`d4c0d88`) before the cleaner task-assessment-shape version landed. D3 rewritten in-place on the same day to reflect the simpler approach.
+- **Commit 3** (reflection-mode invocation): Implemented 2026-04-24. `agents/reviewer_agent.py` gains `run_reflection()` sibling of `review_proposal()` + `_REFLECTION_SYSTEM_PROMPT` + `_REFLECTION_TOOL` + `ReflectionVerdict` TypedDict. Cost-conscious Haiku model via `REFLECTION_MODEL_SLUG`. `REVIEWER_MODEL_IDENTITY` bumped `v4 → v5`. `back_office/reviewer_reflection.py` flipped from stub to invoking `run_reflection` when gate passes; verdict populated in structured output. Write-back still stubbed (`_APPLY_WRITEBACK = False`) — Commit 4 lands writer.
 - **Commit 4** (write-back + visibility): Pending.
 - **Commit 5** (alpha-trader E2E validation): Pending.
 

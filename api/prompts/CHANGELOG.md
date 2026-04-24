@@ -6,6 +6,116 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.24.8] - ADR-218 Commit 3 — reflection-mode invocation (v5)
+
+`REVIEWER_MODEL_IDENTITY` bumped `ai:reviewer-sonnet-v4` → `ai:reviewer-sonnet-v5`.
+Adds a second call path to the Reviewer: **reflection mode**, distinct
+from verdict mode. In reflection mode the persona reads its own
+IDENTITY + principles + PRECEDENT + MANDATE + AUTONOMY + recent
+decisions + per-domain performance summary, and returns a structured
+verdict about whether its framework warrants change
+(`no_change | narrow | relax | character_note`).
+
+Same tool-call discipline as verdict mode (forced tool call returning
+structured output). Different model tier — **Haiku** for reflection,
+matching `ManageTask._handle_evaluate` cost posture; verdict mode
+stays on Sonnet. Same `REVIEWER_MODEL_IDENTITY` string — the persona
+IS the same persona, just thinking about itself vs thinking about a
+proposal.
+
+### Added
+
+- `api/agents/reviewer_agent.py::run_reflection()` — sibling of
+  `review_proposal()`. 200+ lines of new code: `_REFLECTION_SYSTEM_PROMPT`,
+  `_REFLECTION_TOOL` schema with forced tool call
+  `return_reflection_verdict`, `ReflectionProposal` + `ReflectionVerdict`
+  TypedDicts, `_build_reflection_user_message` assembler. Never raises
+  — failure returns None and caller treats as no-change.
+- `api/services/back_office/reviewer_reflection.py` — flipped from
+  "stubbed stop at gate" to "invoke run_reflection when gate passes."
+  Structured verdict now populated in `structured.verdict /
+  .proposals / .reasoning / .evidence_summary`. Write-back still
+  stubbed (`_APPLY_WRITEBACK = False`) — Commit 4 lands writer.
+- Token usage recorded under `caller="reviewer-reflection"` in
+  `token_usage` ledger. Separate from verdict-mode spend for
+  cost-attribution clarity.
+
+### Reflection-mode prompt highlights
+
+- "The common outcome is `no_change`." Frameworks that change every
+  cycle aren't learning — they're reacting. Reflection that returns
+  `no_change` 80% of the time is a well-calibrated workspace.
+- **Scope ceiling** declared in prompt: only `principles.md` and
+  `IDENTITY.md` are writable. MANDATE / AUTONOMY / PRECEDENT / context
+  domains are untouchable. Structural enforcement lands in Commit 4's
+  writer.
+- **Evidence bar differs by change type**: narrow requires ≥3
+  decisions that would have benefited; relax requires ≥5 decisions
+  showing over-conservatism; character_note is rarest; no_change is
+  the default and requires nothing.
+- **Full-content replacement** — proposals carry the entire new file
+  content, not diffs. Writer replaces wholesale via ADR-209
+  `write_revision`. Review is cleaner with full content in the
+  revision message.
+- **Never widens delegation**. Prompt explicitly reminds: the servant
+  can be more conservative than the master permits, never more
+  permissive.
+
+### Verdict structure
+
+```
+{
+  overall: "no_change" | "narrow" | "relax" | "character_note",
+  reasoning: <one paragraph in persona voice, to reflections.md>,
+  evidence_summary: <substrate citations, to reflections.md>,
+  proposals: [
+    {
+      change_type: ...,
+      target_file: "principles.md" | "IDENTITY.md" | "",
+      reasoning: <change-specific reasoning>,
+      evidence: <specific decisions/outcomes cited>,
+      new_content: <full new file content>,
+    }, ...
+  ]
+}
+```
+
+### Expected behavior
+
+- Workspaces without outcomes-producing platforms: no change
+  (materialization trigger unchanged — task only exists in commerce
+  or trading workspaces).
+- Workspaces where the gate passes (≥1 new decision + ≥24h): Haiku
+  invocation fires, verdict written to the task output folder for
+  operator audit. No file mutation until Commit 4.
+- Common first-reflection verdict on a fresh alpha-trader post-E2E:
+  likely `no_change` or `narrow` (adding a thin-track-record defer
+  condition) based on how few decisions have accumulated. The model
+  is specifically instructed not to force change when evidence is
+  ambiguous.
+
+### Primitive audit
+
+Reflection is NOT a primitive per ADR-168 — it's a back-office
+executor called by the task pipeline on cadence, symmetric with
+`back-office-outcome-reconciliation` and `back-office-reviewer-
+calibration`. No tool-surface invocation needed; no entry in
+`api/services/primitives/`.
+
+### Related
+
+- `docs/architecture/persona-reflection.md` v1.1 — canon thesis.
+- `docs/adr/ADR-218-persona-reflection.md` v1.1 — D4 (reflection-mode
+  prompt is distinct from verdict-mode prompt) now implemented.
+- ADR-168 primitive matrix — reflection's non-primitive status
+  confirmed by symmetry with calibration + reconciliation back-office
+  executors.
+- `services/primitives/manage_task.py::_handle_evaluate` — the
+  task-assessment pattern reflection mirrors (substrate read → single
+  Haiku call → structured verdict → write-back).
+
+---
+
 ## [2026.04.24.7] - ADR-218 Commit 2 (clean) — Reviewer reflection invocation gate
 
 Supersedes a reverted DSL-shape draft (`[2026.04.24.6]` removed with
