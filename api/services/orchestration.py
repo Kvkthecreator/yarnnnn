@@ -9,12 +9,18 @@ Agents live in `api/agents/`; this is orchestration machinery they use.
 
 Structure (post-Commit B registry split):
 
-1. SYSTEMIC_AGENTS — systemic Agent templates (Identity-bearing, one
-   per workspace). Today: `thinking_partner` (YARNNN). Future systemic
-   archetypes (Auditor, Advocate) land here. NOTE: the Reviewer Agent's
-   seat is substrate (`/workspace/review/`) not a template entry here;
-   Reviewer default content (DEFAULT_REVIEW_*_MD below) is a convenience
-   for workspace_init scaffolding, NOT a registered template.
+1. SYSTEMIC_AGENTS — systemic templates scaffolded at signup, one per
+   workspace. Today: `thinking_partner` (YARNNN). **ADR-216 classification
+   note (2026-04-24)**: YARNNN here is the *orchestration chat surface*,
+   not a persona-bearing Agent — the registry name "SYSTEMIC_AGENTS" is
+   retained as a data-compatibility constant (ADR-212 D1 enum-slug
+   exception pattern). Future persona-bearing systemic Agents (Auditor,
+   Advocate) will register here alongside YARNNN; the registry holds
+   scaffold templates regardless of whether the entity is persona-bearing
+   (judgment layer) or orchestration surface (orchestration layer). The
+   Reviewer Agent's seat is substrate (`/workspace/review/`) not a template
+   entry here — Reviewer default content (DEFAULT_REVIEW_*_MD below) is a
+   convenience for workspace_init scaffolding, NOT a registered template.
 2. PRODUCTION_ROLES — orchestration capability bundles for production
    work: researcher, analyst, writer, tracker, designer, executive (the
    Reporting synthesizer). NOT Agents. No standing intent. No fiduciary
@@ -600,9 +606,19 @@ SYSTEMIC_AGENTS: dict[str, dict[str, Any]] = {
     #
     # DB slug `thinking_partner` retained as exception (migration 142;
     # GLOSSARY exception table). External user-facing name is YARNNN.
+    #
+    # ADR-216 classification note (2026-04-24): YARNNN is the orchestration
+    # chat surface, NOT a persona-bearing Agent. The `class: "meta-cognitive"`
+    # enum string is retained as a data-compatibility slug (same Exceptions
+    # pattern as `specialist` / `platform-bot` per ADR-212 D1). The entity
+    # it identifies sits in the orchestration layer (Mechanism + Channel
+    # axes), not in the judgment layer (Identity axis). YARNNN has no
+    # workspace-authored IDENTITY file; BASE_PROMPT (platform-fixed voice)
+    # is the conversational surface. Reviewer is the sole systemic
+    # persona-bearing Agent (ADR-216 D3). See ADR-216 for full reframe.
 
     "thinking_partner": {
-        "class": "meta-cognitive",
+        "class": "meta-cognitive",  # ADR-216: enum retained; classification = orchestration surface
         "domain": None,
         "display_name": "Thinking Partner",
         "tagline": "Orchestrates your workforce",
@@ -833,6 +849,26 @@ For ManageTask(action="create") custom tasks, pass `page_structure` as a list of
 # the first review write (Phase 2+).
 
 DEFAULT_REVIEW_IDENTITY_MD = """\
+<!--
+OPERATOR INSTRUCTION (ADR-216 D4): this file declares the PERSONA embodied
+by the Reviewer seat in your workspace. The Reviewer reads this content at
+reasoning time (per ADR-216 Commit 2 — reviewer_agent.py v2) and reasons AS
+the persona declared here.
+
+The default content below is a generic neutral skeptical baseline. To embody
+a specific judgment character (e.g. Jim Simons for systematic trading,
+Warren Buffett for long-hold investing, W. Edwards Deming for process
+quality, or an original persona of your own), OVERWRITE this file with
+that character's declared priorities, reasoning style, refusal patterns,
+and calibration axis.
+
+Distinct from principles.md (the framework the persona applies). Distinct
+from modes.md (the per-domain autonomy posture). Identity is WHO reviews;
+principles is WHAT checks they run; modes is HOW autonomous they are.
+
+See ADR-216 + api/agents/reviewer_agent.py for the reasoning-time read path.
+-->
+
 # Review — Identity
 
 I am the independent judgment seat for this workspace.
