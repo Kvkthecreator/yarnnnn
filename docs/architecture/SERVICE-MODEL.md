@@ -1,9 +1,11 @@
 # YARNNN Service Model
 
 > **Status**: Canonical
-> **Date**: 2026-03-29 (v1.6 revision 2026-04-20 — cockpit service model ratified per ADR-198 v2)
+> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24)
 > **Scope**: End-to-end service model — how the system works, from user intent to delivered output.
 > **Rule**: This is the single document that describes the complete system. Deep-dive docs are linked, not duplicated.
+
+> **Current canon note (2026-04-24):** ADR-216 reclassified YARNNN from persona-bearing Agent to orchestration chat surface, and ADR-217 moved delegation from `/workspace/review/modes.md` to `/workspace/context/_shared/AUTONOMY.md`. The service model below is hardened to that taxonomy.
 
 ---
 
@@ -61,7 +63,7 @@ The operator works *inside* YARNNN. The front-end model is a **cockpit**, not a 
 | **Context** | "What does my workspace know?" | `/workspace/context/*` + `/workspace/uploads/*` |
 | **Review** | "Who decided what, why?" | `/workspace/review/*` + task `feedback.md` |
 
-**YARNNN (the super-agent) is ambient, not a destination.** A persistent rail is available on every surface; `/chat` is the expanded-focus form. Operators don't travel *to* YARNNN; YARNNN is *with* them.
+**YARNNN is ambient, not a destination.** A persistent rail is available on every surface; `/chat` is the expanded-focus form. Operators don't travel *to* YARNNN; YARNNN is *with* them.
 
 **Team and Work are peer destinations.** Agents and tasks are many-to-many — one agent runs several tasks, one complex task may involve several agents. "Check my agents" and "check the work" are two distinct operator Purposes (identity vs activity), so they get two destinations with cross-links between detail routes.
 
@@ -83,9 +85,9 @@ WORKSPACE (per user)
 └── /tasks/{slug}/        Task definition + outputs + run log
 ```
 
-### Agents (WHO)
+### Persona-bearing Agents (WHO)
 
-Persistent domain experts with three independent axes:
+Persistent judgment-bearing entities with three independent axes:
 
 | Axis | What | Mutability |
 |------|------|------------|
@@ -93,13 +95,20 @@ Persistent domain experts with three independent axes:
 | **Capabilities** | Type registry — tools and runtimes available | Fixed at creation |
 | **Tasks** | TASK.md assignments — what work to do | Come and go |
 
-**Universal roles, contextual application** (ADR-176 + ADR-164 + ADR-188 + ADR-189): The role taxonomy is a fixed framework primitive — six universal specialist roles (Researcher, Analyst, Writer, Tracker, Designer, Reporting) + YARNNN (the super-agent) + platform bots (Slack, Notion, GitHub, Commerce, Trading — activated on platform connection). Which Agents are instantiated and what domains they serve is contextual, determined by YARNNN based on the user's work description. **No Agents are scaffolded at signup (ADR-189)** — the user creates Agents through conversation with YARNNN.
+Current persona-bearing Agents:
+- **Reviewer** — the sole systemic persona-bearing Agent today; independent judgment seat at `/workspace/review/`, reading shared delegation from `/workspace/context/_shared/AUTONOMY.md`
+- **User-authored domain Agents** — zero-to-many instance Agents under `/agents/{slug}/`
+- **Future judgment archetypes** — Auditor, Advocate, Custodian, etc.
 
-Capability split (ADR-176): accumulation specialists (Researcher, Analyst, Writer, Tracker) accumulate knowledge and produce markdown. Production specialist (Designer) generates visual assets via RuntimeDispatch. YARNNN orchestrates by drafting a Specialist Team per task. No domain ownership baked into specialist identity — specialists are assigned to tasks by YARNNN, and tasks read/write context domains.
+### Orchestration (HOW work is routed)
 
-YARNNN is an agent (ADR-164 + ADR-189). It has the same structural shape as other agents — row in the agents table, slug (`thinking-partner`, retained by glossary exception), workspace folder, can own tasks. What distinguishes YARNNN is its class (`meta-cognitive`) and domain (orchestration itself, no context domain). YARNNN's tasks are back office tasks: agent hygiene, workspace cleanup, future task-freshness review.
+The orchestration layer includes:
+- **YARNNN** — the platform-authored chat surface the operator addresses
+- **The Orchestrator** — task pipeline, dispatch routing, team composition logic, capability gating
+- **Production roles** — Researcher, Analyst, Writer, Tracker, Designer, Reporting
+- **Platform integrations** — Slack, Notion, GitHub, Commerce, Trading
 
-Agent roles determine capabilities. Development is knowledge depth (accumulated memory, preferences, observations), not capability breadth. See [orchestration.md](orchestration.md).
+Production roles and integrations are capability bundles, not Agents. They do not hold standing intent; they are dispatched under task and workspace constraints. See [orchestration.md](orchestration.md).
 
 ### Tasks (WHAT)
 
@@ -126,26 +135,26 @@ Virtual filesystem over Postgres (`workspace_files` table). Three content areas:
 
 ---
 
-## Four Layers of Cognition, One Filesystem Substrate (ADR-164 + ADR-189 + ADR-194)
+## Orchestration + Judgment over One Filesystem Substrate
 
-| Layer | Entity | Scope | Role | Develops |
+| Class | Entity | Scope | Role | Develops |
 |-------|--------|-------|------|----------|
-| **Meta-cognitive** | YARNNN — `meta-cognitive` class | Workspace-level (the super-agent) | Composes Agents, drafts Teams, monitors health, orchestrates; owns back office tasks | Upward — better judgment about attention allocation |
-| **Role-cognitive** | Specialists (Researcher, Analyst, Writer, Tracker, Designer, Reporting) | Role-level (YARNNN's palette) | Infrastructure — drafted into Teams per task | Outward — stylistic preference across all tasks using the specialist |
-| **Domain-cognitive** | Agents (user-created) + platform bots | Domain-level (one Agent per domain) | Execute tasks, accumulate domain expertise | Inward — deeper knowledge through accumulated work in their domain |
-| **Review-cognitive** | Reviewer (human user / AI / impersonation — interchangeable seat) | Proposal-level (structurally separate) | Independent judgment on proposed writes; audit trail author | Through reasoning style — capital-EV over `_performance.md` |
+| **Orchestration surface** | YARNNN | Workspace-level | Conversational surface of the orchestrator; drafts work, routes updates, keeps the system legible | Operational awareness in `/workspace/memory/` |
+| **Orchestration capability bundles** | Production roles + platform integrations | Task / integration-level | Execute production work under dispatch and permission gates | Capability catalog evolves; no persona-bearing development axis |
+| **Instance judgment Agents** | User-authored domain Agents | Domain-level | Execute domain work, accumulate expertise, represent operator intent in a domain | Inward — deeper knowledge through accumulated work in their domain |
+| **Systemic judgment Agent** | Reviewer (human user / AI / impersonation — interchangeable seat) | Proposal-level (structurally separate) | Independent judgment on proposed writes; audit trail author | Through calibration against `_performance.md` |
 
-**All four layers share one substrate — the filesystem.** None retains state of its own across invocations. YARNNN, Specialists, Agents, and Reviewer all read `/workspace/`, `/agents/`, `/tasks/`, and (for Reviewer) `/workspace/review/`, act, write back, and terminate.
+**All four classes share one substrate — the filesystem.** None retains state of its own across invocations. YARNNN, production roles, domain Agents, and Reviewer all read `/workspace/`, `/agents/`, `/tasks/`, and (for Reviewer) `/workspace/review/`, act, write back, and terminate.
 
-YARNNN is an agent (ADR-164) — same DB row, same task ownership, same pipeline. What distinguishes YARNNN from Specialists and Agents is its *class* (`meta-cognitive`) and scope (orchestration itself).
+YARNNN is the orchestration chat surface. It may retain a row in the `agents` table for pragmatic continuity, but current canon treats that row as implementation substrate, not classification.
 
-**The Reviewer is the structurally separate fourth layer** (ADR-194). Where YARNNN composes the future (what Agents to create, what tasks to scaffold), the Reviewer applies independent judgment to specific proposed writes. The separation is load-bearing: YARNNN emits many autonomous proposals, and having YARNNN review its own proposals is a conflict of interest. Because the Reviewer seat is its own layer, a human user and an AI system fill it interchangeably without any structural change (FOUNDATIONS Derived Principle 14: *Roles persist; occupants rotate*). Reviewer state lives in `/workspace/review/` — filesystem-native per Axiom 1. Current implementation (ADR-194 v2 Phases 1+2a+2b+3) ships three files (`IDENTITY.md`, `principles.md`, `decisions.md`); the canonical target per [reviewer-substrate.md](reviewer-substrate.md) is seven (adds `OCCUPANT.md`, `modes.md`, `handoffs.md`, `calibration.md`), which is roadmap.
+**The Reviewer is the structurally separate judgment seat** (ADR-194, amended by ADR-217). Where YARNNN composes the future (what Agents to create, what tasks to scaffold), the Reviewer applies independent judgment to specific proposed writes. The separation is load-bearing: YARNNN emits many autonomous proposals, and having YARNNN review its own proposals is a conflict of interest. Because the Reviewer seat is structurally separate, a human user and an AI system fill it interchangeably without architectural change (FOUNDATIONS Derived Principle 14: *Roles persist; occupants rotate*). Reviewer state lives in `/workspace/review/` as six seat files, with delegation read from shared `/workspace/context/_shared/AUTONOMY.md`.
 
-YARNNN has two runtime modes that share one identity:
+YARNNN has two runtimes that share one orchestration surface:
 - **Chat runtime**: user-present conversation via `YarnnnAgent` class in `api/agents/yarnnn.py` (ADR-189)
 - **Task runtime**: scheduler-triggered back office task execution via `task_pipeline._execute_tp_task()`
 
-Domain agents accumulate domain knowledge YARNNN doesn't have. A mature Slack Bot understands team communication patterns; YARNNN orchestrates based on what agents know. See [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 1.
+Domain Agents accumulate domain knowledge YARNNN does not have. Production roles and platform integrations do not accumulate standing identity; they execute against the current substrate. See [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 1.
 
 ### Back Office Tasks (ADR-164)
 

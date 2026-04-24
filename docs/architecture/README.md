@@ -1,20 +1,21 @@
 # Architecture Documentation Index
 
-> **Last updated**: 2026-04-23 (LAYER-MAPPING.md added; Agent/Orchestration vocabulary flipped)
+> **Last updated**: 2026-04-24 (ADR-216/217 canon hardening: YARNNN reclassified to orchestration surface; autonomy moved to `_shared/AUTONOMY.md`)
 
 ---
 
 ## Canonical Docs (`docs/architecture/`)
 
-The canon is stacked: **THESIS** (the philosophical claim the architecture exists to express) → **FOUNDATIONS** (the axiomatic structure that must hold) → **LAYER-MAPPING** (the Agent-vs-Orchestration taxonomy) → **substrate canons** (how specific architectural commitments are expressed in files). Start with SERVICE-MODEL.md to understand how the system works today; start with THESIS.md + LAYER-MAPPING.md to understand why the system is shaped the way it is.
+The canon is stacked: **THESIS** (the philosophical claim the architecture exists to express) → **FOUNDATIONS** (the axiomatic structure that must hold) → **LAYER-MAPPING** (the Agent-vs-Orchestration taxonomy) → **agent-composition** (what each agent/surface actually reads at reasoning time) → **substrate canons** (how specific architectural commitments are expressed in files). Start with SERVICE-MODEL.md for the operational picture; read LAYER-MAPPING.md + ADR-216/217 + agent-composition.md for the current taxonomy/composition shape.
 
 ### Thesis + Axioms + Taxonomy
 
 | Document | Covers |
 |----------|--------|
 | [**THESIS.md**](THESIS.md) | The philosophical thesis — four architectural commitments (declared intent, independent judgment, ground-truth evaluation, authored accumulation), falsifiable predictions, dual-use terminal vision. **Internal canon; not external messaging.** |
-| [**FOUNDATIONS.md**](FOUNDATIONS.md) | First-principles axioms — all ADRs derive from these. Six-dimensional model, filesystem-as-substrate, Axiom 2 (Agents vs Orchestration), money-truth, fourteen Derived Principles. |
-| [**LAYER-MAPPING.md**](LAYER-MAPPING.md) | **Authoritative taxonomy** for the Agent-vs-Orchestration split. Names every entity, classifies it, specifies where it lives in code + docs. Supersedes earlier "production vs judgment layer" hedge. |
+| [**FOUNDATIONS.md**](FOUNDATIONS.md) | First-principles axioms — all ADRs derive from these. Six-dimensional model, filesystem-as-substrate, Axiom 2 sharp Agent-vs-Orchestration split, money-truth, fourteen Derived Principles. |
+| [**LAYER-MAPPING.md**](LAYER-MAPPING.md) | **Authoritative taxonomy** for the Agent-vs-Orchestration split, amended by ADR-216. Names every entity, classifies it, and clarifies that YARNNN is the orchestration chat surface, not a persona-bearing Agent. |
+| [**agent-composition.md**](agent-composition.md) | The current composition canon — what YARNNN, Reviewer, and domain Agents read at reasoning time; how persona/framework/delegation separate; prompt/versioning discipline. |
 | [**GLOSSARY.md**](GLOSSARY.md) | Canonical vocabulary — one word, one concept, one layer. |
 
 ### Substrate canons
@@ -24,14 +25,14 @@ Parallel deep-dives on the two sharpest architectural substrates — the write p
 | Document | Covers |
 |----------|--------|
 | [**authored-substrate.md**](authored-substrate.md) | Content-addressed retention + parent-pointer history + authored-by attribution on every `workspace_files` mutation. Ratified by FOUNDATIONS v6.1 Axiom 1 second clause + ADR-209. |
-| [**reviewer-substrate.md**](reviewer-substrate.md) | The Reviewer seat's filesystem expression — seven files at `/workspace/review/`, the prospective-attribution contract, operational modes vocabulary, calibration loop. Ratified by FOUNDATIONS v6.3 + THESIS commitment 2. |
+| [**reviewer-substrate.md**](reviewer-substrate.md) | The Reviewer seat's filesystem expression — six seat files at `/workspace/review/` plus adjacent shared delegation in `/workspace/context/_shared/AUTONOMY.md`, the prospective-attribution contract, and the calibration loop. Ratified by FOUNDATIONS v6.3 + ADR-217. |
 
 ### System operation
 
 | Document | Covers |
 |----------|--------|
 | [**SERVICE-MODEL.md**](SERVICE-MODEL.md) | End-to-end system description — entities, execution, services, primitives, perception |
-| [agent-orchestration.md](agent-orchestration.md) | Agent type registry (v4 domain-steward model), capabilities, runtimes |
+| [orchestration.md](orchestration.md) | Orchestration capability bundles, production roles, integrations, and dispatch metadata |
 | [agent-execution-model.md](agent-execution-model.md) | 3-layer execution model (mechanical scheduling, LLM generation, TP orchestration) |
 | [**execution-loop.md**](execution-loop.md) | The accumulation cycle — how run N feeds run N+1 (awareness, tracker, feedback, actuation) |
 | [backend-orchestration.md](backend-orchestration.md) | 4 Render services, scheduler phase map, LLM cost surface, env var matrix |
@@ -50,15 +51,15 @@ Parallel deep-dives on the two sharpest architectural substrates — the write p
 For someone new to the codebase:
 
 1. **[SERVICE-MODEL.md](SERVICE-MODEL.md)** — how the system works (start here)
-2. **[FOUNDATIONS.md](FOUNDATIONS.md)** — why it works this way, axiomatically
-3. **[THESIS.md](THESIS.md)** — the philosophical claim the axioms exist to express (internal canon)
-4. **[authored-substrate.md](authored-substrate.md)** + **[reviewer-substrate.md](reviewer-substrate.md)** — the two sharpest architectural substrates (write path + judgment seat)
-5. **[agent-orchestration.md](agent-orchestration.md)** — agent types and capabilities
-6. **[execution-loop.md](execution-loop.md)** — the accumulation cycle (how recurring work compounds)
-7. **[workspace-conventions.md](workspace-conventions.md)** — the filesystem model
-8. **[backend-orchestration.md](backend-orchestration.md)** — how everything runs
-9. **[registry-matrix.md](registry-matrix.md)** — the full type catalog
-10. **[primitives-matrix.md](primitives-matrix.md)** — the full primitive surface
+2. **[LAYER-MAPPING.md](LAYER-MAPPING.md)** — current Agent-vs-Orchestration taxonomy
+3. **[agent-composition.md](agent-composition.md)** — how YARNNN / Reviewer / domain Agents compose today
+4. **[FOUNDATIONS.md](FOUNDATIONS.md)** — why it works this way, axiomatically
+5. **[THESIS.md](THESIS.md)** — the philosophical claim the axioms exist to express (internal canon)
+6. **[authored-substrate.md](authored-substrate.md)** + **[reviewer-substrate.md](reviewer-substrate.md)** — the two sharpest architectural substrates (write path + judgment seat)
+7. **[orchestration.md](orchestration.md)** — orchestration capabilities and dispatch
+8. **[execution-loop.md](execution-loop.md)** — the accumulation cycle (how recurring work compounds)
+9. **[workspace-conventions.md](workspace-conventions.md)** — the filesystem model
+10. **[backend-orchestration.md](backend-orchestration.md)** — how everything runs
 
 ## Archived (`docs/architecture/previous_versions/`)
 

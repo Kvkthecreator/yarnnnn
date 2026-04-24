@@ -1,11 +1,12 @@
 # Layer Mapping — Agent vs. Orchestration
 
 > **Status**: Canonical (internal)
-> **Date**: 2026-04-23 (ratified by operator same day)
+> **Date**: 2026-04-24 (amended by ADR-216 + ADR-217)
 > **Authors**: KVK, Claude
 > **Scope**: The authoritative taxonomy for YARNNN's two-class cognitive-layer model. Names every entity, classifies it, and specifies where it lives in code and documentation.
 > **Audience**: Internal. Frames code renames, ADR amendments, and canonical vocabulary. **Not a compromise with industry vocabulary** — this document corrects the earlier canon's vocabulary drift.
 > **Supersedes**: the hedge in THESIS §"Vocabulary: production layers vs. judgment layers" v1 (same-day earlier) — this doc corrects that section's "we call production entities Agents because industry" compromise.
+> **Amended by**: ADR-216 (YARNNN reclassified from Agent to orchestration surface) and ADR-217 (autonomy delegation moved from `review/modes.md` to `_shared/AUTONOMY.md`).
 
 ---
 
@@ -40,8 +41,7 @@ External UI and marketing vocabulary ("Agents" as the personified workers the op
 
 | Agent | Substrate home | Role |
 |---|---|---|
-| **YARNNN** (the super-agent) | `/workspace/memory/` + AGENT.md implicit via role | The conversational meta-cognitive Agent the operator addresses. Composes team, scaffolds tasks, surfaces state. Fiduciary at the workspace level. |
-| **Reviewer** | `/workspace/review/` (7 canonical files) | Judgment seat. Reads proposed actions, renders approve/reject/defer. Fiduciary at the proposal level. |
+| **Reviewer** | `/workspace/review/` (6 seat files) + reads `/workspace/context/_shared/AUTONOMY.md` | Judgment seat. Reads proposed actions, renders approve/reject/defer. Fiduciary at the proposal level. |
 | **User-authored domain Agents** | `/agents/{slug}/AGENT.md` + `/agents/{slug}/memory/` | Persistent domain experts authored by the operator through YARNNN chat. Hold domain intent, accumulate domain context, represent the operator in a specific domain. |
 | **Future judgment archetypes** | `/workspace/{archetype}/` (future) | Auditor (retrospective judgment), Advocate (counter-position), Custodian (drift detection), etc. Any future seat that holds standing intent and renders judgment. |
 
@@ -60,9 +60,10 @@ External UI and marketing vocabulary ("Agents" as the personified workers the op
 
 | Entity | What it is under sharp mapping | Why it's orchestration, not Agent |
 |---|---|---|
-| **The Orchestrator** (system machinery) | The task pipeline, dispatch routing, team composition logic, capability gating. | It runs; it does not judge. It is tooling YARNNN-the-Agent (and Reviewer, user-Agents) use to get production work dispatched. |
-| **Specialists** (Researcher, Analyst, Writer, Tracker, Designer, Reporting) | Production-style capability bundles. "Researcher" = research-style-production capability; "Writer" = writing-style-production capability. | No persistent identity, no standing intent, no fiduciary relationship. They are pre-packaged production roles the Orchestrator dispatches against. |
-| **Platform Bots** (Slack/Notion/GitHub/Commerce/Trading) | Integration-style capability bundles. "Slack Bot" = Slack-API-access capability bundled with platform-specific dispatch. | ADR-207 P4a already dissolved these as an agent class; this mapping formalizes the reclassification. |
+| **YARNNN** (chat surface) | The platform-authored conversational surface of the orchestrator. Fixed voice, no workspace-authored persona file. | It routes, scaffolds, and surfaces; it does not embody an operator-authored judgment persona. ADR-216 reclassified it out of the Agent class. |
+| **The Orchestrator** (system machinery) | The task pipeline, dispatch routing, team composition logic, capability gating. | It runs; it does not judge. It is tooling YARNNN, Reviewer, and domain Agents use to get production work dispatched. |
+| **Production roles** (Researcher, Analyst, Writer, Tracker, Designer, Reporting) | Production-style capability bundles. "Researcher" = research-style-production capability; "Writer" = writing-style-production capability. | No persistent identity, no standing intent, no fiduciary relationship. They are pre-packaged production roles the Orchestrator dispatches against. |
+| **Platform integrations** (Slack/Notion/GitHub/Commerce/Trading) | Integration-style capability bundles. "Slack" = Slack-API-access capability bundled with platform-specific dispatch. | ADR-207 P4a dissolved platform bots as an agent class; integrations are capability bundles, not principals. |
 | **Task pipeline, scheduler, primitive dispatch** | Core orchestration plumbing. | Runtime coordination. No judgment. |
 | **Back-office tasks** (hygiene, cleanup, reconciliation, calibration-rebuild) | Scheduled orchestration work, deterministic. | They run; they do not judge. The calibration rebuild is orchestration machinery operating *on behalf of* the Reviewer Agent's substrate. |
 
@@ -78,23 +79,21 @@ External UI and marketing vocabulary ("Agents" as the personified workers the op
 
 A judge uses court records. A lawyer uses precedent. Neither becomes infrastructure because they use tools. The same applies here: the Reviewer Agent uses `chat_completion_with_tools`, reads `_performance.md`, writes `decisions.md` — all via Orchestration infrastructure. That's Agents-using-tools, not Agents-being-orchestration.
 
-### 2. YARNNN splits cleanly into Agent and Orchestrator
+### 2. YARNNN is the orchestration chat surface
 
-The name "YARNNN" today covers two distinct things that this mapping separates:
+ADR-216 resolves the earlier ambiguity: **YARNNN is not a persona-bearing Agent.** It is the conversational surface of the orchestrator.
 
-- **YARNNN (the Agent)** — the conversational, personified, user-addressable fiduciary at the meta-cognitive layer. Holds memory, awareness, playbook, style. Reasons with the operator about team composition, task scaffolding, system state. Classified: **Agent**.
-- **Orchestrator (the system machinery)** — the team composition logic, task pipeline, dispatch routing, capability gating, back-office scheduling. Classified: **Orchestration**.
+- **YARNNN** — user-addressable, fixed-voice, platform-authored orchestration surface. It reads workspace state, drafts tasks, routes updates, and keeps the system legible to the operator.
+- **Orchestrator** — the underlying system machinery: task pipeline, dispatch routing, capability gating, back-office scheduling.
 
-**YARNNN-the-Agent uses the Orchestrator** the way a CEO uses staff. The CEO is a fiduciary (an agent); the staff is machinery. They are not the same thing.
+The pragmatic implementation detail remains: YARNNN retains a row in the `agents` table with `role='thinking_partner'` because the system needs a durable chat-surface state carrier. The row is implementation substrate, not architectural classification.
 
-The name used for the system-machinery side is **Orchestrator** (singular, system-level). It owns no persistent identity of its own. The name used for the Agent side is **YARNNN** (personified, user-addressable).
-
-### 3. Specialists and Platform Bots are capability bundles, not Agents
+### 3. Production roles and platform integrations are capability bundles, not Agents
 
 Today the canon has been describing Specialists and Platform Bots as "agents" (production sense, industry-loose). Under the sharp mapping, they are **orchestration-layer capability bundles**:
 
-- A "Specialist" is a packaged production role — templates, prompts, default instructions, tool surface — that the Orchestrator dispatches against when a task requires that style of production.
-- A "Platform Bot" is a packaged integration role — platform API access, per-platform primitives, dispatch routing — that the Orchestrator invokes when a task requires that platform.
+- A **production role** is a packaged production bundle — templates, prompts, default instructions, tool surface — that the Orchestrator dispatches against when a task requires that style of production.
+- A **platform integration** is a packaged integration bundle — platform API access, per-platform primitives, dispatch routing — that the Orchestrator invokes when a task requires that platform.
 
 Neither holds standing intent. Neither represents the operator fiduciarily. Neither accumulates identity-level expertise over tenure. They are **tooling the Orchestrator uses**. The word "Specialist" and "Platform Bot" are retained as working terms for the orchestration-role concept; they are explicitly not Agents.
 
@@ -112,14 +111,16 @@ The canon's earlier hedge said "we use the industry word." We now say: **we use 
 
 ---
 
-## What changes in code (proposed — awaiting operator confirmation)
+## Historical implementation planning notes
+
+This section records the implementation-planning discourse that accompanied the original layer-mapping correction. It is preserved as historical context, not as present canon. Current shipped taxonomy lives in ADR-216/217 plus [agent-composition.md](agent-composition.md).
 
 ### Renames (file-level)
 
 | Today | Proposed | Rationale |
 |---|---|---|
 | `api/services/agent_orchestration.py` | `api/services/orchestration.py` | Drop "agent_" prefix. The file IS orchestration (production machinery, capability bundles, dispatch metadata). The word "agent" in the name was an artifact of the pre-flip vocabulary. |
-| `api/agents/yarnnn.py` | `api/agents/yarnnn.py` (stays) + extract orchestration-side to `api/services/orchestrator.py` | YARNNN-the-Agent class stays. Orchestration logic inside YarnnnAgent (if any bleeds) gets extracted. |
+| `api/agents/yarnnn.py` | `api/agents/yarnnn.py` (stays) + extract orchestration-side to `api/services/orchestrator.py` | YARNNN stays the chat-surface entry point. Orchestration logic inside YarnnnAgent (if any bleeds) gets extracted. |
 | `api/services/agent_creation.py` | **Kept as `agent_creation.py`** — creates Agent DB rows (systemic YARNNN + user-authored instance Agents). Operates on Agents. Name is correct under the sharp mapping. |
 | `api/services/agent_execution.py` | **Kept as `agent_execution.py`** — runs the full Agent generation-to-delivery pipeline. Operates on Agents. Name is correct under the sharp mapping. |
 | `api/services/agent_pipeline.py` | `api/services/orchestration_prompts.py` | Holds production-role prompt templates + prompt assembly — orchestration-side. (Renamed in Commit C.) |
@@ -149,7 +150,7 @@ The canon's earlier hedge said "we use the industry word." We now say: **we use 
 
 - **THESIS.md** `§Vocabulary` — rewrite. Drop the "we call production entities Agents because industry" hedge. Replace with the sharp mapping. State: *Agents are judgment-bearing, fiduciary, principal-representing entities. Orchestration is production machinery. External UI happens to align with the sharp mapping because user-authored Agents are Agents.*
 - **GLOSSARY.md** — rewrite the Entities table. "Specialist" and "Platform Bot" move under an "Orchestration capability bundles" subsection. "Agent" definition sharpened. Add "Orchestrator" as a canonical term (system-machinery side of YARNNN).
-- **FOUNDATIONS.md** — Axiom 2 rewords. Cognitive-layer taxonomy becomes **Agents** (first class; judgment-bearing; multiple members — YARNNN, Reviewer, user-authored domain Agents, future archetypes) vs **Orchestration** (not cognitive layer — production machinery under Agents). Principle 14 ("Roles persist; occupants rotate") refined to apply canonically to Agent seats.
+- **FOUNDATIONS.md** — Axiom 2 rewords. Cognitive-layer taxonomy becomes **Agents** (persona-bearing judgment seats — Reviewer, user-authored domain Agents, future archetypes) vs **Orchestration** (YARNNN surface + production machinery). Principle 14 ("Roles persist; occupants rotate") refined to apply canonically to Agent seats.
 - **reviewer-substrate.md** — retitle or re-frame. This doc is about the Reviewer **Agent**, not a "Reviewer layer" that is somehow not an Agent. Rename section headers where they say "Reviewer seat" to "Reviewer Agent seat" (seat vocab preserved — seat is the role, occupant is who fills it — but it's explicit now that the role is an Agent).
 - **CLAUDE.md** — the system reminders + architecture overview section gets the sharp mapping.
 - **ADR cross-references** — historical ADRs preserved; new ADR-212 (Layer Mapping Correction) authored as decision record.
@@ -250,14 +251,15 @@ Going forward, any orchestration-layer entity is named without personification �
 
 Falls out of Q3 + Q4 + Q5 taken together. Stated here for clarity:
 
-**Structural rule**: *Systemic Agents (one per workspace, scaffolded at signup) are path-named by role. Instance Agents (many per workspace, user-authored) are path-named by slug.*
+**Structural rule**: *Systemic persona-bearing Agents (one per workspace) are path-named by role. Instance Agents (many per workspace, user-authored) are path-named by slug. YARNNN is an orchestration-surface convention rooted at `/workspace/memory/`, not a systemic Agent seat.*
 
-| Agent class | Cardinality | Path shape | Examples |
+| Entity class | Cardinality | Path shape | Examples |
 |---|---|---|---|
-| Systemic Agent | exactly one per workspace | `/workspace/{role}/` or conventional home | `/workspace/review/` (Reviewer), `/workspace/memory/` (YARNNN) |
+| Systemic persona-bearing Agent | exactly one per workspace | `/workspace/{role}/` | `/workspace/review/` (Reviewer) |
 | Instance Agent | zero-to-many per workspace | `/agents/{slug}/` | `/agents/acme-competitor-tracker/`, `/agents/weekly-brief-writer/` |
+| Orchestration surface / shared orchestration substrate | workspace-scoped convention | `/workspace/memory/` + `/workspace/context/_shared/` | YARNNN awareness/playbook/style/notes + operator-authored shared declarations |
 
-The path shape encodes the cardinality distinction. Future systemic archetypes (Auditor, Advocate, etc.) would land at `/workspace/{role}/`. Future user-authored-entity-types would land at `/{type}/{slug}/`. This is enforceable at the filesystem layer — no slug-collision between systemic and instance Agents, because their namespaces don't overlap.
+The path shape encodes the cardinality distinction. Future systemic archetypes (Auditor, Advocate, etc.) would land at `/workspace/{role}/`. Future user-authored entity types would land at `/{type}/{slug}/`. This is enforceable at the filesystem layer — no slug-collision between systemic and instance Agents, because their namespaces don't overlap.
 
 **Why no slug for systemic Agents**: because there's exactly one per workspace, a slug would add no disambiguation. The role name IS the address. Adding a slug would imply multiplicity that doesn't exist.
 
@@ -338,7 +340,7 @@ Agent-class entities keep their names. No class-level rename cascades.
 
 - **THESIS.md** §"Vocabulary: production layers vs. judgment layers" — rewritten. Drop the "we call production entities Agents because industry" hedge. State the sharp mapping.
 - **GLOSSARY.md** — Entities table rewritten. "Agent" sharpened. "Specialist" → renamed to "Production role" with retired-terms note. "Platform Bot" → "Platform integration" with retired-terms note. New entries: "Orchestration," "Production role," "Platform integration," "Systemic Agent," "Instance Agent."
-- **FOUNDATIONS.md** Axiom 2 — rewords cognitive-layer taxonomy to **Agents** (Identity layer — YARNNN, Reviewer, user-authored domain Agents, future archetypes) vs **Orchestration** (production machinery under Agents). Principle 14 "Roles persist; occupants rotate" retargets to canonically apply to Agent seats.
+- **FOUNDATIONS.md** Axiom 2 — rewords cognitive-layer taxonomy to **Agents** (Identity layer — Reviewer, user-authored domain Agents, future archetypes) vs **Orchestration** (YARNNN surface + production machinery). Principle 14 "Roles persist; occupants rotate" retargets to canonically apply to Agent seats.
 - **reviewer-substrate.md** — retitle sections to call Reviewer an "Agent" (not a "layer" that happens to be an Agent). Seat vocabulary preserved (seat = role; occupant = who fills it).
 - **CLAUDE.md** — architecture overview + system reminders updated.
 - **api/prompts/CHANGELOG.md** — new entry `[2026.04.23.7]` records the full flip.

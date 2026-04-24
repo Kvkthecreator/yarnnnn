@@ -1,7 +1,7 @@
 # YARNNN Cognitive Architecture — Foundations
 
 > **Status**: Canonical
-> **Date**: 2026-03-25 (v6.0 rewrite 2026-04-20)
+> **Date**: 2026-03-25 (v6.0 rewrite 2026-04-20; canon hardening amended 2026-04-24)
 > **Authors**: KVK, Claude
 > **Scope**: First principles from which all architectural decisions derive.
 > **Rule**: ADRs implement these axioms. If an ADR contradicts a foundation, the ADR must justify the deviation or be revised.
@@ -134,12 +134,13 @@ Members in YARNNN today:
 
 | Agent | Class | Substrate home | Role |
 |---|---|---|---|
-| **YARNNN** | Systemic (one per workspace) | `/workspace/memory/` (awareness, playbook, style, notes) | Conversational meta-cognitive Agent. Composes team, surfaces state. Fiduciary at workspace level. |
-| **Reviewer** | Systemic (one per workspace) | `/workspace/review/` (seven canonical files — see [reviewer-substrate.md](reviewer-substrate.md)) | Judgment seat. Reads proposed actions, renders verdicts. Fiduciary at proposal level. |
+| **Reviewer** | Systemic (one per workspace) | `/workspace/review/` (six seat files) + reads `/workspace/context/_shared/AUTONOMY.md` | Judgment seat. Reads proposed actions, renders verdicts. Fiduciary at proposal level. |
 | **User-authored domain Agents** | Instance (zero-to-many per workspace) | `/agents/{slug}/AGENT.md` + `/agents/{slug}/memory/` | Persistent domain experts authored by operator through YARNNN chat. Fiduciary at domain level. |
 | **Future judgment archetypes** | Systemic (future) | `/workspace/{role}/` | Auditor, Advocate, Custodian, etc. Any future seat holding standing intent. |
 
 **Systemic Agents** are path-named by role (cardinality one per workspace, no slug needed). **Instance Agents** are path-named by slug (cardinality many per workspace, slug disambiguates). The filesystem encodes the cardinality distinction.
+
+**YARNNN is not an Agent under the current canon.** ADR-216 reclassified YARNNN to the orchestration layer: a fixed-voice, platform-authored chat surface that routes work and keeps the workspace legible, but does not embody an operator-authored judgment persona.
 
 ### Orchestration is NOT Identity-bearing
 
@@ -164,12 +165,12 @@ This is why ADR-194 v2 + ADR-211 are correct to treat Reviewer as a distinct Age
 
 Per Axiom 1, identity is carried by substrate, not held in code:
 
-- **YARNNN's identity** — `/workspace/memory/awareness.md`, `/workspace/memory/_playbook.md`, `/workspace/memory/style.md`, `/workspace/memory/notes.md` + `/workspace/context/_shared/IDENTITY.md` (workspace operator identity)
-- **Reviewer's identity** — `/workspace/review/IDENTITY.md` + `OCCUPANT.md` (declares current seat occupant) + `principles.md` + `decisions.md` + `modes.md` + `handoffs.md` + `calibration.md`
+- **YARNNN orchestration surface** — `/workspace/memory/awareness.md`, `/workspace/memory/_playbook.md`, `/workspace/memory/style.md`, `/workspace/memory/notes.md` as orchestration accumulation; there is intentionally no workspace-authored YARNNN persona file
+- **Reviewer's identity** — `/workspace/review/IDENTITY.md` + `OCCUPANT.md` (declares current seat occupant) + `principles.md` + `decisions.md` + `handoffs.md` + `calibration.md`; it reasons within delegation declared at `/workspace/context/_shared/AUTONOMY.md`
 - **User-authored Agent identity** — `/agents/{slug}/AGENT.md` + accumulated domain context
 - **Future systemic Agent identity** — `/workspace/{role}/IDENTITY.md` + role-specific substrate
 
-A file without a declared author identity is an Axiom 2 violation. An Agent acting without a resolvable identity is a bug. Orchestration, by contrast, does not author files in its own name — writes done through the Orchestrator carry the identity of the Agent that invoked it (operator, YARNNN, Reviewer, user-authored Agent, or `system:*` for mechanical back-office work).
+A file without a declared author identity is an Axiom 2 violation. An Agent acting without a resolvable identity is a bug. Orchestration, by contrast, does not author files in its own name — writes done through the Orchestrator carry the identity of the invoking principal (operator, YARNNN chat surface, Reviewer, user-authored Agent, or `system:*` for mechanical back-office work).
 
 ### Development axes — Agents develop, Orchestration does not
 
@@ -177,7 +178,6 @@ Each Agent develops along exactly one axis. Orchestration does not develop; it e
 
 | Agent | Develops | How |
 |---|---|---|
-| YARNNN | Upward — judgment about attention allocation | Workspace-level accumulation of what works for this operator |
 | Reviewer | Through calibration — judgment quality | Decisions accumulate in `decisions.md`; calibration against reconciled outcomes in `calibration.md` |
 | User-authored domain Agent | Inward — deeper domain expertise | Accumulated memory, observations, learned preferences in its domain |
 
@@ -191,10 +191,10 @@ Orchestration capability bundles (production roles, platform integrations) do no
 
 Purpose is what intent drives the work. It is declared in substrate files:
 
-- **Workspace purpose** — `/workspace/context/_shared/IDENTITY.md`, `/workspace/context/_shared/BRAND.md`, `/workspace/context/_shared/CONVENTIONS.md` (post-ADR-206 relocation; previously at `/workspace/` root). What the operator is building, how they think, what they care about, and the structural rules all agents honor.
+- **Workspace purpose** — `/workspace/context/_shared/MANDATE.md`, `/workspace/context/_shared/IDENTITY.md`, `/workspace/context/_shared/BRAND.md`, `/workspace/context/_shared/CONVENTIONS.md`, `/workspace/context/_shared/AUTONOMY.md` (post-ADR-206/217 relocation). What the operator is building, how they think, what they care about, the structural rules all agents honor, and how much judgment authority the AI carries on their behalf.
 - **Operation purpose** — `/workspace/context/{domain}/_operator_profile.md` + `/workspace/context/{domain}/_risk.md`. Declared rules, signals, limits — the *edge hypothesis* the operator is running. Post-ADR-206 these files are the Intent artifacts that drive the loop.
 - **Task purpose** — `/tasks/{slug}/TASK.md` (objective) + `/tasks/{slug}/DELIVERABLE.md` (output specification). Why this task exists, what it produces.
-- **Reviewer purpose** — `/workspace/review/principles.md`. How the independent judgment seat should reason; auto-approve thresholds, escalation rules. Post-ADR-206 this is the Reviewer's capital-EV framework the operator authors once, the Reviewer executes per-proposal.
+- **Reviewer purpose** — `/workspace/review/principles.md` + `/workspace/context/_shared/AUTONOMY.md`. The seat's applied framework lives in `principles.md`; the operator's delegation ceiling lives in shared `AUTONOMY.md`. The former can narrow the latter, never widen it (ADR-217).
 - **Agent purpose** — `/agents/{slug}/AGENT.md`. What domain the agent owns, how it approaches its domain.
 - **Domain purpose** — `/workspace/context/{domain}/_domain.md`. What this domain tracks, what entities belong in it.
 
@@ -436,7 +436,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 
 13. **Substrate writes are attributed and retained (Authored Substrate)** — Every mutation to `workspace_files` carries an `authored_by` identity and a short message, and every prior revision is retained in-substrate. There is no parallel audit table, no `/history/` subfolder, no filename-encoded versioning. This completes Axiom 1 (content-addressed retention + parent-pointer history) and operationalizes Axiom 2 (every file has an author, enforceable at the write path). See ADR-209 and [authored-substrate.md](authored-substrate.md).
 
-14. **Agent seats persist; occupants rotate** — Agent-class entities (Axiom 2 — YARNNN, Reviewer, user-authored domain Agents, future archetypes) are architectural *seats*, not identity commitments. The Reviewer seat is the canonical example: today the occupant is human, tomorrow the occupant may be an AI reviewer (ADR-194 v2 Phase 3), and either occupant fills the same seat with the same inputs (mandate, `_performance.md`, track record, proposal) and produces the same artifact (verdict + reasoning written to `/workspace/review/decisions.md`). The architectural value compounds in the *seat* — the substrate it reads, the judgments it accumulates, the calibration it enables — not in the occupant. This principle applies canonically to Agent seats. Orchestration capability bundles (production roles, platform integrations) are not seats in this sense — they have configurations to tune, not occupants to rotate. This principle makes the seat-interchangeability claim in [THESIS.md](THESIS.md) structurally enforceable: code must never couple an Agent seat to a specific occupant class. See THESIS "Independent judgment" commitment; canonical substrate spec for the Reviewer seat lives at [reviewer-substrate.md](reviewer-substrate.md); authoritative Agent/Orchestration taxonomy lives at [LAYER-MAPPING.md](LAYER-MAPPING.md).
+14. **Agent seats persist; occupants rotate** — Persona-bearing Agent seats (Axiom 2 — Reviewer, user-authored domain Agents, future judgment archetypes) are architectural *seats*, not identity commitments. The Reviewer seat is the canonical example: today the occupant is human, tomorrow the occupant may be an AI reviewer (ADR-194 v2 Phase 3), and either occupant fills the same seat with the same inputs (mandate, `_performance.md`, track record, proposal) and produces the same artifact (verdict + reasoning written to `/workspace/review/decisions.md`). The architectural value compounds in the *seat* — the substrate it reads, the judgments it accumulates, the calibration it enables — not in the occupant. This principle applies canonically to Agent seats. Orchestration surfaces and capability bundles (YARNNN, production roles, platform integrations) are not seats in this sense — they have configurations to tune, not occupants to rotate. This principle makes the seat-interchangeability claim in [THESIS.md](THESIS.md) structurally enforceable: code must never couple an Agent seat to a specific occupant class. See THESIS "Independent judgment" commitment; canonical substrate spec for the Reviewer seat lives at [reviewer-substrate.md](reviewer-substrate.md); authoritative Agent/Orchestration taxonomy lives at [LAYER-MAPPING.md](LAYER-MAPPING.md).
 
 ---
 
@@ -522,3 +522,4 @@ Carried forward from v5.1, updated for v6.0:
 | 2026-04-23 | v6.4 — **Production vs. judgment layer vocabulary + Phase 4 scoping.** THESIS gains §"Vocabulary: production layers vs. judgment layers" explicitly naming the two-class split inside Axiom 2 (production = YARNNN / Specialists / Agents / Platform Bots; judgment = Reviewer) and the deliberate "agent" industry-vocabulary alignment. reviewer-substrate.md gains §"Review orchestration vs. reviewer entity — the split" distinguishing plumbing from agency-locus. GLOSSARY v1.6 adds the top-level "Vocabulary note: Agent and agency-proper" discipline note. [ADR-211](../adr/ADR-211-reviewer-substrate-phase-4.md) scopes Phase 4 (OCCUPANT + modes + handoffs + calibration + rotation protocol + dispatch refactor + prospective-attribution contract) as a bounded coordinated landing; the ADR decisions resolve the principles-vs-modes split, occupant-rotation protocol, calibration cadence, and minimum-UX attribution-contract footprint. No class restructure: Option 2 feasibility audit (2026-04-23) confirmed the layer-class distinction is already structurally expressed in code via scope + substrate + trigger + development axis; creating a `reviewer` class would violate Principle 14 by coupling the seat to an agent class. |
 | 2026-04-23 | v6.5 — **ADR-211 Phase 4 Implemented.** Reviewer substrate completion shipped in five atomic commits (`49bfeb3` substrate scaffolding, `5fb0b69` principles/modes split, `bcdeaae` rotation primitive, `af9cf44` calibration loop, final I1+I2 attribution + ADR-194 v2.6 status). All seven canonical files under `/workspace/review/` now exist in shipped code. Singular-implementation discipline enforced: rotation primitive (`services.review_rotation.rotate_occupant`) is the sole write path for OCCUPANT.md + handoffs.md — previous static templates deleted. Principles/modes split enforced: `review_principles.py` deleted entirely, replaced by `review_policy.py` with `load_principles()` + `load_modes()` parsers reading the two distinct substrate files. Calibration loop closes Axiom 7 + Axiom 8 at the reviewer-seat level: `back-office-reviewer-calibration` runs daily, aggregates per-occupant × verdict over 7d/30d/90d windows, rebuilds calibration.md idempotently. Principle 14 now structurally enforceable: occupant is a file-declared identity; rotation is a substrate write; code path is occupant-class-agnostic at the dispatch level. No DB migrations. |
 | 2026-04-23 | v6.6 — **Axiom 2 rewritten for sharp Agent/Orchestration mapping (supersedes v6.4 hedge).** Axiom 2 previously described four cognitive layers (YARNNN / Specialists / Agents / Reviewer) with "production vs judgment" as a sub-classification — that framing conflated orchestration capability bundles (Specialists, Platform Bots) with Agents. [LAYER-MAPPING.md](LAYER-MAPPING.md) ratifies the sharp split: **Agents** (judgment-bearing — YARNNN, Reviewer, user-authored domain Agents, future archetypes) are Identity-bearing; **Orchestration** (production machinery — production roles previously called Specialists, platform integrations previously called Platform Bots, task pipeline, back-office tasks) is stateless infrastructure with no Identity. Axiom 2 now states this directly. Principle 14 retargeted — "Agent seats persist; occupants rotate" applies canonically to Agent seats; orchestration bundles have configurations to tune, not occupants to rotate. THESIS §Vocabulary rewritten to drop the "we call production entities Agents because industry" hedge — the word belongs to judgment-bearing entities and is used accordingly. External product vocabulary unchanged (user-authored domain Agents ARE Agents in the sharp sense, so external UI naturally aligns). ADR-212 (proposed) is the decision record. |
+| 2026-04-24 | v6.7 — **ADR-216/217 canon hardening.** YARNNN removed from the Agent member list and clarified as the orchestration chat surface (fixed voice, no workspace-authored persona file). Reviewer substrate description updated from seven files to six seat files plus shared `/workspace/context/_shared/AUTONOMY.md`, reflecting ADR-217's authorship correction (delegation is operator-to-role, not seat-owned config). Axiom 3 purpose examples now include `MANDATE.md` and shared `AUTONOMY.md` explicitly. |

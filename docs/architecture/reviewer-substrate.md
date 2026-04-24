@@ -1,11 +1,11 @@
 # Reviewer Substrate
 
 > **Status**: Canonical
-> **Date**: 2026-04-23
+> **Date**: 2026-04-24
 > **Authors**: KVK, Claude
-> **Scope**: The filesystem substrate that expresses the Reviewer Agent — occupant declaration and rotation protocol, operational modes vocabulary, calibration trail semantics, and prospective-attribution contract with chat surfaces.
+> **Scope**: The filesystem substrate that expresses the Reviewer Agent — occupant declaration and rotation protocol, autonomy-aware judgment framework, calibration trail semantics, and prospective-attribution contract with chat surfaces.
 > **Upstream**: [THESIS.md](THESIS.md) §"Independent judgment" (the Reviewer is the second architectural commitment). [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 2 (Agents vs Orchestration — the Reviewer is an Agent). [LAYER-MAPPING.md](LAYER-MAPPING.md) (authoritative Agent/Orchestration taxonomy). Derived Principle 14 (Agent seats persist; occupants rotate).
-> **Implementation**: [ADR-194 v2](../adr/ADR-194-pluggable-reviewer-and-impersonation.md) (Phases 1–3). [ADR-211](../adr/ADR-211-reviewer-substrate-phase-4.md) (Phase 4 — seven-file canonical target: OCCUPANT + modes + handoffs + calibration + rotation primitive + dispatch refactor + attribution contract I1+I2).
+> **Implementation**: [ADR-194 v2](../adr/ADR-194-pluggable-reviewer-and-impersonation.md) (Phases 1–4). [ADR-217](../adr/ADR-217-workspace-autonomy-substrate.md) (autonomy moved from seat-owned `modes.md` to shared `_shared/AUTONOMY.md`; seat canon is now six files plus adjacent shared delegation).
 
 ---
 
@@ -25,13 +25,13 @@ Sibling to [orchestration.md](orchestration.md): where `orchestration.md` is the
 
 The **seat** (the Reviewer Agent's architectural role) is interchangeable between occupant classes — human, YARNNN-internal AI, external AI service — without architectural change. The architectural value compounds in the **seat's substrate** (what it reads and writes) and the **accumulated calibration** over tenure, not in the **occupant** (who happens to be rendering verdicts this cycle). This is Derived Principle 14 ("Agent seats persist; occupants rotate") applied to its canonical case.
 
-The Reviewer is one of YARNNN's Agents (see [LAYER-MAPPING.md](LAYER-MAPPING.md) + [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 2). The others today are YARNNN (the conversational super-agent) and user-authored domain Agents. Future Agents (Auditor, Advocate, etc.) would live alongside the Reviewer as parallel systemic seats at `/workspace/{role}/`.
+The Reviewer is the **sole systemic persona-bearing Agent in YARNNN today** (see [LAYER-MAPPING.md](LAYER-MAPPING.md) + [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 2). YARNNN itself is the orchestration chat surface, not a persona-bearing Agent. Future persona-bearing Agents (Auditor, Advocate, etc.) would live alongside the Reviewer as parallel systemic seats at `/workspace/{role}/`.
 
 ---
 
-## The five substrate files
+## The six seat files
 
-The Reviewer seat is expressed as a filesystem subtree at `/workspace/review/`. The substrate is the seat: there is no in-memory abstraction that persists between verdicts, no parallel config table, no reviewer ABC. Every aspect of the seat — who occupies it, what principles it judges by, what modes it operates in, how it has calibrated, what it has decided — lives in files.
+The Reviewer seat is expressed as a filesystem subtree at `/workspace/review/`. The substrate is the seat: there is no in-memory abstraction that persists between verdicts, no parallel config table, no reviewer ABC. Every aspect of the seat — who occupies it, what principles it judges by, how it has calibrated, what it has decided — lives in files. Delegation authority is read alongside the seat from `/workspace/context/_shared/AUTONOMY.md`, but it is **not** a seat-owned file.
 
 ### `IDENTITY.md` — who the seat is
 
@@ -60,25 +60,25 @@ The operator's stated preferences for how judgment should be rendered in this wo
 
 Principles include (non-exhaustive):
 - Capital horizons that matter (daily / weekly / quarterly / multi-year)
-- Reversibility thresholds — above what cost/scope does an action require the human occupant regardless of mode
-- Domain-specific auto-approve bounds (e.g., `trading: auto_approve_below_cents: 5000`)
+- Reversibility thresholds and framework-level defer rules
 - Ambiguity resolution posture (prefer defer, prefer reject, prefer approve-with-note)
+- Narrowing conditions that sit on top of AUTONOMY.md's raw delegation ceiling
 
 This file is the operator's authored intent on *how* they want to be judged on behalf of. It is read by every occupant of the seat. It is independent of the occupant class.
 
 *Written by*: operator.
 
-### `modes.md` — operational modes of the seat
+### Read alongside the seat: `/workspace/context/_shared/AUTONOMY.md`
 
-The Reviewer seat operates along continua, not switches. `modes.md` declares the current operational configuration along three axes:
+Autonomy declaration is no longer owned by the Reviewer seat. ADR-217 moved it to shared operator-intent substrate:
 
-- **Autonomy level** — where along the spectrum from "occupant decides everything" to "occupant defers everything" the seat is currently operating. Typically expressed as per-domain thresholds.
-- **Scope** — which domains the current occupant has authority over. A human may retain authority over trading while an AI occupant handles commerce in the same workspace. Cross-domain occupant mixing is legitimate and common.
-- **On-behalf posture** — when the occupant defers, does it defer with (a) a recommendation, (b) a ranked shortlist of options, (c) a pass-through with no opinion. This is the gradient between the seat acting as *advisor* vs. *agent*.
+- **Path**: `/workspace/context/_shared/AUTONOMY.md`
+- **Author**: operator only (or YARNNN on explicit operator instruction)
+- **Meaning**: workspace-scoped delegation ceiling, with `default` + per-domain overrides (`manual`, `assisted`, `bounded_autonomous`, `autonomous`, plus optional `ceiling_cents` and `never_auto`)
 
-`modes.md` is read at the start of every verdict rendering. Changes to it take effect on the next verdict.
+The Reviewer dispatcher reads AUTONOMY.md at the start of every verdict rendering. `principles.md` can **narrow** that delegation with additional defer conditions, but never widen it. This is the servant-can-be-more-conservative-than-the-master-permits rule ratified by ADR-217.
 
-*Written by*: operator (modes are operator-declared policy) or YARNNN (on operator instruction via chat).
+AUTONOMY.md sits outside the six seat files because seat rotation must not touch it; delegation is operator-to-role, not operator-to-occupant.
 
 ### `decisions.md` — append-only verdict trail
 
@@ -112,7 +112,7 @@ Calibration captures:
 - Per-occupant calibration (does AI occupant v1 over-approve? does human occupant under-approve on low-stakes reversible writes?)
 - Divergence signals — proposals the occupant judged confidently that outcomes contradicted
 
-This file is read by the operator when evaluating whether to rotate the occupant, when tightening or loosening `modes.md`, and when reviewing `principles.md`. It is read by AI occupants as prior context for future verdicts. It closes the money-truth → future-judgment loop per FOUNDATIONS Axiom 7 (Recursion).
+This file is read by the operator when evaluating whether to rotate the occupant, when tightening or loosening `AUTONOMY.md`, and when reviewing `principles.md`. It is read by AI occupants as prior context for future verdicts. It closes the money-truth → future-judgment loop per FOUNDATIONS Axiom 7 (Recursion).
 
 *Written by*: back-office reconciliation task (zero-LLM, deterministic).
 
@@ -127,15 +127,15 @@ The contract, stated as invariants:
 - **I1**: Any surface that displays a pending proposal displays the current occupant identity (from `OCCUPANT.md`) alongside it.
 - **I2**: When a verdict renders, the verdict card displays the occupant identity inline with the verdict — not only in the audit trail.
 - **I3**: When `OCCUPANT.md` changes (seat rotation), the chat surface emits a handoff event that is legible to the operator in real time.
-- **I4**: The operator has a single command path in chat to inspect `OCCUPANT.md`, `modes.md`, and recent `handoffs.md` entries without leaving the conversation.
+- **I4**: The operator has a single command path in chat to inspect `OCCUPANT.md`, shared `AUTONOMY.md`, and recent `handoffs.md` entries without leaving the conversation.
 
 Why this matters architecturally: Principle 14 says the seat is interchangeable. Interchangeability that is invisible to the operator is not interchangeability — it is opacity. The substrate makes the seat knowable; the attribution contract makes the seat knowable *in the moment of relying on its verdicts*.
 
 ---
 
-## Operational modes vocabulary
+## Delegation vocabulary
 
-The three axes on `modes.md` deserve named vocabulary so that operator-facing surfaces and prompts can refer to them consistently.
+The delegation settings in AUTONOMY.md deserve named vocabulary so that operator-facing surfaces and prompts can refer to them consistently.
 
 **Autonomy level** — positions along the continuum:
 
@@ -144,15 +144,11 @@ The three axes on `modes.md` deserve named vocabulary so that operator-facing su
 - `bounded_autonomous` — AI occupant auto-acts below declared thresholds; defers above
 - `autonomous` — AI occupant auto-acts on all verdicts within the seat's scope; escalates only on declared exception conditions
 
-These are not modes the seat *is in globally* — they are per-domain or per-proposal-class configurations within `modes.md`.
+These are not modes the seat *is in globally* — they are workspace-scoped defaults and per-domain overrides in `AUTONOMY.md`.
 
-**Scope** — a list of `(domain, occupant, autonomy_level)` triples. Any verdict in a domain not covered by a triple defaults to `manual`. This makes scope omission safe.
+**Thresholds** — for `bounded_autonomous`, optional `ceiling_cents` and `never_auto` fields narrow what may auto-execute.
 
-**On-behalf posture** — when the current occupant defers to the next tier (usually AI → human), the posture declares:
-
-- `silent_defer` — pass the proposal upward with no opinion
-- `recommend` — pass with a single recommended verdict and reasoning
-- `shortlist` — pass with ranked options and reasoning per option
+**Framework narrowing** — `principles.md` may add defer conditions beyond AUTONOMY.md. This preserves the separation between operator delegation and the persona's applied framework.
 
 ---
 
@@ -163,10 +159,10 @@ The Reviewer seat gains value over tenure via the calibration loop:
 1. Verdict renders → `decisions.md`
 2. Proposal executes (if approved) → outcome lands in platform → ADR-195 reconciliation detects outcome → `_performance.md` updates
 3. Reconciliation cross-references verdict with outcome → `calibration.md` updates
-4. Future verdicts read `calibration.md` as prior (AI occupants) or consult it for mode tuning (human occupant)
-5. Occupant rotation decisions reference `calibration.md` (was AI occupant over-confident? → tighten thresholds in `modes.md` or rotate back to human)
+4. Future verdicts read `calibration.md` as prior (AI occupants) or consult it for delegation/framework tuning (human occupant)
+5. Occupant rotation decisions reference `calibration.md` (was AI occupant over-confident? → tighten thresholds in `AUTONOMY.md`, add narrowing in `principles.md`, or rotate back to human)
 
-This loop is the ground on which the seat's judgment improves. It is also the mechanism by which seat rotation is evidence-based rather than speculative: an AI occupant's suitability for a given `modes.md` configuration is not asserted but measured.
+This loop is the ground on which the seat's judgment improves. It is also the mechanism by which seat rotation is evidence-based rather than speculative: an AI occupant's suitability for a given autonomy/framework configuration is not asserted but measured.
 
 ---
 
@@ -181,7 +177,7 @@ The **review orchestration** is the runtime coordination that moves a proposal f
 - `ProposeAction` creates a proposal → status `pending`
 - Reactive trigger fires the `review-proposal` task
 - Task pipeline dispatches to the current occupant declared in `OCCUPANT.md`
-- Occupant reads inputs (proposal, `_performance.md`, principles, modes, calibration), reasons, renders verdict
+- Occupant reads inputs (proposal, `_performance.md`, principles, shared AUTONOMY declaration, calibration), reasons, renders verdict
 - Verdict writes to `decisions.md` with proper `authored_by` attribution
 - On approve: verdict triggers `ExecuteProposal` callback
 - On reject: verdict triggers `RejectProposal` callback
