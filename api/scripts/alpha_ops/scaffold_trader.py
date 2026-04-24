@@ -27,21 +27,26 @@ implementation — no dual paths):
   1. Persona declaration — REVIEWER_IDENTITY_MD to /workspace/review/IDENTITY.md
      (Simons character; read by Reviewer agent at reasoning time).
   2. Principles — PRINCIPLES_MD to /workspace/review/principles.md
-     (§3A.4 six-check framework the Simons persona applies).
-  3. Modes — REVIEWER_MODES_MD to /workspace/review/modes.md
-     (activates trading domain with autonomy_level: manual per §3A.4
-     Auto-approve=NONE; without this the Reviewer dispatcher falls
-     back to observe-only).
-  4. Operator identity — IDENTITY_MD to /workspace/context/_shared/IDENTITY.md
+     (§3A.4 six-check framework the Simons persona applies;
+     post-ADR-217 principles.md no longer carries Auto-approve policy —
+     that's in AUTONOMY.md below).
+  3. Autonomy — REVIEWER_AUTONOMY_MD to /workspace/context/_shared/AUTONOMY.md
+     (operator's delegation declaration per ADR-217; per-domain trading
+     ceiling + never_auto list. Moved from the retired
+     /workspace/review/modes.md under the workspace-scoped-delegation
+     model. Alpha-1 paper carve-out: bounded_autonomous within ceiling).
+  4. Mandate — MANDATE sourced from docs/alpha/personas/alpha-trader/MANDATE.md
+     to /workspace/context/_shared/MANDATE.md (ADR-207 gate).
+  5. Operator identity — IDENTITY_MD to /workspace/context/_shared/IDENTITY.md
      (§3A.1, the operator's trading philosophy, per ADR-206 _shared/
      relocation).
-  5. Operator brand — BRAND_MD to /workspace/context/_shared/BRAND.md
+  6. Operator brand — BRAND_MD to /workspace/context/_shared/BRAND.md
      (§3A.1 internal-only brand).
-  6. Operator profile — OPERATOR_PROFILE_MD to
+  7. Operator profile — OPERATOR_PROFILE_MD to
      /workspace/context/trading/_operator_profile.md (§3A.2 signals).
-  7. Risk parameters — RISK_MD to
+  8. Risk parameters — RISK_MD to
      /workspace/context/trading/_risk.md (§3A.3 risk floors).
-  8. POST /api/tasks for 6 tasks (tracker + analyst + writer production
+  9. POST /api/tasks for 6 tasks (tracker + analyst + writer production
      roles; required_capabilities declared).
 
 What this doesn't do:
@@ -459,19 +464,24 @@ If they read it and find narrative, mood, or conviction talk,
 they should rewrite this file or rotate the seat.
 """
 
-# Reviewer modes — ADR-211 Phase 4 + ADR-216 Commit 5.
+# Operator autonomy declaration — ADR-217 Commit 3.
 #
 # **OPERATOR OVERRIDE of playbook §3A.4 Auto-approve=NONE** (2026-04-24,
-# alpha-trader E2E). The playbook defaults to manual autonomy for paper
-# *and* live to exercise the approval-UI flow. For this E2E the operator
-# directed bold paper-trading autonomy: the Simons-persona Reviewer
-# renders full verdicts on trading.submit_* and the orchestrator executes
-# if the verdict approves — no human Queue click in the loop. This is a
-# paper-account-only override to stress-test the persona wiring end-to-
-# end. When this workspace graduates to a live broker connection, this
-# block MUST flip back to `autonomy_level: manual` before the connection
-# is upgraded; a future commit will either re-tighten or formalize the
-# threshold for live money.
+# alpha-trader E2E). The playbook's default autonomy posture for Alpha-1
+# is manual across paper and live to exercise the approval-UI flow. The
+# operator has directed bold paper-trading autonomy for the ADR-216 +
+# ADR-217 persona-wiring stress test: the Simons-persona Reviewer renders
+# full verdicts on trading.submit_* and the orchestrator executes if the
+# verdict approves — no human Queue click in the loop. This is a paper-
+# account-only override. When this workspace graduates to a live broker
+# connection, this block MUST flip back to `level: manual` before the
+# connection is upgraded.
+#
+# Post-ADR-217: this content lands at /workspace/context/_shared/AUTONOMY.md
+# (workspace-scoped delegation, operator-authored). Retired modes.md
+# schema (autonomy_level / scope / on_behalf_posture / auto_approve_below_cents
+# / never_auto_approve) replaced by the narrowed AUTONOMY.md schema
+# (level / ceiling_cents / never_auto) with a `default` fallback block.
 #
 # Threshold sizing: 2,000,000 cents = $20,000. Book is $25K paper; the
 # operator's declared sizing rules cap any single position at 15% of
@@ -479,65 +489,80 @@ they should rewrite this file or rotate the seat.
 # safety floor — any trade whose notional (qty × limit_price) exceeds it
 # would have violated the operator's own risk rules before reaching the
 # Reviewer and should defer regardless.
-REVIEWER_MODES_MD = """\
+REVIEWER_AUTONOMY_MD = """\
 ---
-# Per-domain operational modes. Reviewer seat autonomy declared per
-# context domain. Domain key matches slug.
+# Workspace autonomy delegation (ADR-217). Operator-authored; read by
+# the Reviewer dispatcher and task pipeline capability gate.
 #
 # alpha-trader E2E override (2026-04-24): bounded_autonomous on paper
-# trading. Reviewer (Simons persona) renders verdicts; orchestrator
+# trading. Simons-persona Reviewer renders verdicts; orchestrator
 # executes on approve. Flip to `manual` before any live broker
 # connection.
 
+default:
+  level: manual
+
 trading:
-  autonomy_level: bounded_autonomous
-  scope: [trading]
-  on_behalf_posture: act
-  auto_approve_below_cents: 2000000    # $20,000 — covers up to 80% of $25K paper book in one go
-  never_auto_approve:
-    - cancel_order                      # defensive: cancel flow always defers
+  level: bounded_autonomous
+  ceiling_cents: 2000000          # $20,000 — covers up to 80% of $25K paper book in one go
+  never_auto:
+    - cancel_order                 # defensive: cancel flow always defers
 ---
 
-# Reviewer operational modes
+# Autonomy — alpha-trader paper-stress-test posture
 
 **Alpha-1 autonomy posture: bounded_autonomous across trading (paper
 only).** Overrides playbook §3A.4 Auto-approve=NONE for the purpose of
-stress-testing the ADR-216 persona-wiring end-to-end. The Simons-
-persona Reviewer's verdict is authoritative: approve → orchestrator
-submits the Alpaca paper order; reject → proposal closes; defer →
-routes to human Queue as fallback.
+stress-testing the ADR-216 + ADR-217 persona-wiring end-to-end. The
+Simons-persona Reviewer's verdict is authoritative: approve →
+orchestrator submits the Alpaca paper order; reject → proposal closes;
+defer → routes to human Queue as fallback.
 
-Threshold: $20,000 notional per trade. Sized deliberately larger than
+Ceiling: $20,000 notional per trade. Sized deliberately larger than
 any position the operator's own sizing rules (`_risk.md`:
 `max_position_percent_of_portfolio: 15` → $3,750 on a $25K book)
-would produce, so the threshold is a safety floor, not the primary
-gate. The primary gate is signal-attribution + expectancy compliance
-via the Simons persona's six-check reasoning.
+would produce, so the ceiling is a safety floor, not the primary gate.
+The primary gate is signal-attribution + expectancy compliance via the
+Simons persona's six-check reasoning in `/workspace/review/principles.md`.
 
-**Flip to manual before live broker upgrade.** This mode block is
+**Flip to manual before live broker upgrade.** This block is
 alpha-paper-trading-only. The moment a live trading `platform_connections`
-row replaces the paper connection, this modes.md must flip back to
-`autonomy_level: manual` per §3A.4 — otherwise the Reviewer's
-calibration axis hasn't accumulated enough real-money outcomes to
-justify bounded autonomy yet.
+row replaces the paper connection, `trading.level` must flip to `manual`
+— otherwise the Reviewer's calibration axis hasn't accumulated enough
+real-money outcomes to justify bounded autonomy yet. Per ADR-217 D4,
+principles.md can narrow this further (add defer conditions) but can't
+widen it; the delegation declared here is the ceiling.
 """
 
-# Reviewer principles — playbook §3A.4
+# Reviewer principles — playbook §3A.4. Post-ADR-217: this file holds
+# framework only. Operational Auto-approve policy + escalation lists
+# relocated to /workspace/context/_shared/AUTONOMY.md (operator-authored
+# delegation). Principles.md can narrow that delegation via defer
+# conditions in the framework below, but can't widen it.
 PRINCIPLES_MD = """# Reviewer principles — Alpha Trader (Simons, Option B)
 
-## Auto-approve policy
-Auto-approve = NONE for Alpha-1. Every trade passes through human
-operator review in cockpit Queue. (Paper OR live.) The AI Reviewer's
-role is to EVALUATE each proposal and provide a clear recommendation
-to the human — not to gate execution on its own.
+## Relationship to delegation
 
-## Always-escalate-to-human
-- All trading.submit_* (bracket, trailing stop, market, limit)
-- All trading.cancel_*
-- All watchlist modifications
-- All signal-definition edits (these touch _operator_profile.md, which
-  is a persona-identity file per governance rules)
-- All commerce.* (N/A for this account)
+The operator's autonomy delegation is declared in
+`/workspace/context/_shared/AUTONOMY.md`. This file (principles.md)
+holds the framework the Simons persona applies on top of that
+delegation. My principles can *narrow* the delegation (add defer
+conditions) but never *widen* it — servant more conservative than
+master permits, never more permissive.
+
+## Narrowing conditions this persona imposes
+
+Beyond the operational ceiling in AUTONOMY.md, I defer when:
+
+- `_performance.md` shows fewer than 20 realized trades for the
+  invoked signal (thin track record; my calibration is aspirational).
+- Recent 20-trade expectancy is below the `-0.5R` decay guardrail
+  in `_risk.md` (signal is off-limits until quarterly audit).
+- `_performance.md` doesn't yet exist (fresh account — I have no
+  track record to calibrate against).
+
+These narrow the auto-approve ceiling the operator declared. They
+cannot bypass the ceiling in the other direction.
 
 ## Capital-EV evaluation framework (the Reviewer's structured reasoning)
 
@@ -857,9 +882,9 @@ def main() -> int:
             "Reviewer principles — Simons 6-check framework (playbook §3A.4)",
         ),
         (
-            "/workspace/review/modes.md",
-            REVIEWER_MODES_MD,
-            "Reviewer modes — trading manual (ADR-211 Phase 4 + ADR-216 Commit 5)",
+            "/workspace/context/_shared/AUTONOMY.md",
+            REVIEWER_AUTONOMY_MD,
+            "Autonomy delegation — bounded_autonomous on paper trading (ADR-217)",
         ),
         (
             "/workspace/context/_shared/IDENTITY.md",
@@ -961,9 +986,9 @@ def main() -> int:
     print("SCAFFOLDING COMPLETE.")
     print()
     print("ADR-216 Commit 5 persona-wiring verification:")
-    print("  /workspace/review/IDENTITY.md   — Simons persona overwritten")
-    print("  /workspace/review/principles.md — 6-check framework")
-    print("  /workspace/review/modes.md      — trading manual autonomy")
+    print("  /workspace/review/IDENTITY.md              — Simons persona overwritten")
+    print("  /workspace/review/principles.md            — 6-check framework (narrowing conditions)")
+    print("  /workspace/context/_shared/AUTONOMY.md     — trading bounded_autonomous ($20K ceiling)")
     print("Expected: next proposal reviewed by ai:reviewer-sonnet-v2 will")
     print("reason AS the Simons persona (measurement-first, anti-conviction,")
     print("systematic discipline). Verify in decisions.md after first run.")

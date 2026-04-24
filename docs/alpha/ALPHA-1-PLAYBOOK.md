@@ -347,6 +347,17 @@ retire_signal_recommendation_after_recent_40_trade_sharpe_below: 0.3   # recomme
 
 ### 3A.4 Reviewer principles (`/workspace/review/principles.md`)
 
+> **ADR-217 amendment (2026-04-24)**: The "Auto-approve policy" + "Always-
+> escalate-to-human" blocks below are the playbook's *default* operator
+> posture. Under ADR-217 these operational clauses moved to
+> `/workspace/context/_shared/AUTONOMY.md` as workspace-scoped delegation
+> (operator-authored, dispatcher-read). principles.md retains the six-check
+> framework + tone + anti-override discipline. The scaffold in
+> `api/scripts/alpha_ops/scaffold_trader.py` writes the split accordingly:
+> framework → principles.md, delegation → AUTONOMY.md. The playbook block
+> below is preserved for the historical default; live workspaces derive
+> from the scaffold.
+
 ```markdown
 # Reviewer principles — Alpha Trader (Simons, Option B)
 
