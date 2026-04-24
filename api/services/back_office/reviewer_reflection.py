@@ -447,7 +447,31 @@ def _shape_result(started_at: datetime, structured: dict) -> dict:
             "for operator audit but no files mutated._",
         ]
 
+    # Back-office executor contract (task_pipeline._execute_tp_task):
+    # must return dict with `output_markdown` (written to outputs/.../output.md),
+    # optional `summary`, optional `actions_taken`. We also emit `structured`
+    # for run-record traceability; the pipeline ignores extra keys.
+    output_markdown = "\n".join(lines) + "\n"
+    verdict = structured.get("verdict") or "none"
+    invoked = structured.get("invoked")
+    summary = (
+        f"Reflection {verdict}"
+        if invoked
+        else f"Reflection skipped: {structured.get('reason', 'gate not passed')}"
+    )
+    actions: list[str] = []
+    ws = structured.get("write_summary") or {}
+    if ws.get("writeback_applied"):
+        actions.append(
+            f"applied {ws.get('proposals_applied', 0)} proposal(s)"
+        )
+    if ws.get("reflections_md_appended"):
+        actions.append("appended reflections.md")
+    if ws.get("chat_notified"):
+        actions.append("notified chat")
     return {
-        "content": "\n".join(lines) + "\n",
+        "output_markdown": output_markdown,
+        "summary": summary[:200],
+        "actions_taken": actions,
         "structured": structured,
     }
