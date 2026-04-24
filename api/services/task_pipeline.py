@@ -1320,6 +1320,22 @@ async def gather_task_context(
     except Exception as e:
         logger.debug(f"[TASK_EXEC] User memory read failed: {e}")
 
+    # 4b. Shared precedent — operator-authored durable interpretations
+    # (persona-reflection.md v1.1). Read alongside operator profile
+    # in domain context; precedent applies across every agent in the
+    # workspace. Empty / missing is the expected fresh-workspace state.
+    try:
+        from services.workspace_paths import SHARED_PRECEDENT_PATH
+        um = UserMemory(client, user_id)
+        precedent = await um.read(SHARED_PRECEDENT_PATH)
+        if precedent and precedent.strip():
+            sections.append(
+                "## Operator Precedent (durable interpretations)\n"
+                f"{precedent}"
+            )
+    except Exception as e:
+        logger.debug(f"[TASK_EXEC] PRECEDENT read failed: {e}")
+
     # 5. ADR-182: Prior output + output inventory (pre-gathered for all modes)
     # Pre-loads what agents would otherwise fetch via ReadFile/ListFiles tool rounds.
     # For produces_deliverable tasks this eliminates 2-3 read-only tool rounds.

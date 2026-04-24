@@ -89,7 +89,16 @@ logger = logging.getLogger(__name__)
 #: principles and the workspace's delegation; alpha-trader E2E showed
 #: the Sonnet model already resolved this correctly in practice, but
 #: v3 makes the rule explicit so future personas don't drift.
-REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v3"
+#:
+#: v3 → v4 (2026-04-24, persona-reflection.md v1.1 alignment).
+#: PRECEDENT.md (operator-authored durable interpretations, committed
+#: fd4917a) is now read at reasoning time and injected into the user
+#: message alongside principles.md. System prompt declares that
+#: precedent + principles together form the narrowing layer the persona
+#: applies on top of AUTONOMY.md. Precedent takes precedence over
+#: persona principles when the two disagree — the operator's explicit
+#: interpretation always wins over the persona's framework default.
+REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v4"
 
 #: Model slug passed to Anthropic. Keep parallel to REVIEWER_MODEL_IDENTITY.
 _MODEL_SLUG = "claude-sonnet-4-6"
@@ -174,18 +183,27 @@ Substrate available to you (passed in the user message):
                       judgment seat.
 2. principles.md    — the operator's declared review framework (the checks
                       your persona applies to proposals)
-3. _risk.md (if trading domain) — hard floors, non-negotiable
-4. _operator_profile.md — declared strategy + style (if present)
-5. _performance.md  — accumulated track record of similar actions
+3. PRECEDENT.md     — operator-authored durable interpretations /
+                      boundary-case resolutions. Read this alongside
+                      principles.md; it captures the operator's explicit
+                      decisions about recurring ambiguities. When
+                      PRECEDENT.md and your persona principles disagree,
+                      precedent wins — the operator's declared
+                      interpretation always overrides your framework
+                      default. Precedent is how the operator teaches the
+                      workspace, one interpretation at a time.
+4. _risk.md (if trading domain) — hard floors, non-negotiable
+5. _operator_profile.md — declared strategy + style (if present)
+6. _performance.md  — accumulated track record of similar actions
                       (rolling 7d / 30d / 90d windows)
-6. The proposal itself — action_type, inputs, rationale, reversibility,
+7. The proposal itself — action_type, inputs, rationale, reversibility,
                          expected_effect
 
 The persona (IDENTITY.md) is *who* is reviewing. The framework
-(principles.md) is *what* you check. The substrate (risk, performance,
-operator profile) is the data you reason against. Same framework, same
-data, different persona → legitimately different reasoning and different
-defer/approve boundaries. That is the point.
+(principles.md + PRECEDENT.md) is *what* you check. The substrate (risk,
+performance, operator profile) is the data you reason against. Same
+framework, same data, different persona → legitimately different
+reasoning and different defer/approve boundaries. That is the point.
 
 **Autonomy delegation (ADR-217).** The workspace's autonomy posture is
 declared separately in `/workspace/context/_shared/AUTONOMY.md` — the
@@ -194,11 +212,18 @@ on their behalf. You do NOT read AUTONOMY.md directly for the eligibility
 gate (the dispatcher already did that before invoking you). You render a
 verdict as your persona would; the dispatcher decides whether your
 verdict auto-executes or routes to the Queue based on AUTONOMY.md. What
-this means for your reasoning: your principles can *narrow* delegation
-(add defer conditions) but never *widen* it. If your principles and the
-raw delegation conflict on auto-approve eligibility, apply the stricter.
-The servant can be more conservative than the master permits, never
-more permissive.
+this means for your reasoning: your framework (principles + precedent)
+can *narrow* delegation (add defer conditions) but never *widen* it. If
+your framework and the raw delegation conflict on auto-approve
+eligibility, apply the stricter. The servant can be more conservative
+than the master permits, never more permissive.
+
+**Precedent hierarchy.** When PRECEDENT.md contains a rule that applies
+to the current proposal, it overrides any conflicting clause in your
+principles.md. If principles say "approve below $X" but PRECEDENT says
+"never auto-approve during earnings week," the precedent wins. Cite
+precedent explicitly in your reasoning when it drove the verdict so the
+operator can audit whether their interpretation was applied correctly.
 
 Your decision categories:
 - **approve** — EV is clearly positive AND within declared edge. The
@@ -242,6 +267,7 @@ async def review_proposal(
     proposal_row: dict,
     identity_md: str,
     principles_md: str,
+    precedent_md: str,
     performance_md: str | None,
     risk_md: str | None,
     operator_profile_md: str | None,
@@ -252,10 +278,15 @@ async def review_proposal(
 
     ADR-216 Commit 2: `identity_md` is the Reviewer's operator-authored
     persona content (`/workspace/review/IDENTITY.md`). Required
-    parameter — callers must read and pass it. When the operator has
-    not overwritten the default, pass the generic scaffolded content;
-    the model is instructed to treat generic IDENTITY as neutral
-    skeptical baseline.
+    parameter — callers must read and pass it.
+
+    persona-reflection.md v1.1 alignment (v4 prompt): `precedent_md` is
+    the operator-authored durable-interpretation content
+    (`/workspace/context/_shared/PRECEDENT.md`). Required parameter —
+    callers read and pass it. Empty string is acceptable (fresh
+    workspace; operator hasn't authored any precedent yet); the model
+    treats empty as "no precedent to apply, reason from persona
+    principles alone."
 
     Token usage is always recorded via `record_token_usage`; the
     cost is borne by the workspace owner even for defer decisions.
@@ -267,6 +298,7 @@ async def review_proposal(
             proposal_row=proposal_row,
             identity_md=identity_md,
             principles_md=principles_md,
+            precedent_md=precedent_md,
             performance_md=performance_md,
             risk_md=risk_md,
             operator_profile_md=operator_profile_md,
@@ -355,6 +387,7 @@ def _build_user_message(
     proposal_row: dict,
     identity_md: str,
     principles_md: str,
+    precedent_md: str,
     performance_md: str | None,
     risk_md: str | None,
     operator_profile_md: str | None,
@@ -363,9 +396,16 @@ def _build_user_message(
 
     Order is load-bearing: persona (IDENTITY.md) opens the envelope so
     the model knows who it's reasoning as before it sees the framework
-    (principles.md) or the substrate (risk/performance/operator_profile).
-    Same framework + same substrate, different persona → legitimately
-    different reasoning; that divergence is the persona's point.
+    (principles.md + PRECEDENT.md) or the substrate
+    (risk/performance/operator_profile). Same framework + same
+    substrate, different persona → legitimately different reasoning;
+    that divergence is the persona's point.
+
+    PRECEDENT.md lands between principles.md and substrate so the
+    operator's explicit interpretations are the last thing the model
+    reads before the substrate data — precedent acts as a filter on
+    substrate reasoning, matching how operators actually use precedent
+    ("when X condition holds in the substrate, apply interpretation Y").
     """
     parts: list[str] = []
 
@@ -396,6 +436,17 @@ def _build_user_message(
     parts.append("## /workspace/review/principles.md")
     parts.append("")
     parts.append(principles_md or "_(empty — operator has not declared a review framework)_")
+    parts.append("")
+
+    # PRECEDENT section — operator-authored durable interpretations.
+    # Overrides conflicting clauses in principles.md (see system prompt
+    # §Precedent hierarchy). Empty is expected on fresh workspaces.
+    parts.append("## /workspace/context/_shared/PRECEDENT.md — Operator-declared durable interpretations")
+    parts.append("")
+    parts.append(
+        precedent_md
+        or "_(empty — operator has not authored any precedent yet; reason from persona principles alone)_"
+    )
     parts.append("")
 
     if operator_profile_md:

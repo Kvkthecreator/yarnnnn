@@ -58,6 +58,7 @@ Members of the judgment layer:
 | `/workspace/context/_shared/BRAND.md` | Via tool reads | Operator-authored (ADR-206) |
 | `/workspace/context/_shared/CONVENTIONS.md` | Via tool reads | Operator-authored (ADR-206) |
 | `/workspace/context/_shared/AUTONOMY.md` | Via tool reads | Operator-authored (ADR-217) — informs chat reasoning about what the AI is authorized to do autonomously |
+| `/workspace/context/_shared/PRECEDENT.md` | Via tool reads (in compact index key files per commit `fd4917a`) | Operator-authored — durable interpretations / boundary-case resolutions |
 | `/workspace/memory/AWARENESS.md` + working memory files | Via working memory | YARNNN's own orchestration state |
 
 **Persona**: none. `api/agents/yarnnn_prompts/base.py::BASE_PROMPT` declares the fixed-voice interlocutor identity. There is no workspace-authored YARNNN IDENTITY file per ADR-216 D2.
@@ -93,6 +94,7 @@ User message (dynamic):
 |------|---------|--------|
 | `/workspace/review/IDENTITY.md` | Reviewer agent (`reviewer_agent.py::_build_user_message`) | Operator-authored (ADR-216 D4). Declares the persona. |
 | `/workspace/review/principles.md` | Reviewer agent | Operator-authored. Declares the framework (checks + narrowing conditions). |
+| `/workspace/context/_shared/PRECEDENT.md` | Reviewer agent (v4 prompt, `reviewer_agent.py`) | Operator-authored (commit `fd4917a`). Durable interpretations / boundary-case rules. Overrides conflicting clauses in `principles.md` — precedent always wins when the two disagree. |
 | `/workspace/context/_shared/AUTONOMY.md` | Dispatcher (`review_proposal_dispatch.py` + `review_policy.py::load_autonomy`) | Operator-authored (ADR-217). Declares the delegation ceiling — NOT read by the Reviewer agent itself; enforced by the dispatcher before invocation. |
 | `/workspace/context/{domain}/_operator_profile.md` | Reviewer agent | Operator-authored. Strategy + style context. |
 | `/workspace/context/{domain}/_risk.md` | Reviewer agent | Operator-authored. Hard floors. |
@@ -104,26 +106,28 @@ User message (dynamic):
 **Prompt composition** (in `api/agents/reviewer_agent.py`):
 
 ```
-System prompt (fixed, platform-authored):
+System prompt (fixed, platform-authored, v4):
   _SYSTEM_PROMPT
     - "You are the independent judgment seat..."
-    - Substrate list (IDENTITY, principles, risk, operator_profile, performance, proposal)
+    - Substrate list (IDENTITY, principles, PRECEDENT, risk, operator_profile, performance, proposal)
     - Persona vs framework vs substrate separation
     - Autonomy delegation (ADR-217): dispatcher enforces ceiling;
-      principles can narrow never widen
+      framework (principles + precedent) can narrow never widen
+    - Precedent hierarchy: precedent wins over conflicting principles
     - Decision categories (approve/reject/defer)
     - Reasoning expectations (upside/downside, asymmetry, edge fit)
 User message (dynamic, dispatcher-assembled):
   1. ## /workspace/review/IDENTITY.md — Your persona
   2. ## Proposed action
   3. ## /workspace/review/principles.md
-  4. ## Operator profile (if present)
-  5. ## _risk.md (if trading)
-  6. ## _performance.md (if domain has track record)
-  7. ## Instruction (call return_review_decision tool once)
+  4. ## /workspace/context/_shared/PRECEDENT.md — Operator-declared durable interpretations
+  5. ## Operator profile (if present)
+  6. ## _risk.md (if trading)
+  7. ## _performance.md (if domain has track record)
+  8. ## Instruction (call return_review_decision tool once)
 ```
 
-Order is load-bearing: persona first, framework second, substrate third. Changes defer/approve boundaries legibly across different personas.
+Order is load-bearing: persona → framework (principles + precedent) → substrate. PRECEDENT lands between principles and substrate so operator interpretations filter substrate reasoning. Changes defer/approve boundaries legibly across different personas + across workspaces with different precedent accumulation.
 
 **Eligibility gate** (runs before the Reviewer agent, in `review_proposal_dispatch.py`):
 
@@ -157,7 +161,8 @@ The Reviewer agent does NOT read AUTONOMY.md directly. The dispatcher enforces t
 | `/agents/{slug}/AGENT.md` | Task pipeline (`task_pipeline.py::gather_task_context`) | Operator-authored. **Single-file persona + framework convention**: domain Agents are single-domain, so persona (character) and framework (directives) share one file. This is deliberately different from Reviewer's IDENTITY/principles split. |
 | `/agents/{slug}/memory/*.md` | Task pipeline | Agent-accumulated working memory. |
 | `/workspace/context/{domain}/` files | Task pipeline (if `context_reads` declares the domain) | Shared accumulated context. |
-| `/workspace/context/_shared/*.md` | Task pipeline | Operator-authored standing declarations (same as YARNNN/Reviewer see). |
+| `/workspace/context/_shared/*.md` | Task pipeline (compact-index + on-demand ReadFile for MANDATE/AUTONOMY/IDENTITY/BRAND/CONVENTIONS) | Operator-authored standing declarations (same as YARNNN/Reviewer see). |
+| `/workspace/context/_shared/PRECEDENT.md` | Task pipeline (`gather_task_context` §4b — injected as "Operator Precedent" section when non-empty) | Operator-authored durable interpretations. Forces production roles to honor operator-declared boundary-case rules across task runs. |
 
 **Persona**: operator-authored in AGENT.md (single-file convention per ADR-216 D9). Seeded from the agent's `agent_instructions` DB column at first dispatch.
 
@@ -336,6 +341,8 @@ Decisions that shaped the current agent composition, in order:
 - **ADR-212** — LAYER-MAPPING correction. Sharp Agent/Orchestration taxonomy.
 - **ADR-216** — YARNNN reclassification + persona wiring. Orchestration vs judgment separation; persona read at reasoning time.
 - **ADR-217** — Workspace autonomy substrate. Single authoring mouth for delegation; modes.md → AUTONOMY.md.
+- **Shared governance hardening** (commit `fd4917a`, 2026-04-24) — `PRECEDENT.md` under `/workspace/context/_shared/` as operator-authored durable interpretation substrate. Read by YARNNN (compact index), Reviewer (v4 prompt), task pipeline (`gather_task_context`).
+- **`persona-reflection.md`** (canon doc, 2026-04-24) — Reviewer as living accumulator. Precedent and reflection together close the "framework evolves with reality" gap: precedent is operator-sided; reflection (future ADR-218) is persona-sided. Both accumulate inside MANDATE + AUTONOMY boundaries.
 
 This doc supersedes the scattered "how does agent X compose" language that accumulated across the above ADRs. Those ADRs remain authoritative as decision records; this doc is the running architectural reference.
 

@@ -6,6 +6,80 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.24.5] - Reviewer v4 + task pipeline PRECEDENT injection (persona-reflection.md v1.1 alignment)
+
+`REVIEWER_MODEL_IDENTITY` bumped `ai:reviewer-sonnet-v3` → `ai:reviewer-sonnet-v4`.
+
+Material prompt change aligning the Reviewer verdict path + the task
+pipeline context-gather with PRECEDENT.md. Prior state: PRECEDENT was
+authorable (commit `fd4917a`) and visible to YARNNN's workspace
+profile via compact index + Files edit allowlist, but the Reviewer
+didn't read it at verdict time and the task pipeline didn't inject it
+into production-role context bundles. Gap meant operator-declared
+durable interpretations landed in YARNNN chat but not in either of
+the two downstream agent paths that should honor them.
+
+### Reviewer path (v4)
+
+- `api/services/review_proposal_dispatch.py::_run_ai_reviewer` —
+  reads `/workspace/context/_shared/PRECEDENT.md` alongside the
+  existing five substrate files and passes `precedent_md` through
+  to `review_proposal()`.
+- `api/agents/reviewer_agent.py::review_proposal` — required
+  parameter `precedent_md: str` added between `principles_md` and
+  `performance_md`. Empty-string acceptable on fresh workspaces.
+- `api/agents/reviewer_agent.py::_build_user_message` — adds a
+  `## /workspace/context/_shared/PRECEDENT.md — Operator-declared
+  durable interpretations` section between principles.md and
+  operator profile. Order chosen so precedent acts as a filter on
+  substrate reasoning (operator interpretation → substrate data).
+- `api/agents/reviewer_agent.py::_SYSTEM_PROMPT` — substrate list
+  expanded with PRECEDENT.md item; new "Precedent hierarchy"
+  paragraph declares precedent overrides conflicting clauses in
+  principles.md. Framework = principles + precedent combined.
+
+### Task pipeline path
+
+- `api/services/task_pipeline.py::gather_task_context` — new §4b
+  injects an "Operator Precedent (durable interpretations)" section
+  when `/workspace/context/_shared/PRECEDENT.md` is non-empty.
+  Position: between user notes and prior output — operator
+  interpretations land before output continuation reasoning.
+
+### Docs
+
+- `docs/architecture/agent-composition.md` — YARNNN, Reviewer, and
+  domain Agent substrate tables all updated with PRECEDENT rows +
+  read-path details. Reviewer prompt-composition outline updated to
+  show v4 system prompt + eight-section user message. ADR reference
+  map gains entry for commit `fd4917a` + persona-reflection.md canon.
+
+### Expected behavior change
+
+- Workspaces with empty PRECEDENT.md: verdict reasoning unchanged
+  from v3. The Reviewer sees "_(empty — reason from persona
+  principles alone)_" and proceeds on persona framework only.
+- Workspaces with authored precedent (e.g. "never auto-approve during
+  earnings week", "if signal family <20 realized outcomes, recommend
+  instead of auto-execute"): Reviewer cites precedent explicitly in
+  verdicts when the interpretation applies. Decisions.md reasoning
+  becomes legibly operator-aligned without the operator re-authoring
+  principles.md for every boundary case.
+
+### Related
+
+- `docs/architecture/persona-reflection.md` v1.1 — the canon doc
+  that integrated PRECEDENT as the operator-sided half of the
+  framework-evolves-with-reality gap.
+- Commit `fd4917a` — shared PRECEDENT substrate plumbing (other
+  session, same day).
+- Future ADR-218 — the persona-sided half (Reviewer reflection).
+  When that lands, its reflection-mode prompt must explicitly read
+  PRECEDENT.md so persona evolutions respect operator-declared
+  interpretations.
+
+---
+
 ## [2026.04.24.4] - Shared precedent substrate + Files parity for shared governance files
 
 No model-identity bump. This is a tooling and prompt-surface hardening pass:

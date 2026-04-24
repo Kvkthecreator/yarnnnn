@@ -304,6 +304,16 @@ async def _run_ai_reviewer(
     identity_md = _read_workspace_file(
         client, user_id, "/workspace/review/IDENTITY.md",
     ) or ""
+    # persona-reflection.md v1.1: PRECEDENT.md is the operator-authored
+    # durable-interpretation substrate (committed fd4917a). The Reviewer
+    # must read it alongside principles.md so that operator-declared
+    # boundary-case resolutions land in every verdict. Operator-declared
+    # interpretations narrow (or in some cases open) the persona's own
+    # framework; precedent + principles combine into the full narrowing
+    # layer the persona applies on top of the AUTONOMY.md ceiling.
+    precedent_md = _read_workspace_file(
+        client, user_id, "/workspace/context/_shared/PRECEDENT.md",
+    ) or ""
     performance_md = _read_workspace_file(
         client, user_id, f"/workspace/context/{context_domain}/_performance.md",
     )
@@ -323,6 +333,7 @@ async def _run_ai_reviewer(
         proposal_row=proposal_row,
         identity_md=identity_md,
         principles_md=principles_md,
+        precedent_md=precedent_md,
         performance_md=performance_md,
         risk_md=risk_md,
         operator_profile_md=operator_profile_md,
