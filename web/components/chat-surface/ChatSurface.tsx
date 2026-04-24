@@ -1,30 +1,30 @@
 'use client';
 
 /**
- * ChatSurface — YARNNN chat surface (ADR-165 v8, ADR-189, ADR-190, ADR-215 Phase 5).
+ * ChatSurface — YARNNN chat surface (ADR-165 v8, ADR-189, ADR-190, ADR-215 Phases 5 + 6).
  *
- *   <SurfaceIdentityHeader title="YARNNN" actions={Overview toggle} />
+ *   <SurfaceIdentityHeader title="YARNNN" actions={Snapshot toggle} />
  *   <ChatPanel emptyState={<ChatEmptyState onChipClick={seedComposer} />} />
  *
  * Two sibling modals, opened independently:
- *   1. WorkspaceStateView (Overview) — read-only diagnostic dashboard
- *      Opened by: YARNNN `<!-- workspace-state: ... -->` marker or user "Overview" button
- *   2. TaskSetupModal — structured task creation (wraps TaskSetup)
- *      Opened by: "Start new work" plus-menu action or Heads Up idle-agents flag
+ *   1. SnapshotModal — mid-conversation awareness overlay (three tabs:
+ *      Mandate / Review standard / Recent). Opened by YARNNN-emitted
+ *      `<!-- snapshot: ... -->` marker or the surface header "Snapshot"
+ *      button. Pure read, zero LLM at open, stay-in-chat contract per
+ *      ADR-215 Phase 6.
+ *   2. TaskSetupModal — structured task creation (wraps TaskSetup).
+ *      Opened by "Start new work" plus-menu action or Heads Up idle-agents flag.
+ *
+ * ADR-215 Phase 6 (2026-04-24): the overlay prior named "Workspace" with
+ *   four tabs (Readiness / Attention / Last session / Activity) reframed as
+ *   "Snapshot" with three tabs — a Briefing archetype that renders content
+ *   in place rather than shipping the operator to other tabs. Marker renamed
+ *   workspace-state → snapshot.
  *
  * ADR-215 Phase 5 (2026-04-24): OnboardingModal / ContextSetup retired.
- *   - Auto-trigger was already retired by ADR-190 (onboarding is conversational
- *     — YARNNN infers identity/brand from first-turn conversation).
- *   - Manual "Update workspace" plus-menu entry violated R2 ("Update is never
- *     Modal"). Per R3, identity/brand/conventions are substrate — they edit
- *     on Files. Per ADR-190, first-time capture is conversational with YARNNN.
- *   - Remaining `+` menu entries: exactly one — "Start new work" → TaskSetupModal.
- *
- * ADR-165 v8 (2026-04-09): Onboarding split from workspace state.
- * ADR-178 (2026-04-13): TaskSetup added as third modal.
+ * ADR-190 (2026-04-17): onboarding is conversational with YARNNN.
+ * ADR-178 (2026-04-13): TaskSetup added as the singular creation modal.
  * ADR-189 (2026-04-17): TP → YARNNN user-facing rename.
- * ADR-190 (2026-04-17): Empty state renders ChatEmptyState — deterministic
- *   client-side welcome + 4 chips prompting rich-input behaviors.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -32,45 +32,39 @@ import { LayoutDashboard, ListChecks } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-import type { Agent, Task } from '@/types';
+import type { Task } from '@/types';
 import { useTP } from '@/contexts/TPContext';
 import {
-  parseWorkspaceStateMeta,
-  type WorkspaceStateLead,
-} from '@/lib/workspace-state-meta';
-import { WorkspaceStateView } from './WorkspaceStateView';
+  parseSnapshotMeta,
+  type SnapshotLead,
+} from '@/lib/snapshot-meta';
+import { SnapshotModal } from './SnapshotModal';
 import { TaskSetupModal } from './TaskSetupModal';
 import { ChatEmptyState } from './ChatEmptyState';
 
 interface ChatSurfaceProps {
-  agents: Agent[];
+  /** Tasks feed the Snapshot overlay's Recent tab (last-run list). */
   tasks: Task[];
-  dataLoading: boolean;
   /** Additional plus-menu actions from the page. ChatSurface prepends its own built-in actions. */
   plusMenuActions?: PlusMenuAction[];
 }
 
 export function ChatSurface({
-  agents,
   tasks,
-  dataLoading,
   plusMenuActions = [],
 }: ChatSurfaceProps) {
   const { messages, sendMessage } = useTP();
 
-  // --- Overview modal state ---
-  const [overviewOpen, setOverviewOpen] = useState(false);
-  const [overviewLead, setOverviewLead] = useState<WorkspaceStateLead | null>(null);
-  const [overviewReason, setOverviewReason] = useState<string | null>(null);
+  // --- Snapshot overlay state ---
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
+  const [snapshotLead, setSnapshotLead] = useState<SnapshotLead | null>(null);
+  const [snapshotReason, setSnapshotReason] = useState<string | null>(null);
 
   // --- Task setup modal state ---
   const [taskSetupOpen, setTaskSetupOpen] = useState(false);
   const [taskSetupInitialNotes, setTaskSetupInitialNotes] = useState('');
 
   // --- Empty-state chip seed (ADR-190) ---
-  // When a chip is clicked in ChatEmptyState, this seeds the composer input
-  // via ChatPanel's draftSeed prop. Each click gets a unique id so the same
-  // chip can be clicked twice in a row and still re-seed.
   const [chipSeed, setChipSeed] = useState<{ id: string; text: string } | null>(null);
   const handleChipClick = useCallback((text: string) => {
     setChipSeed({ id: `chip-${Date.now()}`, text });
@@ -79,10 +73,9 @@ export function ChatSurface({
   // Track the last message id we processed for marker directives.
   const [lastProcessedId, setLastProcessedId] = useState<string | null>(null);
 
-  // Watch the latest assistant message for the workspace-state marker.
-  // ADR-190: onboarding marker auto-trigger retired. OnboardingModal is now
-  // opened only via the plus-menu "Update workspace" action. Onboarding is
-  // conversational (prompt guidance in yarnnn_prompts/onboarding.py).
+  // Watch the latest assistant message for the snapshot marker. ADR-215
+  // Phase 6 renamed workspace-state → snapshot with a new three-value
+  // lead enum (mandate | review | recent).
   useEffect(() => {
     if (messages.length === 0) return;
     const latest = messages[messages.length - 1];
@@ -92,39 +85,39 @@ export function ChatSurface({
 
     setLastProcessedId(latest.id);
 
-    const { directive } = parseWorkspaceStateMeta(latest.content);
+    const { directive } = parseSnapshotMeta(latest.content);
     if (directive) {
-      setOverviewOpen(true);
-      setOverviewLead(directive.lead);
-      setOverviewReason(directive.reason ?? null);
+      setSnapshotOpen(true);
+      setSnapshotLead(directive.lead);
+      setSnapshotReason(directive.reason ?? null);
     }
   }, [messages, lastProcessedId]);
 
-  // Manual Overview toggle — opens if closed, closes if open.
-  const handleOverviewToggle = useCallback(() => {
-    setOverviewOpen((prev) => {
+  // Manual Snapshot toggle — opens if closed, closes if open.
+  const handleSnapshotToggle = useCallback(() => {
+    setSnapshotOpen((prev) => {
       if (prev) return false;
-      // Manual open: default tab, no TP call.
-      setOverviewLead(null); // null tells WorkspaceStateView to default to 'overview'
-      setOverviewReason(null);
+      // Manual open: default tab (mandate), no YARNNN call.
+      setSnapshotLead(null);
+      setSnapshotReason(null);
       return true;
     });
   }, []);
 
-  const handleOverviewClose = useCallback(() => setOverviewOpen(false), []);
+  const handleSnapshotClose = useCallback(() => setSnapshotOpen(false), []);
 
-  // "Ask TP" from Overview modal flags tab — sends prompt and closes modal.
-  const handleAskTP = useCallback(
+  // Ask YARNNN (invoked by SnapshotModal's EditInChatButton seeders).
+  const handleAskYARNNN = useCallback(
     (prompt: string) => {
-      setOverviewOpen(false);
+      setSnapshotOpen(false);
       sendMessage(prompt);
     },
     [sendMessage],
   );
 
-  // Task setup modal — opened from plus-menu or Heads Up idle-agents flag.
+  // Task setup modal — opened from plus-menu.
   const handleOpenTaskSetup = useCallback((initialNotes = '') => {
-    setOverviewOpen(false);
+    setSnapshotOpen(false);
     setTaskSetupInitialNotes(initialNotes);
     setTaskSetupOpen(true);
   }, []);
@@ -141,10 +134,7 @@ export function ChatSurface({
 
   // Built-in plus-menu actions — prepended to any page-supplied actions.
   // ADR-215 R4: + menu is a modal launcher only. Exactly one built-in —
-  // "Start new work" → TaskSetupModal. The prior "Update workspace" entry
-  // was retired in Phase 5 (violated R2 — update is never Modal; per R3
-  // identity/brand/conventions edit on Files as substrate, or via
-  // conversation with YARNNN per ADR-190).
+  // "Start new work" → TaskSetupModal.
   const allPlusMenuActions = useMemo<PlusMenuAction[]>(() => [
     {
       id: 'create-task',
@@ -156,16 +146,16 @@ export function ChatSurface({
     ...plusMenuActions,
   ], [plusMenuActions, handleOpenTaskSetup]);
 
-  // Overview toggle button — lives in the surface header.
-  const overviewAction = (
+  // Snapshot toggle button — lives in the surface header.
+  const snapshotAction = (
     <button
       type="button"
-      onClick={handleOverviewToggle}
+      onClick={handleSnapshotToggle}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-      title="Open workspace"
+      title="Open Snapshot"
     >
       <LayoutDashboard className="w-3.5 h-3.5" />
-      Workspace
+      Snapshot
     </button>
   );
 
@@ -186,7 +176,7 @@ export function ChatSurface({
           icon={surfaceLogo}
           title="yarnnn"
           brandTitle
-          actions={overviewAction}
+          actions={snapshotAction}
         />
       </div>
       <div className="flex-1 min-h-0">
@@ -208,17 +198,14 @@ export function ChatSurface({
         </div>
       </div>
 
-      {/* Overview modal — read-only diagnostic dashboard */}
-      <WorkspaceStateView
-        open={overviewOpen}
-        lead={overviewLead}
-        agents={agents}
+      {/* Snapshot overlay — Briefing archetype, pure read, zero LLM at open */}
+      <SnapshotModal
+        open={snapshotOpen}
+        lead={snapshotLead}
+        reason={snapshotReason}
         tasks={tasks}
-        dataLoading={dataLoading}
-        reason={overviewReason}
-        onClose={handleOverviewClose}
-        onAskTP={handleAskTP}
-        onOpenTaskSetup={handleOpenTaskSetup}
+        onClose={handleSnapshotClose}
+        onAskTP={handleAskYARNNN}
       />
 
       {/* Task setup modal — structured task creation (ADR-178) */}

@@ -1,6 +1,6 @@
 # Surface Contracts
 
-**Version:** v1.5 (2026-04-24)
+**Version:** v1.6 (2026-04-24)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
 **Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [FOUNDATIONS v6.1](../architecture/FOUNDATIONS.md) Axiom 6 (Channel)
@@ -109,7 +109,25 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
 - **Empty state** (cold start per ADR-205 F1): `<ChatEmptyState>` — deterministic client-side landing with four suggestion chips (Upload a doc, Paste a URL, Track something recurring, Build a recurring report). Zero LLM cost on first load. The only surface in the cockpit that overrides its archetype for first-run guidance.
 - **`+` menu:** exactly one entry per ADR-215 Phase 5 — "Start new work" → `TaskSetupModal` (R4 modal launcher). The prior "Update workspace" entry was retired — it violated R2 (update is never Modal) and R3 (identity/brand/conventions are substrate, edited on Files).
 - **Deep-links out:** any file YARNNN cites (`/context?path=...`), any task ManageTask creates or updates (`/work?task=...`), any agent ManageAgent touches (`/agents?agent=...`). Reviewer verdict cards (role='reviewer' messages per ADR-212) link to `/agents?agent=reviewer` (ADR-214 canonical route). Artifacts carry links, not embeds.
-- **Workspace overlay** (`<WorkspaceStateView>`): modal opened by YARNNN-emitted `<!-- workspace-state: ... -->` marker OR the surface header "Workspace" button. Read-only diagnostic dashboard (Overview / Flags / Recap / Activity tabs). Identity-empty flag CTAs seed chat prompts (conversational onboarding per ADR-190, no modal form).
+- **Snapshot overlay** (`<SnapshotModal>`): modal opened by YARNNN-emitted `<!-- snapshot: {"lead":"..."} -->` marker OR the surface header "Snapshot" button. **Briefing archetype in its purest form** (ADR-198 §3): pure read, composed by selection, no outbound nav, zero LLM at open time. The overlay is *of* the conversation — Close returns the operator to typing with enriched awareness, not to another tab.
+
+  Three tabs, each rendered in place from substrate files and neutral audit ledgers:
+
+  | Tab | Purpose (the operator's *why*) | What renders in place | Sources | Cost |
+  |---|---|---|---|---|
+  | **Mandate** | "What have I committed to?" | MANDATE.md rendered as markdown, full. Operator owns keeping it tight (~300 words). | `GET /api/workspace/file?path=/workspace/context/_shared/MANDATE.md` | 1 HTTP GET, 0 LLM |
+  | **Review standard** | "How does judgment happen around here?" | Reviewer principles.md rendered as bullets + last 3 entries from decisions.md (Stream tail, parsed) | `GET` principles.md + `GET` decisions.md | 2 HTTP GETs, 0 LLM |
+  | **Recent** | "What's unresolved right now?" | Pending proposals (count + titles), last 3 task runs, latest AWARENESS.md snippet | SELECT `action_proposals` + SELECT `agent_runs` + `GET` AWARENESS.md | 2 SELECTs + 1 GET, 0 LLM |
+
+  **Zero LLM cost at modal open**, by contract. No summarization, no reasoning, no cross-referencing commentary. Every byte rendered was persisted by an earlier conversational turn — the overlay reads what already exists.
+
+  **Stay-in-chat invariant** (the defining discipline): every tab renders its content in place. No "Open on Files" links per row, no stat cards that ship the operator to another tab. If the operator wants to browse the full `_shared/` substrate or the roster, the tab bar already carries Files and Agents — the overlay doesn't duplicate those destinations. Close button returns to typing.
+
+  **Permitted affordances per tab:**
+  1. Close button — return to conversation.
+  2. At most one `<EditInChatButton>` per tab (R5 single label) seeding a tab-contextual prompt ("Revise my mandate", "Evolve the Reviewer's principles", "What should I do about these pending proposals?"). The seed closes the modal and drops the prompt into the composer. Operator still owns pressing Send.
+
+  **Identity-empty states** degrade gracefully — a missing MANDATE.md renders "Not yet declared" with an "Edit in chat" button seeding "Help me author my mandate"; same pattern for missing principles.md. R3 is preserved (substrate-file edits would happen on Files, but this overlay never *edits* substrate — it only seeds the conversation that eventually writes via UpdateContext/inference).
 - **Reviewer verdict thread** (ADR-212): `role='reviewer'` session messages render as `<ReviewerCard>` inline in the stream — verdict + occupant + reasoning + deep-link to `/agents?agent=reviewer`. Stream archetype invariant: append-only; verdict cards are historical entries, never mutated inline.
 - **Refuses:**
   - Full CRUD forms (modal-shape — those are on other tabs per R2)
@@ -195,6 +213,14 @@ Each phase lands with: code changes + this doc's contract section updated in the
   - `CreateTaskModal` retired; `/work` `+` menu uses `TaskSetupModal` (singular creation flow across all four tabs). `api.tasks.create` client method removed (YARNNN is the sole frontend consumer of task creation via `ManageTask(action="create")`; backend POST `/api/tasks` endpoint preserved for the primitive). R2 singular-implementation achieved.
   - Cockpit-zone visual treatment on `/work` list mode: section labels "Cockpit" + "Work", subtle zone tint on Cockpit, zone padding. Single vertical scroll preserved per ADR-205 F2 — tab-ify was considered and rejected (would force proposals behind a click, undoes ADR-206 deliverables-first).
   - 4 kind-middles audited: zero R1/R3/R5 violations. Middles are content-only; edit affordances live in `WorkDetail` header (Run/Pause = Direct, Edit in chat = Chat) with R5-compliant labels from Phase 2.
+- **Phase 6 — Snapshot reframe (2026-04-24)** — **Implemented 2026-04-24**.
+  - The four-tab `WorkspaceStateView` overlay (Readiness / Attention / Last session / Activity) reframed as three-tab `SnapshotModal` (Mandate / Review standard / Recent). See the Chat contract's "Snapshot overlay" subsection above for the full shape.
+  - Zero LLM at modal open — every tab reads substrate files and neutral audit ledgers; no summarization pass.
+  - Stay-in-chat contract: overlay is *of* the conversation, not a nav hub. No outbound links per row. Close returns to typing.
+  - Marker renamed `<!-- workspace-state: ... -->` → `<!-- snapshot: {"lead":"mandate|review|recent"} -->`. Header button label renamed "Workspace" → "Snapshot". `parseWorkspaceStateMeta` → `parseSnapshotMeta` (singular implementation, no dual markers).
+  - `WORKSPACE-STATE-SURFACE.md` archived — the living contract for this overlay now lives here in SURFACE-CONTRACTS.
+  - YARNNN prompts (`yarnnn_prompts/*`) updated to emit the new marker where applicable; `api/prompts/CHANGELOG.md` records the change per ADR-215 discipline rule 7.
+
 - **Phase 5 — Chat hardening** — **Implemented 2026-04-24**.
   - `OnboardingModal` + `ContextSetup` retired. Auto-trigger was already retired by ADR-190 (onboarding is conversational); the manual "Update workspace" `+` menu entry violated R2 (update is never Modal) and R3 (identity/brand/conventions are substrate). `WorkspaceStateView` identity-empty CTAs now seed chat prompts — YARNNN infers identity/brand from the conversation and writes via `UpdateContext`.
   - `/chat` `+` menu now has exactly one built-in entry: "Start new work" → `TaskSetupModal`. R4 fully enforced on Chat.

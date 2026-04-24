@@ -33,17 +33,12 @@ import {
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-
-interface Decision {
-  raw: string;
-  timestamp: string | null;
-  identity: string | null;
-  identityKind: 'human' | 'ai' | 'impersonated' | 'observed' | 'unknown';
-  decision: 'approve' | 'reject' | 'defer' | null;
-  actionType: string | null;
-  proposalId: string | null;
-  reasoning: string | null;
-}
+import {
+  parseDecisions,
+  formatActionType,
+  formatRelativeTimestamp as formatTimestamp,
+  type ReviewerDecision as Decision,
+} from '@/lib/reviewer-decisions';
 
 type IdentityFilter = 'all' | 'human' | 'ai' | 'impersonated';
 type DecisionFilter = 'all' | 'approve' | 'reject' | 'defer';
@@ -285,84 +280,5 @@ function IdentityBadge({
   );
 }
 
-function parseDecisions(content: string): Decision[] {
-  if (!content) return [];
-  const blocks = content.split(/\n?---\s*decision\s*---\n/i).filter(Boolean);
-  const decisions: Decision[] = [];
-  for (const block of blocks) {
-    const trimmed = block.trim();
-    if (!trimmed) continue;
-    const timestamp = extractField(trimmed, 'timestamp');
-    const identity = extractField(trimmed, 'reviewer_identity');
-    const decision = (extractField(trimmed, 'decision') ?? '').toLowerCase();
-    const actionType = extractField(trimmed, 'action_type');
-    const proposalId = extractField(trimmed, 'proposal_id');
-    const reasoning = extractReasoning(trimmed);
-    decisions.push({
-      raw: trimmed,
-      timestamp,
-      identity,
-      identityKind: classifyIdentity(identity),
-      decision:
-        decision === 'approve' || decision === 'reject' || decision === 'defer'
-          ? decision
-          : null,
-      actionType,
-      proposalId,
-      reasoning,
-    });
-  }
-  // Newest-at-top: append-only log means later in file = newer.
-  return decisions.reverse();
-}
-
-function extractField(block: string, key: string): string | null {
-  const re = new RegExp(`^\\s*${key}:\\s*(.+?)\\s*$`, 'm');
-  const m = block.match(re);
-  return m ? m[1].trim() : null;
-}
-
-/**
- * Reasoning can be multi-line and may be the last field in the block.
- * Capture everything after "reasoning:" until end of block.
- */
-function extractReasoning(block: string): string | null {
-  const m = block.match(/reasoning:\s*([\s\S]+)$/i);
-  if (!m) return null;
-  return m[1].trim();
-}
-
-function classifyIdentity(identity: string | null): Decision['identityKind'] {
-  if (!identity) return 'unknown';
-  if (identity.startsWith('human:')) return 'human';
-  if (identity.startsWith('ai:')) return 'ai';
-  if (identity.startsWith('impersonated:')) return 'impersonated';
-  if (identity.startsWith('reviewer-layer:')) return 'observed';
-  return 'unknown';
-}
-
-function formatActionType(action: string): string {
-  const [provider, ...rest] = action.split('.');
-  if (!provider || rest.length === 0) return action;
-  const tool = rest.join('.').replace(/_/g, ' ');
-  return `${capitalize(provider)} · ${capitalize(tool)}`;
-}
-
-function capitalize(s: string): string {
-  return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-}
-
-function formatTimestamp(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return d.toLocaleDateString();
-}
+// Parser + formatters moved to `web/lib/reviewer-decisions.ts` (singular
+// implementation — shared with the Snapshot overlay's Recent tab).

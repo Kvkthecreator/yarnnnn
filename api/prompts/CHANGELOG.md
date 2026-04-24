@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.24.10] - ADR-215 Phase 6 — Snapshot marker reframe
+
+### Changed
+- `api/agents/yarnnn_prompts/onboarding.py` — "Two markers / two modals" guidance rewritten for the ADR-215 Phase 6 Snapshot overlay reframe. The `<!-- workspace-state: {"lead":"overview|flags|recap|activity"} -->` marker schema is **retired**; replaced by `<!-- snapshot: {"lead":"mandate|review|recent"} -->` — matching the three-tab reframe of the overlay. Stale ADR-203 `/overview` cold-start guidance removed; post-ADR-205 F1 HOME is `/chat` and the empty-state lives in `ChatEmptyState` with suggestion chips. When-to-emit heuristics rewritten to target the three new tabs (mandate, review, recent).
+
+### Expected behavior
+- YARNNN no longer emits `<!-- workspace-state: ... -->` markers.
+- YARNNN emits `<!-- snapshot: {"lead":"...","reason":"..."} -->` when a structured surface would help more than prose. `lead` is exactly one of `mandate | review | recent`.
+- Frontend `parseSnapshotMeta` (`web/lib/snapshot-meta.ts`) parses the new marker; `SnapshotModal` (`web/components/chat-surface/SnapshotModal.tsx`) opens on the named tab.
+- Historical messages carrying the retired `<!-- workspace-state: ... -->` marker render as plain text (old regex is gone); old onboarding markers continue to be stripped by `stripOnboardingMeta` for display hygiene.
+
+### R-compliance (ADR-215)
+- R1 preserved. Snapshot overlay is pure-read; the only mutation is chat seeding via `EditInChatButton` (R5 label).
+- I2 preserved. Snapshot is a Briefing archetype — no outbound links per row, no stat cards shipping elsewhere. Close returns to typing.
+- New invariant (cost): **zero LLM at modal open**. 3 HTTP GETs + 2 SELECTs per open, no summarization pass. See `docs/design/SURFACE-CONTRACTS.md` Chat contract.
+
+---
+
 ## [2026.04.24.9] - ADR-218 Commit 4 — reflection_writer (apply + reflections.md + chat)
 
 No prompt change in Commit 4. Reviewer v5 prompt (from Commit 3)

@@ -34,7 +34,7 @@ import {
   type ActionCardConfig,
 } from '@/components/tp/InlineActionCard';
 import { ReviewerCard } from '@/components/tp/ReviewerCard';
-import { stripWorkspaceStateMeta, stripOnboardingMeta } from '@/lib/workspace-state-meta';
+import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/snapshot-meta';
 
 export interface ChatPanelProps {
   /** Surface override — when set, used instead of DeskContext surface */
@@ -220,7 +220,7 @@ export function ChatPanel({
             ) : (
               <>
                 {msg.role === 'assistant' ? (
-                  <MarkdownRenderer content={stripOnboardingMeta(stripWorkspaceStateMeta(msg.content))} compact />
+                  <MarkdownRenderer content={stripOnboardingMeta(stripSnapshotMeta(msg.content))} compact />
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}

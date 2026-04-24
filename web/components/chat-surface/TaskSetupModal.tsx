@@ -5,12 +5,11 @@
  *
  * Wraps TaskSetup in a modal shell — the singular creation modal across the
  * cockpit per ADR-215 Phase 4.
- * Opened by:
- *   - "Start new work" plus-menu action (ChatSurface)
- *   - "Set up work for them" CTA in WorkspaceStateView Heads Up tab
  *
- * On submit, the composed intent message is forwarded to TP via sendMessage.
- * TP calls ManageTask(action="create") in the same turn — no clarifying rounds.
+ * Opened by the "Start new work" plus-menu action on any of the four cockpit
+ * tabs. On submit, the composed intent message is forwarded to YARNNN via
+ * sendMessage. YARNNN calls ManageTask(action="create") in the same turn —
+ * no clarifying rounds.
  */
 
 import { useEffect } from 'react';

@@ -1,8 +1,10 @@
 # Workspace State Surface
 
-**Status:** Implemented (ADR-165 v8)
+> **SUPERSEDED 2026-04-24 — ADR-215 Phase 6.** This doc described the prior four-tab `WorkspaceStateView` overlay (Readiness / Attention / Last session / Activity) plus the retired `OnboardingModal`. The overlay was reframed as **Snapshot** (three tabs: Mandate / Review standard / Recent) with a pure-read / zero-LLM-at-open / stay-in-chat contract. Canonical contract lives in [`docs/design/SURFACE-CONTRACTS.md`](../SURFACE-CONTRACTS.md) under the Chat tab's "Snapshot overlay" subsection. Preserved here as historical artifact.
+
+**Status:** Archived (superseded by ADR-215 Phase 6 Snapshot reframe)
 **Date:** 2026-04-09
-**Governing ADR:** [ADR-165 v8](../adr/ADR-165-workspace-state-surface.md)
+**Governing ADR:** [ADR-165 v8](../adr/ADR-165-workspace-state-surface.md) (pre-Snapshot era)
 **Extends:** [SURFACE-CONTRACTS](./SURFACE-CONTRACTS.md) (ADR-215)
 
 ---

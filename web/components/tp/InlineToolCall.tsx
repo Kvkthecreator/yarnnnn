@@ -39,7 +39,7 @@ import { NotificationCard } from '@/components/tp/NotificationCard';
 import { SystemCard } from '@/components/tp/SystemCard';
 import { MessageBlock } from '@/types/desk';
 import { cn, getToolDisplayMessage } from '@/lib/utils';
-import { stripWorkspaceStateMeta, stripOnboardingMeta } from '@/lib/workspace-state-meta';
+import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/snapshot-meta';
 
 interface InlineToolCallProps {
   block: Extract<MessageBlock, { type: 'tool_call' }>;
@@ -282,8 +282,9 @@ export function MessageBlocks({ blocks, compact = true }: { blocks: MessageBlock
       {blocks.map((block, i) => {
         switch (block.type) {
           case 'text': {
-            // ADR-165 v8: strip both workspace-state and onboarding markers
-            const stripped = stripOnboardingMeta(stripWorkspaceStateMeta(block.content));
+            // ADR-215 Phase 6: strip snapshot marker; ADR-190: strip retired
+            // onboarding marker from historical messages (display hygiene).
+            const stripped = stripOnboardingMeta(stripSnapshotMeta(block.content));
             return stripped ? (
               <MarkdownRenderer key={i} content={stripped} compact />
             ) : null;

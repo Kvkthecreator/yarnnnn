@@ -4,6 +4,45 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-24 — ADR-215 Phase 6: Snapshot overlay reframe (Workspace modal → Snapshot)
+
+**Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — amends ADR-165 v8 (Workspace State Surface).
+
+SURFACE-CONTRACTS.md bumped to v1.6. Chat tab's overlay contract rewritten as **Snapshot** — a Briefing archetype in its purest form: pure read, zero LLM at open, stay-in-chat. The prior four-tab `WorkspaceStateView` (Readiness / Attention / Last session / Activity) reframed as three-tab `SnapshotModal` (Mandate / Review standard / Recent). Part 4 Phase 6 marked Implemented.
+
+**Conceptual shift (from the conversation):**
+The prior overlay had drifted into a mini-dashboard — stat cards with outbound links, "Production Roles" counts linking to `/work`, "Identity — Empty — Add now" CTAs opening a form. That made it a nav hub, not a glance. The reframe answers one question: *what does the operator need in mind before speaking to YARNNN?* Three things — what they've committed to (Mandate), how judgment happens (Reviewer standard), what's unresolved (Recent) — each rendered in place. No outbound links per row; Close returns to typing.
+
+**Cost contract:** zero LLM at modal open. Every tab reads substrate files (3 HTTP GETs: MANDATE.md, principles.md, decisions.md, awareness.md — 4 files, but parallelized) and neutral audit ledgers (2 Supabase SELECTs: `action_proposals` pending, tasks with `last_run_at`). No summarization, no reasoning, no cross-referencing commentary. Every byte rendered was persisted by an earlier conversational turn.
+
+**Code landed:**
+- `web/components/chat-surface/SnapshotModal.tsx` (new) — three tabs, pure reads, per-tab `<EditInChatButton>` seed. Close returns to typing.
+- `web/components/chat-surface/WorkspaceStateView.tsx` — **deleted** (1063 lines).
+- `web/lib/snapshot-meta.ts` (new) — `parseSnapshotMeta`, `stripSnapshotMeta`, `SnapshotLead` (`mandate | review | recent`). Retains `stripOnboardingMeta` for historical message hygiene.
+- `web/lib/workspace-state-meta.ts` — **deleted**. Old `WorkspaceStateLead` (`overview | flags | recap | activity`) gone.
+- `web/lib/reviewer-decisions.ts` (new) — shared parser extracted from `DecisionsStreamPane`. Consumed by both `/agents?agent=reviewer` (full stream) and Snapshot's Recent tab (last 3 verdicts). Singular implementation — no duplicate parser.
+- `web/components/agents/reviewer/DecisionsStreamPane.tsx` — 80-line in-file parser block deleted; imports from shared lib.
+- `web/components/chat-surface/ChatSurface.tsx` — state renamed `overviewOpen` → `snapshotOpen`, header button "Workspace" → "Snapshot", mounts `<SnapshotModal>` instead of `<WorkspaceStateView>`. `agents` + `dataLoading` props dropped (overlay only needs tasks for the Recent tab).
+- `web/app/(authenticated)/chat/page.tsx` — caller simplified to pass just `tasks`.
+- `web/components/tp/ChatPanel.tsx` + `web/components/tp/InlineToolCall.tsx` — import `stripSnapshotMeta` instead of the retired `stripWorkspaceStateMeta`.
+- `web/components/chat-surface/TaskSetupModal.tsx` — docstring pointer to retired `WorkspaceStateView` cleaned.
+
+**Prompts:**
+- `api/agents/yarnnn_prompts/onboarding.py` — marker emission guidance rewritten. Retired lead enum (overview/flags/recap/activity); new enum (mandate/review/recent). Stale ADR-203 `/overview` cold-start guidance removed (HOME is `/chat` per ADR-205 F1). `api/prompts/CHANGELOG.md` entry `[2026.04.24.10]` added.
+
+**Docs:**
+- `docs/design/WORKSPACE-STATE-SURFACE.md` — **archived** with supersession banner. Canonical contract lives in SURFACE-CONTRACTS.md under the Chat tab's "Snapshot overlay" subsection.
+
+**R-compliance check after Phase 6:**
+- R1 preserved. Snapshot overlay is pure-read; only mutation is chat seeding via the shared `<EditInChatButton>` (R5 label).
+- R2–R4 unchanged from prior phases.
+- R5 preserved. Every tab's "Edit in chat" button uses the shared component.
+- New cost invariant: **zero LLM at modal open**, documented in SURFACE-CONTRACTS.md.
+
+**TypeScript:** `tsc --noEmit` passes.
+
+---
+
 ## 2026-04-24 — Settings > Memory tab retirement (ADR-215 Phase 2 follow-up closed)
 
 **Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) R3 — substrate operations edit on Files.
