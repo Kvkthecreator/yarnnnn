@@ -17,7 +17,7 @@
  *      PageHeader's promoted title stacked against the content's H1 —
  *      two headers fighting to be "the page title."
  *   2. Metadata in the wrong place. Task metadata (status, schedule, next run)
- *      and actions (Run / Pause / Edit via chat) describe the task, not the
+ *      and actions (Run / Pause / Edit in chat) describe the task, not the
  *      navigation. Putting them up in the chrome strip separated them from
  *      the task content visually. v5 moves them down into WorkDetail where
  *      they sit directly above the task's content — one cohesive "page

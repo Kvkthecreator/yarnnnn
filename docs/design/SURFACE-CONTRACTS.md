@@ -1,6 +1,6 @@
 # Surface Contracts
 
-**Version:** v1.0 (2026-04-24)
+**Version:** v1.1 (2026-04-24)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
 **Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [FOUNDATIONS v6.1](../architecture/FOUNDATIONS.md) Axiom 6 (Channel)
@@ -177,6 +177,15 @@ zero inbound   1 inbound   2 inbound   3 inbound
 - **Chat last** — Chat mirrors affordances exposed on other tabs. Locking Chat first forces reshapes every time another tab moves. Locking Chat last lets it converge to what's already stable.
 
 Each phase lands with: code changes + this doc's contract section updated in the same commit + `docs/design/CHANGELOG.md` entry. No phase ships without the contract change — that discipline is what prevents ADR-215's motivation from recurring.
+
+### Implementation status
+
+- **Phase 1 — Contracts + CRUD matrix** — **Implemented 2026-04-24** (commit `936eacc`). ADR-215 + this doc + four archive supersedes + CHANGELOG entry.
+- **Phase 2 — Files hardening** — **Implemented 2026-04-24**. `<EditInChatButton>` shared component landed at `web/components/shared/EditInChatButton.tsx` (R5 single label). `<SubstrateEditor>` landed at `web/components/workspace/SubstrateEditor.tsx` with `isSubstrateEditable()` predicate covering `/workspace/context/_shared/{IDENTITY,BRAND,CONVENTIONS,MANDATE}.md`. `ManageContextModal.tsx` deleted. `ContentViewer.tsx` refactored — substrate-editable files render inline editor, non-substrate files keep chat-draft affordance. Backend `editable_prefixes` gained `MANDATE.md`. Labels normalized across `WorkDetail.tsx` and `PrinciplesPane.tsx` to R5 ("Edit in chat"). TypeScript pass.
+  - **Follow-up (not blocking Phase 3):** `web/components/settings/MemorySection.tsx` retains a parallel IDENTITY/BRAND edit path on `/settings`. It's a second mouth for the same substrate — Files is now canonical. Route to retire in a later sweep so the signed-in UI has one and only one edit surface for `_shared/` rules.
+- **Phase 3 — Agents hardening** — Pending. Retires `PrinciplesPane` inline chat path (R3); principles.md becomes substrate-editable on Files (add `/workspace/review/principles.md` to `editable_prefixes` and extend `SHARED_EDITABLE_PATHS`). Reviewer detail + Systemic/Domain split harden.
+- **Phase 4 — Work hardening** — Pending. Cockpit-zone treatment on `/work` list mode, IntelligenceCard silent-degrade fix (ADR-198 I2), 4 kind-middles reviewed against contract.
+- **Phase 5 — Chat hardening** — Pending. Empty-state, suggestion chips, artifact cards, Reviewer verdict thread reviewed against contract.
 
 ---
 

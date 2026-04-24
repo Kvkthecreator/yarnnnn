@@ -485,9 +485,11 @@ async def edit_workspace_file(
 
     # Safety: only allow editing certain paths (ADR-206 relocation).
     editable_prefixes = [
+        # ADR-215 R3: _shared/ authored rules are substrate-editable on Files.
         "/workspace/context/_shared/IDENTITY.md",
         "/workspace/context/_shared/BRAND.md",
         "/workspace/context/_shared/CONVENTIONS.md",
+        "/workspace/context/_shared/MANDATE.md",
         "/workspace/memory/",     # awareness.md, notes.md, style.md
         "/workspace/uploads/",
         "/tasks/",                # TASK.md, DELIVERABLE.md within task folders

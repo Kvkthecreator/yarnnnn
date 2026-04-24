@@ -120,7 +120,7 @@ function OverflowMenu({
             onClick={() => { setOpen(false); onEdit(); }}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted"
           >
-            <MessageSquare className="w-3 h-3" /> Edit via chat
+            <MessageSquare className="w-3 h-3" /> Edit in chat
           </button>
         </div>
       )}
@@ -343,12 +343,13 @@ function ActionActions({
           Fire
         </button>
       )}
-      {/* Overflow: Edit via chat only (no pause for reactive tasks) */}
+      {/* Overflow: Edit in chat only (no pause for reactive tasks) — ADR-215 R5 */}
       {!isTerminal && (
         <button
           onClick={onEdit}
           className="inline-flex items-center justify-center w-7 h-7 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-          aria-label="Edit via chat"
+          aria-label="Edit in chat"
+          title="Edit in chat"
         >
           <MessageSquare className="w-3.5 h-3.5" />
         </button>

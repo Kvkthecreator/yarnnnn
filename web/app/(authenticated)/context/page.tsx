@@ -24,7 +24,6 @@ import {
   Loader2,
   MessageCircle,
   Globe,
-  Settings2,
   ListChecks,
   FolderOpen,
 } from 'lucide-react';
@@ -39,7 +38,6 @@ import { PageHeader } from '@/components/shell/PageHeader';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
-import { ManageContextModal } from '@/components/context/ManageContextModal';
 
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
@@ -210,8 +208,6 @@ export default function ContextPage() {
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
   const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
   const [taskSetupOpen, setTaskSetupOpen] = useState(false);
-  const [contextModalOpen, setContextModalOpen] = useState(false);
-  const [contextModalTab, setContextModalTab] = useState<'identity' | 'brand' | 'conventions'>('identity');
 
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
 
@@ -369,18 +365,11 @@ export default function ContextPage() {
     router.replace(`/context?path=${encodeURIComponent(node.path)}`, { scroll: false });
   }, [router]);
 
-  // ADR-190: plus-menu actions route through YARNNN via sendMessage so they
-  // flow through UpdateContext/WebSearch primitives. "Upload file" is handled
-  // by ChatPanel's built-in "Attach a file" action — no duplicate entry here.
+  // ADR-215 R4: the + menu is a modal launcher only. Authored-rules edits
+  // (IDENTITY / BRAND / CONVENTIONS / MANDATE) are substrate per R3 — edit
+  // the file directly on Files. ManageContextModal is retired.
   const plusMenuActions: PlusMenuAction[] = [
     { id: 'create-task', label: 'Start new work', icon: ListChecks, verb: 'show', onSelect: () => setTaskSetupOpen(true) },
-    {
-      id: 'manage-context',
-      label: 'Edit identity / brand / conventions',
-      icon: Settings2,
-      verb: 'show',
-      onSelect: () => { setContextModalTab('identity'); setContextModalOpen(true); },
-    },
     {
       id: 'web-search',
       label: 'Web search',
@@ -472,7 +461,8 @@ export default function ContextPage() {
                 selectedNode={selectedNode}
                 onNavigate={handleExplorerSelect}
                 showHeader={false}
-                onEditViaChat={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
+                onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
+                onSubstrateSaved={() => { void loadExplorer(); }}
               />
             )}
           </div>
@@ -491,12 +481,6 @@ export default function ContextPage() {
         open={taskSetupOpen}
         onClose={() => setTaskSetupOpen(false)}
         onSubmit={(msg) => { setTaskSetupOpen(false); sendMessage(msg, { surface: effectiveSurface }); }}
-      />
-      <ManageContextModal
-        open={contextModalOpen}
-        onClose={() => setContextModalOpen(false)}
-        initialTab={contextModalTab}
-        onSaved={() => { void loadExplorer(); }}
       />
     </>
   );

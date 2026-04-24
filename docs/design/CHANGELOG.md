@@ -4,6 +4,38 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-24 — ADR-215 Phase 2: Files hardening (substrate edits + EditInChatButton)
+
+**Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Files hardening (Phase 2).
+
+SURFACE-CONTRACTS.md bumped to v1.1. Phase 2 implementation status added to Part 4 alongside the tab-hardening sequence.
+
+**Code landed:**
+- `web/components/shared/EditInChatButton.tsx` (new) — the unified R5 affordance. Two variants: `default` (full button) and `compact` (icon-only for toolbars). One label: "Edit in chat".
+- `web/components/workspace/SubstrateEditor.tsx` (new) — inline substrate editor for `/workspace/context/_shared/{IDENTITY,BRAND,CONVENTIONS,MANDATE}.md`. Exports `isSubstrateEditable(path)` predicate. Writes through `api.workspace.editFile()` → `write_revision(authored_by="operator")` per ADR-209.
+- `web/components/workspace/ContentViewer.tsx` — refactored. `onEditViaChat` prop renamed `onOpenChatDraft` (R5 vocabulary); new `onSubstrateSaved` prop for reload-after-save. `FileView` now gates the chat-draft button on `!isSubstrateEditable(file.path)` (R3 — substrate files get inline editor instead). Empty-file short-circuit loosened so empty substrate-editable files still render the editor (lets MANDATE.md be authored from scratch).
+- `web/components/agents/reviewer/PrinciplesPane.tsx` — "Edit via YARNNN" button replaced with `<EditInChatButton>`. Interim: principles.md retires to substrate-editable on Files in Phase 3.
+- `web/components/work/WorkDetail.tsx` — overflow menu item "Edit via chat" → "Edit in chat". Compact icon button aria-label + title updated.
+- `web/components/shell/PageHeader.tsx` — doc comment vocabulary normalized.
+- `web/app/(authenticated)/context/page.tsx` — `ManageContextModal` import + state + `+` menu entry removed. ContentViewer wired to new prop names + `onSubstrateSaved`.
+- `web/components/context/ManageContextModal.tsx` — **deleted** (violated R2 by being an edit-modal and R3 by bypassing the revision chain for substrate writes).
+- `api/routes/workspace.py` — `editable_prefixes` gained `/workspace/context/_shared/MANDATE.md`. Same revision-chain write path as the other three authored rules.
+
+**Decisions locked in for Phase 3+:**
+- `PrinciplesPane` inline chat path retires in Phase 3 — principles.md joins `SHARED_EDITABLE_PATHS` and becomes substrate-editable on Files. The decisions pane stays as a Stream embed per ADR-198.
+- `MemorySection` on `/settings` retains a parallel IDENTITY/BRAND edit path. Known follow-up: retire in a later sweep so Files is the one and only edit surface for `_shared/` rules. Not blocking Phase 3.
+
+**R-compliance check after Phase 2:**
+- R1 (one verb, one shape): preserved. Substrate files route to Substrate; non-substrate files route to Chat.
+- R2 (create is Modal, update/delete never Modal): now clean — the last edit-modal (`ManageContextModal`) is deleted.
+- R3 (substrate bypasses Chat): enforced via `isSubstrateEditable()` gate in `FileView`.
+- R4 (`+` menu is modal launcher): Files tab's `+` menu now has no chat-seeders; only `TaskSetupModal` (legacy — CreateTaskModal migration out of scope for Phase 2) and `Web search`. The "Edit identity / brand / conventions" chat-seeder entry was deleted.
+- R5 (one label "Edit in chat"): clean across `web/` — `grep -rn "Edit via"` returns no live hits.
+
+**TypeScript:** `tsc --noEmit` passes.
+
+---
+
 ## 2026-04-24 — ADR-215: SURFACE-CONTRACTS unification + four-shape CRUD matrix
 
 **Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles.

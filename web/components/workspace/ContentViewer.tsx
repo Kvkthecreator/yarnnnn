@@ -8,25 +8,33 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Clock, Download, ExternalLink, FileText, Folder, Loader2, MessageSquare } from 'lucide-react';
+import { Download, ExternalLink, FileText, Folder, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { EditInChatButton } from '@/components/shared/EditInChatButton';
 import { FileIcon } from '@/components/workspace/FileIcon';
+import { SubstrateEditor, isSubstrateEditable } from '@/components/workspace/SubstrateEditor';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
 interface ContentViewerProps {
   selectedNode: WorkspaceTreeNode | null;
   onNavigate: (node: WorkspaceTreeNode) => void;
   showHeader?: boolean;
-  /** ADR-181 Phase 4b: pre-fill TP chat with context-sensitive prompt */
-  onEditViaChat?: (prompt: string) => void;
+  /**
+   * ADR-215 R1 + R3: seed the chat rail for judgment-shaped edits. Never
+   * invoked for substrate files (those render SubstrateEditor instead).
+   */
+  onOpenChatDraft?: (prompt: string) => void;
+  /** Called after a successful inline substrate edit, so the host can refresh. */
+  onSubstrateSaved?: () => void;
 }
 
 export function ContentViewer({
   selectedNode,
   onNavigate,
   showHeader = true,
-  onEditViaChat,
+  onOpenChatDraft,
+  onSubstrateSaved,
 }: ContentViewerProps) {
   if (!selectedNode) {
     return (
@@ -42,24 +50,31 @@ export function ContentViewer({
         node={selectedNode}
         onNavigate={onNavigate}
         showHeader={showHeader}
-        onEditViaChat={onEditViaChat}
+        onOpenChatDraft={onOpenChatDraft}
       />
     );
   }
 
-  return <FileView path={selectedNode.path} showHeader={showHeader} onEditViaChat={onEditViaChat} />;
+  return (
+    <FileView
+      path={selectedNode.path}
+      showHeader={showHeader}
+      onOpenChatDraft={onOpenChatDraft}
+      onSubstrateSaved={onSubstrateSaved}
+    />
+  );
 }
 
 function DirectoryView({
   node,
   onNavigate,
   showHeader,
-  onEditViaChat,
+  onOpenChatDraft,
 }: {
   node: WorkspaceTreeNode;
   onNavigate: (node: WorkspaceTreeNode) => void;
   showHeader: boolean;
-  onEditViaChat?: (prompt: string) => void;
+  onOpenChatDraft?: (prompt: string) => void;
 }) {
   // For synthetic nodes (entity subfolders with no pre-populated children),
   // fetch children on demand via the tree API.
@@ -116,17 +131,14 @@ function DirectoryView({
               <h2 className="text-lg font-medium">{node.name}</h2>
               <p className="text-xs text-muted-foreground">{children.length} items</p>
             </div>
-            {onEditViaChat && (
-              <button
-                onClick={() => {
+            {onOpenChatDraft && (
+              <EditInChatButton
+                prompt={(() => {
                   const folderName = node.name || node.path.split('/').filter(Boolean).pop() || 'this folder';
-                  onEditViaChat(`About the ${folderName} context: `);
-                }}
-                className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                Edit via chat
-              </button>
+                  return `About the ${folderName} context: `;
+                })()}
+                onOpenChatDraft={onOpenChatDraft}
+              />
             )}
           </div>
         </div>
@@ -175,15 +187,18 @@ function DirectoryView({
 function FileView({
   path,
   showHeader,
-  onEditViaChat,
+  onOpenChatDraft,
+  onSubstrateSaved,
 }: {
   path: string;
   showHeader: boolean;
-  onEditViaChat?: (prompt: string) => void;
+  onOpenChatDraft?: (prompt: string) => void;
+  onSubstrateSaved?: () => void;
 }) {
   const [file, setFile] = useState<WorkspaceFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -193,7 +208,12 @@ function FileView({
       .then((data) => setFile(data))
       .catch((err) => setError(err.message || 'Failed to load file'))
       .finally(() => setLoading(false));
-  }, [path]);
+  }, [path, reloadKey]);
+
+  const handleSubstrateSaved = () => {
+    setReloadKey((k) => k + 1);
+    onSubstrateSaved?.();
+  };
 
   if (loading) {
     return (
@@ -212,7 +232,11 @@ function FileView({
     );
   }
 
-  if (!file || (!file.content && !file.content_url)) {
+  // ADR-215 R3: substrate-editable files render the editor even when empty,
+  // so the operator can author their first content inline.
+  const substrateEditable = file ? isSubstrateEditable(file.path) : false;
+
+  if (!file || (!file.content && !file.content_url && !substrateEditable)) {
     return (
       <div className="p-6 text-center text-muted-foreground text-sm">
         <p>Empty file</p>
@@ -241,17 +265,15 @@ function FileView({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {onEditViaChat && (
-                <button
-                  onClick={() => {
+              {/* ADR-215 R3: substrate files get inline edit instead of chat redirect. */}
+              {!substrateEditable && onOpenChatDraft && (
+                <EditInChatButton
+                  prompt={(() => {
                     const relPath = path.replace('/workspace/', '').replace('/tasks/', 'tasks/');
-                    onEditViaChat(`About this file (${relPath}): `);
-                  }}
-                  className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  Edit via chat
-                </button>
+                    return `About this file (${relPath}): `;
+                  })()}
+                  onOpenChatDraft={onOpenChatDraft}
+                />
               )}
               {file.content_url && (
                 <FileActions contentUrl={file.content_url} />
@@ -265,7 +287,15 @@ function FileView({
         </div>
       ) : null}
 
-      <div className="p-4">
+      <div className="p-4 space-y-4">
+        {substrateEditable && (
+          <SubstrateEditor
+            path={file.path}
+            initialContent={file.content ?? ''}
+            onSaved={handleSubstrateSaved}
+          />
+        )}
+
         {kind === 'markdown' && file.content && (
           <div className="prose prose-sm max-w-none dark:prose-invert">
             <MarkdownRenderer content={file.content} />
