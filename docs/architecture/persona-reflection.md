@@ -20,9 +20,12 @@ The canonical fix is symmetric to how the rest of YARNNN handles accumulation:
 
 - `_performance.md` accumulates **money-truth** from platform outcomes (ADR-195). The operator doesn't hand-write P&L; the reconciliation task writes it from reality.
 - Context domains accumulate **domain knowledge** from platform syncs (ADR-151 + platform bots). The operator doesn't hand-write competitive intelligence; platform-sync tasks write it from reality.
+- `PRECEDENT.md` accumulates **operator-authored durable interpretations** from recurring ambiguities (commit `fd4917a`, 2026-04-24). The operator writes a precedent once; all agents honor it thereafter.
 - Persona files should accumulate **judgment character** from the Reviewer's own decisions + outcomes. The operator seeds it; reflection writes the rest from reality.
 
-The operator's standing role shifts from *"continuous config authoring"* to *"seeding direction + auditing evolution."* The operator writes MANDATE (what this workspace is running), AUTONOMY (how autonomous AI may be), and the initial IDENTITY + principles (the starting character). From then on, the persona lives its lifecycle through reflection — with the operator reviewing retrospectively rather than manually updating files.
+**Precedent and reflection are operator-sided and persona-sided halves of the same gap.** Both answer "how does framework evolve as reality accumulates?" — but via different authorship paths. Precedent is the operator declaring a new interpretation they've decided to lock in ("if signal has <20 realized trades, never auto-approve"). Reflection is the persona noticing its own track record has drifted and proposing a framework adjustment ("my cold-start defer condition should relax now that 20 trades have accumulated"). Both accumulate inside the MANDATE + AUTONOMY boundaries the operator sets; neither widens delegation.
+
+The operator's standing role shifts from *"continuous config authoring"* to *"seeding direction + declaring precedent + auditing persona evolution."* The operator writes MANDATE (what this workspace is running), AUTONOMY (how autonomous AI may be), PRECEDENT as the operation matures (durable interpretations the operator has decided), and the initial IDENTITY + principles (the starting character). From then on, the persona lives its lifecycle through reflection — with the operator reviewing retrospectively rather than manually updating framework files.
 
 This is what closes the autonomous loop your mandate expects. Without reflection, the persona either stays naive (cold-start condition I defer forever) or demands continuous operator intervention to keep its framework fresh. Neither is the autonomous operation YARNNN promises.
 
@@ -50,6 +53,7 @@ Under `/workspace/context/_shared/` — workspace-scoped standing declarations:
 |------|--------|---------------------------|
 | `MANDATE.md` | Operator only | Principal's declaration of what the operation is running. A servant rewriting the mandate would be the servant declaring what the master is doing — inversion of principal-agent. |
 | `AUTONOMY.md` | Operator only | Delegation ceiling. A servant cannot widen their own permission. ADR-217 D4 invariant. |
+| `PRECEDENT.md` | Operator only | Operator-authored durable interpretations / boundary-case resolutions (committed `fd4917a`, 2026-04-24). Read by YARNNN + Reviewer + domain Agents. This is the *operator-authored sibling* to reflection: when the operator notices a recurring ambiguity, they write a precedent; when the persona notices its own framework drift, it reflects. Precedent declares; reflection evolves. Both accumulate within operator-declared MANDATE + AUTONOMY. |
 | `IDENTITY.md` (workspace) | Operator only | The operator's self-description. Persona's opinion about who the operator is is not authoritative. |
 | `BRAND.md` | Operator only | The operation's voice. Persona isn't authorized to redefine the operator's voice. |
 | `CONVENTIONS.md` | Operator only | Workspace conventions. Structural; operator's to set. |
@@ -386,6 +390,7 @@ Yes: ADR-209 revision chain preserves every prior revision. Operator opens Files
 - **ADR-212** — Layer mapping. Reviewer is the sole persona-bearing systemic Agent per ADR-216; this doc is about how that Agent self-maintains.
 - **ADR-216** — YARNNN reclassification + persona wiring. Seeded IDENTITY at scaffold; reflection is what makes it evolve.
 - **ADR-217** — Workspace autonomy substrate. AUTONOMY.md is explicitly outside the reflection scope ceiling — delegation is operator-only, reflexive writes cannot widen it.
+- **PRECEDENT.md** (commit `fd4917a`, 2026-04-24) — The operator-authored sibling to reflection. Durable interpretations that compound across future decisions. Precedent declares (operator-authored); reflection evolves (persona-authored). Both accumulate inside MANDATE + AUTONOMY boundaries. When the implementing ADR for reflection lands, the Reviewer's reflection prompt should explicitly read PRECEDENT.md so that persona-authored evolutions respect operator-declared interpretations.
 - **`docs/architecture/agent-composition.md`** — Canonical composition reference. Reflection adds a new execution mode (reflection-mode) distinct from verdict-mode; agent-composition.md amended accordingly when reflection ADR lands.
 
 ---
@@ -395,3 +400,4 @@ Yes: ADR-209 revision chain preserves every prior revision. Operator opens Files
 | Date | Change |
 |------|--------|
 | 2026-04-24 | v1 — initial draft. Thesis (persona-as-accumulator), reflective vs non-reflective substrate boundary, reflection loop (six steps), scope + invariants (five rules + authorship), operator visibility + override, supersedes + amends prior ADRs, implementation staging (five stages), stress tests (eight), open questions (five deferred to ADR), cross-references. Written before the implementing ADR to pin the thesis; that ADR will cite + amend this doc in the same commit per the discipline declared in `agent-composition.md` §5.3. |
+| 2026-04-24 | v1.1 — integrated PRECEDENT.md (commit `fd4917a`, landed 2 minutes after v1). Thesis section notes precedent and reflection as operator-sided and persona-sided halves of the same "framework evolves with reality" gap. Operator-owned substrate table adds PRECEDENT row. Cross-references note that the implementing ADR must have reflection-mode prompt explicitly read PRECEDENT.md so persona-authored evolutions respect operator-declared interpretations. No change to scope ceiling, invariants, or staging plan — PRECEDENT is a sibling authorship path, not a new reflection surface. |
