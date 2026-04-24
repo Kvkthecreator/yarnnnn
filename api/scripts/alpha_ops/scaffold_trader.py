@@ -57,6 +57,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -66,6 +67,46 @@ if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
 from _shared import ProdClient, load_registry, pg_connect  # noqa: E402
+
+
+def _ensure_specialists(user_id: str, roles: list[str]) -> dict[str, str]:
+    """Pre-create the specialist agent rows the task POSTs will reference.
+
+    ADR-205 lazy-creates specialists at dispatch time, but
+    `ManageTask(action="create")` validates the agent row exists up-front
+    (agent_lookup_failed → 400). Bridge the gap here by invoking
+    `ensure_infrastructure_agent` for every unique role the TASKS list
+    will reference. Idempotent — a subsequent invocation short-circuits
+    if the row already exists.
+    """
+    # Late imports — these pull in the full API dependency graph, so keep
+    # them local to this harness step rather than top-level.
+    import asyncio
+    from supabase import create_client
+
+    supabase_url = os.environ.get("SUPABASE_URL") or "https://noxgqcwynkzqabljjyon.supabase.co"
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not supabase_key:
+        raise SystemExit("SUPABASE_SERVICE_KEY env var required for specialist lazy-create step")
+
+    # Add api/ to sys.path so `services.agent_creation` resolves.
+    _api_root = _THIS_DIR.parents[1]
+    if str(_api_root) not in sys.path:
+        sys.path.insert(0, str(_api_root))
+
+    from services.agent_creation import ensure_infrastructure_agent  # noqa: E402
+
+    client = create_client(supabase_url, supabase_key)
+
+    async def _run() -> dict[str, str]:
+        created: dict[str, str] = {}
+        for role in roles:
+            agent = await ensure_infrastructure_agent(client, user_id, role)
+            if agent:
+                created[role] = agent.get("slug", "?")
+        return created
+
+    return asyncio.run(_run())
 
 
 # =============================================================================
@@ -330,11 +371,21 @@ fire within its declared entry rules, at a sizing that respects
 `_risk.md`, with expectancy (per `_performance.md`) that remains
 above the guardrail?*
 
-If yes, I recommend the action (escalated to the human operator
-per the workspace's `modes.md` manual-autonomy posture).
+If yes, I approve — and per this workspace's `modes.md`
+bounded_autonomous posture on paper trading, the orchestrator
+executes the approved proposal against the Alpaca paper
+connection without human Queue click. My approval is
+authoritative; the operator reviews the outcome afterward in
+`decisions.md` and `_performance.md`.
 
-If no, I reject. My rejection cites the specific check that
-failed and the substrate value that failed it.
+If no, I reject. The proposal closes. My rejection cites the
+specific check that failed and the substrate value that failed
+it.
+
+If the proposal is ambiguous — substrate contradicts itself,
+expectancy data is too thin for the signal's track record, or
+some check I cannot clearly resolve — I defer. Deferrals route
+to the human Queue; the operator decides.
 
 ## What I refuse to do
 
@@ -408,44 +459,67 @@ If they read it and find narrative, mood, or conviction talk,
 they should rewrite this file or rotate the seat.
 """
 
-# Reviewer modes — ADR-211 Phase 4 + ADR-216 Commit 5. Activates the
-# trading domain with manual autonomy per §3A.4 "Auto-approve = NONE"
-# rule. Routes the Reviewer dispatcher to observe-and-recommend; every
-# trade defers to human operator for Queue approval.
+# Reviewer modes — ADR-211 Phase 4 + ADR-216 Commit 5.
+#
+# **OPERATOR OVERRIDE of playbook §3A.4 Auto-approve=NONE** (2026-04-24,
+# alpha-trader E2E). The playbook defaults to manual autonomy for paper
+# *and* live to exercise the approval-UI flow. For this E2E the operator
+# directed bold paper-trading autonomy: the Simons-persona Reviewer
+# renders full verdicts on trading.submit_* and the orchestrator executes
+# if the verdict approves — no human Queue click in the loop. This is a
+# paper-account-only override to stress-test the persona wiring end-to-
+# end. When this workspace graduates to a live broker connection, this
+# block MUST flip back to `autonomy_level: manual` before the connection
+# is upgraded; a future commit will either re-tighten or formalize the
+# threshold for live money.
+#
+# Threshold sizing: 2,000,000 cents = $20,000. Book is $25K paper; the
+# operator's declared sizing rules cap any single position at 15% of
+# portfolio ≈ $3,750, well under the ceiling. The $20K ceiling is a
+# safety floor — any trade whose notional (qty × limit_price) exceeds it
+# would have violated the operator's own risk rules before reaching the
+# Reviewer and should defer regardless.
 REVIEWER_MODES_MD = """\
 ---
 # Per-domain operational modes. Reviewer seat autonomy declared per
 # context domain. Domain key matches slug.
+#
+# alpha-trader E2E override (2026-04-24): bounded_autonomous on paper
+# trading. Reviewer (Simons persona) renders verdicts; orchestrator
+# executes on approve. Flip to `manual` before any live broker
+# connection.
 
 trading:
-  autonomy_level: manual
+  autonomy_level: bounded_autonomous
   scope: [trading]
-  on_behalf_posture: recommend
-  auto_approve_below_cents: 0
+  on_behalf_posture: act
+  auto_approve_below_cents: 2000000    # $20,000 — covers up to 80% of $25K paper book in one go
   never_auto_approve:
-    - submit_order
-    - submit_bracket_order
-    - submit_trailing_stop
-    - submit_limit_order
-    - submit_market_order
-    - cancel_order
+    - cancel_order                      # defensive: cancel flow always defers
 ---
 
 # Reviewer operational modes
 
-**Alpha-1 autonomy posture: manual across trading.** Every trade
-proposal escalates to the human operator for Queue approval. The AI
-Reviewer evaluates (using the Simons persona declared in IDENTITY.md
-against the framework declared in principles.md) and writes its
-recommendation to decisions.md — but execution gates on the human's
-click, always.
+**Alpha-1 autonomy posture: bounded_autonomous across trading (paper
+only).** Overrides playbook §3A.4 Auto-approve=NONE for the purpose of
+stress-testing the ADR-216 persona-wiring end-to-end. The Simons-
+persona Reviewer's verdict is authoritative: approve → orchestrator
+submits the Alpaca paper order; reject → proposal closes; defer →
+routes to human Queue as fallback.
 
-This is §3A.4's "Auto-approve = NONE" rule expressed as substrate.
-When the operator gains confidence in the AI Reviewer's calibration
-(after sufficient trades + outcome reconciliation), they may raise
-`autonomy_level` or add a narrow `auto_approve_below_cents` for
-low-stakes trades — but only after reviewing the track record in
-calibration.md.
+Threshold: $20,000 notional per trade. Sized deliberately larger than
+any position the operator's own sizing rules (`_risk.md`:
+`max_position_percent_of_portfolio: 15` → $3,750 on a $25K book)
+would produce, so the threshold is a safety floor, not the primary
+gate. The primary gate is signal-attribution + expectancy compliance
+via the Simons persona's six-check reasoning.
+
+**Flip to manual before live broker upgrade.** This mode block is
+alpha-paper-trading-only. The moment a live trading `platform_connections`
+row replaces the paper connection, this modes.md must flip back to
+`autonomy_level: manual` per §3A.4 — otherwise the Reviewer's
+calibration axis hasn't accumulated enough real-money outcomes to
+justify bounded autonomy yet.
 """
 
 # Reviewer principles — playbook §3A.4
@@ -758,7 +832,20 @@ def main() -> int:
     # script used /api/memory/user/{identity,brand} endpoints for two of
     # the seven files; those routes are superseded by ADR-206 _shared/
     # relocation + ADR-144 inference-first path. One write mechanism now.
+    #
+    # MANDATE.md is sourced from docs/alpha/personas/alpha-trader/MANDATE.md
+    # so the canonical playbook spec is the single source of truth. ADR-207
+    # ManageTask(create) gate requires MANDATE.md to be non-empty; without
+    # this file's write tasks refuse to scaffold.
+    _mandate_path = _THIS_DIR.parent.parent.parent / "docs" / "alpha" / "personas" / "alpha-trader" / "MANDATE.md"
+    _mandate_content = _mandate_path.read_text() if _mandate_path.exists() else ""
+
     SUBSTRATE_FILES = [
+        (
+            "/workspace/context/_shared/MANDATE.md",
+            _mandate_content,
+            "Mandate — alpha-trader canonical Primary Action declaration (ADR-207)",
+        ),
         (
             "/workspace/review/IDENTITY.md",
             REVIEWER_IDENTITY_MD,
@@ -821,6 +908,23 @@ def main() -> int:
                 print(f"  [{i}/{len(SUBSTRATE_FILES)}] FAIL {path}: {e}")
     finally:
         conn.close()
+
+    # ----- Step 1b: Ensure specialist agent rows exist -----
+    # ADR-205 lazy-creates specialists at dispatch time, but ManageTask(create)
+    # validates the agent row exists up-front. Bridge the gap by calling
+    # `ensure_infrastructure_agent` for every unique role the TASKS list
+    # references. Idempotent — existing rows short-circuit.
+    unique_roles = sorted({t["agent_slug"] for t in TASKS})
+    print(f"[1b] ensure specialist agent rows × {len(unique_roles)}")
+    try:
+        ensured = _ensure_specialists(persona.user_id, unique_roles)
+        for role in unique_roles:
+            status = "OK" if role in ensured else "MISS"
+            slug = ensured.get(role, "?")
+            print(f"  {status:<4} {role:<12} slug={slug}")
+    except Exception as e:
+        errors.append(f"specialist-ensure: {e}")
+        print(f"  FAIL specialist-ensure: {e}")
 
     # ----- Step 2: POST /api/tasks (production-role dispatch per ADR-207 P4a) -----
     # Tasks created status=active. Scheduler picks them up on cron / reactive

@@ -93,7 +93,7 @@ def load_principles(client: Any, user_id: str) -> dict:
     Empty dict on missing file, parse failure, or no active principles.
     Never raises.
     """
-    content = _read_file(client, user_id, REVIEW_PRINCIPLES_PATH)
+    content = _read_file(client, user_id, PRINCIPLES_PATH)
     return _parse_keyed_yaml(content, _KNOWN_PRINCIPLES_KEYS, "principles")
 
 
@@ -112,7 +112,7 @@ def load_modes(client: Any, user_id: str) -> dict:
     Empty dict on missing file, parse failure, or no active modes.
     Never raises.
     """
-    content = _read_file(client, user_id, REVIEW_MODES_PATH)
+    content = _read_file(client, user_id, MODES_PATH)
     return _parse_keyed_yaml(content, _KNOWN_MODES_KEYS, "modes")
 
 
@@ -222,10 +222,13 @@ def _read_file(client: Any, user_id: str, path: str) -> str:
 def _parse_keyed_yaml(content: str, known_keys: set[str], label: str) -> dict:
     """Parse a minimal YAML-subset from the file, filtered to known keys.
 
-    Format:
+    Format supported:
       <domain>:
-        <key>: <value>
-        <key>: <value>
+        <key>: <scalar>              # inline `# comment` tolerated
+        <key>: [a, b, c]             # inline list form
+        <list_key>:                  # block list form
+          - item1
+          - item2
 
     Both plain and `<!-- ... -->`-commented YAML are parsed — default
     files ship with thresholds commented out; operator uncomments to
@@ -238,14 +241,47 @@ def _parse_keyed_yaml(content: str, known_keys: set[str], label: str) -> dict:
 
     policies: dict[str, dict] = {}
     current_domain: str | None = None
+    pending_list_key: str | None = None        # set when we see `<key>:` with no value (block-list start)
+    pending_list_indent: int = 0
+    pending_list: list[str] = []
+
+    def _flush_pending() -> None:
+        nonlocal pending_list_key, pending_list, pending_list_indent
+        if pending_list_key and current_domain and pending_list_key in known_keys:
+            parsed = _parse_value(pending_list_key, pending_list)
+            if parsed is not None:
+                policies[current_domain][pending_list_key] = parsed
+        pending_list_key = None
+        pending_list = []
+        pending_list_indent = 0
 
     for raw_line in cleaned.split("\n"):
         line = raw_line.rstrip()
-        if not line.strip() or line.strip().startswith("#"):
+        stripped = line.strip()
+
+        # Block-list continuation (before blank/comment skip, so we still
+        # consume list items and flush when we see a non-list sibling).
+        if pending_list_key and stripped.startswith("- "):
+            # accept item if indent is deeper than the block-list key's indent
+            indent = len(line) - len(line.lstrip())
+            if indent > pending_list_indent:
+                # strip leading "- " and any trailing inline `#` comment
+                item = stripped[2:].split("#", 1)[0].strip().strip('"\'')
+                if item:
+                    pending_list.append(item)
+                continue
+            else:
+                _flush_pending()
+
+        if not stripped or stripped.startswith("#"):
+            if pending_list_key:
+                _flush_pending()
             continue
 
         # Top-level domain declaration
         if not line.startswith((" ", "\t")):
+            if pending_list_key:
+                _flush_pending()
             m = re.match(r"^([a-z][a-z0-9_\-]*)\s*:\s*$", line)
             if m:
                 current_domain = m.group(1)
@@ -254,13 +290,30 @@ def _parse_keyed_yaml(content: str, known_keys: set[str], label: str) -> dict:
             current_domain = None
             continue
 
-        # Indented key: value within the current domain
+        # Indented key line within the current domain
         if current_domain is None:
             continue
+
+        # Case A: `<key>:` alone on a line → block-list start
+        m_empty = re.match(r"^(\s+)([a-z][a-z0-9_]*)\s*:\s*$", line)
+        if m_empty:
+            if pending_list_key:
+                _flush_pending()
+            indent, key = len(m_empty.group(1)), m_empty.group(2)
+            if key in known_keys:
+                pending_list_key = key
+                pending_list_indent = indent
+                pending_list = []
+            continue
+
+        # Case B: `<key>: <value>` on a single line (strip trailing inline `#` comment)
         m = re.match(r"^\s+([a-z][a-z0-9_]*)\s*:\s*(.+?)\s*$", line)
         if not m:
             continue
         key, raw_value = m.group(1), m.group(2)
+        # Drop inline `# ...` comment from scalar value (YAML convention)
+        if "#" in raw_value:
+            raw_value = raw_value.split("#", 1)[0].rstrip()
         if key not in known_keys:
             continue
 
@@ -268,19 +321,34 @@ def _parse_keyed_yaml(content: str, known_keys: set[str], label: str) -> dict:
         if parsed is not None:
             policies[current_domain][key] = parsed
 
+    # End-of-content flush (block-list as last thing in file)
+    if pending_list_key:
+        _flush_pending()
+
     # Drop domains with no recognized policies
     return {d: p for d, p in policies.items() if p}
 
 
-def _parse_value(key: str, raw: str) -> Any:
-    """Parse a known key's raw value. Returns None if unparseable."""
+def _parse_value(key: str, raw: Any) -> Any:
+    """Parse a known key's raw value. Returns None if unparseable.
+
+    `raw` is usually a scalar string from the parser's same-line case,
+    but for block-list keys the parser passes a list of items already
+    split by the `- ` prefix (see _parse_keyed_yaml).
+    """
+    # Block-list case: parser handed us the collected list items directly.
+    if isinstance(raw, list):
+        if key in ("never_auto_approve", "scope"):
+            return [str(item).strip() for item in raw if str(item).strip()]
+        return None
+
     # Integer keys
     if key in ("auto_approve_below_cents", "high_impact_threshold_cents"):
         try:
             return int(raw)
         except (TypeError, ValueError):
             return None
-    # List keys
+    # List keys (inline form only)
     if key in ("never_auto_approve", "scope"):
         raw = raw.strip()
         if raw.startswith("[") and raw.endswith("]"):

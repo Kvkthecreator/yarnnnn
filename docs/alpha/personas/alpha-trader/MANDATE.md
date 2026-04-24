@@ -24,7 +24,9 @@ Submit equity orders to the Alpaca API that match one of the 5–8 declared sign
 - **Universe scope.** 12–15 liquid US equities + sector/index ETFs. No options, no futures, no crypto, no overseas listings.
 - **Signal count scope (Option B).** 5–8 declared signals with full entry/exit/sizing rules + per-signal performance tracking. Not lighter (rule-following discretion), not heavier (mini-Medallion).
 - **Hold-period scope.** 1–20 trading days typical. No intra-day scalping, no quarterly-hold theses.
-- **Autonomy scope.** Every order requires explicit human approval in the cockpit Queue. Reviewer can defer/reject autonomously but cannot approve. Claude-as-operator can approve reversible paper orders within the playbook §6 Simons discretion ladder; KVK-operator fills all non-reversible decisions.
+- **Autonomy scope.**
+  - **Paper (Alpha-1 stress test carve-out, 2026-04-24):** Reviewer operates in `bounded_autonomous` per `/workspace/review/modes.md` with `auto_approve_below_cents: 2000000` ($20K notional ceiling) on the `trading` domain. Reviewer-approved paper orders execute directly against the Alpaca paper connection; deferred/rejected proposals surface in the cockpit Queue as usual. This exercises the ADR-216 persona-wiring end-to-end and accumulates calibration data before any live-money commitment.
+  - **Live (default posture preserved):** Every order requires explicit human approval in the cockpit Queue. Reviewer can defer/reject autonomously but cannot approve. `modes.md` must flip `autonomy_level: manual` on the `trading` domain before any live Alpaca connection is installed. Claude-as-operator can approve reversible paper orders within the playbook §6 Simons discretion ladder only when the Reviewer has deferred (fallback path); KVK-operator fills all non-reversible decisions regardless of mode.
 - **Decision vocabulary.** Allowed: signal name, trigger conditions, expectancy R-multiple, sizing formula output, stop distance, Sharpe, drawdown, regime state. Disallowed: conviction, feel, think, hunch, sentiment, story, narrative, "looks strong," "breakout setup."
 
 ## Revision Protocol
