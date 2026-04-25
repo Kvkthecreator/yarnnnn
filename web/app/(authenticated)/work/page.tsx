@@ -77,7 +77,9 @@ export default function WorkPage() {
   const router = useRouter();
   const { sendMessage } = useTP();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
-  const { agents, tasks, loading, error, reload } = useAgentsAndTasks();
+  // ADR-219 Commit 4: opt into narrative fetch — /work is the surface
+  // that renders recent-activity headlines from session_messages.
+  const { agents, tasks, narrativeByTask, loading, error, reload } = useAgentsAndTasks({ includeNarrative: true });
 
   const agentFilter = searchParams.get('agent');
   const taskSlugFromUrl = searchParams.get('task');
@@ -380,6 +382,7 @@ export default function WorkPage() {
           <WorkListSurface
             tasks={tasks}
             agents={agents}
+            narrativeByTask={narrativeByTask}
             agentFilter={agentFilter}
             dataError={error}
             onClearAgentFilter={handleClearAgentFilter}

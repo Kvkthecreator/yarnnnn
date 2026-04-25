@@ -31,11 +31,19 @@ import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
 import { getAgentSlug } from '@/lib/agent-identity';
 import { taskModeLabel } from '@/types';
-import type { Task, Agent } from '@/types';
+import type { Task, Agent, NarrativeByTaskSlice } from '@/types';
 
 interface WorkListSurfaceProps {
   tasks: Task[];
   agents: Agent[];
+  /**
+   * ADR-219 Commit 4: narrative slices keyed by task slug. Source for
+   * recent-activity headlines on the list rows, replacing the legacy
+   * `task.last_run_at` timestamp. Tasks with no narrative entries yet
+   * are simply absent from the map — the row falls back to the
+   * forward-looking next_run_at signal (still useful) or no headline.
+   */
+  narrativeByTask: Map<string, NarrativeByTaskSlice>;
   agentFilter: string | null;
   dataError?: string | null;
   onClearAgentFilter: () => void;
@@ -239,6 +247,7 @@ function OverflowOptions({
 export function WorkListSurface({
   tasks,
   agents,
+  narrativeByTask,
   agentFilter,
   dataError,
   onClearAgentFilter,
@@ -422,6 +431,7 @@ export function WorkListSurface({
                       key={task.slug}
                       task={task}
                       agents={agents}
+                      narrativeSlice={narrativeByTask.get(task.slug) ?? null}
                       tab={activeTab}
                       onSelect={() => onSelect(task.slug)}
                     />
@@ -441,11 +451,13 @@ export function WorkListSurface({
 function WorkRow({
   task,
   agents,
+  narrativeSlice,
   tab,
   onSelect,
 }: {
   task: Task;
   agents: Agent[];
+  narrativeSlice: NarrativeByTaskSlice | null;
   tab: WorkTab;
   onSelect: () => void;
 }) {
@@ -471,12 +483,26 @@ function WorkRow({
     ? task.schedule.charAt(0).toUpperCase() + task.schedule.slice(1)
     : null;
 
-  // Right-side time signal
+  // ADR-219 Commit 4: right-side signal sources from the narrative.
+  //
+  // Forward-looking: when active + scheduled, show the next-run hint
+  // (this is the schedule, not historical activity — narrative
+  // doesn't speak to the future).
+  //
+  // Backward-looking: replace the legacy `Last: 5m ago` timestamp
+  // with the most-recent material narrative entry's headline. If
+  // no narrative entry exists yet for this task (likely on
+  // pre-Commit-2 tasks until the next run lands one), no headline
+  // is shown — the row simply doesn't claim activity it can't
+  // attribute. This is the singular-implementation answer per
+  // discipline rule 1.
+  const lastMaterial = narrativeSlice?.last_material ?? null;
   const timeSignal = isActive && task.next_run_at
     ? `Next: ${formatRelativeTime(task.next_run_at)}`
-    : task.last_run_at
-      ? `Last: ${formatRelativeTime(task.last_run_at)}`
+    : lastMaterial
+      ? `${formatRelativeTime(lastMaterial.created_at)}`
       : null;
+  const headlineSummary = !isActive && lastMaterial ? lastMaterial.summary : null;
 
   // Sub-label varies by tab
   let subParts: string[] = [];
@@ -526,6 +552,15 @@ function WorkRow({
             </>
           )}
         </div>
+        {/* ADR-219 Commit 4: narrative headline — the most-recent material
+            invocation's summary, sourced from session_messages. Active
+            scheduled tasks keep their forward-looking next-run signal in
+            the right column; this line shows what actually shipped last. */}
+        {headlineSummary && (
+          <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5 italic">
+            {headlineSummary}
+          </p>
+        )}
       </div>
 
       {/* Time signal */}

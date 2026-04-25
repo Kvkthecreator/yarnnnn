@@ -46,6 +46,8 @@ import type {
   // ADR-152: Workspace Explorer
   WorkspaceTreeNode,
   WorkspaceFile,
+  // ADR-219 Commit 4: narrative filter-over-substrate
+  NarrativeByTaskResponse,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -598,6 +600,18 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ sources }),
       }),
+  },
+
+  // ADR-219 Commit 4: narrative filter-over-substrate for /work list view.
+  // Replaces the `task.last_run_at` timestamp on list rows with the
+  // most-recent material-weight narrative entry's headline. Tasks with
+  // no narrative entries yet are simply absent from the response — the
+  // list view falls back to no headline (graceful empty state).
+  narrative: {
+    byTask: (windowHours?: number) => {
+      const qs = windowHours ? `?window_hours=${windowHours}` : "";
+      return request<NarrativeByTaskResponse>(`/api/narrative/by-task${qs}`);
+    },
   },
 
   // Workspace Explorer (ADR-152)

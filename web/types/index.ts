@@ -765,6 +765,38 @@ export interface DeliverableSpec {
   route: 'output-driven' | 'context-driven' | null;
 }
 
+// ADR-219 Commit 4: narrative filter-over-substrate response shapes.
+// /work list view consumes these to render recent-activity headlines
+// sourced from session_messages (the narrative) instead of from
+// task.last_run_at timestamps. Tasks with zero narrative entries are
+// simply absent from `tasks` — caller falls back gracefully.
+
+export interface NarrativeMaterialEntry {
+  summary: string;
+  role: string;
+  pulse: string;
+  created_at: string;
+  invocation_id?: string | null;
+}
+
+export interface NarrativeCounts {
+  material: number;
+  routine: number;
+  housekeeping: number;
+}
+
+export interface NarrativeByTaskSlice {
+  task_slug: string;
+  last_material: NarrativeMaterialEntry | null;
+  counts: NarrativeCounts;
+  most_recent_at: string | null;
+}
+
+export interface NarrativeByTaskResponse {
+  window_hours: number;
+  tasks: NarrativeByTaskSlice[];
+}
+
 export interface TaskDetail extends Task {
   run_log?: string;            // memory/run_log.md content
   success_criteria?: string[];

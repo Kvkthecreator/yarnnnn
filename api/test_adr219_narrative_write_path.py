@@ -276,6 +276,8 @@ ALLOWED_RAW_WRITE_FILES = {
     "supabase/migrations/161_session_messages_narrative_envelope.sql",
     # Test files (this one + any future regression tests).
     "api/test_adr219_narrative_write_path.py",
+    "api/test_adr219_commit3_narrative_digest.py",
+    "api/test_adr219_commit4_narrative_by_task.py",
     # Schema verification + admin scripts that read/list/audit the table.
     "api/scripts/verify_schema.py",
     "api/scripts/purge_user_data.py",

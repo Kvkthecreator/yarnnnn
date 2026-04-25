@@ -6,6 +6,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.25.4] - ADR-219 Commit 4 — `/work` list view as filter-over-narrative (no prompt body change)
+
+### Changed
+- New backend route `api/routes/narrative.py` mounted at prefix `/api/narrative`. `GET /api/narrative/by-task` returns task-grouped narrative slices (last material entry + counts in rolling window + most-recent timestamp), keyed by `metadata.task_slug` from `session_messages`. Inline actions (no task_slug) are excluded — they surface in `/chat` directly, not via the by-task filter.
+- `web/types/index.ts` adds `NarrativeMaterialEntry`, `NarrativeCounts`, `NarrativeByTaskSlice`, `NarrativeByTaskResponse`. `web/lib/api/client.ts` adds `api.narrative.byTask(windowHours?)`.
+- `web/hooks/useAgentsAndTasks.ts` extended with optional `includeNarrative` flag (default off). `/work` page opts in; `chat/page`, `agents/[id]`, `agents/page` keep the lighter agents+tasks-only fetch shape so they don't pay for an unused round-trip on every poll.
+- `web/components/work/WorkListSurface.tsx` accepts `narrativeByTask: Map<string, NarrativeByTaskSlice>`; `WorkRow` consumes the slice and renders the most-recent material entry's `summary` as a second meta line under the title, with relative timestamp on the right. Replaces the legacy `Last: 5m ago` timestamp-only signal — the singular-implementation source for list-row recent-activity is now the narrative.
+
+### Expected behavior
+- No prompt body change; no LLM-call change.
+- /work list rows show "what actually shipped" headlines (summary + relative time) for every task that has a material narrative entry. Active scheduled tasks keep their forward-looking `Next: ...` signal — the schedule isn't historical activity.
+- Tasks with no narrative entries yet (every task currently authored before ADR-219 Commit 2 lands a follow-up run) render with no recent-activity headline. The next run produces a `task_complete` narrative card (Commit 2 plumbing), and the row's headline appears on the next poll.
+- WorkDetail's per-task run-history continues to read from `agent_runs` per D7 — that's the audit ledger, separate consumer.
+- Other surfaces consuming `task.last_run_at` (settings/system diagnostic, admin, context output-tasks, agents detail) are unchanged — out of Commit 4 scope.
+
+### Test gate
+- `api/test_adr219_commit4_narrative_by_task.py` — 10/10 assertions pass: empty-when-no-sessions, inline-actions-excluded, last_material-most-recent-irrespective-of-window, counts-windowed-and-don't-include-out-of-window-material, sort-by-most_recent_at-desc, invalid-weight-ignored-from-counts, task-with-no-material-shows-null-last_material, plus three frontend-wiring grep assertions (hook exposes narrativeByTask, WorkListSurface consumes slice, api client wires endpoint).
+- `api/test_adr219_narrative_write_path.py` (Commit 2 coverage gate) updated allowlist with the new test files.
+
+---
+
 ## [2026.04.25.3] - ADR-219 Commit 3 — Back-office narrative digest task (no prompt body change)
 
 ### Changed
