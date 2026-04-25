@@ -88,7 +88,11 @@ async def write_reviewer_message(
         return None
 
     # 1. Find the operator's most-recent active workspace-scoped chat session.
-    session_id = _find_active_workspace_session(client, user_id)
+    # Helper lives in services.narrative (promoted ADR-219 Commit 3 — every
+    # autonomous-narrative-entry caller uses the same session resolver).
+    from services.narrative import find_active_workspace_session
+
+    session_id = find_active_workspace_session(client, user_id)
     if not session_id:
         logger.debug(
             "[REVIEWER_CHAT] no active session for user=%s; skipping surfacing",
@@ -145,36 +149,6 @@ async def write_reviewer_message(
         return None
 
 
-def _find_active_workspace_session(client: Any, user_id: str) -> Optional[str]:
-    """Return the id of the operator's most-recent active workspace session,
-    or None if none exists.
-
-    Scope: workspace-level (session_type='workspace' / legacy 'default'),
-    status='active', ordered by updated_at desc.
-
-    Per ADR-125 / ADR-159 a workspace has one active session at a time; the
-    most-recent-updated is the one the operator sees on /chat open.
-    """
-    try:
-        # Prefer workspace-scoped sessions; fall back to any active session
-        # for the user if session_type column semantics have drifted.
-        result = (
-            client.table("chat_sessions")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("status", "active")
-            .order("updated_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        rows = result.data or []
-        if rows:
-            return rows[0]["id"]
-        return None
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "[REVIEWER_CHAT] active session lookup failed for user=%s: %s",
-            user_id[:8] if user_id else "?",
-            exc,
-        )
-        return None
+# Active-session resolver moved to services.narrative.find_active_workspace_session
+# (ADR-219 Commit 3 — promoted as the canonical helper for autonomous
+# narrative entries; reviewer_chat_surfacing was its only caller).

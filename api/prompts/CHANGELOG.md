@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.25.3] - ADR-219 Commit 3 — Back-office narrative digest task (no prompt body change)
+
+### Changed
+- New task type `back-office-narrative-digest` registered in `api/services/task_types.py` (`output_kind=system_maintenance`, `default_mode=recurring`, `default_schedule=daily`, executor `services.back_office.narrative_digest`). Daily-cadence rollup of housekeeping-weight narrative entries into one material-weight entry — closes Axiom 9 Clause B ("every invocation logged, weight determines visibility").
+- New executor `api/services/back_office/narrative_digest.py::run` — zero-LLM deterministic scan of past 24h `session_messages` for the user, groups by `metadata.weight`, emits ONE rolled-up material narrative entry via `services.narrative.write_narrative_entry` when housekeeping entries exist; empty-state writes nothing. Rollup envelope: `role='system'`, `pulse='periodic'`, `weight='material'`, `metadata.system_card='narrative_digest'`, `rolled_up_count`, `rolled_up_window_hours`, `rolled_up_ids` (bounded 200), `counts` per weight bucket, `authored_by='system:back-office-narrative-digest'`.
+- Promoted `find_active_workspace_session(client, user_id)` from `services/reviewer_chat_surfacing.py` into `services/narrative.py` as the canonical session-target resolver for any autonomous narrative entry caller. `_find_active_workspace_session` deleted from `reviewer_chat_surfacing.py` (singular implementation discipline) — caller now imports the shared helper.
+
+### Expected behavior
+- No prompt body change; no LLM-call change in this commit.
+- The digest task does not auto-materialize at signup. Operators opt it in via `ManageTask(action="create", type_key="back-office-narrative-digest")` until back-office narrative emission lands in Commit 6.
+- When materialized, the daily run scans 24h of session_messages, writes a markdown report to `/tasks/back-office-narrative-digest/outputs/{date}/output.md`, and (only when housekeeping entries exist + an active workspace session exists) emits one rolled-up material narrative entry to the operator's chat.
+- Originals (the housekeeping-weight `session_messages` rows) stay in place — the rollup is additive, preserving Commit 6's universal-coverage commitment. Frontend (Commit 5) will render the rollup card with expand-to-list affordance using `rolled_up_ids`.
+- Untagged `session_messages` rows (no `metadata.weight` or invalid value) bucket into `counts.untagged` and never enter the rollup — legacy entries don't pollute the digest.
+- Registry-entry shape parity with the other 6 back-office task types (`workspace-cleanup`, `agent-hygiene`, `proposal-cleanup`, `outcome-reconciliation`, `reviewer-reflection`, `reviewer-calibration`); the executor module exports the standard `async run(client, user_id, task_slug) → {summary, output_markdown, actions_taken}` shape.
+
+### Test gate
+- `api/test_adr219_commit3_narrative_digest.py` — 6/6 assertions pass: empty-state writes no rollup, rollup envelope contract (envelope keys + counts + rolled_up_ids), graceful skip when no active session, untagged entries do not pollute the rollup, registry entry correctness (output_kind + executor reference + cadence), helper promotion to `services.narrative`.
+
+---
+
 ## [2026.04.25.2] - ADR-219 Commit 2 — Narrative substrate write path (no prompt body change)
 
 ### Changed

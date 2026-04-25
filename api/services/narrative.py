@@ -270,6 +270,45 @@ def resolve_default_weight(
     return "routine"
 
 
+def find_active_workspace_session(client: Any, user_id: str) -> Optional[str]:
+    """Return the id of the operator's most-recent active workspace
+    session, or None if none exists.
+
+    Promoted from reviewer_chat_surfacing in ADR-219 Commit 3 because
+    choosing the target session for an autonomous narrative entry
+    (Reviewer verdict, back-office digest, notification, …) is a
+    narrative-substrate concern. Per ADR-125 / ADR-159 a workspace has
+    one active session at a time; the most-recent-updated is the one
+    the operator sees on /chat open.
+
+    Best-effort: returns None on any DB error rather than raising. The
+    caller decides whether absent surfacing is acceptable (it usually
+    is — the canonical record lives in substrate, this is the second
+    read path for human visibility).
+    """
+    try:
+        result = (
+            client.table("chat_sessions")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("status", "active")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if rows:
+            return rows[0]["id"]
+        return None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[NARRATIVE] active session lookup failed for user=%s: %s",
+            user_id[:8] if user_id else "?",
+            exc,
+        )
+        return None
+
+
 def is_valid_envelope(metadata: Optional[dict[str, Any]]) -> bool:
     """Test gate helper — confirms a session_messages row's metadata
     carries the ADR-219 envelope. Used by the test suite (Commit 2 gate)
@@ -294,6 +333,7 @@ def is_valid_envelope(metadata: Optional[dict[str, Any]]) -> bool:
 __all__ = [
     "write_narrative_entry",
     "resolve_default_weight",
+    "find_active_workspace_session",
     "is_valid_envelope",
     "VALID_ROLES",
     "VALID_PULSES",

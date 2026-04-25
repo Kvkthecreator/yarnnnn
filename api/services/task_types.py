@@ -1525,6 +1525,52 @@ The cockpit should be honest about what the workspace knows, not optimistic abou
             ],
         },
     },
+    "back-office-narrative-digest": {
+        "display_name": "Narrative Digest",
+        "description": "ADR-219 Commit 3: folds the day's housekeeping-weight narrative entries into one rolled-up material entry. Closes Axiom 9 Clause B's 'every invocation logged, weight determines visibility' commitment — the log layer stays complete, the rollup keeps the operator's chat timeline scannable. Materialized on the first housekeeping-weight narrative entry per workspace.",
+        "output_kind": "system_maintenance",
+        "default_delivery": "none",
+        "registry_default_team": [],
+        "default_mode": "recurring",
+        "default_schedule": "daily",
+        "output_format": "markdown",
+        "export_options": [],
+        "process": [
+            {
+                "agent_type": "thinking_partner",
+                "step": "back-office",
+                "instruction": (
+                    "Back office maintenance: scan the past 24h of "
+                    "session_messages owned by this user, group by "
+                    "metadata.weight, and emit ONE material-weight rolled-up "
+                    "narrative entry summarizing the housekeeping cluster. "
+                    "Zero LLM cost (deterministic SQL + narrative.write_narrative_entry). "
+                    "If zero housekeeping entries in window, write nothing. "
+                    "executor: services.back_office.narrative_digest"
+                ),
+            },
+        ],
+        "context_reads": [],
+        "context_writes": [],
+        "context_sources": ["workspace"],
+        "requires_platform": None,
+        "default_objective": {
+            "deliverable": "Daily narrative housekeeping rollup",
+            "audience": "Operator (so /chat stays scannable instead of cluttered with housekeeping noise)",
+            "purpose": "Preserve Axiom 9 Clause B (full invocation logging) while keeping the chat timeline legible per ADR-219 D5 weight gradient. Originals stay; one material entry summarizes the cluster.",
+            "format": "Markdown report — counts by weight, list of housekeeping summaries, rollup status",
+        },
+        "default_deliverable": {
+            "output": {"format": "markdown", "word_count": "n/a", "layout": ["Window", "Counts", "Housekeeping summaries", "Rollup status"]},
+            "assets": [],
+            "quality_criteria": [
+                "Zero LLM cost on every run",
+                "Empty-state when no housekeeping entries — does not emit a noisy 'nothing happened' rollup",
+                "Rolled-up entry carries metadata.rolled_up_count + rolled_up_ids so frontend (Commit 5) can render expand-to-list",
+                "Idempotent — re-running over the same window produces the same output (counts deterministic)",
+            ],
+        },
+    },
     "back-office-reviewer-calibration": {
         "display_name": "Reviewer Calibration",
         "description": "Rebuilds /workspace/review/calibration.md from decisions.md × reconciled _performance.md. Closes the money-truth → future-judgment loop per FOUNDATIONS Axiom 7 + Axiom 8. ADR-211 D6.",
