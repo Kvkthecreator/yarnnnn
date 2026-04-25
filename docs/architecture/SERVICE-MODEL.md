@@ -1,7 +1,7 @@
 # YARNNN Service Model
 
 > **Status**: Canonical
-> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24)
+> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25)
 > **Scope**: End-to-end service model — how the system works, from user intent to delivered output.
 > **Rule**: This is the single document that describes the complete system. Deep-dive docs are linked, not duplicated.
 
@@ -63,13 +63,23 @@ The operator works *inside* YARNNN. The front-end model is a **cockpit**, not a 
 | **Context** | "What does my workspace know?" | `/workspace/context/*` + `/workspace/uploads/*` |
 | **Review** | "Who decided what, why?" | `/workspace/review/*` + task `feedback.md` |
 
-**YARNNN is ambient, not a destination.** A persistent rail is available on every surface; `/chat` is the expanded-focus form. Operators don't travel *to* YARNNN; YARNNN is *with* them.
+**YARNNN is ambient, not a destination.** A persistent rail is available on every surface; `/chat` is the expanded-focus form of the narrative — the single operator-facing log of every invocation the system performed (FOUNDATIONS Axiom 9). Operators don't travel *to* YARNNN; YARNNN is *with* them, and the narrative is where they return to see what happened while they weren't watching.
 
 **Team and Work are peer destinations.** Agents and tasks are many-to-many — one agent runs several tasks, one complex task may involve several agents. "Check my agents" and "check the work" are two distinct operator Purposes (identity vs activity), so they get two destinations with cross-links between detail routes.
 
 **External Channels are derivative, not primary.** Email (daily-update, weekly reports), Slack cross-posts, PDF exports — all are derivatives of work the operator reviewed in the cockpit. Notifications to external Channels are **expository pointers** (legible summary + deep-link back to cockpit), not replacement UX. See [ADR-198](../adr/ADR-198-surface-archetypes.md) for the full service-model pivot and the five archetype patterns (Document / Dashboard / Queue / Briefing / Stream) that compose inside destinations.
 
 Implication: `produces_deliverable` task types (ADR-166) output a **cockpit-consumable surface**, not an emailable document as the primary artifact. The task output folder (`/tasks/{slug}/outputs/`) remains substrate per Axiom 1 — what changes is the operator's consumption Channel, not the filesystem. External distribution runs as a post-compose derivative per ADR-185 when a task's `## Delivery` names external recipients.
+
+### Frame 4 — Invocation as the Atom, Narrative as the Log (Axiom 9)
+
+One cycle of the six dimensions is an **invocation** — the atom of action. One actor fires once, applies some mechanism, reads and writes substrate, emits to some channel, terminates. Every actor class in YARNNN — persona-bearing Agents (Reviewer, user-authored domain Agents), the orchestration chat surface (YARNNN), orchestration capability bundles (production roles, platform integrations), and external callers (foreign LLMs via MCP) — emits invocations of the same shape. Only the Identity slot rotates.
+
+Every invocation surfaces in one **narrative** — the chat-shaped operator-facing log of everything the system did. Ordered by time, attributed by Identity, filterable by Agent or task-nameplate. The narrative is not "the chat feature"; it is the Axiom 6 Channel that closes Derived Principle 12 (Channel legibility gates autonomy). The operator's own messages are one thread among many.
+
+**Tasks are legibility wrappers, not parallel substrates.** A task is a nameplate + pulse + contract attached to a category of recurring invocations. `/work` is the narrative filtered by task slug — the data substrate is unchanged from ADR-138; the mental model sharpens. Inline actions are invocations without a nameplate; the inline-to-task transition (attach a nameplate + pulse) is gradient and reversible.
+
+Deep dive: [invocation-and-narrative.md](invocation-and-narrative.md). ADR-219 (proposed) scopes implementation of the narrative-storage and /work-as-filter commitments.
 
 ---
 
@@ -112,10 +122,12 @@ Production roles and integrations are capability bundles, not Agents. They do no
 
 ### Tasks (WHAT)
 
-Defined work units with an objective, schedule, and delivery target. Two charter files:
+A task is a **nameplate + pulse + contract** (FOUNDATIONS Axiom 9 Clause C) attached to a category of recurring, goal-bounded, or reactive invocations. Two charter files carry the task's contract:
 
-- **TASK.md** — operational charter: objective, mode, schedule, delivery, process steps.
+- **TASK.md** — operational charter + nameplate: objective, mode, schedule (the pulse), delivery, process steps.
 - **DELIVERABLE.md** — output specification: what the final artifact should look like (format, structure, quality criteria, audience). The north star for generation and evaluation.
+
+A task does not create a parallel substrate. Its invocations write to `/tasks/{slug}/outputs/`, update context domains, and emit narrative entries tagged with the task slug. `/work` is the narrative filtered by those slugs — not a separate `agent_runs` log. Inline actions (operator asks "pull today's revenue" once) are invocations without a task nameplate; the inline-to-task transition is a nameplate-attach operation, reversible.
 
 | Field | Purpose |
 |-------|---------|

@@ -14,7 +14,21 @@
 
 ## What mode is
 
-**Mode** is the temporal character of a task — how it behaves over time in terms of scheduling, evaluation, and completion. Mode lives on the task, not the agent.
+**Mode** is YARNNN's **lifecycle management posture** over the lifetime of a task — how YARNNN evaluates, steers, and completes (or doesn't) across invocations. Mode lives on the task, not the agent.
+
+### Mode vs pulse — the orthogonal layers
+
+Mode is **distinct from pulse** (FOUNDATIONS Axiom 9 / [invocation-and-narrative.md](../architecture/invocation-and-narrative.md)). Pulse describes how each invocation fires (periodic cron, reactive event, addressed user action). Mode describes what YARNNN does *between* invocations (re-run forever, evaluate toward completion, dispatch-and-done).
+
+The two layers align but are independently meaningful:
+
+| Task mode | Typical pulse | What mode governs |
+|---|---|---|
+| `recurring` | Periodic | No completion condition; invocations fire indefinitely; YARNNN's job is quality-maintenance across invocations |
+| `goal` | Periodic, bounded | Has a completion condition; YARNNN evaluates after each invocation and calls `complete` when met |
+| `reactive` | Reactive | Dispatch-and-done per event; no accumulation loop across invocations |
+
+An invocation of a `goal`-mode task and an invocation of a `recurring`-mode task can be structurally identical — the difference is what YARNNN does between them. Mode is the lifecycle layer; pulse is the invocation layer. This doc covers mode.
 
 Three modes exist. That is the complete set.
 
