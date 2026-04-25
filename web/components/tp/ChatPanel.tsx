@@ -19,6 +19,8 @@ import {
   MessageCircle,
   Send,
   Paperclip,
+  Repeat,
+  ChevronDown,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -35,6 +37,22 @@ import {
 } from '@/components/tp/InlineActionCard';
 import { ReviewerCard } from '@/components/tp/ReviewerCard';
 import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/snapshot-meta';
+import type { TPMessage } from '@/types/desk';
+
+/**
+ * ADR-219 Commit 5: query-param-driven filters on /chat.
+ * Each filter narrows messages.map render. Empty / null filters render
+ * the full narrative. Filter parsing is the parent's responsibility
+ * (chat/page reads the URL); ChatPanel just consumes.
+ */
+export interface NarrativeFilter {
+  /** Restrict to entries with `metadata.weight` in this set. */
+  weights?: Set<'material' | 'routine' | 'housekeeping'>;
+  /** Restrict to entries with `role` in this set. */
+  identities?: Set<string>;
+  /** Restrict to entries with `metadata.task_slug` equal to this slug. */
+  taskSlug?: string | null;
+}
 
 export interface ChatPanelProps {
   /** Surface override — when set, used instead of DeskContext surface */
@@ -66,6 +84,19 @@ export interface ChatPanelProps {
   showCommandPicker?: boolean;
   /** Whether to render a divider above the input */
   showInputDivider?: boolean;
+  /**
+   * ADR-219 Commit 5: optional filter applied before render. /chat
+   * passes a parsed-from-URL filter; other surfaces (where filters
+   * make less sense) leave it null.
+   */
+  narrativeFilter?: NarrativeFilter | null;
+  /**
+   * ADR-219 Commit 5 D6: callback invoked when the operator clicks
+   * "Make this recurring" on a material inline-action user message.
+   * Parent typically opens TaskSetupModal pre-filled with the message
+   * text. When undefined, the affordance is hidden.
+   */
+  onMakeRecurring?: (messageContent: string) => void;
 }
 
 /**
@@ -86,6 +117,8 @@ export function ChatPanel({
   emptyState,
   showCommandPicker = true,
   showInputDivider = true,
+  narrativeFilter = null,
+  onMakeRecurring,
 }: ChatPanelProps) {
   const {
     messages,
@@ -199,37 +232,16 @@ export function ChatPanel({
           </div>
         )}
 
-        {messages.map(msg => {
-          // ADR-212: reviewer verdicts render as full-width cards, not chat bubbles.
-          if (msg.role === 'reviewer') {
-            return (
-              <div key={msg.id} className="max-w-[92%]">
-                <ReviewerCard data={msg.reviewer ?? {}} content={msg.content} />
-              </div>
-            );
-          }
-          return (
-          <div key={msg.id} className={cn('text-[13px] rounded-2xl px-3 py-2 max-w-[92%]', msg.role === 'user' ? 'bg-primary/10 ml-auto rounded-br-md' : 'bg-muted rounded-bl-md')}>
-            <span className={cn("text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1", msg.role === 'user' ? 'uppercase' : 'font-brand text-[10px]')}>
-              {msg.role === 'user' ? 'You' : 'yarnnn'}
-            </span>
-            {msg.blocks && msg.blocks.length > 0 ? (
-              <MessageBlocks blocks={msg.blocks} />
-            ) : msg.role === 'assistant' && !msg.content && isLoading ? (
-              <div className="flex items-center gap-1.5 text-muted-foreground text-xs"><Loader2 className="w-3 h-3 animate-spin" />Thinking...</div>
-            ) : (
-              <>
-                {msg.role === 'assistant' ? (
-                  <MarkdownRenderer content={stripOnboardingMeta(stripSnapshotMeta(msg.content))} compact />
-                ) : (
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                )}
-                {msg.toolResults && msg.toolResults.length > 0 && <ToolResultList results={msg.toolResults} compact />}
-              </>
-            )}
-          </div>
-          );
-        })}
+        {messages
+          .filter(msg => narrativeFilterMatches(msg, narrativeFilter))
+          .map(msg => (
+            <NarrativeMessage
+              key={msg.id}
+              msg={msg}
+              isLoading={isLoading}
+              onMakeRecurring={onMakeRecurring}
+            />
+          ))}
 
         {status.type === 'thinking' && messages[messages.length - 1]?.role === 'user' && (
           <div className="flex items-center gap-1.5 text-muted-foreground text-xs"><Loader2 className="w-3 h-3 animate-spin" />Thinking...</div>
@@ -320,6 +332,173 @@ export function ChatPanel({
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+
+// =============================================================================
+// ADR-219 Commit 5 — weight-driven message rendering
+// =============================================================================
+//
+// Three render shapes per ADR-219 D5:
+//   - material:    full card (existing user/assistant/reviewer bubble)
+//   - routine:     collapsed line (Identity icon + summary + timestamp + expand)
+//   - housekeeping: hidden by default — rolled into the daily digest emitted
+//                   by services/back_office/narrative_digest.py (Commit 3).
+//                   We render housekeeping rows with a dim collapsed line so
+//                   the operator can scroll past them without noise; the
+//                   digest card (system_card='narrative_digest') is the
+//                   curated headline.
+//
+// The legacy bubble path (reviewer special-case + user/yarnnn bubbles) is
+// preserved as the material rendering. Routine and housekeeping are new
+// compact rows. There is one dispatch — singular implementation per
+// discipline rule 1; the legacy "no envelope" path is treated as material
+// so historical messages predating Commit 2 don't disappear.
+
+function narrativeFilterMatches(
+  msg: TPMessage,
+  filter: NarrativeFilter | null,
+): boolean {
+  if (!filter) return true;
+  if (filter.weights && filter.weights.size > 0) {
+    const w = msg.narrative?.weight ?? 'material'; // legacy → material
+    if (!filter.weights.has(w as 'material' | 'routine' | 'housekeeping')) {
+      return false;
+    }
+  }
+  if (filter.identities && filter.identities.size > 0) {
+    if (!filter.identities.has(msg.role)) return false;
+  }
+  if (filter.taskSlug !== undefined && filter.taskSlug !== null) {
+    if ((msg.narrative?.taskSlug ?? '') !== filter.taskSlug) return false;
+  }
+  return true;
+}
+
+function NarrativeMessage({
+  msg,
+  isLoading,
+  onMakeRecurring,
+}: {
+  msg: TPMessage;
+  isLoading: boolean;
+  onMakeRecurring?: (messageContent: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const weight = msg.narrative?.weight ?? 'material'; // legacy default
+  const isInlineAction = !msg.narrative?.taskSlug;
+  const showMakeRecurring =
+    weight === 'material' &&
+    msg.role === 'user' &&
+    isInlineAction &&
+    !!onMakeRecurring &&
+    !!msg.content?.trim();
+
+  // ───── Material: full card (legacy rendering preserved) ─────
+  if (weight === 'material') {
+    // ADR-212: reviewer verdicts render as full-width cards, not chat bubbles.
+    if (msg.role === 'reviewer') {
+      return (
+        <div className="max-w-[92%]">
+          <ReviewerCard data={msg.reviewer ?? {}} content={msg.content} />
+        </div>
+      );
+    }
+    return (
+      <div className={cn('text-[13px] rounded-2xl px-3 py-2 max-w-[92%]', msg.role === 'user' ? 'bg-primary/10 ml-auto rounded-br-md' : 'bg-muted rounded-bl-md')}>
+        <span className={cn("text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1", msg.role === 'user' ? 'uppercase' : 'font-brand text-[10px]')}>
+          {msg.role === 'user' ? 'You' : msg.role === 'agent' ? (msg.authorAgentSlug ?? 'agent') : msg.role === 'external' ? 'external' : msg.role === 'system' ? 'system' : 'yarnnn'}
+        </span>
+        {msg.blocks && msg.blocks.length > 0 ? (
+          <MessageBlocks blocks={msg.blocks} />
+        ) : msg.role === 'assistant' && !msg.content && isLoading ? (
+          <div className="flex items-center gap-1.5 text-muted-foreground text-xs"><Loader2 className="w-3 h-3 animate-spin" />Thinking...</div>
+        ) : (
+          <>
+            {msg.role === 'assistant' ? (
+              <MarkdownRenderer content={stripOnboardingMeta(stripSnapshotMeta(msg.content))} compact />
+            ) : (
+              <p className="whitespace-pre-wrap">{msg.content}</p>
+            )}
+            {msg.toolResults && msg.toolResults.length > 0 && <ToolResultList results={msg.toolResults} compact />}
+          </>
+        )}
+        {showMakeRecurring && (
+          <div className="mt-1.5 -mb-0.5">
+            <button
+              type="button"
+              onClick={() => onMakeRecurring!(msg.content)}
+              className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/70 hover:text-primary hover:bg-primary/5 px-1.5 py-0.5 rounded transition-colors"
+              title="Turn this inline ask into a recurring task"
+            >
+              <Repeat className="w-2.5 h-2.5" />
+              Make this recurring
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ───── Routine: collapsed line, expandable to full ─────
+  if (weight === 'routine') {
+    const summary = msg.narrative?.summary
+      ?? (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '(no summary)');
+    return (
+      <div className="max-w-[92%]">
+        <div className="text-[12px] flex items-center gap-2 py-1">
+          <button
+            type="button"
+            onClick={() => setExpanded(v => !v)}
+            className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-left flex-1 min-w-0"
+          >
+            <ChevronDown
+              className={cn(
+                'w-3 h-3 shrink-0 transition-transform',
+                expanded && 'rotate-180',
+              )}
+            />
+            <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
+              {msg.role}
+            </span>
+            <span className="truncate">{summary}</span>
+          </button>
+          <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
+            {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+        {expanded && msg.content && (
+          <div className="ml-5 mt-0.5 mb-1 text-[12px] text-muted-foreground bg-muted/30 rounded px-2.5 py-1.5">
+            {msg.role === 'assistant' ? (
+              <MarkdownRenderer content={stripOnboardingMeta(stripSnapshotMeta(msg.content))} compact />
+            ) : (
+              <p className="whitespace-pre-wrap">{msg.content}</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ───── Housekeeping: dim one-liner ─────
+  // The narrative_digest system_card (rendered via the material path
+  // when its containing message has weight=material) is the curated
+  // surface for housekeeping clusters. Individual housekeeping rows
+  // still render here in case the digest hasn't run yet, but they're
+  // visually de-emphasized.
+  const summary = msg.narrative?.summary
+    ?? (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '');
+  return (
+    <div className="text-[11px] flex items-center gap-2 max-w-[92%] py-0.5 opacity-50 hover:opacity-90 transition-opacity">
+      <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/50">
+        {msg.role}
+      </span>
+      <span className="text-muted-foreground truncate flex-1">{summary}</span>
+      <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
+        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </span>
     </div>
   );
 }

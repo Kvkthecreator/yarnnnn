@@ -58,7 +58,33 @@ export interface TPImageAttachment {
  * ADR-042: Streaming Process Visibility
  * Message content blocks for inline tool display
  */
-export type SystemCardType = 'workspace_init_complete' | 'task_complete';
+export type SystemCardType =
+  | 'workspace_init_complete'
+  | 'task_complete'
+  // ADR-219 Commit 3: rolled-up housekeeping digest written by
+  // back-office-narrative-digest. Frontend renders as a collapsed
+  // card with expand-to-list using metadata.rolled_up_ids/counts.
+  | 'narrative_digest';
+
+/**
+ * ADR-219 Commit 2: narrative envelope per session_messages row.
+ * Mirrors the metadata fields that services.narrative.write_narrative_entry
+ * stamps. Available on every TPMessage post-Commit-2; older rows
+ * surface with only the fields that were set when they were written.
+ */
+export type NarrativeWeight = 'material' | 'routine' | 'housekeeping';
+export type NarrativePulse = 'periodic' | 'reactive' | 'addressed' | 'heartbeat';
+
+export interface NarrativeEnvelope {
+  /** One-line headline used for collapsed (routine) rendering. */
+  summary?: string;
+  pulse?: NarrativePulse;
+  weight?: NarrativeWeight;
+  /** Task slug nameplate, when this invocation was labeled. */
+  taskSlug?: string;
+  /** agent_runs row id when this invocation produced one. */
+  invocationId?: string;
+}
 
 export type MessageBlock =
   | { type: 'text'; content: string }
@@ -82,7 +108,13 @@ export interface ReviewerCardData {
 
 export interface TPMessage {
   id: string;
-  role: 'user' | 'assistant' | 'reviewer';
+  /**
+   * ADR-219 Commit 2 widened the session_messages.role enum to include
+   * the full Identity taxonomy: user, assistant, system, reviewer, agent,
+   * external. The frontend mirrors that union so every narrative entry
+   * round-trips through TPMessage without conflation.
+   */
+  role: 'user' | 'assistant' | 'system' | 'reviewer' | 'agent' | 'external';
   content: string;
   /** Images attached to this message (user messages only) */
   images?: TPImageAttachment[];
@@ -98,6 +130,8 @@ export interface TPMessage {
   authorName?: string;
   /** ADR-212: reviewer verdict metadata (role === 'reviewer') */
   reviewer?: ReviewerCardData;
+  /** ADR-219 Commit 2: narrative envelope (weight, pulse, summary, …). */
+  narrative?: NarrativeEnvelope;
 }
 
 export interface TPToolResult {

@@ -276,11 +276,14 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
             const messageBlocks: MessageBlock[] = [];
             // ADR-179: System event cards — persisted session_messages rows with metadata.system_card.
             // Render as SystemCard component instead of prose; TP reads content field as history.
+            // ADR-219 Commit 5: the narrative_digest card needs the message
+            // body (bullet list of housekeeping summaries) for expand-to-list,
+            // so we pass content alongside metadata in the card data.
             if (m.metadata?.system_card) {
               messageBlocks.push({
                 type: 'system_card',
                 card_type: m.metadata.system_card as SystemCardType,
-                data: m.metadata as Record<string, unknown>,
+                data: { ...(m.metadata as Record<string, unknown>), _body: m.content },
               });
             } else if (m.content) {
               messageBlocks.push({ type: 'text', content: m.content });
@@ -301,9 +304,24 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                   }
                 : undefined;
 
+            // ADR-219 Commit 2: narrative envelope — present on every
+            // post-Commit-2 row; older rows surface with only the
+            // fields that were set when they were written.
+            const narrative = m.metadata
+              ? {
+                  ...(m.metadata.summary && { summary: m.metadata.summary }),
+                  ...(m.metadata.pulse && { pulse: m.metadata.pulse }),
+                  ...(m.metadata.weight && { weight: m.metadata.weight }),
+                  ...(m.metadata.task_slug && { taskSlug: m.metadata.task_slug }),
+                  ...(m.metadata.invocation_id && { invocationId: m.metadata.invocation_id }),
+                }
+              : undefined;
+            const narrativeHasAny =
+              narrative && Object.keys(narrative).length > 0;
+
             return {
               id: m.id,
-              role: m.role as 'user' | 'assistant' | 'reviewer',
+              role: m.role as TPMessage['role'],
               content: m.content,
               timestamp: new Date(m.created_at),
               toolResults: toolResults?.length ? toolResults : undefined,
@@ -313,6 +331,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
               ...(m.metadata?.author_agent_slug && { authorAgentSlug: m.metadata.author_agent_slug }),
               ...(m.metadata?.author_role && { authorRole: m.metadata.author_role }),
               ...(reviewerMeta && { reviewer: reviewerMeta }),
+              ...(narrativeHasAny && { narrative }),
             };
           });
           dispatch({ type: 'SET_MESSAGES', messages });
@@ -355,13 +374,19 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
       // Reset token usage for new turn
       setTokenUsage(null);
 
-      // Add user message (with images for local display)
+      // Add user message (with images for local display).
+      // ADR-219 envelope: operator messages are addressed-pulsed material
+      // by default policy (mirrors api/services/narrative.py). Stamping
+      // here keeps optimistic-UI rows consistent with what the backend
+      // persists, so weight-driven rendering doesn't flicker on history
+      // reload.
       const userMessage: TPMessage = {
         id: crypto.randomUUID(),
         role: 'user',
         content,
         images: context?.images,
         timestamp: new Date(),
+        narrative: { pulse: 'addressed', weight: 'material', summary: content.split('\n', 1)[0].slice(0, 160) },
       };
       dispatch({ type: 'ADD_MESSAGE', message: userMessage });
       dispatch({ type: 'SET_LOADING', isLoading: true });
@@ -427,7 +452,12 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
           throw new Error('No response body');
         }
 
-        // ADR-042: Add empty assistant message immediately for streaming blocks
+        // ADR-042: Add empty assistant message immediately for streaming blocks.
+        // ADR-219: stamp envelope so weight-driven rendering applies
+        // immediately; backend will record final weight (material when a
+        // tool call fired, else routine) on the persisted row, but for
+        // streaming-time display we treat the in-flight reply as material
+        // so it renders as a full card during typing.
         const assistantMessageId = crypto.randomUUID();
         const initialAssistantMessage: TPMessage = {
           id: assistantMessageId,
@@ -435,6 +465,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
           content: '',
           blocks: [],
           timestamp: new Date(),
+          narrative: { pulse: 'addressed', weight: 'material' },
         };
         dispatch({ type: 'ADD_MESSAGE', message: initialAssistantMessage });
 

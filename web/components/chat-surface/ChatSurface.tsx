@@ -28,7 +28,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { LayoutDashboard, ListChecks } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { LayoutDashboard, ListChecks, Filter } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -41,6 +42,8 @@ import {
 import { SnapshotModal } from './SnapshotModal';
 import { TaskSetupModal } from './TaskSetupModal';
 import { ChatEmptyState } from './ChatEmptyState';
+import { ChatFilterBar, parseChatFilterFromSearch } from './ChatFilterBar';
+import { cn } from '@/lib/utils';
 
 interface ChatSurfaceProps {
   /** Tasks feed the Snapshot overlay's Recent tab (last-run list). */
@@ -54,6 +57,7 @@ export function ChatSurface({
   plusMenuActions = [],
 }: ChatSurfaceProps) {
   const { messages, sendMessage } = useTP();
+  const searchParams = useSearchParams();
 
   // --- Snapshot overlay state ---
   const [snapshotOpen, setSnapshotOpen] = useState(false);
@@ -63,6 +67,21 @@ export function ChatSurface({
   // --- Task setup modal state ---
   const [taskSetupOpen, setTaskSetupOpen] = useState(false);
   const [taskSetupInitialNotes, setTaskSetupInitialNotes] = useState('');
+
+  // ADR-219 Commit 5: filter bar visibility (off by default — we
+  // toggle from the surface header). The filter itself is parsed from
+  // the URL each render so deep-links round-trip cleanly.
+  const [filterBarOpen, setFilterBarOpen] = useState(false);
+  const narrativeFilter = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    return parseChatFilterFromSearch(params);
+  }, [searchParams]);
+
+  // Auto-open the bar when any filter is active so the user can see
+  // and clear them.
+  useEffect(() => {
+    if (narrativeFilter) setFilterBarOpen(true);
+  }, [narrativeFilter]);
 
   // --- Empty-state chip seed (ADR-190) ---
   const [chipSeed, setChipSeed] = useState<{ id: string; text: string } | null>(null);
@@ -122,6 +141,20 @@ export function ChatSurface({
     setTaskSetupOpen(true);
   }, []);
 
+  // ADR-219 D6: "Make this recurring" graduates an inline operator
+  // ask into a task. We open TaskSetupModal pre-filled with the
+  // operator's original message so they confirm + refine; YARNNN
+  // then calls ManageTask(action='create').
+  const handleMakeRecurring = useCallback(
+    (messageContent: string) => {
+      const seed = messageContent.length > 480
+        ? messageContent.slice(0, 480) + '…'
+        : messageContent;
+      handleOpenTaskSetup(`Recurring intent: ${seed}`);
+    },
+    [handleOpenTaskSetup],
+  );
+
   const handleTaskSetupClose = useCallback(() => setTaskSetupOpen(false), []);
 
   const handleTaskSetupSubmit = useCallback(
@@ -159,6 +192,31 @@ export function ChatSurface({
     </button>
   );
 
+  // ADR-219 Commit 5: filter bar toggle.
+  const filterToggleAction = (
+    <button
+      type="button"
+      onClick={() => setFilterBarOpen(v => !v)}
+      className={cn(
+        'inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded border transition-colors',
+        narrativeFilter || filterBarOpen
+          ? 'border-primary/40 bg-primary/5 text-primary'
+          : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted',
+      )}
+      title="Filter narrative"
+      aria-pressed={filterBarOpen}
+    >
+      <Filter className="w-3.5 h-3.5" />
+    </button>
+  );
+
+  const headerActions = (
+    <div className="flex items-center gap-1.5">
+      {filterToggleAction}
+      {snapshotAction}
+    </div>
+  );
+
   const surfaceLogo = (
     <img
       src="/assets/logos/circleonly_yarnnn_1.svg"
@@ -176,9 +234,14 @@ export function ChatSurface({
           icon={surfaceLogo}
           title="yarnnn"
           brandTitle
-          actions={snapshotAction}
+          actions={headerActions}
         />
       </div>
+      {filterBarOpen && (
+        <div className="mx-auto w-full max-w-3xl">
+          <ChatFilterBar />
+        </div>
+      )}
       <div className="flex-1 min-h-0">
         <div className="mx-auto h-full w-full max-w-3xl px-3 sm:px-4 py-3 sm:py-5">
           <ChatPanel
@@ -188,6 +251,8 @@ export function ChatSurface({
             showCommandPicker={true}
             showInputDivider={false}
             draftSeed={chipSeed}
+            narrativeFilter={narrativeFilter}
+            onMakeRecurring={handleMakeRecurring}
             emptyState={(helpers) => (
               <ChatEmptyState
                 onChipClick={handleChipClick}

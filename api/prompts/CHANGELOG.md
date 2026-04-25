@@ -6,6 +6,32 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.26.1] - ADR-219 Commit 5 — `/chat` weight-driven rendering + inline-to-task affordance (no prompt body change)
+
+### Changed
+- `web/types/desk.ts`: `TPMessage.role` union widens to `user | assistant | system | reviewer | agent | external` to mirror migration 161's enum. New `NarrativeEnvelope` type carries the per-row `summary | pulse | weight | taskSlug | invocationId` envelope. `SystemCardType` extends with `'narrative_digest'`.
+- `web/contexts/TPContext.tsx`: history loader pulls envelope from `metadata` into `TPMessage.narrative`. Streaming optimistic-UI rows (operator + initial assistant) stamp `pulse='addressed', weight='material'` so weight-driven rendering applies live without flickering on history reload. system_card cards now thread `m.content` into `data._body` so the digest renderer has its bullet list available for expand-to-list.
+- `web/components/tp/ChatPanel.tsx`: introduces `NarrativeMessage` as the per-row weight dispatcher (material → existing card path with `agent`/`external` role labels added; routine → collapsed line with chevron + identity tag + summary + on-click expand to full content; housekeeping → dim one-liner). Legacy "no envelope" rows default to material so messages predating Commit 2 don't disappear. Adds `narrativeFilter` + `onMakeRecurring` props; new `narrativeFilterMatches` helper applies weights/identities/taskSlug filters. **"Make this recurring"** button rendered on operator material entries with no `taskSlug` (inline actions per ADR-219 D6); invokes the parent callback.
+- `web/components/chat-surface/ChatFilterBar.tsx` (new): three deep-linkable query-param-driven filter rows — weight chips, identity chips, task-slug pill (set externally, clearable). Exports `parseChatFilterFromSearch(URLSearchParams)`.
+- `web/components/chat-surface/ChatSurface.tsx`: imports the bar + parser; `useSearchParams` + `useMemo` keeps filter in sync with URL; auto-opens the bar when any filter is active; new `Filter` icon header action toggles the bar; new `handleMakeRecurring` opens `TaskSetupModal` pre-filled with `Recurring intent: <message-prefix>` so YARNNN turns it into `ManageTask(action='create')` on submit.
+- `web/components/tp/SystemCard.tsx`: new `NarrativeDigestCard` renders Commit 3's digest entry as a collapsed-by-default card with chevron-toggle expand-to-list, headline (`{count} housekeeping invocations rolled up — all clean`), per-weight count strip, and pre-formatted body bullets on expand.
+
+### Expected behavior
+- No prompt body change; no LLM-call change.
+- /chat now dispatches per-message rendering on `metadata.weight`. Operators see material entries as full cards (existing reviewer/assistant/user pattern preserved), routine entries as collapsed lines they can scroll past or expand inline, and housekeeping entries as dim one-liners (curated rollup card from `back-office-narrative-digest` is the recommended surface for housekeeping clusters).
+- Filter chips on /chat narrow the visible thread by weight, identity, or task slug. URL is the source of truth (`/chat?weight=material&identity=reviewer,user&task=competitor-scan` is a valid deep-link). Bar auto-opens when any filter is active.
+- "Make this recurring" appears beneath every operator material message that has no task slug (i.e. the inline actions). Clicking opens TaskSetupModal pre-filled with `Recurring intent: <first 480 chars of message>` so the operator confirms + refines and YARNNN creates the task.
+- Pre-Commit-2 messages without an envelope render as material (the legacy bubble) — no historical drop-off.
+
+### Deferred
+- "Archive task (keep history)" affordance from ADR-219 D6 — that's a WorkDetail concern, not /chat. Will pair cleanly with a future task-lifecycle commit.
+- Pulse + time-range filters — richer UI than chips/pill, not gated on Commit 5.
+
+### Test gate
+- `api/test_adr219_commit5_chat_rendering.py` — 12/12 grep-shape assertions pass: TPMessage role widened, NarrativeEnvelope type + narrative_digest SystemCardType, TPContext loader pulls envelope, TPContext threads body to digest card, ChatPanel dispatches on weight (material/routine/housekeeping branches), narrativeFilterMatches handles all three dimensions, ChatPanel props include narrativeFilter + onMakeRecurring, ChatFilterBar exists with parseChatFilterFromSearch, ChatSurface mounts ChatFilterBar + threads filter to ChatPanel, Make-this-recurring button rendered with proper guards, ChatSurface wires handleMakeRecurring → TaskSetupModal, SystemCard renders narrative_digest with expand-to-list.
+
+---
+
 ## [2026.04.25.4] - ADR-219 Commit 4 — `/work` list view as filter-over-narrative (no prompt body change)
 
 ### Changed
