@@ -347,6 +347,19 @@ export const api = {
               verdict?: string;
               occupant?: string;
               action_type?: string;
+              // ADR-219 Commit 2: narrative envelope stamped on every
+              // session_messages row by services.narrative.write_narrative_entry.
+              // Loader pulls these into TPMessage.narrative; renderer
+              // dispatches on `weight` per ADR-219 D5.
+              summary?: string;
+              pulse?: 'periodic' | 'reactive' | 'addressed' | 'heartbeat';
+              weight?: 'material' | 'routine' | 'housekeeping';
+              invocation_id?: string;
+              // ADR-219 Commit 3: narrative_digest rollup card
+              rolled_up_count?: number;
+              rolled_up_window_hours?: number;
+              rolled_up_ids?: string[];
+              counts?: { material?: number; routine?: number; housekeeping?: number };
             };
           }>;
         }>;
