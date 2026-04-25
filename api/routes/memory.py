@@ -177,6 +177,14 @@ async def get_onboarding_state(request: Request, auth: UserClient):
                     session = await get_or_create_session(auth.client, auth.user_id)
                     agents_created = init_result.get("agents_created", [])
                     tasks_created = init_result.get("tasks_created", [])
+                    # ADR-219 envelope: workspace_init is the heartbeat
+                    # that confirms the operator's account is alive. One
+                    # firing per workspace lifetime; material because
+                    # everything else depends on it. Role stays
+                    # 'assistant' so the frontend continues to render
+                    # the SystemCard inside YARNNN's bubble (the
+                    # `system_card` metadata key drives the UI dispatch,
+                    # not the role).
                     await append_message(
                         client=auth.client,
                         session_id=session["id"],
@@ -190,6 +198,9 @@ async def get_onboarding_state(request: Request, auth: UserClient):
                             "system_card": "workspace_init_complete",
                             "agents_created": len(agents_created),
                             "tasks_created": tasks_created,
+                            "summary": "Workspace ready",
+                            "pulse": "heartbeat",
+                            "weight": "material",
                         },
                     )
                 except Exception as card_err:

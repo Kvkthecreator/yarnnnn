@@ -311,41 +311,59 @@ async def append_message(
     content: str,
     metadata: Optional[dict] = None,
 ) -> dict:
-    """Append a message to a session using the database RPC."""
-    try:
-        result = client.rpc(
-            "append_session_message",
-            {
-                "p_session_id": session_id,
-                "p_role": role,
-                "p_content": content,
-                "p_metadata": metadata or {}
-            }
-        ).execute()
-        return result.data
-    except Exception:
-        # Fallback: direct insert with manual sequence
-        seq_result = client.table("session_messages")\
-            .select("sequence_number")\
-            .eq("session_id", session_id)\
-            .order("sequence_number", desc=True)\
-            .limit(1)\
-            .execute()
+    """Append a message to a session by emitting one narrative entry.
 
-        next_seq = 1
-        if seq_result.data:
-            next_seq = seq_result.data[0]["sequence_number"] + 1
+    Per ADR-219 Commit 2 (FOUNDATIONS Axiom 9): all session_messages
+    inserts route through services.narrative.write_narrative_entry, the
+    single write path. This helper preserves the legacy 5-arg signature
+    that chat / memory / task_pipeline callers use today; it derives the
+    narrative envelope from the role + the optional metadata payload:
 
-        insert_data = {
-            "session_id": session_id,
-            "role": role,
-            "content": content,
-            "sequence_number": next_seq,
-            "metadata": metadata or {}
-        }
+      - `summary` is taken from metadata['summary'] when provided, else
+        derived from content (first line, truncated). The envelope's
+        `body` carries the full content when it differs from summary.
+      - `pulse` is taken from metadata['pulse'] when provided. Default
+        is 'addressed' for the operator-driven turn pattern this helper
+        was built for; task_pipeline + back-office overrides their pulse
+        explicitly.
+      - `weight` is taken from metadata['weight'] when provided; else
+        the narrative module applies the default policy.
+      - `invocation_id` / `task_slug` / `provenance` flow through when
+        present in metadata.
 
-        result = client.table("session_messages").insert(insert_data).execute()
-        return result.data[0] if result.data else None
+    Callers do not need to know about the envelope — passing only role +
+    content + a metadata dict continues to work. New callers should
+    enrich metadata with envelope fields for accurate /chat rendering.
+    """
+    from services.narrative import write_narrative_entry
+
+    md = dict(metadata or {})
+
+    summary = md.pop("summary", None)
+    if not summary:
+        first_line = (content or "").strip().split("\n", 1)[0]
+        summary = first_line[:160] if first_line else f"{role} message"
+
+    body = content if (content and content != summary) else None
+    pulse = md.pop("pulse", "addressed")
+    weight = md.pop("weight", None)
+    invocation_id = md.pop("invocation_id", None)
+    task_slug = md.pop("task_slug", None)
+    provenance = md.pop("provenance", None)
+
+    return write_narrative_entry(
+        client,
+        session_id,
+        role=role,
+        summary=summary,
+        body=body,
+        pulse=pulse,
+        weight=weight,
+        invocation_id=invocation_id,
+        task_slug=task_slug,
+        provenance=provenance,
+        extra_metadata=md or None,
+    )
 
 
 async def get_session_messages(
@@ -1270,8 +1288,13 @@ async def global_chat(
         last_token_usage = {"input_tokens": 0, "output_tokens": 0}
 
         try:
-            # ADR-124: User message metadata with attribution
-            user_message_metadata = {}
+            # ADR-124: User message metadata with attribution.
+            # ADR-219 envelope: operator messages are addressed-pulsed
+            # invocations on the workspace; material weight by default
+            # policy (operator intent always lands material).
+            user_message_metadata = {
+                "pulse": "addressed",
+            }
 
             await append_message(auth.client, session_id, "user", request.content, user_message_metadata)
             logger.info(f"[YARNNN-STREAM] Starting stream for message: {request.content[:50]}...")
@@ -1387,12 +1410,21 @@ async def global_chat(
 
             # Append assistant response to session with tool history and token usage in metadata
             # ADR-124: Add author attribution for meeting room messages
+            # ADR-219 envelope: YARNNN's reply is an addressed-pulsed
+            # invocation. Weight defaults to material when tool calls
+            # produced substrate writes (ADR-219 D3 default policy when
+            # has_invocation=True), else routine — but this turn doesn't
+            # carry an agent_runs row, so we mark weight explicitly:
+            # material when at least one tool was used, else routine.
+            tool_called = bool(tools_used)
             assistant_metadata = {
                 "model": agent.model,
                 "tools_used": tools_used,
                 "tool_history": assistant_content_for_history,
                 "input_tokens": last_token_usage.get("input_tokens", 0),
                 "output_tokens": last_token_usage.get("output_tokens", 0),
+                "pulse": "addressed",
+                "weight": "material" if tool_called else "routine",
             }
             await append_message(
                 auth.client,

@@ -109,58 +109,40 @@ async def write_reviewer_message(
     if task_slug:
         metadata["task_slug"] = task_slug
 
-    # 3. Insert via the RPC that manages sequence_number; fall back to
-    #    direct insert if the RPC path errors.
+    # 3. Emit one narrative entry. Per ADR-219 Commit 2 the single write
+    #    path is services.narrative.write_narrative_entry; that helper
+    #    handles the RPC + direct-insert fallback in one place.
     try:
-        result = client.rpc(
-            "append_session_message",
-            {
-                "p_session_id": session_id,
-                "p_role": "reviewer",
-                "p_content": content,
-                "p_metadata": metadata,
-            },
-        ).execute()
-        return result.data
-    except Exception as rpc_exc:
-        logger.warning(
-            "[REVIEWER_CHAT] RPC append_session_message failed; fallback to direct insert: %s",
-            rpc_exc,
-        )
-        try:
-            seq = (
-                client.table("session_messages")
-                .select("sequence_number")
-                .eq("session_id", session_id)
-                .order("sequence_number", desc=True)
-                .limit(1)
-                .execute()
-            )
-            next_seq = 1
-            if seq.data:
-                next_seq = int(seq.data[0]["sequence_number"]) + 1
+        from services.narrative import write_narrative_entry
 
-            result = (
-                client.table("session_messages")
-                .insert(
-                    {
-                        "session_id": session_id,
-                        "role": "reviewer",
-                        "content": content,
-                        "sequence_number": next_seq,
-                        "metadata": metadata,
-                    }
-                )
-                .execute()
-            )
-            return result.data[0] if result.data else None
-        except Exception as insert_exc:
-            logger.warning(
-                "[REVIEWER_CHAT] direct insert failed for user=%s: %s",
-                user_id[:8] if user_id else "?",
-                insert_exc,
-            )
-            return None
+        # Reviewer verdicts are reactive-pulsed (a proposal landing
+        # triggered the invocation) and material by default per
+        # ADR-219 D3. The summary uses the verdict + occupant for
+        # collapsed rendering; full reasoning lives in body.
+        verdict_label = (verdict or "decision").upper()
+        if task_slug:
+            summary = f"Reviewer {verdict_label} — {task_slug}"
+        else:
+            summary = f"Reviewer {verdict_label}"
+
+        return write_narrative_entry(
+            client,
+            session_id,
+            role="reviewer",
+            summary=summary,
+            body=content,
+            pulse="reactive",
+            weight="material",
+            task_slug=task_slug,
+            extra_metadata=metadata,
+        )
+    except Exception as exc:
+        logger.warning(
+            "[REVIEWER_CHAT] narrative write failed for user=%s: %s",
+            user_id[:8] if user_id else "?",
+            exc,
+        )
+        return None
 
 
 def _find_active_workspace_session(client: Any, user_id: str) -> Optional[str]:

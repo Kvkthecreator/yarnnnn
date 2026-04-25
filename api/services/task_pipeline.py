@@ -2411,6 +2411,12 @@ async def execute_task(
                 )
                 if session_row.data:
                     output_path = f"/tasks/{task_slug}/outputs/latest/"
+                    # ADR-219 envelope: task pipeline runs are periodic-pulsed
+                    # invocations of an Agent on behalf of a task. Material
+                    # weight on first delivery (this run shipped output);
+                    # the legacy `_append_message` shim picks up the envelope
+                    # fields from metadata and routes them through
+                    # write_narrative_entry().
                     await _append_message(
                         client=client,
                         session_id=session_row.data[0]["id"],
@@ -2425,6 +2431,13 @@ async def execute_task(
                             "task_title": title,
                             "output_path": output_path,
                             "run_at": datetime.now(timezone.utc).isoformat(),
+                            "summary": f"{title} delivered",
+                            "pulse": "periodic",
+                            "weight": "material",
+                            "invocation_id": str(version_id),
+                            "provenance": [
+                                {"path": output_path, "kind": "output_folder"},
+                            ],
                         },
                     )
             except Exception as card_err:

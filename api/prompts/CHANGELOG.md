@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.25.2] - ADR-219 Commit 2 — Narrative substrate write path (no prompt body change)
+
+### Changed
+- Migration 161 widens `session_messages.role` CHECK to `(user, assistant, system, reviewer, agent, external)` — completes the FOUNDATIONS Axiom 9 Identity taxonomy on the chat-shaped substrate. `agent` splits user-authored domain Agent invocations off the conflated `assistant` slot; `external` lands the role enum required for Commit 6's MCP emission.
+- New `api/services/narrative.py::write_narrative_entry()` — single write path into `session_messages`. Validates role/pulse/weight pre-flight, applies the ADR-219 D3 default weight policy via `resolve_default_weight()`, builds the envelope (`summary`, `pulse`, `weight`, optional `invocation_id`/`task_slug`/`provenance`) into `metadata` JSONB, RPC-first with direct-insert fallback collapsed into one helper.
+- `routes/chat.py::append_message()` — collapsed to a thin envelope-builder shim that delegates to `write_narrative_entry`. Four callers (chat user-message append, YARNNN-reply append, memory.py workspace_init system card, task_pipeline.py task_complete card) now flow envelope fields (`summary`/`pulse`/`weight`/`invocation_id`/`task_slug`/`provenance`) through metadata.
+- `services/reviewer_chat_surfacing.py::write_reviewer_message()` — collapsed to one `write_narrative_entry` call. Reviewer verdicts: role='reviewer', pulse='reactive', weight='material'. Verdict label + task slug compose the summary headline.
+- `services/notifications.py::_insert_chat_notification()` — replaces direct `append_session_message` RPC with `write_narrative_entry`. Notification surfacing: pulse='reactive', weight='routine' (notifications are pointers per ADR-202; substance lives in the email).
+- `services/task_pipeline.py` task_complete card — passes pulse='periodic', weight='material', `invocation_id=str(version_id)`, provenance pointer at `/tasks/{slug}/outputs/latest/`.
+
+### Expected behavior
+- No user-facing prompt change; no LLM-call change. This is a substrate-shape commitment.
+- Every new `session_messages` row carries the ADR-219 envelope in `metadata` (verifiable via `services.narrative.is_valid_envelope`).
+- Every existing call site that used to write to `session_messages` directly (or via `append_message` / `write_reviewer_message`) now routes through `write_narrative_entry`. The B1 coverage gate in `api/test_adr219_narrative_write_path.py` enforces this — git-grep over live code; raw `.insert()` or RPC calls outside an explicit allowlist (helper itself + tests + scripts) fail the build.
+- Frontend chat rendering unchanged: legacy roles preserved on the workspace_init and notification cards (the `system_card` metadata key drives FE dispatch, not role).
+- Migration 161 applied against production DB at commit time; constraint widening is non-destructive (existing rows keep their role values; the allowed-set strictly grows).
+
+### Test gate
+- `api/test_adr219_narrative_write_path.py` — 8/8 assertions pass. Section A (helper contract): role/pulse/weight validation, summary required, default weight policy table (8 rows), envelope flows through RPC with envelope-wins-on-collision, summary-as-content fallback, `is_valid_envelope`. Section B (coverage): no live raw `session_messages` writes outside the allowlist.
+
+---
+
 ## [2026.04.24.10] - ADR-215 Phase 6 — Snapshot marker reframe
 
 ### Changed

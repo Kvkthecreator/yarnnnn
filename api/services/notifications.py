@@ -205,20 +205,30 @@ async def _insert_chat_notification(
         # Format the notification as a TP message
         chat_message = f"📧 I sent you an email: {message}"
 
-        # Append as assistant message with notification metadata
-        db_client.rpc(
-            "append_session_message",
-            {
-                "p_session_id": session_id,
-                "p_role": "assistant",
-                "p_content": chat_message,
-                "p_metadata": {
-                    "type": "notification",
-                    "channel": "email",
-                    "context": context or {},
-                }
-            }
-        ).execute()
+        # ADR-219 Commit 2: route through the single narrative write path.
+        # Notification surfacing is a reactive system event (an email
+        # send fired this card) — pulse=reactive, weight=routine
+        # (notifications are pointers to external channels per ADR-202;
+        # they don't carry the substance themselves). Role stays
+        # 'assistant' so the legacy chat bubble rendering continues
+        # without UX drift; reclassification to 'system' rendering is
+        # a Commit 5 concern.
+        from services.narrative import write_narrative_entry
+
+        write_narrative_entry(
+            db_client,
+            session_id,
+            role="assistant",
+            summary="Email sent",
+            body=chat_message,
+            pulse="reactive",
+            weight="routine",
+            extra_metadata={
+                "type": "notification",
+                "channel": "email",
+                "context": context or {},
+            },
+        )
 
         logger.info(f"[NOTIFICATION] Inserted chat message for user {user_id}")
 
