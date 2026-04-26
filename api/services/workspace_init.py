@@ -1,6 +1,13 @@
 """
 Workspace Initialization — ADR-152 + ADR-188 + ADR-189 + ADR-190 + ADR-205 + ADR-206: Workspace Bootstrap
 
+Note: ``from __future__ import annotations`` below defers PEP 604 union evaluation
+(``str | None``) until typing is queried. Without it, Python 3.9 (the prod venv
+runtime) raises ``TypeError: unsupported operand type(s) for |: 'type' and
+'NoneType'`` at signature-evaluation time the first time an annotated function
+is referenced. Surfaced by the alpha-trader E2E proposal-cleanup materialization
+path; see docs/alpha/observations/2026-04-26-trader-e2e-paper-loop.md §A4.
+
 Sets up a workspace from the three registries (ADR-188: template libraries).
 Called once at signup. After initialization, the workspace is self-contained —
 registries are templates that were applied, the workspace filesystem is the
@@ -47,6 +54,8 @@ The registries are NEVER consulted at runtime — only at creation time.
 
 Version: 2.0 (2026-04-17, ADR-190)
 """
+
+from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone

@@ -285,6 +285,12 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## Trends\n"
         ),
         "tracker_file": "_tracker.md",
+        # ADR-220: revenue money-truth ledger (per ADR-195 v2 commerce flavor)
+        # is operator-readable canonical substrate, written by the
+        # outcome-reconciliation back-office task.
+        "authored_substrate": [
+            "_performance.md",
+        ],
     },
 
     # ── Trading Domains (ADR-187: canonical, trading-bot-owned) ──
@@ -320,6 +326,13 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## Active Signals\n"
         ),
         "tracker_file": "_tracker.md",
+        # ADR-220: operator-authored canonical reads injected into every
+        # task prompt that includes this domain. Order is presentation order.
+        "authored_substrate": [
+            "_operator_profile.md",
+            "_risk.md",
+            "_performance.md",
+        ],
     },
 
     "portfolio": {
@@ -346,6 +359,12 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
             "## Performance & Attribution\n"
         ),
         "tracker_file": "_tracker.md",
+        # ADR-220: portfolio money-truth (positions, P&L, expectancy) is
+        # canonical operator-readable substrate, written by the back-office
+        # outcome reconciler per ADR-195 v2.
+        "authored_substrate": [
+            "_performance.md",
+        ],
     },
 
     # ── Platform Observation Domains (ADR-158: temporal, bot-owned) ──
@@ -584,6 +603,31 @@ def get_synthesis_content(key: str) -> Optional[tuple[str, str]]:
     if not d or not d.get("synthesis_file"):
         return None
     return (d["synthesis_file"], d.get("synthesis_template") or "")
+
+
+def get_authored_substrate(key: str) -> list[str]:
+    """ADR-220: Get the list of operator-authored canonical-read filenames
+    declared for this context domain.
+
+    Returns the list verbatim (presentation order is registry order).
+    Empty list for domains that don't declare authored substrate — the
+    pipeline treats absence as "no authored reads," same shape as a
+    domain without a synthesis file.
+
+    Files declared here are read on every task whose ``context_reads``
+    includes this domain, injected into the agent prompt verbatim
+    (capped per file by the same content budget the synthesis uses).
+
+    The registry declares *paths*; authoring uses the existing
+    ``services.authored_substrate.write_revision`` path with
+    ``authored_by="operator"`` (or YARNNN on the operator's behalf via
+    ``UpdateContext``). Singular implementation across read + write.
+    """
+    d = WORKSPACE_DIRECTORIES.get(key)
+    if not d:
+        return []
+    files = d.get("authored_substrate") or []
+    return list(files)
 
 
 def get_output_category_path(category: str) -> Optional[str]:

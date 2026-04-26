@@ -211,8 +211,8 @@ async def _gather_context_domains(
         return ""
 
     from services.directory_registry import (
-        get_domain_folder, get_synthesis_content, get_tracker_path, has_entity_tracker,
-        WORKSPACE_DIRECTORIES,
+        get_authored_substrate, get_domain_folder, get_synthesis_content,
+        get_tracker_path, has_entity_tracker, WORKSPACE_DIRECTORIES,
     )
 
     sections = []
@@ -268,6 +268,39 @@ async def _gather_context_domains(
                         )
                 except Exception:
                     pass  # Non-fatal — continue without synthesis
+
+            # ── Step 1b: Authored substrate (ADR-220) ──
+            # Operator-authored canonical reads declared in
+            # WORKSPACE_DIRECTORIES[domain]["authored_substrate"]. These
+            # files are operator truth (signal definitions, risk limits,
+            # money-truth ledger). Injected verbatim with the same per-file
+            # content cap as synthesis, in registry-declared order.
+            # Absent files are skipped silently (operator hasn't authored
+            # them yet, or domain doesn't use the pattern). Marked with
+            # `(operator-authored)` so agent prompts can distinguish
+            # operator truth from agent-managed synthesis.
+            authored_files = get_authored_substrate(domain_key)
+            for authored_filename in authored_files:
+                authored_path = f"{prefix}/{authored_filename}"
+                try:
+                    authored_result = (
+                        client.table("workspace_files")
+                        .select("path, content, updated_at")
+                        .eq("user_id", user_id)
+                        .eq("path", authored_path)
+                        .limit(1)
+                        .execute()
+                    )
+                    authored_rows = authored_result.data or []
+                    if authored_rows and (authored_rows[0].get("content") or "").strip():
+                        row = authored_rows[0]
+                        content = (row.get("content") or "")[:max_content_per_file]
+                        updated = (row.get("updated_at") or "")[:10]
+                        domain_parts.append(
+                            f"### {authored_filename} (operator-authored, updated {updated})\n{content}"
+                        )
+                except Exception:
+                    pass  # Non-fatal — continue without this authored file
 
             # ── Step 2: Determine entity loading strategy ──
             # If this domain has entities, try objective-matching first.
@@ -2228,52 +2261,58 @@ async def execute_task(
         final_status = "delivered"
         delivery_error = None
 
+        # Resolve the delivery destination first, then branch on whether
+        # external delivery is required. A `cockpit-only` (or unset) delivery
+        # field resolves to None — the run completes without external
+        # delivery, marked `delivered` since the workspace write succeeded.
+        # Previously this site treated truthy-but-unparseable `delivery_target`
+        # values as "delivery configured" and entered a delivery block that
+        # silently returned without updating status, leaving the row stuck
+        # in `generating` / later flipped to `failed` by downstream paths.
+        # See docs/alpha/observations/2026-04-26-trader-e2e-paper-loop.md §A5.
         delivery_target = task_info.get("delivery", "").strip()
-        if delivery_target and agent_output_folder:
+        destination = (
+            _parse_delivery_target(delivery_target, client, user_id)
+            if delivery_target and agent_output_folder
+            else None
+        )
+
+        # ADR-183: inject commerce product_id for subscriber delivery
+        if destination and destination.get("target") == "subscribers":
+            commerce_info = task_info.get("commerce", {})
+            if commerce_info.get("product_id"):
+                destination["product_id"] = commerce_info["product_id"]
+
+        if destination:
             try:
-                from services.agent_execution import (
-                    get_user_email,
-                    normalize_destination_for_delivery,
-                )
                 from services.delivery import deliver_from_output_folder
-                from services.supabase import get_service_client
 
-                # Build destination from TASK.md delivery field
-                destination = _parse_delivery_target(delivery_target, client, user_id)
-
-                # ADR-183: inject commerce product_id for subscriber delivery
-                if destination and destination.get("target") == "subscribers":
-                    commerce_info = task_info.get("commerce", {})
-                    if commerce_info.get("product_id"):
-                        destination["product_id"] = commerce_info["product_id"]
-
-                if destination:
-                    delivery_result = await deliver_from_output_folder(
-                        client=client,
-                        user_id=user_id,
-                        agent=agent,
-                        output_folder=agent_output_folder,
-                        agent_slug=agent_slug,
-                        version_id=str(version_id),
-                        version_number=next_version,
-                        destination=destination,
-                        task_slug=task_slug,
-                    )
-                    if delivery_result.status.value == "success":
-                        now = datetime.now(timezone.utc).isoformat()
-                        client.table("agent_runs").update({
-                            "status": "delivered",
-                            "delivered_at": now,
-                            "delivery_status": "delivered",
-                        }).eq("id", version_id).execute()
-                    else:
-                        final_status = "failed"
-                        delivery_error = delivery_result.error_message
-                        client.table("agent_runs").update({
-                            "status": "failed",
-                            "delivery_status": "failed",
-                            "delivery_error": delivery_error,
-                        }).eq("id", version_id).execute()
+                delivery_result = await deliver_from_output_folder(
+                    client=client,
+                    user_id=user_id,
+                    agent=agent,
+                    output_folder=agent_output_folder,
+                    agent_slug=agent_slug,
+                    version_id=str(version_id),
+                    version_number=next_version,
+                    destination=destination,
+                    task_slug=task_slug,
+                )
+                if delivery_result.status.value == "success":
+                    now = datetime.now(timezone.utc).isoformat()
+                    client.table("agent_runs").update({
+                        "status": "delivered",
+                        "delivered_at": now,
+                        "delivery_status": "delivered",
+                    }).eq("id", version_id).execute()
+                else:
+                    final_status = "failed"
+                    delivery_error = delivery_result.error_message
+                    client.table("agent_runs").update({
+                        "status": "failed",
+                        "delivery_status": "failed",
+                        "delivery_error": delivery_error,
+                    }).eq("id", version_id).execute()
             except Exception as e:
                 logger.error(f"[TASK_EXEC] Delivery failed: {e}")
                 final_status = "failed"
@@ -2284,7 +2323,8 @@ async def execute_task(
                     "delivery_error": delivery_error,
                 }).eq("id", version_id).execute()
         else:
-            # No delivery configured — mark as delivered (content generated)
+            # No external delivery (cockpit-only / unset) — workspace write
+            # is the canonical artifact. Mark delivered.
             now = datetime.now(timezone.utc).isoformat()
             client.table("agent_runs").update({
                 "status": "delivered",
@@ -2395,21 +2435,21 @@ async def execute_task(
         # =====================================================================
         if final_status == "delivered" and task_slug != "daily-update" and not task_slug.startswith("back-office-"):
             try:
+                # ADR-219 D2 narrative-coverage invariant: every successful
+                # task pipeline invocation emits exactly one narrative entry.
+                # Pre-ADR-219 the `task_complete` system card was gated on a
+                # 4-hour active-chat-session window (UX hygiene — only show
+                # the card when the operator was recently in chat), but the
+                # narrative is the *log of every invocation*, not just
+                # in-flight chat surfacings. Use the canonical workspace
+                # session resolver promoted to services.narrative in
+                # ADR-219 Commit 3 — same resolver every other autonomous
+                # writer (Reviewer, back-office digest, notifications) uses.
+                # Rooted in docs/alpha/observations/2026-04-26-trader-e2e-paper-loop.md §A2.
                 from routes.chat import append_message as _append_message
-                inactivity_cutoff = (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()
-                session_row = (
-                    client.table("chat_sessions")
-                    .select("id")
-                    .eq("user_id", user_id)
-                    .eq("session_type", "thinking_partner")
-                    .gte("updated_at", inactivity_cutoff)
-                    .eq("status", "active")
-                    .is_("agent_id", "null")
-                    .order("updated_at", desc=True)
-                    .limit(1)
-                    .execute()
-                )
-                if session_row.data:
+                from services.narrative import find_active_workspace_session
+                session_id = find_active_workspace_session(client, user_id)
+                if session_id:
                     output_path = f"/tasks/{task_slug}/outputs/latest/"
                     # ADR-219 envelope: task pipeline runs are periodic-pulsed
                     # invocations of an Agent on behalf of a task. Material
@@ -2419,7 +2459,7 @@ async def execute_task(
                     # write_narrative_entry().
                     await _append_message(
                         client=client,
-                        session_id=session_row.data[0]["id"],
+                        session_id=session_id,
                         role="assistant",
                         content=(
                             f"{title} finished its run. "
@@ -2946,36 +2986,43 @@ async def _execute_pipeline(
     except Exception as e:
         logger.warning(f"[PIPELINE] _persist_sections_and_manifest failed (non-fatal): {e}")
 
-    # Deliver
+    # Deliver — see docs/alpha/observations/2026-04-26-trader-e2e-paper-loop.md
+    # §A5 for why destination resolution branches on `destination`, not
+    # `delivery_target`. cockpit-only / unset → no external delivery, row is
+    # `delivered` because the workspace write is the canonical artifact.
     final_status = "delivered"
     delivery_error = None
 
-    if delivery_target and agent_output_folder:
+    destination = (
+        _parse_delivery_target(delivery_target, client, user_id)
+        if delivery_target and agent_output_folder
+        else None
+    )
+
+    # ADR-183: inject commerce product_id for subscriber delivery
+    if destination and destination.get("target") == "subscribers":
+        commerce_info = task_info.get("commerce", {})
+        if commerce_info.get("product_id"):
+            destination["product_id"] = commerce_info["product_id"]
+
+    if destination:
         try:
             from services.delivery import deliver_from_output_folder
-            destination = _parse_delivery_target(delivery_target, client, user_id)
 
-            # ADR-183: inject commerce product_id for subscriber delivery
-            if destination and destination.get("target") == "subscribers":
-                commerce_info = task_info.get("commerce", {})
-                if commerce_info.get("product_id"):
-                    destination["product_id"] = commerce_info["product_id"]
-
-            if destination:
-                delivery_result = await deliver_from_output_folder(
-                    client=client, user_id=user_id, agent=final_agent,
-                    output_folder=agent_output_folder, agent_slug=final_agent_slug,
-                    version_id=str(version_id), version_number=next_version,
-                    destination=destination, task_slug=task_slug,
-                )
-                if delivery_result.status.value == "success":
-                    now = datetime.now(timezone.utc).isoformat()
-                    client.table("agent_runs").update({
-                        "status": "delivered", "delivered_at": now, "delivery_status": "delivered",
-                    }).eq("id", version_id).execute()
-                else:
-                    final_status = "failed"
-                    delivery_error = delivery_result.error_message
+            delivery_result = await deliver_from_output_folder(
+                client=client, user_id=user_id, agent=final_agent,
+                output_folder=agent_output_folder, agent_slug=final_agent_slug,
+                version_id=str(version_id), version_number=next_version,
+                destination=destination, task_slug=task_slug,
+            )
+            if delivery_result.status.value == "success":
+                now = datetime.now(timezone.utc).isoformat()
+                client.table("agent_runs").update({
+                    "status": "delivered", "delivered_at": now, "delivery_status": "delivered",
+                }).eq("id", version_id).execute()
+            else:
+                final_status = "failed"
+                delivery_error = delivery_result.error_message
         except Exception as e:
             final_status = "failed"
             delivery_error = str(e)
@@ -3543,8 +3590,12 @@ def _parse_delivery_target(delivery_str: str, client, user_id: str) -> Optional[
     - Slack: "slack:#channel" → {"platform": "slack", "target": "#channel", "format": "send"}
     - None/empty → email fallback
     """
-    if not delivery_str or delivery_str.strip().lower() == "none":
-        return None  # No delivery configured — task runs silently
+    if not delivery_str or delivery_str.strip().lower() in ("none", "cockpit-only"):
+        # No external delivery configured — task runs silently. The output is
+        # written to the workspace and surfaces in /work; nothing leaves
+        # YARNNN. `cockpit-only` is the explicit operator-authored form;
+        # `none` and empty are the unset forms. Same downstream effect.
+        return None
 
     # "email" without address → resolve to user's email
     if delivery_str.strip().lower() == "email":
