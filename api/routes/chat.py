@@ -657,7 +657,22 @@ def build_history_for_claude(
     history = []
     global_tool_index = 0  # Global counter for unique tool IDs across all messages
 
-    for m in messages:
+    # ADR-220 Commit B: identify the most-recent assistant turn that has
+    # tool_history. Only that turn keeps full structured tool_use/tool_result
+    # blocks — Claude needs to see what it just did to continue the loop
+    # correctly. Older assistant turns with tool_history collapse to one-line
+    # `[Called X, Y, Z]` summaries — saves ~30-60% input tokens on tool-heavy
+    # multi-turn sessions, and matches Claude Code's auto-compaction precedent
+    # ("tool outputs drop first, then conversation summarizes").
+    last_assistant_with_tools_idx = -1
+    for i, m in enumerate(messages):
+        if (
+            m.get("role") == "assistant"
+            and (m.get("metadata") or {}).get("tool_history")
+        ):
+            last_assistant_with_tools_idx = i
+
+    for m_idx, m in enumerate(messages):
         role = m["role"]
         # ADR-220 Commit A: filter non-conversation roles. Per ADR-219 (migration 161)
         # session_messages.role widened to {user, assistant, system, reviewer, agent,
@@ -672,8 +687,18 @@ def build_history_for_claude(
         metadata = m.get("metadata") or {}
         tool_history = metadata.get("tool_history", [])
 
-        if role == "assistant" and tool_history and use_structured_format:
-            # Build structured content: separate tool_use and text blocks.
+        is_most_recent_with_tools = (m_idx == last_assistant_with_tools_idx)
+
+        if (
+            role == "assistant"
+            and tool_history
+            and use_structured_format
+            and is_most_recent_with_tools
+        ):
+            # Most-recent assistant turn with tool_history: keep full structured
+            # tool_use/tool_result blocks. Claude needs the structured shape to
+            # continue the agentic loop coherently.
+            #
             # Claude API requires tool_use blocks NOT be followed by text in
             # the same assistant message. The correct structure is:
             #   assistant: [tool_use blocks]
@@ -737,24 +762,34 @@ def build_history_for_claude(
                 history.append({"role": role, "content": content})
 
         elif role == "assistant" and tool_history:
-            # Fallback: simplified text format with [Called X] prefix
+            # ADR-220 Commit B: older assistant turns + non-structured fallback
+            # both collapse to one-line `[Called X]` summaries. Older turns
+            # don't need structured tool blocks — Claude only continues a
+            # tool loop from the most-recent turn; older turns just need a
+            # text trace that "I called X earlier."
             tool_summaries = []
             text_content = ""
 
             for item in tool_history:
                 if item.get("type") == "tool_call":
-                    tool_summaries.append(f"[Called {item['name']}]")
+                    name = item.get("name", "?")
+                    result = item.get("result_summary", "")
+                    if result:
+                        # Brief result for older-turn awareness without bloat.
+                        tool_summaries.append(f"[Called {name}: {result[:80]}]")
+                    else:
+                        tool_summaries.append(f"[Called {name}]")
                 elif item.get("type") == "text":
                     text_content = item.get("content", "")
 
             if tool_summaries:
-                content = " ".join(tool_summaries) + "\n" + text_content
+                content = " ".join(tool_summaries) + (f"\n{text_content}" if text_content else "")
             elif text_content:
                 content = text_content
 
             history.append({"role": role, "content": content})
         else:
-            # Regular message (user or assistant without tools)
+            # Regular message (user, or assistant without tools)
             history.append({"role": role, "content": content})
 
     # ADR-067 Phase 3: prepend compaction block if present

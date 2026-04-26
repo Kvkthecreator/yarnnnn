@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.26.4] - ADR-220 Commit B — collapse older assistant tool-history blocks to one-line summaries (no prompt body change)
+
+### Changed
+- `api/routes/chat.py` — `build_history_for_claude()`: identify the most-recent assistant turn carrying `tool_history` and keep only that turn's full structured `tool_use`/`tool_result` blocks. Older assistant turns with `tool_history` collapse to one-line `[Called X: result]` summaries with the result truncated to 80 chars.
+
+### Why
+- **Cost**: tool-heavy multi-turn sessions accumulate ~3-5K tokens per past tool call when re-injected as full structured blocks on every subsequent turn. Older turns are not part of an in-flight tool loop — Claude only continues from the most-recent assistant turn — so they only need a text trace.
+- **Claude Code precedent**: documented auto-compaction policy is "tool outputs drop first, then conversation summarizes" (per Anthropic platform docs on managing tool context). Commit B is the YARNNN analog applied at the message-window level rather than at the auto-compact threshold.
+- **Singular implementation**: the two former branches in `build_history_for_claude` (structured + simplified-fallback) consolidate into one branch keyed on `is_most_recent_with_tools`. No dual paths.
+
+### Expected behavior
+- No prompt body change; no LLM-call shape change beyond tool-block compaction on older turns.
+- Cost impact: estimated ~30-60% input-token reduction on tool-heavy multi-turn sessions. Reviewer-driven workflows benefit most (every approve/reject cycle touches tools).
+- The most-recent assistant turn keeps full structured shape — Claude can continue tool loops correctly.
+- Plain-text turns (no `tool_history`) are untouched.
+
+### Test gate
+- `api/test_adr220_history_filtering.py` — 7/7 pass (Commit A's 4 + Commit B's 3): older assistant tool turns collapsed; single tool-history turn IS most-recent and stays structured; plain text turns pass through unchanged.
+- All five ADR-219 test gates still green (40/40).
+
+---
+
 ## [2026.04.26.3] - ADR-220 Commit A — filter non-conversation roles from Claude API history (no prompt body change)
 
 ### Changed
