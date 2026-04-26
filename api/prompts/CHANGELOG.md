@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.26.2] - ADR-219 Commit 6 — MCP narrative emission + final coverage gate (no prompt body change). **ADR-219 Implemented.**
+
+### Changed
+- `api/mcp_server/server.py` — three MCP tool handlers (`work_on_this`, `pull_context`, `remember_this`) now emit `external:<client>`-authored narrative entries via a new private `_emit_mcp_narrative` shim that wraps `services.narrative.find_active_workspace_session` + `write_narrative_entry`. Best-effort: emission failures never fail the MCP tool itself.
+- Weight policy per ADR-219 D3: `work_on_this` → routine (curated read); `pull_context` → routine (no substrate write, both success and failure paths emit so foreign-LLM activity stays legible); `remember_this` → material on success (substrate committed), routine on the ambiguous-classification path (no write yet, clarification needed) and on UpdateContext failure, housekeeping on empty-content rejection.
+- Every MCP emission carries `extra_metadata.mcp_tool` + `extra_metadata.mcp_client` so /chat filters and the daily-update foreign-LLM attribution path per ADR-169 can surface provenance.
+- New final coverage gate `api/test_adr219_invocation_coverage.py`: asserts every named invocation entry point in YARNNN reaches `write_narrative_entry` (task pipeline + back-office + reviewer dispatch + propose_action + notifications + chat append + memory workspace_init + reviewer surfacing + MCP server). Asserts each of the three MCP tools emits at least once. Asserts `write_narrative_entry` signature is stable. Asserts `role='external'` is only used by the MCP server (allowlist enforced via git grep).
+
+### Expected behavior
+- No prompt body change; no LLM-call change.
+- A foreign LLM calling YARNNN MCP at 3pm produces a narrative entry the operator sees on /chat at 4pm — the cross-LLM-continuity thesis from ADR-169 now has a visible substrate.
+- The MCP server uses no new env vars (already had `SUPABASE_SERVICE_KEY` for `auth.client`); no Render-parity change required.
+- Combined with Commit 2's B1 raw-write coverage gate, the universal-coverage commitment ("every invocation emits exactly one narrative entry") is structurally enforceable on both sides: write-path (Commit 2 — no raw inserts outside the helper) and invocation-site (Commit 6 — every entry point reaches the helper).
+
+### Test gate
+- `api/test_adr219_invocation_coverage.py` — 4/4 pass.
+- Combined ADR-219 test totals (Commits 1–6): **40/40** across five test files (Commit 2: 8/8, Commit 3: 6/6, Commit 4: 10/10, Commit 5: 12/12, Commit 6: 4/4).
+
+### ADR-219 status flipped to **Implemented**.
+
+---
+
 ## [2026.04.26.1] - ADR-219 Commit 5 — `/chat` weight-driven rendering + inline-to-task affordance (no prompt body change)
 
 ### Changed

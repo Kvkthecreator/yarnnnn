@@ -39,9 +39,69 @@ from pydantic import AnyHttpUrl
 from mcp_server.auth import get_authenticated_client
 from mcp_server.oauth_provider import YarnnnOAuthProvider
 from services import mcp_composition
+from services.narrative import (
+    find_active_workspace_session,
+    write_narrative_entry,
+)
 from services.primitives.registry import execute_primitive
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# ADR-219 Commit 6 — narrative emission for external (MCP) invocations
+# =============================================================================
+#
+# Every foreign LLM tool call against the YARNNN MCP server is an
+# invocation per FOUNDATIONS Axiom 9 — Identity = `external:<client>`,
+# Trigger = addressed. Per the universal-coverage commitment, each call
+# emits exactly one narrative entry into the operator's most-recently-
+# active workspace session.
+#
+# Best-effort: if the operator has no active chat session yet, or the
+# helper fails for any reason, the MCP tool result is unaffected. The
+# canonical record of MCP work is still in mcp_oauth_* + the substrate
+# writes themselves; narrative emission is a second read path.
+
+def _emit_mcp_narrative(
+    auth,
+    *,
+    tool: str,
+    weight: str,  # routine | material
+    summary: str,
+    body: str,
+    client_name: str,
+    extra_metadata: Optional[dict] = None,
+) -> None:
+    """Best-effort MCP → narrative emission. Never raises."""
+    try:
+        session_id = find_active_workspace_session(auth.client, auth.user_id)
+        if not session_id:
+            logger.debug(
+                "[MCP NARRATIVE] no active session for user=%s; skipping %s emission",
+                auth.user_id[:8] if auth.user_id else "?",
+                tool,
+            )
+            return
+        meta = {"mcp_tool": tool, "mcp_client": client_name}
+        if extra_metadata:
+            meta.update(extra_metadata)
+        write_narrative_entry(
+            auth.client,
+            session_id,
+            role="external",
+            summary=summary,
+            body=body or summary,
+            pulse="addressed",
+            weight=weight,  # type: ignore[arg-type]
+            extra_metadata=meta,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[MCP NARRATIVE] emission failed (tool=%s): %s",
+            tool,
+            exc,
+        )
 
 
 @asynccontextmanager
@@ -144,11 +204,28 @@ async def work_on_this(
                  project) if the conversation named one clearly.
     """
     auth = ctx.request_context.lifespan_context["auth"]
-    return await mcp_composition.compose_subject_context(
+    result = await mcp_composition.compose_subject_context(
         auth=auth,
         context=context or "",
         subject_hint=subject_hint,
     )
+
+    # ADR-219 Commit 6: emit narrative entry for the external invocation.
+    # work_on_this is a curated read (no substrate write) → routine weight.
+    client_name = mcp_composition.derive_client_name(
+        getattr(ctx.request_context, "request", None)
+    )
+    subject_label = subject_hint or "subject"
+    _emit_mcp_narrative(
+        auth,
+        tool="work_on_this",
+        weight="routine",
+        summary=f"{client_name} pulled session bundle for {subject_label}",
+        body=f"context: {context}\nsubject_hint: {subject_hint or '(none)'}",
+        client_name=client_name,
+        extra_metadata={"subject_hint": subject_hint},
+    )
+    return result
 
 
 # =============================================================================
@@ -206,6 +283,9 @@ async def pull_context(
     """
     auth = ctx.request_context.lifespan_context["auth"]
     limit = max(1, min(int(limit or 10), 30))
+    client_name = mcp_composition.derive_client_name(
+        getattr(ctx.request_context, "request", None)
+    )
 
     # Normalize domain alias → registry key
     normalized_domain = mcp_composition.DOMAIN_ALIASES.get(
@@ -223,6 +303,18 @@ async def pull_context(
     })
 
     if not result.get("success"):
+        # ADR-219 Commit 6: emit narrative even on failure so the operator
+        # sees the foreign-LLM call landed (Identity legibility per
+        # FOUNDATIONS Derived Principle 12).
+        _emit_mcp_narrative(
+            auth,
+            tool="pull_context",
+            weight="routine",
+            summary=f"{client_name} pull_context failed for {subject!r}",
+            body=str(result.get("message") or "QueryKnowledge dispatch failed"),
+            client_name=client_name,
+            extra_metadata={"subject": subject, "outcome": "failed"},
+        )
         return {
             "success": False,
             "error": result.get("error", "query_failed"),
@@ -244,6 +336,30 @@ async def pull_context(
             "domain": r.get("domain") or mcp_composition.extract_domain_from_path(path),
             "source_tag": mcp_composition._extract_provenance_tag(r.get("content_preview")),
         })
+
+    # ADR-219 Commit 6: routine weight (no substrate write) per D3.
+    _emit_mcp_narrative(
+        auth,
+        tool="pull_context",
+        weight="routine",
+        summary=(
+            f"{client_name} pulled {len(chunks)} chunks for {subject!r}"
+            if chunks
+            else f"{client_name} pulled context for {subject!r} (none found)"
+        ),
+        body=(
+            f"subject: {subject}\n"
+            f"question: {question or '(none)'}\n"
+            f"domain: {normalized_domain or '(any)'}\n"
+            f"returned: {len(chunks)}"
+        ),
+        client_name=client_name,
+        extra_metadata={
+            "subject": subject,
+            "domain": normalized_domain,
+            "returned": len(chunks),
+        },
+    )
 
     if not chunks:
         return {
@@ -323,7 +439,23 @@ async def remember_this(
     """
     auth = ctx.request_context.lifespan_context["auth"]
     content = (content or "").strip()
+    client_name = mcp_composition.derive_client_name(
+        getattr(ctx.request_context, "request", None)
+    )
+
     if not content:
+        # No invocation work happened — but per ADR-219 universal coverage,
+        # the call still lands a (housekeeping-weight) narrative breadcrumb
+        # so the operator sees the foreign LLM tried.
+        _emit_mcp_narrative(
+            auth,
+            tool="remember_this",
+            weight="housekeeping",
+            summary=f"{client_name} remember_this rejected (empty content)",
+            body="empty content — nothing written",
+            client_name=client_name,
+            extra_metadata={"outcome": "rejected"},
+        )
         return {"success": False, "error": "empty_content", "message": "content is required"}
 
     # --- Load slug pools for operational-feedback classification ---
@@ -339,6 +471,23 @@ async def remember_this(
 
     # --- Ambiguous classification → return candidates for LLM to surface ---
     if classification.get("ambiguous"):
+        # No substrate write happened yet; routine weight per D3 default.
+        _emit_mcp_narrative(
+            auth,
+            tool="remember_this",
+            weight="routine",
+            summary=f"{client_name} remember_this — clarification needed",
+            body=(
+                f"about: {about or '(none)'}\n"
+                f"content: {content[:240]}{'…' if len(content) > 240 else ''}\n"
+                f"candidates: {classification.get('candidates') or []}"
+            ),
+            client_name=client_name,
+            extra_metadata={
+                "outcome": "ambiguous",
+                "candidates": classification.get("candidates", []),
+            },
+        )
         return {
             "success": True,
             "ambiguous": {
@@ -352,9 +501,6 @@ async def remember_this(
     target = classification["target"]
 
     # --- Stamp ADR-162 provenance on the content before UpdateContext ---
-    client_name = mcp_composition.derive_client_name(
-        getattr(ctx.request_context, "request", None)
-    )
     stamped_text = mcp_composition.stamp_provenance(
         content=content,
         client_name=client_name,
@@ -372,12 +518,53 @@ async def remember_this(
     result = await execute_primitive(auth, "UpdateContext", uc_input)
 
     if not result.get("success"):
+        _emit_mcp_narrative(
+            auth,
+            tool="remember_this",
+            weight="routine",
+            summary=f"{client_name} remember_this failed → {target}",
+            body=str(result.get("message") or "UpdateContext dispatch failed"),
+            client_name=client_name,
+            extra_metadata={
+                "attempted_target": target,
+                "outcome": "failed",
+            },
+        )
         return {
             "success": False,
             "error": result.get("error", "update_failed"),
             "message": result.get("message", "UpdateContext dispatch failed"),
             "attempted_target": target,
         }
+
+    # ADR-219 D3: remember_this success is MATERIAL — substrate changed,
+    # cross-LLM contribution committed. The morning briefing will surface
+    # this attribution per ADR-169.
+    written_path = result.get("filename") or result.get("path") or "(unknown)"
+    _emit_mcp_narrative(
+        auth,
+        tool="remember_this",
+        weight="material",
+        summary=(
+            f"{client_name} wrote to {target}"
+            + (f":{classification.get('slug')}" if classification.get("slug") else "")
+        ),
+        body=(
+            f"target: {target}\n"
+            f"slug: {classification.get('slug') or '(none)'}\n"
+            f"written_to: {written_path}\n"
+            f"about: {about or '(none)'}\n"
+            f"content: {content[:480]}{'…' if len(content) > 480 else ''}"
+        ),
+        client_name=client_name,
+        extra_metadata={
+            "target": target,
+            "slug": classification.get("slug"),
+            "written_to": written_path,
+            "outcome": "success",
+            "task_slug": classification.get("slug") if target == "task" else None,
+        },
+    )
 
     return {
         "success": True,
