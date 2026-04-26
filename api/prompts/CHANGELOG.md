@@ -6,6 +6,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.26.3] - ADR-220 Commit A — filter non-conversation roles from Claude API history (no prompt body change)
+
+### Changed
+- `api/routes/chat.py` — `build_history_for_claude()` now filters out session_messages rows with role ∉ {user, assistant} before building the API messages list. Migration 161 (ADR-219 Commit 2) widened `session_messages.role` to six Identity classes (user, assistant, system, reviewer, agent, external). Only conversation turns enter Claude's API; the four narrative-bearing classes (system, reviewer, agent, external) surface on /chat directly via the frontend reader and never reach Claude's messages list.
+
+### Why
+- **Bug fix**: Claude's API only accepts `user` and `assistant` roles. Pre-fix, a reviewer verdict (or any non-conversation row) in the last-10-message window would cause the chat turn to fail with an Anthropic API "invalid role" error. Latent bug since ADR-212 / ADR-219 widened the enum.
+- **Singular-implementation alignment**: this fix preserves the conversation-only API channel cleanly. The narrative-side rollup of non-conversation events lands in ADR-220 Commit C (`/workspace/memory/recent.md`) as the singular re-entry point for those classes into YARNNN's reasoning.
+
+### Expected behavior
+- No prompt body change; no LLM-call shape change beyond the role filter.
+- `/chat` rendering unchanged — the frontend reads `session_messages` directly and renders all six Identity classes per ADR-219 D5 weight gradient.
+- Reviewer verdicts, system cards, agent task completions, and external MCP entries are silently dropped from the API messages list (they reappear via Commit C's `recent.md`).
+- Token cost: small reduction on sessions with non-conversation rows in the window.
+
+### Test gate
+- `api/test_adr220_history_filtering.py` — 4/4 assertions pass: non-conversation roles filtered out; user/assistant pass-through; filtered history still starts with user (Anthropic invariant); ADR-219 envelope on assistant rows passes through unchanged.
+- All five ADR-219 test gates still green: 40/40 across `test_adr219_narrative_write_path` (8) + `test_adr219_commit3_narrative_digest` (6) + `test_adr219_commit4_narrative_by_task` (10) + `test_adr219_commit5_chat_rendering` (12) + `test_adr219_invocation_coverage` (4).
+
+---
+
+---
+
 ## [2026.04.26.2] - ADR-219 Commit 6 — MCP narrative emission + final coverage gate (no prompt body change). **ADR-219 Implemented.**
 
 ### Changed

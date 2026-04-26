@@ -659,6 +659,15 @@ def build_history_for_claude(
 
     for m in messages:
         role = m["role"]
+        # ADR-220 Commit A: filter non-conversation roles. Per ADR-219 (migration 161)
+        # session_messages.role widened to {user, assistant, system, reviewer, agent,
+        # external} — six Identity classes. Only user/assistant rows are conversation
+        # turns; the others are workspace events that surface on /chat (frontend reads
+        # them directly) but never enter the Claude API messages list (Claude only
+        # accepts user/assistant). The narrative-side rollup (recent.md, ADR-220
+        # Commit C) is the singular re-entry point for these into YARNNN's reasoning.
+        if role not in ("user", "assistant"):
+            continue
         content = m.get("content") or ""
         metadata = m.get("metadata") or {}
         tool_history = metadata.get("tool_history", [])
