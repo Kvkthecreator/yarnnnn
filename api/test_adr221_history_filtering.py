@@ -1,5 +1,5 @@
 """
-Test gate — ADR-220 Commit A (filter non-conversation roles from API history).
+Test gate — ADR-221 Commit A (filter non-conversation roles from API history).
 
 Per FOUNDATIONS Axiom 9 + ADR-219, session_messages carries six Identity
 classes (user, assistant, system, reviewer, agent, external). Only
@@ -14,7 +14,7 @@ build_history_for_claude's output, the assertion below fails and the
 build breaks.
 
 Usage:
-    cd api && python test_adr220_history_filtering.py
+    cd api && python test_adr221_history_filtering.py
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ def test_user_assistant_still_pass_through() -> None:
 def test_filtered_history_starts_with_user() -> None:
     """When the first survivor would be 'assistant' (rare — happens if an
     operator's first turn was preceded by background events) the existing
-    'history must start with user' guard still trims. ADR-220 Commit A does
+    'history must start with user' guard still trims. ADR-221 Commit A does
     not interact with that guard — but the combination must still produce
     valid Anthropic-shaped history."""
     build_history_for_claude = _import_history_builder()
@@ -249,7 +249,7 @@ def main() -> int:
         ("A2 user/assistant pass-through", test_user_assistant_still_pass_through),
         ("A3 filtered history still starts with user (Anthropic invariant)", test_filtered_history_starts_with_user),
         ("A4 ADR-219 envelope on assistant row passes through unchanged", test_mixed_metadata_carrying_envelope),
-        # ADR-220 Commit B
+        # ADR-221 Commit B
         ("B1 older assistant tool turns collapsed; most-recent kept structured", test_older_assistant_tools_collapsed_to_summary),
         ("B2 single tool-history turn IS most-recent — structured", test_only_one_assistant_with_tools_kept_structured),
         ("B3 plain text turns pass through unchanged", test_no_tool_history_passes_through_unchanged),

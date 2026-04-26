@@ -1,4 +1,4 @@
-# ADR-220: Layered Context Strategy — Filesystem-Native Narrative Rollup + In-Session Compaction Sunset
+# ADR-221: Layered Context Strategy — Filesystem-Native Narrative Rollup + In-Session Compaction Sunset
 
 > **Status**: Implemented (2026-04-26 — Commits A + B + C all landed in branch `claude/adr-220-context-strategy`).
 > **Date**: 2026-04-26
@@ -21,7 +21,7 @@ That widening exposed two latent issues in the Claude API prompt-assembly path t
 
 Beyond fixing the two issues, ADR-219 raised a deeper architectural question: **how should non-conversation invocations re-enter YARNNN's reasoning?** Reviewer verdicts, agent task completions, MCP foreign-LLM writes — these are real workspace events that YARNNN should reason about, but they're not chat turns.
 
-ADR-159 already established the filesystem-as-memory model: filesystem-native rollups (`/workspace/memory/conversation.md`) replace LLM-summarization. ADR-209 already provides a substrate-side authorship signal (`workspace_file_versions`) surfaced in the compact index as a one-liner. ADR-220 completes the model with the narrative-side equivalent.
+ADR-159 already established the filesystem-as-memory model: filesystem-native rollups (`/workspace/memory/conversation.md`) replace LLM-summarization. ADR-209 already provides a substrate-side authorship signal (`workspace_file_versions`) surfaced in the compact index as a one-liner. ADR-221 completes the model with the narrative-side equivalent.
 
 ---
 
@@ -114,7 +114,7 @@ Per singular-implementation discipline (rule 1):
 
 ### Commit A (96b24d4) — bug fix: filter non-conversation roles from API history
 
-`build_history_for_claude()` filters `role ∉ {user, assistant}` before constructing the API messages list. Test gate `api/test_adr220_history_filtering.py` — A1-A4 (4/4).
+`build_history_for_claude()` filters `role ∉ {user, assistant}` before constructing the API messages list. Test gate `api/test_adr221_history_filtering.py` — A1-A4 (4/4).
 
 ### Commit B (daec134) — older assistant tool-history collapsed to one-line summaries
 
@@ -127,7 +127,7 @@ Pre-compute `last_assistant_with_tools_idx` before the loop; only that turn keep
 - `api/agents/yarnnn_prompts/tools_core.py` "Revision-Aware Reading" section gets a small note distinguishing the two complementary signals (substrate authorship via Revision primitives; narrative events via `ReadFile recent.md`).
 - `api/routes/chat.py` deletes `maybe_compact_history()`, `COMPACTION_THRESHOLD`, `COMPACTION_PROMPT`, `truncate_history_by_tokens()`. The 10-message window is the singular truncation; `conversation.md` is the singular compaction substrate.
 - `docs/features/sessions.md` refresh: "What carries over" table adds `recent.md`; "Contrast with Claude Code" closes the session_messages-only-user-assistant gap line; new "Layered context model" section maps L1/L2/L3.
-- `CLAUDE.md` ADR list adds ADR-220.
+- `CLAUDE.md` ADR list adds ADR-221.
 - `docs/architecture/FOUNDATIONS.md` Axiom 9 section gains one sentence noting narrative rolls up to `recent.md` for prompt-time legibility.
 
 Test gate (Commit C): assert recent.md is written when housekeeping/material entries exist; compact index includes the pointer when file exists; `maybe_compact_history` no longer importable; ADR-209 substrate-authorship signal still rendered (regression check); 600-token ceiling holds.
@@ -166,15 +166,15 @@ Cost reductions accrue from three places:
 
 ## Test gate
 
-Combined ADR-220 test totals (commits A + B + C):
+Combined ADR-221 test totals (commits A + B + C):
 
-- `api/test_adr220_history_filtering.py` — A1-A4 + B1-B3 = 7/7
-- `api/test_adr220_layered_context.py` (Commit C) — 8/8 (recent.md written when entries exist; compact index pointer rendered; maybe_compact_history not importable; substrate authorship signal preserved; 600-token ceiling held)
-- **Total: 15/15** across two ADR-220 test files.
+- `api/test_adr221_history_filtering.py` — A1-A4 + B1-B3 = 7/7
+- `api/test_adr221_layered_context.py` (Commit C) — 8/8 (recent.md written when entries exist; compact index pointer rendered; maybe_compact_history not importable; substrate authorship signal preserved; 600-token ceiling held)
+- **Total: 15/15** across two ADR-221 test files.
 
 All 40/40 ADR-219 test gates remain green: `test_adr219_narrative_write_path` (8) + `commit3_narrative_digest` (6) + `commit4_narrative_by_task` (10) + `commit5_chat_rendering` (12) + `invocation_coverage` (4).
 
-Combined ADR-219 + ADR-220 test totals: **55/55**.
+Combined ADR-219 + ADR-221 test totals: **55/55**.
 
 ---
 

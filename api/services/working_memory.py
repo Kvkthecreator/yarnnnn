@@ -115,7 +115,7 @@ async def build_working_memory(
         asyncio.to_thread(_get_recent_uploads_sync, user_id, _make_client()),
         # ADR-209 Phase 3: recent substrate authorship aggregation
         asyncio.to_thread(_get_recent_authorship_sync, user_id, _make_client()),
-        # ADR-220 Commit C: narrative-side rollup signal — does /workspace/memory/recent.md
+        # ADR-221 Commit C: narrative-side rollup signal — does /workspace/memory/recent.md
         # exist and have entries? Used as the second one-liner pointer in the compact index
         # (counterpart to the substrate-authorship line). Detail lives in the file; YARNNN
         # reads on demand via ReadFile.
@@ -155,7 +155,7 @@ async def build_working_memory(
         "recent_uploads": recent_uploads,
         # ADR-209 Phase 3: Recent substrate authorship — one-line "what happened" signal
         "recent_authorship": recent_authorship,
-        # ADR-220 Commit C: narrative-side recent.md rollup signal — counterpart
+        # ADR-221 Commit C: narrative-side recent.md rollup signal — counterpart
         # to recent_authorship. {"exists": bool, "total": int, "by_role": dict, "updated_at": iso}
         "recent_md": recent_md_signal,
         # ADR-156: Unified workspace state — single signal for TP awareness
@@ -331,7 +331,7 @@ def _get_recent_authorship_sync(user_id: str, client: Any) -> dict:
 
 
 def _get_recent_md_signal_sync(user_id: str, client: Any) -> dict:
-    """ADR-220 Commit C: signal about /workspace/memory/recent.md.
+    """ADR-221 Commit C: signal about /workspace/memory/recent.md.
 
     Returns metadata enough to render the compact-index one-liner without
     loading the full file content. Counterpart to recent_authorship (which
@@ -1179,7 +1179,7 @@ def format_compact_index(
         if parts:
             lines.append(f"\nRecent activity (24h, {authorship['total']} revisions): {', '.join(parts)} — use ListRevisions/ReadRevision/DiffRevisions to inspect.")
 
-    # --- Recent narrative events (ADR-220 Commit C) ---
+    # --- Recent narrative events (ADR-221 Commit C) ---
     # Counterpart to the substrate-authorship line above. The substrate axis
     # answers "who wrote what file"; this axis answers "what invocations
     # happened" — material non-conversation entries (reviewer verdicts, agent
@@ -1249,7 +1249,7 @@ def format_compact_index(
     lines.append("- `/workspace/memory/awareness.md` — your shift notes from prior sessions")
     lines.append("- `/workspace/memory/conversation.md` — summary of earlier conversation")
     lines.append("- `/workspace/memory/notes.md` — stable facts and user preferences")
-    lines.append("- `/workspace/memory/recent.md` — recent material non-conversation events (ADR-220)")
+    lines.append("- `/workspace/memory/recent.md` — recent material non-conversation events (ADR-221)")
 
     # --- Agent health flags (only if flagged) ---
     flagged = ws.get("agents_flagged", [])

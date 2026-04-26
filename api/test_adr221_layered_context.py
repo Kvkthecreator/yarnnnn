@@ -1,5 +1,5 @@
 """
-Test gate — ADR-220 Commit C (layered context strategy + recent.md + compaction sunset).
+Test gate — ADR-221 Commit C (layered context strategy + recent.md + compaction sunset).
 
 Asserts the load-bearing commitments of Commit C:
 
@@ -24,7 +24,7 @@ E. Substrate authorship signal still rendered (regression check) —
    ADR-209's existing one-liner survives. The two axes coexist.
 
 Usage:
-    cd api && python test_adr220_layered_context.py
+    cd api && python test_adr221_layered_context.py
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ def test_format_recent_md_groups_by_role() -> None:
     assert approve_idx < reject_idx, "entries within role should be most-recent first"
     # Task slug surfaced when present
     assert "task: `trading-execute`" in out
-    # Author trailer for ADR-220 traceability
+    # Author trailer for ADR-221 traceability
     assert "system:narrative-digest" in out
 
 
@@ -130,7 +130,7 @@ def test_compact_index_renders_recent_md_pointer() -> None:
         "agents": [],
         "recent_uploads": [],
         "recent_authorship": {"window_hours": 24, "total": 0, "by_layer": {}},
-        # The new ADR-220 signal — populated → expect pointer to render
+        # The new ADR-221 signal — populated → expect pointer to render
         "recent_md": {
             "exists": True,
             "total": 7,
@@ -201,7 +201,7 @@ _Material non-conversation invocations rolled up by `back-office-narrative-diges
 ## System events (1)
 - 1d ago — digest run
 
-<!-- author: system:narrative-digest · ADR-220 -->
+<!-- author: system:narrative-digest · ADR-221 -->
 """
 
     # Mock client with that content for path /workspace/memory/recent.md
@@ -268,7 +268,7 @@ def test_compaction_helpers_deleted_from_chat_module() -> None:
     ]
     for name in deleted_names:
         assert not hasattr(chat, name), (
-            f"routes.chat.{name} should be deleted per ADR-220 Commit C "
+            f"routes.chat.{name} should be deleted per ADR-221 Commit C "
             f"(singular implementation; conversation.md is the only compaction substrate)"
         )
 
@@ -290,7 +290,7 @@ def test_build_history_signature_no_max_tokens_or_compaction_block() -> None:
 # =============================================================================
 
 def test_substrate_authorship_signal_still_rendered() -> None:
-    """ADR-209's one-liner must survive ADR-220 Commit C alongside
+    """ADR-209's one-liner must survive ADR-221 Commit C alongside
     the new narrative-events one-liner. They are complementary axes."""
     wm = _import_module("services.working_memory")
     working_memory = {
@@ -310,7 +310,7 @@ def test_substrate_authorship_signal_still_rendered() -> None:
             "total": 23,
             "by_layer": {"operator": 3, "yarnnn": 12, "agent": 5, "system": 3},
         },
-        # ADR-220 signal: 7 narrative events
+        # ADR-221 signal: 7 narrative events
         "recent_md": {
             "exists": True,
             "total": 7,
@@ -322,7 +322,7 @@ def test_substrate_authorship_signal_still_rendered() -> None:
     # ADR-209 line still present
     assert "Recent activity (24h, 23 revisions)" in out
     assert "ListRevisions" in out
-    # ADR-220 line present alongside
+    # ADR-221 line present alongside
     assert "Recent events (24h, 7 material non-conversation)" in out
     assert "/workspace/memory/recent.md" in out
 
@@ -363,7 +363,7 @@ def test_compact_index_within_token_ceiling() -> None:
     estimated_tokens = len(out) // 4
     assert estimated_tokens <= 600, (
         f"compact index exceeds 600-token ceiling: ~{estimated_tokens} tokens "
-        f"({len(out)} chars). New ADR-220 pointer pushed it over."
+        f"({len(out)} chars). New ADR-221 pointer pushed it over."
     )
 
 

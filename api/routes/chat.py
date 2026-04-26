@@ -9,10 +9,10 @@ ADR-087: Agent-scoped context (agent_id on sessions, scoped working memory)
 ADR-125: Project-native sessions — two scopes (Global TP + Project), thread model
 ADR-159: Filesystem-as-memory — compact index + 10-message window + conversation.md
 ADR-219: Narrative substrate — session_messages.role widened (six Identities)
-ADR-220: Layered context strategy — non-conversation roles filtered from API;
+ADR-221: Layered context strategy — non-conversation roles filtered from API;
          older tool-history collapsed; in-session LLM compaction sunset
 
-Session Philosophy (ADR-159 + ADR-220):
+Session Philosophy (ADR-159 + ADR-221):
 - 10-message rolling window for API call (singular truncation)
 - Cross-session continuity via /workspace/memory/awareness.md
 - Conversation summary written every 5 user messages to /workspace/memory/conversation.md
@@ -518,10 +518,10 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
 
 
 # =============================================================================
-# History Management (ADR-159 + ADR-220: filesystem-native compaction)
+# History Management (ADR-159 + ADR-221: filesystem-native compaction)
 # =============================================================================
 #
-# ADR-220 Commit C deleted ADR-067 Phase 3's in-session LLM compaction.
+# ADR-221 Commit C deleted ADR-067 Phase 3's in-session LLM compaction.
 # Compaction is now filesystem-native via /workspace/memory/conversation.md
 # (written every 5 user messages by _write_conversation_summary). YARNNN
 # reads conversation.md on demand via ReadFile when older context is needed.
@@ -550,12 +550,12 @@ def build_history_for_claude(
     Claude Code uses structured tool_use/tool_result blocks for better coherence.
     This function reconstructs that format from our stored tool_history metadata.
 
-    ADR-220 Commit A: filters non-conversation roles (system/reviewer/agent/external)
+    ADR-221 Commit A: filters non-conversation roles (system/reviewer/agent/external)
     out of the API messages list — Claude only accepts user/assistant. Non-conversation
     Identity classes re-enter YARNNN's reasoning via /workspace/memory/recent.md
     (Layer 2 pointer in the compact index, ReadFile on demand).
 
-    ADR-220 Commit B: only the most-recent assistant turn carrying `tool_history`
+    ADR-221 Commit B: only the most-recent assistant turn carrying `tool_history`
     keeps full structured tool_use/tool_result blocks. Older assistant tool turns
     collapse to one-line `[Called X: result]` summaries. Cites Claude Code's
     "tool outputs drop first" auto-compaction precedent.
@@ -573,7 +573,7 @@ def build_history_for_claude(
     history = []
     global_tool_index = 0  # Global counter for unique tool IDs across all messages
 
-    # ADR-220 Commit B: identify the most-recent assistant turn that has
+    # ADR-221 Commit B: identify the most-recent assistant turn that has
     # tool_history. Only that turn keeps full structured tool_use/tool_result
     # blocks — Claude needs to see what it just did to continue the loop
     # correctly. Older assistant turns with tool_history collapse to one-line
@@ -590,12 +590,12 @@ def build_history_for_claude(
 
     for m_idx, m in enumerate(messages):
         role = m["role"]
-        # ADR-220 Commit A: filter non-conversation roles. Per ADR-219 (migration 161)
+        # ADR-221 Commit A: filter non-conversation roles. Per ADR-219 (migration 161)
         # session_messages.role widened to {user, assistant, system, reviewer, agent,
         # external} — six Identity classes. Only user/assistant rows are conversation
         # turns; the others are workspace events that surface on /chat (frontend reads
         # them directly) but never enter the Claude API messages list (Claude only
-        # accepts user/assistant). The narrative-side rollup (recent.md, ADR-220
+        # accepts user/assistant). The narrative-side rollup (recent.md, ADR-221
         # Commit C) is the singular re-entry point for these into YARNNN's reasoning.
         if role not in ("user", "assistant"):
             continue
@@ -678,7 +678,7 @@ def build_history_for_claude(
                 history.append({"role": role, "content": content})
 
         elif role == "assistant" and tool_history:
-            # ADR-220 Commit B: older assistant turns + non-structured fallback
+            # ADR-221 Commit B: older assistant turns + non-structured fallback
             # both collapse to one-line `[Called X]` summaries. Older turns
             # don't need structured tool blocks — Claude only continues a
             # tool loop from the most-recent turn; older turns just need a
@@ -708,7 +708,7 @@ def build_history_for_claude(
             # Regular message (user, or assistant without tools)
             history.append({"role": role, "content": content})
 
-    # ADR-220 Commit C: Anthropic API requires history to start with a user
+    # ADR-221 Commit C: Anthropic API requires history to start with a user
     # message. Pre-Commit-C this was enforced inside truncate_history_by_tokens;
     # post-deletion the same guard lives here. Strip leading assistant rows
     # (rare — only happens if filtering out non-conversation roles in Commit A
@@ -749,17 +749,17 @@ def _parse_input_summary(input_summary: str) -> dict:
 
 
 # =============================================================================
-# In-Session Compaction — DELETED (ADR-220 Commit C)
+# In-Session Compaction — DELETED (ADR-221 Commit C)
 # =============================================================================
 # `maybe_compact_history`, `COMPACTION_PROMPT`, `COMPACTION_THRESHOLD`,
 # `truncate_history_by_tokens`, and `estimate_message_tokens` were deleted
-# per ADR-220's singular-implementation discipline. Compaction is now
+# per ADR-221's singular-implementation discipline. Compaction is now
 # filesystem-native via `/workspace/memory/conversation.md` (written every
 # 5 user messages by `_write_conversation_summary`); YARNNN reads it on
 # demand via `ReadFile` when older context is needed.
 #
 # The 10-message window in the chat handler is the singular truncation.
-# With ADR-220 Commit B's tool-history collapse on older turns, even a
+# With ADR-221 Commit B's tool-history collapse on older turns, even a
 # tool-heavy 10-message window stays well under Claude's input budget.
 #
 # `chat_sessions.compaction_summary` column is now vestigial (no writers).
@@ -1068,7 +1068,7 @@ async def global_chat(
 
     # Window: keep only last N messages for API call
     # Full history stays in DB for chat UI display.
-    # ADR-220 Commit C: the 10-message window IS the singular truncation —
+    # ADR-221 Commit C: the 10-message window IS the singular truncation —
     # ADR-067 Phase 3's 40K-token in-session LLM compaction has been deleted.
     # Compaction is filesystem-native via /workspace/memory/conversation.md
     # (written every 5 user messages by _write_conversation_summary).

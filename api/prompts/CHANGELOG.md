@@ -6,7 +6,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.04.26.5] - ADR-220 Commit C — recent.md narrative-side rollup + in-session LLM compaction sunset (prompt body change)
+## [2026.04.26.5] - ADR-221 Commit C — recent.md narrative-side rollup + in-session LLM compaction sunset (prompt body change)
 
 ### Changed
 - `api/services/back_office/narrative_digest.py::run()` extended: writes `/workspace/memory/recent.md` (via `services.authored_substrate.write_revision`, `authored_by="system:narrative-digest"`) with material non-conversation entries from the past 24h grouped by Identity (reviewer / agent / external / system). Counterpart to ADR-209's substrate-authorship signal — they answer different questions (file-mutation vs invocation-event).
@@ -20,11 +20,11 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
   - `truncate_history_by_tokens()`, `estimate_message_tokens()`
   - `chat_sessions.compaction_summary` reads + writes (column drop is Phase 2 follow-up)
   - `build_history_for_claude` signature simplified — no `max_tokens`, no `compaction_block`. Anthropic alternation invariant (history starts with user) lives in the function body now.
-- `api/agents/yarnnn_prompts/tools_core.py` — adds "Two complementary 'what happened' axes (ADR-220)" subsection: substrate axis = ListRevisions/ReadRevision/DiffRevisions; narrative axis = ReadFile recent.md. Substrate ≠ narrative; pick the axis that matches the question.
+- `api/agents/yarnnn_prompts/tools_core.py` — adds "Two complementary 'what happened' axes (ADR-221)" subsection: substrate axis = ListRevisions/ReadRevision/DiffRevisions; narrative axis = ReadFile recent.md. Substrate ≠ narrative; pick the axis that matches the question.
 - `docs/features/sessions.md` — full refresh: TP → YARNNN throughout, "Layered context model" section added, "What carries over" gains recent.md, "Contrast with Claude Code" gains rows for six-Identity / tool-history retention. Related-docs list updated.
-- `CLAUDE.md` — ADR-220 entry added to ADR list.
+- `CLAUDE.md` — ADR-221 entry added to ADR list.
 - `docs/architecture/FOUNDATIONS.md` — Axiom 9 Clause B gains one paragraph noting recent.md as the narrative-side filesystem-native rollup; complementary to ADR-209's substrate axis.
-- `docs/adr/ADR-220-layered-context-strategy.md` (new) — canonical ADR.
+- `docs/adr/ADR-221-layered-context-strategy.md` (new) — canonical ADR.
 
 ### Why
 - Closes the post-ADR-219 gap: non-conversation Identity classes (system/reviewer/agent/external) now have a structured re-entry point into YARNNN's reasoning via filesystem-native rollup, not via in-prompt blob.
@@ -39,15 +39,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 - `chat_sessions.compaction_summary` column has no writers post-Commit-C. Drop in a future schema-cleanup migration; not blocking.
 
 ### Test gate
-- `api/test_adr220_layered_context.py` — 10/10 pass: recent.md formatter (role grouping, display ordering, 10-per-role cap), compact index pointer (renders when populated, omits when empty), recent.md signal parser (counts, missing-file safe), compaction sunset (no helpers importable, signature simplified), substrate-authorship regression (ADR-209 signal preserved), 600-token ceiling held.
-- All seven ADR-219 + ADR-220 test gates green: 8 + 6 + 10 + 12 + 4 + 7 + 10 = **57/57**.
+- `api/test_adr221_layered_context.py` — 10/10 pass: recent.md formatter (role grouping, display ordering, 10-per-role cap), compact index pointer (renders when populated, omits when empty), recent.md signal parser (counts, missing-file safe), compaction sunset (no helpers importable, signature simplified), substrate-authorship regression (ADR-209 signal preserved), 600-token ceiling held.
+- All seven ADR-219 + ADR-221 test gates green: 8 + 6 + 10 + 12 + 4 + 7 + 10 = **57/57**.
 
 ### Render parity
 No env var changes. `narrative_digest` runs in the **task pipeline** dispatched by **Unified Scheduler** — same service since ADR-219 Commit 3. No new env vars on API, MCP Server, or Output Gateway.
 
 ---
 
-## [2026.04.26.4] - ADR-220 Commit B — collapse older assistant tool-history blocks to one-line summaries (no prompt body change)
+## [2026.04.26.4] - ADR-221 Commit B — collapse older assistant tool-history blocks to one-line summaries (no prompt body change)
 
 ### Changed
 - `api/routes/chat.py` — `build_history_for_claude()`: identify the most-recent assistant turn carrying `tool_history` and keep only that turn's full structured `tool_use`/`tool_result` blocks. Older assistant turns with `tool_history` collapse to one-line `[Called X: result]` summaries with the result truncated to 80 chars.
@@ -64,19 +64,19 @@ No env var changes. `narrative_digest` runs in the **task pipeline** dispatched 
 - Plain-text turns (no `tool_history`) are untouched.
 
 ### Test gate
-- `api/test_adr220_history_filtering.py` — 7/7 pass (Commit A's 4 + Commit B's 3): older assistant tool turns collapsed; single tool-history turn IS most-recent and stays structured; plain text turns pass through unchanged.
+- `api/test_adr221_history_filtering.py` — 7/7 pass (Commit A's 4 + Commit B's 3): older assistant tool turns collapsed; single tool-history turn IS most-recent and stays structured; plain text turns pass through unchanged.
 - All five ADR-219 test gates still green (40/40).
 
 ---
 
-## [2026.04.26.3] - ADR-220 Commit A — filter non-conversation roles from Claude API history (no prompt body change)
+## [2026.04.26.3] - ADR-221 Commit A — filter non-conversation roles from Claude API history (no prompt body change)
 
 ### Changed
 - `api/routes/chat.py` — `build_history_for_claude()` now filters out session_messages rows with role ∉ {user, assistant} before building the API messages list. Migration 161 (ADR-219 Commit 2) widened `session_messages.role` to six Identity classes (user, assistant, system, reviewer, agent, external). Only conversation turns enter Claude's API; the four narrative-bearing classes (system, reviewer, agent, external) surface on /chat directly via the frontend reader and never reach Claude's messages list.
 
 ### Why
 - **Bug fix**: Claude's API only accepts `user` and `assistant` roles. Pre-fix, a reviewer verdict (or any non-conversation row) in the last-10-message window would cause the chat turn to fail with an Anthropic API "invalid role" error. Latent bug since ADR-212 / ADR-219 widened the enum.
-- **Singular-implementation alignment**: this fix preserves the conversation-only API channel cleanly. The narrative-side rollup of non-conversation events lands in ADR-220 Commit C (`/workspace/memory/recent.md`) as the singular re-entry point for those classes into YARNNN's reasoning.
+- **Singular-implementation alignment**: this fix preserves the conversation-only API channel cleanly. The narrative-side rollup of non-conversation events lands in ADR-221 Commit C (`/workspace/memory/recent.md`) as the singular re-entry point for those classes into YARNNN's reasoning.
 
 ### Expected behavior
 - No prompt body change; no LLM-call shape change beyond the role filter.
@@ -85,7 +85,7 @@ No env var changes. `narrative_digest` runs in the **task pipeline** dispatched 
 - Token cost: small reduction on sessions with non-conversation rows in the window.
 
 ### Test gate
-- `api/test_adr220_history_filtering.py` — 4/4 assertions pass: non-conversation roles filtered out; user/assistant pass-through; filtered history still starts with user (Anthropic invariant); ADR-219 envelope on assistant rows passes through unchanged.
+- `api/test_adr221_history_filtering.py` — 4/4 assertions pass: non-conversation roles filtered out; user/assistant pass-through; filtered history still starts with user (Anthropic invariant); ADR-219 envelope on assistant rows passes through unchanged.
 - All five ADR-219 test gates still green: 40/40 across `test_adr219_narrative_write_path` (8) + `test_adr219_commit3_narrative_digest` (6) + `test_adr219_commit4_narrative_by_task` (10) + `test_adr219_commit5_chat_rendering` (12) + `test_adr219_invocation_coverage` (4).
 
 ---

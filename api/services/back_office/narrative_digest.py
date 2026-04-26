@@ -73,7 +73,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
     housekeeping_summaries: list[str] = []
     rolled_up_ids: list[str] = []
 
-    # ADR-220 Commit C: collect material non-conversation entries grouped by
+    # ADR-221 Commit C: collect material non-conversation entries grouped by
     # role for the recent.md narrative-side rollup. The rollup chat card
     # (above) is for the operator's chat surface; recent.md is for YARNNN's
     # prompt-time on-demand reasoning ("what happened while I was away?").
@@ -111,7 +111,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
                 summary = md.get("summary") or "(no summary)"
                 housekeeping_summaries.append(summary)
                 rolled_up_ids.append(row["id"])
-            # ADR-220 Commit C: material non-conversation entries feed recent.md.
+            # ADR-221 Commit C: material non-conversation entries feed recent.md.
             # User/assistant rows are conversation turns — they belong in
             # the message window (Layer 3), not the narrative-side rollup.
             if (
@@ -190,7 +190,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
                 {"action": "emit_rollup_skipped", "reason": "no_active_session"}
             )
 
-    # ADR-220 Commit C: write /workspace/memory/recent.md as the narrative-side
+    # ADR-221 Commit C: write /workspace/memory/recent.md as the narrative-side
     # rollup of material non-conversation entries. This is the prompt-time
     # on-demand answer to "what happened while I was away?" — YARNNN's compact
     # index points at recent.md (working_memory.format_compact_index); YARNNN
@@ -326,7 +326,7 @@ def _format_report(
 
 
 # =============================================================================
-# ADR-220 Commit C: recent.md formatter (narrative-side rollup for prompt-time
+# ADR-221 Commit C: recent.md formatter (narrative-side rollup for prompt-time
 # on-demand reading).
 # =============================================================================
 
@@ -361,7 +361,7 @@ def _format_recent_md(
 ) -> str:
     """Render /workspace/memory/recent.md.
 
-    Per ADR-220 D4, recent.md is the narrative-side rollup of material
+    Per ADR-221 D4, recent.md is the narrative-side rollup of material
     non-conversation entries. YARNNN reads this on demand via ReadFile when
     the operator asks "what happened?" — most turns won't need it.
 
@@ -379,7 +379,7 @@ def _format_recent_md(
         "",
         "_Material non-conversation invocations rolled up by `back-office-narrative-digest`. "
         "User and assistant chat turns are not included — they live in `session_messages` "
-        "and are visible via the message window. Per ADR-220 this is YARNNN's prompt-time "
+        "and are visible via the message window. Per ADR-221 this is YARNNN's prompt-time "
         "on-demand answer to 'what happened while I was away?' Counterpart to the "
         "ADR-209 substrate-authorship signal in the compact index._",
         "",
@@ -418,7 +418,7 @@ def _format_recent_md(
         lines.append("")
 
     lines.append(
-        "<!-- author: system:narrative-digest · ADR-220 · "
+        "<!-- author: system:narrative-digest · ADR-221 · "
         "use ListRevisions/ReadRevision/DiffRevisions for substrate-authorship axis -->"
     )
     return "\n".join(lines) + "\n"

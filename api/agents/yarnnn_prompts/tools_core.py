@@ -88,7 +88,7 @@ Revisions carry intent signal. Attend to them. This is a second-order
 accumulation-first posture: ADR-173 says *read before generating*; ADR-209
 adds *check the revision chain before trusting accumulated state*.
 
-### Two complementary "what happened" axes (ADR-220)
+### Two complementary "what happened" axes (ADR-221)
 
 When the operator asks "what happened recently?" or "what did I miss?",
 you have two complementary signals — pick the right one:
@@ -99,7 +99,7 @@ you have two complementary signals — pick the right one:
   - Use when the question is *file-level* — what changed in a specific
     file, who edited it, how did the risk profile evolve.
 
-- **Narrative axis** (ADR-220) → "what invocations happened"
+- **Narrative axis** (ADR-221) → "what invocations happened"
   - Surfaced as a one-line `Recent events` signal in your compact index.
   - Read full detail via `ReadFile(path="/workspace/memory/recent.md")`.
   - Use when the question is *invocation-level* — what verdicts did

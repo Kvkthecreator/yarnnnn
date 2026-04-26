@@ -4,28 +4,28 @@
 
 ---
 
-## The short version (current model — ADR-159 + ADR-186 + ADR-219 + ADR-220)
+## The short version (current model — ADR-159 + ADR-186 + ADR-219 + ADR-221)
 
 - **One session per workspace** — no agent-scoped or task-scoped sessions. Surface context (which page/agent the user is viewing) is metadata on messages, not a session boundary.
 - Sessions use **inactivity-based boundaries** (4-hour gap = new session).
 - YARNNN receives a **compact index** (~200-500 tokens, hard 600-token ceiling) of workspace state instead of a full working memory dump (~3-8K tokens). YARNNN reads workspace files on demand via `ReadFile`.
-- **Three-layer context model** (ADR-220): static-cached prompt + workspace state pointers + windowed conversation history. See "Layered context model" section below.
-- **Message window**: last 10 messages sent to API. Older conversation context compacted into `/workspace/memory/conversation.md` — YARNNN reads on demand. Non-conversation Identity classes (system/reviewer/agent/external — ADR-219) are filtered from the API messages list and surface via `recent.md` instead (ADR-220 Commit A).
-- **In-session compaction is filesystem-native**: `conversation.md` written every 5 messages as a rolling summary. The 40K-token in-session LLM compaction (ADR-067 Phase 3) was deleted in ADR-220 Commit C — `conversation.md` is the singular compaction substrate.
-- **Recent material non-conversation events** roll up daily into `/workspace/memory/recent.md` via the `back-office-narrative-digest` task (ADR-220 Commit C). Counterpart to ADR-209's substrate-authorship signal.
+- **Three-layer context model** (ADR-221): static-cached prompt + workspace state pointers + windowed conversation history. See "Layered context model" section below.
+- **Message window**: last 10 messages sent to API. Older conversation context compacted into `/workspace/memory/conversation.md` — YARNNN reads on demand. Non-conversation Identity classes (system/reviewer/agent/external — ADR-219) are filtered from the API messages list and surface via `recent.md` instead (ADR-221 Commit A).
+- **In-session compaction is filesystem-native**: `conversation.md` written every 5 messages as a rolling summary. The 40K-token in-session LLM compaction (ADR-067 Phase 3) was deleted in ADR-221 Commit C — `conversation.md` is the singular compaction substrate.
+- **Recent material non-conversation events** roll up daily into `/workspace/memory/recent.md` via the `back-office-narrative-digest` task (ADR-221 Commit C). Counterpart to ADR-209's substrate-authorship signal.
 - Cross-session continuity via shift notes (`/workspace/memory/awareness.md`) and stable facts (`/workspace/memory/notes.md`).
 
 ---
 
-## Layered context model (ADR-220)
+## Layered context model (ADR-221)
 
 Every YARNNN chat turn assembles its prompt from three layers. Token budget and ownership boundaries:
 
 | Layer | Source | Cached? | Token budget | Identity-handling |
 |---|---|---|---|---|
 | **Layer 1 — Static** | `BASE` + behavioral profile (workspace/entity per ADR-186) + `TOOLS_CORE` + `PLATFORMS` + `CONTEXT_AWARENESS` | Yes (cache_control: ephemeral) | ~12-15K, ~95% cache hit | n/a — no per-turn variance |
-| **Layer 2 — Workspace state** | `format_compact_index()` + two complementary one-liner pointers | No (changes per turn) | 600-token ceiling | Per-Identity authorship one-liner (ADR-209); narrative events one-liner (ADR-220 → recent.md) |
-| **Layer 3 — Conversation history** | `build_history_for_claude()` over the last 10 `session_messages` | Partial | ~2-3K | **Filtered to user/assistant only** (ADR-220 Commit A) |
+| **Layer 2 — Workspace state** | `format_compact_index()` + two complementary one-liner pointers | No (changes per turn) | 600-token ceiling | Per-Identity authorship one-liner (ADR-209); narrative events one-liner (ADR-221 → recent.md) |
+| **Layer 3 — Conversation history** | `build_history_for_claude()` over the last 10 `session_messages` | Partial | ~2-3K | **Filtered to user/assistant only** (ADR-221 Commit A) |
 
 ### Two complementary signals in Layer 2
 
@@ -37,7 +37,7 @@ Recent activity (24h, 23 revisions): operator (3), yarnnn (12), agent (5), syste
 ```
 Answers: "who wrote what file" — file-level mutation truth from `workspace_file_versions`.
 
-**Narrative axis (ADR-220):**
+**Narrative axis (ADR-221):**
 ```
 Recent events (24h, 7 material non-conversation): 3 reviewer, 2 agent, 1 external, 1 system — read /workspace/memory/recent.md if needed.
 ```
@@ -90,7 +90,7 @@ Sessions close on 4-hour inactivity. On close, a final `conversation.md` summary
 | Stable user facts (name, role, preferences) | `/workspace/memory/notes.md` | YARNNN writes in-session via UpdateContext(target="memory") |
 | Shift handoff notes | `/workspace/memory/awareness.md` | YARNNN writes in-session via UpdateContext(target="awareness") |
 | Prior conversation summary | `/workspace/memory/conversation.md` | Written every 5 messages + on session close |
-| Recent material non-conversation events | `/workspace/memory/recent.md` | Written daily by `back-office-narrative-digest` task (ADR-220) |
+| Recent material non-conversation events | `/workspace/memory/recent.md` | Written daily by `back-office-narrative-digest` task (ADR-221) |
 | Agent roster + task status | `agents` + `tasks` tables | Live queries in compact index |
 | Platform connection status | `platform_connections` | Live query in compact index |
 | Recent substrate authorship | `workspace_file_versions` | One-line signal in compact index (ADR-209) |
@@ -104,7 +104,7 @@ Sessions close on 4-hour inactivity. On close, a final `conversation.md` summary
 
 ## Contrast with Claude Code
 
-| | Claude Code | YARNNN (ADR-159 + ADR-220) |
+| | Claude Code | YARNNN (ADR-159 + ADR-221) |
 |---|---|---|
 | **Session boundary** | Context-window-driven | Inactivity-based (4h) |
 | **In-session compaction** | Auto-compaction (LLM `<summary>` block) when near context limit | conversation.md written every 5 user messages (filesystem-native, zero LLM) |
@@ -112,10 +112,10 @@ Sessions close on 4-hour inactivity. On close, a final `conversation.md` summary
 | **Context injection** | Compact prompt, read files on demand | Compact index, ReadFile on demand |
 | **Tool definitions** | Available tools in prompt | Same (~14 chat tools, ~4K tokens, cached) |
 | **File access** | Read tool | ReadFile primitive |
-| **Conversation log** | user/assistant turns only | Six Identity classes (user/assistant/system/reviewer/agent/external — ADR-219). API messages filter to user/assistant; non-conversation classes surface via `recent.md` (ADR-220) |
-| **Tool-history retention** | "Tool outputs drop first" auto-compaction | Most-recent tool turn structured; older tool turns collapse to one-line summaries (ADR-220 Commit B) |
+| **Conversation log** | user/assistant turns only | Six Identity classes (user/assistant/system/reviewer/agent/external — ADR-219). API messages filter to user/assistant; non-conversation classes surface via `recent.md` (ADR-221) |
+| **Tool-history retention** | "Tool outputs drop first" auto-compaction | Most-recent tool turn structured; older tool turns collapse to one-line summaries (ADR-221 Commit B) |
 
-The models are now closely aligned. Both use referential injection (point to files, read on demand) rather than dump-everything-into-prompt. ADR-220 closes the post-ADR-219 gaps — non-conversation roles, older tool-history bloat, in-session LLM compaction.
+The models are now closely aligned. Both use referential injection (point to files, read on demand) rather than dump-everything-into-prompt. ADR-221 closes the post-ADR-219 gaps — non-conversation roles, older tool-history bloat, in-session LLM compaction.
 
 ---
 
@@ -158,9 +158,9 @@ Add surface-specific detail to compact index (e.g., agent domain summary when vi
 - [ADR-186](../adr/ADR-186-tp-prompt-profiles.md) — Surface-aware prompt profiles (workspace / entity)
 - [ADR-209](../adr/ADR-209-authored-substrate.md) — Authored substrate signal (file-level "who wrote what")
 - [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) — Narrative substrate (six Identity classes on session_messages)
-- [ADR-220](../adr/ADR-220-layered-context-strategy.md) — Layered context strategy + recent.md narrative-side rollup + in-session LLM compaction sunset
-- [ADR-067](../adr/ADR-067-session-compaction-architecture.md) — Session compaction (Phase 1+2 Implemented; Phase 3 superseded by ADR-220)
+- [ADR-221](../adr/ADR-221-layered-context-strategy.md) — Layered context strategy + recent.md narrative-side rollup + in-session LLM compaction sunset
+- [ADR-067](../adr/ADR-067-session-compaction-architecture.md) — Session compaction (Phase 1+2 Implemented; Phase 3 superseded by ADR-221)
 - [ADR-156](../adr/ADR-156-composer-sunset.md) — In-session memory writes (Implemented)
-- `api/routes/chat.py` — session creation, message append, history building (filtered to user/assistant per ADR-220 A)
-- `api/services/working_memory.py` — compact index builder (with two complementary one-liner pointers per ADR-220 C)
+- `api/routes/chat.py` — session creation, message append, history building (filtered to user/assistant per ADR-221 A)
+- `api/services/working_memory.py` — compact index builder (with two complementary one-liner pointers per ADR-221 C)
 - `api/services/back_office/narrative_digest.py` — daily roll-up writer for chat-card + recent.md
