@@ -1407,7 +1407,27 @@ async def _handle_create(auth: Any, input: dict) -> dict:
                 logger.warning(f"[MANAGE_TASK] Context domain scaffold failed (non-fatal): {e}")
 
     except Exception as e:
-        logger.warning(f"[MANAGE_TASK] TASK.md write failed (non-fatal): {e}")
+        # ADR-207 P4b: TASK.md is dispatch-authoritative. A task row without
+        # TASK.md is structurally broken — pipeline reads parse_task_md() at
+        # every dispatch and fails fast at file-not-found. Roll back the row
+        # so we never leave a phantom task that fires the scheduler in vain.
+        # See docs/alpha/observations/2026-04-26-trader-e2e-paper-loop.md §A3.
+        logger.error(
+            f"[MANAGE_TASK] TASK.md write failed for {slug!r}: {e}. "
+            f"Rolling back tasks row {task_id} to prevent phantom dispatches."
+        )
+        try:
+            auth.client.table("tasks").delete().eq("id", task_id).execute()
+        except Exception as rollback_err:
+            logger.error(
+                f"[MANAGE_TASK] Rollback delete also failed for {task_id}: {rollback_err}. "
+                f"Manual cleanup required: DELETE FROM tasks WHERE id='{task_id}';"
+            )
+        return {
+            "success": False,
+            "error": "task_md_write_failed",
+            "message": f"Failed to write TASK.md substrate: {e}",
+        }
 
     # ADR-154: memory/tasks.json dissolved — task assignments tracked via TASK.md, not agent memory
     # ADR-164: task_created activity_log write removed. tasks table + TASK.md ARE the record.
