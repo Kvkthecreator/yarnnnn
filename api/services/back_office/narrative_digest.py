@@ -73,6 +73,18 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
     housekeeping_summaries: list[str] = []
     rolled_up_ids: list[str] = []
 
+    # ADR-220 Commit C: collect material non-conversation entries grouped by
+    # role for the recent.md narrative-side rollup. The rollup chat card
+    # (above) is for the operator's chat surface; recent.md is for YARNNN's
+    # prompt-time on-demand reasoning ("what happened while I was away?").
+    # Grouped by role: reviewer / agent / external / system.
+    recent_by_role: dict[str, list[dict]] = {
+        "reviewer": [],
+        "agent": [],
+        "external": [],
+        "system": [],
+    }
+
     if session_ids:
         # session_messages query — pull rows from this user's sessions in
         # the window. Limit defensive (1000) — at alpha scale a workspace
@@ -80,7 +92,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         # blow-up if something goes haywire upstream.
         msgs_result = (
             client.table("session_messages")
-            .select("id, metadata, created_at")
+            .select("id, role, metadata, created_at")
             .in_("session_id", session_ids)
             .gte("created_at", window_cutoff.isoformat())
             .order("created_at", desc=False)
@@ -90,6 +102,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         for row in (msgs_result.data or []):
             md = row.get("metadata") or {}
             weight = md.get("weight") or "untagged"
+            row_role = row.get("role") or ""
             if weight not in counts:
                 counts["untagged"] += 1
                 continue
@@ -98,6 +111,19 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
                 summary = md.get("summary") or "(no summary)"
                 housekeeping_summaries.append(summary)
                 rolled_up_ids.append(row["id"])
+            # ADR-220 Commit C: material non-conversation entries feed recent.md.
+            # User/assistant rows are conversation turns — they belong in
+            # the message window (Layer 3), not the narrative-side rollup.
+            if (
+                weight == "material"
+                and row_role in recent_by_role
+            ):
+                recent_by_role[row_role].append({
+                    "summary": md.get("summary") or "(no summary)",
+                    "created_at": row.get("created_at"),
+                    "task_slug": md.get("task_slug"),
+                    "invocation_id": md.get("invocation_id"),
+                })
 
     total_housekeeping = counts["housekeeping"]
 
@@ -164,12 +190,54 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
                 {"action": "emit_rollup_skipped", "reason": "no_active_session"}
             )
 
+    # ADR-220 Commit C: write /workspace/memory/recent.md as the narrative-side
+    # rollup of material non-conversation entries. This is the prompt-time
+    # on-demand answer to "what happened while I was away?" — YARNNN's compact
+    # index points at recent.md (working_memory.format_compact_index); YARNNN
+    # reads it via ReadFile when the operator asks. Counterpart to ADR-209's
+    # substrate-authorship one-liner (file mutations); two complementary axes.
+    total_recent = sum(len(v) for v in recent_by_role.values())
+    recent_written = False
+    if total_recent > 0:
+        try:
+            from services.authored_substrate import write_revision
+
+            recent_md = _format_recent_md(started_at, recent_by_role)
+            write_revision(
+                client,
+                user_id=user_id,
+                path="/workspace/memory/recent.md",
+                content=recent_md,
+                authored_by="system:narrative-digest",
+                message=(
+                    f"recent.md rollup: {total_recent} material non-conversation entries "
+                    f"in last {DIGEST_WINDOW_HOURS}h"
+                ),
+                tags=["memory", "narrative", "recent"],
+            )
+            recent_written = True
+            actions_taken.append({
+                "action": "wrote_recent_md",
+                "total_recent": total_recent,
+                "by_role": {k: len(v) for k, v in recent_by_role.items()},
+            })
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[BACK_OFFICE:narrative_digest] recent.md write failed for user=%s: %s",
+                user_id[:8] if user_id else "?",
+                exc,
+            )
+            actions_taken.append(
+                {"action": "wrote_recent_md_failed", "error": str(exc)}
+            )
+
     summary = (
         f"Scanned {sum(counts.values())} narrative entries in last "
         f"{DIGEST_WINDOW_HOURS}h "
         f"({counts['material']} material, {counts['routine']} routine, "
         f"{total_housekeeping} housekeeping). "
         + (f"Rolled up {total_housekeeping}." if digest_entry else "Nothing to roll up.")
+        + (f" Wrote recent.md ({total_recent} entries)." if recent_written else "")
     )
 
     output_markdown = _format_report(
@@ -253,5 +321,104 @@ def _format_report(
     lines.append("")
     lines.append(
         "<!-- executor: services.back_office.narrative_digest · version: 1 · ADR-219 Commit 3 -->"
+    )
+    return "\n".join(lines) + "\n"
+
+
+# =============================================================================
+# ADR-220 Commit C: recent.md formatter (narrative-side rollup for prompt-time
+# on-demand reading).
+# =============================================================================
+
+
+def _humanize_age(created_at: str | None, now: datetime) -> str:
+    """Render a created_at ISO timestamp as a human-friendly relative-age
+    string ("2h ago", "1d ago"). Returns empty string on parse failure."""
+    if not created_at:
+        return ""
+    try:
+        # session_messages.created_at is ISO with timezone; tolerate Z suffix.
+        ts_str = created_at.replace("Z", "+00:00")
+        ts = datetime.fromisoformat(ts_str)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        delta = now - ts
+        secs = int(delta.total_seconds())
+        if secs < 60:
+            return "just now"
+        if secs < 3600:
+            return f"{secs // 60}m ago"
+        if secs < 86400:
+            return f"{secs // 3600}h ago"
+        return f"{secs // 86400}d ago"
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _format_recent_md(
+    started_at: datetime,
+    recent_by_role: dict[str, list[dict]],
+) -> str:
+    """Render /workspace/memory/recent.md.
+
+    Per ADR-220 D4, recent.md is the narrative-side rollup of material
+    non-conversation entries. YARNNN reads this on demand via ReadFile when
+    the operator asks "what happened?" — most turns won't need it.
+
+    Grouped by role (reviewer / agent / external / system) for scannability.
+    Entries within a role are most-recent-first. Bounded display: 10 entries
+    per role to keep the file under ~1500 tokens. Counts beyond that surface
+    as a "+N more" line.
+    """
+    timestamp = started_at.strftime("%Y-%m-%d %H:%M UTC")
+    total = sum(len(v) for v in recent_by_role.values())
+
+    lines = [
+        "# Recent workspace events",
+        f"Last updated: {timestamp} · {DIGEST_WINDOW_HOURS}h window · {total} material entries",
+        "",
+        "_Material non-conversation invocations rolled up by `back-office-narrative-digest`. "
+        "User and assistant chat turns are not included — they live in `session_messages` "
+        "and are visible via the message window. Per ADR-220 this is YARNNN's prompt-time "
+        "on-demand answer to 'what happened while I was away?' Counterpart to the "
+        "ADR-209 substrate-authorship signal in the compact index._",
+        "",
+    ]
+
+    # Display order: operator-facing first (reviewer, agent), then ambient
+    # (external, system).
+    display_order = [
+        ("reviewer", "Reviewer verdicts"),
+        ("agent", "Agent task completions"),
+        ("external", "External (MCP) writes"),
+        ("system", "System events"),
+    ]
+
+    for role, header in display_order:
+        entries = recent_by_role.get(role, [])
+        if not entries:
+            continue
+        # Most-recent first within role.
+        entries_sorted = sorted(
+            entries,
+            key=lambda e: e.get("created_at") or "",
+            reverse=True,
+        )
+        lines.append(f"## {header} ({len(entries_sorted)})")
+        lines.append("")
+        for e in entries_sorted[:10]:
+            age = _humanize_age(e.get("created_at"), started_at)
+            summary = e.get("summary") or "(no summary)"
+            slug = e.get("task_slug")
+            slug_str = f" — task: `{slug}`" if slug else ""
+            age_str = f"{age} — " if age else ""
+            lines.append(f"- {age_str}{summary}{slug_str}")
+        if len(entries_sorted) > 10:
+            lines.append(f"- _… plus {len(entries_sorted) - 10} more in window._")
+        lines.append("")
+
+    lines.append(
+        "<!-- author: system:narrative-digest · ADR-220 · "
+        "use ListRevisions/ReadRevision/DiffRevisions for substrate-authorship axis -->"
     )
     return "\n".join(lines) + "\n"

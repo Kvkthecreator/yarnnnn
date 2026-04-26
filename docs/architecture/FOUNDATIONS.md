@@ -428,6 +428,8 @@ The narrative is not "the chat feature." It is the Axiom 6 Channel that closes D
 
 Not every invocation deserves equal visual weight. The narrative has a **material / routine / housekeeping gradient** — a rendering policy, not a logging policy. Every invocation emits an entry; weight determines whether it surfaces as a prominent card, a collapsed line, or a rolled-up digest ("12 housekeeping invocations, all clean"). See [invocation-and-narrative.md](invocation-and-narrative.md) §3.
 
+The narrative also rolls up daily into `/workspace/memory/recent.md` (ADR-220) — material non-conversation entries grouped by Identity, filesystem-native, read on demand by YARNNN at prompt-time. Counterpart to ADR-209's substrate-authorship one-liner: substrate axis answers "who wrote what file"; narrative axis answers "what invocations happened." Two complementary one-liner pointers in the compact index, full detail in filesystem files.
+
 ### Clause C — Tasks are legibility wrappers, not parallel substrates
 
 A **task** is a nameplate + pulse + contract attached to a category of recurring (or goal-bounded, or reactive) invocations. The nameplate is a stable slug + TASK.md. The pulse is the future trigger shape. The contract is DELIVERABLE.md (for `produces_deliverable`) or the context-domain mapping (for `accumulates_context`).

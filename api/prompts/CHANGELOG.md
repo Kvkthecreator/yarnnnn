@@ -6,6 +6,47 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.26.5] - ADR-220 Commit C — recent.md narrative-side rollup + in-session LLM compaction sunset (prompt body change)
+
+### Changed
+- `api/services/back_office/narrative_digest.py::run()` extended: writes `/workspace/memory/recent.md` (via `services.authored_substrate.write_revision`, `authored_by="system:narrative-digest"`) with material non-conversation entries from the past 24h grouped by Identity (reviewer / agent / external / system). Counterpart to ADR-209's substrate-authorship signal — they answer different questions (file-mutation vs invocation-event).
+- `api/services/working_memory.py`:
+  - New `_get_recent_md_signal_sync()` — parses recent.md per-role section counts without loading the full body.
+  - `format_compact_index()` adds a one-line pointer at recent.md when the file exists and has content. Stays under 600-token ceiling. Counterpart to the existing ADR-209 one-liner; both are ~30-token pointers, full detail filesystem-native.
+  - "Key files" pointer list adds recent.md.
+- `api/routes/chat.py` deletes (singular implementation, rule 1):
+  - `maybe_compact_history()` (40K-token in-session LLM compaction)
+  - `COMPACTION_THRESHOLD`, `COMPACTION_PROMPT`, `MAX_HISTORY_TOKENS`
+  - `truncate_history_by_tokens()`, `estimate_message_tokens()`
+  - `chat_sessions.compaction_summary` reads + writes (column drop is Phase 2 follow-up)
+  - `build_history_for_claude` signature simplified — no `max_tokens`, no `compaction_block`. Anthropic alternation invariant (history starts with user) lives in the function body now.
+- `api/agents/yarnnn_prompts/tools_core.py` — adds "Two complementary 'what happened' axes (ADR-220)" subsection: substrate axis = ListRevisions/ReadRevision/DiffRevisions; narrative axis = ReadFile recent.md. Substrate ≠ narrative; pick the axis that matches the question.
+- `docs/features/sessions.md` — full refresh: TP → YARNNN throughout, "Layered context model" section added, "What carries over" gains recent.md, "Contrast with Claude Code" gains rows for six-Identity / tool-history retention. Related-docs list updated.
+- `CLAUDE.md` — ADR-220 entry added to ADR list.
+- `docs/architecture/FOUNDATIONS.md` — Axiom 9 Clause B gains one paragraph noting recent.md as the narrative-side filesystem-native rollup; complementary to ADR-209's substrate axis.
+- `docs/adr/ADR-220-layered-context-strategy.md` (new) — canonical ADR.
+
+### Why
+- Closes the post-ADR-219 gap: non-conversation Identity classes (system/reviewer/agent/external) now have a structured re-entry point into YARNNN's reasoning via filesystem-native rollup, not via in-prompt blob.
+- Singular compaction substrate: `conversation.md` (rolling 5-message-cadence) is the only LLM-summarized substrate. The 40K-token in-session LLM call (ADR-067 Phase 3) was redundant once ADR-159 made conversation.md authoritative.
+- Cites Claude Code's canonical pattern: skill-description + on-demand SKILL.md = compact-pointer-plus-detail. Layer 2 follows the same shape at the workspace level.
+
+### Expected behavior
+- Daily `back-office-narrative-digest` runs now also write `/workspace/memory/recent.md` when material non-conversation entries exist in the 24h window.
+- Compact index gains a one-line pointer ("Recent events (24h, N material non-conversation): ... — read /workspace/memory/recent.md if needed.") when recent.md is populated. Silent when empty.
+- YARNNN reads recent.md via ReadFile when the operator asks "what happened?" — most turns won't need it.
+- In-session LLM compaction is gone — no more 40K-threshold Haiku calls. conversation.md is the singular compaction substrate; YARNNN reads it on demand for older context.
+- `chat_sessions.compaction_summary` column has no writers post-Commit-C. Drop in a future schema-cleanup migration; not blocking.
+
+### Test gate
+- `api/test_adr220_layered_context.py` — 10/10 pass: recent.md formatter (role grouping, display ordering, 10-per-role cap), compact index pointer (renders when populated, omits when empty), recent.md signal parser (counts, missing-file safe), compaction sunset (no helpers importable, signature simplified), substrate-authorship regression (ADR-209 signal preserved), 600-token ceiling held.
+- All seven ADR-219 + ADR-220 test gates green: 8 + 6 + 10 + 12 + 4 + 7 + 10 = **57/57**.
+
+### Render parity
+No env var changes. `narrative_digest` runs in the **task pipeline** dispatched by **Unified Scheduler** — same service since ADR-219 Commit 3. No new env vars on API, MCP Server, or Output Gateway.
+
+---
+
 ## [2026.04.26.4] - ADR-220 Commit B — collapse older assistant tool-history blocks to one-line summaries (no prompt body change)
 
 ### Changed

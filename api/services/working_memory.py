@@ -109,12 +109,17 @@ async def build_working_memory(
         asyncio.to_thread(_get_workspace_file_sync, user_id, MEMORY_AWARENESS_PATH, _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "memory/conversation.md", _make_client()),
     )
-    task_count, doc_count, recent_uploads, recent_authorship = await asyncio.gather(
+    task_count, doc_count, recent_uploads, recent_authorship, recent_md_signal = await asyncio.gather(
         asyncio.to_thread(_count_tasks_sync, user_id, _make_client()),
         asyncio.to_thread(_count_documents_sync, user_id, _make_client()),
         asyncio.to_thread(_get_recent_uploads_sync, user_id, _make_client()),
         # ADR-209 Phase 3: recent substrate authorship aggregation
         asyncio.to_thread(_get_recent_authorship_sync, user_id, _make_client()),
+        # ADR-220 Commit C: narrative-side rollup signal — does /workspace/memory/recent.md
+        # exist and have entries? Used as the second one-liner pointer in the compact index
+        # (counterpart to the substrate-authorship line). Detail lives in the file; YARNNN
+        # reads on demand via ReadFile.
+        asyncio.to_thread(_get_recent_md_signal_sync, user_id, _make_client()),
     )
 
     # ADR-151: Fetch active tasks + context domain health for TP meta-awareness
@@ -150,6 +155,9 @@ async def build_working_memory(
         "recent_uploads": recent_uploads,
         # ADR-209 Phase 3: Recent substrate authorship — one-line "what happened" signal
         "recent_authorship": recent_authorship,
+        # ADR-220 Commit C: narrative-side recent.md rollup signal — counterpart
+        # to recent_authorship. {"exists": bool, "total": int, "by_role": dict, "updated_at": iso}
+        "recent_md": recent_md_signal,
         # ADR-156: Unified workspace state — single signal for TP awareness
         "workspace_state": {
             # Identity
@@ -320,6 +328,71 @@ def _get_recent_authorship_sync(user_id: str, client: Any) -> dict:
         }
     except Exception:
         return {"window_hours": 24, "total": 0, "by_layer": {}}
+
+
+def _get_recent_md_signal_sync(user_id: str, client: Any) -> dict:
+    """ADR-220 Commit C: signal about /workspace/memory/recent.md.
+
+    Returns metadata enough to render the compact-index one-liner without
+    loading the full file content. Counterpart to recent_authorship (which
+    summarizes substrate mutations); recent.md summarizes narrative
+    invocations (reviewer verdicts, agent task completions, MCP writes,
+    system events) — material non-conversation entries written by
+    narrative_digest task.
+
+    Returns: {"exists": bool, "total": int, "by_role": dict, "updated_at": iso | None}.
+    Quiet/missing returns {"exists": False, "total": 0, "by_role": {}, "updated_at": None}.
+
+    Implementation: parse the markdown header lines we write in
+    `narrative_digest._format_recent_md` ("Last updated: X · 24h window · N material entries"
+    + per-role section headers like "## Reviewer verdicts (N)"). Avoid loading
+    the full file body — we only need the signal. If the file is missing or
+    can't be parsed, surface as not-exists and the compact index renders no
+    pointer.
+    """
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("content, updated_at")
+            .eq("user_id", user_id)
+            .eq("path", "/workspace/memory/recent.md")
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return {"exists": False, "total": 0, "by_role": {}, "updated_at": None}
+        row = result.data[0]
+        content = row.get("content") or ""
+        if not content.strip():
+            return {"exists": False, "total": 0, "by_role": {}, "updated_at": None}
+
+        # Parse the per-role section counts. Pattern: "## {Header} (N)".
+        import re
+        by_role: dict[str, int] = {}
+        # Map header text → role-key for the compact-index summary.
+        header_to_role = {
+            "Reviewer verdicts": "reviewer",
+            "Agent task completions": "agent",
+            "External (MCP) writes": "external",
+            "System events": "system",
+        }
+        for header_text, role_key in header_to_role.items():
+            m = re.search(rf"^##\s+{re.escape(header_text)}\s+\((\d+)\)\s*$", content, re.MULTILINE)
+            if m:
+                by_role[role_key] = int(m.group(1))
+
+        # Total: sum of per-role counts (not the header line — the header line
+        # may include older entries beyond what's rendered, but per-role section
+        # counts are authoritative).
+        total = sum(by_role.values())
+        return {
+            "exists": True,
+            "total": total,
+            "by_role": by_role,
+            "updated_at": row.get("updated_at"),
+        }
+    except Exception:
+        return {"exists": False, "total": 0, "by_role": {}, "updated_at": None}
 
 
 def _get_recent_uploads_sync(user_id: str, client: Any) -> list[dict]:
@@ -1106,6 +1179,28 @@ def format_compact_index(
         if parts:
             lines.append(f"\nRecent activity (24h, {authorship['total']} revisions): {', '.join(parts)} — use ListRevisions/ReadRevision/DiffRevisions to inspect.")
 
+    # --- Recent narrative events (ADR-220 Commit C) ---
+    # Counterpart to the substrate-authorship line above. The substrate axis
+    # answers "who wrote what file"; this axis answers "what invocations
+    # happened" — material non-conversation entries (reviewer verdicts, agent
+    # task completions, MCP writes, system events) rolled up into recent.md
+    # by the narrative_digest task. YARNNN reads recent.md on demand.
+    recent_md = working_memory.get("recent_md") or {}
+    if recent_md.get("exists") and recent_md.get("total", 0) > 0:
+        by_role = recent_md.get("by_role") or {}
+        # Display order: operator-facing first.
+        priority = ["reviewer", "agent", "external", "system"]
+        parts = []
+        for role in priority:
+            n = by_role.get(role, 0)
+            if n:
+                parts.append(f"{n} {role}")
+        if parts:
+            lines.append(
+                f"\nRecent events (24h, {recent_md['total']} material non-conversation): "
+                f"{', '.join(parts)} — read /workspace/memory/recent.md if needed."
+            )
+
     # --- Surface context (what user is currently viewing) ---
     if surface_context:
         page = surface_context.get("type", "chat")
@@ -1154,6 +1249,7 @@ def format_compact_index(
     lines.append("- `/workspace/memory/awareness.md` — your shift notes from prior sessions")
     lines.append("- `/workspace/memory/conversation.md` — summary of earlier conversation")
     lines.append("- `/workspace/memory/notes.md` — stable facts and user preferences")
+    lines.append("- `/workspace/memory/recent.md` — recent material non-conversation events (ADR-220)")
 
     # --- Agent health flags (only if flagged) ---
     flagged = ws.get("agents_flagged", [])

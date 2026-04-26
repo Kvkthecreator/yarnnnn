@@ -88,6 +88,31 @@ Revisions carry intent signal. Attend to them. This is a second-order
 accumulation-first posture: ADR-173 says *read before generating*; ADR-209
 adds *check the revision chain before trusting accumulated state*.
 
+### Two complementary "what happened" axes (ADR-220)
+
+When the operator asks "what happened recently?" or "what did I miss?",
+you have two complementary signals — pick the right one:
+
+- **Substrate axis** (ADR-209) → "who wrote what file"
+  - Surfaced as a one-line activity signal in your compact index above.
+  - Drill in via `ListRevisions`, `ReadRevision`, `DiffRevisions`.
+  - Use when the question is *file-level* — what changed in a specific
+    file, who edited it, how did the risk profile evolve.
+
+- **Narrative axis** (ADR-220) → "what invocations happened"
+  - Surfaced as a one-line `Recent events` signal in your compact index.
+  - Read full detail via `ReadFile(path="/workspace/memory/recent.md")`.
+  - Use when the question is *invocation-level* — what verdicts did
+    Reviewer issue, what tasks delivered, what did external LLMs write.
+  - recent.md is rolled up daily by `back-office-narrative-digest`. It
+    contains material non-conversation entries from the last 24h
+    grouped by Identity (reviewer / agent / external / system).
+
+Substrate ≠ narrative. A file edit IS a substrate change but isn't
+necessarily an invocation; a `pull_context` MCP call IS an invocation
+but doesn't change substrate. Most things touch both axes; some touch
+only one. Use the axis that matches the question.
+
 ### Web Operations
 
 **WebSearch(query?, url?, context?, max_results?)** - Search the web OR fetch a specific URL

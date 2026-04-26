@@ -4,16 +4,22 @@ Chat routes - Thinking Partner conversations
 ADR-006: Session and message architecture
 ADR-007: Tool use for TP authority (unified streaming + tools)
 ADR-059/064: Memory via user_memory table and build_working_memory()
-ADR-067: Session compaction and conversational continuity
+ADR-067: Session compaction Phase 1+2 — cross-session continuity
 ADR-087: Agent-scoped context (agent_id on sessions, scoped working memory)
 ADR-125: Project-native sessions — two scopes (Global TP + Project), thread model
+ADR-159: Filesystem-as-memory — compact index + 10-message window + conversation.md
+ADR-219: Narrative substrate — session_messages.role widened (six Identities)
+ADR-220: Layered context strategy — non-conversation roles filtered from API;
+         older tool-history collapsed; in-session LLM compaction sunset
 
-Session Philosophy (ADR-067, updated ADR-125):
-- In-session compaction at 80% of MAX_HISTORY_TOKENS (40k of 50k)
-- Cross-session continuity via chat_sessions.summary
-- Global TP: 4h inactivity boundary
+Session Philosophy (ADR-159 + ADR-220):
+- 10-message rolling window for API call (singular truncation)
+- Cross-session continuity via /workspace/memory/awareness.md
+- Conversation summary written every 5 user messages to /workspace/memory/conversation.md
+- Recent material non-conversation events rolled up to /workspace/memory/recent.md
+  by back-office-narrative-digest task; YARNNN reads on demand via ReadFile
+- Global TP: 4h inactivity boundary (ADR-067 Phase 2)
 - Project sessions: 24h inactivity boundary (ADR-125)
-- Compaction format: assistant <summary> block prepended to remaining history
 
 ADR-125: Project-Native Sessions:
 - Two session scopes: Global TP (no project) and Project (via project_slug)
@@ -512,121 +518,31 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
 
 
 # =============================================================================
-# History Management (ADR-067: Session Compaction)
+# History Management (ADR-159 + ADR-220: filesystem-native compaction)
 # =============================================================================
-# Phase 3: In-session compaction at 80% of MAX_HISTORY_TOKENS.
-# When truncation would drop messages exceeding COMPACTION_THRESHOLD tokens,
-# a compaction LLM call generates a <summary> block that replaces the dropped
-# messages. The summary is persisted to chat_sessions.compaction_summary so
-# subsequent turns prepend it without re-generating.
-
-# Token budget for history
-# Conservative to leave room for system prompt (~8k) + context injection (~10k)
-# Opus-4.5 has 200k context, we target ~50k for history
-MAX_HISTORY_TOKENS = 50000
-
-# Compaction trigger: 80% of budget (ADR-067 Phase 3)
-COMPACTION_THRESHOLD = int(MAX_HISTORY_TOKENS * 0.8)  # 40,000 tokens
-
-# Character-to-token ratio (conservative estimate)
-# Claude tokenizes ~4 chars per token on average for English text
-# Tool calls often have JSON which tokenizes more efficiently
-CHARS_PER_TOKEN = 3.5
-
-
-def estimate_message_tokens(message: dict) -> int:
-    """
-    Estimate token count for a message.
-
-    Uses conservative character-based estimation.
-    Structured content (tool_use blocks) gets additional overhead.
-    """
-    content = message.get("content", "")
-
-    if isinstance(content, str):
-        # Simple text message
-        return int(len(content) / CHARS_PER_TOKEN) + 10  # +10 for message overhead
-
-    if isinstance(content, list):
-        # Structured content (tool_use, tool_result blocks)
-        total = 20  # Base overhead for structured message
-
-        for block in content:
-            if isinstance(block, dict):
-                block_type = block.get("type", "")
-
-                if block_type == "text":
-                    total += int(len(block.get("text", "")) / CHARS_PER_TOKEN)
-                elif block_type == "tool_use":
-                    # Tool name + input JSON
-                    total += 50  # Overhead for tool_use structure
-                    input_str = str(block.get("input", {}))
-                    total += int(len(input_str) / CHARS_PER_TOKEN)
-                elif block_type == "tool_result":
-                    total += 30  # Overhead for tool_result structure
-                    result_str = str(block.get("content", ""))
-                    total += int(len(result_str) / CHARS_PER_TOKEN)
-                else:
-                    # Unknown block type
-                    total += int(len(str(block)) / CHARS_PER_TOKEN)
-
-        return total
-
-    return 50  # Fallback for unknown formats
-
-
-def truncate_history_by_tokens(
-    messages: list[dict],
-    max_tokens: int = MAX_HISTORY_TOKENS
-) -> list[dict]:
-    """
-    Truncate message history to fit within token budget.
-
-    Takes most recent messages that fit within budget.
-    Ensures history starts with a user message (Anthropic requirement).
-
-    Args:
-        messages: Full message history (oldest first)
-        max_tokens: Token budget for history
-
-    Returns:
-        Truncated list of messages (oldest first)
-    """
-    if not messages:
-        return []
-
-    # Calculate tokens for each message (in reverse order for recency priority)
-    message_tokens = []
-    for msg in reversed(messages):
-        tokens = estimate_message_tokens(msg)
-        message_tokens.append((msg, tokens))
-
-    # Select messages that fit within budget (most recent first)
-    selected = []
-    total_tokens = 0
-
-    for msg, tokens in message_tokens:
-        if total_tokens + tokens <= max_tokens:
-            selected.append(msg)
-            total_tokens += tokens
-        else:
-            break
-
-    # Reverse to restore chronological order
-    selected.reverse()
-
-    # Ensure history starts with user message (Anthropic requirement)
-    while selected and selected[0].get("role") == "assistant":
-        selected = selected[1:]
-
-    return selected
+#
+# ADR-220 Commit C deleted ADR-067 Phase 3's in-session LLM compaction.
+# Compaction is now filesystem-native via /workspace/memory/conversation.md
+# (written every 5 user messages by _write_conversation_summary). YARNNN
+# reads conversation.md on demand via ReadFile when older context is needed.
+#
+# The 10-message window (MESSAGE_WINDOW in chat handler) is the singular
+# truncation. Token-based truncation (truncate_history_by_tokens) was removed
+# — the message window already bounds size; with Commit B's tool-history
+# collapse on older turns, even a tool-heavy 10-message window stays well
+# under Claude's input budget.
+#
+# Per singular-implementation discipline, the following were deleted in C:
+#   - maybe_compact_history()
+#   - COMPACTION_THRESHOLD, COMPACTION_PROMPT
+#   - truncate_history_by_tokens()
+#   - estimate_message_tokens()
+#   - chat_sessions.compaction_summary writes (column drop is Phase 2 follow-up)
 
 
 def build_history_for_claude(
     messages: list[dict],
     use_structured_format: bool = True,
-    max_tokens: int = MAX_HISTORY_TOKENS,
-    compaction_block: Optional[dict] = None,
 ) -> list[dict]:
     """
     Build conversation history in Anthropic message format.
@@ -634,26 +550,26 @@ def build_history_for_claude(
     Claude Code uses structured tool_use/tool_result blocks for better coherence.
     This function reconstructs that format from our stored tool_history metadata.
 
-    ADR-067: Token-based truncation with compaction support.
-    If a compaction_block is provided (assistant <summary> message), it is
-    prepended to the truncated history — messages prior to the compaction are
-    absent from the API call but retained in session_messages for audit.
+    ADR-220 Commit A: filters non-conversation roles (system/reviewer/agent/external)
+    out of the API messages list — Claude only accepts user/assistant. Non-conversation
+    Identity classes re-enter YARNNN's reasoning via /workspace/memory/recent.md
+    (Layer 2 pointer in the compact index, ReadFile on demand).
+
+    ADR-220 Commit B: only the most-recent assistant turn carrying `tool_history`
+    keeps full structured tool_use/tool_result blocks. Older assistant tool turns
+    collapse to one-line `[Called X: result]` summaries. Cites Claude Code's
+    "tool outputs drop first" auto-compaction precedent.
 
     Args:
-        messages: Raw session messages from database
-        use_structured_format: If True, use tool_use/tool_result blocks.
-                              If False, use simplified text-based format.
-        max_tokens: Token budget for history (default: MAX_HISTORY_TOKENS)
-        compaction_block: Optional assistant message with <summary> block to
-                          prepend (ADR-067 Phase 3). If provided, messages are
-                          truncated relative to this block.
+        messages: Raw session messages from database (already windowed by caller
+                  — chat handler trims to MESSAGE_WINDOW=10 before calling)
+        use_structured_format: If True, the most-recent assistant tool turn uses
+                               structured blocks. If False, all assistant tool
+                               turns collapse to text summaries.
 
     Returns:
         List of messages in Anthropic API format
     """
-    # ADR-067: Token-based truncation
-    messages = truncate_history_by_tokens(messages, max_tokens)
-
     history = []
     global_tool_index = 0  # Global counter for unique tool IDs across all messages
 
@@ -792,12 +708,13 @@ def build_history_for_claude(
             # Regular message (user, or assistant without tools)
             history.append({"role": role, "content": content})
 
-    # ADR-067 Phase 3: prepend compaction block if present
-    # The model sees its own prior summary as the first message in history,
-    # followed by the recent window. All earlier messages are excluded from
-    # the API call (but remain in session_messages for audit).
-    if compaction_block:
-        history = [compaction_block] + history
+    # ADR-220 Commit C: Anthropic API requires history to start with a user
+    # message. Pre-Commit-C this was enforced inside truncate_history_by_tokens;
+    # post-deletion the same guard lives here. Strip leading assistant rows
+    # (rare — only happens if filtering out non-conversation roles in Commit A
+    # leaves an assistant turn first).
+    while history and history[0].get("role") == "assistant":
+        history = history[1:]
 
     # Merge consecutive same-role messages to satisfy Claude API alternation requirement.
     # This happens when tool_result user messages are followed by the next real user message.
@@ -832,126 +749,21 @@ def _parse_input_summary(input_summary: str) -> dict:
 
 
 # =============================================================================
-# In-Session Compaction (ADR-067 Phase 3)
+# In-Session Compaction — DELETED (ADR-220 Commit C)
 # =============================================================================
-
-COMPACTION_PROMPT = (
-    "Summarise the conversation above for continuity. "
-    "The reader will have no access to the original messages — only this summary. "
-    "Focus on: decisions made, work in progress, user preferences stated, "
-    "platform actions taken, and anything left unresolved. "
-    "Be concise but complete. Do not truncate important details."
-)
-
-
-async def maybe_compact_history(
-    client,
-    session_id: str,
-    messages: list[dict],
-    existing_compaction: Optional[str] = None,
-) -> Optional[dict]:
-    """
-    ADR-067 Phase 3: Check if in-session compaction is needed.
-
-    If the full message history would exceed COMPACTION_THRESHOLD tokens,
-    generate a compaction summary via a single LLM call, write it to
-    chat_sessions.compaction_summary, and return the compaction block.
-
-    If a compaction already exists for this session (existing_compaction),
-    return it directly without re-generating.
-
-    Args:
-        client: Supabase client (service client for DB writes)
-        session_id: Current session ID
-        messages: Raw session messages from database
-        existing_compaction: Existing compaction_summary text from chat_sessions
-
-    Returns:
-        compaction_block dict (assistant message) or None if not needed
-    """
-    # If a compaction already exists, return it as a block without re-generating
-    if existing_compaction:
-        return {
-            "role": "assistant",
-            "content": [{
-                "type": "text",
-                "text": f"<summary>\n{existing_compaction}\n</summary>"
-            }]
-        }
-
-    # Calculate total tokens for all messages
-    total_tokens = sum(estimate_message_tokens(m) for m in messages)
-
-    if total_tokens <= COMPACTION_THRESHOLD:
-        return None  # Under threshold, no compaction needed
-
-    # Over threshold — generate compaction summary
-    logger.info(
-        f"[YARNNN-COMPACT] Session {session_id}: {total_tokens} tokens exceeds "
-        f"threshold {COMPACTION_THRESHOLD}. Generating compaction summary."
-    )
-
-    try:
-        import anthropic as anthropic_sdk
-        from services.memory import EXTRACTION_MODEL
-
-        # Build a text-only history for the compaction prompt
-        # (tool_use/tool_result blocks are complex; summarise them as text)
-        compact_messages = []
-        for m in messages:
-            role = m.get("role", "user")
-            content = m.get("content") or ""
-            metadata = m.get("metadata") or {}
-            tool_history = metadata.get("tool_history", [])
-
-            if tool_history:
-                parts = []
-                for item in tool_history:
-                    if item.get("type") == "tool_call":
-                        parts.append(f"[Called {item['name']}: {item.get('result_summary', '')}]")
-                    elif item.get("type") == "text" and item.get("content"):
-                        parts.append(item["content"])
-                compact_messages.append({"role": role, "content": " ".join(parts) or content})
-            else:
-                compact_messages.append({"role": role, "content": content})
-
-        # Add the compaction instruction as the final user turn
-        compact_messages.append({"role": "user", "content": COMPACTION_PROMPT})
-
-        sdk_client = anthropic_sdk.Anthropic()
-        response = sdk_client.messages.create(
-            model=EXTRACTION_MODEL,
-            max_tokens=1024,
-            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-            messages=compact_messages,
-        )
-
-        compaction_text = response.content[0].text.strip() if response.content else ""
-
-        if not compaction_text:
-            logger.warning(f"[YARNNN-COMPACT] Session {session_id}: Empty compaction response, skipping.")
-            return None
-
-        # Persist to chat_sessions.compaction_summary
-        try:
-            client.table("chat_sessions").update(
-                {"compaction_summary": compaction_text}
-            ).eq("id", session_id).execute()
-            logger.info(f"[YARNNN-COMPACT] Session {session_id}: Compaction summary written ({len(compaction_text)} chars).")
-        except Exception as db_err:
-            logger.warning(f"[YARNNN-COMPACT] Session {session_id}: Failed to write compaction_summary: {db_err}")
-
-        return {
-            "role": "assistant",
-            "content": [{
-                "type": "text",
-                "text": f"<summary>\n{compaction_text}\n</summary>"
-            }]
-        }
-
-    except Exception as e:
-        logger.warning(f"[YARNNN-COMPACT] Session {session_id}: Compaction failed, falling back to truncation: {e}")
-        return None
+# `maybe_compact_history`, `COMPACTION_PROMPT`, `COMPACTION_THRESHOLD`,
+# `truncate_history_by_tokens`, and `estimate_message_tokens` were deleted
+# per ADR-220's singular-implementation discipline. Compaction is now
+# filesystem-native via `/workspace/memory/conversation.md` (written every
+# 5 user messages by `_write_conversation_summary`); YARNNN reads it on
+# demand via `ReadFile` when older context is needed.
+#
+# The 10-message window in the chat handler is the singular truncation.
+# With ADR-220 Commit B's tool-history collapse on older turns, even a
+# tool-heavy 10-message window stays well under Claude's input budget.
+#
+# `chat_sessions.compaction_summary` column is now vestigial (no writers).
+# Drop in a future schema-cleanup migration; not blocking.
 
 
 # =============================================================================
@@ -1255,37 +1067,21 @@ async def global_chat(
         await _write_conversation_summary(auth, existing_messages)
 
     # Window: keep only last N messages for API call
-    # Full history stays in DB for chat UI display
+    # Full history stays in DB for chat UI display.
+    # ADR-220 Commit C: the 10-message window IS the singular truncation —
+    # ADR-067 Phase 3's 40K-token in-session LLM compaction has been deleted.
+    # Compaction is filesystem-native via /workspace/memory/conversation.md
+    # (written every 5 user messages by _write_conversation_summary).
+    # YARNNN reads conversation.md on demand via ReadFile.
     if len(existing_messages) > MESSAGE_WINDOW:
         existing_messages = existing_messages[-MESSAGE_WINDOW:]
-
-    # Fetch compaction_summary from chat_sessions (may be None for most sessions)
-    existing_compaction = None
-    try:
-        session_row = auth.client.table("chat_sessions").select(
-            "compaction_summary"
-        ).eq("id", session_id).single().execute()
-        existing_compaction = (session_row.data or {}).get("compaction_summary")
-    except Exception as e:
-        logger.debug(f"[YARNNN-COMPACT] Failed to load existing compaction: {e}")
-
-    # ADR-067 Phase 3: check compaction threshold; generate or reuse summary
-    from services.supabase import get_service_client
-    compaction_block = await maybe_compact_history(
-        client=get_service_client(),
-        session_id=session_id,
-        messages=existing_messages,
-        existing_compaction=existing_compaction,
-    )
 
     history = build_history_for_claude(
         existing_messages,
         use_structured_format=True,
-        compaction_block=compaction_block,
     )
     logger.info(
         f"[YARNNN] Loaded {len(existing_messages)} messages, built {len(history)} history entries"
-        + (f" (compaction block present)" if compaction_block else "")
     )
 
     # ADR-087 Phase 3: agent_id is now set at session creation time (above).
