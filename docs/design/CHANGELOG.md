@@ -4,6 +4,34 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-26 — ADR-215 Phase 7: ADR-219 narrative absorption (doc-only)
+
+**Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — adopts [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) (Implemented 2026-04-25/26).
+
+SURFACE-CONTRACTS.md bumped to v1.7. ADR-219 (Invocation + Narrative) ratified FOUNDATIONS Axiom 9 across six implementation commits and merged to main on 2026-04-26 (commits `1007869` → `e67abd6`). The canon doc is catching up so it agrees with what live code already does — no code change in this phase.
+
+**Conceptual shift (from the conversation that triggered this):**
+ADR-219 demoted "task" from substrate-layer noun to channel/legibility wrapper. The atom of action is now **invocation**; the operator-facing log is **narrative**; tasks attach a nameplate + pulse + contract to recurring categories of invocations. `/chat` is the narrative surface; `/work` is the same narrative filtered by `metadata.task_slug`. Inline actions are first-class; tasks earn their keep when they carry a pulse. SURFACE-CONTRACTS v1.6 still described Chat as "conversation" — that framing is from before ADR-219 and was due to drift.
+
+**Doc updates landed:**
+- **Header / Grounded-in / Related docs** — ADR-219 added; FOUNDATIONS bumped to v6.8; `invocation-and-narrative.md` linked.
+- **Chat contract** — Archetype rewritten: "Stream — **the narrative surface**. The universal log of every invocation." New "Narrative semantics" subsection names Identity widening (`user | assistant | system | reviewer | agent | external`), weight gradient (`material | routine | housekeeping`), pulse vocabulary, deep-linkable filter chips, and the `/work`-as-filter framing. Stream-mode bullet expanded to include `agent` / `system` / `external` Identity entries with the surfaces that render them.
+- **Chat affordances** — Inline-to-task graduation ("Make this recurring") added as a stream-row affordance per ADR-219 D6.
+- **Work contract** — "Narrative semantics" subsection added: list-row headlines source from `GET /api/narrative/by-task` (ADR-219 Commit 4); WorkDetail's run-history continues to read `agent_runs` per ADR-219 D7. Reads list updated.
+- **Affordance cookbook** — three new rows: Graduate inline action → Task (Chat / R5), Filter narrative stream (Direct), Expand housekeeping digest rollup (Direct).
+- **Implementation status — Phase 7** — added with deferred follow-ups explicitly named: Cockpit zone (BriefingStrip on /work) hasn't migrated to narrative yet; D6 "Archive task (keep history)" belongs on WorkDetail, deferred; pulse + time-range filters deferred (richer UI than chips).
+
+**Code change:** none. ADR-219 Commits 1–6 already shipped; this is the canon-doc catch-up.
+
+**Why this matters:** SURFACE-CONTRACTS is the single design reference for the cockpit. When it disagrees with live code, the doc is wrong (per ADR-215's own discipline rule). Closing the canon-vs-code drift here keeps the design discipline intact and makes the next surface decision (whether to migrate Cockpit zone to narrative reads) an explicit, scoped question rather than an emergent one.
+
+**Phase 8 candidates** (named here so they don't drift):
+- Migrate `SinceLastLookPane` to consume `GET /api/narrative/by-task` directly. Most natural narrative consumer in Cockpit zone — answers "what happened while I was away," which is literally the narrative.
+- "Archive task (keep history)" affordance on WorkDetail. Pairs cleanly with task-lifecycle work.
+- Pulse filter + time-range filter on `/chat`. Adds two more dimensions to the deep-linkable filter bar.
+
+---
+
 ## 2026-04-24 — ADR-215 Phase 6: Snapshot overlay reframe (Workspace modal → Snapshot)
 
 **Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — amends ADR-165 v8 (Workspace State Surface).
