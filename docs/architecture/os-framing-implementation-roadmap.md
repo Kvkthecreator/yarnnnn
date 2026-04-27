@@ -37,6 +37,8 @@ Steps 1, 2/3, 4 can run in parallel after #1's spec is far enough along to unblo
 
 ## ADR 1 — Program Bundle Specification
 
+> **Drafted as [ADR-223](../adr/ADR-223-program-bundle-specification.md) on 2026-04-27.** The summary below is preserved as the roadmap-level scope record; the ADR is the canonical source.
+
 **Goal:** formalize the program bundle layout so all current bundles (`docs/programs/alpha-trader/`, `alpha-prediction/`, `alpha-defi/`) and all future bundles share a consistent shape that the compositor + activation flow + reference-reflexive loop can rely on.
 
 **Decisions to land:**
@@ -242,8 +244,8 @@ These are real architectural concerns that follow from the OS framing but are ex
 
 | ADR | Status | ETA |
 |---|---|---|
-| ADR 1 — Program Bundle Spec | Not started | — |
-| ADR 2 — Compositor Layer | Not started | After ADR 1 lands |
+| ADR 1 — Program Bundle Spec | **Drafted as [ADR-223](../adr/ADR-223-program-bundle-specification.md) (2026-04-27)** — alignment commit pending | Alignment commit next |
+| ADR 2 — Compositor Layer | Not started | After ADR 1 ratifies + aligns |
 | ADR 3 — System Component Library | Not started | Pairs with ADR 2 |
 | ADR 4 — Kernel/Program Boundary Refactor | Not started | After ADR 1 lands; can run parallel with ADR 2/3 |
 | ADR 5 — Reference Activation Flow | Not started | After ADR 1, 2, 4 land |
