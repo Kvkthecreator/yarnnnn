@@ -36,6 +36,12 @@ import { KernelTrackingActions } from './kernel-chrome/KernelTrackingActions';
 import { KernelActionActions } from './kernel-chrome/KernelActionActions';
 import { KernelMaintenanceActions } from './kernel-chrome/KernelMaintenanceActions';
 
+// Kernel-default cockpit panes
+import { KernelNeedsMePane } from './kernel-cockpit/KernelNeedsMePane';
+import { KernelSnapshotPane } from './kernel-cockpit/KernelSnapshotPane';
+import { KernelSinceLastLookPane } from './kernel-cockpit/KernelSinceLastLookPane';
+import { KernelIntelligenceCard } from './kernel-cockpit/KernelIntelligenceCard';
+
 /**
  * Standard prop bag passed to every library component. Components
  * destructure only what they need; React context (e.g.,
@@ -69,6 +75,12 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   KernelTrackingActions: () => <KernelTrackingActions />,
   KernelActionActions: () => <KernelActionActions />,
   KernelMaintenanceActions: () => <KernelMaintenanceActions />,
+
+  // Kernel-default cockpit panes — list-mode briefing zone.
+  KernelNeedsMePane: () => <KernelNeedsMePane />,
+  KernelSnapshotPane: () => <KernelSnapshotPane />,
+  KernelSinceLastLookPane: () => <KernelSinceLastLookPane />,
+  KernelIntelligenceCard: () => <KernelIntelligenceCard />,
 };
 
 /**
