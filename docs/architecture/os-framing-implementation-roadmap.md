@@ -117,6 +117,8 @@ Steps 1, 2/3, 4 can run in parallel after #1's spec is far enough along to unblo
 
 ## ADR 4 — Kernel / Program Boundary Refactor
 
+> **Drafted as [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) on 2026-04-27.** The summary below is preserved as the roadmap-level scope record; the ADR is the canonical source.
+
 **Goal:** the actual code refactor that moves program-specific declarations out of universal kernel services and into program bundles.
 
 **Decisions to land:**
@@ -244,10 +246,10 @@ These are real architectural concerns that follow from the OS framing but are ex
 
 | ADR | Status | ETA |
 |---|---|---|
-| ADR 1 — Program Bundle Spec | **Drafted as [ADR-223](../adr/ADR-223-program-bundle-specification.md) (2026-04-27)** — alignment commit pending | Alignment commit next |
-| ADR 2 — Compositor Layer | Not started | After ADR 1 ratifies + aligns |
+| ADR 1 — Program Bundle Spec | **Drafted as [ADR-223](../adr/ADR-223-program-bundle-specification.md) (2026-04-27)** — alignment commit landed `3237b89` | Ratification + ADR-224 implementation |
+| ADR 2 — Compositor Layer | Not started | After ADR 4 implements (compositor consumes the bundled declarations the boundary refactor exposes) |
 | ADR 3 — System Component Library | Not started | Pairs with ADR 2 |
-| ADR 4 — Kernel/Program Boundary Refactor | Not started | After ADR 1 lands; can run parallel with ADR 2/3 |
+| ADR 4 — Kernel/Program Boundary Refactor | **Drafted as [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) (2026-04-27)** — implementation pending ratification | Implementation next |
 | ADR 5 — Reference Activation Flow | Not started | After ADR 1, 2, 4 land |
 | ADR 6 — Reference-Reflexive Loop | Not started | After ADR 5 lands |
 
