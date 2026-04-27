@@ -66,6 +66,51 @@ personas:
       # from ADR-119 path conventions, not a bug.
       risk_md_path: workspace/context/trading/_risk.md
 
+  - slug: alpha-trader-2
+    label: "Stat-Arb pairs trader (Simons-flavor, parallel-loop test)"
+    email: alpha-trader-2@yarnnn.com
+    user_id: 29a74c63-0c9c-4998-b8bb-56dd0d810a4e
+    workspace_id: 68c0eabc-efa4-45cb-87da-8d14e5a979c1
+    platform:
+      kind: trading
+      provider: alpaca
+      mode: paper
+      account_suffix: 5D28
+    context_domains:
+      - trading
+      - portfolio
+      - signals
+    credentials_env:
+      api_key:    ALPHA_TRADER_2_ALPACA_KEY
+      api_secret: ALPHA_TRADER_2_ALPACA_SECRET
+    vault_entry: "kvk personal — see Phase B parallel-loop session log"
+    expected:
+      agent_count: 4   # YARNNN + lazy-created tracker/analyst/writer
+      active_bots: [thinking_partner]
+      essential_tasks:
+        - back-office-agent-hygiene
+        - back-office-outcome-reconciliation
+        - back-office-proposal-cleanup
+        - back-office-workspace-cleanup
+        - daily-update
+      scaffolded_tasks:
+        - track-universe
+        - signal-evaluation
+        - pre-market-brief
+        - trade-proposal
+        - weekly-performance-review
+        - quarterly-signal-audit
+      platform_connections: 1
+      core_files:
+        - /workspace/context/_shared/IDENTITY.md
+        - /workspace/context/_shared/MANDATE.md
+        - /workspace/context/_shared/AUTONOMY.md
+        - /workspace/context/trading/_operator_profile.md
+        - /workspace/context/trading/_risk.md
+        - /workspace/review/IDENTITY.md
+        - /workspace/review/principles.md
+      risk_md_path: workspace/context/trading/_risk.md
+
   - slug: alpha-commerce
     label: "Korea↔USA international commerce operator (KVK voice)"
     email: kvkthecreator@gmail.com
