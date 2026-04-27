@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * IntelligenceCard — fourth pane in BriefingStrip (ADR-204 + ADR-205 F2).
+ * IntelligenceCard — synthesis pane in /work cockpit zone (ADR-204 + ADR-205 F2).
+ * Wrapped by KernelIntelligenceCard for compositor dispatch (ADR-225 Phase 3).
  *
  * Renders the latest output of the `maintain-overview` task as the
  * Workspace Intelligence Cockpit. Uses the same TaskOutputCard primitive
@@ -9,7 +10,7 @@
  * and markdown fallback are shared — no duplicate logic.
  *
  * ADR-198 I2 amendment: this is not "foreign substrate" — maintain-overview
- * is a purpose-built artifact for BriefingStrip's exclusive consumption
+ * is a purpose-built artifact for the cockpit's exclusive consumption
  * (delivery: none, sole consumer this surface). I2 passes.
  *
  * ADR-215 Phase 4: silent-degrade per ADR-198 §3 Briefing invariant.

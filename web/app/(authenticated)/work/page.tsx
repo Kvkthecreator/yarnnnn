@@ -28,7 +28,7 @@ import { useTaskDetail } from '@/hooks/useTaskDetail';
 import { APIError, api } from '@/lib/api/client';
 import { WorkListSurface } from '@/components/work/WorkListSurface';
 import { WorkDetail } from '@/components/work/WorkDetail';
-import { BriefingStrip } from '@/components/work/briefing/BriefingStrip';
+import { CockpitRenderer } from '@/components/library/CockpitRenderer';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
@@ -375,10 +375,12 @@ export default function WorkPage() {
         ) : null
       ) : (
         <div className="flex flex-1 flex-col overflow-y-auto">
-          {/* ADR-205 F2: BriefingStrip absorbs Overview's Briefing content
-              (NeedsMe queue, Since-last-look, snapshot tiles, intelligence card).
-              Hidden when an agent filter is active so the filtered list is the primary focus. */}
-          {!agentFilter && <BriefingStrip onOpenChatDraft={handleOpenChatDraft} />}
+          {/* ADR-225 Phase 3: cockpit panes flow through the compositor
+              seam. CockpitRenderer dispatches kernel-default or
+              bundle-supplied pane sequence (tabs.work.list.cockpit_panes).
+              Hidden when an agent filter is active so the filtered list
+              is the primary focus (ADR-206 deliberate focus shift). */}
+          {!agentFilter && <CockpitRenderer onOpenChatDraft={handleOpenChatDraft} />}
           <WorkListSurface
             tasks={tasks}
             agents={agents}

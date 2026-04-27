@@ -5,8 +5,9 @@ import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
 
 // ADR-205 F1 + ADR-214 cockpit nav: Chat | Work | Agents | Files.
-// HOME_ROUTE is /chat. /overview was absorbed into /work as a BriefingStrip
-// (F2); the /overview path itself is a redirect stub for old bookmarks.
+// HOME_ROUTE is /chat. /overview was absorbed into /work's cockpit zone
+// (F2); ADR-225 Phase 3 made cockpit panes compositor-resolved. The
+// /overview path itself is a redirect stub for old bookmarks.
 // /team redirects to /agents per ADR-214 (reverses ADR-201). /review is
 // deleted; Reviewer lives at /agents?agent=reviewer.
 const PROTECTED_PREFIXES = [

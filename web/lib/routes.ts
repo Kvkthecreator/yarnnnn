@@ -11,7 +11,7 @@
 // /review deleted; Reviewer lives at /agents?agent=reviewer.
 // /team retains a redirect stub for bookmark symmetry (ADR-201 reversed).
 // /overview is a redirect stub (ADR-205 F2 merged its Briefing content into
-// /work as BriefingStrip).
+// /work's cockpit zone; ADR-225 Phase 3 made cockpit panes compositor-resolved).
 export const HOME_ROUTE = "/chat";
 export const HOME_LABEL = "Chat";
 export const CHAT_ROUTE = "/chat";

@@ -331,10 +331,11 @@ export function WorkListSurface({
 
   return (
     <div className="flex flex-col h-full">
-      {/* ADR-215 Phase 4: zone header pair with Cockpit (BriefingStrip above).
+      {/* ADR-215 Phase 4: zone header pair with Cockpit (CockpitRenderer above).
           The two zones — "Cockpit" (glance) and "Work" (manage) — share
           the /work surface under one vertical scroll per ADR-205 F2. The
-          section labels make the zones legible without tabs. */}
+          section labels make the zones legible without tabs. ADR-225 Phase 3:
+          cockpit panes are compositor-resolved (kernel default or bundle). */}
       <div className="flex items-baseline justify-between px-4 sm:px-6 pt-5 pb-2 shrink-0">
         <h2 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
           Work

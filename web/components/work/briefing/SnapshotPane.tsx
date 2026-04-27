@@ -34,7 +34,7 @@ export interface SnapshotPaneProps {
   /**
    * When true, tile copy shifts to teaching-mode: "No trades yet. Fires
    * when you approve your first signal trigger." etc. Per ADR-203 §4b.
-   * Post-ADR-205 F2 the BriefingStrip no longer performs day-zero gating
+   * Post-ADR-205 F2 the cockpit zone no longer performs day-zero gating
    * (cold-start is the /chat empty state now). This flag is defensive for
    * future "sparse" states where tiles render but still need operator-vocabulary copy.
    */
