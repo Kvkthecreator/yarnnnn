@@ -51,12 +51,18 @@ The two layers don't duplicate. Substrate authorship is the *file-system* fact; 
 
 ### Starting a session
 
-Every chat message goes through `get_or_create_session()` in [chat.py](../../api/routes/chat.py):
+Two paths create chat sessions; they have non-overlapping responsibilities (singular implementation per discipline rule 1):
 
-- **If a session exists with activity within the last 4 hours**: reuse it
-- **If not**: create a new `chat_sessions` row
+**1. Workspace init bootstrap (the first row)** — Phase 5 of [`workspace_init.initialize_workspace()`](../../api/services/workspace_init.py) creates exactly one workspace-scope `chat_sessions` row at signup (`session_type='thinking_partner'`, `status='active'`, `agent_id=NULL`, `task_slug=NULL`). This guarantees autonomous narrative writers (task pipeline, reviewer verdicts, back-office digests, MCP foreign-LLM entries) have a target session from t=0, before the operator's first chat-open. Pre-2026-04-28 the first session was lazy-created on `/chat` open via path 2 below; that left a coverage gap when the operator's first action was non-conversational (connecting a platform, running a task), surfaced by [seulkim88@gmail.com production audit 2026-04-28](#).
+
+**2. Inactivity rotation (`get_or_create_session()` in [chat.py](../../api/routes/chat.py))** — every chat message goes through this resolver:
+
+- **If a session exists with activity within the last 4 hours**: reuse it.
+- **If not**: create a new `chat_sessions` row (the bootstrapped one is preserved as historical; new entries land in the new active session).
 
 Unified session model (ADR-159): all messages route to the global session regardless of which page the user is on. `agent_id` and `task_slug` on `chat_sessions` are deprecated — surface context is tracked per message, not per session.
+
+**Autonomous-writer resolver** ([`narrative.find_active_workspace_session`](../../api/services/narrative.py)): no inactivity filter — picks the most-recent-updated active session of any kind. Returns `None` only if no active session exists at all (impossible post-2026-04-28 for any workspace where `initialize_workspace` ran). Used by reviewer chat surfacing, task pipeline completion cards, back-office digests, MCP entries.
 
 ### Within a session
 

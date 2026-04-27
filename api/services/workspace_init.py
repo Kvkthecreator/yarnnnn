@@ -34,7 +34,13 @@ Phases:
   2. Authored shared context skeletons under `/workspace/context/_shared/`
      (IDENTITY, BRAND, CONVENTIONS) + YARNNN memory skeletons under
      `/workspace/memory/` + Reviewer substrate under `/workspace/review/`
-  3. Signup balance audit trail (ADR-172)
+  3. Workspace narrative session (ADR-219) — singular workspace-scoped
+     `chat_sessions` row so autonomous narrative writers (task pipeline,
+     reviewer verdicts, back-office digests, MCP entries) have a target
+     from t=0. Pre-2026-04-28 this was lazy-created on first /chat open
+     and missed when the operator's first action was non-conversational.
+  4. Signup balance audit trail (ADR-172)
+  5. Reference-workspace fork (ADR-226, optional, program-bound)
 
 After init, YARNNN customizes the workspace based on the user's work description
 (ADR-188 + ADR-190):
@@ -98,6 +104,7 @@ async def initialize_workspace(
         "already_initialized": False,
         "activated_program": None,  # ADR-226: bundle slug forked, or None
         "fork_files_written": [],  # ADR-226: paths written during the fork phase
+        "session_bootstrapped": False,  # ADR-219: workspace narrative session created
     }
 
     # Check if already initialized. ADR-206: idempotency gated on presence
@@ -276,6 +283,80 @@ async def initialize_workspace(
             logger.warning(f"[WORKSPACE_INIT] Reviewer seat scaffold failed: {exc}")
     except Exception as e:
         logger.warning(f"[WORKSPACE_INIT] Workspace files failed: {e}")
+
+    # =========================================================================
+    # Phase 5: Workspace narrative session (ADR-219)
+    # =========================================================================
+    # Per FOUNDATIONS Axiom 9 + ADR-219, every invocation in the workspace
+    # emits one narrative entry into a chat-shaped log. The autonomous
+    # writers (task pipeline `write_narrative_entry`, reviewer verdicts,
+    # back-office digests, MCP foreign-LLM entries) all resolve their
+    # target via `find_active_workspace_session(client, user_id)` —
+    # which returns None if no chat_sessions row exists yet.
+    #
+    # Pre-2026-04-28 the chat session was lazy-created when the operator
+    # first opened /chat (`routes.chat.get_or_create_session`). That left
+    # a coverage gap: workspaces where the operator's first action was
+    # connecting a platform or running a task — autonomous writers had
+    # nowhere to surface, and prior task-run narrative was permanently
+    # lost (narrative is per-invocation, not historically reconstructable).
+    # Surfaced by seulkim88@gmail.com production audit 2026-04-28.
+    #
+    # Singular implementation: workspace_init is now the sole creator of
+    # the workspace's first chat_sessions row. `routes.chat.get_or_create_session`
+    # remains the path for subsequent rotations (4h-inactivity windows
+    # per ADR-067 / ADR-159) — it finds the bootstrapped row on first
+    # invocation rather than creating one.
+    #
+    # Idempotent: skips when an active thinking_partner session (no
+    # agent_id, no task_slug — workspace-scope) already exists.
+    try:
+        existing_session = (
+            client.table("chat_sessions")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("session_type", "thinking_partner")
+            .eq("status", "active")
+            .is_("agent_id", "null")
+            .is_("task_slug", "null")
+            .limit(1)
+            .execute()
+        )
+        if not (existing_session.data or []):
+            session_row = (
+                client.table("chat_sessions")
+                .insert({
+                    "user_id": user_id,
+                    "session_type": "thinking_partner",
+                    "status": "active",
+                })
+                .execute()
+            )
+            if session_row.data:
+                result["session_bootstrapped"] = True
+                logger.info(
+                    f"[WORKSPACE_INIT] Workspace narrative session created for "
+                    f"{user_id[:8]} (id={session_row.data[0]['id'][:8]}) — ADR-219 coverage"
+                )
+            else:
+                logger.error(
+                    f"[WORKSPACE_INIT] Session bootstrap returned no row for "
+                    f"{user_id[:8]} — autonomous narrative writes will silently no-op"
+                )
+        else:
+            logger.info(
+                f"[WORKSPACE_INIT] Workspace narrative session already exists "
+                f"for {user_id[:8]}, skipping"
+            )
+    except Exception as e:
+        # Best-effort: workspace init proceeds even if session bootstrap
+        # fails. The next /chat open will lazy-create via the existing
+        # routes.chat.get_or_create_session path. Log loud so the gap
+        # is visible in production logs.
+        logger.error(
+            f"[WORKSPACE_INIT] Session bootstrap FAILED for {user_id[:8]}: {e} "
+            f"— narrative coverage may be degraded until /chat is opened"
+        )
 
     # =========================================================================
     # Operational tasks — NOT scaffolded at signup (ADR-206)
