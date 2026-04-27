@@ -1191,7 +1191,7 @@ Once Phase 1 is complete for an account and credentials are shared:
 
 **Post-close (16:00–17:00 ET):**
 - Claude reads day's `decisions.md` tail — AI Reviewer's verdicts + rationale. Were any rejections debatable? Any approvals that executed against declared signals correctly? Any concerning patterns?
-- Reconciler runs in evening (backend cron) — updates `_performance.md` with any day's fills. Claude reads the update next morning.
+- `back-office-outcome-reconciliation` runs as a chat-initiated or reactive-on-fill invocation — updates `_performance.md` with any day's fills. Per ADR-205 + Axiom 4, dispatch is operator-or-Claude chat-initiated, not cron-bound; the unified scheduler exists as periodic-trigger infrastructure but the load-bearing path is invocation-flow through the primitive matrix (ADR-194 v2 Phase 2b reactive Reviewer dispatch + ADR-204/207 ProposeAction → ExecuteProposal). Claude reads the update next morning.
 - Observation note logged if anything friction-worthy surfaced.
 
 ### 5.2 Weekly rhythm

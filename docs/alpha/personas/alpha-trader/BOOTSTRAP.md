@@ -15,9 +15,52 @@ related:
 
 # alpha-trader Bootstrap — kvk Dogfooding Runbook
 
-> **What this is:** the persona-layer runbook that walks kvk through getting alpha-trader producing paper trades end-to-end through the YARNNN framework. Operational, specific to kvk's existing workspace + alpaca paper account. Not an ADR. Not OS-architecture work. **Dogfooding to validate the framework.**
+> **What this is:** the persona-layer runbook that walks the alpha-trader operator (kvk; or Claude-acting-as-operator-on-behalf, in alpha-test mode 1) from clean-slate workspace to autonomous paper-trading loop running. Operational, specific to the alpha-trader persona + alpaca paper account. Not an ADR. Not OS-architecture work. **Dogfooding to validate the framework end-to-end.**
 >
-> **What this is NOT:** the universal reference-workspace activation flow. That lives at [ADR-226](../../../adr/ADR-226-reference-workspace-activation-flow.md) and is what *every* operator running *any* program does at signup. ADR-226 is OS-level. This file is kvk-level.
+> **What this is NOT:** the universal reference-workspace activation flow. That lives at [ADR-226](../../../adr/ADR-226-reference-workspace-activation-flow.md) and is what *every* operator running *any* program does at signup. ADR-226 is OS-level; this file is alpha-trader-persona-level.
+
+## Framing — operator setup, then autonomous loop
+
+The bootstrap has two phases that should never blur:
+
+**Phase A — Operator setup** (the human-or-Claude-as-operator does these steps).
+The operator goes from clean signup through the activation conversation,
+authors persona content (mandate, signals, risk, principles), connects the
+Alpaca paper account, and then **stops driving**. This is what every alpha
+operator does at workspace activation. Steps 1–5 below.
+
+**Phase B — Autonomous loop** (the system runs itself).
+With the workspace authored + alpaca connected + AUTONOMY.md set to
+`bounded_autonomous` (paper-mode carve-out per ADR-217), the framework's
+invocation paths fire on their own:
+
+- Operator-or-Claude-on-behalf chat-initiates a task ("@yarnnn run signal-evaluation")
+  — chat-initiated invocation, run-now per ADR-205 chat-first triggering.
+- Tasks emit proposals to `action_proposals`, which trigger reactive
+  Reviewer dispatch per ADR-194 v2 Phase 2b (`handle_propose_action`
+  post-insert hook).
+- AI Reviewer (Simons persona at `/workspace/review/IDENTITY.md`) applies
+  the six-check chain from `principles.md`, reads `_performance.md` for
+  capital-EV, decides approve/reject/defer per AUTONOMY.md ceiling.
+- Approved reversible-paper proposals fire `ExecuteProposal` →
+  `platform_trading_submit_order` → alpaca paper fill.
+- `back-office-outcome-reconciliation` (chat-initiated or
+  reactive-on-fill) reconciles to `_performance.md`.
+- Next operator-or-Claude chat-initiation reads richer substrate.
+
+This is **not** a cron sweep. It's not "the scheduler fires tasks." It's
+chat-initiated and event-reactive invocation flowing through the primitive
+matrix per ADR-204/207. Per ADR-205 + Axiom 4, schedule is an annotation,
+not a precondition; the dispatch authority is TASK.md + capability gate +
+AUTONOMY.md, not the unified scheduler. The unified scheduler exists as
+infrastructure for periodic trigger sub-shape but it is not the load-
+bearing path that closes the alpha-trader loop.
+
+**The operator's job during Phase B is observation + course-correction**,
+not driving. Watch the cockpit. Note what surfaces (proposals, decisions,
+fills, performance writes). Log friction to
+`docs/alpha/observations/{date}-{topic}.md`. Don't intervene unless
+something breaks or AUTONOMY.md needs revision.
 
 ## Why this is a separate document
 
@@ -157,32 +200,70 @@ YARNNN consults the bundle's task_types (per ADR-224 fallback path: `get_task_ty
 
 **Verification:** task exists. `/work` list-mode pinned-tasks renders it (per ADR-225 alpha-trader SURFACES.yaml). Detail middle (per ADR-225 §4 task_slug match) shows the bundle's `queue` archetype with `TradingProposalQueue` component.
 
-### Step 6 — Run the loop end-to-end
+### Step 6 — Hand off to the autonomous loop, observe
 
-The validation moment. Trigger trading-signal manually (don't wait for cron), let it propose, kvk reviews, kvk approves, alpaca-execute fires, broker confirms, reconciler closes the loop.
+This is the validation moment. Operator setup is complete; now the system
+runs itself per Phase B. The operator (kvk-or-Claude-on-behalf) makes one
+chat-initiated invocation to seed the cycle, then **stops driving**.
 
 ```
-@yarnnn — run trading-signal now.
+@yarnnn — let's start running. Take signal-evaluation, read the universe,
+emit proposals where signals fire honestly.
 ```
 
-YARNNN invokes `ManageTask(action='trigger', slug='trading-signal')`. Pipeline executes: reads accumulated context (operator profile, current positions, recent signal expectancy), evaluates declared signals against current market data via `platform_trading_get_market_data`, emits proposals where conditions fire. Each proposal lands in `action_proposals` with signal attribution + sized stop + expectancy.
+What happens next without operator intervention:
 
-kvk navigates to `/agents?agent=reviewer`, sees the proposal queue. For each:
+- YARNNN invokes `ManageTask(action='trigger', slug='signal-evaluation')`
+  via the chat surface. This is a chat-initiated invocation per ADR-205
+  chat-first triggering — the canonical path for first-cycle dispatch.
+- Pipeline reads accumulated context (operator profile, declared signals,
+  current positions, market data via `platform_trading_get_market_data`),
+  evaluates each declared signal mechanically against entry conditions.
+- Where conditions fire: emits `action_proposals` rows with full
+  signal attribution + sized stop + sizing-formula derivation +
+  expectancy lookup against `_performance.md` (or "no track record" flag
+  on the first cycles).
+- Each proposal insert triggers reactive Reviewer dispatch per ADR-194
+  v2 Phase 2b — the `handle_propose_action` post-insert hook routes
+  through `services/review_proposal_dispatch.py`.
+- AI Reviewer (Simons persona at `/workspace/review/IDENTITY.md`,
+  forced-tool-call per ADR-194 v2 Phase 3) applies the six-check chain
+  from `principles.md`, reads `_performance.md` (sparse on first runs),
+  reads AUTONOMY.md to know its ceiling.
+- Reviewer decides per AUTONOMY.md `bounded_autonomous` carve-out:
+  - **Approve + reversible + within ceiling** → fires `ExecuteProposal`
+    → `trading-execute` task → `platform_trading_submit_order` → Alpaca
+    paper fill.
+  - **Reject** → entry written to `decisions.md`, proposal closed.
+  - **Defer to human** (when capital-EV is uncertain — e.g., thin track
+    record on first cycles) → routed to operator queue.
+- Subsequent operator chat-initiations read richer substrate. After the
+  first paper fills land + reconciler writes `_performance.md`, the next
+  cycle's Reviewer has real expectancy data to reason against.
 
-- Reviews the proposal envelope: signal name, entry conditions evaluated, sized stop, expectancy, var budget impact.
-- Applies the principles.md test mentally (hard rejections first, then capital-EV).
-- Approves or rejects. Reasoning captured in `decisions.md` via `handle_propose_action` post-insert hook (ADR-194 v2 Phase 2b).
-
-For approved proposals, `trading-execute` fires (or per AUTONOMY.md gate, manual second-step). Order submits to Alpaca paper account via `platform_trading_submit_order`. Alpaca confirms fill (eventually). Webhook or polling reconciles into `_performance.md` via `back-office-outcome-reconciliation`.
+**Operator role during Phase B**: observe in the cockpit, log friction to
+`docs/alpha/observations/{date}-{topic}.md`. Don't intervene unless
+AUTONOMY.md needs revision or something is structurally broken (proposals
+stuck, dispatch path failing, reconciler not writing).
 
 **Verification — the loop has closed when:**
 
-1. ✅ One paper trade has been proposed by trading-signal with signal attribution.
-2. ✅ kvk has reviewed it through the cockpit Queue, approved or rejected with reasoning written to `decisions.md`.
-3. ✅ If approved: order submitted to Alpaca, fill confirmed, `_performance.md` shows the trade with attribution.
-4. ✅ Next-cycle trading-signal run reads the richer `_performance.md` (signal expectancy now has +1 datapoint).
+1. ✅ At least one chat-initiated `signal-evaluation` cycle has emitted
+   one or more proposals with signal attribution.
+2. ✅ AI Reviewer has dispatched on each proposal — entry in
+   `decisions.md` shows reasoning + verdict + occupant-class signature.
+3. ✅ At least one approved + reversible + paper proposal has fired
+   `trading-execute` → `platform_trading_submit_order` → Alpaca paper
+   fill confirmed.
+4. ✅ `back-office-outcome-reconciliation` invocation has written the
+   trade outcome to `/workspace/context/portfolio/_performance.md`
+   (chat-initiated by operator-on-behalf, or reactive on fill event).
+5. ✅ Next-cycle `signal-evaluation` reads the richer `_performance.md`
+   — signal expectancy now has +1 datapoint per fired signal. The
+   recursive accumulation per Axiom 7 is structurally observable.
 
-The loop closing is the validation. **Failure modes encountered along the way are dogfooding observations** — log them at `docs/alpha/observations/{date}-{topic}.md`. Per the friction-capture loop in `ALPHA-1-PLAYBOOK.md` §7, each observation is an ADR seed candidate.
+The loop closing is the validation. Failures along the way are dogfooding
+observations (per ALPHA-1-PLAYBOOK §7) and become ADR seed candidates.
 
 ## What this runbook does NOT solve
 

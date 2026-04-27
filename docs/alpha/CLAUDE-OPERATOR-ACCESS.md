@@ -149,11 +149,13 @@ path to act on it at all.
 | Read any substrate file | ✅ via service key or JWT | ✅ via Context browser in UI | KVK describes; Claude reasons |
 | Read `decisions.md`, `_performance.md` | ✅ | ✅ | KVK describes |
 | Run `verify.py --all` | ✅ — this is Mode 1's superpower | ❌ not the right tool; use the UI or Mode 1 | ❌ KVK runs; Claude interprets output |
-| Approve reversible proposal meeting all five conditions | ✅ via `/api/proposals/{id}/approve` | ✅ via Queue card | ❌ KVK clicks; Claude advises |
-| Reject any proposal | ✅ same via API | ✅ via Queue | ❌ KVK clicks |
+| **Chat-initiate on behalf** (post `UpdateContext`, ask YARNNN to start a cycle, etc.) | ✅ via API as the persona's JWT — what would happen if KVK typed in chat | ✅ Claude types in chat as the persona | ❌ KVK does it |
+| Approve reversible proposal meeting all five conditions | ⚠️ rarely needed — see §"Operator vs autonomous-loop" below; AI Reviewer should approve under `bounded_autonomous` | ⚠️ same — operator clicks only when AI Reviewer deferred | ❌ KVK clicks; Claude advises |
+| Reject any proposal | ⚠️ rarely needed — AI Reviewer rejects per principles.md | ⚠️ same | ❌ KVK clicks |
 | Approve irreversible proposal | ❌ always escalates regardless of mode | ❌ always escalates | ❌ always KVK |
-| Trigger task manually | ✅ via `/api/tasks/{slug}/run` | ✅ via Work detail | ❌ KVK triggers |
+| Chat-initiate task run (`@yarnnn run X`) | ✅ via API — operator-on-behalf | ✅ in chat | ❌ KVK initiates |
 | Edit `_risk.md`, `principles.md`, `_operator_profile.md`, IDENTITY.md | ❌ never Claude unilaterally | ❌ never Claude unilaterally | ❌ never Claude unilaterally |
+| Author MANDATE / IDENTITY / signals etc. via UpdateContext on operator's behalf | ✅ when operator-on-behalf has explicit content (e.g., persona-canonical paste); `authored_by="operator"` | ✅ Claude types in chat surface | ❌ KVK does it |
 | Dissolve / archive / pause agent | ❌ escalate | ❌ escalate | ❌ escalate |
 | Write observation note to `docs/alpha/observations/` | ✅ (this is a repo commit) | ✅ (same — repo commit, any mode) | ✅ |
 | Connect platform (Alpaca / LS / future) | ✅ via `connect.py` | ✅ via Integrations UI | ❌ KVK initiates |
@@ -163,6 +165,54 @@ path to act on it at all.
 (what Claude is *allowed* to do). The mode determines the *floor* (what
 Claude *can physically* do). Neither overrides the other — action requires
 both.
+
+### Operator vs autonomous-loop (post-2026-04-27 framing correction)
+
+A subtle but load-bearing distinction the alpha test depends on:
+
+**Operator setup work** — clean signup → activation conversation →
+authoring MANDATE/IDENTITY/signals/risk/principles → connecting alpaca.
+This is what every alpha operator does at workspace activation. Claude
+in any mode can act on the operator's behalf for this work (chat-initiate
+inputs, paste persona-canonical content, run setup harness). Operator
+setup is a *finite* phase — it ends when Phase A activation completes.
+
+**Autonomous loop** — once setup is done, the framework's invocation
+paths fire on their own per ADR-194 v2 + ADR-205 + ADR-207:
+- Operator-on-behalf chat-initiates a cycle ("@yarnnn run signal-evaluation")
+- Tasks emit proposals
+- Reactive Reviewer dispatch (post-insert hook on `action_proposals`)
+- AI Reviewer decides per AUTONOMY.md `bounded_autonomous` carve-out
+- Approved reversible proposals fire ExecuteProposal → alpaca paper
+- Reconciler writes outcomes to `_performance.md`
+- Next cycle reads richer substrate
+
+**Claude's role during the autonomous loop is observer + occasional
+chat-initiator-of-cycle**, NOT proposal-driver or proposal-approver.
+Approving/rejecting proposals via API is a Mode 1 *capability*, but it's
+not the *correct posture* during alpha-1 — it short-circuits the AI
+Reviewer machinery the architecture is supposed to validate. Use
+approve/reject only when the AI Reviewer has explicitly deferred to
+human (visible in `decisions.md` as `defer` verdict) and the operator
+discretion ladder permits the override.
+
+This is the framing correction recorded against
+[BOOTSTRAP.md](./personas/alpha-trader/BOOTSTRAP.md) on 2026-04-27.
+Earlier framing ("Claude triggers signal-evaluation, kvk approves the
+proposal") was driver-puppeteer-shaped; the system never proves it can
+run itself when an operator is clicking every button. The corrected
+framing is "operator/Claude completes setup, then both observe; the
+Reviewer + autonomy carve-out closes the loop." Friction surfaced
+during observation becomes ADR seeds (per ALPHA-1-PLAYBOOK §7).
+
+The unified scheduler is **not** the load-bearing dispatch path. Per
+ADR-205 + ADR-207, dispatch authority is TASK.md + capability gate +
+AUTONOMY.md, and triggers flow through chat-initiated invocation +
+reactive event hooks (proposal-created, fill-confirmed, etc.). The
+unified_scheduler service exists as periodic-trigger infrastructure
+(daily-update, back-office sweeps) but the alpha-trader paper-trade
+loop closes via chat-initiation + reactive Reviewer dispatch, not
+cron firing.
 
 ---
 
@@ -363,3 +413,4 @@ KVK why Claude is waiting.
 | Date | Change |
 |------|--------|
 | 2026-04-21 | v1 — Initial. Three access modes (Headless / Cockpit / Conversational) with per-mode auth, capability, and discretion mapping. Future connection section covers MCP, Playwright, additional personas, JWT caching, impersonation chrome. Explicit rules of thumb for "what mode am I in" + "about-to-act gate check." |
+| 2026-04-27 | v2 — Framing correction: explicit distinction between operator-setup work (Phase A — finite, every operator does this at activation) and autonomous-loop work (Phase B — system runs itself per ADR-194 v2 + ADR-205 + ADR-207). Approve/reject proposal capabilities marked `⚠️` not `✅` during alpha-1 — AI Reviewer is supposed to drive verdicts under `bounded_autonomous` AUTONOMY carve-out; operator approval is for AI Reviewer's `defer` verdicts only, not the default path. New "Chat-initiate on behalf" + "Author files via UpdateContext on behalf" rows. New §"Operator vs autonomous-loop" clarifies the architectural boundary + names the unified scheduler as periodic-trigger infrastructure (NOT the load-bearing dispatch path for the alpha-trader paper-trade loop). The load-bearing path is chat-initiated invocation + reactive Reviewer dispatch (ADR-194 v2 Phase 2b post-insert hook). Driven by [BOOTSTRAP.md](./personas/alpha-trader/BOOTSTRAP.md) framing correction same date. |
