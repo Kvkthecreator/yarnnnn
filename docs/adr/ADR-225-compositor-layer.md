@@ -1,6 +1,6 @@
 # ADR-225: Compositor Layer — Declarative Surface Composition
 
-> **Status:** Phase 1 Implemented 2026-04-27 (API endpoint + composition resolver + workspace-scoped bundle filter + 10/10 test gate). FE library reorg + 14-component build + KindMiddle switch deletion deferred to Phase 2 — see "Phased implementation rationale" below.
+> **Status:** **Phase 1 + Phase 2 Implemented 2026-04-27.** Phase 1: API endpoint + composition resolver + workspace-scoped bundle filter + 10/10 API test gate. Phase 2: `web/lib/compositor/` FE module, `web/components/library/` initial component set (6 components), `MiddleResolver` replaces hardcoded `WorkDetail.tsx::KindMiddle` switch, `BundleBanner` wired to `WorkListSurface`. Next.js build clean (zero TS errors, all routes compile). See "Phased implementation rationale" + "Phase 2 implementation refinements" below for what shipped vs the original v2 spec.
 > **Date:** 2026-04-27 (v2 same-day rewrite — see "What changed across versions" below; v1 missed the two-compose-modes framing surfaced by the parallel paper design)
 > **Authors:** KVK, Claude
 > **Implements:** ADR-222 implementation roadmap, ADR 2 (+ ADR 3 absorbed — system component library convention is folded into this ADR per the roadmap's "may fold" allowance, since the library is a small enough convention not to merit a separate ADR right now)
@@ -645,6 +645,48 @@ Explicitly deferred — none gate ratification.
 ## Decision
 
 **Adopt the compositor layer as defined above.** API endpoint `/api/programs/surfaces` resolves active bundles + phase overlays + composition tree. FE module `web/lib/compositor/` consumes the response and renders via universal components from `web/components/library/`. The hardcoded `WorkDetail.tsx::KindMiddle` switch is deleted; the resolver replaces it with declarative match-and-bind across 4 specificity tiers. Kernel-universal middles (DeliverableMiddle / TrackingEntityGrid / ActionMiddle / MaintenanceMiddle) become library components used by kernel-default `MiddleDecl`s. ADR 3 (System Component Library Convention) folds in here. Migration is atomic across API + FE + tests + docs in one PR.
+
+---
+
+## Phase 2 implementation refinements (recorded 2026-04-27, post-implementation)
+
+The v2 spec called for ~14 components and an extraction-rename pattern that would relocate the existing kind-middles into `web/components/library/`. The shipped Phase 2 honors the spec's structural goals (declarative dispatch via resolver; bundle-shipped middles override; KindMiddle switch deleted) but with refinements that match the demand-pull discipline:
+
+**1. Library scope: 6 components shipped, not 14.**
+- `MiddleResolver` (the dispatch component itself)
+- `BundleBanner` (phase-aware list banner)
+- `PerformanceSnapshot`, `PositionsTable`, `RiskBudgetGauge`, `TradingProposalQueue` (alpha-trader's SURFACES.yaml referents)
+
+The other 8 paper-design components (`MetricCardRow`, `TaskOutputViewer`, `NarrativeRail`, `QueueCard`, `AlertCard`, `TaskList`, `FilterChipRow`, `AttributedActionReview`, `AgentRoster`, `ReviewerHealthCard`, `PrincipleEditor`, `ReviewerCalibrationView`, `FileTree`, `PinnedShortcutRow`) land additively when bundles surface the demand. **No component shipped without a bundle that uses it** — the discipline already in §3 of this ADR. Building all 14 speculatively would have violated that rule.
+
+**2. Existing kind-middles stay at `web/components/work/details/`, not relocated.**
+The v2 spec called for relocating `DeliverableMiddle`/`TrackingEntityGrid`/`ActionMiddle`/`MaintenanceMiddle` into `library/` and renaming `DeliverableMiddle → TaskOutputViewer`. The Phase 2 refinement: **keep them where they are**. They're the kernel-default fallback path; `MiddleResolver` imports them from `work/details/` directly. Relocation is mechanical busywork that doesn't change behavior — defer until a bundle actually overrides one and the flat library namespace becomes load-bearing.
+
+**3. Phase 1 + Phase 2 shipped same day, not in separate PRs.**
+The v2 spec said "atomic single PR." The phased ship plan recorded in this ADR initially called for two commits (Phase 1 backend, Phase 2 FE). In implementation, Phase 1 + Phase 2 landed as two atomic commits in the same arc — Phase 1's backend addition is zero-risk additive (FE didn't yet consume it), Phase 2's switch deletion completes the Singular Implementation contract by making the resolver the sole dispatch path. No deployed state existed where dual approaches ran simultaneously.
+
+**4. Placeholder components, deliberate.**
+The 4 alpha-trader library components (`PerformanceSnapshot`, `PositionsTable`, `RiskBudgetGauge`, `TradingProposalQueue`) ship as **placeholder visuals** — they read the substrate path, render a simple container with title + content. The Phase 2 implementation goal was the wiring (resolver → component dispatch by `kind`), not visual polish. Real visual designs land additively as alpha-trader matures into a built program. The placeholder-with-real-wiring pattern is honest: nothing fakes the data flow; the data flow works; visuals iterate on top.
+
+**5. `BundleBanner` is the first bundle-supplied chrome wired to a list surface.**
+Beyond the middle dispatch, Phase 2 wires the bundle's `tabs.work.list.banner` field to the actual cockpit surface. When alpha-trader is `current_phase: observation`, the "Paper-only. Live trading gated on AUTONOMY.md flip." banner appears on `/work` list mode. Silent fallback when no banner is supplied — workspaces without active bundles see no chrome change. This is the smallest demonstration of bundle-supplied list-mode integration; the other list-mode features (`pinned_tasks`, `featured` agents, `featured_domains`, `chat_chips`) wire incrementally as bundles need them.
+
+**6. Build validation.**
+- Phase 1: 10/10 API tests passing (`api/test_adr225_compositor.py`).
+- Combined: 21/21 (with ADR-224's 11 boundary tests).
+- Phase 2: Next.js production build clean — zero TS errors, all routes compile including `/work` (where the resolver dispatches) and `/overview`.
+
+**Net delta vs v2 spec:**
+- Components shipped: 6 (not 14).
+- Existing kind-middles: not relocated (kernel-default path stays at `work/details/`).
+- KindMiddle switch: DELETED per spec.
+- API contract: shipped per spec.
+- Resolver match tiers: 4-tier per spec.
+- Binding taxonomy: 6 types per spec.
+- Phase overlay merge: shipped per spec.
+- Net new code: ~600 lines FE (lib/compositor/, components/library/) + ~250 lines API (composition_resolver.py + programs.py) + workspace-scoped bundle filter in bundle_reader.
+
+The discipline lesson: **demand-pull over speculation.** v2 spec listed 14 components because the paper design referenced 14; Phase 2 shipped 6 because only 6 are referenced by SURFACES.yaml files in the repo. The other 8 land when a bundle declares them. Same shape as ADR-224's "5 platform-integration capabilities stay in kernel" refinement — let the artifacts dictate scope, not the speculative spec.
 
 ---
 

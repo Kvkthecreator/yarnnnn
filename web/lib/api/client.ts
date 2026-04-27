@@ -519,6 +519,25 @@ export const api = {
     },
   },
 
+  // ADR-225: Compositor — workspace composition surfaces
+  programs: {
+    getSurfaces: () => request<{
+      schema_version: 1;
+      active_bundles: Array<{
+        slug: string;
+        title: string;
+        tagline?: string;
+        current_phase?: string | null;
+        current_phase_label?: string | null;
+        phases: Array<{ key: string; label: string; description?: string }>;
+      }>;
+      composition: {
+        tabs: Record<string, unknown>;
+        chat_chips: string[];
+      };
+    }>("/api/programs/surfaces"),
+  },
+
   // ADR-138: Tasks endpoints
   tasks: {
     list: (statusOrOpts?: string | { status?: string; include_system?: boolean }) => {

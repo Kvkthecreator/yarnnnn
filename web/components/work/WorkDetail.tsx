@@ -9,11 +9,17 @@
  * Work does NOT show: output documents, accumulated files, domain knowledge.
  * Those live in Context.
  *
- * Kind dispatch (ADR-166 + ADR-180):
- *   accumulates_context  → entity grid (TrackingEntityGrid) — click entity → Context
- *   produces_deliverable → inline output (DeliverableMiddle) — full view in Work
- *   external_action      → Fire primary + history (ActionMiddle)
- *   system_maintenance   → hygiene log (MaintenanceMiddle)
+ * Kind dispatch (ADR-225 Phase 2 supersedes ADR-180's hardcoded switch):
+ *   - MiddleResolver consults bundle SURFACES.yaml via the compositor
+ *     (/api/programs/surfaces). When a bundle declares a middle for the
+ *     active task (4-tier match resolution per ADR-225 §4 — task_slug,
+ *     output_kind+condition, output_kind, agent_role/class), the bundle
+ *     component renders.
+ *   - When no bundle middle matches, MiddleResolver falls through to the
+ *     kernel-default kind-middles (TrackingEntityGrid for accumulates_context,
+ *     DeliverableMiddle for produces_deliverable, ActionMiddle for
+ *     external_action, MaintenanceMiddle for system_maintenance). Per
+ *     ADR-225 §5: existing kind-middles ARE the kernel defaults.
  *
  * ADR-180: Work is operational. For accumulates_context, the entity grid IS the
  * operational view — it shows what's being tracked and its freshness, with each
@@ -27,10 +33,10 @@ import Link from 'next/link';
 import {
   MoreHorizontal, Pause, Play, MessageSquare, Send, Loader2,
 } from 'lucide-react';
-import { ActionMiddle } from './details/ActionMiddle';
-import { MaintenanceMiddle } from './details/MaintenanceMiddle';
-import { TrackingEntityGrid } from './details/TrackingEntityGrid';
-import { DeliverableMiddle } from './details/DeliverableMiddle';
+// ADR-225 Phase 2: kind-middle imports moved into MiddleResolver. The
+// resolver imports them as kernel-default fallback when no bundle middle
+// matches; WorkDetail no longer dispatches by output_kind directly.
+import { MiddleResolver } from '@/components/library/MiddleResolver';
 import { FeedbackStrip } from './details/FeedbackStrip';
 import { WorkModeBadge } from './WorkModeBadge';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
@@ -383,45 +389,16 @@ function ObjectiveBlock({ task }: { task: Task }) {
   );
 }
 
-// ─── Kind dispatch (ADR-180) ─────────────────────────────────────────────────
-// Work = operational. Outputs are rendered inline per kind — the Work↔Context
-// navigation feels like a section swap because clicking entities/outputs uses
-// router.replace to the Context path without a full page reload.
-//
-// accumulates_context  → entity grid (click entity → Context panel for that entity)
-// produces_deliverable → inline output (DeliverableMiddle, with Context deep-link)
-// external_action      → ActionMiddle (fire history + platform link)
-// system_maintenance   → MaintenanceMiddle (hygiene log)
-
-function KindMiddle({
-  task,
-  refreshKey,
-  onSourcesUpdated,
-}: {
-  task: Task | TaskDetail;
-  refreshKey: number;
-  onSourcesUpdated?: () => void;
-}) {
-  switch (task.output_kind) {
-    case 'accumulates_context':
-      return <TrackingEntityGrid task={task} onSourcesUpdated={onSourcesUpdated} />;
-    case 'external_action':
-      return <ActionMiddle task={task} refreshKey={refreshKey} onSourcesUpdated={onSourcesUpdated} />;
-    case 'system_maintenance':
-      return <MaintenanceMiddle task={task} refreshKey={refreshKey} />;
-    case 'produces_deliverable':
-    default: {
-      const taskDetail = task as TaskDetail;
-      return (
-        <DeliverableMiddle
-          taskSlug={task.slug}
-          refreshKey={refreshKey}
-          deliverableSpec={taskDetail.deliverable_spec}
-        />
-      );
-    }
-  }
-}
+// ─── Kind dispatch ───────────────────────────────────────────────────────────
+// ADR-225 Phase 2: hardcoded KindMiddle switch DELETED. Replaced by
+// MiddleResolver which consults bundle SURFACES.yaml via the compositor
+// (/api/programs/surfaces). When no bundle middle matches, the resolver
+// falls through to the same kernel-default kind-middles (TrackingEntityGrid /
+// DeliverableMiddle / ActionMiddle / MaintenanceMiddle) the deleted switch
+// previously dispatched to. Per ADR-225 §5: existing kind-middles ARE the
+// kernel defaults; their location stays at web/components/work/details/;
+// MiddleResolver imports them as fallback. Singular Implementation: ONE
+// dispatch path lives in MiddleResolver.
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN
@@ -527,9 +504,9 @@ export function WorkDetail({
         {task.output_kind !== 'system_maintenance' && <ObjectiveBlock task={task} />}
       </div>
 
-      {/* Scrollable output region */}
+      {/* Scrollable output region — ADR-225 Phase 2: MiddleResolver replaces KindMiddle */}
       <div className="flex-1 overflow-auto min-h-0">
-        <KindMiddle task={task} refreshKey={refreshKey} onSourcesUpdated={onSourcesUpdated} />
+        <MiddleResolver task={task} refreshKey={refreshKey} onSourcesUpdated={onSourcesUpdated} />
         {/* ADR-181 Phase 4a: Feedback prompt relay */}
         <FeedbackStrip task={task} onOpenChat={onOpenChat} />
       </div>

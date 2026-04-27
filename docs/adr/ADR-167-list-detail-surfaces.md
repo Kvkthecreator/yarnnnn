@@ -1,10 +1,13 @@
 # ADR-167: List/Detail Surfaces with Kind-Aware Detail
 
-**Status:** Accepted (v2 amendment 2026-04-08 — see end)
+> **⚠ Amended by [ADR-225](ADR-225-compositor-layer.md) Phase 2 (2026-04-27).** The `WorkDetail.tsx::KindMiddle` switch this ADR introduced is DELETED. Replaced by `MiddleResolver` (in `web/components/library/`) which consults bundle SURFACES.yaml via the compositor (`/api/programs/surfaces`) and applies 4-tier match resolution (task_slug → output_kind+condition → output_kind → agent_role/class). The four kind-aware middles (DeliverableMiddle, TrackingEntityGrid, ActionMiddle, MaintenanceMiddle) are PRESERVED at their existing location (`web/components/work/details/`) — they are now the kernel-default fallback path the resolver uses when no bundle middle matches. Singular Implementation: ONE dispatch path lives in MiddleResolver. The substantive change is *who decides which middle renders* (declarative bundle manifest + resolver, not hardcoded switch); the kernel-default behavior for workspaces with no active program is unchanged.
+
+**Status:** Accepted (v2 amendment 2026-04-08 — see end; KindMiddle dispatch superseded by ADR-225 Phase 2 2026-04-27)
 **Date:** 2026-04-08
 **Author:** KVK + Claude
 **Supersedes:** ADR-163 surface internals (Work + Agents pages); does NOT supersede ADR-163 itself (the four-surface restructure stays intact)
-**Related:** ADR-163 (Surface Restructure), ADR-166 (Registry Coherence Pass — output_kind), commit b033513 (linkable breadcrumb scope bar)
+**Amended by:** ADR-225 Phase 2 (KindMiddle switch deleted; MiddleResolver replaces it)
+**Related:** ADR-163 (Surface Restructure), ADR-166 (Registry Coherence Pass — output_kind), ADR-225 (Compositor Layer — declarative middle dispatch), commit b033513 (linkable breadcrumb scope bar)
 
 ---
 

@@ -94,10 +94,10 @@ YARNNN is canonized as an agent-native operating system. The framing is literal 
 | **Init system** | `workspace_init.py` | Shipped |
 | **Application** | A program (alpha-trader is the first active program; alpha-prediction + alpha-defi are reference SPECs; alpha-commerce is deferred — homes shipped commerce artifacts) | Shipped via ADR-222 + ADR-223; 4 bundles in repo |
 | **Application bundle** | Program bundle at `docs/programs/{program}/` — `MANIFEST.yaml` + `README.md` + `SURFACES.yaml` + `reference-workspace/` | Spec landed via [ADR-223](../adr/ADR-223-program-bundle-specification.md); kernel/program boundary enforced in code via [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) (bundle_reader.py + test gate) |
-| **Compositor / window manager** | The composition layer — FE/API infrastructure that resolves a program's composition manifest against substrate paths | **Not yet built — implementation ADR forthcoming** |
+| **Compositor / window manager** | The composition layer — FE/API infrastructure that resolves a program's composition manifest against substrate paths | Phase 1+2 shipped via [ADR-225](../adr/ADR-225-compositor-layer.md) — `GET /api/programs/surfaces` API, `web/lib/compositor/` FE module, `MiddleResolver` replaces hardcoded KindMiddle switch, `web/components/library/` initial component set |
 | **Userspace** | An operator's `/workspace/` | Shipped |
 | **Workspace overlay** | Operator-authored `/workspace/SURFACES.yaml` overrides of program defaults | **Not yet built** |
-| **System component library** | `web/components/library/` — universal building blocks | Partial; convention to be formalized |
+| **System component library** | `web/components/library/` — universal building blocks (PerformanceSnapshot, PositionsTable, RiskBudgetGauge, TradingProposalQueue, MiddleResolver, BundleBanner, README convention) | Convention shipped via [ADR-225](../adr/ADR-225-compositor-layer.md) Phase 2; library grows additively as bundles surface new components |
 
 The framing dissolves "workspace type / workspace mode" as housing for vertical specialization: workspaces don't have types; they run programs; the program declaration is the implicit type; specialization happens at the compositor (a separate architectural layer), not the kernel. Adding a program is purely additive — a new bundle, possibly new system component library entries, no kernel touch.
 

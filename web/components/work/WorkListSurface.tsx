@@ -32,6 +32,9 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { getAgentSlug } from '@/lib/agent-identity';
 import { taskModeLabel } from '@/types';
 import type { Task, Agent, NarrativeByTaskSlice } from '@/types';
+// ADR-225 Phase 2: bundle-supplied list-mode banner (e.g., alpha-trader's
+// "Paper-only..." for current_phase=observation)
+import { BundleBanner } from '@/components/library/BundleBanner';
 
 interface WorkListSurfaceProps {
   tasks: Task[];
@@ -340,6 +343,9 @@ export function WorkListSurface({
           Tasks you own — my work · connectors · system
         </span>
       </div>
+
+      {/* ADR-225 Phase 2: bundle-supplied phase-aware banner (silent when absent) */}
+      <BundleBanner tab="work" />
 
       {/* ── Toolbar ── */}
       <div className="px-4 sm:px-6 pb-3 border-b border-border/40 shrink-0 space-y-3">
