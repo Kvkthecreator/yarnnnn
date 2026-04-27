@@ -8,8 +8,9 @@
  */
 
 export { useComposition, getTab, getDetailMiddles, getActiveBundles } from './useComposition';
-export { resolveMiddle } from './resolver';
+export { resolveMiddle, resolveChrome, resolveCockpitPanes } from './resolver';
 export type { ResolutionContext } from './resolver';
+export { KERNEL_DEFAULT_CHROME, KERNEL_DEFAULT_COCKPIT_PANES } from './kernel-defaults';
 export type {
   SurfacesResponse,
   BundleMetadata,
@@ -21,6 +22,7 @@ export type {
   MiddleDecl,
   MiddleMatch,
   Archetype,
+  ChromeDecl,
   ComponentDecl,
   Binding,
 } from './types';

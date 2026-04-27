@@ -1,5 +1,10 @@
 /**
- * Composition resolver — ADR-225 §4.
+ * Composition resolver — ADR-225 §4 + Phase 3.
+ *
+ * Three resolution functions, sharing the 4-tier match semantics:
+ *   - resolveMiddle — content-area middle (Phase 2)
+ *   - resolveChrome — chrome (metadata + actions) (Phase 3)
+ *   - resolveCockpitPanes — list-mode cockpit composition (Phase 3)
  *
  * 4-tier match resolution (most specific first, first match wins within tier):
  *   Tier 1: task_slug exact match
@@ -8,13 +13,14 @@
  *   Tier 3: output_kind alone
  *   Tier 4: agent_role / agent_class
  *
- * No match → null. Caller falls through to kernel-default rendering
- * (the existing kind-aware middles continue to render, per Phase 2's
- * implementation refinement: kernel-defaults stay where they are; bundle
- * middles override).
+ * Per ADR-225 Phase 3: kernel defaults are themselves component
+ * declarations registered in `LIBRARY_COMPONENTS`. The resolver doesn't
+ * distinguish kernel from bundle; both are dispatched by `kind` through
+ * the same renderer.
  */
 
-import type { MiddleDecl } from './types';
+import type { ChromeDecl, ComponentDecl, CompositionTree, MiddleDecl } from './types';
+import { KERNEL_DEFAULT_CHROME, KERNEL_DEFAULT_COCKPIT_PANES } from './kernel-defaults';
 
 export interface ResolutionContext {
   task: {
@@ -87,4 +93,53 @@ function matchCondition(
     if (task[key] !== expected) return false;
   }
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// resolveChrome — ADR-225 Phase 3
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve chrome (metadata + actions) for a task. Pattern parallels
+ * resolveMiddle: try bundle middles first; on a match with a `chrome`
+ * field, use that (with kernel-default fall-in for missing parts);
+ * otherwise return the kernel default for the task's output_kind.
+ *
+ * Both `metadata` and `actions` are independently optional on the
+ * bundle's ChromeDecl — partial overrides are honored, missing parts
+ * inherit from the kernel default.
+ */
+export function resolveChrome(
+  ctx: ResolutionContext,
+  middles: MiddleDecl[],
+): ChromeDecl {
+  const kindKey = ctx.task.output_kind ?? 'produces_deliverable';
+  const kernelDefault = KERNEL_DEFAULT_CHROME[kindKey] ?? KERNEL_DEFAULT_CHROME.produces_deliverable;
+
+  const matched = resolveMiddle(ctx, middles);
+  if (matched?.chrome) {
+    return {
+      metadata: matched.chrome.metadata ?? kernelDefault.metadata,
+      actions: matched.chrome.actions ?? kernelDefault.actions,
+    };
+  }
+  return kernelDefault;
+}
+
+// ---------------------------------------------------------------------------
+// resolveCockpitPanes — ADR-225 Phase 3
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve cockpit pane sequence for /work list mode. Per ADR-225 Phase 3
+ * §4.2: bundle declaration via `tabs.work.list.cockpit_panes` overrides
+ * the kernel-default sequence. When absent, kernel defaults render.
+ */
+export function resolveCockpitPanes(
+  composition: CompositionTree,
+): ComponentDecl[] {
+  const declared = composition.tabs?.work?.list?.cockpit_panes;
+  return declared && declared.length > 0
+    ? declared
+    : KERNEL_DEFAULT_COCKPIT_PANES;
 }
