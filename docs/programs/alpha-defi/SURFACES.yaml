@@ -1,0 +1,56 @@
+schema_version: 1
+
+# Reference SPEC composition manifest. Per ADR-223 §5: reference programs
+# may ship minimal SURFACES.yaml. This file's purpose is to stress-test
+# the schema against the heaviest oracle in the triangle (irreversibility,
+# 24/7 cadence, on-chain perception, compound outcomes).
+#
+# If the compositor design can't render this when alpha-defi eventually
+# activates, the compositor design is finance-shaped not generally-shaped.
+
+tabs:
+  work:
+    list:
+      pinned_tasks: [defi-signal, gas-float-monitor]
+      group_default: output_kind
+    detail:
+      middles:
+        - match: { task_slug: defi-signal }
+          archetype: queue
+          bindings:
+            proposals: /action_proposals
+          components:
+            - kind: DefiProposalQueue
+              source: proposals
+              filters:
+                proposal_type: defi
+                status: pending
+              # DeFi proposals carry idempotency_key alongside slippage
+              # tolerance, MEV exposure annotation, and protocol risk
+              # assessment — all OS extensions alpha-defi asks of the
+              # action proposal envelope per the SPEC.
+
+        - match: { task_slug: gas-float-monitor }
+          archetype: dashboard
+          bindings:
+            gas_float: /workspace/context/portfolio/_gas_float.md
+          components:
+            - kind: GasFloatGauge
+              source: gas_float
+
+  agents:
+    list:
+      featured: [reviewer]
+    reviewer:
+      principles_default: reference-workspace/review/principles.md
+
+  context:
+    list:
+      featured_domains: [onchain, portfolio, markets]
+
+chat_chips:
+  - "What's my position health across protocols?"
+  - "Any liquidation buffers thinning?"
+  - "Show me yield opportunities vs current allocation"
+
+phase_overlays: {}

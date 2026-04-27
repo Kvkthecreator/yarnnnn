@@ -7,8 +7,8 @@ related:
   - docs/analysis/autonomous-business-thesis-2026-04-15/
   - docs/programs/README.md (OS / program separation, commit e094d98)
   - docs/programs/alpha-trader/README.md
-  - docs/programs/alpha-prediction/SPEC.md
-  - docs/programs/alpha-defi/SPEC.md
+  - docs/programs/alpha-prediction/README.md
+  - docs/programs/alpha-defi/README.md
   - docs/adr/ADR-194-reviewer-layer.md (v2)
   - docs/adr/ADR-195-money-truth-substrate.md (v2)
   - docs/adr/ADR-187-trading-integration.md
@@ -779,8 +779,8 @@ After the third-eye round, the discourse converged on a sharper framing than "na
 
 - [docs/programs/README.md](../programs/README.md) — OS / program separation framing + program registry
 - [docs/programs/alpha-trader/README.md](../programs/alpha-trader/README.md) — primary program spec (surfaces, scaffolding, OS dependencies, success bar candidates from §9.5, phase milestones)
-- [docs/programs/alpha-prediction/SPEC.md](../programs/alpha-prediction/SPEC.md) — reference SPEC, design test only, zero code
-- [docs/programs/alpha-defi/SPEC.md](../programs/alpha-defi/SPEC.md) — reference SPEC, design test only, zero code (the heaviest litmus)
+- [docs/programs/alpha-prediction/README.md](../programs/alpha-prediction/README.md) — reference SPEC, design test only, zero code
+- [docs/programs/alpha-defi/README.md](../programs/alpha-defi/README.md) — reference SPEC, design test only, zero code (the heaviest litmus)
 
 ### 11.5 What's still live for the next round
 

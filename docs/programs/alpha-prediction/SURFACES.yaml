@@ -1,0 +1,57 @@
+schema_version: 1
+
+# Reference SPEC composition manifest. Per ADR-223 §5: reference programs
+# may ship minimal SURFACES.yaml — the activation precondition is that
+# composition manifest hardens before status flips to active.
+#
+# This file exists to (1) prove the schema accommodates terminal_binary
+# oracle shape with time-to-resolution as a first-class concept, and
+# (2) constrain the compositor design — if the compositor can't render
+# this sketch when the SPEC eventually activates, the compositor design
+# is alpha-trader-shaped.
+
+tabs:
+  work:
+    list:
+      pinned_tasks: [prediction-signal, resolution-reconcile]
+      group_default: output_kind
+    detail:
+      middles:
+        - match: { task_slug: prediction-signal }
+          archetype: queue
+          bindings:
+            proposals: /action_proposals
+          components:
+            - kind: PredictionProposalQueue
+              source: proposals
+              filters:
+                proposal_type: prediction
+                status: pending
+              # Prediction proposals carry a resolution_window field
+              # the queue surfaces alongside Kelly sizing — this is the
+              # OS extension alpha-prediction asks of TASK.md per the SPEC.
+
+        - match: { task_slug: resolution-reconcile }
+          archetype: stream
+          bindings:
+            settlements: /workspace/context/portfolio/_performance.md
+          components:
+            - kind: ResolutionSettlementStream
+              source: settlements
+
+  agents:
+    list:
+      featured: [reviewer]
+    reviewer:
+      principles_default: reference-workspace/review/principles.md
+
+  context:
+    list:
+      featured_domains: [markets, portfolio]
+
+chat_chips:
+  - "Walk me through today's market scan"
+  - "What's resolving this week?"
+  - "Show me Kelly sizing on current proposals"
+
+phase_overlays: {}  # no phases defined until activation

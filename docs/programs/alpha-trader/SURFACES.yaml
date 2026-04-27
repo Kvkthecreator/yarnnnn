@@ -1,0 +1,91 @@
+schema_version: 1
+
+# alpha-trader composition manifest. Read by the forthcoming compositor
+# (ADR forthcoming, ADR-222 implementation roadmap ADR 2). Speaks ADR-198
+# archetypes (Document/Dashboard/Queue/Briefing/Stream) × ADR-214 4-tab
+# nav (chat/work/agents/context).
+#
+# All bindings are filesystem paths. All components must exist in the
+# system component library (web/components/library/) at compositor
+# render time — components shipped here are placeholders for the
+# library convention forthcoming in the System Component Library ADR.
+
+tabs:
+  work:
+    list:
+      pinned_tasks: [trading-signal, portfolio-review]
+      group_default: output_kind
+      filters_default:
+        output_kind: produces_deliverable
+    detail:
+      middles:
+        - match: { task_slug: portfolio-review }
+          archetype: dashboard
+          bindings:
+            performance: /workspace/context/portfolio/_performance.md
+            positions: /workspace/context/portfolio/_positions.md
+            risk: /workspace/context/portfolio/_risk_state.md
+          components:
+            - kind: PerformanceSnapshot
+              source: performance
+            - kind: PositionsTable
+              source: positions
+            - kind: RiskBudgetGauge
+              source: risk
+
+        - match: { task_slug: trading-signal }
+          archetype: queue
+          # trading-signal emits proposals into action_proposals; the
+          # detail middle for this task surfaces the proposal queue
+          # filtered to trading-shaped envelopes with signal attribution.
+          bindings:
+            proposals: /action_proposals
+          components:
+            - kind: TradingProposalQueue
+              source: proposals
+              filters:
+                proposal_type: trading
+                status: pending
+
+  agents:
+    list:
+      featured: [trading-bot, reviewer]
+    reviewer:
+      principles_default: reference-workspace/review/principles.md
+
+  context:
+    list:
+      featured_domains: [trading, portfolio]
+
+chat_chips:
+  - "Walk me through today's signals"
+  - "What's my risk budget right now?"
+  - "Did anything trigger overnight?"
+  - "Show me last week's expectancy by signal"
+
+phase_overlays:
+  observation:
+    tabs:
+      work:
+        list:
+          banner: "Paper-only. Live trading gated on AUTONOMY.md flip."
+  paper_discipline:
+    tabs:
+      work:
+        list:
+          banner: "Phase 1 — Paper Discipline. 90-day process-obedience window."
+  live_float:
+    tabs:
+      work:
+        list:
+          banner: "Phase 2 — Live Float. Every order requires Reviewer approval."
+  calibrated_autonomy:
+    tabs:
+      work:
+        list:
+          banner: "Phase 3 — Calibrated Autonomy. Selective auto-approval active per principles.md."
+  self_funding:
+    tabs:
+      work:
+        list:
+          banner: "Phase 4 — Self-Funding Validated."

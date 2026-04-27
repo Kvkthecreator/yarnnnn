@@ -1,0 +1,101 @@
+schema_version: 1
+slug: alpha-trader
+title: alpha-trader
+status: active
+date_created: 2026-04-26
+date_updated: 2026-04-27
+
+tagline: Equities + options operator workflow with continuous-price oracle. Self-funding by design.
+
+oracle:
+  shape: continuous_price
+  source: alpaca + alpha_vantage
+  latency: intraday_marks_daily_settles
+  irreversibility: reversible
+  custody: brokerage_held
+  capital_threshold_usd: 5000
+  attribution: per_position_pnl_with_signal_attribution
+
+dependencies:
+  required:
+    - adr: ADR-209          # authored substrate revision chain
+    - adr: ADR-195          # OutcomeProvider abstraction + _performance.md
+    - adr: ADR-194          # Reviewer with capital-EV reasoning
+    - adr: ADR-217          # AUTONOMY.md delegation file
+    - adr: ADR-181          # source-agnostic feedback (system_outcome)
+    - adr: ADR-187          # Trading integration (Alpaca + Alpha Vantage)
+    - adr: ADR-202          # action proposal queue with approval/rejection
+    - capability: read_trading
+    - capability: write_trading
+  lean:
+    - thesis_section: substrate_replay_primitive
+    - thesis_section: mandate_outcome_signal_hardening
+    - tool: get_fundamentals  # exists in alpaca_client.py:718, not exposed as tool
+
+context_domains:
+  - path: trading
+    purpose: per-instrument entities, signals, watched universe
+    entities:
+      - kind: ticker
+        files: [_signals.md, _thesis.md, _liquidity.md]
+    synthesis_files: [_signals.md, _universe.md]
+  - path: portfolio
+    purpose: account-level state, performance, risk
+    entities:
+      - kind: account
+        files: [_positions.md, _performance.md, _risk_state.md]
+    synthesis_files: [_performance.md]
+
+task_types:
+  - key: trading-digest
+    output_kind: accumulates_context
+    cadence: daily
+    purpose: sweep universe, update entity files
+  - key: trading-signal
+    output_kind: produces_deliverable
+    cadence: daily
+    purpose: evaluate declared signals against current state, emit proposal envelope
+  - key: trading-execute
+    output_kind: external_action
+    cadence: reactive
+    purpose: Reviewer-approved order submission
+  - key: portfolio-review
+    output_kind: produces_deliverable
+    cadence: weekly
+    purpose: performance attribution, regime check, signal expectancy decay
+
+capabilities:
+  - key: read_trading
+    requires_connection: alpaca
+  - key: write_trading
+    requires_connection: alpaca
+
+activation_preconditions: []  # already active
+
+phases:
+  - key: observation
+    label: Phase 0 — Observation
+    description: Paper account, AUTONOMY bounded_autonomous, Reviewer reasoning logged, no live capital
+  - key: paper_discipline
+    label: Phase 1 — Paper Discipline
+    description: 90 days of MANDATE compliance, signal expectancy data accumulates in _performance.md
+  - key: live_float
+    label: Phase 2 — Live Float
+    description: Small live capital ($5-10K), AUTONOMY flipped to manual approval, every order operator-approved
+  - key: calibrated_autonomy
+    label: Phase 3 — Calibrated Autonomy
+    description: Selective auto-approval per principles.md thresholds, expanded based on Phase 2 calibration data
+  - key: self_funding
+    label: Phase 4 — Self-Funding Validated
+    description: Live P&L sustains platform cost over rolling 90 days
+current_phase: observation
+
+references:
+  - docs/alpha/ALPHA-1-PLAYBOOK.md
+  - docs/alpha/personas/alpha-trader/MANDATE.md
+  - docs/analysis/external-oracle-thesis-2026-04-26.md
+  - docs/adr/ADR-187-trading-integration.md
+  - docs/adr/ADR-194-reviewer-layer.md
+  - docs/adr/ADR-195-money-truth-substrate.md
+  - docs/adr/ADR-222-agent-native-operating-system-framing.md
+  - docs/adr/ADR-223-program-bundle-specification.md

@@ -1,0 +1,89 @@
+schema_version: 1
+slug: alpha-prediction
+title: alpha-prediction (Reference)
+status: reference
+date_created: 2026-04-26
+date_updated: 2026-04-27
+
+tagline: Reference SPEC for prediction-market operator workflow with terminal-binary oracle. Constrains kernel decisions; not built.
+
+oracle:
+  shape: terminal_binary
+  source: polymarket_or_kalshi + market_odds
+  latency: hours_to_weeks_known_expiry
+  irreversibility: capped              # max loss = entry cost
+  custody: onchain_or_platform_held    # Polymarket = on-chain wallet; Kalshi = CFTC platform
+  capital_threshold_usd: 1000
+  attribution: per_position_terminal
+
+dependencies:
+  required:
+    - adr: ADR-209          # authored substrate
+    - adr: ADR-194          # Reviewer with capital-EV reasoning
+    - adr: ADR-217          # AUTONOMY.md
+    - adr: ADR-181          # source-agnostic feedback
+    - capability: read_prediction        # NOT YET BUILT
+    - capability: write_prediction       # NOT YET BUILT
+  lean:
+    - thesis_section: substrate_replay_primitive
+    - os_primitive: time_to_resolution_field    # TASK.md schema extension
+    - os_primitive: outcome_provider_terminal_binary  # generalize ADR-195
+
+context_domains:
+  - path: markets
+    purpose: per-market entities (one folder per active position or watched market)
+    entities:
+      - kind: market
+        files: [_resolution_criteria.md, _liquidity.md, _thesis.md]
+  - path: portfolio
+    purpose: account-level state, accommodates discrete-outcome positions
+    entities:
+      - kind: account
+        files: [_positions.md, _performance.md, _risk_state.md]
+  - path: news_mappings
+    purpose: optional — operators using news→market causal mapping
+    entities:
+      - kind: mapping
+        files: [_thesis.md]
+
+task_types:
+  - key: prediction-digest
+    output_kind: accumulates_context
+    cadence: daily
+    purpose: sweep watched markets, update entity files
+  - key: prediction-signal
+    output_kind: produces_deliverable
+    cadence: varies
+    purpose: evaluate edge against current odds, Kelly sizing, emit proposal
+  - key: prediction-execute
+    output_kind: external_action
+    cadence: reactive
+    purpose: Reviewer-approved order
+  - key: resolution-reconcile
+    output_kind: system_maintenance
+    cadence: on_resolution
+    purpose: write settlement to _performance.md when market resolves
+
+capabilities:
+  - key: read_prediction
+    requires_connection: polymarket_or_kalshi
+  - key: write_prediction
+    requires_connection: polymarket_or_kalshi
+
+# Activation graduates this SPEC to a built program when ALL hold:
+activation_preconditions:
+  - alpha-trader Phase 1 (Paper Discipline) completes successfully
+  - Substrate-replay primitive ships at OS-layer
+  - OutcomeProvider abstraction generalizes to terminal_binary outcome shape
+  - A real operator (not the kvk operator) willing to author honest principles + supervise the workspace
+  - Custody / signed-transaction primitives designed (jointly with alpha-defi's needs)
+
+phases: []  # not applicable until activation
+current_phase: null
+
+references:
+  - docs/alpha/personas/alpha-polymarket-PROPOSAL.md
+  - docs/programs/alpha-trader/README.md
+  - docs/adr/ADR-222-agent-native-operating-system-framing.md
+  - docs/adr/ADR-223-program-bundle-specification.md
+  - docs/analysis/external-oracle-thesis-2026-04-26.md

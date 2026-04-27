@@ -1,0 +1,97 @@
+schema_version: 1
+slug: alpha-defi
+title: alpha-defi (Reference)
+status: reference
+date_created: 2026-04-26
+date_updated: 2026-04-27
+
+tagline: Reference SPEC for DeFi operator workflow with on-chain settled oracle. The heaviest litmus in the reference triangle — irreversibility, custody, 24/7 cadence.
+
+oracle:
+  shape: onchain_settled
+  source: rpc_block_state + dex_prices + protocol_returns
+  latency: block_time_seconds_to_minutes
+  irreversibility: irreversible          # tx confirmed = tx done
+  custody: self_custody                  # hot, MPC, or AA — open per-program
+  capital_threshold_usd: 1000
+  attribution: per_position_with_tx_hash
+  # Compound outcome shape: yield + price + IL + rewards + protocol fees
+  outcome_compound: true
+
+dependencies:
+  required:
+    - adr: ADR-209          # authored substrate
+    - adr: ADR-194          # Reviewer
+    - adr: ADR-217          # AUTONOMY.md
+    - adr: ADR-181          # source-agnostic feedback
+    - capability: read_defi      # NOT YET BUILT
+    - capability: write_defi     # NOT YET BUILT
+  lean:
+    - thesis_section: substrate_replay_primitive
+    - os_primitive: idempotency_key_on_action_envelope     # tx-hash for confirmed; deterministic-nonce for pre-submission
+    - os_primitive: continuous_24x7_scheduling             # no market-close assumption
+    - os_primitive: block_height_time_anchor               # alongside or instead of UTC
+    - os_primitive: custody_abstraction                    # hot wallet, MPC, AA, hardware-backed
+    - os_primitive: outcome_provider_compound              # yield + price + IL + rewards
+    - os_primitive: substrate_replay_under_nondeterminism  # mark non-deterministic gaps explicitly
+
+context_domains:
+  - path: onchain
+    purpose: per-protocol entities; positions, yields, smart-contract risk
+    entities:
+      - kind: protocol
+        files: [_positions.md, _yields.md, _risk_state.md]
+  - path: portfolio
+    purpose: wallet-level state across protocols, gas float, base-token balances
+    entities:
+      - kind: wallet
+        files: [_positions.md, _gas_float.md, _performance.md]
+  - path: markets
+    purpose: token/pair-level entities for tradeable assets
+    entities:
+      - kind: token
+        files: [_thesis.md, _liquidity.md]
+
+task_types:
+  - key: defi-digest
+    output_kind: accumulates_context
+    cadence: daily
+    purpose: sweep watched protocols and positions
+  - key: defi-signal
+    output_kind: produces_deliverable
+    cadence: varies
+    purpose: evaluate strategy (yield arbitrage, rebalance, depeg detection)
+  - key: defi-execute
+    output_kind: external_action
+    cadence: reactive
+    purpose: Reviewer-approved tx submission
+  - key: gas-float-monitor
+    output_kind: system_maintenance
+    cadence: hourly
+    purpose: alert before base-token balance falls below execution threshold
+
+capabilities:
+  - key: read_defi
+    requires_connection: rpc_provider
+  - key: write_defi
+    requires_connection: signing_wallet
+
+# Activation graduates this SPEC to a built program when ALL hold:
+activation_preconditions:
+  - alpha-trader Phase 2 (Live Float) completes successfully
+  - alpha-prediction has activated or is concurrently activating (custody primitives shared)
+  - Custody / key-management primitives designed and shipped at OS-layer
+  - Idempotency primitive shipped on action proposal envelope
+  - Substrate-replay supports block-keyed reconstruction
+  - A real operator with on-chain experience and willingness to operate small live capital
+  - Security review of custody design — private key escalation is materially harder than OAuth tokens
+
+phases: []
+current_phase: null
+
+references:
+  - docs/programs/alpha-trader/README.md
+  - docs/programs/alpha-prediction/README.md
+  - docs/adr/ADR-222-agent-native-operating-system-framing.md
+  - docs/adr/ADR-223-program-bundle-specification.md
+  - docs/analysis/external-oracle-thesis-2026-04-26.md
