@@ -1,6 +1,6 @@
 ---
 title: Programs — OS / Program Separation
-date: 2026-04-26 (v2 alignment 2026-04-27 for ADR-222)
+date: 2026-04-26 (v2 alignment 2026-04-27 for ADR-222; lifecycle states + alpha-commerce row 2026-04-27 for ADR-224 v3)
 status: canonical
 related:
   - docs/architecture/SERVICE-MODEL.md
@@ -33,14 +33,27 @@ When an architectural decision comes up, the program docs are the **litmus test*
 
 > Bundle layout per [ADR-223](../adr/ADR-223-program-bundle-specification.md). The `status` field in each bundle's `MANIFEST.yaml` is the source of truth; the table below is a reading aid.
 
-| Program | Status (MANIFEST) | Oracle shape | Capital threshold | Bundle |
-|---|---|---|---|---|
-| **alpha-trader** | `active` | Continuous price (equities + options) | $5K+ paper, then live | [alpha-trader/](alpha-trader/) — [MANIFEST](alpha-trader/MANIFEST.yaml) · [SURFACES](alpha-trader/SURFACES.yaml) · [reference-workspace](alpha-trader/reference-workspace/) |
-| **alpha-prediction** | `reference` | Binary terminal outcome (Polymarket / Kalshi) | $100-stakes | [alpha-prediction/](alpha-prediction/) — [MANIFEST](alpha-prediction/MANIFEST.yaml) · [SURFACES](alpha-prediction/SURFACES.yaml) |
-| **alpha-defi** | `reference` | On-chain settled state + token prices | $1K + custody | [alpha-defi/](alpha-defi/) — [MANIFEST](alpha-defi/MANIFEST.yaml) · [SURFACES](alpha-defi/SURFACES.yaml) |
-| **alpha-commerce** | `deferred` | Commerce-platform settled events | $100+ revenue | [alpha-commerce/](alpha-commerce/) — [MANIFEST](alpha-commerce/MANIFEST.yaml) · [SURFACES](alpha-commerce/SURFACES.yaml) · created by ADR-224 to home shipped commerce artifacts |
+| Program | Status (MANIFEST) | Role | Oracle shape | Capital threshold | Bundle |
+|---|---|---|---|---|---|
+| **alpha-trader** | `active` | Primary built program | Continuous price (equities + options) | $5K+ paper, then live | [alpha-trader/](alpha-trader/) — [MANIFEST](alpha-trader/MANIFEST.yaml) · [SURFACES](alpha-trader/SURFACES.yaml) · [reference-workspace](alpha-trader/reference-workspace/) |
+| **alpha-prediction** | `reference` | Reference SPEC (litmus) | Binary terminal outcome (Polymarket / Kalshi) | $100-stakes | [alpha-prediction/](alpha-prediction/) — [MANIFEST](alpha-prediction/MANIFEST.yaml) · [SURFACES](alpha-prediction/SURFACES.yaml) |
+| **alpha-defi** | `reference` | Reference SPEC (litmus) | On-chain settled state + token prices | $1K + custody | [alpha-defi/](alpha-defi/) — [MANIFEST](alpha-defi/MANIFEST.yaml) · [SURFACES](alpha-defi/SURFACES.yaml) |
+| **alpha-commerce** | `deferred` | Parking lot for homeless commerce artifacts | Revenue / conversion / churn (continuous business metrics) | n/a (deferred) | [alpha-commerce/](alpha-commerce/) — [MANIFEST](alpha-commerce/MANIFEST.yaml) · [SURFACES](alpha-commerce/SURFACES.yaml) · created by [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) to host commerce residue moved out of kernel registries |
 
-**Only alpha-trader is being built right now.** The other two exist as committed-but-uncoded reference SPECs. Their job is to keep the kernel honest about what it claims to support, and to prevent the kernel from accidentally becoming alpha-trader-shaped. They graduate from `reference` → `active` when activation_preconditions in their MANIFEST hold.
+**Only alpha-trader is being built right now.** The other three each occupy a distinct lifecycle state. They graduate to `active` when activation_preconditions in their MANIFEST hold.
+
+## Lifecycle states
+
+The four `MANIFEST.yaml` `status` values (per [ADR-223](../adr/ADR-223-program-bundle-specification.md)) and how each is currently used:
+
+| Status | Meaning | Currently held by | Why this state exists |
+|---|---|---|---|
+| `active` | A program with code shipping to operators. Bundle is the canonical product spec; reference workspace is the activation source for new operators. | alpha-trader | The primary program YARNNN is currently being built around. |
+| `reference` | A SPEC-only litmus bundle: zero code, exists to constrain kernel decisions. Forms part of the oracle-shape litmus triangle that prevents the kernel from over-fitting any single program. | alpha-prediction, alpha-defi | The kernel commits to handle any of these oracle shapes; their existence is the test. |
+| `deferred` | A bundle that captures shipped-but-homeless artifacts that have a logical program-shaped home but no active operator. Bundle exists; not actively built; not part of the litmus triangle. | alpha-commerce | Commerce-shape artifacts (revenue-report, customers/, revenue/, COMMERCE_TOOLS) that shipped before the OS framing landed needed a home outside the kernel. The bundle parks them. Activates when a real commerce operator shows up. |
+| `archived` | A retired bundle. Kept for archaeology, not consulted. | (none today) | Reserved for the future. |
+
+**Reference vs. deferred — why the distinction matters.** Both are "not actively built." They differ in *purpose*: a `reference` bundle exists *to constrain* (litmus); a `deferred` bundle exists *to host* (parking lot). Putting alpha-commerce under `reference` would imply it strengthens the oracle-shape litmus — but commerce's revenue oracle is too close to alpha-trader's price oracle to add discriminating power. Keeping it under `deferred` is honest: it's not litmus; it's a place for orphaned artifacts to live until their program activates.
 
 ## How the triangle works
 
@@ -57,6 +70,8 @@ The three programs span the oracle-shape space without redundancy:
 | Regulatory frame | Standard brokerage | Mixed (CFTC for Kalshi) | Self-custody / permissionless |
 
 A primitive that only serves one of these is program-layer. A primitive that serves all three is kernel-layer. This is the kernel contract the reference programs enforce — the litmus test for any proposed kernel change.
+
+**alpha-commerce is intentionally not part of the litmus triangle.** Its oracle shape (revenue / conversion / churn) is too close to alpha-trader's continuous-price shape to add discriminating power for the kernel-vs-program test. alpha-commerce exists for a different reason — to house commerce-shape artifacts that shipped before the OS framing landed and have a clean program-shaped home but no active operator. The litmus triangle stays at three; alpha-commerce is parking-lot, not litmus.
 
 ## What rejected the triangle
 
@@ -91,5 +106,5 @@ The OS/program separation is enforced by:
 
 1. **Kernel-layer ADRs do not name programs.** They name primitives and dimensions.
 2. **Program bundles do not propose kernel changes.** When a program needs a kernel change, it goes through the ADR process and must be justified across all reference programs.
-3. **Only alpha-trader has implementation under it.** alpha-prediction and alpha-defi are SPECs, not roadmaps. They activate (graduate to programs-with-code) when their preconditions land.
+3. **Only alpha-trader has implementation under it.** alpha-prediction and alpha-defi are reference SPECs (litmus, no code). alpha-commerce is a deferred parking-lot bundle (homes homeless artifacts, no active build). They each graduate to `active` only when their preconditions hold.
 4. **Adding a program is purely additive.** A new bundle, possibly new system component library entries, no kernel touch. Per ADR-222 + FOUNDATIONS Principle 16.

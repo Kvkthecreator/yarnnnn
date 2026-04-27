@@ -1,7 +1,7 @@
 ---
 title: External Oracle Thesis — Discourse
 date: 2026-04-26
-status: v3 — OS/program separation resolution
+status: v4 — alpha-commerce reclassification under OS framing
 trigger: Apoorva Mehta / Abundance launch post (2026-04-25), discourse 2026-04-26
 related:
   - docs/analysis/autonomous-business-thesis-2026-04-15/
@@ -799,3 +799,29 @@ Resolutions land cleanly for §9.1, §9.2, §9.6. Still open and waiting for evi
 - Self-funding becomes structural: alpha-trader running on top of YARNNN, paying for YARNNN, validates both layers simultaneously. OS validation is implicit in program validation.
 
 This resolution is not a positioning document. It is the architectural framing under which positioning decisions can be made cleanly when evidence supports them.
+
+---
+
+## 12. Amendment: alpha-commerce Reclassification (added 2026-04-27)
+
+§11.2's resolution of §9.6 said:
+
+> "alpha-commerce treatment: Commerce work (ADR-183/184, Commerce Bot, LS integration) is OS-layer capability — it stays."
+
+That framing is **superseded** by ADR-222 (OS framing canonization) + ADR-224 v3 (kernel/program boundary refactor). Under the OS framing, program-shape declarations don't sit in the kernel as "OS-layer capability" — they live in their program bundle.
+
+**Corrected classification.** alpha-commerce becomes a fourth program bundle with `MANIFEST.yaml` `status: deferred`. The bundle is created by ADR-224 v3 implementation as a home for shipped-but-homeless commerce artifacts (revenue-report task type, customers/ + revenue/ context-domain conventions, COMMERCE_TOOLS, commerce_bot template residue). Bundle is near-empty per ADR-223 §5; populates further when commerce activates.
+
+**Why this matters.**
+
+- **Honest kernel boundary.** The kernel had been carrying program-specific declarations as "OS-layer capability" — exactly the conflation Derived Principle 16 is meant to prevent. Moving them to a deferred bundle restores the boundary.
+- **alpha-commerce is intentionally NOT part of the litmus triangle.** Its oracle shape (revenue / conversion / churn) is too close to alpha-trader's continuous-price shape to add discriminating power for the kernel-vs-program test. The litmus triangle remains alpha-trader (primary built) + alpha-prediction (reference SPEC) + alpha-defi (reference SPEC). alpha-commerce is parking-lot, not litmus.
+- **Lifecycle states formalized.** Per ADR-223, four states: `active` | `reference` | `deferred` | `archived`. alpha-commerce is the first instance of `deferred` — distinct from `reference` because it has homeless artifacts to host, not a litmus-test purpose to fulfill.
+- **No change to the discipline commitment.** alpha-trader remains the only program being actively built. alpha-commerce activates only when a real commerce operator shows up and the activation_preconditions in its MANIFEST hold.
+
+**Updated artifact registry** (added to §11.4 retroactively):
+
+- [docs/programs/alpha-commerce/](../programs/alpha-commerce/) — deferred future program; MANIFEST + minimal SURFACES + reference-workspace placeholder; created by ADR-224 v3 implementation.
+- [docs/programs/README.md](../programs/README.md) — gains lifecycle-states section + alpha-commerce row + clarification that alpha-commerce sits outside the litmus triangle by design.
+
+This amendment closes a small but real inconsistency between the thesis's §11 resolution and the OS framing the resolution itself committed to. The substrate of the architecture and the substrate of the documentation now agree.
