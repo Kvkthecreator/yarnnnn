@@ -249,6 +249,10 @@ def _merge_list_or_detail_block(
             result[k] = (result.get(k) or []) + deepcopy(v)
         elif k == "components" and isinstance(v, list):
             result[k] = (result.get(k) or []) + deepcopy(v)
+        elif k == "cockpit_panes" and isinstance(v, list):
+            # ADR-225 Phase 3: cockpit_panes union across bundles, first
+            # bundle's panes come first (deterministic per oldest activation).
+            result[k] = (result.get(k) or []) + deepcopy(v)
         elif k not in result:
             result[k] = deepcopy(v)
         # else: first-bundle wins on scalar conflicts (banner, group_default, etc.)

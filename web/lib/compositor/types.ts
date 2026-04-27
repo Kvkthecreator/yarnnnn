@@ -58,6 +58,24 @@ export interface MiddleDecl {
   archetype: Archetype;
   bindings?: Record<string, Binding>;
   components: ComponentDecl[];
+  /**
+   * Optional chrome override per ADR-225 Phase 3. When present, replaces
+   * the kernel-default chrome (per output_kind) for the matched task.
+   * Both metadata and actions are independently optional — a bundle may
+   * override only one and inherit the kernel default for the other.
+   */
+  chrome?: ChromeDecl;
+}
+
+/**
+ * Chrome declaration — metadata strip + actions row in WorkDetail's
+ * SurfaceIdentityHeader. Per ADR-225 Phase 3, chrome flows through the
+ * compositor seam alongside the middle. Kernel defaults live in
+ * `kernel-defaults.ts` keyed by output_kind.
+ */
+export interface ChromeDecl {
+  metadata?: ComponentDecl;
+  actions?: ComponentDecl[];
 }
 
 // ---------------------------------------------------------------------------
@@ -75,6 +93,13 @@ export interface TabListBlock {
   components?: ComponentDecl[];
   default_collapsed?: boolean;
   reviewer?: { principles_default?: string };
+  /**
+   * Optional cockpit pane sequence per ADR-225 Phase 3. When present on
+   * `tabs.work.list`, replaces the kernel-default cockpit composition
+   * (NeedsMe → Snapshot → SinceLastLook → Intelligence). When absent,
+   * kernel defaults from `kernel-defaults.ts` render.
+   */
+  cockpit_panes?: ComponentDecl[];
 }
 
 export interface TabDetailBlock {
