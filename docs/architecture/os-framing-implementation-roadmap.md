@@ -68,6 +68,8 @@ Steps 1, 2/3, 4 can run in parallel after #1's spec is far enough along to unblo
 
 ## ADR 2 — Compositor Layer
 
+> **Drafted as [ADR-225 v2](../adr/ADR-225-compositor-layer.md) on 2026-04-27.** v2 same-day rewrite (v1 missed the two-compose-modes framing surfaced by the parallel Step 0 paper design). The ADR adds *surface compose* (live-bound, NEW) as a kernel-level sibling to the existing *document compose* (frozen, ADR-148/170/177/213 shipped). Both modes share the universal component library; mode is a property of the binding in SURFACES manifest. v1 component scope is the 14 universal components enumerated in the alpha-trader paper design. ADR 3 (Component Library Convention) folds in. The summary below is preserved as the roadmap-level scope record; the ADR is the canonical source.
+
 **Goal:** build the FE/API infrastructure that resolves a program's composition manifest against the operator's workspace substrate and renders the cockpit.
 
 **Decisions to land:**
@@ -251,8 +253,8 @@ These are real architectural concerns that follow from the OS framing but are ex
 |---|---|---|
 | Step 0 — alpha-trader Surface Paper Design | **Drafted as [docs/analysis/alpha-trader-surface-design-2026-04-27.md](../analysis/alpha-trader-surface-design-2026-04-27.md)** (2026-04-27) | Discourse-shape paper design. Not a SURFACES.yaml. Open questions surfaced for next-round review. |
 | ADR 1 — Program Bundle Spec | **Implemented** ([ADR-223](../adr/ADR-223-program-bundle-specification.md), 2026-04-27) — alignment commit `3237b89`; ADR-224 implementation validated schema by exercising bundle-side enrichment without schema bump | Done |
-| ADR 2 — Compositor Layer | Not started | Independent of ADR 4 per ADR-224 v3 (compositor reads SURFACES.yaml directly; runtime stays substrate-driven). Next sequenced. **Scope clarified by 2026-04-27 discourse:** ADR 2 adds *surface compose* (live-bound) as sibling to existing *document compose* (frozen). Both kernel-level. Informed by Step 0 paper design. |
-| ADR 3 — System Component Library | Not started | Pairs with ADR 2. v1 component set scoped from Step 0 paper design (~14 components, all universal). |
+| ADR 2 — Compositor Layer | **Drafted as [ADR-225 v2](../adr/ADR-225-compositor-layer.md) (2026-04-27)** — implementation pending ratification. v2 same-day rewrite integrated the two-compose-modes framing, 14-component v1 scope, 4-tier match resolution, 6-type binding taxonomy, Overview-as-`tabs.chat.bands[]`. Folds in ADR 3. | Implementation next |
+| ADR 3 — System Component Library | **Folded into [ADR-225 v2](../adr/ADR-225-compositor-layer.md)** — convention sized small enough not to merit a separate ratification; v1 set is the 14 universal components from Step 0 paper design. | Done as part of ADR 2 |
 | ADR 4 — Kernel/Program Boundary Refactor | **Implemented** ([ADR-224 v3](../adr/ADR-224-kernel-program-boundary-refactor.md), 2026-04-27) — bundle_reader.py + 4-capability + 4-directory + 3-task-type kernel deletions + alpha-commerce deferred bundle + 11/11 test gate | Done |
 | ADR 5 — Reference Activation Flow | Not started | Depends on ADR 2 (compositor reads bundle's SURFACES.yaml at activation). alpha-commerce bundle now exists per ADR-224. |
 | ADR 6 — Reference-Reflexive Loop | Not started | After ADR 5 lands AND evidence (second operator producing real divergence). **Naturally gated by evidence per 2026-04-27 discourse — manual curation suffices until then.** Two graduation channels confirmed: substrate patterns AND composition patterns. |
