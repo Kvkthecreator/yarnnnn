@@ -1,20 +1,24 @@
 ---
 title: Programs — OS / Program Separation
-date: 2026-04-26
+date: 2026-04-26 (v2 alignment 2026-04-27 for ADR-222)
 status: canonical
 related:
   - docs/architecture/SERVICE-MODEL.md
   - docs/architecture/FOUNDATIONS.md
+  - docs/architecture/GLOSSARY.md
+  - docs/adr/ADR-222-agent-native-operating-system-framing.md
   - docs/analysis/external-oracle-thesis-2026-04-26.md
 ---
 
 # Programs
 
-> **YARNNN-the-OS** is the substrate (authored substrate, primitive matrix, task pipeline, Reviewer machinery, narrative + layered context, money-truth substrate, source-agnostic feedback, prompt profiles, FOUNDATIONS axioms, the four-tab cockpit, the universal agent roster). Domain-agnostic by construction.
+> **YARNNN is an agent-native operating system** (canonized by [ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md), [FOUNDATIONS Principle 16](../architecture/FOUNDATIONS.md)). The **kernel** (substrate + primitives + axioms + privileged daemons + filesystem + shell + init system) is domain-agnostic by construction.
 >
-> **A program** is a serious application built on top — opinionated about its own surfaces, scaffolding, success bar, and iteration cycle. Programs are allowed to be vertical in ways the OS cannot be.
+> A **program** is an application that runs on the YARNNN kernel — opinionated about its own surfaces, scaffolding, success bar, and iteration cycle. Programs are allowed to be vertical in ways the kernel cannot be.
 >
-> The OS doesn't change when you commit to a program. macOS doesn't become "Photoshop OS" when Adobe ships Photoshop — the OS keeps its general-purpose contract; the program is allowed its specific shape.
+> A **program bundle** is the declarative package an application ships: manifest (the program's `README.md`) + reference workspace + composition manifest + dependencies. The bundle root is this folder: `docs/programs/{program}/`. Equivalent to `.app` (macOS), `.deb` (Debian), `.apk` (Android).
+>
+> The kernel doesn't change when a program is added. macOS doesn't become "Photoshop OS" when Adobe ships Photoshop — the kernel keeps its general-purpose contract; the program ships its bundle.
 
 ## Why this folder exists
 
@@ -33,7 +37,7 @@ When an architectural decision comes up, the program docs are the **litmus test*
 | **alpha-prediction** | Reference — design test only, no code | Binary terminal outcome (Polymarket / Kalshi) | $100-stakes | [alpha-prediction/](alpha-prediction/) |
 | **alpha-defi** | Reference — design test only, no code | On-chain settled state + token prices | $1K+custody | [alpha-defi/](alpha-defi/) |
 
-**Only alpha-trader is being built right now.** The other two exist as committed-but-uncoded SPECs. Their job is to keep the OS honest about what it claims to support, and to prevent the OS from accidentally becoming alpha-trader-shaped.
+**Only alpha-trader is being built right now.** The other two exist as committed-but-uncoded SPECs. Their job is to keep the kernel honest about what it claims to support, and to prevent the kernel from accidentally becoming alpha-trader-shaped.
 
 ## How the triangle works
 
@@ -49,7 +53,7 @@ The three programs span the oracle-shape space without redundancy:
 | Capital to validate | $5K+ | $100-stakes | $1K + custody infra |
 | Regulatory frame | Standard brokerage | Mixed (CFTC for Kalshi) | Self-custody / permissionless |
 
-A primitive that only serves one of these is program-layer. A primitive that serves all three is OS-layer. This is the OS contract the reference programs enforce.
+A primitive that only serves one of these is program-layer. A primitive that serves all three is kernel-layer. This is the kernel contract the reference programs enforce — the litmus test for any proposed kernel change.
 
 ## What rejected the triangle
 
@@ -59,17 +63,30 @@ These were considered as the third or fourth program and rejected:
 - **Sports betting** — fragmented sportsbook APIs, state-by-state regulatory mess. Polymarket / Kalshi give a single API, single oracle shape, clean settlement. Subsumed into alpha-prediction.
 - **Pure yield farming** — too narrow as a reference. Subsumed into alpha-defi as one of its action modes.
 
+## Program bundle structure
+
+Each program bundle declares (or will declare, as forthcoming implementation ADRs land):
+
+| Artifact | Role | Status |
+|---|---|---|
+| `README.md` | **Program manifest** — what the program is, what kernel features it depends on, what surfaces it commits to, success bar. Equivalent to `Info.plist` (macOS) / `manifest.json` (Chrome). | Convention landed |
+| `reference-workspace/` | **Bundled reference substrate** — the starter substrate operators fork on activation. Equivalent to an app's bundled default user-data template. | Convention to land via Reference-Workspace Activation Flow ADR |
+| `SURFACES.yaml` *(or equivalent)* | **Composition manifest** — declarative spec of what the cockpit looks like for this program. Read by the compositor. | Format spec to land via Program Bundle Specification ADR |
+| Implicit: program-specific context-domain conventions | Domain naming + entity structure conventions specific to this program (e.g., `customers/`, `portfolio/`, `trading/`) | Currently colocated with kernel registries; moves into bundles via Kernel/Program Boundary Refactor ADR |
+| Implicit: program-specific task type catalog | Curated task templates program operators commonly fork from (e.g., `trading-digest`, `revenue-report`) | Currently colocated with kernel registries; moves into bundles via Kernel/Program Boundary Refactor ADR |
+
 ## Program-layer artifacts vs persona-layer artifacts
 
-- **`docs/programs/{program}/`** — what *YARNNN is building*. Product surfaces, scaffolding, OS dependencies, success bars. Stable across operators of that program.
-- **`docs/alpha/personas/{persona}/`** — what a *specific operator workspace* looks like. Mandate, operator profile, risk file, principles. Per-operator.
+- **`docs/programs/{program}/`** — the **program bundle**: what *YARNNN-the-platform commits to support*. Manifest, reference workspace, composition manifest, OS dependencies, success bars. Stable across operators of that program.
+- **`docs/alpha/personas/{persona}/`** — what a *specific operator workspace* looks like. Mandate, operator profile, risk file, principles. Per-operator authoring (the lived-loop source for graduation into the program bundle).
 
-A program supports many personas. The persona layer is where the workspace lives; the program layer is where the platform commits to supporting that workspace shape.
+A program supports many personas. The persona layer is where the workspace lives; the program-bundle layer is where the platform commits to supporting that workspace shape. Personas fork from the bundle's reference workspace at activation; their authored deltas eventually graduate back to the bundle via the reference-reflexive loop (forthcoming ADR).
 
 ## Discipline
 
 The OS/program separation is enforced by:
 
-1. **OS-layer ADRs do not name programs.** They name primitives and dimensions.
-2. **Program docs do not propose OS changes.** When a program needs an OS change, it goes through the ADR process and must be justified across all reference programs.
+1. **Kernel-layer ADRs do not name programs.** They name primitives and dimensions.
+2. **Program bundles do not propose kernel changes.** When a program needs a kernel change, it goes through the ADR process and must be justified across all reference programs.
 3. **Only alpha-trader has implementation under it.** alpha-prediction and alpha-defi are SPECs, not roadmaps. They activate (graduate to programs-with-code) when their preconditions land.
+4. **Adding a program is purely additive.** A new bundle, possibly new system component library entries, no kernel touch. Per ADR-222 + FOUNDATIONS Principle 16.

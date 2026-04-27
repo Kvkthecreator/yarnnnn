@@ -1,13 +1,16 @@
 ---
 title: alpha-defi — Reference Program SPEC
-date: 2026-04-26
+date: 2026-04-26 (alignment 2026-04-27 for ADR-222)
 status: reference program — design test only, no code
 related:
   - docs/programs/README.md
   - docs/programs/alpha-trader/README.md
   - docs/programs/alpha-prediction/SPEC.md
+  - docs/adr/ADR-222-agent-native-operating-system-framing.md
   - docs/analysis/external-oracle-thesis-2026-04-26.md
 ---
+
+> Reference program SPEC under the agent-native operating system framing canonized by [ADR-222](../../adr/ADR-222-agent-native-operating-system-framing.md). The heaviest litmus in the reference triangle — irreversibility, custody, 24/7 cadence, on-chain perception. This bundle exists to constrain kernel-layer decisions, not to ship as an active program.
 
 # alpha-defi (Reference)
 

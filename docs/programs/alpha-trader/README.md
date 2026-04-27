@@ -1,6 +1,6 @@
 ---
 title: alpha-trader — Program Spec
-date: 2026-04-26
+date: 2026-04-26 (alignment 2026-04-27 for ADR-222)
 status: primary program — actively built
 related:
   - docs/programs/README.md
@@ -9,18 +9,19 @@ related:
   - docs/adr/ADR-187-trading-integration.md
   - docs/adr/ADR-194-reviewer-layer.md
   - docs/adr/ADR-195-money-truth-substrate.md
+  - docs/adr/ADR-222-agent-native-operating-system-framing.md
   - docs/analysis/external-oracle-thesis-2026-04-26.md
 ---
 
 # alpha-trader
 
-> The first serious program built on top of YARNNN-the-OS. Equities + options operator workflow, validated via the operator's own capital (paper → live). Self-funding by design.
+> The first **application** running on the YARNNN agent-native operating system. This folder is the program **bundle**. Equities + options operator workflow, validated via the operator's own capital (paper → live). Self-funding by design.
 
-## Position relative to OS
+## Position relative to the kernel
 
-alpha-trader is **the program**. The OS is everything else. This document describes the program — its surfaces, scaffolding, success bar — not the substrate underneath.
+alpha-trader is **the program** (an application running on the YARNNN kernel, per [ADR-222](../../adr/ADR-222-agent-native-operating-system-framing.md) + [FOUNDATIONS Principle 16](../../architecture/FOUNDATIONS.md)). This bundle describes the program — its surfaces, scaffolding, success bar — not the kernel underneath.
 
-When this program needs work that would also serve alpha-prediction or alpha-defi, that work ships as OS-layer. When it needs work that only alpha-trader benefits from, that work ships under this folder or under `docs/alpha/personas/alpha-trader/`.
+When this program needs work that would also serve alpha-prediction or alpha-defi, that work ships as kernel-layer. When it needs work that only alpha-trader benefits from, that work ships under this bundle or under `docs/alpha/personas/alpha-trader/` (persona-layer authoring).
 
 ## Oracle profile
 

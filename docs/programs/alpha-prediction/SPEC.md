@@ -1,13 +1,16 @@
 ---
 title: alpha-prediction — Reference Program SPEC
-date: 2026-04-26
+date: 2026-04-26 (alignment 2026-04-27 for ADR-222)
 status: reference program — design test only, no code
 related:
   - docs/programs/README.md
   - docs/alpha/personas/alpha-polymarket-PROPOSAL.md
   - docs/programs/alpha-trader/README.md
+  - docs/adr/ADR-222-agent-native-operating-system-framing.md
   - docs/analysis/external-oracle-thesis-2026-04-26.md
 ---
+
+> Reference program SPEC under the agent-native operating system framing canonized by [ADR-222](../../adr/ADR-222-agent-native-operating-system-framing.md). This bundle exists to constrain kernel-layer decisions (the litmus triangle), not to ship as an active program. Activation graduates this SPEC to a built program bundle.
 
 # alpha-prediction (Reference)
 
