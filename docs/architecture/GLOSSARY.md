@@ -1,7 +1,7 @@
 # YARNNN Glossary
 
 > **Status**: Canonical
-> **Date**: 2026-04-17 (v1.3 revision 2026-04-20 for FOUNDATIONS v6.0 dimensional model; v1.9 amendment 2026-04-25 for Axiom 9)
+> **Date**: 2026-04-17 (v1.3 revision 2026-04-20 for FOUNDATIONS v6.0 dimensional model; v1.9 amendment 2026-04-25 for Axiom 9; v2.0 amendment 2026-04-27 for OS framing canonization per ADR-222)
 > **Authors**: KVK, Claude
 > **Ratified by**: ADR-189 (Three-Layer Cognition) + ADR-194 v2 (Reviewer as Fourth Cognitive Layer) + FOUNDATIONS v6.0 (Six-Dimensional Model)
 > **Supersedes**: `naming-conventions.md` (to be retired after the ADR-189 rename pass lands)
@@ -17,6 +17,34 @@ This glossary is the single source of truth for YARNNN terminology. Every ADR, a
 The glossary exists because YARNNN operates across four layers of cognition (the product, the role palette, the authored workers, the independent judgment seat) and three kinds of readers (users, developers, investors). Without discipline, the same word collapses layers and confuses readers. With discipline, every term lands on exactly one thing at exactly one layer.
 
 One upstream discipline governs everything here: **semantic content lives in the filesystem** (FOUNDATIONS Axiom 1, the Substrate dimension). When a glossary term names a "ledger," a "policy," a "log," or any accumulated object, its definition must name the file path — not a DB table. Drift from file-native terminology is drift from the architecture, and both get corrected together.
+
+---
+
+## Operating System Framing (ADR-222, FOUNDATIONS Principle 16)
+
+YARNNN is canonized as an agent-native operating system. The framing is literal — every box in OS architecture has a corresponding YARNNN artifact. The vocabulary below is canonical and replaces the would-have-been "workspace type / workspace mode" naming.
+
+| Term | Meaning | Note |
+|---|---|---|
+| **Kernel** *(informal-canonical)* | The substrate layer: filesystem + primitives + axioms + privileged daemons. Domain-agnostic by construction. Equivalent to OS kernel. | Used informally alongside "substrate" (technical-canonical). "Kernel" is the macro frame; "substrate" is the technical implementation. Both valid. |
+| **Syscall ABI** *(informal)* / **Primitive matrix** *(canonical)* | The set of typed verbs userspace can invoke against the kernel — the only entry point into substrate operations. Listed in `CHAT_PRIMITIVES` + `HEADLESS_PRIMITIVES` (ADR-168). | Same artifact, two framings. "Primitive matrix" is the technical name; "syscall ABI" is the OS-faithful framing. Both valid. |
+| **Shell** *(informal)* | The interactive interface to the kernel — application code, not kernel. The YARNNN chat agent (`api/agents/yarnnn.py`). | Per ADR-205, the shell is a regular `agents` table row using the same syscall surface as everything else. No privileged shortcuts. |
+| **Userspace** *(informal)* / **Workspace** *(canonical)* | The operator's `/workspace/` — per-operator state, owned by the operator, not by the kernel. | Both terms valid. "Workspace" is the canonical project term; "userspace" is the OS-framing word. Workspaces are not "typed" — they run programs. |
+| **Program** *(canonical)* | An application that runs in YARNNN userspace. Currently: alpha-trader (built), alpha-prediction (reference SPEC), alpha-defi (reference SPEC). | Equivalent to a desktop application. Programs declare what they need; the kernel doesn't know about them. See [docs/programs/](../programs/README.md). |
+| **Program bundle** *(canonical)* | The declarative package shipping a program: manifest + reference workspace + composition manifest + dependencies. Lives at `docs/programs/{program}/`. | Equivalent to `.app` (macOS), `.deb` (Debian), `.apk` (Android). Versioned in-repo. |
+| **Program manifest** *(canonical)* | The top-level declaration in a program bundle (currently `README.md` at bundle root). Names what the program is, what kernel features it depends on, what surfaces it commits to, success bar. | Equivalent to `Info.plist` (macOS), `AndroidManifest.xml` (Android), `manifest.json` (Chrome extensions). |
+| **Composition manifest** *(canonical, format TBD)* | The bundle-shipped declarative spec for surface composition (`SURFACES.yaml` or equivalent — exact format defined by Program Bundle Specification ADR forthcoming). | Replaces would-have-been "workspace type" / "workspace mode." A program declares its surfaces; the compositor reads. |
+| **Compositor** *(canonical, infra not yet built)* | The FE/API infrastructure that resolves a program's composition manifest against the operator's workspace substrate and renders the cockpit. Reads substrate; never authors. | New architectural layer named for the first time in ADR-222. Equivalent to a window manager / desktop environment compositor. Implementation ADR forthcoming. |
+| **System component library** *(canonical, partial)* | The universal FE component library (`web/components/library/`) — building blocks composition manifests reference. | Equivalent to shared system libraries (libc, libGL). Additive-only; removing a component is breaking. Convention to be formalized in implementation ADR. |
+| **Workspace overlay** *(canonical, infra not yet built)* | Operator-authored deltas to a program's composition manifest, lives at `/workspace/SURFACES.yaml`. Optional; defaults to program's manifest. | Equivalent to a user's customized DE preferences. Revision-tracked under Authored Substrate. |
+| **Distribution** *(informal)* | A program understood as a curated bundle of (composition manifest + reference substrate + dependencies + commitments) on top of the YARNNN kernel. Same kernel; different program → different distribution. | Informal aid for positioning. Not a canonical technical term — programs and bundles are. |
+
+**Retired vocabulary candidates** (rejected as housing for the specialization layer):
+
+- **Workspace type / workspace kind** — rejected by ADR-222. Workspaces don't have types; they run programs. The kernel must not know about specific programs (kernels don't know applications). Type tags would have required kernel branches; the OS framing makes them unnecessary.
+- **Workspace mode** — rejected by ADR-222. Implies switchability that doesn't exist (a trader workspace doesn't switch into a commerce workspace at runtime), and conflates Identity with Channel.
+
+**Usage discipline:** when introducing a new mechanic that touches the architectural layering, name which layer it occupies (kernel / compositor / program-bundle / userspace / shell). A mechanic that crosses layers without justification is a design error per Derived Principle 16.
 
 ---
 
