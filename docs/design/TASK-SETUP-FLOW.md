@@ -1,9 +1,10 @@
 # Task Setup Flow — Structured Intent Capture for Task Creation
 
-**Version:** v1.0 (2026-04-13)
+**Version:** v1.1 (2026-04-27 — Bucket A catch-up: task type catalog source)
 **Status:** Canonical
 **Governed by:** [ADR-178](../adr/ADR-178-task-creation-routes.md) — Task Creation Routes
 **Parallel pattern:** [SHARED-CONTEXT-WORKFLOW.md](./SHARED-CONTEXT-WORKFLOW.md) — identity/brand capture via ContextSetup
+**Composition layer:** [ADR-207](../adr/ADR-207-primary-action-centric-workflow.md) P4b (TASK.md is dispatch-authoritative; TASK_TYPES is a frozen seed library), [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) (program-shaped task types live in bundle MANIFESTs, not in kernel)
 
 ---
 
@@ -183,6 +184,19 @@ If the user provides zero raw materials (no links, files, notes), the structured
 
 ---
 
+## Task Type Catalog Source
+
+When YARNNN translates a TaskSetup intent into `ManageTask(action="create")`, the `type_key` resolves against two sources, in order:
+
+1. **Kernel `TASK_TYPES`** ([api/services/task_types.py](../../api/services/task_types.py)) — the universal seed library (21 types post-ADR-166). Frozen by ADR-207 P4b: kernel TASK_TYPES is no longer dispatch-authoritative; it serves only two creation-time callers (`_handle_create` `type_key` convenience and `workspace_init.materialize_back_office_task`).
+2. **Active bundle's MANIFEST** ([docs/programs/{slug}/MANIFEST.yaml](../../docs/programs)) — program-shaped task types added by ADR-224 kernel/program boundary refactor. Examples: `trading-signal`, `portfolio-review`, `revenue-report` live in bundle MANIFESTs, no longer in kernel. `bundle_reader.get_task_type(type_key)` falls through transparently when the kernel lookup misses.
+
+**Implication for TaskSetup UI:** Route A's surface picker (Report / Deck / Dashboard / Digest) and Route B's domain picker (Competitors / Market / Relationships / Projects) should be **kernel-default lists** when no bundle is active, and **bundle-pinned lists first** when a bundle is active (per ADR-225 SURFACES.yaml `tabs.work.list.pinned_tasks`). The pinned list is the operator-visible signal that the bundle is shaping their available work — kernel options remain available below the fold.
+
+**What this is NOT:** TaskSetup does not branch on `program_slug` in the FE. The kernel/program seam lives in the catalog source, not in the component. Surfaces never branch on bundle identity — specialization happens via composition manifest (ADR-225) and the merged catalog (ADR-224).
+
+---
+
 ## What This Is NOT
 
 - **Not a form that creates the task directly.** The composed message goes to TP, which calls `ManageTask`. TP remains the single creation path — this component just gives it better inputs.
@@ -211,4 +225,5 @@ Future consideration: a single `IntentSetup` parent could house both flows with 
 
 | Version | Date | Change |
 |---|---|---|
+| v1.1 | 2026-04-27 | Bucket A catch-up to ADR-222 OS pivot — added "Task Type Catalog Source" section reflecting ADR-207 P4b (TASK.md dispatch-authoritative) + ADR-224 (kernel/program boundary; bundle MANIFESTs supply program-shaped task types). |
 | v1.0 | 2026-04-13 | Initial — two-route structured capture with material injection |

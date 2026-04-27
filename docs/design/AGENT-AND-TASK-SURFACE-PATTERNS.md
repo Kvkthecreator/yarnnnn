@@ -1,7 +1,7 @@
 # Agent And Task Surface Patterns
 
 **Date:** 2026-04-09  
-**Status:** Active  
+**Status:** Active (Bucket A note 2026-04-27 — composition layer added to Core Rule)
 **Related:**
 - [SURFACE-CONTRACTS.md](./SURFACE-CONTRACTS.md) — canonical per-tab surface contracts (ADR-215)
 - [TASK-OUTPUT-SURFACE-CONTRACT.md](./TASK-OUTPUT-SURFACE-CONTRACT.md) — proposed run-level API contract for `/work`
@@ -34,6 +34,8 @@ The right layering is:
 3. **`role` can add small specialized modules when the data genuinely differs**
 
 This prevents a combinatorial explosion as the roster evolves.
+
+**Composition layer (ADR-225, post-OS-pivot 2026-04-27):** bundle-supplied components specialize *within* this rule, not against it. `<MiddleResolver>` consults the active bundle's `SURFACES.yaml` `tabs.work.detail.middles[]` first (4-tier match: task_slug → output_kind+condition → output_kind → agent_role/class), falls through to the kernel-default kind shell when no override matches. The anti-fragmentation rule survives intact — bundle middles are universal library components bound by the manifest, not new pages-per-program.
 
 ## Task-Side Counterpart On `/work`
 

@@ -4,6 +4,34 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-27 — Bucket A: mechanical catch-up to ADR-222 OS pivot
+
+**Governing ADRs:** [ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md) (OS framing) · [ADR-223](../adr/ADR-223-program-bundle-specification.md) (bundle spec) · [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) (template residue deletion) · [ADR-225](../adr/ADR-225-compositor-layer.md) Phases 1+2 Implemented (compositor API + FE module + library + KindMiddle replaced) · [ADR-226](../adr/ADR-226-reference-workspace-activation-flow.md) Phase 1 Implemented (reference-workspace fork + activation overlay).
+
+The cluster of ADRs 222–226 introduced the kernel / program / compositor / activation seam. Phase 1+2 of the compositor and Phase 1 of activation are already shipped in code (commits `b5a03b5`, `f21e297`, `ab16c62`, `5e2426d`); the design folder did not reference any of it. This entry catches the design folder up mechanically — no open architectural questions, just doc-vs-code drift on already-ratified decisions.
+
+**Bucket B (load-bearing rewrites)** is deliberately out of scope here. SURFACE-CONTRACTS v2.0, a new ACTIVATION-FLOW.md, ONBOARDING-TP-AWARENESS v6, and a possible compose-layer architecture doc all need discourse first — the design choices around composition-layer placement, activation UX, and kernel/program seam exposure are real and reversing them later is expensive.
+
+**Audit summary:** zero design docs referenced ADR-222–226 before this commit (`grep -l` returned nothing). USER-JOURNEY Stage 1 still claimed the pre-ADR-205 9-agent DEFAULT_ROSTER scaffold. TASK-OUTPUT-SURFACE-CONTRACT still said "output_kind chooses the shell" without acknowledging the post-ADR-225 4-tier match.
+
+**Doc updates landed:**
+
+- **USER-JOURNEY.md → v1.3** — Stage 1 rewritten around ADR-205 (YARNNN as sole persistent row at signup; specialists/Platform Bots lazy-created) + ADR-226 (program-selection step before init; reference-workspace fork via three-tier categorization). System event cards table gains program-aware copy ("Your `{program}` workspace is forked..."). Dropped pre-ADR-205 "9 agents from DEFAULT_ROSTER" line. Cross-ref to archived ONBOARDING-SCAFFOLD-AND-BRIEFING removed (already archived).
+- **TASK-SETUP-FLOW.md → v1.1** — added "Task Type Catalog Source" section reflecting ADR-207 P4b (TASK.md is dispatch-authoritative; kernel TASK_TYPES is a frozen seed library) + ADR-224 (program-shaped task types live in bundle MANIFESTs; `bundle_reader.get_task_type()` falls through after kernel miss). Surfaces never branch on `program_slug` — the kernel/program seam lives in the catalog source, not in the component.
+- **TASK-OUTPUT-SURFACE-CONTRACT.md** — single composition-layer paragraph added under Purpose: the four kind-aware middles became *kernel defaults* rather than hardcoded dispatch targets after ADR-225 deleted `WorkDetail.tsx::KindMiddle`. The typed packet contract is precisely what makes bundle-supplied middles composable — they read the same `TaskRunSurface` shape kernel defaults consume. Header bullet `output_kind continues to choose the shell` reframed as Tier 3 fallback per ADR-225 4-tier match.
+- **AGENT-AND-TASK-SURFACE-PATTERNS.md** — single composition-layer paragraph added to Core Rule: the anti-fragmentation rule survives intact under the compositor era; bundle middles are universal library components bound by SURFACES.yaml, not new pages-per-program.
+- **SHARED-CONTEXT-WORKFLOW.md** — new "Bundle-Seeded Skeletons" section explaining the three-tier file taxonomy (canon / authored / placeholder) per ADR-223 §5. `authored`-tier shared files arrive *prompt-bearing*; the activation overlay walks them in declared order; UpdateContext remains the singular write path. Cold-start ContextSetup flow preserved as the "no program selected" path.
+
+**Code change:** none. All updates reflect already-shipped Phase 1+2 code.
+
+**What's deliberately deferred (Bucket B discourse pending):**
+1. **SURFACE-CONTRACTS v2.0** — flagship rewrite. Open questions: (a) preamble vs per-tab "Composition" row, (b) restate vs link 4-tier match resolution, (c) "Refuses: program-specific FE branching" as candidate R6, (d) `tabs.chat.bands[]` documentation timing (forward-looking vs lagging). v1.7 still describes a hardcoded KindMiddle world that no longer exists in code.
+2. **New ACTIVATION-FLOW.md** — owns ADR-226 Phase 2 UX. Open questions: program-selection card at signup vs later activation, how "connect platform on a kernel-only workspace" routes (offer retroactive fork vs wait for explicit activate), four operating-mode states' visual treatment, phase-overlay generality, dedicated activation progress strip vs chat-only walking.
+3. **ONBOARDING-TP-AWARENESS v6** — depends on ACTIVATION-FLOW.md; mechanical follow-up.
+4. **Compose-layer architecture doc** — possibly belongs in `docs/architecture/` rather than `docs/design/`; ratification needed before SURFACE-CONTRACTS rewrites point at the link target.
+
+---
+
 ## 2026-04-26 — ADR-215 Phase 7: ADR-219 narrative absorption (doc-only)
 
 **Governing ADR:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — adopts [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) (Implemented 2026-04-25/26).

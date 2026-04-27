@@ -1,6 +1,6 @@
 # Task Output Surface Contract
 
-**Date:** 2026-04-09 (amended 2026-04-13)
+**Date:** 2026-04-09 (amended 2026-04-13, Bucket A composition note 2026-04-27)
 **Status:** Decision
 **Related:**
 - [AGENT-AND-TASK-SURFACE-PATTERNS.md](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — shell rules for agent and task surfaces
@@ -20,7 +20,9 @@ The goal is singular:
 
 - the backend emits one normalized task-run packet per output folder
 - the frontend renders from that packet without parsing raw `manifest.json`
-- `output_kind` continues to choose the shell, but the shell receives structured data instead of reconstructing meaning from markdown files and ad hoc manifest keys
+- `output_kind` continues to choose the shell **as fallback** (Tier 3 of `<MiddleResolver>`'s 4-tier match per ADR-225), but the shell receives structured data instead of reconstructing meaning from markdown files and ad hoc manifest keys
+
+**Composition layer note (ADR-225, post-OS-pivot 2026-04-27):** since this contract was first written, the four kind-aware middles (`DeliverableMiddle` / `TrackingMiddle` / `ActionMiddle` / `MaintenanceMiddle`) became **kernel defaults** rather than hardcoded dispatch targets. `WorkDetail.tsx::KindMiddle` was deleted; `<MiddleResolver>` now consults the active program bundle's `SURFACES.yaml` `tabs.work.detail.middles[]` first, falling through to the kernel-default kind middle when no override matches. **The typed packet contract specified here is what makes this composition possible** — bundle-supplied middles read the same `TaskRunSurface` shape kernel defaults consume, so adding a Dashboard middle for `portfolio-review` (alpha-trader) requires no new endpoint, no new packet shape, just a library component pointing at the same bindings. See [ADR-225](../adr/ADR-225-compositor-layer.md) §4-5 for the four-tier match resolution.
 
 ## Problem
 

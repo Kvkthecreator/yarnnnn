@@ -1,9 +1,9 @@
 # User Journey
 
-**Version:** v1.2 (2026-04-14)
-**Status:** Canonical
-**ADRs:** 138, 141, 144, 152, 161, 163, 164, 176, 178, 179
-**See also:** [TASK-SETUP-FLOW.md](TASK-SETUP-FLOW.md) · [ONBOARDING-SCAFFOLD-AND-BRIEFING.md](ONBOARDING-SCAFFOLD-AND-BRIEFING.md) · [SHARED-CONTEXT-WORKFLOW.md](SHARED-CONTEXT-WORKFLOW.md)
+**Version:** v1.3 (2026-04-27)
+**Status:** Canonical (Bucket A mechanical catch-up — full reshape pending ACTIVATION-FLOW.md discourse)
+**ADRs:** 138, 141, 144, 152, 161, 163, 164, 176, 178, 179, 205, 222, 226
+**See also:** [TASK-SETUP-FLOW.md](TASK-SETUP-FLOW.md) · [SHARED-CONTEXT-WORKFLOW.md](SHARED-CONTEXT-WORKFLOW.md)
 
 ---
 
@@ -19,20 +19,21 @@ Users provide raw context once. The system reverse-engineers the work structure,
 
 ## Stage 1 — Sign-up
 
-Auth → callback → workspace init → `/chat`.
+Auth → callback → (optional program selection) → workspace init → `/chat`.
 
-**`initialize_workspace()` runs once, silently, in the callback.** Six phases:
+**Program selection** (ADR-226 Phase 2 — UI deferred, see ACTIVATION-FLOW.md when authored). The operator may pick an active program bundle (e.g. `alpha-trader`) before init runs, or skip. The selection threads `program_slug` into `initialize_workspace()`.
+
+**`initialize_workspace(program_slug=None)` runs once, silently, in the callback.** Per ADR-205 the kernel scaffolds exactly **one persistent agent row — YARNNN** — plus universal substrate. Specialists, Platform Bots, and program-specific domains materialize on demand (specialists at first dispatch; Platform Bots on OAuth connect; domains at first write).
 
 | Phase | What gets created | Why |
 |-------|------------------|-----|
-| Directory structure | `/workspace/context/`, `/workspace/outputs/`, `/workspace/uploads/`, `/tasks/`, etc. (ADR-152) | Filesystem substrate — agents write to known paths from first run |
-| Agent roster | 9 agents from `DEFAULT_ROSTER`: Researcher · Analyst · Writer · Tracker · Designer · Reporting · Thinking Partner · Slack Bot · Notion Bot · GitHub Bot (ADR-176) | Team exists before user sees anything — no configuration step |
-| Workspace files | `IDENTITY.md`, `BRAND.md`, `AWARENESS.md`, `CONVENTIONS.md`, `_playbook.md`, `style.md`, `notes.md` | Empty templates TP and agents fill in — structural skeleton is in place |
-| `WORKSPACE.md` manifest | Snapshot of agents, tasks, and context domain file counts | TP reads this at session start for meta-awareness |
-| Default tasks | `daily-update` (essential, ADR-161), `back-office-agent-hygiene` (TP-owned, ADR-164), `back-office-workspace-cleanup` (TP-owned, ADR-164) | Heartbeat + maintenance exist from day one — no dormant silence |
+| Universal substrate | `/workspace/memory/`, `/workspace/review/` (Reviewer IDENTITY + principles + decisions skeletons), `/workspace/context/_shared/` (IDENTITY · BRAND · CONVENTIONS · MANDATE skeletons), `/agents/`, `/tasks/`, `/uploads/` (ADR-152, ADR-205, ADR-206) | Filesystem substrate — every workspace gets the kernel skeleton |
+| YARNNN agent row | One row, role=`thinking_partner`, origin=`system_bootstrap` (ADR-205 + ADR-164) | Sole persistent identity at signup; everything else is lazy-created |
+| Default tasks | `daily-update` (essential, ADR-161), `back-office-agent-hygiene` + `back-office-workspace-cleanup` (YARNNN-owned, ADR-164) | Heartbeat + maintenance from day one |
 | Signup balance | $3 one-time grant (ADR-172) | Cold-start executions don't require billing setup |
+| **(if program_slug)** Reference-workspace fork | Bundle's `reference-workspace/` files copied into `/workspace/`, honoring three-tier categorization: `canon` (verbatim), `authored` (skeleton + prompt — operator must fill), `placeholder` (empty — accumulates from work). Writes attributed `authored_by="system:bundle-fork"` per ADR-209. | Program-shaped substrate seeded from the bundle (ADR-226 Phase 1) |
 
-**On landing at `/chat`:** the init result seeds a system card as the first assistant message — pre-composed, no LLM. Sets expectations before the user speaks. TP reads it as history on their first message.
+**On landing at `/chat`:** the init result seeds a system card as the first assistant message — pre-composed, no LLM. Sets expectations before the user speaks. YARNNN reads it as history on their first message. If a program was selected and `authored`-tier files are still skeleton, the **activation overlay** prompt engages YARNNN to walk those files in declared order via `UpdateContext` (ADR-226 Phase 1, prompt `activation.py`).
 
 ---
 
@@ -122,11 +123,12 @@ Pre-composed assistant messages, zero LLM. TP reads as history.
 
 | Event | Card | LLM? |
 |-------|------|------|
-| Workspace init complete | "Your workspace is ready — 9 agents, 3 tasks, daily update at 9am." | No |
+| Workspace init complete (no program) | "Your workspace is ready. Tell me what you want to track or build." | No |
+| Workspace init complete (program forked) | "Your `{program}` workspace is forked. Let's author the parts that need your judgment." (cues activation overlay) | No |
 | Task triggered | "Track Competitors is running — first results in a few minutes." | No |
 | Task complete (session open) | "Track Competitors finished. [View →]" | No |
 | Task complete (session closed) | Nothing — working memory covers it on next open | No |
-| ContextSetup submitted | Real TP turn (already is one) | Yes — one turn |
+| ContextSetup submitted | Real YARNNN turn (already is one) | Yes — one turn |
 
 ---
 
@@ -143,6 +145,7 @@ Pre-composed assistant messages, zero LLM. TP reads as history.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.3 | 2026-04-27 | Bucket A catch-up to ADR-222 OS pivot — Stage 1 reflects ADR-205 (YARNNN as sole persistent row) + ADR-226 (program selection + reference-workspace fork). System event cards updated for program-aware copy. ONBOARDING-SCAFFOLD-AND-BRIEFING cross-ref dropped (archived). |
 | v1.2 | 2026-04-14 | Added system event cards pattern (ADR-179), two Clarify moments in 2A, chat-visible guarantee on ContextSetup, decision table |
 | v1.1 | 2026-04-14 | Added workspace init as Stage 1 (6 phases), tightened all sections |
 | v1.0 | 2026-04-14 | Initial draft |

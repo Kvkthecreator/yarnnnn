@@ -1,12 +1,27 @@
 # Shared Context Workflow — ADR-144
 
 **Extended by:** ADR-155 — identity writes now trigger workspace-wide inference cascade (domain scaffolding across all context domains).
+**Extended by:** ADR-226 — when a program bundle is selected at signup, IDENTITY/BRAND/MANDATE/CONVENTIONS arrive as `authored`-tier files with `prompt:` frontmatter; the activation overlay walks YARNNN through them in declared order. UpdateContext remains the singular write path.
 
-How users create and update workspace shared context (IDENTITY.md, BRAND.md).
+How users create and update workspace shared context (IDENTITY.md, BRAND.md, CONVENTIONS.md, MANDATE.md).
 
 ## Principle
 
 **Inference is the method, not the product.** Users express intent ("update my identity"), the system infers from whatever sources are available (documents, URLs, chat text, platform content). No form fields. Workspace files ARE the context — no separate structured storage.
+
+## Bundle-Seeded Skeletons (post-OS-pivot 2026-04-27)
+
+When `initialize_workspace(program_slug=...)` runs, the program bundle's `reference-workspace/` is forked into the operator's `/workspace/`. Per ADR-223 §5 + ADR-226, `_shared/` files arrive in three tiers:
+
+| Tier | Behaviour at fork | Behaviour on re-fork | Examples (alpha-trader) |
+|---|---|---|---|
+| `canon` | Copied verbatim, frontmatter stripped | Re-applied if differs (operator edits preserved as prior revisions per ADR-209) | CONVENTIONS.md, AUTONOMY notes |
+| `authored` | Copied as skeleton + `prompt:` frontmatter (stripped on write) | Preserved if operator filled, re-applied only if still skeleton | IDENTITY.md, MANDATE.md, principles.md |
+| `placeholder` | Copied empty | Never overwritten | per-instrument folders, _performance.md |
+
+**Implication for this workflow:** `authored`-tier shared files arrive *prompt-bearing*. The activation overlay (`api/agents/yarnnn_prompts/activation.py`) surfaces each prompt as YARNNN's question; operator responses route through the existing `UpdateContext` primitive. The write path is unchanged — singular implementation preserved. The only thing the bundle adds is a **declared walking order** for the activation conversation.
+
+**When no program is selected:** workspace receives kernel-default empty skeletons (the pre-pivot path). The cold-start ContextSetup flow below applies.
 
 ## Current Surface Model (ADR-163 + ADR-180 — v12 four-surface nav)
 
