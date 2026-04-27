@@ -117,7 +117,7 @@ Steps 1, 2/3, 4 can run in parallel after #1's spec is far enough along to unblo
 
 ## ADR 4 — Kernel / Program Boundary Refactor
 
-> **Drafted as [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) on 2026-04-27.** The summary below is preserved as the roadmap-level scope record; the ADR is the canonical source.
+> **Drafted as [ADR-224 v3](../adr/ADR-224-kernel-program-boundary-refactor.md) on 2026-04-27.** v3 reframes the work as **template residue deletion** rather than dispatch refactor — runtime dispatch is already substrate-driven (per ADR-188 + ADR-207); the kernel registries hold dead program-specific templates that already have canonical homes in bundle MANIFESTs (post-ADR-223). Bundles get read at three specific moments (composition / scaffolding / display metadata), not always-loaded into runtime. The summary below is preserved as the roadmap-level scope record; the ADR is the canonical source.
 
 **Goal:** the actual code refactor that moves program-specific declarations out of universal kernel services and into program bundles.
 
@@ -247,10 +247,10 @@ These are real architectural concerns that follow from the OS framing but are ex
 | ADR | Status | ETA |
 |---|---|---|
 | ADR 1 — Program Bundle Spec | **Drafted as [ADR-223](../adr/ADR-223-program-bundle-specification.md) (2026-04-27)** — alignment commit landed `3237b89` | Ratification + ADR-224 implementation |
-| ADR 2 — Compositor Layer | Not started | After ADR 4 implements (compositor consumes the bundled declarations the boundary refactor exposes) |
+| ADR 2 — Compositor Layer | Not started | Independent of ADR 4 per ADR-224 v3 (compositor reads SURFACES.yaml directly; runtime stays substrate-driven). Can run parallel with ADR 4 implementation. |
 | ADR 3 — System Component Library | Not started | Pairs with ADR 2 |
-| ADR 4 — Kernel/Program Boundary Refactor | **Drafted as [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) (2026-04-27)** — implementation pending ratification | Implementation next |
-| ADR 5 — Reference Activation Flow | Not started | After ADR 1, 2, 4 land |
+| ADR 4 — Kernel/Program Boundary Refactor | **Drafted as [ADR-224 v3](../adr/ADR-224-kernel-program-boundary-refactor.md) (2026-04-27)** — implementation pending ratification | Smaller than v1/v2 sized: ~30-line bundle_reader, ~6 caller updates, kernel deletions. Implementation next. |
+| ADR 5 — Reference Activation Flow | Not started | After ADR 1 ratifies + alpha-commerce bundle exists (created by ADR 4 implementation). Independent of ADR 2. |
 | ADR 6 — Reference-Reflexive Loop | Not started | After ADR 5 lands |
 
 This doc is updated as ADRs are written, ratified, and implemented.
