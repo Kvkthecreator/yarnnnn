@@ -1,23 +1,61 @@
 # Surface Contracts
 
-**Version:** v1.7 (2026-04-26)
+**Version:** v2.0 (2026-04-27 — unified compositor seam absorbed)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
-**Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
+**Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
 **Supersedes:** `archive/SURFACE-ARCHITECTURE.md`, `archive/SURFACE-ACTION-MAPPING.md`, `archive/SURFACE-DISPLAY-MAP.md`, `archive/SURFACE-PRIMITIVES-MAP.md`
 
 ---
 
 ## Purpose
 
-This is the single design reference for YARNNN's cockpit. It answers four questions, in order:
+This is the single design reference for YARNNN's cockpit. It answers five questions, in order:
 
+0. **How does the kernel/program seam work for surfaces?** (composition layer)
 1. **What does each tab do?** (per-tab contract)
-2. **How is mutation expressed?** (CRUD matrix + 5 rules)
+2. **How is mutation expressed?** (CRUD matrix + 6 rules)
 3. **What affordances live where?** (affordance cookbook)
 4. **In what order do we harden the tabs?** (sequencing)
 
-When a design decision spans two tabs (e.g. "deep-link from Work to Files"), both tabs' contracts must allow it. When a CRUD decision arises (e.g. "how do we let the operator refine a task's deliverable?"), the matrix picks the shape. When either answer is unclear, the doc is wrong and gets updated — not the code.
+When a design decision spans two tabs (e.g. "deep-link from Work to Files"), both tabs' contracts must allow it. When a CRUD decision arises (e.g. "how do we let the operator refine a task's deliverable?"), the matrix picks the shape. When the answer would require branching FE code on `program_slug`, the contract is wrong — programs specialize via composition manifest (Part 0), never via FE conditionals.
+
+---
+
+## Part 0 — Composition Layer
+
+Every tab's contract describes the **kernel surface**. Bundles (program manifests at `docs/programs/{slug}/SURFACES.yaml`) extend kernel surfaces declaratively via the compositor seam ([ADR-225](../adr/ADR-225-compositor-layer.md), Phase 3 Implemented 2026-04-27).
+
+**The single mental model:** every compositor-resolved slot has the same shape — bundle declaration → kernel default fallback → library component dispatch by `kind`. There is no "kernel render path" and "bundle render path"; there is one path, where kernel defaults are themselves library components registered in `LIBRARY_COMPONENTS` alongside bundle components.
+
+The architecture-level reference for the seam is [docs/architecture/compositor.md](../architecture/compositor.md). This contract names which slots on which tabs are bundle-shapeable; the architecture doc names how they get rendered.
+
+### Compositor-resolved slots, by tab
+
+| Tab | Slot | Bundle declaration | Kernel default | Phase |
+|---|---|---|---|---|
+| Work | List pinned tasks | `tabs.work.list.pinned_tasks: [slug, ...]` | No pinning | 3 |
+| Work | List banner | `tabs.work.list.banner: "..."` (or via `phase_overlays`) | No banner | 2 |
+| Work | List cockpit panes | `tabs.work.list.cockpit_panes: ComponentDecl[]` | NeedsMe → Snapshot → SinceLastLook → Intelligence | 3 |
+| Work | Detail middle (content) | `tabs.work.detail.middles[]` (4-tier match) | DeliverableMiddle / TrackingEntityGrid / ActionMiddle / MaintenanceMiddle | 2 |
+| Work | Detail chrome (metadata + actions) | `tabs.work.detail.middles[].chrome` (optional) | Per-output_kind kernel chrome (`KernelDeliverableMetadata`, etc.) | 3 |
+| Agents | List featured agents | `tabs.agents.list.featured: [slug, ...]` | No featuring | (Phase 2 backend; FE consumer pending) |
+| Files (Context) | List featured domains | `tabs.context.list.featured_domains: [...]` | No featuring | (Phase 2 backend; FE consumer pending) |
+| Files (Context) | List pinned shortcuts | `tabs.context.list.pinned_shortcuts: [...]` | No pinning | (Phase 2 backend; FE consumer pending) |
+| Chat | Empty-state chips | `chat_chips: ["...", ...]` | Four kernel-default chips | (Phase 2 backend; FE consumer pending) |
+| Chat | Overview surface bands | `tabs.chat.bands[]` | (Currently hardcoded ChatEmptyState) | (Future) |
+
+Slots marked "FE consumer pending" mean the backend resolver returns the field but no FE component reads it yet. They'll wire incrementally as bundles need them. The Work tab is fully bundle-shapeable end-to-end after Phase 3.
+
+### Refuses (composition-layer-wide)
+
+- **No FE branch on `program_slug`.** Specialization happens via composition manifest, never via FE conditionals. If a tab feels it needs to know which program is active, the answer is to declare the variation in SURFACES.yaml.
+- **No bundle-supplied executable logic.** SURFACES.yaml carries declarations only. The resolver inspects strings; it never `eval`s anything.
+- **No kernel-only dual paths.** Per Singular Implementation, kernel defaults are library components dispatched through the same registry as bundle components. Don't ever introduce a "kernel render branch" that bypasses the resolver.
+
+### Contract authority
+
+When this doc and `docs/architecture/compositor.md` disagree, the architecture doc wins on *how the seam works* (resolver pattern, binding taxonomy, library registry). This doc wins on *what each tab should look like* (per-tab contracts, archetype assignments, refuses lists). When [ADR-225](../adr/ADR-225-compositor-layer.md) and either of these disagree, the ADR wins on decisions; the docs adjust.
 
 ---
 
@@ -79,19 +117,33 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
 - **Archetype:** Briefing + Queue (list-mode composition) → Document/Dashboard/Stream (detail mode, per output_kind).
 - **Narrative semantics** (ADR-219 D4): `/work` **is the narrative filtered by `metadata.task_slug`**. The list-row recent-activity headline reads from the narrative via `GET /api/narrative/by-task` (ADR-219 Commit 4) — the legacy `task.last_run_at` timestamp source was retired; tasks with no narrative entries simply render no headline (singular implementation). WorkDetail's per-task run-history continues to read `agent_runs` per ADR-219 D7 — that's the audit ledger view, separate consumer.
 - **Reads:** `tasks` table, `/workspace/tasks/{slug}/*` (TASK.md, DELIVERABLE.md, feedback.md, outputs, memory), `/workspace/review/decisions.md` (for the SinceLastLook pane), `/workspace/context/_performance_summary.md` (for the Snapshot pane per ADR-195 Phase 3), `agent_runs` (for WorkDetail's per-task run-history view), **`GET /api/narrative/by-task`** (for WorkListSurface row headlines per ADR-219 Commit 4).
-- **List mode** (no `?task=`): single vertical scroll with two visually-distinct zones per ADR-215 Phase 4.
-  - **Cockpit zone** (`<BriefingStrip>`) — section label "Cockpit", subtle tint, Briefing+Queue archetypes. Panes in ADR-206 deliverables-first order:
-    1. NeedsMe — Queue (pending proposals)
-    2. Snapshot — Dashboard tiles (book / workforce / context)
-    3. SinceLastLook — Briefing (temporal changes)
-    4. Workspace Intelligence — synthesis card. Silent-degrade per ADR-198 §3 Briefing invariant: 404 / missing output / transient error all collapse into "Synthesis pending" empty state. No Retry box inside the list surface.
-  - **Work zone** (`<WorkListSurface>`) — section label "Work". Task list grouped by output_kind (Reports · Tracking · Connected · Actions), with My Work / Connectors / System tab switcher for scope.
+- **List mode** (no `?task=`): single vertical scroll with two visually-distinct zones per ADR-215 Phase 4. Both zones are now compositor-resolved (ADR-225 Phase 3, see Part 0 slot table).
+  - **Cockpit zone** (`<CockpitRenderer>`, replaces deleted `<BriefingStrip>`) — section label "Cockpit", subtle tint, Briefing+Queue archetypes. Pane sequence resolved via `resolveCockpitPanes(composition)`:
+    - **Kernel default** (no active program, or program declares no `cockpit_panes`): NeedsMe → Snapshot → SinceLastLook → Intelligence (ADR-206 deliverables-first order, registered as `KERNEL_DEFAULT_COCKPIT_PANES` in `web/lib/compositor/kernel-defaults.ts`).
+    - **Bundle override** (e.g., alpha-trader): `tabs.work.list.cockpit_panes` declares the sequence; bundles freely mix kernel + bundle pane components in any order.
+    - **Pane CRUD shape:** all panes are read-shaped (Briefing/Queue/Dashboard archetypes). Long-running interactive UI doesn't belong here.
+    - **Empty states:** silent-degrade per ADR-198 §3 Briefing invariant — 404 / missing output / transient error all collapse into "Synthesis pending" or pane-specific empty copy. No Retry box inside the list surface.
+    - **Hidden when `?agent=` filter active** — deliberate focus shift per ADR-206 (filtered list becomes the primary focus). The gate lives in `page.tsx`; `<CockpitRenderer>` doesn't know about the agent filter.
+  - **Work zone** (`<WorkListSurface>`) — section label "Work". Task list grouped by output_kind (Reports · Tracking · Connected · Actions), with My Work / Connectors / System tab switcher for scope. **Pinned tasks** (`tabs.work.list.pinned_tasks`) float to the top of their group with a small pin glyph. **Banner** (`tabs.work.list.banner`, including via `phase_overlays`) renders above the task list via `<BundleBanner tab="work" />`.
   - Zones share one vertical scroll (ADR-205 F2 — deliberate: glance-then-drill mental model; tab-ify was considered and rejected because it would force proposals behind a click).
-- **Detail mode** (`?task={slug}`): ADR-167 v2 four kind-aware middles. Middles are content-only — edit affordances live in `WorkDetail` header row (Run/Pause = Direct; Edit in chat = Chat per R1+R5):
-  - `produces_deliverable` → DeliverableMiddle (rendered output + quality contract panel)
-  - `accumulates_context` → TrackingMiddle (domain folder link + CHANGELOG)
-  - `external_action` → ActionMiddle (fire history + platform link-out)
-  - `system_maintenance` → MaintenanceMiddle (hygiene log + run history)
+- **Detail mode** (`?task={slug}`): three compositor-resolved layers — chrome (top), middle (content), feedback strip (bottom). Per Part 0, every layer flows through the resolver pattern.
+  - **Chrome** (`<ChromeRenderer>`) — single component for the metadata strip + array of components for the actions row. Resolved via `resolveChrome(ctx, middles)`:
+    - **Kernel default per output_kind** (`KERNEL_DEFAULT_CHROME` in `kernel-defaults.ts`):
+      - `produces_deliverable` → KernelDeliverableMetadata + KernelDeliverableActions
+      - `accumulates_context` → KernelTrackingMetadata + KernelTrackingActions
+      - `external_action` → KernelActionMetadata + KernelActionActions (Fire button + Edit-in-chat)
+      - `system_maintenance` → KernelMaintenanceMetadata + (no actions)
+    - **Bundle override** via `tabs.work.detail.middles[].chrome` (optional, partial overrides allowed): bundles override metadata only, actions only, or both. Missing slots inherit kernel default.
+    - **Action handlers** thread via `WorkDetailActionsContext` provider in `WorkDetail.tsx`. Kernel and bundle chrome components both consume `useWorkDetailActions()`.
+    - **Operational vs historical timestamp rule** (rule made contract-explicit in v2.0): chrome metadata strips show **operational** timestamps that help the operator answer "is this task healthy and current?" Bundle middles whose content area regenerates substrate every run (e.g., a Dashboard reading `_performance.md`) should override the metadata to show *substrate* freshness, not artifact age. Historical context lives in the narrative (`/work` list-row headlines, ADR-219), not in chrome.
+  - **Middle** (`<MiddleResolver>`) — content area. Resolved via `resolveMiddle(ctx, middles)` 4-tier match:
+    - **Kernel default per output_kind** (kind-specific components at `web/components/work/details/`, retained as the kernel-default fallback per ADR-225 §5):
+      - `produces_deliverable` → DeliverableMiddle (rendered output + quality contract panel)
+      - `accumulates_context` → TrackingEntityGrid (domain folder + entity cards)
+      - `external_action` → ActionMiddle (fire history + platform link-out)
+      - `system_maintenance` → MaintenanceMiddle (hygiene log + run history)
+    - **Bundle override** via `tabs.work.detail.middles[]` 4-tier match (task_slug → output_kind+condition → output_kind → agent_role/class). First match wins. Bundle middles take full content area; archetype declared via `archetype` field per ADR-198.
+  - **FeedbackStrip** — thin bar below the middle. Single "Edit in chat" prompt per kind (ADR-181 Phase 4a). Skipped for system_maintenance (back-office tasks have no user feedback loop).
 - **`+` menu:** `TaskSetupModal` (singular creation modal across the cockpit — ADR-178 two-route rich intake; forwards to YARNNN via `sendMessage` which calls `ManageTask(action="create")` in the same turn). Per ADR-215 Phase 4 singular-implementation, `CreateTaskModal` was retired — one creation modal across `/chat`, `/work`, `/agents`, `/context`.
 - **Deep-links out:** task files on Files (`/context?path=/workspace/tasks/{slug}/DELIVERABLE.md`), assigned agents on Agents (`/agents?agent={slug}`), Chat with task preselected for "Edit in chat" (`/chat?task={slug}`).
 - **Refuses:**
@@ -156,13 +208,14 @@ Four shapes. One rule per verb-object pair. Every mutation in the cockpit picks 
 | **Chat** | Judgment-shaped, ambiguous, needs YARNNN's context | Redirect to `/chat` with seeded prompt | Refine a task's deliverable · Rewrite a mandate · Author a domain agent · Define review principles |
 | **Substrate** | Operator-authored content that IS a file | Edit the file on Files tab; revision chain records `authored_by=operator` | IDENTITY.md · BRAND.md · CONVENTIONS.md · MANDATE.md · principles.md · uploaded documents |
 
-### The five rules
+### The six rules
 
 - **R1 — One verb, one shape per object.** "Edit a task" is always Chat. "Edit a file" is always Substrate. "Approve a proposal" is always Direct. No mixing across the cockpit.
 - **R2 — Create is always Modal. Update/Delete is Direct or Chat, never Modal.** Modals exist for the moment of creation where the operator arrives with a blueprint. After creation, mutation is single-click Direct or judgment-shaped Chat. No "edit modal" anywhere in the cockpit.
 - **R3 — Substrate operations bypass Chat.** If the thing being edited IS a file, the edit surface is Files. The revision panel (ADR-209 P4) shows `authored_by=operator`. No "Edit in chat" button on substrate files — Chat would invoke `UpdateContext` anyway, and direct substrate edit produces the same write with clearer provenance.
 - **R4 — The `+` menu is a modal launcher. Never a chat seeder.** Each tab's `+` menu lists only Modal creation flows. Chat-shaped mutations live on the object's own detail page as the R5 label.
 - **R5 — One label: "Edit in chat".** All existing phrasings ("Edit via chat" / "Edit via YARNNN" / "Edit via yarnnn") converge on **"Edit in chat"**. Lowercase. No YARNNN branding — chat is the tab; YARNNN is the agent; the operator is editing *in a surface*, not *through an agent*. Single `<EditInChatButton prompt={...} />` component across the cockpit.
+- **R6 — Surfaces never branch on `program_slug`.** Specialization happens via composition manifest (Part 0), never via FE conditionals. If a tab's contract feels it needs to know which program is active, the answer is to declare the variation in `SURFACES.yaml`. The compositor seam is the kernel/program boundary at the FE layer; bypassing it for "just one quick conditional" undoes the structural reason the seam exists. Per ADR-225 Phase 3 + ADR-222 Principle 16.
 
 ---
 
@@ -242,6 +295,18 @@ Each phase lands with: code changes + this doc's contract section updated in the
     - **D6 "Archive task (keep history)" affordance** belongs on WorkDetail, not Chat. Pairs with a future task-lifecycle commit. ADR-219 D6 part 2.
     - **Pulse + time-range filters** on Chat — richer UI than chips, deferred.
 
+- **Phase 8 — Unified compositor seam (ADR-225 Phase 3)** — **Implemented 2026-04-27** (commits `3460919` → `[final]`). Bumps doc to v2.0.
+  - **New Part 0** added: composition layer preamble + slot inventory + R6 (no FE branch on `program_slug`).
+  - **R6 ratified** as the sixth CRUD rule. The compositor seam is the kernel/program boundary at the FE layer; bypassing it for "just one quick conditional" undoes the structural reason the seam exists.
+  - **Work tab contract rewritten** around three compositor-resolved layers in detail mode (chrome / middle / feedback strip) and two compositor-resolved zones in list mode (cockpit panes / pinned tasks + banner). Per-kind hardcoded dispatch is gone from this contract — the contract describes what each layer does and where its declarations live.
+  - **Operational vs historical timestamp rule** now contract-explicit (was code-implicit per the audit's observation #2). Chrome metadata shows operational signal; narrative carries historical context.
+  - Closes the prior Phase 7 deferred follow-up: "Cockpit zone hasn't migrated to narrative." The cockpit zone is now compositor-resolved, which makes the migration question scoped — narrative-shaped panes can register as library components and bundles can swap them in via `cockpit_panes`.
+  - **Code changes** absorbed: `WorkDetail.tsx` 515 → 164 lines (per-kind chrome dispatch + OverflowMenu DELETED); `BriefingStrip.tsx` DELETED; new `ChromeRenderer` + `CockpitRenderer` siblings to `MiddleResolver`; new `KERNEL_DEFAULT_CHROME` + `KERNEL_DEFAULT_COCKPIT_PANES` registries; new `WorkDetailActionsContext` + `CockpitContext` providers; alpha-trader SURFACES.yaml extended end-to-end.
+  - **Known gaps named in `docs/architecture/compositor.md`** (not blocking):
+    - `MiddleResolver` name overfits to "middle" now that `ChromeRenderer` and `CockpitRenderer` are siblings. Rename rejected (too many call sites); clarification at the doc layer is sufficient.
+    - Bundle-supplied agent-tab and files-tab chrome are deferred — the resolver pattern is portable; extending to other tabs is incremental as bundles need it.
+    - Multi-bundle chrome merge semantics tested on backend (10/10 ADR-225 backend tests still pass) but no real two-active-bundle workspace exists yet to surface FE rendering edge cases.
+
 - **Phase 5 — Chat hardening** — **Implemented 2026-04-24**.
   - `OnboardingModal` + `ContextSetup` retired. Auto-trigger was already retired by ADR-190 (onboarding is conversational); the manual "Update workspace" `+` menu entry violated R2 (update is never Modal) and R3 (identity/brand/conventions are substrate). `WorkspaceStateView` identity-empty CTAs now seed chat prompts — YARNNN infers identity/brand from the conversation and writes via `UpdateContext`.
   - `/chat` `+` menu now has exactly one built-in entry: "Start new work" → `TaskSetupModal`. R4 fully enforced on Chat.
@@ -262,6 +327,8 @@ Each phase lands with: code changes + this doc's contract section updated in the
 - [ADR-167 v2](../adr/ADR-167-list-detail-surfaces.md) — list/detail pattern per tab
 - [ADR-209](../adr/ADR-209-authored-substrate.md) — revision chain, `authored_by`, substrate attribution
 - [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) — invocation as atom; `/chat` is the narrative surface; `/work` is the narrative filtered by task slug
+- [ADR-225](../adr/ADR-225-compositor-layer.md) — compositor seam (Phase 3 unified — chrome + cockpit + middle through one resolver pattern)
+- [docs/architecture/compositor.md](../architecture/compositor.md) — architecture-level reference for the resolver pattern, binding taxonomy, kernel-default registry
 - [invocation-and-narrative.md](../architecture/invocation-and-narrative.md) — canonical narrative vocabulary (invocation · pulse · narrative · task as legibility wrapper)
 - [ADR-206](../adr/ADR-206-operation-first-scaffolding.md) — operator-facing three-layer view (Intent · Operation · Deliverables)
 - [ADR-168](../architecture/primitives-matrix.md) — canonical primitive matrix (not a design doc, but the authority for what verbs exist)

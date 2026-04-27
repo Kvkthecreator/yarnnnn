@@ -3,7 +3,7 @@
 /**
  * FeedbackStrip — ADR-181 Phase 4a.
  *
- * Thin feedback bar below KindMiddle in WorkDetail. Single "Ask TP"
+ * Thin feedback bar below MiddleResolver in WorkDetail. Single "Ask TP"
  * button that opens a chat prompt scoped to the task. Kept minimal —
  * users express feedback in conversation, not through evaluative buttons.
  *

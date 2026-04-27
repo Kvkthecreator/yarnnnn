@@ -4,6 +4,55 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-27 — ADR-225 Phase 3: unified compositor seam — chrome + cockpit + middle through one resolver
+
+**Governing ADR:** [ADR-225 Phase 3](../adr/ADR-225-compositor-layer.md) — Implemented 2026-04-27 (8 commits: `3460919` schema → … → this commit doc-streamlining).
+
+SURFACE-CONTRACTS.md bumped to v2.0. The flagship rewrite of the Work tab contract finally absorbs the kernel/program seam at the FE layer. v1.7 described per-kind hardcoded chrome dispatch and a hardcoded BriefingStrip composition; both are gone in code, both are gone from this doc.
+
+**The shape change in one sentence:** every Work surface element (detail middle, detail chrome, list pinned tasks, list cockpit panes) now passes through the same resolver pattern — bundle declaration → kernel default fallback → library component dispatch. There is no "kernel render path" and "bundle render path"; there is one path, where kernel defaults are themselves library components registered alongside bundle components.
+
+**Why this happened:** a Work-surface audit on 2026-04-27 (archived at `docs/design/archive/_audit-work-2026-04-27.md`) surfaced the asymmetry — Phase 2 of ADR-225 deleted the content-area `KindMiddle` switch but left chrome dispatch hardcoded. alpha-trader's `portfolio-review` Dashboard middle would render under generic kernel chrome saying "Last output: 3h ago" (meaningful for Documents, misleading for substrate-regenerating Dashboards). The asymmetry was an artifact of where Phase 2 happened to cut, not a designed boundary. Phase 3 finishes the seam.
+
+**Doc updates landed in this commit:**
+
+- **SURFACE-CONTRACTS.md → v2.0**:
+  - **New Part 0 — Composition Layer** preamble: every tab's contract describes the kernel surface; bundles extend declaratively via the compositor. Slot inventory by tab; "no FE branch on `program_slug`" rule; contract authority order (architecture doc wins on *how*, this doc wins on *what each tab should look like*, ADR wins on decisions).
+  - **R6 ratified** as the sixth CRUD rule: surfaces never branch on `program_slug`. The compositor seam IS the kernel/program boundary at the FE layer.
+  - **Work tab contract rewritten** around three compositor-resolved layers in detail mode (chrome / middle / feedback strip) and two compositor-resolved zones in list mode (cockpit panes / pinned tasks + banner). Per-kind hardcoded dispatch fully absent from this contract.
+  - **Operational vs historical timestamp rule** now contract-explicit (was code-implicit per the audit's observation #2). Chrome metadata shows operational signal ("is this task healthy?"); narrative carries historical context.
+  - **Phase 8 implementation status** entry added with full commit list and known gaps (the `MiddleResolver` naming gap; deferred bundle chrome on agents/files tabs; multi-bundle FE rendering edge cases).
+  - **Related docs** gain ADR-225 + `docs/architecture/compositor.md` links.
+  - Closes the prior Phase 7 deferred follow-up "Cockpit zone hasn't migrated to narrative" — the cockpit zone is now compositor-resolved, which makes the narrative migration question scoped (narrative-shaped panes can register as library components).
+
+- **ADR-225 amended** with a "Phase 3 — Unified Compositor Seam (Implemented 2026-04-27)" section recording the 8-commit sequence, schema additions, kernel-defaults-as-library-components decision, action handler threading via React context, singular-implementation deletions, test gates, and explicit non-coverage (no rename of `MiddleResolver`, no cross-bundle chrome merge yet, agents/files tab chrome deferred).
+
+- **New: `docs/architecture/compositor.md`** — architecture-level reference for the resolver pattern, binding taxonomy (6 types), kernel-default registry, the four resolution sites on Work, per-slot conventions (chrome metadata is one-line operational; chrome actions are in-row buttons; cockpit panes are read-shaped), step-by-step recipe for a bundle authoring a Phase 3 override, multi-bundle merge rules, the `MiddleResolver` naming gap. Sibling to `authored-substrate.md`. SURFACE-CONTRACTS links here for "how the seam works"; this links back for "what each tab looks like."
+
+**Code changes summary** (across 8 commits, full detail in commit messages):
+- `WorkDetail.tsx`: 515 → 164 lines. Per-kind chrome dispatch + OverflowMenu DELETED.
+- `web/components/work/briefing/BriefingStrip.tsx`: DELETED.
+- New: `web/components/library/{ChromeRenderer,CockpitRenderer,registry,WorkDetailActionsContext,CockpitContext}.tsx`.
+- New: `web/components/library/kernel-chrome/` (8 components extracted from WorkDetail.tsx).
+- New: `web/components/library/kernel-cockpit/` (4 wrappers over substrate panes).
+- New: `web/lib/compositor/kernel-defaults.ts` (singular registry of kernel-default chrome + cockpit panes).
+- Extended: `web/lib/compositor/{types,resolver,index}.ts` (`ChromeDecl`, `cockpit_panes`, `resolveChrome`, `resolveCockpitPanes`).
+- Extended: `api/services/composition_resolver.py` (3 lines for `cockpit_panes` merge case).
+- Extended: `docs/programs/alpha-trader/SURFACES.yaml` (new `chrome` + `cockpit_panes` slots + new `TradingPortfolioMetadata` library component as the first end-to-end concrete consumer).
+
+**Test gates:**
+- `tsc --noEmit` clean after every commit.
+- `api/test_adr225_compositor.py`: 10/10 still passing after schema additions.
+- Final grep gate: zero live references to `BriefingStrip`, deleted kind-switches, or pre-Phase-3 chrome dispatch.
+
+**Archived as part of this commit:**
+- `docs/design/_audit-work-2026-04-27.md` → `docs/design/archive/_audit-work-2026-04-27.md` (transient research; observations absorbed).
+- `docs/design/_plan-work-compositor-2026-04-27.md` → `docs/design/archive/_plan-work-compositor-2026-04-27.md` (transient planning; decisions absorbed).
+
+**Why this matters beyond Work:** the resolver pattern is now portable. Extending the compositor seam to Agents-tab or Files-tab chrome is incremental and follows the recipe in `compositor.md`. Adding a new program means: write a bundle, author SURFACES.yaml, optionally ship 1-2 specific library components — and the Work surface bends to that program's shape with zero kernel changes. That's the unified seam.
+
+---
+
 ## 2026-04-27 — Bucket A: mechanical catch-up to ADR-222 OS pivot
 
 **Governing ADRs:** [ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md) (OS framing) · [ADR-223](../adr/ADR-223-program-bundle-specification.md) (bundle spec) · [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) (template residue deletion) · [ADR-225](../adr/ADR-225-compositor-layer.md) Phases 1+2 Implemented (compositor API + FE module + library + KindMiddle replaced) · [ADR-226](../adr/ADR-226-reference-workspace-activation-flow.md) Phase 1 Implemented (reference-workspace fork + activation overlay).

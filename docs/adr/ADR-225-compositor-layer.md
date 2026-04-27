@@ -1,6 +1,6 @@
 # ADR-225: Compositor Layer — Declarative Surface Composition
 
-> **Status:** **Phase 1 + Phase 2 Implemented 2026-04-27.** Phase 1: API endpoint + composition resolver + workspace-scoped bundle filter + 10/10 API test gate. Phase 2: `web/lib/compositor/` FE module, `web/components/library/` initial component set (6 components), `MiddleResolver` replaces hardcoded `WorkDetail.tsx::KindMiddle` switch, `BundleBanner` wired to `WorkListSurface`. Next.js build clean (zero TS errors, all routes compile). See "Phased implementation rationale" + "Phase 2 implementation refinements" below for what shipped vs the original v2 spec.
+> **Status:** **Phase 1 + Phase 2 + Phase 3 Implemented 2026-04-27.** Phase 1: API endpoint + composition resolver + workspace-scoped bundle filter + 10/10 API test gate. Phase 2: `web/lib/compositor/` FE module, `web/components/library/` initial component set, `MiddleResolver` replaces hardcoded `WorkDetail.tsx::KindMiddle` switch, `BundleBanner` wired to `WorkListSurface`. **Phase 3: unified compositor seam — chrome (metadata + actions), list-mode pinned tasks, and cockpit panes all flow through the same resolver pattern; per-kind chrome switches in WorkDetail.tsx and the hardcoded BriefingStrip composition DELETED; alpha-trader SURFACES.yaml extended end-to-end as the first concrete consumer.** Next.js build clean (zero TS errors). See "Phase 3 — Unified Compositor Seam" near the end of this ADR for the full Phase 3 record.
 > **Date:** 2026-04-27 (v2 same-day rewrite — see "What changed across versions" below; v1 missed the two-compose-modes framing surfaced by the parallel paper design)
 > **Authors:** KVK, Claude
 > **Implements:** ADR-222 implementation roadmap, ADR 2 (+ ADR 3 absorbed — system component library convention is folded into this ADR per the roadmap's "may fold" allowance, since the library is a small enough convention not to merit a separate ADR right now)
@@ -718,3 +718,135 @@ Net effect at end of Phase 2: shipped UX uses the resolver for all dispatch; no 
 | **v2** (same-day rewrite, 2026-04-27) | "Compositor adds *surface compose* sibling to existing *document compose*; 14-component library scoped from paper design; 4-tier match resolution; 6-type binding taxonomy; Overview surface composes via `tabs.chat.bands[]`" | Adds two-compose-modes framing as the load-bearing distinction. Replaces 5 made-up components with the 14 universal components from paper design. Adds a 4th match tier (`output_kind + condition`) for overlay-on-condition shapes. Enumerates 6 binding types (file / frontmatter / task_output / action_proposals / narrative / directory) so binding shape is constrained vocabulary. Adds Overview as `tabs.chat.bands[]` block. Notes most v1 components are extraction-renames, not net new. | The roadmap's 2026-04-27 amendment + the alpha-trader paper design materially sharpened the scope. v1 would have shipped surface compose as a one-mode replacement for document compose; v2 honors that both modes are kernel-level siblings. v1 would have shipped 5 components without grounding in a real cockpit design; v2 is grounded in 14 components the paper design demands. v1 would have missed `external_action`-with-condition overlays that the alpha-trader cockpit needs; v2 adds the 4th match tier. |
 
 The discipline lesson: **when a parallel discourse round is in flight, read its outputs before drafting an ADR that depends on them.** v1 drafted from ADR-222 + ADR-223 + ADR-224 + ADR-198 + ADR-214 alone, missing the day-of paper design. v2 corrects mid-flight after the user's explicit notification surfaced the missed inputs. This is the same shape as ADR-224's v1→v2→v3 corrections — surface the missed framing, integrate it, log the gap.
+
+---
+
+## Phase 3 — Unified Compositor Seam (Implemented 2026-04-27)
+
+Phase 2 landed `<MiddleResolver>` for the detail middle (content area). Phase 3 extends the same resolver pattern uniformly across the Work surface: detail chrome (metadata + actions), list-mode pinned tasks + banner, and cockpit panes. **The seam is now uniform** — every Work surface element passes through the same resolver pattern (bundle declaration → kernel default fallback → library component dispatch).
+
+### What motivated Phase 3
+
+A Work-surface audit (2026-04-27, archived at `docs/design/archive/_audit-work-2026-04-27.md`) surfaced the asymmetry: Phase 2 deleted the *content-area* `KindMiddle` switch but left a per-kind chrome switch in `WorkDetail.tsx` (4 metadata + 4 actions clusters). Bundle middles like alpha-trader's `portfolio-review` Dashboard read `_performance.md` substrate freshness but were forced to render under generic kernel chrome saying "Last output: 3h ago" — meaningful for a Document middle, misleading for a Dashboard regenerating substrate every run.
+
+Same asymmetry on list mode: alpha-trader's `SURFACES.yaml` already declared `tabs.work.list.pinned_tasks`, but the FE didn't consume it; the BriefingStrip composition was hardcoded in `web/components/work/briefing/BriefingStrip.tsx`.
+
+The chrome-vs-middle seam disparity was an artifact of where Phase 2 happened to cut, not a designed boundary. Phase 3 finishes the seam.
+
+### Schema additions
+
+Two optional manifest slots, both backward-compatible. Existing alpha-trader SURFACES.yaml continued to render unchanged through every commit until Commit 7 wired the new fields.
+
+**`MiddleDecl.chrome?: ChromeDecl`** — bundle middles can override the per-kind chrome:
+
+```yaml
+- match: { task_slug: portfolio-review }
+  archetype: dashboard
+  bindings:
+    performance: /workspace/context/portfolio/_performance.md
+  components: [...]
+  chrome:
+    metadata:
+      kind: TradingPortfolioMetadata
+      source: performance
+    actions:
+      - kind: KernelDeliverableActions  # reuse kernel actions
+```
+
+`ChromeDecl` has two independently optional slots (`metadata?`, `actions?`). Bundles may override only one and inherit the kernel default for the other. Resolution lives in `resolveChrome(ctx, middles)` in `web/lib/compositor/resolver.ts`.
+
+**`TabListBlock.cockpit_panes?: ComponentDecl[]`** — bundles can replace the kernel-default cockpit composition:
+
+```yaml
+tabs:
+  work:
+    list:
+      cockpit_panes:
+        - kind: TradingProposalQueue
+          filters: { proposal_type: trading, status: pending }
+        - kind: PerformanceSnapshot
+          binding: { type: file, path: /workspace/context/portfolio/_performance.md }
+        - kind: KernelSinceLastLookPane    # mix kernel + bundle freely
+        - kind: KernelIntelligenceCard
+```
+
+Resolution lives in `resolveCockpitPanes(composition)` in the same resolver file.
+
+Backend resolver (`api/services/composition_resolver.py`): `chrome` passes through existing tab-block merge logic unchanged. `cockpit_panes` gains a new case in `_merge_list_or_detail_block` (3 lines: union across bundles, first-bundle-wins per activation order). `MiddleDecl.chrome` is opaque to the backend — it's a TypeScript type, the backend just preserves the YAML structure.
+
+### Kernel defaults as library components
+
+The single load-bearing structural decision: **kernel defaults are themselves library components dispatched through the same registry as bundle components.** The resolver doesn't distinguish kernel from bundle; both are component declarations matched against `LIBRARY_COMPONENTS` by `kind`.
+
+This made the seam genuinely uniform. There is no "kernel path" and "bundle path" — there is one path, where the kernel just happens to register defaults the resolver consults when no bundle override matches.
+
+`web/lib/compositor/kernel-defaults.ts` (the singular registry):
+
+```typescript
+export const KERNEL_DEFAULT_CHROME: Record<string, ChromeDecl> = {
+  produces_deliverable: {
+    metadata: { kind: 'KernelDeliverableMetadata' },
+    actions: [{ kind: 'KernelDeliverableActions' }],
+  },
+  // ... three more output_kinds ...
+};
+
+export const KERNEL_DEFAULT_COCKPIT_PANES: ComponentDecl[] = [
+  { kind: 'KernelNeedsMePane' },
+  { kind: 'KernelSnapshotPane' },
+  { kind: 'KernelSinceLastLookPane' },
+  { kind: 'KernelIntelligenceCard' },
+];
+```
+
+Real components live in `web/components/library/kernel-chrome/` (8 components extracted from `WorkDetail.tsx`) and `web/components/library/kernel-cockpit/` (4 wrappers over the existing `web/components/work/briefing/` panes).
+
+### Action handler threading
+
+The deleted per-kind action clusters in `WorkDetail.tsx` took action handlers as direct props (`onPause`, `onFire`, `onEdit`). After Phase 3, kernel and bundle chrome components both read handlers from a shared React context: `WorkDetailActionsContext`. Same pattern repeated for cockpit panes via `CockpitContext` (chat-draft seeder for `NeedsMePane` chips).
+
+This avoids prop-drilling and keeps the registry's component signature shape-uniform (`LibraryComponentProps`: `source?`, `binding?`, `filters?`). Bundle authors writing custom action components consume the context the same way; the registry doesn't know about lifecycle handlers.
+
+### Singular Implementation deletions
+
+- `WorkDetail.tsx`: 515 → 164 lines. Per-kind metadata strips + actions clusters + OverflowMenu + kind switches all DELETED.
+- `web/components/work/briefing/BriefingStrip.tsx`: DELETED. Its hardcoded 4-pane composition is now `KERNEL_DEFAULT_COCKPIT_PANES`; the visual chrome (section label, tint, padding) moved to `CockpitRenderer`.
+- The four substrate panes (`NeedsMePane`, `SnapshotPane`, `SinceLastLookPane`, `IntelligenceCard`) STAY at `web/components/work/briefing/` — they have substantive logic. The `KernelXxxPane` wrappers in `web/components/library/kernel-cockpit/` are the registry-shaped facades.
+
+Final grep gate: zero live references to deleted shapes; only historical notes in CockpitRenderer's docstring naming what it replaced.
+
+### Phase 3 commits (8 commits, each landing in green state)
+
+| # | Subject |
+|---|---|
+| 1 | Schema + types extension — chrome + cockpit_panes |
+| 2 | Kernel-default chrome componentization |
+| 3 | Chrome through resolver — WorkDetail kind-switch DELETED |
+| 4 | Kernel-default cockpit pane componentization |
+| 5 | Cockpit through resolver — BriefingStrip DELETED |
+| 6 | List-mode pinned tasks wired to compositor |
+| 7 | alpha-trader manifest extension — chrome + cockpit_panes |
+| 8 | Documentation streamlining + legacy archival (this amendment + SURFACE-CONTRACTS v2.0 + new compositor.md) |
+
+### Test gates
+
+- `tsc --noEmit` clean after every commit.
+- `api/test_adr225_compositor.py`: 10/10 still passing after schema additions.
+- Final grep gate: zero live references to `BriefingStrip`, deleted kind-switches, or pre-Phase-3 chrome dispatch.
+
+### What Phase 3 does NOT cover
+
+- **Renaming `MiddleResolver`.** The component now has a sibling (`ChromeRenderer`) and a peer (`CockpitRenderer`); the name overfits to "middle." Rename considered, rejected — too many call sites and ADR references; clarification at the doc layer in `compositor.md` is sufficient.
+- **Cross-bundle chrome merge.** Multi-program-per-workspace remains out of scope per ADR-225 §8.
+- **Bundle-supplied agent-tab or files-tab chrome.** Phase 3 is Work-only. The resolver pattern is portable; extending to other tabs is incremental.
+
+### What Phase 3 DOES finish
+
+The Work surface is now bundle-shapeable end-to-end. alpha-trader can declare:
+- Which tasks pin to the top of the list (✓ Commit 6).
+- What banner displays per phase (✓ Phase 2 already).
+- What panes compose the cockpit (✓ Commit 5–7, mixing kernel + bundle).
+- What middle renders for a detail task (✓ Phase 2).
+- What chrome (metadata strip + actions) wraps the middle (✓ Commit 3 + 7).
+
+Adding a new program means: write a bundle, author SURFACES.yaml, optionally ship 1-2 specific library components — and the Work surface bends to that program's shape with zero kernel changes. That's the unified seam.
