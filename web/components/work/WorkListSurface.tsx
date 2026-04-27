@@ -35,6 +35,8 @@ import type { Task, Agent, NarrativeByTaskSlice } from '@/types';
 // ADR-225 Phase 2: bundle-supplied list-mode banner (e.g., alpha-trader's
 // "Paper-only..." for current_phase=observation)
 import { BundleBanner } from '@/components/library/BundleBanner';
+// ADR-225 Phase 3: bundle-supplied pinned tasks float to top of their group
+import { useComposition, getTab } from '@/lib/compositor';
 
 interface WorkListSurfaceProps {
   tasks: Task[];
@@ -288,6 +290,24 @@ export function WorkListSurface({
     return result;
   }, [tabTasks, agentFilter, search, agents]);
 
+  // ── ADR-225 Phase 3: bundle-supplied pinned tasks ──
+  // Pull `tabs.work.list.pinned_tasks` from active composition.
+  // Pinned tasks float to the top of their group (preserving the
+  // pinned-list ordering); non-pinned tasks fall through to the
+  // existing compareTasks ordering. Singular implementation: the
+  // Set lookup is the only place "is this task pinned?" gets decided.
+  const { data: composition } = useComposition();
+  const pinnedSlugs = useMemo(() => {
+    const list = getTab(composition.composition, 'work').list?.pinned_tasks ?? [];
+    return new Set(list);
+  }, [composition]);
+  const pinnedOrder = useMemo(() => {
+    const list = getTab(composition.composition, 'work').list?.pinned_tasks ?? [];
+    const map = new Map<string, number>();
+    list.forEach((slug, idx) => map.set(slug, idx));
+    return map;
+  }, [composition]);
+
   // ── Group by tab-specific logic ──
   const grouped = useMemo(() => {
     const groups: Record<string, Task[]> = {};
@@ -305,7 +325,20 @@ export function WorkListSurface({
       groups[key].push(task);
     }
 
-    for (const key of Object.keys(groups)) groups[key].sort(compareTasks);
+    // Sort within each group: pinned first (in pinned-list order),
+    // remainder via compareTasks.
+    for (const key of Object.keys(groups)) {
+      groups[key].sort((a, b) => {
+        const aPinned = pinnedSlugs.has(a.slug);
+        const bPinned = pinnedSlugs.has(b.slug);
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+        if (aPinned && bPinned) {
+          return (pinnedOrder.get(a.slug) ?? 0) - (pinnedOrder.get(b.slug) ?? 0);
+        }
+        return compareTasks(a, b);
+      });
+    }
 
     const order = activeTab === 'my-work'
       ? MY_WORK_GROUP_ORDER
@@ -314,7 +347,7 @@ export function WorkListSurface({
         : ['System'];
 
     return Object.entries(groups).sort((a, b) => compareGroups(order, a[0], b[0]));
-  }, [filtered, activeTab]);
+  }, [filtered, activeTab, pinnedSlugs, pinnedOrder]);
 
   const agentLabel = agentFilter
     ? agents.find(a => getAgentSlug(a) === agentFilter)?.title ?? agentFilter
@@ -440,6 +473,7 @@ export function WorkListSurface({
                       agents={agents}
                       narrativeSlice={narrativeByTask.get(task.slug) ?? null}
                       tab={activeTab}
+                      isPinned={pinnedSlugs.has(task.slug)}
                       onSelect={() => onSelect(task.slug)}
                     />
                   ))}
@@ -460,12 +494,14 @@ function WorkRow({
   agents,
   narrativeSlice,
   tab,
+  isPinned,
   onSelect,
 }: {
   task: Task;
   agents: Agent[];
   narrativeSlice: NarrativeByTaskSlice | null;
   tab: WorkTab;
+  isPinned: boolean;
   onSelect: () => void;
 }) {
   const isActive = task.status === 'active';
@@ -540,8 +576,19 @@ function WorkRow({
 
       {/* Title + metadata */}
       <div className="flex-1 min-w-0">
-        <p className={cn('text-sm truncate', dim ? 'text-muted-foreground' : 'font-medium')}>
-          {task.title}
+        <p className={cn('text-sm truncate flex items-center gap-1.5', dim ? 'text-muted-foreground' : 'font-medium')}>
+          {/* ADR-225 Phase 3: bundle-pinned tasks float to the top of
+              their group with a subtle pin glyph for legibility. */}
+          {isPinned && (
+            <span
+              className="text-primary/60 text-[10px] leading-none"
+              aria-label="Pinned by program bundle"
+              title="Pinned by program bundle"
+            >
+              ●
+            </span>
+          )}
+          <span className="truncate">{task.title}</span>
         </p>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           {subParts.map((part, i) => (
