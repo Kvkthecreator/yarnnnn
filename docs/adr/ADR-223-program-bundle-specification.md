@@ -273,7 +273,7 @@ phase_overlays:
 
 ### 5. reference-workspace/ — bundled starter substrate
 
-The reference workspace is the program's opinion about what a fresh workspace looks like once the program is selected. At activation time, `workspace_init.py` (extension forthcoming in ADR 5) copies these files into the operator's `/workspace/`.
+The reference workspace is the program's opinion about what a fresh workspace looks like once the program is selected. At activation time, `workspace_init.py` (extension forthcoming in ADR 5a) copies these files into the operator's `/workspace/`.
 
 Layout mirrors the post-activation workspace:
 
@@ -281,26 +281,56 @@ Layout mirrors the post-activation workspace:
 docs/programs/alpha-trader/reference-workspace/
 ├── context/
 │   └── _shared/
-│       ├── IDENTITY.md              # operator-authored — empty placeholder with prompts
-│       ├── BRAND.md                 # operator-authored — empty placeholder
-│       ├── CONVENTIONS.md           # may include program-typical conventions
-│       ├── MANDATE.md               # operator-authored — template with program-specific prompts
-│       └── AUTONOMY.md              # delegation file with program-typical defaults
+│       ├── IDENTITY.md              # AUTHORED tier — operator must overwrite
+│       ├── BRAND.md                 # AUTHORED tier — operator may overwrite or leave empty
+│       ├── CONVENTIONS.md           # CANON tier — program structural rules; operator typically does NOT edit
+│       ├── MANDATE.md               # AUTHORED tier — operator must overwrite
+│       └── AUTONOMY.md              # CANON tier (defaults) — operator may tighten/widen but rarely
 ├── review/
-│   ├── IDENTITY.md                  # Reviewer persona (e.g., Simons-style for alpha-trader)
-│   └── principles.md                # program-typical principles (sizing, signal attribution)
+│   ├── IDENTITY.md                  # CANON tier — program ships Reviewer persona; swappable but rarely
+│   └── principles.md                # AUTHORED tier — operator must tune to their edge
 ├── memory/
-│   └── awareness.md                 # YARNNN orchestration state, empty
-└── tasks/                           # NOT scaffolded here — tasks are operator/YARNNN-created
-                                     # post-activation; the reference doesn't pre-author tasks
+│   └── awareness.md                 # PLACEHOLDER tier — YARNNN populates over time
+└── tasks/                           # PLACEHOLDER tier — tasks materialize from work, not pre-scaffolded
 ```
 
-**Reference-workspace discipline:**
+#### Three-tier file categorization (added 2026-04-27 amendment)
 
-- **Templates, not prescriptions.** Files contain prompts and structural placeholders, not authored content the operator must accept. The activation conversation (ADR 5) walks the operator through fork-then-author.
+The hardest decision in reference-workspace design is **what counts as program canon vs operator authoring vs eventual accumulation**. Without naming this, the reference either over-prescribes (operator inherits opinions they don't share) or under-delivers (operator faces the same empty-state problem activation was supposed to solve). Three tiers, declared per file:
+
+| Tier | Meaning | Operator behavior | Activation flow behavior |
+|---|---|---|---|
+| **`canon`** | Program-shipped opinion. Structural rules, default Reviewer persona, conventions every operator of this program inherits. | Typically does NOT edit. Override allowed but rare; the program signals "we've thought about this for you." | Copied verbatim into `/workspace/`. Operator may overwrite later via UpdateContext but the activation conversation does not prompt for changes. |
+| **`authored`** | Templates with prompts + example shapes. The operator's substantive contribution lives here — edge hypothesis, identity, principles, mandate. Reference contains structure + prompts, not real content. | MUST overwrite during activation. The activation conversation walks through these one at a time. | Copied with skeleton + prompt scaffolding. Activation conversation surfaces them in order; operator fills them in via YARNNN-mediated UpdateContext. Workspace is not "activated" until at minimum MANDATE.md is non-skeleton. |
+| **`placeholder`** | Empty or near-empty files/directories that exist so structure is consistent but content accumulates from work. Per-instrument folders, `_performance.md` (the reconciler will populate), signal definitions (operator authors as edge develops). | Does not edit at activation. Content accrues as the operation runs. | Copied as empty/skeleton. Activation conversation does not prompt; these populate over time per Axiom 1 corollary (substrate grows from work, not from scaffolding). |
+
+The discipline this tightens:
+
+- **A reference workspace can be high-fidelity without being prescriptive.** Canon tier carries the program's load-bearing opinions; authored tier surfaces what the operator owns; placeholder tier respects the substrate-grows-from-work axiom.
+- **Activation flow knows what to prompt for.** ADR 5a's YARNNN differential-authoring conversation walks the `authored` tier files in order. It does not prompt for `canon` (the operator inherits) or `placeholder` (those accumulate).
+- **The empty-state problem dissolves for canonical structure.** Operator's `/workspace/` is structurally complete from minute one. Empty states that remain (e.g., "no trades yet") are honest, not infrastructural.
+
+Tier declaration mechanism (singular implementation): a per-file YAML frontmatter `tier:` field on every file in `reference-workspace/`. Files without an explicit tier default to `placeholder` (safest — won't be prompted for, won't be claimed as canon). Example:
+
+```markdown
+---
+tier: authored
+title: Mandate — alpha-trader
+prompt: "What is the Primary Action this workspace produces? What's your edge?"
+---
+# Mandate — alpha-trader (template)
+...
+```
+
+Frontmatter is read at copy time by `workspace_init.py` (ADR 5a), then stripped before writing to operator's `/workspace/` — operators see clean markdown, the tier metadata is bundle-only.
+
+#### Reference-workspace discipline (preserved)
+
+- **Templates, not prescriptions.** Files in the `authored` tier contain prompts and structural placeholders, not content the operator must accept. The activation conversation (ADR 5a) walks the operator through fork-then-author for these.
 - **No tasks pre-scaffolded.** Tasks are created by the operator (via the CreateTask modal) or by YARNNN at the operator's request. The reference doesn't ship tasks — it ships the substrate context tasks will reference.
-- **No agents pre-scaffolded.** Per ADR-205, signup scaffolds exactly one agent (YARNNN). User-authored Agents are created post-activation. The reference may ship a `review/IDENTITY.md` opinion (Reviewer is systemic, one per workspace).
+- **No agents pre-scaffolded.** Per ADR-205, signup scaffolds exactly one agent (YARNNN). User-authored Agents are created post-activation. The reference may ship a `review/IDENTITY.md` opinion in `canon` tier (Reviewer is systemic, one per workspace; persona is swappable but rarely).
 - **Redaction discipline.** Reference workspaces are public — they ship as part of the repo. No real numbers, no real customer data, no API keys. ADR 6 (Reference-Reflexive Loop) covers the graduation discipline that keeps the reference clean as lived workspaces feed it.
+- **Frontmatter is bundle-only.** Tier metadata (and any other bundle-private fields) is stripped at copy time. Operator's workspace files are clean markdown, indistinguishable from any other authored substrate.
 
 ### 6. Lifecycle states
 

@@ -1,3 +1,8 @@
+---
+tier: placeholder
+note: "YARNNN orchestration accumulation file. Empty at activation; populates over time per ADR-159."
+---
+
 # YARNNN Awareness (template — empty at activation)
 
 > YARNNN's orchestration accumulation file. Empty at workspace activation; YARNNN populates it through use per ADR-159 (filesystem-as-memory).

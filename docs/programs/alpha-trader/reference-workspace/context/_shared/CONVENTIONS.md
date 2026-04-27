@@ -1,3 +1,8 @@
+---
+tier: canon
+note: "Program-shipped structural rules. Operator may override but typically does not."
+---
+
 # Conventions — alpha-trader (template)
 
 > Structural rules every agent in this workspace honors. Universal across the program; operator may edit but most operators leave defaults.

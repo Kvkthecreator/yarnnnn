@@ -1,3 +1,8 @@
+---
+tier: canon
+note: "Reviewer persona is program-shipped (Simons-style default for alpha-trader). Operator may overwrite to embody a different judgment character (Buffett, Deming, original) — same seat structure, different occupant."
+---
+
 # Reviewer Identity — alpha-trader (template)
 
 > Per ADR-194 v2: the Reviewer seat is path-named, occupant-rotatable. This template ships a Simons-style persona as the alpha-trader default. Operator may overwrite to embody a different judgment character (Buffett, Deming, an original) — same seat, different occupant.
