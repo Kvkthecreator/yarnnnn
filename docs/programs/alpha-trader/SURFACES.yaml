@@ -17,6 +17,26 @@ tabs:
       group_default: output_kind
       filters_default:
         output_kind: produces_deliverable
+      # ADR-225 Phase 3: bundle-supplied cockpit pane sequence.
+      # Replaces the kernel-default 4-pane Briefing composition with
+      # a trader-shaped sequence: pending trade proposals first
+      # (Queue archetype), portfolio performance snapshot second
+      # (Dashboard archetype reading _performance.md), then kernel
+      # defaults for since-last-look + intelligence so the operator
+      # still gets workspace-wide signal alongside trading-specific
+      # tiles. Mixed kernel + bundle composition is the shape — both
+      # are dispatched through LIBRARY_COMPONENTS by `kind`.
+      cockpit_panes:
+        - kind: TradingProposalQueue
+          filters:
+            proposal_type: trading
+            status: pending
+        - kind: PerformanceSnapshot
+          binding:
+            type: file
+            path: /workspace/context/portfolio/_performance.md
+        - kind: KernelSinceLastLookPane
+        - kind: KernelIntelligenceCard
     detail:
       middles:
         - match: { task_slug: portfolio-review }
@@ -32,6 +52,19 @@ tabs:
               source: positions
             - kind: RiskBudgetGauge
               source: risk
+          # ADR-225 Phase 3: bundle-supplied chrome.
+          # The kernel default for produces_deliverable shows
+          # "Last output: 3h ago" — meaningless for a Dashboard
+          # middle that regenerates substrate every run. Override
+          # with TradingPortfolioMetadata which reads _performance.md
+          # frontmatter for substrate freshness + positions_count.
+          # Actions stay kernel-default (Pause/Resume + Edit-in-chat).
+          chrome:
+            metadata:
+              kind: TradingPortfolioMetadata
+              source: performance
+            actions:
+              - kind: KernelDeliverableActions
 
         - match: { task_slug: trading-signal }
           archetype: queue
@@ -46,6 +79,11 @@ tabs:
               filters:
                 proposal_type: trading
                 status: pending
+          # No chrome override — falls through to kernel
+          # produces_deliverable chrome (KernelDeliverableMetadata +
+          # KernelDeliverableActions). The signal task's "Last output:
+          # 3h ago" framing is correct here — proposals ARE the
+          # output, and they age.
 
   agents:
     list:

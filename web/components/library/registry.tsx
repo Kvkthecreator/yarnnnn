@@ -20,11 +20,12 @@
 
 import type { Binding } from '@/lib/compositor';
 
-// Bundle components (alpha-trader's middle library)
+// Bundle components (alpha-trader's middle + chrome library)
 import { PerformanceSnapshot } from './PerformanceSnapshot';
 import { PositionsTable } from './PositionsTable';
 import { RiskBudgetGauge } from './RiskBudgetGauge';
 import { TradingProposalQueue } from './TradingProposalQueue';
+import { TradingPortfolioMetadata } from './TradingPortfolioMetadata';
 
 // Kernel-default chrome
 import { KernelDeliverableMetadata } from './kernel-chrome/KernelDeliverableMetadata';
@@ -64,6 +65,7 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   RiskBudgetGauge: ({ source }) =>
     source ? <RiskBudgetGauge source={source} /> : null,
   TradingProposalQueue: ({ filters }) => <TradingProposalQueue filters={filters} />,
+  TradingPortfolioMetadata: ({ source }) => <TradingPortfolioMetadata source={source} />,
 
   // Kernel-default chrome — register here so the resolver can dispatch
   // them through the same path as bundle components.
