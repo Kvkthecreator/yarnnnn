@@ -850,3 +850,77 @@ The Work surface is now bundle-shapeable end-to-end. alpha-trader can declare:
 - What chrome (metadata strip + actions) wraps the middle (✓ Commit 3 + 7).
 
 Adding a new program means: write a bundle, author SURFACES.yaml, optionally ship 1-2 specific library components — and the Work surface bends to that program's shape with zero kernel changes. That's the unified seam.
+
+---
+
+## Cockpit reshape — Six-Question Framing (Implemented 2026-04-28)
+
+Phase 3 wired the compositor seam universally; this amendment reshapes **what gets registered in `cockpit_panes`** based on a first-principles re-derivation of operator needs in a delegation product.
+
+### What motivated the reshape
+
+Phase 3 inherited the kernel-default cockpit composition from ADR-205 F2 (BriefingStrip's hardcoded sequence: NeedsMe → Snapshot → SinceLastLook → Intelligence). That sequence was the *historical artifact* of merging /overview into /work; nothing about the four panes was derived from "what does the operator need to know to occupy their delegation seat well."
+
+A re-derivation against alpha-trader's loop (Mandate → Rules → Proposal → Verdict → Approval → Action → Outcome → Mandate) surfaced six distinct operator-facing questions. Two of them had no pane:
+
+1. "Did anything just break my trust?" — **had no pane**
+2. "What's my standing intent right now?" — **had no pane**
+3. "What needs my judgment right now?" — covered by NeedsMePane
+4. "Where does the money stand?" — covered partially by SnapshotPane (which conflated money-truth with workforce + context)
+5. "What did the team do since I last looked?" — covered roughly by SinceLastLookPane (but unfiltered for material weight)
+6. "Is the team itself healthy?" — covered indirectly by IntelligenceCard (synthesis-shaped, not diagnostic-shaped)
+
+The reshape closes the two gaps and tightens the four others.
+
+### What changed
+
+**New library components (universal across delegation products):**
+- `TrustViolations` (Q1) — pending proposals flagged with `risk_warnings` or violation-shaped reviewer reasoning. Renders nothing 99% of the time; dominates the cockpit when violations exist (destructive-tinted, top of stack).
+- `MandateStrip` (Q2) — one-line summary of `/workspace/context/_shared/MANDATE.md` frontmatter. Always visible. Click navigates to Files for inline edit (R3 Substrate). Skeleton state shows a chat-seeded authoring prompt — the only pane with a chat-draft affordance, because absent Mandate is the one gap that must close before the loop is meaningful.
+- `MoneyTruthTile` (Q4) — three-stat tile: P&L (30d) vs target, drawdown vs limit, win rate. Reads frontmatter from a configurable source path. Kernel default reads `/workspace/context/_performance_summary.md`; bundles override the binding to point at program-specific money-truth substrate.
+- `MaterialNarrativeStrip` (Q5) — flattened list of `last_material` entries from `GET /api/narrative/by-task`, sorted by recency. Filtered to material weight only — housekeeping pulses excluded. Empty state: "Quiet day."
+- `TeamHealthCard` (Q6) — three diagnostic counts (workforce / active work / in review) with click-through to `/agents`, `/work`, `/agents?agent=reviewer`. Replaces IntelligenceCard's synthesis framing with a diagnostic shape.
+
+**Reshaped existing components:**
+- `TradingProposalQueue` (Q3, alpha-trader bundle) — was a placeholder linking to Reviewer; now reads `action_proposals` for real, filtered to trading-shaped envelopes (action_type prefix `alpaca.*` OR task_slug match), excludes violations (those surface in TrustViolations). Inline approve/reject affordances mirror NeedsMePane.
+
+**Deleted legacy components (singular implementation):**
+- `web/components/work/briefing/SnapshotPane.tsx` — replaced by `MoneyTruthTile`. The non-money signals SnapshotPane bundled (workforce, context) moved to `TeamHealthCard`.
+- `web/components/work/briefing/SinceLastLookPane.tsx` — replaced by `MaterialNarrativeStrip`. The new pane filters to material-weight per ADR-219, dropping the unfiltered run-counts shape.
+- `web/components/work/briefing/IntelligenceCard.tsx` — replaced by `TeamHealthCard`. Synthesis-shaped panes are not the cockpit-default shape; if/when needed for a specific bundle, register a dedicated synthesis component.
+- Three corresponding `kernel-cockpit/` wrappers (KernelSnapshotPane, KernelSinceLastLookPane, KernelIntelligenceCard) — deleted in same commit.
+
+**Updated kernel defaults:**
+```typescript
+// web/lib/compositor/kernel-defaults.ts
+export const KERNEL_DEFAULT_COCKPIT_PANES: ComponentDecl[] = [
+  { kind: 'TrustViolations' },         // Q1
+  { kind: 'MandateStrip' },             // Q2
+  { kind: 'KernelNeedsMePane' },        // Q3
+  { kind: 'MoneyTruthTile' },           // Q4
+  { kind: 'MaterialNarrativeStrip' },   // Q5
+  { kind: 'TeamHealthCard' },           // Q6
+];
+```
+
+**Updated alpha-trader manifest:** `tabs.work.list.cockpit_panes` mirrors the six-question shape; trader-specific specialization is `TradingProposalQueue` replacing `KernelNeedsMePane` (Q3) and `MoneyTruthTile` bound to `/workspace/context/portfolio/_performance.md` (Q4). Q1, Q2, Q5, Q6 use kernel-universal components — no bundle override needed.
+
+### Universality principle (recorded)
+
+**The six questions are universal across delegation products.** Program bundles specialize the *answers* (alpha-trader's money-truth reads portfolio substrate; alpha-commerce's would read revenue substrate) but never invent new questions. This is a compositor invariant going forward: bundles override panes by `kind` substitution within the six-slot framing; they do not extend the pane count.
+
+If a future program demands a question outside the six (e.g., "what's the regulatory state?" for a compliance-shaped product), that's an architectural amendment to the framing, not a bundle-level override. The bar is high.
+
+### Test gates
+
+- `tsc --noEmit` clean.
+- `next build` clean.
+- Final grep gate: zero live references to deleted SnapshotPane / SinceLastLookPane / IntelligenceCard outside historical docstrings.
+- 4 deleted files, 5 new files, 1 reshaped (TradingProposalQueue), 1 registry update, 1 manifest update, 1 kernel-defaults update.
+
+### What this does NOT change
+
+- Phase 3 compositor seam mechanics. The resolver pattern, library registry, dispatchComponent helper, kernel-defaults registry, ChromeRenderer / CockpitRenderer / MiddleResolver — all unchanged.
+- The six panes' visual treatments are first-iteration. Polish and signal-density tuning will iterate as operators use the cockpit and feedback surfaces.
+- Briefing archetype invariants per ADR-198 §3 — preserved (read-shaped, no embedding, silent-degrade on missing data).
+

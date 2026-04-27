@@ -37,11 +37,13 @@ import { KernelTrackingActions } from './kernel-chrome/KernelTrackingActions';
 import { KernelActionActions } from './kernel-chrome/KernelActionActions';
 import { KernelMaintenanceActions } from './kernel-chrome/KernelMaintenanceActions';
 
-// Kernel-default cockpit panes
+// Six-question cockpit panes (universal)
+import { TrustViolations } from './TrustViolations';
+import { MandateStrip } from './MandateStrip';
+import { MoneyTruthTile } from './MoneyTruthTile';
+import { MaterialNarrativeStrip } from './MaterialNarrativeStrip';
+import { TeamHealthCard } from './TeamHealthCard';
 import { KernelNeedsMePane } from './kernel-cockpit/KernelNeedsMePane';
-import { KernelSnapshotPane } from './kernel-cockpit/KernelSnapshotPane';
-import { KernelSinceLastLookPane } from './kernel-cockpit/KernelSinceLastLookPane';
-import { KernelIntelligenceCard } from './kernel-cockpit/KernelIntelligenceCard';
 
 /**
  * Standard prop bag passed to every library component. Components
@@ -78,11 +80,15 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   KernelActionActions: () => <KernelActionActions />,
   KernelMaintenanceActions: () => <KernelMaintenanceActions />,
 
-  // Kernel-default cockpit panes — list-mode briefing zone.
+  // Six-question cockpit panes — universal across delegation products.
+  // Order in KERNEL_DEFAULT_COCKPIT_PANES is: trust → mandate → decisions
+  // → money → narrative → health.
+  TrustViolations: () => <TrustViolations />,
+  MandateStrip: () => <MandateStrip />,
   KernelNeedsMePane: () => <KernelNeedsMePane />,
-  KernelSnapshotPane: () => <KernelSnapshotPane />,
-  KernelSinceLastLookPane: () => <KernelSinceLastLookPane />,
-  KernelIntelligenceCard: () => <KernelIntelligenceCard />,
+  MoneyTruthTile: ({ source }) => <MoneyTruthTile source={source} />,
+  MaterialNarrativeStrip: () => <MaterialNarrativeStrip />,
+  TeamHealthCard: () => <TeamHealthCard />,
 };
 
 /**

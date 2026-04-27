@@ -17,26 +17,28 @@ tabs:
       group_default: output_kind
       filters_default:
         output_kind: produces_deliverable
-      # ADR-225 Phase 3: bundle-supplied cockpit pane sequence.
-      # Replaces the kernel-default 4-pane Briefing composition with
-      # a trader-shaped sequence: pending trade proposals first
-      # (Queue archetype), portfolio performance snapshot second
-      # (Dashboard archetype reading _performance.md), then kernel
-      # defaults for since-last-look + intelligence so the operator
-      # still gets workspace-wide signal alongside trading-specific
-      # tiles. Mixed kernel + bundle composition is the shape — both
-      # are dispatched through LIBRARY_COMPONENTS by `kind`.
+      # ADR-225 Phase 3 + cockpit reshape (2026-04-28): bundle-supplied
+      # cockpit pane sequence following the six-question framing.
+      # Universal pane shape, alpha-trader-specialized data + components:
+      #   1. Trust violations  → TrustViolations (universal)
+      #   2. Mandate           → MandateStrip (universal)
+      #   3. Decisions due     → TradingProposalQueue (trader-shaped, replaces NeedsMe)
+      #   4. Money truth       → MoneyTruthTile bound to portfolio _performance.md
+      #   5. Material narrative → MaterialNarrativeStrip (universal)
+      #   6. Team health        → TeamHealthCard (universal)
       cockpit_panes:
+        - kind: TrustViolations
+        - kind: MandateStrip
         - kind: TradingProposalQueue
           filters:
             proposal_type: trading
             status: pending
-        - kind: PerformanceSnapshot
+        - kind: MoneyTruthTile
           binding:
             type: file
             path: /workspace/context/portfolio/_performance.md
-        - kind: KernelSinceLastLookPane
-        - kind: KernelIntelligenceCard
+        - kind: MaterialNarrativeStrip
+        - kind: TeamHealthCard
     detail:
       middles:
         - match: { task_slug: portfolio-review }

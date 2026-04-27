@@ -229,8 +229,9 @@ function HistoryTab({ taskSlug, refreshKey }: { taskSlug: string; refreshKey: nu
 
 // ---------------------------------------------------------------------------
 // TaskOutputCard — reusable iframe+markdown renderer for a task output artifact.
-// Extracted so IntelligenceCard on Overview can consume the same primitives
-// without duplicating the iframe auto-height and markdown fallback logic.
+// Originally extracted to share the iframe auto-height + markdown fallback
+// logic across multiple consumers; now used here for DeliverableMiddle output
+// rendering. Kept exported for any future synthesis pane that needs it.
 // ---------------------------------------------------------------------------
 
 export interface TaskOutputCardProps {

@@ -4,6 +4,34 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-28 — Cockpit reshape: six-question framing
+
+**Governing ADR:** [ADR-225 Cockpit reshape amendment](../adr/ADR-225-compositor-layer.md#cockpit-reshape--six-question-framing-implemented-2026-04-28).
+
+The Phase 3 cockpit's pane sequence (NeedsMe / Snapshot / SinceLastLook / Intelligence) was the historical artifact of merging /overview into /work, not a derived design. A re-derivation against alpha-trader's delegation loop surfaced six distinct operator-facing questions, two of which had no pane: "did anything just break my trust?" and "what's my standing intent right now?"
+
+**The six questions, in order:**
+1. "Did anything just break my trust?" → `TrustViolations` (new)
+2. "What's my standing intent right now?" → `MandateStrip` (new)
+3. "What needs my judgment right now?" → `KernelNeedsMePane` (kernel) / `TradingProposalQueue` (alpha-trader override, now functional)
+4. "Where does the money stand?" → `MoneyTruthTile` (new — replaces SnapshotPane)
+5. "What did the team do since I last looked?" → `MaterialNarrativeStrip` (new — replaces SinceLastLookPane, filters to material weight per ADR-219)
+6. "Is the team itself healthy?" → `TeamHealthCard` (new — replaces IntelligenceCard, diagnostic shape instead of synthesis)
+
+**Universality principle ratified:** The six questions are universal across delegation products. Program bundles specialize *answers* (which substrate, which component), never invent new questions. Adding a seventh question would require an architectural amendment, not a bundle-level override.
+
+**Singular implementation:** Three legacy components deleted (`SnapshotPane.tsx`, `SinceLastLookPane.tsx`, `IntelligenceCard.tsx` substrate components plus the three corresponding `kernel-cockpit/` wrappers). 1 component reshaped (`TradingProposalQueue` — was a placeholder, now reads `action_proposals` for real with inline approve/reject + violation-filtering). 5 new components shipped to `web/components/library/`.
+
+**Test gates:** `tsc --noEmit` clean, `next build` clean, no live references to deleted panes outside docstrings.
+
+**Trust pane discipline:** `TrustViolations` renders nothing 99% of the time (zero violations) — when it does render, destructive-tinted, top of stack, the only thing that matters. The alpha-trader equivalent of an air-quality alert.
+
+**Mandate pane discipline:** `MandateStrip` is the only pane with a chat-draft affordance — but only when the Mandate is still skeleton. Once authored, it's read-only with a deep-link to Files for inline edit (R3 Substrate). The chat-draft is the bridge from "no Mandate" to "Mandate authored," not an alternative path.
+
+**What this does NOT change:** Phase 3 compositor seam mechanics — resolver pattern, library registry, dispatchComponent, kernel-defaults registry, three renderers (Middle/Chrome/Cockpit) — all preserved. Only the *what gets registered* changed, not the *how it dispatches*. The Briefing archetype invariants (ADR-198 §3) are preserved per pane.
+
+---
+
 ## 2026-04-27 — ADR-225 Phase 3: unified compositor seam — chrome + cockpit + middle through one resolver
 
 **Governing ADR:** [ADR-225 Phase 3](../adr/ADR-225-compositor-layer.md) — Implemented 2026-04-27 (8 commits: `3460919` schema → … → this commit doc-streamlining).
