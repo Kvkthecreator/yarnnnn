@@ -2125,6 +2125,7 @@ async def execute_task(
             logger.info(f"[TASK_EXEC] ADR-182: reduced tool surface for produces_deliverable ({task_slug})")
 
         # Generate via headless agent
+        # ADR-227: pass required_caps so program-specific tools reach the agent
         draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
             task_phase=task_phase,
@@ -2132,6 +2133,7 @@ async def execute_task(
             output_kind=output_kind,
             tool_overrides=_tool_overrides,
             max_rounds_override=_max_rounds_override,
+            task_required_capabilities=required_caps,
         )
 
         # Strip agent reflection before delivery (ADR-128/149)
@@ -2790,10 +2792,13 @@ async def _execute_pipeline(
         user_message += step_preamble
 
         # --- Generate ---
+        # ADR-227: pass task-declared capabilities so program-specific platform
+        # tools reach universal-role agents in multi-step pipelines too.
         draft, usage, pending_renders, _tools_used, _tool_rounds = await _generate(
             client, user_id, agent, system_prompt, user_message, scope,
             task_slug=task_slug,
             output_kind=task_info.get("output_kind", "produces_deliverable"),
+            task_required_capabilities=task_info.get("required_capabilities") or [],
         )
 
         # Strip assessment
@@ -3150,6 +3155,7 @@ async def _generate(
     output_kind: str = "produces_deliverable",
     tool_overrides: Optional[list[dict]] = None,
     max_rounds_override: Optional[int] = None,
+    task_required_capabilities: Optional[list[str]] = None,
 ) -> tuple[str, dict, list, list, int]:
     """Run the headless generation loop.
 
@@ -3163,6 +3169,12 @@ async def _generate(
     reduced tool surface for produces_deliverable tasks where all context is
     pre-gathered mechanically. When set, these override the default full
     headless tool set and scope-based round limits.
+
+    ADR-227: task_required_capabilities augments the agent's role-level
+    capability list when resolving platform tools. Without it, universal-role
+    agents (Tracker, Analyst, Writer) on program-specific tasks (alpha-trader,
+    alpha-commerce) silently fail to receive their program's platform tools
+    and fall back to generic WebSearch.
     """
     from services.anthropic import chat_completion_with_tools
     from services.primitives.registry import get_headless_tools_for_agent, create_headless_executor
@@ -3191,8 +3203,11 @@ async def _generate(
         # ADR-182: caller provided a reduced tool surface (e.g., synthesis-only)
         headless_tools = tool_overrides
     else:
+        # ADR-227: pass task_required_capabilities so program-specific platform
+        # tools (read_trading, write_commerce, etc.) reach universal-role agents.
         headless_tools = await get_headless_tools_for_agent(
             client, user_id, agent=agent, agent_sources=[],
+            task_required_capabilities=task_required_capabilities,
         )
     executor = create_headless_executor(
         client, user_id,

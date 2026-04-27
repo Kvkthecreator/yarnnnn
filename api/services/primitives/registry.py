@@ -398,21 +398,30 @@ async def get_headless_tools_for_agent(
     agent: Optional[dict] = None,
     agent_sources: Optional[list] = None,
     coordinator_agent_id: Optional[str] = None,
+    task_required_capabilities: Optional[list[str]] = None,
 ) -> list[dict]:
     """
     Resolve the full headless tool surface for an agent.
 
-    Headless execution always gets the base primitive registry. Platform tools are
-    added dynamically from the dedicated platform runtime when, and only when:
-    1. the agent capability bundle grants them, and
+    Headless execution always gets the base primitive registry. Platform tools
+    are added dynamically when, and only when:
+    1. the agent's role bundle grants them, OR (per ADR-227) the task's
+       **Required Capabilities:** TASK.md field declares them, AND
     2. the user has the provider connected.
+
+    The two sources merge: roles declare universal identity (ADR-176), tasks
+    declare ICP-specific needs (ADR-188 + ADR-207 P4b). Without the merge,
+    universal-role agents on program-specific tasks never receive
+    program-specific platform tools.
     """
     tools = list(HEADLESS_PRIMITIVES)
     if not client or not user_id or not agent:
         return tools
 
     auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id, agent)
-    platform_tools = await get_platform_tools_for_agent(auth, agent)
+    platform_tools = await get_platform_tools_for_agent(
+        auth, agent, task_required_capabilities=task_required_capabilities,
+    )
     if platform_tools:
         tools.extend(platform_tools)
     return tools

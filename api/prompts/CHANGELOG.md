@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.28.1] - ADR-227 — Tracker source-priority guidance; task-capability tool augmentation
+
+### Changed
+- `api/services/orchestration.py` — Tracker role `default_instructions` extended with explicit Source Priority section. Three-step priority: (1) read `_operator_profile.md` for mechanical definitions before any external lookup; (2) use platform_* tools as authoritative live-data path when available; (3) WebSearch as last resort, only when operator profile points to external reference and no platform tool covers it. Closes the gap that let the Tracker on alpha-trader-1's `track-universe` burn 30 WebSearch calls instead of using `platform_trading_get_market_data`.
+- `api/services/platform_tools.py::get_platform_tools_for_agent` — now accepts `task_required_capabilities` kwarg. Merges role capabilities with task-declared capabilities (deduped, role-first order) before resolving platform tools. ADR-227 closes the gap between TASK.md `**Required Capabilities:**` (gate-only previously) and the agent's actual tool surface.
+- `api/services/primitives/registry.py::get_headless_tools_for_agent` — new `task_required_capabilities` kwarg, plumbed through to `get_platform_tools_for_agent`.
+- `api/services/task_pipeline.py::_generate` — new `task_required_capabilities` kwarg; passes through to `get_headless_tools_for_agent`. Two task-pipeline call sites (single-step at line 2128, multi-step at line 2795) now forward `task_info["required_capabilities"]`. Legacy `_execute_direct` and `agent_execution.generate_draft_inline` paths unchanged (no TASK.md context).
+
+### Expected behavior
+- **Tracker on alpha-trader's track-universe**: now receives `platform_trading_get_market_data` and other `read_trading` tools in its tool surface. Reads `_operator_profile.md` for the IH-N signal definitions before any web lookup. Calls platform tools to fetch hourly bars, computes per-ticker state, writes `/workspace/context/trading/{ticker}.md` files. Replaces the 30-WebSearch slug-churn loop.
+- **Analyst on signal-evaluation / trade-proposal**: now receives `platform_trading_get_market_data` and (for trade-proposal) `platform_trading_submit_order` etc. Previously these were silently absent. Analyst's existing "do not search the web — work from accumulated context" instruction is preserved; the platform tools become the live-data extension.
+- **All future programs** (alpha-commerce, alpha-prediction, etc.): universal-role agents on program-specific tasks now receive their program's platform tools without modifying role definitions.
+
+### Future work — prompt versioning
+KVK raised the question whether prompt iteration deserves formal versioning, similar to kernel and bundle versioning. Tracking as future ADR. Current pattern (CHANGELOG.md entries with `[YYYY.MM.DD.N]` keys) is adequate for behavioral injection visibility but does not give workspaces a way to pin a prompt version the way they pin a bundle version per ADR-223. If prompt regression becomes a recurring failure mode in Phase B observation, formal versioning warrants its own ADR.
+
+---
+
 ## [2026.04.27.1] - ADR-226 — YARNNN activation overlay for reference-workspace fork (Phase 1 backend)
 
 ### Added

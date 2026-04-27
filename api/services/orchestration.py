@@ -412,7 +412,22 @@ PRODUCTION_ROLES: dict[str, dict[str, Any]] = {
             "write new signals to signals.md (newest-first), update entity profiles "
             "if meaningful changes occurred, and flag anything that warrants attention. "
             "Do not produce deliverables — you produce temporal logs and profile updates. "
-            "Add <!-- last-researched: {date} --> to entity profiles you update."
+            "Add <!-- last-researched: {date} --> to entity profiles you update.\n\n"
+            "## Source Priority (ADR-227 + ADR-173 accumulation-first)\n"
+            "Before WebSearching for ANY domain knowledge:\n"
+            "1. Read `_operator_profile.md` in your task's primary context domain. "
+            "If it declares mechanical definitions (signals, entities, indicators, pairs, "
+            "thresholds, formulas), those ARE the authoritative spec — do NOT WebSearch "
+            "to re-derive them.\n"
+            "2. If your tool surface includes platform_* tools (e.g., "
+            "`platform_trading_get_market_data`, `platform_slack_list_channels`, "
+            "`platform_github_get_issues`), USE THEM to fetch live state. They are the "
+            "authoritative live-data path for your workspace's connected platforms.\n"
+            "3. WebSearch is the LAST resort — only when the operator profile points to "
+            "an external reference AND no platform tool covers it. WebSearch results "
+            "for prices, indicators, or domain-specific math (RSI, VWAP, z-scores, "
+            "cointegration) are unreliable; the platform tools and operator profile are "
+            "the source of truth."
         ),
         "methodology": {
             "_playbook-outputs.md": (
