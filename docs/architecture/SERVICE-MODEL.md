@@ -1,11 +1,11 @@
 # YARNNN Service Model
 
 > **Status**: Canonical
-> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25)
+> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25; v1.7 OS framing canonized 2026-04-27)
 > **Scope**: End-to-end service model — how the system works, from user intent to delivered output.
 > **Rule**: This is the single document that describes the complete system. Deep-dive docs are linked, not duplicated.
 
-> **Current canon note (2026-04-24):** ADR-216 reclassified YARNNN from persona-bearing Agent to orchestration chat surface, and ADR-217 moved delegation from `/workspace/review/modes.md` to `/workspace/context/_shared/AUTONOMY.md`. The service model below is hardened to that taxonomy.
+> **Current canon note (2026-04-27):** ADR-222 canonizes the agent-native operating system framing. The substrate is the kernel; the primitive matrix is the syscall ABI; the chat agent is the shell; workspaces are userspaces; programs are applications; program bundles are `.app`-equivalents; a compositor layer (forthcoming) reads program-shipped composition manifests against substrate to render the cockpit. See [FOUNDATIONS Principle 16](FOUNDATIONS.md), [GLOSSARY "Operating System Framing"](GLOSSARY.md), and [docs/programs/](../programs/README.md) for canonical artifacts. Prior canon notes (ADR-216 YARNNN reclassification, ADR-217 AUTONOMY.md relocation) remain in force.
 
 ---
 
@@ -80,6 +80,28 @@ Every invocation surfaces in one **narrative** — the chat-shaped operator-faci
 **Tasks are legibility wrappers, not parallel substrates.** A task is a nameplate + pulse + contract attached to a category of recurring invocations. `/work` is the narrative filtered by task slug — the data substrate is unchanged from ADR-138; the mental model sharpens. Inline actions are invocations without a nameplate; the inline-to-task transition (attach a nameplate + pulse) is gradient and reversible.
 
 Deep dive: [invocation-and-narrative.md](invocation-and-narrative.md). ADR-219 (proposed) scopes implementation of the narrative-storage and /work-as-filter commitments.
+
+### Frame 5 — Agent-Native Operating System Architecture (FOUNDATIONS Principle 16, ADR-222)
+
+YARNNN is canonized as an agent-native operating system. The framing is literal — every box in OS architecture has a corresponding YARNNN artifact. The OS layering is what makes vertical specialization possible without sacrificing the agnostic substrate, and what makes the kernel boundary structurally enforceable.
+
+| OS layer | YARNNN equivalent | Status |
+|---|---|---|
+| **Kernel** | Substrate primitives + axioms + filesystem + privileged daemons (Reviewer, back-office tasks) | Shipped |
+| **Filesystem** | `workspace_files` + ADR-209 authored substrate | Shipped |
+| **Syscall ABI** | The primitive matrix (ADR-168) | Shipped |
+| **Shell** | YARNNN chat agent (`api/agents/yarnnn.py`) — application code, not kernel | Shipped (per ADR-205) |
+| **Init system** | `workspace_init.py` | Shipped |
+| **Application** | A program (alpha-trader is the first; alpha-prediction + alpha-defi are reference SPECs) | Just landed (commit e094d98) |
+| **Application bundle** | Program bundle at `docs/programs/{program}/` (manifest + reference workspace + composition manifest) | Bundle convention partially landed; composition manifest deferred to implementation ADR |
+| **Compositor / window manager** | The composition layer — FE/API infrastructure that resolves a program's composition manifest against substrate paths | **Not yet built — implementation ADR forthcoming** |
+| **Userspace** | An operator's `/workspace/` | Shipped |
+| **Workspace overlay** | Operator-authored `/workspace/SURFACES.yaml` overrides of program defaults | **Not yet built** |
+| **System component library** | `web/components/library/` — universal building blocks | Partial; convention to be formalized |
+
+The framing dissolves "workspace type / workspace mode" as housing for vertical specialization: workspaces don't have types; they run programs; the program declaration is the implicit type; specialization happens at the compositor (a separate architectural layer), not the kernel. Adding a program is purely additive — a new bundle, possibly new system component library entries, no kernel touch.
+
+Deep dive: [ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md). Implementation roadmap: [os-framing-implementation-roadmap.md](os-framing-implementation-roadmap.md).
 
 ---
 
