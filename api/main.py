@@ -52,7 +52,7 @@ _validate_environment()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, chat, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, tasks, workspace, proposals, narrative
+from routes import memory, chat, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, tasks, workspace, proposals, narrative, programs
 
 app = FastAPI(
     title="YARNNN API",
@@ -115,3 +115,6 @@ app.include_router(proposals.router, prefix="/api", tags=["proposals"])
 
 # ADR-219 Commit 4: narrative filter-over-substrate for /work list view
 app.include_router(narrative.router, prefix="/api/narrative", tags=["narrative"])
+
+# ADR-225: cockpit composition surfaces (compositor's API-side resolver)
+app.include_router(programs.router, prefix="/api/programs", tags=["programs"])

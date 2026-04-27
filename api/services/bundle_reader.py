@@ -67,6 +67,12 @@ def all_active_bundles() -> list[dict[str, Any]]:
     lookup miss → consult bundles). Reference / deferred / archived
     bundles do NOT surface their templates here — they only constrain
     OS decisions per ADR-223 §6.
+
+    Note: this does NOT filter by workspace's connected platforms.
+    Templates are platform-agnostic — capability gating happens at
+    dispatch time per ADR-207 P3, not at template-lookup time.
+    For cockpit rendering (ADR-225), use `bundles_active_for_workspace`
+    which adds the connected-platform filter.
     """
     bundles: list[dict[str, Any]] = []
     for slug in _all_slugs():
@@ -74,6 +80,69 @@ def all_active_bundles() -> list[dict[str, Any]]:
         if m and m.get("status") == "active":
             bundles.append(m)
     return bundles
+
+
+def bundles_active_for_workspace(user_id: str, client: Any) -> list[dict[str, Any]]:
+    """Return bundles active for a specific workspace per ADR-224 §3 + ADR-225.
+
+    Active for workspace = bundle.status='active' AND workspace has at least
+    one of the bundle's capabilities[*].requires_connection currently
+    connected (`platform_connections` row with status='active').
+
+    This is the cockpit-rendering filter: a workspace without alpaca
+    connected does not get alpha-trader-shaped chrome, even though
+    alpha-trader's MANIFEST has status='active' globally.
+
+    Order: bundles ordered by their oldest matching platform_connection's
+    created_at (oldest first — typically the program the operator
+    activated first). Deterministic ordering matters for first-match-wins
+    middle resolution (see ADR-225 §2).
+    """
+    if not user_id:
+        return []
+    try:
+        rows = (
+            client.table("platform_connections")
+            .select("platform, status, created_at")
+            .eq("user_id", user_id)
+            .eq("status", "active")
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning(f"[BUNDLE_READER] platform_connections lookup failed: {exc}")
+        return []
+
+    connected_platforms = {r["platform"] for r in (rows.data or [])}
+    if not connected_platforms:
+        return []
+    # Map platform → oldest created_at so bundles can be ordered deterministically
+    platform_age: dict[str, str] = {}
+    for r in rows.data or []:
+        p = r["platform"]
+        ca = r.get("created_at") or ""
+        if p not in platform_age or (ca and ca < platform_age[p]):
+            platform_age[p] = ca
+
+    matching: list[tuple[str, dict[str, Any]]] = []
+    for bundle in all_active_bundles():
+        # Bundle is active for this workspace if any of its capabilities'
+        # required platforms is connected.
+        for cap in bundle.get("capabilities", []) or []:
+            req = cap.get("requires_connection")
+            if req and req in connected_platforms:
+                # Use the oldest connection age across this bundle's platforms
+                ages = [
+                    platform_age.get(c.get("requires_connection"), "")
+                    for c in (bundle.get("capabilities") or [])
+                    if c.get("requires_connection") in connected_platforms
+                ]
+                bundle_age = min(a for a in ages if a) if any(ages) else ""
+                matching.append((bundle_age, bundle))
+                break  # one matching capability is enough — don't double-list
+
+    # Sort by oldest connection age (oldest first)
+    matching.sort(key=lambda pair: pair[0] or "")
+    return [b for _, b in matching]
 
 
 def get_task_type_from_bundles(type_key: str) -> Optional[dict[str, Any]]:

@@ -1,6 +1,6 @@
 # ADR-225: Compositor Layer — Declarative Surface Composition
 
-> **Status:** Proposed (spec only — code work follows after ratification)
+> **Status:** Phase 1 Implemented 2026-04-27 (API endpoint + composition resolver + workspace-scoped bundle filter + 10/10 test gate). FE library reorg + 14-component build + KindMiddle switch deletion deferred to Phase 2 — see "Phased implementation rationale" below.
 > **Date:** 2026-04-27 (v2 same-day rewrite — see "What changed across versions" below; v1 missed the two-compose-modes framing surfaced by the parallel paper design)
 > **Authors:** KVK, Claude
 > **Implements:** ADR-222 implementation roadmap, ADR 2 (+ ADR 3 absorbed — system component library convention is folded into this ADR per the roadmap's "may fold" allowance, since the library is a small enough convention not to merit a separate ADR right now)
@@ -645,6 +645,26 @@ Explicitly deferred — none gate ratification.
 ## Decision
 
 **Adopt the compositor layer as defined above.** API endpoint `/api/programs/surfaces` resolves active bundles + phase overlays + composition tree. FE module `web/lib/compositor/` consumes the response and renders via universal components from `web/components/library/`. The hardcoded `WorkDetail.tsx::KindMiddle` switch is deleted; the resolver replaces it with declarative match-and-bind across 4 specificity tiers. Kernel-universal middles (DeliverableMiddle / TrackingEntityGrid / ActionMiddle / MaintenanceMiddle) become library components used by kernel-default `MiddleDecl`s. ADR 3 (System Component Library Convention) folds in here. Migration is atomic across API + FE + tests + docs in one PR.
+
+---
+
+## Phased implementation rationale (recorded 2026-04-27 mid-implementation)
+
+The v2 spec called for an atomic single PR covering API + FE library + KindMiddle replacement + doc sync. During implementation, a discipline tradeoff surfaced:
+
+- **Phase 1** (API + resolver + tests): self-contained, independently valuable, deployable without breaking the cockpit. Adds a new endpoint that the FE doesn't yet call — additive, zero risk to shipped UX.
+- **Phase 2** (FE library reorg + 14-component build + KindMiddle switch deletion): substantial FE engineering. Touches kind-middle relocation, component extraction-renames, and dispatch-switch deletion in one commit. Risk-of-half-built-compositor is real if interrupted.
+
+The v2 spec said "atomic single PR." The implementation interpretation — refined by this note — is "atomic logical commit per phase." Singular Implementation rule 1 forbids dual *running* approaches in deployed state, not dual commits in a deploy stream. Phase 1 ships a backend-only addition; the FE doesn't consume it yet. No dual approach exists at runtime.
+
+Phase 2 is the FE shoe. It will:
+- Add `web/lib/compositor/` with `useComposition()` hook, client fetcher, resolver.
+- Add `web/components/library/` with 14 universal components (~5–8 are extraction-renames of existing FE code, not net new builds, per the smaller-than-expected pattern).
+- Delete `WorkDetail.tsx::KindMiddle` switch.
+- Wire bundle-supplied list-mode features (pinned_tasks, banner, featured agents, featured domains, chat_chips).
+- Land in one atomic FE commit.
+
+Net effect at end of Phase 2: shipped UX uses the resolver for all dispatch; no dual-approach exists. The phased ship is a sequencing decision, not a scope reduction.
 
 ---
 
