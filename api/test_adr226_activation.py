@@ -147,6 +147,60 @@ def test_skeleton_detection_authored_content_is_not_skeleton():
     assert _is_skeleton_content(operator_authored, bundle_body) is False
 
 
+def test_skeleton_detection_kernel_default_identity_with_browser_tz_is_skeleton():
+    """ADR-226 implementation refinement: kernel-default IDENTITY.md is short
+    and lacks H2 sections, even after browser-tz inflation. Must be detected
+    as skeleton so the bundle's IDENTITY template overwrites at fork time."""
+    from services.workspace_init import _is_skeleton_content
+    kernel_with_tz = "# About Me\n\ntimezone: Asia/Seoul\n"
+    bundle_identity = (
+        "# Identity (template)\n\n"
+        "> Operator: author this file.\n\n"
+        "## Who you are as an operator\n\n"
+        "> 2-3 sentences.\n\n"
+        "## How you communicate\n\n"
+        "## What you don't do\n"
+    )
+    assert _is_skeleton_content(kernel_with_tz, bundle_identity) is True
+
+
+def test_skeleton_detection_short_with_h2_is_authored():
+    """Short content with at least one H2 section is treated as
+    operator-authored (sparse but substantive)."""
+    from services.workspace_init import _is_skeleton_content
+    short_authored = (
+        "# Identity\n\n"
+        "## Posture\n"
+        "Process-first.\n"
+    )
+    bundle = "# Identity (template)\n## ...\n"
+    assert _is_skeleton_content(short_authored, bundle) is False
+
+
+def test_skeleton_detection_kernel_default_reviewer_principles_is_skeleton():
+    """ADR-226 implementation refinement: kernel-default Reviewer principles
+    (DEFAULT_REVIEW_PRINCIPLES_MD) is longer than typical skeletons but still
+    represents pre-activation state. Detected via signature phrase so the
+    bundle's program-specific principles template wins at activation time."""
+    from services.workspace_init import _is_skeleton_content
+    kernel_principles = (
+        "# Review — Principles\n\n"
+        "This is the declared review framework for this workspace. **You can\n"
+        "edit this file** to tune how the Reviewer reasons about your proposed\n"
+        "actions. The AI Reviewer (when active — ADR-194 Phase 3) reads this\n"
+        "file alongside `_risk.md` and the domain's `_performance.md`.\n\n"
+        "## Hard rejection rules\n\n"
+        "(generic framework content...)\n"
+    )
+    bundle_principles = (
+        "# Reviewer Principles — alpha-trader (template)\n\n"
+        "> Operator authors. The Reviewer applies these principles...\n\n"
+        "## Hard rejection rules\n"
+        "1. Position sizing: rejected if size violates...\n"
+    )
+    assert _is_skeleton_content(kernel_principles, bundle_principles) is True
+
+
 # =============================================================================
 # Activation-state classifier tests
 # =============================================================================

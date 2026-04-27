@@ -509,17 +509,27 @@ def _strip_tier_frontmatter(text: str) -> tuple[str, dict[str, Any]]:
 
 def _is_skeleton_content(operator_content: str, bundle_body: str) -> bool:
     """Determine whether the operator's current file content is still
-    skeleton (matches the bundle's body or the kernel-default skeleton)
-    vs operator-authored.
+    skeleton (matches the bundle's body, the kernel-default skeleton,
+    or browser-timezone-inflated kernel default) vs operator-authored.
 
     Used by re-fork idempotency per ADR-226 §4: re-running fork preserves
     operator-authored content; only re-applies the bundle if the operator
     hasn't filled it in.
 
-    Tolerates trivial whitespace differences. Treats kernel-default
-    skeletons (e.g., "<not yet declared — talk to YARNNN to author your
-    mandate>") as skeleton — these get overwritten by the bundle's
-    template.
+    Detection patterns:
+      - Empty / whitespace-only → skeleton.
+      - Exact match to bundle body → skeleton (operator hasn't deviated).
+      - Contains kernel-default placeholder phrases ("not yet declared",
+        "not yet provided", "<!-- ... not yet ... -->") → skeleton.
+      - Very short content (< 200 chars after strip) AND lacks operator-
+        authored signal markers → skeleton. This catches kernel-default
+        IDENTITY.md after browser-timezone inflation
+        ("# About Me\\n\\ntimezone: Asia/Seoul\\n") — short, no operator
+        signal, gets overwritten by the bundle's IDENTITY template.
+
+    Operator-authored signal markers: any prose section beyond a single
+    H1 + simple metadata. The "very short content" rule fires only when
+    the file has NO sections beyond H1 and is genuinely sparse.
     """
     if not operator_content or not operator_content.strip():
         return True
@@ -527,10 +537,41 @@ def _is_skeleton_content(operator_content: str, bundle_body: str) -> bool:
     bundle_normalized = bundle_body.strip()
     if op_normalized == bundle_normalized:
         return True
-    # Kernel-default mandate placeholder — workspace_init Phase 2 writes this
-    # before fork runs. Treat as skeleton so the bundle's template wins.
-    if "not yet declared" in op_normalized.lower() and len(op_normalized) < 600:
+
+    op_lower = op_normalized.lower()
+
+    # Kernel-default placeholder phrases — workspace_init Phase 2 writes
+    # these before fork runs. Treat as skeleton so bundle template wins.
+    placeholder_phrases = (
+        "not yet declared",
+        "not yet provided",
+        "<!-- identity not yet",
+        "<!-- brand not yet",
+        "<!-- mandate not yet",
+        "<!-- awareness",  # YARNNN awareness placeholder
+    )
+    if any(phrase in op_lower for phrase in placeholder_phrases) and len(op_normalized) < 800:
         return True
+
+    # Kernel-default Reviewer principles signature — Phase 2 writes a
+    # generic framework that's longer than typical skeletons but still
+    # represents pre-activation state. Bundle's program-specific principles
+    # template should win at activation time.
+    kernel_principles_signature = "this is the declared review framework for this workspace"
+    if kernel_principles_signature in op_lower:
+        return True
+
+    # Very-short-and-sparse rule: kernel defaults inflated by Phase 2
+    # (e.g. browser_tz appended to IDENTITY) are short and have no
+    # H2 section — operator hasn't authored anything substantive yet.
+    # Bundle templates always have H2 sections (## Status, ## Steps, etc.)
+    if len(op_normalized) < 200:
+        # Count H2 sections (## ...). Operator-authored content typically
+        # has at least one H2 even when sparse.
+        h2_count = sum(1 for line in op_normalized.split("\n") if line.startswith("## "))
+        if h2_count == 0:
+            return True
+
     return False
 
 
