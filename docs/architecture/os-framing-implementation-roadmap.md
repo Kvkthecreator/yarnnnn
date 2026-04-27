@@ -18,20 +18,23 @@ related:
 
 ADR-222 + FOUNDATIONS Principle 16 commit the framing. The framing is meaningful only if the implementation work follows. This doc is the visible-and-trackable plan for that work.
 
+> **2026-04-27 amendment** — Post-OS-framing discourse round (three questions on compose dispatcher, surface design venue, and reflexive-loop sequencing) sharpened three things in this roadmap: (1) compose substrate has two modes (document compose, surface compose) — both kernel-level, both program-aware via composition manifest; ADR 2's scope clarified to add a *live* sibling to the existing *frozen* compose pipeline. (2) alpha-trader surface paper-design lands as a Phase 0 forcing function for ADR 2 + ADR 3, not deferred to "after compositor." (3) ADR 6 (Reflexive Loop) is naturally gated by Phase A→B→C→D sequencing; manual curation suffices until activation flow ships and a second operator produces real divergence. See `docs/analysis/alpha-trader-surface-design-2026-04-27.md` for the paper design.
+
 ---
 
 ## At a glance
 
-| # | ADR (forthcoming) | Scope | Depends on | Touches code? |
+| # | Artifact | Scope | Depends on | Touches code? |
 |---|---|---|---|---|
-| 1 | **Program Bundle Specification** | Composition manifest format, manifest schema, reference workspace conventions, dependency declaration, lifecycle states | None (foundational) | No (spec only) |
-| 2 | **Compositor Layer** | FE/API infrastructure: composition resolver, component binding, surface archetype rendering, workspace overlay merger | #1 | Yes (significant) |
-| 3 | **System Component Library Convention** | `web/components/library/` formalization: registration, versioning, contribution rules. May fold into #2. | None / paired with #2 | Yes (FE structure) |
-| 4 | **Kernel / Program Boundary Refactor** | Split `directory_registry.py`, `task_types.py`, `orchestration.py`, `platform_tools.py` along the kernel boundary. Move program-specific declarations into program bundles. | #1 (bundles must exist as targets) | Yes (significant — registry split + caller rewiring) |
+| 0 | **alpha-trader Surface Paper Design** | Discourse-shape paper design of alpha-trader's tabs, components, bindings, empty states. Forcing function for #2 + #3. NOT a SURFACES.yaml. | None | No (discourse only) |
+| 1 | **Program Bundle Specification (ADR-223)** | Composition manifest format, manifest schema, reference workspace conventions, dependency declaration, lifecycle states (`active \| reference \| deferred \| archived`) | None (foundational) | No (spec only) — **landed** |
+| 2 | **Compositor Layer** | FE/API infrastructure adding *surface compose* (live-bound rendering) as a sibling to existing *document compose* (frozen artifacts). Composition resolver, component binding, surface archetype rendering, workspace overlay merger. **Both modes share components and live in the kernel.** | #1, informed by #0 | Yes (significant) |
+| 3 | **System Component Library Convention** | `web/components/library/` formalization: registration, versioning, contribution rules, binding contracts (substrate-file paths, frontmatter paths, filter/group spec, layout-slot declarations). v1 component set scoped from #0. May fold into #2. | None / paired with #2 / informed by #0 | Yes (FE structure) |
+| 4 | **Kernel / Program Boundary Refactor (ADR-224)** | Split `directory_registry.py`, `task_types.py`, `orchestration.py`, `platform_tools.py` along the kernel boundary. Move program-specific declarations into program bundles. | #1 (bundles must exist as targets) | Yes — **in flight via CC** as of 2026-04-27 |
 | 5 | **Reference-Workspace Activation Flow** | Operator activation as fork-the-reference + differential-authoring conversation. `workspace_init.py` extension + YARNNN prompt overlay. | #1, #2, #4 | Yes (workspace_init + prompt) |
-| 6 | **Reference-Reflexive Loop** | `back-office-reference-graduation` task: drafts graduation candidates from lived workspace into reference workspace + composition manifest. | #5 | Yes (back-office task) |
+| 6 | **Reference-Reflexive Loop** | `back-office-reference-graduation` task: drafts graduation candidates from lived workspace into reference workspace + composition manifest. **Two graduation channels** — substrate patterns AND composition patterns. | #5 + evidence (≥2 lived operators) | Yes (back-office task) |
 
-Steps 1, 2/3, 4 can run in parallel after #1's spec is far enough along to unblock the others. Steps 5 + 6 depend on the earlier steps landing.
+Steps 1, 2/3, 4 can run in parallel after #1's spec is far enough along to unblock the others. Step 0 (paper design) runs concurrent with #4 implementation as a forcing function for #2 + #3. Steps 5 + 6 depend on the earlier steps landing. **Step 6 is naturally gated by evidence (second operator) — manual curation suffices until then.**
 
 ---
 
@@ -244,13 +247,14 @@ These are real architectural concerns that follow from the OS framing but are ex
 
 ## Status tracking
 
-| ADR | Status | ETA |
+| Artifact | Status | Notes |
 |---|---|---|
+| Step 0 — alpha-trader Surface Paper Design | **Drafted as [docs/analysis/alpha-trader-surface-design-2026-04-27.md](../analysis/alpha-trader-surface-design-2026-04-27.md)** (2026-04-27) | Discourse-shape paper design. Not a SURFACES.yaml. Open questions surfaced for next-round review. |
 | ADR 1 — Program Bundle Spec | **Implemented** ([ADR-223](../adr/ADR-223-program-bundle-specification.md), 2026-04-27) — alignment commit `3237b89`; ADR-224 implementation validated schema by exercising bundle-side enrichment without schema bump | Done |
-| ADR 2 — Compositor Layer | Not started | Independent of ADR 4 per ADR-224 v3 (compositor reads SURFACES.yaml directly; runtime stays substrate-driven). Next sequenced. |
-| ADR 3 — System Component Library | Not started | Pairs with ADR 2 |
+| ADR 2 — Compositor Layer | Not started | Independent of ADR 4 per ADR-224 v3 (compositor reads SURFACES.yaml directly; runtime stays substrate-driven). Next sequenced. **Scope clarified by 2026-04-27 discourse:** ADR 2 adds *surface compose* (live-bound) as sibling to existing *document compose* (frozen). Both kernel-level. Informed by Step 0 paper design. |
+| ADR 3 — System Component Library | Not started | Pairs with ADR 2. v1 component set scoped from Step 0 paper design (~14 components, all universal). |
 | ADR 4 — Kernel/Program Boundary Refactor | **Implemented** ([ADR-224 v3](../adr/ADR-224-kernel-program-boundary-refactor.md), 2026-04-27) — bundle_reader.py + 4-capability + 4-directory + 3-task-type kernel deletions + alpha-commerce deferred bundle + 11/11 test gate | Done |
 | ADR 5 — Reference Activation Flow | Not started | Depends on ADR 2 (compositor reads bundle's SURFACES.yaml at activation). alpha-commerce bundle now exists per ADR-224. |
-| ADR 6 — Reference-Reflexive Loop | Not started | After ADR 5 lands |
+| ADR 6 — Reference-Reflexive Loop | Not started | After ADR 5 lands AND evidence (second operator producing real divergence). **Naturally gated by evidence per 2026-04-27 discourse — manual curation suffices until then.** Two graduation channels confirmed: substrate patterns AND composition patterns. |
 
 This doc is updated as ADRs are written, ratified, and implemented.

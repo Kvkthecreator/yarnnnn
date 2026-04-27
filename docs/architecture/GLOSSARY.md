@@ -1,7 +1,7 @@
 # YARNNN Glossary
 
 > **Status**: Canonical
-> **Date**: 2026-04-17 (v1.3 revision 2026-04-20 for FOUNDATIONS v6.0 dimensional model; v1.9 amendment 2026-04-25 for Axiom 9; v2.0 amendment 2026-04-27 for OS framing canonization per ADR-222)
+> **Date**: 2026-04-17 (v1.3 revision 2026-04-20 for FOUNDATIONS v6.0 dimensional model; v1.9 amendment 2026-04-25 for Axiom 9; v2.0 amendment 2026-04-27 for OS framing canonization per ADR-222; v2.1 amendment 2026-04-27 for two-compose-modes vocabulary post-discourse)
 > **Authors**: KVK, Claude
 > **Ratified by**: ADR-189 (Three-Layer Cognition) + ADR-194 v2 (Reviewer as Fourth Cognitive Layer) + FOUNDATIONS v6.0 (Six-Dimensional Model)
 > **Supersedes**: `naming-conventions.md` (to be retired after the ADR-189 rename pass lands)
@@ -45,6 +45,19 @@ YARNNN is canonized as an agent-native operating system. The framing is literal 
 - **Workspace mode** — rejected by ADR-222. Implies switchability that doesn't exist (a trader workspace doesn't switch into a commerce workspace at runtime), and conflates Identity with Channel.
 
 **Usage discipline:** when introducing a new mechanic that touches the architectural layering, name which layer it occupies (kernel / compositor / program-bundle / userspace / shell). A mechanic that crosses layers without justification is a design error per Derived Principle 16.
+
+### Two compose modes (post-OS-framing discourse, 2026-04-27)
+
+The compose substrate has two modes. Both are kernel-level; both share the universal component library; both are program-aware via composition manifest. They differ in lifetime and binding mode.
+
+| Term | Meaning | When it applies |
+|---|---|---|
+| **Document compose** *(canonical)* | Produces frozen HTML artifacts (`output.html`, PDF exports, PPTX). Snapshot at compose time, immutable thereafter. | Task pipeline output composition, emailable deliverables, archived task runs. Existing infrastructure (ADR-148, ADR-170, ADR-177, ADR-213). |
+| **Surface compose** *(canonical, infra not yet built)* | Produces live cockpit panes — re-rendered every load, bound to current substrate. | Cockpit tabs displaying live workspace state, dashboards, metric bands. New infrastructure shipping with the Compositor (ADR 2 forthcoming). |
+
+A `MetricCardRow` component works in both modes — call site decides whether the binding is live (surface compose) or snapshot-at-compose-time (document compose). Mode is a property of the binding in the SURFACES manifest, not the component.
+
+Surface compose can *embed* document compose artifacts (e.g., Overview's daily-discipline band uses a `TaskOutputViewer` component that reads the stored `output.html` from the latest daily-update run). This is normal — a surface arranges components, some of which display frozen artifacts.
 
 ---
 
