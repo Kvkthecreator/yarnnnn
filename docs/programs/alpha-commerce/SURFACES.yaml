@@ -1,0 +1,41 @@
+schema_version: 1
+
+# Reference SPEC composition manifest. Per ADR-223 §5 and ADR-224 §4:
+# deferred bundles ship minimal SURFACES.yaml. Bundle's status='deferred',
+# so this is not surfaced to the compositor at runtime — it exists as
+# part of the bundle contract and to demonstrate schema fitness.
+
+tabs:
+  work:
+    list:
+      pinned_tasks: [revenue-report, commerce-digest]
+      group_default: output_kind
+    detail:
+      middles:
+        - match: { task_slug: revenue-report }
+          archetype: dashboard
+          bindings:
+            performance: /workspace/context/revenue/_performance.md
+            cohorts: /workspace/context/revenue/_cohorts.md
+          components:
+            - kind: RevenueSnapshot
+              source: performance
+            - kind: CohortRetentionGrid
+              source: cohorts
+
+  agents:
+    list:
+      featured: [reviewer]
+    reviewer:
+      principles_default: reference-workspace/review/principles.md
+
+  context:
+    list:
+      featured_domains: [customers, revenue]
+
+chat_chips:
+  - "How's MRR trending this week?"
+  - "Which customer cohorts are churning?"
+  - "What's my top-3 product by revenue?"
+
+phase_overlays: {}

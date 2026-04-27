@@ -115,19 +115,31 @@ def _active_platforms(client: Any, user_id: str) -> list[str]:
 def _available_platform_capabilities(active_platforms: list[str]) -> list[str]:
     """Return capability names available to the user given active platforms.
 
-    Reads CAPABILITIES registry (ADR-207 P3). Internal capabilities
+    Per ADR-207 P3 + ADR-224: reads kernel CAPABILITIES (platform-integration
+    capabilities like read_slack, read_notion, read_github) AND active
+    program bundles' capabilities[] declarations (program-specific
+    capabilities like read_trading, read_commerce). Internal capabilities
     (platform_connection_requirement=None) are always available and not
     listed here — the report focuses on what the connections unlocked.
     """
+    available: set[str] = set()
     try:
         from services.orchestration import CAPABILITIES
+        for name, cap in CAPABILITIES.items():
+            req = cap.get("platform_connection_requirement")
+            if req and req.get("platform") in active_platforms:
+                available.add(name)
     except Exception:
-        return []
-    available: list[str] = []
-    for name, cap in CAPABILITIES.items():
-        req = cap.get("platform_connection_requirement")
-        if req and req.get("platform") in active_platforms:
-            available.append(name)
+        pass
+    # Merge in active bundle capabilities per ADR-224
+    try:
+        from services.bundle_reader import list_bundle_capabilities
+        for name, cap in list_bundle_capabilities().items():
+            req = cap.get("platform_connection_requirement")
+            if req and req.get("platform") in active_platforms:
+                available.add(name)
+    except Exception:
+        pass
     return sorted(available)
 
 

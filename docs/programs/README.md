@@ -38,6 +38,7 @@ When an architectural decision comes up, the program docs are the **litmus test*
 | **alpha-trader** | `active` | Continuous price (equities + options) | $5K+ paper, then live | [alpha-trader/](alpha-trader/) — [MANIFEST](alpha-trader/MANIFEST.yaml) · [SURFACES](alpha-trader/SURFACES.yaml) · [reference-workspace](alpha-trader/reference-workspace/) |
 | **alpha-prediction** | `reference` | Binary terminal outcome (Polymarket / Kalshi) | $100-stakes | [alpha-prediction/](alpha-prediction/) — [MANIFEST](alpha-prediction/MANIFEST.yaml) · [SURFACES](alpha-prediction/SURFACES.yaml) |
 | **alpha-defi** | `reference` | On-chain settled state + token prices | $1K + custody | [alpha-defi/](alpha-defi/) — [MANIFEST](alpha-defi/MANIFEST.yaml) · [SURFACES](alpha-defi/SURFACES.yaml) |
+| **alpha-commerce** | `deferred` | Commerce-platform settled events | $100+ revenue | [alpha-commerce/](alpha-commerce/) — [MANIFEST](alpha-commerce/MANIFEST.yaml) · [SURFACES](alpha-commerce/SURFACES.yaml) · created by ADR-224 to home shipped commerce artifacts |
 
 **Only alpha-trader is being built right now.** The other two exist as committed-but-uncoded reference SPECs. Their job is to keep the kernel honest about what it claims to support, and to prevent the kernel from accidentally becoming alpha-trader-shaped. They graduate from `reference` → `active` when activation_preconditions in their MANIFEST hold.
 

@@ -231,141 +231,15 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
     # Canonical (not temporal) — business data persists, accumulates, informs strategy.
     # Created when commerce provider is connected, not at signup.
 
-    "customers": {
-        "type": "context",
-        "path": "context/customers",
-        "display_name": "Customers",
-        "description": "Subscribers and buyers from your commerce platform",
-        "managed_by": "agent",
-        "entity_type": "customer",
-        "entity_structure": {
-            "profile.md": (
-                "# {name}\n\n"
-                "## Status\n\n"
-                "## Plan & Revenue\n\n"
-                "## Contact\n"
-            ),
-            "history.md": (
-                "# History — {name}\n"
-                "<!-- Subscription and purchase events, newest first -->\n"
-            ),
-        },
-        "assets_folder": False,
-        "synthesis_file": "overview.md",
-        "synthesis_template": (
-            "# Customer Overview\n\n"
-            "## Active Subscribers\n\n"
-            "## Segments & Cohorts\n\n"
-            "## Churn Analysis\n"
-        ),
-        "tracker_file": "_tracker.md",
-    },
-
-    "revenue": {
-        "type": "context",
-        "path": "context/revenue",
-        "display_name": "Revenue",
-        "description": "Business metrics — MRR, growth, product performance",
-        "managed_by": "agent",
-        "entity_type": "product",
-        "entity_structure": {
-            "performance.md": (
-                "# {name}\n\n"
-                "## Revenue\n\n"
-                "## Subscribers\n\n"
-                "## Conversion & Churn\n"
-            ),
-        },
-        "assets_folder": False,
-        "synthesis_file": "summary.md",
-        "synthesis_template": (
-            "# Revenue Summary\n\n"
-            "## MRR & Growth\n\n"
-            "## Product Mix\n\n"
-            "## Trends\n"
-        ),
-        "tracker_file": "_tracker.md",
-        # ADR-220: revenue money-truth ledger (per ADR-195 v2 commerce flavor)
-        # is operator-readable canonical substrate, written by the
-        # outcome-reconciliation back-office task.
-        "authored_substrate": [
-            "_performance.md",
-        ],
-    },
-
-    # ── Trading Domains (ADR-187: canonical, trading-bot-owned) ──
-    # Market intelligence and portfolio state from the user's trading platform.
-    # Canonical (not temporal) — same reasoning as commerce: accumulated knowledge.
-    # Created when trading provider is connected, not at signup.
-
-    "trading": {
-        "type": "context",
-        "path": "context/trading",
-        "display_name": "Trading",
-        "description": "Market data, signals, and analysis for tracked financial instruments",
-        "managed_by": "agent",
-        "entity_type": "instrument",
-        "entity_structure": {
-            "profile.md": (
-                "# {name}\n\n"
-                "## Price & Volume\n\n"
-                "## Fundamentals\n\n"
-                "## Signal History\n"
-            ),
-            "analysis.md": (
-                "# Analysis — {name}\n\n"
-                "<!-- Latest analysis with reasoning, newest first -->\n"
-            ),
-        },
-        "assets_folder": False,
-        "synthesis_file": "overview.md",
-        "synthesis_template": (
-            "# Trading Overview\n\n"
-            "## Watchlist Status\n\n"
-            "## Cross-Asset Patterns\n\n"
-            "## Active Signals\n"
-        ),
-        "tracker_file": "_tracker.md",
-        # ADR-220: operator-authored canonical reads injected into every
-        # task prompt that includes this domain. Order is presentation order.
-        "authored_substrate": [
-            "_operator_profile.md",
-            "_risk.md",
-            "_performance.md",
-        ],
-    },
-
-    "portfolio": {
-        "type": "context",
-        "path": "context/portfolio",
-        "display_name": "Portfolio",
-        "description": "Trading account state — positions, trade history, performance metrics",
-        "managed_by": "agent",
-        "entity_type": "position",
-        "entity_structure": {
-            "profile.md": (
-                "# {name}\n\n"
-                "## Entry\n\n"
-                "## Current State\n\n"
-                "## Thesis & Exit Criteria\n"
-            ),
-        },
-        "assets_folder": False,
-        "synthesis_file": "summary.md",
-        "synthesis_template": (
-            "# Portfolio Summary\n\n"
-            "## Account State\n\n"
-            "## Position Mix\n\n"
-            "## Performance & Attribution\n"
-        ),
-        "tracker_file": "_tracker.md",
-        # ADR-220: portfolio money-truth (positions, P&L, expectancy) is
-        # canonical operator-readable substrate, written by the back-office
-        # outcome reconciler per ADR-195 v2.
-        "authored_substrate": [
-            "_performance.md",
-        ],
-    },
+    # ADR-224: customers + revenue + trading + portfolio DELETED from kernel
+    # WORKSPACE_DIRECTORIES. They are program-specific (commerce / trading
+    # oracle shapes) and live in their respective program bundle MANIFEST.yaml
+    # context_domains[] declarations:
+    #   - docs/programs/alpha-trader/MANIFEST.yaml → trading + portfolio
+    #   - docs/programs/alpha-commerce/MANIFEST.yaml → customers + revenue
+    # bundle_reader normalizes bundle context_domain entries to this shape;
+    # get_directory() and the rest of the helpers transparently fall through
+    # to bundles when the kernel registry doesn't have the key.
 
     # ── Platform Observation Domains (ADR-158: temporal, bot-owned) ──
     # Temporal awareness from external platforms. NOT canonical — TP reads these
@@ -460,13 +334,29 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 # Helper Functions
 # =============================================================================
 
+def _bundle_directory_lookup(key: str) -> Optional[dict[str, Any]]:
+    """Per ADR-224: on kernel-registry miss, consult active program bundles.
+
+    Bundle MANIFEST `context_domains[]` declarations get normalized to the
+    same shape kernel WORKSPACE_DIRECTORIES uses. Callers see one API.
+    """
+    from services.bundle_reader import get_directory_from_bundles
+    return get_directory_from_bundles(key)
+
+
 def get_directory(key: str) -> Optional[dict[str, Any]]:
-    """Look up a workspace directory by key. Returns None if not found."""
-    return WORKSPACE_DIRECTORIES.get(key)
+    """Look up a workspace directory by key. Returns None if not found.
+
+    Per ADR-224: kernel registry holds only kernel-universal directories.
+    Program-specific directories (trading, portfolio, customers, revenue)
+    live in program bundle MANIFEST.yaml. Falls through to bundle_reader
+    on kernel miss.
+    """
+    return WORKSPACE_DIRECTORIES.get(key) or _bundle_directory_lookup(key)
 
 
 def list_directories(dir_type: Optional[str] = None) -> list[dict[str, Any]]:
-    """List workspace directories, optionally filtered by type.
+    """List workspace directories (kernel + active bundles), optionally filtered.
 
     Args:
         dir_type: None (all), "user_contributed", "context", or "output"
@@ -476,19 +366,29 @@ def list_directories(dir_type: Optional[str] = None) -> list[dict[str, Any]]:
         if dir_type and d.get("type") != dir_type:
             continue
         result.append({"key": key, **d})
+    # Merge active bundle context_domains per ADR-224 §2
+    from services.bundle_reader import all_active_bundles, _normalize_bundle_domain
+    for bundle in all_active_bundles():
+        for d in bundle.get("context_domains", []) or []:
+            normalized = _normalize_bundle_domain(d, bundle)
+            if dir_type and normalized.get("type") != dir_type:
+                continue
+            key = d.get("path")
+            if key and not any(r.get("key") == key for r in result):
+                result.append({"key": key, **normalized})
     return result
 
 
 def get_directory_path(key: str) -> Optional[str]:
     """Get the workspace-relative path for a directory. Returns e.g. 'context/competitors'."""
-    d = WORKSPACE_DIRECTORIES.get(key)
+    d = get_directory(key)
     return d["path"] if d else None
 
 
 # Backwards-compatible aliases for callers still using domain_registry names
 def get_domain(key: str) -> Optional[dict[str, Any]]:
     """Alias for get_directory — backwards compat with domain_registry callers."""
-    d = WORKSPACE_DIRECTORIES.get(key)
+    d = get_directory(key)
     return d if d and d.get("type") == "context" else None
 
 
@@ -499,13 +399,13 @@ def get_domain_folder(key: str) -> Optional[str]:
 
 def get_entity_depth(key: str) -> int:
     """Get entity path depth for a domain. Default 1, GitHub is 2 (owner/repo)."""
-    d = WORKSPACE_DIRECTORIES.get(key)
+    d = get_directory(key)
     return d.get("entity_depth", 1) if d else 1
 
 
 def get_entity_template(key: str, entity_name: str) -> dict[str, str]:
     """Get templated entity files for a context directory, with {name} replaced."""
-    d = WORKSPACE_DIRECTORIES.get(key)
+    d = get_directory(key)
     if not d or not d.get("entity_structure"):
         return {}
     return {
@@ -599,7 +499,7 @@ def _mark_empty_sections(content: str) -> str:
 
 def get_synthesis_content(key: str) -> Optional[tuple[str, str]]:
     """Get the synthesis file path and template for a context directory."""
-    d = WORKSPACE_DIRECTORIES.get(key)
+    d = get_directory(key)
     if not d or not d.get("synthesis_file"):
         return None
     return (d["synthesis_file"], d.get("synthesis_template") or "")
@@ -623,7 +523,7 @@ def get_authored_substrate(key: str) -> list[str]:
     ``authored_by="operator"`` (or YARNNN on the operator's behalf via
     ``UpdateContext``). Singular implementation across read + write.
     """
-    d = WORKSPACE_DIRECTORIES.get(key)
+    d = get_directory(key)
     if not d:
         return []
     files = d.get("authored_substrate") or []
@@ -637,7 +537,7 @@ def get_output_category_path(category: str) -> Optional[str]:
 
 def has_assets_folder(key: str) -> bool:
     """Check if a context domain has an assets/ subfolder (ADR-157)."""
-    d = WORKSPACE_DIRECTORIES.get(key)
+    d = get_directory(key)
     return bool(d and d.get("assets_folder"))
 
 
@@ -646,7 +546,7 @@ def get_assets_path(key: str) -> Optional[str]:
 
     Returns e.g. 'context/competitors/assets' or None.
     """
-    d = WORKSPACE_DIRECTORIES.get(key)
+    d = get_directory(key)
     if not d or not d.get("assets_folder"):
         return None
     return f"{d['path']}/assets"
@@ -654,13 +554,13 @@ def get_assets_path(key: str) -> Optional[str]:
 
 def has_entity_tracker(key: str) -> bool:
     """Check if a context domain has an entity tracker (_tracker.md)."""
-    d = WORKSPACE_DIRECTORIES.get(key)
+    d = get_directory(key)
     return bool(d and d.get("tracker_file"))
 
 
 def get_tracker_path(key: str) -> Optional[str]:
     """Get the full workspace-relative path to a domain's _tracker.md."""
-    d = WORKSPACE_DIRECTORIES.get(key)
+    d = get_directory(key)
     if not d or not d.get("tracker_file"):
         return None
     return f"{d['path']}/{d['tracker_file']}"
@@ -678,7 +578,7 @@ def build_tracker_md(domain_key: str, entities: list[dict]) -> str:
     Returns:
         Formatted markdown string for _tracker.md
     """
-    d = WORKSPACE_DIRECTORIES.get(domain_key, {})
+    d = get_directory(domain_key) or {}
     display_name = d.get("display_name", domain_key.title())
     entity_type = d.get("entity_type", "entity")
 
@@ -717,7 +617,12 @@ def build_tracker_md(domain_key: str, entities: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
-# Keep CONTEXT_DOMAINS as a filtered view for callers that need only context dirs
+# Keep CONTEXT_DOMAINS as a filtered view for callers that need only kernel
+# context dirs. Per ADR-224: program-specific context domains (trading,
+# portfolio, customers, revenue) live in program bundle MANIFEST.yaml and
+# are not reflected here. Callers who need the full union (kernel + active
+# bundles) should use list_directories(dir_type="context") which merges in
+# bundle-sourced domains from active programs.
 CONTEXT_DOMAINS = {k: v for k, v in WORKSPACE_DIRECTORIES.items() if v.get("type") == "context"}
 
 

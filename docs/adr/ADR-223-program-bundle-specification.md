@@ -1,11 +1,11 @@
 # ADR-223: Program Bundle Specification
 
-> **Status:** Proposed (spec only — zero code)
+> **Status:** Implemented 2026-04-27 (alignment commit `3237b89` brought the 3 pre-existing bundles into compliance; ADR-224 implementation 2026-04-27 validated the schema by exercising bundle-side enrichment for trading-signal/portfolio-review with `default_objective` / `default_deliverable` / `instruction` / `page_structure` fields without a schema bump.)
 > **Date:** 2026-04-27
 > **Authors:** KVK, Claude
 > **Implements:** ADR-222 implementation roadmap, ADR 1
 > **Related:** ADR-222 (OS framing), ADR-198 (surface archetypes), ADR-214 (4-tab nav), ADR-188 (registries as templates), ADR-176 (universal agent roster), FOUNDATIONS Principle 16
-> **Depended on by:** Compositor Layer ADR (forthcoming), Kernel/Program Boundary Refactor ADR (forthcoming), Reference-Workspace Activation Flow ADR (forthcoming)
+> **Depended on by:** [ADR-224](ADR-224-kernel-program-boundary-refactor.md) (Kernel/Program Boundary Refactor — implemented 2026-04-27), Compositor Layer ADR (forthcoming), Reference-Workspace Activation Flow ADR (forthcoming)
 
 ---
 

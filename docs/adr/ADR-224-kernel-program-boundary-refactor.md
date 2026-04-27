@@ -1,6 +1,6 @@
 # ADR-224: Kernel / Program Boundary — Template Residue Deletion
 
-> **Status:** Proposed (spec only — code work follows after ratification)
+> **Status:** Implemented 2026-04-27 (Step 1: bundle_reader + alpha-commerce bundle; Step 2: caller updates + kernel deletions; Step 3: doc sync. All three steps in one PR per atomic-migration discipline.)
 > **Date:** 2026-04-27 (v3 same-day rewrite — see "What changed across versions" below)
 > **Authors:** KVK, Claude
 > **Implements:** ADR-222 implementation roadmap, ADR 4
@@ -335,3 +335,31 @@ Explicitly deferred — none gate ratification.
 ## Decision
 
 **Adopt the kernel/program boundary refactor as defined above.** Kernel registries hold only kernel-universal templates. Program-specific templates live in `docs/programs/{slug}/MANIFEST.yaml`. A minimal `api/services/bundle_reader.py` (~30 lines) provides bundle reads at the few composition/scaffolding/display moments where they're needed. Runtime dispatch path remains purely substrate-driven (no bundle awareness, no merged views, no `workspace_id` threading). Migration is atomic. Test gate enforces the boundary going forward.
+
+---
+
+## Implementation notes (what actually shipped, 2026-04-27)
+
+A few small refinements emerged during implementation that the v3 spec didn't fully anticipate. Recorded here so the gap between spec and shipped reality is auditable.
+
+**1. Refinement to "callers add fallback chains."** The v3 spec said *"~6 caller updates with fallback-to-bundle-reader pattern."* In implementation, the cleaner factoring was to put the fallback **inside the registry helpers themselves** (`get_task_type`, `get_directory`, `_resolve_capability`), so callers don't change at all and see one API surface. This honors Singular Implementation rule 1 more honestly: callers have one way to look up a task type / domain / capability; the bundle/kernel split is below the helper API. Net result: 0 caller-site fallback chains, 3 helper-level fallbacks.
+
+**2. Slack/Notion/GitHub capabilities stay in kernel.** v3 listed all 9 platform-connection-bound capabilities for deletion. During implementation, the audit revealed that `read_slack`, `write_slack`, `read_notion`, `write_notion`, `read_github` are **capability-bundle-shaped** (platform-integration capability available to any program), not **program-shaped** (oracle-shape-bound). Same classification as the slack/notion/github *directories* (which v3 already kept in kernel). Only the 4 truly program-shaped capabilities (`read_trading`, `write_trading`, `read_commerce`, `write_commerce`) deleted. Kernel deletion count: 4 capabilities, not 9.
+
+**3. `bundle_reader.py` is ~140 lines, not ~30.** The v3 spec sized it at ~30 lines because it framed the helper as just `load_manifest` + `all_active_bundles` + `temporal_directory_segments`. In implementation, three normalizers (`_normalize_bundle_task_type`, `_normalize_bundle_domain`, `_normalize_bundle_capability`) were needed to translate bundle MANIFEST schema into the kernel-shape dicts callers expect. Plus three lookup helpers (`get_task_type_from_bundles`, `get_directory_from_bundles`, `get_capability_from_bundles`) for the registry-helper fallbacks. Plus `list_bundle_capabilities` for the `task_derivation` merge. Still small (and zero-LLM, just YAML parsing + dict shape translation), but more than 30 lines. Spec was overly compressed.
+
+**4. Bundle MANIFEST entries enriched mid-implementation.** When the smoke test caught that `build_task_md_from_type` reads `task_type["default_objective"]` directly, the alpha-trader MANIFEST `task_types[]` entries had to gain `default_objective`, `default_deliverable`, `display_name`, `default_title`, `description`, `output_format`, `default_delivery`, `context_sources`, `surface_type`, `page_structure`, `export_options` — restoring full semantic equivalence with the kernel entries that were deleted. Same enrichment for alpha-commerce. The MANIFEST schema accommodated this without a v2 bump (all fields are optional pass-through), but the bundles themselves grew. This validates ADR-223's bundle schema as flexible enough.
+
+**5. STEP_INSTRUCTIONS for trading-signal/portfolio-review moved to MANIFEST `instruction:` field.** v3 didn't address this; in practice the kernel STEP_INSTRUCTIONS dict had two entries (`trading-signal`, `portfolio-review`) that were program-specific multi-paragraph prompt templates. These moved to the bundle's task_types entries as the `instruction:` field; bundle_reader's normalizer wraps them in the `process[0].instruction` shape kernel callers expect.
+
+**6. Test gate caught one real bug (default_objective KeyError).** `build_task_md_from_type` accessed `task_type["default_objective"]` with `[]` not `.get()`. The smoke-test pre-pytest run surfaced this; the fix was to enrich the bundle MANIFEST (the right fix per FOUNDATIONS Principle 7 — make bundle entries complete, don't make callers tolerant of thinness). 11/11 tests pass after fix.
+
+**7. lru_cache busting needed during dev.** `_load_manifest` and `_all_slugs` use `lru_cache`. When iterating on bundle YAML during development, calls returned stale data. Tests bust the cache explicitly. Production restart-on-deploy makes this a non-issue post-ship.
+
+**Net delta vs v3 spec:**
+- Caller updates: 6 → 0 (refinement #1).
+- Kernel deletions: 16 dict entries (3 task_types + 4 directories + 4 capabilities + 2 STEP_INSTRUCTIONS — so 13 if STEP_INSTRUCTIONS count, otherwise 11).
+- New code: ~140 lines (`bundle_reader.py`) + 5-line `_resolve_capability` helper in `orchestration.py`.
+- Test gate: 11/11 assertions pass.
+- alpha-trader MANIFEST: grew to ~190 lines (was ~80 post-ADR-223 alignment).
+- alpha-commerce MANIFEST: ~85 lines (new bundle, status: deferred).

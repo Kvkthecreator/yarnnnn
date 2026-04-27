@@ -1,0 +1,140 @@
+schema_version: 1
+slug: alpha-commerce
+title: alpha-commerce (Reference)
+status: deferred
+date_created: 2026-04-27
+date_updated: 2026-04-27
+
+tagline: Reference SPEC for commerce-platform operator workflow with platform-settled outcome oracle. Currently captures shipped-but-homeless commerce artifacts; activates when a real operator drives it.
+
+oracle:
+  shape: continuous_price             # commerce platform reports continuous revenue/customer counts
+  source: lemon_squeezy_or_stripe + platform_webhooks
+  latency: realtime_to_daily          # webhooks for events, daily settles
+  irreversibility: capped              # refunds reversible within window
+  custody: platform_held               # platform holds funds, payouts on schedule
+  capital_threshold_usd: 100           # any commerce operator with one product
+  attribution: per_product_per_customer
+
+dependencies:
+  required:
+    - adr: ADR-209          # authored substrate
+    - adr: ADR-194          # Reviewer
+    - adr: ADR-217          # AUTONOMY.md
+    - adr: ADR-181          # source-agnostic feedback
+    - adr: ADR-183          # Commerce substrate (LemonSqueezy)
+    - capability: read_commerce
+    - capability: write_commerce
+  lean:
+    - thesis_section: revenue_first_class_perception_layer
+
+context_domains:
+  - path: customers
+    purpose: per-customer entities; lifecycle, LTV, segment
+    display_name: Customers
+    description: Subscribers and buyers from your commerce platform
+    entity_type: customer
+    entity_structure:
+      profile.md: |
+        # {name}
+
+        ## Status
+
+        ## Plan & Revenue
+
+        ## Contact
+      history.md: |
+        # History — {name}
+        <!-- Subscription and purchase events, newest first -->
+    synthesis_file: overview.md
+    synthesis_template: |
+      # Customer Overview
+
+      ## Active Subscribers
+
+      ## Segments & Cohorts
+
+      ## Churn Analysis
+    tracker_file: _tracker.md
+
+  - path: revenue
+    purpose: account-level revenue, MRR, churn, cohort retention
+    display_name: Revenue
+    description: Business metrics — MRR, growth, product performance
+    entity_type: product
+    entity_structure:
+      performance.md: |
+        # {name}
+
+        ## Revenue
+
+        ## Subscribers
+
+        ## Conversion & Churn
+    synthesis_file: summary.md
+    synthesis_template: |
+      # Revenue Summary
+
+      ## MRR & Growth
+
+      ## Product Mix
+
+      ## Trends
+    tracker_file: _tracker.md
+    # ADR-220: revenue money-truth ledger (per ADR-195 v2 commerce flavor)
+    # is operator-readable canonical substrate, written by the
+    # outcome-reconciliation back-office task.
+    authored_substrate:
+      - _performance.md
+
+task_types:
+  - key: commerce-digest
+    output_kind: accumulates_context
+    cadence: daily
+    purpose: sweep customers + recent events, update entity files
+  - key: revenue-report
+    output_kind: produces_deliverable
+    cadence: weekly
+    purpose: revenue synthesis — MRR delta, churn analysis, cohort retention, top-product attribution
+  - key: commerce-execute
+    output_kind: external_action
+    cadence: reactive
+    purpose: Reviewer-approved campaign / discount / refund action
+
+capabilities:
+  - key: read_commerce
+    category: tool
+    runtime: external:commerce
+    requires_connection: commerce         # platform_connections.platform value
+    tools:
+      - platform_commerce_list_products
+      - platform_commerce_get_subscribers
+      - platform_commerce_get_revenue
+      - platform_commerce_get_customers
+      - platform_commerce_create_checkout
+  - key: write_commerce
+    category: tool
+    runtime: external:commerce
+    requires_connection: commerce
+    tools:
+      - platform_commerce_create_product
+      - platform_commerce_update_product
+      - platform_commerce_create_discount
+
+# Activation graduates this from `deferred` → `active` when ALL hold:
+activation_preconditions:
+  - alpha-trader Phase 1 (Paper Discipline) completes — OS validated under capital pressure on the easier oracle
+  - A real operator (not the kvk operator, ideally a content-product operator) willing to author honest principles + supervise the workspace
+  - Operator has a Lemon Squeezy / Stripe account with at least one paying customer (otherwise revenue-report has nothing to report)
+
+phases: []  # not applicable until activation
+current_phase: null
+
+references:
+  - docs/programs/alpha-trader/README.md
+  - docs/adr/ADR-183-commerce-substrate.md
+  - docs/adr/ADR-184-product-health-metrics.md
+  - docs/adr/ADR-222-agent-native-operating-system-framing.md
+  - docs/adr/ADR-223-program-bundle-specification.md
+  - docs/adr/ADR-224-kernel-program-boundary-refactor.md
+  - docs/analysis/external-oracle-thesis-2026-04-26.md

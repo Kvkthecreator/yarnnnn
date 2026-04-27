@@ -230,58 +230,12 @@ STEP_INSTRUCTIONS = {
     # longer exist. Operators author equivalent work via YARNNN using a
     # specialist + required_capabilities declaration in TASK.md.
 
-    "trading-signal": (
-        "You are generating trading signals based on accumulated market "
-        "intelligence and portfolio context.\n\n"
-        "IMPORTANT: Read the workspace FIRST. Your value comes from "
-        "accumulated context — price history, prior signal outcomes, "
-        "portfolio performance, and market patterns observed over time.\n\n"
-        "Steps:\n"
-        "1. ReadFile: /workspace/context/portfolio/_tracker.md (current state)\n"
-        "2. ReadFile: /workspace/context/portfolio/summary.md (portfolio assessment)\n"
-        "3. For each watchlist asset:\n"
-        "   - ReadFile: /workspace/context/trading/{ticker}/profile.md\n"
-        "   - ReadFile: /workspace/context/trading/{ticker}/analysis.md "
-        "(prior signals + outcomes)\n"
-        "4. Analyze: trend direction, momentum, support/resistance, news catalysts, "
-        "prior signal accuracy for this asset\n"
-        "5. Generate signals with format:\n"
-        "   - Ticker, Direction (buy/sell/hold), Confidence (high/medium/low)\n"
-        "   - Reasoning (2-3 sentences referencing accumulated data)\n"
-        "   - Suggested position size (%% of portfolio)\n"
-        "   - Risk note (what would invalidate this signal)\n"
-        "6. WriteFile: update /workspace/context/trading/{ticker}/analysis.md "
-        "(append this signal for future outcome tracking)\n\n"
-        "Your output: today's signal report with actionable recommendations."
-    ),
-
+    # ADR-224: trading-signal + portfolio-review STEP_INSTRUCTIONS DELETED.
+    # Their content moved to docs/programs/alpha-trader/MANIFEST.yaml task_types
+    # entries as the `instruction` field. Bundle-sourced templates carry the
+    # instruction inline; bundle_reader normalizes to the kernel shape so
+    # build_task_md_from_type treats them identically.
     # ADR-207 P4a: trading-execute step instruction DELETED (was bot-addressed).
-
-    "portfolio-review": (
-        "You are producing a weekly portfolio performance review.\n\n"
-        "Steps:\n"
-        "1. ReadFile: /workspace/context/portfolio/_tracker.md\n"
-        "2. ReadFile: /workspace/context/portfolio/history/{YYYY-MM}.md\n"
-        "3. ReadFile: /workspace/context/portfolio/performance/{YYYY-MM}.md "
-        "(if exists)\n"
-        "4. For each position, read trading/{ticker}/analysis.md to correlate "
-        "signal → outcome\n"
-        "5. Compute:\n"
-        "   - Weekly return (%% and $)\n"
-        "   - Signal accuracy (%% of signals that were profitable)\n"
-        "   - Best/worst trades with reasoning\n"
-        "   - Benchmark comparison (SPY buy-and-hold equivalent)\n"
-        "   - Portfolio concentration and risk assessment\n"
-        "6. Produce report with:\n"
-        "   - Section kind: metric-cards (portfolio KPIs)\n"
-        "   - Section kind: trend-chart (cumulative return vs benchmark)\n"
-        "   - Section kind: data-table (trade log with outcomes)\n"
-        "   - Section kind: narrative (weekly commentary)\n"
-        "7. WriteFile: /workspace/context/portfolio/performance/{YYYY-MM}.md\n"
-        "8. WriteFile: /workspace/context/portfolio/summary.md "
-        "(updated synthesis)\n\n"
-        "Your output: weekly performance report with charts and metrics."
-    ),
 
     "workspace-intelligence": (
         "You are producing the Workspace Intelligence Cockpit — a daily synthesis of this "
@@ -563,59 +517,10 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     # YARNNN, who authors the TASK.md directly via ManageTask(create) with the
     # appropriate specialist + required_capabilities declaration.
 
-    "revenue-report": {
-        "display_name": "Revenue Report",
-        "description": "Synthesizes commerce data into a revenue and business intelligence report.",
-        "output_kind": "produces_deliverable",
-        "default_delivery": "email",
-        "registry_default_team": ["analyst", "writer"],
-        "default_mode": "recurring",
-        "default_schedule": "weekly",
-        "output_format": "html",
-        "surface_type": "report",
-        "page_structure": [
-            {"kind": "narrative", "title": "Executive Summary",
-             "reads_from": ["revenue/summary.md", "signals/_tracker.md"]},
-            {"kind": "metric-cards", "title": "Key Metrics",
-             "reads_from": ["revenue/summary.md"]},
-            {"kind": "trend-chart", "title": "Revenue Trend",
-             "reads_from": ["revenue/summary.md"],
-             "assets": [{"type": "derivative", "render": "chart"}]},
-            {"kind": "comparison-table", "title": "Product Performance",
-             "reads_from": ["revenue/products/"]},
-            {"kind": "narrative", "title": "Customer Insights",
-             "reads_from": ["customers/overview.md"]},
-        ],
-        "export_options": ["pdf"],
-        "process": [
-            {
-                "agent_type": "analyst",
-                "step": "derive-output",
-                "instruction": STEP_INSTRUCTIONS["derive-output"],
-            },
-        ],
-        "context_reads": ["revenue", "customers", "signals"],
-        "context_writes": [],
-        "context_sources": ["workspace"],
-        "requires_platform": "commerce",
-        "default_objective": {
-            "deliverable": "Revenue and business intelligence report",
-            "audience": "You",
-            "purpose": "Synthesize commerce data into business intelligence",
-            "format": "Structured report with metrics and trends",
-        },
-        "default_deliverable": {
-            "output": {"format": "html", "word_count": "1000-2500", "layout": ["Summary", "Metrics", "Product Performance", "Customer Insights"]},
-            "assets": [
-                {"type": "chart", "subtype": "trend", "min_count": 1, "description": "Revenue trend"},
-            ],
-            "quality_criteria": [
-                "Revenue figures match source data precisely",
-                "Period-over-period comparisons included",
-                "Per-product performance quantified",
-            ],
-        },
-    },
+    # ADR-224: revenue-report DELETED from kernel TASK_TYPES — moved to
+    # docs/programs/alpha-commerce/MANIFEST.yaml (status: deferred). Surfaces
+    # to YARNNN composition reasoning when alpha-commerce status flips to
+    # active. bundle_reader provides the kernel-shape on miss.
 
     # ── Platform Write-Back Tasks (ADR-158 Phase 3: bot-initiated delivery) ──
     # Bots can write back to their platform — distinct from digest (read) tasks.
@@ -631,99 +536,15 @@ TASK_TYPES: dict[str, dict[str, Any]] = {
     # write tasks via YARNNN with a specialist + `**Required Capabilities:**
     # write_commerce` / `write_trading` declarations (and corresponding reads).
 
-    "trading-signal": {
-        "display_name": "Trading Signals",
-        "default_title": "Trading Signals",
-        "description": "Generates trading signals from accumulated market intelligence and portfolio context.",
-        "output_kind": "produces_deliverable",
-        "default_delivery": "none",
-        "registry_default_team": ["analyst"],
-        "default_mode": "recurring",
-        "default_schedule": "daily",
-        "output_format": "html",
-        "export_options": [],
-        "process": [
-            {
-                "agent_type": "analyst",
-                "step": "trading-signal",
-                "instruction": STEP_INSTRUCTIONS["trading-signal"],
-            },
-        ],
-        "context_reads": ["trading", "portfolio"],
-        "context_writes": ["trading"],
-        "context_sources": ["workspace"],
-        "requires_platform": "trading",
-        "default_objective": {
-            "deliverable": "Daily trading signal report",
-            "audience": "You",
-            "purpose": "Analyze accumulated data and generate actionable signals",
-            "format": "Signal report with ticker, direction, confidence, reasoning",
-        },
-        "default_deliverable": {
-            "output": {"format": "html", "word_count": "500-2000", "layout": ["Summary", "Signals", "Risk Notes"]},
-            "assets": [],
-            "quality_criteria": [
-                "Each signal references accumulated data (not generic)",
-                "Confidence level justified by evidence",
-                "Risk note included for every signal",
-            ],
-        },
-    },
-
-    # ADR-207 P4a: trading-execute DELETED. trading_bot role no longer exists.
-    # Operators author trade-execute tasks via YARNNN with a specialist +
-    # `**Required Capabilities:** write_trading` declaration.
-
-    "portfolio-review": {
-        "display_name": "Portfolio Review",
-        "default_title": "Portfolio Review",
-        "description": "Weekly portfolio performance report with signal accuracy, benchmark comparison, and charts.",
-        "output_kind": "produces_deliverable",
-        "default_delivery": "email",
-        "registry_default_team": ["analyst"],
-        "default_mode": "recurring",
-        "default_schedule": "weekly",
-        "output_format": "html",
-        "surface_type": "report",
-        "page_structure": [
-            {"kind": "metric-cards", "title": "Portfolio KPIs",
-             "reads_from": ["portfolio/_tracker.md"]},
-            {"kind": "trend-chart", "title": "Cumulative Return vs Benchmark",
-             "reads_from": ["portfolio/performance/"],
-             "assets": [{"type": "derivative", "render": "chart"}]},
-            {"kind": "data-table", "title": "Trade Log",
-             "reads_from": ["portfolio/history/"]},
-            {"kind": "narrative", "title": "Weekly Commentary",
-             "reads_from": ["portfolio/summary.md", "trading/overview.md"]},
-        ],
-        "export_options": ["pdf"],
-        "process": [
-            {
-                "agent_type": "analyst",
-                "step": "portfolio-review",
-                "instruction": STEP_INSTRUCTIONS["portfolio-review"],
-            },
-        ],
-        "context_reads": ["portfolio", "trading"],
-        "context_writes": ["portfolio"],
-        "context_sources": ["workspace"],
-        "requires_platform": "trading",
-        "default_objective": {
-            "deliverable": "Weekly portfolio performance report",
-            "audience": "You",
-            "purpose": "Measure signal accuracy, track returns vs benchmark, identify patterns",
-            "format": "Report with charts, metrics, and trade log",
-        },
-        "default_deliverable": {
-            "output": {"format": "html", "word_count": "1000-3000", "layout": ["KPIs", "Performance Chart", "Trade Log", "Commentary"]},
-            "assets": [{"type": "derivative", "render": "chart", "description": "Cumulative return vs SPY"}],
-            "quality_criteria": [
-                "Signal accuracy computed precisely",
-                "Benchmark comparison (SPY) included",
-                "Best/worst trades with reasoning",
-            ],
-        },
-    },
+    # ADR-224: trading-signal + portfolio-review DELETED from kernel TASK_TYPES.
+    # Both moved to docs/programs/alpha-trader/MANIFEST.yaml task_types entries.
+    # Surface to YARNNN composition reasoning when alpha-trader is active
+    # (alpha-trader status='active' from MANIFEST.yaml). bundle_reader provides
+    # the kernel-shape on miss; instruction text preserved verbatim in the
+    # bundle's `instruction:` field per task_type.
+    # ADR-207 P4a: trading-execute (the third trading task type) was already
+    # DELETED earlier — operators author write tasks via YARNNN with a
+    # specialist + `**Required Capabilities:** write_trading` declaration.
 
     # ══════════════════════════════════════════════════════════════════════════
     # SYNTHESIS TASKS — produce outputs from accumulated context
@@ -1624,13 +1445,24 @@ The cockpit should be honest about what the workspace knows, not optimistic abou
 # =============================================================================
 
 def get_task_type(type_key: str) -> dict[str, Any] | None:
-    """Look up a task type by key. Returns None if not found."""
-    return TASK_TYPES.get(type_key)
+    """Look up a task type by key. Returns None if not found.
+
+    Per ADR-224: kernel TASK_TYPES holds only kernel-universal templates.
+    Program-specific templates (trading-signal, portfolio-review,
+    revenue-report, ...) live in program bundle MANIFEST.yaml. On kernel
+    miss, fall through to bundle_reader to consult active program bundles.
+    """
+    kernel_hit = TASK_TYPES.get(type_key)
+    if kernel_hit:
+        return kernel_hit
+    # Fall through to active bundles per ADR-224 §2
+    from services.bundle_reader import get_task_type_from_bundles
+    return get_task_type_from_bundles(type_key)
 
 
 def get_default_mode(type_key: str) -> str:
     """Get the default mode for a task type. Falls back to 'recurring'."""
-    task_type = TASK_TYPES.get(type_key)
+    task_type = get_task_type(type_key)
     if not task_type:
         return "recurring"
     return task_type.get("default_mode", "recurring")
@@ -1655,7 +1487,7 @@ def delivery_requires_approval(type_key: str) -> bool:
     to external stakeholders, campaign sends to subscriber lists) where
     the operator wants to audit the composed output before the ship.
     """
-    task_type = TASK_TYPES.get(type_key)
+    task_type = get_task_type(type_key)
     if not task_type:
         return False
     return bool(task_type.get("delivery_requires_approval", False))
@@ -1663,7 +1495,7 @@ def delivery_requires_approval(type_key: str) -> bool:
 
 def get_bootstrap_criteria(type_key: str) -> Optional[dict]:
     """Get bootstrap criteria for a task type. Returns None if no bootstrap."""
-    task_type = TASK_TYPES.get(type_key)
+    task_type = get_task_type(type_key)
     if not task_type:
         return None
     return task_type.get("bootstrap")
@@ -1697,17 +1529,30 @@ def evaluate_bootstrap_status(
 
 
 def list_task_types(output_kind: str | None = None) -> list[dict[str, Any]]:
-    """List task types, optionally filtered by output_kind (ADR-166).
+    """List task types (kernel + active program bundles), optionally filtered.
 
-    Args:
-        output_kind: Filter by output_kind. One of:
-            accumulates_context | produces_deliverable | external_action | system_maintenance
+    Per ADR-224: kernel TASK_TYPES holds only kernel-universal templates.
+    Bundle templates merge in here so YARNNN composition reasoning sees
+    the full available surface for the workspace.
     """
     result = []
     for key, definition in TASK_TYPES.items():
         if output_kind and definition.get("output_kind") != output_kind:
             continue
         result.append({"type_key": key, **definition})
+    # Merge in active bundle task_types per ADR-224 §2
+    from services.bundle_reader import all_active_bundles, _normalize_bundle_task_type
+    for bundle in all_active_bundles():
+        for tt in bundle.get("task_types", []) or []:
+            if output_kind and tt.get("output_kind") != output_kind:
+                continue
+            normalized = _normalize_bundle_task_type(tt, bundle)
+            type_key = normalized.get("key")
+            if type_key and not any(r.get("type_key") == type_key for r in result):
+                # Bundle entries have a thinner schema than kernel; provide a
+                # display_name fallback for sort stability.
+                normalized.setdefault("display_name", type_key.replace("-", " ").title())
+                result.append({"type_key": type_key, **normalized})
     # ADR-166: order by output_kind then display name
     kind_order = {
         "accumulates_context": 0,
@@ -1715,25 +1560,25 @@ def list_task_types(output_kind: str | None = None) -> list[dict[str, Any]]:
         "external_action": 2,
         "system_maintenance": 3,
     }
-    result.sort(key=lambda t: (kind_order.get(t.get("output_kind"), 99), t["display_name"]))
+    result.sort(key=lambda t: (kind_order.get(t.get("output_kind"), 99), t.get("display_name", t.get("type_key", ""))))
     return result
 
 
 def get_process_agent_types(type_key: str) -> list[str]:
     """Return ordered list of agent types needed for a task type's process."""
-    task_type = TASK_TYPES.get(type_key)
+    task_type = get_task_type(type_key)
     if not task_type:
         return []
-    return [step["agent_type"] for step in task_type["process"]]
+    return [step["agent_type"] for step in task_type.get("process", [])]
 
 
 def validate_process(type_key: str) -> list[str]:
     """Validate that all agent types in the process exist in ALL_ROLES."""
-    task_type = TASK_TYPES.get(type_key)
+    task_type = get_task_type(type_key)
     if not task_type:
         return [f"Unknown task type: {type_key}"]
     errors = []
-    for i, step in enumerate(task_type["process"]):
+    for i, step in enumerate(task_type.get("process", [])):
         agent_type = step["agent_type"]
         if agent_type not in ALL_ROLES:
             errors.append(f"Step {i+1} ({step['step']}): unknown agent type '{agent_type}'")
@@ -1745,7 +1590,7 @@ def resolve_process_agents(
     agents: list[dict],
 ) -> list[dict[str, Any]] | None:
     """Resolve process steps to actual agents from the user's roster."""
-    task_type = TASK_TYPES.get(type_key)
+    task_type = get_task_type(type_key)
     if not task_type:
         return None
     role_to_agent: dict[str, dict] = {}
@@ -1787,8 +1632,13 @@ def build_task_md_from_type(
     When provided, it replaces registry_default_team in both the ## Team section
     and the ## Process step agent labels. agent_slugs (resolved from roster by role)
     are re-mapped to match team_override roles before writing ## Process.
+
+    ADR-224: type_key resolves through get_task_type, which falls through
+    to active program bundles when the kernel registry doesn't have the
+    key. Bundle-sourced templates carry instruction + objective + process
+    fields normalized to the kernel shape via bundle_reader.
     """
-    task_type = TASK_TYPES.get(type_key)
+    task_type = get_task_type(type_key)
     if not task_type:
         return None
 
@@ -1902,8 +1752,11 @@ def build_deliverable_md_from_type(
     ADR-149/152: DELIVERABLE.md is the quality contract. For context tasks,
     describes context quality (coverage, freshness). For synthesis tasks,
     describes document quality (format, assets, audience).
+
+    ADR-224: type_key resolves through get_task_type, which falls through
+    to active program bundles when the kernel registry doesn't have the key.
     """
-    task_type = TASK_TYPES.get(type_key)
+    task_type = get_task_type(type_key)
     if not task_type:
         return None
 

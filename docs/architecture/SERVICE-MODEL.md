@@ -92,8 +92,8 @@ YARNNN is canonized as an agent-native operating system. The framing is literal 
 | **Syscall ABI** | The primitive matrix (ADR-168) | Shipped |
 | **Shell** | YARNNN chat agent (`api/agents/yarnnn.py`) — application code, not kernel | Shipped (per ADR-205) |
 | **Init system** | `workspace_init.py` | Shipped |
-| **Application** | A program (alpha-trader is the first; alpha-prediction + alpha-defi are reference SPECs) | Just landed (commit e094d98) |
-| **Application bundle** | Program bundle at `docs/programs/{program}/` (manifest + reference workspace + composition manifest) | Bundle convention partially landed; composition manifest deferred to implementation ADR |
+| **Application** | A program (alpha-trader is the first active program; alpha-prediction + alpha-defi are reference SPECs; alpha-commerce is deferred — homes shipped commerce artifacts) | Shipped via ADR-222 + ADR-223; 4 bundles in repo |
+| **Application bundle** | Program bundle at `docs/programs/{program}/` — `MANIFEST.yaml` + `README.md` + `SURFACES.yaml` + `reference-workspace/` | Spec landed via [ADR-223](../adr/ADR-223-program-bundle-specification.md); kernel/program boundary enforced in code via [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) (bundle_reader.py + test gate) |
 | **Compositor / window manager** | The composition layer — FE/API infrastructure that resolves a program's composition manifest against substrate paths | **Not yet built — implementation ADR forthcoming** |
 | **Userspace** | An operator's `/workspace/` | Shipped |
 | **Workspace overlay** | Operator-authored `/workspace/SURFACES.yaml` overrides of program defaults | **Not yet built** |

@@ -1316,32 +1316,20 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "tools": ["platform_github_list_repos", "platform_github_get_issues"],
         "platform_connection_requirement": {"platform": "github", "status": "active"},
     },
-    "read_commerce": {
-        "category": "tool", "runtime": "external:commerce",
-        "tools": ["platform_commerce_list_products", "platform_commerce_get_subscribers",
-                  "platform_commerce_get_revenue", "platform_commerce_get_customers",
-                  "platform_commerce_create_checkout"],
-        "platform_connection_requirement": {"platform": "commerce", "status": "active"},
-    },
-    "write_commerce": {
-        "category": "tool", "runtime": "external:commerce",
-        "tools": ["platform_commerce_create_product", "platform_commerce_update_product",
-                  "platform_commerce_create_discount"],
-        "platform_connection_requirement": {"platform": "commerce", "status": "active"},
-    },
-    "read_trading": {
-        "category": "tool", "runtime": "external:trading",
-        "tools": ["platform_trading_get_account", "platform_trading_get_positions",
-                  "platform_trading_get_orders", "platform_trading_get_market_data",
-                  "platform_trading_get_portfolio_history"],
-        "platform_connection_requirement": {"platform": "trading", "status": "active"},
-    },
-    "write_trading": {
-        "category": "tool", "runtime": "external:trading",
-        "tools": ["platform_trading_submit_order", "platform_trading_cancel_order",
-                  "platform_trading_close_position"],
-        "platform_connection_requirement": {"platform": "trading", "status": "active"},
-    },
+    # ADR-224: read/write_commerce + read/write_trading DELETED from kernel
+    # CAPABILITIES. They are program-specific (commerce / trading oracle
+    # shapes) and live in their respective program bundle MANIFEST.yaml
+    # capabilities[] declarations:
+    #   - docs/programs/alpha-trader/MANIFEST.yaml → read_trading + write_trading
+    #   - docs/programs/alpha-commerce/MANIFEST.yaml → read_commerce + write_commerce
+    # bundle_reader normalizes bundle capability entries to this kernel shape;
+    # task_derivation._available_platform_capabilities transparently merges
+    # active bundles' capabilities with the kernel set.
+    #
+    # NOTE: read/write_slack, read/write_notion, read_github STAY in kernel —
+    # they are capability-bundle-shaped (platform integration available to
+    # any program), not program-shaped. Same classification as the slack/
+    # notion/ github directories per ADR-224 §1 capability-bundle-owned rule.
 
     # -- Asset production (compute runtimes) --
     "chart":   {
@@ -1439,14 +1427,34 @@ def get_type_skill_docs(agent_type: str) -> list[str]:
 # ADR-207 P3: Capability Availability Gate
 # =============================================================================
 
+def _resolve_capability(capability_name: str) -> Optional[dict]:
+    """Per ADR-224: kernel CAPABILITIES first; on miss, consult active
+    program bundles. Bundle-sourced capabilities are normalized to the
+    same shape via bundle_reader so dispatch helpers treat them
+    identically.
+    """
+    cap = CAPABILITIES.get(capability_name)
+    if cap is not None:
+        return cap
+    try:
+        from services.bundle_reader import get_capability_from_bundles
+        return get_capability_from_bundles(capability_name)
+    except Exception:
+        return None
+
+
 def get_capability_requirement(capability_name: str) -> Optional[dict]:
     """Return the platform_connection_requirement for a capability, or None.
 
     None means: either the capability doesn't exist, or it needs no platform
     connection (internal runtime). Callers should treat unknown capabilities
     as "not available" to fail loudly on typos in TASK.md.
+
+    Per ADR-224: falls through to active program bundles' capabilities[]
+    declarations for program-specific capabilities (read_trading, write_trading,
+    read_commerce, write_commerce).
     """
-    cap = CAPABILITIES.get(capability_name)
+    cap = _resolve_capability(capability_name)
     if cap is None:
         return None
     return cap.get("platform_connection_requirement")
@@ -1461,8 +1469,11 @@ def capability_available(user_id: str, capability_name: str, client: Any) -> boo
 
     Unknown capability names return False — callers should surface the
     mismatch so the operator can correct TASK.md.
+
+    Per ADR-224: falls through to active program bundles' capabilities[]
+    declarations for program-specific capabilities.
     """
-    cap = CAPABILITIES.get(capability_name)
+    cap = _resolve_capability(capability_name)
     if cap is None:
         return False
     req = cap.get("platform_connection_requirement")
@@ -1493,10 +1504,14 @@ def unavailable_capabilities(
     are available.
 
     `reason` is one of: "unknown_capability", "platform_not_connected".
+
+    Per ADR-224: resolves through _resolve_capability so bundle-sourced
+    program-specific capabilities (read_trading, write_trading, read_commerce,
+    write_commerce) are recognized identically to kernel capabilities.
     """
     results: list[dict] = []
     for name in capability_names or []:
-        cap = CAPABILITIES.get(name)
+        cap = _resolve_capability(name)
         if cap is None:
             results.append({
                 "capability": name,

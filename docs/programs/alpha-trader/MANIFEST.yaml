@@ -35,40 +35,222 @@ dependencies:
 context_domains:
   - path: trading
     purpose: per-instrument entities, signals, watched universe
-    entities:
-      - kind: ticker
-        files: [_signals.md, _thesis.md, _liquidity.md]
-    synthesis_files: [_signals.md, _universe.md]
+    display_name: Trading
+    description: Market data, signals, and analysis for tracked financial instruments
+    entity_type: instrument
+    entity_structure:
+      profile.md: |
+        # {name}
+
+        ## Price & Volume
+
+        ## Fundamentals
+
+        ## Signal History
+      analysis.md: |
+        # Analysis — {name}
+
+        <!-- Latest analysis with reasoning, newest first -->
+    synthesis_file: overview.md
+    synthesis_template: |
+      # Trading Overview
+
+      ## Watchlist Status
+
+      ## Cross-Asset Patterns
+
+      ## Active Signals
+    tracker_file: _tracker.md
+    # ADR-220: operator-authored canonical reads injected into every
+    # task prompt that includes this domain. Order is presentation order.
+    authored_substrate:
+      - _operator_profile.md
+      - _risk.md
+      - _performance.md
+
   - path: portfolio
     purpose: account-level state, performance, risk
-    entities:
-      - kind: account
-        files: [_positions.md, _performance.md, _risk_state.md]
-    synthesis_files: [_performance.md]
+    display_name: Portfolio
+    description: Trading account state — positions, trade history, performance metrics
+    entity_type: position
+    entity_structure:
+      profile.md: |
+        # {name}
+
+        ## Entry
+
+        ## Current State
+
+        ## Thesis & Exit Criteria
+    synthesis_file: summary.md
+    synthesis_template: |
+      # Portfolio Summary
+
+      ## Account State
+
+      ## Position Mix
+
+      ## Performance & Attribution
+    tracker_file: _tracker.md
+    # ADR-220: portfolio money-truth (positions, P&L, expectancy) is
+    # canonical operator-readable substrate, written by the back-office
+    # outcome reconciler per ADR-195 v2.
+    authored_substrate:
+      - _performance.md
 
 task_types:
   - key: trading-digest
     output_kind: accumulates_context
     cadence: daily
     purpose: sweep universe, update entity files
+
   - key: trading-signal
+    display_name: Trading Signals
+    default_title: Trading Signals
+    description: Generates trading signals from accumulated market intelligence and portfolio context.
     output_kind: produces_deliverable
+    output_format: html
     cadence: daily
+    default_delivery: none
+    default_team: [analyst]
+    default_mode: recurring
+    context_reads: [trading, portfolio]
+    context_writes: [trading]
+    context_sources: [workspace]
+    requires_platform: trading
     purpose: evaluate declared signals against current state, emit proposal envelope
+    default_objective:
+      deliverable: Daily trading signal report
+      audience: You
+      purpose: Analyze accumulated data and generate actionable signals
+      format: Signal report with ticker, direction, confidence, reasoning
+    default_deliverable:
+      output:
+        format: html
+        word_count: 500-2000
+        layout: [Summary, Signals, Risk Notes]
+      assets: []
+      quality_criteria:
+        - Each signal references accumulated data (not generic)
+        - Confidence level justified by evidence
+        - Risk note included for every signal
+    instruction: |
+      You are generating trading signals based on accumulated market intelligence and portfolio context.
+
+      IMPORTANT: Read the workspace FIRST. Your value comes from accumulated context — price history,
+      prior signal outcomes, portfolio performance, and market patterns observed over time.
+
+      Steps:
+      1. ReadFile: /workspace/context/portfolio/_tracker.md (current state)
+      2. ReadFile: /workspace/context/portfolio/summary.md (portfolio assessment)
+      3. For each watchlist asset:
+         - ReadFile: /workspace/context/trading/{ticker}/profile.md
+         - ReadFile: /workspace/context/trading/{ticker}/analysis.md (prior signals + outcomes)
+      4. Analyze: trend direction, momentum, support/resistance, news catalysts, prior signal accuracy.
+      5. Generate signals with format:
+         - Ticker, Direction (buy/sell/hold), Confidence (high/medium/low)
+         - Reasoning (2-3 sentences referencing accumulated data)
+         - Suggested position size (% of portfolio)
+         - Risk note (what would invalidate this signal)
+      6. WriteFile: update /workspace/context/trading/{ticker}/analysis.md (append for outcome tracking)
+
+      Your output: today's signal report with actionable recommendations.
+
   - key: trading-execute
     output_kind: external_action
     cadence: reactive
     purpose: Reviewer-approved order submission
+
   - key: portfolio-review
+    display_name: Portfolio Review
+    default_title: Portfolio Review
+    description: Weekly portfolio performance report with signal accuracy, benchmark comparison, and charts.
     output_kind: produces_deliverable
+    output_format: html
     cadence: weekly
+    default_delivery: email
+    default_team: [analyst]
+    default_mode: recurring
+    context_reads: [portfolio, trading]
+    context_writes: [portfolio]
+    context_sources: [workspace]
+    requires_platform: trading
+    surface_type: report
+    page_structure:
+      - kind: metric-cards
+        title: Portfolio KPIs
+        reads_from: [portfolio/_tracker.md]
+      - kind: trend-chart
+        title: Cumulative Return vs Benchmark
+        reads_from: [portfolio/performance/]
+        assets:
+          - type: derivative
+            render: chart
+      - kind: data-table
+        title: Trade Log
+        reads_from: [portfolio/history/]
+      - kind: narrative
+        title: Weekly Commentary
+        reads_from: [portfolio/summary.md, trading/overview.md]
+    export_options: [pdf]
     purpose: performance attribution, regime check, signal expectancy decay
+    default_objective:
+      deliverable: Weekly portfolio performance report
+      audience: You
+      purpose: Measure signal accuracy, track returns vs benchmark, identify patterns
+      format: Report with charts, metrics, and trade log
+    default_deliverable:
+      output:
+        format: html
+        word_count: 1000-3000
+        layout: [KPIs, Performance Chart, Trade Log, Commentary]
+      assets:
+        - type: derivative
+          render: chart
+          description: Cumulative return vs SPY
+      quality_criteria:
+        - Signal accuracy computed precisely
+        - Benchmark comparison (SPY) included
+        - Best/worst trades with reasoning
+    instruction: |
+      You are producing a weekly portfolio performance review.
+
+      Steps:
+      1. ReadFile: /workspace/context/portfolio/_tracker.md
+      2. ReadFile: /workspace/context/portfolio/history/{YYYY-MM}.md
+      3. ReadFile: /workspace/context/portfolio/performance/{YYYY-MM}.md (if exists)
+      4. For each position, read trading/{ticker}/analysis.md to correlate signal → outcome
+      5. Compute:
+         - Weekly return (% and $)
+         - Signal accuracy (% of signals that were profitable)
+         - Best/worst trades with reasoning
+         - Benchmark comparison (SPY buy-and-hold equivalent)
+         - Portfolio concentration and risk assessment
+      6. Produce report with section kinds: metric-cards, trend-chart, data-table, narrative.
+      7. WriteFile: /workspace/context/portfolio/performance/{YYYY-MM}.md
+      8. WriteFile: /workspace/context/portfolio/summary.md (updated synthesis)
+
+      Your output: weekly performance report with charts and metrics.
 
 capabilities:
   - key: read_trading
-    requires_connection: alpaca
+    category: tool
+    runtime: external:trading
+    requires_connection: trading        # platform_connections.platform value
+    tools:
+      - platform_trading_get_account
+      - platform_trading_get_positions
+      - platform_trading_get_orders
+      - platform_trading_get_market_data
+      - platform_trading_get_portfolio_history
   - key: write_trading
-    requires_connection: alpaca
+    category: tool
+    runtime: external:trading
+    requires_connection: trading
+    tools:
+      - platform_trading_submit_order
+      - platform_trading_cancel_order
+      - platform_trading_close_position
 
 activation_preconditions: []  # already active
 
