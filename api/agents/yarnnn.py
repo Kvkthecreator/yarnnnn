@@ -186,12 +186,22 @@ class YarnnnAgent(BaseAgent):
         elif surface_content:
             context_text = f"{surface_content}\n\n---\n\n{context_text}"
 
-        # ADR-059 + ADR-186: Use modular prompt builder with profile
+        # ADR-226: detect activation state from workspace_state. When the
+        # workspace is post-fork-pre-author (bundle active + MANDATE.md
+        # skeleton), the activation overlay engages to walk the operator
+        # through filling in `authored` tier files.
+        activation_active = False
+        if profile == "workspace" and injected_context:
+            ws_state = injected_context.get("workspace_state") or {}
+            activation_active = ws_state.get("activation_state") == "post_fork_pre_author"
+
+        # ADR-059 + ADR-186 + ADR-226: Use modular prompt builder with profile
         blocks = build_modular_prompt(
             with_tools=with_tools,
             context=context_text,
             profile=profile,
             entity_preamble=entity_preamble,
+            activation_active=activation_active,
         )
 
         # ADR-025: Inject skill prompt as additional dynamic block

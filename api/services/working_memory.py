@@ -104,10 +104,13 @@ async def build_working_memory(
     )
 
     # ADR-144 + ADR-206: Read identity + awareness + conversation summary + compute context readiness
-    identity_content, awareness_content, conversation_summary = await asyncio.gather(
+    # ADR-226: also read MANDATE.md (used by activation-state detection — skeleton-or-empty
+    # MANDATE.md combined with one-or-more-active-bundles signals post-fork-pre-author state).
+    identity_content, awareness_content, conversation_summary, mandate_content = await asyncio.gather(
         asyncio.to_thread(_get_workspace_file_sync, user_id, SHARED_IDENTITY_PATH, _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, MEMORY_AWARENESS_PATH, _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "memory/conversation.md", _make_client()),
+        asyncio.to_thread(_get_workspace_file_sync, user_id, "context/_shared/MANDATE.md", _make_client()),
     )
     task_count, doc_count, recent_uploads, recent_authorship, recent_md_signal = await asyncio.gather(
         asyncio.to_thread(_count_tasks_sync, user_id, _make_client()),
@@ -133,6 +136,15 @@ async def build_working_memory(
 
     # Compute stale tasks (hasn't run in 2x its schedule)
     tasks_stale = _count_stale_tasks(active_tasks)
+
+    # ADR-226: Activation-state signal — is the workspace post-fork-pre-author?
+    # Three-state classifier:
+    #   "none"          — no program activated (no bundle is active for this workspace)
+    #   "post_fork_pre_author"  — bundle active AND MANDATE.md is skeleton/empty
+    #   "operational"   — bundle active AND MANDATE.md is non-skeleton
+    # The workspace profile prompt overlay (yarnnn_prompts/activation.py) engages
+    # only when state == "post_fork_pre_author".
+    activation_state = _classify_activation_state(user_id, mandate_content, _make_client)
 
     working_memory = {
         "preferences": _extract_preferences_from_file(memory_files.get("style.md")),
@@ -184,6 +196,9 @@ async def build_working_memory(
                 p.get("platform") in {"alpaca", "lemonsqueezy"} and p.get("status") == "active"
                 for p in platforms
             ),
+            # ADR-226: Activation state — feeds the YARNNN activation prompt
+            # overlay. Values: "none" | "post_fork_pre_author" | "operational"
+            "activation_state": activation_state,
         },
     }
 
@@ -237,6 +252,54 @@ def _count_stale_tasks(active_tasks: list[dict]) -> int:
         except (ValueError, TypeError):
             continue
     return stale
+
+
+def _classify_activation_state(
+    user_id: str, mandate_content: Optional[str], make_client_fn
+) -> str:
+    """ADR-226: classify the workspace's activation state for the YARNNN
+    prompt overlay decision.
+
+    Returns one of:
+      - "none": no program bundle is active for this workspace (no platform
+        connection matches an active bundle's requires_connection).
+      - "post_fork_pre_author": a bundle is active AND MANDATE.md is still
+        skeleton or empty. YARNNN's activation overlay engages.
+      - "operational": a bundle is active AND MANDATE.md is non-skeleton.
+        Workspace runs normally; no activation overlay.
+
+    Uses bundle_reader.bundles_active_for_workspace per ADR-224 §3
+    capability-implicit activation. Skeleton detection mirrors the logic
+    in workspace_init._is_skeleton_content.
+    """
+    try:
+        from services.bundle_reader import bundles_active_for_workspace
+        client = make_client_fn()
+        bundles = bundles_active_for_workspace(user_id, client)
+    except Exception:
+        bundles = []
+
+    if not bundles:
+        return "none"
+
+    # Bundle is active for this workspace. Now classify MANDATE.md.
+    mandate = (mandate_content or "").strip()
+    if not mandate:
+        return "post_fork_pre_author"
+    # Heuristic skeleton detection — same shape as workspace_init's logic.
+    # Kernel-default mandate placeholder + bundle template "author here"
+    # both contain "not yet declared" or are short.
+    if "not yet declared" in mandate.lower() and len(mandate) < 800:
+        return "post_fork_pre_author"
+    # Bundle template MANDATE.md (alpha-trader's reference) opens with
+    # "# Mandate — alpha-trader (template)" and contains author-prompt
+    # markers like "Author here:" — detect those as skeleton.
+    if "(template)" in mandate.split("\n", 1)[0].lower():
+        return "post_fork_pre_author"
+    if "author here:" in mandate.lower() or "_<not yet" in mandate.lower():
+        return "post_fork_pre_author"
+
+    return "operational"
 
 
 def _classify_richness(content: Optional[str]) -> str:

@@ -31,6 +31,11 @@ from .entity import ENTITY_BEHAVIORS
 # onboarding.py still defines CONTEXT_AWARENESS for the workspace profile.
 from .onboarding import CONTEXT_AWARENESS
 
+# ADR-226: activation overlay — appended to workspace profile when the
+# workspace has been forked from a program bundle but MANDATE.md is still
+# skeleton (operator hasn't authored their edge yet).
+from .activation import ACTIVATION_OVERLAY
+
 
 def build_system_prompt(
     *,
@@ -38,6 +43,7 @@ def build_system_prompt(
     context: str = "",
     profile: str = "workspace",
     entity_preamble: str = "",
+    activation_active: bool = False,
 ) -> list[dict]:
     """
     Build the full system prompt as content blocks for prompt caching.
@@ -79,6 +85,11 @@ def build_system_prompt(
             PLATFORMS_SECTION,
             CONTEXT_AWARENESS,
         ]
+        # ADR-226: when activation is active (workspace forked, MANDATE.md
+        # still skeleton), append the differential-authoring overlay so
+        # YARNNN walks the operator through the `authored` tier files.
+        if activation_active:
+            static_sections.append(ACTIVATION_OVERLAY)
 
     static_prompt = "\n\n".join(section for section in static_sections)
     # Remove the {context} placeholder from static — context goes in dynamic block

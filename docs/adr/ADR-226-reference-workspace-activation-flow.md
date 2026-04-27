@@ -1,6 +1,6 @@
 # ADR-226: Reference-Workspace Activation Flow
 
-> **Status:** Proposed (spec only — code work follows after ratification)
+> **Status:** **Phase 1 Implemented 2026-04-27.** Backend implementation shipped: `_fork_reference_workspace` + `_strip_tier_frontmatter` + `_is_skeleton_content` helpers in `workspace_init.py`; `_classify_activation_state` signal in `working_memory.py`; `ACTIVATION_OVERLAY` prompt in `yarnnn_prompts/activation.py` + `build_system_prompt(activation_active=...)` wiring; `GET /api/programs/activatable` + `POST /api/programs/activate` endpoints; 15/15 ADR-226 test gate passing (36/36 combined with ADR-224 + ADR-225). End-to-end smoke validated against kvk's real workspace: 8 files forked from alpha-trader bundle, frontmatter stripped, ADR-209 attribution captured (`authored_by="system:bundle-fork"` + tier-aware messages), idempotent re-fork (zero wasted revisions when content matches), operator-authored content preserved on re-run. **Phase 2 deferred**: onboarding UI for program selection (FE work).
 > **Date:** 2026-04-27
 > **Authors:** KVK, Claude
 > **Implements:** ADR-222 implementation roadmap, ADR 5a (the universal OS-level activation flow). ADR 5b — kvk's alpha-trader dogfooding bootstrap — is intentionally NOT this ADR; it is a separate workstream tracked at `docs/alpha/personas/alpha-trader/BOOTSTRAP.md`. See "Why this ADR is split from dogfooding" below.

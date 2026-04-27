@@ -1,5 +1,5 @@
 """
-Workspace Initialization — ADR-152 + ADR-188 + ADR-189 + ADR-190 + ADR-205 + ADR-206: Workspace Bootstrap
+Workspace Initialization — ADR-152 + ADR-188 + ADR-189 + ADR-190 + ADR-205 + ADR-206 + ADR-226: Workspace Bootstrap
 
 Note: ``from __future__ import annotations`` below defers PEP 604 union evaluation
 (``str | None``) until typing is queried. Without it, Python 3.9 (the prod venv
@@ -66,7 +66,12 @@ from services.schedule_utils import calculate_next_run_at, get_user_timezone
 logger = logging.getLogger(__name__)
 
 
-async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None = None) -> dict:
+async def initialize_workspace(
+    client: Any,
+    user_id: str,
+    browser_tz: str | None = None,
+    program_slug: str | None = None,
+) -> dict:
     """Initialize a complete workspace for a new user.
 
     Idempotent — checks for existing workspace before creating.
@@ -76,6 +81,12 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         browser_tz: IANA timezone string inferred from the browser (X-Timezone header).
                     Written into IDENTITY.md during Phase 3 so the daily-update task
                     fires at 09:00 local time on first run — no explicit user prompt needed.
+        program_slug: Optional program selection (ADR-226). When provided, the
+                    bundle's `reference-workspace/` is forked into the operator's
+                    `/workspace/` honoring three-tier file categorization
+                    (canon/authored/placeholder per ADR-223 §5). When None, the
+                    workspace is generic per ADR-205/206 — no bundle chrome,
+                    no program-shaped substrate.
 
     Returns dict with initialization summary.
     """
@@ -85,6 +96,8 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
         "workspace_files_seeded": [],
         "tasks_created": [],
         "already_initialized": False,
+        "activated_program": None,  # ADR-226: bundle slug forked, or None
+        "fork_files_written": [],  # ADR-226: paths written during the fork phase
     }
 
     # Check if already initialized. ADR-206: idempotency gated on presence
@@ -313,6 +326,36 @@ async def initialize_workspace(client: Any, user_id: str, browser_tz: str | None
             logger.warning(f"[WORKSPACE_INIT] Signup balance audit failed: {e}")
 
     # =========================================================================
+    # Phase 7: Reference-workspace fork (ADR-226) — optional, program-bound
+    # =========================================================================
+    # When the operator selected a program at signup (or activates one later),
+    # this phase forks the bundle's reference-workspace/ into /workspace/
+    # honoring three-tier file categorization (ADR-223 §5):
+    #   - canon: program-shipped opinion, copied verbatim
+    #   - authored: templates with prompts; operator MUST overwrite via YARNNN
+    #   - placeholder: empty/skeleton, accumulates from work over time
+    # Frontmatter (tier:, prompt:, note:, optional:) is bundle-only — stripped
+    # before the file is written to operator's /workspace/.
+    # Idempotent: re-running re-applies canon, preserves operator-authored.
+    if program_slug:
+        try:
+            fork_summary = await _fork_reference_workspace(
+                client, user_id, program_slug
+            )
+            result["activated_program"] = program_slug
+            result["fork_files_written"] = fork_summary.get("files_written", [])
+            logger.info(
+                f"[WORKSPACE_INIT] Reference fork complete for {user_id[:8]}: "
+                f"program={program_slug}, files={len(result['fork_files_written'])}"
+            )
+        except Exception as exc:
+            logger.error(
+                f"[WORKSPACE_INIT] Reference fork FAILED for {user_id[:8]} "
+                f"(program={program_slug}): {exc}"
+            )
+            result["fork_error"] = str(exc)
+
+    # =========================================================================
     # Post-init validation — check critical invariants
     # =========================================================================
     from services.workspace_paths import SHARED_IDENTITY_PATH
@@ -416,3 +459,226 @@ async def materialize_back_office_task(
 # compact index replaced it as the session-start meta-awareness source.
 # YARNNN queries current workspace state from the DB via `build_working_memory`
 # (agents, tasks, context domains); no static manifest file needed.
+
+
+# =============================================================================
+# ADR-226: Reference-workspace fork (Phase 7)
+# =============================================================================
+
+
+def _strip_tier_frontmatter(text: str) -> tuple[str, dict[str, Any]]:
+    """Parse YAML frontmatter (if present) from a reference-workspace file
+    and return (body, metadata).
+
+    Per ADR-223 §5 amendment + ADR-226 §4: tier metadata
+    (tier:, prompt:, note:, optional:) is bundle-only — must be stripped
+    before the file is written to operator's /workspace/. Operator's
+    workspace files are clean markdown.
+
+    Returns:
+        body: the markdown content with frontmatter removed
+        metadata: parsed frontmatter as dict ({} if absent)
+
+    The parser is intentionally minimal — handles the documented
+    bundle frontmatter shape (`---\\n<keys>\\n---\\n`). Doesn't attempt
+    full YAML 1.2 parsing; the bundle author writes simple key:value
+    pairs per the schema.
+    """
+    if not text.startswith("---\n"):
+        return text, {}
+    end_marker = text.find("\n---\n", 4)
+    if end_marker < 0:
+        # Malformed frontmatter — return as-is to avoid data loss
+        return text, {}
+    fm_text = text[4:end_marker]
+    body = text[end_marker + 5 :]  # skip the closing '\n---\n'
+    metadata: dict[str, Any] = {}
+    try:
+        import yaml as _yaml
+        parsed = _yaml.safe_load(fm_text)
+        if isinstance(parsed, dict):
+            metadata = parsed
+    except Exception:
+        # If YAML parsing fails, treat as no metadata; body is still stripped
+        pass
+    # Strip leading newline from body if present (artifact of '---\n' close)
+    if body.startswith("\n"):
+        body = body[1:]
+    return body, metadata
+
+
+def _is_skeleton_content(operator_content: str, bundle_body: str) -> bool:
+    """Determine whether the operator's current file content is still
+    skeleton (matches the bundle's body or the kernel-default skeleton)
+    vs operator-authored.
+
+    Used by re-fork idempotency per ADR-226 §4: re-running fork preserves
+    operator-authored content; only re-applies the bundle if the operator
+    hasn't filled it in.
+
+    Tolerates trivial whitespace differences. Treats kernel-default
+    skeletons (e.g., "<not yet declared — talk to YARNNN to author your
+    mandate>") as skeleton — these get overwritten by the bundle's
+    template.
+    """
+    if not operator_content or not operator_content.strip():
+        return True
+    op_normalized = operator_content.strip()
+    bundle_normalized = bundle_body.strip()
+    if op_normalized == bundle_normalized:
+        return True
+    # Kernel-default mandate placeholder — workspace_init Phase 2 writes this
+    # before fork runs. Treat as skeleton so the bundle's template wins.
+    if "not yet declared" in op_normalized.lower() and len(op_normalized) < 600:
+        return True
+    return False
+
+
+def _bundle_root_dir(program_slug: str):
+    """Resolve docs/programs/{slug}/reference-workspace/ relative to this
+    file. Singular implementation: same root logic as bundle_reader uses
+    for MANIFEST.yaml; kept consistent across services."""
+    from pathlib import Path
+    return (
+        Path(__file__).resolve().parent.parent.parent
+        / "docs"
+        / "programs"
+        / program_slug
+        / "reference-workspace"
+    )
+
+
+async def _fork_reference_workspace(
+    client: Any, user_id: str, program_slug: str
+) -> dict[str, Any]:
+    """Per ADR-226: copy bundle's reference-workspace/ into operator's
+    /workspace/, honoring ADR-223 §5 three-tier categorization.
+
+    Each file written goes through services.workspace.UserMemory.write
+    (which routes through services.authored_substrate.write_revision
+    per ADR-209) with authored_by="system:bundle-fork" and a message
+    identifying the source bundle + tier.
+
+    Idempotency:
+      - canon tier: re-applied on re-run. Operator edits are preserved
+        as prior revisions in the chain (ADR-209).
+      - authored tier: only re-applied if operator's file is still
+        skeleton. Operator-authored content is preserved.
+      - placeholder tier: only written on first fork (no overwrite).
+
+    Returns a summary dict with:
+      - files_written: list of paths the fork touched
+      - files_skipped: list of paths skipped (operator already authored
+        the authored-tier file, or placeholder already exists)
+    """
+    from services.workspace import UserMemory
+
+    bundle_root = _bundle_root_dir(program_slug)
+    if not bundle_root.is_dir():
+        raise ValueError(
+            f"Bundle reference-workspace not found: {bundle_root}. "
+            f"Bundle '{program_slug}' may not exist or may not have a "
+            f"reference-workspace/ directory."
+        )
+
+    # Validate the bundle's MANIFEST allows activation per ADR-226 §2.
+    # Fail closed on bundles that aren't activatable (status not in
+    # active|deferred). The UI should not allow non-activatable selection
+    # but if it slips through we reject.
+    from services.bundle_reader import _load_manifest
+    manifest = _load_manifest(program_slug)
+    if not manifest:
+        raise ValueError(f"Bundle '{program_slug}' has no MANIFEST.yaml.")
+    if manifest.get("status") not in ("active", "deferred"):
+        raise ValueError(
+            f"Bundle '{program_slug}' has status='{manifest.get('status')}'; "
+            f"only active or deferred bundles can be forked."
+        )
+
+    um = UserMemory(client, user_id)
+    files_written: list[str] = []
+    files_skipped: list[str] = []
+
+    # Walk bundle's reference-workspace/ recursively, skipping the
+    # bundle-meta README.md (it's documentation about the bundle, not
+    # a workspace file the operator inherits).
+    for src_path in sorted(bundle_root.rglob("*.md")):
+        if src_path.name == "README.md" and src_path.parent == bundle_root:
+            continue
+
+        # Relative path from reference-workspace root → workspace path.
+        # UserMemory expects paths relative to /workspace/ (no leading slash).
+        relative = src_path.relative_to(bundle_root).as_posix()
+        target_path = relative  # e.g., "context/_shared/MANDATE.md"
+
+        try:
+            raw = src_path.read_text(encoding="utf-8")
+        except Exception as exc:
+            logger.warning(f"[FORK] Failed to read {src_path}: {exc}")
+            continue
+
+        body, metadata = _strip_tier_frontmatter(raw)
+        tier = (metadata.get("tier") or "placeholder").lower()
+        if tier not in ("canon", "authored", "placeholder"):
+            logger.warning(
+                f"[FORK] Unknown tier '{tier}' for {src_path}; "
+                f"defaulting to placeholder"
+            )
+            tier = "placeholder"
+
+        # Idempotency check: read operator's current content, decide whether
+        # to write based on tier rules.
+        existing = await um.read(target_path)
+        should_write = False
+        if existing is None:
+            # First-fork case — always write
+            should_write = True
+        elif tier == "canon":
+            # Re-fork case for canon: re-apply (operator edits preserved
+            # as prior revisions per ADR-209).
+            # Skip if content already matches to avoid no-op revisions.
+            should_write = existing.strip() != body.strip()
+        elif tier == "authored":
+            # Re-fork case for authored: only re-apply if operator hasn't
+            # authored real content yet AND current content differs from
+            # the bundle body (avoid no-op rewrites that pollute the
+            # revision chain).
+            should_write = (
+                _is_skeleton_content(existing, body)
+                and existing.strip() != body.strip()
+            )
+        elif tier == "placeholder":
+            # Re-fork case for placeholder: never overwrite. Substrate
+            # accumulates from work; activation does not touch placeholders
+            # after first fork.
+            should_write = False
+
+        if should_write:
+            await um.write(
+                target_path,
+                body,
+                summary=f"Forked from {program_slug} bundle (tier={tier})",
+                authored_by="system:bundle-fork",
+                message=(
+                    f"ADR-226: forked {src_path.name} from "
+                    f"docs/programs/{program_slug}/reference-workspace/ "
+                    f"(tier={tier})"
+                ),
+            )
+            files_written.append(target_path)
+            logger.info(
+                f"[FORK] {target_path} (tier={tier}) "
+                f"← {program_slug}/reference-workspace/{relative}"
+            )
+        else:
+            files_skipped.append(target_path)
+            logger.info(
+                f"[FORK] {target_path} (tier={tier}) — skipped "
+                f"(operator-authored or no-op)"
+            )
+
+    return {
+        "files_written": files_written,
+        "files_skipped": files_skipped,
+        "program_slug": program_slug,
+    }

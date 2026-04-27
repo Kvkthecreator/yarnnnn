@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.27.1] - ADR-226 — YARNNN activation overlay for reference-workspace fork (Phase 1 backend)
+
+### Added
+- `api/agents/yarnnn_prompts/activation.py` — new `ACTIVATION_OVERLAY` prompt section (Version: 2026.04.27.1). Engages when the workspace has been forked from a program bundle but MANDATE.md is still skeleton (the post-fork-pre-author state per ADR-226 §5). Walks the operator through `authored` tier files in declared order, surfacing each file's `prompt:` frontmatter as the question. Routes operator responses through existing `UpdateContext` primitive — no parallel write path.
+- `api/agents/yarnnn_prompts/__init__.py` — `build_system_prompt` gains `activation_active: bool = False` parameter. When True (workspace profile only), `ACTIVATION_OVERLAY` is appended to the static sections.
+- `api/agents/yarnnn.py` — `_build_system_prompt` reads `injected_context["workspace_state"]["activation_state"]`; sets `activation_active=True` when state == `"post_fork_pre_author"`.
+- `api/services/working_memory.py` — new `_classify_activation_state()` returns `"none" | "post_fork_pre_author" | "operational"` per ADR-226. Surfaced in working memory's `workspace_state.activation_state` field; reads MANDATE.md + uses `bundle_reader.bundles_active_for_workspace` per ADR-224 §3.
+
+### Expected behavior
+- Pre-activation (no platform connections matching active bundle) — overlay does not engage; YARNNN behavior unchanged.
+- Post-fork-pre-author (bundle active + MANDATE.md skeleton) — YARNNN walks operator through MANDATE → IDENTITY → principles.md, surfacing bundle's `prompt:` frontmatter as question for each. Discipline: one file at a time, no ghostwriting, no task scaffolding until MANDATE non-skeleton.
+- Operational (bundle active + MANDATE.md authored) — overlay does not engage; YARNNN proceeds with normal workspace orchestration.
+
+### Validation
+- Phase 1 backend smoke validated end-to-end against kvk's real workspace: 8 files forked from alpha-trader bundle, frontmatter stripped, ADR-209 attribution captured (`authored_by="system:bundle-fork"`), idempotent re-fork (zero wasted revisions when content matches), operator-authored MANDATE.md preserved on re-run.
+- 15/15 ADR-226 test gate passing (frontmatter parser, skeleton detection, activation-state classifier, bundle integrity).
+- 36/36 combined with ADR-224 + ADR-225 — no regression.
+
+---
+
 ## [2026.04.26.5] - ADR-221 Commit C — recent.md narrative-side rollup + in-session LLM compaction sunset (prompt body change)
 
 ### Changed
