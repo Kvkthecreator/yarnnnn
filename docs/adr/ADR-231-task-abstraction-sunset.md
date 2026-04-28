@@ -243,6 +243,62 @@ Surface labels stop calling all four shapes "task":
 
 Code-level naming (the `output_kind` enum, registry key) dissolves entirely per D2 — shape is implied by substrate location. Frontend labels speak the operator vocabulary.
 
+### D9 — Working-scratch convention is per-declaration, not per-Agent (2026-04-29 amendment)
+
+Mid-invocation ephemeral state — the kind that today lives at `/tasks/{slug}/working/` per ADR-127 — is *invocation-scoped*, not Agent-scoped. Multiple invocations of the same Agent against different recurrence declarations should not share scratch space. The convention:
+
+- **Working scratch path**: `<declaration_dir>/working/` adjacent to the recurrence YAML.
+  - Deliverables: `/workspace/reports/{slug}/working/`
+  - Accumulation: `/workspace/context/{domain}/working/{recurrence-slug}/` (sub-keyed by recurrence slug because multiple recurrences share the domain dir)
+  - Action: `/workspace/operations/{slug}/working/`
+  - Maintenance: `/workspace/_shared/working/{back-office-slug}/`
+- **TTL**: 24h (preserved from ADR-127). The unified scheduler's ephemeral-cleanup job (per ADR-164) is extended to walk these new locations.
+- **Not Agent-scoped**: `/agents/{slug}/working/` is *not* canonical for invocation scratch. `/agents/{slug}/` carries cross-firing memory only (style, accumulated thesis, learned preferences per ADR-117). Agents that need invocation-local scratch use the declaration-adjacent path.
+
+Rationale: a custom Agent that's assigned to multiple recurrence declarations (e.g., one researcher Agent driving both `competitors-weekly-scan` and `market-monthly-scan`) needs separate scratch per firing. Per-Agent scratch would conflate the two streams.
+
+### D10 — Run-log discipline: declaration-scoped vs Agent-scoped (2026-04-29 amendment)
+
+Two distinct execution-history substrates, each with a fixed scope:
+
+- **Declaration `_run_log.md`** = the canonical execution history *for this recurrence*. Lives adjacent to the YAML declaration. Append-only, every firing leaves an entry. Operator reads to see "what happened on this report's last 5 runs." ADR-209 attribution carries who fired (System / TP / Reviewer / custom Agent).
+- **Agent `/agents/{slug}/memory/*.md`** = cross-firing learning *for this Agent identity*. Style distillation (per ADR-117), accumulated thesis (per ADR-106), learned preferences. Updated by the Agent itself across firings. **Not** a run log — only durable cognitive shifts land here.
+
+Operator-facing question routing:
+- "What did this report's last 3 runs do?" → declaration's `_run_log.md`
+- "How is this Agent's reasoning evolving over time?" → Agent's `/agents/{slug}/memory/`
+- "Show me everything Agent X did this week" → narrative filtered by `agent:<slug>` (per D11)
+
+The discipline rule: **Agent code never writes to declaration-adjacent files for cross-firing-learning purposes; Agent code writes to its own `/agents/{slug}/` for that.** Declaration-adjacent files are append-only execution history + invocation-time feedback only.
+
+### D11 — Per-Agent narrative filter affordance is universal (2026-04-29 amendment)
+
+The narrative filter affordances (per ADR-219) extend to **all persona-bearing Agents equally** — TP/Reviewer (singleton-systemic) and operator-authored custom domain Agents. Specifically:
+
+- `/chat` rendering: every narrative entry carries `metadata.author_agent_id` (or equivalent) per ADR-219 D1. Frontend filter chip "this Agent only" works for any Agent slug.
+- `/agents/{slug}` detail view: narrative filtered by that Agent's slug — operator sees "what has this Agent been doing." Same affordance for systemic and custom.
+- Aggregation: digest rendering (per ADR-221 narrative-digest) groups by Identity equally — `agent:<custom-slug>` is a peer Identity to `reviewer:<…>`.
+
+No special-cased rendering for systemic vs custom Agents at the narrative layer. The Identity field is opaque to the renderer; only the rendering weight (material/routine/housekeeping per ADR-219 D2) drives visual treatment.
+
+### D12 — Per-declaration cost ceiling (2026-04-29 amendment)
+
+Recurrence declarations may carry an optional `max_balance_cents:` field bounding LLM spend per firing or per period. This is finer-grained than workspace-level autonomy ceiling (per ADR-217) — it caps a specific recurring stream so a misconfigured Agent or runaway loop doesn't drain workspace balance.
+
+Two shapes:
+
+```yaml
+recurring:
+  schedule: "0 9 * * 1"
+  max_balance_cents_per_firing: 50    # cap per single invocation
+  # OR
+  max_balance_cents_per_week: 500     # cap aggregate over a rolling window
+```
+
+Enforcement: the dispatcher checks token-usage forecasts against the cap before firing. If forecast exceeds cap, the firing is skipped + a `system:cost-gate` narrative entry surfaces with an actionable message ("Agent X recurrence Y skipped: would exceed declared per-firing budget. Edit `_recurring.yaml` to raise the cap or reduce `context_reads`."). Operator can then steer.
+
+This decision is **deferred to a follow-on commit** (post-atomic-cutover). The schema is reserved here; the enforcement plumbing lands once the dispatcher exists. Workspace-level autonomy ceiling (per ADR-217) provides the global safety net in the interim.
+
 ---
 
 ## Implementation Phases
@@ -482,3 +538,4 @@ The competitive moat against incumbent LLM providers is filesystem-native persis
 | Date | Version | Change |
 |---|---|---|
 | 2026-04-28 | 1.0 | Initial Proposed status. Ratifies invocation-first default, recurrence declarations as natural-home YAML, task abstraction sunset, format-by-shape principle. Phased implementation deferred. |
+| 2026-04-29 | 1.1 | Added D9 (per-declaration working-scratch convention), D10 (run-log discipline — declaration-scoped vs Agent-scoped), D11 (per-Agent narrative filter affordance is universal — systemic + custom), D12 (per-declaration cost ceiling, schema reserved, enforcement deferred). All four amendments resolve multi-agent autonomy concerns surfaced during the architectural-discourse audit before atomic cutover. |
