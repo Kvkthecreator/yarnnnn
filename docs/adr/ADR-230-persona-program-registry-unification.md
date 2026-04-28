@@ -1,4 +1,4 @@
-# ADR-229: Persona-Program Registry Unification — One Activation Path, One Set of Templates
+# ADR-230: Persona-Program Registry Unification — One Activation Path, One Set of Templates
 
 > **Status:** Proposed 2026-04-28
 > **Authors:** KVK, Claude
@@ -198,13 +198,13 @@ The terminology canonization is the second load-bearing part. The drift between 
 
 The substrate-class consequence (your follow-up question): with one canonical activation path, the three substrate classes (authored / accumulated / synthesis) get cleaner empty-state semantics:
 
-| Substrate class | Pre-ADR-229 ambiguity | Post-ADR-229 |
+| Substrate class | Pre-ADR-230 ambiguity | Post-ADR-230 |
 |---|---|---|
 | **Authored** (MANDATE, AUTONOMY, IDENTITY, BRAND, principles, _operator_profile, _risk) | "404 might mean: signup didn't fork, or fork hit different code path, or operator hasn't authored yet" | "Skeleton-state = bundle template was forked but operator hasn't customized. 404 = activation never invoked. Two distinct cases, both legible." |
 | **Accumulated** (`_performance.md`, `decisions.md`) | Same as before | Same as before — fixed by ADR-228 substrate-stub follow-up. Empty stub on first run; absent file = upstream broken. |
 | **Synthesis** (`_performance_summary.md`) | Same as before | Same as before — already correct. |
 
-ADR-228's substrate audit identified the cockpit-side fixes; ADR-229 identifies the *systemic upstream* fix that makes those cockpit-side fixes work consistently for every operator regardless of how they joined.
+ADR-228's substrate audit identified the cockpit-side fixes; ADR-230 identifies the *systemic upstream* fix that makes those cockpit-side fixes work consistently for every operator regardless of how they joined.
 
 ---
 
@@ -247,7 +247,7 @@ Atomic commits. Each green-state.
 ### Commit 5 — Bundle substrate test gate + doc sync
 
 - New `api/test_adr229_bundle_substrate.py` per D8.
-- Update CLAUDE.md ADR-229 entry.
+- Update CLAUDE.md ADR-230 entry.
 - Update `docs/alpha/E2E-EXECUTION-CONTRACT.md` to reference the unified activation path.
 - Update `docs/programs/README.md` registry table with the persona-program linking convention.
 - Update `docs/alpha/INDEX.md` with the canonical terminology table from this ADR's Context section.
