@@ -1,0 +1,22 @@
+# ADR-231 D3: deliverable recurrence declaration.
+
+report:
+  slug: weekly-performance-review
+  display_name: "Weekly performance review"
+  output_path: "/workspace/reports/weekly-performance-review/{date}/output.html"
+  recurring:
+    schedule: "0 18 * * 0"   # Sunday 18:00 ET
+    paused: false
+  agents: [analyst, writer]
+  agent_slug: analyst
+  delivery: cockpit-only
+  context_reads: [trading, portfolio, signals]
+  context_writes: [signals]
+  deliverable:
+    audience: "Operator (Sunday planning surface)"
+    purpose: "Read _performance.md money-truth substrate; compute per-signal P&L / win-rate / expectancy / Sharpe; flag divergence from declared baselines"
+    format: "HTML with sections: Portfolio Totals, Per-Signal Attribution, Decay Flags, Regime History, Quarterly-Audit Flags"
+  success_criteria:
+    - "Published Sunday 18:00 ET every week"
+    - "Per-signal expectancy-20, expectancy-40, Sharpe-lifetime surfaced for all active signals"
+    - "Signals flagged for decay (guardrail crossed) are explicitly listed with quantitative reasoning"

@@ -10,17 +10,23 @@ declares which program each persona runs (ADR-230 D1), and the bundle
 at docs/programs/{program}/ is the single source of truth for substrate
 templates + program-default tasks.
 
-Sequence (per ADR-230 D5):
+Sequence (per ADR-230 D5, post-ADR-231 cutover):
   1. Load persona from personas.yaml; resolve persona.program.
   2. Validate bundle exists at docs/programs/{persona.program}/.
   3. Run _fork_reference_workspace(persona.user_id, persona.program) —
-     same primitive as POST /api/programs/activate (ADR-226).
+     same primitive as POST /api/programs/activate (ADR-226). Forks both
+     .md files (operator substrate) AND .yaml files (recurrence
+     declarations per ADR-231 D3). After this step, the operator's
+     workspace has the program's recurrence declarations at natural-home
+     locations.
   4. Apply persona-specific overrides per ADR-230 D6 (if any) from
      docs/alpha/personas/{persona.slug}/overrides/.
-  5. Pre-create specialist agent rows the bundle's program-default
-     tasks reference (ADR-205 lazy-create gap).
-  6. POST /api/tasks for each entry in the bundle's tasks.yaml
-     (program-default task instances per ADR-230 D2).
+  5. Pre-create specialist agent rows that the bundle's recurrence
+     declarations reference (ADR-205 lazy-create gap).
+  6. (DELETED — ADR-231) Recurrences are now scaffolded via the Step 3
+     fork. The previous "POST /api/tasks per tasks.yaml entry" path is
+     gone. Operator's workspace has the YAML declarations the moment
+     fork completes; the scheduler walks them on next tick.
   7. Optional: run platform connect via existing connect.py for the
      persona's declared platform.kind.
 
@@ -162,45 +168,57 @@ def _ensure_specialists(user_id: str, roles: list[str]) -> dict[str, str]:
 
 
 # =============================================================================
-# Step 6 — Read program-default tasks + POST /api/tasks
+# Step 5 helpers — discover specialist roles from bundle YAML declarations
 # =============================================================================
+#
+# ADR-231 cutover: tasks.yaml is gone. Specialist roles are discovered from
+# the bundle's recurrence declaration YAMLs in reference-workspace/.
+# Walks the same file set _fork_reference_workspace touches.
 
-def _load_program_tasks(program_slug: str) -> list[dict[str, Any]]:
-    """Read docs/programs/{program}/tasks.yaml — the program-default task
-    instances per ADR-230 D2. Returns empty list when the file doesn't
-    exist (some programs may not declare default tasks)."""
-    tasks_path = PROGRAMS_ROOT / program_slug / "tasks.yaml"
-    if not tasks_path.exists():
+def _bundle_recurrence_roles(program_slug: str) -> list[str]:
+    """Walk docs/programs/{program}/reference-workspace/ for recurrence
+    YAMLs and return the unique set of agent_slug values referenced.
+
+    Used by Step 5 to pre-create specialist rows the bundle's recurrences
+    will dispatch against. Idempotent — duplicates dropped before return.
+    """
+    bundle_root = PROGRAMS_ROOT / program_slug / "reference-workspace"
+    if not bundle_root.is_dir():
         return []
-    raw = yaml.safe_load(tasks_path.read_text())
-    return list(raw.get("tasks", []))
 
-
-def _post_tasks(persona: Persona, registry, tasks: list[dict[str, Any]]) -> list[str]:
-    """Step 6: POST /api/tasks for each program-default task.
-    Returns the list of error strings (empty = clean). 409 SKIP on
-    already-existing tasks is treated as success."""
-    errors: list[str] = []
-    with ProdClient(persona, registry=registry) as pc:
-        for t in tasks:
-            payload = {k: v for k, v in t.items() if v is not None}
-            r = pc.post("/api/tasks", json=payload)
-            title = t["title"]
-            if r.status_code == 409:
-                print(f"  SKIP {title}  (already exists)")
-                continue
-            if r.status_code >= 300:
-                errors.append(f"task {title}: [{r.status_code}] {r.text[:200]}")
-                print(f"  FAIL {title}  [{r.status_code}]: {r.text[:200]}")
-                continue
-            body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-            print(
-                f"  OK   {body.get('slug', title):<30} "
-                f"mode={body.get('mode','?'):<10} "
-                f"role={(body.get('agent_slugs') or ['?'])[0]:<12} "
-                f"next={body.get('next_run_at', '—')}"
-            )
-    return errors
+    roles: set[str] = set()
+    for yaml_path in bundle_root.rglob("*.yaml"):
+        try:
+            raw = yaml.safe_load(yaml_path.read_text())
+        except yaml.YAMLError:
+            continue
+        if not isinstance(raw, dict):
+            continue
+        # Single-decl shapes: {report:{...}} or {action:{...}} with agent_slug
+        for wrapper_key in ("report", "action"):
+            wrapped = raw.get(wrapper_key)
+            if isinstance(wrapped, dict):
+                slug = wrapped.get("agent_slug")
+                if slug:
+                    roles.add(str(slug))
+                # also pick up entries in `agents:` list
+                for ag in (wrapped.get("agents") or []):
+                    if ag:
+                        roles.add(str(ag))
+        # Multi-decl shapes: {recurrences:[{...}]} or {back_office_jobs:[{...}]}
+        for list_key in ("recurrences", "back_office_jobs"):
+            entries = raw.get(list_key)
+            if isinstance(entries, list):
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    slug = entry.get("agent") or entry.get("agent_slug")
+                    if slug:
+                        roles.add(str(slug))
+                    for ag in (entry.get("agents") or []):
+                        if ag:
+                            roles.add(str(ag))
+    return sorted(roles)
 
 
 # =============================================================================
@@ -264,27 +282,23 @@ def main() -> int:
     print(f"  platform:   {persona.platform_kind} ({persona.platform_provider})")
     print()
 
-    program_tasks = _load_program_tasks(persona.program)
+    unique_roles = _bundle_recurrence_roles(persona.program)
     overrides_dir = PERSONAS_ROOT / persona.slug / "overrides"
     has_overrides = overrides_dir.is_dir()
 
     if args.dry_run:
         print("DRY RUN. No writes.")
-        print(f"Step 3 fork: docs/programs/{persona.program}/reference-workspace/* → /workspace/*")
+        print(f"Step 3 fork: docs/programs/{persona.program}/reference-workspace/* → /workspace/* (.md + .yaml)")
         print(f"Step 4 overrides: {'apply' if has_overrides else 'skip'} (docs/alpha/personas/{persona.slug}/overrides/)")
-        unique_roles = sorted({t["agent_slug"] for t in program_tasks})
         print(f"Step 5 specialists: ensure × {len(unique_roles)}: {', '.join(unique_roles)}")
-        print(f"Step 6 tasks: POST /api/tasks × {len(program_tasks)}")
-        for t in program_tasks:
-            sched = t.get("schedule") or "(reactive)"
-            print(f"  - {t['title']:<30} role={t['agent_slug']:<10} mode={t['mode']:<10} schedule={sched}")
+        print(f"Step 6 (DELETED — ADR-231): recurrence YAMLs are scaffolded via Step 3 fork.")
         print(f"Step 7 connect: {'skip' if args.skip_connect else 'attempt platform connect'}")
         return 0
 
     errors: list[str] = []
 
-    # ----- Step 3: Fork reference-workspace -----
-    print(f"[3/7] Fork reference-workspace from program={persona.program}")
+    # ----- Step 3: Fork reference-workspace (.md + .yaml per ADR-231 cutover) -----
+    print(f"[3/6] Fork reference-workspace from program={persona.program}")
     try:
         summary = asyncio.run(_run_fork(persona))
         print(f"  OK files_written={len(summary.get('files_written', []))}, "
@@ -297,7 +311,7 @@ def main() -> int:
         return 1
 
     # ----- Step 4: Apply persona overrides -----
-    print(f"[4/7] Apply persona overrides")
+    print(f"[4/6] Apply persona overrides")
     try:
         overrides = asyncio.run(_apply_overrides(persona))
         if not overrides:
@@ -307,8 +321,7 @@ def main() -> int:
         print(f"  FAIL overrides: {exc}")
 
     # ----- Step 5: Ensure specialist agent rows -----
-    unique_roles = sorted({t["agent_slug"] for t in program_tasks})
-    print(f"[5/7] Ensure specialist rows × {len(unique_roles)}")
+    print(f"[5/6] Ensure specialist rows × {len(unique_roles)}")
     try:
         ensured = _ensure_specialists(persona.user_id, unique_roles)
         for role in unique_roles:
@@ -319,15 +332,13 @@ def main() -> int:
         errors.append(f"specialists: {exc}")
         print(f"  FAIL specialists: {exc}")
 
-    # ----- Step 6: POST /api/tasks -----
-    print(f"[6/7] POST /api/tasks × {len(program_tasks)}")
-    if program_tasks:
-        errors.extend(_post_tasks(persona, reg, program_tasks))
-    else:
-        print(f"  (program {persona.program} declares no default tasks)")
+    # ----- Step 6 DELETED (ADR-231 cutover) -----
+    # The previous step posted each tasks.yaml entry to /api/tasks.
+    # Post-cutover, recurrence declarations are scaffolded as YAML files
+    # via the Step 3 fork. The scheduler walks them on next tick.
 
-    # ----- Step 7: Platform connect -----
-    print(f"[7/7] Platform connect")
+    # ----- Step 7: Platform connect (now Step 6 of 6 in display) -----
+    print(f"[6/6] Platform connect")
     if args.skip_connect:
         print(f"  SKIP --skip-connect")
     else:

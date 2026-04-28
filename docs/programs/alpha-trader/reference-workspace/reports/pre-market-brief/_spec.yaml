@@ -1,0 +1,24 @@
+# ADR-231 D3: deliverable recurrence declaration.
+# Single-decl file. Forked into operator's /workspace/reports/pre-market-brief/_spec.yaml
+# at activation per ADR-226.
+
+report:
+  slug: pre-market-brief
+  display_name: "Pre-market brief"
+  output_path: "/workspace/reports/pre-market-brief/{date}/output.html"
+  recurring:
+    schedule: "15 8 * * 1-5"   # 08:15 ET weekdays
+    paused: false
+  agents: [writer, analyst]
+  agent_slug: writer
+  delivery: cockpit-only
+  context_reads: [trading, portfolio, signals]
+  context_writes: [signals]
+  deliverable:
+    audience: "Operator (cockpit Overview surface; email is expository pointer per ADR-202)"
+    purpose: "One-glance morning check: which signals may fire, current exposure vs var budget, decay flags, VIX regime state"
+    format: "HTML with sections: Signal State Summary, Portfolio Exposure, Decay Flags, Regime State, Pending Proposals"
+  success_criteria:
+    - "Published by 08:20 ET on weekdays"
+    - "Zero narrative content beyond declared signals + declared risk metrics"
+    - "Quantitative frame only — numbers, thresholds, named signals"

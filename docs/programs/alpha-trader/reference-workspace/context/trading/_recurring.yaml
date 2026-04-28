@@ -1,0 +1,38 @@
+# ADR-231 D3: domain accumulation recurrence declarations.
+# Multi-decl file. Each entry is one recurring invocation against this domain.
+# Forked into operator's /workspace/context/trading/_recurring.yaml at
+# activation per ADR-226. The scheduler walks these on every tick.
+
+recurrences:
+  - slug: track-universe
+    schedule: "0 8,11,15 * * 1-5"   # 08:00, 11:30, 15:45 ET approx (weekday-only)
+    agent: tracker
+    team: [tracker]
+    required_capabilities: [read_trading]
+    paused: false
+    objective: "Per-ticker price + indicator state files under /workspace/context/trading/{ticker}.md"
+    purpose: "Accumulate current price, moving averages, ATR, RSI, volume state for each universe ticker"
+    audience: "signal-evaluation task (downstream) + operator (reference)"
+    format: "markdown with YAML frontmatter per ticker (price, sma_20, sma_50, sma_200, rsi_14, atr_14, volume_20d_avg, last_updated)"
+    context_reads: [trading, signals]
+    context_writes: [trading, signals]
+    success_criteria:
+      - "Every universe ticker in _operator_profile.md has a corresponding {ticker}.md updated within last 4 hours during market hours"
+      - "Indicator computations use closing prices; runs skipped on US market holidays"
+
+  - slug: signal-evaluation
+    schedule: "5 8 * * 1-5"   # 08:05 ET weekdays
+    agent: analyst
+    team: [analyst, tracker]
+    required_capabilities: [read_trading]
+    paused: false
+    objective: "Per-signal state files at /workspace/context/trading/signals/{signal-slug}.md"
+    purpose: "Evaluate each declared signal across universe; identify watch/triggered tickers; compute expectancy-20/40; flag decay"
+    audience: "trade-proposal task (emits on fire) + pre-market-brief (narrative summary)"
+    format: "markdown with YAML frontmatter: signal_slug, state (active|flagged|retirement-recommended), watch_tickers, triggered_today, expectancy_r_20, expectancy_r_40, sharpe_lifetime"
+    context_reads: [trading, portfolio, signals]
+    context_writes: [trading, signals]
+    success_criteria:
+      - "All 5 declared signals in _operator_profile.md have state files updated daily by 08:10 ET"
+      - "If a signal triggers on any ticker, trade-proposal task is invoked with full signal attribution"
+      - "Decay guardrails from _risk.md are evaluated and flagged in the state file"

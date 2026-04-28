@@ -1,0 +1,26 @@
+# ADR-231 D3: external-action recurrence declaration.
+# Reactive (event-triggered by signal-evaluation, not scheduled).
+
+action:
+  slug: trade-proposal
+  display_name: "Trade proposal"
+  recurring:
+    schedule: null   # reactive — fires on signal trigger event
+    paused: false
+  mode: reactive
+  agents: [analyst]
+  agent_slug: analyst
+  required_capabilities: [read_trading, write_trading]
+  emits_proposal: true
+  delivery: cockpit-only
+  context_reads: [trading, portfolio, signals]
+  context_writes: [signals]
+  deliverable:
+    audience: "AI Reviewer (evaluates via principles.md 6-check framework) → human operator (final approval)"
+    purpose: "When signal-evaluation detects a fire condition, emit a trade proposal that passes the Reviewer's Check 1 (signal attribution) by construction"
+    format: "Structured ProposeAction: signal_id, ticker, direction, entry_price, stop_loss, target, position_size, sizing_formula_trace, entry_rule_trace"
+  success_criteria:
+    - "Every proposal includes a named signal (1-5)"
+    - "Every proposal includes sizing-formula trace matching the signal's declared formula"
+    - "Every proposal is gated through AI Reviewer before reaching the Queue"
+    - "Zero proposals generated outside declared universe"

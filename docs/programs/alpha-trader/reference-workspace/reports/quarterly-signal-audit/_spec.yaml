@@ -1,0 +1,23 @@
+# ADR-231 D3: deliverable recurrence declaration.
+
+report:
+  slug: quarterly-signal-audit
+  display_name: "Quarterly signal audit"
+  output_path: "/workspace/reports/quarterly-signal-audit/{date}/output.html"
+  recurring:
+    schedule: "0 18 31 3,6,9,12 *"   # Mar/Jun/Sep/Dec 31 (approx quarter-end)
+    paused: false
+  agents: [analyst, writer]
+  agent_slug: analyst
+  delivery: cockpit-only
+  context_reads: [trading, portfolio, signals]
+  context_writes: [signals]
+  deliverable:
+    audience: "Operator (ratifies final decisions; YARNNN prepares analysis)"
+    purpose: "Operator-discipline ritual — prevents letting decayed signals linger; surfaces research candidates for new signals; never auto-modifies _operator_profile.md"
+    format: "HTML with sections: Signal Performance Summary, Retirement Candidates (with evidence), Retune Proposals, New Signal Research Candidates, Operator Decision Block (empty — operator fills)"
+  success_criteria:
+    - "Published end of each quarter (Mar/Jun/Sep/Dec)"
+    - "Every signal's last-40-trade Sharpe + expectancy surfaced with comparison to declared baseline"
+    - "Retirement recommendations cite specific guardrail crossings from _risk.md"
+    - "Operator decision block is left empty — this task does NOT mutate _operator_profile.md autonomously"

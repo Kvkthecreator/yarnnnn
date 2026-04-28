@@ -721,10 +721,15 @@ async def _fork_reference_workspace(
     files_written: list[str] = []
     files_skipped: list[str] = []
 
-    # Walk bundle's reference-workspace/ recursively, skipping the
-    # bundle-meta README.md (it's documentation about the bundle, not
-    # a workspace file the operator inherits).
-    for src_path in sorted(bundle_root.rglob("*.md")):
+    # Walk bundle's reference-workspace/ recursively. Includes both .md
+    # (operator prose / authored substrate) and .yaml (machine config —
+    # ADR-231 D3 recurrence declarations). Skips:
+    #   - bundle-meta README.md at root (documentation, not workspace state)
+    #   - reference-workspace/README.md (also bundle documentation)
+    bundle_files = sorted(
+        list(bundle_root.rglob("*.md")) + list(bundle_root.rglob("*.yaml"))
+    )
+    for src_path in bundle_files:
         if src_path.name == "README.md" and src_path.parent == bundle_root:
             continue
 
@@ -739,14 +744,22 @@ async def _fork_reference_workspace(
             logger.warning(f"[FORK] Failed to read {src_path}: {exc}")
             continue
 
-        body, metadata = _strip_tier_frontmatter(raw)
-        tier = (metadata.get("tier") or "placeholder").lower()
-        if tier not in ("canon", "authored", "placeholder"):
-            logger.warning(
-                f"[FORK] Unknown tier '{tier}' for {src_path}; "
-                f"defaulting to placeholder"
-            )
-            tier = "placeholder"
+        # ADR-231 D3 recurrence YAMLs do not carry tier frontmatter —
+        # they're pure machine config, treated as `canon` (program-shipped
+        # opinion, re-fork-on-diff). Tier inference is path-based.
+        if src_path.suffix == ".yaml":
+            body = raw
+            metadata: dict = {}
+            tier = "canon"
+        else:
+            body, metadata = _strip_tier_frontmatter(raw)
+            tier = (metadata.get("tier") or "placeholder").lower()
+            if tier not in ("canon", "authored", "placeholder"):
+                logger.warning(
+                    f"[FORK] Unknown tier '{tier}' for {src_path}; "
+                    f"defaulting to placeholder"
+                )
+                tier = "placeholder"
 
         # Idempotency check: read operator's current content, decide whether
         # to write based on tier rules.
