@@ -61,6 +61,11 @@ class Persona:
     email: str
     user_id: str
     workspace_id: str
+    # ADR-230 D1: every persona declares the program it activates. Validated
+    # at load_registry() time against docs/programs/{program}/MANIFEST.yaml.
+    # Persona slug and program slug are independent — alpha-trader + alpha-
+    # trader-2 both have program="alpha-trader".
+    program: str
     platform: dict[str, Any]
     context_domains: list[str]
     credentials_env: dict[str, str]
@@ -89,6 +94,33 @@ class Registry:
         return self.personas[slug]
 
 
+_PROGRAMS_ROOT = REPO_ROOT / "docs" / "programs"
+
+
+def _validate_program(persona_slug: str, program_slug: str | None) -> str:
+    """ADR-230 D1: every persona must declare a `program` field whose
+    target bundle exists at docs/programs/{program}/. Fail fast at load
+    time so any operation against an unlinked persona errors with a
+    clear message instead of silently using kernel defaults later.
+    """
+    if not program_slug:
+        raise SystemExit(
+            f"persona '{persona_slug}' has no `program` field. "
+            f"Per ADR-230 D1 every persona must declare which program it "
+            f"activates (e.g. `program: alpha-trader`). Add the field to "
+            f"docs/alpha/personas.yaml."
+        )
+    bundle_dir = _PROGRAMS_ROOT / program_slug
+    manifest = bundle_dir / "MANIFEST.yaml"
+    if not manifest.exists():
+        raise SystemExit(
+            f"persona '{persona_slug}' declares program='{program_slug}' but "
+            f"docs/programs/{program_slug}/MANIFEST.yaml does not exist. "
+            f"Either fix the persona's program field or ship the bundle."
+        )
+    return program_slug
+
+
 def load_registry() -> Registry:
     if not REGISTRY_PATH.exists():
         raise SystemExit(f"persona registry missing: {REGISTRY_PATH}")
@@ -100,6 +132,7 @@ def load_registry() -> Registry:
             email=p["email"],
             user_id=p["user_id"],
             workspace_id=p["workspace_id"],
+            program=_validate_program(p["slug"], p.get("program")),
             platform=p["platform"],
             context_domains=p.get("context_domains", []),
             credentials_env=p.get("credentials_env", {}),

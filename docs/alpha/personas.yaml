@@ -7,6 +7,16 @@
 # Both KVK and Claude read this file to know which workspace to act on.
 # Any persona added here is callable via scripts/alpha_ops/*.py by slug.
 #
+# ADR-230 (2026-04-28): every persona row MUST declare a `program: <slug>`
+# field whose target bundle exists at docs/programs/{program}/. Validated
+# at load_registry() time. The persona slug and the program slug are
+# independent — alpha-trader and alpha-trader-2 both run program=alpha-
+# trader. Activation = `_fork_reference_workspace(persona.user_id,
+# persona.program)` — same primitive as real-operator activation per
+# ADR-226. The parallel scaffold path (scripts/alpha_ops/scaffold_trader.py)
+# was DELETED by ADR-230 D5; activate_persona.py is the harness entry
+# point post-ADR-230.
+#
 # Last confirmed against DB: 2026-04-21
 
 version: 1
@@ -23,6 +33,7 @@ personas:
 
   - slug: alpha-trader
     label: "Simons-inspired systematic retail trader"
+    program: alpha-trader   # ADR-230 D1: bundle at docs/programs/alpha-trader/
     email: seulkim88@gmail.com
     user_id: 2be30ac5-b3cf-46b1-aeb8-af39cd351af4
     workspace_id: b7e1b9bc-ffb3-478e-bd05-dcae01a8a6b1
@@ -68,6 +79,7 @@ personas:
 
   - slug: alpha-trader-2
     label: "Stat-Arb pairs trader (Simons-flavor, parallel-loop test)"
+    program: alpha-trader   # ADR-230 D1: same program as alpha-trader, different operator
     email: alpha-trader-2@yarnnn.com
     user_id: 29a74c63-0c9c-4998-b8bb-56dd0d810a4e
     workspace_id: 68c0eabc-efa4-45cb-87da-8d14e5a979c1
@@ -113,6 +125,7 @@ personas:
 
   - slug: alpha-commerce
     label: "Korea↔USA international commerce operator (KVK voice)"
+    program: alpha-commerce   # ADR-230 D1: bundle at docs/programs/alpha-commerce/
     email: kvkthecreator@gmail.com
     user_id: 2abf3f96-118b-4987-9d95-40f2d9be9a18
     workspace_id: ff92352e-5b8a-4ba3-9a8c-eb93540df542
