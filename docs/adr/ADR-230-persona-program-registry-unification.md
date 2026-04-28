@@ -1,6 +1,6 @@
 # ADR-230: Persona-Program Registry Unification — One Activation Path, One Set of Templates
 
-> **Status:** Proposed 2026-04-28
+> **Status:** **Implemented 2026-04-28** — all 5 commits shipped. Test gate `api/test_adr230_bundle_substrate.py` 9/9 passing; combined ADR-225 + ADR-226 + ADR-230 sweep 37/37 passing. `scaffold_trader.py` (1,046 LOC) + orphan `docs/alpha/personas/alpha-trader/MANDATE.md` deleted. New `activate_persona.py` + bundle templates `_operator_profile.md` + `_risk.md` + `tasks.yaml` shipped. alpha-trader-2 overrides directory codifies kvk's stat-arb voice. ADR renumbered 229 → 230 mid-implementation due to collision with concurrent ADR-229 (judgment-first dispatch); see Commit 1 message for detail. **Operational follow-up still pending**: run `python api/scripts/alpha_ops/activate_persona.py --persona alpha-trader-2` once against kvk's workspace to fork the bundle templates + apply overrides; this resolves the cockpit MANDATE/AUTONOMY 404s surfaced by the ADR-228 audit that triggered this whole ADR.
 > **Authors:** KVK, Claude
 > **Supersedes:** `api/scripts/alpha_ops/scaffold_trader.py` (the parallel scaffold path — *deleted in this ADR's implementation*).
 > **Amends:** ADR-226 (Reference-Workspace Activation Flow — extends the activation surface to alpha personas), ADR-223 (Program Bundle Specification — bundles become the *only* source of program-shaped substrate templates).

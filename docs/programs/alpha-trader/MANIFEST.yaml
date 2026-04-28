@@ -63,10 +63,13 @@ context_domains:
     tracker_file: _tracker.md
     # ADR-220: operator-authored canonical reads injected into every
     # task prompt that includes this domain. Order is presentation order.
+    # ADR-230 D2: each path here MUST have a matching template file in
+    # this bundle's reference-workspace/. Accumulated substrate (e.g.
+    # _performance.md, _tracker.md) is written by back-office tasks at
+    # runtime — not authored at activation — so it does NOT belong here.
     authored_substrate:
       - _operator_profile.md
       - _risk.md
-      - _performance.md
 
   - path: portfolio
     purpose: account-level state, performance, risk
@@ -92,11 +95,12 @@ context_domains:
 
       ## Performance & Attribution
     tracker_file: _tracker.md
-    # ADR-220: portfolio money-truth (positions, P&L, expectancy) is
-    # canonical operator-readable substrate, written by the back-office
-    # outcome reconciler per ADR-195 v2.
-    authored_substrate:
-      - _performance.md
+    # ADR-230 D2: portfolio money-truth (_performance.md) is accumulated
+    # substrate — written by back-office-outcome-reconciliation per
+    # ADR-195 v2 + ADR-228 substrate-stub fix. NOT authored at activation,
+    # so it does not appear in authored_substrate. The first run of the
+    # reconciler creates an empty stub; from there it accumulates.
+    authored_substrate: []
 
 task_types:
   - key: trading-digest
