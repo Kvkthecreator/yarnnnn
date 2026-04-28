@@ -1,6 +1,6 @@
 # ADR-219: Invocation and Narrative — Implementation
 
-> **Status**: **Implemented** (Commits 1–6 landed 2026-04-25 / 2026-04-26).
+> **Status**: **Implemented** (Commits 1–6 landed 2026-04-25 / 2026-04-26). **D2 narrative-coverage extended 2026-04-28 by [ADR-229](./ADR-229-judgment-first-dispatch-and-generative-defer.md) D3**: emission gate widened from `final_status == "delivered"` to `final_status in ("delivered", "failed")`. Failed task runs now emit a narrative entry with `weight: "routine"` and `system_card: "task_failed"`; delivered runs unchanged at `weight: "material"` / `system_card: "task_complete"`. Closes the chat-not-surfacing gap that today's Phase B observation surfaced.
 > **Date**: 2026-04-25
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Channel** (Axiom 6) primary, **Trigger** (Axiom 4) + **Substrate** (Axiom 1) secondary.

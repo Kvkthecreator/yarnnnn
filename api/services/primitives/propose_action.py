@@ -94,7 +94,34 @@ ACTION_DISPATCH_MAP: dict[str, str] = {
     # Email (ADR-192 Phase 4)
     "email.send":                           "platform_email_send",
     "email.send_bulk":                      "platform_email_send_bulk",
+
+    # Workspace task lifecycle (ADR-229 D2 — Reviewer's generative-defer
+    # follow-up may propose a research/observation task as recursion to
+    # gather substrate before re-evaluating an original deferred proposal).
+    # Dispatches via ManageTask(action="create"); kept reversible since
+    # task creation is reversible by archive/delete and capital-neutral.
+    # The dispatch merges {"action": "create"} into merged_inputs at
+    # execution time — see _maybe_inject_manage_task_action below.
+    "task.create":                          "ManageTask",
 }
+
+
+def _maybe_inject_manage_task_action(action_type: str, merged_inputs: dict) -> dict:
+    """ADR-229 D2 dispatch helper: when a `<verb>.<noun>` action_type is
+    routed to the ManageTask primitive, inject the corresponding `action`
+    field into the inputs the primitive receives. Keeps the proposal
+    schema clean (caller writes `action_type: "task.create"`, primitive
+    receives `action: "create"`) without forcing every caller to know
+    about the ManageTask shape.
+
+    Currently only `task.*` is mapped this way; extended in future ADRs
+    if other multi-action primitives gain proposal dispatch.
+    """
+    if action_type == "task.create":
+        merged = dict(merged_inputs)
+        merged.setdefault("action", "create")
+        return merged
+    return merged_inputs
 
 
 # =============================================================================
@@ -428,6 +455,10 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
     modified = input.get("modified_inputs")
     if isinstance(modified, dict):
         merged_inputs.update(modified)
+
+    # ADR-229 D2: inject `action` field for multi-action primitives
+    # (e.g., task.create → ManageTask({action: "create", ...})).
+    merged_inputs = _maybe_inject_manage_task_action(action_type, merged_inputs)
 
     # Mark approved BEFORE executing — even if execution fails, approval was
     # recorded. We update to 'executed' on success or 'rejected_at_execution'

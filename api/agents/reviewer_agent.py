@@ -112,7 +112,16 @@ logger = logging.getLogger(__name__)
 #: stays on Sonnet (_MODEL_SLUG). Same as the ManageTask evaluate /
 #: task-pipeline split pattern — expensive judgment gets the big
 #: model; assessment of accumulated state gets the cheap one.
-REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v5"
+#:
+#: v5 → v6 (2026-04-28, ADR-229 D2 + D5). Adds generative defer:
+#: tool schema accepts optional `propose_followup` field on `defer`
+#: verdicts so the Reviewer can request substrate-building work as
+#: recursion. System prompt declares the "follow-up is recursion, not
+#: bypass" invariant + the action_type allow-list. Also reflects the
+#: ADR-229 D1 gate inversion in the system prompt (the AUTONOMY filter
+#: now runs after this verdict, not before — Reviewer reasons on merits
+#: regardless of whether AUTONOMY would auto-execute the result).
+REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v6"
 
 #: Model slug passed to Anthropic. Keep parallel to REVIEWER_MODEL_IDENTITY.
 _MODEL_SLUG = "claude-sonnet-4-6"
@@ -121,12 +130,20 @@ _MODEL_SLUG = "claude-sonnet-4-6"
 _TOKEN_CALLER = "reviewer"
 
 
-class ReviewDecision(TypedDict):
-    """Structured output of the AI Reviewer."""
+class ReviewDecision(TypedDict, total=False):
+    """Structured output of the AI Reviewer.
+
+    `decision`, `reasoning`, `confidence` are always present.
+    `propose_followup` (ADR-229 D2) is present only on `defer` verdicts
+    where the Reviewer requested a substrate-building task as recursion
+    to gather evidence; absent on approve/reject and on simple defers.
+    """
     decision: Literal["approve", "reject", "defer"]
     reasoning: str
     #: Present when the model supplies it; may be empty for defer.
     confidence: str  # "low" | "medium" | "high"
+    #: ADR-229 D2 generative-defer follow-up (optional, defer-only).
+    propose_followup: dict
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +192,58 @@ _REVIEW_TOOL = {
                     "High → strong evidence from substrate."
                 ),
             },
+            "propose_followup": {
+                "type": "object",
+                "description": (
+                    "ADR-229 D2: optional generative-defer follow-up. "
+                    "ONLY valid when decision='defer' AND the deferral "
+                    "is because evidence is insufficient (sparse "
+                    "_performance.md, ambiguous signal, missing "
+                    "context). Names a research/observation task that "
+                    "would let you reconsider the original proposal. "
+                    "Constraints: (a) only on 'defer'; (b) action_type "
+                    "must be in the reversible/capital-neutral allow-"
+                    "list ('task.create' is the v6 scope; future ADRs "
+                    "may add more); (c) reasoning must specify what "
+                    "evidence shape would unblock the original proposal. "
+                    "The follow-up is RECURSION (gather substrate, "
+                    "re-propose), NOT BYPASS (you cannot widen autonomy "
+                    "through follow-ups)."
+                ),
+                "properties": {
+                    "action_type": {
+                        "type": "string",
+                        "enum": ["task.create"],
+                        "description": (
+                            "Allow-listed action_type for the follow-"
+                            "up proposal. v6 supports task.create only."
+                        ),
+                    },
+                    "inputs": {
+                        "type": "object",
+                        "description": (
+                            "kwargs the underlying primitive will "
+                            "receive. For task.create: title, "
+                            "agent_slug, mode, objective, "
+                            "context_reads, context_writes, schedule "
+                            "(optional). Keep tasks scoped tightly to "
+                            "the evidence-gathering need that drove "
+                            "the defer."
+                        ),
+                    },
+                    "rationale": {
+                        "type": "string",
+                        "description": (
+                            "Why this follow-up unblocks the original "
+                            "proposal. 1-2 sentences. Cites the "
+                            "specific evidence gap (e.g., 'IH-1 has "
+                            "zero entries in _performance.md; need 60 "
+                            "days of backtest data')."
+                        ),
+                    },
+                },
+                "required": ["action_type", "inputs", "rationale"],
+            },
         },
         "required": ["decision", "reasoning", "confidence"],
     },
@@ -219,18 +288,24 @@ performance, operator profile) is the data you reason against. Same
 framework, same data, different persona → legitimately different
 reasoning and different defer/approve boundaries. That is the point.
 
-**Autonomy delegation (ADR-217).** The workspace's autonomy posture is
-declared separately in `/workspace/context/_shared/AUTONOMY.md` — the
-operator's standing intent about how much judgment authority you carry
-on their behalf. You do NOT read AUTONOMY.md directly for the eligibility
-gate (the dispatcher already did that before invoking you). You render a
-verdict as your persona would; the dispatcher decides whether your
-verdict auto-executes or routes to the Queue based on AUTONOMY.md. What
-this means for your reasoning: your framework (principles + precedent)
-can *narrow* delegation (add defer conditions) but never *widen* it. If
-your framework and the raw delegation conflict on auto-approve
-eligibility, apply the stricter. The servant can be more conservative
-than the master permits, never more permissive.
+**Autonomy delegation (ADR-217 + ADR-229 D1).** The workspace's autonomy
+posture is declared separately in `/workspace/context/_shared/AUTONOMY.md`
+— the operator's standing intent about how much judgment authority you
+carry on their behalf. **You run BEFORE the autonomy filter, not after**
+(ADR-229 inverted the dispatch order): you render a verdict on merits
+regardless of whether AUTONOMY would auto-execute the result. The
+dispatcher decides post-verdict whether your `approve` binds (auto-
+execute) or surfaces as advisory (operator clicks). What this means for
+your reasoning:
+
+- Reason on the **merits of the action**, not on whether it falls within
+  AUTONOMY's ceiling. AUTONOMY filters your verdict downstream; your job
+  is to be the operator's judgment proxy.
+- Your framework (principles + precedent) can *narrow* delegation (add
+  defer conditions) but never *widen* it. If your framework and the raw
+  delegation conflict, apply the stricter.
+- The servant can be more conservative than the master permits, never
+  more permissive.
 
 **Precedent hierarchy.** When PRECEDENT.md contains a rule that applies
 to the current proposal, it overrides any conflicting clause in your
@@ -253,6 +328,36 @@ Your decision categories:
 Always prefer **defer** when in doubt. The operator prefers a thin
 Queue of truly high-confidence auto-decisions over a noisy Queue of
 marginal calls.
+
+**Generative defer (ADR-229 D2).** When you defer because evidence is
+insufficient — sparse `_performance.md`, ambiguous signal definition,
+missing context, no track record on the proposed action shape — you may
+include a `propose_followup` field naming a research/observation task
+that would let you reconsider. Do this when the deferral is *evidence-
+gap-shaped*, not when it is *risk-shaped*. Examples:
+
+- *Evidence-gap defer (good for followup):* "I cannot evaluate IH-1
+  expectancy because `_performance.md` has zero entries for it."
+  → `propose_followup: { action_type: "task.create", inputs: { title:
+  "60-day IH-1 vs AAPL backtest", ... }, rationale: "Need 60 days of
+  IH-1 trigger frequency + outcome to evaluate this signal class." }`
+- *Risk-shaped defer (do NOT propose followup):* "Position size exceeds
+  the 3% ceiling in `_risk.md`." — no follow-up; the proposer must
+  resize, the issue is not evidence.
+
+Constraints:
+- Only valid on `decision="defer"`. NEVER on approve or reject.
+- `action_type` is allow-listed (v6 scope: `task.create` only). The
+  follow-up cannot be a trading or commerce write — you cannot side-
+  channel into capital action through follow-ups.
+- `rationale` MUST cite the specific evidence gap and what evidence
+  shape would unblock the original proposal.
+- The original proposal stays pending; the follow-up does not auto-
+  resolve it. The follow-up generates substrate; subsequent similar
+  proposals will have the data you asked for.
+- Follow-up is **recursion**, not **bypass**. You cannot widen autonomy
+  through follow-ups. If `_risk.md` rejects the original, no amount of
+  research changes that — defer without followup, or reject.
 
 Reason explicitly:
 - What's the upside if this action works out?
@@ -381,11 +486,21 @@ async def review_proposal(
             )
             return None
 
-        return ReviewDecision(
-            decision=decision,
-            reasoning=reasoning,
-            confidence=confidence,
-        )
+        # ADR-229 D2: extract optional propose_followup. Only honored
+        # downstream when decision='defer'; if the model misuses it on
+        # approve/reject, the dispatcher silently ignores it (no
+        # generative bypass of the verdict path).
+        result: ReviewDecision = {
+            "decision": decision,
+            "reasoning": reasoning,
+            "confidence": confidence,
+        }
+        followup = tool_input.get("propose_followup")
+        if isinstance(followup, dict) and decision == "defer":
+            # Only carry the field forward on defer. Trim noise on
+            # approve/reject if the model emitted it anyway.
+            result["propose_followup"] = followup
+        return result
     except Exception as exc:  # noqa: BLE001 — never raise
         logger.warning(
             "[REVIEWER_AGENT] review_proposal failed for proposal=%s user=%s: %s",

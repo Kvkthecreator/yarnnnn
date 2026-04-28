@@ -154,31 +154,61 @@ def principles_for_domain(principles: dict, context_domain: str) -> dict:
     return principles.get(context_domain) or {}
 
 
-def is_eligible_for_auto_approve(
+def should_auto_execute_verdict(
     autonomy_policy: dict,
+    verdict: str,
     action_type: str,
     estimated_cents: int | None,
     reversibility: str,
 ) -> tuple[bool, str]:
-    """Given a domain's delegation policy and a proposal, decide whether
-    the AI occupant may auto-act. Reads AUTONOMY.md (ADR-217) — the
-    operator's declared delegation ceiling.
+    """Post-judgment binding gate (ADR-229 D1).
 
-    Returns (eligible, reason). Reason is always populated — used in the
-    AI occupant's reasoning trail. Per ADR-217 D4, the Reviewer's
-    principles.md can narrow this result (add defer conditions) but
-    never widen it; that narrowing happens outside this function in the
-    Reviewer agent's persona reasoning.
+    Given the Reviewer's verdict and the operator's declared autonomy
+    delegation, decide whether the verdict auto-executes (binding) or
+    routes to the Queue as advisory (operator clicks).
+
+    This function runs AFTER the Reviewer renders judgment, not before.
+    Pre-ADR-229 the function was named `is_eligible_for_auto_approve` and
+    ran as a pre-judgment gate that prevented Sonnet from running on
+    proposals outside the autonomy ceiling — wasting the Reviewer's
+    calibration on the proposals where calibration matters most. Under
+    ADR-229 D1, judgment runs first; this gate filters whether the
+    judgment binds.
+
+    Returns (should_execute, reason). `verdict` MUST be one of
+    "approve" | "reject" | "defer". Non-approve verdicts always return
+    `(False, ...)`: reject is the Reviewer's own narrowing (terminal),
+    defer routes to the operator (or to a generative followup per D2).
+    Only `approve` proceeds through the autonomy filter.
+
+    Per ADR-217 D4, the Reviewer's principles.md can narrow this result
+    (the verdict itself may be defer/reject due to narrowing) but never
+    widen it. The strictest of (verdict, autonomy ceiling) wins.
+
+    Pre-ADR-229 callers used `is_eligible_for_auto_approve(autonomy_policy,
+    action_type, estimated_cents, reversibility)`. That function is
+    DELETED — singular implementation rule. New callers must pass the
+    verdict; the renamed function is the single binding gate.
     """
+    # ADR-229 D1: non-approve verdicts never auto-execute.
+    if verdict == "reject":
+        return False, "verdict=reject — Reviewer's own narrowing, never auto-executes"
+    if verdict == "defer":
+        return False, "verdict=defer — Reviewer surfaced to operator (or to generative followup per D2)"
+    if verdict != "approve":
+        return False, f"verdict={verdict!r} unrecognized — defaulting to non-binding"
+
+    # verdict == "approve" — apply autonomy filter on the Reviewer's approve.
+
     # Operational gate 1: level must permit auto-action.
     level = autonomy_policy.get("level", "manual")
     if level == "manual":
-        return False, "autonomy.level=manual — every verdict defers to human occupant"
+        return False, "autonomy.level=manual — Reviewer approved, but operator retains every binding decision"
     if level not in _VALID_AUTONOMY_LEVELS:
         return False, f"autonomy.level={level} unrecognized — defaulting to manual"
     # `assisted` = AI recommends, human renders verdict. Not auto-approve.
     if level == "assisted":
-        return False, "autonomy.level=assisted — AI recommends, human renders verdict"
+        return False, "autonomy.level=assisted — AI recommends, human binds"
 
     # Operational gate 2: threshold-based (bounded_autonomous) or unbounded (autonomous).
     ceiling = autonomy_policy.get("ceiling_cents")
@@ -196,7 +226,7 @@ def is_eligible_for_auto_approve(
 
     # Operational gate 4: reversibility (irreversible writes always defer).
     if reversibility == "irreversible":
-        return False, "reversibility=irreversible — irreversible writes always defer to human"
+        return False, "reversibility=irreversible — irreversible writes always route to operator"
 
     # Operational gate 5: threshold check (bounded_autonomous only).
     if level == "bounded_autonomous":
@@ -210,7 +240,7 @@ def is_eligible_for_auto_approve(
             )
         return (
             True,
-            f"within autonomy ceiling (${abs(estimated_cents)/100:.2f} "
+            f"verdict=approve within autonomy ceiling (${abs(estimated_cents)/100:.2f} "
             f"≤ ${ceiling/100:.2f}), reversibility={reversibility}, "
             f"level=bounded_autonomous, action_type not blocked",
         )
@@ -219,8 +249,8 @@ def is_eligible_for_auto_approve(
     # level == "autonomous"
     return (
         True,
-        f"autonomy.level=autonomous for this domain, reversibility={reversibility}, "
-        f"action_type not blocked",
+        f"verdict=approve, autonomy.level=autonomous for this domain, "
+        f"reversibility={reversibility}, action_type not blocked",
     )
 
 

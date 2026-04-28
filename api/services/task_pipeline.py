@@ -2430,52 +2430,63 @@ async def execute_task(
         )
 
         # =====================================================================
-        # ADR-179: Write task_complete system card if session active within 4h.
-        # Zero LLM cost. TP reads content as conversation history on next turn.
-        # Only for successfully delivered non-back-office tasks.
-        # Skipped for: background-only tasks (daily-update), failed runs.
+        # ADR-179 + ADR-229 D3: Universal narrative coverage.
+        #
+        # Every task-pipeline invocation emits exactly one narrative entry
+        # per Axiom 9 D2. Pre-ADR-229 the gate restricted emission to
+        # `final_status == "delivered"` — failed runs were silently
+        # invisible to the operator's chat surface. ADR-229 D3 widens the
+        # gate to cover both `delivered` and `failed`, with `weight`
+        # derived from outcome:
+        #   - delivered → weight=material (operator should know it shipped)
+        #   - failed    → weight=routine  (operator should know it failed,
+        #                                  but it's not material to the
+        #                                  operation's status — the run
+        #                                  log carries the detail)
+        # daily-update + back-office-* still suppress because their writes
+        # are themselves the narrative artifact (daily-update IS the
+        # briefing; back-office runs surface via dedicated mechanisms).
         # =====================================================================
-        if final_status == "delivered" and task_slug != "daily-update" and not task_slug.startswith("back-office-"):
+        if final_status in ("delivered", "failed") and task_slug != "daily-update" and not task_slug.startswith("back-office-"):
             try:
-                # ADR-219 D2 narrative-coverage invariant: every successful
-                # task pipeline invocation emits exactly one narrative entry.
-                # Pre-ADR-219 the `task_complete` system card was gated on a
-                # 4-hour active-chat-session window (UX hygiene — only show
-                # the card when the operator was recently in chat), but the
-                # narrative is the *log of every invocation*, not just
-                # in-flight chat surfacings. Use the canonical workspace
-                # session resolver promoted to services.narrative in
-                # ADR-219 Commit 3 — same resolver every other autonomous
-                # writer (Reviewer, back-office digest, notifications) uses.
-                # Rooted in docs/alpha/observations/2026-04-26-trader-e2e-paper-loop.md §A2.
                 from routes.chat import append_message as _append_message
                 from services.narrative import find_active_workspace_session
                 session_id = find_active_workspace_session(client, user_id)
                 if session_id:
                     output_path = f"/tasks/{task_slug}/outputs/latest/"
-                    # ADR-219 envelope: task pipeline runs are periodic-pulsed
-                    # invocations of an Agent on behalf of a task. Material
-                    # weight on first delivery (this run shipped output);
-                    # the legacy `_append_message` shim picks up the envelope
-                    # fields from metadata and routes them through
-                    # write_narrative_entry().
+                    if final_status == "delivered":
+                        narrative_content = (
+                            f"{title} finished its run. "
+                            f"Output is in /tasks/{task_slug}/outputs/latest/."
+                        )
+                        narrative_weight = "material"
+                        narrative_summary = f"{title} delivered"
+                        narrative_card = "task_complete"
+                    else:  # failed
+                        err_suffix = (
+                            f" Error: {delivery_error}" if delivery_error else ""
+                        )
+                        narrative_content = (
+                            f"{title} failed during this run.{err_suffix} "
+                            f"See /tasks/{task_slug}/memory/_run_log.md for details."
+                        )
+                        narrative_weight = "routine"
+                        narrative_summary = f"{title} failed"
+                        narrative_card = "task_failed"
                     await _append_message(
                         client=client,
                         session_id=session_id,
                         role="assistant",
-                        content=(
-                            f"{title} finished its run. "
-                            f"Output is in /tasks/{task_slug}/outputs/latest/."
-                        ),
+                        content=narrative_content,
                         metadata={
-                            "system_card": "task_complete",
+                            "system_card": narrative_card,
                             "task_slug": task_slug,
                             "task_title": title,
                             "output_path": output_path,
                             "run_at": datetime.now(timezone.utc).isoformat(),
-                            "summary": f"{title} delivered",
+                            "summary": narrative_summary,
                             "pulse": "periodic",
-                            "weight": "material",
+                            "weight": narrative_weight,
                             "invocation_id": str(version_id),
                             "provenance": [
                                 {"path": output_path, "kind": "output_folder"},

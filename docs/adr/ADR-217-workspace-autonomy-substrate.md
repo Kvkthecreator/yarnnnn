@@ -1,11 +1,12 @@
 # ADR-217: Workspace Autonomy Substrate — Single Authoring Mouth for Delegation
 
-> **Status**: Proposed — staged implementation across three commits (this ADR, substrate+wiring, scaffold migration).
+> **Status**: Proposed — staged implementation across three commits (this ADR, substrate+wiring, scaffold migration). **D5 dispatch ordering amended 2026-04-28 by [ADR-229](./ADR-229-judgment-first-dispatch-and-generative-defer.md)**: `is_eligible_for_auto_approve` renamed to `should_auto_execute_verdict` and runs as a *post-judgment binding gate*, not a pre-judgment dispatch gate. Reviewer renders verdicts on merits; AUTONOMY filters whether the verdict binds. Narrowing-only invariant (D4) preserved.
 > **Date**: 2026-04-24
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Purpose** (Axiom 3) primary, **Substrate** (Axiom 1) + **Mechanism** (Axiom 5) secondary.
 > **Supersedes**: `/workspace/review/modes.md` as the home of autonomy declaration. File deleted; its role absorbed by `/workspace/context/_shared/AUTONOMY.md` under the principal-authorship model.
 > **Amends**: ADR-194 v2 (Reviewer seat substrate — modes.md removed from seat canon), ADR-211 (Reviewer Phase 4 — modes.md deprecated as Reviewer-owned file), ADR-216 (persona-wiring extended to read workspace autonomy).
+> **Amended by**: ADR-229 (gate inversion; `is_eligible_for_auto_approve` → `should_auto_execute_verdict` with verdict parameter).
 
 ---
 

@@ -15,28 +15,38 @@ Reactive handler for proposal creation events. Fires from
 handler returns. Per FOUNDATIONS v6.0 Axiom 4 (Trigger — reactive
 sub-shape), this is an event handler, not a scheduled task.
 
-**Phase 3 scope:** policy-gated routing between observe-only and
-AI-occupant invocation.
+**Phase 3 + ADR-229:** judgment-first dispatch with post-judgment
+binding gate.
+
+Per ADR-229 D1, the dispatch order inverts: judgment runs first, the
+autonomy gate filters whether the verdict binds.
 
 On proposal creation, the dispatcher:
 
-1. Loads the operator's delegation declaration (`AUTONOMY.md` per
-   ADR-217 — moved from ADR-211's `modes.md` under the operator-authored
-   delegation model. Principles.md carries the persona's declared
-   framework separately.)
-2. Checks per-domain auto-approve eligibility (via
-   `review_policy.is_eligible_for_auto_approve` reading AUTONOMY.md).
-3. If ineligible → observe-only path (Phase 2b behavior): appends a
-   `decision="defer"` entry with `reviewer_identity="reviewer-layer:
-   observed"` so the Stream surface still records the event. The
-   seat stays open for the human occupant (proposal remains pending).
-4. If eligible → AI-occupant invocation (Phase 3 behavior): reads the
-   domain's `_performance.md` + `_risk.md` + operator profile, calls
-   the AI occupant (`reviewer_agent.review_proposal`) for a verdict, and:
-     - `approve` → calls `handle_execute_proposal` with
-       `reviewer_identity="ai:reviewer-sonnet-v1"`
-     - `reject`  → calls `handle_reject_proposal` with the same identity
-     - `defer`   → falls through to observe-only (human occupant decides later)
+1. Resolves `context_domain` from `action_type`.
+2. If the domain has reviewable substrate (`_performance.md`,
+   `_operator_profile.md`, or non-empty `principles.md`) → AI Reviewer
+   invocation (`reviewer_agent.review_proposal`) renders a verdict. If
+   the domain has no reviewable substrate → observe-only fallback.
+3. The Reviewer's verdict (`approve` | `reject` | `defer`) routes:
+   - `approve` → loads AUTONOMY, calls `should_auto_execute_verdict`.
+     If binding → `handle_execute_proposal`. If non-binding → advisory
+     observation entry, proposal queued for operator click.
+   - `reject` → `handle_reject_proposal` (Reviewer's own narrowing is
+     terminal; never bound by autonomy).
+   - `defer` → decisions.md entry. Per ADR-229 D2, if the verdict
+     carries `propose_followup`, dispatch as a fresh `ProposeAction`
+     so the Reviewer's "I need evidence" recursion produces the
+     substrate-building work it asked for.
+
+**Why judgment runs before autonomy** (ADR-229 D1): pre-ADR-229 the
+autonomy gate ran first and short-circuited the Reviewer's invocation
+for proposals outside the ceiling — forfeiting calibration on exactly
+the proposals where calibration matters most. Today's order: Reviewer
+always sees the proposal; AUTONOMY decides whether the Reviewer's
+approve binds or surfaces as advisory. ADR-217 D4's narrowing-only
+invariant is preserved: the strictest of (verdict, autonomy ceiling)
+wins.
 
 **Never raises.** Dispatch failures degrade gracefully — the proposal
 remains pending, the operator can still act via ProposalCard.
@@ -76,6 +86,21 @@ _TRADING_ACTION_PREFIX = "trading."
 #: Prefix for commerce actions — map to context_domain="revenue".
 _COMMERCE_ACTION_PREFIX = "commerce."
 
+#: ADR-229 D2 propose_followup allow-list. The Reviewer's defer may emit
+#: a follow-up proposal of one of these reversible/capital-neutral
+#: action_types so the recursion produces substrate-building work
+#: without the Reviewer side-channeling into capital action.
+#:
+#: Phase 1 scope (ADR-229): task creation only. The other entries in the
+#: ADR's spec ("context.read_more", "signal.observe", "position.review")
+#: are deferred until concrete action_types for them exist in the dispatch
+#: map; today they would fail at handle_propose_action's
+#: ACTION_DISPATCH_MAP check anyway. Adding them here is a separate
+#: commit alongside the action_type registrations.
+_FOLLOWUP_ALLOWED_ACTION_TYPES = frozenset({
+    "task.create",
+})
+
 
 async def on_proposal_created(
     client: Any,
@@ -93,61 +118,41 @@ async def on_proposal_created(
         proposal_row: The row dict as returned from the INSERT.
 
     Returns None. Never raises — dispatch failure is logged.
+
+    ADR-229 D1: judgment-first ordering. Reviewer runs ALWAYS (when the
+    domain has reviewable substrate); autonomy filters whether the
+    verdict binds via `should_auto_execute_verdict` AFTER judgment, not
+    before.
     """
     try:
         action_type = proposal_row.get("action_type") or "unknown"
-        reversibility = proposal_row.get("reversibility") or ""
 
         # 1. Resolve context_domain from action_type
         context_domain = _resolve_context_domain(action_type)
 
-        # 2. Load the workspace's autonomy delegation from AUTONOMY.md
-        #    (ADR-217 — moved from /workspace/review/modes.md to
-        #    /workspace/context/_shared/AUTONOMY.md under the operator-
-        #    authored-delegation model; autonomy is operator's standing
-        #    intent, not Reviewer-owned config).
-        from services.review_policy import (
-            load_autonomy,
-            autonomy_for_domain,
-            is_eligible_for_auto_approve,
-        )
-        autonomy = load_autonomy(client, user_id)
-        autonomy_policy = autonomy_for_domain(autonomy, context_domain) if context_domain else {}
-
-        # 3. Estimate action value (for threshold comparison)
-        estimated_cents = _estimate_proposal_value_cents(proposal_row)
-
-        # 4. Eligibility gate — reads autonomy (not principles). Principles
-        #    can narrow this result in the AI occupant's reasoning but
-        #    cannot widen it (ADR-217 D4).
-        eligible, reason = is_eligible_for_auto_approve(
-            autonomy_policy=autonomy_policy,
-            action_type=action_type,
-            estimated_cents=estimated_cents,
-            reversibility=reversibility,
-        )
-
-        if not eligible:
-            # Observe-only path (Phase 2b behavior preserved)
+        # 2. Determine whether this domain has reviewable substrate.
+        #    Without ANY of {principles.md, _performance.md, _operator_profile.md},
+        #    Sonnet has no framework or evidence to reason against — fall
+        #    back to observe-only. This is the ONE remaining condition for
+        #    the observe-only path post-ADR-229; everything else flows
+        #    through judgment-first dispatch.
+        if not context_domain:
             await _write_observation(
                 client, user_id,
                 proposal_id=proposal_id,
                 proposal_row=proposal_row,
-                gate_reason=reason,
+                gate_reason=f"action_type={action_type!r} has no resolved context_domain — no reviewable substrate",
             )
             return
 
-        # 5. AI occupant path (Phase 3)
-        # NOTE: AI occupant receives autonomy_policy as its operational
-        # context (level, ceiling). The occupant's reasoning reads
-        # IDENTITY.md + principles.md directly for persona + framework —
-        # see reviewer_agent.review_proposal.
+        # 3. Run the AI Reviewer first (ADR-229 D1 inversion). Loads
+        #    IDENTITY + principles + PRECEDENT + _performance + _risk +
+        #    operator_profile internally and renders a verdict.
         await _run_ai_reviewer(
             client, user_id,
             proposal_id=proposal_id,
             proposal_row=proposal_row,
             context_domain=context_domain,
-            policy=autonomy_policy,
         )
     except Exception as exc:  # noqa: BLE001 — must not block proposal creation
         logger.warning(
@@ -280,11 +285,20 @@ async def _run_ai_reviewer(
     proposal_id: str,
     proposal_row: dict,
     context_domain: str,
-    policy: dict,
 ) -> None:
-    """Run the AI Reviewer and route its decision to the appropriate
-    primitive handler. Never raises — AI failure falls back to
-    observe-only so the human can still decide via ProposalCard.
+    """Run the AI Reviewer and route its decision per ADR-229 D1+D2.
+
+    - approve verdict → loads AUTONOMY, calls should_auto_execute_verdict.
+      If binding → handle_execute_proposal. If non-binding → advisory
+      observation entry, proposal queued for operator click.
+    - reject verdict → handle_reject_proposal (terminal, never bound by
+      autonomy — Reviewer's narrowing is its own).
+    - defer verdict → decisions.md entry; if propose_followup present
+      per ADR-229 D2, dispatch as fresh ProposeAction with allow-list
+      action_type validation.
+
+    Never raises — AI failure falls back to observe-only so the human
+    can still decide via ProposalCard.
     """
     from agents.reviewer_agent import review_proposal, REVIEWER_MODEL_IDENTITY
 
@@ -363,22 +377,79 @@ async def _run_ai_reviewer(
     )
 
     if decision["decision"] == "approve":
-        from services.primitives.propose_action import handle_execute_proposal
-        result = await handle_execute_proposal(
-            auth_for_primitive,
-            {
-                "proposal_id": proposal_id,
-                "reviewer_identity": REVIEWER_MODEL_IDENTITY,
-                "reviewer_reasoning": full_reasoning,
-            },
+        # ADR-229 D1: post-judgment autonomy gate. Reviewer approved;
+        # AUTONOMY decides whether the approve binds (auto-execute) or
+        # surfaces as advisory (operator clicks Approve in cockpit).
+        from services.review_policy import (
+            load_autonomy,
+            autonomy_for_domain,
+            should_auto_execute_verdict,
         )
-        ok = bool(result and result.get("success"))
+        autonomy = load_autonomy(client, user_id)
+        autonomy_policy = autonomy_for_domain(autonomy, context_domain)
+        estimated_cents = _estimate_proposal_value_cents(proposal_row)
+
+        should_bind, gate_reason = should_auto_execute_verdict(
+            autonomy_policy=autonomy_policy,
+            verdict="approve",
+            action_type=action_type,
+            estimated_cents=estimated_cents,
+            reversibility=reversibility or "",
+        )
+
+        if should_bind:
+            # Binding approve: execute immediately under Reviewer's identity.
+            from services.primitives.propose_action import handle_execute_proposal
+            result = await handle_execute_proposal(
+                auth_for_primitive,
+                {
+                    "proposal_id": proposal_id,
+                    "reviewer_identity": REVIEWER_MODEL_IDENTITY,
+                    "reviewer_reasoning": full_reasoning,
+                },
+            )
+            ok = bool(result and result.get("success"))
+            logger.info(
+                "[REVIEW_DISPATCH] AI approved+bound proposal=%s user=%s action=%s execute_success=%s",
+                proposal_id[:8], user_id[:8], action_type, ok,
+            )
+            # handle_execute_proposal already appended a decision entry via
+            # the Phase 2a audit path; no additional append needed here.
+            return
+
+        # Advisory approve: Reviewer reasoned approve, AUTONOMY says it
+        # doesn't auto-bind (manual mode, irreversible, over ceiling, etc).
+        # Record the verdict + the reason it's advisory, leave proposal
+        # pending for operator click.
+        advisory_reasoning = (
+            f"{ai_reasoning}\n\n"
+            f"— decided by {REVIEWER_MODEL_IDENTITY} (confidence: {confidence})\n\n"
+            f"**Advisory only** (ADR-229 post-judgment gate): {gate_reason}\n"
+            f"Operator must click Approve in cockpit to bind this verdict."
+        )
+        await append_decision(
+            client, user_id,
+            proposal_id=proposal_id,
+            action_type=action_type,
+            decision="approve",
+            reviewer_identity=REVIEWER_MODEL_IDENTITY,
+            reasoning=advisory_reasoning,
+            reversibility=reversibility,
+            outcome="advisory_pending_operator",
+        )
+        await write_reviewer_message(
+            client, user_id,
+            content=advisory_reasoning,
+            proposal_id=proposal_id,
+            verdict="approve_advisory",
+            occupant=REVIEWER_MODEL_IDENTITY,
+            action_type=action_type,
+            task_slug=proposal_row.get("task_slug"),
+        )
         logger.info(
-            "[REVIEW_DISPATCH] AI approved proposal=%s user=%s action=%s execute_success=%s",
-            proposal_id[:8], user_id[:8], action_type, ok,
+            "[REVIEW_DISPATCH] AI approved (advisory) proposal=%s user=%s action=%s gate=%s",
+            proposal_id[:8], user_id[:8], action_type, gate_reason,
         )
-        # handle_execute_proposal already appended a decision entry via
-        # the Phase 2a audit path; no additional append needed here.
         return
 
     if decision["decision"] == "reject":
@@ -399,23 +470,90 @@ async def _run_ai_reviewer(
         )
         return
 
-    # decision == "defer" — AI looked but chose not to decide. Record
-    # the AI's reasoning as an observation so it's visible to the human
-    # in decisions.md; the proposal stays pending.
+    # decision == "defer" — Reviewer looked but chose not to decide.
+    # ADR-229 D2: defer can be GENERATIVE — Reviewer may include a
+    # `propose_followup` field naming a research/observation task that
+    # would let it reconsider. Dispatch the followup as a fresh
+    # ProposeAction so the recursion produces substrate-building work.
+
+    followup = decision.get("propose_followup")
+    followup_proposal_id = None
+    followup_note = ""
+
+    if followup and isinstance(followup, dict):
+        followup_action_type = followup.get("action_type")
+        if followup_action_type in _FOLLOWUP_ALLOWED_ACTION_TYPES:
+            try:
+                from services.primitives.propose_action import handle_propose_action
+                followup_payload = {
+                    "action_type": followup_action_type,
+                    "reversibility": "reversible",  # allow-list is reversible-only
+                    "task_slug": proposal_row.get("task_slug"),
+                    "agent_slug": "reviewer",
+                    "inputs": followup.get("inputs") or {},
+                    "rationale": (
+                        f"Generated by Reviewer (ADR-229 D2 propose_followup) on "
+                        f"defer of proposal {proposal_id[:8]}.\n\n"
+                        f"Reviewer's reasoning: {ai_reasoning}\n\n"
+                        f"Followup rationale: {followup.get('rationale', '(none provided)')}"
+                    ),
+                    "expected_effect": (
+                        f"Substrate-building task created at Reviewer's request to "
+                        f"unblock evaluation of proposal {proposal_id[:8]}."
+                    ),
+                    "expires_in_hours": 24,
+                }
+                followup_result = await handle_propose_action(
+                    auth_for_primitive, followup_payload
+                )
+                if followup_result and followup_result.get("success"):
+                    followup_proposal_id = followup_result.get("proposal_id")
+                    followup_note = (
+                        f"\n\n**Generative defer (ADR-229 D2):** Reviewer requested "
+                        f"a follow-up `{followup_action_type}` to gather evidence. "
+                        f"Followup proposal id: `{followup_proposal_id}`."
+                    )
+                    logger.info(
+                        "[REVIEW_DISPATCH] defer generated followup proposal=%s "
+                        "(action=%s) for original=%s user=%s",
+                        followup_proposal_id[:8] if followup_proposal_id else "?",
+                        followup_action_type,
+                        proposal_id[:8], user_id[:8],
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "[REVIEW_DISPATCH] defer followup dispatch failed for proposal=%s: %s",
+                    proposal_id[:8], exc,
+                )
+        else:
+            followup_note = (
+                f"\n\n_(Reviewer requested followup `{followup_action_type}` "
+                f"but action_type is outside the propose_followup allow-list.)_"
+            )
+            logger.info(
+                "[REVIEW_DISPATCH] defer followup REJECTED — action_type=%s not in allow-list "
+                "for proposal=%s user=%s",
+                followup_action_type, proposal_id[:8], user_id[:8],
+            )
+
+    full_reasoning_with_followup = full_reasoning + followup_note
+
+    # Record the defer entry, with followup linkage if any.
     await append_decision(
         client, user_id,
         proposal_id=proposal_id,
         action_type=action_type,
         decision="defer",
         reviewer_identity=REVIEWER_MODEL_IDENTITY,
-        reasoning=full_reasoning,
+        reasoning=full_reasoning_with_followup,
         reversibility=reversibility,
         outcome="pending_human",
     )
-    # Unified chat thread — AI reviewed, chose to defer. Human will decide.
+    # Unified chat thread — AI reviewed, chose to defer. Human (or the
+    # generated followup, once it accumulates substrate) will resolve.
     await write_reviewer_message(
         client, user_id,
-        content=full_reasoning,
+        content=full_reasoning_with_followup,
         proposal_id=proposal_id,
         verdict="defer",
         occupant=REVIEWER_MODEL_IDENTITY,
@@ -423,8 +561,9 @@ async def _run_ai_reviewer(
         task_slug=proposal_row.get("task_slug"),
     )
     logger.info(
-        "[REVIEW_DISPATCH] AI deferred proposal=%s user=%s action=%s — human to decide",
+        "[REVIEW_DISPATCH] AI deferred proposal=%s user=%s action=%s followup=%s",
         proposal_id[:8], user_id[:8], action_type,
+        followup_proposal_id[:8] if followup_proposal_id else "none",
     )
 
 

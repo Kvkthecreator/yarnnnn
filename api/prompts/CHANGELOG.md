@@ -6,6 +6,32 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.28.2] - ADR-229 — Judgment-first dispatch + generative defer + universal narrative coverage
+
+### Changed
+- `api/agents/reviewer_agent.py` — `REVIEWER_MODEL_IDENTITY` bumps `ai:reviewer-sonnet-v5` → `ai:reviewer-sonnet-v6`. System prompt gains: (1) "you run BEFORE the autonomy filter, not after — reason on merits regardless of whether AUTONOMY would auto-execute" (ADR-229 D1 gate inversion); (2) "Generative defer (ADR-229 D2)" section declaring `propose_followup` invariants — only on `defer`, allow-listed action_types only (`task.create` in v6 scope), recursion-not-bypass rule, evidence-gap-vs-risk-shape distinction.
+- `api/agents/reviewer_agent.py::_REVIEW_TOOL` — input schema gains optional `propose_followup` object property `{action_type, inputs, rationale}`. Allow-listed action_type enum (`task.create`). Required fields when present.
+- `api/agents/reviewer_agent.py::ReviewDecision` — TypedDict marked `total=False`; adds optional `propose_followup: dict` field. Reviewer's `review_proposal` now extracts the field from tool input but only carries it forward on `decision == "defer"` (defensive against model misuse on approve/reject).
+- `api/services/review_policy.py` — `is_eligible_for_auto_approve` renamed to `should_auto_execute_verdict`. New `verdict` parameter; `reject` and `defer` always return `(False, ...)` regardless of autonomy. `approve` proceeds through the existing autonomy filter. Singular-implementation rule: old name DELETED, no shim.
+- `api/services/review_proposal_dispatch.py::on_proposal_created` — dispatch order INVERTED. Removes pre-judgment eligibility gate. Reviewer runs ALWAYS when domain has reviewable substrate (resolved `context_domain`). Domains without reviewable substrate fall through to observe-only (the single remaining condition, not the default).
+- `api/services/review_proposal_dispatch.py::_run_ai_reviewer` — `policy` parameter dropped (autonomy_policy is now loaded inside the `approve` branch). On `approve`, calls `should_auto_execute_verdict` post-judgment; binding → `handle_execute_proposal`, non-binding → advisory-pending-operator entry to `decisions.md`. On `defer` with `propose_followup` AND action_type in `_FOLLOWUP_ALLOWED_ACTION_TYPES`, dispatches as fresh `ProposeAction` via `handle_propose_action`. Followup linkage embedded in the original defer's `decisions.md` reasoning.
+- `api/services/primitives/propose_action.py::ACTION_DISPATCH_MAP` — new entry `task.create → ManageTask`. New helper `_maybe_inject_manage_task_action` injects `action: "create"` into `merged_inputs` at execute time so the proposal's `inputs` schema stays clean.
+- `api/services/task_pipeline.py` — narrative emission gate at L2438 widens from `final_status == "delivered"` to `final_status in ("delivered", "failed")`. Failed runs emit `weight: "routine"` / `system_card: "task_failed"` narrative entries; delivered runs unchanged. Closes the chat-not-surfacing gap.
+
+### Expected behavior
+- **AI Reviewer always reviews**: every proposal in a reviewable-substrate domain (trading, commerce) gets a Sonnet verdict. Pre-ADR-229 the autonomy gate short-circuited Sonnet for proposals outside the ceiling — pure waste of calibration. Now the Reviewer reasons on every proposal; AUTONOMY decides whether the verdict binds.
+- **Approve under sufficient autonomy → auto-executes**: same as v5 behavior. Reviewer approves AND `should_auto_execute_verdict` returns True → `handle_execute_proposal` fires.
+- **Approve under insufficient autonomy → advisory entry**: NEW. Reviewer approves but AUTONOMY says "manual" / "irreversible" / "over ceiling" / "blocked by never_auto" → decisions.md gets `decision: approve, outcome: advisory_pending_operator` entry. Operator sees Reviewer's reasoning + the gate that withheld auto-execution. Cockpit Queue still requires operator click.
+- **Reject** → terminal. Reviewer's narrowing is its own; never bound by autonomy.
+- **Defer with propose_followup** → NEW. Reviewer says "I cannot evaluate this because [evidence gap]" and includes a follow-up proposal (e.g., `task.create` for a 60-day backtest). Followup dispatches through the same dispatch chain (Reviewer reviews the follow-up's task creation; if reversible+within autonomy → auto-creates; otherwise queued). The original proposal stays pending; substrate accumulates; subsequent similar proposals have the data the Reviewer asked for. **This dissolves the bootstrap paradox** that Path C surfaced 2026-04-28.
+- **Defer without followup** → unchanged from v5: decisions.md entry, proposal pending, operator decides.
+- **Failed task runs surface in /chat**: every failed task pipeline invocation now lands a narrative entry. Operator sees task failures in chat alongside successes; no more silent watchdog reaps disappearing from the operator's surface.
+
+### Future work
+Phase 2 deferred items (per ADR-229): (a) cost-gated advisory mode for `level: manual` workspaces (skip Sonnet review when verdict will never bind), (b) frontend rendering distinction between `weight: "routine"` and `material`, (c) follow-up allow-list expansion to include `domain.observe_more` and `risk.tighten` once those action_types are registered, (d) extension of D3 narrative coverage to catastrophic-skip paths (balance-gate, capability-gate `_fail` returns currently leave no narrative trace).
+
+---
+
 ## [2026.04.28.1] - ADR-227 — Tracker source-priority guidance; task-capability tool augmentation
 
 ### Changed
