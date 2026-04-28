@@ -73,6 +73,15 @@ class TaskCreate(BaseModel):
     context_reads: Optional[list] = None    # e.g. ["trading", "signals"]
     context_writes: Optional[list] = None   # e.g. ["trading", "signals"]
 
+    # ADR-207 P3 + ADR-227: capability declaration is BOTH a dispatch-time gate
+    # against active platform_connections AND (post-ADR-227) a tool-surface
+    # augmentation that merges program-specific platform tools (e.g.
+    # platform_trading_get_market_data) into a universal-role agent's tool list.
+    # Missing this field on a task that needs platform tools causes the agent
+    # to fall back to WebSearch — the prompt cannot recover from a tool surface
+    # that doesn't include the platform tool.
+    required_capabilities: Optional[list] = None  # e.g. ["read_trading"]
+
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
