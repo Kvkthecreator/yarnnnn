@@ -27,6 +27,7 @@ from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import MANAGE_AGENT_TOOL, handle_manage_agent
 from .manage_task import MANAGE_TASK_TOOL, handle_manage_task
+from .fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
 from .update_context import UPDATE_CONTEXT_TOOL, handle_update_context
 from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
 from .workspace import (
@@ -205,6 +206,9 @@ CHAT_PRIMITIVES = [
     # Agent/Task lifecycle (2, was 3)
     MANAGE_AGENT_TOOL,
     MANAGE_TASK_TOOL,
+    # ADR-231 D5: FireInvocation — manual fire of a recurrence declaration.
+    # Phase 2 thin adapter; replaces ManageTask(action="trigger") at Phase 3 cutover.
+    FIRE_INVOCATION_TOOL,
     # Repurpose (ADR-148 Phase 4)
     REPURPOSE_OUTPUT_TOOL,
     # Asset rendering (1) — Gemini image gen, charts, mermaid diagrams
@@ -219,7 +223,7 @@ CHAT_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 20 tools — ADR-209 Phase 3 added ListRevisions / ReadRevision / DiffRevisions
+]  # 21 tools — ADR-231 D5 added FireInvocation
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per
@@ -244,6 +248,8 @@ HEADLESS_PRIMITIVES = [
     # Lifecycle (2, was 3) + Domain management (1)
     MANAGE_AGENT_TOOL,
     MANAGE_TASK_TOOL,
+    # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
+    FIRE_INVOCATION_TOOL,
     MANAGE_DOMAINS_TOOL,
     # Asset rendering — writes to task output folder when task_slug set on auth
     RUNTIME_DISPATCH_TOOL,
@@ -257,7 +263,7 @@ HEADLESS_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 20 tools — ADR-209 Phase 3 added ListRevisions / ReadRevision / DiffRevisions
+]  # 21 tools — ADR-231 D5 added FireInvocation
 
 # Combined list — for handler registration and backwards compatibility
 PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
@@ -282,6 +288,8 @@ HANDLERS: dict[str, Callable] = {
     "ManageAgent": handle_manage_agent,
     # "CreateTask": DELETED (ADR-168 Commit 3 — folded into ManageTask action="create")
     "ManageTask": handle_manage_task,
+    # ADR-231 D5: FireInvocation — recurrence-aware dispatch (Phase 2 thin adapter).
+    "FireInvocation": handle_fire_invocation,
     "UpdateContext": handle_update_context,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
