@@ -46,9 +46,24 @@ interface AutonomyMeta {
   domains?: Record<string, { level?: string; ceiling_cents?: number }>;
 }
 
+/**
+ * Strip markdown noise from a line: blockquote prefixes, HTML comments,
+ * trailing whitespace. Returns null if the line is decorative-only after
+ * stripping.
+ */
+function stripLine(raw: string): string | null {
+  let line = raw.replace(/^\s*>+\s?/, '').trim();
+  if (!line) return null;
+  // Skip pure HTML comments
+  if (line.startsWith('<!--') && line.endsWith('-->')) return null;
+  // Skip horizontal rules
+  if (/^[-*_]{3,}$/.test(line)) return null;
+  return line;
+}
+
 function parseMandate(content: string): {
   meta: MandateMeta;
-  intent: string | null;
+  intent: string[];
   isSkeleton: boolean;
 } {
   const fm = content.match(/^---\s*\n([\s\S]*?)\n---/);
@@ -71,14 +86,32 @@ function parseMandate(content: string): {
     !trimmed ||
     /^#\s*MANDATE\s*$/i.test(trimmed) ||
     /^_authored at workspace activation/i.test(trimmed);
-  let intent: string | null = null;
-  for (const line of body.split('\n')) {
-    const t = line.trim();
-    if (!t || t.startsWith('#') || t.startsWith('---')) continue;
-    intent = t;
-    break;
+
+  // Walk past leading headings + comments, collect prose paragraph
+  // (consecutive non-blank, non-heading lines) for the intent block.
+  const lines = body.split('\n');
+  const intentLines: string[] = [];
+  let inBlock = false;
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t) {
+      if (inBlock) break; // blank line ends the first prose block
+      continue;
+    }
+    if (t.startsWith('#')) {
+      if (inBlock) break;
+      continue;
+    }
+    if (t.startsWith('---')) continue;
+    const stripped = stripLine(raw);
+    if (!stripped) {
+      if (inBlock) break;
+      continue;
+    }
+    intentLines.push(stripped);
+    inBlock = true;
   }
-  return { meta, intent, isSkeleton };
+  return { meta, intent: intentLines, isSkeleton };
 }
 
 function parseAutonomy(content: string): AutonomyMeta {
@@ -232,12 +265,24 @@ export function MandateFace() {
         </span>
       </div>
       <Link
-        href={`/files?path=${encodeURIComponent(MANDATE_PATH)}`}
+        href={`/context?path=${encodeURIComponent(MANDATE_PATH)}`}
         className="block"
       >
-        <p className="text-base font-medium leading-snug text-foreground hover:underline">
-          {meta.primary_action ?? intent ?? 'Mandate authored'}
-        </p>
+        {meta.primary_action ? (
+          <p className="text-base font-medium leading-snug text-foreground hover:underline">
+            {meta.primary_action}
+          </p>
+        ) : intent.length > 0 ? (
+          <div className="space-y-1 text-sm leading-relaxed text-foreground hover:underline">
+            {intent.slice(0, 4).map((line, idx) => (
+              <p key={idx}>{line}</p>
+            ))}
+          </div>
+        ) : (
+          <p className="text-base font-medium leading-snug text-foreground hover:underline">
+            Mandate authored
+          </p>
+        )}
       </Link>
       {tags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
@@ -250,13 +295,13 @@ export function MandateFace() {
       )}
       <div className="mt-4 flex gap-3 text-[11px] text-muted-foreground/70">
         <Link
-          href={`/files?path=${encodeURIComponent(MANDATE_PATH)}`}
+          href={`/context?path=${encodeURIComponent(MANDATE_PATH)}`}
           className="underline-offset-4 hover:text-foreground hover:underline"
         >
           MANDATE.md
         </Link>
         <Link
-          href={`/files?path=${encodeURIComponent(AUTONOMY_PATH)}`}
+          href={`/context?path=${encodeURIComponent(AUTONOMY_PATH)}`}
           className="underline-offset-4 hover:text-foreground hover:underline"
         >
           AUTONOMY.md

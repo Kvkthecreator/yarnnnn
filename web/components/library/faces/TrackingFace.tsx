@@ -302,7 +302,7 @@ function OperationalState() {
         Operational state
       </h3>
       <Link
-        href="/files?path=%2Fworkspace%2Fcontext%2Fportfolio%2F"
+        href="/context?path=%2Fworkspace%2Fcontext%2Fportfolio%2F"
         className="block rounded-md border border-dashed border-border bg-muted/20 px-3 py-3 text-sm text-muted-foreground hover:bg-muted/30"
       >
         Open positions, active campaigns, and watchlist freshness render here

@@ -115,7 +115,7 @@ export function PerformanceFace() {
   if (calibration === null || hasPerformance === null) return null;
 
   const isEmpty = !hasPerformance && calibration.total === 0 && !calibration.lastDecisionAt;
-  const performanceLink = `/files?path=${encodeURIComponent(performancePath)}`;
+  const performanceLink = `/context?path=${encodeURIComponent(performancePath)}`;
   const reviewerLink = '/agents?agent=reviewer';
 
   if (isEmpty) {

@@ -100,7 +100,7 @@ export function MoneyTruthFace() {
   if (!loaded) return null;
 
   const isEmpty = !meta || Object.keys(meta).length === 0 || meta.pnl_30d_pct === undefined;
-  const linkPath = `/files?path=${encodeURIComponent(path)}`;
+  const linkPath = `/context?path=${encodeURIComponent(path)}`;
 
   if (isEmpty) {
     return (
