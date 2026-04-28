@@ -1,16 +1,19 @@
 'use client';
 
 /**
- * Library Component Registry — ADR-225 Phase 3.
+ * Library Component Registry — ADR-225 Phase 3, amended by ADR-228.
  *
- * The single dispatch table mapping component `kind` strings (declared
+ * The dispatch table mapping component `kind` strings (declared
  * in SURFACES.yaml or `kernel-defaults.ts`) to React renderers.
  *
  * Singular Implementation discipline: this is THE registry. Kernel
- * defaults and bundle components register here side-by-side; the
- * resolver doesn't distinguish them. Adding a new library component
- * means: write the .tsx, add an entry here, optionally reference it
- * from a bundle's SURFACES.yaml.
+ * defaults and bundle middle components register here side-by-side; the
+ * resolver doesn't distinguish them.
+ *
+ * Cockpit faces (MandateFace · MoneyTruthFace · PerformanceFace ·
+ * TrackingFace) are NOT registered here — they are imported directly by
+ * `CockpitRenderer.tsx`. The cockpit no longer dispatches through this
+ * registry per ADR-228; only /work detail middles + chrome do.
  *
  * Components are invoked via React.createElement so the registry can
  * stay shape-agnostic — the only convention is that a registered
@@ -19,13 +22,6 @@
  */
 
 import type { Binding } from '@/lib/compositor';
-
-// Bundle components (alpha-trader's middle + chrome library)
-import { PerformanceSnapshot } from './PerformanceSnapshot';
-import { PositionsTable } from './PositionsTable';
-import { RiskBudgetGauge } from './RiskBudgetGauge';
-import { TradingProposalQueue } from './TradingProposalQueue';
-import { TradingPortfolioMetadata } from './TradingPortfolioMetadata';
 
 // Kernel-default chrome
 import { KernelDeliverableMetadata } from './kernel-chrome/KernelDeliverableMetadata';
@@ -36,14 +32,6 @@ import { KernelDeliverableActions } from './kernel-chrome/KernelDeliverableActio
 import { KernelTrackingActions } from './kernel-chrome/KernelTrackingActions';
 import { KernelActionActions } from './kernel-chrome/KernelActionActions';
 import { KernelMaintenanceActions } from './kernel-chrome/KernelMaintenanceActions';
-
-// Six-question cockpit panes (universal)
-import { TrustViolations } from './TrustViolations';
-import { MandateStrip } from './MandateStrip';
-import { MoneyTruthTile } from './MoneyTruthTile';
-import { MaterialNarrativeStrip } from './MaterialNarrativeStrip';
-import { TeamHealthCard } from './TeamHealthCard';
-import { KernelNeedsMePane } from './kernel-cockpit/KernelNeedsMePane';
 
 /**
  * Standard prop bag passed to every library component. Components
@@ -59,16 +47,6 @@ export interface LibraryComponentProps {
 export type LibraryComponent = (props: LibraryComponentProps) => JSX.Element | null;
 
 export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
-  // Bundle components — alpha-trader middle library
-  PerformanceSnapshot: ({ source }) =>
-    source ? <PerformanceSnapshot source={source} /> : null,
-  PositionsTable: ({ source }) =>
-    source ? <PositionsTable source={source} /> : null,
-  RiskBudgetGauge: ({ source }) =>
-    source ? <RiskBudgetGauge source={source} /> : null,
-  TradingProposalQueue: ({ filters }) => <TradingProposalQueue filters={filters} />,
-  TradingPortfolioMetadata: ({ source }) => <TradingPortfolioMetadata source={source} />,
-
   // Kernel-default chrome — register here so the resolver can dispatch
   // them through the same path as bundle components.
   KernelDeliverableMetadata: () => <KernelDeliverableMetadata />,
@@ -79,16 +57,6 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   KernelTrackingActions: () => <KernelTrackingActions />,
   KernelActionActions: () => <KernelActionActions />,
   KernelMaintenanceActions: () => <KernelMaintenanceActions />,
-
-  // Six-question cockpit panes — universal across delegation products.
-  // Order in KERNEL_DEFAULT_COCKPIT_PANES is: trust → mandate → decisions
-  // → money → narrative → health.
-  TrustViolations: () => <TrustViolations />,
-  MandateStrip: () => <MandateStrip />,
-  KernelNeedsMePane: () => <KernelNeedsMePane />,
-  MoneyTruthTile: ({ source }) => <MoneyTruthTile source={source} />,
-  MaterialNarrativeStrip: () => <MaterialNarrativeStrip />,
-  TeamHealthCard: () => <TeamHealthCard />,
 };
 
 /**

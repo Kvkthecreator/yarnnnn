@@ -1,10 +1,13 @@
 /**
- * Composition resolver — ADR-225 §4 + Phase 3.
+ * Composition resolver — ADR-225 §4 + Phase 3, amended by ADR-228.
  *
- * Three resolution functions, sharing the 4-tier match semantics:
+ * Two resolution functions, sharing the 4-tier match semantics:
  *   - resolveMiddle — content-area middle (Phase 2)
  *   - resolveChrome — chrome (metadata + actions) (Phase 3)
- *   - resolveCockpitPanes — list-mode cockpit composition (Phase 3)
+ *
+ * (resolveCockpitPanes deleted by ADR-228 — the cockpit no longer
+ * dispatches a flat pane sequence; see `CockpitRenderer.tsx` for the
+ * four-face render.)
  *
  * 4-tier match resolution (most specific first, first match wins within tier):
  *   Tier 1: task_slug exact match
@@ -19,8 +22,8 @@
  * the same renderer.
  */
 
-import type { ChromeDecl, ComponentDecl, CompositionTree, MiddleDecl } from './types';
-import { KERNEL_DEFAULT_CHROME, KERNEL_DEFAULT_COCKPIT_PANES } from './kernel-defaults';
+import type { ChromeDecl, MiddleDecl } from './types';
+import { KERNEL_DEFAULT_CHROME } from './kernel-defaults';
 
 export interface ResolutionContext {
   task: {
@@ -126,20 +129,3 @@ export function resolveChrome(
   return kernelDefault;
 }
 
-// ---------------------------------------------------------------------------
-// resolveCockpitPanes — ADR-225 Phase 3
-// ---------------------------------------------------------------------------
-
-/**
- * Resolve cockpit pane sequence for /work list mode. Per ADR-225 Phase 3
- * §4.2: bundle declaration via `tabs.work.list.cockpit_panes` overrides
- * the kernel-default sequence. When absent, kernel defaults render.
- */
-export function resolveCockpitPanes(
-  composition: CompositionTree,
-): ComponentDecl[] {
-  const declared = composition.tabs?.work?.list?.cockpit_panes;
-  return declared && declared.length > 0
-    ? declared
-    : KERNEL_DEFAULT_COCKPIT_PANES;
-}

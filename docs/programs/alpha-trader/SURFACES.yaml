@@ -1,14 +1,13 @@
 schema_version: 1
 
-# alpha-trader composition manifest. Read by the forthcoming compositor
-# (ADR forthcoming, ADR-222 implementation roadmap ADR 2). Speaks ADR-198
-# archetypes (Document/Dashboard/Queue/Briefing/Stream) × ADR-214 4-tab
-# nav (chat/work/agents/context).
+# alpha-trader composition manifest. Read by the compositor
+# (ADR-225 Phase 1+2 shipped, amended by ADR-228 cockpit reshape).
+# Speaks ADR-198 archetypes (Document/Dashboard/Queue/Briefing/Stream)
+# × ADR-214 4-tab nav (chat/work/agents/files).
 #
-# All bindings are filesystem paths. All components must exist in the
+# All bindings are filesystem paths. Components must exist in the
 # system component library (web/components/library/) at compositor
-# render time — components shipped here are placeholders for the
-# library convention forthcoming in the System Component Library ADR.
+# render time.
 
 tabs:
   work:
@@ -17,30 +16,37 @@ tabs:
       group_default: output_kind
       filters_default:
         output_kind: produces_deliverable
-      # ADR-225 Phase 3 + cockpit reshape (2026-04-28): bundle-supplied
-      # cockpit pane sequence following the six-question framing.
-      # Universal pane shape, alpha-trader-specialized data + components:
-      #   1. Trust violations  → TrustViolations (universal)
-      #   2. Mandate           → MandateStrip (universal)
-      #   3. Decisions due     → TradingProposalQueue (trader-shaped, replaces NeedsMe)
-      #   4. Money truth       → MoneyTruthTile bound to portfolio _performance.md
-      #   5. Material narrative → MaterialNarrativeStrip (universal)
-      #   6. Team health        → TeamHealthCard (universal)
-      cockpit_panes:
-        - kind: TrustViolations
-        - kind: MandateStrip
-        - kind: TradingProposalQueue
-          filters:
-            proposal_type: trading
-            status: pending
-        - kind: MoneyTruthTile
-          binding:
-            type: file
-            path: /workspace/context/portfolio/_performance.md
-        - kind: MaterialNarrativeStrip
-        - kind: TeamHealthCard
+
+      # ADR-228 — four-face cockpit. The cockpit is the operation,
+      # rendered. Bundles fill each face with their domain shape;
+      # bundles cannot reorder or omit faces. The four faces, fixed
+      # order:
+      #   1. Mandate         — what we're trying to do, with what permissions
+      #   2. Money truth     — where the account stands right now
+      #   3. Performance     — how we're doing against the mandate
+      #   4. Tracking        — what's in motion
+      #
+      # Phase 1 of ADR-228 (this commit) wires the kernel-default
+      # substrate-fallback path. Platform-live binding for Money Truth
+      # (Alpaca account snapshot) ships in Commit 3; bundle-shaped
+      # Tracking operational state (positions table) ships in Commit 4.
+      cockpit:
+        money_truth:
+          substrate_fallback: /workspace/context/portfolio/_performance.md
+        performance:
+          attribution_source: /workspace/context/portfolio/_performance.md
+
     detail:
       middles:
+        # ADR-228 note: portfolio-review and trading-signal detail
+        # middles still reference component names that were used by
+        # the cockpit (PerformanceSnapshot, PositionsTable, etc.).
+        # Those component files were deleted in ADR-228 Commit 1.
+        # Detail-mode rendering for these tasks renders the registry's
+        # "component not registered" amber warning until ADR-228
+        # Commit 4 ships the bundle-aware operational state components
+        # that replace them. Cockpit and detail-middle wiring are
+        # orthogonal — the cockpit four-face render is fully green.
         - match: { task_slug: portfolio-review }
           archetype: dashboard
           bindings:
@@ -54,13 +60,6 @@ tabs:
               source: positions
             - kind: RiskBudgetGauge
               source: risk
-          # ADR-225 Phase 3: bundle-supplied chrome.
-          # The kernel default for produces_deliverable shows
-          # "Last output: 3h ago" — meaningless for a Dashboard
-          # middle that regenerates substrate every run. Override
-          # with TradingPortfolioMetadata which reads _performance.md
-          # frontmatter for substrate freshness + positions_count.
-          # Actions stay kernel-default (Pause/Resume + Edit-in-chat).
           chrome:
             metadata:
               kind: TradingPortfolioMetadata
@@ -70,9 +69,6 @@ tabs:
 
         - match: { task_slug: trading-signal }
           archetype: queue
-          # trading-signal emits proposals into action_proposals; the
-          # detail middle for this task surfaces the proposal queue
-          # filtered to trading-shaped envelopes with signal attribution.
           bindings:
             proposals: /action_proposals
           components:
@@ -81,11 +77,6 @@ tabs:
               filters:
                 proposal_type: trading
                 status: pending
-          # No chrome override — falls through to kernel
-          # produces_deliverable chrome (KernelDeliverableMetadata +
-          # KernelDeliverableActions). The signal task's "Last output:
-          # 3h ago" framing is correct here — proposals ARE the
-          # output, and they age.
 
   agents:
     list:

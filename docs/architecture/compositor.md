@@ -122,13 +122,20 @@ After Phase 3, the Work surface has four compositor-resolved slots:
 - **Kernel default:** No pinning (empty list).
 - **Bundle declaration:** `tabs.work.list.pinned_tasks: [slug-1, slug-2]`.
 
-### 4. List cockpit panes (the briefing zone)
+### 4. Cockpit (four faces of the operation, ADR-228)
 
-- **Resolver:** `resolveCockpitPanes(composition)` — direct read of `tabs.work.list.cockpit_panes`, falls back to `KERNEL_DEFAULT_COCKPIT_PANES`.
-- **Renderer:** `<CockpitRenderer>` (replaces deleted `BriefingStrip.tsx`).
-- **Kernel default:** Four panes (`KernelNeedsMePane`, `KernelSnapshotPane`, `KernelSinceLastLookPane`, `KernelIntelligenceCard`) wrapping the substrate components in `web/components/work/briefing/`.
-- **Bundle declaration:** `tabs.work.list.cockpit_panes: ComponentDecl[]`. Bundles freely mix kernel + bundle panes in any order (e.g., alpha-trader puts `TradingProposalQueue` first, then `PerformanceSnapshot`, then keeps `KernelSinceLastLookPane` + `KernelIntelligenceCard` so workspace-wide signal still surfaces).
-- **Cockpit context handler:** chat-draft seeder threads via `CockpitContext` provider in `<CockpitRenderer>`.
+Per ADR-228, the cockpit is no longer a flat pane registry. It is **four faces in fixed order** rendered directly by `<CockpitRenderer>`, with no compositor-resolver step between SURFACES.yaml and the faces.
+
+- **Faces (universal, fixed order):**
+  1. **Mandate** (`MandateFace`) — standing intent + autonomy posture, reads `_shared/MANDATE.md` + `_shared/AUTONOMY.md`. Skeleton state: destructive-tinted authoring CTA.
+  2. **Money truth** (`MoneyTruthFace`) — where the account stands right now. Bundle-declared platform-live source (e.g., Alpaca for trader) with substrate fallback (`_performance.md`). Phase 1 of ADR-228 ships substrate-fallback path; platform-live ships in Commit 3.
+  3. **Performance** (`PerformanceFace`) — mandate-attributed performance + Reviewer calibration from `/workspace/review/decisions.md`.
+  4. **Tracking** (`TrackingFace`) — pending decisions (proposal queue with inline approve/reject) + operational state (bundle-fed) + recent activity (outcomes only — task-run delivery events excluded per ADR-228 D5).
+- **Kernel default:** No bundle declaration → faces render kernel-default substrate paths.
+- **Bundle declaration:** `tabs.work.list.cockpit.{mandate,money_truth,performance,tracking}` per-face binding map. Bundles cannot reorder or omit faces; they only fill them. Schema is open by design — face components consume only the keys they understand.
+- **Cockpit context handler:** chat-draft seeder threads via `CockpitContext` provider in `<CockpitRenderer>`. The Mandate face uses it for skeleton-state authoring.
+
+The flat `cockpit_panes` array, `KERNEL_DEFAULT_COCKPIT_PANES`, `resolveCockpitPanes`, and the six axis-shaped pane components from ADR-225 Phase 3 (`MandateStrip`, `MoneyTruthTile`, `KernelNeedsMePane`, `MaterialNarrativeStrip`, `TrustViolations`, `TeamHealthCard`) were all deleted by ADR-228.
 
 The phase-aware banner (`tabs.work.list.banner`) is a separate concern handled by `<BundleBanner tab="work" />`, mounted directly in `WorkListSurface` since Phase 2.
 
@@ -222,7 +229,7 @@ When two bundles are active in a workspace (deferred until alpha-commerce activa
 |---|---|
 | `tabs.{tab}.list.pinned_tasks` | Union, preserve activation order, dedupe |
 | `tabs.{tab}.list.pinned_shortcuts` | Union, dedupe by path |
-| `tabs.{tab}.list.cockpit_panes` | Union (concatenate); first bundle's panes come first |
+| `tabs.{tab}.list.cockpit` | Per-face deep-merge; first-bundle wins on scalar conflicts within a face |
 | `tabs.{tab}.detail.middles[]` | Union (concatenate); resolver's first-match-wins handles conflicts |
 | `tabs.{tab}.list.banner` | First-bundle wins on scalar conflicts |
 | `chat_chips` | Union, dedupe |

@@ -375,9 +375,8 @@ export default function WorkPage() {
         ) : null
       ) : (
         <div className="flex flex-1 flex-col overflow-y-auto">
-          {/* ADR-225 Phase 3: cockpit panes flow through the compositor
-              seam. CockpitRenderer dispatches kernel-default or
-              bundle-supplied pane sequence (tabs.work.list.cockpit_panes).
+          {/* ADR-228: CockpitRenderer renders the four faces of the
+              operation (Mandate · Money truth · Performance · Tracking).
               Hidden when an agent filter is active so the filtered list
               is the primary focus (ADR-206 deliberate focus shift). */}
           {!agentFilter && <CockpitRenderer onOpenChatDraft={handleOpenChatDraft} />}

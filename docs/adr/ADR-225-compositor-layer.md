@@ -853,7 +853,9 @@ Adding a new program means: write a bundle, author SURFACES.yaml, optionally shi
 
 ---
 
-## Cockpit reshape — Six-Question Framing (Implemented 2026-04-28)
+## Cockpit reshape — Six-Question Framing (Implemented 2026-04-28, **Superseded same day by ADR-228**)
+
+> **Superseded by [ADR-228](ADR-228-cockpit-as-delegation-posture.md) on 2026-04-28**. The six-question pane framing introduced by this section was correct as a substrate-axis map but wrong as a render contract — the cockpit is the operation rendered, not a stack of axis-shaped cards. ADR-228 collapses the six panes into four faces (Mandate · Money truth · Performance · Tracking), deletes the `cockpit_panes` flat-array schema, and reorganizes the information into bundle-aware face components. The historical record below is preserved verbatim. For current cockpit composition, read ADR-228.
 
 Phase 3 wired the compositor seam universally; this amendment reshapes **what gets registered in `cockpit_panes`** based on a first-principles re-derivation of operator needs in a delegation product.
 

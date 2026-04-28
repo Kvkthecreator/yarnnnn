@@ -249,10 +249,23 @@ def _merge_list_or_detail_block(
             result[k] = (result.get(k) or []) + deepcopy(v)
         elif k == "components" and isinstance(v, list):
             result[k] = (result.get(k) or []) + deepcopy(v)
-        elif k == "cockpit_panes" and isinstance(v, list):
-            # ADR-225 Phase 3: cockpit_panes union across bundles, first
-            # bundle's panes come first (deterministic per oldest activation).
-            result[k] = (result.get(k) or []) + deepcopy(v)
+        elif k == "cockpit" and isinstance(v, dict):
+            # ADR-228: cockpit is a per-face binding map (mandate /
+            # money_truth / performance / tracking). Multi-bundle merge
+            # is per-face deep-merge; first-bundle wins on scalar
+            # conflicts within a face. Schema is open; faces consume
+            # only the keys they understand.
+            existing = result.get(k) or {}
+            for face_key, face_value in v.items():
+                if isinstance(face_value, dict) and isinstance(existing.get(face_key), dict):
+                    merged = deepcopy(existing[face_key])
+                    for fk, fv in face_value.items():
+                        if fk not in merged:
+                            merged[fk] = deepcopy(fv)
+                    existing[face_key] = merged
+                elif face_key not in existing:
+                    existing[face_key] = deepcopy(face_value)
+            result[k] = existing
         elif k not in result:
             result[k] = deepcopy(v)
         # else: first-bundle wins on scalar conflicts (banner, group_default, etc.)

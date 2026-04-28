@@ -1,29 +1,34 @@
 'use client';
 
 /**
- * MoneyTruthTile — Cockpit pane #3 in the six-question cockpit framing
- * (2026-04-28 reshape). The pane that answers "where does the money stand?"
+ * MoneyTruthFace — face #2 of the four-face cockpit (ADR-228).
  *
- * Universal in shape across delegation products; the actual numeric source
- * varies by program. The kernel-default reads
- * `/workspace/context/_performance_summary.md` (workspace-wide rollup per
- * ADR-195). Bundles override the binding to point at program-specific
- * money-truth substrate (alpha-trader: `/workspace/context/portfolio/_performance.md`;
- * alpha-commerce when active: `/workspace/context/revenue/_performance.md`).
+ * Renders the live state of the operator's account: balance/equity, buying
+ * power, day delta, drawdown, key constraints. The visual shape is the
+ * brokerage / commerce dashboard summary an operator would expect — not a
+ * card grid, not a placeholder.
  *
- * Visual discipline: three numbers, one tile, two-second scan. Net P&L
- * vs target, drawdown vs limit, exposure vs limit. No charts in cockpit —
- * the operator opens the relevant tracking task for charts.
+ * Source resolution (ADR-228 D5):
+ *   - Bundle declares `cockpit.money_truth.live_source` — for trader, an
+ *     Alpaca account snapshot; for commerce, a Lemon Squeezy snapshot.
+ *   - When live source is unavailable or undeclared, falls back to substrate
+ *     (`cockpit.money_truth.substrate_fallback`, typically a `_performance.md`)
+ *     and renders a `· last reconciled {ts}` suffix so the operator knows
+ *     it's not live.
+ *   - When both are absent (true cold start), renders an empty state with
+ *     a one-line action pointer.
  *
- * Empty state: when the source file is absent (workspace hasn't generated
- * a performance summary yet — typical on day 1 of a program), render a
- * dim placeholder pointing the operator at where the data will appear.
+ * Phase 1 (this commit) renders the substrate-fallback path only. The
+ * platform-live binding ships in Commit 3 of the ADR-228 plan, after the
+ * `/api/cockpit/money-truth/{workspace_id}` endpoint lands. The face's
+ * structural shape is preserved across both paths.
  */
 
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import Link from 'next/link';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { useComposition } from '@/lib/compositor';
 
 interface MoneyTruthMeta {
   pnl_30d_pct?: number;
@@ -47,7 +52,6 @@ function parseFrontmatter(content: string): MoneyTruthMeta {
     const v = m[2].trim().replace(/^['"]|['"]$/g, '');
     const num = Number(v);
     if (!Number.isNaN(num)) {
-      // Only assign known numeric fields
       if (k === 'pnl_30d_pct') meta.pnl_30d_pct = num;
       if (k === 'pnl_30d_target_pct') meta.pnl_30d_target_pct = num;
       if (k === 'drawdown_30d_pct' || k === 'max_drawdown_30d_pct') meta.drawdown_30d_pct = num;
@@ -62,14 +66,17 @@ function parseFrontmatter(content: string): MoneyTruthMeta {
   return meta;
 }
 
-interface MoneyTruthTileProps {
-  source?: string;
+const DEFAULT_FALLBACK = '/workspace/context/_performance_summary.md';
+
+function readMoneyTruthSource(composition: ReturnType<typeof useComposition>['data']): string {
+  const cockpit = composition.composition.tabs?.work?.list as { cockpit?: { money_truth?: { substrate_fallback?: string } } } | undefined;
+  return cockpit?.cockpit?.money_truth?.substrate_fallback ?? DEFAULT_FALLBACK;
 }
 
-const DEFAULT_SOURCE = '/workspace/context/_performance_summary.md';
+export function MoneyTruthFace() {
+  const { data: composition } = useComposition();
+  const path = readMoneyTruthSource(composition);
 
-export function MoneyTruthTile({ source }: MoneyTruthTileProps) {
-  const path = source ?? DEFAULT_SOURCE;
   const [meta, setMeta] = useState<MoneyTruthMeta | null>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -78,32 +85,44 @@ export function MoneyTruthTile({ source }: MoneyTruthTileProps) {
     (async () => {
       try {
         const file = await api.workspace.getFile(path);
-        if (!cancelled) setMeta(file?.content ? parseFrontmatter(file.content) : {});
+        if (!cancelled) {
+          setMeta(file?.content ? parseFrontmatter(file.content) : {});
+        }
       } catch {
         if (!cancelled) setMeta({});
       } finally {
         if (!cancelled) setLoaded(true);
       }
     })();
+    return () => { cancelled = true; };
   }, [path]);
 
   if (!loaded) return null;
 
   const isEmpty = !meta || Object.keys(meta).length === 0 || meta.pnl_30d_pct === undefined;
-  const linkPath = `/context?path=${encodeURIComponent(path)}`;
+  const linkPath = `/files?path=${encodeURIComponent(path)}`;
 
   if (isEmpty) {
     return (
-      <Link
-        href={linkPath}
-        className="block rounded-lg border border-dashed border-border bg-muted/20 p-4 text-xs text-muted-foreground hover:bg-muted/30"
+      <section
+        aria-label="Money truth"
+        className="rounded-lg border border-dashed border-border bg-muted/20 p-5"
       >
-        <div className="mb-1 flex items-center gap-2 font-medium text-foreground/70">
+        <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
           <Minus className="h-3.5 w-3.5" />
           Money truth
         </div>
-        <p>No performance data yet. Refreshes when your tracking + reporting tasks have run at least once.</p>
-      </Link>
+        <p className="text-sm text-muted-foreground">
+          No performance data yet.{' '}
+          <Link
+            href="/work"
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+          >
+            Run a tracking task
+          </Link>{' '}
+          to begin accumulation.
+        </p>
+      </section>
     );
   }
 
@@ -113,21 +132,24 @@ export function MoneyTruthTile({ source }: MoneyTruthTileProps) {
   const PnlIcon = pnlPositive ? TrendingUp : TrendingDown;
 
   return (
-    <Link
-      href={linkPath}
-      className="block rounded-lg border border-border bg-card p-4 hover:border-foreground/20"
+    <section
+      aria-label="Money truth"
+      className="rounded-lg border border-border bg-card p-5"
     >
-      <div className="mb-3 flex items-center justify-between text-xs">
+      <div className="mb-4 flex items-center justify-between text-xs">
         <span className="font-medium uppercase tracking-wide text-muted-foreground/70">
           Money truth
         </span>
         {meta.generated_at && (
-          <span className="text-muted-foreground/50">
-            as of {formatGeneratedAt(meta.generated_at)}
-          </span>
+          <Link
+            href={linkPath}
+            className="text-muted-foreground/60 underline-offset-4 hover:text-foreground hover:underline"
+          >
+            last reconciled {formatGeneratedAt(meta.generated_at)}
+          </Link>
         )}
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-6">
         <Stat
           label="P&L (30d)"
           value={`${pnlPositive ? '+' : ''}${pnl.toFixed(1)}%`}
@@ -148,7 +170,7 @@ export function MoneyTruthTile({ source }: MoneyTruthTileProps) {
           color="text-foreground"
         />
       </div>
-    </Link>
+    </section>
   );
 }
 
@@ -166,12 +188,12 @@ function Stat({
       <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
         {label}
       </div>
-      <div className={`mt-0.5 flex items-baseline gap-1 text-lg font-semibold ${color}`}>
-        {Icon && <Icon className="h-3.5 w-3.5" />}
+      <div className={`mt-1 flex items-baseline gap-1 text-2xl font-semibold ${color}`}>
+        {Icon && <Icon className="h-4 w-4" />}
         <span>{value}</span>
       </div>
       {target && (
-        <div className="text-[10px] text-muted-foreground/60">{target}</div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground/70">{target}</div>
       )}
     </div>
   );

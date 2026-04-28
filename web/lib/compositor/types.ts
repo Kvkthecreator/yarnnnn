@@ -94,12 +94,15 @@ export interface TabListBlock {
   default_collapsed?: boolean;
   reviewer?: { principles_default?: string };
   /**
-   * Optional cockpit pane sequence per ADR-225 Phase 3. When present on
-   * `tabs.work.list`, replaces the kernel-default cockpit composition
-   * (NeedsMe → Snapshot → SinceLastLook → Intelligence). When absent,
-   * kernel defaults from `kernel-defaults.ts` render.
+   * Bundle-supplied cockpit overrides per ADR-228. The cockpit renders
+   * four faces (Mandate · Money truth · Performance · Tracking); this
+   * block declares per-face bindings (e.g.,
+   * `cockpit.money_truth.substrate_fallback`,
+   * `cockpit.performance.attribution_source`). Bundles cannot reorder
+   * faces or omit them; they only fill them. Schema is open by design —
+   * face components consume only the keys they understand.
    */
-  cockpit_panes?: ComponentDecl[];
+  cockpit?: Record<string, Record<string, unknown>>;
 }
 
 export interface TabDetailBlock {
