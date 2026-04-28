@@ -12,7 +12,7 @@
     at first signup, builds up with the loop).
 
     This script paper-overs nothing architectural; it pre-populates demo
-    surfaces. Use scaffold_trader.py + connect.py for real persona setup.
+    surfaces. Use activate_persona.py (ADR-230) for real persona setup.
 
 Path B (substrate-only) per user authorization 2026-04-28. Inserts workspace_files
 that drive the SnapshotPane, PerformanceSnapshot, TradingPortfolioMetadata,

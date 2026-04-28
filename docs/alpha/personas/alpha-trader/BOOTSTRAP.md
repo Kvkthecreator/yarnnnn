@@ -5,7 +5,8 @@ status: ops runbook (NOT an ADR)
 related:
   - docs/alpha/ALPHA-1-PLAYBOOK.md (Alpha-1 governance + operating protocol — kvk operator role)
   - docs/alpha/E2E-EXECUTION-CONTRACT.md (E2E test contract for the framework loop)
-  - docs/alpha/personas/alpha-trader/MANDATE.md (kvk's persona-canonical mandate)
+  - docs/programs/alpha-trader/reference-workspace/context/_shared/MANDATE.md (program-canonical mandate template — ADR-230 D2 single source)
+  - docs/alpha/personas/alpha-trader-2/overrides/ (kvk's persona-specific overrides per ADR-230 D6 when authored)
   - docs/programs/alpha-trader/README.md (program-layer spec — what alpha-trader IS)
   - docs/adr/ADR-226-reference-workspace-activation-flow.md (universal OS activation flow — what this runbook is NOT)
   - docs/adr/ADR-187-trading-integration.md (alpaca + alpha vantage wiring)
@@ -90,7 +91,7 @@ For kvk's paper trading dogfooding:
 
 | Arrow | Substrate | kvk action | Status |
 |---|---|---|---|
-| Mandate | `/workspace/context/_shared/MANDATE.md` | Author edge hypothesis, primary action, success criteria | ✅ Authored at `docs/alpha/personas/alpha-trader/MANDATE.md` (paste-ready into UpdateContext) |
+| Mandate | `/workspace/context/_shared/MANDATE.md` | Author edge hypothesis, primary action, success criteria | ✅ Bundle template at `docs/programs/alpha-trader/reference-workspace/context/_shared/MANDATE.md` (forked into operator workspace by ADR-226 activation; persona-specific override goes in `docs/alpha/personas/alpha-trader-2/overrides/` per ADR-230 D6) |
 | Rules — Profile | `/workspace/context/trading/_operator_profile.md` | Author 5-8 declared signals with measured edge | ⚠️ Persona-canonical content needed; not yet in repo |
 | Rules — Risk | `/workspace/context/trading/_risk.md` | Author position-sizing formula, var budget, sector limits, regime scalar | ⚠️ Persona-canonical content needed |
 | Rules — Reviewer | `/workspace/review/principles.md` | Author hard rejection rules + capital-EV thresholds | ⚠️ Reference template exists in alpha-trader bundle; needs kvk's tuning |
@@ -118,17 +119,21 @@ Before authoring, confirm the workspace is in the post-fork state ADR-226 produc
 
 If any item fails, fix before continuing — ADR-226 forking is the precondition for this bootstrap. If activation hasn't run for kvk's existing workspace, run it (one-shot manual fork via the activation primitive, or re-init through the onboarding flow).
 
-### Step 2 — Author MANDATE.md from the persona-canonical source
+### Step 2 — Author MANDATE.md (post-ADR-230 path)
 
-The persona-canonical mandate already exists at `docs/alpha/personas/alpha-trader/MANDATE.md`. Paste it verbatim into kvk's workspace via YARNNN chat:
+ADR-230 D5 unified the activation surface. Two ways to populate kvk's MANDATE.md:
+
+**Option A (canonical, ADR-230 D6)**: author kvk's stat-arb mandate as a persona-specific override at `docs/alpha/personas/alpha-trader-2/overrides/context/_shared/MANDATE.md`, then run:
 
 ```
-@yarnnn — paste this verbatim into /workspace/context/_shared/MANDATE.md via UpdateContext(target="mandate"):
-
-[contents of docs/alpha/personas/alpha-trader/MANDATE.md, excluding the HTML comment header]
+.venv/bin/python api/scripts/alpha_ops/activate_persona.py --persona alpha-trader-2
 ```
 
-YARNNN routes through `UpdateContext`; ADR-209 captures the revision with `authored_by="operator"` (kvk-attributed via the chat session).
+The activate harness forks the bundle template (Step 3 of D5) and applies the override (Step 4 of D5) with `authored_by="operator:alpha-alpha-trader-2"` per ADR-209.
+
+**Option B (chat-driven)**: paste content into YARNNN chat: `@yarnnn — store this as my workspace mandate: [paste]`. YARNNN routes through `UpdateContext`; ADR-209 captures the revision with `authored_by="operator"`.
+
+Either way the workspace ends up with the right MANDATE.md content. Option A is the single-canonical-path per ADR-230; Option B is the operator-driven equivalent for ad-hoc edits after activation.
 
 **Verification:** `MANDATE.md` no longer contains the bundle's "operator-author-here" prompts; instead contains the canonical alpha-trader mandate (Primary Action, Success Criteria, Daily Discipline, Outcome Signal sections). The `ManageTask(create)` hard gate per ADR-207 P2 now passes.
 

@@ -13,9 +13,10 @@ and the ADR-227 dispatcher never merges platform tools into the agent's
 tool surface for those tasks.
 
 This script reads the canonical capability declarations from
-api/scripts/alpha_ops/scaffold_trader.py:TASKS (the source of truth for
-alpha-trader scaffolding) and writes them into the existing TASK.md files
-via the authored substrate (ADR-209) with attribution.
+docs/programs/alpha-trader/tasks.yaml (the program-default task instances
+per ADR-230 D2; the previous scaffold_trader.py:TASKS source was deleted
+by ADR-230 D5) and writes them into the existing TASK.md files via the
+authored substrate (ADR-209) with attribution.
 
 Usage
 -----

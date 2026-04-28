@@ -10,7 +10,7 @@
     accumulates from invocations, not from fabrication.
 
     This script does NOT close architectural init gaps — those live in
-    scaffold_trader.py + connect.py. This is purely a cockpit-visual demo
+    activate_persona.py (ADR-230). This is purely a cockpit-visual demo
     seed for one persona, preserved as historical artifact.
 
 USER-AUTHORIZED 2026-04-28 (Path A) — fabricates narrative session_messages,
