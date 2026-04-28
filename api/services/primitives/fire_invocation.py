@@ -170,41 +170,16 @@ async def handle_fire_invocation(auth: Any, input: dict) -> dict:
             ),
         }
 
-    # ---- Phase 2 dispatch shim ----
-    # Route through the existing task pipeline using the slug as the tasks-row
-    # identifier. This works during the migration window while every recurrence
-    # declaration also has a corresponding tasks row. The Phase 3 atomic cutover
-    # replaces this with `invocation_dispatcher.execute_invocation(target_decl)`.
-    try:
-        from services.task_pipeline import execute_task
-    except ImportError as e:
-        return {
-            "success": False,
-            "error": "dispatcher_unavailable",
-            "message": f"task pipeline unavailable: {e}",
-        }
+    # ---- Route through invocation_dispatcher ----
+    # The dispatcher is the canonical Phase 2+ entry point for firing
+    # recurrences. It currently adapts to task_pipeline.execute_task internally;
+    # the Phase 3 atomic cutover replaces its body without touching this call
+    # site. Singular Implementation discipline: one dispatch surface.
+    from services.invocation_dispatcher import dispatch as _dispatch
 
-    try:
-        result = await execute_task(
-            client=auth.client,
-            user_id=auth.user_id,
-            task_slug=slug,
-            context=context,
-        )
-    except Exception as e:
-        logger.exception(f"[FIRE_INVOCATION] dispatch failed for {shape}/{slug}: {e}")
-        return {
-            "success": False,
-            "error": "dispatch_error",
-            "message": str(e),
-        }
-
-    # Normalize result shape — execute_task returns a dict; pass through with
-    # the recurrence metadata added so callers can correlate.
-    if not isinstance(result, dict):
-        result = {"success": True, "raw": result}
-    result.setdefault("success", True)
-    result["shape"] = shape
-    result["slug"] = slug
-    result["declaration_path"] = abs_path
-    return result
+    return await _dispatch(
+        client=auth.client,
+        user_id=auth.user_id,
+        decl=target_decl,
+        context=context,
+    )
