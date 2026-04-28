@@ -6,6 +6,36 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.28.3] - ADR-231 Phase 1 — Invocation-first default (TP behavioral inversion)
+
+### Changed
+- `api/agents/yarnnn_prompts/base.py::BASE_PROMPT` — "When to use tools" list reordered: leads with "Doing the work directly" (one-off invocations are the default). Added "Invocation-first default (ADR-231)" subsection in tone/style block: "Most operator requests should result in *an invocation that does the work now*, not a task creation. Tasks are persistent commitments — they accrue scheduling state, they show up on `/work`, they create operator-facing inventory. Reach for `ManageTask(action='create')` only when the operator explicitly intends recurrence or goal-bounded iteration."
+- `api/agents/yarnnn_prompts/tools_core.py::TOOLS_CORE` — new section `## Invocation-First Default (ADR-231)` inserted before `## Managing Tasks`. Encodes: (1) default behavior = gather context → do the work → return answer in chat → persist artifact to natural home → narrative entry; (2) recurrence wrapper attaches *only* on explicit recurrence intent / goal-bounded iteration / clear pattern; (3) example dispatch table covering 8 operator-says scenarios with default behavior; (4) graduation flow (inline → recurring) framed as the natural path; (5) "when in doubt, fire the invocation, write to filesystem, then ask if recurring" rule.
+- `api/agents/yarnnn_prompts/workspace.py::WORKSPACE_BEHAVIORS` — three changes: (a) new section `## Default: Invocation, Not Task (ADR-231)` inserted before "Team Composition", short version of tools_core guidance + decision rule + output destination matrix; (b) renamed `## Creating Tasks (primary flow)` → `## Creating Recurring Tasks (Recurrence Graduation)` with preamble: "Reach this section only after confirming recurrence or goal-bounded iteration intent... Otherwise, fire the invocation directly and skip everything below"; (c) rewrote `## Conversation vs Generation Boundary` → `## Conversation, Invocation, and Recurrence` with revised DO/DON'T lists matching invocation-first framing — DO leads with "Fire invocations directly for one-off work", DON'T leads with "Default to creating a task for any work request — fire the invocation instead."
+
+### Expected behavior
+- **One-off operator requests fire invocations directly.** Operator says "research Acme Corp's funding" / "give me a competitive teardown" / "draft a board deck for Tuesday" → TP gathers context, produces the work in chat (or persists to `/workspace/reports/...` for substantial deliverables), narrates, done. No task scaffolded. No `/tasks/{slug}/` directory created. No scheduling state accrued.
+- **Tasks created only on explicit recurrence/goal intent.** Operator says "weekly competitive brief" / "track our competitors going forward" / "do that every morning" (graduation from prior invocation) → TP scaffolds via `ManageTask(action="create")` with appropriate mode/schedule.
+- **Resolves the alpha-trader E2E "fragmented tasks" symptom** discoursed in ADR-231 §Context: Phase 1 changes how TP defaults; Phases 2–5 will dissolve the substrate the old defaults produced (`/tasks/{slug}/` filesystem, `tasks` DB heavy columns, `ManageTask` primitive itself).
+
+### Validation (3 operator scenarios, walked mentally)
+- **Scenario 1** (alpha-trader operator: "Add a daily market scan covering S&P sectors") — TP under new prompts: checks `/workspace/context/market/`, writes/updates `_recurring.yaml` via `UpdateContext`, narrative entry. **No spurious task created** if operator's intent is pure recurrence (Phase 2 ships YAML support; in Phase 1, falls back to `ManageTask(create)` since YAML dispatcher not yet built — but framing is correct).
+- **Scenario 2** ("Give me a competitive teardown of Anthropic", no mandate) — TP under new prompts: fires WebSearch + ReadFile, drafts in chat, optionally persists to `/workspace/reports/teardown-anthropic-{date}.md`. **No task created.** Closer to Claude Code mental model.
+- **Scenario 3** ("Pause my weekly market report for 2 weeks") — TP under new prompts: locates the existing recurring task, calls `ManageTask(action="pause")` (existing flow). **Behavior unchanged for already-recurring tasks.**
+
+### Caveats / Phase boundaries
+- Phase 1 scope = prompt-only behavioral inversion. The actual filesystem reshape (`/tasks/{slug}/` dissolution, YAML recurrence declarations, `ManageTask` deletion, `tasks` table schema change) lands in Phases 2–3 per ADR-231.
+- Phase 1 does NOT delete `tools.py` and `behaviors.py` (orphaned legacy in `yarnnn_prompts/`, zero imports). They are dead code unrelated to the behavioral inversion; cleanup deferred to a follow-on hygiene commit.
+- Persona-language drift in `base.py:55` ("You are an Agent in the strict sense...") is OUT OF SCOPE for ADR-231 Phase 1. That work is reserved for ADR-232 (chat-as-plumbing, Reviewer→Thinking Partner reframing) per session sequencing decision.
+
+### Future work
+- Phase 2: dispatcher accepts YAML recurrence declarations alongside `tasks` table (dual-source, time-bounded).
+- Phase 3: `/tasks/{slug}/` filesystem dissolution + `tasks` table column drops + `ManageTask` deletion + `task_pipeline.py` rewrite (~3,000 LOC deletion).
+- Phase 4: frontend `/work` reshape per ADR-231 D7 (filter-over-narrative + recurrence-list).
+- Phase 5: doc/ADR amendment sync.
+
+---
+
 ## [2026.04.28.2] - ADR-229 — Judgment-first dispatch + generative defer + universal narrative coverage
 
 ### Changed
