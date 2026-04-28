@@ -173,3 +173,111 @@ ADR-XXX: Task-Level Capability Augmentation. Codifies the fix above
 serves both as a gate AND as a tool-surface augmentation. Ratifies
 the architectural promise that "TASK.md is dispatch-authoritative"
 applies uniformly to gating + tool resolution.
+
+---
+
+## Update — 2026-04-28 03:14 UTC: ADR-227 was already shipped — the Pydantic-drop was the real load-bearing defect
+
+ADR-227 (commit 7690f6b) had already landed at 2026-04-28 08:42 KST
+(23:42 UTC 04-27). The dispatcher merge code was correct. But re-triggering
+track-universe twice on seulkim88 today still produced 16-17 WebSearch
+calls and zero `platform_trading_get_market_data` calls. Two upstream
+defects layered between the dispatcher and the agent's tool surface:
+
+### Defect 1 — AGENT.md staleness
+
+`agent_creation.py:175` seeds AGENT.md from `default_instructions` exactly
+once at agent-creation time. seulkim88's Tracker row was created
+2026-04-27 06:49 UTC — *before* ADR-227 added the "Source Priority" block
+to the Tracker template. The ADR-227 prompt update never reached this
+agent. seulkim88's Tracker AGENT.md was 426 chars; current template is
+1355 chars.
+
+Fixed via one-shot reconciliation: `api/scripts/alpha_ops/resync_agents.py`
+detects drift between AGENT_TEMPLATES.<role>.default_instructions and the
+current AGENT.md, re-writes via authored substrate (ADR-209) with
+`authored_by="system:agent-resync"`. Applied to seulkim88's Tracker.
+
+Drift was Tracker-only — Analyst, Writer, thinking_partner all matched
+their templates. So the surface is bounded by what's been edited recently
+(ADR-227 only touched Tracker).
+
+### Defect 2 — Pydantic field drop on POST /api/tasks (the load-bearing one)
+
+After re-sync, the next track-universe still produced 16 WebSearch calls
+and zero platform tool calls. The new prompt was in AGENT.md, but the
+agent's *tool surface* didn't contain `platform_trading_get_market_data`.
+
+Inspection of seulkim88's TASK.md files revealed: **all 6 trader tasks
+were missing the `**Required Capabilities:**` field.** scaffold_trader.py
+correctly POSTs `required_capabilities: ["read_trading"]`, but
+`api/routes/tasks.py:TaskCreate` (Pydantic model) didn't declare
+`required_capabilities` as a field. Pydantic silently strips unknown
+fields. The value was dropped before it reached `_handle_create`, and
+TASK.md was serialized without the field. The ADR-227 dispatcher gate at
+[task_pipeline.py:1845](../../api/services/task_pipeline.py#L1845)
+never fired, the platform tool merge never happened, and the Tracker's
+effective tool surface was the universal-role default — `read_workspace`,
+`search_knowledge`, `read_slack`, `read_notion`, `read_github`,
+`web_search`, `investigate`, `produce_markdown` — but no `read_trading`.
+
+The Tracker's prompt could not recover from a tool surface that didn't
+include the platform tool. It correctly recognized the prompt was telling
+it to use platform tools (the new "Source Priority" guidance) but had no
+such tool to call, so it fell back to WebSearch.
+
+Fixed in commit fa660f7:
+1. `api/routes/tasks.py`: declare `required_capabilities` on TaskCreate
+2. `api/scripts/alpha_ops/backfill_required_capabilities.py`: one-shot
+   TASK.md backfill via authored substrate for tasks created before the
+   API fix landed. Inserts the field after the last `**Field:**` header
+   line. Idempotent.
+
+### Validation
+
+Post-backfill re-trigger of track-universe (03:12 UTC):
+- **Tools used: `platform_trading_get_market_data` (5)**
+- **Zero WebSearch calls**
+- 5 tickers fetched with live data, indicators computed
+- 77s, 1 tool round (parallel batched calls)
+- Output is coherent, not truncated mid-loop
+
+This is the first track-universe run on seulkim88 that exercises the
+intended ADR-227 path end-to-end.
+
+### Remaining defect: tool round budget calibration
+
+The agent fetched 5 of 15 universe tickers before hitting round limit.
+This is not a steering issue (tool selection is now correct); it's a
+budget mismatch — `accumulates_context` over 15 entities needs more
+rounds than the universal `cross_platform` budget of 8 (16 in bootstrap).
+
+Either:
+- Pipeline-side: scale budget with universe size for accumulates_context
+  tasks
+- Prompt-side: explicit pacing in the task instruction ("budget 1-2 calls
+  per ticker; if you can't cover the universe, write a partial state and
+  flag remaining tickers")
+
+Deferred to next session.
+
+### Lesson — symptom altitude vs root-cause altitude
+
+The 2026-04-26 paper-loop log identified A1 ("Domain-authored files not
+auto-injected") as the highest-leverage gap. That fix was upstream of the
+Tracker run path — and it correctly led to ADR-220 (authored substrate in
+directory registry). The 2026-04-28 first-half observation identified the
+"prompt steers toward WebSearch" symptom and proposed prompt fixes
+(ADR-227's Source Priority block). Both fixes were correct at their
+altitudes. Neither was the load-bearing one.
+
+The load-bearing fix was a **route-layer Pydantic schema drop** — invisible
+from the agent's perspective, invisible from the substrate's perspective,
+visible only by tracing why a `**Required Capabilities:**` field was
+absent from a TASK.md that the script clearly POSTed it for.
+
+The audit pattern that surfaced it: don't trust the layer where the
+symptom appears. Trace the data path from operator intent
+(scaffold_trader.py declares `read_trading`) to runtime result (TASK.md
+has no field). The drop was at the API boundary, two layers upstream of
+the symptom.
