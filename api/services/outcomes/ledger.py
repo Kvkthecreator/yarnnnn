@@ -91,8 +91,42 @@ async def fold_outcome_candidates(
 
     Returns a count breakdown:
       {"appended": int, "skipped_duplicate": int, "skipped_invalid": int}
+
+    First-run empty-stub policy (ADR-228 cockpit substrate audit
+    follow-up, 2026-04-28): when `candidates` is empty AND no
+    `_performance.md` exists for this domain yet, we still write an
+    empty stub via `_init_performance + _render_performance_file +
+    _upsert_performance_file`. The file exists from first task
+    execution onward with `reconciled_event_count: 0` frontmatter,
+    so the cockpit's `PerformanceFace` (ADR-228) can distinguish
+    "task ran, no outcomes yet" (file exists, empty body) from
+    "task hasn't run yet" (file 404). Without this, an alpha-trader
+    workspace in paper-only no-fills state has no `_performance.md`
+    even after the back-office task has run dozens of times — making
+    the 404 ambiguous between "too early" and "writer broken." The
+    empty stub closes that ambiguity.
     """
     if not candidates:
+        # Empty-stub-on-first-run: ensure `_performance.md` exists so
+        # downstream cockpit reads see "no outcomes yet" instead of 404.
+        existing = await _read_performance_file(client, user_id, provider.context_domain)
+        if existing is None:
+            stub = _init_performance(provider.context_domain)
+            rendered = _render_performance_file(stub)
+            ok = await _upsert_performance_file(
+                client, user_id, provider.context_domain, rendered,
+            )
+            if ok:
+                logger.info(
+                    "[OUTCOMES] %s: user=%s domain=%s — wrote empty _performance.md "
+                    "stub on first run (no candidates)",
+                    provider.provider_name, user_id[:8], provider.context_domain,
+                )
+            else:
+                logger.warning(
+                    "[OUTCOMES] %s: user=%s domain=%s — empty stub upsert failed",
+                    provider.provider_name, user_id[:8], provider.context_domain,
+                )
         return {"appended": 0, "skipped_duplicate": 0, "skipped_invalid": 0}
 
     key_path = provider.idempotency_key_path
