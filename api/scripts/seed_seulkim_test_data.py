@@ -1,5 +1,18 @@
 """One-shot test data seeder for seulkim88 workspace cockpit visual validation.
 
+⚠️  DO NOT RE-RUN — one-shot fabrication for ONE persona (seulkim88
+    alpha-trader-1) on 2026-04-28. Re-running will duplicate session_messages
+    (no natural unique key beyond auto-advancing sequence_number). The
+    workspace_files writes are idempotent but the synthetic narrative is not.
+
+    For new personas (alpha-trader-2 etc.), DO NOT use this script. Let
+    YARNNN write real session_messages from real chat turns. Substrate
+    accumulates from invocations, not from fabrication.
+
+    This script does NOT close architectural init gaps — those live in
+    scaffold_trader.py + connect.py. This is purely a cockpit-visual demo
+    seed for one persona, preserved as historical artifact.
+
 USER-AUTHORIZED 2026-04-28 (Path A) — fabricates narrative session_messages,
 reviewer verdict, and agent task-completion entries on a real production
 workspace for FE validation purposes only.

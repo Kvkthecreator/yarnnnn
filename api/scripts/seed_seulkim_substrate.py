@@ -1,5 +1,19 @@
 """Substrate-only test data seeder for seulkim88 workspace cockpit visual validation.
 
+⚠️  DO NOT RE-RUN — one-shot cockpit-visual seed for ONE persona (seulkim88
+    alpha-trader-1) on 2026-04-28. The fabricated values (revenue, positions,
+    performance) are NOT real reconciler output and will be OVERWRITTEN by
+    the next legitimate back-office-outcome-reconciliation run.
+
+    For new personas (alpha-trader-2 etc.), DO NOT use this script. Let the
+    autonomous loop produce real substrate from real runs. The cockpit will
+    show empty-state until reconciler/maintain-overview deliver real content
+    — that empty state is correct per ADR-206 (workspace structurally empty
+    at first signup, builds up with the loop).
+
+    This script paper-overs nothing architectural; it pre-populates demo
+    surfaces. Use scaffold_trader.py + connect.py for real persona setup.
+
 Path B (substrate-only) per user authorization 2026-04-28. Inserts workspace_files
 that drive the SnapshotPane, PerformanceSnapshot, TradingPortfolioMetadata,
 and IntelligenceCard renderers. Does NOT fabricate session_messages (no

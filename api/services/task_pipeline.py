@@ -3142,6 +3142,33 @@ _TOOL_ROUNDS = {
 # Phase affects depth (tool rounds), not frequency (schedule).
 _BOOTSTRAP_ROUND_MULTIPLIER = 2  # 2x rounds during bootstrap
 
+# Output-kind → max output tokens per LLM round.
+#
+# accumulates_context tasks fan out across many entities (e.g. 15-ticker
+# universe sweep, multi-channel slack digest), each emitting a small structured
+# write. With 4K tokens the agent runs out mid-narrative and the run terminates
+# before WriteFile calls execute — observed on alpha-trader-1 track-universe
+# 2026-04-28: agent computed indicators for all 5 fetched tickers but never
+# emitted file writes because narrative consumed the budget first.
+#
+# produces_deliverable tasks synthesize a single coherent document; 4K is a
+# correct ceiling there — more would invite filler.
+#
+# external_action and system_maintenance match produces_deliverable (single
+# focused output, not fan-out).
+_MAX_OUTPUT_TOKENS = {
+    "accumulates_context": 8000,
+    "produces_deliverable": 4000,
+    "external_action": 4000,
+    "system_maintenance": 4000,
+}
+_DEFAULT_MAX_OUTPUT_TOKENS = 4000
+
+
+def _resolve_max_output_tokens(output_kind: str) -> int:
+    """Per-output-kind cap on Sonnet output tokens per round."""
+    return _MAX_OUTPUT_TOKENS.get(output_kind, _DEFAULT_MAX_OUTPUT_TOKENS)
+
 
 async def _generate(
     client,
@@ -3253,6 +3280,10 @@ async def _generate(
     # faster. produces_deliverable tasks synthesize across results so 3 gives richer context.
     _microcompact_keep = 2 if output_kind == "accumulates_context" else 3
 
+    # Output-token budget per round — accumulates_context fan-out needs ~8K to
+    # avoid mid-narrative termination before WriteFile calls execute.
+    _max_output_tokens = _resolve_max_output_tokens(output_kind)
+
     for round_num in range(max_tool_rounds + 1):
         # Microcompact: clear old tool results from history before each call.
         # Without this, 13 rounds of WebSearch accumulate geometrically —
@@ -3267,7 +3298,7 @@ async def _generate(
             system=system_prompt,
             tools=headless_tools,
             model=SONNET_MODEL,
-            max_tokens=4000,
+            max_tokens=_max_output_tokens,
         )
 
         if response.usage:
@@ -3298,7 +3329,7 @@ async def _generate(
                 system=system_prompt,
                 tools=[],
                 model=SONNET_MODEL,
-                max_tokens=4000,
+                max_tokens=_max_output_tokens,
             )
             if final_response.usage:
                 total_input_tokens += _total_input_tokens(final_response.usage)
@@ -3354,7 +3385,7 @@ async def _generate(
             "Your output was too short. Produce the full content in the requested format now."
         )})
         retry_response = await chat_completion_with_tools(
-            messages=messages, system=system_prompt, tools=[], model=SONNET_MODEL, max_tokens=4000,
+            messages=messages, system=system_prompt, tools=[], model=SONNET_MODEL, max_tokens=_max_output_tokens,
         )
         if retry_response.usage:
             total_input_tokens += _total_input_tokens(retry_response.usage)
