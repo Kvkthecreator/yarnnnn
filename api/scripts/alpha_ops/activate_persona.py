@@ -105,6 +105,12 @@ async def _apply_overrides(persona: Persona) -> list[str]:
     written: list[str] = []
     for src in sorted(overrides_dir.rglob("*.md")):
         relative = src.relative_to(overrides_dir).as_posix()
+        # Skip the overrides directory's own README — it's documentation
+        # about which files differ + why, not an operator workspace
+        # substrate file. Same convention as _fork_reference_workspace
+        # which skips the bundle's reference-workspace/README.md.
+        if relative == "README.md":
+            continue
         # Per ADR-230 D6, operator overrides land in the same paths as
         # bundle templates — overrides replace template content. Path
         # is relative to /workspace/ (UserMemory convention).
