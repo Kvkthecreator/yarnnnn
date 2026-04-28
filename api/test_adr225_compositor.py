@@ -158,19 +158,29 @@ def test_phase_overlay_banner_applied_to_observation():
     assert "Paper-only" in banner
 
 
-def test_alpha_trader_detail_middles_surface():
-    """The bundle's task-detail middles are surfaced — portfolio-review
-    declares a dashboard middle, trading-signal declares a queue middle."""
+def test_alpha_trader_cockpit_block_surfaces():
+    """ADR-228: bundles fill the cockpit via `tabs.work.list.cockpit` per-face
+    bindings. alpha-trader declares money_truth + performance bindings
+    pointing at the portfolio domain. (The pre-ADR-228 detail-middle
+    assertions were deleted along with the detail middles — bundle-shaped
+    specifics for trading live inside the four cockpit faces, not in
+    detail-mode middles. /work detail falls through to kernel-default
+    DeliverableMiddle for portfolio-review and trading-signal.)"""
     _bust_caches()
     from services.composition_resolver import resolve_workspace_composition
     client = _StubClient(platform_connections_rows=[
         {"platform": "trading", "status": "active", "created_at": "2026-04-01T00:00:00Z"},
     ])
     result = resolve_workspace_composition("user-trader", client)
-    middles = result["composition"]["tabs"]["work"]["detail"]["middles"]
-    matches = {(m.get("match", {}).get("task_slug"), m.get("archetype")) for m in middles}
-    assert ("portfolio-review", "dashboard") in matches
-    assert ("trading-signal", "queue") in matches
+    cockpit = result["composition"]["tabs"]["work"]["list"].get("cockpit") or {}
+    assert "money_truth" in cockpit
+    assert cockpit["money_truth"].get("substrate_fallback") == "/workspace/context/portfolio/_performance.md"
+    assert "performance" in cockpit
+    assert cockpit["performance"].get("attribution_source") == "/workspace/context/portfolio/_performance.md"
+    # Detail middles intentionally absent (ADR-228) — kernel default handles detail.
+    assert "detail" not in result["composition"]["tabs"]["work"] or not (
+        result["composition"]["tabs"]["work"].get("detail", {}).get("middles")
+    )
 
 
 # =============================================================================

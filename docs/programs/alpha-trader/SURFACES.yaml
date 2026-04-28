@@ -36,47 +36,18 @@ tabs:
         performance:
           attribution_source: /workspace/context/portfolio/_performance.md
 
-    detail:
-      middles:
-        # ADR-228 note: portfolio-review and trading-signal detail
-        # middles still reference component names that were used by
-        # the cockpit (PerformanceSnapshot, PositionsTable, etc.).
-        # Those component files were deleted in ADR-228 Commit 1.
-        # Detail-mode rendering for these tasks renders the registry's
-        # "component not registered" amber warning until ADR-228
-        # Commit 4 ships the bundle-aware operational state components
-        # that replace them. Cockpit and detail-middle wiring are
-        # orthogonal — the cockpit four-face render is fully green.
-        - match: { task_slug: portfolio-review }
-          archetype: dashboard
-          bindings:
-            performance: /workspace/context/portfolio/_performance.md
-            positions: /workspace/context/portfolio/_positions.md
-            risk: /workspace/context/portfolio/_risk_state.md
-          components:
-            - kind: PerformanceSnapshot
-              source: performance
-            - kind: PositionsTable
-              source: positions
-            - kind: RiskBudgetGauge
-              source: risk
-          chrome:
-            metadata:
-              kind: TradingPortfolioMetadata
-              source: performance
-            actions:
-              - kind: KernelDeliverableActions
-
-        - match: { task_slug: trading-signal }
-          archetype: queue
-          bindings:
-            proposals: /action_proposals
-          components:
-            - kind: TradingProposalQueue
-              source: proposals
-              filters:
-                proposal_type: trading
-                status: pending
+    # No detail middles. Per ADR-228 the bundle-shaped specifics for
+    # alpha-trader (positions, risk gauge, performance attribution,
+    # proposal queue) live inside the cockpit's four faces — that is
+    # where the operator runs the operation. /work detail mode is
+    # forensics: "show me the latest output" — kernel-default
+    # DeliverableMiddle handles that for portfolio-review and
+    # trading-signal the same as every other produces_deliverable task.
+    #
+    # If the operator wants the rich Alpaca-shaped read (live equity,
+    # buying power, day P&L, open positions), the cockpit's MoneyTruth
+    # face (Commit 3) and Tracking face's operational state region
+    # (Commit 4) are the surface for it.
 
   agents:
     list:

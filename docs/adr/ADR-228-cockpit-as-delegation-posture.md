@@ -1,6 +1,9 @@
 # ADR-228: Cockpit as Operation — Four Faces of an Operating Workspace
 
-> **Status:** **Commit 1 Implemented 2026-04-28** — four-face component scaffolds + kernel cockpit replacement + eleven legacy components deleted + alpha-trader `SURFACES.yaml` migrated to `cockpit:` block. Commits 2-5 (`MoneyTruth` platform-live binding, `PerformanceFace` sub-metrics, `TrackingFace` operational-state bundle wiring, final doc sync) deferred to subsequent sessions.
+> **Status:** **Commit 1 + 2 Implemented 2026-04-28**.
+> Commit 1: four-face component scaffolds + kernel cockpit replacement + eleven legacy components deleted + alpha-trader `SURFACES.yaml` migrated to `cockpit:` block.
+> Commit 2: trader detail middles removed from `SURFACES.yaml`. The bundle-shaped specifics for trader (positions, risk, performance attribution, proposal queue) live inside the cockpit's four faces — that is where the operator runs the operation. /work detail mode is forensics ("show me the latest output"); kernel-default `DeliverableMiddle` handles `portfolio-review` and `trading-signal` the same as every other `produces_deliverable` task.
+> Commits 3-5 (`MoneyTruth` platform-live binding via `/api/cockpit/money-truth/{user_id}`, `PerformanceFace` sub-metrics, `TrackingFace` operational-state bundle wiring, final doc sync) deferred to subsequent sessions.
 > **Authors:** KVK, Claude
 > **Supersedes:** ADR-225 cockpit composition — `KERNEL_DEFAULT_COCKPIT_PANES` flat sequence, the six-question pane registry, the assumption that the cockpit is a stack of axis-shaped panes.
 > **Depends on:** ADR-217 (AUTONOMY.md), ADR-207 (MANDATE.md), ADR-194 v2 (Reviewer), ADR-195 v2 (money-truth substrate), ADR-187 (trading platform integration), ADR-219 (narrative substrate), ADR-209 (authored substrate), ADR-222 (OS framing — bundle-shaped surfaces)
