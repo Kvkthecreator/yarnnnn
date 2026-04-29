@@ -7,12 +7,18 @@ import { Suspense } from "react";
 import { getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
 import { api } from "@/lib/api/client";
+import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 
 function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
   const [status, setStatus] = useState("Completing sign in...");
+  // ADR-240: when the operator hasn't picked a program yet
+  // (activation_state==='none' && !active_program_slug), mount the
+  // OnboardingModal before redirecting. The modal calls onComplete
+  // which triggers the redirect we'd otherwise do immediately.
+  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -49,13 +55,23 @@ function CallbackHandler() {
         // Production roles + platform integrations are orchestration
         // capability bundles (not Agents) — production-role rows are
         // lazy-created on first dispatch; platform integrations activate
-        // on OAuth connect. Both new and returning users land on /chat —
-        // when identity is empty, YARNNN starts the onboarding conversation
-        // directly per ADR-190 (no modal, no marker, ADR-215 Phase 5).
+        // on OAuth connect.
+        //
+        // ADR-240: if landing on HOME_ROUTE for the first time (operator
+        // hasn't picked a program yet), mount the OnboardingModal first.
+        // The modal owns the redirect via onComplete. If the operator
+        // already picked a program (return visit, post-skip session
+        // restore, etc.), redirect immediately as before.
         if (next === HOME_ROUTE) {
           try {
             setStatus("Setting up...");
-            await api.onboarding.getState(); // triggers roster scaffolding
+            const state = await api.onboarding.getState(); // triggers roster scaffolding
+            if (state.activation_state === 'none' && !state.active_program_slug) {
+              // First-time signup with no program picked → modal flow.
+              setPendingRedirect(next);
+              setStatus("Choose a program...");
+              return;
+            }
           } catch {
             // Best effort — HOME_ROUTE is the fallback anyway
           }
@@ -74,9 +90,15 @@ function CallbackHandler() {
       if (retrySession) {
         // ADR-144: Ensure roster scaffolding on retry path too.
         // ADR-163: HOME_ROUTE is now /chat — single landing for all users.
+        // ADR-240: same modal gate on the retry path.
         if (next === HOME_ROUTE) {
           try {
-            await api.onboarding.getState();
+            const state = await api.onboarding.getState();
+            if (state.activation_state === 'none' && !state.active_program_slug) {
+              setPendingRedirect(next);
+              setStatus("Choose a program...");
+              return;
+            }
           } catch {
             // Best effort — HOME_ROUTE is the fallback anyway
           }
@@ -91,6 +113,22 @@ function CallbackHandler() {
 
     handleCallback();
   }, [searchParams, router, supabase.auth]);
+
+  // ADR-240: when pendingRedirect is set, mount the OnboardingModal.
+  // onComplete fires the deferred redirect.
+  if (pendingRedirect) {
+    return (
+      <>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <h1 className="text-2xl font-brand mb-2">yarnnn</h1>
+            <p className="text-gray-600">{status}</p>
+          </div>
+        </div>
+        <OnboardingModal onComplete={() => { window.location.href = pendingRedirect; }} />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

@@ -25,7 +25,7 @@ this prompt is a versioned artifact. Changes go through api/prompts/CHANGELOG.md
 and bump the version comment below.
 """
 
-# Version: 2026.04.27.1 — initial activation overlay (ADR-226)
+# Version: 2026.04.29.1 — ADR-240 D6 capability-gap paragraph addition
 
 ACTIVATION_OVERLAY = """
 ---
@@ -127,4 +127,25 @@ authoring, platform connection coordination, etc.
 If the operator interrupts the walk to do something else, that's fine.
 Pick up next session — the workspace state signal will show MANDATE.md
 is still skeleton and this overlay will re-engage you.
+
+### Capability gap awareness (ADR-240 D6)
+
+If the activated program declares required platform capabilities (e.g.,
+alpha-trader needs `write_trading` via Alpaca), and the operator hasn't
+connected the corresponding platform yet, surface this honestly in the
+first turn — once, not repeatedly:
+
+> *"Your mandate calls for {primary_capability} but {required_platform}
+> isn't connected yet. You can keep working in knowledge mode (advisory
+> only), or open Settings to connect when ready. Either is fine —
+> autonomous execution waits on the platform connection per ADR-207."*
+
+Substitute the actual capability + platform from the mandate's
+`required_capabilities` and the bundle's activation_preconditions. Don't
+gate the activation walk on platform connection — the walk continues
+regardless. The capability gap is information, not a blocker.
+
+If the operator asks how to connect, point them at Settings →
+Connectors. Do NOT call any platform-connection primitive yourself
+(YARNNN doesn't have one; OAuth happens through the Settings UI flow).
 """

@@ -218,9 +218,16 @@ export const api = {
   // ADR-144 + ADR-235: onboarding.enrich deleted — context enrichment via
   // InferContext / InferWorkspace primitives. getState kept for roster
   // scaffolding trigger on first login.
+  // ADR-240: response shape extended with activation_state +
+  // active_program_slug so the OnboardingModal's idempotency gate can
+  // decide whether to mount.
   onboarding: {
     getState: () =>
-      request<{ has_agents: boolean }>("/api/memory/user/onboarding-state"),
+      request<{
+        has_agents: boolean;
+        activation_state: 'none' | 'post_fork_pre_author' | 'operational';
+        active_program_slug: string | null;
+      }>("/api/memory/user/onboarding-state"),
   },
 
   // ADR-133: Brand — reads/writes /workspace/BRAND.md
@@ -518,7 +525,8 @@ export const api = {
     },
   },
 
-  // ADR-225: Compositor — workspace composition surfaces
+  // ADR-225 + ADR-240: Programs — composition surfaces (ADR-225) +
+  // activation lifecycle (ADR-240 FE consumption of ADR-226 backend).
   programs: {
     getSurfaces: () => request<{
       schema_version: 1;
@@ -535,6 +543,34 @@ export const api = {
         chat_chips: string[];
       };
     }>("/api/programs/surfaces"),
+
+    // ADR-240 D1: list bundles the operator may activate at signup.
+    listActivatable: () =>
+      request<{
+        schema_version: number;
+        programs: Array<{
+          slug: string;
+          title: string;
+          tagline: string | null;
+          status: 'active' | 'deferred';
+          deferred: boolean;
+          oracle: Record<string, unknown>;
+          current_phase: string | null;
+        }>;
+      }>("/api/programs/activatable"),
+
+    // ADR-240 D1: fork the bundle's reference-workspace into the
+    // operator's workspace via the standard authored-substrate path.
+    activate: (programSlug: string) =>
+      request<{
+        schema_version: number;
+        activated_program: string;
+        files_written: string[];
+        files_skipped: string[];
+      }>("/api/programs/activate", {
+        method: "POST",
+        body: JSON.stringify({ program_slug: programSlug }),
+      }),
   },
 
   // ADR-231: Recurrences endpoints (was `tasks`; renamed in Phase 3.8)

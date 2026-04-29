@@ -96,8 +96,27 @@ class BulkImportResponse(BaseModel):
 
 
 class OnboardingStateResponse(BaseModel):
-    """ADR-138: Check if user has completed onboarding (has any agents)."""
+    """ADR-138 + ADR-240: onboarding state.
+
+    has_agents — legacy ADR-138 field; True if the user has any active agents
+        (kernel scaffolding side-effect). Used by auth callback to gate the
+        kernel-init lazy path.
+
+    activation_state — ADR-226 classifier mirrored here for the FE
+        onboarding modal's first-mount gate. Values match
+        `working_memory._classify_activation_state`:
+        'none' | 'post_fork_pre_author' | 'operational'.
+
+    active_program_slug — ADR-240 D5: durable signal that the operator
+        has picked a program at some point. Derived from bundle-template
+        marker presence in /workspace/context/_shared/MANDATE.md
+        (independent of platform connection — a fresh fork without
+        Alpaca connected still counts). Null when MANDATE.md is the
+        kernel-default placeholder (operator never picked a program).
+    """
     has_agents: bool = False
+    activation_state: str = "none"
+    active_program_slug: Optional[str] = None
 
 
 # ─── ADR-140: Onboarding state (roster scaffolding) ──
@@ -207,8 +226,62 @@ async def get_onboarding_state(request: Request, auth: UserClient):
                     # Non-fatal — workspace init succeeded, card write is best-effort
                     logger.warning(f"[SYSTEM_CARD] Failed to write workspace_init_complete: {card_err}")
 
+        # ADR-240: surface activation_state + active_program_slug for the
+        # onboarding modal's idempotency gate. Both are derived server-side
+        # from existing substrate (no new DB column, no schema change).
+        activation_state = "none"
+        active_program_slug: Optional[str] = None
+        try:
+            from services.workspace import UserMemory
+            from services.workspace_paths import SHARED_MANDATE_PATH
+            from services.working_memory import _classify_activation_state
+            from services.bundle_reader import _all_slugs
+
+            um = UserMemory(auth.client, auth.user_id)
+            mandate_content = await um.read(SHARED_MANDATE_PATH)
+
+            # _classify_activation_state needs a make_client_fn closure; the
+            # working_memory caller passes one because of test seams. Re-use
+            # the same auth.client via a thin lambda.
+            activation_state = _classify_activation_state(
+                auth.user_id,
+                mandate_content,
+                lambda: auth.client,
+            )
+
+            # active_program_slug — durable "did the operator pick a program?"
+            # signal independent of platform connection. ADR-226 forks write
+            # MANDATE.md with a heading line "# Mandate — {slug} (template)";
+            # we parse that heading and validate against the bundle registry.
+            # Kernel-default MANDATE.md heading is just "# Mandate" with no
+            # em-dash, so this branch returns None for never-picked operators.
+            if mandate_content:
+                for line in mandate_content.splitlines():
+                    stripped = line.strip()
+                    if not stripped.startswith("# "):
+                        continue
+                    # First heading is what we care about; subsequent ones
+                    # are section headers (## Primary Action, etc.).
+                    if " — " in stripped:
+                        # "# Mandate — alpha-trader (template)" → "alpha-trader"
+                        try:
+                            after = stripped.split(" — ", 1)[1]
+                            candidate = after.split()[0].strip()
+                            if candidate in _all_slugs():
+                                active_program_slug = candidate
+                        except Exception:
+                            pass
+                    break
+        except Exception as exc:
+            # Non-fatal — onboarding-state must not 500 if substrate
+            # introspection hits an edge case. The defaults ('none', None)
+            # are correct for a fresh workspace anyway.
+            logger.warning(f"[ONBOARDING_STATE] activation_state derivation failed: {exc}")
+
         return OnboardingStateResponse(
             has_agents=has_agents,
+            activation_state=activation_state,
+            active_program_slug=active_program_slug,
         )
 
     except Exception as e:

@@ -118,6 +118,9 @@ export interface DocumentListResponse {
 // Onboarding State (ADR-138: check if user has any agents)
 export interface OnboardingStateResponse {
   has_agents: boolean;
+  // ADR-240: extended for the onboarding modal's idempotency gate.
+  activation_state: 'none' | 'post_fork_pre_author' | 'operational';
+  active_program_slug: string | null;
 }
 
 // API Response types

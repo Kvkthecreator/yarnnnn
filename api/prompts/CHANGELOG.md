@@ -6,6 +6,34 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.12] - ADR-240 — Onboarding-as-activation (Round 4)
+
+### Changed
+- `api/agents/prompts/chat/activation.py` — gains a "Capability gap awareness" subsection (per ADR-240 D6) instructing YARNNN to surface platform-connection gaps once-not-repeatedly when the activated program's mandate references capabilities that aren't backed by an active platform_connection. Version comment bumped from `2026.04.27.1` to `2026.04.29.1`.
+- `api/routes/memory.py` — `OnboardingStateResponse` extended with `activation_state` (mirrors `_classify_activation_state` from working_memory.py) and `active_program_slug` (derived from MANDATE.md heading-line bundle marker). Endpoint body populates both via existing helpers; non-fatal on derivation errors. Five-line backend addition; per ADR-240 §"Implementation" the umbrella scope guard is legitimately violated for this small adapter.
+- `web/lib/api/client.ts` — `api.onboarding.getState` return type extended; `api.programs` namespace gains `listActivatable()` + `activate(slug)` alongside the existing `getSurfaces()`.
+- `web/types/index.ts` — `OnboardingStateResponse` type extended with the two new fields.
+- `web/app/auth/callback/page.tsx` — both session-establishment paths (initial + retry) check `activation_state === 'none' && !active_program_slug` and mount `<OnboardingModal>` instead of immediate redirect when true.
+
+### Added
+- `web/components/onboarding/OnboardingModal.tsx` — two-step modal. Step 1 picks a program (or skip via "Start without a program"). Step 2 surfaces the bundle's required platform connection (alpha-trader → Alpaca; alpha-commerce → Lemon Squeezy) with a connect-or-skip choice. Skip semantics are honest per ADR-240 D4.
+- `api/test_adr240_onboarding_activation.py` — Python regression gate (8/8 assertions).
+
+### Behavior
+- Fresh signup: operator sees a program-pick modal before landing in `/chat`. Active programs (`alpha-trader`) are selectable; deferred (`alpha-commerce`) render as "Coming soon" disabled. "Start without a program" is always available.
+- After picking a program: `POST /api/programs/activate` forks the bundle's reference-workspace via the standard ADR-209 attribution path. If the program declares a platform requirement, Step 2 surfaces it with a `Connect Alpaca` / `Skip for now` choice.
+- After picking + skipping platform: operator lands in `/chat` where YARNNN's activation overlay engages and surfaces the capability gap honestly per D6.
+- After skipping program entirely: kernel-default workspace, redirect to `/chat`, normal first-time onboarding overlay.
+- Idempotency: re-signing-in or session resets do NOT re-prompt — the modal mounts only when MANDATE.md is the kernel-default placeholder.
+
+### Notes
+- ADR-240 closes Round 4 of the ADR-236 frontend cockpit coherence pass. Round 5 (Tier 3 mop-up: Items 8.2, 9, 10) is the remaining work.
+- Cross-ADR regression check: 71/71 assertions across 8 gates (ADR-231 11/11, ADR-233 P1 13/13, ADR-233 P2 12/12, ADR-234 8/8, ADR-237 7/7, ADR-238 6/6, ADR-239 6/6, ADR-240 8/8) — zero regression.
+- Operator manual smoke required to validate the visual flow at fresh signup; the test gate validates structure + idempotency, not interactive behavior.
+- Out of scope (deferred per ADR-240): multi-program operator support; future ADR if pressure surfaces.
+
+---
+
 ## [2026.04.29.11] - ADR-239 — Trader cockpit coherence pass (decisions parser unified)
 
 ### Changed
