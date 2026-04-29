@@ -4,6 +4,34 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-04-29 — SURFACE-CONTRACTS v2.1: ADR-231 substrate-vocabulary alignment
+
+**Governing ADR:** [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) — Task Abstraction Sunset (FULLY IMPLEMENTED across Phases 3.2.a → 3.10).
+
+Refresh of `SURFACE-CONTRACTS.md` to align with the post-cutover substrate. Three classes of drift addressed in three commits (`b7e4fd3` Class A logic fix, `1a77459` Class B vocabulary refresh, this commit Class D doc refresh).
+
+**Files tab list-mode tree** updated per ADR-231 D2:
+- `tasks/{slug}/` directory dissolved (per ADR-231 D2 — substrate moved to natural homes).
+- New per-shape branches: `reports/{slug}/` (DELIVERABLE — `_spec.yaml` + `_run_log.md` + `_feedback.md` + `{date}/output.md`), `operations/{slug}/` (ACTION — `_action.yaml` + `_run_log.md`), `_shared/back-office.yaml` + `back-office-audit.md` (MAINTENANCE).
+- `context/{domain}/` extended to call out `_recurring.yaml` + `_feedback.md` per ADR-181/231.
+
+**Work tab** Reads section + `+` menu primitive ref + deep-links updated:
+- `tasks` table reframed as the thin scheduling index per ADR-231 D4 Path B (`next_run_at` / `last_run_at` / `paused` / `declaration_path` columns; `mode` and `essential` dropped in migration 164).
+- `+` menu primitive ref: `ManageTask(action="create")` → `UpdateContext(target='recurrence', action='create', shape=..., slug=..., body={...})` per ADR-231 D5.
+- Deep-links use natural-home paths (`/workspace/reports/{slug}/_spec.yaml`, `/workspace/operations/{slug}/_action.yaml`, etc.).
+
+**Chat tab** Writes + Deep-links + inline-to-recurrence graduation:
+- Writes through primitives list updated: `UpdateContext` + `FireInvocation` + `ManageAgent` + `ProposeAction` (ManageTask deleted in Phase 3.7).
+- Inline-to-recurrence graduation flow per ADR-219 D6 + ADR-231 D1/D5: operator's first invocation already fires; "Make this recurring" attaches a nameplate + pulse + contract via `UpdateContext(target='recurrence', action='create', ...)`. Reversible via archive.
+
+**Phase 9 entry** added to Tab-Hardening Sequence covering all three Class A/B/D commits.
+
+**Class C file renames deferred** — pure cosmetic file moves (`web/components/tasks/` → `recurrences/`, `TaskSetupModal.tsx` → `RecurrenceSetupModal.tsx`, `WorkModeBadge.tsx` → `WorkShapeBadge.tsx`, `/tasks` legacy route deletion). Defer to a quiet hygiene window once the parallel ADR-233 prompt reorg lands.
+
+Audit memo: `docs/analysis/frontend-adr231-gap-report-2026-04-29.md`.
+
+---
+
 ## 2026-04-28 — Cockpit reshape: six-question framing
 
 **Governing ADR:** [ADR-225 Cockpit reshape amendment](../adr/ADR-225-compositor-layer.md#cockpit-reshape--six-question-framing-implemented-2026-04-28).

@@ -1,9 +1,9 @@
 # Surface Contracts
 
-**Version:** v2.0 (2026-04-27 — unified compositor seam absorbed)
+**Version:** v2.1 (2026-04-29 — ADR-231 substrate-vocabulary alignment)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
-**Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
+**Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) task abstraction sunset (recurrence YAML at natural-home paths; `UpdateContext(target='recurrence')` + `FireInvocation` lifecycle) · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
 **Supersedes:** `archive/SURFACE-ARCHITECTURE.md`, `archive/SURFACE-ACTION-MAPPING.md`, `archive/SURFACE-DISPLAY-MAP.md`, `archive/SURFACE-PRIMITIVES-MAP.md`
 
 ---
@@ -69,26 +69,26 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
 
 - **Archetype:** Dashboard (primary, per ADR-198 §3) — live substrate slice, read-primary. Detail view of a file is a Document archetype when the file is a composed output.
 - **Reads:** `workspace_files` (entire filesystem), `workspace_file_versions` (revision chain per ADR-209), `workspace_blobs` indirectly via revision reads.
-- **List mode** (no `?path=`): filesystem tree grouped by ADR-152 directory registry:
-  - `_shared/` — workspace-wide authored rules (IDENTITY · BRAND · CONVENTIONS · MANDATE)
-  - `context/{domain}/` — accumulated intelligence per domain, including `_performance.md` (ADR-195) and `_tracker.md`
-  - `tasks/{slug}/` — per-task charter, DELIVERABLE, feedback, outputs, memory
+- **List mode** (no `?path=`): filesystem tree grouped by ADR-152 directory registry + ADR-231 D2 natural-home substrate:
+  - `_shared/` — workspace-wide authored rules (IDENTITY · BRAND · CONVENTIONS · MANDATE) + the shared back-office YAML index (`back-office.yaml` per ADR-231 D2) + audit log (`back-office-audit.md`)
+  - `context/{domain}/` — accumulated intelligence per domain, including `_performance.md` (ADR-195), `_tracker.md`, `_recurring.yaml` (per-domain ACCUMULATION recurrence declarations per ADR-231 D3), and `_feedback.md` (ADR-181)
+  - `reports/{slug}/` — DELIVERABLE-shape recurrences per ADR-231 D2 (`_spec.yaml` declaration · `_run_log.md` · `_feedback.md` · `{date}/output.md` per firing). **Replaces the dissolved `tasks/{slug}/` tree per ADR-231 D2.**
+  - `operations/{slug}/` — ACTION-shape recurrences (`_action.yaml` declaration · `_run_log.md`)
   - `agents/{slug}/` — per-domain-agent AGENT.md, memory, style
   - `review/` — Reviewer substrate (IDENTITY · principles · decisions — read-only here, edited from Agents tab or via Review flow)
   - `uploads/` — operator-contributed documents (ADR-197)
   - `memory/` — YARNNN working memory (conversation summaries, workspace state)
-  - `outputs/` — promoted task outputs per `output_category` (ADR-152)
 - **Detail mode** (`?path=/workspace/...`):
   - Rendered file content (markdown, HTML, or binary via `content_url`)
   - Inference-meta caption (ADR-162 sub-phase D) when present
   - Revision history panel (ADR-209 P4) — `authored_by` trail, diff, restore
   - Substrate-native edit affordance when `authored_by=operator` is appropriate (IDENTITY, BRAND, CONVENTIONS, principles, MANDATE, uploaded documents)
 - **`+` menu:** UploadFileModal (operator uploads a document into `/workspace/uploads/`). No other modals. No chat seeders.
-- **Deep-links out:** every file path is a stable URL (`/context?path=...`) linked from Work task-detail (`DELIVERABLE.md`, `feedback.md`, `outputs/`), Agents detail (`AGENT.md`, `memory/`, `style.md`), Chat artifacts, and the Briefing strip on Work.
+- **Deep-links out:** every file path is a stable URL (`/context?path=...`) linked from Work task-detail (`/workspace/reports/{slug}/_spec.yaml` · `_feedback.md` · `{date}/output.md` per ADR-231 D2), Agents detail (`/workspace/agents/{slug}/AGENT.md` · `memory/` · `style.md`), Chat artifacts, and the cockpit faces on Work.
 - **Refuses:**
-  - Task orchestration, agent authoring, proposal approval — those are Work/Agents/Work respectively
+  - Recurrence orchestration, agent authoring, proposal approval — those are Work/Agents/Work respectively
   - "Edit in chat" buttons on substrate files (per R3) — Files is where substrate gets edited; Chat would invoke `UpdateContext` and produce the same write with less clear provenance
-  - Duplicate rendering of task outputs (outputs exist in one canonical place — under the owning task; Files links rather than embeds per ADR-198 I2)
+  - Duplicate rendering of recurrence outputs (outputs exist in one canonical place at the natural-home `/workspace/reports/{slug}/{date}/`; Files links rather than embeds per ADR-198 I2)
 
 ### Tab: Agents
 
@@ -116,7 +116,7 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
 
 - **Archetype:** Briefing + Queue (list-mode composition) → Document/Dashboard/Stream (detail mode, per output_kind).
 - **Narrative semantics** (ADR-219 D4): `/work` **is the narrative filtered by `metadata.task_slug`**. The list-row recent-activity headline reads from the narrative via `GET /api/narrative/by-task` (ADR-219 Commit 4) — the legacy `task.last_run_at` timestamp source was retired; tasks with no narrative entries simply render no headline (singular implementation). WorkDetail's per-task run-history continues to read `agent_runs` per ADR-219 D7 — that's the audit ledger view, separate consumer.
-- **Reads:** `tasks` table, `/workspace/tasks/{slug}/*` (TASK.md, DELIVERABLE.md, feedback.md, outputs, memory), `/workspace/review/decisions.md` (for the SinceLastLook pane), `/workspace/context/_performance_summary.md` (for the Snapshot pane per ADR-195 Phase 3), `agent_runs` (for WorkDetail's per-task run-history view), **`GET /api/narrative/by-task`** (for WorkListSurface row headlines per ADR-219 Commit 4).
+- **Reads:** `tasks` thin scheduling index (per ADR-231 D4 Path B — `next_run_at`, `last_run_at`, `paused`, `declaration_path`), `/workspace/reports/{slug}/*` (DELIVERABLE: `_spec.yaml`, `_feedback.md`, `_run_log.md`, `{date}/output.md`), `/workspace/context/{domain}/*` (ACCUMULATION: `_recurring.yaml`, `_feedback.md`, `_run_log.md`, entity files), `/workspace/operations/{slug}/*` (ACTION: `_action.yaml`, `_run_log.md`), `/workspace/_shared/back-office.yaml` + `back-office-audit.md` (MAINTENANCE), `/workspace/review/decisions.md` (for the SinceLastLook pane), `/workspace/context/_performance_summary.md` (for the Snapshot pane per ADR-195 Phase 3), `agent_runs` (for WorkDetail's per-task run-history view), **`GET /api/narrative/by-task`** (for WorkListSurface row headlines per ADR-219 Commit 4).
 - **List mode** (no `?task=`): single vertical scroll with two visually-distinct zones per ADR-215 Phase 4. Both zones are now compositor-resolved (ADR-225 Phase 3, see Part 0 slot table).
   - **Cockpit zone** (`<CockpitRenderer>`, replaces deleted `<BriefingStrip>`) — the operation, rendered. Per ADR-228, the cockpit is **four faces in fixed order**: Mandate (standing intent + autonomy posture), Money truth (where the account stands now, platform-live where applicable), Performance (attribution against mandate + Reviewer calibration), Tracking (pending decisions + operational state + recent outcomes). Bundles fill each face's domain shape via `tabs.work.list.cockpit.{mandate,money_truth,performance,tracking}`; bundles cannot reorder or omit faces. The `cockpit_panes` flat-array shape from ADR-225 Phase 3 was deleted by ADR-228.
     - **Kernel default** (no active program): the four faces render kernel-default substrate-fallback paths (mandate reads `_shared/MANDATE.md` + `_shared/AUTONOMY.md`; money truth reads `_performance_summary.md`; performance reads `_performance_summary.md` + `/workspace/review/decisions.md`; tracking reads pending action_proposals + narrative outcomes).
@@ -143,10 +143,10 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
       - `system_maintenance` → MaintenanceMiddle (hygiene log + run history)
     - **Bundle override** via `tabs.work.detail.middles[]` 4-tier match (task_slug → output_kind+condition → output_kind → agent_role/class). First match wins. Bundle middles take full content area; archetype declared via `archetype` field per ADR-198.
   - **FeedbackStrip** — thin bar below the middle. Single "Edit in chat" prompt per kind (ADR-181 Phase 4a). Skipped for system_maintenance (back-office tasks have no user feedback loop).
-- **`+` menu:** `TaskSetupModal` (singular creation modal across the cockpit — ADR-178 two-route rich intake; forwards to YARNNN via `sendMessage` which calls `ManageTask(action="create")` in the same turn). Per ADR-215 Phase 4 singular-implementation, `CreateTaskModal` was retired — one creation modal across `/chat`, `/work`, `/agents`, `/context`.
-- **Deep-links out:** task files on Files (`/context?path=/workspace/tasks/{slug}/DELIVERABLE.md`), assigned agents on Agents (`/agents?agent={slug}`), Chat with task preselected for "Edit in chat" (`/chat?task={slug}`).
+- **`+` menu:** `TaskSetupModal` (singular creation modal across the cockpit — ADR-178 two-route rich intake; forwards to YARNNN via `sendMessage`. Per ADR-231 D5, YARNNN calls `UpdateContext(target='recurrence', action='create', shape=..., slug=..., body={...})` in the same turn — `ManageTask` was deleted in ADR-231 Phase 3.7). Per ADR-215 Phase 4 singular-implementation, `CreateTaskModal` was retired — one creation modal across `/chat`, `/work`, `/agents`, `/context`.
+- **Deep-links out:** recurrence files on Files (`/context?path=/workspace/reports/{slug}/_spec.yaml` for DELIVERABLE; `/workspace/context/{domain}/_recurring.yaml` for ACCUMULATION; `/workspace/operations/{slug}/_action.yaml` for ACTION; per ADR-231 D2/D3 natural-home paths), assigned agents on Agents (`/agents?agent={slug}`), Chat with recurrence preselected for "Edit in chat" (`/chat?task={slug}` — query-param name preserved per ADR-219 D4 task_slug = declaration slug).
 - **Refuses:**
-  - File browsing outside task scope (goes to Files)
+  - File browsing outside recurrence scope (goes to Files)
   - Agent identity editing (goes to Agents → Chat)
   - Replacing Files for the `_shared/` authored rules (per R3 — `ManageContextModal` retired)
 
@@ -162,11 +162,11 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
   - **Filter bar** (`<ChatFilterBar>`) — three deep-linkable query-param dimensions: `?weight=...&identity=...&task=...`. Bar auto-opens when any filter is active. The filter is a Channel-layer slice over the same Stream — never a substrate change.
   - **`/work` is the same narrative filtered by `metadata.task_slug`** — Chat and Work read the same source of truth (ADR-219 D4); Work is the legibility wrapper for task-labeled invocations, Chat is everything.
 - **Reads:** `chat_sessions` + `session_messages` (windowed per ADR-159), compact index (`format_compact_index()` per ADR-186 profile), all substrate indirectly via YARNNN's tool calls.
-- **Writes:** through primitives (`UpdateContext`, `ManageTask`, `ManageAgent`, `ProposeAction`, etc. per ADR-168). Chat never writes substrate directly; it writes through YARNNN's primitive invocations. Every primitive invocation also emits a narrative entry via `services.narrative.write_narrative_entry` (ADR-219 Commit 2 single write path; ADR-219 Commit 6 final coverage gate enforces this).
+- **Writes:** through primitives (`UpdateContext`, `FireInvocation`, `ManageAgent`, `ProposeAction`, etc. per ADR-168 + ADR-231 D5). Chat never writes substrate directly; it writes through YARNNN's primitive invocations. Recurrence lifecycle flows through `UpdateContext(target='recurrence')` (create/update/pause/resume/archive) + `FireInvocation` (manual fire) per ADR-231 D5 — the legacy `ManageTask` primitive was deleted in Phase 3.7. Every primitive invocation also emits a narrative entry via `services.narrative.write_narrative_entry` (ADR-219 Commit 2 single write path; ADR-219 Commit 6 final coverage gate enforces this).
 - **Stream mode** (default, conversation active): append-only message log. Reviewer verdicts appear as `role='reviewer'` messages per ADR-212; agent task completions appear as `role='agent'` entries with task-slug envelope; back-office digests appear as `role='system'` cards with `system_card='narrative_digest'` (collapsed-by-default with expand-to-list). MCP foreign-LLM calls land as `role='external'` entries (ADR-219 Commit 6) with `metadata.mcp_tool` + `metadata.mcp_client` provenance. Artifact cards render inline when a primitive's response carries one. "Edit in chat" entries from other tabs open Chat with a seeded first message.
 - **Empty state** (cold start per ADR-205 F1): `<ChatEmptyState>` — deterministic client-side landing with four suggestion chips (Upload a doc, Paste a URL, Track something recurring, Build a recurring report). Zero LLM cost on first load. The only surface in the cockpit that overrides its archetype for first-run guidance.
 - **`+` menu:** exactly one entry per ADR-215 Phase 5 — "Start new work" → `TaskSetupModal` (R4 modal launcher). The prior "Update workspace" entry was retired — it violated R2 (update is never Modal) and R3 (identity/brand/conventions are substrate, edited on Files).
-- **Deep-links out:** any file YARNNN cites (`/context?path=...`), any task ManageTask creates or updates (`/work?task=...`), any agent ManageAgent touches (`/agents?agent=...`). Reviewer verdict cards (role='reviewer' messages per ADR-212) link to `/agents?agent=reviewer` (ADR-214 canonical route). Artifacts carry links, not embeds.
+- **Deep-links out:** any file YARNNN cites (`/context?path=...`), any recurrence `UpdateContext(target='recurrence')` creates or updates (`/work?task=...` — query-param name preserved per ADR-219 D4 task_slug = declaration slug), any agent `ManageAgent` touches (`/agents?agent=...`). Reviewer verdict cards (role='reviewer' messages per ADR-212) link to `/agents?agent=reviewer` (ADR-214 canonical route). Artifacts carry links, not embeds.
 - **Snapshot overlay** (`<SnapshotModal>`): modal opened by YARNNN-emitted `<!-- snapshot: {"lead":"..."} -->` marker OR the surface header "Snapshot" button. **Briefing archetype in its purest form** (ADR-198 §3): pure read, composed by selection, no outbound nav, zero LLM at open time. The overlay is *of* the conversation — Close returns the operator to typing with enriched awareness, not to another tab.
 
   Three tabs, each rendered in place from substrate files and neutral audit ledgers:
@@ -187,7 +187,7 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
 
   **Identity-empty states** degrade gracefully — a missing MANDATE.md renders "Not yet declared" with an "Edit in chat" button seeding "Help me author my mandate"; same pattern for missing principles.md. R3 is preserved (substrate-file edits would happen on Files, but this overlay never *edits* substrate — it only seeds the conversation that eventually writes via UpdateContext/inference).
 - **Reviewer verdict thread** (ADR-212): `role='reviewer'` session messages render as `<ReviewerCard>` inline in the stream — verdict + occupant + reasoning + deep-link to `/agents?agent=reviewer`. Stream archetype invariant: append-only; verdict cards are historical entries, never mutated inline.
-- **Inline-to-task graduation** (ADR-219 D6): material-weight operator messages that have no `metadata.task_slug` (i.e. inline actions per FOUNDATIONS Axiom 9) carry an inline **"Make this recurring"** affordance. Click opens `TaskSetupModal` pre-filled with `Recurring intent: <message-prefix>` so YARNNN turns it into `ManageTask(action='create')` on submit. Reversible: a task can be archived later (deferred to WorkDetail per Phase-7+) and the same shape returns to inline. The atom of action (the invocation) is the same throughout — only the legibility wrapper rotates.
+- **Inline-to-recurrence graduation** (ADR-219 D6 + ADR-231 D1/D5): material-weight operator messages that have no `metadata.task_slug` (i.e. inline invocations per FOUNDATIONS Axiom 9 + ADR-231 D1 invocation-first default) carry an inline **"Make this recurring"** affordance. Per D1 the operator's first invocation already fired and produced its result; this affordance attaches a nameplate + pulse + contract for repeat firings. Click opens `TaskSetupModal` pre-filled with `Recurring intent: <message-prefix>` so YARNNN turns it into `UpdateContext(target='recurrence', action='create', shape=..., slug=..., body={...})` on submit. Reversible: a recurrence can be archived later via `UpdateContext(target='recurrence', action='archive', ...)` and the same intent returns to inline. The atom of action (the invocation) is the same throughout — only the legibility wrapper rotates.
 - **Refuses:**
   - Full CRUD forms (modal-shape — those are on other tabs per R2)
   - Heavy data tables (those are Dashboard archetype — other tabs)
@@ -315,6 +315,13 @@ Each phase lands with: code changes + this doc's contract section updated in the
   - `ChatEmptyState` + 4-chip cold-start landing retained as-is — already R-compliant (seed composer text or open file picker).
   - Stale doc comments cleaned in `auth/callback/page.tsx`, `ComposerInput.tsx`, `TaskSetupModal.tsx`, `WorkspaceStateView.tsx`, `workspace-state-meta.ts`.
   - TypeScript pass. `grep -rn "Edit via" web/`: zero live hits. Full R1–R5 compliance across all four tabs.
+
+- **Phase 9 — ADR-231 substrate-vocabulary alignment** — **Implemented 2026-04-29** (commits `b7e4fd3` Class A · `1a77459` Class B · this commit Class D).
+  - **Class A logic fix**: `/context` Reports section deep-links migrated from the dead `/tasks/{slug}/outputs/latest` namespace to the natural-home `/workspace/reports/{slug}` substrate root per ADR-231 D2. Detail-mode dispatcher regex updated; `DeliverableMiddle` consumes via `api.recurrences.listOutputs` already (Phase 3.6/3.8 backend migration).
+  - **Class B vocabulary refresh**: `ChatEmptyState` adds primary "Ask for something" chip per ADR-231 D1 invocation-first default — recurrence chips (Track / Build a recurring report) become explicit-graduation affordances at indexes 3-4. `TaskSetupModal` + `ChatSurface` + `client.ts` comment refs to `ManageTask` retired; all docstrings now point at `UpdateContext(target='recurrence', action='create', ...)` per ADR-231 D5 (ManageTask deleted in Phase 3.7).
+  - **Class D doc refresh** (this entry): SURFACE-CONTRACTS.md Files tab list-mode tree, Work tab Reads section, Work `+` menu primitive ref, deep-links out, Chat tab Writes/Deep-links, inline-to-recurrence graduation flow — all aligned with ADR-231 D2/D3 natural-home substrate (`reports/{slug}/`, `context/{domain}/`, `operations/{slug}/`, `_shared/back-office.yaml`) + D5 primitive surface (`UpdateContext(target='recurrence')` + `FireInvocation`).
+  - **Refuses preserved** — Class C file renames (`web/components/tasks/` → `recurrences/`, etc.) are pure cosmetic file moves; deferred to a quiet hygiene window once the parallel ADR-233 prompt reorg lands.
+  - TypeScript pass. Backend tests 96/96 still green.
 
 ---
 
