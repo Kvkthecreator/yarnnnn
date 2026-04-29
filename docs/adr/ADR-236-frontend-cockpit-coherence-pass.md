@@ -193,28 +193,97 @@ Every sub-ADR in this pass declares its primary + secondary dimensional classifi
 
 Each sub-ADR replaces the legacy code it touches in the same commit. No parallel implementations, no transitional shims. If a Tier 1 sub-ADR's surface is too large for a single commit, it splits into named phases — never into "old way still works."
 
+### Rule 8 — Drafted-pair sequencing (just-in-time ADR drafting)
+
+Sub-ADRs in this pass are drafted **just-in-time, not all up-front**. The pattern:
+
+1. **Draft sub-ADR N** as `Proposed`.
+2. **Implement sub-ADR N** in the same or next session — the implementation stress-tests the design.
+3. **Land sub-ADR N** with status flipped to `Implemented`.
+4. **Then draft sub-ADR N+1** — the new ADR cites real code from sub-ADR N's implementation, not predicted code, AND explicitly addresses how it composes with N's surface.
+
+This rule resolves a tension between two legitimate options. **Option A** (draft all sub-ADRs first, then execute) front-loads design but produces stale ADRs by the time later items implement. **Option B** (draft + implement strictly one at a time) ships fast but risks Item N painting Item N+1 into a corner. **Rule 8 (Option C)** keeps the just-in-time virtue of B while requiring each new sub-ADR to explicitly cite predecessors — preserving cross-cutting awareness without paying A's up-front cost.
+
+**Why this works for YARNNN:** the 230-series ADRs in this repo have shipped at sustained quality precisely because they were drafted close to their implementation (each cites real code it just touched, not speculation). Rule 8 codifies the existing successful pattern as policy for this pass and any future multi-sub-ADR pass that follows.
+
+**Concrete shape per sub-ADR draft:**
+- Header section explicitly lists `Builds on: ADR-XXX (Implemented YYYY-MM-DD)` for each prerequisite.
+- The `Decision` section names how this sub-ADR composes with predecessors — e.g., ADR-237's role grammar accepting ADR-238's autonomy-mode as a row property.
+- If a predecessor's implementation surfaced realities that change this sub-ADR's scope, the sub-ADR records it in the `Context` section rather than retroactively editing predecessors.
+
+**Failure mode this rule prevents:** a future session drafting all four sub-ADRs (237, 238, 239, 240) in one go, then implementing them in sequence three weeks later only to find that ADR-237's design assumptions don't survive ADR-238's implementation. Rule 8 forbids that pattern.
+
 ---
 
 ## Sequencing
 
-The 10 items have real dependencies. Sequenced execution prevents merge thrash and honors Singular Implementation.
+The 10 items have real dependencies. Sequenced execution prevents merge thrash and honors Singular Implementation. **Rule 8 governs the inner loop**: each Tier 1 sub-ADR drafts → implements → lands before the next one drafts.
 
-| Order | Item | Tier | Blocker | Rationale |
-|---|---|---|---|---|
-| 1 | Umbrella ADR (this) | — | — | Establishes the doc-radius rules in practice. |
-| 2 | Item 5 — Redirect stubs | T2 | Item 1's umbrella | Cheap. Validates the doc-radius rules end-to-end. |
-| 3 | Item 6 — Files 500 root cause | T2 | — | Production bug, clears dev environment. |
-| 4 | ~~Item 7 — Settings extraction~~ | T2 | — | **Deferred 2026-04-29** — re-picked up with first real consumer (Item 1/3/4). |
-| 5 | Item 1 — Chat role-based design system (ADR-237) | T1 | — | Frames Items 8, 9, 10. |
-| 6 | Item 2 — Autonomy-mode FE (ADR-238) | T1 | — | Independent of Items 1, 3, 4. |
-| 7 | Item 3 — Trader cockpit memo | T3→T1 | — | Memo surfaces real architectural questions; sub-ADR (ADR-239) follows. |
-| 8 | Item 4 — Onboarding-as-activation (ADR-240) | T1 | — | Touches ADR-226 Phase 2; independent from cockpit work. |
-| 9 | Item 9 — Agents tab refactor | T3 | Item 1 | Now Item 1 has framed the role grammar. |
-| 10 | Item 8 — Filter + recurring | T3 | Item 1 | Mop-up; design system informs both halves. |
-| 11 | Item 10 — Cockpit ↔ snapshot convergence | T3 | Items 1, 3 | Both prerequisites must be settled. |
-| 12 | Closing commit — CLAUDE.md summary block update | — | All above | Per Rule 5. |
+The pass moves in **named rounds**. Rounds are not parallel; later rounds may interleave Tier 3 items between Tier 1 sub-ADRs as dependencies allow.
 
-Sessions execute one item at a time. If an item uncovers cross-item friction, the session pauses and updates this umbrella ADR's sequencing section before continuing.
+### Round 0 — Foundations (Implemented 2026-04-29)
+
+| Step | Output | Status |
+|---|---|---|
+| 0.1 | Umbrella ADR (this document) | Implemented (commit `74b6f2f`) |
+| 0.2 | Item 5 — Redirect-stub policy + docblock alignment | Implemented (commit `9aacd09`) |
+| 0.3 | Item 6 — `/api/workspace/nav` 500 root cause fix | Implemented (commit `ca53c53`) |
+| 0.4 | Item 7 — Settings extraction deferral recorded | Deferred (commit `9969aa4`) |
+
+Tier 2 hygiene block closed. Validates the doc-radius rules end-to-end.
+
+### Round 1 — Independent Tier 1 sub-ADR
+
+| Step | Output | Blocker | Sequencing |
+|---|---|---|---|
+| 1.1 | Draft ADR-238 (Item 2 — Autonomy-mode FE consumption) as `Proposed` | None | Independent of ADR-235 + ADR-237 + ADR-239 + ADR-240. |
+| 1.2 | Implement ADR-238 | 1.1 | Same session if scope fits; else next. |
+| 1.3 | Flip ADR-238 to `Implemented`, land | 1.2 | — |
+
+### Round 2 — Chat design system (gated on ADR-235)
+
+| Step | Output | Blocker |
+|---|---|---|
+| 2.1 | Draft ADR-237 (Item 1 — Chat role-based design system) as `Proposed` — explicitly cites ADR-235's primitive surface + ADR-238's autonomy-mode gates | ADR-235 Implemented + Round 1 complete |
+| 2.2 | Implement ADR-237 | 2.1 |
+| 2.3 | Flip ADR-237 to `Implemented`, land | 2.2 |
+
+### Round 3 — Trader cockpit (memo + sub-ADR)
+
+| Step | Output | Blocker |
+|---|---|---|
+| 3.1 | Item 3 scoping memo at `docs/analysis/trader-cockpit-rewrite-{YYYY-MM-DD}.md` | Round 2 — memo cites ADR-237 role grammar |
+| 3.2 | Draft ADR-239 (Item 3 — Trader cockpit re-write) as `Proposed` | 3.1 |
+| 3.3 | Implement ADR-239 (likely phased per Rule 7) | 3.2 |
+| 3.4 | Flip ADR-239 to `Implemented` (or final phase Implemented), land | 3.3 |
+
+### Round 4 — Onboarding-as-activation
+
+| Step | Output | Blocker |
+|---|---|---|
+| 4.1 | Draft ADR-240 (Item 4 — Onboarding-as-activation) as `Proposed` — cites ADR-237 (chat role grammar for first-conversation surface) + ADR-238 (autonomy gates on first run) | Round 2 + Round 3 |
+| 4.2 | Implement ADR-240 | 4.1 |
+| 4.3 | Flip ADR-240 to `Implemented`, land | 4.2 |
+
+### Round 5 — Tier 3 mop-up
+
+| Step | Output | Blocker |
+|---|---|---|
+| 5.1 | Item 9 — Agents page tab refactor | ADR-237 |
+| 5.2 | Item 8 — ChatFilterBar verification + recurring rework | ADR-237 |
+| 5.3 | Item 10 — Cockpit ↔ snapshot convergence | ADR-237 + ADR-239 |
+
+Tier 3 items get their own scoping memos at execution time if they surface architectural questions; otherwise they ship as commits referencing this umbrella ADR.
+
+### Round 6 — Closing
+
+| Step | Output |
+|---|---|
+| 6.1 | CLAUDE.md ADR-summary block updated once with all sub-ADR entries (Rule 5) |
+| 6.2 | This umbrella ADR's status flips to `Implemented` |
+| 6.3 | Final test gates green, no console.error in production explorer load |
+
+Sessions execute one round-step at a time. If a step uncovers cross-round friction, the session pauses and updates this umbrella ADR's sequencing section before continuing.
 
 ---
 
@@ -236,10 +305,14 @@ What this pass does **NOT** do, declared explicitly so future-me doesn't drift:
 
 This umbrella ADR's status flips to **Implemented** when:
 
-- [ ] All Tier 1 sub-ADRs (ADR-237, ADR-238, ADR-239, ADR-240) reach **Implemented** status, OR are explicitly **Deferred** with rationale recorded in this umbrella.
-- [ ] All Tier 2 hygiene items (5, 6, 7) shipped in named commits referencing this ADR.
-- [ ] All Tier 3 items (8, 9, 10) reach **Implemented** OR **Deferred** with rationale.
-- [ ] CLAUDE.md ADR-summary block updated once with the four sub-ADR entries.
+- [x] Round 0 — Tier 2 hygiene block closed (Items 5, 6 Implemented; Item 7 Deferred).
+- [ ] Round 1 — ADR-238 reaches **Implemented**.
+- [ ] Round 2 — ADR-237 reaches **Implemented** (gated on ADR-235 Implemented).
+- [ ] Round 3 — ADR-239 reaches **Implemented** (or final phase, per Rule 7) — preceded by scoping memo.
+- [ ] Round 4 — ADR-240 reaches **Implemented**.
+- [ ] Round 5 — Items 8, 9, 10 reach **Implemented** OR **Deferred** with rationale recorded here.
+- [ ] Round 6 — CLAUDE.md ADR-summary block updated once with all sub-ADR entries (Rule 5).
+- [ ] Each sub-ADR's `Builds on:` header cites only predecessors with `Implemented` status (Rule 8 conformance).
 - [ ] CI test gates green; combined regression suite passing.
 - [ ] No `console.error` in production explorer load.
 - [ ] Per-tab feature docs (`docs/features/*.md`) reflect the post-pass state.
@@ -250,7 +323,7 @@ This umbrella ADR's status flips to **Implemented** when:
 
 **R1 — Pass duration drift.** A 10-item coordinated pass risks dragging across many sessions, during which other ADRs (in flight: ADR-235) land and interact. Mitigation: Tier 2 items execute first as proof of velocity; Tier 1 sub-ADRs are sized to one session each per Singular Implementation rule.
 
-**R2 — Cross-pass interaction with ADR-235.** ADR-235 dissolves `UpdateContext` into `InferContext` + `WriteFile` + `ManageRecurrence`. The chat role-based design system (Item 1) will surface `WriteFile` invocations in chat narrative — must compose with ADR-235's vocabulary, not predate it. Mitigation: Item 1 sub-ADR explicitly waits until ADR-235 is **Implemented** in another session before drafting; Items 5, 6, 7 (Tier 2) and Item 2 (independent Tier 1) can proceed in parallel.
+**R2 — Cross-pass interaction with ADR-235.** ADR-235 dissolves `UpdateContext` into `InferContext` + `WriteFile` + `ManageRecurrence`. The chat role-based design system (Item 1, ADR-237) will surface `WriteFile` invocations in chat narrative — must compose with ADR-235's vocabulary, not predate it. Mitigation: per Rule 8 + the Round structure, ADR-237 (Round 2) waits until ADR-235 is **Implemented** before it drafts. Round 1 (ADR-238 — autonomy-mode FE) is independent of ADR-235's primitive surface and proceeds without that gate. Round 0 (Tier 2 hygiene) shipped before this risk applied.
 
 **R3 — Trader cockpit scope creep.** Item 3 has the largest surface and could absorb time better spent elsewhere. Mitigation: scoping memo gates the sub-ADR; if the memo reveals scope > 3 sessions, the sub-ADR splits into phases at memo time, not mid-implementation.
 
@@ -266,18 +339,6 @@ This umbrella ADR's status flips to **Implemented** when:
 - Specific test gate counts or assertion lists for sub-ADRs.
 - Whether ADR-237 / 238 / 239 / 240 final numbers hold (numbers reserved; final assignment per sub-ADR drafting).
 - Whether deferred items become future-pass scope or pure deferrals.
-
----
-
-## Phasing
-
-Single-commit landing for this umbrella ADR. The 10-item execution that follows is sequenced per the table above; each item lands as its own commit (Tier 2 hygiene) or its own sub-ADR + commit pair (Tier 1, Tier 3 post-memo).
-
-1. Author and commit this umbrella ADR (Proposed).
-2. Execute Tier 2 hygiene items in sequence (Items 5, 6, 7).
-3. Execute Tier 1 items per sequencing table (Items 1, 2 in parallel as independence allows; Item 3 memo then sub-ADR; Item 4 independent).
-4. Execute Tier 3 items per blocker resolution.
-5. Closing commit: CLAUDE.md ADR-summary block update + this ADR's status flip to Implemented.
 
 ---
 
