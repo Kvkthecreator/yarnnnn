@@ -44,12 +44,28 @@ async def compose_task_output_html(
     Returns None if no substrate exists (task never ran) or compose failed.
     Caller decides how to handle None (404, fallback, etc.).
     """
-    from services.task_workspace import TaskWorkspace
+    # ADR-231 Phase 3.6.b: read natural-home substrate via UserMemory.
+    # DELIVERABLE shape outputs land at /workspace/reports/{slug}/{date}/.
+    # Resolve the substrate-root via the declaration walker, then read
+    # output.md / sys_manifest.json / sections/ from there.
+    from services.workspace import UserMemory
+    from services.recurrence_paths import resolve_paths_for_slug
 
-    tw = TaskWorkspace(client, user_id, task_slug)
-    folder_prefix = f"outputs/{date_folder}"
+    paths = resolve_paths_for_slug(client, user_id, task_slug)
+    if paths is None:
+        return None  # No declaration for this slug
+    # output_folder template carries {date} placeholder; substitute the
+    # date_folder argument so we read the specific dated firing.
+    if not paths.output_folder:
+        return None  # Non-deliverable shapes have no output folder
+    folder_abs = paths.output_folder.replace("{date}", date_folder)
 
-    sys_manifest_raw = await tw.read(f"{folder_prefix}/sys_manifest.json")
+    um = UserMemory(client, user_id)
+
+    def _strip_ws(p: str) -> str:
+        return p[len("/workspace/"):] if p.startswith("/workspace/") else p
+
+    sys_manifest_raw = await um.read(_strip_ws(f"{folder_abs}/sys_manifest.json"))
     if not sys_manifest_raw:
         return None
 
@@ -71,7 +87,7 @@ async def compose_task_output_html(
     fallback_markdown_parts: list[str] = []
 
     for sec_slug, sec_meta in raw_sections.items():
-        sec_content = await tw.read(f"{folder_prefix}/sections/{sec_slug}.md")
+        sec_content = await um.read(_strip_ws(f"{folder_abs}/sections/{sec_slug}.md"))
         if not sec_content:
             continue
         sections_payload.append({
@@ -83,14 +99,14 @@ async def compose_task_output_html(
 
     fallback_markdown = ""
     if not sections_payload:
-        fallback_markdown = await tw.read(f"{folder_prefix}/output.md") or ""
+        fallback_markdown = await um.read(_strip_ws(f"{folder_abs}/output.md")) or ""
         if not fallback_markdown:
             return None
     else:
         fallback_markdown = "\n\n".join(fallback_markdown_parts)
 
     assets: list[dict] = []
-    manifest_raw = await tw.read(f"{folder_prefix}/manifest.json")
+    manifest_raw = await um.read(_strip_ws(f"{folder_abs}/manifest.json"))
     if manifest_raw:
         try:
             manifest = json.loads(manifest_raw)

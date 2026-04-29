@@ -610,24 +610,26 @@ def _load_active_agents(auth) -> dict[str, dict]:
 
 
 def _load_active_tasks(auth) -> dict[str, dict]:
-    """Load active tasks keyed by slug for classifier slug matching.
+    """Load active recurrence-declaration slugs for classifier slug matching.
 
-    Note: the `tasks` table has no `title` column — slug is the only
-    identifier we need for substring-based slug matching.
+    ADR-231 Phase 3.6.a.4: walks workspace YAML recurrence declarations
+    (truth) instead of the `tasks` scheduling index. Returns a slug-keyed
+    dict of {slug, shape, paused} for substring-based matching downstream.
+
+    Function name preserved for caller stability — Phase 3.7 will rename
+    if needed when mcp_composition's classifier gets a vocabulary update.
     """
     try:
-        result = (
-            auth.client.table("tasks")
-            .select("slug, status")
-            .eq("user_id", auth.user_id)
-            .eq("status", "active")
-            .limit(50)
-            .execute()
-        )
+        from services.recurrence import walk_workspace_recurrences
+        decls = walk_workspace_recurrences(auth.client, auth.user_id)
         return {
-            t["slug"]: t
-            for t in (result.data or [])
-            if t.get("slug")
+            d.slug: {
+                "slug": d.slug,
+                "shape": d.shape.value,
+                "paused": d.paused,
+            }
+            for d in decls
+            if not d.paused
         }
     except Exception as e:
         logger.warning(f"[MCP] _load_active_tasks failed: {e}")

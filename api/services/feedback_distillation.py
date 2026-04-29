@@ -91,9 +91,7 @@ async def distill_feedback_to_workspace(
             task_slug = await _resolve_task_slug_for_agent(client, agent_id)
 
         if task_slug:
-            from services.task_workspace import TaskWorkspace
-            tw = TaskWorkspace(client, user_id, task_slug)
-            await _append_feedback_to_task(tw, entry)
+            await _append_feedback_for_slug(client, user_id, task_slug, entry)
             logger.info(
                 f"[FEEDBACK] Wrote feedback to task {task_slug} for "
                 f"{agent.get('title', agent_id)} run #{run.get('version_number')}"
@@ -137,9 +135,7 @@ async def write_feedback_entry(
             task_slug = await _resolve_task_slug_for_agent(client, agent_id)
 
         if task_slug:
-            from services.task_workspace import TaskWorkspace
-            tw = TaskWorkspace(client, user_id, task_slug)
-            await _append_feedback_to_task(tw, entry)
+            await _append_feedback_for_slug(client, user_id, task_slug, entry)
             logger.info(f"[FEEDBACK] Conversational feedback → task {task_slug}")
         else:
             logger.warning(f"[FEEDBACK] No task_slug for agent {agent_id} — feedback dropped")
@@ -217,39 +213,47 @@ def _build_feedback_entry(run: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-async def _append_feedback_to_task(tw, new_entry: str) -> None:
+async def _append_feedback_for_slug(
+    client: Any,
+    user_id: str,
+    slug: str,
+    new_entry: str,
+) -> None:
+    """Append a feedback entry to the natural-home _feedback.md for a slug.
+
+    ADR-231 Phase 3.6.b: writes to the recurrence's feedback path (DELIVERABLE
+    → /workspace/reports/{slug}/_feedback.md, ACCUMULATION → /workspace/context/
+    {domain}/_feedback.md per ADR-181). Resolves the path via the declaration
+    walker; logs + skips silently when the slug has no declaration or the
+    shape has no canonical feedback substrate (ACTION + MAINTENANCE).
+
+    Newest entry first, capped at _MAX_FEEDBACK_ENTRIES.
     """
-    Append a feedback entry to task feedback.md (newest first, capped).
+    from services.recurrence_paths import resolve_paths_for_slug
+    from services.workspace import UserMemory
 
-    ADR-154: Writes to TaskWorkspace, not AgentWorkspace.
-    ADR-181: feedback.md at task root (peer of TASK.md, DELIVERABLE.md).
-    """
-    existing = await _read_task_feedback(tw)
+    paths = resolve_paths_for_slug(client, user_id, slug)
+    if paths is None or paths.feedback_path is None:
+        logger.warning(
+            f"[FEEDBACK] no feedback path for slug={slug} (no decl or shape "
+            f"has no feedback substrate); entry dropped"
+        )
+        return
 
-    header = "# Task Feedback\n<!-- Source-agnostic feedback layer. Newest first. ADR-181. -->\n\n"
+    relative = paths.feedback_path[len("/workspace/"):] if paths.feedback_path.startswith("/workspace/") else paths.feedback_path
+    um = UserMemory(client, user_id)
+    existing = await um.read(relative) or ""
 
+    header = "# Feedback\n<!-- Source-agnostic feedback layer. Newest first. ADR-181 + ADR-231 D2. -->\n\n"
     entries = re.split(r"(?=^## )", existing, flags=re.MULTILINE)
     entries = [e.strip() for e in entries if e.strip() and e.strip().startswith("## ")]
-
     entries = [new_entry.strip()] + entries[:_MAX_FEEDBACK_ENTRIES - 1]
-
     content = header + "\n\n".join(entries) + "\n"
 
-    await tw.write(
-        "feedback.md",
+    await um.write(
+        relative,
         content,
-        summary="ADR-181: feedback entry (task-level)",
+        summary="ADR-181: feedback entry (natural-home substrate)",
+        authored_by="system:feedback-distillation",
+        message=f"append feedback for {slug}",
     )
-
-
-async def _read_task_feedback(tw) -> str:
-    """Read task feedback.md with migration fallback.
-
-    ADR-181: Primary path is feedback.md at task root.
-    Falls back to memory/feedback.md for pre-ADR-181 tasks.
-    """
-    content = await tw.read("feedback.md")
-    if content:
-        return content
-    # Migration fallback — read from old location
-    return await tw.read("memory/feedback.md") or ""

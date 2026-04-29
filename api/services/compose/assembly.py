@@ -57,18 +57,15 @@ async def build_generation_brief(
         Generation brief string to inject into the user message before generation.
         Empty string if task has no page_structure (graceful fallback).
     """
-    from services.task_types import get_task_type
-
-    type_key = task_info.get("type_key", "")
-    task_type_def = get_task_type(type_key) if type_key else None
-    if not task_type_def:
-        return ""
-
-    page_structure = task_type_def.get("page_structure")
+    # ADR-231 Phase 3.6.b: page_structure + surface_type come directly from
+    # task_info (which the dispatcher synthesizes from the declaration's
+    # `page_structure:` + `surface_type:` fields). The legacy task_types
+    # registry lookup is dissolved per D5.
+    page_structure = task_info.get("page_structure")
     if not page_structure:
         return ""  # No structure declared → LLM organizes freely (context tasks, etc.)
 
-    surface_type = task_info.get("surface_type") or task_type_def.get("surface_type", "report")
+    surface_type = task_info.get("surface_type") or "report"
     context_reads = task_info.get("context_reads", [])
 
     # Query filesystem state for each domain in context_reads

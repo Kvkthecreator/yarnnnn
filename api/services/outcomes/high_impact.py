@@ -300,32 +300,47 @@ async def _append_entries_to_task_feedback(
     Returns True on success. Never raises.
     """
     try:
-        from services.task_workspace import TaskWorkspace
-        from services.feedback_distillation import _read_task_feedback, _MAX_FEEDBACK_ENTRIES
+        # ADR-231 Phase 3.6.b: route through natural-home feedback path via
+        # services.recurrence_paths.
+        from services.recurrence_paths import resolve_paths_for_slug
+        from services.workspace import UserMemory
+        from services.feedback_distillation import _MAX_FEEDBACK_ENTRIES
 
-        tw = TaskWorkspace(client, user_id, task_slug)
-        existing = await _read_task_feedback(tw)
+        paths = resolve_paths_for_slug(client, user_id, task_slug)
+        if paths is None or paths.feedback_path is None:
+            logger.warning(
+                "[HIGH_IMPACT] no feedback path for slug=%s; system-outcome entries dropped",
+                task_slug,
+            )
+            return False
+
+        relative = (
+            paths.feedback_path[len("/workspace/"):]
+            if paths.feedback_path.startswith("/workspace/") else paths.feedback_path
+        )
+        um = UserMemory(client, user_id)
+        existing = await um.read(relative) or ""
+
         header = (
-            "# Task Feedback\n"
-            "<!-- Source-agnostic feedback layer. Newest first. ADR-181. -->\n\n"
+            "# Feedback\n"
+            "<!-- Source-agnostic feedback layer. Newest first. ADR-181 + ADR-231 D2. -->\n\n"
         )
 
-        # Parse existing entries (newest-first, each starts with "## ")
         all_entries = re.split(r"(?=^## )", existing, flags=re.MULTILINE)
         all_entries = [
             e.strip() for e in all_entries
             if e.strip() and e.strip().startswith("## ")
         ]
-
-        # Prepend new entries (newest-first), cap total
         combined = [e.strip() for e in new_entries] + all_entries
         combined = combined[:_MAX_FEEDBACK_ENTRIES]
 
         content = header + "\n\n".join(combined) + "\n"
-        await tw.write(
-            "feedback.md",
+        await um.write(
+            relative,
             content,
             summary=f"ADR-195 Phase 5: system-outcome entries ({len(new_entries)})",
+            authored_by="system:high-impact-outcome",
+            message=f"system-outcome feedback for {task_slug}",
         )
         return True
     except Exception as exc:  # noqa: BLE001

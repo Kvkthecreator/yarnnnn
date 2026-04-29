@@ -359,6 +359,36 @@ def resolve_paths(
     )
 
 
+# ---------------------------------------------------------------------------
+# Slug → ResolvedPaths convenience (for service-layer migration sites)
+# ---------------------------------------------------------------------------
+
+
+def resolve_paths_for_slug(
+    client,
+    user_id: str,
+    slug: str,
+) -> Optional[ResolvedPaths]:
+    """Convenience: walk recurrence declarations, find the slug, return paths.
+
+    Service-layer call sites (delivery.py, compose/task_html.py,
+    feedback_distillation.py, outcomes/high_impact.py, primitives/repurpose.py,
+    task_deliverable_inference.py) used to do `TaskWorkspace(client, user_id,
+    slug).read("...")` against `/tasks/{slug}/...`. Post-cutover these read
+    natural-home paths via the declaration's resolved paths.
+
+    This helper is the bridge — one import, one call, returns ResolvedPaths
+    or None when no declaration exists for the slug.
+    """
+    from services.recurrence import walk_workspace_recurrences
+
+    decls = walk_workspace_recurrences(client, user_id)
+    decl = next((d for d in decls if d.slug == slug), None)
+    if decl is None:
+        return None
+    return resolve_paths(decl)
+
+
 __all__ = [
     "DATE_FOLDER_FORMAT",
     "ResolvedPaths",
@@ -371,4 +401,5 @@ __all__ = [
     "resolve_steering_path",
     "resolve_working_scratch_path",
     "resolve_paths",
+    "resolve_paths_for_slug",
 ]

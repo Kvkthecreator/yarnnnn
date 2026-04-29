@@ -721,29 +721,22 @@ async def deliver_from_output_folder(
     # status and writes `pending_distribution: true` to the manifest so
     # the cockpit can surface the pending badge.
     if task_slug:
+        # ADR-231 Phase 3.6.b: type_key + TASK.md registry lookup retired.
+        # Recurrence declarations carry an explicit `requires_approval:` field
+        # under `delivery:` when the operator wants the gate. Default = False.
+        requires_approval = False
         try:
-            # Read task type from TASK.md, not registry — per ADR-188,
-            # TASK.md is the source of truth. We inspect manifest's task_slug
-            # + look up the type if declared. For now, keyed by task_slug +
-            # registry (contextual task types are rare pre-alpha).
-            from services.task_types import delivery_requires_approval as _dra
-            from services.task_workspace import TaskWorkspace as _TW
-            _tw = _TW(client, user_id, task_slug)
-            _task_md = await _tw.read("TASK.md") or ""
-            # Minimal inline parse — look for `type_key:` or `**Type:**` line.
-            _type_key = None
-            import re as _re
-            for _line in _task_md.splitlines():
-                _m = _re.match(r"^\s*(?:\*\*)?type[_ ]?key(?:\*\*)?\s*:\s*`?([\w\-]+)`?", _line, _re.IGNORECASE)
-                if _m:
-                    _type_key = _m.group(1)
-                    break
-            requires_approval = _dra(_type_key) if _type_key else False
+            from services.recurrence import walk_workspace_recurrences
+            _decls = walk_workspace_recurrences(client, user_id)
+            _decl = next((d for d in _decls if d.slug == task_slug), None)
+            if _decl is not None:
+                _delivery_block = _decl.data.get("delivery")
+                if isinstance(_delivery_block, dict):
+                    requires_approval = bool(_delivery_block.get("requires_approval", False))
         except Exception as _exc:  # noqa: BLE001
             logger.warning(
-                f"[DELIVERY] delivery_requires_approval lookup failed for task={task_slug}: {_exc}"
+                f"[DELIVERY] requires_approval lookup failed for task={task_slug}: {_exc}"
             )
-            requires_approval = False
 
         if requires_approval:
             approved_at = manifest.get("pending_distribution_approved_at")

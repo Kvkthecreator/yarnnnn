@@ -109,37 +109,51 @@ async def handle_repurpose_output(auth: Any, input: dict) -> dict:
     user_id = auth.user_id
     client = auth.client
 
-    # Find the output
-    from services.task_workspace import TaskWorkspace
-    tw = TaskWorkspace(client, user_id, task_slug)
+    # ADR-231 Phase 3.6.b: read output substrate from natural-home path.
+    # DELIVERABLE-shape outputs land at /workspace/reports/{slug}/{date}/output.md.
+    from services.recurrence_paths import resolve_paths_for_slug
+    from services.workspace import UserMemory
+
+    paths = resolve_paths_for_slug(client, user_id, task_slug)
+    if paths is None or paths.output_folder is None:
+        return {
+            "success": False,
+            "error": "no_declaration",
+            "message": f"No DELIVERABLE declaration for slug '{task_slug}'",
+        }
+
+    # The output_folder template carries {date}; substrate root is its parent
+    substrate_root = paths.substrate_root  # e.g., /workspace/reports/{slug}
 
     if not output_date:
-        # Find latest output
+        # Find the latest dated subdir under substrate_root
         result = (
             client.table("workspace_files")
             .select("path")
             .eq("user_id", user_id)
-            .like("path", f"/tasks/{task_slug}/outputs/%/output.md")
+            .like("path", f"{substrate_root}/%/output.md")
             .order("updated_at", desc=True)
             .limit(1)
             .execute()
         )
         if not result.data:
-            return {"success": False, "error": "no_output", "message": f"No output found for task '{task_slug}'"}
+            return {"success": False, "error": "no_output", "message": f"No output found for slug '{task_slug}'"}
         path = result.data[0]["path"]
-        # Extract date folder: /tasks/{slug}/outputs/{date}/output.md
         parts = path.split("/")
         output_date = parts[-2]
 
-    # Read the output (ADR-213: HTML composed on demand via the shared helper)
-    output_md = await tw.read(f"outputs/{output_date}/output.md")
+    output_md_abs = f"{substrate_root}/{output_date}/output.md"
+    relative = output_md_abs[len("/workspace/"):] if output_md_abs.startswith("/workspace/") else output_md_abs
+    um = UserMemory(client, user_id)
+    output_md = await um.read(relative)
+
     from services.compose.task_html import compose_task_output_html
     output_html = await compose_task_output_html(
         client, user_id, task_slug, output_date
     )
 
     if not output_md:
-        return {"success": False, "error": "output_not_found", "message": f"No output.md at outputs/{output_date}/"}
+        return {"success": False, "error": "output_not_found", "message": f"No output.md at {output_md_abs}"}
 
     # Route: mechanical or editorial
     if target in MECHANICAL_TARGETS:
@@ -235,40 +249,27 @@ async def _editorial_repurpose(auth, task_slug, output_date, output_md, target):
     """Editorial repurpose — agent adapts content for target channel/format."""
     from services.anthropic import chat_completion_with_tools
     from services.primitives.registry import get_tools_for_mode, create_headless_executor
-    from services.task_workspace import TaskWorkspace
 
     user_id = auth.user_id
     client = auth.client
     instruction = EDITORIAL_INSTRUCTIONS.get(target, "Adapt this output for the requested format.")
 
-    # Resolve which agent to use — the agent that produced the output
-    tw = TaskWorkspace(client, user_id, task_slug)
-    task_md = await tw.read("TASK.md")
+    # ADR-231 Phase 3.6.b: resolve which agent produced the output via the
+    # recurrence declaration's `agents:` field. Last entry in the list is
+    # the writer/synthesis agent for multi-agent declarations; first is the
+    # primary lead.
+    from services.recurrence import walk_workspace_recurrences
+    decls = walk_workspace_recurrences(client, user_id)
+    decl = next((d for d in decls if d.slug == task_slug), None)
     agent_slug = None
-    if task_md:
-        import re
-        # Try to find agent from TASK.md process section
-        match = re.search(r'\*\*(\w[\w-]+)\*\*\)', task_md)
-        if not match:
-            # Fallback: find agent slug from task_types process.
-            # ADR-205: lazy-ensure infrastructure agents before lookup.
-            type_match = re.search(r'\*\*Type:\*\*\s*(\S+)', task_md)
-            if type_match:
-                from services.task_types import get_task_type
-                from services.agent_creation import classify_role, ensure_infrastructure_agent
-                type_def = get_task_type(type_match.group(1))
-                if type_def and type_def.get("process"):
-                    agent_type = type_def["process"][-1]["agent_type"]  # last step agent
-                    if classify_role(agent_type) != "user_authored":
-                        ensured = await ensure_infrastructure_agent(client, user_id, agent_type)
-                        if ensured:
-                            agent_slug = ensured.get("slug")
-                    if not agent_slug:
-                        roster = client.table("agents").select("slug, role").eq("user_id", user_id).execute()
-                        for a in (roster.data or []):
-                            if a.get("role") == agent_type:
-                                agent_slug = a["slug"]
-                                break
+    if decl and decl.agents:
+        agent_slug = decl.agents[-1]
+        # Lazy-ensure if it's an infrastructure role
+        from services.agent_creation import classify_role, ensure_infrastructure_agent
+        if classify_role(agent_slug) != "user_authored":
+            ensured = await ensure_infrastructure_agent(client, user_id, agent_slug)
+            if ensured:
+                agent_slug = ensured.get("slug", agent_slug)
 
     if not agent_slug:
         # Default to Writer for editorial repurpose (ADR-176).

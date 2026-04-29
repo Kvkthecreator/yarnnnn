@@ -65,20 +65,39 @@ async def infer_task_deliverable_preferences(
 
     Returns updated DELIVERABLE.md content, or None if insufficient signal.
     """
-    from services.task_workspace import TaskWorkspace
+    # ADR-231 Phase 3.6.b: read deliverable spec + feedback from natural-home
+    # substrate. The deliverable spec is the recurrence YAML's `deliverable:`
+    # block (DELIVERABLE shape only); feedback lives at the natural-home
+    # _feedback.md path resolved via services.recurrence_paths.
+    from services.recurrence import walk_workspace_recurrences
+    from services.recurrence_paths import resolve_paths
+    from services.workspace import UserMemory
     from services.anthropic import get_anthropic_client
 
-    tw = TaskWorkspace(client, user_id, task_slug)
-
-    # Read current DELIVERABLE.md
-    existing_deliverable = await tw.read("DELIVERABLE.md")
-    if not existing_deliverable:
-        logger.info(f"[DELIVERABLE_INFERENCE] No DELIVERABLE.md for {task_slug}")
+    decls = walk_workspace_recurrences(client, user_id)
+    decl = next((d for d in decls if d.slug == task_slug), None)
+    if decl is None:
+        logger.info(f"[DELIVERABLE_INFERENCE] No declaration for {task_slug}")
         return None
 
-    # ADR-181: feedback.md at task root (fallback to memory/feedback.md for migration)
-    feedback = await tw.read("feedback.md") or await tw.read("memory/feedback.md")
-    if not feedback or feedback.strip() == "# Task Feedback":
+    deliverable_block = decl.data.get("deliverable")
+    if not deliverable_block:
+        logger.info(f"[DELIVERABLE_INFERENCE] {task_slug} has no deliverable block")
+        return None
+    import yaml as _yaml
+    existing_deliverable = _yaml.safe_dump(deliverable_block, sort_keys=False)
+
+    paths = resolve_paths(decl)
+    if paths.feedback_path is None:
+        logger.info(f"[DELIVERABLE_INFERENCE] {task_slug} has no feedback path")
+        return None
+    relative = (
+        paths.feedback_path[len("/workspace/"):]
+        if paths.feedback_path.startswith("/workspace/") else paths.feedback_path
+    )
+    um = UserMemory(client, user_id)
+    feedback = await um.read(relative)
+    if not feedback or feedback.strip().startswith("# Feedback") and len(feedback.strip()) < 80:
         logger.info(f"[DELIVERABLE_INFERENCE] No feedback entries for {task_slug}")
         return None
 
@@ -129,14 +148,43 @@ async def infer_task_deliverable_preferences(
             logger.warning(f"[DELIVERABLE_INFERENCE] Inference output missing key sections — discarding")
             return None
 
-        # Write updated DELIVERABLE.md
-        await tw.write(
-            "DELIVERABLE.md",
-            updated_content,
-            summary=f"Deliverable preferences updated via inference ({len(entries)} feedback entries)",
-        )
+        # ADR-231 Phase 3.6.b: write inferred deliverable updates back into
+        # the recurrence YAML's `deliverable:` block. Uses UpdateContext
+        # (target='recurrence', action='update') with `changes` carrying the
+        # full deliverable block — that primitive owns the YAML read-modify-
+        # write atomically and triggers a scheduling-index sweep.
+        try:
+            parsed_block = _yaml.safe_load(updated_content) or {}
+            if not isinstance(parsed_block, dict):
+                logger.warning(
+                    f"[DELIVERABLE_INFERENCE] Inferred YAML for {task_slug} not a dict; discarding"
+                )
+                return None
+        except Exception as _exc:
+            logger.warning(f"[DELIVERABLE_INFERENCE] Inferred YAML parse failed for {task_slug}: {_exc}")
+            return None
 
-        logger.info(f"[DELIVERABLE_INFERENCE] Updated DELIVERABLE.md for {task_slug} from {len(entries)} feedback entries")
+        from services.primitives.update_context import handle_update_context
+
+        # Synthesize a minimal auth-shape so handle_update_context works.
+        class _Auth:
+            def __init__(self, c, u):
+                self.client = c
+                self.user_id = u
+        _auth = _Auth(client, user_id)
+        await handle_update_context(_auth, {
+            "target": "recurrence",
+            "action": "update",
+            "shape": decl.shape.value,
+            "slug": task_slug,
+            "domain": decl.domain,  # ACCUMULATION-only; None otherwise
+            "changes": {"deliverable": parsed_block},
+        })
+
+        logger.info(
+            f"[DELIVERABLE_INFERENCE] Updated deliverable block for {task_slug} "
+            f"from {len(entries)} feedback entries"
+        )
         return updated_content
 
     except Exception as e:

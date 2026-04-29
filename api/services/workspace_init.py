@@ -484,14 +484,17 @@ async def materialize_back_office_task(
     Tasks created here are `essential=true` so they can't be accidentally
     archived; they are still plumbing the workspace needs.
     """
-    from services.task_workspace import TaskWorkspace
-    from services.task_types import build_task_md_from_type, build_deliverable_md_from_type
+    # ADR-231 Phase 3.6.b: back-office tasks are entries in the multi-decl
+    # YAML at /workspace/_shared/back-office.yaml per D2. Materialize via
+    # UpdateContext(target='recurrence', action='create', shape='maintenance').
+    # The legacy task_types registry (build_task_md_from_type) is dissolved.
     from services.schedule_utils import get_user_timezone as _get_user_timezone
+    from services.primitives.update_context import handle_update_context
 
     if user_timezone is None:
         user_timezone = _get_user_timezone(client, user_id)
 
-    # Idempotency
+    # Idempotency: check the index for an existing row
     existing = (
         client.table("tasks")
         .select("id")
@@ -502,37 +505,36 @@ async def materialize_back_office_task(
     if existing.data:
         return
 
-    now = datetime.now(timezone.utc)
-    next_run = calculate_next_run_at("daily", last_run_at=now, user_timezone=user_timezone)
-    row = {
-        "user_id": user_id,
+    # Derive executor dotted-path from slug convention
+    # (back-office-foo-bar → services.back_office.foo_bar)
+    if slug.startswith("back-office-"):
+        executor_tail = slug[len("back-office-"):].replace("-", "_")
+        executor = f"services.back_office.{executor_tail}"
+    else:
+        executor = type_key  # fall back to type_key as the dotted path hint
+
+    class _Auth:
+        def __init__(self, c, u):
+            self.client = c
+            self.user_id = u
+    _auth = _Auth(client, user_id)
+    result = await handle_update_context(_auth, {
+        "target": "recurrence",
+        "action": "create",
+        "shape": "maintenance",
         "slug": slug,
-        "mode": "recurring",
-        "status": "active",
-        "schedule": "daily",
-        "next_run_at": next_run.isoformat() if next_run else now.isoformat(),
-        "essential": True,
-    }
-    insert_result = client.table("tasks").insert(row).execute()
-    if not insert_result.data:
-        raise RuntimeError(f"Failed to materialize back office task: {slug}")
+        "body": {
+            "executor": executor,
+            "schedule": "daily",
+            "title": title,
+        },
+    })
+    if not result.get("success"):
+        raise RuntimeError(
+            f"Failed to materialize back-office recurrence: {slug} ({result.get('message')})"
+        )
 
-    task_md = build_task_md_from_type(
-        type_key=type_key,
-        title=title,
-        slug=slug,
-        schedule="daily",
-        delivery="none",
-        agent_slugs=["thinking-partner"],
-    )
-    tw = TaskWorkspace(client, user_id, slug)
-    await tw.write("TASK.md", task_md, summary=f"Materialized back-office task: {title}")
-
-    deliverable_md = build_deliverable_md_from_type(type_key)
-    if deliverable_md:
-        await tw.write("DELIVERABLE.md", deliverable_md, summary=f"Quality contract: {title}")
-
-    logger.info(f"[MATERIALIZE] Back-office task created on trigger: {slug} for {user_id[:8]}")
+    logger.info(f"[MATERIALIZE] Back-office recurrence created on trigger: {slug} for {user_id[:8]}")
 
 
 # ADR-190: `update_workspace_manifest()` and `_build_workspace_manifest()`

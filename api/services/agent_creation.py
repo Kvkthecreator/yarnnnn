@@ -355,25 +355,16 @@ async def ensure_infrastructure_agents_for_type(
     user_id: str,
     type_key: str,
 ) -> None:
-    """Ensure all infrastructure agents declared by a task type's process steps exist.
+    """Deprecated post-ADR-231: type_key registry dissolved.
 
-    ADR-205: called before task creation / type change so `resolve_process_agents`
-    can find Specialist rows (which are lazy-scaffolded). ADR-207 P4a removed
-    the bot branch — only Specialists are ensured.
+    The only caller (manage_task._handle_create) is being deleted in
+    Phase 3.7. New flow: recurrence declarations carry `agents:` directly;
+    callers iterate that list and call `ensure_infrastructure_agent` per
+    entry. This stub remains for source-tree continuity until the
+    manage_task deletion lands; it never executes meaningful work.
     """
-    from services.task_types import TASK_TYPES
-    task_type = TASK_TYPES.get(type_key)
-    if not task_type:
-        return
-    seen: set[str] = set()
-    for step in task_type.get("process", []):
-        role = step.get("agent_type")
-        if not role or role in seen:
-            continue
-        seen.add(role)
-        if classify_role(role) == "user_authored":
-            continue
-        await ensure_infrastructure_agent(client, user_id, role)
+    # No-op; type_key registry no longer exists.
+    return
 
 
 # ADR-207 P4a: delete_platform_bot() DELETED. Platform Bots no longer exist
