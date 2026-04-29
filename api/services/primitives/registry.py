@@ -189,7 +189,7 @@ async def handle_list_integrations(auth: Any, input: dict) -> dict:
 # ADR-146: Explicit Mode Registries (P4)
 # =============================================================================
 
-# Chat mode: TP in user-facing conversation. ≤15 tools (P5 budget).
+# Chat mode: YARNNN-the-orchestration-surface in user-facing conversation.
 CHAT_PRIMITIVES = [
     # Entity layer (4) + Introspection (1)
     LOOKUP_ENTITY_TOOL,
@@ -197,6 +197,18 @@ CHAT_PRIMITIVES = [
     SEARCH_ENTITIES_TOOL,
     EDIT_ENTITY_TOOL,
     GET_SYSTEM_STATE_TOOL,
+    # File layer (4) — ADR-234 Chat File Layer Reach
+    # Workspace-absolute reads/writes/search/list. Chat reaches workspace_files
+    # directly so YARNNN can answer content-shape questions about substrate
+    # without delegating. Path convention (not primitive gating) keeps chat
+    # out of /agents/{slug}/ private paths — see prompts/chat/tools_core.py.
+    # QueryKnowledge stays headless-only (semantic-rank composition over
+    # context domains; chat reaches that surface via working memory + ReadFile).
+    # ReadAgentFile stays headless-only (inter-agent coordination per ADR-116).
+    READ_FILE_TOOL,
+    WRITE_FILE_TOOL,
+    SEARCH_FILES_TOOL,
+    LIST_FILES_TOOL,
     # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
     LIST_INTEGRATIONS_TOOL,
@@ -225,7 +237,7 @@ CHAT_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 21 tools — ADR-231 D5 added FireInvocation
+]  # 25 tools — ADR-234 added 4 file-family primitives
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per

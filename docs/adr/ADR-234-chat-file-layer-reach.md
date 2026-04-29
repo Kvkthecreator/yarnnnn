@@ -1,6 +1,6 @@
 # ADR-234: Chat File Layer Reach — Read/Write/Search/List on workspace_files
 
-> **Status**: **Proposed** (2026-04-29). Single-commit landing.
+> **Status**: **Implemented** (2026-04-29). Single-commit landing. Test gate 8/8 passing; combined gate (ADR-234 + ADR-233 P1 + P2 + ADR-231 invariants) 44/44 passing. CHANGELOG entry pending — worktree-side agent has been actively editing `api/prompts/CHANGELOG.md` on the same day; entry will land in a follow-on commit or roll into ADR-235's CHANGELOG addition.
 > **Date**: 2026-04-29
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Mechanism** (Axiom 5) primary, **Identity** (Axiom 2) secondary — promotes the chat caller into the file substrate family it was previously gated out of.
