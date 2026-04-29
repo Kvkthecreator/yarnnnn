@@ -1,9 +1,90 @@
 # ADR-231 Runtime Context Plan
 
-> **Status**: Planning artifact (not an ADR). Companion to ADR-231 v1.1. Read before Phase 3.2-3.9 dispatcher rewrite + caller migrations.
-> **Date**: 2026-04-29
+> **Status**: Planning artifact (not an ADR). Companion to ADR-231 v1.1. Read before Phase 3.3-3.9 caller migrations + frontend reshape + final grep gate.
+> **Date**: 2026-04-29 (v1.1 revision: explicit (trigger-class × shape) axiomatic grouping + execution-session handoff section)
 > **Authors**: KVK, Claude
 > **Purpose**: Specify the runtime context, session, prompt assembly, and narrative-emission machinery that comes online once the task abstraction is dissolved. The atomic cutover changes the **substrate**; this doc specifies the **runtime layer** that operates on that substrate.
+
+---
+
+## Handoff to execution session — read this first
+
+This section is the prescriptive checklist for the Claude Code session executing Phases 3.3-3.9 of the ADR-231 atomic cutover.
+
+**Pre-execution reads (in order):**
+
+1. `docs/adr/ADR-231-task-abstraction-sunset.md` — architectural decisions D1-D12 (the *what*)
+2. **This doc** — runtime-layer specification (the *how* + per-strategy contracts)
+3. `docs/architecture/invocation-and-narrative.md` — FOUNDATIONS Axiom 9 canon (preserved)
+4. `docs/adr/ADR-219-invocation-narrative-implementation.md` — narrative emission canon (preserved)
+5. `docs/adr/ADR-209-authored-substrate.md` — revision attribution (preserved; revision posture amendments per §9 below)
+6. `docs/adr/ADR-159-layered-context-strategy.md` — compact index canon (extended; v2 spec per §4 below)
+7. `docs/adr/ADR-186-yarnnn-prompt-profiles.md` — surface profiles (extended; mapping per §5 below)
+
+**Phase-by-phase contracts (what each remaining commit must satisfy):**
+
+| Phase | Contract source | Key invariants |
+|---|---|---|
+| 3.3 — Scheduler migration | §3 envelope tables; §8 narrative emission | Scheduler queries `walk_workspace_recurrences` not `tasks` table; due declarations dispatch via `invocation_dispatcher.dispatch`; cleanup walks new working-scratch paths (§6) |
+| 3.4 — DB migration 159+ | §11 cross-shape invariants | Drop `tasks.{title, type_key, mode, output_kind, delivery, essential}`; add `tasks.declaration_path`; thin scheduling index only |
+| 3.5 — Data migration script | §3 envelope tables (target paths) | Walk existing tasks rows + `/tasks/{slug}/TASK.md` → write YAML at natural homes per shape; idempotent; ADR-209 attributed (`authored_by: system:adr-231-migration`) |
+| 3.6 — Caller migrations + compact index v2 | §4 compact-index spec; §5 surface profiles | `working_memory.format_compact_index` rewritten per §4 (recurrence-walker-keyed, ≤1500 token bound); `working_memory._format_entity_index` rewritten per §5 (5 entity sub-profiles); ~30 production callers migrated |
+| 3.7 — Legacy file deletions | §11 invariant 10 | Final grep gate: zero live-code references to `task_pipeline`, `manage_task`, `task_workspace`, `task_types`, `task_derivation` |
+| 3.8 — Frontend reshape | §5 surface profile mapping | `/api/tasks/*` → `/api/recurring/*`; `/work` surface filter-over-narrative + recurrence-list per ADR-231 D7 |
+| 3.9 — ADR amendments + grep gate | §11 regression-test inventory | Supersede banners on ADR-138/149/161/166/167; FOUNDATIONS Axiom 9 status flip; `api/test_adr231_runtime_invariants.py` asserts all 10 cross-shape invariants |
+
+**Prompt rewrites (Phase 3.6, dimension owned by execution session):**
+
+The four prompt files in `api/agents/yarnnn_prompts/` need full rewrites per §5 + §7 + §9:
+- `base.py` — vocabulary update (drop "tasks are work units"; reframe around recurrence declarations)
+- `behaviors.py` — full rewrite; 18KB of task-era ManageTask/TASK.md guidance retired; replaced with declaration-shape-aware behaviors
+- `entity.py` — split into 5 sub-profiles per shape (deliverable/accumulation/action/maintenance/agent), each with its own preamble
+- `onboarding.py` — task-creation references replaced with recurrence-graduation flow per ADR-231 D1
+- Update `api/prompts/CHANGELOG.md` per BEHAVIORAL ARTIFACTS discipline
+
+**Stop conditions (where execution session should pause and discourse):**
+
+- If §3 envelope token estimates exceed by >50% in real-workspace measurement → halt and consult before proceeding (signals a context-budget design issue)
+- If any §11 invariant proves untestable → halt; the invariant is wrong, not the test
+- If §10 cost-gate plumbing requires schema changes beyond the deferred enforcement scope → halt and discourse (D12 enforcement is post-cutover by design)
+
+**Single source of truth**: this doc. ADR-231 is the architectural decision; this doc is the engineering specification. Don't add a parallel runtime spec elsewhere — amend this one.
+
+---
+
+## Axiomatic grouping (the load-bearing claim)
+
+The architecturally-load-bearing classification for prompt strategy is **(trigger-class × shape)** — a 2-tuple that determines context envelope, read pattern, and narrative weight.
+
+| Axis | Values | What it determines |
+|---|---|---|
+| **Trigger-class** | `addressed` (operator chats) / `scheduled` (cron-pulsed) / `reactive` (event-pulsed) / `heartbeat` (liveness ping) | When the invocation fires; therefore *what kind of context envelope* it needs |
+| **Shape** | `deliverable` / `accumulation` / `action` / `maintenance` (per ADR-231 D8) | What the work produces; therefore *what substrate it reads + writes* |
+
+**Why output-kind alone isn't enough**: the same shape (e.g., `deliverable`) needs fundamentally different prompt strategy when the operator is *chatting about* a recurring report vs when the *scheduler is firing* it. The first needs compact-index + 10-msg history + entity preamble; the second needs declaration + run-log + prior output. Output-kind alone collapses these into one strategy and gets the context envelope wrong.
+
+**Why pulse-class alone isn't enough**: the same trigger-class (e.g., `scheduled`) needs different envelopes per shape — accumulation reads domain entity inventory, deliverable reads prior output, action reads action template. Pulse-class alone collapses these.
+
+**The 2-tuple is the minimum sufficient grouping.** Ten cells, six distinct prompt strategies (the matrix below collapses some cells into shared strategies):
+
+| Cell | Strategy | Profile/branch | Envelope summary |
+|---|---|---|---|
+| `addressed × workspace` | A | `workspace` profile | Compact index + 10-msg conversation history |
+| `addressed × deliverable` | B | `entity:deliverable` | A + spec.yaml + recent run-log + last delivered output preview |
+| `addressed × accumulation` | C | `entity:accumulation` | A + recurring entry + domain entity inventory snapshot |
+| `addressed × action` | D | `entity:action` | A + action template + last 10 fires |
+| `addressed × agent` (non-shape; entity is an Agent identity) | E | `entity:agent` | A + AGENT.md + recent narrative authored by this Agent |
+| `addressed × reviewer` | F | `entity:reviewer` | A + review/IDENTITY.md + principles.md + last 5 decisions.md |
+| `scheduled × deliverable` | G | dispatcher generative branch | declaration + intent + run-log + feedback (last 3) + steering + prior output + AGENT.md + context_reads |
+| `scheduled × accumulation` | H | dispatcher generative branch | declaration + run-log + domain entity inventory + AGENT.md + context_reads |
+| `reactive × action` | I | dispatcher action branch | declaration + template + AGENT.md + ProposeAction shape required |
+| `scheduled × maintenance` | J | dispatcher maintenance branch | executor dotted path — **NO LLM call** |
+
+Strategies G + H share the dispatcher's generative implementation (per Phase 3.2.b commit) but with shape-specific envelope. Strategies B-F are the entity-profile variants (Phase 3.6 work). Strategy A is the workspace profile (Phase 3.6 update of compact index source).
+
+Operator's framing — "invocations by type drive prompt strategy" — is correct. The *type* is precisely this 2-tuple. Type 1 (output-kind alone) gets it wrong. Type 2 (pulse-class alone) gets it wrong. Type 3 (trigger-class × shape) is the right grain.
+
+This is now the load-bearing classification for **A4** (axiom 4 below) and underlies §3, §5, §7 of this plan.
 
 ---
 
@@ -35,7 +116,7 @@ The runtime context layer is governed by eight axioms. Six are already canonical
 | **A1** | Filesystem is the persistence substrate. No DB-row-as-state. Everything that persists across invocations lives in `workspace_files`. | Canonical | FOUNDATIONS Axiom 0 |
 | **A2** | Each invocation declares its read scope. Recurrence declaration's `context_reads` field bounds token budget per firing. No implicit reads. | Canonical (preserved through cutover) | ADR-151/207 + ADR-231 D3 |
 | **A3** | Cross-firing continuity lives in a recent-N compaction file adjacent to the artifact. The declaration's `_run_log.md` is the canonical "what happened in last 5 firings" substrate. Reading this gives an Agent its memory of prior firings without re-reading entire history. | **New (this plan)** | ADR-231 D10 + this doc |
-| **A4** | Type-gated prompt assembly. Each invocation shape (deliverable / accumulation / action / maintenance / chat-addressed) carries its own minimal prompt envelope. No monolithic prompt that handles all cases via deep conditionals. | **New (this plan)** | This doc |
+| **A4** | Type-gated prompt assembly. The classification is **(trigger-class × shape)** — see "Axiomatic grouping" section above. 10 cells collapse to 6 distinct prompt strategies (A-J in the cell matrix). No monolithic prompt that handles all cases via deep conditionals. | **New (this plan)** | This doc §"Axiomatic grouping" |
 | **A5** | Authored substrate IS the audit trail. Revision history (ADR-209) provides meta-awareness for free. No separate audit logging. | Canonical | ADR-209 |
 | **A6** | Compact index is workspace-state-summary, not memory. Index lists pointers (paths + metadata); the LLM reads on demand. Bounded ≤1500 tokens regardless of workspace density. | Canonical (path/source updated) | ADR-159 |
 | **A7** | Conversation history is rolling-window-with-filesystem-overflow. Last 10 messages in prompt, older compacts to `conversation.md`. No alternative session storage. | Canonical (preserved) | ADR-221 |
@@ -295,3 +376,4 @@ Then begin Phase 3.2 dispatcher rewrite with the per-shape envelope table as the
 | Date | Change |
 |---|---|
 | 2026-04-29 | v1 — Initial planning artifact. Eight axioms (A1-A8, with A3 + A4 new). Per-shape envelope tables. Compact index v2. Surface profile mapping. Working-scratch/run-log conventions. Narrative emission audit. Cost ceiling plumbing. Cross-shape invariants + regression test inventory. Operator-proposal alignment confirmed. |
+| 2026-04-29 | v1.1 — Two surgical amendments after operator discourse: (1) "Handoff to execution session" section added at top — prescriptive reading order, phase-by-phase contracts, prompt-rewrite scope, stop conditions; (2) "Axiomatic grouping" section added — explicit (trigger-class × shape) 2-tuple as the load-bearing classification for A4, with 10-cell matrix collapsing to 6 distinct prompt strategies (A-J). Underlying tables (§3, §5, §7) unchanged; the 2-tuple framing is the explicit articulation of what was implicit. No conflicts with v1 content; pure clarification. |
