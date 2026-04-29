@@ -1,0 +1,287 @@
+# ADR-236: Frontend Cockpit Coherence Pass — Umbrella Scoping
+
+> **Status**: **Proposed** (2026-04-29). Umbrella ADR coordinating a 10-item frontend coherence pass. No implementation lands in this ADR — it scopes, tiers, and sequences the work, and codifies the doc-radius rules every sub-ADR + hygiene commit in this pass must follow.
+> **Date**: 2026-04-29
+> **Authors**: KVK, Claude
+> **Dimensional classification**: **Channel** (Axiom 6) primary — every item touches a cockpit surface (Chat, Work, Agents, Files, Settings) or the conventions that govern them. Secondary **Identity** (Axiom 2) for the chat role-based design system, **Mechanism** (Axiom 5) for the autonomy-mode FE consumption layer.
+> **Coordinates** (does not amend): ADR-163 (Surface Restructure), ADR-198 (Surface Archetypes), ADR-201 (Review surface — reversed by ADR-214), ADR-205 (Workspace Primitive Collapse), ADR-206 (Operation-First Scaffolding), ADR-214 (Agents Page Consolidation), ADR-215 (Surface Contracts), ADR-217 (Workspace Autonomy Substrate), ADR-225 (Compositor Layer), ADR-226 (Reference-Workspace Activation), ADR-228 (Cockpit as Delegation Posture), ADR-231 (Task Abstraction Sunset).
+> **Anticipates** (sub-ADRs spawned by this umbrella): ADR-237 (Chat Role-Based Design System), ADR-238 (Autonomy-Mode FE Consumption), ADR-239 (Trader Cockpit Re-Write), ADR-240 (Onboarding-as-Activation). Numbers reserved at umbrella time; final assignments confirmed when each sub-ADR drafts.
+> **Preserves**: FOUNDATIONS axioms 1–9, ADR-141 (execution layers), ADR-156 (single intelligence layer), ADR-176 (universal specialist roster), ADR-194 v2 (Reviewer substrate), ADR-209 (Authored Substrate), ADR-216 (orchestration vs judgment), ADR-231 (recurrence-walker substrate, natural-home paths).
+
+---
+
+## Context
+
+The frontend has accumulated coordinated debt across roughly the last six months of ADRs (163, 201, 205, 214, 217, 225, 228, 231). Each ADR was correct in isolation; together they shipped a cockpit whose surfaces were touched piecemeal without a coordinating frame. Concrete symptoms surfaced in a 2026-04-29 audit:
+
+- **Six redirect stubs** (`/orchestrator`, `/team`, `/overview`, `/workfloor`, `/memory`, `/system`) accumulated across four ADRs with no shared rule for when a redirect is the right answer vs. a stale URL deletion. Stubs are correct as bookmark-safety, but the policy isn't documented.
+- **Chat role-based components** (`SystemCard`, `ReviewerCard`, `ProposalCard`, `NotificationCard`, `InlineActionCard`, `InlineToolCall`, `ToolResultCard`) exist but have no shared formal grammar — each was added per ADR (193, 194, 219) with its own padding / icon / metadata strip / action affordances. The vocabulary expanded organically; the design system did not.
+- **`ChatFilterBar`** (ADR-219 Commit 5) is wired to URL params and the `NarrativeFilter` consumer in `ChatPanel`, but operator-reported as "doesn't work" — the architecture works in principle; the consumption path needs end-to-end verification.
+- **"Make this recurring"** (`ChatSurface.tsx::handleMakeRecurring`) was authored when task creation was the ceremony. Post-ADR-231 D1 (invocation-first default), the inline ask already fired and produced output; the modal is over-built for "graduate to recurrence."
+- **ADR-217 Workspace Autonomy Substrate** specifies `_shared/AUTONOMY.md` but no FE consumption path exists. No code reads autonomy state to gate the chat composer, modal confirmations, or grey-outs.
+- **Trader cockpit** (`MoneyTruthFace`, `TrackingFace`, `PerformanceFace`) per ADR-228 Phase 2 is implemented in skeleton form; Phases 3–5 (platform-live binding, bundled metrics, doc sync) are deferred. Substrate transitioned from YAML to natural-home `.md` per ADR-231; the trader-specific kernel surface was authored against the older substrate model.
+- **Files page** (`/context`) returns `500` from `/api/workspace/tree` ("Failed to load explorer"). Two endpoints (`/api/workspace/tree` legacy, `/api/workspace/nav` ADR-154 structured) coexist; one of them must be canonical.
+- **Onboarding** scaffolds zero operational tasks (ADR-206) and forks a program bundle when activated (ADR-226). But platform connection — required for capability-gated mandates per ADR-207 — is not elevated to first-class in the onboarding surface.
+- **Agents page** is the unified TP command center per ADR-214; current layout is a two-split with Decisions panel; tab-based layout per file (IDENTITY.md / memory/* / feedback.md) is more discoverable.
+- **`/work` cockpit ↔ chat snapshot** share zero components today. The four cockpit faces flow through `CockpitRenderer` only; `SnapshotModal` (chat-side briefing) has its own three-tab implementation. ADR-198 Briefing archetype admits convergence; no ADR has authorized it.
+
+The pattern is clear: items addressed piecemeal across 5+ ADRs, no coordinating document, no shared doc-radius rule. The umbrella ADR is the response.
+
+---
+
+## Decision
+
+**This ADR is a coordinator, not an implementor.** It does three things:
+
+1. **Inventories the 10 items** with verified scope and existing-ADR linkage.
+2. **Tiers the items** (architectural / hygiene / mid-scope) with a stated rationale for each tier.
+3. **Codifies the doc-radius rules** every sub-ADR + hygiene commit in this pass must follow.
+
+The umbrella ADR does NOT specify implementation details for any item. Tier 1 items get their own sub-ADRs. Tier 2 items land as single commits referencing this ADR. Tier 3 items get scoping memos under `docs/analysis/` first; sub-ADRs follow if the memo surfaces architectural questions.
+
+---
+
+## The 10-Item Inventory
+
+Each item lists: **what it is**, **verified state in code**, **existing ADR linkage**, **scope estimate**.
+
+### Item 1 — Chat role-based design system
+
+- **What**: Establish a shared formal grammar for chat-message components by role (system, user, YARNNN/orchestration, agent, reviewer, external). Each role gets a defined surface contract: padding, icon position, metadata strip shape, action affordances.
+- **Verified state**: 7 components exist in `web/components/tp/` (`SystemCard`, `ReviewerCard`, `ProposalCard`, `NotificationCard`, `InlineActionCard`, `InlineToolCall`, `ToolResultCard`). Each defines its own visual rules. Dispatch lives in `TPMessages.tsx`.
+- **Existing ADRs**: ADR-193 (proposal cards), ADR-194 v2 (Reviewer substrate), ADR-219 (narrative weights), ADR-216 (orchestration vs judgment vocabulary).
+- **Scope**: medium. Frames Items 8 + 10 — both depend on a settled role grammar.
+
+### Item 2 — Autonomy-mode FE consumption
+
+- **What**: FE layer that reads `_shared/AUTONOMY.md` and gates UI affordances accordingly (composer disabling, double-check modals, in-component edits permitted in DIRECT mode).
+- **Verified state**: `_shared/AUTONOMY.md` exists as substrate per ADR-217. No FE code reads it. `MandateFace.tsx` reads MANDATE.md but not AUTONOMY.md.
+- **Existing ADRs**: ADR-217 (Workspace Autonomy Substrate — defines the substrate, defers FE consumption).
+- **Scope**: small-to-medium. Self-contained; does not block other items.
+
+### Item 3 — Trader cockpit re-write
+
+- **What**: Audit + re-write of the trader-workspace-specific cockpit. Convergence opportunities: `/work` cockpit faces ↔ chat snapshot modal, Tracking unification (Reviewer Decisions ↔ TrackingFace), Portfolio time-series component (today: substrate fallback only).
+- **Verified state**: ADR-228 Phase 2 implemented (4 face components at `web/components/library/faces/`). Phases 3–5 deferred (platform-live MoneyTruth binding, bundled metrics, doc sync). Substrate moved YAML→md per ADR-231; trader kernel surface authored against earlier model.
+- **Existing ADRs**: ADR-225 (Compositor Layer), ADR-226 (Reference-Workspace Activation), ADR-228 (Cockpit as Delegation Posture), ADR-231 (Task Abstraction Sunset).
+- **Scope**: large. Largest item in the pass. Requires scoping memo before sub-ADR.
+
+### Item 4 — Onboarding-as-activation
+
+- **What**: Promote platform connection from optional refinement to first-class onboarding step. Reframe onboarding around ADR-226 program activation rather than form-shaped data capture.
+- **Verified state**: `workspace_init.py` Phase 5 forks bundle on `program_slug`. Activation overlay prompt exists at `prompts/chat/activation.py`. No FE flow surfaces program selection at signup. Platform connection lives in `/integrations/[provider]/` and `/settings`.
+- **Existing ADRs**: ADR-205 (Workspace Primitive Collapse), ADR-206 (Operation-First Scaffolding), ADR-207 (Primary-Action-Centric Workflow — capability gating), ADR-226 (Reference-Workspace Activation).
+- **Scope**: medium. Touches ADR-226 Phase 2 (deferred FE work).
+
+### Item 5 — Redirect-stub cleanup
+
+- **What**: Apply a single coordinated rule to the six existing redirect stubs. Verify each target is current; document the redirect policy in `web/lib/routes.ts` so future ADRs follow it.
+- **Verified state**: Six stubs verified clean: `/orchestrator → /chat`, `/team → /agents`, `/overview → /work`, `/workfloor → /chat`, `/memory → /context?path=...IDENTITY.md`, `/system → /settings?tab=system`. All redirect to current canonical routes. **No code-level slop** — the "slop" is the absence of a documented policy.
+- **Existing ADRs**: ADR-163, ADR-201, ADR-205 F1, ADR-214.
+- **Scope**: small. Hygiene only — comments + policy doc.
+
+### Item 6 — Files page 500 root cause + nav/tree duality
+
+- **What**: Resolve the production `500` on `/api/workspace/tree`. Decide canonical between `/api/workspace/tree` (legacy) and `/api/workspace/nav` (ADR-154 structured).
+- **Verified state**: `web/app/(authenticated)/context/page.tsx:293` catches the error. Backend route at `api/routes/workspace.py:392` labeled "legacy, used by file viewer." `/api/workspace/nav` referenced at `api/routes/workspace.py:4`.
+- **Existing ADRs**: ADR-154 (structured nav), ADR-180 (Files canonical label).
+- **Scope**: small-to-medium. Depends on root-cause analysis before scoping the consolidation.
+
+### Item 7 — Settings ↔ /integrations consolidation
+
+- **What**: Collapse the duplication between `/settings` (ConnectedIntegrationsSection) and `/integrations/[provider]/` (OAuth callback route). Settings becomes the single canonical surface for platform connection management.
+- **Verified state**: `/integrations/[provider]/page.tsx` is the OAuth callback handler — **not** a duplicate of settings. **Original audit overstated this**: there is no settings/integrations duplication at the route level; the consolidation question is narrower — should `ConnectedIntegrationsSection` be embeddable on Chat (snapshot) and elsewhere as a reusable read-only summary?
+- **Existing ADRs**: ADR-153 (Platform Sync sunset), ADR-205 (Workspace Primitive Collapse).
+- **Scope**: small. Reframed: extraction of a reusable read-only ConnectedIntegrationsSummary, not a full consolidation.
+
+### Item 8 — ChatFilterBar verification + "Make this recurring" rework
+
+- **What**: End-to-end verify ChatFilterBar filters messages as advertised. Re-evaluate the "Make this recurring" graduation flow under ADR-231 D1 invocation-first default.
+- **Verified state**: ChatFilterBar parses URL params correctly; `NarrativeFilter` is passed to `ChatPanel`; the filter render path was not verified in audit. `handleMakeRecurring` opens RecurrenceSetupModal pre-filled with operator's original message.
+- **Existing ADRs**: ADR-219 Commit 5 (filter chips), ADR-231 D1 (invocation-first default).
+- **Scope**: small (verification) + medium (recurring rework). Depends on Item 1's role grammar.
+
+### Item 9 — Agents page tab refactor
+
+- **What**: Replace the current two-split layout with file-per-tab navigation (IDENTITY.md / memory/* / feedback.md tabs).
+- **Verified state**: `AgentContentView.tsx` is 736 LOC with multiple shell registries (`AGENT_SHELL_REGISTRY`, `ROLE_GUIDANCE_REGISTRY`, `AGENT_EMPTY_STATE_REGISTRY`). Reviewer Decisions panel renders inside this view via `web/components/agents/reviewer/DecisionsStreamPane.tsx`.
+- **Existing ADRs**: ADR-214 (Agents Page Consolidation).
+- **Scope**: medium. Depends on Item 1's role grammar (agent tabs follow chat-role conventions).
+
+### Item 10 — Cockpit ↔ snapshot convergence
+
+- **What**: Converge `/work` cockpit faces and chat-side `SnapshotModal` onto shared components. ADR-198 Briefing archetype already supports the framing.
+- **Verified state**: `SnapshotModal` has three independent tabs (Mandate / Review / Recent). `CockpitRenderer` imports `MandateFace`, `MoneyTruthFace`, `PerformanceFace`, `TrackingFace` directly. Zero shared components today.
+- **Existing ADRs**: ADR-198 (Surface Archetypes), ADR-225 (Compositor Layer), ADR-228 (Cockpit as Delegation Posture).
+- **Scope**: medium. Depends on Items 1 + 3.
+
+---
+
+## Tier Classification
+
+### Tier 1 — Architectural (sub-ADR required)
+
+Items whose decision-shape is non-obvious and whose outcome constrains other items.
+
+| Item | Anticipated sub-ADR | Reason |
+|---|---|---|
+| 1. Chat role-based design system | ADR-237 | Frames role grammar; constrains 8, 9, 10. |
+| 2. Autonomy-mode FE consumption | ADR-238 | New FE consumption layer; substrate exists, contract doesn't. |
+| 3. Trader cockpit re-write | ADR-239 (after memo) | Largest scope; multiple convergence questions. |
+| 4. Onboarding-as-activation | ADR-240 | Touches ADR-226 deferred Phase 2; capability-gating reshapes flow. |
+
+### Tier 2 — Hygiene (single commit, no new ADR)
+
+Items whose decision is already implicit in existing ADRs; the commit references this umbrella.
+
+| Item | Why no new ADR |
+|---|---|
+| 5. Redirect-stub cleanup | All six stubs already correct. Pass adds policy doc only. |
+| 6. Files page 500 + nav/tree | Root cause first; consolidation decided by what root cause reveals. If new architectural decision surfaces, escalates to Tier 1. |
+| 7. Settings ↔ /integrations | Reframed in inventory: extraction pattern, not a consolidation. Standard refactor. |
+
+### Tier 3 — Mid-scope (scoping memo first)
+
+Items where the question shape is unsettled and a memo precedes any sub-ADR.
+
+| Item | Why memo first |
+|---|---|
+| 8. ChatFilterBar + recurring rework | Verification first; rework scope depends on what verification reveals. |
+| 9. Agents page tab refactor | Tab grammar depends on Item 1's outcome; memo confirms compatibility. |
+| 10. Cockpit ↔ snapshot convergence | Convergence shape depends on Items 1 + 3; memo confirms timing. |
+
+---
+
+## Doc Radius Rules
+
+Every sub-ADR + hygiene commit in this pass MUST follow these rules. They are codified here so the rules outlive this pass.
+
+### Rule 1 — Active canon rewrites in place
+
+The following docs describe **current state**. Sub-ADRs in this pass rewrite them in place. History lives in git.
+
+- `CLAUDE.md` (current-canon section + File Locations table)
+- `docs/design/SURFACE-CONTRACTS.md`
+- `docs/architecture/primitives-matrix.md` (only if a primitive's mode availability changes)
+- `docs/architecture/SERVICE-MODEL.md` (only if a Frame is materially altered)
+- `docs/features/{chat,work,agents,files,settings}.md` (where they exist)
+
+### Rule 2 — Historical ADR summaries preserved verbatim
+
+Per CLAUDE.md project discipline, historical ADR summary blocks are not rewritten. Sub-ADRs in this pass add `Amends: ADR-XXX` headers; they do NOT edit the historical body of the amended ADR.
+
+### Rule 3 — Test gates required for Tier 1, optional for Tier 2/3
+
+- **Tier 1 sub-ADRs** ship with `api/test_adrXXX_*.py` or `web/__tests__/adrXXX_*.test.ts` test gate. Combined gate must pass.
+- **Tier 2 hygiene commits** must not regress existing gates but do not require their own.
+- **Tier 3 memos** do not have test gates; the sub-ADR (if spawned) does.
+
+### Rule 4 — CHANGELOG entries
+
+`api/prompts/CHANGELOG.md` gets one entry per sub-ADR (Tier 1) when prompts change. Hygiene commits that don't touch prompts don't add entries.
+
+### Rule 5 — CLAUDE.md ADR-summary block updates batch at end
+
+CLAUDE.md's ADR summary list updates **once at the end of the pass**, not per sub-ADR. Otherwise the file churns 4–5 times. Each sub-ADR amends only the File Locations table + current-canon section if needed; the summary block is written in the closing commit.
+
+### Rule 6 — Dimensional classification declared per sub-ADR
+
+Every sub-ADR in this pass declares its primary + secondary dimensional classification per FOUNDATIONS v6.0 Axioms 1–8.
+
+### Rule 7 — Singular Implementation honored per sub-ADR
+
+Each sub-ADR replaces the legacy code it touches in the same commit. No parallel implementations, no transitional shims. If a Tier 1 sub-ADR's surface is too large for a single commit, it splits into named phases — never into "old way still works."
+
+---
+
+## Sequencing
+
+The 10 items have real dependencies. Sequenced execution prevents merge thrash and honors Singular Implementation.
+
+| Order | Item | Tier | Blocker | Rationale |
+|---|---|---|---|---|
+| 1 | Umbrella ADR (this) | — | — | Establishes the doc-radius rules in practice. |
+| 2 | Item 5 — Redirect stubs | T2 | Item 1's umbrella | Cheap. Validates the doc-radius rules end-to-end. |
+| 3 | Item 6 — Files 500 root cause | T2 | — | Production bug, clears dev environment. |
+| 4 | Item 7 — Settings extraction | T2 | — | Independent. |
+| 5 | Item 1 — Chat role-based design system (ADR-237) | T1 | — | Frames Items 8, 9, 10. |
+| 6 | Item 2 — Autonomy-mode FE (ADR-238) | T1 | — | Independent of Items 1, 3, 4. |
+| 7 | Item 3 — Trader cockpit memo | T3→T1 | — | Memo surfaces real architectural questions; sub-ADR (ADR-239) follows. |
+| 8 | Item 4 — Onboarding-as-activation (ADR-240) | T1 | — | Touches ADR-226 Phase 2; independent from cockpit work. |
+| 9 | Item 9 — Agents tab refactor | T3 | Item 1 | Now Item 1 has framed the role grammar. |
+| 10 | Item 8 — Filter + recurring | T3 | Item 1 | Mop-up; design system informs both halves. |
+| 11 | Item 10 — Cockpit ↔ snapshot convergence | T3 | Items 1, 3 | Both prerequisites must be settled. |
+| 12 | Closing commit — CLAUDE.md summary block update | — | All above | Per Rule 5. |
+
+Sessions execute one item at a time. If an item uncovers cross-item friction, the session pauses and updates this umbrella ADR's sequencing section before continuing.
+
+---
+
+## Scope Guards
+
+What this pass does **NOT** do, declared explicitly so future-me doesn't drift:
+
+1. **No backend work beyond Item 6's 500 root cause.** Backend is downstream of ADR-235 (in flight in another session). Mixing concerns risks merge collisions.
+2. **No new compositor primitives.** ADR-225 + ADR-228 already define the compositor; this pass uses what exists. New compositor primitives = a separate ADR after this pass closes.
+3. **No vocabulary-shaped renames** unless a sub-ADR explicitly motivates one. Vocabulary churn (Task→Recurrence per ADR-231, Specialist→Production Role per ADR-216) has been heavy; let it settle.
+4. **No new database migrations.** This is a frontend pass.
+5. **No platform-integration additions** (no new OAuth providers, no new platform bots).
+6. **No new MCP tools.** ADR-169's three-tool surface is preserved.
+7. **No documentation outside the doc-radius register** (defined per sub-ADR via Rule 1).
+
+---
+
+## Definition of Done
+
+This umbrella ADR's status flips to **Implemented** when:
+
+- [ ] All Tier 1 sub-ADRs (ADR-237, ADR-238, ADR-239, ADR-240) reach **Implemented** status, OR are explicitly **Deferred** with rationale recorded in this umbrella.
+- [ ] All Tier 2 hygiene items (5, 6, 7) shipped in named commits referencing this ADR.
+- [ ] All Tier 3 items (8, 9, 10) reach **Implemented** OR **Deferred** with rationale.
+- [ ] CLAUDE.md ADR-summary block updated once with the four sub-ADR entries.
+- [ ] CI test gates green; combined regression suite passing.
+- [ ] No `console.error` in production explorer load.
+- [ ] Per-tab feature docs (`docs/features/*.md`) reflect the post-pass state.
+
+---
+
+## Risks
+
+**R1 — Pass duration drift.** A 10-item coordinated pass risks dragging across many sessions, during which other ADRs (in flight: ADR-235) land and interact. Mitigation: Tier 2 items execute first as proof of velocity; Tier 1 sub-ADRs are sized to one session each per Singular Implementation rule.
+
+**R2 — Cross-pass interaction with ADR-235.** ADR-235 dissolves `UpdateContext` into `InferContext` + `WriteFile` + `ManageRecurrence`. The chat role-based design system (Item 1) will surface `WriteFile` invocations in chat narrative — must compose with ADR-235's vocabulary, not predate it. Mitigation: Item 1 sub-ADR explicitly waits until ADR-235 is **Implemented** in another session before drafting; Items 5, 6, 7 (Tier 2) and Item 2 (independent Tier 1) can proceed in parallel.
+
+**R3 — Trader cockpit scope creep.** Item 3 has the largest surface and could absorb time better spent elsewhere. Mitigation: scoping memo gates the sub-ADR; if the memo reveals scope > 3 sessions, the sub-ADR splits into phases at memo time, not mid-implementation.
+
+**R4 — Frontend test infrastructure.** YARNNN's frontend test coverage is thin compared to backend. Tier 1 sub-ADRs requiring `web/__tests__/*` may need infrastructure scaffolding first. Mitigation: each Tier 1 sub-ADR declares its test surface; if scaffolding is needed, it's named as a sub-phase, not skipped.
+
+**R5 — Scope guard violations under pressure.** A genuine architectural question may surface mid-pass that a scope guard rules out. Mitigation: violation is allowed only by amending this umbrella ADR explicitly — no silent expansion.
+
+---
+
+## What this ADR does NOT decide
+
+- Specific component shapes for any of the 10 items.
+- Specific test gate counts or assertion lists for sub-ADRs.
+- Whether ADR-237 / 238 / 239 / 240 final numbers hold (numbers reserved; final assignment per sub-ADR drafting).
+- Whether deferred items become future-pass scope or pure deferrals.
+
+---
+
+## Phasing
+
+Single-commit landing for this umbrella ADR. The 10-item execution that follows is sequenced per the table above; each item lands as its own commit (Tier 2 hygiene) or its own sub-ADR + commit pair (Tier 1, Tier 3 post-memo).
+
+1. Author and commit this umbrella ADR (Proposed).
+2. Execute Tier 2 hygiene items in sequence (Items 5, 6, 7).
+3. Execute Tier 1 items per sequencing table (Items 1, 2 in parallel as independence allows; Item 3 memo then sub-ADR; Item 4 independent).
+4. Execute Tier 3 items per blocker resolution.
+5. Closing commit: CLAUDE.md ADR-summary block update + this ADR's status flip to Implemented.
+
+---
+
+## Closing
+
+The pass exists because the cockpit was built ADR-by-ADR with no coordinator. The umbrella ADR is the coordinator. Future passes of this shape (multi-item, multi-surface, multi-tier) should follow the same pattern — name the items, tier them, sequence them, codify the doc-radius rules — rather than landing each item as its own ADR with no shared frame.
+
+The 10 items are not novel architectural decisions in aggregate; they are coherence work on top of decisions already made. This ADR's job is to make that coherence work legible and bounded.
