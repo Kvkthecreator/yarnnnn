@@ -935,6 +935,338 @@ def test_resolve_paths_maintenance_minimal():
 
 
 # ---------------------------------------------------------------------------
+# Phase 3.2.b — Dispatcher (services/invocation_dispatcher.py)
+#
+# Tests focus on the pure-function helpers that don't require Supabase mocks.
+# The async dispatch() entry point is integration-tested in a follow-up
+# session against kvk's workspace; full unit coverage requires substantial
+# mock infrastructure (UserMemory, agents table, narrative emission, agent_runs)
+# that's the wrong level of abstraction for a unit suite — the helpers below
+# are the ones that lock the dispatcher's behavioral contract.
+# ---------------------------------------------------------------------------
+
+
+# ---- _decl_to_task_info bridge ----
+
+
+def test_decl_to_task_info_deliverable_full_shape():
+    from services.invocation_dispatcher import _decl_to_task_info
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+        data={
+            "display_name": "Weekly Market Report",
+            "schedule": "0 9 * * 1",
+            "agents": ["analyst", "writer"],
+            "context_reads": ["market", "competitors"],
+            "context_writes": [],
+            "required_capabilities": [],
+            "page_structure": ["headlines", "by-domain", "actions"],
+            "delivery": "subscribers",
+            "deliverable": {
+                "audience": "Operator",
+                "page_structure": ["headlines", "actions"],
+                "quality_criteria": ["timely", "actionable"],
+            },
+        },
+    )
+    info = _decl_to_task_info(decl)
+    assert info["title"] == "Weekly Market Report"
+    assert info["slug"] == "market-weekly"
+    assert info["agent_slug"] == "analyst"  # first agent
+    assert info["context_reads"] == ["market", "competitors"]
+    assert info["mode"] == "recurring"  # default for DELIVERABLE
+    assert info["output_kind"] == "produces_deliverable"
+    assert info["page_structure"] == ["headlines", "by-domain", "actions"]
+    assert info["delivery"] == "subscribers"
+    assert info["schedule"] == "0 9 * * 1"
+
+
+def test_decl_to_task_info_accumulation_shape():
+    from services.invocation_dispatcher import _decl_to_task_info
+
+    decl = _make_decl(
+        RecurrenceShape.ACCUMULATION,
+        "competitors-weekly-scan",
+        "/workspace/context/competitors/_recurring.yaml",
+        data={
+            "schedule": "0 9 * * 1",
+            "agent": "researcher",
+            "objective": "Weekly competitive moves + pricing signals",
+            "context_reads": ["signals"],
+            "context_writes": ["competitors"],
+        },
+    )
+    info = _decl_to_task_info(decl)
+    assert info["agent_slug"] == "researcher"
+    assert info["output_kind"] == "accumulates_context"
+    assert info["mode"] == "recurring"
+    assert info["context_reads"] == ["signals"]
+    assert info["context_writes"] == ["competitors"]
+
+
+def test_decl_to_task_info_action_shape():
+    from services.invocation_dispatcher import _decl_to_task_info
+
+    decl = _make_decl(
+        RecurrenceShape.ACTION,
+        "slack-standup",
+        "/workspace/operations/slack-standup/_action.yaml",
+        data={
+            "agents": ["writer"],
+            "target_capability": "write_slack",
+            "schedule": "0 9 * * 1-5",
+        },
+    )
+    info = _decl_to_task_info(decl)
+    assert info["output_kind"] == "external_action"
+    assert info["mode"] == "reactive"  # default for ACTION
+
+
+def test_decl_to_task_info_maintenance_shape():
+    from services.invocation_dispatcher import _decl_to_task_info
+
+    decl = _make_decl(
+        RecurrenceShape.MAINTENANCE,
+        "back-office-workspace-cleanup",
+        "/workspace/_shared/back-office.yaml",
+        data={
+            "executor": "services.back_office.workspace_cleanup",
+            "schedule": "0 0 * * *",
+        },
+    )
+    info = _decl_to_task_info(decl)
+    assert info["output_kind"] == "system_maintenance"
+    assert info["mode"] == "recurring"
+
+
+# ---- _output_kind_for_shape ----
+
+
+def test_output_kind_for_shape_complete_mapping():
+    from services.invocation_dispatcher import _output_kind_for_shape
+
+    assert _output_kind_for_shape(RecurrenceShape.DELIVERABLE) == "produces_deliverable"
+    assert _output_kind_for_shape(RecurrenceShape.ACCUMULATION) == "accumulates_context"
+    assert _output_kind_for_shape(RecurrenceShape.ACTION) == "external_action"
+    assert _output_kind_for_shape(RecurrenceShape.MAINTENANCE) == "system_maintenance"
+
+
+# ---- _pulse_for_decl (Axiom 4 mapping) ----
+
+
+def test_pulse_for_decl_action_is_reactive():
+    from services.invocation_dispatcher import _pulse_for_decl
+
+    decl = _make_decl(
+        RecurrenceShape.ACTION,
+        "slack-standup",
+        "/workspace/operations/slack-standup/_action.yaml",
+        data={"schedule": "0 9 * * 1-5"},  # has schedule but ACTION is always reactive
+    )
+    assert _pulse_for_decl(decl) == "reactive"
+
+
+def test_pulse_for_decl_scheduled_is_periodic():
+    from services.invocation_dispatcher import _pulse_for_decl
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+        data={"schedule": "0 9 * * 1"},
+    )
+    assert _pulse_for_decl(decl) == "periodic"
+
+
+def test_pulse_for_decl_no_schedule_is_addressed():
+    from services.invocation_dispatcher import _pulse_for_decl
+
+    # No schedule → manual fire / one-shot → addressed pulse
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "one-off-teardown",
+        "/workspace/reports/one-off-teardown/_spec.yaml",
+        data={},
+    )
+    assert _pulse_for_decl(decl) == "addressed"
+
+
+# ---- _format_deliverable_spec (prompt rendering) ----
+
+
+def test_format_deliverable_spec_full_block():
+    from services.invocation_dispatcher import _format_deliverable_spec
+
+    deliverable = {
+        "audience": "Operator",
+        "page_structure": ["headlines", "by-domain", "actions"],
+        "quality_criteria": ["timely", "actionable", "≤ 800 words"],
+    }
+    rendered = _format_deliverable_spec(deliverable)
+    assert "## Deliverable Specification" in rendered
+    assert "**Audience**: Operator" in rendered
+    assert "**Page structure**: headlines, by-domain, actions" in rendered
+    assert "**Quality criteria**:" in rendered
+    assert "- timely" in rendered
+    assert "- ≤ 800 words" in rendered
+
+
+def test_format_deliverable_spec_partial_block():
+    from services.invocation_dispatcher import _format_deliverable_spec
+
+    rendered = _format_deliverable_spec({"audience": "Subscribers"})
+    assert "**Audience**: Subscribers" in rendered
+    assert "Page structure" not in rendered  # absent fields don't render
+
+
+# ---- _format_audit_entry (back-office shape) ----
+
+
+def test_format_audit_entry_with_actions():
+    from services.invocation_dispatcher import _format_audit_entry
+
+    started = datetime(2026, 4, 29, 14, 30, tzinfo=timezone.utc)
+    entry = _format_audit_entry(
+        slug="back-office-workspace-cleanup",
+        executor="services.back_office.workspace_cleanup",
+        summary="Cleaned 3 ephemeral files",
+        actions_taken=["deleted /working/foo", "deleted /user_shared/bar"],
+        output_markdown="Cleaned up old scratch files.",
+        started_at=started,
+    )
+    assert "[2026-04-29 14:30 UTC] back-office-workspace-cleanup" in entry
+    assert "`services.back_office.workspace_cleanup`" in entry
+    assert "Cleaned 3 ephemeral files" in entry
+    assert "Actions: 2" in entry
+    assert "deleted /working/foo" in entry
+
+
+def test_format_audit_entry_truncates_long_output():
+    from services.invocation_dispatcher import _format_audit_entry
+
+    started = datetime(2026, 4, 29, 14, 30, tzinfo=timezone.utc)
+    long_body = "x" * 2000
+    entry = _format_audit_entry(
+        slug="back-office-test",
+        executor="some.module",
+        summary="ran",
+        actions_taken=[],
+        output_markdown=long_body,
+        started_at=started,
+    )
+    assert "[truncated]" in entry
+    # Body should be truncated to ~1000 + "[truncated]"
+    assert len(entry) < 1500
+
+
+# ---- _extract_recent_feedback ----
+
+
+def test_extract_recent_feedback_keeps_last_n():
+    from services.invocation_dispatcher import _extract_recent_feedback
+
+    feedback = """## 2026-04-01 source:user
+First feedback entry.
+
+## 2026-04-15 source:user
+Second feedback entry.
+
+## 2026-04-20 source:system
+Third entry.
+
+## 2026-04-25 source:user
+Fourth entry."""
+    recent = _extract_recent_feedback(feedback, max_entries=2)
+    # Last 2 blocks
+    assert "## 2026-04-25" in recent
+    assert "## 2026-04-20" in recent
+    # First two excluded
+    assert "## 2026-04-01" not in recent
+    assert "## 2026-04-15" not in recent
+
+
+def test_extract_recent_feedback_empty_input():
+    from services.invocation_dispatcher import _extract_recent_feedback
+
+    assert _extract_recent_feedback("") == ""
+    assert _extract_recent_feedback(None) == ""
+
+
+# ---- _result_paused / _result_failed shape ----
+
+
+def test_result_paused_shape():
+    from services.invocation_dispatcher import _result_paused
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+    )
+    result = _result_paused(decl)
+    assert result["success"] is False
+    assert result["error"] == "paused"
+    assert result["shape"] == "deliverable"
+    assert result["slug"] == "market-weekly"
+    assert "UpdateContext" in result["message"]
+
+
+def test_result_failed_shape_carries_paths_when_present():
+    from services.invocation_dispatcher import _result_failed
+    from services.recurrence_paths import resolve_paths
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+    )
+    started = datetime(2026, 4, 29, tzinfo=timezone.utc)
+    paths = resolve_paths(decl, started_at=started)
+    result = _result_failed(decl, "balance exhausted", paths=paths)
+    assert result["success"] is False
+    assert result["error"] == "dispatch_failed"
+    assert result["message"] == "balance exhausted"
+    assert result["output_path"] == paths.output_path
+
+
+def test_result_failed_no_paths():
+    from services.invocation_dispatcher import _result_failed
+
+    decl = _make_decl(
+        RecurrenceShape.MAINTENANCE,
+        "back-office-cleanup",
+        "/workspace/_shared/back-office.yaml",
+    )
+    result = _result_failed(decl, "missing executor")
+    assert result["output_path"] is None
+
+
+# ---- _total_input_tokens ----
+
+
+def test_total_input_tokens_sums_cache_and_input():
+    from services.invocation_dispatcher import _total_input_tokens
+
+    usage = {
+        "input_tokens": 1000,
+        "cache_read_input_tokens": 5000,
+        "cache_creation_input_tokens": 200,
+        "output_tokens": 800,  # not counted
+    }
+    assert _total_input_tokens(usage) == 6200
+
+
+def test_total_input_tokens_partial():
+    from services.invocation_dispatcher import _total_input_tokens
+
+    assert _total_input_tokens({"input_tokens": 500}) == 500
+    assert _total_input_tokens({}) == 0
+
+
+# ---------------------------------------------------------------------------
 # Test summary
 # ---------------------------------------------------------------------------
 

@@ -6,6 +6,50 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.2] - ADR-231 Phase 3.2.b — Dispatcher YAML-native body (chat-as-layer)
+
+### Changed
+- `api/services/invocation_dispatcher.py` — full body rewrite. The Phase 2 thin adapter (which delegated to `task_pipeline.execute_task` by slug) is replaced with a YAML-native pipeline that takes a `RecurrenceDeclaration` and routes by shape. Four branches:
+  - `_dispatch_generative` (DELIVERABLE + ACCUMULATION) — Sonnet generation, natural-home output substrate (`/workspace/reports/{slug}/{date}/output.md` for DELIVERABLE; agent writes entity files via tool rounds for ACCUMULATION).
+  - `_dispatch_action` (external_action) — delegates to generative for now; platform write IS the work; outcome reconciliation per ADR-195 writes to domain `_performance.md` async.
+  - `_dispatch_maintenance` (back-office) — dotted-path `executor:` invocation; appends one entry to `/workspace/_shared/back-office-audit.md` per ADR-231 D2 (the audit log doubles as run log per D10). No per-task `outputs/{date}/` folder for back-office post-cutover.
+  - Empty-state branches (ADR-161 daily-update, ADR-204 maintain-overview) preserved as inline keyed cases.
+- **Chat-as-layer posture hardened**: every invocation emits exactly one narrative entry per ADR-219 with shape-aware Identity (`role='agent'` for persona work, `role='system'` for dispatcher / cost-gate / failure messages, weight derived from outcome). Provenance entries link operator-clickable substrate paths (output, run_log, feedback, declaration). Filtering by `agent:<slug>` works uniformly for systemic + custom Agents per D11.
+- Substrate writes routed through `services.recurrence_paths.resolve_paths(decl)` (Phase 3.2.a) → `UserMemory.write` → `services.authored_substrate.write_revision` per ADR-209. Every YAML/output write is attributed (`authored_by="agent:<slug>"` for generation, `system:dispatcher` for manifests + audit log).
+- Run log discipline per ADR-231 D10 enforced: declaration-scoped `_run_log.md` for DELIVERABLE/ACCUMULATION/ACTION; shared audit log for MAINTENANCE.
+- Capability gate (ADR-207 P3) + balance gate (ADR-172) at dispatch entry — narrative emits the skip reason so the operator sees it in chat (system output, weight=routine).
+
+### Expected behavior
+- `FireInvocation(shape, slug)` against any of the 4 shapes routes through the new dispatcher; no `task_pipeline.execute_task` call. Output lands at natural-home substrate. Narrative entry emits with provenance.
+- Manual fire of a maintenance declaration appends to `/workspace/_shared/back-office-audit.md` rather than per-task `outputs/{date}/output.md`. Operator's chat surfaces a `system: back-office: <summary>` entry with weight=housekeeping.
+- DELIVERABLE generation continues to honor ADR-182 reduced tool surface (WriteFile + RuntimeDispatch only, max 2 rounds) for `output_kind=produces_deliverable`.
+
+### What survives unchanged
+- ADR-209 attribution machinery on every write.
+- ADR-219 narrative substrate as the singular write path.
+- ADR-194 v2 Reviewer dispatch chain.
+- ADR-228 cockpit four-face contract (faces read natural-home substrate).
+- ADR-141 execution-mechanism layers (one cycle through the six dimensions per Axiom 0).
+
+### What is deferred to subsequent phases
+- Section partials + `sys_manifest.json` writes (currently written by `task_pipeline._persist_sections_and_manifest` to slug-rooted `/tasks/{slug}/outputs/{tf}/sections/`). Compose-on-demand surface (ADR-213) reshapes to consume natural-home paths in Phase 3.6.b.
+- `_post_run_domain_scan` (awareness.md updates) — slug-rooted, dies in 3.7. Domain-scoped equivalent lands in 3.6.b.
+- Prior-output / revision-scope injection (ADR-170/173) — needs natural-home reshape in 3.6.b.
+- Scheduler migration to walk YAML declarations (Phase 3.3).
+- `tasks` table column drops (Phase 3.4 — migration 164).
+- Caller migrations (Phase 3.6 — ~30 production files routed through dispatcher).
+- Atomic deletion of `task_pipeline.py` / `manage_task.py` / `task_workspace.py` / `task_types.py` / `task_derivation.py` (Phase 3.7).
+
+### Validation
+- 77/77 passing in `api/test_adr231_recurrence.py` (32 path-resolution + 19 dispatcher pure-helper tests added in 3.2.b on top of 26 existing).
+- Smoke import: dispatcher + FireInvocation primitive + recurrence_paths resolve cleanly.
+- Per cutover plan at `docs/analysis/adr-231-phase-3-cutover-plan-2026-04-29.md`.
+
+### Caveats
+- During Phases 3.2.b → 3.6, `task_pipeline.execute_task` still exists and is callable by not-yet-migrated routes (per cutover plan §3.6). The dispatcher does not delete it; Singular Implementation is honored at the call-site boundary — `FireInvocation` and the (forthcoming) scheduler route through the new dispatcher exclusively. Atomic deletion lands in 3.7.
+
+---
+
 ## [2026.04.28.3] - ADR-231 Phase 1 — Invocation-first default (TP behavioral inversion)
 
 ### Changed
