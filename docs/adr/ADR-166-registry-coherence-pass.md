@@ -1,5 +1,7 @@
 # ADR-166: Registry Coherence Pass — Drop `category`, Refine `output_kind`
 
+> **⚠ Further Superseded by [ADR-231](ADR-231-task-abstraction-sunset.md) (2026-04-29).** The `output_kind` 4-value enum dissolves entirely; the four-shape concept (deliverable / accumulation / action / maintenance) survives as `RecurrenceShape` enum + operator vocabulary, with shape implied by substrate location per ADR-231 D2/D3 (`/workspace/reports/` = DELIVERABLE, `/workspace/context/{domain}/` = ACCUMULATION, `/workspace/operations/` = ACTION, `/workspace/_shared/back-office.yaml` = MAINTENANCE). `task_types.py` (1,836 LOC) DELETED in ADR-231 Phase 3.7.
+>
 > **⚠ Superseded by [ADR-207](ADR-207-primary-action-centric-workflow.md) (2026-04-22).** The `output_kind` classification enum dissolves. Tasks self-declare behavior via TASK.md fields (`schedule`, `context_reads`, `context_writes`, `emits_proposal`, `required_capabilities`, `output_spec`); pipeline and surfaces derive role from declarations, not from a classification key. ADR-207 deletes `TASK_TYPES` wholesale alongside the classification.
 
 **Status:** Superseded by ADR-207 (output_kind classification dissolves)

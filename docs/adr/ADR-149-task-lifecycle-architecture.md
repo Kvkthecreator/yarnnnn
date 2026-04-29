@@ -1,5 +1,7 @@
 # ADR-149: Task Lifecycle Architecture — TP as Context Manager
 
+> **⚠ Superseded by [ADR-231](ADR-231-task-abstraction-sunset.md) (2026-04-29).** Most lifecycle actions dissolve into substrate operations per ADR-231 D5: `ManageTask(create|update|pause|resume|archive)` collapses into `UpdateContext(target='recurrence', action=...)` writing the YAML declaration; `ManageTask(trigger)` becomes `FireInvocation(shape, slug)`. DELIVERABLE.md survives only as part of `produces_deliverable` recurrence declarations (collapsed into the YAML's `deliverable:` block). The `_handle_evaluate` / `_handle_steer` / `_handle_complete` flows dissolve — operator steering is `UpdateContext(target='recurrence', action='update', changes={'steering': '...'})`; goal-mode completion is YAML archive. `manage_task.py` primitive DELETED in ADR-231 Phase 3.7.
+>
 > **⚠ Amended by [ADR-207](ADR-207-primary-action-centric-workflow.md) (2026-04-22).** DELIVERABLE.md semantics unchanged — it remains the task's output contract. Reframed: it is no longer a "first-class layer" in the operator workflow; it is a task sub-part. The operator-facing center of gravity is the Mandate + Primary Action (ADR-207 D1/D2), and task outputs (proposals, briefings, reconciliations) are what the operator sees — labeled by the producing task's role in the Loop, not by a separate Deliverables concept.
 
 **Status:** Phase 1-5 Implemented. Phase 6 (DELIVERABLE.md frontend surface) **now active** per ADR-178.
