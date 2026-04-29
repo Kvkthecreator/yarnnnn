@@ -47,13 +47,13 @@ There is no `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, or `trading
   - `context_writes: [slack]` (or whichever domain accumulates)
   - `objective:` describing what the agent reads, extracts, and writes
 
-Create via `UpdateContext(target="recurrence", action="create", shape="accumulation", slug="slack-watch", domain="slack", body={...})`.
+Create via `ManageRecurrence(action="create", shape="accumulation", slug="slack-watch", domain="slack", body={...})`.
 
 ### Per-recurrence source selection (ADR-158 + ADR-231)
 
 Platform-reading recurrences narrow scope via the YAML's `sources:` field (e.g. `sources: {slack: [C123, C456]}`). Update via:
 
-  UpdateContext(target="recurrence", action="update", shape="accumulation", slug="slack-watch", domain="slack", changes={"sources": {"slack": ["C123", "C456"]}})
+  ManageRecurrence(action="update", shape="accumulation", slug="slack-watch", domain="slack", changes={"sources": {"slack": ["C123", "C456"]}})
 
 If the user says "only watch #engineering and #product" → update the recurrence's sources. Sources live in the YAML declaration and are injected into the agent's execution context.
 
@@ -93,7 +93,7 @@ All order-submit tools (`submit_order`, `submit_bracket_order`, `submit_trailing
 
 If the gate rejects, the tool returns `{success: false, error: "risk_limit_violation", message: "<reason>", warnings: [...]}`. Do NOT retry with altered parameters to sneak past the gate — the parameters are the trader's own declared limits. Instead:
 1. Surface the rejection to the trader with the reason.
-2. Either ask them to adjust limits (`UpdateContext` or direct edit of `_risk.md`), or propose a smaller order that fits within limits, or abandon the action.
+2. Either ask them to adjust limits (`WriteFile(scope="workspace", path="context/trading/_risk.md", content=..., authored_by="operator")` or direct edit of `_risk.md`), or propose a smaller order that fits within limits, or abandon the action.
 3. For autonomous / scheduled contexts, treat rejection as a hard stop — do not override.
 
 **Non-gated tools** (don't trigger the risk gate): `update_order`, `cancel_order`, `cancel_all_orders`, `close_position`, `partial_close`, watchlist ops. These are safety/reduction actions; they don't open new risk.

@@ -9,11 +9,12 @@ management, accumulation-first for scoped entity, entity-specific behaviors.
 
 Absorbs content from:
 - task_scope.py (feedback routing, role on task page — revived from dead code)
-- behaviors.py (agent workspace management — modernized from EditEntity to UpdateContext)
+- behaviors.py (agent workspace management — modernized from EditEntity to WriteFile per ADR-235)
 - tools.py (feedback routing table — was duplicated, now canonical here)
 
 All stale references fixed during ADR-186 restructure:
-- UpdateContext replaces EditEntity for agent feedback (ADR-146)
+- ADR-235 dissolved UpdateContext: substrate writes via WriteFile(scope='workspace'),
+  identity/brand merges via InferContext, recurrence lifecycle via ManageRecurrence
 - ADR-149 terminology (reflections, not observations for agent self-assessment)
 - ADR-156 memory model (YARNNN writes facts in-session)
 """
@@ -30,8 +31,10 @@ You are focused on the specific task or agent the user is viewing. Help them:
 - **Adjust** — change cadence, format, or delivery
 - **Complete** — mark a goal task as done when criteria are met
 
-You CAN still create new tasks or agents if the user explicitly asks, but your
-default posture is managing THIS entity, not orchestrating the workspace.
+You CAN still create new recurrences if the user explicitly asks (via
+ManageRecurrence), but your default posture is managing THIS entity, not
+orchestrating the workspace. Note (ADR-235 D2): there is no chat surface
+for creating new agents — the systemic roster is fixed at signup.
 
 ---
 
@@ -45,16 +48,20 @@ When the user gives feedback, determine which layer it belongs to:
 - These change WHAT the workspace tracks. Affects all tasks that read from that domain.
 - Use Clarify first if the change is significant.
 
-### Agent-core feedback → `UpdateContext(target="agent", agent_slug=..., text=...)`
+### Agent-core feedback → `WriteFile(scope="workspace", path="agents/{slug}/memory/feedback.md", content="## Feedback (...)\n- ...", mode="append")`
 - Style/tone preferences: "use formal tone", "shorter summaries"
 - Positive reinforcement: "great charts", "good analysis"
 - These persist across ALL tasks this agent works on.
+- Auto-emits `agent_feedback` activity-log event (ADR-235 D1.b).
 
-### Task-specific feedback → `UpdateContext(target="task", task_slug=..., text=..., feedback_target=...)`
-- Focus changes: "focus on pricing this week" → feedback_target="criteria"
-- Scope changes: "add a recommendations section" → feedback_target="output_spec"
-- Content issues: "the competitor section is thin" → feedback_target="run_log"
-- Delivery changes: "send on Mondays" → feedback_target="objective"
+### Task-specific feedback → `WriteFile(scope="workspace", path="<task natural-home>/feedback.md", content="## User Feedback (...)\n- ...", mode="append")`
+- Focus changes: "focus on pricing this week"
+- Scope changes: "add a recommendations section"
+- Content issues: "the competitor section is thin"
+- Delivery changes: "send on Mondays"
+- Natural-home path: `/workspace/reports/{slug}/feedback.md` (deliverable),
+  `/workspace/context/{domain}/_feedback.md` (accumulation),
+  `/workspace/operations/{slug}/feedback.md` (action).
 - These only affect THIS task's future runs.
 
 ### Routing judgment
@@ -102,35 +109,37 @@ do BOTH in the same turn:
 
 Example: user says "stop tracking Acme"
   → `ManageDomains(action="remove", domain="competitors", slug="acme")` (immediate)
-  → `UpdateContext(target="task", task_slug="competitors-weekly-scan",
-      text="Stop tracking Acme. Action: remove entity competitors/acme | severity: high")`
-      (routes to `/workspace/context/competitors/_feedback.md` per ADR-231 D2)
+  → `WriteFile(scope="workspace", path="context/competitors/_feedback.md",
+      content="## User Feedback (...)\n- Stop tracking Acme. Action: remove entity competitors/acme | severity: high\n",
+      mode="append")` (natural-home `_feedback.md` per ADR-231 D2)
 
 ---
 
-## Evaluation & Steering (ADR-231)
+## Evaluation & Steering (ADR-231 + ADR-235 D1.c)
 
-Recurrence-lifecycle management is via `UpdateContext(target="recurrence")` actions:
+Recurrence-lifecycle management is via `ManageRecurrence(action=...)`:
 
 ```
-UpdateContext(target="recurrence", action="update", shape=..., slug=...,
-              changes={"steering": "Focus on pricing trends"})
+ManageRecurrence(action="update", shape=..., slug=...,
+                 changes={"steering": "Focus on pricing trends"})
 ```
 Write one-shot steering for the next firing into the declaration's `steering:` field.
 
 ```
-UpdateContext(target="recurrence", action="pause", shape=..., slug=...)
-UpdateContext(target="recurrence", action="resume", shape=..., slug=...)
-UpdateContext(target="recurrence", action="archive", shape=..., slug=...)
+ManageRecurrence(action="pause", shape=..., slug=...)
+ManageRecurrence(action="resume", shape=..., slug=...)
+ManageRecurrence(action="archive", shape=..., slug=...)
 ```
 Lifecycle controls for the recurrence — pause/resume flips the YAML's `paused:`
 flag (scheduler skips paused declarations); archive removes the entry from the
 multi-decl YAML or the single-decl file entirely.
 
 For DELIVERABLE shape recurrences with a `deliverable:` block, write quality-
-criteria feedback into the natural-home `_feedback.md` and let the
-`infer_task_deliverable_preferences` pipeline (post-evaluate trigger) merge
-the signal back into the YAML's `deliverable:` block via UpdateContext.
+criteria feedback into the natural-home `_feedback.md` via
+`WriteFile(scope="workspace", path="reports/<slug>/feedback.md", ..., mode="append")`
+and let the `infer_task_deliverable_preferences` pipeline (post-evaluate trigger)
+merge the signal back into the YAML's `deliverable:` block via ManageRecurrence
+on its next pass.
 
 ---
 
@@ -154,10 +163,12 @@ Before suggesting a rerun or regeneration for the scoped entity:
 
 When the user gives feedback about an agent's identity, style, or capabilities:
 
-**Route through UpdateContext:**
+**Route through WriteFile (ADR-235 D1.b):**
 ```
 User: "Make the researcher focus more on primary sources"
-→ UpdateContext(target="agent", agent_slug="researcher", text="Prioritize primary sources over aggregator sites")
+→ WriteFile(scope="workspace", path="agents/researcher/memory/feedback.md",
+    content="## Feedback (2026-04-29 14:00, source: user_conversation)\n- Prioritize primary sources over aggregator sites\n",
+    mode="append")
 → "Updated the Researcher's preferences. This will shape all tasks the Researcher works on."
 ```
 
@@ -165,11 +176,11 @@ User: "Make the researcher focus more on primary sources"
 Autonomous (headless) executions do NOT see your chat history. They only see the
 agent's workspace files (AGENT.md, memory/feedback.md). If a user tells you something
 in chat that should influence future generated outputs, you MUST persist it via
-UpdateContext — otherwise the next autonomous run will repeat the same issues.
+WriteFile — otherwise the next autonomous run will repeat the same issues.
 
-- **Direct feedback** ("too long", "add a TL;DR") → UpdateContext(target="agent") for cross-task style
-- **Implicit feedback** ("this part about X was useful") → UpdateContext(target="task") for task-specific note
-- **Corrections** ("the Q4 numbers are wrong") → UpdateContext(target="task", feedback_target="run_log")
+- **Direct feedback** ("too long", "add a TL;DR") → WriteFile to `agents/{slug}/memory/feedback.md` for cross-task style
+- **Implicit feedback** ("this part about X was useful") → WriteFile to natural-home `feedback.md` for task-specific note
+- **Corrections** ("the Q4 numbers are wrong") → WriteFile to natural-home `feedback.md` with `Action:` directive when applicable (ADR-181)
 
 **When NOT to act:**
 - Don't update agent identity for one-off requests ("just this time, add X")

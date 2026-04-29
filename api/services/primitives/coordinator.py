@@ -1,8 +1,16 @@
 """
-ManageAgent Primitive — ADR-138 + ADR-146 pattern
+ManageAgent Primitive — ADR-138 + ADR-146 pattern; ADR-235 D2 narrows action enum.
 
-Agent lifecycle management: create, update, pause, resume, archive.
-Follows the ManageTask/ManageDomains pattern — single primitive, action enum.
+Agent lifecycle management: update, pause, resume, archive.
+Follows the ManageDomains pattern — single primitive, action enum.
+
+ADR-235 D2 (2026-04-29): the `create` action is REMOVED from the chat-surface
+tool definition. There is no chat-surface pathway for creating user-authored
+Agents. The `_handle_create` function and `agent_creation.create_agent_record`
+are preserved as service code (signup path uses them); only the LLM-facing
+surface narrows. Singular Implementation: no parallel "deprecated but works"
+creation path. If users need custom Agents in the future, a new ADR introduces
+a new surface.
 
 Agents are identities that execute tasks. Scheduling, sources, delivery live on tasks.
 """
@@ -17,62 +25,75 @@ logger = logging.getLogger(__name__)
 
 MANAGE_AGENT_TOOL = {
     "name": "ManageAgent",
-    "description": """Manage agent lifecycle: create, update, pause, resume, archive.
+    "description": """Manage agent lifecycle: update, pause, resume, archive.
 
-**action="create"** — Create a new agent identity with a role.
-  ManageAgent(action="create", title="Competitive Intel", role="researcher")
-  ManageAgent(action="create", title="Weekly Digest", role="briefer", agent_instructions="Focus on product launches")
+ADR-235 D2: there is no chat surface for creating new agents. The systemic
+roster (Reviewer, YARNNN, the universal specialists per ADR-176) is fixed at
+signup; configure tasks against it instead of authoring new agents.
 
 **action="update"** — Change title, role, or instructions for an existing agent.
-  ManageAgent(action="update", agent_slug="competitive-intel", agent_instructions="Also track pricing changes")
-  ManageAgent(action="update", agent_slug="weekly-digest", title="Daily Digest")
+  ManageAgent(action="update", agent_slug="researcher", agent_instructions="Also track pricing changes")
+  ManageAgent(action="update", agent_slug="writer", title="Senior Editor")
 
 **action="pause"** — Stop an agent from executing tasks.
-  ManageAgent(action="pause", agent_slug="competitive-intel")
+  ManageAgent(action="pause", agent_slug="researcher")
 
 **action="resume"** — Reactivate a paused agent.
-  ManageAgent(action="resume", agent_slug="competitive-intel")
+  ManageAgent(action="resume", agent_slug="researcher")
 
 **action="archive"** — Retire an agent permanently.
-  ManageAgent(action="archive", agent_slug="competitive-intel")
-
-role options: briefer, monitor, researcher, drafter, analyst, writer, planner, scout""",
+  ManageAgent(action="archive", agent_slug="researcher")""",
     "input_schema": {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["create", "update", "pause", "resume", "archive"],
-                "description": "Lifecycle operation",
+                "enum": ["update", "pause", "resume", "archive"],
+                "description": "Lifecycle operation. Note: 'create' is intentionally absent (ADR-235 D2).",
             },
             "title": {
                 "type": "string",
-                "description": "For create/update: agent title",
+                "description": "For update: agent title",
             },
             "role": {
                 "type": "string",
-                "description": "For create: briefer, monitor, researcher, drafter, analyst, writer, planner, scout",
+                "description": "For update: briefer, monitor, researcher, drafter, analyst, writer, planner, scout",
             },
             "agent_slug": {
                 "type": "string",
-                "description": "For update/pause/resume/archive: the agent's slug",
+                "description": "Required for update/pause/resume/archive: the agent's slug",
             },
             "agent_instructions": {
                 "type": "string",
-                "description": "For create/update: behavioral directives",
+                "description": "For update: behavioral directives",
             },
         },
-        "required": ["action"],
+        "required": ["action", "agent_slug"],
     },
 }
 
 
 async def handle_manage_agent(auth: Any, input: dict) -> dict:
-    """Route ManageAgent to appropriate action handler."""
-    action = input.get("action", "create")
+    """Route ManageAgent to appropriate action handler.
+
+    ADR-235 D2: 'create' is removed from the LLM-facing tool definition.
+    `_handle_create` and `services.agent_creation.create_agent_record` are
+    preserved for the kernel/signup path; only the chat surface narrows.
+    A 'create' action arriving via the LLM-facing primitive surface returns
+    an explicit error.
+    """
+    action = input.get("action", "")
 
     if action == "create":
-        return await _handle_create(auth, input)
+        return {
+            "success": False,
+            "error": "create_action_disabled",
+            "message": (
+                "ManageAgent(action='create') is not available via the chat "
+                "primitive surface (ADR-235 D2). The systemic roster is "
+                "fixed at signup; configure tasks against it instead."
+            ),
+        }
     elif action == "update":
         return await _handle_update(auth, input)
     elif action in ("pause", "resume", "archive"):

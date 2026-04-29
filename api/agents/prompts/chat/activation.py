@@ -14,10 +14,11 @@ time via the workspace_state signal (ADR-144) — specifically, the presence
 of `activated_program` + the skeleton-state of MANDATE.md.
 
 The overlay does NOT introduce a parallel write path: operator responses
-route through the existing `UpdateContext` primitive. The overlay just
-shapes YARNNN's conversational behavior to walk through `authored` files
-deliberately, one at a time, surfacing the bundle's `prompt:` text as
-context for each.
+route through the existing primitive surface (`WriteFile` for substrate
+writes; `InferContext` for identity/brand inference merges per ADR-235).
+The overlay just shapes YARNNN's conversational behavior to walk through
+`authored` files deliberately, one at a time, surfacing the bundle's
+`prompt:` text as context for each.
 
 Per CHANGELOG protocol (ADR-186 + the prompt-change protocol in CLAUDE.md):
 this prompt is a versioned artifact. Changes go through api/prompts/CHANGELOG.md
@@ -42,7 +43,8 @@ file categorization:
   - **authored** files (MANDATE.md, IDENTITY.md, principles.md, possibly
     others per the bundle's declaration) — templates with prompts where
     the operator's substantive contribution lives. Operator MUST overwrite
-    these via UpdateContext for the workspace to be operationally activated.
+    these via WriteFile or InferContext for the workspace to be
+    operationally activated.
 
   - **placeholder** files (memory/awareness.md, etc.) — accumulate from
     work over time. Do NOT prompt for them.
@@ -95,9 +97,9 @@ Then, file-by-file:
   3. When they answer, draft the file content based on their answer plus
      the bundle's template structure. Show the draft.
   4. Confirm. On confirmation, write via:
-     `UpdateContext(target="mandate", text="...")`  for MANDATE.md
-     `UpdateContext(target="identity", text="...")` for IDENTITY.md
-     For other files, use the appropriate target/path.
+     `WriteFile(scope="workspace", path="context/_shared/MANDATE.md", content="...", authored_by="operator")` for MANDATE.md
+     `InferContext(target="identity", text="...")` for IDENTITY.md (inference merge with prior content)
+     For other files: `WriteFile(scope="workspace", path="<canonical-path>", content="...", authored_by="operator")`.
   5. Move to the next `authored` file.
 
 ### Posture during activation

@@ -29,7 +29,13 @@ from .coordinator import MANAGE_AGENT_TOOL, handle_manage_agent
 # ADR-231 Phase 3.7: ManageTask DELETED. Lifecycle dissolves into
 # UpdateContext(target='recurrence', ...) and FireInvocation per D5.
 from .fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
-from .update_context import UPDATE_CONTEXT_TOOL, handle_update_context
+# ADR-235: UpdateContext DISSOLVED. Targets sort into:
+#   - Inference-merged writes → InferContext / InferWorkspace
+#   - Direct substrate writes  → WriteFile (with scope='workspace', ADR-235 Option A)
+#   - Lifecycle action          → ManageRecurrence
+from .infer_context import INFER_CONTEXT_TOOL, handle_infer_context
+from .infer_workspace import INFER_WORKSPACE_TOOL, handle_infer_workspace
+from .manage_recurrence import MANAGE_RECURRENCE_TOOL, handle_manage_recurrence
 from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
 from .workspace import (
     READ_FILE_TOOL, handle_read_file,
@@ -212,16 +218,21 @@ CHAT_PRIMITIVES = [
     # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
     LIST_INTEGRATIONS_TOOL,
-    # Context mutations — unified (1, was 4)
-    UPDATE_CONTEXT_TOOL,
+    # ADR-235 D1.a: Inference-merged writes — explicit Infer* primitives.
+    # Cognitive shape is "LLM merge over text + docs + URLs"; named honestly.
+    INFER_CONTEXT_TOOL,
+    INFER_WORKSPACE_TOOL,
     # ADR-155: Domain scaffolding (TP-driven)
     MANAGE_DOMAINS_TOOL,
-    # Agent lifecycle (1, was 2 pre-ADR-231)
+    # Agent lifecycle (1, was 2 pre-ADR-231; ADR-235 D2: action enum drops 'create').
+    # No chat-surface pathway for creating user-authored Agents — see ADR-235 R4.
     MANAGE_AGENT_TOOL,
+    # ADR-235 D1.c: ManageRecurrence — recurrence-declaration lifecycle.
+    # Mirrors ManageAgent / ManageDomains shape.
+    MANAGE_RECURRENCE_TOOL,
     # ADR-231 D5: FireInvocation — manual fire of a recurrence declaration.
-    # Replaces ManageTask(action="trigger"); other lifecycle actions
-    # (create/update/pause/resume/archive) flow through UpdateContext
-    # (target='recurrence'). ManageTask is DELETED in Phase 3.7.
+    # Replaces ManageTask(action="trigger"). All other lifecycle actions
+    # (create/update/pause/resume/archive) flow through ManageRecurrence.
     FIRE_INVOCATION_TOOL,
     # Repurpose (ADR-148 Phase 4)
     REPURPOSE_OUTPUT_TOOL,
@@ -237,7 +248,7 @@ CHAT_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 25 tools — ADR-234 added 4 file-family primitives
+]  # 26 tools — ADR-235: -UpdateContext (-1), +InferContext +InferWorkspace +ManageRecurrence (+3); ManageAgent action enum tightened (no enum count change in registry — see coordinator.py)
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per
@@ -259,8 +270,11 @@ HEADLESS_PRIMITIVES = [
     # Inter-agent (2)
     DISCOVER_AGENTS_TOOL,
     READ_AGENT_FILE_TOOL,
-    # Lifecycle (1, was 2 pre-ADR-231) + Domain management (1)
+    # Lifecycle (ADR-235 D2: ManageAgent action enum drops 'create' — chat parity)
     MANAGE_AGENT_TOOL,
+    # ADR-235 D1.c: ManageRecurrence — agents may pause/resume/update their
+    # own declarations on outcome signals. Chat parity.
+    MANAGE_RECURRENCE_TOOL,
     # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
     FIRE_INVOCATION_TOOL,
     MANAGE_DOMAINS_TOOL,
@@ -276,7 +290,7 @@ HEADLESS_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 21 tools — ADR-231 D5 added FireInvocation
+]  # 21 static tools + dynamic platform_* — ADR-235 added ManageRecurrence
 
 # Combined list — for handler registration and backwards compatibility
 PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
@@ -300,10 +314,15 @@ HANDLERS: dict[str, Callable] = {
     "list_integrations": handle_list_integrations,
     "ManageAgent": handle_manage_agent,
     # "CreateTask": DELETED (ADR-168 Commit 3 — folded into ManageTask action="create")
-    # "ManageTask": DELETED (ADR-231 Phase 3.7 — replaced by UpdateContext(target='recurrence') + FireInvocation per D5)
+    # "ManageTask": DELETED (ADR-231 Phase 3.7 — replaced by ManageRecurrence + FireInvocation per D5)
+    # "UpdateContext": DELETED (ADR-235 — dissolved into InferContext / InferWorkspace / ManageRecurrence / WriteFile scope='workspace')
     # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
     "FireInvocation": handle_fire_invocation,
-    "UpdateContext": handle_update_context,
+    # ADR-235 D1.a: Inference-merged writes
+    "InferContext": handle_infer_context,
+    "InferWorkspace": handle_infer_workspace,
+    # ADR-235 D1.c: Lifecycle management for recurrence declarations
+    "ManageRecurrence": handle_manage_recurrence,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,

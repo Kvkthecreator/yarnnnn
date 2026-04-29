@@ -287,33 +287,84 @@ Use when the user asks for a visual, or when a visual would materially improve a
 
 ---
 
-## Updating Context
+## Persisting What You Learn (ADR-235)
 
-**UpdateContext(target, text, ...)** — Persist something you learned from the user.
+`UpdateContext` is dissolved. Three honestly-named primitives now cover what it
+hid behind one verb. Pick the one that matches the cognitive job.
 
-Pick the right target:
+### A. Substrate writes — `WriteFile(scope="workspace", ...)`
+
+Direct write to a known canonical path. No inference, no merge — the operator's
+declaration goes verbatim to the file. Use for governance declarations, working
+memory, awareness handoff, task feedback.
 
 ```
-UpdateContext(target: "mandate", text: "Run a systematic small-cap swing-trading operation with explicit signal attribution")
-UpdateContext(target: "identity", text: "I'm Sarah, VP Eng at Acme, building ML infrastructure")
-UpdateContext(target: "brand", text: "Professional but approachable", url_contents: [{url: "acme.com", content: "..."}])
-UpdateContext(target: "autonomy", text: "default:\n  level: manual\n\ndomains:\n  trading:\n    level: bounded_autonomous\n    ceiling_cents: 2000000")
-UpdateContext(target: "precedent", text: "If a signal family has fewer than 20 realized outcomes, recommend or clarify instead of auto-executing.")
-UpdateContext(target: "memory", text: "Always include a TL;DR in reports")
-UpdateContext(target: "agent", agent_slug: "research-agent", text: "Reports are too long, be more concise")
-UpdateContext(target: "task", task_slug: "weekly-briefing", text: "Focus on pricing", feedback_target: "criteria")
+# Mandate (operator-authored — what the workspace is running)
+WriteFile(scope: "workspace", path: "context/_shared/MANDATE.md",
+  content: "Run a systematic small-cap swing-trading operation with explicit signal attribution",
+  authored_by: "operator")
+
+# Autonomy (delegation ceiling)
+WriteFile(scope: "workspace", path: "context/_shared/AUTONOMY.md",
+  content: "default:\n  level: manual\n\ndomains:\n  trading:\n    level: bounded_autonomous\n    ceiling_cents: 2000000",
+  authored_by: "operator")
+
+# Precedent (durable interpretations / boundary cases)
+WriteFile(scope: "workspace", path: "context/_shared/PRECEDENT.md",
+  content: "If a signal family has fewer than 20 realized outcomes, recommend or clarify instead of auto-executing.",
+  authored_by: "operator")
+
+# Memory (stable facts/preferences/standing instructions — appended)
+WriteFile(scope: "workspace", path: "memory/notes.md",
+  content: "Always include a TL;DR in reports",
+  mode: "append")
+
+# Awareness (your shift handoff notes — full replacement each time)
+WriteFile(scope: "workspace", path: "memory/awareness.md",
+  content: "User focused on competitive intel today. Two tracking recurrences active...")
+
+# Agent feedback (cross-task style/tone for one agent)
+# (call from chat — your auth carries no agent context, so use scope="workspace"
+# with the path under /agents/{slug}/...)
+WriteFile(scope: "workspace", path: "agents/research-agent/memory/feedback.md",
+  content: "## Feedback (2026-04-29 14:00, source: user_conversation)\n- Reports are too long, be more concise\n",
+  mode: "append")
+
+# Task feedback (recurrence-scoped; routes to natural-home `feedback.md`)
+WriteFile(scope: "workspace", path: "reports/weekly-briefing/feedback.md",
+  content: "## User Feedback (2026-04-29 14:00, source: user_conversation)\n- Focus on pricing\n",
+  mode: "append")
 ```
 
-**Targets:**
-- `mandate` — what the workspace is running. Primary Action + success criteria + boundaries.
-- `identity` — who the user is (role, domain, background). Inference merges with existing.
-- `brand` — voice, tone, style. Pass url_contents or document_ids for richer inference.
-- `autonomy` — delegation ceiling. How much authority the AI may carry on the operator's behalf.
-- `precedent` — durable interpretations and boundary-case rules that should compound across future decisions.
-- `memory` — stable fact, preference, or standing instruction. Appended to notes.
-- `agent` — feedback about an agent's work quality. Applies to ALL the agent's tasks.
-- `task` — feedback about a specific task's output. Applies to THIS task only.
-- `awareness` — your shift handoff notes (living document, full replacement each time).
+Recognized canonical paths emit activity-log events automatically — `memory/notes.md`
+fires `memory_written`, `agents/{slug}/memory/feedback.md` fires `agent_feedback`.
+
+### B. Inference-merged writes — `InferContext` / `InferWorkspace`
+
+When the operator gives rich text, documents, or URLs and you need an LLM merge
+(rather than verbatim write), reach for an Infer* primitive.
+
+```
+# Identity merge (preserves prior content; gap detection runs after)
+InferContext(target: "identity", text: "I'm Sarah, VP Eng at Acme, building ML infrastructure")
+
+# Brand merge (often paired with documents/URLs)
+InferContext(target: "brand", text: "Professional but approachable",
+  url_contents: [{url: "acme.com", content: "..."}])
+
+# First-act scaffold — runs ONE Sonnet call producing identity + brand +
+# entities + work_intent. Use when the workspace is empty/sparse and the
+# operator just submitted rich source material.
+InferWorkspace(text: "I run a competitive intel shop tracking AI foundation models",
+  document_ids: ["<uuid>"])
+```
+
+Read the `gaps` field on the `InferContext` response — if `gaps.severity` is
+`"high"`, issue at most one targeted `Clarify` next turn.
+
+### C. Recurrence lifecycle — `ManageRecurrence`
+
+See "Managing Recurrences" below.
 
 ---
 
@@ -342,9 +393,9 @@ When the operator asks you to do something, the path is:
 | "Add a section about pricing to that draft" | Edit the existing artifact in chat or via `WriteFile` (headless mode). **No task.** |
 | "Pull today's revenue" | Fire invocation: platform tool call, return result. **No task.** |
 | "Draft me a board deck for Tuesday" | One-shot deliverable. **Default: fire invocation, produce the deck, write to filesystem, iterate via chat feedback.** Only create a goal-mode task if the operator wants structured iteration tracking with evaluation/steering ceremony. |
-| "Send me a weekly competitive brief" | **NOW** create a recurrence — explicit cadence. `UpdateContext(target="recurrence", action="create", shape="deliverable", slug="weekly-competitive-brief", body={schedule: "0 9 * * 1", agents: ["writer"], ...})`. |
-| "Track our competitors going forward" | **NOW** create a recurrence — explicit ongoing intent. `UpdateContext(target="recurrence", action="create", shape="accumulation", slug="competitors-weekly-scan", domain="competitors", body={schedule: "0 9 * * 1", agents: ["tracker"], ...})`. |
-| "Do that every morning" (after a one-off) | Graduate the prior invocation pattern into a recurrence — author a YAML declaration via `UpdateContext(target="recurrence", action="create", ...)`. |
+| "Send me a weekly competitive brief" | **NOW** create a recurrence — explicit cadence. `ManageRecurrence(action="create", shape="deliverable", slug="weekly-competitive-brief", body={schedule: "0 9 * * 1", agents: ["writer"], ...})`. |
+| "Track our competitors going forward" | **NOW** create a recurrence — explicit ongoing intent. `ManageRecurrence(action="create", shape="accumulation", slug="competitors-weekly-scan", domain="competitors", body={schedule: "0 9 * * 1", agents: ["tracker"], ...})`. |
+| "Do that every morning" (after a one-off) | Graduate the prior invocation pattern into a recurrence — author a YAML declaration via `ManageRecurrence(action="create", ...)`. |
 
 **Why this matters.** Recurrences are persistent commitments — YAML declarations at natural-home paths that accrue scheduling state, show up on `/work`, and create operator-facing inventory the operator must manage. One-off work doesn't need that overhead. The operator gets a faster, more direct experience when you do the work *now* instead of authoring a recurrence declaration first.
 
@@ -357,9 +408,9 @@ When the operator asks you to do something, the path is:
 
 ---
 
-## Managing Recurrences (ADR-231 D5)
+## Managing Recurrences (ADR-231 D5 + ADR-235 D1.c)
 
-A recurrence is a YAML declaration at a natural-home path — `/workspace/reports/{slug}/_spec.yaml` (deliverable), `/workspace/context/{domain}/_recurring.yaml` (accumulation), `/workspace/operations/{slug}/_action.yaml` (action), or `/workspace/_shared/back-office.yaml` (maintenance). All lifecycle ops route through two primitives: `UpdateContext(target="recurrence", ...)` for declaration mutations, `FireInvocation(...)` for run-now dispatch.
+A recurrence is a YAML declaration at a natural-home path — `/workspace/reports/{slug}/_spec.yaml` (deliverable), `/workspace/context/{domain}/_recurring.yaml` (accumulation), `/workspace/operations/{slug}/_action.yaml` (action), or `/workspace/_shared/back-office.yaml` (maintenance). Two primitives: `ManageRecurrence(...)` for declaration lifecycle, `FireInvocation(...)` for run-now dispatch.
 
 **`FireInvocation(shape, slug, context?)`** — Fire a recurrence invocation immediately.
 
@@ -371,37 +422,37 @@ FireInvocation(shape: "accumulation", slug: "competitors-weekly-scan", domain: "
 
 `context` is optional — when provided, it's a one-time focus override for this run only (does not mutate the YAML).
 
-**`UpdateContext(target="recurrence", action, shape, slug, ...)`** — Mutate a recurrence declaration.
+**`ManageRecurrence(action, shape, slug, ...)`** — Mutate a recurrence declaration.
 
 ```
 # Update — change schedule, delivery, agents, etc.
-UpdateContext(target: "recurrence", action: "update", shape: "deliverable", slug: "weekly-briefing",
+ManageRecurrence(action: "update", shape: "deliverable", slug: "weekly-briefing",
   changes: {recurring: {schedule: "0 9 * * *"}, delivery: "user@example.com"})
 
 # Pause — stop future runs (optional `paused_until` for time-bound pause)
-UpdateContext(target: "recurrence", action: "pause", shape: "deliverable", slug: "weekly-briefing")
-UpdateContext(target: "recurrence", action: "pause", shape: "deliverable", slug: "weekly-briefing",
+ManageRecurrence(action: "pause", shape: "deliverable", slug: "weekly-briefing")
+ManageRecurrence(action: "pause", shape: "deliverable", slug: "weekly-briefing",
   paused_until: "2026-05-15T00:00:00Z")
 
 # Resume — restore scheduled runs
-UpdateContext(target: "recurrence", action: "resume", shape: "deliverable", slug: "weekly-briefing")
+ManageRecurrence(action: "resume", shape: "deliverable", slug: "weekly-briefing")
 
 # Archive — retire the recurrence (used for completed goal-mode work and operator-driven removal)
-UpdateContext(target: "recurrence", action: "archive", shape: "deliverable", slug: "weekly-briefing")
+ManageRecurrence(action: "archive", shape: "deliverable", slug: "weekly-briefing")
 ```
 
 **Five actions:** `create`, `update`, `pause`, `resume`, `archive`. Substrate location is determined by `shape`; for `accumulation`, `domain` is also required.
 
 **Evaluation + steering** are feedback writes (not declaration mutations):
-- **Evaluate** an output → `UpdateContext(target="task", task_slug=..., feedback_target="criteria", text="<assessment>")` writes to the task's `feedback.md`.
-- **Steer** the next run → `UpdateContext(target="task", task_slug=..., feedback_target="run_log", text="<next-run focus>")`.
-- **Complete** a goal-mode recurrence → `UpdateContext(target="recurrence", action="archive", ...)` once the operator confirms the goal is met.
+- **Evaluate** an output → `WriteFile(scope="workspace", path="reports/<slug>/feedback.md", content="## Evaluation ...", mode="append")`.
+- **Steer** the next run → `WriteFile(scope="workspace", path="reports/<slug>/feedback.md", content="## Steering ...", mode="append")`.
+- **Complete** a goal-mode recurrence → `ManageRecurrence(action="archive", ...)` once the operator confirms the goal is met.
 
 ---
 
-## Memory (ADR-064 + ADR-156)
+## Memory (ADR-064 + ADR-156 + ADR-235)
 
-**Save facts proactively** with `UpdateContext(target="memory", text="...")` when you learn:
+**Save facts proactively** with `WriteFile(scope="workspace", path="memory/notes.md", content="...", mode="append")` when you learn:
 - Stable personal facts: role, company, team size, industry, timezone
 - Stated preferences: "I prefer bullet points", "Keep it under 500 words"
 - Standing instructions: "Always include a TL;DR", "CC my cofounder on reports"
