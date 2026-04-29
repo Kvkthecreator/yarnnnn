@@ -634,10 +634,22 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                 let notifTitle = '';
                 let notifDesc = '';
 
-                if (toolName === 'UpdateContext' && resultData.inference?.success) {
-                  const scaffolded = resultData.inference.scaffolded || {};
-                  const domains = Object.keys(scaffolded);
-                  const total = Object.values(scaffolded).reduce((sum: number, arr: unknown) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+                // ADR-235 D1.a: InferWorkspace replaced UpdateContext(target='workspace').
+                // Returns the same `scaffolded` shape — only the tool name changed.
+                // UpdateContext branch retained for historical-run replay (archived
+                // tool_history snapshots from before ADR-235 land here).
+                if (
+                  (toolName === 'InferWorkspace' || toolName === 'UpdateContext')
+                  && (resultData.scaffolded || resultData.inference?.scaffolded)
+                ) {
+                  const scaffolded = resultData.scaffolded || resultData.inference?.scaffolded || {};
+                  const domains = Object.keys(scaffolded).filter(
+                    (k) => Array.isArray((scaffolded as Record<string, unknown>)[k])
+                  );
+                  const total = domains.reduce(
+                    (sum: number, k: string) => sum + ((scaffolded as Record<string, unknown[]>)[k]?.length ?? 0),
+                    0
+                  );
                   notifTitle = 'Workspace scaffolded';
                   notifDesc = `${total} entities across ${domains.length} domains`;
                 } else if (toolName === 'ManageTask' && resultData.success) {

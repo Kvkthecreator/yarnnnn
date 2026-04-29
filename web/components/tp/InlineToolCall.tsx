@@ -54,14 +54,22 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   Todo: ListTodo,
   Respond: FileText,
   Clarify: FileText,
-  // Agent lifecycle (ADR-156)
+  // Agent lifecycle (ADR-156, ADR-235 D2: lifecycle-only — no chat 'create')
   ManageAgent: Sparkles,
-  // Task lifecycle (ADR-138, ADR-146, ADR-168: CreateTask folded into ManageTask)
-  ManageTask: Play,
+  // Recurrence lifecycle (ADR-235 D1.c: replaces UpdateContext(target='recurrence'))
+  ManageRecurrence: Play,
   // Domain management (ADR-155)
   ManageDomains: Sparkles,
-  // Context (ADR-146)
+  // Inference-merged writes (ADR-235 D1.a: replaces UpdateContext(target='identity'|'brand'|'workspace'))
+  InferContext: Bookmark,
+  InferWorkspace: Sparkles,
+  // FireInvocation (ADR-231 D5: manual fire, replaces ManageTask(action='trigger'))
+  FireInvocation: Play,
+  // ADR-235: legacy entries — UpdateContext + ManageTask retained for historical
+  // run logs (tool_history snapshots in archived sessions). Live runtime no
+  // longer dispatches these names.
   UpdateContext: Bookmark,
+  ManageTask: Play,
   GetSystemState: Monitor,
   WebSearch: Globe,
   web_search: Globe,
