@@ -6,7 +6,7 @@ import re
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from services.task_pipeline import _gather_context_domains, _match_entities_to_objective
+from services.dispatch_helpers import _gather_context_domains, _match_entities_to_objective
 
 
 class FakeResult:
