@@ -6,6 +6,50 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.4] - ADR-231 Phase 3.7 — Atomic legacy deletion (~9,000 LOC)
+
+### Deleted
+- `api/services/task_pipeline.py` (4,204 LOC) — survivor helpers ported to `services/dispatch_helpers.py`; legacy `execute_task` / `_execute_pipeline` / `_execute_tp_task` / `_execute_direct` / `_persist_sections_and_manifest` / `_post_run_domain_scan` / `parse_task_md` / `_parse_delivery_target` deleted wholesale (~3,400 LOC of legacy dispatch).
+- `api/services/task_workspace.py` (319 LOC) — TaskWorkspace dissolved; replaced by UserMemory + recurrence_paths natural-home reads/writes per ADR-231 D2/D3.
+- `api/services/task_types.py` (1,836 LOC) — TASK_TYPES registry dissolved per ADR-207 P4b + ADR-231 D5; recurrences are operator-authored YAML, not registry-derived.
+- `api/services/task_derivation.py` (334 LOC) — `build_derivation_report` dissolved; YARNNN proposes recurrences in conversation grounded in MANDATE.md + context domains rather than a generated derivation report.
+- `api/services/primitives/manage_task.py` (1,498 LOC) — ManageTask primitive dissolved per ADR-231 D5; lifecycle flows through `UpdateContext(target='recurrence')` (create/update/pause/resume/archive) + `FireInvocation` (manual fire).
+- `api/agents/yarnnn_prompts/tools.py` (438 LOC) — orphaned legacy prompt file with zero production importers; superseded by `tools_core.py` per ADR-186.
+- `api/scripts/migrate_to_recurrence_declarations.py` (560 LOC) — one-shot migration script that already executed (19 tasks → 12 YAML declarations migrated 2026-04-29).
+
+### Added
+- `api/services/dispatch_helpers.py` (~1,150 LOC) — survivor helpers ported from `task_pipeline.py` and migrated to natural-home substrate per ADR-231 D2/D3:
+  - `_generate` (Sonnet generation loop with microcompact)
+  - `_gather_context_domains` (`/workspace/context/{domain}/` reader, ADR-151/152/154/188)
+  - `gather_task_context` (declaration-aware context bundle; legacy name preserved as caller stability)
+  - `build_task_execution_prompt` (system + user prompt assembly)
+  - `_load_user_context` (IDENTITY/style/notes/BRAND injection via UserMemory)
+  - `_is_workspace_empty_for_daily_update` (pure-SQL emptiness probe)
+  - `_execute_daily_update_empty_state` + `_execute_maintain_overview_empty_state` (now write to natural-home output folders via `recurrence_paths.resolve_paths_for_slug` + `UserMemory`)
+  - `_parse_delivery_target` (recurrence YAML `delivery:` field → destination dict)
+  - `_microcompact_tool_history`, `_total_input_tokens`, `_resolve_max_output_tokens` (token-accounting helpers)
+
+### Rewired
+- `services/invocation_dispatcher.py` — imports from `dispatch_helpers` instead of `task_pipeline`. Same external contract; new internals.
+- `services/primitives/update_context.py` — `_handle_task_feedback` migrated to use `walk_workspace_recurrences` + `resolve_paths` + `UserMemory` for natural-home `_feedback.md` writes. `_handle_mandate` no longer calls `build_derivation_report` (registry-based derivation dissolved per ADR-231 D5).
+- `services/primitives/registry.py` — `MANAGE_TASK_TOOL` import + tool list entries + `HANDLERS["ManageTask"]` removed.
+
+### Net delta
+~9,189 LOC deleted; ~1,150 LOC added (the survivors). Net **~8,000 LOC reduction** across the api/.
+
+### Singular Implementation honored
+One canonical execution path post-cutover: scheduler walks YAML declarations → `invocation_dispatcher.dispatch(decl)` → branches by shape → writes to natural-home substrate via `UserMemory` (ADR-209 attributed). One canonical recurrence-lifecycle surface: `UpdateContext(target='recurrence', action=...)` + `FireInvocation`. Zero parallel paths.
+
+### Final grep gate (runtime plan §11 invariant 10)
+Zero live-code references to `task_pipeline`, `manage_task`, `task_workspace`, `task_types`, `task_derivation` outside docstrings. Backend imports clean; 85/85 tests green.
+
+### Validation
+- 85/85 still passing in `api/test_adr231_recurrence.py`.
+- Full backend smoke import successful (all routes + services + jobs + primitives).
+- Grep gate: zero non-comment references to deleted modules in api/ source.
+
+---
+
 ## [2026.04.29.3] - ADR-231 Phase 3.6.e — Prompt rewrites (recurrence vocabulary + UpdateContext primitive)
 
 ### Changed

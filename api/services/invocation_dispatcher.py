@@ -195,13 +195,13 @@ async def _dispatch_generative(
       - run log append
     """
     from services.platform_limits import check_balance, record_token_usage
-    from services.task_pipeline import (
+    from services.dispatch_helpers import (
         _load_user_context,
         _generate,
         build_task_execution_prompt,
         gather_task_context,
-        get_user_timezone,
     )
+    from services.schedule_utils import get_user_timezone
     from services.agent_creation import (
         ensure_infrastructure_agent,
         resolve_infra_role_from_ref,
@@ -723,7 +723,7 @@ async def _maybe_empty_state(
         return None
 
     try:
-        from services.task_pipeline import _is_workspace_empty_for_daily_update
+        from services.dispatch_helpers import _is_workspace_empty_for_daily_update
         is_empty = await _is_workspace_empty_for_daily_update(client, user_id)
     except Exception as e:
         logger.warning("[DISPATCH] empty-state check failed (proceeding): %s", e)
@@ -732,11 +732,11 @@ async def _maybe_empty_state(
     if not is_empty:
         return None
 
-    from services.task_pipeline import (
+    from services.dispatch_helpers import (
         _execute_daily_update_empty_state,
         _execute_maintain_overview_empty_state,
-        get_user_timezone,
     )
+    from services.schedule_utils import get_user_timezone
 
     user_timezone = get_user_timezone(client, user_id)
     if decl.slug == "daily-update":

@@ -250,29 +250,19 @@ async def _handle_mandate(auth: Any, text: str) -> dict:
     if not ok:
         return {"success": False, "error": "write_failed", "message": "Failed to write MANDATE.md"}
 
-    # ADR-207 Phase 5: regenerate /workspace/memory/task_derivation.md so
-    # YARNNN has a fresh derivation report the moment Mandate is authored.
-    # This makes the proposed task chain visible before any ManageTask(create).
-    try:
-        from services.task_derivation import build_derivation_report
-        report = build_derivation_report(auth.client, auth.user_id)
-        await um.write(
-            "memory/task_derivation.md",
-            report,
-            summary="ADR-207 P5: derivation report refreshed after mandate write",
-            authored_by="system:task-derivation",
-            message="refresh task derivation after mandate write",
-        )
-    except Exception as derivation_err:
-        logger.warning(f"[UpdateContext mandate] derivation refresh failed (non-fatal): {derivation_err}")
-
+    # ADR-231 Phase 3.7: task_derivation registry-based derivation report is
+    # dissolved. Per ADR-231 D2/D3, recurrences are operator-authored YAML
+    # declarations at natural-home paths — there's no registry to derive from.
+    # YARNNN proposes recurrences in conversation grounded in MANDATE.md +
+    # context domains; the loop-role coverage check happens through chat
+    # rather than a generated derivation report.
     return {
         "success": True,
         "target": "mandate",
         "filename": SHARED_MANDATE_PATH,
-        "message": "Mandate authored. Task scaffolding is now unblocked. "
-                   "A fresh derivation report is at /workspace/memory/task_derivation.md — "
-                   "read it before proposing tasks so the loop-role coverage is visible.",
+        "message": "Mandate authored. Recurrence creation is now unblocked. "
+                   "Use UpdateContext(target='recurrence', action='create', ...) "
+                   "to author each recurrence aligned with the mandate.",
     }
 
 
@@ -781,12 +771,21 @@ async def _handle_task_feedback(auth: Any, input: dict) -> dict:
     ADR-149/181: feedback_target="deliverable" (default) writes to feedback.md
     (task root) for DELIVERABLE.md inference. Other targets patch TASK.md directly.
     """
-    from services.task_workspace import TaskWorkspace
+    # ADR-231 Phase 3.7: TaskWorkspace dissolved. Feedback flows through
+    # natural-home substrate per D2 — declaration walker resolves the
+    # feedback path; UpdateContext writes there with ADR-209 attribution.
+    # Other feedback_targets (criteria/objective/output_spec) are dissolved:
+    # those fields now live in the recurrence YAML's `deliverable:` block
+    # and operator updates them via UpdateContext(target='recurrence',
+    # action='update', changes={'deliverable': {...}}).
     from datetime import datetime, timezone
+    from services.recurrence import walk_workspace_recurrences
+    from services.recurrence_paths import resolve_paths
+    from services.workspace import UserMemory
 
     task_slug = input.get("task_slug", "")
     feedback_text = input.get("text", "")
-    feedback_target = input.get("feedback_target", "deliverable")  # Default changed: ADR-149
+    feedback_target = input.get("feedback_target", "deliverable")
 
     if not task_slug:
         return {"success": False, "error": "missing_task_slug", "message": "task_slug is required for target='task'"}
@@ -794,58 +793,60 @@ async def _handle_task_feedback(auth: Any, input: dict) -> dict:
     client = auth.client if not isinstance(auth, dict) else auth["client"]
     user_id = auth.user_id if not isinstance(auth, dict) else auth["user_id"]
 
+    decls = walk_workspace_recurrences(client, user_id)
+    decl = next((d for d in decls if d.slug == task_slug), None)
+    if decl is None:
+        return {
+            "success": False,
+            "error": "no_declaration",
+            "message": f"No recurrence declaration for slug '{task_slug}'",
+        }
+
+    if feedback_target in ("criteria", "objective", "output_spec"):
+        return {
+            "success": False,
+            "error": "deprecated_target",
+            "message": (
+                f"feedback_target='{feedback_target}' is dissolved per ADR-231 D5. "
+                f"Update the recurrence's deliverable block via UpdateContext"
+                f"(target='recurrence', action='update', shape='{decl.shape.value}', "
+                f"slug='{task_slug}', changes={{'deliverable': {{...}}}})"
+            ),
+        }
+
+    paths = resolve_paths(decl)
+    if paths.feedback_path is None:
+        return {
+            "success": False,
+            "error": "no_feedback_substrate",
+            "message": f"Recurrence shape '{decl.shape.value}' has no feedback substrate",
+        }
+
+    relative = paths.feedback_path[len("/workspace/"):] if paths.feedback_path.startswith("/workspace/") else paths.feedback_path
+    um = UserMemory(client, user_id)
+
     try:
-        tw = TaskWorkspace(client, user_id, task_slug)
         now = datetime.now(timezone.utc)
         date_str = now.strftime("%Y-%m-%d %H:%M")
-
-        if feedback_target == "deliverable":
-            # ADR-181: Primary path — write to feedback.md (task root) for DELIVERABLE.md inference
-            entry = f"## User Feedback ({date_str}, source: user_conversation)\n- {feedback_text}\n"
-            # ADR-181: Read from new path, fallback to old for migration
-            existing = await tw.read("feedback.md") or await tw.read("memory/feedback.md") or ""
-            # Prepend (newest first)
-            if existing.startswith("# Task Feedback"):
-                header_lines = existing.split("\n", 2)
-                rest = header_lines[2] if len(header_lines) > 2 else ""
-                updated = f"{header_lines[0]}\n{header_lines[1] if len(header_lines) > 1 else ''}\n\n{entry}\n{rest}"
-            else:
-                updated = f"# Task Feedback\n\n{entry}\n{existing}"
-            # ADR-181: Write to task root
-            await tw.write("feedback.md", updated,
-                          summary=f"User feedback: {feedback_text[:50]}")
-            return {"success": True, "message": f"Feedback recorded for {task_slug} (will inform next run via DELIVERABLE.md inference)"}
-
-        elif feedback_target == "run_log":
-            entry = f"\n## Feedback ({date_str})\n- {feedback_text}\n"
-            existing = await tw.read("memory/_run_log.md") or ""
-            await tw.write("memory/_run_log.md", existing + entry,
-                          summary=f"Task feedback: {feedback_text[:50]}")
-            return {"success": True, "message": f"Feedback recorded in run log for {task_slug}"}
-
+        entry = f"## User Feedback ({date_str}, source: user_conversation)\n- {feedback_text}\n"
+        existing = await um.read(relative) or ""
+        if existing.startswith("# Feedback") or existing.startswith("# Task Feedback"):
+            header_lines = existing.split("\n", 2)
+            rest = header_lines[2] if len(header_lines) > 2 else ""
+            updated = f"{header_lines[0]}\n{header_lines[1] if len(header_lines) > 1 else ''}\n\n{entry}\n{rest}"
         else:
-            # Direct TASK.md section patching (criteria, objective, output_spec)
-            task_md = await tw.read("TASK.md")
-            if not task_md:
-                return {"success": False, "error": "not_found", "message": f"TASK.md not found for {task_slug}"}
-
-            section_map = {
-                "criteria": "## Success Criteria",
-                "objective": "## Objective",
-                "output_spec": "## Output Specification",
-            }
-            section_header = section_map.get(feedback_target, "## Success Criteria")
-            feedback_line = f"- {feedback_text} (updated {date_str})"
-
-            if section_header in task_md:
-                parts = task_md.split(section_header, 1)
-                updated = parts[0] + section_header + "\n" + feedback_line + parts[1]
-            else:
-                updated = task_md + f"\n\n{section_header}\n{feedback_line}\n"
-
-            await tw.write("TASK.md", updated, summary=f"Updated {feedback_target}: {feedback_text[:50]}")
-            return {"success": True, "message": f"Updated {feedback_target} in {task_slug}"}
-
+            updated = f"# Feedback\n<!-- Source-agnostic feedback layer. Newest first. ADR-181 + ADR-231 D2. -->\n\n{entry}\n{existing}"
+        await um.write(
+            relative,
+            updated,
+            summary=f"User feedback: {feedback_text[:50]}",
+            authored_by="operator",
+            message="user feedback via UpdateContext(target='task')",
+        )
+        return {
+            "success": True,
+            "message": f"Feedback recorded at {paths.feedback_path} (will inform next invocation)",
+        }
     except Exception as e:
         logger.warning(f"[UPDATE_CONTEXT] Task feedback failed: {e}")
         return {"success": False, "error": "execution_error", "message": str(e)}
