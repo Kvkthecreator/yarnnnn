@@ -23,7 +23,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 WEB_LIB_REVIEWER = REPO_ROOT / "web" / "lib" / "reviewer-decisions.ts"
 WEB_PERFORMANCE_FACE = REPO_ROOT / "web" / "components" / "library" / "faces" / "PerformanceFace.tsx"
-WEB_DECISIONS_PANE = REPO_ROOT / "web" / "components" / "agents" / "reviewer" / "DecisionsStreamPane.tsx"
+# ADR-241 D3 (2026-04-30) relocated the Stream consumer from
+# web/components/agents/reviewer/DecisionsStreamPane.tsx to
+# web/components/work/details/DecisionsStream.tsx. The canonical parser
+# preservation invariant (ADR-239's concern) is unchanged; only the
+# consumer's path moves. ADR-239 + ADR-241 cross-amendment — see
+# ADR-241 §"Preserves" for the explicit invariant carry-over.
+WEB_DECISIONS_PANE = REPO_ROOT / "web" / "components" / "work" / "details" / "DecisionsStream.tsx"
 WEB_FACES_DIR = REPO_ROOT / "web" / "components" / "library" / "faces"
 
 
@@ -108,18 +114,19 @@ def test_no_legacy_task_path_drift_in_faces():
             )
 
 
-def test_decisions_stream_pane_still_uses_canonical_parser():
-    """Assertion #6: DecisionsStreamPane.tsx (Reviewer detail view)
-    continues to import parseDecisions from @/lib/reviewer-decisions.
-    Regression guard against the canonical parser being moved or
-    renamed without updating this consumer."""
+def test_decisions_stream_still_uses_canonical_parser():
+    """Assertion #6: DecisionsStream consumer continues to import
+    parseDecisions from @/lib/reviewer-decisions. Path moved in
+    ADR-241 D3 (web/components/agents/reviewer/DecisionsStreamPane.tsx
+    → web/components/work/details/DecisionsStream.tsx); the canonical
+    parser preservation invariant is unchanged."""
     src = _read(WEB_DECISIONS_PANE)
     assert "from '@/lib/reviewer-decisions'" in src, (
-        "DecisionsStreamPane.tsx must import from @/lib/reviewer-decisions "
-        "(canonical parser per ADR-239 D1)."
+        "DecisionsStream.tsx must import from @/lib/reviewer-decisions "
+        "(canonical parser per ADR-239 D1, path per ADR-241 D3)."
     )
     assert "parseDecisions" in src, (
-        "DecisionsStreamPane.tsx must call parseDecisions from the "
+        "DecisionsStream.tsx must call parseDecisions from the "
         "canonical module."
     )
 
@@ -135,7 +142,7 @@ def _run_all() -> int:
         test_performance_face_no_inline_calibration_interface,
         test_performance_face_imports_from_reviewer_decisions_lib,
         test_no_legacy_task_path_drift_in_faces,
-        test_decisions_stream_pane_still_uses_canonical_parser,
+        test_decisions_stream_still_uses_canonical_parser,
     ]
     failed = 0
     for fn in tests:

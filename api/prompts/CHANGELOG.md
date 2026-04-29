@@ -6,6 +6,41 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.30.1] - ADR-241 — Single cockpit persona (Reviewer collapses into TP)
+
+### Changed
+- `web/app/(authenticated)/agents/page.tsx` — `/agents` (no query param) now redirects to `?agent=thinking-partner`. Roster fallback render replaced with a brief loading spinner during the redirect effect. `handleSelectAgent` removed (roster gone, no card click handler needed).
+- `web/components/agents/AgentContentView.tsx` — `meta-cognitive` class branches into a new `ThinkingPartnerDetail` tab-based component (Identity / Principles / Tasks). `reviewer` class branches into a redirect-effect that points `?agent=reviewer` deep-links to `?agent=thinking-partner&tab=principles` (legacy URL preservation per ADR-241 R1).
+- `web/components/work/WorkListSurface.tsx` — `WorkTab` enum gains `'decisions'`. Tabs array gains a Decisions entry (Scale icon). Tab body branches before the tasks-list machinery to render `<DecisionsStream />` when `activeTab === 'decisions'` — substrate-driven, bypasses search/group/filter machinery. `EmptyResult` map adds an unreachable `decisions` entry for type completeness.
+- `web/lib/routes.ts` — adds `THINKING_PARTNER_ROUTE = '/agents?agent=thinking-partner'` constant.
+- `docs/adr/ADR-194-pluggable-reviewer-and-impersonation.md` — status header gains an "Operator-facing surface amended 2026-04-30 by ADR-241" note. Substrate sections preserved verbatim per ADR-236 Rule 2.
+- `api/test_adr239_decisions_parser_unification.py` — `WEB_DECISIONS_PANE` path constant updated from `web/components/agents/reviewer/DecisionsStreamPane.tsx` to `web/components/work/details/DecisionsStream.tsx`. Test renamed `test_decisions_stream_pane_still_uses_canonical_parser` → `test_decisions_stream_still_uses_canonical_parser`. ADR-239 D1+D2 invariants preserved; only the consumer's filesystem location changed.
+
+### Added
+- `web/components/work/details/DecisionsStream.tsx` — Stream archetype on `/work`. Lifted from `web/components/agents/reviewer/DecisionsStreamPane.tsx` with the export renamed (`DecisionsStreamPane` → `DecisionsStream`) and docblock updated to cite ADR-241 D3 + ADR-198 §3 framing. Uses canonical `parseDecisions` from `@/lib/reviewer-decisions` (ADR-239 D1 preserved).
+- `web/components/agents/PrinciplesTab.tsx` — TP Principles tab. Lifted from `web/components/agents/reviewer/PrinciplesPane.tsx` with framing updated to cite the substrate as "the judgment framework TP applies to verdicts." Edit-via-Files affordance preserved per ADR-215 R3.
+- `api/test_adr241_single_cockpit_persona.py` — Python regression gate (8/8 assertions). Same pattern as ADR-237 / ADR-238 / ADR-239 / ADR-240 per ADR-236 Rule 3.
+
+### Removed
+- `web/components/agents/reviewer/` — entire directory deleted (4 files: `ReviewerDetailView.tsx`, `ReviewerCardPane.tsx`, `PrinciplesPane.tsx`, `DecisionsStreamPane.tsx`). Surface collapse per ADR-241 D3.
+- `web/components/agents/AgentRosterSurface.tsx` — deleted. With direct-detail landing on `/agents`, the roster surface is dead UX per ADR-241 D1.
+
+### Behavior
+- `/agents` lands operators directly on Thinking Partner detail (tabbed: Identity / Principles / Tasks). No roster page.
+- TP's Principles tab renders `/workspace/review/principles.md` (the judgment framework). Edit-via-Files preserved.
+- Legacy `/agents?agent=reviewer` deep-links automatically redirect to `/agents?agent=thinking-partner&tab=principles`. Existing breadcrumbs and ADR-194-chain cross-links continue to work.
+- `/work` gains a Decisions tab. Operator clicks → full filterable verdict stream (newest-first; identity + decision filters).
+- Cockpit `PerformanceFace` calibration aggregate continues to render unchanged (ADR-239 D2 preserved).
+- Backend judgment layer (substrate at `/workspace/review/`, `services/reviewer_audit.py`, `services/review_proposal_dispatch.py`, `api/agents/reviewer_agent.py`) is **untouched**. ADR-194 v2 substrate canon preserved per ADR-241 §"Preserves."
+
+### Notes
+- ADR-241 closes the Reviewer-as-peer-agent loop that became structurally inconsistent after ADR-235 D2 removed user-authored agent creation. With one persona-bearing chat entity, the right shape is one cockpit persona that internally consults a judgment substrate.
+- The orchestration-vs-judgment distinction (ADR-216) stays as backend canon. ADR-241 collapses the *operator-facing surface*, not the architectural distinction.
+- Cross-ADR regression check: 79/79 assertions across 9 gates (ADR-231 11/11, ADR-233 P1 13/13, ADR-233 P2 12/12, ADR-234 8/8, ADR-237 7/7, ADR-238 6/6, ADR-239 6/6, ADR-240 8/8, ADR-241 8/8). ADR-239 path constant updated to track the relocated module — invariant preserved, location changed.
+- Operator manual smoke required at `/agents` (TP detail with three tabs), `?agent=reviewer` (redirect to Principles tab), `/work` Decisions tab (verdict stream renders).
+
+---
+
 ## [2026.04.29.12] - ADR-240 — Onboarding-as-activation (Round 4)
 
 ### Changed

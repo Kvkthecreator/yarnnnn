@@ -1,19 +1,22 @@
 'use client';
 
 /**
- * PrinciplesPane — Dashboard archetype (ADR-198 §3).
+ * PrinciplesTab — Thinking Partner detail Principles tab (ADR-241 D2).
  *
- * Renders /workspace/review/principles.md as a read surface on the Agents
- * tab's Reviewer detail view. ADR-215 R3: principles.md is operator-authored
- * substrate — edits happen on Files with `authored_by=operator` attribution
- * via the revision chain (ADR-209). This pane links out to Files for edits,
- * it does not host an inline editor (that lives on Files where every
- * `_shared/`-class substrate file gets the same treatment).
+ * Lifted from web/components/agents/reviewer/PrinciplesPane.tsx as part
+ * of the ADR-241 collapse of the Reviewer surface into TP. The substrate
+ * (/workspace/review/principles.md) is unchanged — same path, same
+ * operator-authored framing per ADR-194 v2 + ADR-215 R3.
  *
- * Phase 3 change (ADR-215): the prior "Edit via YARNNN" chat seed is
- * retired. principles.md joined SHARED_EDITABLE_PATHS alongside the four
- * `_shared/` rules, so the edit surface is the same substrate editor every
- * other authored rule uses.
+ * What changed is the surface: principles.md is the **judgment framework
+ * TP applies to verdicts**, not a separate Reviewer-agent property. It
+ * lives inside TP's detail view as one of the tabs that describe TP's
+ * cognitive substrate (Identity / Principles / Tasks).
+ *
+ * ADR-215 R3: principles.md is operator-authored substrate — edits happen
+ * on Files with `authored_by=operator` attribution via the revision chain
+ * (ADR-209). This tab links out to Files for edits, it does not host an
+ * inline editor.
  */
 
 import { useEffect, useState } from 'react';
@@ -25,7 +28,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 const PRINCIPLES_PATH = '/workspace/review/principles.md';
 const PRINCIPLES_FILES_HREF = `/context?path=${encodeURIComponent(PRINCIPLES_PATH)}`;
 
-export function PrinciplesPane() {
+export function PrinciplesTab() {
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +59,10 @@ export function PrinciplesPane() {
           Edit on Files
         </Link>
       </header>
+      <p className="mb-3 text-[11px] text-muted-foreground/80">
+        The judgment framework TP applies to verdicts. Operator-authored;
+        edits via Files with full revision history (ADR-209).
+      </p>
       {loading && (
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -70,7 +77,7 @@ export function PrinciplesPane() {
             <MarkdownRenderer content={content} compact />
           ) : (
             <p className="text-muted-foreground">
-              No review principles declared yet. Open Files and edit{' '}
+              No principles declared yet. Open Files and edit{' '}
               <code className="rounded bg-muted px-1 py-0.5 text-[11px]">principles.md</code>{' '}
               to set them up.
             </p>

@@ -1,7 +1,13 @@
 'use client';
 
 /**
- * DecisionsStreamPane — Stream archetype (ADR-198 §3).
+ * DecisionsStream — Stream archetype (ADR-198 §3) on /work.
+ *
+ * Per ADR-241 D3, the Decisions stream relocates from /agents to /work
+ * because Decisions are the actionable consequence of the kernel's
+ * judgment layer over operator-emitted action_proposals — the natural
+ * home for "what the kernel decided about my proposals" is the page
+ * where proposals live (TrackingFace already shows pending ones).
  *
  * Tail-parses /workspace/review/decisions.md for reviewer decision entries
  * and renders them newest-at-top with identity-tag and decision filters.
@@ -16,7 +22,8 @@
  *   reasoning: <multi-line text, may span multiple lines>
  *
  * Tolerant parser: missing fields render as "—"; malformed blocks skipped
- * silently. Never errors-out the surface.
+ * silently. Never errors-out the surface. Uses the canonical parser at
+ * @/lib/reviewer-decisions per ADR-239 D1.
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -45,7 +52,7 @@ type DecisionFilter = 'all' | 'approve' | 'reject' | 'defer';
 
 const PAGE_SIZE = 50;
 
-export function DecisionsStreamPane() {
+export function DecisionsStream() {
   const [raw, setRaw] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -1,21 +1,20 @@
 'use client';
 
 /**
- * Agents Page — List/detail surface (ADR-167 v5, ADR-214).
+ * Agents Page — Detail-only surface (ADR-167 v5, ADR-214, ADR-241).
  *
- * Per ADR-214 (2026-04-23), `/agents` is the canonical cockpit surface for
- * judgment-bearing entities (ADR-212 taxonomy): Systemic agents (YARNNN +
- * Reviewer) + Domain agents (user-authored). Route reverses ADR-201; /team
- * retains a bookmark-safety redirect stub.
+ * Per ADR-241 (2026-04-30), `/agents` defaults to Thinking Partner detail.
+ * With ADR-235 D2 removing custom-agent creation and Reviewer collapsing
+ * into TP per ADR-241, the roster surface was always-empty ceremony —
+ * `/agents` (no query param) now redirects to `?agent=thinking-partner`.
  *
- * Single surface, two modes, selected by URL state (?agent={slug|reviewer|yarnnn}).
- * PageHeader is the breadcrumb chrome strip (no title, no metadata) — the
- * agent's visual identity lives inside AgentContentView via
- * <SurfaceIdentityHeader /> alongside the agent content it describes.
+ * Legacy `?agent=reviewer` deep-links continue to work — they redirect to
+ * `?agent=thinking-partner&tab=principles` per ADR-241 D3 (the Reviewer's
+ * principles.md substrate becomes TP's Principles tab).
  *
- * Reviewer is synthesized as a systemic pseudo-agent in the list response
- * (api/routes/agents.py list_agents), substrate stays filesystem-first per
- * ADR-194 v2.
+ * AgentRosterSurface is deleted (Singular Implementation rule). Future
+ * ADRs that re-introduce user-authored Agents will reintroduce a roster
+ * landing then.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -30,7 +29,7 @@ import { useTP } from '@/contexts/TPContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { getAgentSlug } from '@/lib/agent-identity';
-import { AgentRosterSurface } from '@/components/agents/AgentRosterSurface';
+// ADR-241: AgentRosterSurface deleted (always-empty roster post-ADR-235 D2).
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
@@ -48,6 +47,14 @@ export default function AgentsPage() {
   const [recurrenceSetupNotes, setRecurrenceSetupNotes] = useState('');
 
   const agentFromUrl = searchParams.get('agent');
+
+  // ADR-241: detail-only landing. Default to thinking-partner when no
+  // agent param is set. Roster mode is dead UX post-ADR-235 D2.
+  useEffect(() => {
+    if (!agentFromUrl) {
+      router.replace('/agents?agent=thinking-partner', { scroll: false });
+    }
+  }, [agentFromUrl, router]);
 
   // Detail mode is determined by URL — no auto-selection (ADR-167)
   const selectedAgent = useMemo(() => {
@@ -75,13 +82,6 @@ export default function AgentsPage() {
     }
     return () => clearBreadcrumb();
   }, [selectedAgent?.id, selectedAgent?.title, setBreadcrumb, clearBreadcrumb]);
-
-  // Click card in roster → URL transition to detail mode
-  const handleSelectAgent = (id: string) => {
-    const agent = agents.find(a => a.id === id);
-    const slug = agent ? getAgentSlug(agent) : id;
-    router.replace(`/agents?agent=${encodeURIComponent(slug)}`, { scroll: false });
-  };
 
   // Chat config
   const surfaceOverride = selectedAgent
@@ -159,11 +159,11 @@ export default function AgentsPage() {
           tasks={agentTasks}
         />
       ) : (
-        <AgentRosterSurface
-          agents={agents}
-          tasks={tasks}
-          onSelect={handleSelectAgent}
-        />
+        // ADR-241: roster mode deleted; this branch only shows briefly
+        // during the redirect-to-thinking-partner effect.
+        <div className="flex items-center justify-center h-full">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
       )}
     </ThreePanelLayout>
 

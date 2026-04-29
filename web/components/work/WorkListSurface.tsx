@@ -21,12 +21,15 @@ import {
   FileText,
   Link2,
   MoreHorizontal,
+  Scale,
   Search,
   Send,
   Settings2,
   Sparkles,
   X,
 } from 'lucide-react';
+// ADR-241 D3: Decisions Stream relocated from /agents to /work
+import { DecisionsStream } from './details/DecisionsStream';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
 import { getAgentSlug } from '@/lib/agent-identity';
@@ -55,7 +58,12 @@ interface WorkListSurfaceProps {
   onSelect: (slug: string) => void;
 }
 
-type WorkTab = 'my-work' | 'connectors' | 'system';
+// ADR-241 D3: 'decisions' tab added — surfaces /workspace/review/decisions.md
+// (Stream archetype) on /work. Decisions are the actionable consequence of
+// the kernel's judgment layer over operator-emitted action_proposals; their
+// natural home is the page where proposals live (TrackingFace already shows
+// pending ones).
+type WorkTab = 'my-work' | 'connectors' | 'system' | 'decisions';
 
 // ─── Classification helpers ──────────────────────────────────────────────────
 
@@ -300,7 +308,17 @@ export function WorkListSurface({
   }, [tasks, includeHistorical]);
 
   // ── Apply search + agent filter to the active tab ──
-  const tabTasks = activeTab === 'my-work' ? myWork : activeTab === 'connectors' ? connectors : system;
+  // ADR-241 D3: 'decisions' tab is substrate-driven (DecisionsStream
+  // component reads /workspace/review/decisions.md directly). It does
+  // not consume the tasks list — empty array suffices for the search/
+  // group machinery downstream.
+  const tabTasks = activeTab === 'my-work'
+    ? myWork
+    : activeTab === 'connectors'
+      ? connectors
+      : activeTab === 'system'
+        ? system
+        : []; // 'decisions' branch — handled at render time
 
   const filtered = useMemo(() => {
     let result = tabTasks;
@@ -384,6 +402,11 @@ export function WorkListSurface({
     { id: 'my-work', label: 'My Work', count: myWork.length, icon: FileText },
     { id: 'connectors', label: 'Connectors', count: connectors.length, icon: Link2 },
     { id: 'system', label: 'System', count: system.length, icon: Settings2 },
+    // ADR-241 D3: Decisions tab — Stream archetype over /workspace/review/decisions.md.
+    // No count badge — Decisions are substrate-driven (read at render time), not a
+    // task collection. The DecisionsStream component manages its own loading + filter
+    // state.
+    { id: 'decisions', label: 'Decisions', count: 0, icon: Scale },
   ];
 
   return (
@@ -474,7 +497,15 @@ export function WorkListSurface({
 
       {/* ── List body ── */}
       <div className="flex-1 overflow-auto">
-        {filtered.length === 0 ? (
+        {/* ADR-241 D3: Decisions tab is substrate-driven (DecisionsStream
+            reads /workspace/review/decisions.md directly). Renders before
+            the tasks-list machinery — no search, no group, no agent filter
+            apply (the Stream component owns its own filters). */}
+        {activeTab === 'decisions' ? (
+          <div className="px-4 sm:px-6 py-4 max-w-4xl">
+            <DecisionsStream />
+          </div>
+        ) : filtered.length === 0 ? (
           <EmptyResult tab={activeTab} hasFilters={!!search || !!agentFilter} />
         ) : (
           <div className="px-4 sm:px-6 py-4 space-y-6 max-w-4xl">
@@ -678,6 +709,16 @@ function EmptyResult({ tab, hasFilters }: { tab: WorkTab; hasFilters: boolean })
       icon: Settings2,
       title: 'No system tasks',
       sub: 'System tasks are created automatically.',
+    },
+    // ADR-241 D3: Decisions tab is substrate-driven; the DecisionsStream
+    // component handles its own empty state ("No decisions logged yet").
+    // EmptyResult never renders for the decisions tab (the render branch
+    // above bypasses this map for activeTab === 'decisions'), but the
+    // Record type needs all WorkTab keys — this entry is unreachable.
+    decisions: {
+      icon: Scale,
+      title: 'No decisions yet',
+      sub: 'Decisions will appear here as the kernel evaluates proposals.',
     },
   };
 

@@ -45,6 +45,8 @@ export const CHAT_ROUTE = "/chat";
 export const WORK_ROUTE = "/work";
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 export const CONTEXT_ROUTE = "/context";
+// ADR-241: deep-link to TP detail. /agents (no param) redirects here.
+export const THINKING_PARTNER_ROUTE = "/agents?agent=thinking-partner";
 
 export function isHomeRoute(pathname: string): boolean {
   return pathname === HOME_ROUTE || pathname.startsWith(`${HOME_ROUTE}/`);

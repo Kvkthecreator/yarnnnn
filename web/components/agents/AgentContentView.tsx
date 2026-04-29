@@ -12,17 +12,20 @@
  * individual agent pages or legacy role names.
  */
 
+import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowUpRight,
   ChevronRight,
   FolderKanban,
   Sparkles,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentIcon } from './AgentIcon';
-import { ReviewerDetailView } from './reviewer/ReviewerDetailView';
+import { PrinciplesTab } from './PrinciplesTab';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -43,7 +46,9 @@ interface AgentContentViewProps {
 }
 
 type AgentClass = NonNullable<Agent['agent_class']>;
-// Reviewer is dispatched to ReviewerDetailView before any registry lookup (ADR-214).
+// ADR-241: reviewer redirects to TP's Principles tab; the registry lookup
+// returns Reviewer's data path through `/agents?agent=reviewer` only as a
+// legacy URL — handled by the redirect-effect in AgentContentView.
 type RegistryAgentClass = Exclude<AgentClass, 'reviewer'>;
 type RecurrenceOutputKind = NonNullable<Recurrence['output_kind']>;
 
@@ -703,18 +708,101 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 }
 
 
+// ADR-241 D2: Thinking Partner detail view is tab-based (Identity /
+// Principles / Tasks). The tab is URL-driven via ?tab= so deep-links
+// round-trip cleanly.
+type TPTab = 'identity' | 'principles' | 'tasks';
+const TP_TABS: ReadonlyArray<{ id: TPTab; label: string }> = [
+  { id: 'identity', label: 'Identity' },
+  { id: 'principles', label: 'Principles' },
+  { id: 'tasks', label: 'Tasks' },
+];
+
+function ThinkingPartnerDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab: TPTab =
+    tabParam === 'principles' || tabParam === 'tasks' ? tabParam : 'identity';
+
+  const setTab = (tab: TPTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', tab);
+    router.replace(`/agents?${params.toString()}`, { scroll: false });
+  };
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <SurfaceIdentityHeader
+        title={agent.title}
+        metadata={<AgentMetadata agent={agent} tasks={tasks} />}
+      />
+      {/* Tab bar — minimal, URL-driven */}
+      <div className="border-b border-border px-4">
+        <div className="flex gap-1 max-w-3xl">
+          {TP_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px',
+                activeTab === t.id
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="max-w-3xl px-4 py-4">
+        {activeTab === 'identity' && (
+          <AgentRoleBlock agent={agent} tasks={tasks} />
+        )}
+        {activeTab === 'principles' && <PrinciplesTab />}
+        {activeTab === 'tasks' && <TasksBlock agent={agent} tasks={tasks} />}
+      </div>
+    </div>
+  );
+}
+
 export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, 'onCreateTask'>) {
+  const router = useRouter();
   const cls = agent.agent_class || 'specialist';
 
-  // ADR-214: Reviewer is a systemic pseudo-agent — no agents row, no
-  // agent_runs history, no TASK.md binding. Dispatch to the specialized
-  // ReviewerDetailView that reads /workspace/review/*.md directly.
+  // ADR-241 D3 + R1: legacy `?agent=reviewer` deep-links redirect to
+  // TP's Principles tab. Substrate (Reviewer's principles.md) is the
+  // same; only the surface label changes. This preserves existing
+  // breadcrumbs and ADR-cross-link integrity (ADR-194 v2 chain).
+  useEffect(() => {
+    if (cls === 'reviewer') {
+      router.replace('/agents?agent=thinking-partner&tab=principles', { scroll: false });
+    }
+  }, [cls, router]);
+
   if (cls === 'reviewer') {
-    return <ReviewerDetailView />;
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
+  // ADR-241 D2: meta-cognitive (Thinking Partner) gets the tab-based
+  // detail view. Other classes keep the single-page rendering — the
+  // tab refactor only applies to TP because TP is the only persona
+  // with multiple operator-facing substrate axes (Identity, Principles
+  // from /workspace/review/, Tasks).
+  if (cls === 'meta-cognitive') {
+    return <ThinkingPartnerDetail agent={agent} tasks={tasks} />;
+  }
+
+  // After the meta-cognitive + reviewer early returns, cls is narrowed to
+  // RegistryAgentClass (specialist | domain-steward | synthesizer | platform-bot).
   const isPlatformBot = cls === 'platform-bot';
-  const isMetaCognitive = cls === 'meta-cognitive';
 
   return (
     <div className="flex-1 overflow-auto">
@@ -729,8 +817,10 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
         <TasksBlock agent={agent} tasks={tasks} />
         {!isPlatformBot && <SpecialistFolderBlock agent={agent} tasks={tasks} />}
 
-        {/* TP doesn't have feedback distillation — suppress for meta-cognitive */}
-        {!isMetaCognitive && <LearnedBlock agent={agent} />}
+        {/* LearnedBlock: feedback distillation (specialists/bots only).
+            TP's meta-cognitive branch returned earlier; reviewer also
+            returned earlier. */}
+        <LearnedBlock agent={agent} />
       </div>
     </div>
   );
