@@ -1,10 +1,12 @@
 # Alpha-1 Playbook — Shared Operator Account + Omniscient Claude Presence
 
 > **Status**: Canonical — single source of truth for Alpha-1 testing
-> **Date**: 2026-04-20
+> **Date**: 2026-04-20 (last vocabulary-sweep refresh: 2026-04-29)
 > **Authors**: KVK, Claude
-> **Grounded in**: ADR-191 (polymath ICP + conglomerate alpha), ADR-194 v2 (Reviewer seat interchangeability), ADR-198 v2 (cockpit service model), FOUNDATIONS v6.0 (Axiom 2 Identity, Axiom 6 Channel, Derived Principle 12)
+> **Grounded in**: ADR-191 (polymath ICP + conglomerate alpha), ADR-194 v2 (Reviewer seat interchangeability), ADR-228 (cockpit-as-operation), FOUNDATIONS v6.0 (Axiom 2 Identity, Axiom 6 Channel, Derived Principle 12)
 > **Rule**: This doc is the sole governance artifact for Alpha-1 alpha testing. It is updated as we iterate, and archived when the alpha concludes (post-rollup into subsequent ADRs). Any alpha-testing artifact not captured here should either be merged in, or is not authoritative.
+>
+> **Refactor-wave note (2026-04-29)**: Several primitives + URL paths in this playbook were renamed across ADR-227/228/230/231/233/235/236/237/238/239 (the late-April substrate-dissolution wave). This doc has had a vocabulary sweep but its §3A.5 task descriptions and §6 daily-rhythm flows were authored against the pre-sunset task abstraction. Pass 4 of the 2026-04-29 alpha-doc refresh (post-Pass-3 E2E observation against `alpha-trader-2`) is what re-grounds those sections in recurrence-declaration vocabulary. Until then, treat §3A.5 + §6 as *intent specs* and consult [E2E-EXECUTION-CONTRACT.md v3](./E2E-EXECUTION-CONTRACT.md) for the current primitive call shapes.
 
 ---
 
@@ -146,7 +148,7 @@ Two accounts, symmetric architecture, different domain substrate. §3A covers th
 
 ### 3A.1 Identity (`/workspace/IDENTITY.md`)
 
-Seeded into the workspace during the first YARNNN conversation, pasted as rich input. YARNNN processes via `UpdateContext(target="identity")` per ADR-190 inference-driven scaffold.
+Seeded into the workspace during the first YARNNN conversation, pasted as rich input. Post-ADR-235, YARNNN routes identity inference through `InferContext(target="identity")` (per ADR-235 D1.a — the `UpdateContext` primitive was dissolved); the bundle's `authored` tier IDENTITY.md template arrives at fork time per ADR-226.
 
 ```markdown
 # Alpha Trader — systematic retail operator (Simons-inspired)
@@ -1200,7 +1202,7 @@ Once Phase 1 is complete for an account and credentials are shared:
 - Optional mid-week pulse if week's observations are stacking.
 
 **Sunday (performance-review day):**
-- 18:00 ET: `weekly-performance-review` task fires → output at `/tasks/weekly-performance-review/outputs/{date}/`
+- 18:00 ET: `weekly-performance-review` recurrence fires → output at `/workspace/reports/weekly-performance-review/{date}/output.md` (post-ADR-231 D2: deliverable-shape recurrences land at `/workspace/reports/{slug}/{date}/`, not `/tasks/{slug}/outputs/{date}/`).
 - 18:30–19:30: Claude + KVK review output together (async OK). Per-signal stats, decay flags, regime history.
 - KVK captures "what this surface SHOULD have shown" as observation notes.
 - Joint weekly rollup report at `docs/alpha/reports/week-{N}-alpha-trader.md`:

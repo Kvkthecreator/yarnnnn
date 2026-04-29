@@ -57,7 +57,7 @@ export JWT=$(.venv/bin/python api/scripts/alpha_ops/mint_jwt.py alpha-trader)
 
 # Hit any authenticated endpoint
 curl -s -H "Authorization: Bearer $JWT" \
-  https://yarnnn-api.onrender.com/api/tasks | jq
+  https://yarnnn-api.onrender.com/api/recurrences | jq
 ```
 
 No password flow, no browser session, no OAuth handoff. The
@@ -149,13 +149,13 @@ path to act on it at all.
 | Read any substrate file | ✅ via service key or JWT | ✅ via Context browser in UI | KVK describes; Claude reasons |
 | Read `decisions.md`, `_performance.md` | ✅ | ✅ | KVK describes |
 | Run `verify.py --all` | ✅ — this is Mode 1's superpower | ❌ not the right tool; use the UI or Mode 1 | ❌ KVK runs; Claude interprets output |
-| **Chat-initiate on behalf** (post `UpdateContext`, ask YARNNN to start a cycle, etc.) | ✅ via API as the persona's JWT — what would happen if KVK typed in chat | ✅ Claude types in chat as the persona | ❌ KVK does it |
+| **Chat-initiate on behalf** (post `WriteFile(scope="workspace")` for shared substrate, ask YARNNN to start a cycle, etc.) | ✅ via API as the persona's JWT — what would happen if KVK typed in chat | ✅ Claude types in chat as the persona | ❌ KVK does it |
 | Approve reversible proposal meeting all five conditions | ⚠️ rarely needed — see §"Operator vs autonomous-loop" below; AI Reviewer should approve under `bounded_autonomous` | ⚠️ same — operator clicks only when AI Reviewer deferred | ❌ KVK clicks; Claude advises |
 | Reject any proposal | ⚠️ rarely needed — AI Reviewer rejects per principles.md | ⚠️ same | ❌ KVK clicks |
 | Approve irreversible proposal | ❌ always escalates regardless of mode | ❌ always escalates | ❌ always KVK |
 | Chat-initiate task run (`@yarnnn run X`) | ✅ via API — operator-on-behalf | ✅ in chat | ❌ KVK initiates |
 | Edit `_risk.md`, `principles.md`, `_operator_profile.md`, IDENTITY.md | ❌ never Claude unilaterally | ❌ never Claude unilaterally | ❌ never Claude unilaterally |
-| Author MANDATE / IDENTITY / signals etc. via UpdateContext on operator's behalf | ✅ when operator-on-behalf has explicit content (e.g., persona-canonical paste); `authored_by="operator"` | ✅ Claude types in chat surface | ❌ KVK does it |
+| Author MANDATE / IDENTITY / signals etc. on operator's behalf (via `WriteFile(scope="workspace")` for shared substrate per ADR-235 D1.b, or `InferContext`/`InferWorkspace` per D1.a when inference is appropriate) | ✅ when operator-on-behalf has explicit content (e.g., persona-canonical paste); `authored_by="operator"` per ADR-209 | ✅ Claude types in chat surface | ❌ KVK does it |
 | Dissolve / archive / pause agent | ❌ escalate | ❌ escalate | ❌ escalate |
 | Write observation note to `docs/alpha/observations/` | ✅ (this is a repo commit) | ✅ (same — repo commit, any mode) | ✅ |
 | Connect platform (Alpaca / LS / future) | ✅ via `connect.py` | ✅ via Integrations UI | ❌ KVK initiates |
@@ -256,8 +256,10 @@ extensions we expect, so when they ship, they slot in cleanly.
 
 YARNNN has an MCP server (ADR-075 + ADR-169) at
 `https://yarnnn-mcp-server.onrender.com` that exposes three intent-shaped
-tools (`work_on_this`, `pull_context`, `remember_this`) over
-`QueryKnowledge` + `UpdateContext` primitives. MCP is a cross-LLM
+tools (`work_on_this`, `pull_context`, `remember_this`). Post-ADR-235
+the underlying primitives are `QueryKnowledge` + `WriteFile(scope="workspace")`
++ `InferContext` (`remember_this` dispatches to whichever target fits via
+`dispatch_remember_this` in `services/mcp_composition.py`). MCP is a cross-LLM
 consumption + contribution path — foreign LLMs (Claude.ai, ChatGPT,
 Gemini) reach YARNNN substrate through it.
 
