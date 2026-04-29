@@ -79,10 +79,19 @@ works without needing to mark `api/` as a package.
 
 ```bash
 python api/scripts/alpha_ops/verify.py --all
+python api/scripts/alpha_ops/verify.py --all --cost              # + cost-truth rollup
+python api/scripts/alpha_ops/verify.py alpha-trader-2 --cost --cost-days 30
 ```
 
 Read-only. No JWT required (uses the service key). Prints pass/fail per
 invariant per persona. Non-zero exit if anything is off.
+
+`--cost` appends a per-workspace LLM cost rollup over the window
+(default 7 days, override with `--cost-days N`): window total + daily
+breakdown + per-recurrence breakdown. This is the surface for SCOPE.md
+success-contract dimension 2 (cost-truth). The contract evaluation at
+end of paper-discipline phase compares money-truth (`_performance.md`
+cumulative net P&L) vs. `--cost --cost-days 90 total`.
 
 Run this:
 

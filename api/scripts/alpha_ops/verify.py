@@ -6,6 +6,8 @@ Usage:
     python -m api.scripts.alpha_ops.verify alpha-trader
     python -m api.scripts.alpha_ops.verify alpha-commerce
     python -m api.scripts.alpha_ops.verify --all
+    python -m api.scripts.alpha_ops.verify --all --cost              # + cost-truth rollup
+    python -m api.scripts.alpha_ops.verify alpha-trader-2 --cost --cost-days 30
 
 Read-only. Uses the Supabase service-role key to inspect the DB directly
 (the same access pattern the user and Claude already share via
@@ -34,7 +36,13 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _shared import Persona, load_registry, pg_connect  # noqa: E402
+from _shared import (  # noqa: E402
+    Persona,
+    fetch_cost_rollup,
+    format_cost_rollup,
+    load_registry,
+    pg_connect,
+)
 
 
 class Check:
@@ -153,6 +161,20 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Verify persona workspace invariants.")
     ap.add_argument("persona", nargs="?", help="Persona slug (omit with --all)")
     ap.add_argument("--all", action="store_true", help="Verify every persona in the registry")
+    ap.add_argument(
+        "--cost",
+        action="store_true",
+        help=(
+            "Append per-workspace cost-truth rollup (token_usage over last "
+            "--cost-days days). Reads SCOPE.md success contract dimension 2."
+        ),
+    )
+    ap.add_argument(
+        "--cost-days",
+        type=int,
+        default=7,
+        help="Window for --cost rollup (default: 7 days)",
+    )
     args = ap.parse_args()
 
     if not args.all and not args.persona:
@@ -170,6 +192,12 @@ def main() -> int:
                 _print(f"{persona.slug}  —  {persona.label}", check)
                 if check.failures:
                     any_fail = True
+
+                if args.cost:
+                    rollup = fetch_cost_rollup(persona.user_id, days=args.cost_days)
+                    print()
+                    for line in format_cost_rollup(rollup).splitlines():
+                        print(f"  {line}")
 
     return 1 if any_fail else 0
 

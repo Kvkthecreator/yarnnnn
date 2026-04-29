@@ -63,19 +63,25 @@ Nothing structurally. ALPHA-1-PLAYBOOK.md already centers on trading; this doc n
 
 ---
 
-## Cost-truth — gap to close
+## Cost-truth — minimum viable rollup
 
-Naming this so it's a known commitment, not a footnote:
+The `token_usage` table (ADR-171 universal ledger) records every LLM call with a `caller` field, `metadata->>'slug'`, and token counts at billing rates (2× Anthropic API).
 
-The `token_usage` table (ADR-171 universal ledger) records every LLM call with a `caller` field and token counts at billing rates (2× Anthropic API). What's missing for alpha-1:
+**Shipped (2026-04-30, alongside this doc)**: `verify.py --cost [--cost-days N]` reads `token_usage` for a persona and prints a three-section rollup:
 
-1. A per-workspace daily rollup that an operator can read — by workspace, by day, totaled across all callers (`recurrence`, `chat`, `reviewer`, `back-office`).
-2. A per-recurrence rollup so the operator can see which recurrences are expensive (e.g., `signal-evaluation` running 5 tool rounds × 5 tickers vs. `pre-market-brief` running 1 round once).
-3. A surface that carries this — a CLI flag on `verify.py` is the cheapest first step; a cockpit element is the eventual home, but not blocking for alpha-1.
+1. **Window total** — total cost + token counts over the window, daily average, projected monthly cost.
+2. **By day** — calendar-day breakdown so spikes are visible.
+3. **By caller × recurrence × shape** — which recurrences are the cost drivers, ranked by total spend.
 
-Render service calls (ADR-118 `render_usage` table) and Supabase IO are smaller cost contributors but should land in the same rollup for honesty. The thin shape: one number per workspace per day, broken down by source, expressed in dollars.
+The rollup function lives at `api/scripts/alpha_ops/_shared.py::fetch_cost_rollup()`. It's the single source of cost-truth. Anything else that needs this number — a future cockpit element, a future `/api/workspace/cost` endpoint, the alpha-operator subagent — reads it. Singular implementation: don't reimplement the SQL anywhere.
 
-This gap is named here. The commit closing it ships the rollup; this doc points at it once it lands.
+**What's not in the rollup yet** (deliberately deferred; named so they're not lost):
+
+- **Render service calls** (ADR-118). The `yarnnn-render` Docker service tracks per-call usage but isn't writing to a queryable table the way `token_usage` is. Render calls are a smaller cost contributor than LLM tokens — adding them when the pattern proves load-bearing.
+- **Supabase IO** (DB CPU, storage, egress). Negligible for alpha; relevant only at scale.
+- **Cockpit surface**. The CLI rollup is enough for alpha-1 weekly reports. A cockpit element is the eventual home but not blocking the contract evaluation.
+
+The contract evaluation at end of paper-discipline phase compares **money-truth (`_performance.md` cumulative net P&L) vs. cost-truth (verify.py --cost --cost-days 90 total)**. Both numbers are now readable; the OS passes when the first is greater.
 
 ---
 

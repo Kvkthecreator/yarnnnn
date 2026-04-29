@@ -263,3 +263,176 @@ def pg_connect():
     except ImportError as exc:
         raise SystemExit("Missing dependency: psycopg2-binary. pip install psycopg2-binary") from exc
     return psycopg2.connect(PG_CONN_STRING)
+
+
+# ----------------------------------------------------------------------------
+# Cost-truth rollup — single source for per-workspace platform cost (SCOPE.md)
+# ----------------------------------------------------------------------------
+#
+# Reads token_usage (ADR-171 universal LLM ledger) and produces two views:
+#   - by_day: total cost per calendar day over the window
+#   - by_caller_and_slug: breakdown over the window, joining metadata->>slug
+#
+# Anything else that needs cost-truth (cockpit element, future endpoint) reads
+# this. Singular implementation: don't reimplement the SQL anywhere.
+#
+# Note: this is LLM cost only. Render service usage (ADR-118) is currently
+# tracked via the `render_usage` RPC counter, not a queryable table — it's a
+# smaller cost contributor in practice, but a follow-up should add it to the
+# same rollup for full cost-truth honesty per SCOPE.md.
+
+
+def fetch_cost_rollup(
+    user_id: str,
+    days: int = 7,
+) -> dict[str, Any]:
+    """Pull a per-workspace cost-truth rollup over the last `days` calendar days.
+
+    Returns:
+        {
+            "user_id": str,
+            "window_days": int,
+            "since": str (iso),
+            "total_cost_usd": float,
+            "total_input_tokens": int,
+            "total_output_tokens": int,
+            "by_day": [
+                {"day": "2026-04-29", "cost_usd": 1.23, "calls": 8},
+                ...
+            ],
+            "by_caller_and_slug": [
+                {
+                    "caller": "invocation_dispatcher",
+                    "slug": "track-universe-2",
+                    "shape": "accumulation",
+                    "calls": 5,
+                    "input_tokens": 1246673,
+                    "output_tokens": 30602,
+                    "cost_usd": 8.40,
+                },
+                ...
+            ],
+        }
+    """
+    conn = pg_connect()
+    cur = conn.cursor()
+
+    # Window boundary
+    cur.execute("SELECT NOW() - INTERVAL '%s days'" % int(days))
+    since = cur.fetchone()[0].isoformat()
+
+    # Total + tokens
+    cur.execute(
+        """
+        SELECT
+            COALESCE(SUM(cost_usd), 0)::float,
+            COALESCE(SUM(input_tokens), 0)::int,
+            COALESCE(SUM(output_tokens), 0)::int
+        FROM token_usage
+        WHERE user_id = %s
+          AND created_at > NOW() - INTERVAL '%s days'
+        """ % ("%s", int(days)),
+        (user_id,),
+    )
+    total_cost, total_in, total_out = cur.fetchone()
+
+    # By calendar day
+    cur.execute(
+        """
+        SELECT
+            DATE(created_at AT TIME ZONE 'UTC') AS day,
+            ROUND(SUM(cost_usd)::numeric, 4)::float AS cost_usd,
+            COUNT(*)::int AS calls
+        FROM token_usage
+        WHERE user_id = %s
+          AND created_at > NOW() - INTERVAL '%s days'
+        GROUP BY day
+        ORDER BY day DESC
+        """ % ("%s", int(days)),
+        (user_id,),
+    )
+    by_day = [
+        {"day": row[0].isoformat(), "cost_usd": row[1], "calls": row[2]}
+        for row in cur.fetchall()
+    ]
+
+    # By caller + recurrence slug + shape (metadata-driven breakdown)
+    cur.execute(
+        """
+        SELECT
+            caller,
+            metadata->>'slug' AS slug,
+            metadata->>'shape' AS shape,
+            COUNT(*)::int AS calls,
+            COALESCE(SUM(input_tokens), 0)::int AS input_tokens,
+            COALESCE(SUM(output_tokens), 0)::int AS output_tokens,
+            ROUND(SUM(cost_usd)::numeric, 4)::float AS cost_usd
+        FROM token_usage
+        WHERE user_id = %s
+          AND created_at > NOW() - INTERVAL '%s days'
+        GROUP BY caller, slug, shape
+        ORDER BY cost_usd DESC
+        """ % ("%s", int(days)),
+        (user_id,),
+    )
+    by_caller_and_slug = [
+        {
+            "caller": row[0],
+            "slug": row[1],
+            "shape": row[2],
+            "calls": row[3],
+            "input_tokens": row[4],
+            "output_tokens": row[5],
+            "cost_usd": row[6],
+        }
+        for row in cur.fetchall()
+    ]
+
+    cur.close()
+    conn.close()
+
+    return {
+        "user_id": user_id,
+        "window_days": days,
+        "since": since,
+        "total_cost_usd": round(total_cost, 4),
+        "total_input_tokens": total_in,
+        "total_output_tokens": total_out,
+        "by_day": by_day,
+        "by_caller_and_slug": by_caller_and_slug,
+    }
+
+
+def format_cost_rollup(rollup: dict[str, Any]) -> str:
+    """Format a cost rollup as a human-readable text block for verify.py output."""
+    lines = []
+    days = rollup["window_days"]
+    total = rollup["total_cost_usd"]
+
+    # Project to monthly rate for sanity-check against money-truth
+    daily_avg = total / max(days, 1)
+    monthly_proj = daily_avg * 30
+
+    lines.append(f"Cost-truth rollup — last {days} days")
+    lines.append(f"  Total: ${total:.4f}  ({rollup['total_input_tokens']:,} in / "
+                 f"{rollup['total_output_tokens']:,} out tokens)")
+    lines.append(f"  Daily average: ${daily_avg:.4f}  →  monthly projection ${monthly_proj:.2f}")
+    lines.append("")
+
+    if rollup["by_day"]:
+        lines.append("  By day:")
+        for entry in rollup["by_day"][:10]:
+            lines.append(f"    {entry['day']}: ${entry['cost_usd']:.4f} ({entry['calls']} calls)")
+        lines.append("")
+
+    if rollup["by_caller_and_slug"]:
+        lines.append("  By caller × recurrence (top 10 by cost):")
+        for entry in rollup["by_caller_and_slug"][:10]:
+            slug = entry["slug"] or "<no slug>"
+            shape = entry["shape"] or "—"
+            lines.append(
+                f"    [{entry['caller']:22}] {slug:32} ({shape:14}) "
+                f"${entry['cost_usd']:.4f} × {entry['calls']} calls"
+            )
+
+    return "\n".join(lines)
