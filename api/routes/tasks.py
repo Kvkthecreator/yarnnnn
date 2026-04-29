@@ -708,13 +708,15 @@ async def update_task(
     if request.status is not None:
         if request.status not in ("active", "paused", "completed", "archived"):
             raise HTTPException(status_code=400, detail=f"Invalid status: {request.status}")
-        # ADR-161: Essential tasks cannot be archived or completed
-        if row.get("essential") and request.status in ("archived", "completed"):
-            raise HTTPException(
-                status_code=400,
-                detail="This task is essential to your workspace and cannot be archived or completed. You can pause it instead.",
-            )
-        db_updates["status"] = request.status
+        # ADR-231 Phase 3.4 (migration 164): paused is now an explicit flag,
+        # not a status enum value. Map "paused" → paused=true, status='active'.
+        # tasks_status_check now rejects 'paused' as a status string.
+        if request.status == "paused":
+            db_updates["paused"] = True
+            db_updates["status"] = "active"
+        else:
+            db_updates["paused"] = False
+            db_updates["status"] = request.status
     if request.schedule is not None:
         db_updates["schedule"] = request.schedule
 
@@ -871,11 +873,10 @@ async def archive_task(
     if not existing.data:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    if existing.data[0].get("essential"):
-        raise HTTPException(
-            status_code=400,
-            detail="This task is essential to your workspace and cannot be archived. You can pause it instead.",
-        )
+    # ADR-231 Phase 3.4: essential-task archive guard removed. Per ADR-231 D6,
+    # daily-update reframes as a recurrence declaration; if the operator
+    # deletes the YAML, the recurrence stops. There's no architectural
+    # reason to forbid archival — the YAML is the source of truth.
 
     result = (
         auth.client.table("tasks")

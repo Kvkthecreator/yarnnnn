@@ -11,6 +11,19 @@ Note: this log has gaps between 100 and 158. Authoritative source is `supabase/m
 
 ---
 
+### 164 — ADR-231 Phase 3.4: thin tasks scheduling index (2026-04-29) ✅
+
+- Drops `tasks.mode` (was added by 132; dissolves per ADR-231 D5 — temporal behavior implied by recurrence shape)
+- Drops `tasks.essential` (was added by 141; dissolves per ADR-231 D6 — daily-update reframes as a recurrence declaration; if operator deletes the YAML, the recurrence stops)
+- Adds `tasks.declaration_path TEXT` — pointer to authoritative YAML at `workspace_files` (e.g., `/workspace/reports/{slug}/_spec.yaml`)
+- Adds `tasks.paused BOOLEAN NOT NULL DEFAULT FALSE` — explicit flag (replaces status='paused' enum value)
+- Tightens `tasks_status_check` to `(active | completed | archived)` — paused dropped from enum
+- Refreshes `idx_tasks_next_run` to filter `paused = false`
+- COMMENT clarifies the table is the **scheduling index** (Path B per ADR-231 D4), not the work substrate (which dissolved per D2)
+- Authoritative substrate lives in workspace_files YAML at `declaration_path`. The table is fully reconstructable from filesystem state via `services.scheduling.materialize_scheduling_index()`.
+
+---
+
 ### 159 — ADR-209 Phase 5 cleanup (2026-04-23) ✅
 
 - Drops `workspace_files.version` integer column (zero live writers post-Phase 2; Authored Substrate revision chain is authoritative)
