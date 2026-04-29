@@ -1,15 +1,17 @@
 'use client';
 
 /**
- * TaskSetupModal — Structured task creation modal (ADR-178).
+ * TaskSetupModal — Structured recurrence creation modal (ADR-178 + ADR-231).
  *
  * Wraps TaskSetup in a modal shell — the singular creation modal across the
  * cockpit per ADR-215 Phase 4.
  *
  * Opened by the "Start new work" plus-menu action on any of the four cockpit
  * tabs. On submit, the composed intent message is forwarded to YARNNN via
- * sendMessage. YARNNN calls ManageTask(action="create") in the same turn —
- * no clarifying rounds.
+ * sendMessage. Per ADR-231 D5, YARNNN calls
+ * `UpdateContext(target='recurrence', action='create', shape=..., slug=...,
+ * body={...})` in the same turn — no clarifying rounds. ManageTask was
+ * deleted in ADR-231 Phase 3.7.
  */
 
 import { useEffect } from 'react';

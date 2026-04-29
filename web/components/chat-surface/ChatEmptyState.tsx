@@ -1,25 +1,32 @@
 'use client';
 
 /**
- * ChatEmptyState — YARNNN's deterministic first-turn welcome surface (ADR-190).
+ * ChatEmptyState — YARNNN's deterministic first-turn welcome surface
+ * (ADR-190 + ADR-231 D1).
  *
- * Rendered by ChatPanel when messages.length === 0. Replaces the prior
- * silent-canvas empty state. Zero LLM cost — this is hardcoded client-side
- * copy that establishes the authored-team frame before the user types.
+ * Rendered by ChatPanel when messages.length === 0. Zero LLM cost — hardcoded
+ * client-side copy that establishes the authored-team frame before the
+ * operator types.
  *
- * Four chips prompt high-density input behaviors:
- *   1. Upload a doc — rich input (file drop)
- *   2. Paste a URL — rich input (link paste)
- *   3. Track something recurring — text-intent seed
- *   4. Build a recurring report — text-intent seed
+ * Five chips, ordered for ADR-231 D1 invocation-first default. Most operator
+ * requests should result in *an invocation that does the work now*, not a
+ * recurrence creation. The chip order reflects that:
  *
- * Chips 3 and 4 seed composer text via onChipClick. Chips 1 and 2 currently
- * seed an instructional prompt; they will rewire to native file/URL
- * affordances in a later commit (ADR-190 commit 2) when the composer gains
- * rich-input richness. For now, seeding text is the minimum wiring.
+ *   1. Ask for something — primary, one-off invocation seed (D1 default)
+ *   2. Upload a doc — rich input (file drop)
+ *   3. Paste a URL — rich input (link paste)
+ *   4. Track something recurring — graduation seed (recurrence wrapper)
+ *   5. Build a recurring report — graduation seed (deliverable recurrence)
+ *
+ * Chips 4 and 5 are the explicit-recurrence path; YARNNN scaffolds a
+ * recurrence YAML via UpdateContext(target='recurrence', action='create')
+ * when the operator confirms intent. Chip 1 fires an invocation directly
+ * via YARNNN's normal tool surface — no recurrence wrapper.
+ *
+ * Chip 2 currently triggers the file picker; chips 3-5 seed composer text.
  */
 
-import { FileUp, Link2, Eye, FileText } from 'lucide-react';
+import { FileUp, Link2, Eye, FileText, Sparkles } from 'lucide-react';
 
 interface ChatEmptyStateProps {
   /** Called when a text-seed chip is clicked. */
@@ -44,6 +51,13 @@ type Chip =
     };
 
 const CHIPS: Chip[] = [
+  {
+    // ADR-231 D1: invocation-first default — primary chip is the one-off ask.
+    icon: Sparkles,
+    label: 'Ask for something',
+    action: 'seed',
+    seed: '',
+  },
   {
     icon: FileUp,
     label: 'Upload a doc',

@@ -554,10 +554,11 @@ export const api = {
     get: (slug: string) =>
       request<RecurrenceDetail>(`/api/recurrences/${slug}`),
 
-    // ADR-215 Phase 4: frontend no longer POSTs /api/recurrences directly.
-    // Task creation routes through YARNNN via TaskSetupModal →
-    // ManageTask(action="create") per ADR-206 CRUD split. The backend
-    // POST /api/recurrences endpoint stays in place for the primitive's use.
+    // ADR-215 Phase 4 + ADR-231 D5: frontend no longer POSTs /api/recurrences
+    // for creation. Recurrence creation routes through YARNNN via
+    // TaskSetupModal → UpdateContext(target='recurrence', action='create',
+    // shape=..., slug=..., body={...}) per ADR-206 CRUD split + ADR-231 D5
+    // (ManageTask deleted in Phase 3.7).
 
     update: (slug: string, data: { status?: string; schedule?: string; sources?: Record<string, string[]> }) =>
       request<Recurrence>(`/api/recurrences/${slug}`, {
@@ -607,11 +608,12 @@ export const api = {
       );
     },
 
-    // ADR-207 P4b (2026-04-22): `listTypes` + `getType` DELETED. The
-    // `/api/recurrences/types` and `/api/recurrences/types/{key}` endpoints no longer
-    // exist server-side. Task creation happens via YARNNN self-declaration
-    // (agent + objective + required_capabilities + context domains) via
-    // ManageTask(action="create"), not a catalog pick.
+    // ADR-207 P4b (2026-04-22) + ADR-231 D5 (2026-04-29): `listTypes` +
+    // `getType` DELETED. The `/api/tasks/types` endpoints never had an
+    // `/api/recurrences/types` equivalent — the registry was dissolved
+    // before the URL rename. Recurrence creation happens via YARNNN
+    // self-declaration through UpdateContext(target='recurrence',
+    // action='create', shape=..., slug=..., body={...}). Not a catalog pick.
 
     // ADR-145: Process step outputs for a given run
     getStepOutputs: (slug: string, dateFolder: string) =>
