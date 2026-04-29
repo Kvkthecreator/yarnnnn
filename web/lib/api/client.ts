@@ -648,14 +648,18 @@ export const api = {
 
   // Workspace Explorer (ADR-152)
   workspace: {
-    // ADR-154: Structured navigation for Agent OS workfloor
+    // ADR-154: Structured navigation for Agent OS workfloor.
+    // ADR-236 Item 6 (2026-04-29): `mode` and `essential` removed from
+    // the contract — both were dropped from `tasks` by ADR-231
+    // migration 164. The recurrence label (Recurring vs One-time) is
+    // derived from `schedule` per ADR-163 / web/types/index.ts
+    // recurrenceLabel().
     getNav: () =>
       request<{
         tasks: Array<{
           slug: string; title: string; status: string;
-          mode: string | null; schedule: string | null;
+          schedule: string | null;
           next_run_at: string | null; last_run_at: string | null;
-          essential?: boolean;
         }>;
         domains: Array<{
           key: string; display_name: string; entity_count: number;

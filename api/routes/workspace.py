@@ -70,12 +70,25 @@ async def get_workspace_nav(auth: UserClient) -> dict:
     Tasks come from the tasks table. Domains come from the directory
     registry + _tracker.md entity counts. Outputs and uploads from
     workspace_files.
+
+    ADR-236 Item 6 (2026-04-29): the columns selected here were aligned
+    with the post-ADR-231 thin scheduling index. `mode` and `essential`
+    were dropped in migration 164 — selecting them surfaced a 500 to
+    the Files explorer. The wider question — "is this Tasks section
+    still the right shape post-ADR-231 (recurrence shape vs task mode)
+    and does the legacy tree+nav duality survive?" — is Tier 1
+    territory and an escalation candidate for ADR-236 follow-up. This
+    fix restores the surface; it does not redesign the nav contract.
     """
     try:
-        # ── Tasks (from DB) ──
+        # ── Tasks (from DB; thin scheduling index per ADR-231 D4) ──
+        # Columns selected match the post-migration-164 shape: id, slug,
+        # status, schedule, next_run_at, last_run_at. `mode` + `essential`
+        # were dropped by ADR-231; the operator-facing recurrence label
+        # (Recurring vs One-time) is derived from `schedule` per ADR-163.
         tasks_result = (
             auth.client.table("tasks")
-            .select("id, slug, status, mode, schedule, next_run_at, last_run_at, essential")
+            .select("id, slug, status, schedule, next_run_at, last_run_at")
             .eq("user_id", auth.user_id)
             .order("created_at", desc=True)
             .execute()
@@ -110,11 +123,9 @@ async def get_workspace_nav(auth: UserClient) -> dict:
                 "slug": slug,
                 "title": title,
                 "status": row.get("status", "active"),
-                "mode": row.get("mode"),
                 "schedule": row.get("schedule"),
                 "next_run_at": row.get("next_run_at"),
                 "last_run_at": row.get("last_run_at"),
-                "essential": bool(row.get("essential", False)),
             })
 
         # ── Domains (from directory registry + tracker entity counts) ──
