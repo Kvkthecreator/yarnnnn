@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Context Surface — Workspace knowledge browser (ADR-180, v12 / ADR-206).
+ * Context Surface — Workspace knowledge browser (ADR-180, v12 / ADR-206 / ADR-231).
  *
  * Context answers: "What does my workspace know? What has it produced?"
  *
@@ -9,13 +9,15 @@
  *   Identity  — workspace identity/brand/conventions + domain _operator_profile.md
  *               + _risk.md + Reviewer principles.md. The Intent layer (ADR-206).
  *   Context   — accumulated domain knowledge (/workspace/context/{domain}/).
- *   Reports   — rendered deliverables from produces_deliverable tasks
- *               (/tasks/{slug}/outputs/latest/). The Deliverables layer (ADR-206).
+ *   Reports   — rendered deliverables from DELIVERABLE-shape recurrences
+ *               (/workspace/reports/{slug}/{date}/output.md per ADR-231 D2).
+ *               Was /tasks/{slug}/outputs/latest/ pre-cutover; the substrate
+ *               moved to natural-home paths in ADR-231 Phase 3.7.
  *   Uploads   — user-contributed source material (/workspace/uploads/).
  *
  * Deep-link params:
  *   ?domain={key}  — navigate to a context domain folder
- *   ?path={path}   — navigate to any workspace path (incl. /tasks/{slug}/outputs/latest)
+ *   ?path={path}   — navigate to any workspace path (incl. /workspace/reports/{slug}/)
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -106,11 +108,14 @@ function buildContextNodes(input: {
   const uploadChildren = asNodeArray(input.uploadTree);
   const settingsFiles = Array.isArray(input.settings) ? input.settings : [];
 
-  // Outputs: tasks that have produced deliverables (ADR-180)
+  // Outputs: DELIVERABLE-shape recurrences (ADR-180 + ADR-231 D2).
+  // Path is the natural-home substrate root /workspace/reports/{slug}; the
+  // detail-mode dispatcher (`DeliverableMiddle`) reads dated output folders
+  // under that root via api.recurrences.listOutputs(slug).
   const outputTasks = input.outputTasks ?? [];
   const outputChildren: TreeNode[] = outputTasks.map(task => ({
     name: task.title,
-    path: `/tasks/${task.slug}/outputs/latest`,
+    path: `/workspace/reports/${task.slug}`,
     type: 'folder' as const,
     updated_at: task.last_run_at ?? undefined,
     summary: task.last_run_at ? `Latest output` : 'No output yet',
@@ -452,9 +457,11 @@ export default function ContextPage() {
             metadata={getNodeMetadata(selectedNode)}
           />
           <div className="flex-1 overflow-auto">
-            {/* Task output paths render DeliverableMiddle (ADR-180) */}
-            {/^\/tasks\/[^/]+\/outputs/.test(selectedNode.path) ? (() => {
-              const taskSlug = selectedNode.path.split('/')[2];
+            {/* DELIVERABLE recurrence substrate roots render DeliverableMiddle
+                (ADR-180 + ADR-231 D2). Path shape: /workspace/reports/{slug}. */}
+            {/^\/workspace\/reports\/[^/]+\/?$/.test(selectedNode.path) ? (() => {
+              // path = /workspace/reports/{slug}  →  slug at index 3
+              const taskSlug = selectedNode.path.split('/')[3];
               return <DeliverableMiddle taskSlug={taskSlug} refreshKey={0} />;
             })() : (
               <ContentViewer
