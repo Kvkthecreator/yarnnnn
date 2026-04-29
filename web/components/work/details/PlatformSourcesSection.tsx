@@ -224,7 +224,7 @@ export function PlatformSourcesSection({ task, onSourcesUpdated, existingEntityS
     setSaveError(null);
     setLastSaved(false);
     try {
-      await api.tasks.updateSources(task.slug, { [platform]: Array.from(ids) });
+      await api.recurrences.updateSources(task.slug, { [platform]: Array.from(ids) });
       if (saveRef.current === token) {
         setLastSaved(true);
         setTimeout(() => setLastSaved(false), 1500);

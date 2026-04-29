@@ -13,7 +13,7 @@
  *   4. What did it post? (sent message text, if available)
  *
  * Data sources:
- *   - api.tasks.listOutputs(slug) → one row per fire, with manifest + sent text
+ *   - api.recurrences.listOutputs(slug) → one row per fire, with manifest + sent text
  *   - task.delivery / task.objective → fallback display of intended target
  *
  * No iframe — there is no rendered HTML deliverable. The artifact lives on

@@ -538,8 +538,8 @@ export const api = {
     }>("/api/programs/surfaces"),
   },
 
-  // ADR-138: Tasks endpoints
-  tasks: {
+  // ADR-231: Recurrences endpoints (was `tasks`; renamed in Phase 3.8)
+  recurrences: {
     list: (statusOrOpts?: string | { status?: string; include_system?: boolean }) => {
       let qs = "";
       if (typeof statusOrOpts === "string") {
@@ -550,42 +550,42 @@ export const api = {
         if (statusOrOpts.include_system) parts.push(`include_system=true`);
         if (parts.length > 0) qs = `?${parts.join("&")}`;
       }
-      return request<Task[]>(`/api/tasks${qs}`);
+      return request<Task[]>(`/api/recurrences${qs}`);
     },
 
     get: (slug: string) =>
-      request<TaskDetail>(`/api/tasks/${slug}`),
+      request<TaskDetail>(`/api/recurrences/${slug}`),
 
-    // ADR-215 Phase 4: frontend no longer POSTs /api/tasks directly.
+    // ADR-215 Phase 4: frontend no longer POSTs /api/recurrences directly.
     // Task creation routes through YARNNN via TaskSetupModal →
     // ManageTask(action="create") per ADR-206 CRUD split. The backend
-    // POST /api/tasks endpoint stays in place for the primitive's use.
+    // POST /api/recurrences endpoint stays in place for the primitive's use.
 
     update: (slug: string, data: Partial<TaskCreate> & { status?: string }) =>
-      request<Task>(`/api/tasks/${slug}`, {
+      request<Task>(`/api/recurrences/${slug}`, {
         method: "PUT",
         body: JSON.stringify(data),
       }),
 
     delete: (slug: string) =>
       request<{ success: boolean; message: string }>(
-        `/api/tasks/${slug}`,
+        `/api/recurrences/${slug}`,
         { method: "DELETE" }
       ),
 
     // Get latest output (rendered HTML)
     getLatestOutput: (slug: string) =>
-      request<TaskOutput>(`/api/tasks/${slug}/outputs/latest`),
+      request<TaskOutput>(`/api/recurrences/${slug}/outputs/latest`),
 
     // Get specific output by date folder
     getOutput: (slug: string, dateFolder: string) =>
-      request<TaskOutput>(`/api/tasks/${slug}/outputs/${dateFolder}`),
+      request<TaskOutput>(`/api/recurrences/${slug}/outputs/${dateFolder}`),
 
     // List output history
     listOutputs: async (slug: string, limit?: number) => {
       const params = limit ? `?limit=${limit}` : "";
       const data = await request<TaskOutput[] | { outputs: TaskOutput[]; total: number }>(
-        `/api/tasks/${slug}/outputs${params}`
+        `/api/recurrences/${slug}/outputs${params}`
       );
       // API returns plain array; normalize to { outputs, total }
       if (Array.isArray(data)) {
@@ -597,7 +597,7 @@ export const api = {
     // Trigger immediate execution
     run: (slug: string) =>
       request<{ success: boolean; message: string }>(
-        `/api/tasks/${slug}/run`,
+        `/api/recurrences/${slug}/run`,
         { method: "POST" }
       ),
 
@@ -605,12 +605,12 @@ export const api = {
     export: (slug: string, format: string, dateFolder?: string) => {
       const params = dateFolder ? `&date_folder=${dateFolder}` : "";
       return request<{ success: boolean; url: string; format: string; title: string }>(
-        `/api/tasks/${slug}/export?format=${format}${params}`
+        `/api/recurrences/${slug}/export?format=${format}${params}`
       );
     },
 
     // ADR-207 P4b (2026-04-22): `listTypes` + `getType` DELETED. The
-    // `/api/tasks/types` and `/api/tasks/types/{key}` endpoints no longer
+    // `/api/recurrences/types` and `/api/recurrences/types/{key}` endpoints no longer
     // exist server-side. Task creation happens via YARNNN self-declaration
     // (agent + objective + required_capabilities + context domains) via
     // ManageTask(action="create"), not a catalog pick.
@@ -618,17 +618,17 @@ export const api = {
     // ADR-145: Process step outputs for a given run
     getStepOutputs: (slug: string, dateFolder: string) =>
       request<ProcessStepsResponse>(
-        `/api/tasks/${slug}/outputs/${dateFolder}/steps`
+        `/api/recurrences/${slug}/outputs/${dateFolder}/steps`
       ),
 
     // Live execution progress
     getRunStatus: (slug: string) =>
-      request<RunStatus>(`/api/tasks/${slug}/status`),
+      request<RunStatus>(`/api/recurrences/${slug}/status`),
 
     // ADR-158 Phase 2: Update task-level source selection in TASK.md.
     // sources: {platform: ids[]} e.g. { slack: ["C123", "C456"] }
     updateSources: (slug: string, sources: Record<string, string[]>) =>
-      request<Task>(`/api/tasks/${slug}/sources`, {
+      request<Task>(`/api/recurrences/${slug}/sources`, {
         method: "PATCH",
         body: JSON.stringify({ sources }),
       }),

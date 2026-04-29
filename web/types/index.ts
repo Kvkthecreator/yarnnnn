@@ -867,7 +867,7 @@ export interface TaskType {
   // ADR-166: category dropped. output_kind classifies what shape the task produces.
   output_kind: 'accumulates_context' | 'produces_deliverable' | 'external_action' | 'system_maintenance';
   default_schedule: string;
-  // ADR-154 + ADR-206: registry-declared defaults exposed in GET /api/tasks/types response.
+  // ADR-154 + ADR-206: registry-declared defaults exposed in GET /api/recurrences/types response.
   default_mode?: 'recurring' | 'goal' | 'reactive';
   default_title?: string;
   output_format: string;

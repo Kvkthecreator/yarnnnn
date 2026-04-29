@@ -37,8 +37,8 @@ export function useTaskOutputs(
 
     try {
       const [latestOutput, historyResponse] = await Promise.all([
-        includeLatest ? api.tasks.getLatestOutput(taskSlug) : Promise.resolve(null),
-        historyLimit ? api.tasks.listOutputs(taskSlug, historyLimit) : Promise.resolve({ outputs: [] as TaskOutput[], total: 0 }),
+        includeLatest ? api.recurrences.getLatestOutput(taskSlug) : Promise.resolve(null),
+        historyLimit ? api.recurrences.listOutputs(taskSlug, historyLimit) : Promise.resolve({ outputs: [] as TaskOutput[], total: 0 }),
       ]);
 
       setLatest(latestOutput);

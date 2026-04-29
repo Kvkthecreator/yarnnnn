@@ -63,7 +63,7 @@ export function useAgentsAndTasks(
 
         const [agentList, taskList, narrativeResp] = await Promise.all([
           api.agents.list(),
-          api.tasks.list(),
+          api.recurrences.list(),
           narrativePromise,
         ]);
         setAgents(agentList);
@@ -77,7 +77,7 @@ export function useAgentsAndTasks(
       } else {
         const [agentList, taskList] = await Promise.all([
           api.agents.list(),
-          api.tasks.list(),
+          api.recurrences.list(),
         ]);
         setAgents(agentList);
         setTasks(taskList);

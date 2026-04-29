@@ -32,7 +32,7 @@ export function useTaskDetail(taskSlug: string | null): UseTaskDetailResult {
     setNotFound(false);
 
     try {
-      const detail = await api.tasks.get(taskSlug);
+      const detail = await api.recurrences.get(taskSlug);
       setTask(detail);
     } catch (err) {
       setTask(null);

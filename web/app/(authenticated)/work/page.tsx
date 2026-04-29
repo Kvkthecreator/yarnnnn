@@ -170,7 +170,7 @@ export default function WorkPage() {
     setPendingAction('run');
     setActionNotice({ kind: 'info', text: 'Running task now. This can take up to a minute.' });
     try {
-      await api.tasks.run(slug);
+      await api.recurrences.run(slug);
       setDetailRefreshKey((current) => current + 1);
       await Promise.all([reload(), reloadTaskDetail()]);
       setActionNotice({ kind: 'success', text: 'Task run completed. Latest task data refreshed.' });
@@ -193,7 +193,7 @@ export default function WorkPage() {
     try {
       const task = (selectedTaskDetail?.slug === slug ? selectedTaskDetail : null) ?? tasks.find(t => t.slug === slug);
       const newStatus = task?.status === 'active' ? 'paused' : 'active';
-      await api.tasks.update(slug, { status: newStatus });
+      await api.recurrences.update(slug, { status: newStatus });
       await Promise.all([reload(), reloadTaskDetail()]);
       setActionNotice({
         kind: 'success',

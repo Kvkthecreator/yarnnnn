@@ -233,7 +233,7 @@ export default function ContextPage() {
         api.workspace.getNav(),
         api.workspace.getTree('/workspace/context'),
         api.workspace.getTree('/workspace/uploads'),
-        api.tasks.list(),
+        api.recurrences.list(),
       ]);
 
       const navDomains = Array.isArray(nav?.domains) ? nav.domains : [];

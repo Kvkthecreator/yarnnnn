@@ -4,7 +4,7 @@
  * /settings/system — Back-office diagnostic view (ADR-206).
  *
  * ADR-206: back-office-* tasks are plumbing, not operator-facing work. The default
- * `GET /api/tasks` response filters them out. This page passes `include_system=true`
+ * `GET /api/recurrences` response filters them out. This page passes `include_system=true`
  * to surface them for operators who want to inspect YARNNN's infrastructure —
  * last-run, next-scheduled, pause/resume. Not a primary nav destination.
  *
@@ -19,7 +19,7 @@ import { APIError, api } from '@/lib/api/client';
 import type { Task } from '@/types';
 
 async function fetchSystemTasks(): Promise<Task[]> {
-  return api.tasks.list({ include_system: true });
+  return api.recurrences.list({ include_system: true });
 }
 
 function formatDate(value?: string | null): string {
@@ -56,7 +56,7 @@ export default function SystemDiagnosticPage() {
     setPendingSlug(task.slug);
     try {
       const nextStatus = task.status === 'active' ? 'paused' : 'active';
-      await api.tasks.update(task.slug, { status: nextStatus });
+      await api.recurrences.update(task.slug, { status: nextStatus });
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Update failed');

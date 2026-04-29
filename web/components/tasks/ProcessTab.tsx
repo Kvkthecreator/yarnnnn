@@ -219,7 +219,7 @@ export function ProcessTab({
   // Poll for live execution progress
   useEffect(() => {
     const poll = () => {
-      api.tasks.getRunStatus(task.slug)
+      api.recurrences.getRunStatus(task.slug)
         .then(status => {
           if (status.status === 'running') {
             setRunStatus(status);
@@ -229,7 +229,7 @@ export function ProcessTab({
             if (selectedOutput?.folder || selectedOutput?.date) {
               const dateFolder = selectedOutput.folder || selectedOutput.date;
               if (dateFolder) {
-                api.tasks.getStepOutputs(task.slug, dateFolder)
+                api.recurrences.getStepOutputs(task.slug, dateFolder)
                   .then(res => {
                     setSteps(res.steps || []);
                     if (res.process_definition) setProcessDefinition(res.process_definition);
@@ -256,7 +256,7 @@ export function ProcessTab({
       // Keep polling at slower rate for new runs
       clearInterval(pollRef.current);
       pollRef.current = setInterval(() => {
-        api.tasks.getRunStatus(task.slug)
+        api.recurrences.getRunStatus(task.slug)
           .then(status => {
             if (status.status === 'running') setRunStatus(status);
           })
@@ -277,7 +277,7 @@ export function ProcessTab({
 
     setLoading(true);
     setError(null);
-    api.tasks.getStepOutputs(task.slug, dateFolder)
+    api.recurrences.getStepOutputs(task.slug, dateFolder)
       .then(res => {
         setSteps(res.steps || []);
         if (res.process_definition) setProcessDefinition(res.process_definition);

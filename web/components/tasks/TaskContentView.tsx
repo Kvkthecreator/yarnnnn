@@ -47,7 +47,7 @@ function ExportButton({ slug, folder }: { slug: string; folder?: string | null }
   const handleExport = async (format: string) => {
     setActive(format);
     try {
-      const res = await api.tasks.export(slug, format, folder || undefined);
+      const res = await api.recurrences.export(slug, format, folder || undefined);
       if (res.url) window.open(res.url, '_blank');
     } catch (e) {
       console.error(`Export ${format} failed:`, e);
