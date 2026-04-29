@@ -112,38 +112,50 @@ Each phase is independently shippable, independently testable, independently rev
 
 ### Phase 2 — DELIVERABLE prior-output injection
 
-**Files modified** (2):
-- `api/services/dispatch_helpers.py` — add `_load_prior_output(client, user_id, decl)`:
-  - Returns `(content: str, path: str, written_at: datetime) | None`
-  - Walks `/workspace/reports/{decl.slug}/` listing date folders, picks newest, reads `output.md`
-  - Returns `None` for non-DELIVERABLE shapes (early exit, no I/O)
-  - Returns `None` if no prior output exists (first run case)
-- `api/agents/headless_prompts/shapes.py::DELIVERABLE_POSTURE` — gains a `## Prior Output (your starting point)` section assembled from `_load_prior_output` result. When prior exists: "You are revising a recurring deliverable. The prior output is below. Read it first; preserve sections whose source data has not changed; update only the gap." When no prior: "First run of this recurrence. Compose from gathered context."
+**Hardening note (2026-04-29):** Phase 2's original framing — "DELIVERABLE shape always injects prior output" — is generalized to a uniform principle: **every generative shape pre-reads its natural-home folder before writing.** The benchmark against Cowork (folder-as-context) and ADR-173 (Accumulation-First Execution) revealed that "read your folder before you write to it" is the load-bearing principle; gating on DELIVERABLE alone is a special case that would force a Phase 2.5 to extend it to ACCUMULATION/ACTION. Singular implementation rule 1 says ship the principle once, not the special case three times. The natural-home paths are already canon per ADR-231 D2 (DELIVERABLE → `/workspace/reports/{slug}/{latest}/`, ACCUMULATION → `/workspace/context/{domain}/`, ACTION → `/workspace/operations/{slug}/`). The principle is "read what you're about to write atop"; the path resolution is already declared by `recurrence_paths.py`.
+
+**Files modified** (4):
+- `api/services/dispatch_helpers.py` — add `_load_natural_home_brief(client, user_id, decl) -> NaturalHomeBrief | None`. The brief is shape-keyed:
+  - DELIVERABLE: latest `output.md` (capped ~8K chars; ADR-173 prior-output pattern). When absent: returns `None` and posture frames as "first run."
+  - ACCUMULATION: domain-folder index (entity slugs + last-modified + landscape.md if present, capped ~4K chars). When absent: returns `None` and posture frames as "first accumulation pass into this domain."
+  - ACTION: latest action proposal in `/workspace/operations/{slug}/` (if any unresolved) + `_action.yaml` recurrence declaration. Used as "what's already pending/in-flight?" signal so reactive ACTIONs don't double-propose. When absent: returns `None`.
+  - MAINTENANCE: never called (no LLM, no posture).
+  - Reads through `recurrence_paths.py` helpers — no inline path strings; ADR-231 D2/D9/D10 path resolution stays the single source of truth.
+- `api/services/recurrence_paths.py` — extend with shape-aware natural-home read helpers if any are missing (likely already present from ADR-231 Phase 3.2.a; audit during implementation).
+- `api/agents/prompts/headless/deliverable.py::DELIVERABLE_POSTURE` — gains `## Prior Output (your starting point)` section. When prior exists: "You are revising a recurring deliverable. The prior output is below. Read it first; preserve sections whose source data has not changed; update only the gap." When no prior: "First run of this recurrence. Compose from gathered context."
+- `api/agents/prompts/headless/accumulation.py::ACCUMULATION_POSTURE` — gains `## Domain State (what you've accumulated so far)` section. When folder exists: "You are extending a domain you've worked in before. The current entity inventory is below. Update existing entities additively; add new entities for genuinely new subjects." When absent: "First accumulation pass into this domain."
+- `api/agents/prompts/headless/action.py::ACTION_POSTURE` — gains `## Pending Operations` section. When proposals/state exist: "Active proposals or unresolved state below. Do not duplicate; either reference, supersede, or stand down." When absent: "No pending state for this operation."
 
 **Files NOT modified** (intentional):
-- `invocation_dispatcher.py` — Phase 2 lives entirely inside the prompt-build path, not dispatch
-- `_dispatch_generative` — no flow change; prior output is loaded inside `build_invocation_prompt`
+- `invocation_dispatcher.py` — Phase 2 lives entirely inside the prompt-build path, not dispatch.
+- `_dispatch_generative` — no flow change; natural-home brief is loaded inside `build_prompt`.
 
 **Test gate**:
-- `api/test_adr233_phase2_prior_output.py` — three cases:
-  - DELIVERABLE shape, prior output exists → posture contains prior output excerpt
-  - DELIVERABLE shape, no prior output → posture contains "First run" framing
-  - ACCUMULATION/ACTION shape → `_load_prior_output` returns `None` without hitting filesystem (assert via mock)
+- `api/test_adr233_phase2_natural_home_preread.py` — six cases (one per shape × prior-exists/absent):
+  - DELIVERABLE + prior `output.md` exists → posture contains prior-output excerpt.
+  - DELIVERABLE + no prior → posture contains "First run" framing.
+  - ACCUMULATION + domain folder exists with entities → posture contains entity inventory excerpt.
+  - ACCUMULATION + empty domain → posture contains "First accumulation pass" framing.
+  - ACTION + pending proposal exists → posture contains pending-state notice.
+  - ACTION + no pending state → posture contains "No pending state" framing.
+- All path reads route through `recurrence_paths.py` (assert via mock) — no inline strings.
 
-**Token impact**: DELIVERABLE invocations in steady state gain ~3–6K input tokens (one prior `output.md`, capped at ~8K chars per existing `prior_output[:8000]` slice). Cache-friendly because prior output is dynamic content (post-cache marker).
+**Token impact**: DELIVERABLE +3–6K (existing pattern). ACCUMULATION +1–3K (entity inventory, intentionally compact — full entities are ad-hoc reads via ReadFile if the agent needs them). ACTION +0.5–1K. All cache-friendly (post-cache marker, dynamic content).
 
-**Cost note**: Net cost is favorable. Current behavior regenerates the entire deliverable from scratch each cycle (~4K output tokens). Prior-output-aware generation produces deltas (~1.5–2.5K output tokens typical) at the cost of ~5K added input tokens. Output tokens cost 5× input; the trade is positive at the second invocation onward.
+**Cost note**: DELIVERABLE delta-generation savings unchanged from original framing (~50% output-token reduction at second invocation onward). ACCUMULATION savings come from cleaner additive writes (less duplication of existing entities) — measured by `_post_run_domain_scan` entity-churn metric. ACTION savings come from preventing duplicate proposals — measured by Reviewer rejection rate.
 
-**LOC delta**: ~+80 added.
+**LOC delta**: ~+150 added (helper + three posture extensions + tests).
 
-**Prompt CHANGELOG entry**: `[2026.MM.DD.N]` — "ADR-233 Phase 2 — DELIVERABLE shape always injects prior output. `task_mode='goal'` revision pattern subsumed by shape-gated injection."
+**Prompt CHANGELOG entry**: `[2026.MM.DD.N]` — "ADR-233 Phase 2 — natural-home pre-read across all generative shapes. DELIVERABLE reads prior output, ACCUMULATION reads domain inventory, ACTION reads pending state. `task_mode='goal'` revision pattern subsumed."
 
 ---
 
 ### Phase 3 — Domain synthesis as ACCUMULATION contract
 
+> **Status: deferred for fresh discussion post-Phase-1 implementation.** The cold-start failure mode (R3 — first synthesis flows into first downstream report unverified before any feedback arrives) and the synthesis-quality drift question warrant their own design pass. Phase 1 will surface what the ACCUMULATION posture looks like in practice; Phase 3 will be re-scoped from observed reality, not pre-design. Description below is the original draft, retained for reference only.
+
 **Files modified** (2):
-- `api/agents/headless_prompts/shapes.py::ACCUMULATION_POSTURE` — output contract gains required dual-artifact:
+- `api/agents/prompts/headless/accumulation.py::ACCUMULATION_POSTURE` — output contract gains required dual-artifact:
   ```
   Your output is TWO artifacts:
   1. Entity updates — write to /workspace/context/{domain}/{entity-slug}/profile.md and signals.md per conventions
