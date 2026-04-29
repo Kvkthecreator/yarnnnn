@@ -87,12 +87,13 @@ Each item lists: **what it is**, **verified state in code**, **existing ADR link
 - **Existing ADRs**: ADR-154 (structured nav), ADR-180 (Files canonical label).
 - **Scope**: small-to-medium. Depends on root-cause analysis before scoping the consolidation.
 
-### Item 7 — Settings ↔ /integrations consolidation
+### Item 7 — Settings ↔ /integrations consolidation — **Deferred** (2026-04-29)
 
 - **What**: Collapse the duplication between `/settings` (ConnectedIntegrationsSection) and `/integrations/[provider]/` (OAuth callback route). Settings becomes the single canonical surface for platform connection management.
 - **Verified state**: `/integrations/[provider]/page.tsx` is the OAuth callback handler — **not** a duplicate of settings. **Original audit overstated this**: there is no settings/integrations duplication at the route level; the consolidation question is narrower — should `ConnectedIntegrationsSection` be embeddable on Chat (snapshot) and elsewhere as a reusable read-only summary?
 - **Existing ADRs**: ADR-153 (Platform Sync sunset), ADR-205 (Workspace Primitive Collapse).
 - **Scope**: small. Reframed: extraction of a reusable read-only ConnectedIntegrationsSummary, not a full consolidation.
+- **Deferral rationale (2026-04-29)**: ConnectedIntegrationsSection currently has exactly one consumer (`/settings`). Extracting a read-only summary now would ship a component looking for a consumer — anti-Singular-Implementation per Rule 7. Item 1 (chat role-based design system) and Item 4 (onboarding-as-activation) are likely to surface the first real consumer of an integrations summary. Item 7 is **deferred** and re-picked up alongside whichever Tier 1 sub-ADR first needs it. The deferral records a coordination point: when Item 1 / 3 / 4's sub-ADR drafts and identifies a need for an integrations summary, the extraction lands as part of that sub-ADR's commit, not as a standalone refactor.
 
 ### Item 8 — ChatFilterBar verification + "Make this recurring" rework
 
@@ -203,7 +204,7 @@ The 10 items have real dependencies. Sequenced execution prevents merge thrash a
 | 1 | Umbrella ADR (this) | — | — | Establishes the doc-radius rules in practice. |
 | 2 | Item 5 — Redirect stubs | T2 | Item 1's umbrella | Cheap. Validates the doc-radius rules end-to-end. |
 | 3 | Item 6 — Files 500 root cause | T2 | — | Production bug, clears dev environment. |
-| 4 | Item 7 — Settings extraction | T2 | — | Independent. |
+| 4 | ~~Item 7 — Settings extraction~~ | T2 | — | **Deferred 2026-04-29** — re-picked up with first real consumer (Item 1/3/4). |
 | 5 | Item 1 — Chat role-based design system (ADR-237) | T1 | — | Frames Items 8, 9, 10. |
 | 6 | Item 2 — Autonomy-mode FE (ADR-238) | T1 | — | Independent of Items 1, 3, 4. |
 | 7 | Item 3 — Trader cockpit memo | T3→T1 | — | Memo surfaces real architectural questions; sub-ADR (ADR-239) follows. |
