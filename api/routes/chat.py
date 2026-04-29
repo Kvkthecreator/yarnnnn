@@ -323,16 +323,17 @@ async def append_message(
     Per ADR-219 Commit 2 (FOUNDATIONS Axiom 9): all session_messages
     inserts route through services.narrative.write_narrative_entry, the
     single write path. This helper preserves the legacy 5-arg signature
-    that chat / memory / task_pipeline callers use today; it derives the
-    narrative envelope from the role + the optional metadata payload:
+    that chat / memory / invocation_dispatcher callers use today; it
+    derives the narrative envelope from the role + the optional metadata
+    payload:
 
       - `summary` is taken from metadata['summary'] when provided, else
         derived from content (first line, truncated). The envelope's
         `body` carries the full content when it differs from summary.
       - `pulse` is taken from metadata['pulse'] when provided. Default
         is 'addressed' for the operator-driven turn pattern this helper
-        was built for; task_pipeline + back-office overrides their pulse
-        explicitly.
+        was built for; invocation_dispatcher + back-office overrides their
+        pulse explicitly.
       - `weight` is taken from metadata['weight'] when provided; else
         the narrative module applies the default policy.
       - `invocation_id` / `task_slug` / `provenance` flow through when

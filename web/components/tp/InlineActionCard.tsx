@@ -77,41 +77,41 @@ export function InlineActionCard({ config, onSelect, onDismiss }: InlineActionCa
 // Pre-defined action card configs
 // =============================================================================
 
-/** Task page: "Run this task" action */
+/** Recurrence detail: "Run this" action */
 export const RUN_TASK_CARD: ActionCardConfig = {
-  title: 'Run this task',
+  title: 'Run this recurrence',
   options: [
-    { label: 'Run now', message: 'Run this task now' },
-    { label: 'Run with special focus', message: 'Run this task with focus on ' },
+    { label: 'Run now', message: 'Run this now' },
+    { label: 'Run with special focus', message: 'Run this with focus on ' },
   ],
 };
 
-/** Task page: "Adjust this task" action */
+/** Recurrence detail: "Adjust this" action */
 export const ADJUST_TASK_CARD: ActionCardConfig = {
-  title: 'Adjust this task',
+  title: 'Adjust this recurrence',
   description: 'What would you like to change?',
   options: [
-    { label: 'Focus area', message: 'Change the focus of this task to ' },
-    { label: 'Success criteria', message: 'Update the success criteria for this task' },
-    { label: 'Schedule', message: 'Change the schedule for this task' },
-    { label: 'Delivery', message: 'Change the delivery for this task' },
+    { label: 'Focus area', message: 'Change the focus of this recurrence to ' },
+    { label: 'Success criteria', message: 'Update the success criteria for this recurrence' },
+    { label: 'Schedule', message: 'Change the schedule for this recurrence' },
+    { label: 'Delivery', message: 'Change the delivery for this recurrence' },
   ],
   inputPlaceholder: 'Or describe the adjustment',
 };
 
-/** Task page: "Research for this task" action */
+/** Recurrence detail: "Research for this" action */
 export const RESEARCH_TASK_CARD: ActionCardConfig = {
   title: 'Web research',
   description: 'What should I look into?',
   options: [
-    { label: 'Latest trends', message: 'Research latest trends relevant to this task' },
-    { label: 'Competitor activity', message: 'Research competitor activity for this task' },
-    { label: 'Industry news', message: 'Research recent industry news for this task' },
+    { label: 'Latest trends', message: 'Research latest trends relevant to this recurrence' },
+    { label: 'Competitor activity', message: 'Research competitor activity for this recurrence' },
+    { label: 'Industry news', message: 'Research recent industry news for this recurrence' },
   ],
   inputPlaceholder: 'Or describe what to research',
 };
 
-/** Task page: "Give feedback" on latest output */
+/** Recurrence detail: "Give feedback" on latest output */
 export const FEEDBACK_TASK_CARD: ActionCardConfig = {
   title: 'Feedback on output',
   description: 'How was the latest output?',

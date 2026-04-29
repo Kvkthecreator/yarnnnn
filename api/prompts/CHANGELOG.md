@@ -6,6 +6,52 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.7] - ADR-231 D5 — Workspace + tools_core + task_scope prompt rewrite (residual ManageTask sweep)
+
+### Changed
+- `api/agents/prompts/chat/workspace.py` — full sweep of all `ManageTask(...)` references (the primitive was deleted in Phase 3.7). Replaced with `UpdateContext(target="recurrence", action=...)` for declaration mutations and `FireInvocation(shape=..., slug=...)` for run-now dispatch. Sections rewritten:
+  - "Verify After Acting" tool list: `(ManageTask, UpdateContext, etc.)` → `(UpdateContext, FireInvocation, etc.)`.
+  - "Confirming Before Acting" high-impact-action list updated to current primitive surface.
+  - "When the user asks to update / fill in a task" → "...recurrence" with the ADR-231 D5 update path (no more `ManageTask(action="update")` semantics).
+  - Default-Invocation-Not-Task pre-create question: `ManageTask(action="create")` → `UpdateContext(target="recurrence", action="create")`.
+  - Team Composition: `pass team in ManageTask` → `pass team in the YAML body (agents: [...] or team: [...])`.
+  - **Creating Recurring Tasks** section ("Recurrence Graduation") fully rewritten as **Creating Recurrences (ADR-231 D5)**: explains the four shapes + natural-home YAML paths + body-field reference, replaces the deleted Derivation-First Scaffolding workflow (registry + `task_derivation.md` writer dissolved), and replaces the two `ManageTask(...)` examples with `UpdateContext(target="recurrence", ...)` examples.
+  - **Composing Custom Tasks (ADR-188)** → **Composing Custom Recurrences** — same self-declaration message in recurrence vocabulary.
+  - **Task Creation Routes (ADR-178)** → **Recurrence Creation Routes (ADR-178)** — Route A/B preserved with shape vocabulary.
+  - **Task Template Library (ADR-188)** → **Recurrence Patterns (ADR-188)** — explicitly notes "registries are template libraries" (per ADR-188), removes the dead `type_key` reference, swaps slug naming to ADR-231 conventions, and notes that maintenance recurrences self-materialize (NOT operator-authored).
+  - **Conversation, Invocation, and Recurrence** + **Platform Data Access** + **Accumulation-First** sections — vocabulary swap (task → recurrence) where the term refers to the lifecycle wrapper.
+  - Module docstring updated to call out ADR-231 D5 as the primitive surface.
+- `api/agents/prompts/tools_core.py` — full sweep of the `## Managing Tasks` section. Replaced with `## Managing Recurrences (ADR-231 D5)` documenting `UpdateContext(target="recurrence", ...)` (5 actions: create, update, pause, resume, archive) + `FireInvocation(shape, slug, context?)` for run-now dispatch. The `ManageTask(...)` examples in the dispatch table ("Send me a weekly competitive brief", "Track our competitors") replaced with `UpdateContext(target="recurrence", action="create", ...)` patterns. **Evaluate / steer / complete** clarified as feedback writes through `UpdateContext(target="task", feedback_target=...)` (not declaration mutations).
+- `api/agents/prompts/chat/task_scope.py` — entity-scoped preamble: 5 ManageTask lifecycle action references rewritten:
+  - `ManageTask(action='evaluate')` → `UpdateContext(target="task", task_slug=..., feedback_target="criteria", text="<assessment>")`.
+  - `ManageTask(action='steer')` → `UpdateContext(target="task", task_slug=..., feedback_target="run_log", ...)`.
+  - `ManageTask(action='complete')` → `UpdateContext(target="recurrence", action="archive", ...)`.
+  - `ManageTask(action='trigger')` → `FireInvocation(shape=..., slug=...)`.
+  - "Domain changes (ManageDomains) and objective updates (ManageTask action="update") take effect immediately" — second clause rewritten to reference `UpdateContext(target="recurrence", action="update")`.
+- `api/services/activity_log.py` — module docstring write-points list: `task_pipeline.py` reference replaced with `invocation_dispatcher.py` (ADR-231 successor).
+- `api/services/feedback_actuation.py` — module docstring: Tier 1 injection caller updated `task_pipeline.py` → `dispatch_helpers.py`; actuation call site updated `_post_run_domain_scan() in task_pipeline.py` → `... in invocation_dispatcher.py`.
+- `api/services/agent_creation.py` — `ensure_infrastructure_agents_for_type` stub function DELETED (ADR-231 Phase 3.7's `manage_task._handle_create` caller is gone — Singular Implementation rule 1: no dual paths, no shims kept "for source-tree continuity"). Replaced with a one-line block comment noting the deletion.
+- `api/routes/chat.py` — `record_session_message` docstring: `chat / memory / task_pipeline callers` → `chat / memory / invocation_dispatcher callers`; pulse-default explainer updated `task_pipeline + back-office overrides` → `invocation_dispatcher + back-office overrides`.
+
+### Why this change
+Phase 3.6.e (commit 635b276) updated five YARNNN prompt modules — but `workspace.py`, `tools_core.py`, and `task_scope.py` either didn't exist yet (added later by ADR-186 or ADR-233) or were missed. Combined with Phase 3.7 deleting the `ManageTask` primitive entirely, the live YARNNN prompts were telling the model to call a tool that no longer exists. **Production bug**: any time YARNNN tried to use any of the 31 ManageTask references, the dispatcher would error with "tool not found". This commit closes the residual gap.
+
+### Expected behavior
+- YARNNN now consistently dispatches through the canonical primitives:
+  - **Create / update / pause / resume / archive a recurrence** → `UpdateContext(target="recurrence", action=..., shape=..., slug=..., ...)`.
+  - **Run a recurrence now** → `FireInvocation(shape=..., slug=..., context?=...)`.
+  - **Evaluate / steer a task** → `UpdateContext(target="task", task_slug=..., feedback_target=..., text=...)`.
+  - **Complete a goal-mode recurrence** → `UpdateContext(target="recurrence", action="archive", ...)`.
+- Examples shown to the model now reflect post-ADR-231 substrate paths (`/workspace/reports/{slug}/_spec.yaml`, `/workspace/context/{domain}/_recurring.yaml`, `/workspace/operations/{slug}/_action.yaml`, `/workspace/_shared/back-office.yaml`).
+- ADR-188 "registries are template libraries" message preserved — operators are not constrained to a fixed catalog.
+- ADR-205 F1 chat-first triggering (run-now when no schedule) explicitly framed in the Recurrences section.
+
+### Test gate
+- 112/112 tests still passing (recurrence + runtime invariants + ADR-233 phases 1+2 + dispatch helpers).
+- No new tests added — this is a prompt-content-only change, behavior verified through dispatcher routing tests already in place.
+
+---
+
 ## [2026.04.29.6] - ADR-233 Phase 2 — Natural-home pre-read across all generative shapes
 
 ### Added

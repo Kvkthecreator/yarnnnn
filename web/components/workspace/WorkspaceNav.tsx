@@ -89,9 +89,9 @@ export function WorkspaceNav({
   return (
     <div className="text-sm flex flex-col h-full">
       <div className="flex-1 overflow-y-auto">
-        {/* ── Tasks ── */}
+        {/* ── Recurrences ── */}
         <NavSection
-          title="Tasks"
+          title="Recurrences"
           expanded={expanded.tasks}
           onToggle={() => toggle('tasks')}
           action={onCreateTask ? (
@@ -104,7 +104,7 @@ export function WorkspaceNav({
           ) : undefined}
         >
           {nav.tasks.length === 0 && (
-            <div className="px-3 py-1.5 text-sm text-muted-foreground">No tasks yet</div>
+            <div className="px-3 py-1.5 text-sm text-muted-foreground">No recurrences yet</div>
           )}
           {nav.tasks.map(task => (
             <button

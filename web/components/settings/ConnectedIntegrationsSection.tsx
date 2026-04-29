@@ -622,8 +622,8 @@ export function ConnectedIntegrationsSection({
 
           <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">
             <p>
-              <strong>How it works:</strong> After connecting, a digest task is created automatically.
-              Use &quot;Manage&quot; to pick which channels, pages, or repos the task should read. Connectors here handle connect, reconnect, and disconnect.
+              <strong>How it works:</strong> After connecting, a platform-awareness recurrence is created automatically.
+              Use &quot;Manage&quot; to pick which channels, pages, or repos it should read. Connectors here handle connect, reconnect, and disconnect.
             </p>
           </div>
         </div>

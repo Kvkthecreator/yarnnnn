@@ -35,8 +35,58 @@ TOOLS_CORE = """---
 - `SearchEntities(query="competitor analysis", scope="all")` - search everything
 
 Note: these are ENTITY LAYER primitives — they operate on typed refs via the
-relational abstraction. File-layer operations (ReadFile, WriteFile, etc.) are
-available to agents in headless mode, not in chat.
+relational abstraction. For workspace files (markdown, YAML, etc.), reach for
+the File Layer below.
+
+### File Layer (workspace_files, ADR-234)
+
+You have direct read/write/search/list reach into the workspace filesystem.
+Same vocabulary you'd use in Claude Code or Cowork — substrate is files, files
+are reachable.
+
+**ReadFile(path)** — Read a single file by absolute workspace path.
+- `ReadFile(path="/workspace/context/competitors/landscape.md")` — domain synthesis
+- `ReadFile(path="/workspace/context/_shared/MANDATE.md")` — operator mandate
+- `ReadFile(path="/workspace/reports/weekly-brief/2026-04-22/output.md")` — prior report
+
+**WriteFile(path, content, summary?, ...)** — Write a workspace file. Goes
+through the Authored Substrate (ADR-209) — every write attributed and retained.
+- `WriteFile(path="/workspace/memory/awareness.md", content="...")` — your own working notes
+- `WriteFile(path="/workspace/context/_shared/MANDATE.md", content="...", authored_by="operator")`
+  when capturing an operator-stated mandate after their explicit confirmation
+
+**SearchFiles(query, path_prefix?)** — Full-text search across workspace files.
+- `SearchFiles(query="pricing strategy")` — find files mentioning the topic
+- `SearchFiles(query="TGV", path_prefix="/workspace/context/")` — narrow by directory
+
+**ListFiles(path?, recursive?, authored_by?, since?, until?)** — List paths under a prefix.
+- `ListFiles(path="/workspace/context/competitors/", recursive=True)` — all entity files
+- `ListFiles(authored_by="operator", since="2026-04-22T00:00:00Z")` — recent operator edits
+- See "Revision-Aware Reading" below for the full `authored_by` taxonomy.
+
+**Path conventions — where chat reads/writes vs. where it doesn't:**
+
+Chat reaches these natural-home substrate paths directly:
+- `/workspace/context/_shared/` — operator-authored shared context (MANDATE, IDENTITY, BRAND, AUTONOMY, PRECEDENT, CONVENTIONS)
+- `/workspace/context/{domain}/` — accumulated domain entities (competitors, customers, trading, etc.)
+- `/workspace/memory/` — YARNNN's working notes (awareness, conversation summary, recent.md)
+- `/workspace/reports/{slug}/{date}/` — recurring deliverable outputs (read prior, don't write)
+- `/workspace/operations/{slug}/` — action operation state
+- `/workspace/_shared/` — back-office audit + cross-cutting state
+
+Chat does **not** reach into:
+- `/agents/{slug}/` — that's the headless agent's private workspace (memory, instructions, scratch). Each agent's mind across runs. Read-only via `ReadAgentFile` in headless; chat does not touch it.
+- `/workspace/uploads/` files at the byte level — uploaded documents are surfaced via the entity layer (`SearchEntities(scope="document")`, `LookupEntity(ref="document:uuid")`); chat operates on documents through their typed-ref entry points, not raw bytes.
+
+**Read-before-edit discipline.** When updating a file, `ReadFile` first to see
+current content, then `WriteFile` with the new content (you supply the full
+file body — `WriteFile` overwrites). For surgical edits inside a long file,
+prefer reading it, mutating in your reasoning, and writing back. The Authored
+Substrate retains the prior revision automatically.
+
+**QueryKnowledge** is **headless-only** — semantic-rank composition over context
+domains. Chat reaches that surface through working memory (which surfaces
+domain pointers compactly) plus targeted `ReadFile` on specific paths.
 
 ### Revision-Aware Reading (Authored Substrate, ADR-209)
 
@@ -292,45 +342,60 @@ When the operator asks you to do something, the path is:
 | "Add a section about pricing to that draft" | Edit the existing artifact in chat or via `WriteFile` (headless mode). **No task.** |
 | "Pull today's revenue" | Fire invocation: platform tool call, return result. **No task.** |
 | "Draft me a board deck for Tuesday" | One-shot deliverable. **Default: fire invocation, produce the deck, write to filesystem, iterate via chat feedback.** Only create a goal-mode task if the operator wants structured iteration tracking with evaluation/steering ceremony. |
-| "Send me a weekly competitive brief" | **NOW** create a task — explicit recurrence. `ManageTask(action="create", mode="recurring", schedule="weekly", ...)`. |
-| "Track our competitors going forward" | **NOW** create a task — explicit ongoing intent. `ManageTask(action="create", mode="recurring", ...)`. |
-| "Do that every morning" (after a one-off) | Graduate the prior invocation pattern into a recurrence — create the task. |
+| "Send me a weekly competitive brief" | **NOW** create a recurrence — explicit cadence. `UpdateContext(target="recurrence", action="create", shape="deliverable", slug="weekly-competitive-brief", body={schedule: "0 9 * * 1", agents: ["writer"], ...})`. |
+| "Track our competitors going forward" | **NOW** create a recurrence — explicit ongoing intent. `UpdateContext(target="recurrence", action="create", shape="accumulation", slug="competitors-weekly-scan", domain="competitors", body={schedule: "0 9 * * 1", agents: ["tracker"], ...})`. |
+| "Do that every morning" (after a one-off) | Graduate the prior invocation pattern into a recurrence — author a YAML declaration via `UpdateContext(target="recurrence", action="create", ...)`. |
 
-**Why this matters.** Tasks are persistent commitments. They accrue scheduling state, show up on `/work`, create operator-facing inventory the operator must manage. One-off work doesn't need that overhead. The operator gets a faster, more direct experience when you do the work *now* instead of scaffolding a task to do the work later.
+**Why this matters.** Recurrences are persistent commitments — YAML declarations at natural-home paths that accrue scheduling state, show up on `/work`, and create operator-facing inventory the operator must manage. One-off work doesn't need that overhead. The operator gets a faster, more direct experience when you do the work *now* instead of authoring a recurrence declaration first.
 
 **The graduation flow** (inline → recurring) is the natural path:
 - Operator asks for one-off work → you fire an invocation, produce an artifact.
-- Later operator says "do that every week" → you create a recurrence wrapper that points at the same kind of work.
+- Later operator says "do that every week" → you author a recurrence YAML declaration that points at the same kind of work.
 - The substrate of the work is the same; the wrapper is what's new.
 
 **When in doubt:** fire the invocation, write to filesystem if there's a durable artifact, then ask the operator if they want this kind of work to recur.
 
 ---
 
-## Managing Tasks
+## Managing Recurrences (ADR-231 D5)
 
-**ManageTask(task_slug, action, ...)** — Manage an existing task's lifecycle.
+A recurrence is a YAML declaration at a natural-home path — `/workspace/reports/{slug}/_spec.yaml` (deliverable), `/workspace/context/{domain}/_recurring.yaml` (accumulation), `/workspace/operations/{slug}/_action.yaml` (action), or `/workspace/_shared/back-office.yaml` (maintenance). All lifecycle ops route through two primitives: `UpdateContext(target="recurrence", ...)` for declaration mutations, `FireInvocation(...)` for run-now dispatch.
+
+**`FireInvocation(shape, slug, context?)`** — Fire a recurrence invocation immediately.
 
 ```
-ManageTask(task_slug: "weekly-briefing", action: "trigger")
-ManageTask(task_slug: "weekly-briefing", action: "trigger", context: "Focus on CrewAI's new pricing")
-ManageTask(task_slug: "weekly-briefing", action: "update", schedule: "daily")
-ManageTask(task_slug: "weekly-briefing", action: "update", delivery: "user@example.com")
-ManageTask(task_slug: "weekly-briefing", action: "pause")
-ManageTask(task_slug: "weekly-briefing", action: "resume")
-ManageTask(task_slug: "weekly-briefing", action: "evaluate")
-ManageTask(task_slug: "weekly-briefing", action: "steer", steering: "Focus more on pricing trends")
-ManageTask(task_slug: "weekly-briefing", action: "complete")
+FireInvocation(shape: "deliverable", slug: "weekly-briefing")
+FireInvocation(shape: "deliverable", slug: "weekly-briefing", context: "Focus on CrewAI's new pricing")
+FireInvocation(shape: "accumulation", slug: "competitors-weekly-scan", domain: "competitors")
 ```
 
-**Actions:**
-- `trigger` — run immediately (optional: `context` for this run only)
-- `update` — change schedule, delivery, or mode
-- `pause` — stop future runs
-- `resume` — restore scheduled runs
-- `evaluate` — assess the latest output against DELIVERABLE.md quality criteria
-- `steer` — write guidance for the next run (pass `steering` text)
-- `complete` — mark a goal task as done when success criteria are met
+`context` is optional — when provided, it's a one-time focus override for this run only (does not mutate the YAML).
+
+**`UpdateContext(target="recurrence", action, shape, slug, ...)`** — Mutate a recurrence declaration.
+
+```
+# Update — change schedule, delivery, agents, etc.
+UpdateContext(target: "recurrence", action: "update", shape: "deliverable", slug: "weekly-briefing",
+  changes: {recurring: {schedule: "0 9 * * *"}, delivery: "user@example.com"})
+
+# Pause — stop future runs (optional `paused_until` for time-bound pause)
+UpdateContext(target: "recurrence", action: "pause", shape: "deliverable", slug: "weekly-briefing")
+UpdateContext(target: "recurrence", action: "pause", shape: "deliverable", slug: "weekly-briefing",
+  paused_until: "2026-05-15T00:00:00Z")
+
+# Resume — restore scheduled runs
+UpdateContext(target: "recurrence", action: "resume", shape: "deliverable", slug: "weekly-briefing")
+
+# Archive — retire the recurrence (used for completed goal-mode work and operator-driven removal)
+UpdateContext(target: "recurrence", action: "archive", shape: "deliverable", slug: "weekly-briefing")
+```
+
+**Five actions:** `create`, `update`, `pause`, `resume`, `archive`. Substrate location is determined by `shape`; for `accumulation`, `domain` is also required.
+
+**Evaluation + steering** are feedback writes (not declaration mutations):
+- **Evaluate** an output → `UpdateContext(target="task", task_slug=..., feedback_target="criteria", text="<assessment>")` writes to the task's `feedback.md`.
+- **Steer** the next run → `UpdateContext(target="task", task_slug=..., feedback_target="run_log", text="<next-run focus>")`.
+- **Complete** a goal-mode recurrence → `UpdateContext(target="recurrence", action="archive", ...)` once the operator confirms the goal is met.
 
 ---
 

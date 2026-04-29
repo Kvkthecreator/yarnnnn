@@ -7,7 +7,8 @@ and feedback-as-action.
 
 Two processing tiers:
   Tier 1 (injection): _extract_recent_feedback() reads last 3 entries into prompt.
-         Handled by task_pipeline.py — unchanged by this module.
+         Handled by dispatch_helpers.py during invocation context-gathering
+         (ADR-231 successor to the task_pipeline injection step).
   Tier 2 (actuation): THIS MODULE reads all entries, matches rules, checks
          thresholds, executes mutations.
 
@@ -16,7 +17,7 @@ Action: line in feedback entries. User-sourced actions actuate at threshold 1
 (explicit intent). System-sourced actions accumulate at threshold 3 (distinguish
 transient noise from real drift).
 
-Called from _post_run_domain_scan() in task_pipeline.py, after system
+Called from _post_run_domain_scan() in invocation_dispatcher.py, after system
 verification writes, before awareness.md write.
 """
 

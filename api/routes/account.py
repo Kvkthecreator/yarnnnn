@@ -421,34 +421,39 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
     """
     L1 — Clear work history. The lightest possible "fresh slate" reset.
 
-    Purges past run records and task output folders ONLY. Keeps everything
-    that defines the workspace (tasks, agents, identity, accumulated context,
-    chat sessions, platform connections). Designed for the user who wants to
-    "start fresh" without losing anything they've built up.
+    Purges past run records and recurrence output folders ONLY. Keeps everything
+    that defines the workspace (recurrence YAML declarations, agents, identity,
+    accumulated context, chat sessions, platform connections). Designed for the
+    user who wants to "start fresh" without losing anything they've built up.
 
     What gets deleted:
-      - All `agent_runs` rows belonging to the user (every past task execution
-        record). FK cascades on these tables also wipe their dependents
-        (e.g. `agent_export_preferences` legacy entries).
-      - `workspace_files` rows where path matches `/tasks/%/outputs/%`
-        (every past task output folder + manifest)
-      - `workspace_files` rows where path matches `/tasks/%/memory/_run_log.md`
-        (the agent's per-task observation log — re-created on next run)
+      - All `agent_runs` rows belonging to the user (every past invocation
+        execution record). FK cascades on these tables also wipe their
+        dependents (e.g. `agent_export_preferences` legacy entries).
+      - `workspace_files` rows where path matches `/workspace/reports/%/%/%`
+        (every dated DELIVERABLE output folder under any recurrence slug —
+        ADR-231 D2 natural-home substrate. The three-segment pattern avoids
+        the slug-root siblings (`_spec.yaml`, `_feedback.md`, etc.) which
+        live at depth 2; output files live at depth 3 under a date folder).
+      - `workspace_files` rows where path matches `/workspace/reports/%/_run_log.md`
+        and `/workspace/operations/%/_run_log.md` (per-recurrence observation
+        logs — re-created on next run).
 
     What is preserved (the L1 invariant set):
-      - Every `tasks` table row (essential and otherwise)
-      - Every `agents` table row
-      - All `chat_sessions` (the user's relationship with TP)
-      - TASK.md, DELIVERABLE.md, feedback.md, memory/steering.md,
-        memory/reflections.md (per-task)
+      - Every `tasks` table row (the thin scheduling index post-ADR-231).
+      - Every recurrence YAML declaration (`_spec.yaml`, `_recurring.yaml`,
+        `_action.yaml`, `_shared/back-office.yaml`).
+      - Every `agents` table row.
+      - All `chat_sessions` (the user's relationship with YARNNN).
+      - All `_feedback.md` and `_intent.md` files (operator-authored guidance).
       - The entire `/workspace/context/` substrate (every accumulated context
-        domain)
-      - IDENTITY.md, BRAND.md, AWARENESS.md, _playbook.md
-      - All platform connections
+        domain — accumulation IS the work, not run history).
+      - IDENTITY.md, BRAND.md, MANDATE.md, AUTONOMY.md, AWARENESS.md.
+      - All platform connections.
 
     No reinit needed — the L1 invariants don't include anything this
-    endpoint touches. The next scheduled task fire will create a fresh
-    `/outputs/{date}/` folder and a fresh `_run_log.md` automatically.
+    endpoint touches. The next scheduled invocation will create a fresh
+    dated output folder and a fresh `_run_log.md` automatically.
 
     See docs/features/data-privacy.md for the full layered model.
     """
@@ -458,28 +463,36 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
     try:
         client = get_service_client()
 
-        # Run records — every past task execution
+        # Run records — every past invocation
         deleted["agent_runs"] = _delete_user_agent_runs(client, user_id)
 
-        # Task output folders — `/tasks/{any-slug}/outputs/{any-date}/...`
-        deleted["task_outputs"] = _delete_workspace_pattern(
-            client, user_id, "/tasks/%/outputs/%"
+        # Dated DELIVERABLE output folders under any recurrence slug.
+        # Pattern `/workspace/reports/%/%/%` matches anything 3+ segments deep
+        # — i.e. dated subfolders like `/workspace/reports/{slug}/{date}/{file}`.
+        # Slug-root siblings (`_spec.yaml`, `_feedback.md`, `_intent.md`,
+        # `_run_log.md`) live at depth 2 and are explicitly preserved.
+        deleted["report_outputs"] = _delete_workspace_pattern(
+            client, user_id, "/workspace/reports/%/%/%"
         )
 
-        # Per-task observation logs — re-created on next run
-        deleted["task_run_logs"] = _delete_workspace_pattern(
-            client, user_id, "/tasks/%/memory/_run_log.md"
+        # Per-recurrence observation logs — re-created on next run.
+        deleted["report_run_logs"] = _delete_workspace_pattern(
+            client, user_id, "/workspace/reports/%/_run_log.md"
+        )
+        deleted["operation_run_logs"] = _delete_workspace_pattern(
+            client, user_id, "/workspace/operations/%/_run_log.md"
         )
 
         logger.info(f"[ACCOUNT] User {user_id} cleared work history: {deleted}")
 
         total = sum(deleted.values())
+        report_logs = deleted.get('report_run_logs', 0) + deleted.get('operation_run_logs', 0)
         return OperationResult(
             success=True,
             message=(
                 f"Cleared work history: {deleted['agent_runs']} run records, "
-                f"{deleted['task_outputs']} output files, "
-                f"{deleted['task_run_logs']} run logs ({total} items total)"
+                f"{deleted['report_outputs']} output files, "
+                f"{report_logs} run logs ({total} items total)"
             ),
             deleted=deleted,
         )

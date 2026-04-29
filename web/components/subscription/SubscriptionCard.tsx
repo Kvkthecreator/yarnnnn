@@ -22,7 +22,7 @@ const COMPARE_ROWS: Array<{ label: string; free: string; pro: string }> = [
   { label: "Starter balance", free: "$3 one-time", pro: "$20/month included" },
   { label: "Top-ups", free: "$10 / $25 / $50", pro: "$10 / $25 / $50" },
   { label: "Auto-refill", free: "No", pro: "Yes — $20/month" },
-  { label: "Chat, tasks, agents", free: "All features", pro: "All features" },
+  { label: "Chat, recurrences, agents", free: "All features", pro: "All features" },
 ];
 
 export function SubscriptionCard() {
@@ -72,7 +72,7 @@ export function SubscriptionCard() {
     <Card>
       <CardHeader>
         <CardTitle>Billing</CardTitle>
-        <CardDescription>Usage-based — your balance covers chat, tasks, and web search</CardDescription>
+        <CardDescription>Usage-based — your balance covers chat, recurrences, and web search</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {error && (

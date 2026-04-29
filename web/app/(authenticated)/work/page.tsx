@@ -320,7 +320,7 @@ export default function WorkPage() {
           </div>
         ) : taskNotFound ? (
           <SurfaceState
-            title="Task not found"
+            title="Recurrence not found"
             description="That work item no longer exists or the link is stale."
             action={(
               <button
@@ -334,7 +334,7 @@ export default function WorkPage() {
           />
         ) : taskDetailError && !selectedRecurrenceDetail ? (
           <SurfaceState
-            title="Failed to load task"
+            title="Failed to load recurrence"
             description={taskDetailError}
             action={(
               <>

@@ -76,7 +76,7 @@ export default function SystemDiagnosticPage() {
             <ArrowLeft className="h-3 w-3" /> Settings
           </Link>
           <h1 className="flex items-center gap-2 text-xl font-semibold text-foreground">
-            <Cog className="h-5 w-5" /> System tasks
+            <Cog className="h-5 w-5" /> Back-office recurrences
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Back-office plumbing YARNNN runs to keep the workspace healthy. Hidden from{' '}
@@ -108,7 +108,7 @@ export default function SystemDiagnosticPage() {
       ) : tasks.length === 0 ? (
         <div className="rounded-md border border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            No system tasks have materialized yet.
+            No back-office recurrences have materialized yet.
           </p>
           <p className="mt-1 text-xs text-muted-foreground/70">
             They'll appear as triggers fire: first proposal, first platform connect, or

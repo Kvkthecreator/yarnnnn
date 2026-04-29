@@ -8,7 +8,7 @@ Table: activity_log
 Scoping: Two-tier (ADR-129) — workspace-level macro + project-level micro via metadata.project_slug
 
 Write points (all non-fatal — callers continue regardless of log failure):
-  - task_pipeline.py: 'task_executed' after task execution (ADR-141)
+  - invocation_dispatcher.py: invocation lifecycle events (ADR-231 successor to task_pipeline)
   - routes/agents.py: 'agent_approved' / 'agent_rejected' on version status change
   - routes/integrations.py: 'integration_connected' / 'integration_disconnected' on OAuth lifecycle
   - chat.py: 'chat_session' when session ends

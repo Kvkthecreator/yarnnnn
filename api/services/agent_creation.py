@@ -350,22 +350,9 @@ async def ensure_infrastructure_agent(
     return result.get("agent")
 
 
-async def ensure_infrastructure_agents_for_type(
-    client: Any,
-    user_id: str,
-    type_key: str,
-) -> None:
-    """Deprecated post-ADR-231: type_key registry dissolved.
-
-    The only caller (manage_task._handle_create) is being deleted in
-    Phase 3.7. New flow: recurrence declarations carry `agents:` directly;
-    callers iterate that list and call `ensure_infrastructure_agent` per
-    entry. This stub remains for source-tree continuity until the
-    manage_task deletion lands; it never executes meaningful work.
-    """
-    # No-op; type_key registry no longer exists.
-    return
-
+# ensure_infrastructure_agents_for_type DELETED post-ADR-231 Phase 3.7:
+# type_key registry dissolved. Recurrence declarations carry `agents:` lists
+# directly; callers iterate and call `ensure_infrastructure_agent` per entry.
 
 # ADR-207 P4a: delete_platform_bot() DELETED. Platform Bots no longer exist
 # as agent rows; OAuth disconnect no longer needs to cascade-delete a bot

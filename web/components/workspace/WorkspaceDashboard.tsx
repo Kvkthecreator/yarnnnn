@@ -56,9 +56,9 @@ export function WorkspaceDashboard({ tasks, agents, isometricRoom }: WorkspaceDa
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-xs">
             <FolderOpen className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground mb-1">No tasks yet</p>
+            <p className="text-sm text-muted-foreground mb-1">No recurrences yet</p>
             <p className="text-xs text-muted-foreground/60">
-              Tell TP what you need — "track my competitors" or "help me get set up"
+              Tell YARNNN what you need — "track my competitors" or "help me get set up"
             </p>
           </div>
         </div>

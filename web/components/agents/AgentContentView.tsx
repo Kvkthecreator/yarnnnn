@@ -143,7 +143,7 @@ const AGENT_SHELL_REGISTRY: Record<RegistryAgentClass, AgentShellDescriptor> = {
 
 const _SPECIALIST_EMPTY_STATE: AgentEmptyStateDescriptor = {
   title: () => 'No work assigned yet',
-  description: () => 'Ask your thinking partner to set up a task for this specialist.',
+  description: () => 'Ask YARNNN to set up a recurrence for this specialist.',
 };
 
 const AGENT_EMPTY_STATE_REGISTRY: Record<RegistryAgentClass, AgentEmptyStateDescriptor> = {
@@ -151,25 +151,25 @@ const AGENT_EMPTY_STATE_REGISTRY: Record<RegistryAgentClass, AgentEmptyStateDesc
   'domain-steward': _SPECIALIST_EMPTY_STATE, // backward compat
   synthesizer: {
     title: () => 'No work assigned yet',
-    description: () => 'Ask your thinking partner to create a reporting task once the specialists have trackers running.',
+    description: () => 'Ask YARNNN to create a reporting recurrence once the specialists have trackers running.',
   },
   'platform-bot': {
     title: () => 'Not watching anything yet',
     description: (agent) => {
       const platform = roleDisplayName(agent.role).replace(' Bot', '');
-      return `Connect ${platform} above and select sources, then ask YARNNN to set up a digest task.`;
+      return `Connect ${platform} above and select sources, then ask YARNNN to set up a platform-awareness recurrence.`;
     },
   },
   'meta-cognitive': {
-    title: () => 'No maintenance tasks yet',
-    description: () => 'Ask your thinking partner to set up the core workspace maintenance tasks.',
+    title: () => 'No back-office work yet',
+    description: () => 'Back-office recurrences materialize on trigger (first proposal, platform connect, agent-hygiene threshold).',
   },
 };
 
 const _SPECIALIST_GUIDANCE: RoleGuidanceDescriptor = {
   bestFor: (agent) => roleTagline(agent.role) || 'Doing one thing deeply and well.',
   does: () => [
-    'Executes assigned tasks with full specialist focus',
+    'Executes assigned invocations with full specialist focus',
     'Reads and writes context domain files',
     'Produces structured output (text, analysis, or visuals)',
   ],
@@ -216,7 +216,7 @@ const ROLE_GUIDANCE_REGISTRY: Record<RegistryAgentClass, RoleGuidanceDescriptor>
       return [
         `Monitors selected ${platform} sources`,
         'Extracts notable items into structured updates',
-        'Runs platform-targeted tasks (digest or write-back)',
+        'Runs platform-targeted recurrences (awareness or write-back)',
       ];
     },
     doesnt: () => [
@@ -234,10 +234,10 @@ const ROLE_GUIDANCE_REGISTRY: Record<RegistryAgentClass, RoleGuidanceDescriptor>
     },
   },
   'meta-cognitive': {
-    bestFor: () => 'Coordinating the workforce, task hygiene, and system-level upkeep.',
+    bestFor: () => 'Coordinating the workforce, recurrence hygiene, and system-level upkeep.',
     does: () => [
-      'Monitors task health and freshness across the workspace',
-      'Runs back-office maintenance tasks and orchestrations',
+      'Monitors recurrence health and freshness across the workspace',
+      'Runs back-office maintenance recurrences and orchestrations',
       'Surfaces operational signals for decision-making',
     ],
     doesnt: () => [
@@ -246,7 +246,7 @@ const ROLE_GUIDANCE_REGISTRY: Record<RegistryAgentClass, RoleGuidanceDescriptor>
       'Replace specialist analysis on domain topics',
     ],
     examples: () => [
-      'Which tasks are stale or at risk right now?',
+      'Which recurrences are stale or at risk right now?',
       'What maintenance work should run next to keep things healthy?',
       'Give me a short operational status of the workforce.',
     ],

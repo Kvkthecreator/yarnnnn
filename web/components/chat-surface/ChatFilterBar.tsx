@@ -165,9 +165,9 @@ export function ChatFilterBar() {
             type="button"
             onClick={clearTaskSlug}
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/30 hover:bg-primary/15"
-            title="Clear task filter"
+            title="Clear recurrence filter"
           >
-            <span>task: {activeTaskSlug}</span>
+            <span>recurrence: {activeTaskSlug}</span>
             <X className="w-2.5 h-2.5" />
           </button>
         </>
