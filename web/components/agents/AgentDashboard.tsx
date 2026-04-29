@@ -22,11 +22,11 @@ import {
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { formatShort, getFreshness } from '@/lib/formatting';
-import type { Agent, Task } from '@/types';
+import type { Agent, Recurrence } from '@/types';
 
 interface AgentDashboardProps {
   agent: Agent;
-  tasks: Task[];
+  tasks: Recurrence[];
 }
 
 export function AgentDashboard({ agent, tasks }: AgentDashboardProps) {

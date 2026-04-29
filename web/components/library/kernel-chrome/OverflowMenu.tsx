@@ -22,7 +22,7 @@ export function OverflowMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const isActive = task.status === 'active';
-  const isPaused = task.status === 'paused';
+  const isPaused = task.paused === true;
   const isTerminal = task.status === 'completed' || task.status === 'archived';
 
   useEffect(() => {

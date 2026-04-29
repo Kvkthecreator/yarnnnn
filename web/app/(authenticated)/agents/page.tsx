@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
-import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
+import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { getAgentSlug } from '@/lib/agent-identity';
 import { AgentRosterSurface } from '@/components/agents/AgentRosterSurface';
 import { AgentContentView } from '@/components/agents/AgentContentView';
@@ -43,7 +43,7 @@ export default function AgentsPage() {
   const router = useRouter();
   const { loadScopedHistory, sendMessage } = useTP();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
-  const { agents, tasks, loading } = useAgentsAndTasks();
+  const { agents, tasks, loading } = useAgentsAndRecurrences();
   const [taskSetupOpen, setTaskSetupOpen] = useState(false);
   const [taskSetupNotes, setTaskSetupNotes] = useState('');
 

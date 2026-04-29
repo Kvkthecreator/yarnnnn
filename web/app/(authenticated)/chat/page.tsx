@@ -12,11 +12,11 @@
 import { useEffect } from 'react';
 import { ChatSurface } from '@/components/chat-surface/ChatSurface';
 import { useTP } from '@/contexts/TPContext';
-import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
+import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 
 export default function HomePage() {
   const { loadScopedHistory } = useTP();
-  const { tasks } = useAgentsAndTasks({ pollInterval: 60_000 });
+  const { tasks } = useAgentsAndRecurrences({ pollInterval: 60_000 });
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 

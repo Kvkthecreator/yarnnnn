@@ -32,15 +32,13 @@ import type {
   ActiveDomainResponse,
   // ADR-119 Phase 4b: Output manifest (agent outputs)
   OutputManifest,
-  // ADR-138: Tasks
-  Task,
-  TaskDetail,
-  TaskCreate,
-  TaskOutput,
-  // ADR-145: Task type registry. Retained for typing around update/list;
-  // create path removed in ADR-215 Phase 4 (YARNNN is the sole creator).
-  TaskType,
-  TaskTypesResponse,
+  // ADR-231: Recurrences (post-cutover; replaces ADR-138 Tasks naming)
+  Recurrence,
+  RecurrenceDetail,
+  RecurrenceOutput,
+  // ADR-231 D5: TaskCreate / TaskType / TaskTypesResponse DELETED.
+  // Recurrence creation flows through UpdateContext(target='recurrence');
+  // the registry catalog is dissolved.
   ProcessStepsResponse,
   RunStatus,
   // ADR-152: Workspace Explorer
@@ -550,19 +548,19 @@ export const api = {
         if (statusOrOpts.include_system) parts.push(`include_system=true`);
         if (parts.length > 0) qs = `?${parts.join("&")}`;
       }
-      return request<Task[]>(`/api/recurrences${qs}`);
+      return request<Recurrence[]>(`/api/recurrences${qs}`);
     },
 
     get: (slug: string) =>
-      request<TaskDetail>(`/api/recurrences/${slug}`),
+      request<RecurrenceDetail>(`/api/recurrences/${slug}`),
 
     // ADR-215 Phase 4: frontend no longer POSTs /api/recurrences directly.
     // Task creation routes through YARNNN via TaskSetupModal →
     // ManageTask(action="create") per ADR-206 CRUD split. The backend
     // POST /api/recurrences endpoint stays in place for the primitive's use.
 
-    update: (slug: string, data: Partial<TaskCreate> & { status?: string }) =>
-      request<Task>(`/api/recurrences/${slug}`, {
+    update: (slug: string, data: { status?: string; schedule?: string; sources?: Record<string, string[]> }) =>
+      request<Recurrence>(`/api/recurrences/${slug}`, {
         method: "PUT",
         body: JSON.stringify(data),
       }),
@@ -575,16 +573,16 @@ export const api = {
 
     // Get latest output (rendered HTML)
     getLatestOutput: (slug: string) =>
-      request<TaskOutput>(`/api/recurrences/${slug}/outputs/latest`),
+      request<RecurrenceOutput>(`/api/recurrences/${slug}/outputs/latest`),
 
     // Get specific output by date folder
     getOutput: (slug: string, dateFolder: string) =>
-      request<TaskOutput>(`/api/recurrences/${slug}/outputs/${dateFolder}`),
+      request<RecurrenceOutput>(`/api/recurrences/${slug}/outputs/${dateFolder}`),
 
     // List output history
     listOutputs: async (slug: string, limit?: number) => {
       const params = limit ? `?limit=${limit}` : "";
-      const data = await request<TaskOutput[] | { outputs: TaskOutput[]; total: number }>(
+      const data = await request<RecurrenceOutput[] | { outputs: RecurrenceOutput[]; total: number }>(
         `/api/recurrences/${slug}/outputs${params}`
       );
       // API returns plain array; normalize to { outputs, total }
@@ -628,7 +626,7 @@ export const api = {
     // ADR-158 Phase 2: Update task-level source selection in TASK.md.
     // sources: {platform: ids[]} e.g. { slack: ["C123", "C456"] }
     updateSources: (slug: string, sources: Record<string, string[]>) =>
-      request<Task>(`/api/recurrences/${slug}/sources`, {
+      request<Recurrence>(`/api/recurrences/${slug}/sources`, {
         method: "PATCH",
         body: JSON.stringify({ sources }),
       }),

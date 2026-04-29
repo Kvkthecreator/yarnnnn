@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * useAgentsAndTasks — Shared data loading hook with polling.
+ * useAgentsAndRecurrences — Shared data loading hook with polling.
  *
  * SURFACE-ARCHITECTURE.md v7: Single data loading pattern replaces
  * three duplicate implementations in Home, Agents, and Context pages.
@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api/client';
-import type { Agent, Task, NarrativeByTaskSlice } from '@/types';
+import type { Agent, Recurrence, NarrativeByTaskSlice } from '@/types';
 
 interface UseAgentsAndTasksOptions {
   /** Polling interval in ms (default: 30000) */
@@ -32,7 +32,7 @@ interface UseAgentsAndTasksOptions {
 
 interface UseAgentsAndTasksResult {
   agents: Agent[];
-  tasks: Task[];
+  tasks: Recurrence[];
   /** ADR-219 Commit 4: per-task narrative slice keyed by slug. */
   narrativeByTask: Map<string, NarrativeByTaskSlice>;
   loading: boolean;
@@ -40,13 +40,13 @@ interface UseAgentsAndTasksResult {
   reload: () => Promise<void>;
 }
 
-export function useAgentsAndTasks(
+export function useAgentsAndRecurrences(
   options: UseAgentsAndTasksOptions = {}
 ): UseAgentsAndTasksResult {
   const { pollInterval = 30_000, refreshOnFocus = true, includeNarrative = false } = options;
 
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Recurrence[]>([]);
   const [narrativeByTask, setNarrativeByTask] = useState<Map<string, NarrativeByTaskSlice>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -23,20 +23,20 @@
 import { AlertCircle, CheckCircle2, ExternalLink, Loader2, RefreshCw, Send } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/formatting';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import { useTaskOutputs } from '@/hooks/useTaskOutputs';
+import { useRecurrenceOutputs } from '@/hooks/useRecurrenceOutputs';
 import { PlatformSourcesSection } from './PlatformSourcesSection';
-import type { Task } from '@/types';
+import type { Recurrence } from '@/types';
 
 export function ActionMiddle({
   task,
   refreshKey,
   onSourcesUpdated,
 }: {
-  task: Task;
+  task: Recurrence;
   refreshKey: number;
   onSourcesUpdated?: () => void;
 }) {
-  const { latest, history: outputs, loading, error, reload } = useTaskOutputs(task.slug, {
+  const { latest, history: outputs, loading, error, reload } = useRecurrenceOutputs(task.slug, {
     includeLatest: true,
     historyLimit: 10,
     refreshKey,

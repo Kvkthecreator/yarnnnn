@@ -27,8 +27,8 @@
  * Singular Implementation discipline: ONE dispatch path lives here.
  */
 
-import type { TaskDetail } from '@/types';
-import type { Task } from '@/types';
+import type { RecurrenceDetail } from '@/types';
+import type { Recurrence } from '@/types';
 import { resolveMiddle, getDetailMiddles, useComposition } from '@/lib/compositor';
 
 import { dispatchComponent } from './registry';
@@ -39,7 +39,7 @@ import { MaintenanceMiddle } from '@/components/work/details/MaintenanceMiddle';
 import { TrackingEntityGrid } from '@/components/work/details/TrackingEntityGrid';
 
 interface MiddleResolverProps {
-  task: Task | TaskDetail;
+  task: Recurrence | RecurrenceDetail;
   refreshKey: number;
   onSourcesUpdated?: () => void;
 }
@@ -88,7 +88,7 @@ export function MiddleResolver({ task, refreshKey, onSourcesUpdated }: MiddleRes
       return <MaintenanceMiddle task={task} refreshKey={refreshKey} />;
     case 'produces_deliverable':
     default: {
-      const taskDetail = task as TaskDetail;
+      const taskDetail = task as RecurrenceDetail;
       return (
         <DeliverableMiddle
           taskSlug={task.slug}

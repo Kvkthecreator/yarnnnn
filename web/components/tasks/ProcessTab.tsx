@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import { roleBadgeColor, roleDisplayName } from '@/lib/agent-identity';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import type { TaskDetail, TaskOutput, ProcessStepOutput, ProcessStepSummary, RunStatus } from '@/types';
+import type { RecurrenceDetail, RecurrenceOutput, ProcessStepOutput, ProcessStepSummary, RunStatus } from '@/types';
 
 // =============================================================================
 // Completed step card (retrospective — after run)
@@ -206,8 +206,8 @@ export function ProcessTab({
   task,
   selectedOutput,
 }: {
-  task: TaskDetail;
-  selectedOutput: TaskOutput | null;
+  task: RecurrenceDetail;
+  selectedOutput: RecurrenceOutput | null;
 }) {
   const [steps, setSteps] = useState<ProcessStepOutput[]>([]);
   const [processDefinition, setProcessDefinition] = useState<ProcessStepSummary[] | null>(null);

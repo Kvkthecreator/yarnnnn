@@ -19,12 +19,12 @@ import {
   AlertCircle, ChevronDown, ChevronRight,
   Loader2, RefreshCw, Shield,
 } from 'lucide-react';
-import { useTaskOutputs } from '@/hooks/useTaskOutputs';
+import { useRecurrenceOutputs } from '@/hooks/useRecurrenceOutputs';
 import { formatRelativeTime } from '@/lib/formatting';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { PlatformSourcesSection } from './PlatformSourcesSection';
 import { cn } from '@/lib/utils';
-import type { DeliverableSpec, Task } from '@/types';
+import type { DeliverableSpec, Recurrence } from '@/types';
 
 // ─── Data Contract panel ─────────────────────────────────────────────────────
 
@@ -95,11 +95,11 @@ function ActivityTab({
   refreshKey,
   deliverableSpec,
 }: {
-  task: Task;
+  task: Recurrence;
   refreshKey: number;
   deliverableSpec?: DeliverableSpec | null;
 }) {
-  const { latest, history: outputs, loading, error, reload } = useTaskOutputs(task.slug, {
+  const { latest, history: outputs, loading, error, reload } = useRecurrenceOutputs(task.slug, {
     includeLatest: true,
     historyLimit: 10,
     refreshKey,
@@ -219,7 +219,7 @@ export function TrackingMiddle({
   deliverableSpec,
   onSourcesUpdated,
 }: {
-  task: Task;
+  task: Recurrence;
   refreshKey: number;
   deliverableSpec?: DeliverableSpec | null;
   onSourcesUpdated?: () => void;

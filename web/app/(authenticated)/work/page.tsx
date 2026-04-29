@@ -23,8 +23,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Briefcase, Loader2, MessageCircle, RefreshCw } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
-import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
-import { useTaskDetail } from '@/hooks/useTaskDetail';
+import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
+import { useRecurrenceDetail } from '@/hooks/useRecurrenceDetail';
 import { APIError, api } from '@/lib/api/client';
 import { WorkListSurface } from '@/components/work/WorkListSurface';
 import { WorkDetail } from '@/components/work/WorkDetail';
@@ -79,23 +79,23 @@ export default function WorkPage() {
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
   // ADR-219 Commit 4: opt into narrative fetch — /work is the surface
   // that renders recent-activity headlines from session_messages.
-  const { agents, tasks, narrativeByTask, loading, error, reload } = useAgentsAndTasks({ includeNarrative: true });
+  const { agents, tasks, narrativeByTask, loading, error, reload } = useAgentsAndRecurrences({ includeNarrative: true });
 
   const agentFilter = searchParams.get('agent');
   const taskSlugFromUrl = searchParams.get('task');
   const {
-    task: selectedTaskDetail,
+    task: selectedRecurrenceDetail,
     loading: taskDetailLoading,
     error: taskDetailError,
     notFound: taskNotFound,
-    reload: reloadTaskDetail,
-  } = useTaskDetail(taskSlugFromUrl);
+    reload: reloadRecurrenceDetail,
+  } = useRecurrenceDetail(taskSlugFromUrl);
 
   const selectedTaskHint = useMemo(
     () => (taskSlugFromUrl ? tasks.find(t => t.slug === taskSlugFromUrl) ?? null : null),
     [taskSlugFromUrl, tasks],
   );
-  const selectedTask = selectedTaskDetail ?? selectedTaskHint;
+  const selectedTask = selectedRecurrenceDetail ?? selectedTaskHint;
 
   const [mutationPending, setMutationPending] = useState(false);
   const [pendingAction, setPendingAction] = useState<'run' | 'pause' | null>(null);
@@ -172,7 +172,7 @@ export default function WorkPage() {
     try {
       await api.recurrences.run(slug);
       setDetailRefreshKey((current) => current + 1);
-      await Promise.all([reload(), reloadTaskDetail()]);
+      await Promise.all([reload(), reloadRecurrenceDetail()]);
       setActionNotice({ kind: 'success', text: 'Task run completed. Latest task data refreshed.' });
     } catch (err) {
       console.error('[Work] Failed to trigger task:', err);
@@ -184,17 +184,17 @@ export default function WorkPage() {
       setMutationPending(false);
       setPendingAction(null);
     }
-  }, [reload, reloadTaskDetail]);
+  }, [reload, reloadRecurrenceDetail]);
 
   const handlePauseTask = useCallback(async (slug: string) => {
     setMutationPending(true);
     setPendingAction('pause');
     setActionNotice(null);
     try {
-      const task = (selectedTaskDetail?.slug === slug ? selectedTaskDetail : null) ?? tasks.find(t => t.slug === slug);
+      const task = (selectedRecurrenceDetail?.slug === slug ? selectedRecurrenceDetail : null) ?? tasks.find(t => t.slug === slug);
       const newStatus = task?.status === 'active' ? 'paused' : 'active';
       await api.recurrences.update(slug, { status: newStatus });
-      await Promise.all([reload(), reloadTaskDetail()]);
+      await Promise.all([reload(), reloadRecurrenceDetail()]);
       setActionNotice({
         kind: 'success',
         text: newStatus === 'paused' ? 'Task paused.' : 'Task resumed.',
@@ -209,7 +209,7 @@ export default function WorkPage() {
       setMutationPending(false);
       setPendingAction(null);
     }
-  }, [tasks, selectedTaskDetail, reload, reloadTaskDetail]);
+  }, [tasks, selectedRecurrenceDetail, reload, reloadRecurrenceDetail]);
 
   const handleOpenChatDraft = useCallback((prompt?: string) => {
     if (!prompt) return;
@@ -314,7 +314,7 @@ export default function WorkPage() {
     >
       <PageHeader defaultLabel="Work" />
       {taskSlugFromUrl ? (
-        taskDetailLoading && !selectedTaskDetail ? (
+        taskDetailLoading && !selectedRecurrenceDetail ? (
           <div className="flex flex-1 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
@@ -332,14 +332,14 @@ export default function WorkPage() {
               </button>
             )}
           />
-        ) : taskDetailError && !selectedTaskDetail ? (
+        ) : taskDetailError && !selectedRecurrenceDetail ? (
           <SurfaceState
             title="Failed to load task"
             description={taskDetailError}
             action={(
               <>
                 <button
-                  onClick={() => void reloadTaskDetail()}
+                  onClick={() => void reloadRecurrenceDetail()}
                   className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
@@ -355,10 +355,10 @@ export default function WorkPage() {
               </>
             )}
           />
-        ) : selectedTaskDetail ? (
+        ) : selectedRecurrenceDetail ? (
         <WorkDetail
-          key={`${selectedTaskDetail.slug}:${detailRefreshKey}`}
-          task={selectedTaskDetail}
+          key={`${selectedRecurrenceDetail.slug}:${detailRefreshKey}`}
+          task={selectedRecurrenceDetail}
           agents={agents}
           refreshKey={detailRefreshKey}
           mutationPending={mutationPending}
@@ -368,7 +368,7 @@ export default function WorkPage() {
           onPauseTask={handlePauseTask}
           onOpenChat={handleOpenChatDraft}
           onSourcesUpdated={() => {
-            reloadTaskDetail();
+            reloadRecurrenceDetail();
             setDetailRefreshKey(k => k + 1);
           }}
         />

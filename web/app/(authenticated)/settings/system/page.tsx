@@ -16,9 +16,9 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Loader2, RefreshCw, Cog, Pause, Play, ArrowLeft } from 'lucide-react';
 import { APIError, api } from '@/lib/api/client';
-import type { Task } from '@/types';
+import type { Recurrence } from '@/types';
 
-async function fetchSystemTasks(): Promise<Task[]> {
+async function fetchSystemTasks(): Promise<Recurrence[]> {
   return api.recurrences.list({ include_system: true });
 }
 
@@ -30,7 +30,7 @@ function formatDate(value?: string | null): string {
 }
 
 export default function SystemDiagnosticPage() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Recurrence[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingSlug, setPendingSlug] = useState<string | null>(null);
@@ -52,7 +52,7 @@ export default function SystemDiagnosticPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const togglePause = async (task: Task) => {
+  const togglePause = async (task: Recurrence) => {
     setPendingSlug(task.slug);
     try {
       const nextStatus = task.status === 'active' ? 'paused' : 'active';

@@ -10,7 +10,7 @@ import { useWorkDetailActions } from '../WorkDetailActionsContext';
 import { WorkModeBadge } from '@/components/work/WorkModeBadge';
 import { AGENTS_ROUTE, CONTEXT_ROUTE } from '@/lib/routes';
 import { formatRelativeTime } from '@/lib/formatting';
-import { resolveDomainWorkspacePath } from '@/lib/task-types';
+import { resolveDomainWorkspacePath } from '@/lib/recurrence-shapes';
 
 export function KernelTrackingMetadata() {
   const { task, assignedAgent } = useWorkDetailActions();

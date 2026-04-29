@@ -18,14 +18,16 @@ import { useWorkDetailActions } from '../WorkDetailActionsContext';
 import { WorkModeBadge } from '@/components/work/WorkModeBadge';
 import { AGENTS_ROUTE } from '@/lib/routes';
 import { formatRelativeTime } from '@/lib/formatting';
-import { resolveTaskSurface, SURFACE_TYPE_LABELS } from '@/lib/task-types';
-import type { TaskDetail } from '@/types';
+import { coerceSurfaceType, SURFACE_TYPE_LABELS } from '@/lib/recurrence-shapes';
+import type { RecurrenceDetail } from '@/types';
 
 export function KernelDeliverableMetadata() {
   const { task, assignedAgent } = useWorkDetailActions();
-  const surface = resolveTaskSurface(
-    (task as TaskDetail).deliverable_spec?.expected_output?.surface,
-    task.type_key,
+  // ADR-231: surface_type comes from the declaration YAML, surfaced via
+  // deliverable_spec.expected_output.surface. The legacy type_key fallback
+  // is gone — type_key is dissolved per ADR-207 P4b + ADR-231 D5.
+  const surface = coerceSurfaceType(
+    (task as RecurrenceDetail).deliverable_spec?.expected_output?.surface,
   );
   return (
     <div className="flex items-center gap-1.5 flex-wrap">

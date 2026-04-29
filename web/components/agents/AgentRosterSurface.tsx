@@ -33,11 +33,11 @@ import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getAgentSlug, roleTagline } from '@/lib/agent-identity';
 import { AgentIcon } from './AgentIcon';
-import type { Agent, Task } from '@/types';
+import type { Agent, Recurrence } from '@/types';
 
 interface AgentRosterSurfaceProps {
   agents: Agent[];
-  tasks: Task[];
+  tasks: Recurrence[];
   onSelect: (agentId: string) => void;
 }
 
@@ -199,7 +199,7 @@ function AgentCard({
   onSelect,
 }: {
   agent: Agent;
-  tasks: Task[];
+  tasks: Recurrence[];
   onSelect: () => void;
 }) {
   const slug = getAgentSlug(agent);
@@ -209,7 +209,9 @@ function AgentCard({
     .sort((a, b) => (b.last_run_at ?? '').localeCompare(a.last_run_at ?? ''))
     .find(t => t.status === 'active') ?? activeTasks[0] ?? agentTasks[0] ?? null;
   const cls = agent.agent_class || 'specialist';
-  const isPaused = agent.status === 'paused';
+  // ADR-231: paused is a recurrence flag, not an agent flag. An agent is
+  // operator-effectively "paused" when every assigned recurrence is paused.
+  const isPaused = agentTasks.length > 0 && agentTasks.every((t) => t.paused === true);
   const hasNoTasks = agentTasks.length === 0;
   const operationalTasks = activeTasks.length > 0
     ? activeTasks

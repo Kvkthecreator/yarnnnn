@@ -12,10 +12,10 @@
 import { useMemo } from 'react';
 import { Loader2, CheckCircle2, Clock, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Task, Agent } from '@/types';
+import type { Recurrence, Agent } from '@/types';
 
 interface WorkspaceDashboardProps {
-  tasks: Task[];
+  tasks: Recurrence[];
   agents: Agent[];
   isometricRoom?: React.ReactNode;  // Passed from parent
 }
@@ -141,7 +141,7 @@ export function WorkspaceDashboard({ tasks, agents, isometricRoom }: WorkspaceDa
 // =============================================================================
 
 interface ActivityItem {
-  task: Task;
+  task: Recurrence;
   status: 'running' | 'completed' | 'upcoming';
   sortKey: number;
   time: Date;

@@ -25,7 +25,7 @@ import {
   MessageCircle,
   TrendingUp,
 } from 'lucide-react';
-import type { Agent, Task } from '@/types';
+import type { Agent, Recurrence } from '@/types';
 import { AgentAvatar, TPAvatar } from '@/components/agents/AgentAvatar';
 import { avatarColor, getAgentSlug, resolveRole } from '@/lib/agent-identity';
 import { cn } from '@/lib/utils';
@@ -167,7 +167,7 @@ function FloorTile({ col, row, occupied, working }: { col: number; row: number; 
 
 function AgentOnTile({ agent, tasks, col, row }: {
   agent: Agent;
-  tasks: Task[];
+  tasks: Recurrence[];
   col: number;
   row: number;
 }) {
@@ -179,7 +179,8 @@ function AgentOnTile({ agent, tasks, col, row }: {
   const activeTask = assignedTasks[0];
 
   const isRunning = agent.latest_version_status === 'generating';
-  const isPaused = agent.status === 'paused';
+  // ADR-231: agent is operator-effectively paused when all its recurrences are paused.
+  const isPaused = assignedTasks.length > 0 && assignedTasks.every((t) => t.paused === true);
   const hasFailed = agent.latest_version_status === 'failed';
 
   const avatarState: 'working' | 'ready' | 'paused' | 'idle' | 'error' =
@@ -256,7 +257,7 @@ function AgentOnTile({ agent, tasks, col, row }: {
 // Mobile fallback
 // =============================================================================
 
-function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Task[] }) {
+function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Recurrence[] }) {
   return (
     <div className="flex gap-5 overflow-x-auto py-3 px-4 scrollbar-hide">
       {agents.map(agent => {
@@ -265,7 +266,8 @@ function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Task[] }) {
         const assignedTasks = tasks.filter(t => t.status !== 'archived' && t.agent_slugs?.includes(agentSlug));
         const activeTask = assignedTasks[0];
         const isRunning = agent.latest_version_status === 'generating';
-        const isPaused = agent.status === 'paused';
+        // ADR-231: agent is operator-effectively paused when all its recurrences are paused.
+  const isPaused = assignedTasks.length > 0 && assignedTasks.every((t) => t.paused === true);
         const hasFailed = agent.latest_version_status === 'failed';
         const avatarState: 'working' | 'ready' | 'paused' | 'idle' | 'error' =
           isRunning ? 'working' : isPaused ? 'paused' : hasFailed ? 'error' : activeTask ? 'ready' : 'idle';
@@ -303,7 +305,7 @@ function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Task[] }) {
 
 interface IsometricRoomProps {
   agents: Agent[];
-  tasks: Task[];
+  tasks: Recurrence[];
   loading: boolean;
   collapsed?: boolean;
   onTPClick?: () => void;

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import type { Task } from '@/types';
+import type { Recurrence } from '@/types';
 
 // ─── Platform config ──────────────────────────────────────────────────────────
 
@@ -57,11 +57,17 @@ const PLATFORM_CONFIG: Record<SupportedPlatform, PlatformConfig> = {
   },
 };
 
-function resolvePlatform(typeKey: string | undefined): SupportedPlatform | null {
-  if (!typeKey) return null;
-  if (typeKey.startsWith('slack')) return 'slack';
-  if (typeKey.startsWith('notion')) return 'notion';
-  if (typeKey.startsWith('github')) return 'github';
+function resolvePlatform(slug: string | undefined): SupportedPlatform | null {
+  // ADR-231: type_key dissolved. Platform inference now reads the recurrence
+  // slug (operator-named, but conventionally carries platform prefix for
+  // platform-awareness recurrences per ADR-207 P4a). E.g.:
+  //   slack-watch-engineering → slack
+  //   notion-board-tracker → notion
+  //   github-cursor-releases → github
+  if (!slug) return null;
+  if (slug.startsWith('slack')) return 'slack';
+  if (slug.startsWith('notion')) return 'notion';
+  if (slug.startsWith('github')) return 'github';
   return null;
 }
 
@@ -169,13 +175,13 @@ function nameToSlug(name: string): string {
 }
 
 interface PlatformSourcesSectionProps {
-  task: Task;
+  task: Recurrence;
   onSourcesUpdated?: () => void;
   existingEntitySlugs?: Set<string>;
 }
 
 export function PlatformSourcesSection({ task, onSourcesUpdated, existingEntitySlugs }: PlatformSourcesSectionProps) {
-  const platform = resolvePlatform(task.type_key);
+  const platform = resolvePlatform(task.slug);
   if (!platform) return null;
 
   const config = PLATFORM_CONFIG[platform];

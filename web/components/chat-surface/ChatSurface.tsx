@@ -33,7 +33,7 @@ import { LayoutDashboard, ListChecks, Filter } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-import type { Task } from '@/types';
+import type { Recurrence } from '@/types';
 import { useTP } from '@/contexts/TPContext';
 import {
   parseSnapshotMeta,
@@ -47,7 +47,7 @@ import { cn } from '@/lib/utils';
 
 interface ChatSurfaceProps {
   /** Tasks feed the Snapshot overlay's Recent tab (last-run list). */
-  tasks: Task[];
+  tasks: Recurrence[];
   /** Additional plus-menu actions from the page. ChatSurface prepends its own built-in actions. */
   plusMenuActions?: PlusMenuAction[];
 }

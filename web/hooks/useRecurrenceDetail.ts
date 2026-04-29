@@ -2,18 +2,18 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { APIError, api } from '@/lib/api/client';
-import type { TaskDetail } from '@/types';
+import type { RecurrenceDetail } from '@/types';
 
-interface UseTaskDetailResult {
-  task: TaskDetail | null;
+interface UseRecurrenceDetailResult {
+  task: RecurrenceDetail | null;
   loading: boolean;
   error: string | null;
   notFound: boolean;
   reload: () => Promise<void>;
 }
 
-export function useTaskDetail(taskSlug: string | null): UseTaskDetailResult {
-  const [task, setTask] = useState<TaskDetail | null>(null);
+export function useRecurrenceDetail(taskSlug: string | null): UseRecurrenceDetailResult {
+  const [task, setTask] = useState<RecurrenceDetail | null>(null);
   const [loading, setLoading] = useState(Boolean(taskSlug));
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);

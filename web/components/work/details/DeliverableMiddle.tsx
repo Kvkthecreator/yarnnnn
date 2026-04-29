@@ -19,10 +19,10 @@
 import { AlertCircle, ChevronDown, ChevronRight, Clock, FileText, Loader2, RefreshCw, Shield } from 'lucide-react';
 import { useState } from 'react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import { useTaskOutputs } from '@/hooks/useTaskOutputs';
+import { useRecurrenceOutputs } from '@/hooks/useRecurrenceOutputs';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
-import type { DeliverableSpec, TaskSectionEntry } from '@/types';
+import type { DeliverableSpec, RecurrenceSectionEntry } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Section kind display config
@@ -55,7 +55,7 @@ function sectionFreshnessAge(producedAt: string | undefined): 'fresh' | 'stale' 
   }
 }
 
-function SectionPill({ section }: { section: TaskSectionEntry }) {
+function SectionPill({ section }: { section: RecurrenceSectionEntry }) {
   const age = sectionFreshnessAge(section.produced_at);
   const kindLabel = section.kind ? (KIND_LABELS[section.kind] ?? section.kind) : null;
 
@@ -79,7 +79,7 @@ function SectionPill({ section }: { section: TaskSectionEntry }) {
 // Section provenance strip (only renders when sys_manifest sections exist)
 // ---------------------------------------------------------------------------
 
-function SectionProvenanceStrip({ sections }: { sections: TaskSectionEntry[] }) {
+function SectionProvenanceStrip({ sections }: { sections: RecurrenceSectionEntry[] }) {
   if (!sections.length) return null;
 
   const freshCount = sections.filter(s => sectionFreshnessAge(s.produced_at) === 'fresh').length;
@@ -170,7 +170,7 @@ function QualityContractPanel({ spec }: { spec: DeliverableSpec }) {
 // ---------------------------------------------------------------------------
 
 function HistoryTab({ taskSlug, refreshKey }: { taskSlug: string; refreshKey: number }) {
-  const { history: outputs, loading, error, reload } = useTaskOutputs(taskSlug, {
+  const { history: outputs, loading, error, reload } = useRecurrenceOutputs(taskSlug, {
     includeLatest: false,
     historyLimit: 20,
     refreshKey,
@@ -228,28 +228,28 @@ function HistoryTab({ taskSlug, refreshKey }: { taskSlug: string; refreshKey: nu
 }
 
 // ---------------------------------------------------------------------------
-// TaskOutputCard — reusable iframe+markdown renderer for a task output artifact.
+// RecurrenceOutputCard — reusable iframe+markdown renderer for a task output artifact.
 // Originally extracted to share the iframe auto-height + markdown fallback
 // logic across multiple consumers; now used here for DeliverableMiddle output
 // rendering. Kept exported for any future synthesis pane that needs it.
 // ---------------------------------------------------------------------------
 
-export interface TaskOutputCardProps {
+export interface RecurrenceOutputCardProps {
   htmlContent?: string | null;
   mdContent?: string | null;
-  sections?: TaskSectionEntry[];
+  sections?: RecurrenceSectionEntry[];
   taskSlug: string;
   /** Show section provenance strip above the output frame. Default true. */
   showProvenance?: boolean;
 }
 
-export function TaskOutputCard({
+export function RecurrenceOutputCard({
   htmlContent,
   mdContent,
   sections,
   taskSlug,
   showProvenance = true,
-}: TaskOutputCardProps) {
+}: RecurrenceOutputCardProps) {
   return (
     <div>
       {showProvenance && (sections?.length ?? 0) > 0 && (
@@ -303,7 +303,7 @@ export function DeliverableMiddle({
   deliverableSpec?: DeliverableSpec | null;
 }) {
   const [tab, setTab] = useState<DeliverableTab>('output');
-  const { latest, loading, error, reload } = useTaskOutputs(taskSlug, {
+  const { latest, loading, error, reload } = useRecurrenceOutputs(taskSlug, {
     includeLatest: true,
     refreshKey,
   });
@@ -369,7 +369,7 @@ export function DeliverableMiddle({
           {/* ADR-178 Phase 6: Quality Contract */}
           {deliverableSpec && <QualityContractPanel spec={deliverableSpec} />}
 
-          <TaskOutputCard
+          <RecurrenceOutputCard
             htmlContent={latest.html_content}
             mdContent={latest.content ?? latest.md_content}
             sections={latest.sections}

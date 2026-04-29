@@ -23,18 +23,18 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
-import type { TaskDetail, TaskOutput } from '@/types';
+import type { RecurrenceDetail, RecurrenceOutput } from '@/types';
 import type { TaskView } from './TaskTreeNav';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
 
 interface TaskContentViewProps {
-  task: TaskDetail;
+  task: RecurrenceDetail;
   view: TaskView;
-  output: TaskOutput | null;
-  outputs: TaskOutput[];
+  output: RecurrenceOutput | null;
+  outputs: RecurrenceOutput[];
   deliverableMd: string | null;
-  onSelectOutput: (output: TaskOutput) => void;
+  onSelectOutput: (output: RecurrenceOutput) => void;
   onSwitchView: (view: TaskView) => void;
   onRunNow: () => void;
   onToggleStatus: () => void;
@@ -68,7 +68,7 @@ function ExportButton({ slug, folder }: { slug: string; folder?: string | null }
 }
 
 // ─── Output View (Synthesis tasks: the deliverable) ───
-function OutputView({ task, output, onRunNow }: { task: TaskDetail; output: TaskOutput | null; onRunNow: () => void }) {
+function OutputView({ task, output, onRunNow }: { task: RecurrenceDetail; output: RecurrenceOutput | null; onRunNow: () => void }) {
   if (!output) {
     return (
       <div className="flex h-full items-center justify-center p-8">
@@ -128,7 +128,7 @@ function OutputView({ task, output, onRunNow }: { task: TaskDetail; output: Task
 }
 
 // ─── Domain Explorer View (Context tasks: browse the actual files) ───
-function DomainExplorerView({ task }: { task: TaskDetail }) {
+function DomainExplorerView({ task }: { task: RecurrenceDetail }) {
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
   const [loading, setLoading] = useState(true);
@@ -211,7 +211,7 @@ function DomainExplorerView({ task }: { task: TaskDetail }) {
 }
 
 // ─── Deliverable View ───
-function DeliverableView({ task, deliverableMd }: { task: TaskDetail; deliverableMd: string | null }) {
+function DeliverableView({ task, deliverableMd }: { task: RecurrenceDetail; deliverableMd: string | null }) {
   return (
     <div className="p-6 space-y-6 overflow-auto h-full">
       {task.objective && (
@@ -279,9 +279,9 @@ function RunHistoryView({
   onSelectOutput,
   onSwitchToOutput,
 }: {
-  outputs: TaskOutput[];
+  outputs: RecurrenceOutput[];
   selectedFolder: string | null;
-  onSelectOutput: (output: TaskOutput) => void;
+  onSelectOutput: (output: RecurrenceOutput) => void;
   onSwitchToOutput: () => void;
 }) {
   return (
@@ -322,7 +322,7 @@ function RunHistoryView({
 }
 
 // ─── Task Definition View ───
-function TaskDefinitionView({ task }: { task: TaskDetail }) {
+function TaskDefinitionView({ task }: { task: RecurrenceDetail }) {
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const taskMdPath = `/tasks/${task.slug}/TASK.md`;

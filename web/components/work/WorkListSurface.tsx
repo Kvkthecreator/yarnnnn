@@ -30,8 +30,8 @@ import {
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
 import { getAgentSlug } from '@/lib/agent-identity';
-import { taskModeLabel } from '@/types';
-import type { Task, Agent, NarrativeByTaskSlice } from '@/types';
+import { recurrenceLabel } from '@/types';
+import type { Recurrence, Agent, NarrativeByTaskSlice } from '@/types';
 // ADR-225 Phase 2: bundle-supplied list-mode banner (e.g., alpha-trader's
 // "Paper-only..." for current_phase=observation)
 import { BundleBanner } from '@/components/library/BundleBanner';
@@ -39,7 +39,7 @@ import { BundleBanner } from '@/components/library/BundleBanner';
 import { useComposition, getTab } from '@/lib/compositor';
 
 interface WorkListSurfaceProps {
-  tasks: Task[];
+  tasks: Recurrence[];
   agents: Agent[];
   /**
    * ADR-219 Commit 4: narrative slices keyed by task slug. Source for
@@ -75,15 +75,18 @@ const CONNECTOR_TYPE_KEYS = new Set([
   'portfolio-review',
 ]);
 
-function isConnectorTask(task: Task): boolean {
-  return !!task.type_key && CONNECTOR_TYPE_KEYS.has(task.type_key);
+function isConnectorTask(task: Recurrence): boolean {
+  // ADR-231: type_key dissolved. Connector recurrences identified by slug
+  // matching against the curated set (operator-conventional naming for
+  // platform-awareness recurrences per ADR-207 P4a).
+  return CONNECTOR_TYPE_KEYS.has(task.slug);
 }
 
-function isSystemTask(task: Task): boolean {
+function isSystemTask(task: Recurrence): boolean {
   return task.output_kind === 'system_maintenance';
 }
 
-function isMyWorkTask(task: Task): boolean {
+function isMyWorkTask(task: Recurrence): boolean {
   return !isConnectorTask(task) && !isSystemTask(task);
 }
 
@@ -103,7 +106,7 @@ const OUTPUT_KIND_LABELS: Record<string, string> = {
   external_action: 'Actions',
 };
 
-function myWorkGroup(task: Task): string {
+function myWorkGroup(task: Recurrence): string {
   return OUTPUT_KIND_LABELS[task.output_kind ?? ''] ?? 'Reports';
 }
 
@@ -111,8 +114,10 @@ const MY_WORK_GROUP_ORDER = ['Reports', 'Tracking', 'Actions'];
 
 // ─── Connector grouping (by platform) ────────────────────────────────────────
 
-function connectorPlatform(task: Task): string {
-  const key = task.type_key ?? '';
+function connectorPlatform(task: Recurrence): string {
+  // ADR-231: type_key dissolved; use slug-prefix matching against the
+  // operator-conventional platform-aware recurrence naming.
+  const key = task.slug ?? '';
   if (key.startsWith('slack')) return 'Slack';
   if (key.startsWith('notion')) return 'Notion';
   if (key.startsWith('github')) return 'GitHub';
@@ -135,7 +140,7 @@ function statusRank(status: string | undefined): number {
   }
 }
 
-function compareTasks(a: Task, b: Task): number {
+function compareTasks(a: Recurrence, b: Recurrence): number {
   const statusDiff = statusRank(a.status) - statusRank(b.status);
   if (statusDiff !== 0) return statusDiff;
   const aNext = a.next_run_at ? new Date(a.next_run_at).getTime() : Number.POSITIVE_INFINITY;
@@ -158,14 +163,14 @@ function compareGroups(order: string[], a: string, b: string): number {
 
 // ─── Search ──────────────────────────────────────────────────────────────────
 
-function agentNameFor(task: Task, agents: Agent[]): string | null {
+function agentNameFor(task: Recurrence, agents: Agent[]): string | null {
   const assigned = task.agent_slugs?.[0];
   if (!assigned) return null;
   const agent = agents.find(a => getAgentSlug(a) === assigned);
   return agent?.title ?? assigned;
 }
 
-function agentNamesFor(task: Task, agents: Agent[]): string[] {
+function agentNamesFor(task: Recurrence, agents: Agent[]): string[] {
   if (!task.agent_slugs?.length) return [];
   return task.agent_slugs.map(slug => {
     const agent = agents.find(a => getAgentSlug(a) === slug);
@@ -173,14 +178,15 @@ function agentNamesFor(task: Task, agents: Agent[]): string[] {
   });
 }
 
-function buildSearchText(task: Task, agents: Agent[]): string {
+function buildSearchText(task: Recurrence, agents: Agent[]): string {
   const obj = task.objective
     ? [task.objective.deliverable, task.objective.audience, task.objective.purpose, task.objective.format]
     : [];
   return [
     task.title,
     ...agentNamesFor(task, agents),
-    task.type_key,
+    task.slug,
+    task.shape,
     task.delivery,
     task.schedule,
     ...(task.context_reads ?? []),
@@ -310,7 +316,7 @@ export function WorkListSurface({
 
   // ── Group by tab-specific logic ──
   const grouped = useMemo(() => {
-    const groups: Record<string, Task[]> = {};
+    const groups: Record<string, Recurrence[]> = {};
 
     for (const task of filtered) {
       let key: string;
@@ -497,7 +503,7 @@ function WorkRow({
   isPinned,
   onSelect,
 }: {
-  task: Task;
+  task: Recurrence;
   agents: Agent[];
   narrativeSlice: NarrativeByTaskSlice | null;
   tab: WorkTab;
@@ -505,7 +511,7 @@ function WorkRow({
   onSelect: () => void;
 }) {
   const isActive = task.status === 'active';
-  const isPaused = task.status === 'paused';
+  const isPaused = task.paused === true;
   const dim = tab === 'system';
 
   const KindIcon = KIND_ICON[task.output_kind ?? ''] ?? FileText;

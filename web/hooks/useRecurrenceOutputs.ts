@@ -2,32 +2,32 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api/client';
-import type { TaskOutput } from '@/types';
+import type { RecurrenceOutput } from '@/types';
 
-interface UseTaskOutputsOptions {
+interface UseRecurrenceOutputsOptions {
   includeLatest?: boolean;
   historyLimit?: number;
   refreshKey?: number;
 }
 
-interface UseTaskOutputsResult {
-  latest: TaskOutput | null;
-  history: TaskOutput[];
+interface UseRecurrenceOutputsResult {
+  latest: RecurrenceOutput | null;
+  history: RecurrenceOutput[];
   loading: boolean;
   error: string | null;
   reload: () => Promise<void>;
 }
 
-export function useTaskOutputs(
+export function useRecurrenceOutputs(
   taskSlug: string,
   {
     includeLatest = true,
     historyLimit,
     refreshKey = 0,
-  }: UseTaskOutputsOptions = {},
-): UseTaskOutputsResult {
-  const [latest, setLatest] = useState<TaskOutput | null>(null);
-  const [history, setHistory] = useState<TaskOutput[]>([]);
+  }: UseRecurrenceOutputsOptions = {},
+): UseRecurrenceOutputsResult {
+  const [latest, setLatest] = useState<RecurrenceOutput | null>(null);
+  const [history, setHistory] = useState<RecurrenceOutput[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +38,7 @@ export function useTaskOutputs(
     try {
       const [latestOutput, historyResponse] = await Promise.all([
         includeLatest ? api.recurrences.getLatestOutput(taskSlug) : Promise.resolve(null),
-        historyLimit ? api.recurrences.listOutputs(taskSlug, historyLimit) : Promise.resolve({ outputs: [] as TaskOutput[], total: 0 }),
+        historyLimit ? api.recurrences.listOutputs(taskSlug, historyLimit) : Promise.resolve({ outputs: [] as RecurrenceOutput[], total: 0 }),
       ]);
 
       setLatest(latestOutput);

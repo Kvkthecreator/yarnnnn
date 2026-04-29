@@ -24,12 +24,12 @@ import {
   Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Task } from '@/types';
+import type { Recurrence } from '@/types';
 
 export type TaskView = 'output' | 'domain-status' | 'task-definition' | 'deliverable' | 'run-history';
 
 interface TaskTreeNavProps {
-  tasks: Task[];
+  tasks: Recurrence[];
   selectedSlug: string | null;
   selectedView: TaskView;
   filter: string | null;
@@ -41,7 +41,7 @@ interface TaskTreeNavProps {
   onToggleStatus?: () => void;
   busy?: boolean;
   /** The full task detail for the selected task (for metadata display) */
-  selectedTask?: Task | null;
+  selectedTask?: Recurrence | null;
 }
 
 type ViewItem = { id: TaskView; label: string; icon: typeof FileText };
@@ -64,11 +64,11 @@ const CONTEXT_VIEWS: ViewItem[] = [
 // Tasks that accumulate context get the domain-focused view set; everything
 // else (deliverables, external actions, system maintenance) gets the
 // synthesis/output view set.
-function getViewsForTask(task: Task): ViewItem[] {
+function getViewsForTask(task: Recurrence): ViewItem[] {
   return task.output_kind === 'accumulates_context' ? CONTEXT_VIEWS : SYNTHESIS_VIEWS;
 }
 
-export function getDefaultView(task: Task): TaskView {
+export function getDefaultView(task: Recurrence): TaskView {
   return task.output_kind === 'accumulates_context' ? 'domain-status' : 'output';
 }
 
@@ -98,7 +98,7 @@ export function TaskTreeNav({
     setExpanded(prev => ({ ...prev, [slug]: !prev[slug] }));
   };
 
-  const handleTaskClick = (task: Task) => {
+  const handleTaskClick = (task: Recurrence) => {
     // Expand and select default view based on task class
     setExpanded(prev => ({ ...prev, [task.slug]: true }));
     onSelectTask(task.slug, getDefaultView(task));
@@ -107,7 +107,7 @@ export function TaskTreeNav({
   const statusCounts = {
     all: tasks.length,
     active: tasks.filter(t => t.status === 'active').length,
-    paused: tasks.filter(t => t.status === 'paused').length,
+    paused: tasks.filter(t => t.paused === true).length,
   };
 
   return (
@@ -147,7 +147,7 @@ export function TaskTreeNav({
           const isExpanded = expanded[task.slug] || isSelected;
           const statusColor =
             task.status === 'active' ? 'fill-green-500 text-green-500' :
-            task.status === 'paused' ? 'fill-amber-500 text-amber-500' :
+            task.paused === true ? 'fill-amber-500 text-amber-500' :
             task.status === 'completed' ? 'fill-blue-500 text-blue-500' :
             'text-muted-foreground';
 
@@ -207,7 +207,7 @@ export function TaskTreeNav({
                   {isSelected && (
                     <div className="mt-2 mb-1 mx-2 px-2 py-2 rounded-lg bg-muted/30 space-y-2">
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                        {task.mode && <span className="capitalize">{task.mode}</span>}
+                        {task.shape && <span className="capitalize">{task.shape}</span>}
                         {task.schedule && (
                           <span className="flex items-center gap-0.5">
                             <Clock className="w-2.5 h-2.5" />

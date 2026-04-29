@@ -35,17 +35,17 @@ import {
   platformProviderForRole,
   roleTagline,
 } from '@/lib/agent-identity';
-import type { Agent, Task } from '@/types';
+import type { Agent, Recurrence } from '@/types';
 
 interface AgentContentViewProps {
   agent: Agent;
-  tasks: Task[];
+  tasks: Recurrence[];
 }
 
 type AgentClass = NonNullable<Agent['agent_class']>;
 // Reviewer is dispatched to ReviewerDetailView before any registry lookup (ADR-214).
 type RegistryAgentClass = Exclude<AgentClass, 'reviewer'>;
-type TaskOutputKind = NonNullable<Task['output_kind']>;
+type RecurrenceOutputKind = NonNullable<Recurrence['output_kind']>;
 
 interface AgentShellDescriptor {
   label: string;
@@ -68,7 +68,7 @@ interface AgentEmptyStateDescriptor {
 
 
 
-type TaskKindCounts = Record<TaskOutputKind, number>;
+type TaskKindCounts = Record<RecurrenceOutputKind, number>;
 
 const EMPTY_TASK_COUNTS: TaskKindCounts = {
   accumulates_context: 0,
@@ -286,10 +286,10 @@ function formatKeyLabel(value?: string | null, capitalize = true): string {
   return capitalize ? formatted.charAt(0).toUpperCase() + formatted.slice(1) : formatted;
 }
 
-function getTaskKindCounts(tasks: Task[]): TaskKindCounts {
+function getTaskKindCounts(tasks: Recurrence[]): TaskKindCounts {
   return tasks.reduce<TaskKindCounts>((counts, task) => {
     const kind = task.output_kind;
-    if (kind && kind in counts) counts[kind as TaskOutputKind] += 1;
+    if (kind && kind in counts) counts[kind as RecurrenceOutputKind] += 1;
     return counts;
   }, { ...EMPTY_TASK_COUNTS });
 }
@@ -303,7 +303,7 @@ function normalizeCadenceLabel(schedule?: string | null): string {
   return raw;
 }
 
-function summarizeRoleContract(agent: Agent, tasks: Task[]) {
+function summarizeRoleContract(agent: Agent, tasks: Recurrence[]) {
   const cls = (agent.agent_class || 'specialist') as RegistryAgentClass;
   const liveTasks = tasks.filter((task) => task.status !== 'archived');
   const activeTasks = liveTasks.filter((task) => task.status === 'active');
@@ -348,11 +348,15 @@ function summarizeRoleContract(agent: Agent, tasks: Task[]) {
   })();
 
   const triggers = (() => {
+    // ADR-231: trigger inference from RecurrenceShape + schedule presence,
+    // since `mode` (recurring/goal/reactive) was dropped per migration 164.
+    // Action shape → events; deliverable/accumulation with schedule → Schedule;
+    // anything without schedule → On demand.
     const triggerSet = new Set<string>();
     if (cls === 'meta-cognitive') triggerSet.add('Chat');
-    if (activeTasks.some((task) => task.mode === 'recurring')) triggerSet.add('Schedule');
-    if (activeTasks.some((task) => task.mode === 'reactive')) triggerSet.add('Events');
-    if (activeTasks.some((task) => task.mode === 'goal')) triggerSet.add('On demand');
+    if (activeTasks.some((task) => task.shape === 'action')) triggerSet.add('Events');
+    if (activeTasks.some((task) => task.schedule && task.shape !== 'action')) triggerSet.add('Schedule');
+    if (activeTasks.some((task) => !task.schedule)) triggerSet.add('On demand');
     if (triggerSet.size === 0) triggerSet.add('On demand');
     return Array.from(triggerSet).join(', ');
   })();
@@ -369,7 +373,7 @@ function summarizeRoleContract(agent: Agent, tasks: Task[]) {
   return { inputs, outputs, triggers, cadence };
 }
 
-function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
   const classLabel = agentClassLabel(agent.agent_class);
   const showClassLabel = classLabel.toLowerCase() !== agent.title.toLowerCase();
   const domain = agent.context_domain;
@@ -412,7 +416,7 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   );
 }
 
-function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
   const descriptor = AGENT_SHELL_REGISTRY[(agent.agent_class || 'specialist') as RegistryAgentClass];
   const guidance = ROLE_GUIDANCE_REGISTRY[(agent.agent_class || 'specialist') as RegistryAgentClass];
   const contract = summarizeRoleContract(agent, tasks);
@@ -527,7 +531,7 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
   );
 }
 
-function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
   // Show for specialists (v5) and domain-stewards (v4 backward compat) that have a context domain
   const isSpecialist = agent.agent_class === 'specialist' || agent.agent_class === 'domain-steward';
   if (!isSpecialist || !agent.context_domain) return null;
@@ -589,7 +593,7 @@ function platformManagementLabel(provider: string | null, connected: boolean): s
   }
 }
 
-function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Task[] }) {
+function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
   const agentSlug = getAgentSlug(agent);
   const descriptor = AGENT_EMPTY_STATE_REGISTRY[(agent.agent_class || 'specialist') as RegistryAgentClass];
   const platformProvider = agent.agent_class === 'platform-bot' ? platformProviderForRole(agent.role) : null;

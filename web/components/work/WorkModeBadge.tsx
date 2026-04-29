@@ -8,7 +8,7 @@
  */
 
 import { cn } from '@/lib/utils';
-import { taskModeLabel } from '@/types';
+import { recurrenceLabel } from '@/types';
 
 interface WorkModeBadgeProps {
   schedule: string | undefined | null;
@@ -16,7 +16,7 @@ interface WorkModeBadgeProps {
 }
 
 export function WorkModeBadge({ schedule, className }: WorkModeBadgeProps) {
-  const label = taskModeLabel(schedule);
+  const label = recurrenceLabel(schedule);
   const isRecurring = label === 'Recurring';
 
   return (

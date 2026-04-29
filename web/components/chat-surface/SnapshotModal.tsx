@@ -52,7 +52,7 @@ import {
   type ReviewerDecision,
 } from '@/lib/reviewer-decisions';
 import { cn } from '@/lib/utils';
-import type { Task } from '@/types';
+import type { Recurrence } from '@/types';
 import type { SnapshotLead } from '@/lib/snapshot-meta';
 
 interface SnapshotModalProps {
@@ -62,7 +62,7 @@ interface SnapshotModalProps {
   /** Optional one-liner YARNNN can pass to explain why it opened the overlay. */
   reason?: string | null;
   /** Tasks for the Recent tab's task-run list. */
-  tasks: Task[];
+  tasks: Recurrence[];
   onClose: () => void;
   /** Seeds a chat prompt after closing. Invoked by per-tab EditInChatButton. */
   onAskTP: (prompt: string) => void;
@@ -416,7 +416,7 @@ function RecentTab({
   tasks,
   onAskTP,
 }: {
-  tasks: Task[];
+  tasks: Recurrence[];
   onAskTP: (p: string) => void;
 }) {
   const [pendingCount, setPendingCount] = useState<number>(0);

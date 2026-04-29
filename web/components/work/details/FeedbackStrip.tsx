@@ -12,14 +12,14 @@
  */
 
 import { MessageSquare } from 'lucide-react';
-import type { Task } from '@/types';
+import type { Recurrence } from '@/types';
 
 interface FeedbackStripProps {
-  task: Task;
+  task: Recurrence;
   onOpenChat: (prompt: string) => void;
 }
 
-function getPrompt(task: Task): string | null {
+function getPrompt(task: Recurrence): string | null {
   const title = task.title || task.slug;
   const kind = task.output_kind ?? 'produces_deliverable';
 

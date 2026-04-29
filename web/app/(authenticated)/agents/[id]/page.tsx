@@ -12,13 +12,13 @@
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { useAgentsAndTasks } from '@/hooks/useAgentsAndTasks';
+import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { getAgentSlug } from '@/lib/agent-identity';
 
 export default function AgentIdRedirectPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { agents, loading } = useAgentsAndTasks({ pollInterval: 0, refreshOnFocus: false });
+  const { agents, loading } = useAgentsAndRecurrences({ pollInterval: 0, refreshOnFocus: false });
 
   useEffect(() => {
     if (loading) return;

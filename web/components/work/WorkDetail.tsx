@@ -38,10 +38,10 @@ import { resolveChrome, getDetailMiddles, useComposition } from '@/lib/composito
 import { FeedbackStrip } from './details/FeedbackStrip';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { cn } from '@/lib/utils';
-import type { Task, TaskDetail, Agent } from '@/types';
+import type { Recurrence, RecurrenceDetail, Agent } from '@/types';
 
 interface WorkDetailProps {
-  task: Task | TaskDetail;
+  task: Recurrence | RecurrenceDetail;
   agents: Agent[];
   refreshKey: number;
   mutationPending: boolean;
@@ -53,7 +53,7 @@ interface WorkDetailProps {
   onSourcesUpdated?: () => void;
 }
 
-function findAssignedAgent(task: Task, agents: Agent[]): Agent | null {
+function findAssignedAgent(task: Recurrence, agents: Agent[]): Agent | null {
   const assigned = task.agent_slugs?.[0];
   if (!assigned) return null;
   return agents.find(a => a.slug === assigned) ?? null;
@@ -61,7 +61,7 @@ function findAssignedAgent(task: Task, agents: Agent[]): Agent | null {
 
 // ─── Objective block — all kinds except system_maintenance ──────────────────
 
-function ObjectiveBlock({ task }: { task: Task }) {
+function ObjectiveBlock({ task }: { task: Recurrence }) {
   if (!task.objective) return null;
   const { deliverable, audience, purpose, format } = task.objective;
   if (!deliverable && !audience && !purpose && !format) return null;

@@ -21,17 +21,17 @@
 import { Loader2, Wrench, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/formatting';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import { useTaskOutputs } from '@/hooks/useTaskOutputs';
-import type { Task } from '@/types';
+import { useRecurrenceOutputs } from '@/hooks/useRecurrenceOutputs';
+import type { Recurrence } from '@/types';
 
 export function MaintenanceMiddle({
   task,
   refreshKey,
 }: {
-  task: Task;
+  task: Recurrence;
   refreshKey: number;
 }) {
-  const { latest, history, loading, error, reload } = useTaskOutputs(task.slug, {
+  const { latest, history, loading, error, reload } = useRecurrenceOutputs(task.slug, {
     includeLatest: true,
     historyLimit: 10,
     refreshKey,

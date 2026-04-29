@@ -328,23 +328,17 @@ export interface AgentMemory {
   reflections?: string;        // memory/reflections.md content (rolling 5 entries, ADR-149 rename)
 }
 
-// ADR-138: Task mode (moved from agents to tasks — mode is temporal behavior of work, not identity)
-export type TaskMode = 'recurring' | 'goal' | 'reactive';
+// ADR-231: RecurrenceShape — implied by substrate location per D2/D3.
+// Replaces the dissolved output_kind 4-value enum (per ADR-166 supersession).
+export type RecurrenceShape = 'deliverable' | 'accumulation' | 'action' | 'maintenance';
 
-// ADR-163: User-facing mode label. The schema preserves three modes
-// (recurring | goal | reactive) because the execution layer needs the
-// distinction (goal has the revision loop, reactive is dispatch-and-done),
-// but the user only ever sees two labels. All task-displaying components
-// use this helper, never the raw schema value.
-export type TaskModeLabel = 'Recurring' | 'One-time';
-/**
- * Derive the user-facing mode label from the task's schedule, not its
- * internal mode. A task with any schedule (daily, weekly, etc.) is
- * "Recurring"; a task with no schedule (or "on-demand") is "One-time".
- * The internal mode (recurring/goal/reactive) drives execution semantics
- * only — users should never see those values.
- */
-export function taskModeLabel(schedule: string | undefined | null): TaskModeLabel {
+// ADR-163 + ADR-231: User-facing label derived from schedule.
+// A recurrence with any schedule (daily/weekly/cron) is "Recurring"; one with
+// no schedule is "One-time". Internal RecurrenceShape drives execution
+// semantics only — users see this label.
+export type RecurrenceLabel = 'Recurring' | 'One-time';
+
+export function recurrenceLabel(schedule: string | undefined | null): RecurrenceLabel {
   if (!schedule) return 'One-time';
   const s = schedule.trim().toLowerCase();
   return s && s !== 'on-demand' ? 'Recurring' : 'One-time';
@@ -710,42 +704,51 @@ export interface BalanceSummary {
 export type TierLimits = BalanceSummary;
 
 // =============================================================================
-// ADR-138: Tasks (work definitions)
+// ADR-231: Recurrences (the post-cutover work model)
 // =============================================================================
+//
+// A Recurrence is the legibility wrapper (nameplate + pulse + contract) over
+// a stream of Invocations per FOUNDATIONS Axiom 9. Authoritative substrate
+// is workspace_files YAML at `declaration_path`. The TypeScript shape below
+// is the API serialization — the backend's TaskResponse rendered for the
+// frontend. The HTTP surface lives at `/api/recurrences/*`.
 
-export type TaskStatus = "active" | "paused" | "completed" | "archived";
+export type RecurrenceStatus = "active" | "completed" | "archived";
 
-export interface Task {
+export interface Recurrence {
   id: string;
   slug: string;
   title: string;
-  status: TaskStatus;
-  mode?: TaskMode;             // recurring | goal | reactive
+  status: RecurrenceStatus;
+  shape?: RecurrenceShape;     // ADR-231 D8: deliverable | accumulation | action | maintenance
   schedule?: string;           // cron or human-readable cadence
   next_run_at?: string;
   last_run_at?: string;
+  paused?: boolean;            // ADR-231 Phase 3.4: explicit flag (replaces status='paused')
+  declaration_path?: string;   // ADR-231 Phase 3.4: pointer to authoritative YAML
   created_at: string;
   updated_at: string;
-  // Derived from TASK.md (populated by API)
+  // Derived from declaration YAML (populated by API)
   objective?: {
     deliverable?: string;
     audience?: string;
     purpose?: string;
     format?: string;
+    prose?: string;
   };
-  agent_slugs?: string[];      // assigned agents (from TASK.md ## Process)
+  agent_slugs?: string[];      // assigned agents (from declaration's `agents:` field)
   delivery?: string;           // delivery channel summary
-  type_key?: string;           // task type key (e.g., "track-competitors", "competitive-brief")
-  // ADR-166: 4-value enum (was task_class):
-  // accumulates_context | produces_deliverable | external_action | system_maintenance
+  // ADR-231: legacy field preserved as compat alias — derived from shape:
+  //   deliverable → produces_deliverable
+  //   accumulation → accumulates_context
+  //   action → external_action
+  //   maintenance → system_maintenance
   output_kind?: string;
-  context_reads?: string[];    // context domains this task reads from (parsed from TASK.md)
-  context_writes?: string[];   // context domains this task writes to (parsed from TASK.md)
-  // ADR-158: task-level source selection (parsed from TASK.md **Sources:** field)
-  // e.g. { slack: ["C123", "C456"] } or { notion: ["page-id-1"] }
+  context_reads?: string[];
+  context_writes?: string[];
   sources?: Record<string, string[]>;
-  essential?: boolean;         // ADR-161: anchor task (e.g., daily-update) — cannot be archived
 }
+
 
 // ADR-178 Phase 6: DELIVERABLE.md as structured quality contract
 export interface DeliverableExpectedOutput {
@@ -797,40 +800,21 @@ export interface NarrativeByTaskResponse {
   tasks: NarrativeByTaskSlice[];
 }
 
-export interface TaskDetail extends Task {
-  run_log?: string;            // memory/run_log.md content
+export interface RecurrenceDetail extends Recurrence {
+  run_log?: string;            // natural-home _run_log.md content
   success_criteria?: string[];
   output_spec?: string[];
-  // context_reads/context_writes inherited from Task
-  // ADR-178 Phase 6: parsed DELIVERABLE.md quality contract
+  // ADR-178 Phase 6 + ADR-231 D2: parsed deliverable spec from declaration YAML
   deliverable_spec?: DeliverableSpec | null;
 }
 
-export interface TaskCreate {
-  title: string;
-  /** ADR-145/206: type_key drives default team + pipeline. Prefer over agent_slug. */
-  type_key?: string;
-  /** Fallback when no type_key is chosen — primary assigned agent. */
-  agent_slug?: string;
-  /** ADR-149: task management posture. Omit for default (run-now via chat-first per ADR-205). */
-  mode?: "recurring" | "goal" | "reactive";
-  /** Free-text context / intent (lands in objective.deliverable by convention). */
-  focus?: string;
-  objective?: {
-    deliverable?: string;
-    audience?: string;
-    purpose?: string;
-    format?: string;
-  };
-  /** ADR-205: omit for run-now; provide a cadence (daily/weekly/cron) for recurring. */
-  schedule?: string;
-  delivery?: string;
-  /** ADR-158 Phase 2: initial source selection keyed by platform. */
-  sources?: Record<string, string[]>;
-}
+// ADR-231 D5: TaskCreate, TaskType, TaskTypesResponse DELETED.
+// Recurrence creation flows through UpdateContext(target='recurrence',
+// action='create', shape=..., slug=..., body={...}) via the chat surface.
+// The frontend never POSTs creation payloads directly.
 
 // ADR-170: Section provenance from sys_manifest.json
-export interface TaskSectionEntry {
+export interface RecurrenceSectionEntry {
   slug: string;
   title?: string;
   kind?: string;
@@ -838,7 +822,7 @@ export interface TaskSectionEntry {
   source_files: string[];
 }
 
-export interface TaskOutput {
+export interface RecurrenceOutput {
   folder: string;
   date: string;
   status: string;
@@ -848,37 +832,13 @@ export interface TaskOutput {
   manifest?: OutputManifest;
   // ADR-170: Compose substrate — section provenance
   sys_manifest?: Record<string, unknown>;
-  sections?: TaskSectionEntry[];
+  sections?: RecurrenceSectionEntry[];
 }
 
-// ADR-145: Task Type Registry
-// Process step types (renamed from Pipeline — user-facing term is "process")
+// Process step types (used by run-status responses)
 export interface ProcessStepSummary {
   agent_type: string;
   step: string;
-}
-/** @deprecated Use ProcessStepSummary */
-export type PipelineStepSummary = ProcessStepSummary;
-
-export interface TaskType {
-  type_key: string;
-  display_name: string;
-  description: string;
-  // ADR-166: category dropped. output_kind classifies what shape the task produces.
-  output_kind: 'accumulates_context' | 'produces_deliverable' | 'external_action' | 'system_maintenance';
-  default_schedule: string;
-  // ADR-154 + ADR-206: registry-declared defaults exposed in GET /api/recurrences/types response.
-  default_mode?: 'recurring' | 'goal' | 'reactive';
-  default_title?: string;
-  output_format: string;
-  export_options: string[];
-  pipeline_summary: ProcessStepSummary[];
-  context_sources: string[];
-  requires_platform: string | null;
-}
-
-export interface TaskTypesResponse {
-  types: TaskType[];
 }
 
 export interface ProcessStepOutput {

@@ -24,7 +24,7 @@ import { CONTEXT_ROUTE } from '@/lib/routes';
 import { formatRelativeTime } from '@/lib/formatting';
 import { PlatformSourcesSection } from './PlatformSourcesSection';
 import { cn } from '@/lib/utils';
-import type { Task } from '@/types';
+import type { Recurrence } from '@/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -159,7 +159,7 @@ export function TrackingEntityGrid({
   task,
   onSourcesUpdated,
 }: {
-  task: Task;
+  task: Recurrence;
   onSourcesUpdated?: () => void;
 }) {
   const router = useRouter();

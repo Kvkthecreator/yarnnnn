@@ -16,10 +16,10 @@
  */
 
 import { createContext, useContext } from 'react';
-import type { Agent, Task } from '@/types';
+import type { Agent, Recurrence } from '@/types';
 
 export interface WorkDetailActionsContextValue {
-  task: Task;
+  task: Recurrence;
   agents: Agent[];
   assignedAgent: Agent | null;
   mutationPending: boolean;
