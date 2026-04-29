@@ -1360,17 +1360,33 @@ async def trigger_task_run(
             detail=f"Cannot trigger run: task status is '{task['status']}' (must be 'active')",
         )
 
-    # Execute task inline — same pipeline as scheduler, instant results
+    # ADR-231 Phase 3.6.a.1: route inline execution through the YAML-native
+    # dispatcher. Resolve slug → RecurrenceDeclaration via the workspace
+    # walker, then call services.invocation_dispatcher.dispatch(decl).
     try:
         from services.supabase import get_service_client
-        from services.task_pipeline import execute_task
+        from services.recurrence import walk_workspace_recurrences
+        from services.invocation_dispatcher import dispatch
 
         svc_client = get_service_client()
-        exec_result = await execute_task(svc_client, auth.user_id, slug)
+        decls = walk_workspace_recurrences(svc_client, auth.user_id)
+        target = next((d for d in decls if d.slug == slug), None)
+        if target is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"No recurrence declaration found for slug '{slug}'. "
+                    f"The task row may pre-date the ADR-231 migration; "
+                    f"run scripts/migrate_to_recurrence_declarations.py."
+                ),
+            )
 
-        logger.info(f"[TASKS] Inline execution for '{slug}': {exec_result.get('status', 'unknown')}")
+        exec_result = await dispatch(svc_client, auth.user_id, target)
+        logger.info(f"[TASKS] Inline dispatch for '{slug}': {exec_result.get('status', exec_result.get('success', '?'))}")
         return TaskRunTriggered(triggered=True, task_slug=slug)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[TASKS] Inline execution failed for '{slug}': {e}")
         raise HTTPException(status_code=500, detail=f"Task execution failed: {str(e)}")
