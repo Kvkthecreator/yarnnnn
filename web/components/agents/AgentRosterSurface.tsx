@@ -3,16 +3,20 @@
 /**
  * AgentRosterSurface — Full-width roster view for /agents (ADR-167 + ADR-214).
  *
- * Post-ADR-214 (2026-04-23), the roster shows Agents only (ADR-212 taxonomy —
- * judgment-bearing entities). Two sections:
+ * Post-ADR-235 D2 (2026-04-29) the chat surface no longer creates user-authored
+ * Agents (`ManageAgent.create` removed). The Domain group is therefore
+ * permanently empty in current canon; rendering it as an always-empty section
+ * with a CTA that points back to chat is dead-end UX.
  *
- *   Systemic — Always two cards: YARNNN (meta-cognitive) + Reviewer. Both are
- *              systemic Agents scaffolded at signup (YARNNN as agents row,
- *              Reviewer as filesystem substrate at /workspace/review/ and
- *              synthesized in the list response per ADR-214).
- *   Domain   — User-authored instance Agents (zero-to-many). This is the
- *              authored-team moat (ADR-189). Empty at signup; the user
- *              builds the list by chatting with YARNNN.
+ * The roster collapses to a flat two-card grid: YARNNN + Reviewer. Both are
+ * systemic Agents scaffolded at signup (YARNNN as agents row, Reviewer as
+ * filesystem substrate at /workspace/review/ and synthesized in the list
+ * response per ADR-214). No grouping label is needed — the count is N=2 and
+ * self-evident.
+ *
+ * If a future ADR re-introduces user-authored Agent creation (ADR-235 R4
+ * deferral becomes resolved), the roster reintroduces grouping then. Today's
+ * canonical shape: flat, always two cards.
  *
  * Production roles + integrations (formerly grouped here) are Orchestration,
  * not Agents (ADR-212). Production role composition appears on /work
@@ -29,7 +33,6 @@
  */
 
 import { useMemo } from 'react';
-import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getAgentSlug, roleTagline } from '@/lib/agent-identity';
 import { AgentIcon } from './AgentIcon';
@@ -41,29 +44,16 @@ interface AgentRosterSurfaceProps {
   onSelect: (agentId: string) => void;
 }
 
-type GroupKey = 'systemic' | 'domain';
-
-const GROUP_ORDER: readonly GroupKey[] = ['systemic', 'domain'] as const;
-const GROUP_LABELS: Record<GroupKey, { title: string; description: string }> = {
-  systemic: {
-    title: 'Systemic',
-    description: 'YARNNN (your collaborator) and Reviewer (the judgment seat). Always present.',
-  },
-  domain: {
-    title: 'Domain',
-    description: 'Agents you authored through YARNNN. They accumulate expertise run over run.',
-  },
-};
-
-// ADR-214: Classify an agent into Systemic (YARNNN, Reviewer) or Domain
-// (user-authored). Origin is the truth per ADR-189 — system_bootstrap rows
-// are systemic; user_configured rows are domain. Reviewer arrives as a
-// synthesized envelope with agent_class='reviewer'; we treat it as systemic.
-function classifyAgent(agent: Agent): GroupKey {
-  if (agent.agent_class === 'reviewer') return 'systemic';
-  if (agent.agent_class === 'meta-cognitive') return 'systemic';
-  if (agent.origin === 'system_bootstrap') return 'systemic';
-  return 'domain';
+// ADR-235 D2: filter the roster to systemic Agents only. Origin is the
+// truth per ADR-189 — system_bootstrap rows are systemic; user_configured
+// rows are pre-ADR-235 historical and tolerated but not surfaced (the chat
+// surface no longer creates them, so any remaining ones are legacy data).
+// Reviewer arrives as a synthesized envelope with agent_class='reviewer'.
+function isSystemicAgent(agent: Agent): boolean {
+  if (agent.agent_class === 'reviewer') return true;
+  if (agent.agent_class === 'meta-cognitive') return true;
+  if (agent.origin === 'system_bootstrap') return true;
+  return false;
 }
 
 function formatRelativeUntil(dateStr: string): string {
@@ -96,96 +86,28 @@ function fmtDomain(value?: string | null): string {
 }
 
 export function AgentRosterSurface({ agents, tasks, onSelect }: AgentRosterSurfaceProps) {
-  // ADR-212 + ADR-214: two sections, always both rendered.
-  //   Systemic — YARNNN + Reviewer. Unconditional; ADR-214 synthesizes Reviewer
-  //              in the list response and YARNNN is a real `thinking_partner`
-  //              row. Even a brand-new workspace shows two cards here.
-  //   Domain   — User-authored instance Agents (ADR-189 authored-team moat).
-  //              Empty at signup; the user builds the list by chatting.
-  //              Rendered with an inline empty-state CTA when zero agents
-  //              exist, so the Systemic section isn't hidden behind a
-  //              full-surface overlay.
-  const systemicAgents = useMemo(
-    () => agents.filter(a => classifyAgent(a) === 'systemic'),
-    [agents],
-  );
-  const domainAgents = useMemo(
-    () => agents.filter(a => classifyAgent(a) === 'domain'),
+  // ADR-235 D2: roster collapses to a flat two-card grid (YARNNN + Reviewer).
+  // No grouping header — the count is N=2 and self-evident. The Domain
+  // group + its always-empty CTA card was removed when chat-surface
+  // ManageAgent.create dissolved per ADR-235.
+  const rosterAgents = useMemo(
+    () => agents.filter(isSystemicAgent),
     [agents],
   );
 
   return (
     <div className="flex flex-col h-full overflow-auto">
-      <div className="px-6 py-6 max-w-5xl space-y-8">
-        {/* Systemic — always present. */}
-        <section>
-          <header className="mb-3">
-            <h3 className="text-sm font-semibold text-foreground">
-              {GROUP_LABELS.systemic.title}
-              <span className="ml-2 text-xs font-normal text-muted-foreground/50">
-                · {systemicAgents.length}
-              </span>
-            </h3>
-            <p className="text-xs text-muted-foreground/70 mt-0.5">
-              {GROUP_LABELS.systemic.description}
-            </p>
-          </header>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {systemicAgents.map(agent => (
-              <AgentCard
-                key={agent.id}
-                agent={agent}
-                tasks={tasks}
-                onSelect={() => onSelect(agent.id)}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Domain — rendered with an inline empty-state CTA when zero.
-            ADR-189 authored-team moat: the empty state is a real product
-            state (the user hasn't authored yet), not an error. */}
-        <section>
-          <header className="mb-3">
-            <h3 className="text-sm font-semibold text-foreground">
-              {GROUP_LABELS.domain.title}
-              <span className="ml-2 text-xs font-normal text-muted-foreground/50">
-                · {domainAgents.length}
-              </span>
-            </h3>
-            <p className="text-xs text-muted-foreground/70 mt-0.5">
-              {GROUP_LABELS.domain.description}
-            </p>
-          </header>
-          {domainAgents.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-6 py-8 text-center">
-              <Sparkles className="w-6 h-6 text-muted-foreground/30 mx-auto mb-3" />
-              <h4 className="text-sm font-medium text-foreground mb-1">
-                Your team starts here
-              </h4>
-              <p className="text-xs text-muted-foreground mb-3">
-                Describe your work to YARNNN. Create the Agents that do it.
-              </p>
-              <a
-                href="/chat"
-                className="inline-flex items-center gap-2 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 transition-colors"
-              >
-                Talk to YARNNN
-              </a>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {domainAgents.map(agent => (
-                <AgentCard
-                  key={agent.id}
-                  agent={agent}
-                  tasks={tasks}
-                  onSelect={() => onSelect(agent.id)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+      <div className="px-6 py-6 max-w-5xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {rosterAgents.map(agent => (
+            <AgentCard
+              key={agent.id}
+              agent={agent}
+              tasks={tasks}
+              onSelect={() => onSelect(agent.id)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

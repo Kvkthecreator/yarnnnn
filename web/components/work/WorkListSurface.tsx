@@ -59,20 +59,38 @@ type WorkTab = 'my-work' | 'connectors' | 'system';
 
 // ─── Classification helpers ──────────────────────────────────────────────────
 
-// Platform-bound task types — anything with requires_platform in the registry.
-// Kept as a frontend set to avoid an extra API call.
+// Platform-bound recurrences — slugs the operator should see under
+// "Connectors" rather than "My Work."
+//
+// FE-maintained set (avoids an extra API call per render). The architectural
+// limitation: classification is by slug-string-match, which doesn't scale as
+// programs grow. The proper fix is a `requires_platform: bool` field in
+// recurrence YAML (or capability inference from the process step's tool
+// declaration), exposed via /api/recurrences/* response. Tracked as a
+// follow-up; today's hygiene is to keep the set aligned with shipped bundle
+// slugs.
+//
+// Includes:
+//   - generic platform integrations (slack/notion/github + write-backs)
+//   - alpha-commerce platform-bound tasks
+//   - alpha-trader platform-bound tasks (per
+//     docs/programs/alpha-trader/reference-workspace/) — `track-universe`
+//     reads Alpaca market data; `trade-proposal` emits a proposal that
+//     hits Alpaca on approval. `signal-evaluation` is pure compute over
+//     tracked context (stays in My Work). Reports stay in My Work.
 const CONNECTOR_TYPE_KEYS = new Set([
+  // Generic platform digests + write-backs
   'slack-digest',
   'notion-digest',
   'github-digest',
-  'commerce-digest',
-  'revenue-report',
   'slack-respond',
   'notion-update',
-  'trading-digest',
-  'trading-signal',
-  'trading-execute',
-  'portfolio-review',
+  // alpha-commerce
+  'commerce-digest',
+  'revenue-report',
+  // alpha-trader (per current bundle slugs)
+  'track-universe',
+  'trade-proposal',
 ]);
 
 function isConnectorTask(task: Recurrence): boolean {
