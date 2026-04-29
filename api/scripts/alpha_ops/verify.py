@@ -13,9 +13,11 @@ docs/database/ACCESS.md). No JWT required.
 
 Checks, per persona:
     - agent_count matches expected
-    - active_bots are active (not paused)
-    - essential_tasks exist and are status=active, essential=true
-    - scaffolded_tasks exist (status may be paused, e.g. trading-sync)
+    - active_roles are active (not paused) — replaces active_bots,
+      since Platform Bots dissolved per ADR-205
+    - scaffolded_recurrences exist (post-ADR-231: 'tasks' table is
+      now a thin scheduling index; the 'essential' column was dropped
+      by migration 164, so the old essential_tasks invariant retired)
     - platform_connections count matches, provider + metadata match
     - core workspace files present
     - context_domains scaffolded
@@ -66,24 +68,24 @@ def _verify_one(cur, persona: Persona) -> Check:
         len(rows) == exp.get("agent_count"),
         f"agent_count: got {len(rows)}, expected {exp.get('agent_count')}",
     )
-    for bot in exp.get("active_bots", []):
-        status = by_role.get(bot)
-        check.assert_(status == "active", f"bot {bot}: status={status} (expected active)")
+    for role in exp.get("active_roles", []):
+        status = by_role.get(role)
+        check.assert_(status == "active", f"role {role}: status={status} (expected active)")
 
-    # Tasks.
+    # Recurrences (post-ADR-231: thin tasks scheduling index; essential column
+    # dropped by migration 164; declaration_path points at the authoritative
+    # YAML substrate per ADR-231 D2).
     cur.execute(
-        "SELECT slug, status, essential FROM tasks WHERE user_id=%s",
+        "SELECT slug, status, paused, declaration_path FROM tasks WHERE user_id=%s",
         (uid,),
     )
-    tasks = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
-    for slug in exp.get("essential_tasks", []):
-        t = tasks.get(slug)
+    recurrences = {r[0]: (r[1], r[2], r[3]) for r in cur.fetchall()}
+    for slug in exp.get("scaffolded_recurrences", []):
+        rec = recurrences.get(slug)
         check.assert_(
-            t is not None and t[0] == "active" and t[1] is True,
-            f"essential task '{slug}': {t} (expected status=active, essential=True)",
+            rec is not None and rec[0] == "active" and rec[1] is False,
+            f"scaffolded recurrence '{slug}': {rec} (expected status=active, paused=False, declaration_path set)",
         )
-    for slug in exp.get("scaffolded_tasks", []):
-        check.present(slug in tasks, f"scaffolded task '{slug}'")
 
     # Platform connections.
     cur.execute(

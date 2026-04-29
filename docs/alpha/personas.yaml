@@ -17,7 +17,15 @@
 # was DELETED by ADR-230 D5; activate_persona.py is the harness entry
 # point post-ADR-230.
 #
-# Last confirmed against DB: 2026-04-21
+# ADR-231 (2026-04-28→29): the `tasks` table is a thin scheduling index;
+# the `essential` and `mode` columns were dropped by migration 164. The
+# legacy invariant fields `essential_tasks` and `active_bots` retired:
+#   - essential_tasks  → scaffolded_recurrences (presence + active + !paused)
+#   - active_bots      → active_roles (Platform Bots dissolved per ADR-205;
+#                        platform capability now binds to platform_connections,
+#                        not an agent row)
+#
+# Last confirmed against DB: 2026-04-29
 
 version: 1
 
@@ -54,28 +62,33 @@ personas:
     vault_entry: "1Password > YARNNN Alpha-1 > alpha-trader.alpaca-paper"
     # Invariants that verify.py checks on this persona.
     expected:
-      agent_count: 12
-      active_bots: [trading_bot, thinking_partner]
-      essential_tasks:
-        - back-office-agent-hygiene
-        - back-office-outcome-reconciliation
-        - back-office-proposal-cleanup
-        - back-office-workspace-cleanup
-        - daily-update
-      scaffolded_tasks:       # non-essential but expected post-connect
-        - trading-sync
+      agent_count: 4   # YARNNN + lazy-created tracker/analyst/writer
+      active_roles: [thinking_partner, tracker, analyst, writer]
+      # Post-ADR-231: declaration substrate at the path shown after each slug.
+      # Recurrences with `-2` suffix on alpha-trader-2 follow the same shape.
+      scaffolded_recurrences:
+        - track-universe                 # /workspace/context/trading/_recurring.yaml
+        - signal-evaluation              # /workspace/context/trading/_recurring.yaml
+        - pre-market-brief               # /workspace/reports/pre-market-brief/_spec.yaml
+        - trade-proposal                 # /workspace/operations/trade-proposal/_action.yaml
+        - weekly-performance-review      # /workspace/reports/weekly-performance-review/_spec.yaml
+        - quarterly-signal-audit         # /workspace/reports/quarterly-signal-audit/_spec.yaml
+        - back-office-outcome-reconciliation  # /workspace/_shared/back-office.yaml
+        - back-office-proposal-cleanup        # /workspace/_shared/back-office.yaml
+        - back-office-reviewer-calibration    # /workspace/_shared/back-office.yaml
+        - back-office-reviewer-reflection     # /workspace/_shared/back-office.yaml
       platform_connections: 1
       core_files:
-        - /workspace/IDENTITY.md
-        - /workspace/CONVENTIONS.md
-        - /workspace/AWARENESS.md
-        - /workspace/BRAND.md
+        - /workspace/context/_shared/IDENTITY.md
+        - /workspace/context/_shared/MANDATE.md
+        - /workspace/context/_shared/AUTONOMY.md
+        - /workspace/context/_shared/BRAND.md
+        - /workspace/context/_shared/CONVENTIONS.md
+        - /workspace/context/trading/_operator_profile.md
+        - /workspace/context/trading/_risk.md
         - /workspace/review/IDENTITY.md
         - /workspace/review/principles.md
-      # Note: _risk.md is written without a leading slash per
-      # api/services/risk_gate.py:48 (RISK_MD_PATH constant). Documented drift
-      # from ADR-119 path conventions, not a bug.
-      risk_md_path: workspace/context/trading/_risk.md
+      risk_md_path: /workspace/context/trading/_risk.md
 
   - slug: alpha-trader-2
     label: "Stat-Arb pairs trader (Simons-flavor, parallel-loop test)"
@@ -98,34 +111,38 @@ personas:
     vault_entry: "kvk personal — see Phase B parallel-loop session log"
     expected:
       agent_count: 4   # YARNNN + lazy-created tracker/analyst/writer
-      active_bots: [thinking_partner]
-      essential_tasks:
-        - back-office-agent-hygiene
+      active_roles: [thinking_partner, tracker, analyst, writer]
+      # Post-ADR-231: alpha-trader-2 recurrences carry the `-2` suffix to
+      # disambiguate from alpha-trader's recurrences (both run program=alpha-
+      # trader but in different workspaces). Note: back-office-proposal-cleanup
+      # is absent on alpha-trader-2 — likely materialized only after first
+      # proposal fires; tracked as Pass-3 observation candidate.
+      scaffolded_recurrences:
+        - track-universe-2                # /workspace/context/trading/_recurring.yaml
+        - signal-evaluation-2             # /workspace/context/trading/_recurring.yaml
+        - pre-market-brief-2              # /workspace/reports/pre-market-brief-2/_spec.yaml
+        - trade-proposal-2                # /workspace/operations/trade-proposal-2/_action.yaml
+        - weekly-performance-review-2     # /workspace/reports/weekly-performance-review-2/_spec.yaml
+        - quarterly-signal-audit-2        # /workspace/reports/quarterly-signal-audit-2/_spec.yaml
         - back-office-outcome-reconciliation
-        - back-office-proposal-cleanup
-        - back-office-workspace-cleanup
-        - daily-update
-      scaffolded_tasks:
-        - track-universe
-        - signal-evaluation
-        - pre-market-brief
-        - trade-proposal
-        - weekly-performance-review
-        - quarterly-signal-audit
+        - back-office-reviewer-calibration
+        - back-office-reviewer-reflection
       platform_connections: 1
       core_files:
         - /workspace/context/_shared/IDENTITY.md
         - /workspace/context/_shared/MANDATE.md
         - /workspace/context/_shared/AUTONOMY.md
+        - /workspace/context/_shared/BRAND.md
+        - /workspace/context/_shared/CONVENTIONS.md
         - /workspace/context/trading/_operator_profile.md
         - /workspace/context/trading/_risk.md
         - /workspace/review/IDENTITY.md
         - /workspace/review/principles.md
-      risk_md_path: workspace/context/trading/_risk.md
+      risk_md_path: /workspace/context/trading/_risk.md
 
   - slug: alpha-commerce
     label: "Korea↔USA international commerce operator (KVK voice)"
-    program: alpha-commerce   # ADR-230 D1: bundle at docs/programs/alpha-commerce/
+    program: alpha-commerce   # ADR-230 D1: bundle at docs/programs/alpha-commerce/ (status: deferred)
     email: kvkthecreator@gmail.com
     user_id: 2abf3f96-118b-4987-9d95-40f2d9be9a18
     workspace_id: ff92352e-5b8a-4ba3-9a8c-eb93540df542
@@ -141,23 +158,18 @@ personas:
       api_key: ALPHA_COMMERCE_LEMONSQUEEZY_KEY
     vault_entry: "1Password > YARNNN Alpha-1 > alpha-commerce.lemonsqueezy"
     expected:
-      agent_count: 12
-      active_bots: [commerce_bot, thinking_partner]
-      essential_tasks:
-        - back-office-agent-hygiene
-        - back-office-outcome-reconciliation
-        - back-office-proposal-cleanup
-        - back-office-workspace-cleanup
-        - daily-update
-      # Known asymmetry (2026-04-21): connect_commerce does NOT scaffold a
-      # commerce-digest task. connect_trading does scaffold trading-sync.
-      # Surfaced as alpha friction → candidate for ADR-203-adjacent work.
-      scaffolded_tasks: []
-      platform_connections: 1
+      # Live-DB note (2026-04-29): alpha-commerce workspace has only YARNNN scaffolded.
+      # The alpha-commerce program bundle is `status: deferred` per ADR-224, and
+      # `activate_persona.py --persona alpha-commerce` has not been run against this
+      # workspace yet. The invariants below reflect the unactivated state — when
+      # activation runs, agent_count and scaffolded_recurrences will need to grow.
+      agent_count: 1
+      active_roles: [thinking_partner]
+      scaffolded_recurrences: []
+      # platform_connections: 0 — Lemon Squeezy not yet connected for this persona.
+      platform_connections: 0
       core_files:
-        - /workspace/IDENTITY.md
-        - /workspace/CONVENTIONS.md
-        - /workspace/AWARENESS.md
-        - /workspace/BRAND.md
-        - /workspace/review/IDENTITY.md
-        - /workspace/review/principles.md
+        # No core files yet — bundle has not been forked. Post-activation, expect
+        # the same _shared/* + _operator_profile + _risk + review/* shape as
+        # the trader personas.
+        - /workspace/context/_shared/MANDATE.md
