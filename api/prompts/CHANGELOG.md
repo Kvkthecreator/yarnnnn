@@ -6,6 +6,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.3] - ADR-231 Phase 3.6.e — Prompt rewrites (recurrence vocabulary + UpdateContext primitive)
+
+### Changed
+- `api/agents/yarnnn_prompts/base.py` — terminology block updated. Tasks reframed as recurrences (nameplate-pulse-contract legibility wrappers per ADR-231 D8); invocations named as the atom of action per Axiom 9; `ManageTask(action="create")` → `UpdateContext(target="recurrence", action="create", ...)` in the invocation-first default note.
+- `api/agents/yarnnn_prompts/behaviors.py` — high-traffic ManageTask references retired. The pattern guide ("Confirming before acting"), the high-impact-action confirmation note, the "update / fill in a task" affordances list, the "weekly to daily" cadence example, and the platform-awareness composition guidance all migrate to UpdateContext(target="recurrence") + per-shape natural-home YAML paths. ADR-207 P4b registry-gating language replaced with ADR-231 declaration-shape-aware language.
+- `api/agents/yarnnn_prompts/entity.py` — Feedback Communication Protocol points "trigger immediately" at `FireInvocation(shape, slug)` instead of `ManageTask(action="trigger")`. Evaluation & Steering section rewritten: lifecycle is now `UpdateContext(target="recurrence", action="pause"|"resume"|"archive"|"update")` with `changes={"steering": ...}` for one-shot steering. Quality-criteria feedback flows through `infer_task_deliverable_preferences` post-evaluate trigger which writes back via the same UpdateContext path.
+- `api/agents/yarnnn_prompts/onboarding.py` — Mandate-required gate language updated to `UpdateContext(target="recurrence", action="create")` returns `error="mandate_required"`. Work-first creation guidance replaces type_key shortcuts with declaration-shape composition (shape + slug + body). Platform-awareness recurrence pattern updated. Daily-update opt-in flow + back-office auto-materialization both speak the new vocabulary. The "Task Type Catalog" section restructured as "Recurrence Patterns" with shape-keyed examples (accumulation patterns, platform-awareness, deliverable patterns). Recurrence-substrate read example updated: `ReadFile("/workspace/reports/{slug}/_spec.yaml")` not `ReadFile("/tasks/{slug}/TASK.md")`.
+- `api/agents/yarnnn_prompts/platforms.py` — capability-gated dispatch language migrates from "TASK.md `**Required Capabilities:**`" to "recurrence YAML's `required_capabilities:` field". Platform-integration composition pattern shows YAML body shape (`agents`, `required_capabilities`, `context_writes`). Per-recurrence source selection example updated to `UpdateContext(target="recurrence", action="update", changes={"sources": {...}})`.
+
+### Expected behavior
+- TP defaults reflect the post-ADR-231 substrate model: invocation-first, recurrence-as-legibility-wrapper, declaration-shape-aware paths, UpdateContext(target="recurrence") as the lifecycle primitive.
+- ManageTask references survive only in `tools.py` (orphaned legacy prompt file, zero production importers — slated for cleanup) and historical comments. Active prompt path (`tools_core.py` + `workspace.py` + `entity.py` per ADR-186 profile assembly) speaks the new vocabulary.
+- Compact index v2 (3.6.d) feeds the prompts shape-aware `active_tasks` data; the prompts now know how to act on it.
+
+### Validation
+- 85/85 still green in api/test_adr231_recurrence.py.
+- Smoke imports clean for all rewritten yarnnn_prompts modules.
+- Per runtime plan §5 (surface profile mapping) + §9 (revision-posture amendments) + ADR-231 D5 (primitive surface).
+
+---
+
 ## [2026.04.29.2] - ADR-231 Phase 3.2.b — Dispatcher YAML-native body (chat-as-layer)
 
 ### Changed

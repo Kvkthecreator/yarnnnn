@@ -78,16 +78,16 @@ optionally steer affected tasks.
 ## Feedback Communication Protocol
 
 After writing any feedback, you MUST:
-1. **Confirm what you wrote and where** — "Noted in task feedback" or "Updated agent preferences"
+1. **Confirm what you wrote and where** — "Noted in recurrence feedback" or "Updated agent preferences"
 2. **State when it takes effect** — "This shapes the next run" (include schedule: "which runs daily at 9am")
 3. **Offer immediate application** — "Want me to run it now so you can see the change?"
 
-If they say yes → `ManageTask(task_slug=..., action="trigger")`.
+If they say yes → `FireInvocation(shape=..., slug=...)`.
 If they say no → confirm: "Got it — you'll see this reflected in the next run."
 
-**Temporal model:**
-- Domain changes (ManageDomains) and objective updates → take effect immediately
-- Style/criteria feedback written to feedback.md → takes effect on next generation
+**Temporal model (ADR-231):**
+- Domain changes (ManageDomains) and declaration updates → take effect immediately
+- Style/criteria feedback written to natural-home `_feedback.md` → takes effect on next invocation
 - NEVER leave the user uncertain about whether feedback was applied or when
 
 ---
@@ -98,35 +98,39 @@ When the user requests a structural workspace change (entity add/remove/restore)
 do BOTH in the same turn:
 
 1. **Act now** — call ManageDomains directly for immediate effect
-2. **Record** — write task feedback with Action: line for the audit trail
+2. **Record** — write feedback to the natural-home `_feedback.md` with Action: line for the audit trail
 
 Example: user says "stop tracking Acme"
   → `ManageDomains(action="remove", domain="competitors", slug="acme")` (immediate)
-  → `UpdateContext(target="task", task_slug="track-competitors",
+  → `UpdateContext(target="task", task_slug="competitors-weekly-scan",
       text="Stop tracking Acme. Action: remove entity competitors/acme | severity: high")`
+      (routes to `/workspace/context/competitors/_feedback.md` per ADR-231 D2)
 
 ---
 
-## Evaluation & Steering
+## Evaluation & Steering (ADR-231)
 
-Use `ManageTask` lifecycle actions for structured task management:
-
-```
-ManageTask(task_slug: "...", action: "evaluate")
-```
-Assess the latest output against DELIVERABLE.md quality criteria. Write a structured
-evaluation to memory/feedback.md.
+Recurrence-lifecycle management is via `UpdateContext(target="recurrence")` actions:
 
 ```
-ManageTask(task_slug: "...", action: "steer", steering: "Focus on pricing trends")
+UpdateContext(target="recurrence", action="update", shape=..., slug=...,
+              changes={"steering": "Focus on pricing trends"})
 ```
-Write guidance for the next run. The steering text goes to memory/steering.md and is
-injected into the agent's next execution prompt.
+Write one-shot steering for the next firing into the declaration's `steering:` field.
 
 ```
-ManageTask(task_slug: "...", action: "complete")
+UpdateContext(target="recurrence", action="pause", shape=..., slug=...)
+UpdateContext(target="recurrence", action="resume", shape=..., slug=...)
+UpdateContext(target="recurrence", action="archive", shape=..., slug=...)
 ```
-Mark a goal-mode task as done when success criteria are met.
+Lifecycle controls for the recurrence — pause/resume flips the YAML's `paused:`
+flag (scheduler skips paused declarations); archive removes the entry from the
+multi-decl YAML or the single-decl file entirely.
+
+For DELIVERABLE shape recurrences with a `deliverable:` block, write quality-
+criteria feedback into the natural-home `_feedback.md` and let the
+`infer_task_deliverable_preferences` pipeline (post-evaluate trigger) merge
+the signal back into the YAML's `deliverable:` block via UpdateContext.
 
 ---
 

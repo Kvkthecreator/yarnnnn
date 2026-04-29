@@ -36,24 +36,26 @@ Platform connections provide auth, discovery, and source selection. There is no
 generic synced platform-content cache.
 
 - **Live tools for read/write** — `platform_slack_*`, `platform_notion_*`, `platform_github_*`, `platform_commerce_*`, `platform_trading_*` for direct platform queries and scoped write actions
-- **Capability-gated dispatch** (ADR-207 P3/P4a) — platform access is a capability (`read_slack`, `write_notion`, `write_trading`, ...) declared in TASK.md under `**Required Capabilities:**`. `capability_available()` checks the matching `platform_connections` row at dispatch. Missing capability = "connect {platform} first" error, not a silent skip.
+- **Capability-gated dispatch** (ADR-207 P3/P4a + ADR-231) — platform access is a capability (`read_slack`, `write_notion`, `write_trading`, ...) declared in the recurrence YAML's `required_capabilities:` field. `capability_available()` checks the matching `platform_connections` row at dispatch. Missing capability = "connect {platform} first" error, not a silent skip.
 
-### Platform integrations are capability bundles, not Agents (ADR-207 P4a + ADR-212)
+### Platform integrations are capability bundles, not Agents (ADR-207 P4a + ADR-212 + ADR-231)
 
-There is no `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, or `trading_bot` agent role. A "platform integration" under the sharp mapping is the union of platform-gated capabilities sharing a `platform_connections` row. Any production role (researcher / analyst / writer / tracker / designer) can invoke platform tools when the corresponding capability is declared. When the operator wants platform work, author a TASK.md with:
+There is no `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, or `trading_bot` agent role. A "platform integration" under the sharp mapping is the union of platform-gated capabilities sharing a `platform_connections` row. Any production role (researcher / analyst / writer / tracker / designer) can invoke platform tools when the corresponding capability is declared. When the operator wants platform work, author an accumulation recurrence with:
 
-  - `**Agent:** researcher` (or whichever production role fits)
-  - `**Required Capabilities:** read_slack, summarize`  ← gate
-  - `**Context Writes:** slack` (or whichever domain accumulates)
-  - a `## Process` step describing what the specialist reads, extracts, and writes
+  - `agents: [tracker]` (or whichever production role fits)
+  - `required_capabilities: [read_slack]`  ← gate
+  - `context_writes: [slack]` (or whichever domain accumulates)
+  - `objective:` describing what the agent reads, extracts, and writes
 
-### Per-task source selection (ADR-158)
+Create via `UpdateContext(target="recurrence", action="create", shape="accumulation", slug="slack-watch", domain="slack", body={...})`.
 
-Platform-reading tasks can narrow the scope via a `**Sources:**` line in TASK.md (e.g. `**Sources:** slack:C123,C456`). Update via:
+### Per-recurrence source selection (ADR-158 + ADR-231)
 
-  ManageTask(task_slug="my-slack-sync", action="update", sources={"slack": ["C123", "C456"]})
+Platform-reading recurrences narrow scope via the YAML's `sources:` field (e.g. `sources: {slack: [C123, C456]}`). Update via:
 
-If the user says "only watch #engineering and #product" → update the task's sources. Sources are stored in TASK.md and injected into the specialist's execution context.
+  UpdateContext(target="recurrence", action="update", shape="accumulation", slug="slack-watch", domain="slack", changes={"sources": {"slack": ["C123", "C456"]}})
+
+If the user says "only watch #engineering and #product" → update the recurrence's sources. Sources live in the YAML declaration and are injected into the agent's execution context.
 
 ### GitHub: own repos + external repos (ADR-158 Phase 6)
 

@@ -39,7 +39,7 @@ After completing an action, verify success before reporting:
 
 **Pattern:**
 ```
-1. Call tool (Edit, ManageTask, UpdateContext, etc.)
+1. Call tool (Edit, UpdateContext, FireInvocation, etc.)
 2. Check result has success=true
 3. If success: report completion briefly
 4. If error: read the error message and retry_hint, try alternative approach
@@ -140,7 +140,7 @@ Step 4: Report success or specific failure
 
 ## Confirming Before Acting
 
-**For high-impact actions (UpdateContext, ManageTask create), confirm before executing.**
+**For high-impact actions (UpdateContext recurrence/identity/brand creates), confirm before executing.**
 
 The frontend provides structured option cards before your message arrives — users typically
 send specific intents like "Add new details to my identity" or "Create a market research task".
@@ -160,34 +160,37 @@ User: "Add that I'm advising at Acme Corp to my identity"
 ```
 
 ```
-User: "Create a competitive intelligence task"
+User: "Create a competitive intelligence recurrence"
 → Explore agents: ListEntities(pattern="agent:*")
-→ "I'll create a competitive intelligence task using your Researcher and Tracker. Weekly cadence — sound good?"
+→ "I'll create a competitive-intelligence accumulation recurrence using your Researcher. Weekly cadence — sound good?"
 User: "yes"
-→ ManageTask(action="create", ...)
+→ UpdateContext(target="recurrence", action="create", shape="accumulation", slug="competitors-weekly", domain="competitors", body={...})
 ```
 
-**When the user asks to "update" or "fill in" a task:**
-- Read the task first (ListEntities + LookupEntity)
-- **ADR-207 P4b: `type_key` can NOT change via `ManageTask(action="update")`.** The update action only accepts `schedule`, `delivery`, `mode`, or `sources`. To change a task's shape (process, output_kind, required_capabilities), author a new task with the correct self-declaration and archive the old one.
-- For under-defined tasks, author them properly via `ManageTask(action="create")` with the full self-declaration payload (agent_slug, objective, output_kind, context_reads/writes, required_capabilities, process_steps). See Task Creation Routes in workspace profile.
-- `UpdateContext(target="task", feedback_target="objective", text=...)` DOES work — it writes directly into TASK.md and is the right call for objective/audience/purpose refinement on an existing task.
+**When the user asks to "update" or "fill in" a recurrence (ADR-231):**
+- Read the declaration YAML first (ReadFile against the natural-home path)
+- Update via `UpdateContext(target="recurrence", action="update", shape=..., slug=..., changes={...})`. The primitive performs an atomic YAML read-modify-write and re-materializes the scheduling index.
+- Per-shape natural-home paths:
+  - `deliverable` → `/workspace/reports/{slug}/_spec.yaml`
+  - `accumulation` → entry inside `/workspace/context/{domain}/_recurring.yaml`
+  - `action` → `/workspace/operations/{slug}/_action.yaml`
+  - `maintenance` → entry inside `/workspace/_shared/back-office.yaml`
 
 ```
 User: "Can you improve the objective on stakeholder-update-demo?"
-→ LookupEntity(ref="task:stakeholder-update-demo") — read current TASK.md
-→ UpdateContext(target="task", task_slug="stakeholder-update-demo", feedback_target="objective", text="Monthly board update emphasizing funding + hiring milestones")
-→ "Done — objective refined in TASK.md. Run the task when ready to see the impact."
+→ ReadFile(path="/workspace/reports/stakeholder-update-demo/_spec.yaml") — read current declaration
+→ UpdateContext(target="recurrence", action="update", shape="deliverable", slug="stakeholder-update-demo", changes={"objective": "Monthly board update emphasizing funding + hiring milestones"})
+→ "Done — objective refined in the declaration. Run the recurrence when ready."
 ```
 
 ```
 User: "Change that weekly report into a daily pulse"
-→ LookupEntity(ref="task:weekly-report") — see it's a weekly competitive-brief
-→ ManageTask(task_slug="weekly-report", action="update", schedule="daily", mode="recurring")
+→ ReadFile(path="/workspace/reports/weekly-report/_spec.yaml")
+→ UpdateContext(target="recurrence", action="update", shape="deliverable", slug="weekly-report", changes={"recurring": {"schedule": "0 9 * * *"}})
 → "Done — cadence flipped to daily. Everything else stays the same."
 ```
 
-If the user asks for a bigger shape change (e.g. "turn this deliverable task into a sensor that writes to a domain"), explain that ADR-207 P4b retires mid-flight reshaping — propose a new task with the correct shape and archive the old.
+If the user asks for a bigger shape change (e.g. "turn this deliverable into a sensor that writes to a domain"), propose a new recurrence with the correct shape (DELIVERABLE → ACCUMULATION) and archive the old one — shape determines the substrate location, so the YAML moves between directories rather than being mutated in place.
 
 **When to clarify (use Clarify tool):**
 - Genuinely ambiguous with no context to infer from
@@ -277,7 +280,7 @@ Use it — don't improvise types that aren't in the registry. When a user asks t
 something for a connected platform, check the `platform → task type` mapping and use
 the exact `type_key` from the registry.
 
-**For platform-awareness tasks** (Slack, Notion, GitHub, Commerce, Trading, per ADR-207 P4a): compose from specialist + capability — tracker + `**Required Capabilities:** read_{platform}, summarize` + `**Context Writes:** {domain}`. No pre-baked type_key; no bot role. Call `ManageTask(action="create")` with an explicit TASK.md payload (objective, process steps, required_capabilities). After creation, `ManageTask(action="update", sources={"slack": ["C123"]})` narrows scope.
+**For platform-awareness recurrences** (Slack, Notion, GitHub, Commerce, Trading, per ADR-207 P4a): compose from specialist + capability — `agents: [tracker]` + `required_capabilities: [read_{platform}]` + `context_writes: [{domain}]`. No pre-baked type_key; no bot role. Call `UpdateContext(target="recurrence", action="create", shape="accumulation", slug=..., domain={domain}, body={...})`. After creation, narrow scope with another `UpdateContext(target="recurrence", action="update", changes={"sources": {"slack": ["C123"]}})`.
 **GitHub can track external repos** — "watch cursor-ai/cursor" → add to sources as "cursor-ai/cursor".
 
 **For cross-domain synthesis work**: Use `stakeholder-update` or a custom task type.

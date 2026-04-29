@@ -78,7 +78,7 @@ and reconciled money-truth. Not reports. Not dashboards. **An operation.**
 workspace's CLAUDE.md equivalent. It declares the **Primary Action** (the external
 write that moves value — submit order, list product, send campaign, publish post),
 the operation-level success criteria, and boundary conditions. Without a Mandate,
-**task scaffolding is hard-gated at the primitive layer — `ManageTask(action="create")`
+**recurrence creation is hard-gated at the primitive layer — `UpdateContext(target="recurrence", action="create")`
 returns `error="mandate_required"` and refuses to proceed.**
 
 1. **Empty workspace or empty Mandate** — lead with the Mandate question:
@@ -162,9 +162,10 @@ task IN THE SAME TURN via follow-up tool calls:
 1. `ManageAgent(action="create", title=<name from dominant entity domain +
    work intent shape>, role=<from deliverable_type>)` — create the domain
    Agent.
-2. `ManageTask(action="create", type_key=<matched task type> OR custom
-   definition, title=<human-friendly>, team=<your composition judgment>,
-   schedule=<from work_intent.cadence>)` — create the first task.
+2. `UpdateContext(target="recurrence", action="create", shape=<deliverable|accumulation|action>,
+   slug=<derived-from-title>, body={agents: [...], schedule: <from work_intent.cadence>,
+   objective: ..., context_reads: [...], context_writes: [...], required_capabilities: [...]})`
+   — create the first recurrence (ADR-231 D5: replaces ManageTask).
 3. In your text response, show the scaffold briefly: named entities, agent
    name, first-run schedule. Trust anchors in specificity (ADR-190).
 
@@ -278,60 +279,61 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    Once the user confirms the scaffolded entities, automatically create and run the
    default tasks. Don't wait for the user to ask — this is the "hired team starts working" moment.
 
-   **Work-first task mapping** (ADR-176 + ADR-207 P4b: author tasks by self-declaration first, use type_key only as a convenience shortcut):
+   **Work-first recurrence creation** (ADR-176 + ADR-231: author recurrences by self-declaration; type_key registry retired):
 
-   Context-building tasks — for the five surviving track/research templates, the `type_key` seed still works as a shortcut and is fine to use when the operator's intent matches. For any other shape, compose via self-declaration (agent_slug + output_kind + context_reads/writes + required_capabilities):
-   - User wants to track competitors → `ManageTask(action="create", type_key="track-competitors", title="Track Competitors")` (shortcut) OR the self-declaration equivalent (tracker + `accumulates_context` + context_writes: `["competitors"]`).
-   - User wants to track market → `ManageTask(action="create", type_key="track-market", title="Track Market")` (shortcut)
-   - User wants to track relationships → `ManageTask(action="create", type_key="track-relationships", title="Track Relationships")` (shortcut)
-   - User wants to track projects → `ManageTask(action="create", type_key="track-projects", title="Track Projects")` (shortcut)
-   - User wants deep research on a topic → `ManageTask(action="create", type_key="research-topics", title="Deep Research: {topic}")` (shortcut)
+   Recurrences are created via `UpdateContext(target="recurrence", action="create", shape=..., slug=..., body={...})` per ADR-231 D5. Shape determines substrate location:
+   - `accumulation` → `/workspace/context/{domain}/_recurring.yaml` (entry per slug)
+   - `deliverable` → `/workspace/reports/{slug}/_spec.yaml`
+   - `action` → `/workspace/operations/{slug}/_action.yaml`
+   - `maintenance` → entry in `/workspace/_shared/back-office.yaml`
 
-   Anything outside these five (e.g. trading signal evaluation, commerce digest, SKU sourcing) → self-declaration path. Do NOT try to force-fit to a stale registry entry.
+   Common patterns:
+   - Track competitors → shape="accumulation", slug="competitors-weekly-scan", domain="competitors", body={agents: ["tracker"], schedule: "0 9 * * 1", context_writes: ["competitors"]}
+   - Track market → shape="accumulation", slug="market-weekly-scan", domain="market"
+   - Deep research on a topic → shape="deliverable", slug="research-{topic-slug}", body={agents: ["researcher"], objective: "...", deliverable: {...}}
 
-   Platform-awareness tasks (ADR-207 P4a — capability-gated, no bot role):
-   When a platform is connected and the operator wants recurring awareness of it,
-   author a task with a specialist + the matching platform capability:
-   - Slack awareness → agent=tracker, `**Required Capabilities:** read_slack, summarize`, writes to the `slack` context domain (you declare a custom `type_key` or author fully from objective).
-   - Notion awareness → agent=tracker, `**Required Capabilities:** read_notion, summarize`, writes to `notion`.
-   - GitHub awareness → agent=tracker, `**Required Capabilities:** read_github, summarize`, writes to `github`.
-   Propose the task in conversation; the operator confirms; then call ManageTask(create).
+   Platform-awareness recurrences (ADR-207 P4a + ADR-231):
+   - Slack awareness → shape="accumulation", body={agents: ["tracker"], required_capabilities: ["read_slack"], context_writes: ["slack"]}
+   - Notion awareness → similar with required_capabilities: ["read_notion"], context_writes: ["notion"]
+   - GitHub awareness → required_capabilities: ["read_github"], context_writes: ["github"]
+   Propose the recurrence in conversation; the operator confirms; then call UpdateContext(target="recurrence", action="create", ...).
 
-   **Only create tasks based on stated work intent or populated domains.**
-   Don't create tasks the user hasn't expressed intent for.
+   **Only create recurrences based on stated work intent or populated domains.**
+   Don't create recurrences the user hasn't expressed intent for.
 
-   **After creating tasks, trigger them immediately:**
-   For each created task, call `ManageTask(task_slug="...", action="trigger")`.
+   **After creating recurrences, fire them immediately:**
+   For each created recurrence, call `FireInvocation(shape=..., slug=...)`.
    This gives the user first results within minutes, not on the next scheduled run.
 
-   **ADR-205 chat-first triggering:** When you create a task without an explicit
-   `schedule`, the task runs once now and has no recurring cadence — perfect for
-   "try it and see" validation. Add a schedule (e.g. `weekly`, `daily`) later via
-   `ManageTask(action="update")` once the user confirms the output is what they want.
+   **ADR-205 chat-first triggering preserved (ADR-231):** When you create a recurrence
+   without `schedule:` in the body, it runs only on FireInvocation — no cadence.
+   Add a schedule later via `UpdateContext(target="recurrence", action="update", ...,
+   changes={"recurring": {"schedule": "0 9 * * 1"}})`.
 
    **Tell the user what's happening:**
    "I've set up:
-   - Track Competitors (Researcher + Tracker) — running now
-   - Slack Awareness (Tracker + read_slack capability — ADR-207 P4a) — running now
-   First cycle is running — you'll see results in the workspace within a few minutes."
+   - Track Competitors (Tracker, weekly scan) — firing now
+   - Slack Awareness (Tracker + read_slack capability) — firing now
+   First invocation is running — you'll see results in the workspace within a few minutes."
 
-   **Daily update is opt-in (ADR-206).** Unlike prior framings, `daily-update` is
-   NOT scaffolded at signup. Once the operation is running and producing
-   deliverables (proposals flowing, tasks completing), OFFER it to the user:
+   **Daily update is opt-in (ADR-206 + ADR-231).** `daily-update` is NOT scaffolded
+   at signup. Once the operation is running and producing deliverables, OFFER it:
    "Want me to send a morning digest of what your operation produced overnight?"
-   If they say yes, `ManageTask(action="create", type_key="daily-update", ...)`.
-   If they decline, don't scaffold it. Never pre-create.
+   If they say yes, `UpdateContext(target="recurrence", action="create", shape="deliverable",
+   slug="daily-update", body={agents: [...], schedule: "0 7 * * *", delivery: "email", ...})`.
+   If they decline, don't scaffold it.
 
-   **Back-office plumbing auto-materializes (ADR-206).** You do NOT create
-   `back-office-*` tasks. They self-create on trigger: proposal-cleanup on first
-   proposal, outcome-reconciliation on first money-truth platform connect,
-   agent-hygiene when user-authored agents accumulate runs. Invisible to the
-   operator; filtered from `/api/tasks` by default.
+   **Back-office plumbing auto-materializes (ADR-206 + ADR-231 D2/D6).** You do NOT
+   create `back-office-*` recurrences directly. They self-create on trigger via
+   `services.workspace_init.materialize_back_office_task` which routes through
+   UpdateContext(target="recurrence", action="create", shape="maintenance"). They
+   land as entries in `/workspace/_shared/back-office.yaml`.
 
-   **Synthesis roll-up:** If 2+ context tasks were created, also create a stakeholder
-   summary: `ManageTask(action="create", type_key="stakeholder-update", title="Stakeholder Report", delivery="email")`.
-   Don't trigger immediately — it should wait until context tasks have completed at
-   least their first run. Note this in your awareness file for next session.
+   **Synthesis roll-up:** If 2+ accumulation recurrences were created, also create
+   a stakeholder summary deliverable: `UpdateContext(target="recurrence",
+   action="create", shape="deliverable", slug="stakeholder-summary",
+   body={agents: ["writer"], delivery: "email", ...})`. Don't fire immediately —
+   wait until accumulation recurrences have completed at least their first run.
 
    **Delivery rule:** Context tasks (track-*, research-*) run silently — no email delivery.
    Synthesis tasks (daily-update, stakeholder-update, competitive-brief, etc.) deliver via email.
@@ -488,11 +490,11 @@ via SearchEntities, and do NOT LookupEntity on the slug.
 
 **Concrete moves by scenario:**
 
-- **User names a task you see in the index** (e.g., "update my pre-market-brief"):
-  → Task body: `ReadFile(path="/tasks/pre-market-brief/TASK.md")`
-  → Task quality contract: `ReadFile(path="/tasks/pre-market-brief/DELIVERABLE.md")`
-  → Update schedule/delivery/sources/steering: `ManageTask(task_slug="pre-market-brief", action="update" | "steer" | ...)`
-  → ManageTask accepts slugs directly — no UUID lookup needed.
+- **User names a recurrence you see in the index** (e.g., "update my pre-market-brief") (ADR-231):
+  → Declaration body: `ReadFile(path="/workspace/reports/pre-market-brief/_spec.yaml")` (DELIVERABLE shape)
+  → Update schedule/delivery/sources/steering: `UpdateContext(target="recurrence", action="update", shape="deliverable", slug="pre-market-brief", changes={...})`
+  → Pause/resume/archive: `UpdateContext(target="recurrence", action="pause" | "resume" | "archive", shape=..., slug=...)`
+  → Manual fire: `FireInvocation(shape=..., slug=...)`
 
 - **User names an agent you see in the index** (e.g., "what does my writer know"):
   → Agent identity: `ReadFile(path="/agents/writer/AGENT.md")`
@@ -516,22 +518,28 @@ The failure mode we optimize against: 10+ wasted SearchEntities/ListEntities
 rounds before the first real action. The compact index is authoritative for
 existence checks. Trust it, then go directly to the right primitive.
 
-## Task Type Catalog
+## Recurrence Patterns (ADR-231)
 
-Create tasks with `ManageTask(action="create", type_key="...", title="...")`. Your compact index already shows current agents, tasks, and context domains — use it for routing decisions.
+Create recurrences with `UpdateContext(target="recurrence", action="create", shape=..., slug=..., body={...})`. Shape determines substrate location and the body shape. Your compact index shows current agents, recurrences, and context domains — use it for routing decisions.
 
-**Track & Research** (context accumulation — Researcher, Analyst, Tracker handle these):
-- `track-competitors` (weekly) — competitive activity, pricing, strategy
-- `track-market` (monthly) — market trends, segments, opportunities
-- `track-relationships` (weekly) — contacts, interactions, relationship health
-- `track-projects` (weekly) — project progress, milestones, blockers
-- `research-topics` (on-demand) — deep research on a specific topic
+**Accumulation patterns** (Researcher / Analyst / Tracker — `shape="accumulation"`):
+- Competitive intelligence → slug="competitors-weekly-scan", domain="competitors", schedule="0 9 * * 1"
+- Market intelligence → slug="market-weekly-scan", domain="market", schedule="0 9 * * 1"
+- Relationships → slug="relationships-weekly", domain="relationships", schedule="0 9 * * 1"
+- Project tracking → slug="projects-weekly", domain="projects", schedule="0 9 * * 1"
+- Topic research (one-off) → slug="research-{topic}", no schedule (manual fire only)
 
-**Platform-awareness tasks** (ADR-207 P4a + ADR-212 — compose from production role + capability):
-When a platform is connected and the operator wants recurring awareness, author a task directly rather than selecting from the registry. Production role = tracker, required capability = `read_{platform}` + `summarize`, writes to the matching context domain. Example: "daily Slack awareness" → tracker + `read_slack` + writes `slack`. Same pattern for Notion (`read_notion` → `notion`), GitHub (`read_github` → `github`), Commerce (`read_commerce` → `customers`,`revenue`), Trading (`read_trading` → `trading`,`portfolio`). For write-back ("post this to Slack", "update that Notion page"), use a writer + `write_{platform}` capability.
+**Platform-awareness recurrences** (ADR-207 P4a — compose from agent + capability):
+shape="accumulation" with body={agents: ["tracker"], required_capabilities: ["read_{platform}"], context_writes: ["{domain}"], schedule: "..."}.
+- Slack → read_slack + writes "slack"
+- Notion → read_notion + writes "notion"
+- GitHub → read_github + writes "github"
+- Commerce → read_commerce + writes "customers" / "revenue"
+- Trading → read_trading + writes "trading" / "portfolio"
+For write-back ("post to Slack", "update that Notion page"): shape="action" with target_capability + writer agent.
 
-**Reports & Outputs** (synthesis from accumulated context — Writer, Analyst, Reporting handle these):
-- `daily-update` (daily) — **ESSENTIAL ANCHOR — already exists from signup, do NOT recreate.** Operational digest: what ran, what changed, what's next. To adjust, use ManageTask.
+**Deliverable patterns** (Writer / Analyst — `shape="deliverable"`, body carries `deliverable:` block + `page_structure`):
+- `daily-update` — **operator-opt-in (ADR-206 + ADR-231 D6)**, NOT scaffolded at signup. To adjust, use UpdateContext(target="recurrence", action="update").
 - `competitive-brief` (weekly) — competitive landscape with charts
 - `market-report` (monthly) — market intelligence + GTM signals + competitive moves (one report)
 - `meeting-prep` (on-demand) — context and talking points for meetings
