@@ -56,6 +56,17 @@ ADR-230 D6, ensure specialist agent rows, POST default tasks from
 | [observations/](./observations/) | One note per friction event. Template + rules in the dir's README. Must classify per DUAL-OBJECTIVE-DISCIPLINE.md schema. |
 | [reports/](./reports/) | Dual weekly reports per persona (A-system + B-product). Sunday cadence. |
 
+## Alpha-operator subagent (Claude Code)
+
+The recurring rituals (daily sanity check, end-of-day decisions/outcomes
+scan, weekly performance + cost report, observation note triage, phase-
+transition readiness check) have a dedicated subagent at
+[.claude/agents/alpha-operator.md](../../.claude/agents/alpha-operator.md).
+Invoke via `Agent(subagent_type="alpha-operator", ...)` from any Claude
+Code session. The subagent is narrow: it reads, drafts, reports — it
+does not approve proposals, edit operator substrate, flip phases, or
+commit. High-stakes actions explicitly defer back to the main session.
+
 ## Session-start ritual (any Claude session, any operator)
 
 ```bash
@@ -81,3 +92,4 @@ they generalize. Update this INDEX when new docs land.
 |------|--------|
 | 2026-04-21 | v1 — Initial index. Five canonical docs + two substrate subdirectories. Created alongside DUAL-OBJECTIVE-DISCIPLINE.md. |
 | 2026-04-30 | v2 — SCOPE.md added as canonical first-read. Locks in trading-only + money-truth + cost-truth contract + alpha-commerce parked. |
+| 2026-04-30 | v3 — Alpha-operator subagent ([.claude/agents/alpha-operator.md](../../.claude/agents/alpha-operator.md)) shipped. Recurring rituals delegate to it; high-stakes actions still route through main session. |
