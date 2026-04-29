@@ -389,6 +389,552 @@ action:
 
 
 # ---------------------------------------------------------------------------
+# Phase 3.2.a — Path Resolution (services/recurrence_paths.py)
+#
+# Maps RecurrenceDeclaration → natural-home substrate paths per ADR-231 D2/D9/D10.
+# Every shape × every path-kind combination has an explicit assertion here so
+# the contract is enforced at CI time before the dispatcher (3.2.b) consumes it.
+# ---------------------------------------------------------------------------
+
+
+def _make_decl(
+    shape: RecurrenceShape,
+    slug: str,
+    declaration_path: str,
+    data: dict | None = None,
+) -> RecurrenceDeclaration:
+    return RecurrenceDeclaration(
+        shape=shape,
+        slug=slug,
+        declaration_path=declaration_path,
+        data=data or {},
+    )
+
+
+# ---- resolve_substrate_root ----
+
+
+def test_substrate_root_deliverable():
+    from services.recurrence_paths import resolve_substrate_root
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+    )
+    assert resolve_substrate_root(decl) == "/workspace/reports/market-weekly"
+
+
+def test_substrate_root_accumulation():
+    from services.recurrence_paths import resolve_substrate_root
+
+    decl = _make_decl(
+        RecurrenceShape.ACCUMULATION,
+        "competitors-weekly-scan",
+        "/workspace/context/competitors/_recurring.yaml",
+    )
+    # ACCUMULATION root is the *domain*, not the slug — multiple recurrences share it
+    assert resolve_substrate_root(decl) == "/workspace/context/competitors"
+
+
+def test_substrate_root_accumulation_missing_domain_raises():
+    from services.recurrence_paths import resolve_substrate_root
+
+    # Path doesn't match the domain pattern → decl.domain returns None
+    decl = _make_decl(
+        RecurrenceShape.ACCUMULATION,
+        "orphan",
+        "/workspace/not-a-domain-path/_recurring.yaml",
+    )
+    try:
+        resolve_substrate_root(decl)
+        assert False, "expected ValueError for missing domain"
+    except ValueError as e:
+        assert "missing domain" in str(e)
+
+
+def test_substrate_root_action():
+    from services.recurrence_paths import resolve_substrate_root
+
+    decl = _make_decl(
+        RecurrenceShape.ACTION,
+        "slack-standup",
+        "/workspace/operations/slack-standup/_action.yaml",
+    )
+    assert resolve_substrate_root(decl) == "/workspace/operations/slack-standup"
+
+
+def test_substrate_root_maintenance():
+    from services.recurrence_paths import resolve_substrate_root
+
+    decl = _make_decl(
+        RecurrenceShape.MAINTENANCE,
+        "back-office-workspace-cleanup",
+        "/workspace/_shared/back-office.yaml",
+    )
+    # MAINTENANCE root is the shared back-office area — all back-office tasks share it
+    assert resolve_substrate_root(decl) == "/workspace/_shared"
+
+
+# ---- resolve_output_path ----
+
+
+def test_output_path_deliverable_default_with_date():
+    from services.recurrence_paths import resolve_output_path, DATE_FOLDER_FORMAT
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+    )
+    started = datetime(2026, 4, 29, 14, 30, tzinfo=timezone.utc)
+    expected_date = started.strftime(DATE_FOLDER_FORMAT)
+    assert (
+        resolve_output_path(decl, started_at=started)
+        == f"/workspace/reports/market-weekly/{expected_date}/output.md"
+    )
+
+
+def test_output_path_deliverable_no_started_at_preserves_placeholder():
+    from services.recurrence_paths import resolve_output_path
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+    )
+    # No started_at → literal {date} placeholder — useful for declaration-time references
+    assert (
+        resolve_output_path(decl)
+        == "/workspace/reports/market-weekly/{date}/output.md"
+    )
+
+
+def test_output_path_deliverable_bundle_override_with_placeholder():
+    from services.recurrence_paths import resolve_output_path
+
+    # Bundle declares a custom output_path with {date} placeholder
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "pre-market-brief",
+        "/workspace/reports/pre-market-brief/_spec.yaml",
+        data={"output_path": "/workspace/reports/pre-market-brief/{date}/brief.md"},
+    )
+    started = datetime(2026, 4, 29, 7, 0, tzinfo=timezone.utc)
+    result = resolve_output_path(decl, started_at=started)
+    assert result == "/workspace/reports/pre-market-brief/2026-04-29T0700/brief.md"
+
+
+def test_output_path_deliverable_bundle_override_literal():
+    from services.recurrence_paths import resolve_output_path
+
+    # Bundle author opts out of dating with a literal path
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "single-shot",
+        "/workspace/reports/single-shot/_spec.yaml",
+        data={"output_path": "/workspace/reports/single-shot/output.md"},
+    )
+    started = datetime(2026, 4, 29, tzinfo=timezone.utc)
+    # Literal path returned as-is
+    assert (
+        resolve_output_path(decl, started_at=started)
+        == "/workspace/reports/single-shot/output.md"
+    )
+
+
+def test_output_path_accumulation_raises():
+    from services.recurrence_paths import resolve_output_path
+
+    decl = _make_decl(
+        RecurrenceShape.ACCUMULATION,
+        "competitors-weekly-scan",
+        "/workspace/context/competitors/_recurring.yaml",
+    )
+    try:
+        resolve_output_path(decl)
+        assert False, "expected ValueError — ACCUMULATION has no output path"
+    except ValueError as e:
+        assert "no canonical output path" in str(e)
+
+
+def test_output_path_action_raises():
+    from services.recurrence_paths import resolve_output_path
+
+    decl = _make_decl(
+        RecurrenceShape.ACTION,
+        "slack-standup",
+        "/workspace/operations/slack-standup/_action.yaml",
+    )
+    try:
+        resolve_output_path(decl)
+        assert False, "expected ValueError — ACTION has no filesystem output"
+    except ValueError as e:
+        assert "no filesystem output" in str(e)
+
+
+def test_output_path_maintenance_returns_audit_log():
+    from services.recurrence_paths import resolve_output_path
+
+    decl = _make_decl(
+        RecurrenceShape.MAINTENANCE,
+        "back-office-workspace-cleanup",
+        "/workspace/_shared/back-office.yaml",
+    )
+    # ADR-231 D2: back-office collapses to single shared audit log
+    assert (
+        resolve_output_path(decl) == "/workspace/_shared/back-office-audit.md"
+    )
+
+
+# ---- resolve_output_folder ----
+
+
+def test_output_folder_deliverable():
+    from services.recurrence_paths import resolve_output_folder
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+    )
+    started = datetime(2026, 4, 29, 14, 30, tzinfo=timezone.utc)
+    assert (
+        resolve_output_folder(decl, started_at=started)
+        == "/workspace/reports/market-weekly/2026-04-29T1430"
+    )
+
+
+def test_output_folder_non_deliverable_raises():
+    from services.recurrence_paths import resolve_output_folder
+
+    for shape, slug, path in [
+        (RecurrenceShape.ACCUMULATION, "scan", "/workspace/context/x/_recurring.yaml"),
+        (RecurrenceShape.ACTION, "post", "/workspace/operations/post/_action.yaml"),
+        (RecurrenceShape.MAINTENANCE, "cleanup", "/workspace/_shared/back-office.yaml"),
+    ]:
+        decl = _make_decl(shape, slug, path)
+        try:
+            resolve_output_folder(decl)
+            assert False, f"expected ValueError for {shape.value}"
+        except ValueError as e:
+            assert "DELIVERABLE-only" in str(e)
+
+
+# ---- resolve_run_log_path ----
+
+
+def test_run_log_deliverable():
+    from services.recurrence_paths import resolve_run_log_path
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+    )
+    assert (
+        resolve_run_log_path(decl) == "/workspace/reports/market-weekly/_run_log.md"
+    )
+
+
+def test_run_log_accumulation_per_domain():
+    from services.recurrence_paths import resolve_run_log_path
+
+    # Two declarations under the same domain share the run log
+    decl_a = _make_decl(
+        RecurrenceShape.ACCUMULATION,
+        "competitors-weekly-scan",
+        "/workspace/context/competitors/_recurring.yaml",
+    )
+    decl_b = _make_decl(
+        RecurrenceShape.ACCUMULATION,
+        "competitors-pricing-watch",
+        "/workspace/context/competitors/_recurring.yaml",
+    )
+    assert resolve_run_log_path(decl_a) == "/workspace/context/competitors/_run_log.md"
+    assert resolve_run_log_path(decl_b) == "/workspace/context/competitors/_run_log.md"
+
+
+def test_run_log_action():
+    from services.recurrence_paths import resolve_run_log_path
+
+    decl = _make_decl(
+        RecurrenceShape.ACTION,
+        "slack-standup",
+        "/workspace/operations/slack-standup/_action.yaml",
+    )
+    assert (
+        resolve_run_log_path(decl) == "/workspace/operations/slack-standup/_run_log.md"
+    )
+
+
+def test_run_log_maintenance_is_audit_log():
+    from services.recurrence_paths import resolve_run_log_path, resolve_output_path
+
+    # ADR-231 D10: the audit log IS the run log for MAINTENANCE
+    decl = _make_decl(
+        RecurrenceShape.MAINTENANCE,
+        "back-office-workspace-cleanup",
+        "/workspace/_shared/back-office.yaml",
+    )
+    assert resolve_run_log_path(decl) == resolve_output_path(decl)
+    assert resolve_run_log_path(decl) == "/workspace/_shared/back-office-audit.md"
+
+
+# ---- resolve_feedback_path ----
+
+
+def test_feedback_deliverable_per_declaration():
+    from services.recurrence_paths import resolve_feedback_path
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+    )
+    assert (
+        resolve_feedback_path(decl)
+        == "/workspace/reports/market-weekly/_feedback.md"
+    )
+
+
+def test_feedback_accumulation_per_domain():
+    from services.recurrence_paths import resolve_feedback_path
+
+    decl = _make_decl(
+        RecurrenceShape.ACCUMULATION,
+        "competitors-weekly-scan",
+        "/workspace/context/competitors/_recurring.yaml",
+    )
+    # Per-domain feedback (already canonical per ADR-181)
+    assert (
+        resolve_feedback_path(decl)
+        == "/workspace/context/competitors/_feedback.md"
+    )
+
+
+def test_feedback_action_none():
+    from services.recurrence_paths import resolve_feedback_path
+
+    # Outcomes ARE the feedback signal per ADR-195 — no separate file
+    decl = _make_decl(
+        RecurrenceShape.ACTION,
+        "slack-standup",
+        "/workspace/operations/slack-standup/_action.yaml",
+    )
+    assert resolve_feedback_path(decl) is None
+
+
+def test_feedback_maintenance_none():
+    from services.recurrence_paths import resolve_feedback_path
+
+    decl = _make_decl(
+        RecurrenceShape.MAINTENANCE,
+        "back-office-workspace-cleanup",
+        "/workspace/_shared/back-office.yaml",
+    )
+    assert resolve_feedback_path(decl) is None
+
+
+# ---- resolve_intent_path / resolve_steering_path ----
+
+
+def test_intent_and_steering_present_for_judgment_shapes():
+    from services.recurrence_paths import resolve_intent_path, resolve_steering_path
+
+    cases = [
+        (RecurrenceShape.DELIVERABLE, "market-weekly", "/workspace/reports/market-weekly/_spec.yaml",
+         "/workspace/reports/market-weekly"),
+        (RecurrenceShape.ACCUMULATION, "competitors-weekly-scan", "/workspace/context/competitors/_recurring.yaml",
+         "/workspace/context/competitors"),
+        (RecurrenceShape.ACTION, "slack-standup", "/workspace/operations/slack-standup/_action.yaml",
+         "/workspace/operations/slack-standup"),
+    ]
+    for shape, slug, decl_path, expected_root in cases:
+        decl = _make_decl(shape, slug, decl_path)
+        assert resolve_intent_path(decl) == f"{expected_root}/_intent.md"
+        assert resolve_steering_path(decl) == f"{expected_root}/_steering.md"
+
+
+def test_intent_and_steering_absent_for_maintenance():
+    from services.recurrence_paths import resolve_intent_path, resolve_steering_path
+
+    decl = _make_decl(
+        RecurrenceShape.MAINTENANCE,
+        "back-office-workspace-cleanup",
+        "/workspace/_shared/back-office.yaml",
+    )
+    assert resolve_intent_path(decl) is None
+    assert resolve_steering_path(decl) is None
+
+
+# ---- resolve_working_scratch_path ----
+
+
+def test_working_scratch_deliverable():
+    from services.recurrence_paths import resolve_working_scratch_path
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+    )
+    assert (
+        resolve_working_scratch_path(decl)
+        == "/workspace/reports/market-weekly/working/"
+    )
+
+
+def test_working_scratch_accumulation_sub_keyed_by_slug():
+    from services.recurrence_paths import resolve_working_scratch_path
+
+    # ADR-231 D9: domain-shared dirs sub-key working/ by recurrence slug
+    decl_a = _make_decl(
+        RecurrenceShape.ACCUMULATION,
+        "competitors-weekly-scan",
+        "/workspace/context/competitors/_recurring.yaml",
+    )
+    decl_b = _make_decl(
+        RecurrenceShape.ACCUMULATION,
+        "competitors-pricing-watch",
+        "/workspace/context/competitors/_recurring.yaml",
+    )
+    assert (
+        resolve_working_scratch_path(decl_a)
+        == "/workspace/context/competitors/working/competitors-weekly-scan/"
+    )
+    assert (
+        resolve_working_scratch_path(decl_b)
+        == "/workspace/context/competitors/working/competitors-pricing-watch/"
+    )
+
+
+def test_working_scratch_action():
+    from services.recurrence_paths import resolve_working_scratch_path
+
+    decl = _make_decl(
+        RecurrenceShape.ACTION,
+        "slack-standup",
+        "/workspace/operations/slack-standup/_action.yaml",
+    )
+    assert (
+        resolve_working_scratch_path(decl)
+        == "/workspace/operations/slack-standup/working/"
+    )
+
+
+def test_working_scratch_maintenance_sub_keyed_by_slug():
+    from services.recurrence_paths import resolve_working_scratch_path
+
+    # MAINTENANCE shares /workspace/_shared/ so working scratch is sub-keyed
+    decl_a = _make_decl(
+        RecurrenceShape.MAINTENANCE,
+        "back-office-workspace-cleanup",
+        "/workspace/_shared/back-office.yaml",
+    )
+    decl_b = _make_decl(
+        RecurrenceShape.MAINTENANCE,
+        "back-office-outcome-reconciliation",
+        "/workspace/_shared/back-office.yaml",
+    )
+    assert (
+        resolve_working_scratch_path(decl_a)
+        == "/workspace/_shared/working/back-office-workspace-cleanup/"
+    )
+    assert (
+        resolve_working_scratch_path(decl_b)
+        == "/workspace/_shared/working/back-office-outcome-reconciliation/"
+    )
+
+
+# ---- resolve_paths (aggregate) ----
+
+
+def test_resolve_paths_deliverable_full_bundle():
+    from services.recurrence_paths import resolve_paths
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+    )
+    started = datetime(2026, 4, 29, 14, 30, tzinfo=timezone.utc)
+    paths = resolve_paths(decl, started_at=started)
+    assert paths.substrate_root == "/workspace/reports/market-weekly"
+    assert paths.output_path == "/workspace/reports/market-weekly/2026-04-29T1430/output.md"
+    assert paths.output_folder == "/workspace/reports/market-weekly/2026-04-29T1430"
+    assert paths.run_log_path == "/workspace/reports/market-weekly/_run_log.md"
+    assert paths.feedback_path == "/workspace/reports/market-weekly/_feedback.md"
+    assert paths.intent_path == "/workspace/reports/market-weekly/_intent.md"
+    assert paths.steering_path == "/workspace/reports/market-weekly/_steering.md"
+    assert paths.working_scratch == "/workspace/reports/market-weekly/working/"
+
+
+def test_resolve_paths_accumulation_no_output():
+    from services.recurrence_paths import resolve_paths
+
+    decl = _make_decl(
+        RecurrenceShape.ACCUMULATION,
+        "competitors-weekly-scan",
+        "/workspace/context/competitors/_recurring.yaml",
+    )
+    paths = resolve_paths(decl)
+    assert paths.substrate_root == "/workspace/context/competitors"
+    assert paths.output_path is None  # ACCUMULATION has no output file
+    assert paths.output_folder is None
+    assert paths.run_log_path == "/workspace/context/competitors/_run_log.md"
+    assert paths.feedback_path == "/workspace/context/competitors/_feedback.md"
+    assert paths.intent_path == "/workspace/context/competitors/_intent.md"
+    assert paths.steering_path == "/workspace/context/competitors/_steering.md"
+    assert (
+        paths.working_scratch
+        == "/workspace/context/competitors/working/competitors-weekly-scan/"
+    )
+
+
+def test_resolve_paths_action_no_output_no_feedback():
+    from services.recurrence_paths import resolve_paths
+
+    decl = _make_decl(
+        RecurrenceShape.ACTION,
+        "slack-standup",
+        "/workspace/operations/slack-standup/_action.yaml",
+    )
+    paths = resolve_paths(decl)
+    assert paths.substrate_root == "/workspace/operations/slack-standup"
+    assert paths.output_path is None
+    assert paths.output_folder is None
+    assert paths.run_log_path == "/workspace/operations/slack-standup/_run_log.md"
+    assert paths.feedback_path is None  # outcomes ARE the feedback per ADR-195
+    assert paths.intent_path == "/workspace/operations/slack-standup/_intent.md"
+    assert paths.steering_path == "/workspace/operations/slack-standup/_steering.md"
+    assert paths.working_scratch == "/workspace/operations/slack-standup/working/"
+
+
+def test_resolve_paths_maintenance_minimal():
+    from services.recurrence_paths import resolve_paths
+
+    decl = _make_decl(
+        RecurrenceShape.MAINTENANCE,
+        "back-office-workspace-cleanup",
+        "/workspace/_shared/back-office.yaml",
+    )
+    paths = resolve_paths(decl)
+    assert paths.substrate_root == "/workspace/_shared"
+    assert paths.output_path == "/workspace/_shared/back-office-audit.md"
+    assert paths.output_folder is None  # no per-firing folder for MAINTENANCE
+    # Run log == output path (the audit log doubles as run log per D10)
+    assert paths.run_log_path == paths.output_path
+    assert paths.feedback_path is None
+    assert paths.intent_path is None
+    assert paths.steering_path is None
+    assert (
+        paths.working_scratch
+        == "/workspace/_shared/working/back-office-workspace-cleanup/"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Test summary
 # ---------------------------------------------------------------------------
 
