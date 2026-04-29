@@ -38,7 +38,7 @@ import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
-import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
+import { RecurrenceSetupModal } from '@/components/chat-surface/RecurrenceSetupModal';
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
 
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -212,7 +212,7 @@ export default function ContextPage() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
   const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
-  const [taskSetupOpen, setTaskSetupOpen] = useState(false);
+  const [recurrenceSetupOpen, setRecurrenceSetupOpen] = useState(false);
 
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
 
@@ -374,7 +374,7 @@ export default function ContextPage() {
   // (IDENTITY / BRAND / CONVENTIONS / MANDATE) are substrate per R3 — edit
   // the file directly on Files. ManageContextModal is retired.
   const plusMenuActions: PlusMenuAction[] = [
-    { id: 'create-task', label: 'Start new work', icon: ListChecks, verb: 'show', onSelect: () => setTaskSetupOpen(true) },
+    { id: 'create-task', label: 'Start new work', icon: ListChecks, verb: 'show', onSelect: () => setRecurrenceSetupOpen(true) },
     {
       id: 'web-search',
       label: 'Web search',
@@ -484,10 +484,10 @@ export default function ContextPage() {
       )}
     </ThreePanelLayout>
 
-      <TaskSetupModal
-        open={taskSetupOpen}
-        onClose={() => setTaskSetupOpen(false)}
-        onSubmit={(msg) => { setTaskSetupOpen(false); sendMessage(msg, { surface: effectiveSurface }); }}
+      <RecurrenceSetupModal
+        open={recurrenceSetupOpen}
+        onClose={() => setRecurrenceSetupOpen(false)}
+        onSubmit={(msg) => { setRecurrenceSetupOpen(false); sendMessage(msg, { surface: effectiveSurface }); }}
       />
     </>
   );

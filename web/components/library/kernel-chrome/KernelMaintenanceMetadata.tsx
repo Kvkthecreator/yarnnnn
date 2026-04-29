@@ -7,14 +7,14 @@
  */
 
 import { useWorkDetailActions } from '../WorkDetailActionsContext';
-import { WorkModeBadge } from '@/components/work/WorkModeBadge';
+import { WorkShapeBadge } from '@/components/work/WorkShapeBadge';
 import { formatRelativeTime } from '@/lib/formatting';
 
 export function KernelMaintenanceMetadata() {
   const { task } = useWorkDetailActions();
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <WorkModeBadge schedule={task.schedule} />
+      <WorkShapeBadge schedule={task.schedule} />
       {task.schedule && (
         <>
           <span className="text-muted-foreground/30">·</span>

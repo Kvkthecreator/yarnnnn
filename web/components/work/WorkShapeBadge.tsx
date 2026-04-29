@@ -1,21 +1,21 @@
 /**
- * WorkModeBadge — Renders a task's cadence as a user-facing label.
+ * WorkShapeBadge — Renders a recurrence's cadence as a user-facing label.
  *
- * Derives Recurring vs One-time from the task's `schedule` field, not
- * the internal `mode`. A task with a schedule is Recurring; a task
- * without one (or with "on-demand") is One-time. The execution mode
- * (recurring/goal/reactive) is an internal concern — users never see it.
+ * Derives Recurring vs One-time from the recurrence's `schedule` field. A
+ * recurrence with a schedule is Recurring; one without (or with "on-demand")
+ * is One-time. ADR-231 sunset internal mode/output_kind plumbing — the badge
+ * speaks shape × cadence, not legacy task abstractions.
  */
 
 import { cn } from '@/lib/utils';
 import { recurrenceLabel } from '@/types';
 
-interface WorkModeBadgeProps {
+interface WorkShapeBadgeProps {
   schedule: string | undefined | null;
   className?: string;
 }
 
-export function WorkModeBadge({ schedule, className }: WorkModeBadgeProps) {
+export function WorkShapeBadge({ schedule, className }: WorkShapeBadgeProps) {
   const label = recurrenceLabel(schedule);
   const isRecurring = label === 'Recurring';
 

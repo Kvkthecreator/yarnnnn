@@ -556,7 +556,7 @@ export const api = {
 
     // ADR-215 Phase 4 + ADR-231 D5: frontend no longer POSTs /api/recurrences
     // for creation. Recurrence creation routes through YARNNN via
-    // TaskSetupModal → UpdateContext(target='recurrence', action='create',
+    // RecurrenceSetupModal → UpdateContext(target='recurrence', action='create',
     // shape=..., slug=..., body={...}) per ADR-206 CRUD split + ADR-231 D5
     // (ManageTask deleted in Phase 3.7).
 

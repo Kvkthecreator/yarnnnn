@@ -93,7 +93,7 @@ export interface ChatPanelProps {
   /**
    * ADR-219 Commit 5 D6: callback invoked when the operator clicks
    * "Make this recurring" on a material inline-action user message.
-   * Parent typically opens TaskSetupModal pre-filled with the message
+   * Parent typically opens RecurrenceSetupModal pre-filled with the message
    * text. When undefined, the affordance is hidden.
    */
   onMakeRecurring?: (messageContent: string) => void;

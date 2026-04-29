@@ -34,7 +34,7 @@ import { AgentRosterSurface } from '@/components/agents/AgentRosterSurface';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
-import { TaskSetupModal } from '@/components/chat-surface/TaskSetupModal';
+import { RecurrenceSetupModal } from '@/components/chat-surface/RecurrenceSetupModal';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
 
@@ -44,8 +44,8 @@ export default function AgentsPage() {
   const { loadScopedHistory, sendMessage } = useTP();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
   const { agents, tasks, loading } = useAgentsAndRecurrences();
-  const [taskSetupOpen, setTaskSetupOpen] = useState(false);
-  const [taskSetupNotes, setTaskSetupNotes] = useState('');
+  const [recurrenceSetupOpen, setRecurrenceSetupOpen] = useState(false);
+  const [recurrenceSetupNotes, setRecurrenceSetupNotes] = useState('');
 
   const agentFromUrl = searchParams.get('agent');
 
@@ -105,8 +105,8 @@ export default function AgentsPage() {
           icon: ListChecks,
           verb: 'show' as const,
           onSelect: () => {
-            setTaskSetupNotes(`For ${selectedAgent.title}.`);
-            setTaskSetupOpen(true);
+            setRecurrenceSetupNotes(`For ${selectedAgent.title}.`);
+            setRecurrenceSetupOpen(true);
           },
         },
       ];
@@ -117,7 +117,7 @@ export default function AgentsPage() {
         label: 'Start new work',
         icon: ListChecks,
         verb: 'show' as const,
-        onSelect: () => { setTaskSetupNotes(''); setTaskSetupOpen(true); },
+        onSelect: () => { setRecurrenceSetupNotes(''); setRecurrenceSetupOpen(true); },
       },
     ];
   }, [selectedAgent, agentTasks, sendMessage, surfaceOverride]);
@@ -167,11 +167,11 @@ export default function AgentsPage() {
       )}
     </ThreePanelLayout>
 
-    <TaskSetupModal
-      open={taskSetupOpen}
-      onClose={() => setTaskSetupOpen(false)}
-      onSubmit={(msg) => { setTaskSetupOpen(false); sendMessage(msg, { surface: surfaceOverride }); }}
-      initialNotes={taskSetupNotes}
+    <RecurrenceSetupModal
+      open={recurrenceSetupOpen}
+      onClose={() => setRecurrenceSetupOpen(false)}
+      onSubmit={(msg) => { setRecurrenceSetupOpen(false); sendMessage(msg, { surface: surfaceOverride }); }}
+      initialNotes={recurrenceSetupNotes}
     />
     </>
   );

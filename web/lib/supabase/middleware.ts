@@ -25,7 +25,6 @@ const PROTECTED_PREFIXES = [
   "/team",
   "/workfloor",
   "/orchestrator",
-  "/tasks",
 ];
 
 function redirectToLogin(request: NextRequest) {

@@ -3,7 +3,7 @@
 /**
  * Chat Page — YARNNN chat surface (ADR-167 v5, ADR-178, ADR-215 Phase 6).
  *
- * HOME route per ADR-205 F1. "Start new work" opens the TaskSetupModal
+ * HOME route per ADR-205 F1. "Start new work" opens the RecurrenceSetupModal
  * (ADR-178 two-route structured intent capture). Onboarding is conversational
  * with YARNNN per ADR-190 — no onboarding modal. Mid-conversation awareness
  * lives in the SnapshotModal (ADR-215 Phase 6).

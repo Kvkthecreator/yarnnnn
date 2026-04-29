@@ -12,7 +12,7 @@
  *      `<!-- snapshot: ... -->` marker or the surface header "Snapshot"
  *      button. Pure read, zero LLM at open, stay-in-chat contract per
  *      ADR-215 Phase 6.
- *   2. TaskSetupModal — structured task creation (wraps TaskSetup).
+ *   2. RecurrenceSetupModal — structured task creation (wraps RecurrenceSetup).
  *      Opened by "Start new work" plus-menu action or Heads Up idle-agents flag.
  *
  * ADR-215 Phase 6 (2026-04-24): the overlay prior named "Workspace" with
@@ -23,7 +23,7 @@
  *
  * ADR-215 Phase 5 (2026-04-24): OnboardingModal / ContextSetup retired.
  * ADR-190 (2026-04-17): onboarding is conversational with YARNNN.
- * ADR-178 (2026-04-13): TaskSetup added as the singular creation modal.
+ * ADR-178 (2026-04-13): RecurrenceSetup added as the singular creation modal.
  * ADR-189 (2026-04-17): TP → YARNNN user-facing rename.
  */
 
@@ -40,7 +40,7 @@ import {
   type SnapshotLead,
 } from '@/lib/snapshot-meta';
 import { SnapshotModal } from './SnapshotModal';
-import { TaskSetupModal } from './TaskSetupModal';
+import { RecurrenceSetupModal } from './RecurrenceSetupModal';
 import { ChatEmptyState } from './ChatEmptyState';
 import { ChatFilterBar, parseChatFilterFromSearch } from './ChatFilterBar';
 import { cn } from '@/lib/utils';
@@ -65,8 +65,8 @@ export function ChatSurface({
   const [snapshotReason, setSnapshotReason] = useState<string | null>(null);
 
   // --- Task setup modal state ---
-  const [taskSetupOpen, setTaskSetupOpen] = useState(false);
-  const [taskSetupInitialNotes, setTaskSetupInitialNotes] = useState('');
+  const [recurrenceSetupOpen, setRecurrenceSetupOpen] = useState(false);
+  const [recurrenceSetupInitialNotes, setRecurrenceSetupInitialNotes] = useState('');
 
   // ADR-219 Commit 5: filter bar visibility (off by default — we
   // toggle from the surface header). The filter itself is parsed from
@@ -135,17 +135,17 @@ export function ChatSurface({
   );
 
   // Task setup modal — opened from plus-menu.
-  const handleOpenTaskSetup = useCallback((initialNotes = '') => {
+  const handleOpenRecurrenceSetup = useCallback((initialNotes = '') => {
     setSnapshotOpen(false);
-    setTaskSetupInitialNotes(initialNotes);
-    setTaskSetupOpen(true);
+    setRecurrenceSetupInitialNotes(initialNotes);
+    setRecurrenceSetupOpen(true);
   }, []);
 
   // ADR-219 D6 + ADR-231 D1: "Make this recurring" graduates an inline
   // operator ask into a recurrence declaration. Per D1, the operator's
   // first invocation already fired and produced output; this graduation
   // attaches a nameplate + pulse + contract for repeat firings. We open
-  // TaskSetupModal pre-filled with the operator's original message so
+  // RecurrenceSetupModal pre-filled with the operator's original message so
   // they confirm + refine; YARNNN then calls
   // UpdateContext(target='recurrence', action='create', ...) per D5.
   const handleMakeRecurring = useCallback(
@@ -153,16 +153,16 @@ export function ChatSurface({
       const seed = messageContent.length > 480
         ? messageContent.slice(0, 480) + '…'
         : messageContent;
-      handleOpenTaskSetup(`Recurring intent: ${seed}`);
+      handleOpenRecurrenceSetup(`Recurring intent: ${seed}`);
     },
-    [handleOpenTaskSetup],
+    [handleOpenRecurrenceSetup],
   );
 
-  const handleTaskSetupClose = useCallback(() => setTaskSetupOpen(false), []);
+  const handleRecurrenceSetupClose = useCallback(() => setRecurrenceSetupOpen(false), []);
 
-  const handleTaskSetupSubmit = useCallback(
+  const handleRecurrenceSetupSubmit = useCallback(
     (msg: string) => {
-      setTaskSetupOpen(false);
+      setRecurrenceSetupOpen(false);
       sendMessage(msg);
     },
     [sendMessage],
@@ -170,17 +170,17 @@ export function ChatSurface({
 
   // Built-in plus-menu actions — prepended to any page-supplied actions.
   // ADR-215 R4: + menu is a modal launcher only. Exactly one built-in —
-  // "Start new work" → TaskSetupModal.
+  // "Start new work" → RecurrenceSetupModal.
   const allPlusMenuActions = useMemo<PlusMenuAction[]>(() => [
     {
       id: 'create-task',
       label: 'Start new work',
       icon: ListChecks,
       verb: 'show',
-      onSelect: () => handleOpenTaskSetup(),
+      onSelect: () => handleOpenRecurrenceSetup(),
     },
     ...plusMenuActions,
-  ], [plusMenuActions, handleOpenTaskSetup]);
+  ], [plusMenuActions, handleOpenRecurrenceSetup]);
 
   // Snapshot toggle button — lives in the surface header.
   const snapshotAction = (
@@ -277,11 +277,11 @@ export function ChatSurface({
       />
 
       {/* Task setup modal — structured task creation (ADR-178) */}
-      <TaskSetupModal
-        open={taskSetupOpen}
-        onClose={handleTaskSetupClose}
-        onSubmit={handleTaskSetupSubmit}
-        initialNotes={taskSetupInitialNotes}
+      <RecurrenceSetupModal
+        open={recurrenceSetupOpen}
+        onClose={handleRecurrenceSetupClose}
+        onSubmit={handleRecurrenceSetupSubmit}
+        initialNotes={recurrenceSetupInitialNotes}
       />
     </div>
   );

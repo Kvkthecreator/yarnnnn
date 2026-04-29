@@ -1,21 +1,24 @@
 'use client';
 
 /**
- * TaskSetup — Structured intent capture for task creation (ADR-178 v2).
+ * RecurrenceSetup — Structured intent capture for recurrence creation (ADR-178 + ADR-231).
  *
  * Composes ComposerInput for the shared textarea + links + files input
- * surface. Owns the logic specific to task creation: route toggle (track vs
- * deliverable), route-adaptive placeholders, and composed message format that
- * TP uses to call ManageTask(action="create") in the same turn.
+ * surface. Owns the logic specific to recurrence creation: route toggle
+ * (track vs deliverable), route-adaptive placeholders, and composed message
+ * format that YARNNN uses to call
+ * `UpdateContext(target='recurrence', action='create', ...)` in the same turn.
  *
- * Route A (deliverable): user anchors on an output. TP reverse-engineers
+ * Route A (deliverable): user anchors on an output. YARNNN reverse-engineers
  *   context needs. Links seed DELIVERABLE.md; files shape the output spec.
- * Route B (track): user anchors on a domain. TP works forward. Links seed
+ * Route B (track): user anchors on a domain. YARNNN works forward. Links seed
  *   entity profiles; files seed domain context.
  *
- * Consumers: TaskSetupModal (all four surfaces — /chat, /work, /agents, /context).
+ * Consumers: RecurrenceSetupModal (all four surfaces — /chat, /work, /agents,
+ *   /context).
  * See: docs/design/COMPOSER-INPUT-PATTERN.md (shared primitive rationale)
  *      docs/adr/ADR-178-task-creation-routes.md
+ *      docs/adr/ADR-231-task-abstraction-sunset.md
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -48,7 +51,7 @@ const LINK_PLACEHOLDERS: Record<Route, string> = {
 // Component
 // ---------------------------------------------------------------------------
 
-interface TaskSetupProps {
+interface RecurrenceSetupProps {
   /** Called with the composed message when user submits */
   onSubmit: (message: string) => void;
   /** Compact mode (smaller padding) */
@@ -59,12 +62,12 @@ interface TaskSetupProps {
   initialNotes?: string;
 }
 
-export function TaskSetup({
+export function RecurrenceSetup({
   onSubmit,
   compact = false,
   embedded = false,
   initialNotes = '',
-}: TaskSetupProps) {
+}: RecurrenceSetupProps) {
   const [route, setRoute] = useState<Route>('track');
   const [notes, setNotes] = useState(initialNotes);
   const [links, setLinks] = useState<string[]>([]);
