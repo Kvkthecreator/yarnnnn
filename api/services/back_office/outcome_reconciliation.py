@@ -6,7 +6,9 @@ task owned by YARNNN (per ADR-164 pattern).
 
 Thin executor — all the interesting logic lives in
 `services.outcomes.reconciler.reconcile_user`. This module just delivers
-the standard back-office shape (`content` + `structured`) over it.
+the standard back-office shape (`summary` + `output_markdown` +
+`actions_taken`) over it. See `services.invocation_dispatcher` line 646
+for the contract.
 
 Zero LLM cost. Platform API calls only on the providers' side. Filesystem
 writes are the persistence path (per FOUNDATIONS v6.0 Axiom 1 — Substrate).
@@ -28,8 +30,10 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
 
     Returns the standard back-office executor shape:
       {
-          "content": "<markdown report>",
-          "structured": {"total_appended": int, "providers": {...}},
+          "summary": str,                  # one-line summary
+          "output_markdown": str,          # full per-provider markdown report
+          "actions_taken": list[dict],     # one entry per provider that
+                                            # appended outcomes (action="fold_outcomes")
       }
     """
     started_at = datetime.now(timezone.utc)
@@ -108,12 +112,39 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         duration_s,
     )
 
+    # Build one actions_taken entry per provider that actually appended
+    # outcomes — keeps the audit log focused on real mutations rather
+    # than no-op runs.
+    actions_taken: list[dict] = []
+    for provider_name, result in providers.items():
+        appended = result.get("appended", 0)
+        if appended <= 0:
+            continue
+        actions_taken.append({
+            "action": "fold_outcomes",
+            "provider": provider_name,
+            "appended": appended,
+            "skipped_duplicate": result.get("skipped_duplicate", 0),
+            "skipped_invalid": result.get("skipped_invalid", 0),
+        })
+    if summary_written:
+        actions_taken.append({
+            "action": "write_cross_domain_summary",
+            "path": "/workspace/context/_performance_summary.md",
+        })
+
+    if top_error:
+        executor_summary = f"Reconcile crashed: {top_error}"
+    elif total_appended:
+        executor_summary = (
+            f"Appended {total_appended} outcome(s) across "
+            f"{len([p for p, r in providers.items() if r.get('appended', 0) > 0])} provider(s)"
+        )
+    else:
+        executor_summary = "No new outcomes to reconcile"
+
     return {
-        "content": "\n".join(report_lines),
-        "structured": {
-            "total_appended": total_appended,
-            "cross_domain_summary_written": summary_written,
-            "duration_seconds": duration_s,
-            "providers": providers,
-        },
+        "summary": executor_summary,
+        "output_markdown": "\n".join(report_lines),
+        "actions_taken": actions_taken,
     }

@@ -50,15 +50,13 @@ _VERDICT_CATEGORIES = ("approve", "reject", "defer")
 async def run(client: Any, user_id: str, task_slug: str) -> dict:
     """Rebuild /workspace/review/calibration.md for this user.
 
-    Returns the standard back-office executor shape:
+    Returns the standard back-office executor shape (see
+    `services.invocation_dispatcher` line 646 for the contract):
       {
-          "content": "<markdown report>",
-          "structured": {
-              "decisions_parsed": int,
-              "occupants": list[str],
-              "windows": dict[str, dict],
-              "calibration_written": bool,
-          },
+          "summary": str,                  # one-line executor summary
+          "output_markdown": str,          # full markdown report
+          "actions_taken": list[dict],     # mutation log; one entry per
+                                            # rebuild with action="rebuild_calibration"
       }
     """
     started_at = datetime.now(timezone.utc)
@@ -94,18 +92,22 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         occupants_seen = sorted({d["occupant"] for d in decisions})
 
         return {
-            "content": _render_report(
+            "summary": f"Calibration rebuilt — {len(decisions)} decisions over 90d",
+            "output_markdown": _render_report(
                 started_at=started_at,
                 decisions_count=len(decisions),
                 occupants=occupants_seen,
                 windows=windows,
             ),
-            "structured": {
-                "decisions_parsed": len(decisions),
-                "occupants": occupants_seen,
-                "windows": windows,
-                "calibration_written": True,
-            },
+            "actions_taken": [
+                {
+                    "action": "rebuild_calibration",
+                    "path": REVIEW_CALIBRATION_PATH,
+                    "decisions_parsed": len(decisions),
+                    "occupants": occupants_seen,
+                    "windows": windows,
+                },
+            ],
         }
     except Exception as exc:  # noqa: BLE001
         logger.error(
@@ -113,13 +115,9 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
             user_id[:8], exc,
         )
         return {
-            "content": f"# Reviewer Calibration — Error\n\nRebuild failed: `{exc}`\n",
-            "structured": {
-                "decisions_parsed": 0,
-                "occupants": [],
-                "windows": {},
-                "calibration_written": False,
-            },
+            "summary": f"Calibration rebuild failed: {exc}",
+            "output_markdown": f"# Reviewer Calibration — Error\n\nRebuild failed: `{exc}`\n",
+            "actions_taken": [],
         }
 
 

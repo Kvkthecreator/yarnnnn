@@ -23,10 +23,13 @@ logger = logging.getLogger(__name__)
 async def run(client: Any, user_id: str, task_slug: str) -> dict:
     """Mark pending proposals past expires_at as expired.
 
-    Returns the standard back-office executor shape:
+    Returns the standard back-office executor shape (see
+    `services.invocation_dispatcher` line 646 for the contract):
       {
-          "content": "<markdown report>",
-          "structured": {"expired_count": int, "errors": [str]},
+          "summary": str,                  # one-line summary
+          "output_markdown": str,          # full markdown report
+          "actions_taken": list[dict],     # one entry per expired proposal
+                                            # plus error entries
       }
     """
     started_at = datetime.now(timezone.utc)
@@ -81,11 +84,24 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         for err in errors:
             report_lines.append(f"- {err}")
 
+    actions_taken: list[dict] = []
+    if expired_count > 0:
+        actions_taken.append({
+            "action": "expire_proposals",
+            "count": expired_count,
+        })
+    for err in errors:
+        actions_taken.append({"action": "error", "message": err})
+
+    if errors:
+        executor_summary = f"Expired {expired_count}; {len(errors)} error(s)"
+    elif expired_count:
+        executor_summary = f"Expired {expired_count} stale proposal(s)"
+    else:
+        executor_summary = "No stale proposals"
+
     return {
-        "content": "\n".join(report_lines) + "\n",
-        "structured": {
-            "expired_count": expired_count,
-            "duration_seconds": duration_s,
-            "errors": errors,
-        },
+        "summary": executor_summary,
+        "output_markdown": "\n".join(report_lines) + "\n",
+        "actions_taken": actions_taken,
     }

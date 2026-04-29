@@ -475,10 +475,10 @@ These recurrences scaffold automatically per ADR-164 — the operator does not a
 
 | Recurrence | Cadence | Declaration path | Purpose |
 |---|---|---|---|
-| `back-office-outcome-reconciliation` | Daily | `/workspace/_shared/back-office.yaml` | Reads platform events (Alpaca trade fills), folds into `/workspace/context/trading/_performance.md` per ADR-195 v2. **Note (Bug 1, observation 2026-04-29)**: this executor currently returns `{"content": ..., "structured": ...}` while the dispatcher expects `{"output_markdown": ...}`. Silent failure — `_performance.md` is not refreshing. Fix pending. |
-| `back-office-reviewer-calibration` | Daily | `/workspace/_shared/back-office.yaml` | Aggregates `decisions.md` into rolling 7d/30d/90d windows for cockpit Performance face. **Same Bug 1 — same fix pending.** |
+| `back-office-outcome-reconciliation` | Daily | `/workspace/_shared/back-office.yaml` | Reads platform events (Alpaca trade fills), folds into `/workspace/context/trading/_performance.md` per ADR-195 v2. ✅ working post-2026-04-30 contract fix. |
+| `back-office-reviewer-calibration` | Daily | `/workspace/_shared/back-office.yaml` | Aggregates `decisions.md` into rolling 7d/30d/90d windows for cockpit Performance face. ✅ working post-2026-04-30 contract fix. |
 | `back-office-reviewer-reflection` | Daily | `/workspace/_shared/back-office.yaml` | AI Reviewer self-observation: writes its own development trajectory to its workspace memory. ✅ working. |
-| `back-office-proposal-cleanup` | Weekly | `/workspace/_shared/back-office.yaml` | Archives stale proposals in `action_proposals` table. Materializes only after first proposal fires (so absent on alpha-trader-2 until then). |
+| `back-office-proposal-cleanup` | Weekly | `/workspace/_shared/back-office.yaml` | Archives stale proposals in `action_proposals` table. Materializes only after first proposal fires (absent on alpha-trader-2 until then). ✅ working post-2026-04-30 contract fix. |
 
 ### 3A.6 Money-truth substrate expectations (`_performance.md` shape)
 

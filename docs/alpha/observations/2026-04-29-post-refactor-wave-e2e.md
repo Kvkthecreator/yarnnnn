@@ -32,60 +32,36 @@ Two real bugs identified — both write-shape contract violations. One affects 2
 
 ---
 
-## Bug 1 — back-office executor return-shape contract drift (A — system)
+## Bug 1 — back-office executor return-shape contract drift (A — system) — **FIXED 2026-04-30**
 
-**Severity**: silent failure on 2 of 4 back-office executors. Affects every workspace.
+**Severity (pre-fix)**: silent failure on 3 of 7 back-office executors. Affected every workspace.
 
-**Symptom**: `system` role messages in chat session show:
+**Symptom**: `system` role messages in chat session showed:
 ```
 executor services.back_office.reviewer_calibration returned invalid shape (expected dict with 'output_markdown')
 executor services.back_office.outcome_reconciliation returned invalid shape (expected dict with 'output_markdown')
 ```
 
-**Root cause**: `services/invocation_dispatcher.py:646-649` enforces a contract that the result dict from a back-office executor must contain `output_markdown`. Compliant executors (4 of 6):
-- [agent_hygiene.py:201](api/services/back_office/agent_hygiene.py#L201) — returns `{"output_markdown": ..., "actions_taken": ...}`
-- [narrative_digest.py:251](api/services/back_office/narrative_digest.py#L251) — returns `{"output_markdown": ..., "actions_taken": ...}`
-- [workspace_cleanup.py:112](api/services/back_office/workspace_cleanup.py#L112) — returns `{"output_markdown": ..., "actions_taken": ...}`
-- [reviewer_reflection.py:473](api/services/back_office/reviewer_reflection.py#L473) — returns `{"output_markdown": ..., "actions_taken": ...}`
+**Root cause**: `services/invocation_dispatcher.py:646-649` enforces a contract that the result dict from a back-office executor must contain `output_markdown`. Pre-fix split:
 
-Non-compliant executors (2 of 6):
-- [reviewer_calibration.py:96](api/services/back_office/reviewer_calibration.py#L96) — returns `{"content": ..., "structured": ...}`
-- [outcome_reconciliation.py:111](api/services/back_office/outcome_reconciliation.py#L111) — returns `{"content": ..., "structured": ...}`
+Compliant (4 of 7): `agent_hygiene`, `narrative_digest`, `workspace_cleanup`, `reviewer_reflection`.
 
-The drift likely happened during ADR-231 Phase 3.7 atomic deletion — the dispatcher contract was canonized while these two executors were left on the older return shape. No CI test covers the return-shape contract.
+Non-compliant (3 of 7): `reviewer_calibration`, `outcome_reconciliation`, `proposal_cleanup`. The third was caught by the regression test added in the fix commit — Pass 3 observation only flagged 2 because alpha-trader-2 has zero proposals so `proposal_cleanup` doesn't fire there. Same drift on alpha-trader where it does fire.
+
+The drift happened during ADR-231 Phase 3.7 atomic deletion — the dispatcher contract was canonized while three executors were left on the older `{"content": ..., "structured": ...}` return shape. No CI test covered the return-shape contract.
+
+**Fix shipped (2026-04-30)**:
+- All three executors migrated to the canonical shape `{"summary", "output_markdown", "actions_taken"}` matching `agent_hygiene` and the dispatcher contract.
+- `actions_taken` shape: `list[dict]` with each entry carrying an `action` discriminator plus payload (e.g., `{"action": "rebuild_calibration", "decisions_parsed": 90, ...}`).
+- New regression gate `api/test_back_office_contract.py` (4 tests) static-checks every `services.back_office.*.py` module that defines `async def run` for: presence of `"output_markdown"`, absence of legacy `"content":` return key, dispatcher contract assertion intact. The test parametrizes over executor modules so it picks up new ones automatically.
+- 15/15 contract checks pass.
 
 **Impact**:
 - `_performance.md` is not getting refreshed by `outcome_reconciliation` — money-truth substrate goes stale.
 - `decisions.md` calibration aggregation is not running — Reviewer development trajectory data missing.
 - Both failures are silent at the operator layer (the dispatcher logs but doesn't surface to UI).
 
-**Proposed fix** (one-line per file): rename the return-dict keys to match the dispatcher contract:
-
-```python
-# reviewer_calibration.py:96
-return {
-    "output_markdown": _render_report(...),   # was "content"
-    "actions_taken": {                         # was "structured"
-        "decisions_parsed": len(decisions),
-        ...
-    },
-}
-```
-
-```python
-# outcome_reconciliation.py:111
-return {
-    "output_markdown": "\n".join(report_lines),   # was "content"
-    "actions_taken": {                             # was "structured"
-        "total_appended": total_appended,
-        ...
-    },
-}
-```
-
-Also: add a regression test asserting all 6 back-office executor `run()` functions return a dict with `output_markdown` key. The contract belongs in `services/invocation_dispatcher.py` next to the validator (line 646), with executors importing the type alias.
-
-**Tag**: A (system) — substrate-pipeline integration gap from ADR-231 P3.7 atomic refactor.
+**Tag**: A (system) — substrate-pipeline integration gap from ADR-231 P3.7 atomic refactor. Closed by commit shipping fix + regression gate same day as observation note.
 
 ---
 
