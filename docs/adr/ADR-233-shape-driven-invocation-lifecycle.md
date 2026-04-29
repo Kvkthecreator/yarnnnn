@@ -1,6 +1,6 @@
 # ADR-233: Shape-Driven Invocation Lifecycle — Prompt, Prior Output, Domain Synthesis
 
-> **Status**: **Proposed** (2026-04-29). Three independently-shippable phases.
+> **Status**: **Phase 1 Implemented** (2026-04-29, commit `cdbf5de`). **Phase 2 hardening** (natural-home pre-read across all generative shapes) Proposed. **Phase 3** deferred for fresh discussion post-Phase-1 observation.
 > **Date**: 2026-04-29
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Mechanism** (Axiom 5) primary, **Substrate** (Axiom 1) + **Trigger** (Axiom 4) secondary.
@@ -75,7 +75,11 @@ Singular implementation: the monolithic `build_task_execution_prompt()` body is 
 
 Each phase is independently shippable, independently testable, independently reversible.
 
-### Phase 1 — Unified prompt profile structure (chat + headless under one home)
+### Phase 1 — Unified prompt profile structure (chat + headless under one home) — **Implemented 2026-04-29 (commit `cdbf5de`)**
+
+> **Implementation notes**: Shipped atomically with an emergency Render boot fix — commit `1c61a11` had renamed `yarnnn_prompts/` → `prompts/` directory but left `agents/yarnnn.py` importing the old path, breaking the API service's boot. `cdbf5de` consolidates both: directory rename + import update + new `headless/` subdirectory + 4 shape-keyed profile files + `build_prompt(profile_key)` resolver + dispatcher rewire. Test gate `api/test_adr233_phase1_shape_prompts.py` ships with the commit (13/13 passing). Combined gate (ADR-231 recurrence + ADR-231 runtime invariants + ADR-233 Phase 1) = 109/109 passing. CHANGELOG entry: `[2026.04.29.5]`.
+
+
 
 **Directory rename** (atomic with the rest of Phase 1, single commit):
 - `api/agents/yarnnn_prompts/` → `api/agents/prompts/`

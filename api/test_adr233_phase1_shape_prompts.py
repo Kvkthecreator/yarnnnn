@@ -253,6 +253,14 @@ def test_no_yarnnn_prompts_in_live_code():
         # + exclusion logic + assertion message — self-reference is fine.
         if "/test_adr233_phase1_shape_prompts.py:" in line:
             return True
+        # Build / cache artifacts that might capture the banned string from
+        # test names or stale serialized state. Not live source code.
+        if "/.pytest_cache/" in line:
+            return True
+        if "/__pycache__/" in line:
+            return True
+        if line.endswith(".pyc"):
+            return True
         # ADR-189 + ADR-233 doc-narrative mentions in module docstrings
         if "ADR-189" in line or "ADR-233" in line:
             return True
