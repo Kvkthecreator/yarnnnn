@@ -19,10 +19,6 @@ import {
   MessageCircle,
   Send,
   Paperclip,
-  Repeat,
-  ChevronDown,
-  CornerDownRight,
-  Zap,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -31,15 +27,11 @@ import { useAutonomy } from '@/lib/autonomy';
 import { cn } from '@/lib/utils';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
-import { MessageBlocks } from '@/components/tp/InlineToolCall';
-import { ToolResultList } from '@/components/tp/ToolResultCard';
-import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import {
   InlineActionCard,
   type ActionCardConfig,
 } from '@/components/tp/InlineActionCard';
-import { ReviewerCard } from '@/components/tp/ReviewerCard';
-import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/snapshot-meta';
+import { MessageRow } from '@/components/tp/MessageRow';
 import type { TPMessage } from '@/types/desk';
 
 /**
@@ -400,6 +392,20 @@ function narrativeFilterMatches(
   return true;
 }
 
+/**
+ * NarrativeMessage — thin wrapper over the ADR-237 row grammar.
+ *
+ * Pre-ADR-237 this function held ~150 LOC of inline weight + role
+ * switching. The body has been lifted to:
+ *
+ *   - MessageRow.tsx — weight gating + cross-cutting concerns
+ *     (authorship attribution chip, Make Recurring affordance)
+ *   - MessageDispatch.tsx — role-shape rendering for material weight
+ *
+ * This shell exists only because the surrounding map() in ChatPanel
+ * passes a single message + isLoading + onMakeRecurring; the row API
+ * accepts the same triple.
+ */
 function NarrativeMessage({
   msg,
   isLoading,
@@ -409,151 +415,5 @@ function NarrativeMessage({
   isLoading: boolean;
   onMakeRecurring?: (messageContent: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const weight = msg.narrative?.weight ?? 'material'; // legacy default
-  const isInlineAction = !msg.narrative?.taskSlug;
-  const showMakeRecurring =
-    weight === 'material' &&
-    msg.role === 'user' &&
-    isInlineAction &&
-    !!onMakeRecurring &&
-    !!msg.content?.trim();
-
-  // ───── Material: full card (legacy rendering preserved) ─────
-  if (weight === 'material') {
-    // ADR-212: reviewer verdicts render as full-width cards, not chat bubbles.
-    if (msg.role === 'reviewer') {
-      return (
-        <div className="max-w-[92%]">
-          <ReviewerCard data={msg.reviewer ?? {}} content={msg.content} />
-        </div>
-      );
-    }
-    // ADR-219 / ADR-205 F1 attribution chip:
-    //   - taskSlug set + role !== 'user' → "from {slug}", linked to /work?task={slug}
-    //   - taskSlug unset + role === 'assistant' + addressed pulse + invocationId → "ran inline"
-    //   This makes the difference between recurrence-fired and chat-fired
-    //   invocations visible at the rendering layer per ADR-219 Axiom 9.
-    const recurrenceSlug = msg.narrative?.taskSlug;
-    const showRecurrenceChip = !!recurrenceSlug && msg.role !== 'user';
-    const showInlineFireHint =
-      !recurrenceSlug &&
-      msg.role === 'assistant' &&
-      msg.narrative?.pulse === 'addressed' &&
-      !!msg.narrative?.invocationId;
-
-    return (
-      <div className={cn('text-[13px] rounded-2xl px-3 py-2 max-w-[92%]', msg.role === 'user' ? 'bg-primary/10 ml-auto rounded-br-md' : 'bg-muted rounded-bl-md')}>
-        <span className={cn("text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1", msg.role === 'user' ? 'uppercase' : 'font-brand text-[10px]')}>
-          {msg.role === 'user' ? 'You' : msg.role === 'agent' ? (msg.authorAgentSlug ?? 'agent') : msg.role === 'external' ? 'external' : msg.role === 'system' ? 'system' : 'yarnnn'}
-        </span>
-        {showRecurrenceChip && (
-          <a
-            href={`/work?task=${encodeURIComponent(recurrenceSlug!)}`}
-            className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-foreground/5 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded transition-colors"
-            title={`From recurrence: ${recurrenceSlug}`}
-          >
-            <CornerDownRight className="w-2.5 h-2.5" />
-            <span className="font-mono">{recurrenceSlug}</span>
-          </a>
-        )}
-        {showInlineFireHint && (
-          <span
-            className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/60 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded"
-            title="Inline action — fired immediately on ask"
-          >
-            <Zap className="w-2.5 h-2.5" />
-            <span>ran inline</span>
-          </span>
-        )}
-        {msg.blocks && msg.blocks.length > 0 ? (
-          <MessageBlocks blocks={msg.blocks} />
-        ) : msg.role === 'assistant' && !msg.content && isLoading ? (
-          <div className="flex items-center gap-1.5 text-muted-foreground text-xs"><Loader2 className="w-3 h-3 animate-spin" />Thinking...</div>
-        ) : (
-          <>
-            {msg.role === 'assistant' ? (
-              <MarkdownRenderer content={stripOnboardingMeta(stripSnapshotMeta(msg.content))} compact />
-            ) : (
-              <p className="whitespace-pre-wrap">{msg.content}</p>
-            )}
-            {msg.toolResults && msg.toolResults.length > 0 && <ToolResultList results={msg.toolResults} compact />}
-          </>
-        )}
-        {showMakeRecurring && (
-          <div className="mt-1.5 -mb-0.5">
-            <button
-              type="button"
-              onClick={() => onMakeRecurring!(msg.content)}
-              className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/70 hover:text-primary hover:bg-primary/5 px-1.5 py-0.5 rounded transition-colors"
-              title="Turn this inline ask into a recurrence"
-            >
-              <Repeat className="w-2.5 h-2.5" />
-              Make this recurring
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ───── Routine: collapsed line, expandable to full ─────
-  if (weight === 'routine') {
-    const summary = msg.narrative?.summary
-      ?? (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '(no summary)');
-    return (
-      <div className="max-w-[92%]">
-        <div className="text-[12px] flex items-center gap-2 py-1">
-          <button
-            type="button"
-            onClick={() => setExpanded(v => !v)}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-left flex-1 min-w-0"
-          >
-            <ChevronDown
-              className={cn(
-                'w-3 h-3 shrink-0 transition-transform',
-                expanded && 'rotate-180',
-              )}
-            />
-            <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
-              {msg.role}
-            </span>
-            <span className="truncate">{summary}</span>
-          </button>
-          <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
-            {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </span>
-        </div>
-        {expanded && msg.content && (
-          <div className="ml-5 mt-0.5 mb-1 text-[12px] text-muted-foreground bg-muted/30 rounded px-2.5 py-1.5">
-            {msg.role === 'assistant' ? (
-              <MarkdownRenderer content={stripOnboardingMeta(stripSnapshotMeta(msg.content))} compact />
-            ) : (
-              <p className="whitespace-pre-wrap">{msg.content}</p>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ───── Housekeeping: dim one-liner ─────
-  // The narrative_digest system_card (rendered via the material path
-  // when its containing message has weight=material) is the curated
-  // surface for housekeeping clusters. Individual housekeeping rows
-  // still render here in case the digest hasn't run yet, but they're
-  // visually de-emphasized.
-  const summary = msg.narrative?.summary
-    ?? (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '');
-  return (
-    <div className="text-[11px] flex items-center gap-2 max-w-[92%] py-0.5 opacity-50 hover:opacity-90 transition-opacity">
-      <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/50">
-        {msg.role}
-      </span>
-      <span className="text-muted-foreground truncate flex-1">{summary}</span>
-      <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
-        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-      </span>
-    </div>
-  );
+  return <MessageRow msg={msg} isLoading={isLoading} onMakeRecurring={onMakeRecurring} />;
 }

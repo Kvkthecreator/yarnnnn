@@ -308,7 +308,7 @@ This umbrella ADR's status flips to **Implemented** when:
 - [x] Round 0 — Tier 2 hygiene block closed (Items 5, 6 Implemented; Item 7 Deferred).
 - [x] Round 1 — ADR-238 reaches **Implemented** (commit `c769e64`; test gate 6/6 passing).
 - [x] **Round 0 + Round 1 validation checkpoint** authored at [docs/analysis/adr236-validation-checkpoint-2026-04-29.md](../analysis/adr236-validation-checkpoint-2026-04-29.md), walked, and closed. Code-side 25/25 + cross-ADR 50/50 + operator browser smoke confirmed. Results: [docs/analysis/adr236-validation-results-2026-04-29.md](../analysis/adr236-validation-results-2026-04-29.md). Round 0 + Round 1 definitively validated 2026-04-29.
-- [ ] Round 2 — ADR-237 reaches **Implemented** (gated on ADR-235 Implemented).
+- [x] Round 2 — ADR-237 reaches **Implemented** (test gate 7/7; cross-ADR 57/57; ADR-235 prerequisite met by commit `9156db9`).
 - [ ] Round 3 — ADR-239 reaches **Implemented** (or final phase, per Rule 7) — preceded by scoping memo.
 - [ ] Round 4 — ADR-240 reaches **Implemented**.
 - [ ] Round 5 — Items 8, 9, 10 reach **Implemented** OR **Deferred** with rationale recorded here.

@@ -1,0 +1,224 @@
+'use client';
+
+/**
+ * MessageRow — chat message row-level wrapper (ADR-237).
+ *
+ * Composes around MessageDispatch's per-shape renderer to apply
+ * cross-cutting concerns that are independent of role:
+ *
+ *   - **Weight gating** (material / routine / housekeeping) per
+ *     ADR-219. Material renders the full bubble/card via MessageRenderer;
+ *     routine collapses to a single expandable line; housekeeping
+ *     renders as a dim one-liner that can still be filtered.
+ *
+ *   - **Authorship attribution chip** per ADR-205 F1 / ADR-219:
+ *       - taskSlug set + role !== 'user' → "from {slug}", linked to
+ *         /work?task={slug} (recurrence-fired output)
+ *       - taskSlug unset + role === 'assistant' + addressed pulse
+ *         + invocationId → "ran inline" (chat-fired invocation)
+ *
+ *   - **Make-Recurring affordance** — small button below user material
+ *     messages that don't yet carry a recurrence slug. Wired via the
+ *     onMakeRecurring callback supplied by ChatSurface
+ *     (ADR-231 D1 graduation flow).
+ *
+ * The row wrapper is the canonical extension point for future cross-
+ * cutting concerns (autonomy badges, surface-aware variants, etc.).
+ * Per-role components stay focused on rendering content; the row
+ * decides what wraps that content.
+ */
+
+import { useState, type ReactNode } from 'react';
+import { ChevronDown, CornerDownRight, Zap, Repeat } from 'lucide-react';
+import type { TPMessage } from '@/types/desk';
+import { cn } from '@/lib/utils';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/snapshot-meta';
+import { MessageRenderer } from './MessageDispatch';
+
+// ---------------------------------------------------------------------------
+// Per-weight wrappers
+// ---------------------------------------------------------------------------
+
+interface MaterialWrapperProps {
+  msg: TPMessage;
+  isLoading: boolean;
+  onMakeRecurring?: (messageContent: string) => void;
+}
+
+/**
+ * Material weight — full bubble/card rendering. Wraps the dispatched
+ * shape with the authorship chip (above) and Make Recurring affordance
+ * (below) per ADR-237 D2.
+ *
+ * Reviewer verdicts (role === 'reviewer') skip the chip stack — the
+ * ReviewerCard owns its own chrome per ADR-212. The dispatcher emits
+ * a ReviewerCard regardless; we suppress the chip stack only for the
+ * reviewer shape.
+ */
+function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps): JSX.Element {
+  const recurrenceSlug = msg.narrative?.taskSlug;
+  const showRecurrenceChip = !!recurrenceSlug && msg.role !== 'user';
+  const showInlineFireHint =
+    !recurrenceSlug &&
+    msg.role === 'assistant' &&
+    msg.narrative?.pulse === 'addressed' &&
+    !!msg.narrative?.invocationId;
+  const isInlineAction = !msg.narrative?.taskSlug;
+  const showMakeRecurring =
+    msg.role === 'user' &&
+    isInlineAction &&
+    !!onMakeRecurring &&
+    !!msg.content?.trim();
+
+  // Reviewer verdicts render full-width without a wrapping chip stack.
+  if (msg.role === 'reviewer') {
+    return (
+      <div className="max-w-[92%]">
+        <MessageRenderer msg={msg} isLoading={isLoading} />
+      </div>
+    );
+  }
+
+  // Authorship chip rendered above the bubble for non-user material
+  // messages. Composes around — not inside — the per-shape renderer
+  // so the chip surface stays role-agnostic.
+  const chip =
+    showRecurrenceChip ? (
+      <a
+        href={`/work?task=${encodeURIComponent(recurrenceSlug!)}`}
+        className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-foreground/5 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded transition-colors"
+        title={`From recurrence: ${recurrenceSlug}`}
+      >
+        <CornerDownRight className="w-2.5 h-2.5" />
+        <span className="font-mono">{recurrenceSlug}</span>
+      </a>
+    ) : showInlineFireHint ? (
+      <span
+        className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/60 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded"
+        title="Inline action — fired immediately on ask"
+      >
+        <Zap className="w-2.5 h-2.5" />
+        <span>ran inline</span>
+      </span>
+    ) : null;
+
+  return (
+    <div className="flex flex-col">
+      {chip}
+      <MessageRenderer msg={msg} isLoading={isLoading} />
+      {showMakeRecurring && (
+        <div className="mt-1.5 -mb-0.5">
+          <button
+            type="button"
+            onClick={() => onMakeRecurring!(msg.content)}
+            className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/70 hover:text-primary hover:bg-primary/5 px-1.5 py-0.5 rounded transition-colors"
+            title="Turn this inline ask into a recurrence"
+          >
+            <Repeat className="w-2.5 h-2.5" />
+            Make this recurring
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Routine weight — collapsed line with role label, summary, timestamp,
+ * and an expand control. When expanded, the full content shows below
+ * (markdown-rendered for assistant; plain text otherwise).
+ */
+function RoutineRow({ msg }: { msg: TPMessage }): JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const summary =
+    msg.narrative?.summary ??
+    (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '(no summary)');
+  return (
+    <div className="max-w-[92%]">
+      <div className="text-[12px] flex items-center gap-2 py-1">
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-left flex-1 min-w-0"
+        >
+          <ChevronDown
+            className={cn(
+              'w-3 h-3 shrink-0 transition-transform',
+              expanded && 'rotate-180',
+            )}
+          />
+          <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
+            {msg.role}
+          </span>
+          <span className="truncate">{summary}</span>
+        </button>
+        <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
+          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
+      {expanded && msg.content && (
+        <div className="ml-5 mt-0.5 mb-1 text-[12px] text-muted-foreground bg-muted/30 rounded px-2.5 py-1.5">
+          {msg.role === 'assistant' ? (
+            <MarkdownRenderer content={stripOnboardingMeta(stripSnapshotMeta(msg.content))} compact />
+          ) : (
+            <p className="whitespace-pre-wrap">{msg.content}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Housekeeping weight — dim one-liner. The narrative_digest system_card
+ * (rendered via the material path when its containing message has
+ * weight=material) is the curated surface for housekeeping clusters;
+ * individual housekeeping rows still render here in case the digest
+ * hasn't run yet, but they're visually de-emphasized.
+ */
+function HousekeepingRow({ msg }: { msg: TPMessage }): JSX.Element {
+  const summary =
+    msg.narrative?.summary ??
+    (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '');
+  return (
+    <div className="text-[11px] flex items-center gap-2 max-w-[92%] py-0.5 opacity-50 hover:opacity-90 transition-opacity">
+      <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/50">
+        {msg.role}
+      </span>
+      <span className="text-muted-foreground truncate flex-1">{summary}</span>
+      <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
+        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Public row component
+// ---------------------------------------------------------------------------
+
+export interface MessageRowProps {
+  msg: TPMessage;
+  isLoading: boolean;
+  onMakeRecurring?: (messageContent: string) => void;
+}
+
+/**
+ * Top-level row wrapper. Reads `msg.narrative.weight` and delegates to
+ * the appropriate per-weight wrapper (material / routine / housekeeping).
+ * Material rows compose with MessageDispatch's renderer; routine and
+ * housekeeping have their own minimal renders that don't go through
+ * the dispatch table (they're presentation collapses, not full
+ * role-shaped renderings).
+ */
+export function MessageRow({ msg, isLoading, onMakeRecurring }: MessageRowProps): JSX.Element {
+  const weight = msg.narrative?.weight ?? 'material';
+  if (weight === 'material') {
+    return <MaterialRow msg={msg} isLoading={isLoading} onMakeRecurring={onMakeRecurring} />;
+  }
+  if (weight === 'routine') {
+    return <RoutineRow msg={msg} />;
+  }
+  return <HousekeepingRow msg={msg} />;
+}

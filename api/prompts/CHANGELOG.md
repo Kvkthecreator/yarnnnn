@@ -6,6 +6,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.10] - ADR-237 — Chat role-based design system (dispatch grammar codified)
+
+### Changed
+- `web/components/tp/ChatPanel.tsx` — `NarrativeMessage` body collapsed from ~150 LOC of inline weight + role switching to a 1-line wrapper over `MessageRow`. All `if (msg.role === ...)` dispatch deleted; the dispatcher owns role-shape resolution. Imports trimmed.
+
+### Added
+- `web/components/tp/MessageDispatch.tsx` — single dispatch grammar. `MessageShape` type union (6 values: user-bubble / yarnnn-bubble / system-event / reviewer-verdict / agent-bubble / external-event). `resolveMessageShape(msg)` pure function with exhaustive role coverage. `MessageRenderer` component dispatching to six per-shape internal renderers. Inline affordances (InlineToolCall, ToolResultCard) compose into the bubble shapes; per-role components (SystemCard, ReviewerCard, ProposalCard, NotificationCard) keep their existing prop signatures.
+- `web/components/tp/MessageRow.tsx` — row-level wrapper around `MessageRenderer`. Handles weight gating (material → MessageRenderer; routine → collapsed line; housekeeping → dim one-liner) and cross-cutting concerns (ADR-205 F1 / ADR-219 authorship attribution chip, ADR-231 D1 Make Recurring affordance). Reviewer verdicts skip the chip stack — ReviewerCard owns its full-width chrome per ADR-212.
+- `api/test_adr237_chat_role_grammar.py` — Python regression gate (7/7 assertions). Same pattern as ADR-238 per ADR-236 Rule 3.
+
+### Removed
+- `web/components/tp/TPMessages.tsx` — DELETED. ADR-023 legacy Supervisor Desk surface; verified zero imports across the repo. Singular Implementation rule honored.
+
+### Behavior
+- Visual output unchanged for the three weight tracks and six role values. Inline NarrativeMessage walked line-by-line into the new split; nothing dropped silently.
+- ADR-238 autonomy chip stays at composer level (not row level) per ADR-237 D6 — preserves workspace-scope semantic. Future per-shape autonomy treatments thread through MessageRow's prop surface.
+- Future Tier 1 sub-ADRs (Round 3 trader cockpit, Round 4 onboarding) compose with `MessageRenderer` directly instead of re-deriving role-switching JSX.
+
+### Notes
+- ADR-237 is Round 2 of the ADR-236 frontend cockpit coherence pass. Cross-ADR regression check: 57/57 across 6 gates (ADR-231 11/11, ADR-233 P1 13/13, ADR-233 P2 12/12, ADR-234 8/8, ADR-237 7/7, ADR-238 6/6) — zero regression.
+
+---
+
 ## [2026.04.29.9] - ADR-235 — UpdateContext dissolution + ManageRecurrence + ManageAgent.create sunset + WriteFile scope='workspace' (Option A)
 
 ### Deleted
