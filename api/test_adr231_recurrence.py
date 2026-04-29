@@ -1267,6 +1267,162 @@ def test_total_input_tokens_partial():
 
 
 # ---------------------------------------------------------------------------
+# Phase 3.3 — Scheduling (services/scheduling.py)
+#
+# Tests focus on the pure-function compute_next_run_at — the timing math
+# the scheduler relies on. The async filesystem walkers + table I/O are
+# integration-tested manually against kvk's workspace.
+# ---------------------------------------------------------------------------
+
+
+# ---- compute_next_run_at — paused / paused_until handling ----
+
+
+def test_compute_next_run_at_paused_returns_none():
+    from services.scheduling import compute_next_run_at
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+        data={"schedule": "0 9 * * 1", "paused": True},
+    )
+    # Paused with no paused_until → indefinite pause → None
+    assert compute_next_run_at(decl) is None
+
+
+def test_compute_next_run_at_paused_until_future_returns_pause_time():
+    from services.scheduling import compute_next_run_at
+
+    pause_until = datetime(2026, 5, 15, 10, 0, tzinfo=timezone.utc)
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+        data={
+            "schedule": "0 9 * * 1",
+            "paused": True,
+            "paused_until": pause_until.isoformat(),
+        },
+    )
+    now = datetime(2026, 4, 29, tzinfo=timezone.utc)
+    # paused_until is future → return that as next-eligible time
+    result = compute_next_run_at(decl, now=now)
+    assert result == pause_until
+
+
+def test_compute_next_run_at_paused_until_past_returns_none():
+    from services.scheduling import compute_next_run_at
+
+    pause_until = datetime(2026, 4, 1, tzinfo=timezone.utc)
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+        data={
+            "schedule": "0 9 * * 1",
+            "paused": True,
+            "paused_until": pause_until.isoformat(),
+        },
+    )
+    now = datetime(2026, 4, 29, tzinfo=timezone.utc)
+    # paused_until in the past — but paused is still True → still indefinite
+    # (operator must explicitly resume). compute_next_run_at returns None.
+    assert compute_next_run_at(decl, now=now) is None
+
+
+def test_compute_next_run_at_no_schedule_returns_none():
+    from services.scheduling import compute_next_run_at
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "one-shot",
+        "/workspace/reports/one-shot/_spec.yaml",
+        data={},  # no schedule = manual fire only
+    )
+    assert compute_next_run_at(decl) is None
+
+
+def test_compute_next_run_at_active_schedule_returns_future_datetime():
+    from services.scheduling import compute_next_run_at
+
+    decl = _make_decl(
+        RecurrenceShape.DELIVERABLE,
+        "market-weekly",
+        "/workspace/reports/market-weekly/_spec.yaml",
+        data={"schedule": "0 9 * * 1"},  # Mondays at 9am
+    )
+    last_run = datetime(2026, 4, 21, 9, 0, tzinfo=timezone.utc)  # Tuesday 4/21
+    result = compute_next_run_at(decl, last_run_at=last_run, now=last_run)
+    assert result is not None
+    # Next Monday after 4/21 is 4/27 (last_run + ~6 days)
+    assert result > last_run
+    # Expected next Monday at 9am UTC
+    expected = datetime(2026, 4, 27, 9, 0, tzinfo=timezone.utc)
+    assert result == expected
+
+
+# ---- claim_task_run — CAS guard ----
+
+
+class _FakeCASClient:
+    """Minimal Supabase-shaped mock that returns a controllable update result."""
+
+    def __init__(self, will_match: bool):
+        self._will_match = will_match
+        self._captured: dict = {}
+
+    def table(self, name):
+        self._captured["table"] = name
+        return self
+
+    def update(self, payload):
+        self._captured["update_payload"] = payload
+        return self
+
+    def eq(self, column, value):
+        self._captured.setdefault("eq", []).append((column, value))
+        return self
+
+    def execute(self):
+        if self._will_match:
+            return type("R", (), {"data": [{"id": "row-1"}]})()
+        return type("R", (), {"data": []})()
+
+
+def test_claim_task_run_succeeds_when_cas_matches():
+    from services.scheduling import claim_task_run
+
+    client = _FakeCASClient(will_match=True)
+    ok = claim_task_run(client, "user-1", "market-weekly", "2026-04-29T09:00:00+00:00")
+    assert ok is True
+    # Verify CAS guard wired
+    eq_calls = client._captured["eq"]
+    assert ("user_id", "user-1") in eq_calls
+    assert ("slug", "market-weekly") in eq_calls
+    assert ("next_run_at", "2026-04-29T09:00:00+00:00") in eq_calls
+    # Update set next_run_at to a sentinel (should be a future ISO string)
+    assert "next_run_at" in client._captured["update_payload"]
+
+
+def test_claim_task_run_fails_when_already_claimed():
+    from services.scheduling import claim_task_run
+
+    client = _FakeCASClient(will_match=False)
+    ok = claim_task_run(client, "user-1", "market-weekly", "2026-04-29T09:00:00+00:00")
+    assert ok is False
+
+
+def test_claim_task_run_refuses_without_baseline():
+    from services.scheduling import claim_task_run
+
+    client = _FakeCASClient(will_match=True)
+    # No baseline → refuse to claim (no row to CAS against)
+    ok = claim_task_run(client, "user-1", "market-weekly", None)
+    assert ok is False
+
+
+# ---------------------------------------------------------------------------
 # Test summary
 # ---------------------------------------------------------------------------
 

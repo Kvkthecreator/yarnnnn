@@ -963,7 +963,7 @@ async def _handle_recurrence(auth: Any, input: dict) -> dict:
 
     try:
         if shape in _SINGLE_DECL_SHAPES:
-            return await _handle_recurrence_single(
+            result = await _handle_recurrence_single(
                 um=um,
                 rel_path=rel_path,
                 abs_path=abs_path,
@@ -977,7 +977,7 @@ async def _handle_recurrence(auth: Any, input: dict) -> dict:
                 authored_by=authored_by,
             )
         else:
-            return await _handle_recurrence_multi(
+            result = await _handle_recurrence_multi(
                 um=um,
                 rel_path=rel_path,
                 abs_path=abs_path,
@@ -993,6 +993,21 @@ async def _handle_recurrence(auth: Any, input: dict) -> dict:
     except Exception as e:
         logger.warning(f"[UPDATE_CONTEXT recurrence] {action} failed: {e}")
         return {"success": False, "error": "execution_error", "message": str(e)}
+
+    # ADR-231 Phase 3.3 — materialize scheduling index after every successful
+    # YAML write so the scheduler sees the change on its next tick. The index
+    # is fully reconstructable from filesystem; this call is a fast-path
+    # optimization, not a correctness requirement. Best-effort.
+    if result.get("success"):
+        try:
+            from services.scheduling import materialize_scheduling_index
+            await materialize_scheduling_index(auth.client, auth.user_id)
+        except Exception as e:
+            logger.warning(
+                f"[UPDATE_CONTEXT recurrence] scheduling index materialization failed (non-fatal): {e}"
+            )
+
+    return result
 
 
 async def _handle_recurrence_single(

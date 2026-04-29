@@ -103,9 +103,82 @@ def calculate_next_run_at(
 
 
 def _calculate_from_dict(schedule: dict, from_time_utc: datetime) -> datetime:
-    from jobs.unified_scheduler import calculate_next_pulse_from_schedule
+    """Compute next-run time from a dict-shaped schedule.
 
-    return calculate_next_pulse_from_schedule(schedule, from_time=from_time_utc)
+    Supports both cron expressions (`schedule["cron"]`) and frequency-based
+    schedules (`schedule["frequency"]` ∈ daily/weekly/biweekly/monthly with
+    `day` + `time` + `timezone`). Pure timing math — no DB, no LLM.
+
+    Inlined into schedule_utils per ADR-231 Phase 3.3 — previously imported
+    from jobs.unified_scheduler, which created a circular layering
+    (services → jobs). schedule_utils owns timing math; the scheduler
+    consumes it, not the other way around.
+    """
+    from croniter import croniter
+
+    tz_name = schedule.get("timezone", "UTC")
+    try:
+        tz = pytz.timezone(tz_name)
+    except Exception:
+        tz = pytz.UTC
+
+    # Cron expression takes precedence
+    cron_expr = schedule.get("cron")
+    if cron_expr:
+        local_time = from_time_utc.astimezone(tz)
+        cron = croniter(cron_expr, local_time)
+        next_local = cron.get_next(datetime)
+        return next_local.astimezone(timezone.utc)
+
+    # Frequency-based fallback
+    frequency = schedule.get("frequency", "weekly")
+    day = (schedule.get("day") or "monday").lower()
+    time_str = schedule.get("time", "09:00")
+    try:
+        hour, minute = map(int, time_str.split(":"))
+    except (ValueError, AttributeError):
+        hour, minute = 9, 0
+
+    local_now = from_time_utc.astimezone(tz)
+    days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    target_day = days.index(day) if day in days else 0
+
+    if frequency == "daily":
+        next_run = local_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if next_run <= local_now:
+            next_run += timedelta(days=1)
+    elif frequency == "weekly":
+        current_day = local_now.weekday()
+        days_ahead = target_day - current_day
+        if days_ahead < 0:
+            days_ahead += 7
+        next_run = local_now + timedelta(days=days_ahead)
+        next_run = next_run.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if next_run <= local_now:
+            next_run += timedelta(weeks=1)
+    elif frequency == "biweekly":
+        current_day = local_now.weekday()
+        days_ahead = target_day - current_day
+        if days_ahead < 0:
+            days_ahead += 7
+        next_run = local_now + timedelta(days=days_ahead)
+        next_run = next_run.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if next_run <= local_now:
+            next_run += timedelta(weeks=2)
+    elif frequency == "monthly":
+        next_run = local_now.replace(day=1, hour=hour, minute=minute, second=0, microsecond=0)
+        if next_run.month == 12:
+            next_run = next_run.replace(year=next_run.year + 1, month=1)
+        else:
+            next_run = next_run.replace(month=next_run.month + 1)
+        while next_run.weekday() != target_day:
+            next_run += timedelta(days=1)
+    else:
+        # Unknown frequency — default to next week same time
+        next_run = local_now + timedelta(weeks=1)
+        next_run = next_run.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    return next_run.astimezone(timezone.utc)
 
 
 def _calculate_simple_cadence(cadence: str, now_utc: datetime, tz: pytz.BaseTzInfo) -> datetime:
