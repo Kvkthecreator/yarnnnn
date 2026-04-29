@@ -27,6 +27,7 @@ import {
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
+import { useAutonomy } from '@/lib/autonomy';
 import { cn } from '@/lib/utils';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -138,6 +139,14 @@ export function ChatPanel({
   const [actionCard, setActionCard] = useState<ActionCardConfig | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ADR-238: surface the workspace's autonomy posture above the form
+  // when it's non-default. Hidden for the dominant `manual` case to
+  // keep the composer quiet; visible only when delegation is wider.
+  // Read-only chip — clicking is a no-op in this ADR; ADR-237's role
+  // grammar may later route it to a posture modal.
+  const { effectiveLevel, summary: autonomySummary } = useAutonomy();
+  const showAutonomyChip = !!effectiveLevel && effectiveLevel !== 'manual';
 
   // Accept action card from parent
   useEffect(() => {
@@ -311,6 +320,18 @@ export function ChatPanel({
               onSelect={handleActionSelect}
               onDismiss={() => setActionCard(null)}
             />
+          </div>
+        )}
+
+        {showAutonomyChip && (
+          <div className="flex items-center mb-1.5">
+            <span
+              className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full border border-border bg-muted/40 text-muted-foreground"
+              title={autonomySummary}
+              aria-label={`Workspace autonomy: ${autonomySummary}`}
+            >
+              {autonomySummary}
+            </span>
           </div>
         )}
 

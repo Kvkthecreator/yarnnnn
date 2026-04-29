@@ -29,21 +29,19 @@ import Link from 'next/link';
 import { Compass } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useComposition } from '@/lib/compositor';
+import {
+  AUTONOMY_PATH,
+  parseAutonomy,
+  formatAutonomySummary,
+} from '@/lib/autonomy';
 import { useCockpit } from '../CockpitContext';
 
 const MANDATE_PATH = '/workspace/context/_shared/MANDATE.md';
-const AUTONOMY_PATH = '/workspace/context/_shared/AUTONOMY.md';
 
 interface MandateMeta {
   primary_action?: string;
   posture?: string;
   cadence?: string;
-}
-
-interface AutonomyMeta {
-  default_level?: string;
-  default_ceiling_cents?: number;
-  domains?: Record<string, { level?: string; ceiling_cents?: number }>;
 }
 
 /**
@@ -114,70 +112,9 @@ function parseMandate(content: string): {
   return { meta, intent: intentLines, isSkeleton };
 }
 
-function parseAutonomy(content: string): AutonomyMeta {
-  const fm = content.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!fm) return {};
-  const meta: AutonomyMeta = { domains: {} };
-  // Lightweight YAML walk for the two shapes we care about:
-  //   default:
-  //     level: bounded_autonomous
-  //     ceiling_cents: 200000
-  //   domains:
-  //     trading:
-  //       level: bounded_autonomous
-  //       ceiling_cents: 50000
-  let currentDomain: string | null = null;
-  let inDefault = false;
-  let inDomains = false;
-  for (const line of fm[1].split('\n')) {
-    if (/^default:\s*$/.test(line)) {
-      inDefault = true;
-      inDomains = false;
-      currentDomain = null;
-      continue;
-    }
-    if (/^domains:\s*$/.test(line)) {
-      inDefault = false;
-      inDomains = true;
-      currentDomain = null;
-      continue;
-    }
-    const domainMatch = line.match(/^\s{2}([a-z_]+):\s*$/);
-    if (inDomains && domainMatch) {
-      currentDomain = domainMatch[1];
-      meta.domains![currentDomain] = {};
-      continue;
-    }
-    const fieldMatch = line.match(/^\s+([a-z_]+):\s*(.*)$/);
-    if (!fieldMatch) continue;
-    const k = fieldMatch[1].trim();
-    const v = fieldMatch[2].trim().replace(/^['"]|['"]$/g, '');
-    if (inDefault) {
-      if (k === 'level') meta.default_level = v;
-      if (k === 'ceiling_cents') meta.default_ceiling_cents = Number(v);
-    } else if (inDomains && currentDomain) {
-      const dom = meta.domains![currentDomain];
-      if (k === 'level') dom.level = v;
-      if (k === 'ceiling_cents') dom.ceiling_cents = Number(v);
-    }
-  }
-  return meta;
-}
-
-function formatAutonomySummary(autonomy: AutonomyMeta): string {
-  const level = autonomy.default_level
-    ?? Object.values(autonomy.domains ?? {})[0]?.level
-    ?? null;
-  if (!level) return 'No autonomy declared';
-  const ceiling = autonomy.default_ceiling_cents
-    ?? Object.values(autonomy.domains ?? {})[0]?.ceiling_cents
-    ?? null;
-  const levelLabel = level.replace(/_/g, ' ');
-  if (ceiling && ceiling > 0) {
-    return `${levelLabel} · ceiling $${(ceiling / 100).toLocaleString()}`;
-  }
-  return levelLabel;
-}
+// `parseAutonomy` + `formatAutonomySummary` + `AutonomyMeta` lifted to
+// `@/lib/autonomy` by ADR-238. Singular Implementation: do not re-inline
+// here even temporarily.
 
 export function MandateFace() {
   const { onOpenChatDraft } = useCockpit();

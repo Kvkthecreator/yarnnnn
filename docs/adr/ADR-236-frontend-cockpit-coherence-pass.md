@@ -306,7 +306,7 @@ What this pass does **NOT** do, declared explicitly so future-me doesn't drift:
 This umbrella ADR's status flips to **Implemented** when:
 
 - [x] Round 0 — Tier 2 hygiene block closed (Items 5, 6 Implemented; Item 7 Deferred).
-- [ ] Round 1 — ADR-238 reaches **Implemented**.
+- [x] Round 1 — ADR-238 reaches **Implemented** (commit pending; test gate 6/6 passing).
 - [ ] Round 2 — ADR-237 reaches **Implemented** (gated on ADR-235 Implemented).
 - [ ] Round 3 — ADR-239 reaches **Implemented** (or final phase, per Rule 7) — preceded by scoping memo.
 - [ ] Round 4 — ADR-240 reaches **Implemented**.

@@ -20,9 +20,15 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 
 interface NavData {
+  // ADR-236 Item 6 (2026-04-29): tasks contract aligned with the
+  // post-ADR-231 thin scheduling index — `mode` and `essential` were
+  // dropped from the API response when the columns were dropped from
+  // the tasks table. Recurrence label (Recurring vs One-time) is
+  // derived FE-side from `schedule` per recurrenceLabel() in
+  // web/types/index.ts.
   tasks: Array<{
     slug: string; title: string; status: string;
-    mode: string | null; schedule: string | null;
+    schedule: string | null;
     next_run_at: string | null; last_run_at: string | null;
   }>;
   domains: Array<{

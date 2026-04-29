@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.8] - ADR-238 — Autonomy-mode FE consumption (substrate-read primitive extracted)
+
+### Changed
+- `web/components/library/faces/MandateFace.tsx` — inline `parseAutonomy`, `formatAutonomySummary`, `AutonomyMeta`, and `AUTONOMY_PATH` deleted; imported from `@/lib/autonomy` instead. Render output unchanged; the parser is lifted verbatim to the shared module.
+- `web/components/tp/ChatPanel.tsx` — gains a discreet read-only autonomy posture chip above the composer form, gated on `effectiveLevel && effectiveLevel !== 'manual'`. Hidden for the dominant `manual` (or skeleton) case; visible only when delegation is wider.
+
+### Added
+- `web/lib/autonomy.ts` — single FE source of autonomy substrate parsing. Exports `AutonomyLevel`, `AutonomyMeta`, `parseAutonomy`, `formatAutonomySummary`, `resolveEffectiveLevel`, `useAutonomy`, `AUTONOMY_PATH`. Pure-TS module — only the hook imports React. Future consumers (ADR-237 chat role grammar, ADR-240 onboarding-as-activation, Round 5 mop-up) compose with this module per ADR-236 Rule 8.
+- `api/test_adr238_autonomy_substrate.py` — Python regression gate (6/6 assertions). FE has no JS test runner today; the gate reads source files as text. Consistent with the ADR-231 invariants gate pattern.
+
+### Behavior
+- Operator running a workspace declared `bounded_autonomous` (e.g., alpha-trader) now sees a small chip "bounded autonomous · ceiling $20,000" above the chat composer. Clicking the chip is a no-op in this ADR; ADR-237 may later route it to a posture modal.
+- No new LLM call. No new endpoint. No schema change. Read-only — mutation continues to route through `UpdateContext(target='autonomy')` per ADR-217 (or its ADR-235 successor).
+
+### Notes
+- ADR-238 is Round 1 of the ADR-236 frontend cockpit coherence pass. Round 2 (ADR-237 chat role-based design system) is gated on ADR-235 reaching Implemented in another session.
+- Singular Implementation honored: the inline parser in MandateFace cannot coexist with the lib import; the gate's assertion #2 enforces that future drift cannot re-inline.
+
+---
+
 ## [2026.04.29.7] - ADR-231 D5 — Workspace + tools_core + task_scope prompt rewrite (residual ManageTask sweep)
 
 ### Changed
