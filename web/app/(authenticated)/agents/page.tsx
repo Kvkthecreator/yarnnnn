@@ -93,15 +93,15 @@ export default function AgentsPage() {
       const activeTasks = agentTasks.filter(t => t.status === 'active');
       return [
         ...(activeTasks.length > 0 ? [{
-          id: 'run-task',
-          label: `Run ${activeTasks[0]?.title || 'task'}`,
+          id: 'run-recurrence',
+          label: `Run ${activeTasks[0]?.title || 'work'}`,
           icon: Play,
           verb: 'prompt' as const,
-          onSelect: () => { sendMessage(`Run the task "${activeTasks[0]?.title}" now`, { surface: surfaceOverride }); },
+          onSelect: () => { sendMessage(`Run "${activeTasks[0]?.title}" now`, { surface: surfaceOverride }); },
         }] : []),
         {
-          id: 'assign-task',
-          label: 'Assign a new task',
+          id: 'assign-work',
+          label: 'Assign new work',
           icon: ListChecks,
           verb: 'show' as const,
           onSelect: () => {

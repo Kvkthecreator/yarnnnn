@@ -21,6 +21,8 @@ import {
   Paperclip,
   Repeat,
   ChevronDown,
+  CornerDownRight,
+  Zap,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -406,11 +408,43 @@ function NarrativeMessage({
         </div>
       );
     }
+    // ADR-219 / ADR-205 F1 attribution chip:
+    //   - taskSlug set + role !== 'user' → "from {slug}", linked to /work?task={slug}
+    //   - taskSlug unset + role === 'assistant' + addressed pulse + invocationId → "ran inline"
+    //   This makes the difference between recurrence-fired and chat-fired
+    //   invocations visible at the rendering layer per ADR-219 Axiom 9.
+    const recurrenceSlug = msg.narrative?.taskSlug;
+    const showRecurrenceChip = !!recurrenceSlug && msg.role !== 'user';
+    const showInlineFireHint =
+      !recurrenceSlug &&
+      msg.role === 'assistant' &&
+      msg.narrative?.pulse === 'addressed' &&
+      !!msg.narrative?.invocationId;
+
     return (
       <div className={cn('text-[13px] rounded-2xl px-3 py-2 max-w-[92%]', msg.role === 'user' ? 'bg-primary/10 ml-auto rounded-br-md' : 'bg-muted rounded-bl-md')}>
         <span className={cn("text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1", msg.role === 'user' ? 'uppercase' : 'font-brand text-[10px]')}>
           {msg.role === 'user' ? 'You' : msg.role === 'agent' ? (msg.authorAgentSlug ?? 'agent') : msg.role === 'external' ? 'external' : msg.role === 'system' ? 'system' : 'yarnnn'}
         </span>
+        {showRecurrenceChip && (
+          <a
+            href={`/work?task=${encodeURIComponent(recurrenceSlug!)}`}
+            className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-foreground/5 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded transition-colors"
+            title={`From recurrence: ${recurrenceSlug}`}
+          >
+            <CornerDownRight className="w-2.5 h-2.5" />
+            <span className="font-mono">{recurrenceSlug}</span>
+          </a>
+        )}
+        {showInlineFireHint && (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/60 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded"
+            title="Inline action — fired immediately on ask"
+          >
+            <Zap className="w-2.5 h-2.5" />
+            <span>ran inline</span>
+          </span>
+        )}
         {msg.blocks && msg.blocks.length > 0 ? (
           <MessageBlocks blocks={msg.blocks} />
         ) : msg.role === 'assistant' && !msg.content && isLoading ? (
@@ -431,7 +465,7 @@ function NarrativeMessage({
               type="button"
               onClick={() => onMakeRecurring!(msg.content)}
               className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/70 hover:text-primary hover:bg-primary/5 px-1.5 py-0.5 rounded transition-colors"
-              title="Turn this inline ask into a recurring task"
+              title="Turn this inline ask into a recurrence"
             >
               <Repeat className="w-2.5 h-2.5" />
               Make this recurring
