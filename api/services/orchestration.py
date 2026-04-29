@@ -732,7 +732,7 @@ Write team decisions into the ## Team section of TASK.md. Document reasoning bri
 - Reporting: reads all domains, produces synthesis. Do NOT assign platform-specific research.
 
 ## Feedback Routing
-- When user comments on output quality → UpdateContext(target="agent") to the producing agent
+- When user comments on output quality → WriteFile(scope="workspace", path="agents/{slug}/memory/feedback.md", content="...", mode="append") for the producing agent (ADR-235)
 - When user says "too long" / "more detail" / "different format" → feedback to agent
 - When user corrects orchestration → update this playbook
 - Positive feedback matters too — "great charts" confirms the agent's approach

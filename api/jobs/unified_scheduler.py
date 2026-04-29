@@ -16,8 +16,9 @@ Layer 2 (services.invocation_dispatcher — Sonnet generation per shape):
 
 Layer 3 (yarnnn.py — operator-present only):
 - Chat mode with primitives. YARNNN is the single intelligence layer
-  (ADR-156, ADR-189). Memory writes via `UpdateContext(target="memory")`
-  in-session per ADR-156.
+  (ADR-156, ADR-189). Memory writes via `WriteFile(scope="workspace",
+  path="memory/notes.md", content=..., mode="append")` in-session per
+  ADR-156 + ADR-235.
 
 Cron: every 5 minutes via Render. `schedule: "*/5 * * * *"`. The scheduler
 is fully stateless across ticks; each invocation is a fresh DB connection.

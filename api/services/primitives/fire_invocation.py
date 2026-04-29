@@ -165,7 +165,7 @@ async def handle_fire_invocation(auth: Any, input: dict) -> dict:
             "success": False,
             "error": "paused",
             "message": (
-                f"declaration {slug} is paused. Use UpdateContext(target='recurrence', "
+                f"declaration {slug} is paused. Use ManageRecurrence("
                 f"action='resume', shape='{shape}', slug='{slug}') to resume before firing."
             ),
         }

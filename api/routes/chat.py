@@ -425,7 +425,14 @@ async def _write_conversation_summary(auth, messages: list[dict]) -> None:
             for tool in tool_history:
                 name = tool.get("name", "")
                 summary = tool.get("result_summary", "")
-                if name in ("ManageTask", "UpdateContext", "ManageDomains"):
+                if name in (
+                    "ManageDomains",
+                    "ManageRecurrence",
+                    "ManageAgent",
+                    "InferContext",
+                    "InferWorkspace",
+                    "WriteFile",
+                ):
                     decisions.append(f"{name}: {summary[:100]}" if summary else name)
 
         # Build summary
@@ -992,8 +999,10 @@ async def _load_task_context(
             ]
             section_steering_hint = (
                 "\n\nThis is a deliverable recurrence with declared sections. "
-                "You can steer a specific section with UpdateContext "
-                f"(target='task', task_slug='{task_slug}', target_section='<section-slug>').\n"
+                "You can steer a specific section by writing to the recurrence's "
+                "feedback substrate via "
+                f"WriteFile(scope='workspace', path='reports/{task_slug}/feedback.md', "
+                "content='## Steering for section <section-slug>\\n- ...', mode='append').\n"
                 "Available sections:\n" + "\n".join(section_lines)
             )
 

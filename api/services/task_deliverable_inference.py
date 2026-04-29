@@ -148,11 +148,11 @@ async def infer_task_deliverable_preferences(
             logger.warning(f"[DELIVERABLE_INFERENCE] Inference output missing key sections — discarding")
             return None
 
-        # ADR-231 Phase 3.6.b: write inferred deliverable updates back into
-        # the recurrence YAML's `deliverable:` block. Uses UpdateContext
-        # (target='recurrence', action='update') with `changes` carrying the
-        # full deliverable block — that primitive owns the YAML read-modify-
-        # write atomically and triggers a scheduling-index sweep.
+        # ADR-231 Phase 3.6.b + ADR-235 D1.c: write inferred deliverable
+        # updates back into the recurrence YAML's `deliverable:` block via
+        # ManageRecurrence(action='update', changes=...). The primitive owns
+        # the YAML read-modify-write atomically and triggers a scheduling-
+        # index sweep.
         try:
             parsed_block = _yaml.safe_load(updated_content) or {}
             if not isinstance(parsed_block, dict):
@@ -164,16 +164,15 @@ async def infer_task_deliverable_preferences(
             logger.warning(f"[DELIVERABLE_INFERENCE] Inferred YAML parse failed for {task_slug}: {_exc}")
             return None
 
-        from services.primitives.update_context import handle_update_context
+        from services.primitives.manage_recurrence import handle_manage_recurrence
 
-        # Synthesize a minimal auth-shape so handle_update_context works.
+        # Synthesize a minimal auth-shape so handle_manage_recurrence works.
         class _Auth:
             def __init__(self, c, u):
                 self.client = c
                 self.user_id = u
         _auth = _Auth(client, user_id)
-        await handle_update_context(_auth, {
-            "target": "recurrence",
+        await handle_manage_recurrence(_auth, {
             "action": "update",
             "shape": decl.shape.value,
             "slug": task_slug,

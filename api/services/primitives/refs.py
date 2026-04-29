@@ -78,8 +78,8 @@ ENTITY_TYPES = {
     "task",  # ADR-138: work units
     # ADR-168 Commit 2: "action" and "system" removed. They only existed to
     # serve the Execute primitive's action discovery surface (`List(pattern="action:*")`).
-    # Execute was dissolved into ManageTask/UpdateContext; these entity types
-    # had no other callers.
+    # Execute was dissolved into ManageTask + UpdateContext; both subsequently
+    # dissolved (ADR-231 / ADR-235), so these entity types had no callers.
     # ADR-196: "memory" and "domain" removed. Memory is filesystem-native at
     # /workspace/*.md since ADR-156; the user_memory table was dropped in
     # migration 151. The "domain" type originally pointed at knowledge_domains
@@ -504,4 +504,5 @@ def _extract_subpath(entity: dict, subpath: str) -> Any:
 
 # ADR-168 Commit 2: _resolve_action_ref removed along with Execute primitive.
 # Its only use was List(pattern="action:*") for Execute action discovery.
-# No replacement — actions are now named typed parameters on ManageTask/UpdateContext.
+# No replacement — lifecycle actions are typed parameters on ManageAgent /
+# ManageRecurrence / ManageDomains; substrate writes go through WriteFile.

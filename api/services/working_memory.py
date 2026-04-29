@@ -463,7 +463,8 @@ def _get_recent_uploads_sync(user_id: str, client: Any) -> list[dict]:
 
     Returns documents uploaded in the last 7 days. Used by the compact index
     to surface "pending uploads" — uploads that arrived outside an active
-    chat session and that TP should consider processing via UpdateContext.
+    chat session and that TP should consider processing via InferContext or
+    InferWorkspace (ADR-235).
 
     The 7-day window is intentionally generous: a user who uploads on day 1
     and chats on day 5 should still see TP offer to read the document. Older
@@ -1243,11 +1244,11 @@ def format_compact_index(
 
     # --- Recent uploads (ADR-162 Sub-phase B) ---
     # Surface uploads from the last 7 days. TP should proactively offer to
-    # process these via UpdateContext when the user is in chat. Empty list
-    # means no recent uploads — silent.
+    # process these via InferContext / InferWorkspace when the user is in
+    # chat. Empty list means no recent uploads — silent.
     recent_uploads = working_memory.get("recent_uploads", [])
     if recent_uploads:
-        lines.append(f"\nRecent uploads ({len(recent_uploads)} in last 7 days) — consider offering to process via UpdateContext:")
+        lines.append(f"\nRecent uploads ({len(recent_uploads)} in last 7 days) — consider offering to process via InferContext / InferWorkspace:")
         for u in recent_uploads[:3]:
             lines.append(f"- {u.get('filename', 'document')} (uploaded {u.get('uploaded_at', '')[:10]})")
 

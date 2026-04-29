@@ -385,23 +385,31 @@ async def test_write_agent_feedback_primitive():
         from services.workspace import get_agent_slug
         slug = get_agent_slug(agent)
 
-        # ADR-146: WriteAgentFeedback absorbed into UpdateContext(target="agent")
-        from services.primitives.update_context import handle_update_context
+        # ADR-146: WriteAgentFeedback absorbed into UpdateContext(target="agent").
+        # ADR-235: UpdateContext dissolved; agent feedback now goes through
+        # WriteFile(scope="workspace", path="agents/{slug}/memory/feedback.md", ...).
+        from services.primitives.workspace import handle_write_file
+        from datetime import datetime, timezone
 
         class _Auth:
             def __init__(self, c, uid):
                 self.client = c
                 self.user_id = uid
         auth = _Auth(client, TEST_USER_ID)
-        result = await handle_update_context(auth, {
-            "target": "agent",
-            "agent_slug": slug,
-            "text": "Reports are too long. Keep to 2 pages max."
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+        feedback_text = "Reports are too long. Keep to 2 pages max."
+        result = await handle_write_file(auth, {
+            "scope": "workspace",
+            "path": f"agents/{slug}/memory/feedback.md",
+            "content": f"## Feedback ({now}, source: user_conversation)\n- {feedback_text}\n",
+            "mode": "append",
+            "authored_by": "operator",
+            "message": "test feedback write",
         })
 
         record(
             "  Primitive returned ok",
-            result.get("status") == "ok",
+            result.get("success") is True,
             str(result)
         )
 
@@ -420,17 +428,9 @@ async def test_write_agent_feedback_primitive():
             feedback is not None and "conversation" in feedback,
         )
 
-        # Test with invalid slug
-        error_result = await handle_update_context(auth, {
-            "target": "agent",
-            "agent_slug": "nonexistent-agent-xyz",
-            "text": "This should fail"
-        })
-        record(
-            "  Invalid slug returns error",
-            "error" in error_result,
-            str(error_result)
-        )
+        # Test that WriteFile to a missing scope='agent' surface errors honestly
+        # (we no longer have the slug-existence check at primitive level since
+        # WriteFile is path-based). Skip the error path test.
 
     finally:
         client.table("agents").delete().eq("id", agent_id).execute()

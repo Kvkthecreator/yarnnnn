@@ -871,8 +871,8 @@ async def trigger_run(
             status_code=400,
             detail=(
                 f"No recurrence declaration assigns agent '{agent_slug}'. "
-                f"Author one via UpdateContext(target='recurrence', action='create', ...) "
-                f"with this agent in the agents: field."
+                f"Author one via ManageRecurrence(action='create', ...) with "
+                f"this agent in the body's agents: field."
             ),
         )
 

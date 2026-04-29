@@ -205,7 +205,7 @@ Ask the user what they're looking for if not clear from context.
 
 User wants to save something to their persistent memory.
 
-Use `UpdateContext(target="memory", text="...")` to save to the user's persistent memory.
+Use `WriteFile(scope="workspace", path="memory/notes.md", content="...", mode="append")` to save to the user's persistent memory (ADR-235).
 
 If the user's intent is clear, save immediately and confirm. If ambiguous, ask what they'd like to remember.
 """,

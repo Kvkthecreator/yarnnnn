@@ -1223,4 +1223,9 @@ async def handle_read_agent_file(auth: Any, input: dict) -> dict:
     return response
 
 # ADR-146: WriteAgentFeedback and WriteTaskFeedback deleted.
-# Absorbed into UpdateContext(target="agent"|"task") in update_context.py.
+# ADR-235: Their successor (UpdateContext target='agent'|'task') is also
+# deleted. Feedback writes now go through WriteFile(scope="workspace", ...)
+# at the canonical path (agents/{slug}/memory/feedback.md or task natural-
+# home feedback.md). The activity-log emission previously inside the
+# UpdateContext handlers is now a path-prefix recognition step inside the
+# WriteFile dispatch (ADR-235 D1.b).

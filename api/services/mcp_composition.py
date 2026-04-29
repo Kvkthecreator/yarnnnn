@@ -17,10 +17,13 @@ Canonical product framing:
     docs/features/mcp/README.md and sibling docs (tool-contracts.md,
     workflows.md, architecture.md) — this module is their implementation.
 
-Primitive naming (ADR-168 Commit 4):
+Primitive naming (ADR-168 Commit 4 + ADR-235):
     File-layer primitives: ReadFile, WriteFile, SearchFiles, ListFiles.
     Semantic-query primitive: QueryKnowledge (unchanged, distinct mental model).
-    Context-mutation primitive: UpdateContext (unchanged).
+    Inference-merged writes: InferContext (identity/brand) — ADR-235 D1.a.
+    Substrate writes: WriteFile(scope="workspace", ...) — ADR-235 D1.b.
+    UpdateContext is DISSOLVED per ADR-235; remember_this dispatches via
+    the new primitives (see dispatch_remember_this).
 """
 
 from __future__ import annotations
@@ -314,7 +317,11 @@ def classify_memory_target(
     tasks_by_slug: Optional[dict[str, dict]] = None,
 ) -> dict:
     """
-    Classify remember_this content into an UpdateContext target.
+    Classify remember_this content into a write target.
+
+    ADR-235: target enum is unchanged from the original UpdateContext shape
+    (memory | identity | brand | agent | task). The DISPATCH path changed —
+    see `dispatch_remember_this`.
 
     Returns one of three shapes:
 
@@ -646,3 +653,128 @@ def _normalize_client_id(raw: str) -> Optional[str]:
     if "cursor" in low:
         return "cursor"
     return None
+
+
+# =============================================================================
+# dispatch_remember_this — ADR-235 routing for the MCP write path
+# =============================================================================
+
+
+async def dispatch_remember_this(
+    auth: Any,
+    target: str,
+    stamped_text: str,
+    slug: Optional[str],
+) -> dict:
+    """
+    Route a classified remember_this write to the appropriate post-ADR-235
+    primitive. Replaces the old `execute_primitive(auth, "UpdateContext", ...)`
+    dispatch path.
+
+    Routing:
+      target='memory'   → WriteFile(scope='workspace', path='memory/notes.md',
+                                    content=<formatted>, mode='append',
+                                    authored_by='yarnnn:mcp')
+      target='identity' → InferContext(target='identity', text=stamped_text)
+      target='brand'    → InferContext(target='brand', text=stamped_text)
+      target='agent'    → WriteFile(scope='workspace',
+                                    path='agents/{slug}/memory/feedback.md',
+                                    content=<formatted entry>, mode='append',
+                                    authored_by='yarnnn:mcp')
+      target='task'     → WriteFile(scope='workspace',
+                                    path='<resolved natural-home>/feedback.md',
+                                    content=<formatted entry>, mode='append',
+                                    authored_by='yarnnn:mcp')
+
+    Returns the primitive result (success / error / metadata) unchanged.
+    """
+    from services.primitives.registry import execute_primitive
+
+    if target == "identity" or target == "brand":
+        return await execute_primitive(
+            auth,
+            "InferContext",
+            {"target": target, "text": stamped_text},
+        )
+
+    if target == "memory":
+        # Memory dedup already happens in WriteFile path? No — dedup only ran
+        # inside _handle_memory previously. For MCP we keep the simple append
+        # behavior; the entry-type inference and dedup were chat-specific.
+        return await execute_primitive(
+            auth,
+            "WriteFile",
+            {
+                "scope": "workspace",
+                "path": "memory/notes.md",
+                "content": stamped_text,
+                "mode": "append",
+                "authored_by": "yarnnn:mcp",
+                "message": "remember_this → memory",
+            },
+        )
+
+    if target == "agent":
+        if not slug:
+            return {
+                "success": False,
+                "error": "missing_slug",
+                "message": "agent feedback requires a slug",
+            }
+        # Format the entry the same way the prior _handle_agent_feedback did:
+        # "## Feedback (date, source: ...)\n- <text>". We don't have the prior
+        # file in hand here, so we just append the entry; the chat-side flow
+        # used a header-aware pattern but for MCP the simple append is fine —
+        # ADR-209 revision history captures the chain.
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+        entry = f"\n## Feedback ({now}, source: mcp)\n- {stamped_text}\n"
+        return await execute_primitive(
+            auth,
+            "WriteFile",
+            {
+                "scope": "workspace",
+                "path": f"agents/{slug}/memory/feedback.md",
+                "content": entry,
+                "mode": "append",
+                "authored_by": "yarnnn:mcp",
+                "message": f"remember_this → agent feedback ({slug})",
+            },
+        )
+
+    if target == "task":
+        if not slug:
+            return {
+                "success": False,
+                "error": "missing_slug",
+                "message": "task feedback requires a slug",
+            }
+        # Resolve natural-home feedback path via the recurrence walker,
+        # mirroring the prior _handle_task_feedback behavior.
+        from services.feedback_formatters import resolve_task_feedback_path
+        relative, err = await resolve_task_feedback_path(
+            auth.client, auth.user_id, slug
+        )
+        if err is not None:
+            return err
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+        entry = f"\n## User Feedback ({now}, source: mcp)\n- {stamped_text}\n"
+        return await execute_primitive(
+            auth,
+            "WriteFile",
+            {
+                "scope": "workspace",
+                "path": relative,
+                "content": entry,
+                "mode": "append",
+                "authored_by": "yarnnn:mcp",
+                "message": f"remember_this → task feedback ({slug})",
+            },
+        )
+
+    return {
+        "success": False,
+        "error": "invalid_target",
+        "message": f"unknown remember_this target: {target}",
+    }

@@ -8,9 +8,9 @@ ADR-181: feedback.md promoted to task root (peer of TASK.md, DELIVERABLE.md).
 Two write paths:
   1. Edit-based — called from agents.py PATCH run endpoint. Resolves task_slug
      from the run's metadata, writes to /tasks/{slug}/feedback.md.
-  2. Conversational — called by TP via UpdateContext(target="agent" or "deliverable").
-     For agent-targeted feedback with no task context, writes to the agent's
-     most recent task's feedback file.
+  2. Conversational — called by TP via WriteFile(scope="workspace") to the
+     agent's `agents/{slug}/memory/feedback.md` or the task's natural-home
+     `feedback.md` (ADR-235 D1.b).
 
 The task pipeline reads feedback.md on every run via build_task_execution_prompt().
 """

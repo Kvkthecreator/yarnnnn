@@ -78,7 +78,7 @@ async def _dispatch_high(
     Resolves agent → recurrence declaration, then dispatch(decl). When no
     declaration assigns this agent, returns success=False with an
     explanatory message — the operator should author one via
-    UpdateContext(target='recurrence').
+    ManageRecurrence(action='create', ...).
     """
     from services.invocation_dispatcher import dispatch, find_declaration_for_agent
     from services.workspace import get_agent_slug

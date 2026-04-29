@@ -101,7 +101,7 @@ class OnboardingStateResponse(BaseModel):
 
 
 # ─── ADR-140: Onboarding state (roster scaffolding) ──
-# ADR-144/146: POST /user/onboarding deleted — context enrichment via UpdateContext primitive
+# ADR-144/146/235: POST /user/onboarding deleted — context enrichment via InferContext / InferWorkspace primitives
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -217,8 +217,8 @@ async def get_onboarding_state(request: Request, auth: UserClient):
 
 # _scaffold_default_roster — DELETED (ADR-205 Primitive Collapse, 2026-04-22).
 # Was already deprecated in favor of workspace_init.initialize_workspace().
-# ADR-144: POST /user/onboarding DELETED — context enrichment now via
-# UpdateContext TP primitive (ADR-146).
+# ADR-144 + ADR-235: POST /user/onboarding DELETED — context enrichment
+# now via InferContext / InferWorkspace primitives.
 
 
 # ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────

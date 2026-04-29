@@ -328,7 +328,8 @@ def _format_edit_message(entity_type: str, changes: dict, data: dict) -> str:
             return f"Updated {title}: now {changes['status']}"
         return f"Updated {title}: {', '.join(change_list)}"
 
-    # ADR-196: memory edit branch removed (user_memory dropped; memory is
-    # filesystem-native, mutated via UpdateContext, not EditEntity).
+    # ADR-196 + ADR-235: memory edit branch removed (user_memory dropped;
+    # memory is filesystem-native, mutated via WriteFile(scope="workspace",
+    # path="memory/notes.md", ...), not EditEntity).
 
     return f"Updated {entity_type}: {', '.join(change_list)}"

@@ -7,8 +7,10 @@ Two explicit mode registries (P4): CHAT_PRIMITIVES and HEADLESS_PRIMITIVES.
 ADR-050: Platform tools are routed via handle_platform_tool.
 ADR-080: Mode-gated primitives — chat vs. headless.
 ADR-146: Consolidated from 27 → 19 primitives.
-  - UpdateContext replaces UpdateSharedContext, SaveMemory, WriteAgentFeedback, WriteTaskFeedback
-  - ManageTask replaces TriggerTask, UpdateTask, PauseTask, ResumeTask
+ADR-231 Phase 3.7: ManageTask dissolved into ManageRecurrence + FireInvocation.
+ADR-235: UpdateContext dissolved into InferContext / InferWorkspace /
+ManageRecurrence / WriteFile(scope="workspace"). ManageAgent action enum
+tightened — no chat-surface 'create'.
 """
 
 import logging

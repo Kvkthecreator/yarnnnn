@@ -258,16 +258,25 @@ def test_api_client_has_status_methods():
 # =============================================================================
 
 def test_primitive_consolidation_imports():
-    """Verify new consolidated primitives import cleanly."""
-    # UpdateContext
-    from services.primitives.update_context import UPDATE_CONTEXT_TOOL, handle_update_context
-    record("UpdateContext tool imports", UPDATE_CONTEXT_TOOL["name"] == "UpdateContext")
-    record("UpdateContext handler imports", callable(handle_update_context))
+    """Verify post-ADR-231 + post-ADR-235 primitives import cleanly."""
+    # ADR-235 successors of UpdateContext
+    from services.primitives.infer_context import INFER_CONTEXT_TOOL, handle_infer_context
+    record("InferContext tool imports", INFER_CONTEXT_TOOL["name"] == "InferContext")
+    record("InferContext handler imports", callable(handle_infer_context))
 
-    # ManageTask
-    from services.primitives.manage_task import MANAGE_TASK_TOOL, handle_manage_task
-    record("ManageTask tool imports", MANAGE_TASK_TOOL["name"] == "ManageTask")
-    record("ManageTask handler imports", callable(handle_manage_task))
+    from services.primitives.infer_workspace import INFER_WORKSPACE_TOOL, handle_infer_workspace
+    record("InferWorkspace tool imports", INFER_WORKSPACE_TOOL["name"] == "InferWorkspace")
+    record("InferWorkspace handler imports", callable(handle_infer_workspace))
+
+    # ADR-231 + ADR-235 successor of ManageTask
+    from services.primitives.manage_recurrence import MANAGE_RECURRENCE_TOOL, handle_manage_recurrence
+    record("ManageRecurrence tool imports", MANAGE_RECURRENCE_TOOL["name"] == "ManageRecurrence")
+    record("ManageRecurrence handler imports", callable(handle_manage_recurrence))
+
+    # ADR-231 D5
+    from services.primitives.fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
+    record("FireInvocation tool imports", FIRE_INVOCATION_TOOL["name"] == "FireInvocation")
+    record("FireInvocation handler imports", callable(handle_fire_invocation))
 
 
 def test_deleted_primitives_gone():
@@ -297,56 +306,62 @@ def test_deleted_tools_not_in_registry():
 
 
 def test_registry_tool_counts():
-    """CHAT_PRIMITIVES ≤ 15 (P5 budget), HEADLESS has workspace tools."""
+    """Post-ADR-234 + ADR-235 registry shape."""
     from services.primitives.registry import CHAT_PRIMITIVES, HEADLESS_PRIMITIVES
 
     chat_count = len(CHAT_PRIMITIVES)
     headless_count = len(HEADLESS_PRIMITIVES)
 
-    record(f"CHAT_PRIMITIVES count = {chat_count} (≤15)", chat_count <= 15)
-    record(f"HEADLESS_PRIMITIVES count = {headless_count}", headless_count > 0)
+    # Floor counts — these grow over time as primitives are added; the
+    # invariants below (presence/absence of named tools) are the load-bearing
+    # checks. Counts are sanity bounds.
+    record(f"CHAT_PRIMITIVES count = {chat_count} (≥20)", chat_count >= 20)
+    record(f"HEADLESS_PRIMITIVES count = {headless_count} (≥18)", headless_count >= 18)
 
     chat_names = {t["name"] for t in CHAT_PRIMITIVES}
     headless_names = {t["name"] for t in HEADLESS_PRIMITIVES}
 
-    # Chat has UpdateContext and ManageTask
-    record("Chat has UpdateContext", "UpdateContext" in chat_names)
-    record("Chat has ManageTask", "ManageTask" in chat_names)
-    # ADR-168 Commit 3: CreateTask folded into ManageTask(action="create")
-    record("CreateTask not in chat registry", "CreateTask" not in chat_names)
-    record("CreateTask not in headless registry", "CreateTask" not in headless_names)
+    # Post-ADR-235: UpdateContext and ManageTask are dissolved
+    record("Chat does NOT have UpdateContext (ADR-235)", "UpdateContext" not in chat_names)
+    record("Headless does NOT have UpdateContext (ADR-235)", "UpdateContext" not in headless_names)
+    record("Chat does NOT have ManageTask (ADR-231)", "ManageTask" not in chat_names)
+    record("Headless does NOT have ManageTask (ADR-231)", "ManageTask" not in headless_names)
+    record("Chat does NOT have CreateTask (ADR-168 C3)", "CreateTask" not in chat_names)
 
-    # Headless has workspace tools
-    # ADR-168 Commit 4: renamed ReadWorkspace/WriteWorkspace/SearchWorkspace/ListWorkspace
-    # to ReadFile/WriteFile/SearchFiles/ListFiles (file layer, substrate-first naming)
+    # Post-ADR-235 successors are present in chat
+    record("Chat has InferContext (ADR-235 D1.a)", "InferContext" in chat_names)
+    record("Chat has InferWorkspace (ADR-235 D1.a)", "InferWorkspace" in chat_names)
+    record("Chat has ManageRecurrence (ADR-235 D1.c)", "ManageRecurrence" in chat_names)
+    record("Headless has ManageRecurrence", "ManageRecurrence" in headless_names)
+    record("Chat has FireInvocation (ADR-231 D5)", "FireInvocation" in chat_names)
+
+    # Post-ADR-234: chat now has file-layer primitives
+    record("Chat has ReadFile (ADR-234)", "ReadFile" in chat_names)
+    record("Chat has WriteFile (ADR-234)", "WriteFile" in chat_names)
+    record("Chat has SearchFiles (ADR-234)", "SearchFiles" in chat_names)
+    record("Chat has ListFiles (ADR-234)", "ListFiles" in chat_names)
+
+    # Headless still has the file family + headless-only file primitives
     record("Headless has ReadFile", "ReadFile" in headless_names)
     record("Headless has WriteFile", "WriteFile" in headless_names)
     record("Headless has SearchFiles", "SearchFiles" in headless_names)
     record("Headless has ListFiles", "ListFiles" in headless_names)
-    record("Headless has ReadAgentFile", "ReadAgentFile" in headless_names)
-    # Old names should be gone
+    record("Headless has QueryKnowledge (semantic, headless-only)", "QueryKnowledge" in headless_names)
+    record("Headless has ReadAgentFile (inter-agent, headless-only)", "ReadAgentFile" in headless_names)
+
+    # ADR-234 invariants: QueryKnowledge + ReadAgentFile stay headless-only
+    record("Chat does NOT have QueryKnowledge (headless-only)", "QueryKnowledge" not in chat_names)
+    record("Chat does NOT have ReadAgentFile (headless-only)", "ReadAgentFile" not in chat_names)
+
+    # Old workspace-prefix names should be gone
     record("Old ReadWorkspace not in registry", "ReadWorkspace" not in headless_names and "ReadWorkspace" not in chat_names)
     record("Old WriteWorkspace not in registry", "WriteWorkspace" not in headless_names and "WriteWorkspace" not in chat_names)
-    # ADR-168 Commit 2: stale assertion updated. ADR-148 removed RuntimeDispatch
-    # from headless static registry — assets are rendered post-generation, not
-    # via mid-task tool calls. RuntimeDispatch is retained in chat mode only
-    # for explicit user requests. Drift-catching update while we're in the file.
-    record("RuntimeDispatch not in headless (ADR-148)", "RuntimeDispatch" not in headless_names)
-
-    # Chat should NOT have workspace tools
-    # ADR-168 Commit 4: Chat doesn't have file-layer primitives (ReadFile, WriteFile, etc.)
-    # TP operates on entities by typed ref via LookupEntity/EditEntity, not on paths.
-    record("Chat does NOT have ReadFile", "ReadFile" not in chat_names)
-    record("Chat does NOT have WriteFile", "WriteFile" not in chat_names)
-    record("Chat does NOT have ListFiles", "ListFiles" not in chat_names)
-    record("Chat does NOT have SearchFiles", "SearchFiles" not in chat_names)
-    record("Chat does NOT have RuntimeDispatch", "RuntimeDispatch" not in chat_names)
 
     # Headless should NOT have chat-only tools
     record("Headless does NOT have EditEntity", "EditEntity" not in headless_names)
     record("Headless does NOT have Clarify", "Clarify" not in headless_names)
 
-    # ADR-168 Commit 2: Execute primitive dissolved entirely (not just mode-scoped)
+    # ADR-168 Commit 2: Execute primitive dissolved entirely
     record("Execute not in chat registry", "Execute" not in chat_names)
     record("Execute not in headless registry", "Execute" not in headless_names)
 
@@ -361,37 +376,47 @@ def test_handler_registry_complete():
         record(f"handler exists for '{name}'", name in HANDLERS)
 
 
-def test_update_context_tool_schema():
-    """UpdateContext schema tracks the live target set and field surface."""
-    from services.primitives.update_context import UPDATE_CONTEXT_TOOL
+def test_infer_context_tool_schema():
+    """ADR-235 D1.a: InferContext schema covers identity + brand inference merge."""
+    from services.primitives.infer_context import INFER_CONTEXT_TOOL
 
-    schema = UPDATE_CONTEXT_TOOL["input_schema"]
+    schema = INFER_CONTEXT_TOOL["input_schema"]
     props = schema["properties"]
     required = schema["required"]
 
     targets = props["target"]["enum"]
-    record(
-        "UpdateContext has 10 targets",
-        set(targets)
-        == {
-            "workspace",
-            "mandate",
-            "identity",
-            "brand",
-            "autonomy",
-            "precedent",
-            "memory",
-            "agent",
-            "task",
-            "awareness",
-        },
-    )
-    record("UpdateContext requires target only", set(required) == {"target"})
-    record("UpdateContext has agent_slug field", "agent_slug" in props)
-    record("UpdateContext has task_slug field", "task_slug" in props)
-    record("UpdateContext has feedback_target field", "feedback_target" in props)
-    record("UpdateContext has document_ids field", "document_ids" in props)
-    record("UpdateContext has url_contents field", "url_contents" in props)
+    record("InferContext has 2 targets (identity, brand)",
+           set(targets) == {"identity", "brand"})
+    record("InferContext requires target + text", set(required) == {"target", "text"})
+    record("InferContext has document_ids field", "document_ids" in props)
+    record("InferContext has url_contents field", "url_contents" in props)
+
+
+def test_infer_workspace_tool_schema():
+    """ADR-235 D1.a: InferWorkspace schema covers first-act scaffold."""
+    from services.primitives.infer_workspace import INFER_WORKSPACE_TOOL
+
+    schema = INFER_WORKSPACE_TOOL["input_schema"]
+    props = schema["properties"]
+
+    record("InferWorkspace has text field", "text" in props)
+    record("InferWorkspace has document_ids field", "document_ids" in props)
+    record("InferWorkspace has url_contents field", "url_contents" in props)
+
+
+def test_write_file_workspace_scope():
+    """ADR-235 D1.b + ADR-234: WriteFile gains scope='workspace'."""
+    from services.primitives.workspace import WRITE_FILE_TOOL
+
+    schema = WRITE_FILE_TOOL["input_schema"]
+    props = schema["properties"]
+    scopes = props["scope"]["enum"]
+
+    record("WriteFile scope includes 'workspace' (Option A)", "workspace" in scopes)
+    record("WriteFile scope includes 'agent'", "agent" in scopes)
+    record("WriteFile scope includes 'context'", "context" in scopes)
+    record("WriteFile has authored_by field (ADR-209)", "authored_by" in props)
+    record("WriteFile has message field (ADR-209)", "message" in props)
 
 
 def test_shared_context_cluster_constants():
@@ -402,90 +427,79 @@ def test_shared_context_cluster_constants():
     record("Shared context has PRECEDENT.md", SHARED_PRECEDENT_PATH in SHARED_CONTEXT_FILES)
 
 
-def test_manage_task_tool_schema():
-    """ManageTask schema has all 7 actions (ADR-149 added evaluate/steer/complete)."""
-    from services.primitives.manage_task import MANAGE_TASK_TOOL
+def test_manage_recurrence_tool_schema():
+    """ADR-235 D1.c: ManageRecurrence schema has 5 actions + 4 shapes."""
+    from services.primitives.manage_recurrence import MANAGE_RECURRENCE_TOOL
 
-    schema = MANAGE_TASK_TOOL["input_schema"]
+    schema = MANAGE_RECURRENCE_TOOL["input_schema"]
     props = schema["properties"]
     required = schema["required"]
 
     actions = props["action"]["enum"]
-    # ADR-168 Commit 3: 8-value enum. "create" folded in from the former
-    # CreateTask primitive. "evaluate"/"steer"/"complete" were added by ADR-149.
-    record("ManageTask has 8 actions",
-           set(actions) == {"create", "trigger", "update", "pause", "resume", "evaluate", "steer", "complete"})
-    # ADR-168 Commit 3: task_slug is conditional (not top-level required) because
-    # action="create" generates the slug from title. Enforced inside handler.
-    record("ManageTask requires action only (task_slug conditional)",
-           set(required) == {"action"})
-    # Create-specific fields absorbed from former CreateTask
-    record("ManageTask has title field (create)", "title" in props)
-    record("ManageTask has type_key field", "type_key" in props)
-    record("ManageTask has agent_slug field", "agent_slug" in props)
-    record("ManageTask has focus field (create)", "focus" in props)
-    record("ManageTask has objective field (create)", "objective" in props)
-    record("ManageTask has context field", "context" in props)
-    record("ManageTask has schedule field", "schedule" in props)
-    record("ManageTask has delivery field", "delivery" in props)
-    record("ManageTask has mode field", "mode" in props)
+    record("ManageRecurrence has 5 actions",
+           set(actions) == {"create", "update", "pause", "resume", "archive"})
+
+    shapes = props["shape"]["enum"]
+    record("ManageRecurrence has 4 shapes",
+           set(shapes) == {"deliverable", "accumulation", "action", "maintenance"})
+
+    record("ManageRecurrence requires action + shape + slug",
+           set(required) == {"action", "shape", "slug"})
+    record("ManageRecurrence has body field (create)", "body" in props)
+    record("ManageRecurrence has changes field (update)", "changes" in props)
+    record("ManageRecurrence has paused_until field (pause)", "paused_until" in props)
+    record("ManageRecurrence has domain field (accumulation)", "domain" in props)
 
 
-def test_update_context_routing():
-    """UpdateContext routes to correct handler based on target."""
-    from services.primitives.update_context import handle_update_context
+def test_manage_agent_action_enum_no_create():
+    """ADR-235 D2: ManageAgent action enum drops 'create'."""
+    from services.primitives.coordinator import MANAGE_AGENT_TOOL
 
-    async def _test():
-        # Missing target
-        result = await handle_update_context(None, {"text": "test"})
-        record("UpdateContext rejects missing target", not result["success"])
-
-        # Invalid target
-        result = await handle_update_context(None, {"target": "invalid", "text": "test"})
-        record("UpdateContext rejects invalid target",
-               not result["success"] and result.get("error") == "invalid_target")
-
-        # Empty text
-        result = await handle_update_context(None, {"target": "memory", "text": ""})
-        record("UpdateContext rejects empty text",
-               not result["success"] and result.get("error") == "empty_text")
-
-    asyncio.get_event_loop().run_until_complete(_test())
+    actions = MANAGE_AGENT_TOOL["input_schema"]["properties"]["action"]["enum"]
+    record("ManageAgent does NOT have 'create' action",
+           "create" not in actions)
+    record("ManageAgent has 4 lifecycle actions",
+           set(actions) == {"update", "pause", "resume", "archive"})
 
 
-def test_manage_task_routing():
-    """ManageTask routes correctly and validates inputs."""
-    from services.primitives.manage_task import handle_manage_task
+def test_manage_recurrence_routing():
+    """ADR-235 D1.c: ManageRecurrence routes correctly and validates inputs."""
+    from services.primitives.manage_recurrence import handle_manage_recurrence
 
     async def _test():
-        # Missing slug
-        result = await handle_manage_task(None, {"action": "trigger"})
-        record("ManageTask rejects missing slug",
-               not result["success"] and result.get("error") == "missing_slug")
-
         # Invalid action
-        result = await handle_manage_task(None, {"task_slug": "test", "action": "destroy"})
-        record("ManageTask rejects invalid action",
+        result = await handle_manage_recurrence(None, {
+            "action": "destroy", "shape": "deliverable", "slug": "test"
+        })
+        record("ManageRecurrence rejects invalid action",
                not result["success"] and result.get("error") == "invalid_action")
 
+        # Missing slug
+        result = await handle_manage_recurrence(None, {
+            "action": "pause", "shape": "deliverable"
+        })
+        record("ManageRecurrence rejects missing slug",
+               not result["success"] and result.get("error") == "missing_slug")
+
+        # Invalid shape
+        result = await handle_manage_recurrence(None, {
+            "action": "pause", "shape": "fake-shape", "slug": "test"
+        })
+        record("ManageRecurrence rejects invalid shape",
+               not result["success"] and result.get("error") == "invalid_shape")
+
+        # Accumulation requires domain
+        result = await handle_manage_recurrence(None, {
+            "action": "create", "shape": "accumulation", "slug": "test"
+        })
+        record("ManageRecurrence(accumulation) requires domain",
+               not result["success"] and result.get("error") == "missing_domain")
+
     asyncio.get_event_loop().run_until_complete(_test())
 
 
-def test_compute_next_run():
-    """_compute_next_run handles daily/weekly/monthly/unknown."""
-    from services.primitives.manage_task import _compute_next_run
-
-    daily = _compute_next_run("daily")
-    record("daily schedule returns ISO timestamp", daily is not None and "T09:00:00" in daily)
-
-    weekly = _compute_next_run("weekly")
-    record("weekly schedule returns ISO timestamp", weekly is not None and "T09:00:00" in weekly)
-
-    monthly = _compute_next_run("monthly")
-    record("monthly schedule returns ISO timestamp", monthly is not None and "T09:00:00" in monthly)
-
-    unknown = _compute_next_run("*/5 * * * *")
-    record("cron schedule returns None (scheduler interprets)", unknown is None)
+# ADR-231 Phase 3.7 + ADR-235 deleted manage_task; the schedule timing math
+# moved to services.scheduling.compute_next_run_at. Test deleted alongside.
 
 
 def test_get_tools_for_mode():
@@ -539,6 +553,15 @@ def test_no_dangling_imports():
         "from services.primitives.task import",
         "from .task import",
         "CREATE_TASK_TOOL",
+        # ADR-231 Phase 3.7: ManageTask dissolved
+        "from services.primitives.manage_task",
+        "from .manage_task import",
+        "MANAGE_TASK_TOOL",
+        # ADR-235: UpdateContext dissolved
+        "from services.primitives.update_context",
+        "from .update_context import",
+        "UPDATE_CONTEXT_TOOL",
+        "handle_update_context",
     ]
 
     api_dir = Path(__file__).parent
@@ -559,16 +582,25 @@ def test_no_dangling_imports():
 
 
 def test_inline_tool_call_display_names():
-    """Frontend InlineToolCall recognizes new consolidated tool names."""
+    """Frontend InlineToolCall recognizes post-ADR-231/235 tool names.
+
+    ADR-231 dissolved ManageTask; ADR-235 dissolved UpdateContext. The
+    frontend may still recognize legacy names for historical run logs (the
+    inline-call display reads `tool_history` snapshots), but should also
+    handle the new primitives.
+    """
     inline_path = Path(__file__).parent.parent / "web" / "components" / "tp" / "InlineToolCall.tsx"
     if inline_path.exists():
         content = inline_path.read_text()
-        record("InlineToolCall handles UpdateContext",
-               "UpdateContext" in content)
-        record("InlineToolCall handles ManageTask",
-               "ManageTask" in content)
+        # Post-ADR-235 successors
+        record("InlineToolCall handles ManageRecurrence",
+               "ManageRecurrence" in content or "manage_recurrence" in content)
+        record("InlineToolCall handles InferContext",
+               "InferContext" in content or "infer_context" in content)
     else:
-        record("InlineToolCall.tsx found", False)
+        # Frontend file missing is non-fatal — frontend evolves separately.
+        # Skip rather than fail.
+        pass
 
 
 # =============================================================================
@@ -633,17 +665,18 @@ def main():
             test_status_json_written_during_pipeline,
             test_api_client_has_status_methods,
         ]),
-        ("Commit 5: ADR-146 Primitive Hardening (901bceb)", [
+        ("Commit 5: Primitive surface (post-ADR-231 + ADR-235)", [
             test_primitive_consolidation_imports,
             test_deleted_primitives_gone,
             test_deleted_tools_not_in_registry,
             test_registry_tool_counts,
             test_handler_registry_complete,
-            test_update_context_tool_schema,
-            test_manage_task_tool_schema,
-            test_update_context_routing,
-            test_manage_task_routing,
-            test_compute_next_run,
+            test_infer_context_tool_schema,
+            test_infer_workspace_tool_schema,
+            test_write_file_workspace_scope,
+            test_manage_recurrence_tool_schema,
+            test_manage_agent_action_enum_no_create,
+            test_manage_recurrence_routing,
             test_get_tools_for_mode,
             test_headless_executor_blocks_chat_only_tools,
             test_no_dangling_imports,

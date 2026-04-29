@@ -58,9 +58,9 @@ The primitive set is runtime-neutral, but the *operator surface* convention per 
 
 | Operation | Surface | Primitive path |
 |-----------|---------|----------------|
-| **Create** (task, agent, rule, signal, SKU) | Modal (`CreateTaskModal`, `AuthorAgentModal`, `CreateRuleModal`) | `ManageTask(action="create")` / `ManageAgent(action="create")` / `UpdateContext` for rule authoring. High-precision, well-specified; modal provides structured fields. |
+| **Create** (recurrence, rule, signal, SKU) | Modal (`CreateTaskModal`, `CreateRuleModal`) | `ManageRecurrence(action="create")` / `WriteFile(scope="workspace", ...)` for governance + rule authoring. High-precision, well-specified; modal provides structured fields. **Note (ADR-235 D2):** there is no chat-surface or modal pathway to author *new agents* — the systemic roster is fixed at signup. |
 | **Read** | Direct surface view | Any read primitive (`ReadFile`, `LookupEntity`, `SearchFiles`, `QueryKnowledge`). No modal or chat required. |
-| **Update** | Chat + YARNNN | `ManageTask(action="update")`, `ManageAgent(action="update")`, `UpdateContext`, `EditEntity`, `WriteFile`. Judgment-shaped — YARNNN asks "why", proposes alternatives, remembers reasoning. |
+| **Update** | Chat + YARNNN | `ManageRecurrence(action="update")`, `ManageAgent(action="update")`, `InferContext` (identity/brand merge), `WriteFile(scope="workspace", ...)` (substrate writes), `EditEntity`. Judgment-shaped — YARNNN asks "why", proposes alternatives, remembers reasoning. |
 | **Delete / archive** | Chat + YARNNN, confirmation required | `ManageTask(action="archive")`, `ManageAgent(action="archive")`. Irreversibility warrants conversation; YARNNN writes attribution to `/workspace/memory/awareness.md`. |
 | **Approve / reject proposal** (money-bearing) | Direct click on cockpit Queue | `handle_execute_proposal` / `handle_reject_proposal`. Not CRUD — surface-level action on a Deliverable. YARNNN observes via compact index. |
 
@@ -90,15 +90,17 @@ Verbs: `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`, `QueryKnowledge` (se
 
 ### `context` — Typed context mutations
 
-Single verb that writes to one of several typed context stores (identity, brand, memory, agent feedback, task feedback, deliverable preferences). Each target has its own storage location but all go through one consolidated entry point (ADR-146 Phase 1).
+ADR-146 originally consolidated four context-write verbs into a single `UpdateContext`. ADR-235 dissolved that aggregate when its three categorically different cognitive shapes (inference-merged write / substrate write / lifecycle action) drifted apart. The current vocabulary (post-ADR-235):
 
-Mental model: **"update this piece of the user's context."**
+- **Inference-merged writes** → `InferContext` (identity/brand) + `InferWorkspace` (first-act). LLM merge over text + docs + URLs.
+- **Substrate writes** → `WriteFile(scope="workspace", path=..., content=...)`. Direct, attributed, revision-chained per ADR-209. Recognized canonical paths emit activity-log events (ADR-235 D1.b).
+- **Recurrence lifecycle** → `ManageRecurrence(action=..., shape=..., slug=..., ...)`. See `lifecycle` family.
 
-Verb: `UpdateContext`.
+Mental model: **"the cognitive shape is the verb."** ADR-209's `write_revision` already unifies substrate-write paths under one attribution + revision chain — the consolidation rationale of ADR-146 is preserved at the substrate level, not at the primitive-name level.
 
 ### `lifecycle` — Entity lifecycle management
 
-Verbs that create, update, pause, resume, or complete an agent, task, or domain entity. Consistent `Manage*` pattern across all three. `ManageAgent` and `ManageTask` both include `action="create"` to keep creation symmetric with other lifecycle actions (ADR-168).
+Verbs that update, pause, resume, archive an agent, recurrence, or domain entity. Consistent `Manage*` pattern across all three. `ManageRecurrence` includes `action="create"` to author new recurrences. `ManageAgent` does NOT have `create` per ADR-235 D2 — the systemic agent roster is fixed at signup.
 
 Mental model: **"take this lifecycle action on this named thing."**
 
@@ -183,9 +185,9 @@ Concrete example of how perception and action compose during a cold-start onboar
 | Turn | Perception YARNNN reads (from working memory) | YARNNN decides | Primitive YARNNN calls |
 |---|---|---|---|
 | 1 | `workspace_state.identity = "empty"`, `tasks_active = 1` (daily-update), `documents = 0` | Cold start. Need context input. | `Clarify(question="Tell me about your work — paste docs, URLs, or describe it in chat?")` |
-| 2 | User pastes material → `recent_uploads` populated, user message has text | Run inference. | `UpdateContext(target="identity", text=…)` (context inference) |
-| 3 | `workspace_state.identity = "rich"`, `context_domains = 0` | Scaffold domain entities so `track-*` tasks have substrate. | `ManageDomains(action="scaffold", entities=[…])` |
-| 4 | `context_domains = 3`, `tasks_active = 1` | Suggest a first recurring deliverable. | `ManageTask(action="create", task_type="competitive-brief", …)` (post-Commit 3) |
+| 2 | User pastes material → `recent_uploads` populated, user message has text | Run inference. | `InferContext(target="identity", text=…)` (ADR-235 D1.a — inference-merged write to IDENTITY.md) |
+| 3 | `workspace_state.identity = "rich"`, `context_domains = 0` | Scaffold domain entities so accumulation recurrences have substrate. | `ManageDomains(action="scaffold", entities=[…])` |
+| 4 | `context_domains = 3`, `recurrences_active = 1` | Suggest a first recurring deliverable. | `ManageRecurrence(action="create", shape="deliverable", slug="competitive-brief", body={…})` (ADR-235 D1.c) |
 | 5 | User: "show me what's running" → `active_tasks` already in compact index | Answer from perception; no primitive needed. | *(no tool call — compose answer from working memory)* |
 
 Four primitives touched in five turns, across four different substrate families (`interaction`, `context`, `lifecycle`, `lifecycle`). Turn 5 uses zero primitives because perception already carries the answer. This is the intended shape: **perception surfaces state, primitives change it.**
@@ -206,19 +208,20 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 | `ListEntities` | entity | ● | ● | ○ | entity-layer | [list.py](../../api/services/primitives/list.py) | Enumerate entities by type and filter. |
 | `SearchEntities` | entity | ● | ● | ○ | entity-layer | [search.py](../../api/services/primitives/search.py) | Search entities by content or metadata. |
 | `EditEntity` | entity | ● | ○ | ○ | entity-layer, user-authorized | [edit.py](../../api/services/primitives/edit.py) | Mutate entity fields under user direction. Chat only — headless has no user authorization path. |
-| `ReadFile` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Read a file by absolute workspace path. **ADR-234**: chat reaches `/workspace/{context,memory,reports,operations,_shared}/` directly; `/agents/{slug}/` private paths gated by prompt convention (not primitive). MCP reads workspace files via `pull_context` → `QueryKnowledge` (user-scoped), not via `ReadFile` (agent-scoped). |
-| `WriteFile` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Write a file to the workspace through the Authored Substrate (ADR-209 attribution + revision chain). **ADR-234**: chat exposure for direct substrate writes; `/agents/{slug}/` paths gated by prompt convention. |
-| `SearchFiles` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Full-text search across workspace files. **ADR-234**: chat exposure for orchestration-shape "find the file mentioning X" queries. |
-| `ListFiles` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | List files under a path prefix. **ADR-234**: chat exposure for directory-shape introspection. ADR-209 Phase 3: accepts `authored_by` / `since` / `until` filters to answer "what has been written by whom lately". |
+| `ReadFile` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Read a file from the workspace filesystem. Two scopes (**ADR-235 Option A**): `scope='workspace'` (chat default) reaches operator-shared substrate via workspace-relative path; `scope='agent'` (headless default) reaches the calling agent's workspace. MCP reads workspace files via `pull_context` → `QueryKnowledge` (user-scoped), not via `ReadFile` (path-shaped). |
+| `WriteFile` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Write a file to the workspace through the Authored Substrate (ADR-209 attribution + revision chain). Three scopes (**ADR-235 Option A**): `scope='workspace'` (chat default — operator-shared substrate including `context/_shared/*`, `memory/*`, `reports/*/feedback.md`); `scope='context'` (writes to `/workspace/context/{domain}/`); `scope='agent'` (calling agent's workspace). **ADR-235 D1.b**: writes to recognized canonical paths emit activity-log events automatically (`memory/notes.md` → `memory_written`, `agents/{slug}/memory/feedback.md` → `agent_feedback`). |
+| `SearchFiles` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | BM25 search across workspace files. Two scopes (**ADR-235 Option A**): `scope='workspace'` (chat default — entire operator workspace) or `scope='agent'`. |
+| `ListFiles` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | List files under a path prefix. Two scopes (**ADR-235 Option A**): `scope='workspace'` (chat default) or `scope='agent'`. ADR-209 Phase 3: accepts `authored_by` / `since` / `until` filters to answer "what has been written by whom lately". |
 | `ListRevisions` | file | ● | ● | ○ | file-layer, authored-substrate | [revisions.py](../../api/services/primitives/revisions.py) | ADR-209 Phase 3. Return the revision chain for a workspace path (newest first). Surfaces the Authored Substrate's parent-pointer history — who edited what, when. Chat parity intentional: operators + YARNNN inspect authored files through the same API. |
 | `ReadRevision` | file | ● | ● | ○ | file-layer, authored-substrate | [revisions.py](../../api/services/primitives/revisions.py) | ADR-209 Phase 3. Read a specific historical revision of a file (by offset or revision_id). Returns content + full authorship trailer. Zero-LLM, pure substrate read. |
 | `DiffRevisions` | file | ● | ● | ○ | file-layer, authored-substrate | [revisions.py](../../api/services/primitives/revisions.py) | ADR-209 Phase 3. Pure-Python unified diff between two revisions of the same path. Zero LLM cost, deterministic. |
 | `QueryKnowledge` | file | ○ | ● | ● | semantic-query | [workspace.py](../../api/services/primitives/workspace.py) | Semantic ranked query over accumulated `/workspace/context/` domains (ADR-151). Distinct from `SearchFiles` — returns ranked results with domain/metadata filters. **MCP's primary primitive**: `pull_context` is a thin wrapper, `work_on_this` composes over it. |
 | `ReadAgentFile` | file | ○ | ● | ○ | file-layer, inter-agent | [workspace.py](../../api/services/primitives/workspace.py) | Read a file from another agent's workspace (read-only, ADR-116). |
 | `DiscoverAgents` | lifecycle | ○ | ● | ○ | inter-agent | [workspace.py](../../api/services/primitives/workspace.py) | Find other agents in the workspace by role/scope/status (ADR-116 Phase 2). |
-| `UpdateContext` | context | ● | ○ | ● | context-mutation | [update_context.py](../../api/services/primitives/update_context.py) | Single verb for all context mutations. Targets: `identity`, `brand`, `memory`, `agent`, `task`, `awareness`. **MCP `remember_this`** dispatches here with a two-branch classifier (workspace-level targets default safely to `memory`, operational feedback uses slug disambiguation). ADR-169 decision: all UpdateContext targets available via MCP *except `awareness`* (YARNNN-only). Safety via ADR-162 provenance stamping, not pre-write guards. |
-| `ManageAgent` | lifecycle | ● | ● | ○ | lifecycle | [coordinator.py](../../api/services/primitives/coordinator.py) | Create, update, pause, resume, archive agent. |
-| `ManageTask` | lifecycle | ● | ● | ○ | lifecycle | [manage_task.py](../../api/services/primitives/manage_task.py) | Create, trigger, update, pause, resume, evaluate, steer, complete task. ADR-168 Commit 3 folded the former `CreateTask` primitive into `action="create"` for symmetry with `ManageAgent`. |
+| `InferContext` | context | ● | ○ | ● | inference, context-mutation | [infer_context.py](../../api/services/primitives/infer_context.py) | **ADR-235 D1.a.** Inference-merged write to IDENTITY.md or BRAND.md. Sonnet merge over operator text + uploaded docs + URLs; preserves prior content. ADR-162 gap detection runs on the result and is returned in `gaps`. **MCP `remember_this`** dispatches here for `target='identity'`/`'brand'`. |
+| `InferWorkspace` | context | ● | ○ | ○ | inference, context-mutation | [infer_workspace.py](../../api/services/primitives/infer_workspace.py) | **ADR-235 D1.a.** First-act scaffold (ADR-190). One Sonnet call producing identity + brand + entities + work_intent. Writes IDENTITY.md + BRAND.md, scaffolds entity subfolders, returns work_intent_proposal for follow-on tool calls. |
+| `ManageAgent` | lifecycle | ● | ● | ○ | lifecycle | [coordinator.py](../../api/services/primitives/coordinator.py) | **ADR-235 D2.** Lifecycle only: `update`, `pause`, `resume`, `archive`. The `create` action is removed from the LLM-facing tool definition — there is no chat surface for authoring new agents. Service code (`agent_creation.create_agent_record`) preserved for the kernel/signup path. |
+| `ManageRecurrence` | lifecycle | ● | ● | ○ | lifecycle | [manage_recurrence.py](../../api/services/primitives/manage_recurrence.py) | **ADR-235 D1.c.** Recurrence-declaration lifecycle: `create`/`update`/`pause`/`resume`/`archive` over the YAML at the natural-home substrate location (per ADR-231 D2). Spun out of the dissolved `UpdateContext(target='recurrence', ...)` shape. Mirrors `ManageAgent`/`ManageDomains`. |
 | `ManageDomains` | lifecycle | ● | ● | ○ | lifecycle | [scaffold.py](../../api/services/primitives/scaffold.py) | Scaffold, add, remove, list entities in workspace context domains (ADR-155/157). |
 | `RepurposeOutput` | action | ● | ○ | ○ | user-authorized | [repurpose.py](../../api/services/primitives/repurpose.py) | Adapt an existing task output to a different format or channel (ADR-148). |
 | `RuntimeDispatch` | action | ● | ○ (via type capability) | ○ | asset-render | [runtime_dispatch.py](../../api/services/primitives/runtime_dispatch.py) | Dispatch to output gateway for asset rendering (ADR-118). Chat exposure for explicit user requests. Headless agents with asset capabilities invoke it as a post-generation step, not as a mid-task tool. |
@@ -228,18 +231,20 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 | `GetSystemState` | introspection | ● | ● | ○ | introspection | [system_state.py](../../api/services/primitives/system_state.py) | Report system state (tier, limits, health flags). |
 | `platform_*` | external | ○ | ● (capability-gated) | ○ | external | [platform_tools.py](../../api/services/platform_tools.py) | Dynamic set resolved per agent capability bundle. Routed through `handle_platform_tool`. Not in static registries. |
 
-### Mode totals (current state, post-ADR-168 + ADR-169 + ADR-209 Phase 3 + ADR-231 + ADR-234)
+### Mode totals (current state, post-ADR-168 + ADR-169 + ADR-209 Phase 3 + ADR-231 + ADR-234 + ADR-235)
 
-- **Chat mode:** **24 static primitives** — `LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `UpdateContext`, `ManageDomains`, `ManageAgent`, `RepurposeOutput`, `RuntimeDispatch`, `Clarify`, `FireInvocation` (ADR-231 D5), `ProposeAction` / `ExecuteProposal` / `RejectProposal` (ADR-193), `ListRevisions` / `ReadRevision` / `DiffRevisions` (ADR-209 Phase 3), and **ADR-234 file family**: `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`. ADR-186: the primitive set is constant across both prompt profiles — behavioral guidance (not tool availability) determines when YARNNN reaches for each tool. ADR-234 chat parity rationale (preserves ADR-209 Phase 3's): the conversational orchestration surface needs direct workspace_files reach to answer content-shape questions about substrate without delegating; benchmarks (Claude Code, Cowork) put `Read`/`Edit` in the conversational agent's hand. `QueryKnowledge` + `ReadAgentFile` stay headless-only.
-- **Headless mode:** **20 static primitives + `platform_*` dynamic** — `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `QueryKnowledge`, `ListFiles`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent`, `ManageDomains`, `FireInvocation` (ADR-231 D5), `RuntimeDispatch`, `ProposeAction` (ADR-193), `ListRevisions` / `ReadRevision` / `DiffRevisions` (ADR-209 Phase 3). `ManageTask` removed by ADR-231 Phase 3.7. `UpdateContext` is chat-only.
-- **MCP mode (ADR-169):** 2 primitives — `QueryKnowledge` and `UpdateContext`. The MCP tool surface itself is three intent-shaped tools (`work_on_this`, `pull_context`, `remember_this`) that compose over these two primitives. MCP is the foreign-LLM surface — third caller of `execute_primitive()` per ADR-164 runtime-agnostic principle. See [docs/features/mcp/architecture.md](../features/mcp/architecture.md) for the composition layer (`api/services/mcp_composition.py`). **ADR-209 Phase 3 note on MCP**: `ListRevisions` / `ReadRevision` / `DiffRevisions` are deliberately NOT exposed on the MCP surface. The MCP contract is intent-shaped (consult accumulated context, contribute back), not substrate-archaeology-shaped. Foreign LLMs that need revision context receive it through `pull_context` results when relevant; they do not traverse the revision chain directly.
+- **Chat mode:** **26 static primitives** — `LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`, `GetSystemState`, `WebSearch`, `list_integrations`, `InferContext` (ADR-235 D1.a), `InferWorkspace` (ADR-235 D1.a), `ManageDomains`, `ManageAgent` (lifecycle-only per ADR-235 D2), `ManageRecurrence` (ADR-235 D1.c), `RepurposeOutput`, `RuntimeDispatch`, `Clarify`, `FireInvocation` (ADR-231 D5), `ProposeAction` / `ExecuteProposal` / `RejectProposal` (ADR-193), `ListRevisions` / `ReadRevision` / `DiffRevisions` (ADR-209 Phase 3), and **ADR-234 file family**: `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles` (with **ADR-235 Option A** `scope='workspace'`). ADR-186: the primitive set is constant across both prompt profiles — behavioral guidance (not tool availability) determines when YARNNN reaches for each tool. ADR-234 chat parity rationale: the conversational orchestration surface needs direct workspace_files reach to answer content-shape questions about substrate; ADR-235 Option A extends that reach into operator-shared paths (`context/_shared/*`, `memory/*`, `reports/*/feedback.md`, etc.). `QueryKnowledge` + `ReadAgentFile` stay headless-only.
+- **Headless mode:** **21 static primitives + `platform_*` dynamic** — `LookupEntity`, `ListEntities`, `SearchEntities`, `GetSystemState`, `WebSearch`, `ReadFile`, `WriteFile`, `SearchFiles`, `QueryKnowledge`, `ListFiles`, `DiscoverAgents`, `ReadAgentFile`, `ManageAgent` (lifecycle-only), `ManageRecurrence` (ADR-235 D1.c — agents may pause/resume their own declarations on outcome signals), `ManageDomains`, `FireInvocation` (ADR-231 D5), `RuntimeDispatch`, `ProposeAction` (ADR-193), `ListRevisions` / `ReadRevision` / `DiffRevisions` (ADR-209 Phase 3). `ManageTask` removed by ADR-231 Phase 3.7. `UpdateContext` removed by ADR-235.
+- **MCP mode (ADR-169 + ADR-235):** 4 primitives — `QueryKnowledge`, `WriteFile`, `InferContext`, and (post-ADR-235) the MCP composition layer dispatches `remember_this` writes through these instead of the dissolved `UpdateContext`. The MCP tool surface itself remains three intent-shaped tools (`work_on_this`, `pull_context`, `remember_this`) that compose over these primitives via `api/services/mcp_composition.py::dispatch_remember_this`. MCP is the foreign-LLM surface — third caller of `execute_primitive()` per ADR-164 runtime-agnostic principle. **ADR-209 Phase 3 note on MCP**: `ListRevisions` / `ReadRevision` / `DiffRevisions` are deliberately NOT exposed on the MCP surface. The MCP contract is intent-shaped (consult accumulated context, contribute back), not substrate-archaeology-shaped.
 
 **Hard boundaries (enforced by [api/test_recent_commits.py](../../api/test_recent_commits.py)):**
 
-- Chat has the file-family primitives (`ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`) per **ADR-234** — workspace-absolute reads/writes/search/list. The pre-ADR-234 rule ("chat does NOT have file-layer primitives") was reversed once benchmark synthesis (Claude Code: `Read`/`Edit` available to the conversational agent; Cowork: folder-as-context puts substrate writes in folder write operations) revealed YARNNN's gating was a 2026-04 design heuristic that didn't survive ADR-209 (substrate-write unification) + ADR-231 (typed-ref task layer dissolved). **Boundary preserved by prompt convention, not primitive gating:** chat does NOT reach into `/agents/{slug}/` private paths; agent-private workspace is read-only via `ReadAgentFile` in headless mode. `QueryKnowledge` stays headless-only (semantic-rank composition). `ReadAgentFile` stays headless-only (inter-agent coordination per ADR-116).
+- Chat has the file-family primitives (`ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`) per **ADR-234**, with `scope='workspace'` per **ADR-235 Option A** so the chat caller (no agent context) can reach operator-shared substrate. **Boundary preserved by prompt convention, not primitive gating:** chat does NOT reach into `/agents/{slug}/` private paths beyond declared canonical feedback substrate; agent-private workspace is read-only via `ReadAgentFile` in headless mode. `QueryKnowledge` stays headless-only (semantic-rank composition). `ReadAgentFile` stays headless-only (inter-agent coordination per ADR-116).
 - Chat has `RuntimeDispatch` for explicit user requests (image generation, charts, diagrams). YARNNN uses it when the user asks for a visual asset or when a visual would materially improve a response.
-- Headless does NOT have `EditEntity`, `Clarify`, `UpdateContext`, `RepurposeOutput`, or `list_integrations`. No user-authorization path in headless mode, no user channel, no user-facing mutations, no platform metadata needs that aren't already resolved at capability-bundle time.
-- **MCP does NOT have any lifecycle, entity-layer, or agent-scoped file-layer primitives.** MCP callers (foreign LLMs acting on behalf of the user) are consultation-shaped, not operator-shaped. The user in a foreign LLM is in thinking mode, not workforce-management mode — the MCP surface reflects that. Specifically: no `ManageAgent`/`ManageTask`/`ManageDomains` (no workforce control from foreign LLMs), no `LookupEntity`/`ListEntities`/`SearchEntities`/`EditEntity` (entity layer is YARNNN-chat-only), no `ReadFile`/`WriteFile`/`SearchFiles`/`ListFiles`/`ReadAgentFile` (agent-scoped file layer is headless-only), no `RuntimeDispatch`/`RepurposeOutput` (output generation lives on YARNNN's own runtime), no `Clarify` (MCP uses the structured `ambiguous` return shape instead). The two permitted primitives (`QueryKnowledge` + `UpdateContext`) are the exact surface needed for "consult accumulated context + contribute back" and nothing more. ADR-169 decision; see [docs/features/mcp/architecture.md](../features/mcp/architecture.md).
+- **`UpdateContext` is dissolved** (ADR-235). Inference-merged writes use `InferContext` / `InferWorkspace`; substrate writes use `WriteFile(scope='workspace', ...)`; recurrence lifecycle uses `ManageRecurrence`. There is no successor verb that re-aggregates these.
+- **`ManageAgent` action enum tightened** (ADR-235 D2): no chat-surface `create`. The systemic agent roster is fixed at signup; users compose recurrences against it instead of authoring new agents. Service code (`agent_creation.create_agent_record`) preserved for the kernel/signup path.
+- Headless does NOT have `EditEntity`, `Clarify`, `RepurposeOutput`, or `list_integrations`. No user-authorization path in headless mode, no user channel, no user-facing mutations, no platform metadata needs that aren't already resolved at capability-bundle time.
+- **MCP does NOT have any lifecycle, entity-layer, or agent-scoped file-layer primitives.** MCP callers (foreign LLMs acting on behalf of the user) are consultation-shaped, not operator-shaped. The user in a foreign LLM is in thinking mode, not workforce-management mode — the MCP surface reflects that. Specifically: no `ManageAgent`/`ManageRecurrence`/`ManageDomains` (no workforce control from foreign LLMs), no `LookupEntity`/`ListEntities`/`SearchEntities`/`EditEntity` (entity layer is YARNNN-chat-only), no `ReadAgentFile` (agent-private file layer is headless-only), no `RuntimeDispatch`/`RepurposeOutput` (output generation lives on YARNNN's own runtime), no `Clarify` (MCP uses the structured `ambiguous` return shape instead). MCP composition (post-ADR-235) routes `remember_this` writes through `WriteFile` (substrate writes) or `InferContext` (identity/brand merges) — see [docs/features/mcp/architecture.md](../features/mcp/architecture.md).
 
 ---
 
@@ -247,47 +252,65 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 
 For verbs that carry a typed sub-action, the enum is load-bearing. Single source of truth: the tool definitions in code. Mirrored here for reference.
 
-### `UpdateContext.target`
+### `InferContext.target` (ADR-235 D1.a)
 
-6-value enum. Source of truth: `UPDATE_CONTEXT_TOOL.input_schema.properties.target.enum` in `api/services/primitives/update_context.py`.
+2-value enum. Source of truth: `INFER_CONTEXT_TOOL.input_schema.properties.target.enum` in `api/services/primitives/infer_context.py`.
 
 | Target | Writes to | Typical caller |
 |---|---|---|
-| `identity` | Identity substrate (IDENTITY.md + inference merge) | YARNNN during context inference |
-| `brand` | Brand substrate (BRAND.md + inference merge) | YARNNN during context inference |
-| `memory` | `user_memory` KV store — appends (deduped) | YARNNN in-session fact capture (ADR-156) |
-| `agent` | Agent's workspace `memory/feedback.md` — appends feedback entry | YARNNN routing user feedback about an agent |
-| `task` | Task's `memory/feedback.md` by default; `feedback_target` sub-parameter can route to `DELIVERABLE.md` preference trail (ADR-149) or patch TASK.md sections directly (`criteria`, `objective`, `output_spec`, `run_log`) | YARNNN routing user feedback on a task's output |
-| `awareness` | YARNNN's situational notes (shift handoff) — full replacement, living document | YARNNN updating its own working awareness |
+| `identity` | Identity substrate (`/workspace/context/_shared/IDENTITY.md` + inference merge) | YARNNN during operator-input handling |
+| `brand` | Brand substrate (`/workspace/context/_shared/BRAND.md` + inference merge) | YARNNN during operator-input handling |
 
-The `feedback_target` sub-parameter on `target="task"` has its own 5-value enum: `deliverable` (default, writes to `memory/feedback.md` for DELIVERABLE.md inference), `criteria`, `objective`, `output_spec`, `run_log`. It's a refinement of where within a task's substrate the feedback lands, not a top-level target.
+`InferWorkspace` has no target enum — it's a single-purpose first-act primitive that produces identity + brand + entities + work intent in one call.
 
-### `ManageAgent.action`
+### `ManageAgent.action` (ADR-235 D2)
 
 | Action | Effect |
 |---|---|
-| `create` | Scaffold a new agent (identity + workspace + default tasks per capability bundle) |
 | `update` | Patch agent identity or config |
 | `pause` | Deactivate agent (tasks don't fire) |
 | `resume` | Reactivate agent |
 | `archive` | Soft-delete agent |
 
-### `ManageTask.action`
+**`create` is removed from the LLM-facing tool definition** (ADR-235 D2). The systemic agent roster is fixed at signup; users compose recurrences against it instead of authoring new agents. Service code (`agent_creation.create_agent_record`) is preserved for the kernel/signup path; only the chat-surface entry point narrows.
 
-8-value enum. Source of truth: `MANAGE_TASK_TOOL.input_schema.properties.action.enum` in `api/services/primitives/manage_task.py`. ADR-168 Commit 3 folded the former `CreateTask` primitive into this enum as `"create"` for symmetry with `ManageAgent`.
+### `ManageRecurrence.action` (ADR-235 D1.c)
 
-Note: `task_slug` is required for all actions EXCEPT `create` (which generates the slug from `title`). The top-level `required` field in the tool schema is `["action"]`; the `task_slug` requirement is enforced inside `handle_manage_task()` for non-create actions.
+5-value enum. Source of truth: `MANAGE_RECURRENCE_TOOL.input_schema.properties.action.enum` in `api/services/primitives/manage_recurrence.py`.
 
-| Action | Effect | Mode availability | Introduced |
+`shape` is required for all actions and determines the natural-home substrate location (per ADR-231 D2):
+- `deliverable` → `/workspace/reports/{slug}/_spec.yaml`
+- `accumulation` → `/workspace/context/{domain}/_recurring.yaml` (multi-entry; `domain` required)
+- `action` → `/workspace/operations/{slug}/_action.yaml`
+- `maintenance` → entry in `/workspace/_shared/back-office.yaml` (multi-entry)
+
+| Action | Effect | Mode availability |
+|---|---|---|
+| `create` | Author a new recurrence YAML declaration (single-decl shapes) or append an entry (multi-decl shapes). Body fields depend on shape. | both |
+| `update` | Merge `changes` dict into the existing declaration's body | both |
+| `pause` | Set `paused: true` in the declaration. Optional `paused_until` ISO timestamp for time-bound pause. | both |
+| `resume` | Clear `paused` flag | both |
+| `archive` | Remove the declaration (delete file or remove entry from multi-decl YAML) | both |
+
+After every successful write, the scheduling index is re-materialized (best-effort, non-fatal).
+
+### `WriteFile.scope` (ADR-235 Option A)
+
+3-value enum. Source of truth: `WRITE_FILE_TOOL.input_schema.properties.scope.enum` in `api/services/primitives/workspace.py`.
+
+| Scope | Path semantics | Default for | Reaches |
 |---|---|---|---|
-| `create` | Scaffold a new task from a task type (or custom `agent_slug` + `objective`), generate slug from `title`, write TASK.md + DELIVERABLE.md + memory scaffolds, create `tasks` row. | both | ADR-168 C3 |
-| `trigger` | Fire the task immediately (dispatch to task pipeline via `_handle_trigger` → `execute_task()`) | both | ADR-146 |
-| `update` | Patch task fields (schedule, objective, sources, delivery) | both | ADR-146 |
-| `pause` | Set `tasks.status = 'paused'` | both | ADR-146 |
-| `resume` | Set `tasks.status = 'active'`, recompute `next_run_at` | both | ADR-146 |
-| `evaluate` | Write YARNNN evaluation to `memory/feedback.md` (goal-mode steering) | chat | ADR-149 |
-| `steer` | Write YARNNN steering note to `memory/steering.md` | chat | ADR-149 |
-| `complete` | Mark goal-mode task complete | chat | ADR-149 |
+| `workspace` | Workspace-relative path via `UserMemory` | chat | operator-shared substrate (`context/_shared/*`, `memory/*`, `reports/*`, `operations/*`, `agents/{slug}/*`) |
+| `context` | Domain-scoped via `directory_registry` | (explicit) | `/workspace/context/{domain}/{path}` |
+| `agent` | Calling agent's workspace via `AgentWorkspace` | headless agents (when agent context attached to auth) | `/agents/{slug}/{path}` |
+
+`ReadFile` / `SearchFiles` / `ListFiles` have a 2-value `scope` enum (`workspace` | `agent`); `context` is write-only.
+
+**Activity-log emission** (ADR-235 D1.b): writes to recognized canonical paths emit activity-log events automatically inside `WriteFile`:
+- `memory/notes.md` → `memory_written`
+- `agents/{slug}/memory/feedback.md` → `agent_feedback`
+
+Other paths emit no activity event (silent default).
 
 ### `ManageDomains.action`
 
@@ -399,6 +422,9 @@ Any primitive change (rename, add, remove, mode change, enum extension) writes a
 | `ReadAgentContext` | `ReadAgentFile` | ADR-168 Commit 4 *(shipped 2026-04-09)* | Name was vague; it's a file read with `agent_slug` + `path` |
 | `entity:memory` type | (file substrate — `/workspace/memory/*.md` via ReadFile/WriteFile) | ADR-196 *(shipped 2026-04-20)* | Semantic content → filesystem per Axiom 0. `user_memory` table dropped. Stale branches in `refs.py`, `read.py`, `write.py`, `edit.py`, `list.py` stripped in same commit. |
 | `entity:domain` type | (file substrate — `/workspace/context/{domain}/` via ReadFile/WriteFile/QueryKnowledge) | ADR-196 *(shipped 2026-04-20)* | Same rationale — pointed at `user_memory`; semantic content lives in filesystem context domains per ADR-151. |
+| `ManageTask` | `ManageRecurrence` (lifecycle) + `FireInvocation` (run-now) | ADR-231 Phase 3.7 *(shipped 2026-04-29)* | Tasks-as-units dissolved; recurrences are YAML declarations at natural-home substrate paths. ManageTask's 8 actions split: lifecycle to ManageRecurrence, trigger to FireInvocation. |
+| `UpdateContext` | `InferContext` (identity/brand merge) + `InferWorkspace` (first-act scaffold) + `WriteFile(scope='workspace', ...)` (mandate/autonomy/precedent/awareness/feedback) + `ManageRecurrence` (recurrence lifecycle) | ADR-235 *(shipped 2026-04-29)* | Three categorically different cognitive shapes (inference-merged write, substrate write, lifecycle action) hidden under one verb name. Splitting them honors what they are. ADR-209's `write_revision` already unifies the substrate-level write path; the consolidation rationale of ADR-146 is preserved at the substrate level, not at the primitive-name level. |
+| `ManageAgent(action="create")` | (no chat-surface successor) | ADR-235 D2 *(shipped 2026-04-29)* | The systemic agent roster is fixed at signup; no chat-surface pathway to author new agents. Service code (`agent_creation.create_agent_record`) preserved for the kernel/signup path. |
 
 ---
 

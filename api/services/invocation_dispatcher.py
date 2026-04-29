@@ -1223,7 +1223,7 @@ def _result_paused(decl: RecurrenceDeclaration) -> dict:
         "error": "paused",
         "message": (
             f"declaration '{decl.slug}' is paused; cannot dispatch. "
-            f"Use UpdateContext(target='recurrence', action='resume', ...) to resume."
+            f"Use ManageRecurrence(action='resume', ...) to resume."
         ),
         "shape": decl.shape.value,
         "slug": decl.slug,

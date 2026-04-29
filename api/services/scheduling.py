@@ -16,7 +16,7 @@ Module ownership (per discipline rule 10):
 - Owner: scheduling concerns. Sibling to `services.recurrence` (YAML schema
   + walker) and `services.invocation_dispatcher` (firing).
 - Consumer: `jobs.unified_scheduler.run_unified_scheduler()`.
-- Producer: `services.primitives.update_context` post-write hook (when
+- Producer: `services.primitives.manage_recurrence` post-write hook (when
   recurrence YAML changes, materialize_scheduling_index re-syncs the index).
 
 Public surface:
@@ -129,7 +129,7 @@ async def materialize_scheduling_index(
      paused)`.
 
     Drops rows whose declaration no longer exists (operator-driven
-    archival via `UpdateContext(target='recurrence', action='archive')`).
+    archival via `ManageRecurrence(action='archive')`).
 
     Idempotent: re-running with no YAML changes is a no-op for `next_run_at`
     when last_run_at is unchanged. Schedule changes recompute next_run_at

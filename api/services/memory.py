@@ -5,8 +5,9 @@ Extracts stable personal facts and persists them as entries in
 /memory/notes.md (workspace_files). Read-merge-write pattern ensures
 deduplication and document-level coherence.
 
-ADR-156: Nightly cron extraction REMOVED. Primary write path is now
-TP calling UpdateContext(target="memory") during conversation.
+ADR-156 + ADR-235: Nightly cron extraction REMOVED. Primary write path is
+now TP calling WriteFile(scope="workspace", path="memory/notes.md",
+content="...", mode="append") during conversation.
 This module is retained for:
   - extract_from_text_to_user_memory(): bulk import from user-provided text
   - process_conversation(): available for manual/test invocation

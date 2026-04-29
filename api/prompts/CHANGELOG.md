@@ -6,6 +6,51 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.9] - ADR-235 — UpdateContext dissolution + ManageRecurrence + ManageAgent.create sunset + WriteFile scope='workspace' (Option A)
+
+### Deleted
+- `api/services/primitives/update_context.py` — 1,261-line file removed entirely. Its three categorically different cognitive shapes (inference-merged write / substrate write / lifecycle action) hidden under one verb name are split into honest verbs.
+
+### Added
+- `api/services/primitives/infer_context.py` — `InferContext(target='identity'|'brand', text, document_ids?, url_contents?)`. Inference-merged write to IDENTITY.md / BRAND.md with ADR-162 gap detection on the result. Chat-only.
+- `api/services/primitives/infer_workspace.py` — `InferWorkspace(text?, document_ids?, url_contents?)`. First-act scaffold (ADR-190 path) — one Sonnet call producing identity + brand + entities + work_intent. Chat-only.
+- `api/services/primitives/manage_recurrence.py` — `ManageRecurrence(action, shape, slug, ...)`. Recurrence-declaration lifecycle. Chat + headless parity (ADR-235 D1.c). Replaces the dissolved `UpdateContext(target='recurrence', ...)` shape.
+- `api/services/feedback_formatters.py` — pure-Python helpers (`format_memory_entry`, `format_agent_feedback_entry`, `format_task_feedback_entry`, `resolve_task_feedback_path`).
+- `api/test_adr235_update_context_dissolution.py` — 17-assertion test gate covering D1 (UpdateContext dissolution), D2 (ManageAgent.create sunset), D3 (Singular Implementation grep gates).
+
+### Changed
+- `api/services/primitives/registry.py`:
+  - CHAT_PRIMITIVES: `UpdateContext` removed; `InferContext` + `InferWorkspace` + `ManageRecurrence` added. New count: 26.
+  - HEADLESS_PRIMITIVES: `ManageRecurrence` added. New count: 21.
+  - HANDLERS: `UpdateContext` entry removed; `InferContext`, `InferWorkspace`, `ManageRecurrence` entries added.
+- `api/services/primitives/coordinator.py` — `MANAGE_AGENT_TOOL` action enum tightened: `create` removed (ADR-235 D2). `_handle_create` retained for kernel/signup path; LLM-facing `handle_manage_agent` returns `error="create_action_disabled"` if called with `action="create"`.
+- `api/services/primitives/workspace.py`:
+  - `WriteFile` schema gains `scope='workspace'` (ADR-235 Option A). Three-value enum: `workspace` / `agent` / `context`.
+  - `ReadFile` / `SearchFiles` / `ListFiles` schemas gain `scope='workspace'` for chat reach into operator-shared paths. `_default_file_scope(auth)` picks `workspace` (no agent context) or `agent` (agent on auth) automatically.
+  - `WriteFile` handler emits activity-log events for recognized canonical paths (`memory/notes.md` → `memory_written`; `agents/{slug}/memory/feedback.md` → `agent_feedback`). Path-prefix recognition via `_classify_workspace_path_for_activity` + `_emit_workspace_activity` (ADR-235 D1.b).
+  - `WriteFile` accepts new `authored_by` + `message` parameters (ADR-209 attribution + revision chain).
+- `api/services/mcp_composition.py` — adds `dispatch_remember_this(auth, target, stamped_text, slug)` that routes through `InferContext` / `WriteFile` instead of the dissolved `UpdateContext`. Two-branch classifier (`classify_memory_target`) preserved.
+- `api/mcp_server/server.py` — `remember_this` dispatch rewritten to call `mcp_composition.dispatch_remember_this`. No more `execute_primitive(auth, "UpdateContext", ...)`.
+- `api/services/task_deliverable_inference.py` — switched from `handle_update_context` to `handle_manage_recurrence` for writing inferred `deliverable:` block updates back into the recurrence YAML.
+- `api/services/workspace_init.py::materialize_back_office_task` — switched to `handle_manage_recurrence` for back-office recurrence creation.
+- `api/routes/recurrences.py` — 4 dispatch sites (update / archive / sources patch / paused flip) migrated from `handle_update_context` to `handle_manage_recurrence`.
+- `api/routes/chat.py` — conversation summary collector recognizes the new tool names (`ManageRecurrence`, `InferContext`, `InferWorkspace`, `WriteFile`, etc.) for decision capture.
+- Chat prompts: 7 files rewritten — `agents/prompts/{base,platforms,tools_core}.py` + `agents/prompts/chat/{activation,behaviors,entity,onboarding,task_scope,workspace}.py`. Every `UpdateContext(target=...)` invocation form swapped for the appropriate new primitive. Zero live invocation strings remain in any prompt; annotations only.
+- Active-canon docs: `docs/architecture/primitives-matrix.md` (Mode totals + boundaries + enum tables + matrix rows + migration ledger), `docs/design/SURFACE-CONTRACTS.md` (writes table + identity-empty states + R3 + Class B), `CLAUDE.md` (File Locations table + Memory section).
+- ADR status: `docs/adr/ADR-235-update-context-dissolution.md` Proposed → Implemented.
+- `api/test_recent_commits.py` — vestigial ADR-146 / ADR-231 era assertions retired; replaced with current-state checks (InferContext/InferWorkspace/ManageRecurrence schemas, WriteFile workspace-scope, ManageAgent action enum invariants).
+
+### Behavior
+- Operators on `/chat` can now ask about substrate content directly (e.g., "show me my mandate") and YARNNN reaches `WriteFile`/`ReadFile` with `scope='workspace'` against `/workspace/context/_shared/MANDATE.md` — fixes the `no_agent_context` smoke-test bug.
+- Agent creation via chat is no longer possible. The systemic 9-agent roster is fixed at signup; users compose recurrences against it.
+- MCP `remember_this` writes route via `dispatch_remember_this`: `memory` target → `/workspace/memory/notes.md` (append, attributed `yarnnn:mcp`); `agent` → `/agents/{slug}/memory/feedback.md`; `task` → natural-home `feedback.md` resolved via the recurrence walker; `identity`/`brand` → `InferContext`. No external schema change.
+
+### Notes
+- Singular Implementation honored: `update_context.py` is gone, no shim, no parallel verb. The 17/17 test gate enforces it (D3 grep gates).
+- Render parity: no env var changes (no schema change either). API + Unified Scheduler + MCP Server + Output Gateway all import the new modules transparently.
+
+---
+
 ## [2026.04.29.8] - ADR-238 — Autonomy-mode FE consumption (substrate-read primitive extracted)
 
 ### Changed

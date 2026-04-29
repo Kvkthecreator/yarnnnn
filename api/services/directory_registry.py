@@ -521,7 +521,8 @@ def get_authored_substrate(key: str) -> list[str]:
     The registry declares *paths*; authoring uses the existing
     ``services.authored_substrate.write_revision`` path with
     ``authored_by="operator"`` (or YARNNN on the operator's behalf via
-    ``UpdateContext``). Singular implementation across read + write.
+    ``WriteFile(scope="workspace", ...)``). Singular implementation across
+    read + write.
     """
     d = get_directory(key)
     if not d:

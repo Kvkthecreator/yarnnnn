@@ -192,9 +192,9 @@ async def handle_write(auth: Any, input: dict) -> dict:
 from services.agent_creation import VALID_SCOPES, VALID_ROLES, ROLE_TO_SCOPE  # noqa: F401
 
 
-# ADR-196: _process_memory() deleted. Memory writes flow through
-# UpdateContext(target="memory") which routes to /workspace/memory/*.md
-# files via the UserMemory class (ADR-156).
+# ADR-196 + ADR-235: _process_memory() deleted. Memory writes flow through
+# WriteFile(scope="workspace", path="memory/notes.md", content=..., mode="append")
+# which routes to /workspace/memory/*.md via the UserMemory class (ADR-156).
 
 
 def _process_document(data: dict) -> dict:

@@ -370,9 +370,9 @@ You MUST:
 
 ## Key Architecture References
 
-### ADR-064: Unified Memory Service (updated by ADR-156)
+### ADR-064: Unified Memory Service (updated by ADR-156, post-ADR-235)
 
-**Memory is in-session** — YARNNN writes facts proactively via `UpdateContext(target="memory")` during conversation. Follows the Claude Code model: memory happens in the moment of learning, not as a batch job.
+**Memory is in-session** — YARNNN writes facts proactively via `WriteFile(scope="workspace", path="memory/notes.md", content="...", mode="append")` during conversation. Follows the Claude Code model: memory happens in the moment of learning, not as a batch job. (Pre-ADR-235 used `UpdateContext(target="memory")`.)
 
 - ADR-156: Nightly cron extraction REMOVED. YARNNN writes facts in-session.
 - Session summaries: generated inline at session close (chat.py), not by nightly cron.
@@ -484,7 +484,10 @@ You MUST:
 | Dispatch Helpers | `api/services/dispatch_helpers.py` (ADR-231 Phase 3.7: survivor helpers — `_generate`, `gather_task_context`, `build_task_execution_prompt`, `_load_user_context`, empty-state writers; all natural-home substrate via UserMemory + recurrence_paths) |
 | Recurrence Module | `api/services/recurrence.py` + `recurrence_paths.py` (ADR-231: YAML schema + walker + path resolution per D2/D9/D10) |
 | Scheduling | `api/services/scheduling.py` (ADR-231 Phase 3.3: `compute_next_run_at`, `materialize_scheduling_index`, `get_due_declarations`, CAS claim) |
-| Recurrence Lifecycle Primitive | `api/services/primitives/update_context.py::_handle_recurrence` + `services/primitives/fire_invocation.py` (ADR-231 D5: `UpdateContext(target='recurrence')` for create/update/pause/resume/archive + `FireInvocation` for manual fire. **Replaces** deleted `ManageTask` primitive.) |
+| Recurrence Lifecycle Primitive | `api/services/primitives/manage_recurrence.py::handle_manage_recurrence` + `services/primitives/fire_invocation.py` (ADR-235 D1.c: `ManageRecurrence(action=...)` for create/update/pause/resume/archive + `FireInvocation` for manual fire. **Replaces** deleted `UpdateContext(target='recurrence')` and `ManageTask` primitives.) |
+| Inference Primitives (ADR-235 D1.a) | `api/services/primitives/infer_context.py::handle_infer_context` (identity/brand merge) + `api/services/primitives/infer_workspace.py::handle_infer_workspace` (first-act scaffold). **Replaces** deleted `UpdateContext(target='workspace'\|'identity'\|'brand')`. |
+| Substrate Write Primitive (ADR-235 D1.b + Option A) | `api/services/primitives/workspace.py::handle_write_file` with `scope='workspace'`. Reaches operator-shared substrate (`context/_shared/*`, `memory/*`, `reports/*/feedback.md`, etc.) via workspace-relative path. Recognized canonical paths emit activity-log events automatically. |
+| Feedback Formatters (ADR-235 D1.b) | `api/services/feedback_formatters.py` — pure-Python helpers for memory/agent/task feedback formatting; called server-side from chat dispatch when feedback is being routed. |
 | Agent Execution (legacy helpers) | `api/services/agent_execution.py` (retained for run-record creation, model constants, narration helpers) |
 | Delivery Service | `api/services/delivery.py` (ADR-118 D.3: `deliver_from_output_folder()`) |
 | Feedback Distillation | `api/services/feedback_distillation.py` (ADR-117: edits → style.md; ADR-231: writes to natural-home `_feedback.md`) |

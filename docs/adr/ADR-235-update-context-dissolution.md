@@ -1,6 +1,6 @@
 # ADR-235: UpdateContext Dissolution + ManageRecurrence + ManageAgent.create Sunset
 
-> **Status**: **Proposed** (2026-04-29). Single-commit landing per Singular Implementation discipline; sized to be substantial.
+> **Status**: **Implemented** (2026-04-29). Atomic landing per Singular Implementation discipline. `update_context.py` deleted (1,261 LOC); registry rewired (chat 26 / headless 21); 7 chat prompt files rewritten; MCP composition routes through `dispatch_remember_this`; `WriteFile` gains `scope='workspace'` per Option A so chat reaches operator-shared substrate without an agent context (fixes `no_agent_context` smoke-test bug). Test gate `api/test_adr235_update_context_dissolution.py` 17/17; combined gate (ADR-234 + ADR-231 invariants + ADR-233 P1 + P2 + ADR-235) passing.
 > **Date**: 2026-04-29
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Mechanism** (Axiom 5) primary, **Substrate** (Axiom 1) + **Identity** (Axiom 2) secondary — restructures the cognitive vocabulary by which all chat-surface mutations reach substrate.

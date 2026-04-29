@@ -500,22 +500,22 @@ async def remember_this(
 
     target = classification["target"]
 
-    # --- Stamp ADR-162 provenance on the content before UpdateContext ---
+    # --- Stamp ADR-162 provenance on the content before dispatch ---
     stamped_text = mcp_composition.stamp_provenance(
         content=content,
         client_name=client_name,
         user_context=about,
     )
 
-    # --- Build UpdateContext input ---
-    uc_input: dict = {"target": target, "text": stamped_text}
-    if target == "agent":
-        uc_input["agent_slug"] = classification.get("slug")
-    elif target == "task":
-        uc_input["task_slug"] = classification.get("slug")
-
-    # --- Dispatch through the primitive layer (ADR-164 runtime-agnostic) ---
-    result = await execute_primitive(auth, "UpdateContext", uc_input)
+    # --- Dispatch through the post-ADR-235 primitive surface ---
+    # Routes to InferContext (identity/brand) or WriteFile (memory/agent/task).
+    # See services/mcp_composition.py::dispatch_remember_this.
+    result = await mcp_composition.dispatch_remember_this(
+        auth=auth,
+        target=target,
+        stamped_text=stamped_text,
+        slug=classification.get("slug"),
+    )
 
     if not result.get("success"):
         _emit_mcp_narrative(
@@ -523,7 +523,7 @@ async def remember_this(
             tool="remember_this",
             weight="routine",
             summary=f"{client_name} remember_this failed → {target}",
-            body=str(result.get("message") or "UpdateContext dispatch failed"),
+            body=str(result.get("message") or "remember_this dispatch failed"),
             client_name=client_name,
             extra_metadata={
                 "attempted_target": target,
@@ -533,7 +533,7 @@ async def remember_this(
         return {
             "success": False,
             "error": result.get("error", "update_failed"),
-            "message": result.get("message", "UpdateContext dispatch failed"),
+            "message": result.get("message", "remember_this dispatch failed"),
             "attempted_target": target,
         }
 

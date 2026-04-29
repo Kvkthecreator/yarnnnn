@@ -5,7 +5,8 @@ ADR-231 Phase 3.7 (atomic deletion alongside legacy task_pipeline / TaskWorkspac
 manage_task / task_types / task_derivation): this file rewrites to read from
 the recurrence-declaration substrate (workspace_files YAML at natural-home
 paths) + the thin tasks scheduling index, dispatching writes through
-services.invocation_dispatcher and services.primitives.update_context.
+services.invocation_dispatcher and services.primitives.manage_recurrence
+(per ADR-235 D1.c).
 
 The HTTP surface (`/api/tasks/*`) is preserved for the frontend until
 Phase 3.8 renames URLs to `/api/recurrences/*`. The internal data model is
@@ -62,7 +63,8 @@ class TaskUpdate(BaseModel):
 
     Only fields that map cleanly to the recurrence YAML are accepted; the
     legacy ManageTask multi-action surface dissolved per ADR-231 D5. Use
-    UpdateContext(target='recurrence', ...) directly for richer changes.
+    ManageRecurrence(action='update', ...) directly for richer changes
+    (ADR-235 D1.c).
     """
 
     status: Optional[str] = None
@@ -292,8 +294,8 @@ async def update_task(
     request: TaskUpdate,
     auth: UserClient,
 ) -> dict:
-    """Update recurrence — maps to UpdateContext(target='recurrence', ...) for
-    schedule changes; flips paused flag for status='paused' (legacy frontend)."""
+    """Update recurrence — maps to ManageRecurrence(action='update'/'pause'/'resume')
+    for schedule changes; flips paused flag for status='paused' (legacy frontend)."""
     rows = (
         auth.client.table("tasks")
         .select("id, slug, status, declaration_path, paused")
@@ -325,27 +327,27 @@ async def update_task(
     ).execute()
 
     # Mirror schedule + paused changes into the YAML declaration via
-    # UpdateContext(target='recurrence', action='update'/'pause'/'resume').
+    # ManageRecurrence (action='update'/'pause'/'resume') per ADR-235 D1.c.
     decls = walk_workspace_recurrences(auth.client, auth.user_id)
     decl = _decl_for_slug(decls, slug)
     if decl is not None:
-        from services.primitives.update_context import handle_update_context
+        from services.primitives.manage_recurrence import handle_manage_recurrence
 
         if request.status == "paused":
-            await handle_update_context(auth, {
-                "target": "recurrence", "action": "pause",
+            await handle_manage_recurrence(auth, {
+                "action": "pause",
                 "shape": decl.shape.value, "slug": slug,
                 "domain": decl.domain,
             })
         elif request.status in ("active",) and row.get("paused"):
-            await handle_update_context(auth, {
-                "target": "recurrence", "action": "resume",
+            await handle_manage_recurrence(auth, {
+                "action": "resume",
                 "shape": decl.shape.value, "slug": slug,
                 "domain": decl.domain,
             })
         if request.schedule is not None:
-            await handle_update_context(auth, {
-                "target": "recurrence", "action": "update",
+            await handle_manage_recurrence(auth, {
+                "action": "update",
                 "shape": decl.shape.value, "slug": slug,
                 "domain": decl.domain,
                 "changes": {"schedule": request.schedule},
@@ -357,7 +359,7 @@ async def update_task(
 @router.delete("/{slug}")
 async def archive_task(slug: str, auth: UserClient) -> dict:
     """Archive a recurrence — marks the index row archived and tells
-    UpdateContext to remove the YAML declaration."""
+    ManageRecurrence to remove the YAML declaration (ADR-235 D1.c)."""
     rows = (
         auth.client.table("tasks")
         .select("id, slug, declaration_path")
@@ -377,9 +379,9 @@ async def archive_task(slug: str, auth: UserClient) -> dict:
     decls = walk_workspace_recurrences(auth.client, auth.user_id)
     decl = _decl_for_slug(decls, slug)
     if decl is not None:
-        from services.primitives.update_context import handle_update_context
-        await handle_update_context(auth, {
-            "target": "recurrence", "action": "archive",
+        from services.primitives.manage_recurrence import handle_manage_recurrence
+        await handle_manage_recurrence(auth, {
+            "action": "archive",
             "shape": decl.shape.value, "slug": slug,
             "domain": decl.domain,
         })
@@ -399,9 +401,9 @@ async def update_task_sources(
     if decl is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    from services.primitives.update_context import handle_update_context
-    await handle_update_context(auth, {
-        "target": "recurrence", "action": "update",
+    from services.primitives.manage_recurrence import handle_manage_recurrence
+    await handle_manage_recurrence(auth, {
+        "action": "update",
         "shape": decl.shape.value, "slug": slug,
         "domain": decl.domain,
         "changes": {"sources": sources},

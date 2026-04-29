@@ -47,9 +47,9 @@ After init, YARNNN customizes the workspace based on the user's work description
   - Scaffolds domain-specific context directories on demand (ADR-188 Phase 2:
     `_domain.md`)
   - Creates custom tasks with domain-specific step instructions (ADR-188 Phase 1)
-  - Rich first-act input triggers `UpdateContext(target="workspace")` which
-    runs combined inference + writes IDENTITY/BRAND + scaffolds entity
-    subfolders + proposes work intent (ADR-190)
+  - Rich first-act input triggers `InferWorkspace(...)` which runs combined
+    inference + writes IDENTITY/BRAND + scaffolds entity subfolders +
+    proposes work intent (ADR-190 + ADR-235 D1.a)
 
 ADR-190 deletions:
   - WORKSPACE.md manifest (was vestigial post-ADR-159 compact index)
@@ -211,10 +211,11 @@ async def initialize_workspace(
                 identity_content = UserMemory._render_memory_md({"timezone": validated_tz})
                 logger.info(f"[WORKSPACE_INIT] Timezone inferred from browser: {validated_tz}")
 
-        # ADR-207 D2: empty Mandate skeleton. Operator authors via
-        # UpdateContext(target="mandate") in first-turn elicitation.
-        # Hard gate in ManageTask._handle_create blocks task scaffolding
-        # until Mandate is non-empty.
+        # ADR-207 D2 + ADR-235: empty Mandate skeleton. Operator authors via
+        # WriteFile(scope="workspace", path="context/_shared/MANDATE.md", ...)
+        # in first-turn elicitation. Hard gate in ManageRecurrence(create) and
+        # ManageRecurrence._handle_recurrence_single blocks recurrence
+        # scaffolding until Mandate is non-empty.
         DEFAULT_MANDATE_MD = (
             "# Mandate\n\n"
             "<!-- This file declares what this workspace is running.\n"
@@ -484,12 +485,12 @@ async def materialize_back_office_task(
     Tasks created here are `essential=true` so they can't be accidentally
     archived; they are still plumbing the workspace needs.
     """
-    # ADR-231 Phase 3.6.b: back-office tasks are entries in the multi-decl
-    # YAML at /workspace/_shared/back-office.yaml per D2. Materialize via
-    # UpdateContext(target='recurrence', action='create', shape='maintenance').
+    # ADR-231 Phase 3.6.b + ADR-235 D1.c: back-office tasks are entries in
+    # the multi-decl YAML at /workspace/_shared/back-office.yaml per D2.
+    # Materialize via ManageRecurrence(action='create', shape='maintenance').
     # The legacy task_types registry (build_task_md_from_type) is dissolved.
     from services.schedule_utils import get_user_timezone as _get_user_timezone
-    from services.primitives.update_context import handle_update_context
+    from services.primitives.manage_recurrence import handle_manage_recurrence
 
     if user_timezone is None:
         user_timezone = _get_user_timezone(client, user_id)
@@ -518,8 +519,7 @@ async def materialize_back_office_task(
             self.client = c
             self.user_id = u
     _auth = _Auth(client, user_id)
-    result = await handle_update_context(_auth, {
-        "target": "recurrence",
+    result = await handle_manage_recurrence(_auth, {
         "action": "create",
         "shape": "maintenance",
         "slug": slug,
