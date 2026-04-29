@@ -19,8 +19,8 @@
  *
  * What this module does NOT do (per ADR-238):
  *   - No mutation surface. Operator-authored substrate is mutated
- *     through UpdateContext(target='autonomy') per ADR-217 (or its
- *     ADR-235 successor). The hook is read-only.
+ *     through `WriteFile(scope='workspace', path='context/_shared/AUTONOMY.md', ...)`
+ *     per ADR-235 D1.b. The hook is read-only.
  *   - No global React context / provider. Each consumer fetches
  *     independently; if profile shows duplication is a hot path, a
  *     follow-on ADR introduces <AutonomyProvider>.
@@ -180,8 +180,9 @@ export interface UseAutonomyResult {
  * Reads `/workspace/context/_shared/AUTONOMY.md` and exposes the parsed
  * substrate plus a derived effective-level for the workspace default.
  *
- * Read-only; mutation routes through `UpdateContext(target='autonomy')`
- * per ADR-217 (or its ADR-235 successor).
+ * Read-only; mutation routes through
+ * `WriteFile(scope='workspace', path='context/_shared/AUTONOMY.md', ...)`
+ * per ADR-235 D1.b (legacy ADR-217 used UpdateContext; dissolved by ADR-235).
  *
  * Each consumer mount triggers one fetch. Deduplication across multiple
  * components in the same render pass is a deferred concern (ADR-238 R2).

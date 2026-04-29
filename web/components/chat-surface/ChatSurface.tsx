@@ -141,13 +141,13 @@ export function ChatSurface({
     setRecurrenceSetupOpen(true);
   }, []);
 
-  // ADR-219 D6 + ADR-231 D1: "Make this recurring" graduates an inline
-  // operator ask into a recurrence declaration. Per D1, the operator's
-  // first invocation already fired and produced output; this graduation
-  // attaches a nameplate + pulse + contract for repeat firings. We open
-  // RecurrenceSetupModal pre-filled with the operator's original message so
-  // they confirm + refine; YARNNN then calls
-  // UpdateContext(target='recurrence', action='create', ...) per D5.
+  // ADR-219 D6 + ADR-231 D1 + ADR-235 D1.c: "Make this recurring" graduates
+  // an inline operator ask into a recurrence declaration. Per D1, the
+  // operator's first invocation already fired and produced output; this
+  // graduation attaches a nameplate + pulse + contract for repeat firings.
+  // We open RecurrenceSetupModal pre-filled with the operator's original
+  // message so they confirm + refine; YARNNN then calls
+  // ManageRecurrence(action='create', ...) per ADR-235 D1.c.
   const handleMakeRecurring = useCallback(
     (messageContent: string) => {
       const seed = messageContent.length > 480

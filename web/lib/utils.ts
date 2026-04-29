@@ -31,7 +31,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   // Agent lifecycle (ADR-156, ADR-235 D2: lifecycle-only — no chat 'create')
   ManageAgent: "Managing agent",
 
-  // Recurrence lifecycle (ADR-235 D1.c — replaces UpdateContext target='recurrence')
+  // Recurrence lifecycle (ADR-235 D1.c)
   ManageRecurrence: "Managing recurrence",
 
   // Domain management (ADR-155)
@@ -43,11 +43,6 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
 
   // FireInvocation (ADR-231 D5)
   FireInvocation: "Firing invocation",
-
-  // ADR-235: legacy entries retained for historical run logs (tool_history
-  // snapshots in archived sessions). Live runtime no longer dispatches these.
-  UpdateContext: "Updating context",
-  ManageTask: "Managing task",
   GetSystemState: "Checking system state",
   WebSearch: "Searching the web",
   web_search: "Searching the web",  // Legacy alias

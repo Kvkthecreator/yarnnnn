@@ -8,9 +8,9 @@
  *
  * Opened by the "Start new work" plus-menu action on any of the four cockpit
  * tabs. On submit, the composed intent message is forwarded to YARNNN via
- * sendMessage. Per ADR-231 D5, YARNNN calls
- * `UpdateContext(target='recurrence', action='create', shape=..., slug=...,
- * body={...})` in the same turn — no clarifying rounds.
+ * sendMessage. Per ADR-235 D1.c, YARNNN calls
+ * `ManageRecurrence(action='create', shape=..., slug=..., body={...})` in
+ * the same turn — no clarifying rounds.
  */
 
 import { useEffect } from 'react';

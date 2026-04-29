@@ -123,3 +123,77 @@ export function formatRelativeTimestamp(iso: string | null | undefined): string 
   if (diffDay < 7) return `${diffDay}d ago`;
   return d.toLocaleDateString();
 }
+
+// ---------------------------------------------------------------------------
+// Reviewer calibration aggregate (ADR-239)
+// ---------------------------------------------------------------------------
+//
+// Per ADR-239 D1+D2: PerformanceFace's previous inline parseDecisions
+// returned this shape directly from raw markdown. The new layering is:
+//   parseDecisions(content) → ReviewerDecision[]  (canonical parser)
+//   aggregateReviewerCalibration(decisions) → ReviewerCalibration
+//
+// Pure transformation. No I/O, no React. Composes with parseDecisions
+// at call sites:
+//   const calib = aggregateReviewerCalibration(parseDecisions(content));
+//
+// Note: ADR-239's drafting found that PerformanceFace's inline parser
+// was looking for a stale format (`## YYYY-MM-DDTHH... — action` headings
+// + `verdict:` field) that the canonical writer
+// (`api/services/reviewer_audit.py` per ADR-194 v2 Phase 2a) never
+// produces. The canonical write format is `--- decision ---` blocks
+// with `decision:` field. PerformanceFace's calibration display has
+// been quietly rendering empty/zero state for that reason. ADR-239
+// fixes the bug by routing aggregation through the canonical parser.
+
+export interface ReviewerCalibration {
+  /** Counts within the 7-day rolling window. */
+  approves: number;
+  rejects: number;
+  defers: number;
+  /** Total within the 7-day rolling window. */
+  total: number;
+  /** Most recent decision timestamp regardless of window. Null if no decisions parseable. */
+  lastDecisionAt: Date | null;
+  /** Approves / total within the window. Null when total is 0. */
+  ratio: number | null;
+}
+
+/**
+ * Aggregate a parsed decisions list into a 7-day rolling-window calibration.
+ * Mirrors the prior PerformanceFace inline aggregation intent — counts +
+ * approval ratio over the last 7 days + most-recent decision timestamp
+ * across the full list.
+ */
+export function aggregateReviewerCalibration(
+  decisions: ReviewerDecision[],
+): ReviewerCalibration {
+  const calib: ReviewerCalibration = {
+    approves: 0,
+    rejects: 0,
+    defers: 0,
+    total: 0,
+    lastDecisionAt: null,
+    ratio: null,
+  };
+  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+  for (const d of decisions) {
+    if (!d.timestamp || !d.decision) continue;
+    const ts = new Date(d.timestamp);
+    if (Number.isNaN(ts.getTime())) continue;
+    // Track most-recent timestamp regardless of window.
+    if (!calib.lastDecisionAt || ts > calib.lastDecisionAt) {
+      calib.lastDecisionAt = ts;
+    }
+    // Skip out-of-window entries for the count totals.
+    if (ts.getTime() < cutoff) continue;
+    if (d.decision === 'approve') calib.approves += 1;
+    if (d.decision === 'reject') calib.rejects += 1;
+    if (d.decision === 'defer') calib.defers += 1;
+    calib.total += 1;
+  }
+  if (calib.total > 0) {
+    calib.ratio = calib.approves / calib.total;
+  }
+  return calib;
+}

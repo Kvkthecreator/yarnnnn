@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.11] - ADR-239 — Trader cockpit coherence pass (decisions parser unified)
+
+### Changed
+- `web/components/library/faces/PerformanceFace.tsx` — inline `parseDecisions(content): ReviewerCalibration` function deleted; inline `ReviewerCalibration` interface deleted; imports now route through `@/lib/reviewer-decisions`. Call site changes from `setCalibration(parseDecisions(content))` to `setCalibration(aggregateReviewerCalibration(parseDecisions(content)))`.
+
+### Added
+- `web/lib/reviewer-decisions.ts` — gains `aggregateReviewerCalibration(decisions: ReviewerDecision[]): ReviewerCalibration` (pure transformation; rolls a parsed decisions list into a 7-day window calibration aggregate). Adds `ReviewerCalibration` interface as an exported type. Future cockpit↔snapshot consumers (Round 5 Item 10) compose with the same module.
+- `api/test_adr239_decisions_parser_unification.py` — Python regression gate (6/6 assertions). Same pattern as ADR-237 / ADR-238 per ADR-236 Rule 3.
+
+### Behavior
+- **Bug fix:** PerformanceFace's inline `parseDecisions` was looking for a stale on-disk format (`## YYYY-MM-DDTHH...` headings + `verdict:` field) that the canonical writer (`api/services/reviewer_audit.py` per ADR-194 v2 Phase 2a) never produces. The canonical write format is `--- decision ---` blocks with `decision:` field. PerformanceFace's calibration display has been quietly rendering empty/zero state for that reason. ADR-239 fixes the bug by routing aggregation through the canonical parser; calibration counts now reflect actual reviewer decisions.
+- One parser per substrate file. `decisions.md` substrate now has exactly one TS parser, exactly one calibration aggregator, and two consumers (`DecisionsStreamPane` for full-stream display, `PerformanceFace` for calibration aggregate) composing with the same source.
+
+### Notes
+- ADR-239 is Round 3 of the ADR-236 frontend cockpit coherence pass. Scope smaller than the companion memo predicted: Q2 (parser unification) was the real work; Q5 (path audit) found zero drift; ADR-237 role grammar composition was speculative for cockpit list views (different rendering shape).
+- Cross-ADR regression check: 63/63 assertions across 7 gates (ADR-231 11/11, ADR-233 P1 13/13, ADR-233 P2 12/12, ADR-234 8/8, ADR-237 7/7, ADR-238 6/6, ADR-239 6/6) — zero regression.
+- Out of scope (deferred per memo): SnapshotModal convergence (Item 10, Round 5), MoneyTruth platform-live binding (ADR-241), face-level autonomy badges, bundle-supplied face overrides (ADR-225 amendment).
+
+---
+
 ## [2026.04.29.10] - ADR-237 — Chat role-based design system (dispatch grammar codified)
 
 ### Changed

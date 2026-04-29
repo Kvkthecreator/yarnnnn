@@ -12,8 +12,11 @@
  *
  * ADR-170: When sys_manifest.json is present (compose substrate), shows a
  * section provenance strip above the output. Each pill = one declared section,
- * color-coded by freshness. TP can target individual sections via:
- *   ManageTask(action="steer", target_section="executive-summary")
+ * color-coded by freshness. YARNNN can target individual sections via the
+ * recurrence's natural-home feedback substrate:
+ *   WriteFile(scope="workspace", path="reports/<slug>/feedback.md",
+ *             content="## Steering for section <section-slug>\n- ...",
+ *             mode="append")  per ADR-235 D1.b
  */
 
 import { AlertCircle, ChevronDown, ChevronRight, Clock, FileText, Loader2, RefreshCw, Shield } from 'lucide-react';

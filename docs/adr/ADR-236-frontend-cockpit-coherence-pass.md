@@ -309,6 +309,7 @@ This umbrella ADR's status flips to **Implemented** when:
 - [x] Round 1 — ADR-238 reaches **Implemented** (commit `c769e64`; test gate 6/6 passing).
 - [x] **Round 0 + Round 1 validation checkpoint** authored at [docs/analysis/adr236-validation-checkpoint-2026-04-29.md](../analysis/adr236-validation-checkpoint-2026-04-29.md), walked, and closed. Code-side 25/25 + cross-ADR 50/50 + operator browser smoke confirmed. Results: [docs/analysis/adr236-validation-results-2026-04-29.md](../analysis/adr236-validation-results-2026-04-29.md). Round 0 + Round 1 definitively validated 2026-04-29.
 - [x] Round 2 — ADR-237 reaches **Implemented** (test gate 7/7; cross-ADR 57/57; ADR-235 prerequisite met by commit `9156db9`).
+- [x] Round 3 — ADR-239 reaches **Implemented** (test gate 6/6; cross-ADR 63/63). Memo found scope smaller than predicted: Q5 path audit clean, MessageRenderer composition not applicable to cockpit list views; net work is parser unification (Q2) which fixed a bug in `PerformanceFace`'s decision-format reading.
 - [ ] Round 3 — ADR-239 reaches **Implemented** (or final phase, per Rule 7) — preceded by scoping memo.
 - [ ] Round 4 — ADR-240 reaches **Implemented**.
 - [ ] Round 5 — Items 8, 9, 10 reach **Implemented** OR **Deferred** with rationale recorded here.

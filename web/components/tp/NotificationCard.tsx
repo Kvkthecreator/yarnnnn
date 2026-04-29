@@ -5,12 +5,15 @@
  * side effect (workspace scaffolded, task created, etc.).
  */
 
-import { Sparkles, ListChecks, CheckCircle2, BookmarkPlus } from 'lucide-react';
+import { Sparkles, CheckCircle2, BookmarkPlus } from 'lucide-react';
 
+// Tool-name → icon for inline notification cards. Post-ADR-235 names only.
+// TPContext only emits notifications for InferWorkspace + ManageRecurrence,
+// so the map covers exactly those toolName values; everything else falls
+// back to BookmarkPlus.
 const ICONS: Record<string, typeof Sparkles> = {
-  UpdateContext: Sparkles,
-  CreateTask: ListChecks,
-  ManageTask: CheckCircle2,
+  InferWorkspace: Sparkles,
+  ManageRecurrence: CheckCircle2,
 };
 
 interface NotificationCardProps {

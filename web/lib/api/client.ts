@@ -36,8 +36,8 @@ import type {
   Recurrence,
   RecurrenceDetail,
   RecurrenceOutput,
-  // ADR-231 D5: TaskCreate / TaskType / TaskTypesResponse DELETED.
-  // Recurrence creation flows through UpdateContext(target='recurrence');
+  // ADR-231 D5 + ADR-235 D1.c: TaskCreate / TaskType / TaskTypesResponse
+  // DELETED. Recurrence creation flows through ManageRecurrence(action='create');
   // the registry catalog is dissolved.
   ProcessStepsResponse,
   RunStatus,
@@ -215,8 +215,9 @@ export const api = {
 
   // (styles API deleted — ADR-133: preferences dissolved into BRAND.md)
 
-  // ADR-144: onboarding.enrich deleted — context enrichment via UpdateContext primitive (ADR-146).
-  // getState kept for roster scaffolding trigger on first login.
+  // ADR-144 + ADR-235: onboarding.enrich deleted — context enrichment via
+  // InferContext / InferWorkspace primitives. getState kept for roster
+  // scaffolding trigger on first login.
   onboarding: {
     getState: () =>
       request<{ has_agents: boolean }>("/api/memory/user/onboarding-state"),
@@ -554,11 +555,11 @@ export const api = {
     get: (slug: string) =>
       request<RecurrenceDetail>(`/api/recurrences/${slug}`),
 
-    // ADR-215 Phase 4 + ADR-231 D5: frontend no longer POSTs /api/recurrences
-    // for creation. Recurrence creation routes through YARNNN via
-    // RecurrenceSetupModal → UpdateContext(target='recurrence', action='create',
-    // shape=..., slug=..., body={...}) per ADR-206 CRUD split + ADR-231 D5
-    // (ManageTask deleted in Phase 3.7).
+    // ADR-215 Phase 4 + ADR-231 D5 + ADR-235 D1.c: frontend no longer POSTs
+    // /api/recurrences for creation. Recurrence creation routes through YARNNN
+    // via RecurrenceSetupModal → ManageRecurrence(action='create', shape=...,
+    // slug=..., body={...}) per ADR-206 CRUD split (ManageTask deleted in
+    // ADR-231 Phase 3.7; UpdateContext deleted in ADR-235).
 
     update: (slug: string, data: { status?: string; schedule?: string; sources?: Record<string, string[]> }) =>
       request<Recurrence>(`/api/recurrences/${slug}`, {
@@ -608,12 +609,12 @@ export const api = {
       );
     },
 
-    // ADR-207 P4b (2026-04-22) + ADR-231 D5 (2026-04-29): `listTypes` +
-    // `getType` DELETED. The `/api/tasks/types` endpoints never had an
-    // `/api/recurrences/types` equivalent — the registry was dissolved
+    // ADR-207 P4b (2026-04-22) + ADR-231 D5 + ADR-235 D1.c (2026-04-29):
+    // `listTypes` + `getType` DELETED. The `/api/tasks/types` endpoints never
+    // had an `/api/recurrences/types` equivalent — the registry was dissolved
     // before the URL rename. Recurrence creation happens via YARNNN
-    // self-declaration through UpdateContext(target='recurrence',
-    // action='create', shape=..., slug=..., body={...}). Not a catalog pick.
+    // self-declaration through ManageRecurrence(action='create', shape=...,
+    // slug=..., body={...}). Not a catalog pick.
 
     // ADR-145: Process step outputs for a given run
     getStepOutputs: (slug: string, dateFolder: string) =>

@@ -6,8 +6,9 @@
  *
  * R3: if the thing being edited IS a file, the edit surface is Files. The
  * revision chain (ADR-209) records `authored_by=operator`. No "Edit in chat"
- * button on substrate files — Chat would invoke UpdateContext anyway, and
- * direct substrate edit produces the same write with clearer provenance.
+ * button on substrate files — Chat would invoke `WriteFile(scope='workspace')`
+ * or `InferContext` (per ADR-235) anyway, and direct substrate edit produces
+ * the same write with clearer provenance.
  *
  * Scope:
  *   - `/workspace/context/_shared/*.md` — the operator-authored shared
@@ -21,8 +22,9 @@
  *   - Task files (TASK.md, DELIVERABLE.md, feedback.md) — edit path is Chat
  *     per R1 (task lifecycle is judgment-shaped).
  *   - Uploads — re-upload is the edit path; no inline text editor.
- *   - Agent AGENT.md files — edits flow through ManageAgent / UpdateContext
- *     primitives (judgment-shaped), not direct operator substrate writes.
+ *   - Agent AGENT.md files — edits flow through ManageAgent (lifecycle) or
+ *     `WriteFile(scope='workspace', path='agents/{slug}/...')` per ADR-235,
+ *     not direct operator substrate writes.
  *
  * Writes route through `api.workspace.editFile()` (PATCH /api/workspace/file),
  * which invokes `write_revision()` with `authored_by="operator"` on the server

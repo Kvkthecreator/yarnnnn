@@ -634,36 +634,28 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                 let notifTitle = '';
                 let notifDesc = '';
 
-                // ADR-235 D1.a: InferWorkspace replaced UpdateContext(target='workspace').
-                // Returns the same `scaffolded` shape — only the tool name changed.
-                // UpdateContext branch retained for historical-run replay (archived
-                // tool_history snapshots from before ADR-235 land here).
-                if (
-                  (toolName === 'InferWorkspace' || toolName === 'UpdateContext')
-                  && (resultData.scaffolded || resultData.inference?.scaffolded)
-                ) {
-                  const scaffolded = resultData.scaffolded || resultData.inference?.scaffolded || {};
+                // ADR-235 D1.a: InferWorkspace produces identity + brand + entities
+                // + work_intent in one Sonnet call; result carries `scaffolded` at
+                // top level (entities-by-domain) plus `entity_count`.
+                if (toolName === 'InferWorkspace' && resultData.scaffolded) {
+                  const scaffolded = resultData.scaffolded as Record<string, unknown>;
                   const domains = Object.keys(scaffolded).filter(
-                    (k) => Array.isArray((scaffolded as Record<string, unknown>)[k])
+                    (k) => Array.isArray(scaffolded[k])
                   );
                   const total = domains.reduce(
-                    (sum: number, k: string) => sum + ((scaffolded as Record<string, unknown[]>)[k]?.length ?? 0),
+                    (sum: number, k: string) => sum + ((scaffolded[k] as unknown[])?.length ?? 0),
                     0
                   );
                   notifTitle = 'Workspace scaffolded';
                   notifDesc = `${total} entities across ${domains.length} domains`;
-                } else if (toolName === 'ManageTask' && resultData.success) {
-                  // ADR-168 Commit 3: CreateTask folded into ManageTask(action="create"),
-                  // so "Task created" notifications now flow through this branch too.
-                  const mtAction = resultData.action as string;
-                  if (mtAction === 'create') {
-                    notifTitle = 'Task created';
-                    notifDesc = (resultData.message as string) || (resultData.task_slug as string) || '';
-                  } else if (mtAction === 'evaluate') {
-                    notifTitle = 'Task evaluated';
-                    notifDesc = (resultData.message as string) || '';
-                  } else if (mtAction === 'complete') {
-                    notifTitle = 'Task completed';
+                } else if (toolName === 'ManageRecurrence' && resultData.success) {
+                  // ADR-235 D1.c: lifecycle actions (create/update/pause/resume/archive).
+                  const mrAction = resultData.action as string;
+                  if (mrAction === 'create') {
+                    notifTitle = 'Recurrence created';
+                    notifDesc = (resultData.message as string) || (resultData.slug as string) || '';
+                  } else if (mrAction === 'archive') {
+                    notifTitle = 'Recurrence archived';
                     notifDesc = (resultData.message as string) || '';
                   }
                 }

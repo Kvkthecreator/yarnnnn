@@ -16,9 +16,9 @@
  * Data handling is identical across all callers:
  *   links + files + text → caller composes a message string → TP primitive
  *
- * Consumer (as of ADR-231 / 2026-04-29):
+ * Consumer (as of ADR-235 / 2026-04-29):
  *   RecurrenceSetup — recurrence creation (all surfaces). Composed message
- *                     targets UpdateContext(target='recurrence', action='create').
+ *                     targets ManageRecurrence(action='create').
  *
  * Historical: ContextSetup (onboarding form) was the second consumer; it
  * was retired by ADR-215 Phase 5 as onboarding became conversational

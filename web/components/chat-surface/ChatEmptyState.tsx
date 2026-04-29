@@ -19,9 +19,9 @@
  *   5. Build a recurring report — graduation seed (deliverable recurrence)
  *
  * Chips 4 and 5 are the explicit-recurrence path; YARNNN scaffolds a
- * recurrence YAML via UpdateContext(target='recurrence', action='create')
- * when the operator confirms intent. Chip 1 fires an invocation directly
- * via YARNNN's normal tool surface — no recurrence wrapper.
+ * recurrence YAML via ManageRecurrence(action='create') when the operator
+ * confirms intent. Chip 1 fires an invocation directly via YARNNN's
+ * normal tool surface — no recurrence wrapper.
  *
  * Chip 2 currently triggers the file picker; chips 3-5 seed composer text.
  */

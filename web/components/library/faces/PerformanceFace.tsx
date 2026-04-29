@@ -34,55 +34,23 @@ import Link from 'next/link';
 import { Activity } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useComposition } from '@/lib/compositor';
+import {
+  parseDecisions,
+  aggregateReviewerCalibration,
+  type ReviewerCalibration,
+} from '@/lib/reviewer-decisions';
 
 const DECISIONS_PATH = '/workspace/review/decisions.md';
 const DEFAULT_PERFORMANCE = '/workspace/context/_performance_summary.md';
 
-interface ReviewerCalibration {
-  approves: number;
-  rejects: number;
-  defers: number;
-  total: number;
-  lastDecisionAt: Date | null;
-  ratio: number | null;
-}
-
-function parseDecisions(content: string): ReviewerCalibration {
-  // decisions.md is append-only with Markdown headings per entry. Each entry
-  // includes a verdict line like:
-  //   verdict: approve|reject|defer
-  // and a timestamp in the heading like ## 2026-04-28T08:05:42Z — alpaca.submit_order
-  const calib: ReviewerCalibration = {
-    approves: 0,
-    rejects: 0,
-    defers: 0,
-    total: 0,
-    lastDecisionAt: null,
-    ratio: null,
-  };
-  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
-  const blocks = content.split(/\n##\s+/).slice(1);
-  for (const block of blocks) {
-    const tsMatch = block.match(/^(\d{4}-\d{2}-\d{2}T[\d:.Z+-]+)/);
-    const verdictMatch = block.match(/verdict:\s*(approve|reject|defer)/i);
-    if (!tsMatch || !verdictMatch) continue;
-    const ts = new Date(tsMatch[1]);
-    if (Number.isNaN(ts.getTime())) continue;
-    if (!calib.lastDecisionAt || ts > calib.lastDecisionAt) {
-      calib.lastDecisionAt = ts;
-    }
-    if (ts.getTime() < cutoff) continue;
-    const verdict = verdictMatch[1].toLowerCase();
-    if (verdict === 'approve') calib.approves += 1;
-    if (verdict === 'reject') calib.rejects += 1;
-    if (verdict === 'defer') calib.defers += 1;
-    calib.total += 1;
-  }
-  if (calib.total > 0) {
-    calib.ratio = calib.approves / calib.total;
-  }
-  return calib;
-}
+// ADR-239: parsing + calibration aggregation lifted to
+// @/lib/reviewer-decisions. `parseDecisions` returns ReviewerDecision[];
+// `aggregateReviewerCalibration` rolls those up into the calibration
+// shape this face renders. The previous inline parser was looking for a
+// stale on-disk format (## headings with `verdict:` field) that the
+// canonical writer (api/services/reviewer_audit.py per ADR-194 v2
+// Phase 2a) never produces — ADR-239 fixes that bug by routing through
+// the canonical parser.
 
 function readPerformanceSource(composition: ReturnType<typeof useComposition>['data']): string {
   const cockpit = composition.composition.tabs?.work?.list as { cockpit?: { performance?: { attribution_source?: string } } } | undefined;
@@ -105,7 +73,7 @@ export function PerformanceFace() {
       ]);
       if (cancelled) return;
       const decisionsContent = decisionsR.status === 'fulfilled' ? decisionsR.value?.content ?? '' : '';
-      setCalibration(parseDecisions(decisionsContent));
+      setCalibration(aggregateReviewerCalibration(parseDecisions(decisionsContent)));
       const perfContent = perfR.status === 'fulfilled' ? perfR.value?.content ?? '' : '';
       setHasPerformance(perfContent.trim().length > 0);
     })();

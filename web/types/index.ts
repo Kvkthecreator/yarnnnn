@@ -808,10 +808,10 @@ export interface RecurrenceDetail extends Recurrence {
   deliverable_spec?: DeliverableSpec | null;
 }
 
-// ADR-231 D5: TaskCreate, TaskType, TaskTypesResponse DELETED.
-// Recurrence creation flows through UpdateContext(target='recurrence',
-// action='create', shape=..., slug=..., body={...}) via the chat surface.
-// The frontend never POSTs creation payloads directly.
+// ADR-231 D5 + ADR-235 D1.c: TaskCreate, TaskType, TaskTypesResponse DELETED.
+// Recurrence creation flows through ManageRecurrence(action='create',
+// shape=..., slug=..., body={...}) via the chat surface. The frontend
+// never POSTs creation payloads directly.
 
 // ADR-170: Section provenance from sys_manifest.json
 export interface RecurrenceSectionEntry {

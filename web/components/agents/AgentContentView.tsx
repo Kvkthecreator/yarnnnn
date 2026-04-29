@@ -514,9 +514,10 @@ function AgentRoleBlock({ agent, tasks }: { agent: Agent; tasks: Recurrence[] })
             {/* ADR-209 Phase 4: revision history for the agent's AGENT.md.
                 The panel reads workspace_file_versions for /agents/{slug}/AGENT.md.
                 Read-only on this surface — agent AGENT.md edits flow via
-                primitives (UpdateContext(target="agent") / ManageAgent
-                update), not PATCH /api/workspace/file, so we hide the revert
-                button to avoid a path-mismatch surprise. */}
+                primitives (ManageAgent update for identity changes;
+                WriteFile(scope='workspace', path='agents/{slug}/...') per
+                ADR-235 for direct file writes), not PATCH /api/workspace/file,
+                so we hide the revert button to avoid a path-mismatch surprise. */}
             <div className="mt-4">
               <RevisionHistoryPanel
                 path={`/agents/${getAgentSlug(agent)}/AGENT.md`}

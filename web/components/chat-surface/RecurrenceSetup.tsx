@@ -7,7 +7,8 @@
  * surface. Owns the logic specific to recurrence creation: route toggle
  * (track vs deliverable), route-adaptive placeholders, and composed message
  * format that YARNNN uses to call
- * `UpdateContext(target='recurrence', action='create', ...)` in the same turn.
+ * `ManageRecurrence(action='create', shape=..., slug=..., body={...})` in
+ * the same turn (per ADR-235 D1.c).
  *
  * Route A (deliverable): user anchors on an output. YARNNN reverse-engineers
  *   context needs. Links seed DELIVERABLE.md; files shape the output spec.
