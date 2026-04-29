@@ -73,23 +73,34 @@ async def _dispatch_high(
     trigger_type: str,
     trigger_context: dict,
 ) -> dict:
-    """ADR-141: Delegate to task pipeline."""
-    from services.task_pipeline import execute_agent_run
+    """ADR-231 Phase 3.6.a.2: route through invocation_dispatcher.
+
+    Resolves agent → recurrence declaration, then dispatch(decl). When no
+    declaration assigns this agent, returns success=False with an
+    explanatory message — the operator should author one via
+    UpdateContext(target='recurrence').
+    """
+    from services.invocation_dispatcher import dispatch, find_declaration_for_agent
+    from services.workspace import get_agent_slug
 
     agent_id = agent.get("id")
     user_id = agent.get("user_id")
     title = agent.get("title", "Untitled")
+    agent_slug = get_agent_slug(agent)
 
     logger.info(f"[DISPATCH] high → generate: {title} ({agent_id}), trigger={trigger_type}")
 
-    try:
-        result = await execute_agent_run(
-            client=client,
-            user_id=user_id,
-            agent=agent,
-            trigger_context=trigger_context,
+    decl = find_declaration_for_agent(client, user_id, agent_slug)
+    if decl is None:
+        msg = (
+            f"no recurrence declaration assigns agent '{agent_slug}'; "
+            f"trigger ignored"
         )
-        # Merge action key into result — callers still get success/version_id/etc.
+        logger.warning(f"[DISPATCH] high skipped for {title}: {msg}")
+        return {"action": "generated", "success": False, "error": msg}
+
+    try:
+        result = await dispatch(client, user_id, decl)
         return {"action": "generated", **result}
     except Exception as e:
         logger.error(f"[DISPATCH] high failed for {title}: {e}")

@@ -44,7 +44,8 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
-from services.task_workspace import TaskWorkspace
+# ADR-231 Phase 3.6.a.3: TaskWorkspace import removed. Slug-rooted task I/O
+# replaced with declaration-walker reads via services.recurrence_paths.
 
 logger = logging.getLogger(__name__)
 from agents.base import ContextBundle
@@ -903,45 +904,54 @@ async def _load_task_context(
     and assigned agent info.
     """
     import re
+    from services.recurrence import walk_workspace_recurrences
+    from services.recurrence_paths import resolve_paths
+    from services.workspace import UserMemory
 
-    tw = TaskWorkspace(client, user_id, task_slug)
+    # ADR-231 Phase 3.6.a.3: resolve slug → RecurrenceDeclaration via walker;
+    # read declaration substrate from natural-home paths via UserMemory.
+    decls = walk_workspace_recurrences(client, user_id)
+    decl = next((d for d in decls if d.slug == task_slug), None)
+    if decl is None:
+        return None  # No matching declaration
 
-    # 1. Read TASK.md
-    task_md = await tw.read("TASK.md")
-    if not task_md:
-        return None  # Task doesn't exist or has no TASK.md
+    paths = resolve_paths(decl)
+    um = UserMemory(client, user_id)
 
-    # Extract task title from first heading
-    task_title = task_slug
-    title_match = re.search(r"^#\s+(.+)", task_md, re.MULTILINE)
-    if title_match:
-        task_title = title_match.group(1).strip()
+    def _strip_ws_prefix(p: str) -> str:
+        return p[len("/workspace/"):] if p.startswith("/workspace/") else p
+
+    # 1. Display title — fall back to slug
+    task_title = decl.display_name or decl.slug
 
     # 2. Read run_log.md — last 5 ## sections
     run_log_last_5 = ""
-    run_log = await tw.read("memory/_run_log.md")
+    run_log = await um.read(_strip_ws_prefix(paths.run_log_path))
     if run_log:
         sections = re.split(r"(?=^## )", run_log, flags=re.MULTILINE)
-        # Filter out empty sections
         sections = [s.strip() for s in sections if s.strip()]
         last_5 = sections[-5:] if len(sections) > 5 else sections
         run_log_last_5 = "\n\n".join(last_5)
 
-    # 3. Read latest output preview (first 500 chars)
+    # 3. Read latest output preview — only meaningful for DELIVERABLE shape
     output_preview = ""
-    output_content = await tw.read("outputs/output.md")
-    if output_content:
-        output_preview = output_content[:500]
-        if len(output_content) > 500:
-            output_preview += "\n[truncated...]"
+    if paths.output_path:
+        # paths.output_path may carry a {date} placeholder; for the latest-output
+        # read we want whatever the most-recent dated folder is. The substrate
+        # walker pattern is: list outputs under substrate_root/, pick the latest
+        # dated subdir. For 3.6 simplicity: skip if the path has {date} (the
+        # operator's chat is not a hot loop; preview is convenience).
+        if "{date}" not in paths.output_path:
+            output_content = await um.read(_strip_ws_prefix(paths.output_path))
+            if output_content:
+                output_preview = output_content[:500]
+                if len(output_content) > 500:
+                    output_preview += "\n[truncated...]"
 
-    # 4. Parse assigned agent slug from TASK.md ## Process section
+    # 4. Assigned agent info — pulled directly from declaration.agents
     agent_info = ""
-    agent_slug_match = re.search(
-        r"## Process.*?agent:\s*(\S+)", task_md, re.DOTALL | re.IGNORECASE
-    )
-    if agent_slug_match:
-        agent_slug = agent_slug_match.group(1).strip()
+    if decl.agents:
+        agent_slug = decl.agents[0]
         try:
             agent_result = (
                 client.table("agents")
@@ -957,35 +967,42 @@ async def _load_task_context(
         except Exception as e:
             logger.debug(f"[TASK_CONTEXT] Failed to fetch agent: {e}")
 
-    # 5. ADR-170: Section steering hint for produces_deliverable tasks.
-    # Parse type_key from TASK.md, resolve page_structure from registry,
-    # inject section slugs so TP can use ManageTask(action="steer", target_section=...).
+    # 5. Section steering hint for DELIVERABLE shape with page_structure declared.
+    # Post-cutover, sections live in the recurrence YAML's `page_structure:` field.
     section_steering_hint = ""
-    type_key_match = re.search(r"\*\*Type:\*\*\s*(\S+)", task_md)
-    if type_key_match:
-        from services.task_types import get_task_type
+    page_structure = decl.data.get("page_structure")
+    if decl.shape.value == "deliverable" and page_structure:
         from services.compose.assembly import _slug as _section_slug
-        task_type_def = get_task_type(type_key_match.group(1).strip())
-        if task_type_def and task_type_def.get("output_kind") == "produces_deliverable":
-            page_structure = task_type_def.get("page_structure", [])
-            if page_structure:
-                slugs = [_section_slug(s["title"]) for s in page_structure]
-                titles = [s["title"] for s in page_structure]
-                section_lines = [
-                    f"  - `{slug}` — {title}"
-                    for slug, title in zip(slugs, titles)
-                ]
-                section_steering_hint = (
-                    "\n\nThis is a deliverable task with declared sections. "
-                    "You can steer a specific section with:\n"
-                    "  ManageTask(task_slug=\"" + task_slug + "\", action=\"steer\", "
-                    "steering=\"...\", target_section=\"<section-slug>\")\n"
-                    "Available sections:\n" + "\n".join(section_lines)
-                )
+        slugs: list[str] = []
+        titles: list[str] = []
+        for entry in page_structure:
+            if isinstance(entry, dict):
+                t = entry.get("title", "")
+                if t:
+                    slugs.append(_section_slug(t))
+                    titles.append(t)
+            elif isinstance(entry, str):
+                slugs.append(_section_slug(entry))
+                titles.append(entry)
+        if slugs:
+            section_lines = [
+                f"  - `{slug}` — {title}"
+                for slug, title in zip(slugs, titles)
+            ]
+            section_steering_hint = (
+                "\n\nThis is a deliverable recurrence with declared sections. "
+                "You can steer a specific section with UpdateContext "
+                f"(target='task', task_slug='{task_slug}', target_section='<section-slug>').\n"
+                "Available sections:\n" + "\n".join(section_lines)
+            )
 
     # Build formatted context
-    parts = [f'You are helping the user manage the task "{task_title}".']
-    parts.append(f"\nTask definition:\n{task_md}")
+    parts = [f'You are helping the user manage the recurrence "{task_title}".']
+    parts.append(f"\nDeclaration: {decl.declaration_path}")
+    if decl.objective:
+        parts.append(f"\nObjective: {decl.objective}")
+    if decl.schedule:
+        parts.append(f"Schedule: {decl.schedule}{' (paused)' if decl.paused else ''}")
 
     if run_log_last_5:
         parts.append(f"\nRecent run log:\n{run_log_last_5}")

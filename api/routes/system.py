@@ -239,66 +239,50 @@ async def get_system_status(auth: UserClient):
             ))
 
     # ─── Background Jobs Status ───────────────────────────────────────────────
-    # ADR-164: task_executed events removed from activity_log. Back office tasks
-    # (workspace-cleanup, agent-hygiene) are regular tasks owned by TP — their
-    # last-run status comes from tasks.last_run_at + latest workspace manifest.
-    # scheduler_heartbeat is still written to activity_log hourly.
+    # ADR-231 D2: back-office collapses to a single shared audit log at
+    # /workspace/_shared/back-office-audit.md. Status comes from tasks.last_run_at
+    # (the scheduling index, scheduler-maintained) + the latest audit-log entry
+    # for the slug. The per-task /tasks/{slug}/outputs/{date}/manifest.json layout
+    # was retired by ADR-231 D2; ALL back-office firings append to one audit file.
     background_jobs = []
 
-    # --- Back office tasks: pull last_run_at from tasks table + latest manifest ---
     back_office_task_slugs = [
         ("back-office-workspace-cleanup", "Workspace Cleanup"),
         ("back-office-agent-hygiene", "Agent Hygiene"),
     ]
 
+    # Read the shared audit log once and parse per-slug entries on demand.
+    audit_result = auth.client.table("workspace_files").select("content").eq(
+        "user_id", user_id
+    ).eq("path", "/workspace/_shared/back-office-audit.md").limit(1).execute()
+    audit_text = (audit_result.data or [{}])[0].get("content", "")
+
+    import re as _re
+    def _summary_for_slug(slug: str) -> Optional[str]:
+        # Match ## [<timestamp>] <slug> ... block, take the most recent one.
+        # The dispatcher writes entries with "## [{ts}] {slug}\n- Executor: ...\n- Summary: <text>".
+        pattern = rf"## \[[^\]]+\] {_re.escape(slug)}\n(?:- [^\n]+\n)*?- Summary:\s*([^\n]+)"
+        matches = _re.findall(pattern, audit_text)
+        return matches[-1].strip() if matches else None
+
     for task_slug, label in back_office_task_slugs:
-        # ADR-164: back office tasks do NOT create agent_runs rows. Status comes
-        # from tasks.last_run_at (set by the scheduler after each execution) and
-        # the latest workspace_files output manifest (written by _execute_tp_task).
         task_result = auth.client.table("tasks").select(
             "id, last_run_at, status"
         ).eq("user_id", user_id).eq("slug", task_slug).limit(1).execute()
 
         task_row = (task_result.data or [None])[0]
         if task_row and task_row.get("last_run_at"):
-            # Fetch last-run summary from the latest back office manifest.
-            # _execute_tp_task writes outputs/{date_folder}/manifest.json (no latest/ symlink).
-            # TaskWorkspace root is /tasks/{slug}/, so path is
-            # /tasks/{slug}/outputs/%/manifest.json — use most-recently updated row.
-            manifest_result = auth.client.table("workspace_files").select(
-                "content, updated_at"
-            ).eq("user_id", user_id).like(
-                "path", f"/tasks/{task_slug}/outputs/%/manifest.json"
-            ).order("updated_at", desc=True).limit(1).execute()
-
-            manifest_row = (manifest_result.data or [None])[0]
-            summary = None
-            run_status = "success"
-            if manifest_row and manifest_row.get("content"):
-                try:
-                    import json as _json
-                    manifest = _json.loads(manifest_row["content"])
-                    # Back office manifest has no status field — treat presence as success.
-                    # actions_taken is a list of {action, scope, count} dicts.
-                    actions = manifest.get("actions_taken") or []
-                    if actions:
-                        total = sum(a.get("count", 0) for a in actions)
-                        summary = f"{total} items processed"
-                except Exception:
-                    pass
-
             background_jobs.append(BackgroundJobStatus(
                 job_type=label,
                 last_run_at=task_row["last_run_at"],
-                last_run_status=run_status,
-                last_run_summary=summary,
+                last_run_status="success",
+                last_run_summary=_summary_for_slug(task_slug),
             ))
         elif task_row:
             background_jobs.append(BackgroundJobStatus(
                 job_type=label,
                 last_run_status="never_run",
             ))
-        # If the task row doesn't exist yet (workspace not fully initialized), skip silently.
 
     # --- Scheduler heartbeat: still written to activity_log hourly ---
     hb_result = auth.client.table("activity_log").select(

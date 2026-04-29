@@ -830,12 +830,14 @@ async def trigger_run(
     agent_id: UUID,
     auth: UserClient,
 ) -> dict:
-    """
-    Trigger an ad-hoc agent run.
+    """Trigger an ad-hoc agent run.
 
-    ADR-141: Routes through task pipeline.
+    ADR-231 Phase 3.6.a.2: routes through services.invocation_dispatcher.
+    Resolves agent → recurrence declaration via find_declaration_for_agent,
+    then dispatch(decl). Replaces the legacy execute_agent_run path which
+    scanned tasks rows + parsed every TASK.md to find an assignment.
     """
-    from services.task_pipeline import execute_agent_run
+    from services.invocation_dispatcher import dispatch, find_declaration_for_agent
     from services.supabase import get_service_client
 
     # Get agent
@@ -856,22 +858,33 @@ async def trigger_run(
     if agent["status"] == "archived":
         raise HTTPException(status_code=400, detail="Cannot run archived agent")
 
-    logger.info(f"[AGENT] Triggering run: {agent_id}")
+    agent_slug = agent.get("slug", "")
+    if not agent_slug:
+        raise HTTPException(status_code=400, detail="Agent has no slug")
 
-    # ADR-141: Route through task pipeline
-    exec_result = await execute_agent_run(
-        client=get_service_client(),
-        user_id=auth.user_id,
-        agent=agent,
-        trigger_context={"type": "manual"},
-    )
+    logger.info(f"[AGENT] Triggering run: {agent_id} ({agent_slug})")
 
+    svc_client = get_service_client()
+    decl = find_declaration_for_agent(svc_client, auth.user_id, agent_slug)
+    if decl is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"No recurrence declaration assigns agent '{agent_slug}'. "
+                f"Author one via UpdateContext(target='recurrence', action='create', ...) "
+                f"with this agent in the agents: field."
+            ),
+        )
+
+    exec_result = await dispatch(svc_client, auth.user_id, decl)
     return {
         "success": exec_result.get("success", False),
         "run_id": exec_result.get("run_id"),
         "version_number": exec_result.get("version_number"),
         "status": exec_result.get("status"),
         "message": exec_result.get("message"),
+        "shape": exec_result.get("shape"),
+        "slug": exec_result.get("slug"),
     }
 
 

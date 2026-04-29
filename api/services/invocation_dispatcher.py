@@ -866,6 +866,32 @@ def _check_capabilities(client, user_id: str, decl: RecurrenceDeclaration) -> Op
     return "Required capability unavailable: " + "; ".join(parts)
 
 
+def find_declaration_for_agent(
+    client, user_id: str, agent_slug: str
+) -> Optional[RecurrenceDeclaration]:
+    """Find the recurrence declaration that assigns this agent.
+
+    Walks all of the user's recurrence declarations and returns the first
+    one whose `agents:` list (or `agent:` singular) contains the given
+    slug. Returns None when no declaration assigns this agent.
+
+    Used by routes/agents.py POST /agents/{id}/run and
+    services.trigger_dispatch._dispatch_high to map agent → declaration
+    before dispatching. Replaces the legacy task_pipeline.execute_agent_run
+    which scanned `tasks` rows + parsed every TASK.md to find the
+    agent-task assignment.
+    """
+    from services.recurrence import walk_workspace_recurrences
+
+    decls = walk_workspace_recurrences(client, user_id)
+    for d in decls:
+        # Match against either 'agents' (list) or 'agent' (singular)
+        agents_list = d.agents
+        if agent_slug in agents_list:
+            return d
+    return None
+
+
 async def _resolve_agent(client, user_id: str, agent_ref: str) -> Optional[dict]:
     """Resolve an agent_ref (slug or role) to an agents row.
 
@@ -1213,4 +1239,4 @@ def _result_failed(
     }
 
 
-__all__ = ["dispatch"]
+__all__ = ["dispatch", "find_declaration_for_agent"]
