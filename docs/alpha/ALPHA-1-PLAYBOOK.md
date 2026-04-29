@@ -6,7 +6,9 @@
 > **Grounded in**: ADR-191 (polymath ICP + conglomerate alpha), ADR-194 v2 (Reviewer seat interchangeability), ADR-228 (cockpit-as-operation), FOUNDATIONS v6.0 (Axiom 2 Identity, Axiom 6 Channel, Derived Principle 12)
 > **Rule**: This doc is the sole governance artifact for Alpha-1 alpha testing. It is updated as we iterate, and archived when the alpha concludes (post-rollup into subsequent ADRs). Any alpha-testing artifact not captured here should either be merged in, or is not authoritative.
 >
-> **Refactor-wave note (2026-04-29)**: Several primitives + URL paths in this playbook were renamed across ADR-227/228/230/231/233/235/236/237/238/239 (the late-April substrate-dissolution wave). This doc has had a vocabulary sweep but its §3A.5 task descriptions and §6 daily-rhythm flows were authored against the pre-sunset task abstraction. Pass 4 of the 2026-04-29 alpha-doc refresh (post-Pass-3 E2E observation against `alpha-trader-2`) is what re-grounds those sections in recurrence-declaration vocabulary. Until then, treat §3A.5 + §6 as *intent specs* and consult [E2E-EXECUTION-CONTRACT.md v3](./E2E-EXECUTION-CONTRACT.md) for the current primitive call shapes.
+> **Refactor-wave note (2026-04-29, Pass 4 complete)**: This doc was realigned across the late-April substrate-dissolution wave (ADR-227/228/230/231/233/235/237/238/239). §3A.5 reframes "tasks" as **recurrence declarations** with natural-home YAML substrate paths (ADR-231 D2). §3A.5b documents the back-office recurrences scaffolded automatically per ADR-164. §5.1 daily rhythm describes the four cockpit faces (ADR-228) instead of the pre-228 BriefingStrip framing. The four-pass refresh log lives in commits `9c071d1` (Pass 1 vocabulary), `89738a3` (Pass 2 invariants), `77d654f` (Pass 3 observation), and the current commit (Pass 4 playbook §3A.5/§5/§6).
+>
+> **Companion docs to read alongside**: [E2E-EXECUTION-CONTRACT.md v3](./E2E-EXECUTION-CONTRACT.md) for current primitive call shapes, [observations/2026-04-29-post-refactor-wave-e2e.md](./observations/2026-04-29-post-refactor-wave-e2e.md) for ground-truth E2E findings (incl. two open bugs).
 
 ---
 
@@ -452,18 +454,31 @@ expectancy is below guardrail), Check 4's defer takes precedence.
 The operator makes the call.
 ```
 
-### 3A.5 Task scaffolding target
+### 3A.5 Recurrence scaffolding target
 
-YARNNN composes via conversation during Phase 1 onboarding. Target set (iterate if YARNNN proposes a better fit for the persona):
+Post-ADR-231, "tasks" are now **recurrence declarations** at natural-home YAML substrate, not rows in a `tasks` registry table. YARNNN composes the set via conversation during Phase 1 onboarding through `ManageRecurrence(action="create", ...)` per ADR-235 D1.c. The thin `tasks` SQL table is a scheduling index only — the YAML at `declaration_path` is the authoritative substrate (ADR-231 D2 + Path B).
 
-| Task | Kind | Cadence | Purpose |
+Target set (iterate if YARNNN proposes a better fit for the persona):
+
+| Recurrence | Shape (output_kind) | Cadence | Declaration path | Purpose |
+|---|---|---|---|---|
+| `track-universe` | accumulates_context | 3× daily (8:00, 11:30, 15:45 ET) | `/workspace/context/trading/_recurring.yaml` | Updates price/indicator state for each ticker in `_operator_profile.md` universe. Writes `/workspace/context/trading/{ticker}/profile.md` + `analysis.md`. Tool surface includes `platform_trading_*` per ADR-227 task-capability augmentation when the recurrence declares `required_capabilities: [read_trading]`. |
+| `signal-evaluation` | accumulates_context | Daily (8:05 ET, after track-universe morning run) | `/workspace/context/trading/_recurring.yaml` | For each declared signal in `_operator_profile.md`, evaluates current state across universe. Writes signal-state to `/workspace/context/trading/signals/{signal-slug}.md`: which tickers are in "watch" state, which triggered today, current expectancy-20/40, decay flags. |
+| `pre-market-brief` | produces_deliverable | Daily 8:15 ET | `/workspace/reports/pre-market-brief/_spec.yaml` | Composed from signal-evaluation output. Human-readable morning brief: which signals may fire, portfolio exposure vs var budget, decay flags, regime state. Output at `/workspace/reports/pre-market-brief/{date}/output.md` (post-ADR-231 D2 natural-home). Cockpit surfaces it; email is expository pointer per ADR-202. |
+| `trade-proposal` | external_action (`emits_proposal: true`) | Reactive (event-triggered by signal-evaluation fire) | `/workspace/operations/trade-proposal/_action.yaml` | When signal-evaluation detects a fire condition, emits a ProposeAction with full signal attribution (see Reviewer Check 1). Runs through AI Reviewer reactive dispatch (ADR-194 v2 Phase 3) → cockpit Tracking face Queue for human approval if Reviewer defers. |
+| `weekly-performance-review` | produces_deliverable | Sunday 18:00 ET | `/workspace/reports/weekly-performance-review/_spec.yaml` | Reads `/workspace/context/trading/_performance.md` (ADR-195 v2 substrate, refreshed by `back-office-outcome-reconciliation`). Per-signal P&L, win rate, expectancy, Sharpe. Flags decay. Compares to declared baselines. Output at `/workspace/reports/weekly-performance-review/{date}/output.md`. |
+| `quarterly-signal-audit` | produces_deliverable | Quarterly (Sunday ending Mar/Jun/Sep/Dec 31, 18:00 ET) | `/workspace/reports/quarterly-signal-audit/_spec.yaml` | Comprehensive review: which signals to retire, which to retune, candidates for Signals 6–8 slots. Operator drafts final decisions; YARNNN prepares the analysis. |
+
+### 3A.5b Back-office recurrences (system-maintenance, owned by YARNNN per ADR-164)
+
+These recurrences scaffold automatically per ADR-164 — the operator does not author them. Listed here so the playbook reader can find them in the cockpit:
+
+| Recurrence | Cadence | Declaration path | Purpose |
 |---|---|---|---|
-| `track-universe` | accumulates_context | 3× daily (8:00, 11:30, 15:45 ET) | Updates price/indicator state for each ticker in `_operator_profile.md` universe. Feeds `/workspace/context/trading/{ticker}.md`. |
-| `signal-evaluation` | accumulates_context | Daily (8:05 ET, after track-universe morning run) | **NEW for Simons-persona.** For each declared signal in `_operator_profile.md`, evaluates current state across universe. Writes signal-state to `/workspace/context/trading/signals/{signal-slug}.md`: which tickers are in "watch" state, which triggered today, current expectancy-20/40, decay flags. |
-| `pre-market-brief` | produces_deliverable | Daily 8:15 ET | Composed from signal-evaluation output. Human-readable morning brief: which signals may fire, portfolio exposure vs var budget, decay flags, regime state. Cockpit surface (per ADR-198 §6) — email is expository pointer. |
-| `trade-proposal` | reactive (event-triggered by signal-evaluation) | On-demand | When signal-evaluation detects a fire condition, emits a ProposeAction with full signal attribution (see Reviewer Check 1). Runs through AI Reviewer → cockpit Queue for human approval. |
-| `weekly-performance-review` | produces_deliverable | Sunday 18:00 ET | Reads `_performance.md` (ADR-195 substrate). Per-signal P&L, win rate, expectancy, Sharpe. Flags decay. Compares to declared baselines. |
-| `quarterly-signal-audit` | goal (4-week bounded cycle, Sunday ending Mar/Jun/Sep/Dec 31) | Quarterly | Comprehensive review: which signals to retire, which to retune, candidates for Signals 6–8 slots. Operator drafts final decisions; YARNNN prepares the analysis. |
+| `back-office-outcome-reconciliation` | Daily | `/workspace/_shared/back-office.yaml` | Reads platform events (Alpaca trade fills), folds into `/workspace/context/trading/_performance.md` per ADR-195 v2. **Note (Bug 1, observation 2026-04-29)**: this executor currently returns `{"content": ..., "structured": ...}` while the dispatcher expects `{"output_markdown": ...}`. Silent failure — `_performance.md` is not refreshing. Fix pending. |
+| `back-office-reviewer-calibration` | Daily | `/workspace/_shared/back-office.yaml` | Aggregates `decisions.md` into rolling 7d/30d/90d windows for cockpit Performance face. **Same Bug 1 — same fix pending.** |
+| `back-office-reviewer-reflection` | Daily | `/workspace/_shared/back-office.yaml` | AI Reviewer self-observation: writes its own development trajectory to its workspace memory. ✅ working. |
+| `back-office-proposal-cleanup` | Weekly | `/workspace/_shared/back-office.yaml` | Archives stale proposals in `action_proposals` table. Materializes only after first proposal fires (so absent on alpha-trader-2 until then). |
 
 ### 3A.6 Money-truth substrate expectations (`_performance.md` shape)
 
@@ -1177,15 +1192,15 @@ Once Phase 1 is complete for an account and credentials are shared:
 ### 5.1 Daily rhythm (trading days)
 
 **Pre-market (7:30–9:15 ET):**
-- 8:00: `track-universe` morning run
-- 8:05: `signal-evaluation` runs → state files updated
-- 8:15: `pre-market-brief` fires → expository-pointer email arrives → Claude opens `/overview` from deep-link
-- 8:15–8:45: Claude reviews Overview Since-last-look + any Queue items. Reads pre-market brief on Work task-detail. Notes any signal-state surprises (decay flags, regime-activation).
+- 8:00: `track-universe` morning recurrence fires → writes `/workspace/context/trading/{ticker}/` per ADR-231 D2
+- 8:05: `signal-evaluation` recurrence fires → state files updated under `/workspace/context/trading/signals/`
+- 8:15: `pre-market-brief` fires → daily-update expository-pointer email arrives per ADR-202 → Claude clicks the deep-link to land at `/work` cockpit (`/overview` redirects to `/work` per ADR-225)
+- 8:15–8:45: Claude reviews the cockpit four faces per ADR-228: **Mandate** (current MANDATE.md + AUTONOMY posture), **Money truth** (substrate fallback to `_performance.md` until live binding lands), **Performance** (decisions.md calibration), **Tracking** (proposal queue via `NeedsMePane` + recurrence health). Reads pre-market brief at `/work?task=pre-market-brief` middle band. Notes any signal-state surprises.
 - 8:45–9:15: If any trade-proposals pending from overnight or pre-market signal fires, Claude + KVK coordinate out-of-band on approval.
 
 **Market hours (9:30–16:00 ET):**
-- Signals can fire intraday (track-universe runs at 11:30 and 15:45). Each fire → `trade-proposal` reactive task → AI Reviewer → cockpit Queue.
-- Claude checks Overview Queue periodically (every 1–2 hours during market; not minute-by-minute — Simons-persona isn't a scalper).
+- Signals can fire intraday (track-universe runs at 11:30 and 15:45). Each fire → `trade-proposal` reactive recurrence emits a ProposeAction → AI Reviewer reactive dispatch (ADR-194 v2 Phase 3) → cockpit Tracking face Queue.
+- Claude checks the Tracking face Queue periodically (every 1–2 hours during market; not minute-by-minute — Simons-persona isn't a scalper).
 - For each pending proposal:
   - Read the proposal card (action, signal attribution, Reviewer verdict + reasoning chain)
   - Apply the discretion ladder (§6)
@@ -1251,7 +1266,7 @@ Under Simons-persona, Claude-as-operator's default is **DO NOT OVERRIDE THE SYST
 - Approve reversibles that pass the five-condition test above
 - Read any cockpit surface, any substrate, any audit telemetry
 - Talk to YARNNN in the rail — including asking it to explain Reviewer reasoning, walk through signal state, summarize `_performance.md` for a specific signal
-- Trigger `track-universe`, `signal-evaluation`, `pre-market-brief` manually if scheduled runs miss (e.g., if I'm debugging a missed fire)
+- Trigger `track-universe`, `signal-evaluation`, `pre-market-brief` manually if scheduled runs miss (via `FireInvocation` per ADR-235 D1.c, or via the `/work` Run action which wraps the same primitive — useful when debugging a missed fire)
 - Write observation notes
 - Propose ADR-level changes, principles edits, signal-definition edits to KVK
 
