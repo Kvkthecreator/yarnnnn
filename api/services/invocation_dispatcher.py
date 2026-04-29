@@ -358,17 +358,21 @@ async def _dispatch_generative(
     version = await create_version_record(client, agent_id, next_version)
     version_id = version["id"]
 
+    # ---- Natural-home pre-read (ADR-233 Phase 2) ----
+    # Every generative shape pre-reads its natural-home folder before writing.
+    # DELIVERABLE → latest output.md from /workspace/reports/{slug}/{date}/
+    # ACCUMULATION → entity inventory + landscape.md from /workspace/context/{domain}/
+    # ACTION → pending operation state from /workspace/operations/{slug}/
+    # Returns None on first runs / empty folders; the posture frames the absence.
+    from services.dispatch_helpers import _load_natural_home_brief
+    natural_home_brief = await _load_natural_home_brief(client, user_id, decl) or ""
+
     # ---- Build prompt ----
-    # Note: prior_output / prior_state_brief / generation_brief / revision_scope
-    # are 3.2.b deferred — they require the slug-rooted /tasks/{slug}/outputs/latest/
-    # substrate that dies in 3.7. Post-cutover, prior-state injection reads
-    # from natural-home (/workspace/reports/{slug}/...). Stub for now;
-    # 3.6.b.2 reshapes the compose/assembly module to consume natural-home paths.
-    # ADR-233 Phase 1: cognitive posture is shape-keyed, not mode-keyed.
-    # `task_mode` is no longer threaded through prompt assembly; the
+    # ADR-233 Phase 1: cognitive posture is shape-keyed, not mode-keyed. The
     # `shape` parameter selects the headless profile posture (DELIVERABLE /
     # ACCUMULATION / ACTION). MAINTENANCE never reaches this code path
     # (dotted-executor branch routes around _dispatch_generative).
+    # ADR-233 Phase 2: `natural_home_brief` carries the shape-keyed pre-read.
     system_prompt, user_message = build_task_execution_prompt(
         task_info=task_info,
         agent=agent,
@@ -379,7 +383,7 @@ async def _dispatch_generative(
         steering_notes=steering_notes,
         task_feedback=task_feedback,
         shape=decl.shape.value,
-        prior_output="",
+        natural_home_brief=natural_home_brief,
         prior_state_brief=intent_prose,  # operator prose stands in for prior-state for 3.2.b
         task_phase="steady",
         generation_brief="",

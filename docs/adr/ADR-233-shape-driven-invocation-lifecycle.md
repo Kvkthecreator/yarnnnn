@@ -1,6 +1,6 @@
 # ADR-233: Shape-Driven Invocation Lifecycle — Prompt, Prior Output, Domain Synthesis
 
-> **Status**: **Phase 1 Implemented** (2026-04-29, commit `cdbf5de`). **Phase 2 hardening** (natural-home pre-read across all generative shapes) Proposed. **Phase 3** deferred for fresh discussion post-Phase-1 observation.
+> **Status**: **Phase 1 + Phase 2 Implemented** (2026-04-29). Phase 1 commit `cdbf5de` (shape-keyed cognitive postures + unified `prompts/` directory). Phase 2 commit pending (natural-home pre-read across all generative shapes — 12/12 test gate passing). **Phase 3** deferred for fresh discussion post-Phase-2 observation.
 > **Date**: 2026-04-29
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Mechanism** (Axiom 5) primary, **Substrate** (Axiom 1) + **Trigger** (Axiom 4) secondary.
@@ -114,7 +114,11 @@ Each phase is independently shippable, independently testable, independently rev
 
 ---
 
-### Phase 2 — DELIVERABLE prior-output injection
+### Phase 2 — Natural-home pre-read across all generative shapes — **Implemented 2026-04-29**
+
+> **Implementation notes**: Shipped after Phase 1 stabilized. The original Phase 2 framing ("DELIVERABLE prior-output injection") was generalized during the design pass to "every generative shape pre-reads its natural-home folder before writing" — the singular implementation rule applied to the principle, not the special case. DELIVERABLE reads `output.md` from the latest dated folder (8000-char cap, preserves the legacy budget); ACCUMULATION reads entity-folder inventory + `landscape.md` if present (4000-char cap); ACTION reads operation-folder file inventory + `_run_log.md` tail (1500-char cap); MAINTENANCE early-exits without I/O. Path resolution flows through `services.recurrence_paths.resolve_substrate_root(decl)` per ADR-231 D2/D9/D10 — no inline path strings. The `prior_output` parameter reserved by Phase 1 is **deleted**; replaced by `natural_home_brief` carrying the shape-keyed pre-read. Test gate `api/test_adr233_phase2_natural_home_preread.py` ships with the implementation (12/12 passing). Combined gate (Phase 2 + Phase 1 + ADR-231 invariants) = 36/36 passing. CHANGELOG entry: `[2026.04.29.6]`. **Original draft below retained for reference**.
+
+
 
 **Hardening note (2026-04-29):** Phase 2's original framing — "DELIVERABLE shape always injects prior output" — is generalized to a uniform principle: **every generative shape pre-reads its natural-home folder before writing.** The benchmark against Cowork (folder-as-context) and ADR-173 (Accumulation-First Execution) revealed that "read your folder before you write to it" is the load-bearing principle; gating on DELIVERABLE alone is a special case that would force a Phase 2.5 to extend it to ACCUMULATION/ACTION. Singular implementation rule 1 says ship the principle once, not the special case three times. The natural-home paths are already canon per ADR-231 D2 (DELIVERABLE → `/workspace/reports/{slug}/{latest}/`, ACCUMULATION → `/workspace/context/{domain}/`, ACTION → `/workspace/operations/{slug}/`). The principle is "read what you're about to write atop"; the path resolution is already declared by `recurrence_paths.py`.
 

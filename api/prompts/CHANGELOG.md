@@ -6,6 +6,52 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.6] - ADR-233 Phase 2 — Natural-home pre-read across all generative shapes
+
+### Added
+- `api/services/dispatch_helpers.py::_load_natural_home_brief(client, user_id, decl)` — async helper that pre-reads the declaration's natural-home folder before the LLM call. Shape-keyed:
+  - **DELIVERABLE**: walks `/workspace/reports/{slug}/` for newest dated subfolder, reads `output.md`. Returns `## Prior Output (latest run, {date})\n\n{content[:8000]}`.
+  - **ACCUMULATION**: lists `/workspace/context/{domain}/` direct entity-folder children + reads `landscape.md` synthesis if present. Returns `## Domain State (what you've accumulated so far)\n\nDomain: ...\n**Existing entities (N): ...\n**Domain synthesis** ...` capped at 4000 chars.
+  - **ACTION**: lists `/workspace/operations/{slug}/` files + tails `_run_log.md` if present. Returns `## Pending Operations\n\n...` capped at 1500 chars.
+  - **MAINTENANCE**: returns `None` immediately (no I/O). Maintenance never reaches LLM dispatch (dotted executor).
+  - Returns `None` for first-run cases / empty folders. Resilient on DB error (logs + returns None).
+  - Path resolution flows through `services.recurrence_paths.resolve_substrate_root(decl)` — no inline path strings, ADR-231 D2/D9/D10 path discipline preserved.
+- `api/services/dispatch_helpers.py::_load_deliverable_prior_output`, `_load_accumulation_inventory`, `_load_action_pending_state` — three per-shape sub-helpers fronted by the dispatch helper above.
+- `api/services/dispatch_helpers.py::_NATURAL_HOME_BRIEF_CAPS` — per-shape char budgets (DELIVERABLE 8000, ACCUMULATION 4000, ACTION 1500).
+- `api/test_adr233_phase2_natural_home_preread.py` — 12 tests covering: 6 helper unit tests (one per shape × prior-exists/absent), 2 helper contract tests (MAINTENANCE early-exit, DB-error resilience), 2 wiring tests (`build_task_execution_prompt` threads brief, empty brief produces no Phase-2 headers), 1 posture-content test (each posture has conditional framing language), 1 Phase-1-regression test (`prior_output` param fully gone). **12/12 passing.**
+
+### Changed
+- `api/services/dispatch_helpers.py::build_task_execution_prompt` — signature drops the placeholder `prior_output` parameter (Phase 1 reservation, now spent), gains `natural_home_brief: str = ""`. The brief is splice into the user-message half between `generation_brief` and `prior_state_brief`. Empty string ⇒ first-run case (the posture in the cached static block frames the absence).
+- `api/services/invocation_dispatcher.py::_dispatch_generative` — calls `await _load_natural_home_brief(client, user_id, decl)` immediately before `build_task_execution_prompt`, passes the result as `natural_home_brief=...`. The placeholder `prior_output=""` argument is gone.
+- `api/agents/prompts/headless/deliverable.py::DELIVERABLE_POSTURE` — gains an "On the prior output" subsection: explicit instructions for both prior-exists ("you are revising; preserve sections whose source data has not changed; update only the gap") and first-run ("compose from gathered context") cases.
+- `api/agents/prompts/headless/accumulation.py::ACCUMULATION_POSTURE` — gains an "On the domain state" subsection: prior-exists ("you are extending a domain; do not duplicate existing entities; preserve what's still true") vs first-run ("first accumulation pass; lay down the initial entity structure as you discover subjects").
+- `api/agents/prompts/headless/action.py::ACTION_POSTURE` — gains an "On pending operation state" subsection: prior-exists ("either reference, supersede, or stand down; do not duplicate work the Reviewer is still considering") vs absent ("propose freely from current account/market state").
+
+### Singular-implementation discipline
+- Phase 1 reserved `prior_output` for Phase 2's shape-gated implementation. Phase 2 spends it: parameter deleted, branch replaced. No dual templates, no fallback to legacy prior-output path. The natural-home pre-read is the singular pre-read mechanism for every generative shape.
+- The `task_mode == "goal" and prior_output:` branch (deleted in Phase 1) is not resurrected — the cognitive function it served (revising a known-deliverable) is now subsumed by the universal "DELIVERABLE shape always pre-reads its latest output" mechanic.
+
+### Cache layout (preserved)
+- The brief is post-cache-marker dynamic content — by design. Prior `output.md` is always per-invocation fresh (varies by date folder), so it sits in the dynamic block alongside `deliverable_spec` and gathered context. Cached static block (shape posture + `HEADLESS_BASE_BLOCK`) is unchanged from Phase 1.
+
+### Token impact
+- DELIVERABLE invocations in steady state gain ~3–6K input tokens (one prior `output.md`, capped at ~8K chars). Cache-friendly (post-cache placement → no cache invalidation). Net cost is favorable: existing behavior regenerates the entire deliverable from scratch each cycle (~4K output tokens); prior-output-aware generation produces deltas (~1.5–2.5K output tokens typical) at the cost of ~5K added input tokens. Output tokens cost 5× input → trade is positive at the second invocation onward.
+- ACCUMULATION invocations gain ~1–3K input tokens (entity inventory, intentionally compact — full entity content remains on-demand via `ReadFile` if the agent needs it).
+- ACTION invocations gain ~0.5–1K input tokens.
+
+### Render parity
+- No env-var changes. No new services. The dispatcher runs on both `yarnnn-api` (chat-fired invocations) and `yarnnn-unified-scheduler` (cron-fired) and both already import from `services.dispatch_helpers`.
+
+### Expected behavior change
+- **DELIVERABLE recurring invocations no longer regenerate from scratch each cycle.** The LLM sees the prior `output.md` in its user message and is instructed by the posture to identify the gap and produce only the delta. This was previously gated on `task_mode == "goal"` (a vestigial post-ADR-231 signal that was never set on recurring tasks); now it applies to every DELIVERABLE invocation that has a prior run on disk.
+- **ACCUMULATION agents see their domain inventory before extending it.** The folder-as-mind principle (ADR-173) is now mechanized: agents are told what entities already exist (so they don't duplicate) and what `landscape.md` last said (so they preserve what's still true).
+- **ACTION agents see pending operation state before proposing.** Reduces the duplicate-proposal failure mode where an agent proposes the same trade two cycles in a row because it can't see what it already proposed.
+
+### Phase 3 status
+- Deferred for fresh discussion post-Phase-2 observation, per ADR-233 status header. Phase 3 will re-scope from observed reality after the cold-start failure mode (R3 — first synthesis flows into first downstream report unverified) becomes concrete in production.
+
+---
+
 ## [2026.04.29.5] - ADR-233 Phase 1 — Shape-aware prompt profiles + Render boot fix
 
 ### Added

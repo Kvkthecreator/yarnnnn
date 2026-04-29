@@ -678,6 +678,310 @@ def _shape_to_profile_key(shape: Optional[str]) -> str:
     return _SHAPE_PROFILE_MAP.get(shape, "headless/deliverable")
 
 
+# ADR-233 Phase 2 — natural-home pre-read budget caps per shape. DELIVERABLE
+# inherits the existing 8000-char prior_output slice (preserves Phase 1
+# token budget); ACCUMULATION + ACTION are tighter because their briefs are
+# inventory pointers, not full content.
+_NATURAL_HOME_BRIEF_CAPS = {
+    "DELIVERABLE": 8000,
+    "ACCUMULATION": 4000,
+    "ACTION": 1500,
+}
+
+
+async def _load_natural_home_brief(client, user_id: str, decl) -> Optional[str]:
+    """Load a shape-keyed pre-read brief from the declaration's natural-home folder.
+
+    ADR-233 Phase 2 — every generative shape pre-reads its natural-home folder
+    before writing. The principle: "read what you're about to write atop."
+    Path resolution flows through ``services.recurrence_paths`` per ADR-231 D2.
+
+    Per-shape semantics:
+      - DELIVERABLE: latest dated subfolder under ``/workspace/reports/{slug}/``
+        → ``output.md``. Returns the prior-output content with date marker.
+      - ACCUMULATION: ``/workspace/context/{domain}/`` → entity-folder inventory
+        + ``landscape.md`` synthesis if present. Returns a domain-state brief.
+      - ACTION: ``/workspace/operations/{slug}/`` → any pending proposal files +
+        recent run-log tail. Returns a pending-state brief.
+      - MAINTENANCE: never invoked (dotted executor, no LLM, no posture).
+
+    Returns ``None`` when:
+      - shape is MAINTENANCE (early exit before any I/O)
+      - no prior content exists (first run case — posture frames as such)
+      - the folder is empty / unreadable
+
+    Design notes:
+      - Pure I/O helper; no LLM calls, no mutation. Safe to call on every
+        firing.
+      - Output is a self-contained markdown string the caller splices into
+        the user-message half of the prompt. The framing header (``## Prior
+        Output``, ``## Domain State``, ``## Pending Operations``) is part of
+        the returned string so the caller doesn't have to know the shape.
+      - Capped per-shape (see ``_NATURAL_HOME_BRIEF_CAPS``); favors fresh
+        leading content on overflow.
+    """
+    from services.recurrence import RecurrenceShape
+    from services.recurrence_paths import resolve_substrate_root
+
+    if decl.shape == RecurrenceShape.MAINTENANCE:
+        return None
+
+    shape_key = decl.shape.value
+    cap = _NATURAL_HOME_BRIEF_CAPS.get(shape_key, 4000)
+
+    try:
+        if decl.shape == RecurrenceShape.DELIVERABLE:
+            return await _load_deliverable_prior_output(client, user_id, decl, cap)
+        if decl.shape == RecurrenceShape.ACCUMULATION:
+            return await _load_accumulation_inventory(client, user_id, decl, cap)
+        if decl.shape == RecurrenceShape.ACTION:
+            return await _load_action_pending_state(client, user_id, decl, cap)
+    except Exception as e:
+        logger.warning(
+            "[DISPATCH] _load_natural_home_brief failed (shape=%s, slug=%s): %s",
+            shape_key, decl.slug, e,
+        )
+        return None
+
+    return None
+
+
+async def _load_deliverable_prior_output(client, user_id: str, decl, cap: int) -> Optional[str]:
+    """DELIVERABLE pre-read: latest output.md from /workspace/reports/{slug}/.
+
+    Walks date-folder children of the declaration's substrate root, picks the
+    newest by lexicographic sort (date folders are YYYY-MM-DD-keyed per
+    ADR-231 D2), reads ``output.md``. Returns ``None`` for first runs.
+    """
+    from services.recurrence_paths import resolve_substrate_root
+
+    root = resolve_substrate_root(decl)  # e.g. /workspace/reports/weekly-brief
+    prefix = f"{root}/"
+
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("path, content, updated_at")
+            .eq("user_id", user_id)
+            .like("path", f"{prefix}%/output.md")
+            .order("path", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        logger.warning("[DISPATCH] DELIVERABLE prior-output query failed: %s", e)
+        return None
+
+    rows = result.data or []
+    if not rows:
+        return None
+
+    row = rows[0]
+    path = row.get("path") or ""
+    content = (row.get("content") or "").strip()
+    if not content:
+        return None
+
+    # Extract date marker from path: /workspace/reports/{slug}/{YYYY-MM-DD}/output.md
+    date_marker = ""
+    if path.endswith("/output.md"):
+        parts = path.rsplit("/", 2)
+        if len(parts) >= 2:
+            date_marker = parts[-2]
+
+    # Cap content
+    body = content[:cap]
+    truncated = "\n\n[...truncated]" if len(content) > cap else ""
+    header = f"## Prior Output (latest run, {date_marker})" if date_marker else "## Prior Output (latest run)"
+    return f"{header}\n\n{body}{truncated}"
+
+
+async def _load_accumulation_inventory(client, user_id: str, decl, cap: int) -> Optional[str]:
+    """ACCUMULATION pre-read: entity inventory + landscape.md from /workspace/context/{domain}/.
+
+    Lists direct children of the domain root (one folder = one entity per
+    ADR-151 / ADR-176 conventions), reports counts + last-modified dates, and
+    appends ``landscape.md`` content if present. Returns a domain-state brief
+    capped at ``cap`` chars total.
+    """
+    from services.recurrence_paths import resolve_substrate_root
+
+    root = resolve_substrate_root(decl)  # /workspace/context/{domain}
+    domain = decl.domain or "(unknown)"
+    prefix = f"{root}/"
+
+    # 1) List entity folders (direct children that are folder-shaped — i.e.,
+    #    paths with at least one '/' after the prefix that end at the entity
+    #    boundary).
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("path, updated_at")
+            .eq("user_id", user_id)
+            .like("path", f"{prefix}%")
+            .order("path")
+            .execute()
+        )
+    except Exception as e:
+        logger.warning("[DISPATCH] ACCUMULATION inventory query failed: %s", e)
+        return None
+
+    rows = result.data or []
+    if not rows:
+        return None
+
+    # Build entity → most-recent-update map. Entity slug = first path segment
+    # after the prefix; ignore landscape.md and other top-level domain files
+    # (they don't correspond to entities).
+    entity_updates: dict[str, str] = {}
+    landscape_content: Optional[str] = None
+    landscape_updated_at: Optional[str] = None
+
+    for r in rows:
+        path = r.get("path") or ""
+        updated_at = r.get("updated_at") or ""
+        remainder = path[len(prefix):]
+        if not remainder:
+            continue
+        # Direct child file: domain-level synthesis or marker — keep landscape.md
+        if "/" not in remainder:
+            if remainder == "landscape.md":
+                # Fetch full content for the synthesis attachment below
+                try:
+                    detail = (
+                        client.table("workspace_files")
+                        .select("content")
+                        .eq("user_id", user_id)
+                        .eq("path", path)
+                        .limit(1)
+                        .execute()
+                    )
+                    detail_rows = detail.data or []
+                    if detail_rows:
+                        landscape_content = (detail_rows[0].get("content") or "").strip()
+                        landscape_updated_at = updated_at
+                except Exception:
+                    pass
+            continue
+        # Nested file: belongs to an entity folder
+        entity_slug = remainder.split("/", 1)[0]
+        if entity_slug.startswith("_"):
+            # _-prefixed = synthesis files (cross-entity), not entities themselves
+            continue
+        # Track most-recent update across all files in the entity
+        prior = entity_updates.get(entity_slug, "")
+        if updated_at > prior:
+            entity_updates[entity_slug] = updated_at
+
+    if not entity_updates and not landscape_content:
+        return None
+
+    # Build the brief — header + inventory + (truncated) landscape if present
+    parts = ["## Domain State (what you've accumulated so far)", "", f"Domain: `{domain}`"]
+    if entity_updates:
+        parts.append("")
+        parts.append(f"**Existing entities ({len(entity_updates)}):**")
+        for slug in sorted(entity_updates.keys()):
+            ts = entity_updates[slug]
+            ts_short = ts[:10] if ts else "—"  # YYYY-MM-DD
+            parts.append(f"- `{slug}` (last updated: {ts_short})")
+    if landscape_content:
+        parts.append("")
+        parts.append(f"**Domain synthesis** (landscape.md, last updated: {(landscape_updated_at or '')[:10] or '—'}):")
+        parts.append("")
+        parts.append(landscape_content)
+    elif entity_updates:
+        parts.append("")
+        parts.append("**Domain synthesis**: not yet written (first synthesis pass).")
+
+    brief = "\n".join(parts)
+    if len(brief) > cap:
+        brief = brief[:cap] + "\n\n[...truncated]"
+    return brief
+
+
+async def _load_action_pending_state(client, user_id: str, decl, cap: int) -> Optional[str]:
+    """ACTION pre-read: pending operation state from /workspace/operations/{slug}/.
+
+    Best-effort survey of the operation folder. Returns a brief listing any
+    files present plus the tail of ``_run_log.md`` if it exists. The ACTION
+    substrate is still emerging post-ADR-231; this brief is intentionally
+    conservative (file inventory + recent run-log lines) until proposal-state
+    semantics solidify.
+    """
+    from services.recurrence_paths import resolve_substrate_root
+
+    root = resolve_substrate_root(decl)  # /workspace/operations/{slug}
+    prefix = f"{root}/"
+
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("path, updated_at")
+            .eq("user_id", user_id)
+            .like("path", f"{prefix}%")
+            .order("path")
+            .execute()
+        )
+    except Exception as e:
+        logger.warning("[DISPATCH] ACTION inventory query failed: %s", e)
+        return None
+
+    rows = result.data or []
+    if not rows:
+        return None
+
+    # File inventory (paths only, capped)
+    file_lines = []
+    run_log_path: Optional[str] = None
+    for r in rows[:25]:  # safety cap on inventory length
+        path = r.get("path") or ""
+        relative = path[len(prefix):] if path.startswith(prefix) else path
+        if not relative:
+            continue
+        ts_short = (r.get("updated_at") or "")[:10] or "—"
+        file_lines.append(f"- `{relative}` (updated: {ts_short})")
+        if relative == "_run_log.md":
+            run_log_path = path
+
+    if not file_lines:
+        return None
+
+    parts = ["## Pending Operations", "", f"Operation: `{decl.slug}`", "", "**Files in operation folder:**"]
+    parts.extend(file_lines)
+
+    # If _run_log.md exists, attach the tail (last ~600 chars) so the LLM sees
+    # what's recent without paging the whole log.
+    if run_log_path:
+        try:
+            detail = (
+                client.table("workspace_files")
+                .select("content")
+                .eq("user_id", user_id)
+                .eq("path", run_log_path)
+                .limit(1)
+                .execute()
+            )
+            detail_rows = detail.data or []
+            if detail_rows:
+                log_content = (detail_rows[0].get("content") or "").strip()
+                if log_content:
+                    tail = log_content[-600:]
+                    if len(log_content) > 600:
+                        tail = "[...earlier entries omitted]\n" + tail
+                    parts.append("")
+                    parts.append("**Recent run-log tail:**")
+                    parts.append("")
+                    parts.append(tail)
+        except Exception:
+            pass
+
+    brief = "\n".join(parts)
+    if len(brief) > cap:
+        brief = brief[:cap] + "\n\n[...truncated]"
+    return brief
+
+
 def build_task_execution_prompt(
     task_info: dict,
     agent: dict,
@@ -688,7 +992,7 @@ def build_task_execution_prompt(
     steering_notes: str = "",
     task_feedback: str = "",
     shape: Optional[str] = None,
-    prior_output: str = "",
+    natural_home_brief: str = "",
     prior_state_brief: str = "",
     task_phase: str = "steady",
     generation_brief: str = "",
@@ -703,9 +1007,16 @@ def build_task_execution_prompt(
     dynamic content (user_context, agent_instructions, playbooks, deliverable
     spec, criteria reflection) sits below the cache marker.
 
-    The `task_mode` parameter and the goal-mode prior-output branch are
-    deleted in this phase. Phase 2 reintroduces prior-output injection on the
-    shape axis (DELIVERABLE always reads its natural-home folder).
+    ADR-233 Phase 2: ``natural_home_brief`` carries the pre-read assembled by
+    ``_load_natural_home_brief(client, user_id, decl)`` upstream. DELIVERABLE
+    runs see prior ``output.md``; ACCUMULATION sees domain entity inventory +
+    landscape synthesis; ACTION sees pending operation state. Empty string ->
+    first-run case (the posture frames the absence). Spliced into the user
+    message after ``generation_brief``, before ``prior_state_brief``.
+
+    The ``task_mode`` parameter (and the goal-mode prior-output branch it
+    gated) was deleted in Phase 1. Pre-read injection is now shape-driven,
+    universal across generative shapes — not mode-driven, not DELIVERABLE-only.
     """
     role = agent.get("role", "custom")
     title = task_info.get("title", "Untitled")
@@ -786,12 +1097,13 @@ def build_task_execution_prompt(
     if generation_brief:
         user_parts.append(f"\n{generation_brief}")
 
-    # ADR-233 Phase 2 will reintroduce prior-output injection here, gated on
-    # `shape == "DELIVERABLE"` (and the natural-home folder pre-read for
-    # ACCUMULATION/ACTION). Phase 1 deletes the goal-mode branch entirely;
-    # the `prior_output` parameter is currently unused and reserved for
-    # Phase 2's shape-gated implementation.
-    _ = prior_output  # reserved for ADR-233 Phase 2
+    # ADR-233 Phase 2 — natural-home pre-read brief. Pre-assembled by
+    # ``_load_natural_home_brief`` in the dispatcher; the brief is already
+    # shape-keyed and self-headered ("## Prior Output", "## Domain State",
+    # "## Pending Operations"). Empty string => first-run case; the posture
+    # in the cached static block frames the absence.
+    if natural_home_brief and natural_home_brief.strip():
+        user_parts.append(f"\n{natural_home_brief.strip()}")
 
     if prior_state_brief:
         user_parts.append(f"\n{prior_state_brief}")
