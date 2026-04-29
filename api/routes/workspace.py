@@ -440,23 +440,56 @@ async def get_workspace_tree(
 @router.get("/workspace/file")
 async def get_workspace_file(
     auth: UserClient,
-    path: str = Query(..., description="Full file path (e.g., /workspace/IDENTITY.md)"),
+    path: str = Query(
+        ...,
+        description=(
+            "File path. Accepts either workspace-relative "
+            "(e.g., 'context/_shared/MANDATE.md') matching the "
+            "WriteFile(scope='workspace') convention, OR absolute "
+            "(e.g., '/workspace/context/_shared/MANDATE.md'). The two "
+            "shapes resolve to the same row — the absolute form is "
+            "what's stored, the relative form is what callers usually "
+            "type."
+        ),
+    ),
 ) -> FileResponse:
     """
-    Read a single workspace file by path.
+    Read a single workspace file by path. Path is normalized to match
+    UserMemory._full_path convention (services.workspace.UserMemory:670):
+    workspace-relative paths get the /workspace/ prefix prepended.
     """
+    # ADR-209 + ADR-235 Option A: WriteFile(scope='workspace') passes
+    # workspace-relative paths ('context/_shared/MANDATE.md'), but
+    # workspace_files.path is stored absolute ('/workspace/...'). Match
+    # the UserMemory convention by normalizing here so readback after
+    # write doesn't 404. Singular implementation: one normalization rule
+    # per the canonical UserMemory._full_path.
+    if not path.startswith("/"):
+        normalized_path = f"/workspace/{path}"
+    else:
+        normalized_path = path
+
     try:
         result = (
             auth.client.table("workspace_files")
             .select("path, content, summary, updated_at, content_type, content_url, metadata")
             .eq("user_id", auth.user_id)
-            .eq("path", path)
+            .eq("path", normalized_path)
             .limit(1)
             .execute()
         )
         rows = result.data or []
         if not rows:
-            raise HTTPException(status_code=404, detail=f"File not found: {path}")
+            # Echo the original path the caller asked for in the error
+            # so they can see what they sent — but mention the normalized
+            # form for debugging.
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"File not found: {path} "
+                    f"(looked up as {normalized_path})"
+                ),
+            )
 
         row = rows[0]
         return FileResponse(
@@ -491,9 +524,20 @@ async def edit_workspace_file(
     Allowed for user-editable files: operator-authored substrate under
     `/workspace/context/_shared/`, reviewer principles, memory files,
     task files, and uploads.
+
+    Path normalization matches GET /workspace/file: workspace-relative
+    paths (the WriteFile(scope='workspace') convention) get the
+    /workspace/ prefix prepended before the editable-prefix check runs.
     """
-    path = body.path
+    raw_path = body.path
     content = body.content
+
+    # ADR-209 + ADR-235 Option A: align with GET handler — accept both
+    # absolute and workspace-relative paths. Stored shape is absolute.
+    if not raw_path.startswith("/"):
+        path = f"/workspace/{raw_path}"
+    else:
+        path = raw_path
 
     # Safety: only allow editing certain paths (ADR-206 relocation).
     editable_prefixes = [

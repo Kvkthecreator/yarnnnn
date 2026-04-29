@@ -65,21 +65,23 @@ The drift happened during ADR-231 Phase 3.7 atomic deletion — the dispatcher c
 
 ---
 
-## Bug 2 — `/api/workspace/file` requires leading slash, no normalization (B — product)
+## Bug 2 — `/api/workspace/file` requires leading slash, no normalization (B — product) — **FIXED 2026-04-30**
 
-**Severity**: low-frequency operator-facing surprise. Affects anyone (KVK, Claude-on-behalf, future MCP callers) calling the API directly.
+**Severity (pre-fix)**: low-frequency operator-facing surprise. Affected anyone (KVK, Claude-on-behalf, future MCP callers) calling the API directly.
 
-**Symptom**:
+**Symptom (pre-fix)**:
 - `GET /api/workspace/file?path=/workspace/context/_shared/MANDATE.md` → 200 ✅
 - `GET /api/workspace/file?path=context/_shared/MANDATE.md` → 404 ❌
 
-The substrate file is identical in both cases — `workspace_files.path` always starts with `/workspace/`. The API route does an exact-match lookup without normalizing the leading slash.
+The substrate file is identical in both cases — `workspace_files.path` always starts with `/workspace/`. The API route did an exact-match lookup without normalizing the leading slash. Post-ADR-235, `WriteFile(scope="workspace", path="context/_shared/MANDATE.md")` is the canonical write shape — so a caller reading-back-what-they-wrote got a 404.
 
-**Why this is a small but real friction**: post-ADR-235, `WriteFile(scope="workspace", path="context/_shared/MANDATE.md")` (without leading `/workspace/` prefix — that's what `scope="workspace"` adds) is the canonical write shape. So a caller reading-back-what-they-wrote gets a 404. This is the kind of asymmetry that makes a careful operator distrust the API.
+**Fix shipped (2026-04-30)**:
+- Both `GET` and `PATCH /api/workspace/file` now normalize: if `path` does not start with `/`, prepend `/workspace/`. Matches `services.workspace.UserMemory._full_path` (the canonical convention).
+- PATCH normalization also added so writers following the relative-path convention don't hit a 403 on the editable-prefixes check (every prefix is absolute).
+- New regression gate `api/test_workspace_file_path_normalization.py` (3 tests) static-checks both handler sources for the normalization rule. If someone deletes it, this test fails before operators hit the regression.
+- 5/5 contract checks pass.
 
-**Proposed fix**: normalize the path in `routes/workspace.py::get_file` — if `path` does not start with `/`, prepend `/workspace/`. Match the same normalization the WriteFile path does. Document the canonical caller shape.
-
-**Tag**: B (product) — API ergonomic asymmetry, not a substrate bug.
+**Tag**: B (product) — API ergonomic asymmetry, not a substrate bug. Closed by commit shipping fix + regression gate same day.
 
 ---
 
@@ -105,8 +107,8 @@ Pass 4 can therefore be **scoped narrower than originally planned**: vocabulary 
 
 ## Outstanding questions for KVK
 
-1. **Bug 1 fix** — ship as a separate commit before Pass 4, or fold into a "pre-Pass 4 hardening" commit? My recommendation: separate commit, ADR-231-followup, because two of YARNNN's claimed-canonical back-office executors are silently broken.
-2. **Bug 2 fix** — same question. Lower stakes but same answer: separate commit.
+1. ~~**Bug 1 fix**~~ — **Closed 2026-04-30.** Shipped as `fix(adr-231): back-office executor return-shape contract drift — 3 executors`. Caught a third executor (proposal_cleanup) that Pass 3 missed because alpha-trader-2 has no proposals.
+2. ~~**Bug 2 fix**~~ — **Closed 2026-04-30.** Shipped as `fix(workspace): /api/workspace/file path normalization`.
 3. **alpha-commerce activation** — `activate_persona.py --persona alpha-commerce` has never been run against KVK's commerce workspace. The bundle is `status: deferred` per ADR-224, so this isn't urgent, but it would let the cockpit four-face Money-Truth face actually surface revenue data. Decide: defer to Phase 1 of trader, or activate now to test the "second program in same operator" path?
 
 ---
