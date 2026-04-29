@@ -26,7 +26,8 @@ from .list import LIST_ENTITIES_TOOL, handle_list_entities
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from .coordinator import MANAGE_AGENT_TOOL, handle_manage_agent
-from .manage_task import MANAGE_TASK_TOOL, handle_manage_task
+# ADR-231 Phase 3.7: ManageTask DELETED. Lifecycle dissolves into
+# UpdateContext(target='recurrence', ...) and FireInvocation per D5.
 from .fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
 from .update_context import UPDATE_CONTEXT_TOOL, handle_update_context
 from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
@@ -203,11 +204,12 @@ CHAT_PRIMITIVES = [
     UPDATE_CONTEXT_TOOL,
     # ADR-155: Domain scaffolding (TP-driven)
     MANAGE_DOMAINS_TOOL,
-    # Agent/Task lifecycle (2, was 3)
+    # Agent lifecycle (1, was 2 pre-ADR-231)
     MANAGE_AGENT_TOOL,
-    MANAGE_TASK_TOOL,
     # ADR-231 D5: FireInvocation — manual fire of a recurrence declaration.
-    # Phase 2 thin adapter; replaces ManageTask(action="trigger") at Phase 3 cutover.
+    # Replaces ManageTask(action="trigger"); other lifecycle actions
+    # (create/update/pause/resume/archive) flow through UpdateContext
+    # (target='recurrence'). ManageTask is DELETED in Phase 3.7.
     FIRE_INVOCATION_TOOL,
     # Repurpose (ADR-148 Phase 4)
     REPURPOSE_OUTPUT_TOOL,
@@ -245,9 +247,8 @@ HEADLESS_PRIMITIVES = [
     # Inter-agent (2)
     DISCOVER_AGENTS_TOOL,
     READ_AGENT_FILE_TOOL,
-    # Lifecycle (2, was 3) + Domain management (1)
+    # Lifecycle (1, was 2 pre-ADR-231) + Domain management (1)
     MANAGE_AGENT_TOOL,
-    MANAGE_TASK_TOOL,
     # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
     FIRE_INVOCATION_TOOL,
     MANAGE_DOMAINS_TOOL,
@@ -287,8 +288,8 @@ HANDLERS: dict[str, Callable] = {
     "list_integrations": handle_list_integrations,
     "ManageAgent": handle_manage_agent,
     # "CreateTask": DELETED (ADR-168 Commit 3 — folded into ManageTask action="create")
-    "ManageTask": handle_manage_task,
-    # ADR-231 D5: FireInvocation — recurrence-aware dispatch (Phase 2 thin adapter).
+    # "ManageTask": DELETED (ADR-231 Phase 3.7 — replaced by UpdateContext(target='recurrence') + FireInvocation per D5)
+    # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
     "FireInvocation": handle_fire_invocation,
     "UpdateContext": handle_update_context,
     "ManageDomains": handle_manage_domains,
