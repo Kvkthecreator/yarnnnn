@@ -6,6 +6,41 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.29.5] - ADR-233 Phase 1 — Shape-aware prompt profiles + Render boot fix
+
+### Added
+- `api/agents/prompts/headless/` — new directory with shape-aware headless prompt profiles per ADR-233 Phase 1 (4 files: `base.py`, `deliverable.py`, `accumulation.py`, `action.py`).
+- `api/agents/prompts/chat/__init__.py` — chat profile subpackage init (existing `activation.py`, `behaviors.py`, `entity.py`, `onboarding.py`, `task_scope.py`, `workspace.py` already moved into the subdirectory by commit `1c61a11`).
+- `api/test_adr233_phase1_shape_prompts.py` — 13 tests covering shape-aware profile assembly. **13/13 passing.**
+
+### Renamed
+- `api/agents/yarnnn_prompts/` → `api/agents/prompts/` (already on disk via commit `1c61a11`; this commit completes the import-path migration).
+
+### Render boot fix (load-bearing)
+- `api/agents/yarnnn.py` — imports updated:
+  - `from agents.yarnnn_prompts import build_system_prompt` → `from agents.prompts import build_system_prompt`
+  - `from agents.yarnnn_prompts.base import SIMPLE_PROMPT` → `from agents.prompts.base import SIMPLE_PROMPT`
+  - Docstring + comment refs to `yarnnn_prompts/` directory updated to `prompts/`.
+- **Without this fix, Render boot fails** with `ModuleNotFoundError: No module named 'agents.yarnnn_prompts'` because commit `1c61a11` renamed the directory but `yarnnn.py` retained the old import path. This commit closes the gap.
+
+### Wired
+- `api/services/dispatch_helpers.py` — `build_task_execution_prompt` now imports `build_prompt` from `agents.prompts` and routes by `_shape_to_profile_key(shape)` per ADR-233 Phase 1 contract. Static (cached) half = shape posture + universal base block; dynamic half = per-invocation content appended after cache marker.
+- `api/services/invocation_dispatcher.py` — passes shape into `build_task_execution_prompt` so the dispatcher's generative branch reaches the right profile.
+- `api/services/working_memory.py` — minor adjustments to align with the shape-aware prompt assembly.
+
+### Test gate
+- 109/109 across `api/test_adr231_recurrence.py` (85) + `api/test_adr231_runtime_invariants.py` (11) + `api/test_adr233_phase1_shape_prompts.py` (13).
+- Backend smoke imports clean: `agents.yarnnn`, `agents.prompts`, `routes.chat`, `routes.recurrences`, `services.dispatch_helpers`, `services.invocation_dispatcher`, `services.working_memory`.
+
+### Singular Implementation
+- Zero `yarnnn_prompts` live imports in api/ post-commit.
+- The legacy import path is gone; `agents.prompts` is the single canonical home.
+- ADR-233 Phase 1 + Phase 3.7's `dispatch_helpers` survive together — the prompt assembly seam is now shape-aware and the dispatcher feeds shape into it correctly.
+
+Per ADR-233 Phase 1 + emergency Render boot fix.
+
+---
+
 ## [2026.04.29.4] - ADR-231 Phase 3.7 — Atomic legacy deletion (~9,000 LOC)
 
 ### Deleted

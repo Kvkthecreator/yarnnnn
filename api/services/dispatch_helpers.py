@@ -649,6 +649,35 @@ async def gather_task_context(
 # =============================================================================
 
 
+# ADR-233 Phase 1: shape → headless profile key mapping. The dispatcher passes
+# `decl.shape.value` (a string from the RecurrenceShape enum) and the helper
+# resolves it to one of the three headless profile keys. MAINTENANCE never
+# reaches LLM dispatch (dotted executor, no posture). Unknown / missing shapes
+# fall back to DELIVERABLE — the safest cognitive posture for legacy callers
+# that haven't been updated to pass `shape` yet.
+_SHAPE_PROFILE_MAP: dict[str, str] = {
+    "DELIVERABLE": "headless/deliverable",
+    "ACCUMULATION": "headless/accumulation",
+    "ACTION": "headless/action",
+    # Lowercase aliases — defensive, in case callers pass enum value as-stored
+    "deliverable": "headless/deliverable",
+    "accumulation": "headless/accumulation",
+    "action": "headless/action",
+}
+
+
+def _shape_to_profile_key(shape: Optional[str]) -> str:
+    """Resolve a RecurrenceShape value to a headless profile key.
+
+    ADR-233 Phase 1. Defaults to `headless/deliverable` when shape is missing
+    or unrecognized — the safest cognitive posture (gap-filling delta
+    generation against an output spec is the most common headless job).
+    """
+    if not shape:
+        return "headless/deliverable"
+    return _SHAPE_PROFILE_MAP.get(shape, "headless/deliverable")
+
+
 def build_task_execution_prompt(
     task_info: dict,
     agent: dict,
@@ -658,7 +687,7 @@ def build_task_execution_prompt(
     deliverable_spec: str = "",
     steering_notes: str = "",
     task_feedback: str = "",
-    task_mode: str = "recurring",
+    shape: Optional[str] = None,
     prior_output: str = "",
     prior_state_brief: str = "",
     task_phase: str = "steady",
@@ -666,21 +695,27 @@ def build_task_execution_prompt(
 ) -> tuple[list[dict], str]:
     """Build (system_blocks, user_message) for one invocation.
 
-    Static system block is cached via Anthropic prompt caching; dynamic
-    block carries per-task contract content.
+    ADR-233 Phase 1: cognitive posture is shape-keyed. The shape ("DELIVERABLE",
+    "ACCUMULATION", "ACTION") selects a posture from `prompts.HEADLESS_POSTURES`;
+    the universal `HEADLESS_BASE_BLOCK` (output rules, conventions, accumulation-
+    first principle, tool usage, visual assets, empty-context handling) is shared
+    across all shapes. The static block (posture + base) is cached; per-task
+    dynamic content (user_context, agent_instructions, playbooks, deliverable
+    spec, criteria reflection) sits below the cache marker.
+
+    The `task_mode` parameter and the goal-mode prior-output branch are
+    deleted in this phase. Phase 2 reintroduces prior-output injection on the
+    shape axis (DELIVERABLE always reads its natural-home folder).
     """
     role = agent.get("role", "custom")
     title = task_info.get("title", "Untitled")
 
-    system = f"""You are an autonomous agent executing a scheduled task.
+    # ---- Static (cached) half: shape posture + universal base block ----
+    from agents.prompts import build_prompt
+    profile_key = _shape_to_profile_key(shape)
+    system = build_prompt(profile_key)
 
-## Output Rules
-- Follow the format and instructions below exactly.
-- Be concise and professional — keep content tight and scannable.
-- Do not invent information not present in the provided context or your research findings.
-- Do not use emojis in headers or content unless preferences explicitly request them.
-- Use plain markdown headers (##, ###) and bullet points for structure."""
-
+    # ---- Dynamic half: per-invocation content appended after the cache marker ----
     if user_context:
         system += "\n\n" + user_context
 
@@ -706,78 +741,6 @@ def build_task_execution_prompt(
             marker = " ← relevant for this task" if is_relevant else ""
             index_lines.append(f"- **{name}** (memory/{filename}): {desc}{marker}")
         system += "\n\n## Methodology\n" + "\n".join(index_lines)
-
-    system += """
-
-## Workspace Conventions (compact)
-
-Write files to consistent paths so they accumulate and are searchable:
-- Context domain entities: `/workspace/context/{domain}/{entity-slug}/profile.md`
-- Signal logs: `/workspace/context/{domain}/{entity-slug}/signals.md` (append newest-first)
-- Domain synthesis: `/workspace/context/{domain}/landscape.md` (overwrite each cycle)
-- Recurrence output (deliverable shape): `/workspace/reports/{slug}/{date}/output.md`
-- New domain: create `/workspace/context/{new-domain}/landscape.md` — no approval needed
-
-Write modes: entity files **overwrite** (current best), signal/log files **append** (dated history), synthesis **overwrite**.
-Full conventions: `ReadFile(path="/workspace/context/_shared/CONVENTIONS.md")`"""
-
-    system += """
-
-## Accumulation-First Execution
-
-Your workspace accumulates across runs. Before generating anything, understand what already exists.
-
-**The principle:** Read the current state → identify the gap → produce only what's missing or stale.
-
-**What to check before generating (all pre-loaded in your context below):**
-1. **Deliverable Specification** — what's the quality target?
-2. **Prior Output** — if a prior run produced output, it's included below as "Prior Output (latest run)". Don't start from scratch if that version is current.
-3. **Output Inventory** — if assets (images, charts) exist from a prior run, they're listed below. Reuse them. Call `RuntimeDispatch` only for missing or stale assets.
-4. **Domain state** — the gathered context shows what entities and signals exist. Work with what's there; identify true gaps before searching externally.
-
-**The gap is the only work.** A section that was accurate last run and whose source data hasn't changed should be preserved, not regenerated. A section with stale source data gets updated. A missing section gets written fresh. This is delta generation, not full regeneration.
-
-## Tool Usage (Headless Mode)
-All relevant context has been pre-gathered and included below. In most cases, you have everything needed to produce your output directly.
-
-**Decision order — follow this sequence:**
-1. Read the gathered context below first. Most tasks have enough to generate from.
-2. Produce your output directly from the provided context.
-3. If you have asset generation tools (RuntimeDispatch), use them only for missing assets (check the Output Inventory).
-4. If you have investigation tools and identify a specific gap ("I have Q1 data but no Q2"), call ONE tool to fill it. Stop there unless critical.
-
-**WebSearch principles (when available):**
-- Call WebSearch only when gathered context is genuinely stale or missing external data.
-- Be specific: `WebSearch(query="Acme Corp pricing 2025")` not `WebSearch(query="Acme")`.
-- Use `context=` to narrow scope: `WebSearch(query="latest releases", context="AI coding tools")`.
-- Do not repeat a search you already made — if round 2 has results, use them in round 3.
-- Stop when you have enough.
-
-**Stopping criteria — stop calling tools when:**
-- The gathered context + results answer the task objective
-- Two consecutive tool calls returned nothing new
-- You have reached a clear answer and are filling in edges, not gaps
-
-**Never narrate tool usage in the final output.** The reader sees only your generated content.
-
-## Visual Assets
-Include visual elements in your output using these methods:
-
-**Auto-rendered (inline):**
-- **Data tables**: Markdown tables with numeric data → automatically rendered as charts.
-- **Diagrams**: ```mermaid code blocks → automatically rendered as SVG diagrams.
-- Interleave visuals with prose — aim for a visual element every 2-3 paragraphs.
-
-**Generated assets (RuntimeDispatch — check first, then call):**
-- **Hero image**: Check if a hero image already exists in the recurrence's output folder. If so, embed it directly. Otherwise, call `RuntimeDispatch(type="image", input={"prompt": "...", "aspect_ratio": "16:9", "style": "editorial"}, output_format="png", filename="hero")` BEFORE writing main content.
-- **Charts**: Same pattern — check assets/ before regenerating. Call `RuntimeDispatch(type="chart", input={...}, output_format="png")` only when data has changed or chart is missing.
-- Only call RuntimeDispatch for assets explicitly required by the deliverable spec or clearly needed by the output.
-
-## Empty Context Handling
-If context says "(No context available)" or tools return no results:
-- Still produce the output in the requested format.
-- Note briefly that no recent activity was found.
-- A short, properly formatted output is always better than meta-commentary."""
 
     if deliverable_spec and deliverable_spec.strip():
         spec_clean = deliverable_spec.strip()
@@ -823,13 +786,12 @@ If context says "(No context available)" or tools return no results:
     if generation_brief:
         user_parts.append(f"\n{generation_brief}")
 
-    if task_mode == "goal" and prior_output:
-        user_parts.append(
-            "\n## Prior Output (YOUR PRIMARY INPUT)\n"
-            "You are revising this deliverable. Improve based on steering notes "
-            "and feedback below. Build on what exists — do not start from scratch.\n\n"
-            f"{prior_output[:8000]}"
-        )
+    # ADR-233 Phase 2 will reintroduce prior-output injection here, gated on
+    # `shape == "DELIVERABLE"` (and the natural-home folder pre-read for
+    # ACCUMULATION/ACTION). Phase 1 deletes the goal-mode branch entirely;
+    # the `prior_output` parameter is currently unused and reserved for
+    # Phase 2's shape-gated implementation.
+    _ = prior_output  # reserved for ADR-233 Phase 2
 
     if prior_state_brief:
         user_parts.append(f"\n{prior_state_brief}")

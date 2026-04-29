@@ -364,6 +364,11 @@ async def _dispatch_generative(
     # substrate that dies in 3.7. Post-cutover, prior-state injection reads
     # from natural-home (/workspace/reports/{slug}/...). Stub for now;
     # 3.6.b.2 reshapes the compose/assembly module to consume natural-home paths.
+    # ADR-233 Phase 1: cognitive posture is shape-keyed, not mode-keyed.
+    # `task_mode` is no longer threaded through prompt assembly; the
+    # `shape` parameter selects the headless profile posture (DELIVERABLE /
+    # ACCUMULATION / ACTION). MAINTENANCE never reaches this code path
+    # (dotted-executor branch routes around _dispatch_generative).
     system_prompt, user_message = build_task_execution_prompt(
         task_info=task_info,
         agent=agent,
@@ -373,7 +378,7 @@ async def _dispatch_generative(
         deliverable_spec=deliverable_spec,
         steering_notes=steering_notes,
         task_feedback=task_feedback,
-        task_mode=task_info.get("mode", "recurring"),
+        shape=decl.shape.value,
         prior_output="",
         prior_state_brief=intent_prose,  # operator prose stands in for prior-state for 3.2.b
         task_phase="steady",

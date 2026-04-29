@@ -5,7 +5,7 @@ ADR-007: Tool use for work authority
 ADR-025: Claude Code agentic alignment with skills and todo tracking
 ADR-034: Domain-based context scoping (replaces projects)
 ADR-036/037: Primitive-based architecture (Read, Write, Edit, etc.)
-ADR-059: Modular prompt architecture (yarnnn_prompts/)
+ADR-059: Modular prompt architecture (prompts/, formerly yarnnn_prompts/ per ADR-233)
 ADR-189: Class renamed ThinkingPartnerAgent → YarnnnAgent; user-facing "TP" retired.
          Internal DB slug `thinking_partner` retained (glossary exception).
 """
@@ -16,8 +16,8 @@ from typing import AsyncGenerator, Optional, Any
 from dataclasses import dataclass
 
 from agents.base import BaseAgent, AgentResult, ContextBundle
-from agents.yarnnn_prompts import build_system_prompt as build_modular_prompt
-from agents.yarnnn_prompts.base import SIMPLE_PROMPT
+from agents.prompts import build_system_prompt as build_modular_prompt
+from agents.prompts.base import SIMPLE_PROMPT
 from services.anthropic import (
     chat_completion,
     chat_completion_stream,
@@ -62,13 +62,13 @@ class YarnnnAgent(BaseAgent):
 
     Output: Chat response (text, optionally streamed)
 
-    ADR-059: Prompts modularized in yarnnn_prompts/ directory.
+    ADR-059: Prompts modularized in prompts/ directory.
     ADR-144: Context awareness always injected (graduated, not binary).
     ADR-189: Class renamed from ThinkingPartnerAgent. DB role slug remains
              `thinking_partner` (glossary exception).
     """
 
-    # ADR-059: Prompts are modularized in yarnnn_prompts/ directory
+    # ADR-059: Prompts are modularized in prompts/ directory
     SYSTEM_PROMPT = SIMPLE_PROMPT
 
     def __init__(self, model: str = "claude-sonnet-4-6"):
@@ -139,7 +139,7 @@ class YarnnnAgent(BaseAgent):
     ) -> list[dict]:
         """Build system prompt as content blocks for prompt caching.
 
-        ADR-059: Uses modular prompts from yarnnn_prompts/ directory.
+        ADR-059: Uses modular prompts from prompts/ directory.
         ADR-186: Profile-aware assembly — "workspace" or "entity".
         Static sections (identity, tools, behaviors) are cached.
         Dynamic sections (working memory, surface content) are NOT cached.

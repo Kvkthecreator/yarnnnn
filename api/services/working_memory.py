@@ -142,7 +142,7 @@ async def build_working_memory(
     #   "none"          — no program activated (no bundle is active for this workspace)
     #   "post_fork_pre_author"  — bundle active AND MANDATE.md is skeleton/empty
     #   "operational"   — bundle active AND MANDATE.md is non-skeleton
-    # The workspace profile prompt overlay (yarnnn_prompts/activation.py) engages
+    # The workspace profile prompt overlay (prompts/chat/activation.py) engages
     # only when state == "post_fork_pre_author".
     activation_state = _classify_activation_state(user_id, mandate_content, _make_client)
 
