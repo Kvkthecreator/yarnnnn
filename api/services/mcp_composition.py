@@ -200,34 +200,45 @@ async def compose_active_candidates(auth: Any) -> dict:
     """
     candidates: list[dict] = []
 
-    # --- Active tasks (direct SQL; same shape as working_memory._get_active_tasks_sync) ---
-    # Note: the `tasks` table has no `title` column — slug is the display-safe
-    # identifier. The LLM humanizes the slug when surfacing it to the user.
+    # --- Active recurrences (ADR-231 Phase 3.6.d: walk YAML declarations) ---
+    # Truth = filesystem; the scheduling index provides next_run_at.
     try:
-        result = (
+        from services.recurrence import walk_workspace_recurrences
+        decls = walk_workspace_recurrences(auth.client, auth.user_id)
+        # Pull next_run_at from index in one query
+        idx_result = (
             auth.client.table("tasks")
-            .select("slug, mode, schedule, status, next_run_at, last_run_at")
+            .select("slug, next_run_at")
             .eq("user_id", auth.user_id)
-            .eq("status", "active")
-            .order("next_run_at", desc=False, nullsfirst=False)
-            .limit(5)
             .execute()
         )
-        for t in (result.data or []):
+        idx_by_slug = {r["slug"]: r for r in (idx_result.data or [])}
+
+        # Sort by next_run_at ascending; cap at 5
+        active_decls = [d for d in decls if not d.paused]
+        active_decls.sort(
+            key=lambda d: (
+                idx_by_slug.get(d.slug, {}).get("next_run_at") is None,
+                idx_by_slug.get(d.slug, {}).get("next_run_at") or "",
+            )
+        )
+        for d in active_decls[:5]:
             reason_bits = []
-            if t.get("schedule"):
-                reason_bits.append(str(t["schedule"]))
-            if t.get("next_run_at"):
-                reason_bits.append(f"next {_short_date(t['next_run_at'])}")
-            slug = t.get("slug") or ""
+            if d.schedule:
+                reason_bits.append(str(d.schedule))
+            idx_row = idx_by_slug.get(d.slug, {})
+            if idx_row.get("next_run_at"):
+                reason_bits.append(f"next {_short_date(idx_row['next_run_at'])}")
+            substrate_root = d.declaration_path.rsplit("/", 1)[0]  # parent dir of the YAML
             candidates.append({
-                "subject": slug.replace("-", " ").replace("_", " ").title() or slug,
-                "reason": " · ".join(reason_bits) or "active task",
-                "path": f"/tasks/{slug}/",
-                "kind": "task",
+                "subject": d.slug.replace("-", " ").replace("_", " ").title() or d.slug,
+                "reason": " · ".join(reason_bits) or f"{d.shape.value} recurrence",
+                "path": substrate_root + "/",
+                "kind": "recurrence",
+                "shape": d.shape.value,
             })
     except Exception as e:
-        logger.warning(f"[MCP_COMPOSITION] active tasks query failed: {e}")
+        logger.warning(f"[MCP_COMPOSITION] active recurrences walk failed: {e}")
 
     # --- Recently-updated entity files under /workspace/context/ ---
     try:

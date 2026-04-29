@@ -488,34 +488,60 @@ def _get_recent_uploads_sync(user_id: str, client: Any) -> list[dict]:
 
 
 def _get_active_tasks_sync(user_id: str, client: Any) -> list[dict]:
-    """Get active tasks with key metadata for TP awareness (sync). ADR-149/151."""
+    """Get active recurrences with key metadata for YARNNN awareness (sync).
+
+    ADR-231 Phase 3.6.d (Compact Index v2 per runtime plan §4): walks the
+    recurrence YAML declarations (truth = filesystem) and joins the thin
+    `tasks` scheduling index for `last_run_at` / `next_run_at` only.
+
+    Returns up to 10 entries sorted by next_run_at ascending (most-imminent
+    first) with shape, schedule, paused, output_kind populated from the
+    declaration. Function name preserved (`active_tasks` is the
+    working_memory dict key consumed by format_compact_index downstream).
+    """
     try:
-        result = (
+        from services.recurrence import walk_workspace_recurrences
+        decls = walk_workspace_recurrences(client, user_id)
+
+        # Pull the scheduling index in one query for last_run / next_run join
+        index_result = (
             client.table("tasks")
-            .select("slug, mode, status, schedule, next_run_at, last_run_at")
+            .select("slug, next_run_at, last_run_at, paused")
             .eq("user_id", user_id)
-            .in_("status", ["active", "paused"])
-            .order("updated_at", desc=True)
-            .limit(10)
             .execute()
         )
-        tasks = []
-        for row in (result.data or []):
+        index_by_slug = {
+            r["slug"]: r for r in (index_result.data or [])
+        }
+
+        tasks: list[dict] = []
+        for d in decls:
+            idx = index_by_slug.get(d.slug, {})
             task = {
-                "slug": row.get("slug"),
-                "mode": row.get("mode", "recurring"),
-                "status": row.get("status"),
-                "schedule": row.get("schedule"),
+                "slug": d.slug,
+                "shape": d.shape.value,  # deliverable | accumulation | action | maintenance
+                "output_kind": {
+                    "deliverable": "produces_deliverable",
+                    "accumulation": "accumulates_context",
+                    "action": "external_action",
+                    "maintenance": "system_maintenance",
+                }.get(d.shape.value, "unknown"),
+                "schedule": d.schedule,
+                "paused": d.paused or bool(idx.get("paused", False)),
+                "status": "active",  # paused is its own flag now per migration 164
+                "agents": d.agents,
             }
-            # Format timestamps for readability
-            last_run = row.get("last_run_at")
-            next_run = row.get("next_run_at")
+            last_run = idx.get("last_run_at")
+            next_run = idx.get("next_run_at")
             if last_run:
                 task["last_run"] = last_run[:16].replace("T", " ")
             if next_run:
                 task["next_run"] = next_run[:16].replace("T", " ")
             tasks.append(task)
-        return tasks
+
+        # Sort by next_run_at ascending (None last); cap at 10
+        tasks.sort(key=lambda t: (t.get("next_run") is None, t.get("next_run") or ""))
+        return tasks[:10]
     except Exception:
         return []
 
