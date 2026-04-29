@@ -41,7 +41,8 @@ ADR-230 D6, ensure specialist agent rows, POST default tasks from
 
 | Doc | Purpose | Read when |
 |---|---|---|
-| [ALPHA-1-PLAYBOOK.md](./ALPHA-1-PLAYBOOK.md) | Rules of engagement, persona specs, phases, governance | Always first |
+| [SCOPE.md](./SCOPE.md) | Trading-only commitment, money-truth + cost-truth success contract, persona variation discipline, what's parked | Always first — names what alpha-1 is and isn't |
+| [ALPHA-1-PLAYBOOK.md](./ALPHA-1-PLAYBOOK.md) | Rules of engagement, persona specs, phases, governance | After SCOPE — the operating playbook scoped by it |
 | [DUAL-OBJECTIVE-DISCIPLINE.md](./DUAL-OBJECTIVE-DISCIPLINE.md) | Two objectives (A-system + B-product), three-axis observation schema, dual weekly report templates, anti-drift rules | Before writing any observation or report |
 | [CLAUDE-OPERATOR-ACCESS.md](./CLAUDE-OPERATOR-ACCESS.md) | Three access modes (Headless / Cockpit / Conversational); per-mode auth + discretion + future connection paths | First thing a new Claude session reads |
 | [OPERATOR-HARNESS.md](./OPERATOR-HARNESS.md) | Mode 1 machinery: `verify.py`, `mint_jwt.py`, `connect.py`, `reset.py` | When running commands |
@@ -79,3 +80,4 @@ they generalize. Update this INDEX when new docs land.
 | Date | Change |
 |------|--------|
 | 2026-04-21 | v1 — Initial index. Five canonical docs + two substrate subdirectories. Created alongside DUAL-OBJECTIVE-DISCIPLINE.md. |
+| 2026-04-30 | v2 — SCOPE.md added as canonical first-read. Locks in trading-only + money-truth + cost-truth contract + alpha-commerce parked. |

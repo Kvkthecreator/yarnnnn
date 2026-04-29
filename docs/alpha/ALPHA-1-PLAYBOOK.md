@@ -8,7 +8,9 @@
 >
 > **Refactor-wave note (2026-04-29, Pass 4 complete)**: This doc was realigned across the late-April substrate-dissolution wave (ADR-227/228/230/231/233/235/237/238/239). §3A.5 reframes "tasks" as **recurrence declarations** with natural-home YAML substrate paths (ADR-231 D2). §3A.5b documents the back-office recurrences scaffolded automatically per ADR-164. §5.1 daily rhythm describes the four cockpit faces (ADR-228) instead of the pre-228 BriefingStrip framing. The four-pass refresh log lives in commits `9c071d1` (Pass 1 vocabulary), `89738a3` (Pass 2 invariants), `77d654f` (Pass 3 observation), and the current commit (Pass 4 playbook §3A.5/§5/§6).
 >
-> **Companion docs to read alongside**: [E2E-EXECUTION-CONTRACT.md v3](./E2E-EXECUTION-CONTRACT.md) for current primitive call shapes, [observations/2026-04-29-post-refactor-wave-e2e.md](./observations/2026-04-29-post-refactor-wave-e2e.md) for ground-truth E2E findings (incl. two open bugs).
+> **Read first**: [SCOPE.md](./SCOPE.md) — locks in trading-only commitment + money-truth + cost-truth as the alpha-1 success contract. This playbook is scoped by SCOPE.md; if a request conflicts with that scope, defer it.
+>
+> **Companion docs to read alongside**: [E2E-EXECUTION-CONTRACT.md v3](./E2E-EXECUTION-CONTRACT.md) for current primitive call shapes, [observations/2026-04-29-post-refactor-wave-e2e.md](./observations/2026-04-29-post-refactor-wave-e2e.md) for ground-truth E2E findings.
 
 ---
 
