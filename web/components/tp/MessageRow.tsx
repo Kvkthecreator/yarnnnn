@@ -17,10 +17,15 @@
  *       - taskSlug unset + role === 'assistant' + addressed pulse
  *         + invocationId → "ran inline" (chat-fired invocation)
  *
- *   - **Make-Recurring affordance** — small button below user material
- *     messages that don't yet carry a recurrence slug. Wired via the
- *     onMakeRecurring callback supplied by ChatSurface
- *     (ADR-231 D1 graduation flow).
+ *   - **Run-on-schedule affordance** — small button below assistant
+ *     material messages whose invocation fired inline (no recurrence
+ *     slug attached, but `narrative.invocationId` is set, indicating
+ *     real production). Per ADR-236 Item 8.2 (2026-04-30) the
+ *     graduation attaches to the assistant **output**, not the user
+ *     ask — once the operator likes what came out, "run this on a
+ *     schedule" is the right verbalization. Wired via the
+ *     onMakeRecurring callback (the prop name is preserved for
+ *     stability; the surface label says "Run this on a schedule").
  *
  * The row wrapper is the canonical extension point for future cross-
  * cutting concerns (autonomy badges, surface-aware variants, etc.).
@@ -65,9 +70,17 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     msg.narrative?.pulse === 'addressed' &&
     !!msg.narrative?.invocationId;
   const isInlineAction = !msg.narrative?.taskSlug;
+  // ADR-236 Item 8.2 (2026-04-30): graduation moves from the user ask to
+  // the assistant output. Per ADR-231 D1 (invocation-first default), the
+  // ask already fired — the operator's decision to schedule the behavior
+  // attaches to "this output is useful, run it again" not to the prompt
+  // that produced it. Gate: assistant-role + inline-fired (taskSlug
+  // absent) + has invocationId (real production, not just chitchat) +
+  // non-empty content.
   const showMakeRecurring =
-    msg.role === 'user' &&
+    msg.role === 'assistant' &&
     isInlineAction &&
+    !!msg.narrative?.invocationId &&
     !!onMakeRecurring &&
     !!msg.content?.trim();
 
@@ -113,10 +126,10 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
             type="button"
             onClick={() => onMakeRecurring!(msg.content)}
             className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/70 hover:text-primary hover:bg-primary/5 px-1.5 py-0.5 rounded transition-colors"
-            title="Turn this inline ask into a recurrence"
+            title="Run this on a schedule — chat with YARNNN to set cadence + delivery"
           >
             <Repeat className="w-2.5 h-2.5" />
-            Make this recurring
+            Run this on a schedule
           </button>
         </div>
       )}

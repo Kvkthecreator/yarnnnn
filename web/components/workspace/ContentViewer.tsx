@@ -13,7 +13,12 @@ import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
 import { FileIcon } from '@/components/workspace/FileIcon';
-import { SubstrateEditor, isSubstrateEditable } from '@/components/workspace/SubstrateEditor';
+// ADR-236 Files page rework (2026-04-30): SubstrateEditor deleted. Direct
+// inline editing of substrate files is removed per the original assessment
+// ("not notion-like, streamline back to edit via Chat"). Every file now
+// shows the EditInChatButton; substrate writes flow through chat (which
+// invokes WriteFile(scope='workspace') per ADR-235). RevisionHistoryPanel
+// retains its revert affordance — that's substrate recovery, not editing.
 import { InferenceContentView } from '@/components/context/InferenceContentView';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
@@ -34,12 +39,11 @@ interface ContentViewerProps {
   onNavigate: (node: WorkspaceTreeNode) => void;
   showHeader?: boolean;
   /**
-   * ADR-215 R1 + R3: seed the chat rail for judgment-shaped edits. Never
-   * invoked for substrate files (those render SubstrateEditor instead).
+   * ADR-215 R1 + ADR-236 Files page rework (2026-04-30): seed the chat
+   * rail for any file edit. Substrate files no longer render an inline
+   * editor — every file routes through chat for mutations.
    */
   onOpenChatDraft?: (prompt: string) => void;
-  /** Called after a successful inline substrate edit, so the host can refresh. */
-  onSubstrateSaved?: () => void;
 }
 
 export function ContentViewer({
@@ -47,7 +51,6 @@ export function ContentViewer({
   onNavigate,
   showHeader = true,
   onOpenChatDraft,
-  onSubstrateSaved,
 }: ContentViewerProps) {
   if (!selectedNode) {
     return (
@@ -73,7 +76,6 @@ export function ContentViewer({
       path={selectedNode.path}
       showHeader={showHeader}
       onOpenChatDraft={onOpenChatDraft}
-      onSubstrateSaved={onSubstrateSaved}
     />
   );
 }
@@ -201,17 +203,15 @@ function FileView({
   path,
   showHeader,
   onOpenChatDraft,
-  onSubstrateSaved,
 }: {
   path: string;
   showHeader: boolean;
   onOpenChatDraft?: (prompt: string) => void;
-  onSubstrateSaved?: () => void;
 }) {
   const [file, setFile] = useState<WorkspaceFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [reloadKey] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -222,11 +222,6 @@ function FileView({
       .catch((err) => setError(err.message || 'Failed to load file'))
       .finally(() => setLoading(false));
   }, [path, reloadKey]);
-
-  const handleSubstrateSaved = () => {
-    setReloadKey((k) => k + 1);
-    onSubstrateSaved?.();
-  };
 
   if (loading) {
     return (
@@ -245,15 +240,18 @@ function FileView({
     );
   }
 
-  // ADR-215 R3: substrate-editable files render the editor even when empty,
-  // so the operator can author their first content inline.
-  const substrateEditable = file ? isSubstrateEditable(file.path) : false;
-
-  if (!file || (!file.content && !file.content_url && !substrateEditable)) {
+  // ADR-236 Files page rework: direct inline edit removed. All files
+  // route to chat for edits via the EditInChatButton. Empty files still
+  // render the empty-state (no inline editor to scaffold first content
+  // anymore — operator chats with YARNNN to author).
+  if (!file || (!file.content && !file.content_url)) {
     return (
       <div className="p-6 text-center text-muted-foreground text-sm">
         <p>Empty file</p>
         <p className="text-xs mt-1">{path}</p>
+        <p className="text-xs mt-2 text-muted-foreground/70">
+          Chat with YARNNN to author content for this file.
+        </p>
       </div>
     );
   }
@@ -278,8 +276,12 @@ function FileView({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {/* ADR-215 R3: substrate files get inline edit instead of chat redirect. */}
-              {!substrateEditable && onOpenChatDraft && (
+              {/* ADR-236 Files page rework (2026-04-30): every file gets the
+                  EditInChatButton — direct inline edit (SubstrateEditor)
+                  removed per the assessment. Chat is the canonical
+                  mutation surface; substrate writes flow through chat's
+                  WriteFile primitive (ADR-235). */}
+              {onOpenChatDraft && (
                 <EditInChatButton
                   prompt={(() => {
                     const relPath = path.replace('/workspace/', '').replace('/tasks/', 'tasks/');
@@ -301,14 +303,6 @@ function FileView({
       ) : null}
 
       <div className="p-4 space-y-4">
-        {substrateEditable && (
-          <SubstrateEditor
-            path={file.path}
-            initialContent={file.content ?? ''}
-            onSaved={handleSubstrateSaved}
-          />
-        )}
-
         {kind === 'markdown' && file.content && (() => {
           const target = inferenceTarget(file.path);
           if (target) {

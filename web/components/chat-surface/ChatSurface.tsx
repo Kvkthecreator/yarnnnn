@@ -141,21 +141,39 @@ export function ChatSurface({
     setRecurrenceSetupOpen(true);
   }, []);
 
-  // ADR-219 D6 + ADR-231 D1 + ADR-235 D1.c: "Make this recurring" graduates
-  // an inline operator ask into a recurrence declaration. Per D1, the
-  // operator's first invocation already fired and produced output; this
-  // graduation attaches a nameplate + pulse + contract for repeat firings.
-  // We open RecurrenceSetupModal pre-filled with the operator's original
-  // message so they confirm + refine; YARNNN then calls
-  // ManageRecurrence(action='create', ...) per ADR-235 D1.c.
+  // ADR-219 D6 + ADR-231 D1 + ADR-235 D1.c + ADR-236 Item 8.2: graduation
+  // from inline invocation → recurrence declaration. Per ADR-236 Item 8.2
+  // (2026-04-30) this is **chat-mediated**, not modal-mediated:
+  //
+  //   - The affordance attaches to the assistant **output** (the
+  //     produced artifact), not the user ask. ADR-231 D1 says the ask
+  //     already fired; the operator's decision to schedule attaches to
+  //     "this output is useful, run it again."
+  //   - Clicking sends a chat message to YARNNN. YARNNN proposes a
+  //     recurrence shape conversationally (cadence, delivery, etc.) and
+  //     calls ManageRecurrence(action='create', ...) when the operator
+  //     confirms in chat. Modal-bypass is intentional — post-ADR-235
+  //     "edit via chat" is the canonical mutation path; the
+  //     RecurrenceSetupModal stays available via the plus-menu for
+  //     operators who arrive with explicit creation intent, but the
+  //     graduation flow no longer goes through it.
+  //
+  // We trim aggressively (~280 chars) — YARNNN reads the assistant
+  // output above in conversation history; the chat message just needs
+  // to surface intent + a quoted reference, not duplicate the full
+  // output payload.
   const handleMakeRecurring = useCallback(
     (messageContent: string) => {
-      const seed = messageContent.length > 480
-        ? messageContent.slice(0, 480) + '…'
-        : messageContent;
-      handleOpenRecurrenceSetup(`Recurring intent: ${seed}`);
+      const trimmed = messageContent.trim();
+      const excerpt = trimmed.length > 280
+        ? trimmed.slice(0, 280) + '…'
+        : trimmed;
+      sendMessage(
+        `Run this on a schedule — turn the output above into a recurrence. ` +
+        `Quoted excerpt: "${excerpt}"`,
+      );
     },
-    [handleOpenRecurrenceSetup],
+    [sendMessage],
   );
 
   const handleRecurrenceSetupClose = useCallback(() => setRecurrenceSetupOpen(false), []);

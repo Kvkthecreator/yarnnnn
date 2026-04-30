@@ -469,7 +469,6 @@ export default function ContextPage() {
                 onNavigate={handleExplorerSelect}
                 showHeader={false}
                 onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
-                onSubstrateSaved={() => { void loadExplorer(); }}
               />
             )}
           </div>
