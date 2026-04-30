@@ -91,27 +91,59 @@ function buildBreadcrumbs(root: TreeNode, targetPath: string): TreeNode[] {
   return trail;
 }
 
+// ADR-236 Round 5+ extension (2026-04-30): Files page surfaces more of
+// the substrate the operator should see.
+//
+// HIDE RULE (only system-strict hidden):
+//   - Files starting with `_` (machine-config: _recurring.yaml, _tracker.md,
+//     _domain.md, _performance.md, etc.). These are operationally important
+//     but accumulated by the system; their content is rendered by the
+//     surfaces that need them (faces, briefings). Showing them in the
+//     explorer would create operator confusion about whether they're
+//     authored substrate.
+//   - /workspace/context/signals — temporal signals log, not substrate.
+//
+// VISIBLE (operator can see + ask YARNNN about):
+//   - Identity (authored shared substrate at /workspace/context/_shared/)
+//   - Context (accumulated domain knowledge, hiding `_`-prefixed files)
+//   - Reports (DELIVERABLE recurrences)
+//   - Uploads (operator-contributed)
+//   - Memory (YARNNN's working memory — awareness, notes, style)
+//   - Review (Reviewer substrate — IDENTITY, principles, decisions, calibration)
+//   - Agents (per-agent substrate — AGENT.md, memory/, etc.) — the operator
+//     wanted to see TP's folder; this surfaces it.
 function buildContextNodes(input: {
   domainTree?: TreeNode[];
   uploadTree?: TreeNode[];
+  memoryTree?: TreeNode[];
+  reviewTree?: TreeNode[];
+  agentsTree?: TreeNode[];
   domainTitles: Record<string, string>;
   settings?: Array<{ name: string; filename: string; path: string; updated_at: string | null }>;
   outputTasks?: Array<{ slug: string; title: string; last_run_at: string | null }>;
 }): TreeNode[] {
+  // System-strict hide predicate: `_`-prefixed files are machine-config /
+  // accumulated by the system; specific paths (signals/) are temporal logs.
+  const isHidden = (node: TreeNode): boolean => {
+    const filename = node.path.split('/').pop() || '';
+    if (filename.startsWith('_')) return true;
+    if (node.path.startsWith('/workspace/context/signals')) return true;
+    return false;
+  };
+  const visible = (predicate: (n: TreeNode) => boolean) => (node: TreeNode) =>
+    !isHidden(node) && predicate(node);
+
   const domainChildren = relabelTopLevelNodes(
-    filterNodes(input.domainTree, (node) => {
-      const filename = node.path.split('/').pop() || '';
-      return !filename.startsWith('_') && !node.path.startsWith('/workspace/context/signals');
-    }),
+    filterNodes(input.domainTree, visible(() => true)),
     input.domainTitles
   );
   const uploadChildren = asNodeArray(input.uploadTree);
+  const memoryChildren = filterNodes(input.memoryTree, visible(() => true));
+  const reviewChildren = filterNodes(input.reviewTree, visible(() => true));
+  const agentsChildren = filterNodes(input.agentsTree, visible(() => true));
   const settingsFiles = Array.isArray(input.settings) ? input.settings : [];
 
   // Outputs: DELIVERABLE-shape recurrences (ADR-180 + ADR-231 D2).
-  // Path is the natural-home substrate root /workspace/reports/{slug}; the
-  // detail-mode dispatcher (`DeliverableMiddle`) reads dated output folders
-  // under that root via api.recurrences.listOutputs(slug).
   const outputTasks = input.outputTasks ?? [];
   const outputChildren: TreeNode[] = outputTasks.map(task => ({
     name: task.title,
@@ -121,9 +153,12 @@ function buildContextNodes(input: {
     summary: task.last_run_at ? `Latest output` : 'No output yet',
   }));
 
-  // ADR-206 Intent-first ordering: Identity → Context → Reports → Uploads.
-  // Identity is the authored Intent layer (ADR-206); Context is the accumulated
-  // working substrate; Reports is the Deliverables layer; Uploads is raw input.
+  // ADR-206 Intent-first ordering preserved for the first four sections.
+  // Memory + Review + Agents added per the operator's "most should be
+  // visible" framing. Order: Identity (authored intent) → Context
+  // (accumulated working substrate) → Reports (deliverables) → Memory
+  // (YARNNN's working memory) → Review (judgment substrate) → Agents
+  // (per-agent files) → Uploads (raw input).
   return [
     {
       name: 'Identity',
@@ -151,6 +186,27 @@ function buildContextNodes(input: {
       type: 'folder' as const,
       summary: outputChildren.length ? `${outputChildren.length} reports` : 'No reports yet',
       children: outputChildren,
+    },
+    {
+      name: 'Memory',
+      path: '/workspace/memory',
+      type: 'folder' as const,
+      summary: memoryChildren.length ? `${memoryChildren.length} files` : "YARNNN's working memory",
+      children: memoryChildren,
+    },
+    {
+      name: 'Review',
+      path: '/workspace/review',
+      type: 'folder' as const,
+      summary: reviewChildren.length ? `${reviewChildren.length} files` : 'Reviewer substrate',
+      children: reviewChildren,
+    },
+    {
+      name: 'Agents',
+      path: '/workspace/agents',
+      type: 'folder' as const,
+      summary: agentsChildren.length ? `${agentsChildren.length} agents` : 'No agent substrate yet',
+      children: agentsChildren,
     },
     {
       name: 'Uploads',
@@ -234,10 +290,24 @@ export default function ContextPage() {
   const loadExplorer = useCallback(async () => {
     setFileTreeLoading(true);
     try {
-      const [nav, domainTree, uploadTree, tasksData] = await Promise.all([
+      // ADR-236 Round 5+ extension: fetch memory/review/agents trees in
+      // parallel. allSettled rather than all so that any single tree's
+      // 404 / error doesn't take down the explorer.
+      const [
+        nav,
+        domainTree,
+        uploadTree,
+        memoryTreeR,
+        reviewTreeR,
+        agentsTreeR,
+        tasksData,
+      ] = await Promise.all([
         api.workspace.getNav(),
         api.workspace.getTree('/workspace/context'),
         api.workspace.getTree('/workspace/uploads'),
+        api.workspace.getTree('/workspace/memory').catch(() => []),
+        api.workspace.getTree('/workspace/review').catch(() => []),
+        api.workspace.getTree('/workspace/agents').catch(() => []),
         api.recurrences.list(),
       ]);
 
@@ -253,6 +323,9 @@ export default function ContextPage() {
       const nodes = buildContextNodes({
         domainTree: asNodeArray(domainTree),
         uploadTree: asNodeArray(uploadTree),
+        memoryTree: asNodeArray(memoryTreeR),
+        reviewTree: asNodeArray(reviewTreeR),
+        agentsTree: asNodeArray(agentsTreeR),
         domainTitles,
         settings: Array.isArray(nav?.settings) ? nav.settings : [],
         outputTasks,

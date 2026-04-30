@@ -26,6 +26,8 @@ import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentIcon } from './AgentIcon';
 import { PrinciplesTab } from './PrinciplesTab';
+import { MandateTab } from './MandateTab';
+import { AutonomyTab } from './AutonomyTab';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -709,13 +711,23 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 
 
 // ADR-241 D2: Thinking Partner detail view is tab-based (Identity /
-// Principles / Tasks). The tab is URL-driven via ?tab= so deep-links
-// round-trip cleanly.
-type TPTab = 'identity' | 'principles' | 'tasks';
+// ADR-236 Round 5+ extension (2026-04-30): TP detail tabs reorganized
+// to surface TP's substrate. The legacy Tasks tab was always-empty for
+// TP (recurrences never assign agent_slugs=['thinking-partner']) — DELETED.
+// Replaced with substrate-shaped tabs that show what TP actually reads
+// + uses: Mandate (gate for task creation, ADR-207), Autonomy (delegation
+// posture, ADR-217), Principles (judgment framework, ADR-194 v2).
+// Identity stays as the cockpit role/agent overview.
+//
+// Tab is URL-driven via ?tab= so deep-links round-trip cleanly. Each
+// substrate tab uses the shared <SubstrateTab> shell for visual
+// consistency.
+type TPTab = 'identity' | 'mandate' | 'autonomy' | 'principles';
 const TP_TABS: ReadonlyArray<{ id: TPTab; label: string }> = [
   { id: 'identity', label: 'Identity' },
+  { id: 'mandate', label: 'Mandate' },
+  { id: 'autonomy', label: 'Autonomy' },
   { id: 'principles', label: 'Principles' },
-  { id: 'tasks', label: 'Tasks' },
 ];
 
 function ThinkingPartnerDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
@@ -723,7 +735,9 @@ function ThinkingPartnerDetail({ agent, tasks }: { agent: Agent; tasks: Recurren
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
   const activeTab: TPTab =
-    tabParam === 'principles' || tabParam === 'tasks' ? tabParam : 'identity';
+    tabParam === 'mandate' || tabParam === 'autonomy' || tabParam === 'principles'
+      ? tabParam
+      : 'identity';
 
   const setTab = (tab: TPTab) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -762,8 +776,9 @@ function ThinkingPartnerDetail({ agent, tasks }: { agent: Agent; tasks: Recurren
         {activeTab === 'identity' && (
           <AgentRoleBlock agent={agent} tasks={tasks} />
         )}
+        {activeTab === 'mandate' && <MandateTab />}
+        {activeTab === 'autonomy' && <AutonomyTab />}
         {activeTab === 'principles' && <PrinciplesTab />}
-        {activeTab === 'tasks' && <TasksBlock agent={agent} tasks={tasks} />}
       </div>
     </div>
   );
@@ -791,11 +806,13 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
     );
   }
 
-  // ADR-241 D2: meta-cognitive (Thinking Partner) gets the tab-based
-  // detail view. Other classes keep the single-page rendering — the
-  // tab refactor only applies to TP because TP is the only persona
-  // with multiple operator-facing substrate axes (Identity, Principles
-  // from /workspace/review/, Tasks).
+  // ADR-241 D2 + ADR-236 Round 5+ (2026-04-30): meta-cognitive
+  // (Thinking Partner) gets the tab-based detail view. Other classes
+  // keep the single-page rendering — the tab refactor only applies
+  // to TP because TP is the persona with multiple operator-facing
+  // substrate axes (Identity / Mandate / Autonomy / Principles).
+  // Tasks tab DELETED per ADR-236 Round 5+ — recurrences never assign
+  // agent_slugs=['thinking-partner']; tab was always-empty.
   if (cls === 'meta-cognitive') {
     return <ThinkingPartnerDetail agent={agent} tasks={tasks} />;
   }

@@ -12,12 +12,15 @@
  * a modal launcher only. Chat-shaped mutations live on the object's own detail
  * page as this button.
  *
- * R3 corollary: this button NEVER belongs on a substrate file's detail view.
- * Substrate files (IDENTITY / BRAND / CONVENTIONS / MANDATE / AUTONOMY /
- * PRECEDENT / principles.md / uploaded documents) are edited directly on
- * Files with revision-chain
- * attribution. Using "Edit in chat" on substrate would skip `authored_by`
- * clarity.
+ * R3 corollary HISTORICAL — superseded by ADR-236 Round 5 Cluster A
+ * (2026-04-30). The original R3 said this button never belongs on a substrate
+ * file's detail view because substrate files were edited directly on Files
+ * via SubstrateEditor (preserving authored_by clarity). ADR-236 Cluster A
+ * deleted SubstrateEditor — every file now routes through chat for edits
+ * (chat invokes WriteFile per ADR-235; revision-chain attribution is
+ * preserved via the same authored_by="operator" path). EditInChatButton is
+ * now the canonical mutation surface for ALL operator-authored files,
+ * including substrate. The R3 carve-out no longer applies.
  *
  * Two visual variants:
  *   - "default"  — full button with icon + label (the common case)
