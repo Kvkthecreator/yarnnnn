@@ -29,7 +29,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LayoutDashboard, ListChecks, Filter } from 'lucide-react';
+import { BookOpen, ListChecks, Filter } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -39,7 +39,10 @@ import {
   parseSnapshotMeta,
   type SnapshotLead,
 } from '@/lib/snapshot-meta';
-import { SnapshotModal } from './SnapshotModal';
+// ADR-236 Round 5+ / chat refactor: WorkspaceContextOverlay replaces SnapshotModal.
+// SnapshotModal.tsx is deleted — WorkspaceContextOverlay uses WorkspaceFileView
+// (universal kernel component) and collapses three tabs into one scrollable panel.
+import { WorkspaceContextOverlay } from './WorkspaceContextOverlay';
 import { RecurrenceSetupModal } from './RecurrenceSetupModal';
 import { ChatEmptyState } from './ChatEmptyState';
 import { ChatFilterBar, parseChatFilterFromSearch } from './ChatFilterBar';
@@ -200,16 +203,18 @@ export function ChatSurface({
     ...plusMenuActions,
   ], [plusMenuActions, handleOpenRecurrenceSetup]);
 
-  // Snapshot toggle button — lives in the surface header.
+  // Context overlay toggle — replaces "Snapshot" button.
+  // Label updated to "Context" — more honest about what it shows
+  // (workspace substrate files), less jargony than "Snapshot".
   const snapshotAction = (
     <button
       type="button"
       onClick={handleSnapshotToggle}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-      title="Open Snapshot"
+      title="Open workspace context"
     >
-      <LayoutDashboard className="w-3.5 h-3.5" />
-      Snapshot
+      <BookOpen className="w-3.5 h-3.5" />
+      Context
     </button>
   );
 
@@ -284,8 +289,9 @@ export function ChatSurface({
         </div>
       </div>
 
-      {/* Snapshot overlay — Briefing archetype, pure read, zero LLM at open */}
-      <SnapshotModal
+      {/* Context overlay — replaces SnapshotModal. WorkspaceFileView renders
+          substrate files inline; no tabs, one scrollable panel. */}
+      <WorkspaceContextOverlay
         open={snapshotOpen}
         lead={snapshotLead}
         reason={snapshotReason}

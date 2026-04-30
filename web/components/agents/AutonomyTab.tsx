@@ -27,7 +27,7 @@ export function AutonomyTab() {
       tagline="How much judgment authority TP carries on your behalf. Single source of truth for delegation per ADR-217 — manual / assisted / bounded_autonomous / autonomous."
       path="/workspace/context/_shared/AUTONOMY.md"
       editPrompt="Help me revise my autonomy delegation. Show me the current declaration and walk me through what I'd change — default level, ceilings, per-domain overrides."
-      emptyStateBody={
+      emptyBody={
         <>
           Autonomy declares how much TP can decide on your behalf. Default at signup
           is <code className="rounded bg-muted px-1 py-0.5 text-[11px]">manual</code> —

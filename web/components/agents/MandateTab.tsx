@@ -24,7 +24,7 @@ export function MandateTab() {
       tagline="Your Primary Action declaration — the external write you're moving value with, plus success criteria and guardrails. YARNNN gates task creation on this (ADR-207)."
       path="/workspace/context/_shared/MANDATE.md"
       editPrompt="Help me revise my mandate. Show me the current Primary Action declaration and walk me through sharpening success criteria + boundary conditions."
-      emptyStateBody={
+      emptyBody={
         <>
           Your mandate is your Primary-Action declaration — the external write you&apos;re
           trying to move value with (submit an order, list a product, ship a campaign)
