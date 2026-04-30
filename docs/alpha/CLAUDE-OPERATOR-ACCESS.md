@@ -166,6 +166,44 @@ path to act on it at all.
 Claude *can physically* do). Neither overrides the other — action requires
 both.
 
+### Architectural authority vs invocation authorization (the axiom)
+
+> **Locked in 2026-04-30 after a smoke-test exchange where Claude conflated the two.** This section is the canonical home for the distinction; if it gets confusing in a future session, re-read it before acting.
+
+The matrix above describes **architectural authority** — what Claude *has the levers to do* by virtue of being in Mode 1 with operator-on-behalf credentials. This is a stable property of the access mode, not a per-turn flag.
+
+It does NOT describe **invocation authorization** — whether Claude *should pull a specific lever right now* on this turn for this specific operator action.
+
+These are two different gates, and both must hold for a state-mutating action to fire. They were collapsed into one in the original matrix and that collapse caused real confusion. Spelling them apart now:
+
+| Action class | Architectural authority (the lever exists in Mode 1) | Invocation authorization (per-turn gate) |
+|---|---|---|
+| Read any substrate file | ✅ standing | ✅ standing — read-only is fire-and-forget |
+| Run `verify.py --all` | ✅ standing | ✅ standing — read-only |
+| Chat-initiate read-only invocation (`@yarnnn explain X`, `verify.py --cost`) | ✅ standing | ✅ standing |
+| Chat-initiate **state-mutating** invocation (`POST /api/recurrences/{slug}/run` for accumulation/deliverable shapes) | ✅ standing | ⚠️ **default-deny without explicit per-turn go**; a verify-shape ritual that runs *frequently* (daily sanity check) is fine standing |
+| Fire a recurrence whose shape is `external_action` (proposal-emitting, e.g. `trade-proposal-2`) | ✅ standing — Mode 1 *can* call the endpoint | ❌ **default-deny**; needs explicit per-turn go because the downstream Reviewer may auto-approve and a real (paper) order fires |
+| Approve a Reviewer-deferred proposal in cockpit Queue | ✅ standing per matrix row | ❌ **default-deny**; requires explicit per-turn go naming the proposal_id |
+| Edit `_risk.md` / `principles.md` / `_operator_profile.md` / IDENTITY / MANDATE / AUTONOMY | ❌ no architectural authority (never Claude unilaterally) | ❌ N/A |
+| Run `connect.py` / `reset.py` / disconnect platform | ✅ standing | ❌ **default-deny**; requires explicit per-turn go naming the persona |
+
+**The architecture-vs-invocation split, stated as one axiom:**
+
+> Mode 1 access gives Claude **standing authority over what's possible**. It does NOT give Claude **standing authorization to invoke** state-mutating actions on a specific turn. Architectural authority is a property of the access mode (slow-changing, named in this matrix). Invocation authorization is a property of *the current operator request* and must be derivable from explicit operator text on this turn — diagnostic statements about how the architecture works ("you have the levers") describe authority, not authorization.
+
+**How Claude resolves ambiguity on a state-mutating turn**:
+
+1. Identify the most-mutating verb in the action chain. (Firing `trade-proposal-2` is one verb, but downstream is `Reviewer.auto_approve → Alpaca.submit_order` — the chain's max-mutation level is the relevant one.)
+2. Check the matrix above. If the action class is default-deny, look for explicit per-turn go in the operator's most recent message.
+3. "Explicit per-turn go" looks like: a direct imperative naming the action (`fire trade-proposal-2`, `approve proposal abc-123`, `run reset.py for alpha-trader-2`). It does NOT look like: a diagnostic statement about access posture, an architectural axiom, or a description of what Claude *could* do.
+4. If unclear, **stop and ask**. The cost of one clarifying question is much smaller than the cost of an unintended state-mutating invocation.
+
+**Why this matters specifically for alpha-trader-2 paper-order smoke tests**:
+
+Under `bounded_autonomous` AUTONOMY posture (the alpha-1 default per ADR-217), the AI Reviewer can auto-approve a `trade-proposal-2` invocation's emitted proposal. Auto-approval calls `handle_execute_proposal` which calls `alpaca_client.submit_order`. So firing `trade-proposal-2/run` is one HTTP call but the chain may end at "real paper order at Alpaca." The chain's max-mutation level is "broker order" — far above where standing authorization can reach without explicit per-turn go.
+
+This is *not* a bug in `bounded_autonomous` — it's the system working as designed. The autonomy posture says "Reviewer has authority to auto-execute when its checks clear," and that's correct. What's needed is for Claude (main session, subagent, or any future operator-on-behalf actor) to recognize that *initiating* the chain still needs explicit per-turn go.
+
 ### Operator vs autonomous-loop (post-2026-04-27 framing correction)
 
 A subtle but load-bearing distinction the alpha test depends on:
@@ -213,6 +251,41 @@ unified_scheduler service exists as periodic-trigger infrastructure
 (daily-update, back-office sweeps) but the alpha-trader paper-trade
 loop closes via chat-initiation + reactive Reviewer dispatch, not
 cron firing.
+
+---
+
+## Standing authorizations
+
+This section is the **source of truth** for which capability classes have **standing invocation authorization** — i.e., Claude (any session, main or subagent) does not need a per-turn imperative for these specific actions. New entries land here when KVK explicitly grants them; entries name the date, scope, granter, and revocation pattern.
+
+**Format**: each entry is a row in the active-grants table. Every active grant traces to a specific KVK message in a specific Claude Code session — the date column links semantically to the conversation. Revocation is also explicit: KVK message naming the grant + new entry below moving the row to the "Revoked" subsection.
+
+### Active grants
+
+| Date granted | Scope | Granter | Notes |
+|---|---|---|---|
+| 2026-04-30 | **Approve orders on YARNNN alpha accounts at large** — covers approving Reviewer-deferred proposals + downstream execution for any persona running an alpha trading account (currently `alpha-trader`, `alpha-trader-2`; future trading personas inherit unless explicitly excluded). Includes the alpha-operator subagent and any main session in Mode 1. Applies to paper accounts only by virtue of alpha-1 SCOPE.md staying paper through Phase 2; if/when phases flip live, this grant should be re-evaluated, not silently inherited. Does NOT cover firing state-mutating recurrences whose downstream is broker action — that still needs per-turn go OR a separate grant covering the firing step. | KVK | Granted in 2026-04-30 session. Revocation pattern: KVK message "I revoke the standing approval grant" or equivalent direct phrasing; entry moves to Revoked below + dated. |
+
+### Revoked grants
+
+*(none yet)*
+
+### What standing authorization does NOT cover (explicit deferrals stay deferred)
+
+These remain default-deny regardless of standing grants in the active-grants table above; treat them as architectural carve-outs that can only be lifted by an ADR or a granter-acknowledged amendment to this section, not by a single-line authorization message:
+
+- Editing operator substrate (`_operator_profile.md`, `_risk.md`, `principles.md`, `IDENTITY.md`, `MANDATE.md`, `AUTONOMY.md`). Authoring belongs to KVK. Period.
+- Phase transitions (paper → live, observation → paper-discipline, etc.).
+- Modifying recurrence declarations (`ManageRecurrence(create|update|pause|archive)`).
+- Connecting/disconnecting platforms (`connect.py`, `reset.py --confirm`, integration disconnect).
+- Live-account approvals — alpha-1 stays paper per SCOPE.md; if a live account ever appears the existing grant explicitly does not extend.
+- Committing code or docs to git.
+
+### How Claude reads this section at session start
+
+When the alpha-operator subagent boots, or when a main Claude Code session starts working on alpha-1, **the standing-authorizations table above is read alongside the matrix.** A capability marked ✅ in the matrix + present in active grants → invokable without per-turn confirmation. A capability marked ✅ in the matrix + NOT in active grants → architectural authority exists, invocation needs per-turn go.
+
+This split is what lets the subagent run autonomous-loop rituals without nagging KVK for per-action confirmation, while still preventing it from silently sliding into capability classes KVK has not signed off on.
 
 ---
 
@@ -416,3 +489,5 @@ KVK why Claude is waiting.
 |------|--------|
 | 2026-04-21 | v1 — Initial. Three access modes (Headless / Cockpit / Conversational) with per-mode auth, capability, and discretion mapping. Future connection section covers MCP, Playwright, additional personas, JWT caching, impersonation chrome. Explicit rules of thumb for "what mode am I in" + "about-to-act gate check." |
 | 2026-04-27 | v2 — Framing correction: explicit distinction between operator-setup work (Phase A — finite, every operator does this at activation) and autonomous-loop work (Phase B — system runs itself per ADR-194 v2 + ADR-205 + ADR-207). Approve/reject proposal capabilities marked `⚠️` not `✅` during alpha-1 — AI Reviewer is supposed to drive verdicts under `bounded_autonomous` AUTONOMY carve-out; operator approval is for AI Reviewer's `defer` verdicts only, not the default path. New "Chat-initiate on behalf" + "Author files via UpdateContext on behalf" rows. New §"Operator vs autonomous-loop" clarifies the architectural boundary + names the unified scheduler as periodic-trigger infrastructure (NOT the load-bearing dispatch path for the alpha-trader paper-trade loop). The load-bearing path is chat-initiated invocation + reactive Reviewer dispatch (ADR-194 v2 Phase 2b post-insert hook). Driven by [BOOTSTRAP.md](./personas/alpha-trader/BOOTSTRAP.md) framing correction same date. |
+| 2026-04-30 | v3 — Added §"Architectural authority vs invocation authorization (the axiom)" immediately after the matrix. Hardens the distinction that Mode-1 access mode gives Claude standing authority over what's possible (matrix rows) but NOT standing authorization to invoke state-mutating actions on a specific turn — that requires explicit per-turn operator go. Triggered by a 2026-04-30 smoke-test exchange where Claude conflated the two on a paper-order trigger request. The matrix is now the *capability ceiling*; the new section names *when each capability is invokable*. |
+| 2026-04-30 | v4 — Added §"Standing authorizations" between the autonomous-loop framing and the auth-details cheat sheet. Tracks active grants (capability classes that don't need per-turn go), revoked grants, explicit deferral list (architectural carve-outs that can't be lifted by a single-line grant), and the "how Claude reads this at session start" rule. First active grant: KVK's 2026-04-30 standing approval for orders on YARNNN alpha accounts at large, covering both alpha-operator subagent and main Claude Code sessions. The subagent prompt at `.claude/agents/alpha-operator.md` cross-references this section as source of truth. |

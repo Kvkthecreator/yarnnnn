@@ -28,6 +28,23 @@ The 90-day window is the floor — the early phases (observation, paper discipli
 
 ---
 
+## Authority + authorization (operator-on-behalf invariant)
+
+A note on how Claude (main session OR alpha-operator subagent) interacts with these workspaces, since smoke tests + recurring rituals will both surface state-mutating actions:
+
+**Architectural authority** (the levers that exist) lives in [CLAUDE-OPERATOR-ACCESS.md §"Mode-to-discretion mapping"](./CLAUDE-OPERATOR-ACCESS.md#mode-to-discretion-mapping). Mode 1 (headless API + service key) carries broad capability — including approve/reject + chat-initiated invocation + harness mutation.
+
+**Invocation authorization** (which lever Claude pulls when) is gated separately. Two paths to invoke a state-mutating capability without per-turn confirmation:
+
+1. The capability has a **standing authorization** entry in [CLAUDE-OPERATOR-ACCESS.md §"Standing authorizations"](./CLAUDE-OPERATOR-ACCESS.md#standing-authorizations). KVK explicitly grants these; they're tracked with date, scope, and revocation pattern. As of 2026-04-30 there's one active grant: order approval on alpha accounts.
+2. KVK gives an **explicit per-turn imperative** in the current message ("fire trade-proposal-2", "approve proposal abc-123").
+
+A diagnostic statement about what Claude *can* do (architectural authority) does NOT constitute invocation authorization. This distinction was hardened into the docs after a 2026-04-30 smoke-test exchange where Claude conflated the two; the §axiom in CLAUDE-OPERATOR-ACCESS.md is now the canonical resolution.
+
+For state-mutating action chains, gate against the chain's max-mutation level, not the immediate HTTP call. Firing `trade-proposal-2/run` is one HTTP call but the chain can end at "real paper Alpaca order" if Reviewer auto-approves under `bounded_autonomous` — gate against the broker order. (The 2026-04-30 standing grant authorizes that downstream.)
+
+---
+
 ## Persona variation discipline
 
 Trading-only ≠ one persona. The current registry has two, and both are valid alpha-1 stress tests:
@@ -90,3 +107,4 @@ The contract evaluation at end of paper-discipline phase compares **money-truth 
 | Date | Change |
 |------|--------|
 | 2026-04-30 | v1 — Initial scope decision. Trading-only + money-truth + cost-truth contract + alpha-commerce parked. Authored after the post-refactor-wave readiness pass (2026-04-29 observation note + Pass 1–4 alpha-doc refresh + Bug 1 + Bug 2 fixes). |
+| 2026-04-30 | v2 — Added §"Authority + authorization (operator-on-behalf invariant)" cross-linking the new §axiom + §"Standing authorizations" sections in CLAUDE-OPERATOR-ACCESS.md. Same-day hardening of the architectural-authority vs invocation-authorization distinction triggered by the smoke-test exchange. Notes the active 2026-04-30 standing grant for order approval on alpha accounts. |
