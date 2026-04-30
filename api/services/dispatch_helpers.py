@@ -1192,6 +1192,12 @@ async def _generate(
         from services.orchestration import has_asset_capabilities
         if has_asset_capabilities(role):
             max_tool_rounds = max(max_tool_rounds, 6)
+        # Trading accumulation recurrences fetch N tickers via platform API
+        # (1 call per ticker) then write N entity files back — the default
+        # cross_platform budget of 8 rounds is exhausted before write-back.
+        # Bump to 20 for any recurrence that declares read_trading capability.
+        if "read_trading" in (task_required_capabilities or []):
+            max_tool_rounds = max(max_tool_rounds, 20)
 
     if tool_overrides is not None:
         headless_tools = tool_overrides
