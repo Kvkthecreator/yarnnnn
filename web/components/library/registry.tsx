@@ -33,10 +33,12 @@ import { KernelTrackingActions } from './kernel-chrome/KernelTrackingActions';
 import { KernelActionActions } from './kernel-chrome/KernelActionActions';
 import { KernelMaintenanceActions } from './kernel-chrome/KernelMaintenanceActions';
 
-// alpha-trader bundle components (ADR-242 Phase 2)
+// alpha-trader bundle components (ADR-242 Phase 2 + ADR-243 Phase C)
 import { TraderMoneyTruth } from './TraderMoneyTruth';
 import { TraderSignalExpectancy } from './TraderSignalExpectancy';
 import { TraderPositions } from './TraderPositions';
+import { TraderPortfolio } from './TraderPortfolio';
+import { TraderOrders } from './TraderOrders';
 
 /**
  * Standard prop bag passed to every library component. Components
@@ -68,9 +70,11 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   // performance.components, tracking.operational_state}. Future bundles
   // (alpha-commerce, etc.) register their own components here following
   // the same pattern.
+  TraderPortfolio: () => <TraderPortfolio />,
   TraderMoneyTruth: () => <TraderMoneyTruth />,
   TraderSignalExpectancy: (props) => <TraderSignalExpectancy {...props} />,
   TraderPositions: (props) => <TraderPositions {...props} />,
+  TraderOrders: () => <TraderOrders />,
 };
 
 /**

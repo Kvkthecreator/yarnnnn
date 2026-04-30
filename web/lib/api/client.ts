@@ -573,7 +573,7 @@ export const api = {
       }),
   },
 
-  // ADR-242: Cockpit operator-facing surfaces (live platform reads).
+  // ADR-242 + ADR-243 Phase C: Cockpit live platform reads.
   // Auth-scoped only — endpoints derive user_id from session, no path param.
   cockpit: {
     moneyTruth: () =>
@@ -590,6 +590,65 @@ export const api = {
         as_of?: string;
         fallback_reason?: 'no_platform_connection' | 'alpaca_unreachable' | 'no_credentials';
       }>("/api/cockpit/money-truth"),
+
+    // ADR-243 Phase C: portfolio equity history for TraderPortfolio chart.
+    portfolioHistory: (period = '1M', timeframe = '1D') =>
+      request<{
+        live: boolean;
+        paper?: boolean;
+        period?: string;
+        timeframe?: string;
+        data?: {
+          timestamps: number[];
+          equity: number[];
+          profit_loss: number[];
+          profit_loss_pct: number[];
+          base_value: number;
+        } | null;
+        fallback_reason?: string;
+      }>(`/api/cockpit/portfolio-history?period=${period}&timeframe=${timeframe}`),
+
+    // ADR-243 Phase C: open positions for TraderPositions.
+    positions: () =>
+      request<{
+        live: boolean;
+        paper?: boolean;
+        positions: Array<{
+          symbol: string;
+          qty: string;
+          side: string;
+          market_value: string;
+          cost_basis: string;
+          avg_entry_price: string;
+          current_price: string;
+          unrealized_pl: string;
+          unrealized_plpc: string;
+          change_today: string;
+        }>;
+        fallback_reason?: string;
+      }>("/api/cockpit/positions"),
+
+    // ADR-243 Phase C: recent orders for TraderOrders.
+    recentOrders: (limit = 10) =>
+      request<{
+        live: boolean;
+        paper?: boolean;
+        orders: Array<{
+          id: string;
+          symbol: string;
+          side: string;
+          qty: string;
+          filled_qty: string;
+          type: string;
+          time_in_force: string;
+          limit_price?: string | null;
+          filled_avg_price?: string | null;
+          status: string;
+          created_at: string;
+          filled_at?: string | null;
+        }>;
+        fallback_reason?: string;
+      }>(`/api/cockpit/recent-orders?limit=${limit}`),
   },
 
   // ADR-231: Recurrences endpoints (was `tasks`; renamed in Phase 3.8)

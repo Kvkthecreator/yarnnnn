@@ -38,12 +38,20 @@ tabs:
         # Operator (or YARNNN) can reorder by editing `order` values,
         # or suppress a section by removing its entry.
         program_sections:
-          - kind: TraderMoneyTruth
+          # ADR-243 Phase C: full trader section stack.
+          # Operator can reorder by editing `order` values; suppress a
+          # section by removing its entry. YARNNN can edit this file via
+          # WriteFile on request.
+          - kind: TraderPortfolio       # portfolio equity chart + headline
             order: 1
-          - kind: TraderSignalExpectancy
+          - kind: TraderMoneyTruth      # balances: buying power, cash, day Δ
             order: 2
-          - kind: TraderPositions
+          - kind: TraderSignalExpectancy # signal expectancy table
             order: 3
+          - kind: TraderPositions       # open positions table
+            order: 4
+          - kind: TraderOrders          # recent orders
+            order: 5
 
     # No detail middles. Per ADR-228 the bundle-shaped specifics for
     # alpha-trader (positions, risk gauge, performance attribution,

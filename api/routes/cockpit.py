@@ -24,7 +24,7 @@ live-snapshot path. No parallel surface elsewhere.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -181,3 +181,123 @@ async def get_money_truth(auth: UserClient) -> MoneyTruthResponse:
         positions_count=len(positions) if isinstance(positions, list) else 0,
         as_of=datetime.now(timezone.utc).isoformat(),
     )
+
+
+# ---------------------------------------------------------------------------
+# Shared credential helper — DRY pattern for the three cockpit endpoints.
+# ---------------------------------------------------------------------------
+
+async def _get_alpaca_credentials(auth: UserClient):
+    """Read + decrypt Alpaca credentials for the authed operator.
+
+    Returns (api_key, api_secret, paper) or raises HTTPException on failure.
+    Used by all three Phase C cockpit endpoints.
+    """
+    from integrations.core.tokens import get_token_manager
+
+    result = (
+        auth.client.table("platform_connections")
+        .select("credentials_encrypted, metadata, status")
+        .eq("user_id", auth.user_id)
+        .eq("platform", "trading")
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    if not rows or rows[0].get("status") != "active":
+        raise HTTPException(status_code=404, detail="Trading platform not connected")
+
+    encrypted = rows[0].get("credentials_encrypted")
+    if not encrypted:
+        raise HTTPException(status_code=422, detail="No trading credentials stored")
+
+    token_manager = get_token_manager()
+    try:
+        decrypted = token_manager.decrypt(encrypted)
+        if ":" not in decrypted:
+            raise ValueError("bad format")
+        api_key, api_secret = decrypted.split(":", 1)
+    except Exception:
+        raise HTTPException(status_code=422, detail="Failed to decrypt trading credentials")
+
+    paper = bool((rows[0].get("metadata") or {}).get("paper", True))
+    return api_key, api_secret, paper
+
+
+# ---------------------------------------------------------------------------
+# GET /cockpit/portfolio-history
+# ---------------------------------------------------------------------------
+
+@router.get("/portfolio-history")
+async def get_portfolio_history(
+    auth: UserClient,
+    period: str = "1M",
+    timeframe: str = "1D",
+) -> Dict:
+    """ADR-243 Phase C: portfolio equity history for TraderPortfolio chart.
+
+    Returns timestamps + equity series for the selected period/timeframe.
+    On Alpaca error, returns {live: False, fallback_reason: ...}.
+    """
+    try:
+        api_key, api_secret, paper = await _get_alpaca_credentials(auth)
+    except HTTPException as e:
+        return {"live": False, "fallback_reason": "no_platform_connection", "data": None}
+
+    from integrations.core.alpaca_client import get_trading_client
+    client = get_trading_client()
+    try:
+        history = await client.get_portfolio_history(api_key, api_secret, paper, period, timeframe)
+        if isinstance(history, dict) and history.get("error"):
+            return {"live": False, "fallback_reason": "alpaca_unreachable", "data": None}
+        return {"live": True, "paper": paper, "period": period, "timeframe": timeframe, "data": history}
+    except Exception as exc:
+        logger.warning(f"[COCKPIT] portfolio_history failed for {auth.user_id[:8]}: {exc}")
+        return {"live": False, "fallback_reason": "alpaca_unreachable", "data": None}
+
+
+# ---------------------------------------------------------------------------
+# GET /cockpit/positions
+# ---------------------------------------------------------------------------
+
+@router.get("/positions")
+async def get_positions(auth: UserClient) -> Dict:
+    """ADR-243 Phase C: open positions for TraderPositions component."""
+    try:
+        api_key, api_secret, paper = await _get_alpaca_credentials(auth)
+    except HTTPException:
+        return {"live": False, "fallback_reason": "no_platform_connection", "positions": []}
+
+    from integrations.core.alpaca_client import get_trading_client
+    client = get_trading_client()
+    try:
+        positions = await client.get_positions(api_key, api_secret, paper)
+        return {"live": True, "paper": paper, "positions": positions}
+    except Exception as exc:
+        logger.warning(f"[COCKPIT] positions failed for {auth.user_id[:8]}: {exc}")
+        return {"live": False, "fallback_reason": "alpaca_unreachable", "positions": []}
+
+
+# ---------------------------------------------------------------------------
+# GET /cockpit/recent-orders
+# ---------------------------------------------------------------------------
+
+@router.get("/recent-orders")
+async def get_recent_orders(
+    auth: UserClient,
+    limit: int = 10,
+) -> Dict:
+    """ADR-243 Phase C: recent orders for TraderOrders component."""
+    try:
+        api_key, api_secret, paper = await _get_alpaca_credentials(auth)
+    except HTTPException:
+        return {"live": False, "fallback_reason": "no_platform_connection", "orders": []}
+
+    from integrations.core.alpaca_client import get_trading_client
+    client = get_trading_client()
+    try:
+        orders = await client.list_orders(api_key, api_secret, paper, status="all", limit=limit)
+        return {"live": True, "paper": paper, "orders": orders}
+    except Exception as exc:
+        logger.warning(f"[COCKPIT] recent_orders failed for {auth.user_id[:8]}: {exc}")
+        return {"live": False, "fallback_reason": "alpaca_unreachable", "orders": []}
