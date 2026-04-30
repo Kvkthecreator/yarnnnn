@@ -223,6 +223,19 @@ function buildContextNodes(input: {
   ].filter((n): n is TreeNode => n !== null);
 }
 
+// Map ADR-209 authored_by taxonomy to operator-readable labels.
+// Same mapping as ContentViewer's formatHeadAuthor (shipped Cluster B).
+function formatAuthorLabel(authored_by: string | null | undefined): string | null {
+  if (!authored_by) return null;
+  if (authored_by === 'operator') return 'You';
+  if (authored_by.startsWith('yarnnn:')) return 'YARNNN';
+  if (authored_by.startsWith('agent:')) return `Agent (${authored_by.slice('agent:'.length)})`;
+  if (authored_by.startsWith('specialist:')) return `Specialist`;
+  if (authored_by.startsWith('reviewer:')) return 'Reviewer';
+  if (authored_by.startsWith('system:')) return 'System';
+  return null;
+}
+
 function getNodeMetadata(node: TreeNode): string {
   const parts: string[] = [node.type === 'folder' ? 'Folder' : 'File'];
 
@@ -239,6 +252,14 @@ function getNodeMetadata(node: TreeNode): string {
 
   if (node.updated_at) {
     parts.push(`Updated ${formatNodeTimestamp(node.updated_at)}`);
+  }
+
+  // ADR-209 head-revision attribution: show "Last edited by {author}"
+  // when authored_by is present on the node (populated by the tree
+  // endpoint's workspace_file_versions FK embed).
+  const authorLabel = formatAuthorLabel((node as any).authored_by);
+  if (authorLabel) {
+    parts.push(`Last edited by ${authorLabel}`);
   }
 
   return parts.join(' · ');

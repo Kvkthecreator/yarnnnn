@@ -81,6 +81,21 @@ function TreeItem({ node, depth, selectedPath, onSelect }: TreeItemProps) {
         {!isFolder && <span className="w-3.5" />}
         {fileIcon}
         <span className="truncate flex-1">{node.name}</span>
+        {/* ADR-209: authored_by from head revision — compact right-edge
+            label so the operator can see at a glance who last touched
+            each file without opening it. Only shown for file nodes
+            (not folders) when authored_by is populated. */}
+        {!isFolder && node.authored_by && (
+          <span className="shrink-0 text-[9px] text-muted-foreground/40 ml-1">
+            {node.authored_by === 'operator' ? 'You'
+              : node.authored_by.startsWith('yarnnn:') ? 'TP'
+              : node.authored_by.startsWith('agent:') ? 'Agent'
+              : node.authored_by.startsWith('specialist:') ? 'Spec.'
+              : node.authored_by.startsWith('reviewer:') ? 'Rev.'
+              : node.authored_by.startsWith('system:') ? 'Sys'
+              : null}
+          </span>
+        )}
       </button>
       {isFolder && expanded && node.children && (
         <div>

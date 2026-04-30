@@ -629,6 +629,10 @@ export interface WorkspaceTreeNode {
   updated_at?: string;
   summary?: string;
   children?: WorkspaceTreeNode[];
+  // ADR-209 head-revision attribution — populated by the tree endpoint
+  // when head_version_id FK resolves (may be undefined for files that
+  // predate ADR-209 Phase 2 or haven't been attributed yet).
+  authored_by?: string | null;
 }
 
 export interface WorkspaceFile {

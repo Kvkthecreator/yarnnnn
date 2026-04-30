@@ -410,12 +410,24 @@ async def get_workspace_tree(
 
     Queries workspace_files for all paths under the root, then builds
     a folder/file tree structure. Supports /workspace/, /agents/, /tasks/.
+
+    ADR-209 authored substrate enrichment: includes head-revision
+    authored_by via the head_version_id FK → workspace_file_versions.
+    PostgREST embedded select resolves the FK automatically. When
+    head_version_id is NULL (file predates ADR-209 Phase 2 or hasn't
+    been attributed yet), authored_by falls back to None and the FE
+    shows the updated_at timestamp without an author label.
     """
     try:
-        # Query all files under this root
+        # ADR-209: include head revision authored_by via FK embed.
+        # workspace_file_versions!head_version_id resolves the FK named
+        # head_version_id on workspace_files → workspace_file_versions.id.
         result = (
             auth.client.table("workspace_files")
-            .select("path, updated_at, summary")
+            .select(
+                "path, updated_at, summary, "
+                "workspace_file_versions!head_version_id(authored_by, created_at)"
+            )
             .eq("user_id", auth.user_id)
             .like("path", f"{root}/%")
             .order("path")
@@ -423,6 +435,18 @@ async def get_workspace_tree(
             .execute()
         )
         rows = result.data or []
+
+        # Normalize: lift authored_by + revision created_at from nested embed.
+        # PostgREST returns the embed as a dict (single FK row) or None.
+        for row in rows:
+            embed = row.pop("workspace_file_versions", None) or {}
+            row["authored_by"] = embed.get("authored_by")
+            # Use revision created_at as the authoritative "last edited" time
+            # when available; fall back to workspace_files.updated_at.
+            if embed.get("created_at"):
+                row["revision_at"] = embed["created_at"]
+            else:
+                row["revision_at"] = row.get("updated_at")
 
         # Build tree from flat paths
         tree = _build_tree(rows, root)
@@ -811,13 +835,17 @@ def _build_tree(rows: list[dict], root: str) -> list[dict]:
                 if new_ts > existing_ts:
                     folders[folder_path]["updated_at"] = new_ts
 
-        # Register the file itself
+        # Register the file itself.
+        # authored_by + revision_at are set by the tree endpoint when it
+        # reads the head_version_id FK embed (ADR-209). They may be None
+        # for pre-ADR-209 files or files whose head_version_id is NULL.
         files.append({
             "name": parts[-1],
             "path": full_path,
             "type": "file",
-            "updated_at": row.get("updated_at"),
+            "updated_at": row.get("revision_at") or row.get("updated_at"),
             "summary": row.get("summary"),
+            "authored_by": row.get("authored_by"),
         })
 
     # Build parent→children relationships
