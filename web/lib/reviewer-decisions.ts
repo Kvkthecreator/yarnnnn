@@ -1,6 +1,14 @@
 /**
- * Reviewer decisions parser — shared across `/agents?agent=reviewer`
- * (DecisionsStreamPane) and the Snapshot overlay on /chat (Recent tab).
+ * Reviewer decisions parser — canonical FE parser for the verdict log.
+ *
+ * Consumers (post-ADR-241):
+ *   - DecisionsStream (web/components/work/details/DecisionsStream.tsx)
+ *     — full Stream archetype on /work
+ *   - PerformanceFace calibration aggregate (via aggregateReviewerCalibration)
+ *
+ * Pre-ADR-241 the Stream consumer lived at
+ * web/components/agents/reviewer/DecisionsStreamPane.tsx; that surface
+ * collapsed into TP per ADR-241 D3 and the consumer relocated.
  *
  * Decisions live in `/workspace/review/decisions.md` as append-only blocks
  * per ADR-194 v2 Phase 2a:

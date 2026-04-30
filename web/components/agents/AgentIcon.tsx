@@ -5,8 +5,9 @@
  *
  * Single source of truth for which icon represents each agent role.
  * Icon names are declared in agent-identity.ts (ROLE_META.iconName) and
- * resolved here to the actual lucide component. Both AgentRosterSurface
- * and AgentContentView import this — no icon logic lives in either surface.
+ * resolved here to the actual lucide component. AgentContentView imports
+ * this — no icon logic lives in the surface itself. (AgentRosterSurface
+ * was deleted by ADR-241 along with the roster page.)
  */
 
 import {

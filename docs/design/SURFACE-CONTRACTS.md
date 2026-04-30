@@ -96,14 +96,13 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
 
 - **Archetype:** List (list mode) + Dashboard (detail mode, per ADR-167 v2). Reviewer decisions stream is a Stream archetype embed inside Reviewer detail.
 - **Reads:** `agents` table filtered to principals (YARNNN `thinking_partner` + user-authored domain agents, per ADR-189 origin filter + ADR-214 synthesized Reviewer pseudo-agent), plus each agent's filesystem home (`/workspace/agents/{slug}/*` or `/workspace/review/*` for Reviewer).
-- **List mode** (no `?agent=`): two sections, always in this order:
-  - **Systemic** — exactly two cards: YARNNN and Reviewer. Unconditional. Rendered even on cold-start workspaces.
-  - **Domain** — user-authored instance agents, zero-to-many. This is the authored-team moat (ADR-189); empty state is a real product state, not an error.
-- **Detail mode** (`?agent={slug}`): dispatches on `agent_class` per ADR-214:
-  - `thinking_partner` (YARNNN) → IDENTITY card + health card + memory substrate panes (AGENT.md edits flow through primitives — judgment-shaped per R1)
-  - `reviewer` → ReviewerDetailView: identity card + principles pane (Dashboard read + "Edit on Files" deep-link per R3) + decisions stream (Stream archetype, append-only)
-  - domain agents → IDENTITY card + health card + AGENT.md + memory/style substrate panes (AGENT.md edits flow through primitives)
-- **`+` menu:** none. Authoring a domain agent is **judgment-shaped** (operator describes a gap; YARNNN proposes the agent shape; substrate gets written) — this is Chat territory per R1 + R2. The Agents tab's header carries an "Author in chat" button (R5 phrasing: "Edit in chat") seeding the prompt. No `AuthorAgentModal`.
+- **List mode** — **DELETED by ADR-241** (2026-04-30). Post-ADR-235 D2 (no user-authored agent creation), the roster was always-empty ceremony. `/agents` (no query param) redirects directly to `?agent=thinking-partner`. If a future ADR re-introduces user-authored Agents, the roster reappears.
+- **Detail mode** (`?agent={slug}`): dispatches on `agent_class`:
+  - `thinking_partner` (YARNNN) → tab-based detail (Identity / Principles / Tasks per ADR-241 D2). The Principles tab renders `/workspace/review/principles.md` — the judgment framework TP applies to verdicts.
+  - `reviewer` → **redirects to `?agent=thinking-partner&tab=principles`** per ADR-241 D3. Legacy URL preserved for bookmark + ADR-194 cross-link integrity; substrate (`/workspace/review/`) unchanged.
+  - domain agents → IDENTITY card + health card + AGENT.md + memory/style substrate panes (AGENT.md edits flow through primitives). User-authored Agents not currently creatable per ADR-235 D2; existing rows tolerated.
+- **Decisions surface** (`/work` Decisions tab) — Stream archetype over `/workspace/review/decisions.md` lives on `/work` per ADR-241 D3, not `/agents`. The actionable consequence of judgment lives where proposals live.
+- **`+` menu:** none. Per ADR-235 D2, no chat-surface pathway to create user-authored Agents.
 - **Deep-links out:** each agent's files on Files (`/context?path=/workspace/agents/{slug}/AGENT.md`), the agent's tasks filtered on Work (`/work?agent={slug}`), and Chat with the agent preselected (`/chat?agent={slug}`).
 - **Refuses:**
   - Task management (tasks live on Work; this tab shows agent *identity*, not agent *work*)
@@ -264,6 +263,8 @@ zero inbound   1 inbound   2 inbound   3 inbound
 Each phase lands with: code changes + this doc's contract section updated in the same commit + `docs/design/CHANGELOG.md` entry. No phase ships without the contract change — that discipline is what prevents ADR-215's motivation from recurring.
 
 ### Implementation status
+
+> **Supersession note (2026-04-30, ADR-236 Cluster A + ADR-241):** Phase 2's `<SubstrateEditor>` was deleted by ADR-236 Round 5 Cluster A — every file now routes to chat for edits via `<EditInChatButton>` per the original ADR-236 assessment ("not notion-like, streamline back to edit via Chat"). Phase 3's `PrinciplesPane` and `ReviewerDetailView` were deleted by ADR-241 — Reviewer surface collapsed into Thinking Partner (Principles became a TP tab; Decisions relocated to `/work`). The `editable_prefixes` allowlist on the backend stays — chat's WriteFile primitive uses it server-side. The Phase 2/3 entries below are preserved verbatim per ADR-236 Rule 2 (historical record); for current canonical state see the §"Cockpit nav" topology above + the per-tab contracts.
 
 - **Phase 1 — Contracts + CRUD matrix** — **Implemented 2026-04-24** (commit `936eacc`). ADR-215 + this doc + four archive supersedes + CHANGELOG entry.
 - **Phase 2 — Files hardening** — **Implemented 2026-04-24**. `<EditInChatButton>` shared component landed at `web/components/shared/EditInChatButton.tsx` (R5 single label). `<SubstrateEditor>` landed at `web/components/workspace/SubstrateEditor.tsx` with `isSubstrateEditable()` predicate covering `/workspace/context/_shared/{IDENTITY,BRAND,CONVENTIONS,MANDATE}.md`. `ManageContextModal.tsx` deleted. `ContentViewer.tsx` refactored — substrate-editable files render inline editor, non-substrate files keep chat-draft affordance. Backend `editable_prefixes` gained `MANDATE.md`. Labels normalized across `WorkDetail.tsx` and `PrinciplesPane.tsx` to R5 ("Edit in chat"). Phase 2 follow-up (MemorySection on `/settings`) closed same day in the Settings cleanup commit — see CHANGELOG entry "Settings > Memory tab retirement." TypeScript pass.
