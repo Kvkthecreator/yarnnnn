@@ -287,12 +287,24 @@ async def chat_completion_stream(
             yield text
 
 
+_PRUNED_STUB = (
+    "[Prior tool succeeded — content pruned from window to save tokens. "
+    "Trust your earlier reasoning; do NOT re-call the same tool to recover this data.]"
+)
+
+
 def _microcompact_tool_history(messages: list[dict], keep_recent: int = 3) -> None:
     """Clear old tool results from message history to prevent geometric growth.
 
     CC-style microcompact: replaces tool_result content older than the last N
     results with a stub. The model retains tool_use_id linkage but doesn't
     re-process full content on subsequent rounds.
+
+    The stub text is deliberately legible: it tells the model the prior call
+    *succeeded* (not failed) and that re-calling will not recover the data.
+    Without this, the model sees the stub on round N+1 and loops trying to
+    re-fetch what it already had — exhausting max_tool_rounds without
+    producing a final response.
 
     Mutates messages in place.
     """
@@ -307,8 +319,8 @@ def _microcompact_tool_history(messages: list[dict], keep_recent: int = 3) -> No
     to_clear = positions[:-keep_recent] if len(positions) > keep_recent else []
     for msg_idx, block_idx in to_clear:
         block = messages[msg_idx]["content"][block_idx]
-        if block.get("content") != "[Prior tool result cleared]":
-            block["content"] = "[Prior tool result cleared]"
+        if block.get("content") != _PRUNED_STUB:
+            block["content"] = _PRUNED_STUB
 
 
 @dataclass

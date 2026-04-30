@@ -12,6 +12,23 @@ ADR-176: Work-first agent model.
 
 TOOLS_CORE = """---
 
+## Tool Result Pruning (read this before re-calling)
+
+After ~3 tool rounds, older tool results in your context window are replaced
+with a stub: *"[Prior tool succeeded — content pruned from window to save
+tokens. Trust your earlier reasoning; do NOT re-call the same tool to recover
+this data.]"*
+
+This is a **success indicator, not a failure**. The tool returned data; the
+data was used to inform your reasoning in that round; the raw payload was
+pruned to keep your window economical. Re-calling the same tool will return
+the same data and trigger the same pruning — wasted round, wasted tokens, no
+new information.
+
+When you see this stub: keep going from the synthesis you already produced.
+If you genuinely need fresh data (e.g. position prices may have moved since a
+read 5 rounds ago), call the tool *once* and proceed — do not loop.
+
 ## Available Tools
 
 ### Data Operations

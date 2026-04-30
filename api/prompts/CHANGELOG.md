@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.30.4] - Microcompact stub legibility — make pruned tool results unambiguous
+
+### Changed
+- `api/services/anthropic.py::_microcompact_tool_history` — stub text changed from `"[Prior tool result cleared]"` to `"[Prior tool succeeded — content pruned from window to save tokens. Trust your earlier reasoning; do NOT re-call the same tool to recover this data.]"`. Stub extracted to module-level `_PRUNED_STUB` constant. Docstring extended with the failure-mode rationale.
+- `api/agents/prompts/tools_core.py::TOOLS_CORE` — adds new top section "## Tool Result Pruning (read this before re-calling)" right above "## Available Tools". Tells YARNNN explicitly that the stub is a success indicator, not a failure, and that re-calling the same tool wastes a round.
+
+### Why
+- Observed live failure mode (alpha-trader-2 cockpit, 2026-04-30): YARNNN made ~20 tool calls in a single trade-decision turn, looped on `get_account` / `get_positions` / `_performance.md` re-reads after round 3, narrated "tool calls are returning cleared/truncated results", and never reached a `propose_action`. Root cause: the literal stub `"[Prior tool result cleared]"` reads as "the tool failed" rather than "the tool succeeded and was pruned." Each re-call triggered another microcompact, pruning successful earlier reads, accelerating the loop.
+- Singular implementation: stub text is the single source of truth (one constant, one prompt note). No dual paths.
+
+### Behavior
+- After ~3 tool rounds, YARNNN should now read the stub correctly as "you already have this data" and proceed to synthesis instead of re-calling.
+- No change to microcompact logic itself (`keep_recent=3` retained). If looping recurs, next-step fixes (bundle-overlay posture, `keep_recent` bump) follow per the alpha-trader-2 investigation thread.
+
+---
+
 ## [2026.04.30.3] - ADR-242 Phase 2 — Bundle components + face dispatch
 
 ### Added
