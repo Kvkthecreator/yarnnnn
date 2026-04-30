@@ -77,7 +77,7 @@ tagline: Equities + options operator workflow with continuous-price oracle.
 # Mirrors the prose Oracle table in README.md but typed.
 oracle:
   shape: continuous_price       # continuous_price | terminal_binary | onchain_settled | other
-  source: alpaca + alpha_vantage
+  source: alpaca + polygon
   latency: intraday_marks_daily_settles
   irreversibility: reversible   # reversible | capped | irreversible
   custody: brokerage_held       # brokerage_held | self_custody | platform_held | other

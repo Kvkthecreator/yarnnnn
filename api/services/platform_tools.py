@@ -557,7 +557,7 @@ COMMERCE_WRITE_TOOLS = [
 
 
 # =============================================================================
-# ADR-187: Trading Platform Tools (Alpaca + Alpha Vantage)
+# ADR-187: Trading Platform Tools (Alpaca + Polygon.io)
 # =============================================================================
 
 TRADING_TOOLS = [
@@ -600,7 +600,7 @@ TRADING_TOOLS = [
     },
     {
         "name": "platform_trading_get_market_data",
-        "description": "Get daily price data for a ticker: open, high, low, close, volume. Returns last 30 trading days.",
+        "description": "Get daily price data for a ticker: open, high, low, close, volume. Returns last 30 trading days. Uses Alpaca data API; falls back to Polygon.io.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -1831,7 +1831,7 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             api_key, api_secret, ticker, timeframe=timeframe,
         )
 
-        # Fall back to Alpha Vantage if Alpaca returns empty and key is available
+        # Fall back to Polygon.io if Alpaca returns empty and key is available
         if not bars and metadata.get("market_data_key"):
             bars = await trading_client.get_daily_prices(
                 metadata["market_data_key"], ticker,

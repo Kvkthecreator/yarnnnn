@@ -9,7 +9,7 @@ tagline: Equities + options operator workflow with continuous-price oracle. Self
 
 oracle:
   shape: continuous_price
-  source: alpaca + alpha_vantage
+  source: alpaca + polygon
   latency: intraday_marks_daily_settles
   irreversibility: reversible
   custody: brokerage_held
@@ -23,7 +23,7 @@ dependencies:
     - adr: ADR-194          # Reviewer with capital-EV reasoning
     - adr: ADR-217          # AUTONOMY.md delegation file
     - adr: ADR-181          # source-agnostic feedback (system_outcome)
-    - adr: ADR-187          # Trading integration (Alpaca + Alpha Vantage)
+    - adr: ADR-187          # Trading integration (Alpaca + Polygon.io)
     - adr: ADR-202          # action proposal queue with approval/rejection
     - capability: read_trading
     - capability: write_trading

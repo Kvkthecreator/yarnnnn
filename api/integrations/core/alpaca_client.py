@@ -6,14 +6,16 @@ Uses Alpaca REST API v2 with API key + secret auth.
 
 Two API surfaces via one client:
 - Alpaca Trading API: account, positions, orders, portfolio history
-- Alpha Vantage API: daily prices, fundamentals (market data key in connection metadata)
+- Polygon.io API: daily OHLCV bars (market data key in connection metadata)
 
 Paper vs. live trading determined by base URL:
 - Paper: https://paper-api.alpaca.markets
 - Live:  https://api.alpaca.markets
 
-Market data (bars) uses Alpaca's data API:
-- https://data.alpaca.markets
+Market data (bars) uses Alpaca's data API first (no extra key needed),
+falling back to Polygon.io when Alpaca returns empty.
+- https://data.alpaca.markets  (primary)
+- https://api.polygon.io       (fallback, requires market_data_key)
 """
 
 import asyncio
@@ -28,7 +30,7 @@ logger = logging.getLogger(__name__)
 ALPACA_PAPER_BASE = "https://paper-api.alpaca.markets"
 ALPACA_LIVE_BASE = "https://api.alpaca.markets"
 ALPACA_DATA_BASE = "https://data.alpaca.markets"
-ALPHA_VANTAGE_BASE = "https://www.alphavantage.co"
+POLYGON_BASE = "https://api.polygon.io"
 
 _TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 _MAX_RETRIES = 3
@@ -37,7 +39,7 @@ _RETRY_BACKOFF_SECONDS = [1, 2, 4]
 
 class AlpacaClient:
     """
-    Direct API client for Alpaca trading + Alpha Vantage market data.
+    Direct API client for Alpaca trading + Polygon.io market data.
 
     Usage:
         client = AlpacaClient()
@@ -134,15 +136,15 @@ class AlpacaClient:
 
         return {"error": f"Max retries exceeded: {last_error}"}
 
-    async def _request_alpha_vantage(
+    async def _request_polygon(
         self,
-        function: str,
+        path: str,
         market_data_key: str,
         params: Optional[dict] = None,
     ) -> Any:
-        """Make Alpha Vantage API request (simple GET, key-based auth)."""
-        url = f"{ALPHA_VANTAGE_BASE}/query"
-        all_params = {"function": function, "apikey": market_data_key}
+        """Make Polygon.io API request (simple GET, key-based auth)."""
+        url = f"{POLYGON_BASE}{path}"
+        all_params = {"apiKey": market_data_key}
         if params:
             all_params.update(params)
 
@@ -151,18 +153,16 @@ class AlpacaClient:
                 response = await client.get(url, params=all_params)
 
             if response.status_code == 200:
-                data = response.json()
-                # AV returns errors in-band as {"Note": ...} or {"Error Message": ...}
-                if "Error Message" in data:
-                    return {"error": data["Error Message"]}
-                if "Note" in data:
-                    return {"error": f"Rate limited: {data['Note']}"}
-                return data
+                return response.json()
 
-            return {"error": f"Alpha Vantage {response.status_code}"}
+            if response.status_code == 429:
+                logger.warning("[POLYGON] Rate limited")
+                return {"error": "rate_limited", "status": 429}
+
+            return {"error": f"Polygon {response.status_code}"}
 
         except Exception as e:
-            logger.error(f"[ALPHA_VANTAGE] Error: {e}")
+            logger.error(f"[POLYGON] Error: {e}")
             return {"error": str(e)}
 
     # =========================================================================
@@ -687,58 +687,64 @@ class AlpacaClient:
         ]
 
     # =========================================================================
-    # Alpha Vantage — Supplementary Market Data
+    # Polygon.io — Supplementary Market Data
     # =========================================================================
 
     async def get_daily_prices(
         self, market_data_key: str, symbol: str,
     ) -> list[dict]:
-        """Get daily OHLCV from Alpha Vantage (last 30 trading days)."""
-        result = await self._request_alpha_vantage(
-            "TIME_SERIES_DAILY",
+        """Get daily OHLCV from Polygon.io (last 30 trading days)."""
+        from_date = (datetime.now(timezone.utc) - timedelta(days=60)).strftime("%Y-%m-%d")
+        to_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        result = await self._request_polygon(
+            f"/v2/aggs/ticker/{symbol}/range/1/day/{from_date}/{to_date}",
             market_data_key,
-            params={"symbol": symbol, "outputsize": "compact"},
+            params={"adjusted": "true", "sort": "desc", "limit": 30},
         )
         if isinstance(result, dict) and result.get("error"):
             return []
 
-        time_series = result.get("Time Series (Daily)", {})
+        bars = result.get("results", [])
         prices = []
-        for date_str, values in sorted(time_series.items(), reverse=True)[:30]:
+        for b in bars[:30]:
+            # Polygon timestamps are milliseconds UTC
+            ts_ms = b.get("t", 0)
+            date_str = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
             prices.append({
                 "date": date_str,
-                "open": float(values.get("1. open", 0)),
-                "high": float(values.get("2. high", 0)),
-                "low": float(values.get("3. low", 0)),
-                "close": float(values.get("4. close", 0)),
-                "volume": int(values.get("5. volume", 0)),
+                "open": float(b.get("o", 0)),
+                "high": float(b.get("h", 0)),
+                "low": float(b.get("l", 0)),
+                "close": float(b.get("c", 0)),
+                "volume": int(b.get("v", 0)),
             })
         return prices
 
     async def get_fundamentals(
         self, market_data_key: str, symbol: str,
     ) -> dict:
-        """Get company fundamentals from Alpha Vantage."""
-        result = await self._request_alpha_vantage(
-            "OVERVIEW",
+        """Get company details from Polygon.io ticker details endpoint."""
+        result = await self._request_polygon(
+            f"/v3/reference/tickers/{symbol}",
             market_data_key,
-            params={"symbol": symbol},
         )
         if isinstance(result, dict) and result.get("error"):
             return result
 
+        details = result.get("results", {})
+        branding = details.get("branding", {})
         return {
-            "name": result.get("Name", ""),
-            "description": result.get("Description", ""),
-            "sector": result.get("Sector", ""),
-            "industry": result.get("Industry", ""),
-            "market_cap": result.get("MarketCapitalization", ""),
-            "pe_ratio": result.get("PERatio", ""),
-            "dividend_yield": result.get("DividendYield", ""),
-            "52_week_high": result.get("52WeekHigh", ""),
-            "52_week_low": result.get("52WeekLow", ""),
-            "50_day_ma": result.get("50DayMovingAverage", ""),
-            "200_day_ma": result.get("200DayMovingAverage", ""),
+            "name": details.get("name", ""),
+            "description": details.get("description", ""),
+            "sector": details.get("sic_description", ""),
+            "industry": details.get("sic_description", ""),
+            "market_cap": str(details.get("market_cap", "")),
+            "pe_ratio": "",  # not in Polygon ticker details
+            "dividend_yield": "",  # not in Polygon ticker details
+            "52_week_high": "",  # available via snapshot endpoint if needed
+            "52_week_low": "",
+            "50_day_ma": "",
+            "200_day_ma": "",
         }
 
     # =========================================================================

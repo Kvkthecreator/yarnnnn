@@ -14,7 +14,7 @@ When this program needs work that would also serve alpha-prediction or alpha-def
 
 | Property | Value |
 |---|---|
-| Oracle source | Equity prices (Alpaca + Alpha Vantage), broker-confirmed fills |
+| Oracle source | Equity prices (Alpaca + Polygon.io), broker-confirmed fills |
 | Latency | Intraday marks, daily settles |
 | Attribution | Per-position P&L; per-strategy via signal attribution in proposal |
 | Action space | Buy / sell / size / hold; stop + target on every order |
