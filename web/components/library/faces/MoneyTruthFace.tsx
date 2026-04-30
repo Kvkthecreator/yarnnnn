@@ -29,6 +29,8 @@ import Link from 'next/link';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useComposition } from '@/lib/compositor';
+// ADR-242 Phase 2: bundle override dispatch
+import { TraderMoneyTruth } from '../TraderMoneyTruth';
 
 interface MoneyTruthMeta {
   pnl_30d_pct?: number;
@@ -73,8 +75,25 @@ function readMoneyTruthSource(composition: ReturnType<typeof useComposition>['da
   return cockpit?.cockpit?.money_truth?.substrate_fallback ?? DEFAULT_FALLBACK;
 }
 
+// ADR-242 Phase 2: read bundle live_source declaration for dispatch.
+function readLiveSource(composition: ReturnType<typeof useComposition>['data']): string | undefined {
+  const cockpit = composition.composition.tabs?.work?.list as { cockpit?: { money_truth?: { live_source?: string } } } | undefined;
+  return cockpit?.cockpit?.money_truth?.live_source;
+}
+
 export function MoneyTruthFace() {
   const { data: composition } = useComposition();
+
+  // ADR-242 D4: dispatch branch. When the bundle declares live_source
+  // (today: 'alpaca' for alpha-trader), render the bundle component.
+  // The bundle component handles its own substrate-fallback degradation
+  // when the live source is unreachable. Singular Implementation: kernel
+  // and bundle render do not coexist visually — one path per workspace.
+  const liveSource = readLiveSource(composition);
+  if (liveSource === 'alpaca') {
+    return <TraderMoneyTruth />;
+  }
+
   const path = readMoneyTruthSource(composition);
 
   const [meta, setMeta] = useState<MoneyTruthMeta | null>(null);

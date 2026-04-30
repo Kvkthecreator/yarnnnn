@@ -292,10 +292,32 @@ function ProposalRow({
 
 // ─── Region 2 ────────────────────────────────────────────────────────────────
 
+import { dispatchComponent } from '../registry';
+import { useComposition as useCompositionForOpState } from '@/lib/compositor';
+
 function OperationalState() {
-  // Phase 1: kernel-placeholder shape. The bundle-declared component
-  // (positions table for trader, campaigns table for commerce) wires in
-  // ADR-228 Commit 4. For now, link out to the most-likely substrate.
+  // ADR-242 D4 Phase 2: when the bundle declares
+  // `cockpit.tracking.operational_state` with a `kind`, dispatch the
+  // bundle component. Else fall through to the kernel placeholder.
+  // Singular Implementation: one render path per workspace state.
+  const { data: composition } = useCompositionForOpState();
+  const opState = (composition.composition.tabs?.work?.list as {
+    cockpit?: { tracking?: { operational_state?: { kind: string; source?: string } } }
+  } | undefined)?.cockpit?.tracking?.operational_state;
+
+  if (opState?.kind && opState.source) {
+    return (
+      <div className="mb-5">
+        {dispatchComponent(
+          { kind: opState.kind, source: '__opstate__' },
+          { __opstate__: { type: 'file', path: opState.source } },
+        )}
+      </div>
+    );
+  }
+
+  // Kernel placeholder fallthrough — for workspaces without a bundle
+  // declaring operational_state.
   return (
     <div className="mb-5">
       <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -305,8 +327,8 @@ function OperationalState() {
         href="/context?path=%2Fworkspace%2Fcontext%2Fportfolio%2F"
         className="block rounded-md border border-dashed border-border bg-muted/20 px-3 py-3 text-sm text-muted-foreground hover:bg-muted/30"
       >
-        Open positions, active campaigns, and watchlist freshness render here
-        once the bundle binding is wired (ADR-228 Commit 4).
+        Activate a program with operational substrate (e.g., alpha-trader)
+        to render positions / active campaigns / watchlist here.
       </Link>
     </div>
   );

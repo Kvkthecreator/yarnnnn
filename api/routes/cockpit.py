@@ -3,7 +3,7 @@ Cockpit endpoints — operator-facing surfaces for the four-face cockpit
 (ADR-228 + ADR-242).
 
 Today's surface:
-  GET /api/cockpit/money-truth/{user_id}
+  GET /api/cockpit/money-truth
     — Alpaca account snapshot for the MoneyTruth face's bundle override
       path (ADR-242 D1). Returns the live brokerage state when the
       operator has connected Alpaca; falls back to a normalized "no live
@@ -13,8 +13,9 @@ The endpoint is named by what it returns (Alpaca account snapshot), not
 by who consumes it (cockpit). Future readers wanting Alpaca live equity
 for any reason can use the same endpoint.
 
-Auth boundary: `user_id` in the path must match `auth.user_id`. No
-cross-user reads.
+Auth boundary: derives user from `auth.user_id`. No cross-user reads —
+operators only see their own brokerage state. Same pattern as
+`/api/programs/surfaces`.
 
 Per ADR-242 §"Singular Implementation discipline": this is the singular
 live-snapshot path. No parallel surface elsewhere.
@@ -62,11 +63,11 @@ class MoneyTruthResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# GET /cockpit/money-truth/{user_id}
+# GET /cockpit/money-truth
 # ---------------------------------------------------------------------------
 
-@router.get("/money-truth/{user_id}", response_model=MoneyTruthResponse)
-async def get_money_truth(user_id: str, auth: UserClient) -> MoneyTruthResponse:
+@router.get("/money-truth", response_model=MoneyTruthResponse)
+async def get_money_truth(auth: UserClient) -> MoneyTruthResponse:
     """ADR-242 D1: live brokerage snapshot for the MoneyTruth face.
 
     Reads `platform_connections` for the operator's `trading` row,
@@ -75,10 +76,12 @@ async def get_money_truth(user_id: str, auth: UserClient) -> MoneyTruthResponse:
     (no connection, no credentials, Alpaca unreachable), returns the
     normalized `live: False` shape. The FE's `TraderMoneyTruth`
     component handles graceful degradation.
+
+    Auth boundary: derives user_id from auth (auth-scoped only;
+    operators see their own brokerage state). Same pattern as
+    /api/programs/surfaces.
     """
-    # Auth boundary — no cross-user reads.
-    if user_id != auth.user_id:
-        raise HTTPException(status_code=403, detail="Cannot read other users' cockpit data")
+    user_id = auth.user_id
 
     from integrations.core.tokens import get_token_manager
     from integrations.core.alpaca_client import get_trading_client

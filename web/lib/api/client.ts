@@ -573,6 +573,25 @@ export const api = {
       }),
   },
 
+  // ADR-242: Cockpit operator-facing surfaces (live platform reads).
+  // Auth-scoped only — endpoints derive user_id from session, no path param.
+  cockpit: {
+    moneyTruth: () =>
+      request<{
+        live: boolean;
+        provider?: string;
+        paper?: boolean;
+        equity?: number;
+        cash?: number;
+        buying_power?: number;
+        day_pnl?: number;
+        day_pnl_pct?: number;
+        positions_count?: number;
+        as_of?: string;
+        fallback_reason?: 'no_platform_connection' | 'alpaca_unreachable' | 'no_credentials';
+      }>("/api/cockpit/money-truth"),
+  },
+
   // ADR-231: Recurrences endpoints (was `tasks`; renamed in Phase 3.8)
   recurrences: {
     list: (statusOrOpts?: string | { status?: string; include_system?: boolean }) => {

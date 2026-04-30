@@ -1,6 +1,6 @@
 # ADR-242: Cockpit Bundle Components — alpha-trader Pass
 
-> **Status**: **Phase 1 Implemented** (2026-04-30); Phase 2 Proposed.
+> **Status**: **Implemented** (2026-04-30; both phases). Phase 1 commit `77d4f2d`. Phase 2 ships in this commit. Test gates: Phase 1 6/6 + Phase 2 7/7 = 13/13. Cross-ADR sweep clean (231 invariants 11/11, 237 7/7, 238 6/6, 241 8/8, 242 P1+P2 13/13). TypeScript typecheck clean. Item 10 (cockpit ↔ snapshot convergence) **deferred per implementation-time finding** (D5 amendment) — substrate truth holds across surfaces; surface truth diverges legitimately (face = dashboard, modal tab = briefing).
 > **Date**: 2026-04-30
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Channel** (Axiom 6) primary — fills the empty bundle half of the cockpit composition seam. **Substrate** (Axiom 1) secondary — surfaces platform-live brokerage state alongside `_performance.md` substrate-fallback per ADR-228 D5.
@@ -127,13 +127,22 @@ The face's structural shape (size, positioning in the cockpit zone, accessibilit
 
 ### D5 — SnapshotModal convergence — Item 10 fold-in (Phase 2)
 
-Per the operator's reframe ("replacing existing work page, re-using the components for chat snapshot tabs"), SnapshotModal's three tabs (Mandate / Review / Recent) gain bundle-component reuse:
+**Original premise**: Per the operator's reframe ("replacing existing work page, re-using the components for chat snapshot tabs"), SnapshotModal's three tabs (Mandate / Review / Recent) would gain bundle-component reuse.
 
-- **Mandate tab** → renders `<MandateFace />` directly (the same component `/work` cockpit uses).
-- **Review tab** → renders the same Principles content that's now TP's Principles tab (post-ADR-241), composed inline rather than re-rendered.
-- **Recent tab** → unchanged structurally; already operates as a narrative slice.
+**Phase 2 implementation finding (2026-04-30)**: on close inspection, the SnapshotModal tabs and the cockpit faces have **different operator-facing roles** that don't compose cleanly via direct component import:
 
-This is **structural simplification**, not new code. The components exist post-ADR-241; SnapshotModal imports them and renders inline. Item 10 (cockpit ↔ snapshot convergence) collapses into ADR-242 Phase 2 as a near-zero-cost addition since the face components are now bundle-aware and self-contained.
+- **Cockpit faces** are full-surface dashboards (e.g., `MandateFace` = mandate + autonomy combined with cockpit chrome; `PerformanceFace` = full attribution view).
+- **SnapshotModal tabs** are briefing-shaped (per ADR-198) — short, actionable, lead the operator out to /work or /agents. SnapshotModal's Review tab includes the 3 most-recent verdicts + EditInChatButton; SnapshotModal's Mandate tab adds chat-seeding affordances the cockpit face doesn't carry.
+
+Forcing convergence by importing face components into modal tabs would either (a) bring full-surface chrome into the modal (visual mismatch) or (b) require extracting `MandateContent` / `PrinciplesContent` sub-components from the faces just for modal reuse, which over-abstracts for two consumers with genuinely different surface roles.
+
+**Actual Phase 2 outcome**: the bundle component layer ships (D1–D4); SnapshotModal stays structurally as-is. Item 10 closes per the umbrella's "Implemented OR Deferred with rationale" discipline:
+
+- **Substrate truth holds**: SnapshotModal and cockpit faces both read `/workspace/context/_shared/MANDATE.md` + `/workspace/review/principles.md` + `decisions.md`. Operators see consistent content because they read the same substrate.
+- **Surface truth diverges legitimately**: face = dashboard, modal tab = briefing. ADR-198 admits both archetypes; forcing one shape would degrade the other.
+- **Future opportunity**: if both surfaces grow more complex on the same axis (e.g., both want to surface live Alpaca equity in their Mandate-adjacent views), extracting a shared `MoneyTruthCompact` component is a small follow-up. Today's Phase 2 doesn't fabricate that need.
+
+This is the discipline ADR-236 R5 anticipated: implementation-time investigation may find that what looked like convergence work is actually two legitimately-different surfaces. The audit memo's prediction was structural simplification; the implementation found surface-role divergence. Recording the finding is the corrective.
 
 ---
 

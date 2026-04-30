@@ -33,6 +33,11 @@ import { KernelTrackingActions } from './kernel-chrome/KernelTrackingActions';
 import { KernelActionActions } from './kernel-chrome/KernelActionActions';
 import { KernelMaintenanceActions } from './kernel-chrome/KernelMaintenanceActions';
 
+// alpha-trader bundle components (ADR-242 Phase 2)
+import { TraderMoneyTruth } from './TraderMoneyTruth';
+import { TraderSignalExpectancy } from './TraderSignalExpectancy';
+import { TraderPositions } from './TraderPositions';
+
 /**
  * Standard prop bag passed to every library component. Components
  * destructure only what they need; React context (e.g.,
@@ -57,6 +62,15 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   KernelTrackingActions: () => <KernelTrackingActions />,
   KernelActionActions: () => <KernelActionActions />,
   KernelMaintenanceActions: () => <KernelMaintenanceActions />,
+
+  // alpha-trader bundle components (ADR-242 Phase 2). Declared in
+  // docs/programs/alpha-trader/SURFACES.yaml under cockpit.{money_truth,
+  // performance.components, tracking.operational_state}. Future bundles
+  // (alpha-commerce, etc.) register their own components here following
+  // the same pattern.
+  TraderMoneyTruth: () => <TraderMoneyTruth />,
+  TraderSignalExpectancy: (props) => <TraderSignalExpectancy {...props} />,
+  TraderPositions: (props) => <TraderPositions {...props} />,
 };
 
 /**

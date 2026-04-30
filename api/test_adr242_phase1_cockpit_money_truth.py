@@ -47,8 +47,8 @@ def test_cockpit_route_exists_and_exports_router():
     assert "router = APIRouter()" in src, (
         "cockpit.py must instantiate a FastAPI router per ADR-242 D1."
     )
-    assert "@router.get(\"/money-truth/{user_id}\"" in src, (
-        "cockpit.py must declare GET /money-truth/{user_id} per ADR-242 D1."
+    assert "@router.get(\"/money-truth\"" in src, (
+        "cockpit.py must declare GET /money-truth per ADR-242 D1 (auth-scoped, no path param)."
     )
 
 

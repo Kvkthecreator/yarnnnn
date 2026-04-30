@@ -6,6 +6,38 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.30.3] - ADR-242 Phase 2 — Bundle components + face dispatch
+
+### Added
+- `web/components/library/TraderMoneyTruth.tsx` — alpha-trader bundle component for the MoneyTruth face. Calls `api.cockpit.moneyTruth()` (Phase 1 endpoint), renders brokerage shape (equity headline + day Δ, buying power + cash, positions count). Graceful degradation: when endpoint returns `live: false`, renders an inline notice with the `fallback_reason` translated to operator language ("Alpaca not connected — connect in Settings", etc.).
+- `web/components/library/TraderSignalExpectancy.tsx` — alpha-trader bundle component for the Performance face. Reads `_performance.md` frontmatter for `expectancy_by_signal` block, renders signal-type → expectancy table (trades, win rate, expectancy in R-multiples). Empty state points to Files for substrate authoring.
+- `web/components/library/TraderPositions.tsx` — alpha-trader bundle component for the Tracking face's OperationalState region. Reads `_positions.md` frontmatter for `positions:` array, renders symbol/qty/market value/unrealized P&L table. Empty state points operator to portfolio-review task.
+- `api/test_adr242_phase2_face_dispatch.py` — Python regression gate (7/7 assertions). Same pattern as Phase 1 + ADR-237/238/239/240/241 per ADR-236 Rule 3.
+
+### Changed
+- `web/components/library/registry.tsx` — three new entries (`TraderMoneyTruth`, `TraderSignalExpectancy`, `TraderPositions`) registered in `LIBRARY_COMPONENTS`. Pattern unchanged.
+- `web/components/library/faces/MoneyTruthFace.tsx` — gains a dispatch branch: when `cockpit.money_truth.live_source === 'alpaca'`, renders `<TraderMoneyTruth />` instead of the substrate-fallback path. Singular Implementation: kernel and bundle render do NOT coexist visually — one path per workspace state.
+- `web/components/library/faces/PerformanceFace.tsx` — gains a dispatch branch: when `cockpit.performance.components[]` is declared, renders bundle components AFTER the universal Reviewer calibration (bundle ADDS content; doesn't replace). Reviewer calibration is universal; signal expectancy is supplemental.
+- `web/components/library/faces/TrackingFace.tsx` — `OperationalState` region gains a dispatch branch: when `cockpit.tracking.operational_state` is declared, dispatches the bundle component. Else renders an updated kernel placeholder ("Activate a program with operational substrate...").
+- `web/lib/api/client.ts` — adds `api.cockpit.moneyTruth()` namespace method calling the Phase 1 endpoint. Auth-scoped (no path param).
+
+### Deferred (per ADR-242 D5 implementation-time finding)
+- **Item 10 (Cockpit ↔ snapshot convergence)** — on close inspection, SnapshotModal tabs and cockpit faces have legitimately different operator-facing roles (face = full-surface dashboard with chrome; modal tab = briefing per ADR-198 archetype). Forced convergence would either bring full-surface chrome into the modal (visual mismatch) or require extracting `MandateContent` / `PrinciplesContent` sub-components for over-abstracted reuse. Substrate truth holds across surfaces (both read same files); surface truth diverges legitimately. Recorded honestly in ADR-242 §D5.
+
+### Behavior
+- Operators on alpha-trader-active workspaces see live brokerage state in the MoneyTruth face when Alpaca is connected (replaces substrate-fallback render). Falls back gracefully when Alpaca is unreachable / not connected.
+- PerformanceFace shows Reviewer calibration aggregate AND signal expectancy table for trader workspaces.
+- TrackingFace shows pending action_proposals AND positions table AND recent activity.
+- Operators on workspaces without alpha-trader bundle activation see the kernel-default substrate-fallback paths (unchanged from Phase 1 state).
+- SnapshotModal tabs unchanged — Mandate / Review / Recent continue to work as briefing-shaped surfaces.
+
+### Notes
+- ADR-242 closes the bundle-component half of ADR-225's compositor seam for cockpit faces. The architecture (ADR-225 + ADR-228) was correct from the start; this ADR fills the empty bundle half for alpha-trader. Future bundles (alpha-commerce when activated) follow the same pattern.
+- Cross-ADR regression check: 86/86 across 11 gates (ADR-231 11/11, ADR-233 P1 13/13, ADR-233 P2 12/12, ADR-234 8/8, ADR-237 7/7, ADR-238 6/6, ADR-239 6/6, ADR-240 8/8, ADR-241 8/8, ADR-242 P1 6/6, ADR-242 P2 7/7).
+- Operator manual smoke required: alpha-trader workspace with Alpaca connected → live equity in MoneyTruth face; signal expectancy in Performance face; positions table in Tracking face's operational state region.
+
+---
+
 ## [2026.04.30.2] - ADR-242 Phase 1 — Cockpit bundle components (backend + manifest)
 
 ### Added
