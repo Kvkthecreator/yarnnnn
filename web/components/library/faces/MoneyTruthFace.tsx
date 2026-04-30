@@ -84,22 +84,23 @@ function readLiveSource(composition: ReturnType<typeof useComposition>['data']):
 export function MoneyTruthFace() {
   const { data: composition } = useComposition();
 
-  // ADR-242 D4: dispatch branch. When the bundle declares live_source
-  // (today: 'alpaca' for alpha-trader), render the bundle component.
-  // The bundle component handles its own substrate-fallback degradation
-  // when the live source is unreachable. Singular Implementation: kernel
-  // and bundle render do not coexist visually — one path per workspace.
+  // ALL hooks must be declared before any early return — React rules of hooks.
+  // The liveSource dispatch branch further down uses these to avoid the
+  // kernel-default fetch when the bundle takes over, but the hook calls
+  // themselves must be unconditional.
   const liveSource = readLiveSource(composition);
-  if (liveSource === 'alpaca') {
-    return <TraderMoneyTruth />;
-  }
-
   const path = readMoneyTruthSource(composition);
 
   const [meta, setMeta] = useState<MoneyTruthMeta | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    // Skip the fetch when the bundle component handles the face.
+    // The effect still runs (hooks are unconditional) but exits immediately.
+    if (liveSource === 'alpaca') {
+      setLoaded(true);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -114,7 +115,14 @@ export function MoneyTruthFace() {
       }
     })();
     return () => { cancelled = true; };
-  }, [path]);
+  }, [path, liveSource]);
+
+  // ADR-242 D4: dispatch to bundle component after all hooks have been
+  // called unconditionally (hooks rules). The useEffect above exits early
+  // when liveSource === 'alpaca' so no substrate fetch occurs.
+  if (liveSource === 'alpaca') {
+    return <TraderMoneyTruth />;
+  }
 
   if (!loaded) return null;
 
