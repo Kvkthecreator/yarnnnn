@@ -29,6 +29,9 @@ import { Loader2, AlertCircle, Clock, ShieldAlert, Sparkles } from 'lucide-react
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type { NarrativeMaterialEntry } from '@/types';
+// ADR-242 Phase 2: bundle component dispatch for OperationalState region
+import { dispatchComponent } from '../registry';
+import { useComposition } from '@/lib/compositor';
 
 type Proposal = Awaited<ReturnType<typeof api.proposals.list>>['proposals'][number];
 
@@ -292,15 +295,12 @@ function ProposalRow({
 
 // ─── Region 2 ────────────────────────────────────────────────────────────────
 
-import { dispatchComponent } from '../registry';
-import { useComposition as useCompositionForOpState } from '@/lib/compositor';
-
 function OperationalState() {
   // ADR-242 D4 Phase 2: when the bundle declares
   // `cockpit.tracking.operational_state` with a `kind`, dispatch the
   // bundle component. Else fall through to the kernel placeholder.
   // Singular Implementation: one render path per workspace state.
-  const { data: composition } = useCompositionForOpState();
+  const { data: composition } = useComposition();
   const opState = (composition.composition.tabs?.work?.list as {
     cockpit?: { tracking?: { operational_state?: { kind: string; source?: string } } }
   } | undefined)?.cockpit?.tracking?.operational_state;
