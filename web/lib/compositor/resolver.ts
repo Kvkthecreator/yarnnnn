@@ -129,3 +129,24 @@ export function resolveChrome(
   return kernelDefault;
 }
 
+
+/**
+ * getProgramSections — ADR-243 Phase B.
+ *
+ * Returns the ordered list of program sections from the active
+ * composition when the bundle declares `cockpit.program_sections`.
+ * Returns an empty array when the key is absent (kernel-default
+ * four-face stack renders instead).
+ *
+ * Sections are sorted ascending by `order` so SURFACES.yaml authoring
+ * order doesn't have to match visual order.
+ */
+export function getProgramSections(
+  composition: import('./types').SurfacesResponse,
+): Array<{ kind: string; order: number }> {
+  const cockpit = composition.composition.tabs?.work?.list?.cockpit as
+    | { program_sections?: Array<{ kind: string; order: number }> }
+    | undefined;
+  const sections = cockpit?.program_sections ?? [];
+  return [...sections].sort((a, b) => a.order - b.order);
+}

@@ -13,7 +13,7 @@
  */
 
 export { useComposition, getTab, getDetailMiddles, getActiveBundles } from './useComposition';
-export { resolveMiddle, resolveChrome } from './resolver';
+export { resolveMiddle, resolveChrome, getProgramSections } from './resolver';
 export type { ResolutionContext } from './resolver';
 export { KERNEL_DEFAULT_CHROME } from './kernel-defaults';
 export type {

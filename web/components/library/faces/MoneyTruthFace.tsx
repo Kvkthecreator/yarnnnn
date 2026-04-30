@@ -29,8 +29,10 @@ import Link from 'next/link';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useComposition } from '@/lib/compositor';
-// ADR-242 Phase 2: bundle override dispatch
-import { TraderMoneyTruth } from '../TraderMoneyTruth';
+// ADR-243 Phase B: TraderMoneyTruth import removed. Bundle dispatch is now
+// handled by CockpitRenderer via program_sections, not by face-level
+// override. MoneyTruthFace is a kernel-default face for workspaces without
+// an active bundle declaring program_sections.
 
 interface MoneyTruthMeta {
   pnl_30d_pct?: number;
@@ -75,32 +77,14 @@ function readMoneyTruthSource(composition: ReturnType<typeof useComposition>['da
   return cockpit?.cockpit?.money_truth?.substrate_fallback ?? DEFAULT_FALLBACK;
 }
 
-// ADR-242 Phase 2: read bundle live_source declaration for dispatch.
-function readLiveSource(composition: ReturnType<typeof useComposition>['data']): string | undefined {
-  const cockpit = composition.composition.tabs?.work?.list as { cockpit?: { money_truth?: { live_source?: string } } } | undefined;
-  return cockpit?.cockpit?.money_truth?.live_source;
-}
-
 export function MoneyTruthFace() {
   const { data: composition } = useComposition();
-
-  // ALL hooks must be declared before any early return — React rules of hooks.
-  // The liveSource dispatch branch further down uses these to avoid the
-  // kernel-default fetch when the bundle takes over, but the hook calls
-  // themselves must be unconditional.
-  const liveSource = readLiveSource(composition);
   const path = readMoneyTruthSource(composition);
 
   const [meta, setMeta] = useState<MoneyTruthMeta | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    // Skip the fetch when the bundle component handles the face.
-    // The effect still runs (hooks are unconditional) but exits immediately.
-    if (liveSource === 'alpaca') {
-      setLoaded(true);
-      return;
-    }
     let cancelled = false;
     (async () => {
       try {
@@ -115,14 +99,7 @@ export function MoneyTruthFace() {
       }
     })();
     return () => { cancelled = true; };
-  }, [path, liveSource]);
-
-  // ADR-242 D4: dispatch to bundle component after all hooks have been
-  // called unconditionally (hooks rules). The useEffect above exits early
-  // when liveSource === 'alpaca' so no substrate fetch occurs.
-  if (liveSource === 'alpaca') {
-    return <TraderMoneyTruth />;
-  }
+  }, [path]);
 
   if (!loaded) return null;
 

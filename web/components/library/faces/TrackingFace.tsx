@@ -29,9 +29,8 @@ import { Loader2, AlertCircle, Clock, ShieldAlert, Sparkles } from 'lucide-react
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type { NarrativeMaterialEntry } from '@/types';
-// ADR-242 Phase 2: bundle component dispatch for OperationalState region
-import { dispatchComponent } from '../registry';
-import { useComposition } from '@/lib/compositor';
+// ADR-243 Phase B: dispatchComponent + useComposition imports removed.
+// OperationalState bundle dispatch moved to CockpitRenderer program_sections.
 
 type Proposal = Awaited<ReturnType<typeof api.proposals.list>>['proposals'][number];
 
@@ -295,43 +294,12 @@ function ProposalRow({
 
 // ─── Region 2 ────────────────────────────────────────────────────────────────
 
+// ADR-243 Phase B: OperationalState bundle dispatch removed.
+// TrackingFace is now a kernel-default face only. Program-specific
+// operational state (positions, campaigns, etc.) renders through
+// program_sections in CockpitRenderer, not through face-level dispatch.
 function OperationalState() {
-  // ADR-242 D4 Phase 2: when the bundle declares
-  // `cockpit.tracking.operational_state` with a `kind`, dispatch the
-  // bundle component. Else fall through to the kernel placeholder.
-  // Singular Implementation: one render path per workspace state.
-  const { data: composition } = useComposition();
-  const opState = (composition.composition.tabs?.work?.list as {
-    cockpit?: { tracking?: { operational_state?: { kind: string; source?: string } } }
-  } | undefined)?.cockpit?.tracking?.operational_state;
-
-  if (opState?.kind && opState.source) {
-    return (
-      <div className="mb-5">
-        {dispatchComponent(
-          { kind: opState.kind, source: '__opstate__' },
-          { __opstate__: { type: 'file', path: opState.source } },
-        )}
-      </div>
-    );
-  }
-
-  // Kernel placeholder fallthrough — for workspaces without a bundle
-  // declaring operational_state.
-  return (
-    <div className="mb-5">
-      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        Operational state
-      </h3>
-      <Link
-        href="/context?path=%2Fworkspace%2Fcontext%2Fportfolio%2F"
-        className="block rounded-md border border-dashed border-border bg-muted/20 px-3 py-3 text-sm text-muted-foreground hover:bg-muted/30"
-      >
-        Activate a program with operational substrate (e.g., alpha-trader)
-        to render positions / active campaigns / watchlist here.
-      </Link>
-    </div>
-  );
+  return null;
 }
 
 // ─── Region 3 ────────────────────────────────────────────────────────────────

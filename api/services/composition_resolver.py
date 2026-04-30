@@ -250,19 +250,28 @@ def _merge_list_or_detail_block(
         elif k == "components" and isinstance(v, list):
             result[k] = (result.get(k) or []) + deepcopy(v)
         elif k == "cockpit" and isinstance(v, dict):
-            # ADR-228: cockpit is a per-face binding map (mandate /
-            # money_truth / performance / tracking). Multi-bundle merge
-            # is per-face deep-merge; first-bundle wins on scalar
-            # conflicts within a face. Schema is open; faces consume
-            # only the keys they understand.
+            # ADR-228 + ADR-243 Phase B: cockpit block merge.
+            # `program_sections` (list of {kind, order}) is union-merged
+            # across bundles — deduped by kind, first-bundle wins on order
+            # conflicts. All other keys use per-face deep-merge (first-bundle
+            # wins on scalars) per ADR-228.
             existing = result.get(k) or {}
             for face_key, face_value in v.items():
-                if isinstance(face_value, dict) and isinstance(existing.get(face_key), dict):
-                    merged = deepcopy(existing[face_key])
+                if face_key == "program_sections" and isinstance(face_value, list):
+                    # Union merge by `kind`; existing bundle's section wins.
+                    existing_sections = existing.get("program_sections") or []
+                    existing_kinds = {s["kind"] for s in existing_sections}
+                    merged = list(deepcopy(existing_sections))
+                    for sec in face_value:
+                        if sec.get("kind") not in existing_kinds:
+                            merged.append(deepcopy(sec))
+                    existing["program_sections"] = merged
+                elif isinstance(face_value, dict) and isinstance(existing.get(face_key), dict):
+                    merged_face = deepcopy(existing[face_key])
                     for fk, fv in face_value.items():
-                        if fk not in merged:
-                            merged[fk] = deepcopy(fv)
-                    existing[face_key] = merged
+                        if fk not in merged_face:
+                            merged_face[fk] = deepcopy(fv)
+                    existing[face_key] = merged_face
                 elif face_key not in existing:
                     existing[face_key] = deepcopy(face_value)
             result[k] = existing

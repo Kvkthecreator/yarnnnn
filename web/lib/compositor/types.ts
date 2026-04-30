@@ -94,15 +94,31 @@ export interface TabListBlock {
   default_collapsed?: boolean;
   reviewer?: { principles_default?: string };
   /**
-   * Bundle-supplied cockpit overrides per ADR-228. The cockpit renders
-   * four faces (Mandate · Money truth · Performance · Tracking); this
-   * block declares per-face bindings (e.g.,
-   * `cockpit.money_truth.substrate_fallback`,
-   * `cockpit.performance.attribution_source`). Bundles cannot reorder
-   * faces or omit them; they only fill them. Schema is open by design —
-   * face components consume only the keys they understand.
+   * Bundle-supplied cockpit configuration.
+   *
+   * ADR-243 Phase B: `program_sections` is the primary mechanism.
+   * An ordered list of named section components rendered below
+   * `CockpitHeader` when the bundle is active. Each section is
+   * independently registered in `LIBRARY_COMPONENTS`; the `order`
+   * field controls display sequence. Operator (or YARNNN) can reorder
+   * or remove sections by editing their workspace SURFACES.yaml.
+   *
+   * When `program_sections` is present → CockpitRenderer renders
+   * CockpitHeader + sections only (no four-face stack).
+   * When absent → CockpitRenderer falls through to kernel-default
+   * four-face stack.
+   *
+   * The legacy per-face binding keys (money_truth.live_source,
+   * performance.components, tracking.operational_state) are superseded
+   * by program_sections for workspaces that declare sections. They
+   * remain in the open-schema Record for backward compat with any
+   * workspaces that haven't migrated, but new programs should use
+   * program_sections instead.
    */
-  cockpit?: Record<string, Record<string, unknown>>;
+  cockpit?: {
+    program_sections?: Array<{ kind: string; order: number }>;
+    [key: string]: unknown;
+  };
 }
 
 export interface TabDetailBlock {

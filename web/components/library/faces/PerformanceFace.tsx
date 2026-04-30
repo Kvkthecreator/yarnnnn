@@ -39,8 +39,9 @@ import {
   aggregateReviewerCalibration,
   type ReviewerCalibration,
 } from '@/lib/reviewer-decisions';
-// ADR-242 Phase 2: bundle-supplied performance sub-components dispatched here
-import { dispatchComponent } from '../registry';
+// ADR-243 Phase B: dispatchComponent import removed — bundle dispatch is now
+// handled by CockpitRenderer via program_sections, not by face-level additions.
+// PerformanceFace renders Reviewer calibration only (kernel-default).
 
 const DECISIONS_PATH = '/workspace/review/decisions.md';
 const DEFAULT_PERFORMANCE = '/workspace/context/_performance_summary.md';
@@ -59,24 +60,9 @@ function readPerformanceSource(composition: ReturnType<typeof useComposition>['d
   return cockpit?.cockpit?.performance?.attribution_source ?? DEFAULT_PERFORMANCE;
 }
 
-// ADR-242 Phase 2: read bundle-declared performance sub-components.
-// When present, the face renders Reviewer calibration AND these
-// bundle components — the bundle ADDS content (e.g., trader signal
-// expectancy) rather than replacing the universal calibration view.
-function readPerformanceComponents(
-  composition: ReturnType<typeof useComposition>['data'],
-): Array<{ kind: string; source?: string }> {
-  const cockpit = composition.composition.tabs?.work?.list as {
-    cockpit?: { performance?: { components?: Array<{ kind: string; source?: string }> } }
-  } | undefined;
-  return cockpit?.cockpit?.performance?.components ?? [];
-}
-
 export function PerformanceFace() {
   const { data: composition } = useComposition();
   const performancePath = readPerformanceSource(composition);
-  // ADR-242 Phase 2: bundle-declared sub-components for the face.
-  const bundleComponents = readPerformanceComponents(composition);
 
   const [calibration, setCalibration] = useState<ReviewerCalibration | null>(null);
   const [hasPerformance, setHasPerformance] = useState<boolean | null>(null);
@@ -186,32 +172,6 @@ export function PerformanceFace() {
         </p>
       )}
 
-      {/* ADR-242 Phase 2: bundle-declared sub-components rendered after
-          the universal Reviewer calibration. The bundle adds content
-          (e.g., alpha-trader's TraderSignalExpectancy); kernel default
-          stays universal. Bindings: `source` value resolves against the
-          face's known binding keys (today: 'attribution_source' →
-          performancePath). */}
-      {bundleComponents.length > 0 && (
-        <div className="mt-4 space-y-3 border-t border-border pt-4">
-          {bundleComponents.map((component, idx) => {
-            // Resolve named source (today only one named binding —
-            // attribution_source). Inline binding paths could be added
-            // in the manifest later if richer dispatch shapes surface.
-            const sourcePath = component.source === 'attribution_source'
-              ? performancePath
-              : component.source;
-            return (
-              <div key={`${component.kind}-${idx}`}>
-                {dispatchComponent(
-                  { kind: component.kind, source: sourcePath ? '__resolved__' : undefined },
-                  sourcePath ? { __resolved__: { type: 'file', path: sourcePath } } : undefined,
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </section>
   );
 }

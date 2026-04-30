@@ -25,10 +25,11 @@
 
 import { CockpitProvider } from './CockpitContext';
 import { CockpitHeader } from './CockpitHeader';
-import { MandateFace } from './faces/MandateFace';
 import { MoneyTruthFace } from './faces/MoneyTruthFace';
 import { PerformanceFace } from './faces/PerformanceFace';
 import { TrackingFace } from './faces/TrackingFace';
+import { useComposition, getProgramSections } from '@/lib/compositor';
+import { dispatchComponent } from './registry';
 
 interface CockpitRendererProps {
   /**
@@ -41,28 +42,37 @@ interface CockpitRendererProps {
 
 export function CockpitRenderer({ onOpenChatDraft }: CockpitRendererProps) {
   const handleOpenChatDraft = onOpenChatDraft ?? (() => { /* no-op */ });
+  const { data: composition } = useComposition();
+  const programSections = getProgramSections(composition);
+  const hasProgramSections = programSections.length > 0;
 
   return (
     <CockpitProvider value={{ onOpenChatDraft: handleOpenChatDraft }}>
       <section aria-label="Cockpit" className="border-b border-border/60">
-        {/* Layer 1 — Common header (ADR-243 Phase A).
-            Mandate title + summary + autonomy mode. Always present.
-            No bundle override — this is universal program framing. */}
+        {/* Layer 1 — Common header. Always present, no bundle override.
+            Mandate title + summary + autonomy posture (ADR-243 Phase A). */}
         <CockpitHeader />
 
-        {/* Layer 2 — Program-specific faces (kernel-default stack).
-            ADR-243 Phase B will replace this with program_sections dispatch
-            when the compositor supplies program_sections[]. Until then the
-            four-face stack remains as the kernel-default behavior.
-            Note: MandateFace is retained here for workspaces where
-            CockpitHeader's skeleton state fires — it provides additional
-            substrate context. Phase B cleanup will de-duplicate. */}
-        <div className="flex flex-col gap-4 px-6 py-6 bg-muted/20">
-          <MandateFace />
-          <MoneyTruthFace />
-          <PerformanceFace />
-          <TrackingFace />
-        </div>
+        {/* Layer 2 — Singular dispatch: program_sections XOR four-face stack.
+            No dual path. When the active bundle declares program_sections,
+            those sections render (ordered, independent components). When
+            no bundle is active or no sections declared, the kernel-default
+            four-face stack renders instead. MandateFace is removed from the
+            kernel stack — CockpitHeader covers mandate + autonomy for all
+            workspaces (ADR-243 Phase B cleanup). */}
+        {hasProgramSections ? (
+          <div className="flex flex-col gap-4 px-6 py-6 bg-muted/20">
+            {programSections.map((section) =>
+              dispatchComponent({ kind: section.kind }, {})
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 px-6 py-6 bg-muted/20">
+            <MoneyTruthFace />
+            <PerformanceFace />
+            <TrackingFace />
+          </div>
+        )}
       </section>
     </CockpitProvider>
   );
