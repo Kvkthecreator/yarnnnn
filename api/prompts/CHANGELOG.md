@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.04.30.2] - ADR-242 Phase 1 — Cockpit bundle components (backend + manifest)
+
+### Added
+- `api/routes/cockpit.py` — new router. `GET /api/cockpit/money-truth/{user_id}` returns Alpaca live account snapshot (equity, cash, buying power, day Δ, positions count). Reads `platform_connections` for the operator's `trading` row, decrypts credentials via `integrations.core.tokens.get_token_manager`, calls `alpaca_client.get_account` + `get_positions`. Falls back to normalized `live: false, fallback_reason: ...` shape on any error (no platform connection / no credentials / Alpaca unreachable). Auth boundary: `user_id` in path must match `auth.user_id`.
+- `api/test_adr242_phase1_cockpit_money_truth.py` — Python regression gate (6/6 assertions). Same pattern as ADR-237/238/239/240/241 per ADR-236 Rule 3.
+
+### Changed
+- `api/main.py` — registers `cockpit.router` under `/api/cockpit`. Same registration pattern as `programs.router`, `recurrences.router`, etc.
+- `docs/programs/alpha-trader/SURFACES.yaml` — extends `cockpit:` block with three new bundle bindings:
+  - `cockpit.money_truth.live_source: alpaca` (Phase 2's `MoneyTruthFace` dispatch branch keys on this)
+  - `cockpit.performance.components: [{kind: TraderSignalExpectancy, source: attribution_source}]`
+  - `cockpit.tracking.operational_state: {kind: TraderPositions, source: /workspace/context/portfolio/_positions.md}`
+
+### Behavior
+- Phase 1 ships **no operator-visible change**. The endpoint is reachable; no FE component calls it yet. alpha-trader's manifest declares bundle bindings; no face dispatches on them yet. Phase 2 (FE bundle components + face dispatch + SnapshotModal fold-in) ships in a subsequent commit.
+- Backend touch is bounded — endpoint reads `platform_connections` via existing pattern, decrypts via existing `token_manager`, calls Alpaca via existing `alpaca_client`. No new service, no new env var, no schema change.
+
+### Notes
+- ADR-242 closes the bundle-component half of ADR-225's compositor seam for the cockpit faces (the kernel-default half shipped in ADR-228 Phase 1+2). Per the audit memo at `docs/analysis/cockpit-bundle-component-audit-2026-04-30.md`, the architecture was correct from the start; the empty bundle half is what made the cockpit "feel broken" for the operator.
+- Phase 2 absorbs ADR-236 Round 5's Item 10 (Cockpit ↔ snapshot convergence) — SnapshotModal will import `MandateFace` directly post-Phase 2, eliminating the duplication between `/work` cockpit and `/chat` snapshot tabs.
+- Cross-ADR regression check: 79/79 + 6/6 (ADR-242 Phase 1) = 85/85 across 10 gates.
+
+---
+
 ## [2026.04.30.1] - ADR-241 — Single cockpit persona (Reviewer collapses into TP)
 
 ### Changed

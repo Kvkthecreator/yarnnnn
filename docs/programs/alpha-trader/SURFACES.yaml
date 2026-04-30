@@ -31,10 +31,34 @@ tabs:
       # (Alpaca account snapshot) ships in Commit 3; bundle-shaped
       # Tracking operational state (positions table) ships in Commit 4.
       cockpit:
+        # ADR-228 Phase 1 + ADR-242 Phase 1 (2026-04-30): bundle component
+        # bindings for the four-face cockpit. Phase 1 ships backend + manifest;
+        # Phase 2 ships the FE bundle components + face dispatch branches.
+        # Faces consume only the keys they understand (open schema per
+        # ADR-228 D5).
         money_truth:
+          # ADR-242 D1: when present, MoneyTruthFace dispatches to the
+          # TraderMoneyTruth bundle component which calls
+          # /api/cockpit/money-truth/{user_id} for the live Alpaca snapshot.
+          # Falls back to substrate_fallback rendering when Alpaca is
+          # unreachable / no platform connection.
+          live_source: alpaca
           substrate_fallback: /workspace/context/portfolio/_performance.md
         performance:
           attribution_source: /workspace/context/portfolio/_performance.md
+          # ADR-242 D2: when components[] declared, PerformanceFace
+          # dispatches through LIBRARY_COMPONENTS instead of rendering
+          # the kernel-default Reviewer-calibration aggregate.
+          components:
+            - kind: TraderSignalExpectancy
+              source: attribution_source
+        tracking:
+          # ADR-242 D2: when operational_state declared, TrackingFace's
+          # OperationalState region dispatches the bundle component
+          # instead of rendering the link-out placeholder.
+          operational_state:
+            kind: TraderPositions
+            source: /workspace/context/portfolio/_positions.md
 
     # No detail middles. Per ADR-228 the bundle-shaped specifics for
     # alpha-trader (positions, risk gauge, performance attribution,
