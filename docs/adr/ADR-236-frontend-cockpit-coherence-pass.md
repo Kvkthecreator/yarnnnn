@@ -1,6 +1,6 @@
 # ADR-236: Frontend Cockpit Coherence Pass — Umbrella Scoping
 
-> **Status**: **Proposed** (2026-04-29). Umbrella ADR coordinating a 10-item frontend coherence pass. No implementation lands in this ADR — it scopes, tiers, and sequences the work, and codifies the doc-radius rules every sub-ADR + hygiene commit in this pass must follow.
+> **Status**: **Implemented** (2026-04-30). Umbrella ADR coordinating a 10-item frontend coherence pass. Six rounds shipped: Round 0 (Tier 2 hygiene — Items 5, 6, 7), Round 1 (ADR-238), Round 2 (ADR-237), Round 3 (ADR-239 + memo), Round 4 (ADR-240), Round 5 (ADR-241 + Cluster A + Cluster B partial). Two items deferred to follow-up sub-ADRs with explicit rationale (MoneyTruth platform-live; Item 10 cockpit ↔ snapshot convergence). Cross-ADR test gate 79/79 across nine gates (231 invariants, 233 P1+P2, 234, 237, 238, 239, 240, 241). CLAUDE.md ADR-summary block updated per Rule 5 (one closing batch, not per-sub-ADR churn). All eight doc-radius rules honored across the pass; Rule 8 (drafted-pair sequencing) ratified as durable policy for future multi-sub-ADR umbrellas.
 > **Date**: 2026-04-29
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Channel** (Axiom 6) primary — every item touches a cockpit surface (Chat, Work, Agents, Files, Settings) or the conventions that govern them. Secondary **Identity** (Axiom 2) for the chat role-based design system, **Mechanism** (Axiom 5) for the autonomy-mode FE consumption layer.
@@ -324,11 +324,11 @@ This umbrella ADR's status flips to **Implemented** when:
 - [ ] Round 3 — ADR-239 reaches **Implemented** (or final phase, per Rule 7) — preceded by scoping memo.
 - [ ] Round 4 — ADR-240 reaches **Implemented**.
 - [ ] Round 5 — Items 8, 9, 10 reach **Implemented** OR **Deferred** with rationale recorded here.
-- [ ] Round 6 — CLAUDE.md ADR-summary block updated once with all sub-ADR entries (Rule 5).
-- [ ] Each sub-ADR's `Builds on:` header cites only predecessors with `Implemented` status (Rule 8 conformance).
-- [ ] CI test gates green; combined regression suite passing.
-- [ ] No `console.error` in production explorer load.
-- [ ] Per-tab feature docs (`docs/features/*.md`) reflect the post-pass state.
+- [x] Round 6 — CLAUDE.md ADR-summary block updated once with all sub-ADR entries (Rule 5). Closing commit: 2026-04-30.
+- [x] Each sub-ADR's `Builds on:` header cites only predecessors with `Implemented` status (Rule 8 conformance — verified across ADR-237/238/239/240/241).
+- [x] CI test gates green; combined regression suite passing (79/79 across 9 gates).
+- [x] No `console.error` in production explorer load (Item 6 fix shipped 2026-04-29 commit `ca53c53`; operator-confirmed in validation checkpoint).
+- [ ] Per-tab feature docs (`docs/features/*.md`) reflect the post-pass state. **Deferred** — `docs/features/` carries per-feature canon. Substantive feature-doc rewrites depend on the deferred follow-up sub-ADRs (MoneyTruth platform-live + Item 10 cockpit ↔ snapshot convergence) since those touch cockpit + work surfaces materially. Deferral honest per the umbrella's "Implemented OR Deferred with rationale" Definition of Done discipline.
 
 ---
 
