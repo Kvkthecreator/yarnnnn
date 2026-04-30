@@ -36,12 +36,12 @@ A note on how Claude (main session OR alpha-operator subagent) interacts with th
 
 **Invocation authorization** (which lever Claude pulls when) is gated separately. Two paths to invoke a state-mutating capability without per-turn confirmation:
 
-1. The capability has a **standing authorization** entry in [CLAUDE-OPERATOR-ACCESS.md §"Standing authorizations"](./CLAUDE-OPERATOR-ACCESS.md#standing-authorizations). KVK explicitly grants these; they're tracked with date, scope, and revocation pattern. As of 2026-04-30 there's one active grant: order approval on alpha accounts.
+1. The capability has a **standing authorization** entry in [CLAUDE-OPERATOR-ACCESS.md §"Standing authorizations"](./CLAUDE-OPERATOR-ACCESS.md#standing-authorizations). KVK explicitly grants these; they're tracked with date, subject (which Claude session — main vs subagent), capability, and revocation pattern. Standing grants are read literally — Claude does not extend their scope, broaden their subject, or carve out exclusions the granter did not author. As of 2026-04-30 there's one active grant: the alpha-operator subagent's order-approval authority on alpha accounts.
 2. KVK gives an **explicit per-turn imperative** in the current message ("fire trade-proposal-2", "approve proposal abc-123").
 
 A diagnostic statement about what Claude *can* do (architectural authority) does NOT constitute invocation authorization. This distinction was hardened into the docs after a 2026-04-30 smoke-test exchange where Claude conflated the two; the §axiom in CLAUDE-OPERATOR-ACCESS.md is now the canonical resolution.
 
-For state-mutating action chains, gate against the chain's max-mutation level, not the immediate HTTP call. Firing `trade-proposal-2/run` is one HTTP call but the chain can end at "real paper Alpaca order" if Reviewer auto-approves under `bounded_autonomous` — gate against the broker order. (The 2026-04-30 standing grant authorizes that downstream.)
+For state-mutating action chains, gate against the chain's max-mutation level, not the immediate HTTP call. Firing `trade-proposal-2/run` is one HTTP call but the chain can end at "real paper Alpaca order" if Reviewer auto-approves under `bounded_autonomous` — gate against the broker order. The 2026-04-30 grant covers approve actions taken by the alpha-operator subagent; it does not cover firing recurrences from any session, and it does not cover any action by the main Claude Code session.
 
 ---
 
@@ -108,3 +108,4 @@ The contract evaluation at end of paper-discipline phase compares **money-truth 
 |------|--------|
 | 2026-04-30 | v1 — Initial scope decision. Trading-only + money-truth + cost-truth contract + alpha-commerce parked. Authored after the post-refactor-wave readiness pass (2026-04-29 observation note + Pass 1–4 alpha-doc refresh + Bug 1 + Bug 2 fixes). |
 | 2026-04-30 | v2 — Added §"Authority + authorization (operator-on-behalf invariant)" cross-linking the new §axiom + §"Standing authorizations" sections in CLAUDE-OPERATOR-ACCESS.md. Same-day hardening of the architectural-authority vs invocation-authorization distinction triggered by the smoke-test exchange. Notes the active 2026-04-30 standing grant for order approval on alpha accounts. |
+| 2026-04-30 | v2.1 — Correction. The v2 §"Authority + authorization" wording understated how literally standing grants must be read, then the same Claude turn's CLAUDE-OPERATOR-ACCESS.md grant entry over-extended KVK's grant text on both subject (claimed main session covered when only the subagent was) and capability (carved out exclusions KVK did not author). Pattern caught by KVK same session. The §"Authority + authorization" body now names the literal-reading rule explicitly: Claude does not extend subject, capability, or carve-outs of standing grants. |
