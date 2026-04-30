@@ -1,13 +1,16 @@
 # Cockpit Component Design — Common vs Program-Specific
 
-> **Status**: Canonical design reference (2026-05-01). Governs the visual
-> architecture of the `/work` cockpit zone — specifically how **common**
-> (kernel-default, any workspace) components and **program-specific** (bundle-
-> supplied, e.g. alpha-trader) components compose on screen.
+> **Status**: Canonical design reference (2026-05-01, v2 — program_sections
+> model). Governs the visual architecture of the `/work` cockpit zone —
+> specifically how **common** (kernel-default, any workspace) components and
+> **program-specific** (bundle-supplied, e.g. alpha-trader) components compose
+> on screen.
 >
 > This doc does NOT replace `docs/architecture/compositor.md` (the seam
 > reference) or ADR-228 (the four-face model). It adds the visual design layer
 > those docs omit.
+>
+> **Implementation**: Phase A (CockpitHeader) tracked in ADR-243.
 
 ---
 
@@ -18,7 +21,7 @@ structure:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ COMMON - PAGE HEADER                                                 │
+│ COMMON - PAGE HEADER (Layer 1, always present)                       │
 │                                                                      │
 │   Title: {mandate-based title}        autonomy mode: [toggle]        │
 │                                                                      │
@@ -27,15 +30,12 @@ structure:
 └──────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────┐
-│ PROJECT SPECIFIC - for trader "performance"                          │
+│ PROJECT SPECIFIC (Layer 2, bundle-supplied, stacked sections)        │
 │                                                                      │
-│   [Portfolio chart — 1D/1M/1Y/All]   [Watchlist]                    │
-│                                                                      │
-│   Balances: Buying Power · Cash · Daily Change                       │
-│                                                                      │
-│   Top Positions: Asset | Price | Qty | Market Value | Total P/L     │
-│                                                                      │
-│   Recent Orders: searchable, filterable, paginated                   │
+│   Section 1 (order: 1) — e.g. TraderPortfolio                       │
+│   Section 2 (order: 2) — e.g. TraderBalances                        │
+│   Section 3 (order: 3) — e.g. TraderPositions                       │
+│   Section 4 (order: 4) — e.g. TraderOrders                          │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -44,156 +44,202 @@ structure:
 - Mandate-based title and summary: derived from `/workspace/context/_shared/MANDATE.md`
 - Autonomy mode indicator + toggle: derived from `/workspace/context/_shared/AUTONOMY.md`
 - Applies to every workspace regardless of active program
-- Visual style: clean, prose-weight, page-header shape (not a card)
+- Visual style: clean, prose-weight, page-header shape (NOT a card)
 
-**Layer 2 — Program-specific (bundle-supplied)**
-- The entire brokerage/operation-specific dashboard
+**Layer 2 — Program-specific (bundle-supplied, ordered stack of named sections)**
+- Multiple independent named components, each a discrete section
+- Declared in SURFACES.yaml as `cockpit.program_sections[]` with an `order` field
+- Order controls display sequence; operator (or YARNNN) can reorder, hide, or add sections
 - For alpha-trader: portfolio chart + balances + positions + recent orders
-- For alpha-commerce: revenue chart + product summary + recent orders/subscribers
-- Visual style: data-rich, domain-shaped, can embed external dashboard aesthetics
+- For alpha-commerce (future): revenue chart + subscriber summary + product table
+- Visual style: data-rich, domain-shaped (trading terminal aesthetic for alpha-trader)
 
 ---
 
-## Gap between current implementation and design intent
+## Composability model — why multiple stacked sections, not one block
 
-As of 2026-05-01, the cockpit renders **four equal-weight stacked cards**:
-1. MandateFace — mandate text + autonomy summary (card, not page header)
-2. MoneyTruthFace — stat tiles (equity, buying power, positions count)
-3. PerformanceFace — Reviewer calibration + signal expectancy table
-4. TrackingFace — pending proposals + operational state (positions link-out) + recent activity
+The program layer is a **declared ordered list of named components**, not a monolithic bundle. This gives three properties:
 
-**What the design requires instead:**
+1. **Reorderable**: operator edits `order` field in SURFACES.yaml (or asks YARNNN to) → sections reorder without code changes
+2. **Collapsible**: removing a section from `program_sections[]` hides it — no bundle code change
+3. **Additive**: new section types register in `LIBRARY_COMPONENTS` and declare themselves in SURFACES.yaml — existing sections unchanged (ADR-222 Principle 16)
 
-| Current | Target |
-|---|---|
-| MandateFace renders as a card among peers | MandateFace becomes `CockpitHeader` — full-width page header, mandate title prominent, autonomy toggle inline top-right |
-| Autonomy chip lives only in chat composer (ADR-238) | Autonomy posture surface moves to `CockpitHeader` — the cockpit is where the operator *runs* the operation; autonomy belongs there |
-| MoneyTruth + Performance + Tracking as separate cards | Bundle replaces all three with one unified `TraderDashboard` component — portfolio chart, balances, positions, orders as a single cohesive block |
-| `TraderMoneyTruth` shows 3 stat tiles only | `TraderDashboard` shows the full Alpaca brokerage panel shape |
+**SURFACES.yaml declaration (alpha-trader)**:
+
+```yaml
+cockpit:
+  program_sections:
+    - kind: TraderPortfolio
+      order: 1
+    - kind: TraderBalances
+      order: 2
+    - kind: TraderPositions
+      order: 3
+    - kind: TraderOrders
+      order: 4
+```
+
+**CockpitRenderer processing**:
+
+```
+GET /api/programs/surfaces
+  → cockpit.program_sections (sorted by order)
+  → render CockpitHeader (always, Layer 1)
+  → for each section in sorted program_sections:
+      dispatch through LIBRARY_COMPONENTS[section.kind]
+```
+
+No `program_sections` in the workspace's composition → CockpitRenderer falls through to the four kernel-default faces (current behavior). This preserves backward compatibility.
 
 ---
 
-## Common components — visual contract
+## Layer 1 — CockpitHeader visual contract
 
-**CockpitHeader** (`web/components/library/CockpitHeader.tsx`)
-
-Always rendered. No bundle override. Visual shape:
+**Component**: `web/components/library/CockpitHeader.tsx`
+**Always rendered**: yes — no bundle override.
+**Replaces**: the current `MandateFace` card (which stays as a fallback-face but is not the cockpit header).
 
 ```
-┌─────────────────────────────────────────────────┐
-│                                                  │
-│  {Mandate title}              Autonomy: [label]  │
-│                                                  │
-│  {Mandate summary — first non-blank paragraph}   │
-│                                                  │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                                                         │
+│  {mandate title}                         Autonomy: {level} [→ edit]    │
+│                                                                         │
+│  {mandate summary — first prose paragraph, stripped of headings/meta}  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Title: derived from `## Primary Action` heading or first `# Mandate` heading in MANDATE.md
-- If MANDATE.md is skeleton/empty: CTA prompt "Define your mandate in chat"
-- Autonomy label: `manual | assisted | bounded autonomous | autonomous` from AUTONOMY.md default.level
-- Autonomy toggle: opens `/agents?agent=thinking-partner&tab=autonomy` (the Autonomy tab, per ADR-236 Round 5+)
-- No card border. Subtle background (`bg-muted/10`). Full-width.
+Visual rules:
+- Full width, no card border
+- Subtle background (`bg-muted/10` or transparent — context-dependent)
+- Title: `text-2xl font-semibold` — same weight as a surface title
+- Mandate summary: `text-sm text-muted-foreground` — up to 3 lines, prose weight
+- Autonomy posture: top-right corner, `text-xs`, links to `/agents?agent=thinking-partner&tab=autonomy`
+  - `manual` → muted text, no icon
+  - `assisted` → muted text + info icon
+  - `bounded_autonomous` → amber text + shield icon
+  - `autonomous` → primary text + shield icon
+- Skeleton state (MANDATE.md absent or kernel-default placeholder): CTA prompt "Define your mandate in chat" — same amber/dashed visual as current MandateFace skeleton
+
+**Substrate reads**:
+- `/workspace/context/_shared/MANDATE.md` → title + summary extraction
+- `/workspace/context/_shared/AUTONOMY.md` → level + ceiling (via `useAutonomy()` from `@/lib/autonomy`)
 
 ---
 
-## Program-specific components — visual contract
+## Layer 2 — alpha-trader sections visual contract
 
-**For alpha-trader — `TraderDashboard`**
+### TraderPortfolio (order: 1)
 
-Single component registered in `LIBRARY_COMPONENTS` as `kind: TraderDashboard`.
-Declared in SURFACES.yaml under `cockpit.program_dashboard.kind`.
-Replaces the MoneyTruth + Performance + Tracking card stack entirely.
-
-Visual shape (mirrors Alpaca dashboard aesthetic per design sketch):
+**Data**: `api.cockpit.portfolioHistory()` → Alpaca `/v2/account/portfolio/history` (line chart data) + `api.cockpit.moneyTruth()` (equity headline)
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│ Your portfolio    [1D] [1M] [1Y] [All] [↻]           [Watchlist]   │
-│ $XX,XXX.xx ↑ +X.X%                                                  │
-│ April XX, XXXX KST                                                  │
-│                                                                      │
-│ [equity chart over time period]           [watchlist panel]         │
-│                                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│ 🗂 Balances                                                    [+]  │
-│ Buying Power        Cash             Daily Change                   │
-│ $XX,XXX             $XX,XXX          +$XXX (+X.X%)                  │
-├─────────────────────────────────────────────────────────────────────┤
-│ Top Positions   Asset Class [All ▾]  Side [All ▾]    View All       │
-│ Asset | Price | Qty | Market Value | Total P/L ($)                  │
-│ [empty state: "No open positions. Place some trades."]              │
-├─────────────────────────────────────────────────────────────────────┤
-│ Recent Orders                                          View All      │
-│ [Search...]                    [Cancel X selected] [⚙ Columns]      │
-│ ☐ | Asset | Order Type | Side | Qty | Status | Submitted At        │
-│ [empty state: "No orders. Place a trade via dashboard or API."]     │
-│ [Previous] [1] [Next]                                               │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Your portfolio    [1D] [1M] [1Y] [All]  [↻ refresh]     [Watchlist ▸]  │
+│ $XX,XXX.xx ↑ +X.X%  · paper                                            │
+│ {timestamp} KST                                                         │
+│                                                                         │
+│ [line chart — equity over selected time period]                         │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-Data sources:
-- Portfolio chart: `api.cockpit.moneyTruth()` (live Alpaca equity over time, Phase 3 deferred — chart timeline uses Alpaca `/v2/account/portfolio/history`)
-- Balances: `api.cockpit.moneyTruth()` (equity, cash, buying_power, day_pnl)
-- Positions: `api.cockpit.moneyTruth()` (positions_count) + a new `api.cockpit.positions()` call (Alpaca `/v2/positions`)
-- Recent Orders: new `api.cockpit.recentOrders()` call (Alpaca `/v2/orders?status=all&limit=10`)
+- Chart: lightweight SVG sparkline or recharts-style line chart. NOT a full Recharts bundle — keep it minimal.
+- Paper badge: shown when `paper: true` from moneyTruth response
+- Refresh: re-fetches live data
 
-Fallback when Alpaca unreachable: substrate-derived panel (`_performance.md` + `_positions.md`).
+### TraderBalances (order: 2)
+
+**Data**: `api.cockpit.moneyTruth()` (equity, cash, buying_power, day_pnl, day_pnl_pct)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 🗂 Balances                                                        [+]  │
+│ Buying Power           Cash                Daily Change                 │
+│ $XX,XXX                $XX,XXX             +$XXX (+X.X%) ↑              │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+- 3-column grid, clean labels
+- Daily Change: colored (green/red) with trend arrow
+
+### TraderPositions (order: 3)
+
+**Data**: new `api.cockpit.positions()` → Alpaca `/v2/positions`
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Top Positions    Asset Class [All ▾]  Side [All ▾]         View All →  │
+│ Asset | Price | Qty | Market Value | Total P/L ($)                     │
+│                                                                         │
+│ [empty: "No open positions. Place some trades."]                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### TraderOrders (order: 4)
+
+**Data**: new `api.cockpit.recentOrders()` → Alpaca `/v2/orders?status=all&limit=10`
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Recent Orders                                              View All →   │
+│ [Search...]             [Cancel X selected]  [⚙ Columns]               │
+│ ☐ | Asset | Order Type | Side | Qty | Status | Submitted At            │
+│                                                                         │
+│ [empty: "No orders. Place a trade via the API or dashboard."]           │
+│ [Previous] [1] [Next]                                                   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Layout orchestration — how layers compose
-
-`CockpitRenderer` after this design update:
+## Layout orchestration — revised CockpitRenderer
 
 ```
 CockpitRenderer
-├── CockpitHeader          (always, common)
-└── ProgramDashboard       (optional, bundle-supplied)
-    └── TraderDashboard    (when cockpit.program_dashboard.kind === 'TraderDashboard')
+├── CockpitHeader          (always, common — mandate + autonomy)
+└── if program_sections declared in composition:
+    └── for each section (sorted by order):
+        └── dispatchComponent(section.kind)
+    else (no bundle active):
+    └── [four kernel-default faces: MandateFace, MoneyTruthFace, PerformanceFace, TrackingFace]
+        (MandateFace retained as kernel-default fallback when CockpitHeader
+         is present it becomes redundant; deferred cleanup)
 ```
 
-The `ProgramDashboard` slot replaces the current four-face stack for workspaces where the bundle declares a program dashboard. Workspaces with no active bundle continue to render kernel-default faces.
+---
+
+## Implementation roadmap — ADR-243
+
+**Phase A — CockpitHeader** (~200 LOC, FE-only)
+- Author `web/components/library/CockpitHeader.tsx`
+- Reads MANDATE.md (title/summary extraction) + uses `useAutonomy()` (ADR-238 hook)
+- Autonomy posture shown inline top-right; links to TP Autonomy tab (ADR-236 Round 5+)
+- CockpitRenderer: render `<CockpitHeader />` unconditionally before four-face stack
+- SURFACES.yaml: no change for Phase A
+- Test gate: 4 assertions (component exists, exports, reads mandate + autonomy)
+
+**Phase B — program_sections compositor** (~100 LOC, FE)
+- `web/lib/compositor/types.ts`: add `program_sections?: Array<{kind: string; order: number}>` to cockpit block
+- `web/lib/compositor/resolver.ts`: add `getProgramSections(composition)` helper
+- `api/services/composition_resolver.py`: pass through `program_sections` from SURFACES.yaml (additive, no merge needed for v1 since single-bundle per workspace)
+- CockpitRenderer: if `program_sections` present → render sections instead of four-face stack
+- alpha-trader SURFACES.yaml: add `cockpit.program_sections[]` with 4 current-existing component kinds as placeholder
+
+**Phase C — alpha-trader sections** (~400 LOC, FE + backend)
+- New backend endpoints: `GET /api/cockpit/positions`, `GET /api/cockpit/recent-orders`
+- Author `TraderPortfolio.tsx` (with portfolio history chart), `TraderBalances.tsx`, `TraderPositions.tsx` (upgrade existing), `TraderOrders.tsx`
+- Register in `LIBRARY_COMPONENTS`
+- alpha-trader SURFACES.yaml: update `program_sections` to reference real component kinds
 
 ---
 
-## Implementation roadmap (ADR-243)
+## Relationship to existing docs + ADRs
 
-This design requires:
-
-**Phase A — CockpitHeader** (~150 LOC, FE-only)
-- Extract mandate title derivation from MandateFace into CockpitHeader
-- Move autonomy posture surface from chat composer to CockpitHeader
-- CockpitRenderer renders CockpitHeader unconditionally before the four faces
-
-**Phase B — TraderDashboard** (~400 LOC, FE + light backend)
-- Author `web/components/library/TraderDashboard.tsx` — portfolio chart + balances + positions + orders
-- New backend endpoints: `GET /api/cockpit/positions` (Alpaca positions), `GET /api/cockpit/orders` (recent orders)
-- Portfolio chart: uses Alpaca `/v2/account/portfolio/history` (already in `alpaca_client.get_portfolio_history`)
-- alpha-trader SURFACES.yaml: `cockpit.program_dashboard.kind: TraderDashboard`
-- Deprecate the current three-card stack (MoneyTruth + Performance + Tracking) for bundle workspaces — they remain as kernel-default for non-bundle workspaces
-
-**Phase C — Bundle layout switch**
-- CockpitRenderer checks `cockpit.program_dashboard.kind` — when set, renders CockpitHeader + ProgramDashboard only (no individual faces)
-- When unset, renders CockpitHeader + original four faces (kernel-default behavior)
-
----
-
-## What the operator's design sketch tells us about direction
-
-The design communicates two things clearly:
-
-1. **Common = prose/intent layer** — The page header reads like a mandate declaration + the operator's operating mode. It communicates purpose and constraints. It's text-weight, not data-weight.
-
-2. **Project-specific = operational dashboard** — The trader section is literally the Alpaca web interface aesthetic. The operator is running a trading operation; the cockpit should feel like a trading terminal's summary view, not a generic dashboard. This is the key difference: the *program* defines what "operational" looks like for its domain; the kernel just provides the mandate framing.
-
-This maps directly to ADR-222's OS framing: the **kernel** sets the mandate/autonomy layer (universal, any program); **programs** bring their own operational aesthetics (domain-specific).
-
----
-
-## Relationship to existing architecture docs
-
-- `docs/architecture/compositor.md` — the seam (how `kind` strings map to components). Unchanged.
-- `ADR-228` — the four-face model. Phase C above amends it to allow "program_dashboard replaces four faces" for bundle workspaces.
-- `ADR-242` — alpha-trader bundle components Phase 1+2 (current state). ADR-243 extends this toward the full design.
-- `web/components/library/README.md` — the component registry discipline. ADR-243 adds `CockpitHeader` as a kernel component and `TraderDashboard` as a bundle component.
+| Doc | Relationship |
+|---|---|
+| `docs/architecture/compositor.md` | Seam reference. Phase B extends the compositor with `program_sections`. No change to the core dispatch pattern. |
+| ADR-228 | Four-face model. Phase A + Phase B amend the four-face layout: header separates out; program_sections replaces the face stack for bundle workspaces. |
+| ADR-242 | Current state: `TraderMoneyTruth`, `TraderSignalExpectancy`, `TraderPositions` as face-dispatch overrides. Phase C supersedes this — these components fold into the `program_sections` stack as upgraded sections. |
+| ADR-238 | `useAutonomy()` hook. CockpitHeader consumes it for the autonomy posture display — no code change to the hook itself. |
+| `web/components/library/README.md` | Component registry discipline. Phase C adds 4 new trader section components as bundle components. |

@@ -24,6 +24,7 @@
  */
 
 import { CockpitProvider } from './CockpitContext';
+import { CockpitHeader } from './CockpitHeader';
 import { MandateFace } from './faces/MandateFace';
 import { MoneyTruthFace } from './faces/MoneyTruthFace';
 import { PerformanceFace } from './faces/PerformanceFace';
@@ -43,11 +44,20 @@ export function CockpitRenderer({ onOpenChatDraft }: CockpitRendererProps) {
 
   return (
     <CockpitProvider value={{ onOpenChatDraft: handleOpenChatDraft }}>
-      <section
-        aria-label="Cockpit"
-        className="border-b border-border/60 bg-muted/20"
-      >
-        <div className="flex flex-col gap-4 px-6 py-6">
+      <section aria-label="Cockpit" className="border-b border-border/60">
+        {/* Layer 1 — Common header (ADR-243 Phase A).
+            Mandate title + summary + autonomy mode. Always present.
+            No bundle override — this is universal program framing. */}
+        <CockpitHeader />
+
+        {/* Layer 2 — Program-specific faces (kernel-default stack).
+            ADR-243 Phase B will replace this with program_sections dispatch
+            when the compositor supplies program_sections[]. Until then the
+            four-face stack remains as the kernel-default behavior.
+            Note: MandateFace is retained here for workspaces where
+            CockpitHeader's skeleton state fires — it provides additional
+            substrate context. Phase B cleanup will de-duplicate. */}
+        <div className="flex flex-col gap-4 px-6 py-6 bg-muted/20">
           <MandateFace />
           <MoneyTruthFace />
           <PerformanceFace />
