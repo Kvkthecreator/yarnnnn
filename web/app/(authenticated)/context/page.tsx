@@ -155,10 +155,15 @@ function buildContextNodes(input: {
 
   // ADR-206 Intent-first ordering preserved for the first four sections.
   // Memory + Review + Agents added per the operator's "most should be
-  // visible" framing. Order: Identity (authored intent) → Context
-  // (accumulated working substrate) → Reports (deliverables) → Memory
-  // (YARNNN's working memory) → Review (judgment substrate) → Agents
-  // (per-agent files) → Uploads (raw input).
+  // visible" framing. Sections with zero children are omitted — the
+  // operator saw "Agents: 0 items / Empty folder" which was confusing
+  // because specialist filesystem substrate only materialises when an
+  // agent first runs; TP has no /workspace/agents/ filesystem path at
+  // all (TP is an orchestration surface, not a filesystem-substrate
+  // agent per ADR-216).
+  const maybe = (node: TreeNode): TreeNode | null =>
+    (node.children?.length ?? 0) > 0 ? node : null;
+
   return [
     {
       name: 'Identity',
@@ -180,42 +185,42 @@ function buildContextNodes(input: {
       summary: domainChildren.length ? `${domainChildren.length} domains` : 'No domains yet',
       children: domainChildren,
     },
-    {
+    maybe({
       name: 'Reports',
       path: `${EXPLORER_ROOT_PATH}/outputs`,
       type: 'folder' as const,
       summary: outputChildren.length ? `${outputChildren.length} reports` : 'No reports yet',
       children: outputChildren,
-    },
-    {
+    }),
+    maybe({
       name: 'Memory',
       path: '/workspace/memory',
       type: 'folder' as const,
-      summary: memoryChildren.length ? `${memoryChildren.length} files` : "YARNNN's working memory",
+      summary: `${memoryChildren.length} files`,
       children: memoryChildren,
-    },
-    {
+    }),
+    maybe({
       name: 'Review',
       path: '/workspace/review',
       type: 'folder' as const,
-      summary: reviewChildren.length ? `${reviewChildren.length} files` : 'Reviewer substrate',
+      summary: `${reviewChildren.length} files`,
       children: reviewChildren,
-    },
-    {
+    }),
+    maybe({
       name: 'Agents',
       path: '/workspace/agents',
       type: 'folder' as const,
-      summary: agentsChildren.length ? `${agentsChildren.length} agents` : 'No agent substrate yet',
+      summary: `${agentsChildren.length} agents`,
       children: agentsChildren,
-    },
-    {
+    }),
+    maybe({
       name: 'Uploads',
       path: `${EXPLORER_ROOT_PATH}/uploads`,
       type: 'folder' as const,
-      summary: uploadChildren.length ? `${uploadChildren.length} items` : 'No uploads yet',
+      summary: `${uploadChildren.length} items`,
       children: uploadChildren,
-    },
-  ];
+    }),
+  ].filter((n): n is TreeNode => n !== null);
 }
 
 function getNodeMetadata(node: TreeNode): string {
