@@ -199,6 +199,33 @@ function DirectoryView({
   );
 }
 
+// ADR-236 Cluster B (2026-04-30): TP-edit awareness on Files header.
+// Map raw `authored_by` strings (per ADR-209 taxonomy) to operator-facing
+// labels. Aligned with RevisionHistoryPanel's authorLayer() but inlined
+// here because the file-header line is a single one-liner — extracting
+// the formatter to @/lib would be over-abstraction for one consumer.
+function formatHeadAuthor(authored_by: string | null | undefined): string | null {
+  if (!authored_by) return null;
+  if (authored_by === 'operator') return 'You';
+  if (authored_by.startsWith('yarnnn:')) return 'YARNNN';
+  if (authored_by.startsWith('agent:')) {
+    const slug = authored_by.slice('agent:'.length);
+    return `Agent (${slug})`;
+  }
+  if (authored_by.startsWith('specialist:')) {
+    const role = authored_by.slice('specialist:'.length);
+    return `Specialist (${role})`;
+  }
+  if (authored_by.startsWith('reviewer:')) return 'Reviewer';
+  if (authored_by.startsWith('system:')) return 'System';
+  return authored_by;
+}
+
+interface HeadRevision {
+  authored_by: string;
+  created_at: string;
+}
+
 function FileView({
   path,
   showHeader,
@@ -212,15 +239,33 @@ function FileView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey] = useState(0);
+  // ADR-236 Cluster B: head-revision authorship surfaced on the file
+  // header. Reads /api/workspace/revisions?limit=1 — the existing
+  // ADR-209 Phase 4 endpoint. No new backend.
+  const [headRevision, setHeadRevision] = useState<HeadRevision | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setHeadRevision(null);
     api.workspace
       .getFile(path)
       .then((data) => setFile(data))
       .catch((err) => setError(err.message || 'Failed to load file'))
       .finally(() => setLoading(false));
+    // Fire revision lookup in parallel — non-blocking on file render.
+    api.workspace
+      .listRevisions(path, 1)
+      .then((res) => {
+        const head = res.revisions[0];
+        if (head) {
+          setHeadRevision({ authored_by: head.authored_by, created_at: head.created_at });
+        }
+      })
+      .catch(() => {
+        // Non-fatal — head-author display is informational; absence
+        // just falls back to the existing updated_at timestamp.
+      });
   }, [path, reloadKey]);
 
   if (loading) {
@@ -273,6 +318,19 @@ function FileView({
                 <span>{describeFileKind(file.path, file.content_type)}</span>
                 {file.updated_at && <span>{formatTimestamp(file.updated_at, true)}</span>}
                 {file.content_type && <span>{file.content_type}</span>}
+                {/* ADR-236 Cluster B: surface head-revision authorship.
+                    Tells the operator who last touched this file —
+                    "Last edited by YARNNN" / "Last edited by Reviewer" /
+                    "Last edited by You" etc. Substrate observability via
+                    ADR-209 authored_by; falls back silently on read error. */}
+                {headRevision && (() => {
+                  const label = formatHeadAuthor(headRevision.authored_by);
+                  return label ? (
+                    <span title={`authored_by: ${headRevision.authored_by}`}>
+                      Last edited by {label}
+                    </span>
+                  ) : null;
+                })()}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">

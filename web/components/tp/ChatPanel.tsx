@@ -317,13 +317,21 @@ export function ChatPanel({
 
         {showAutonomyChip && (
           <div className="flex items-center mb-1.5">
-            <span
-              className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full border border-border bg-muted/40 text-muted-foreground"
-              title={autonomySummary}
-              aria-label={`Workspace autonomy: ${autonomySummary}`}
+            {/* ADR-236 Cluster B (2026-04-30): chip becomes clickable.
+                Anchor to /context?path=AUTONOMY.md so the operator can
+                see the full substrate file. Edits flow through chat per
+                ADR-235 D1.b (WriteFile scope='workspace'); viewing flows
+                through Files. ADR-237 R3's "later route to a posture
+                modal" is fulfilled here as a navigation, not a modal —
+                the substrate file IS the posture explainer. */}
+            <a
+              href="/context?path=%2Fworkspace%2Fcontext%2F_shared%2FAUTONOMY.md"
+              className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full border border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title={`${autonomySummary} — click to view AUTONOMY.md`}
+              aria-label={`Workspace autonomy: ${autonomySummary}. Click to view substrate.`}
             >
               {autonomySummary}
-            </span>
+            </a>
           </div>
         )}
 
