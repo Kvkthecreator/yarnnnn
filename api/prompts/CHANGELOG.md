@@ -6,6 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.01.1] - ACCUMULATION cost hardening — round cap + dedup discipline
+
+### Changed
+- `api/services/dispatch_helpers.py` — `read_trading` round-budget override lowered from 20 → 12. Audit showed 20-round runs hitting 1.4–2M input tokens ($8–12/run) due to cumulative billing across rounds. Budget analysis: 12 tickers in 3-4 batch rounds + 6-12 WriteFile in 2-3 write rounds + synthesis = ~10 rounds needed; 12 gives headroom. At 20 rounds the geometric cost growth made stand-down runs cost $2.61 and full runs cost $8.87.
+- `api/agents/prompts/headless/accumulation.py::ACCUMULATION_POSTURE` — adds "Tool Call Discipline (cost-critical)" section. Instructs: fetch each external source ONCE (no re-fetching), batch WriteFile calls 3-4 per round, stop when entities are written. Root cause of redundant calls: signal-evaluation-2 made 96 `platform_trading_get_market_data` calls for 12 tickers in one run (8x over-fetching). Prompt did not previously instruct against this.
+
+### Why
+- 7-day cost trajectory: $59.49 ($8.50/day, $254/month projected) against a system with $0 trading P&L. Cost-truth contract requires platform cost < money-truth gain.
+- Two compounding drivers identified in audit: (1) 20-round cap causing geometric token accumulation, (2) agent re-fetching same tickers multiple times per run with no dedup instruction.
+- Neither issue existed before `fix(trading): bump tool-round budget to 20` (2026-04-30 commit e7223a1) — that fix unblocked write-back correctly but overcorrected on the budget.
+
+### Behavior
+- trading accumulation runs: max 12 rounds (was 20). Expected cost: ~$1-2/run for signal-evaluation-2, ~$0.50-1/run for track-universe-2.
+- Agent instructed to fetch each ticker once and batch writes. Redundant API calls should collapse from 96→12 per signal-evaluation-2 run.
+
+---
+
 ## [2026.04.30.4] - Microcompact stub legibility — make pruned tool results unambiguous
 
 ### Changed

@@ -1193,11 +1193,15 @@ async def _generate(
         if has_asset_capabilities(role):
             max_tool_rounds = max(max_tool_rounds, 6)
         # Trading accumulation recurrences fetch N tickers via platform API
-        # (1 call per ticker) then write N entity files back — the default
-        # cross_platform budget of 8 rounds is exhausted before write-back.
-        # Bump to 20 for any recurrence that declares read_trading capability.
+        # (1 call per ticker) then write N entity files back. Budget analysis:
+        # - 12 tickers fetched in batches of 3-4 per round = 3-4 data rounds
+        # - 6-12 WriteFile calls = 2-3 write rounds
+        # - synthesis + review = 1-2 rounds
+        # Total needed: ~10 rounds. 12 gives headroom without runaway cost.
+        # At 20 rounds (prior value), a single run hit 1.4-2M input tokens
+        # due to cumulative billing across rounds. 12 caps cost at ~60% of that.
         if "read_trading" in (task_required_capabilities or []):
-            max_tool_rounds = max(max_tool_rounds, 20)
+            max_tool_rounds = max(max_tool_rounds, 12)
 
     if tool_overrides is not None:
         headless_tools = tool_overrides
