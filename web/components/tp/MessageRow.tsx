@@ -34,12 +34,14 @@
  */
 
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, CornerDownRight, Zap, Repeat } from 'lucide-react';
+import { ChevronDown, CornerDownRight, Zap, Repeat, X } from 'lucide-react';
 import type { TPMessage } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/snapshot-meta';
 import { MessageRenderer } from './MessageDispatch';
+import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
+import { useTP } from '@/contexts/TPContext';
 
 // ---------------------------------------------------------------------------
 // Per-weight wrappers
@@ -62,6 +64,9 @@ interface MaterialWrapperProps {
  * reviewer shape.
  */
 function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps): JSX.Element {
+  const { sendMessage } = useTP();
+  const [fileViewOpen, setFileViewOpen] = useState(false);
+
   const recurrenceSlug = msg.narrative?.taskSlug;
   const showRecurrenceChip = !!recurrenceSlug && msg.role !== 'user';
   const showInlineFireHint =
@@ -70,13 +75,8 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     msg.narrative?.pulse === 'addressed' &&
     !!msg.narrative?.invocationId;
   const isInlineAction = !msg.narrative?.taskSlug;
-  // ADR-236 Item 8.2 (2026-04-30): graduation moves from the user ask to
-  // the assistant output. Per ADR-231 D1 (invocation-first default), the
-  // ask already fired — the operator's decision to schedule the behavior
-  // attaches to "this output is useful, run it again" not to the prompt
-  // that produced it. Gate: assistant-role + inline-fired (taskSlug
-  // absent) + has invocationId (real production, not just chitchat) +
-  // non-empty content.
+  // ADR-236 Item 8.2 (2026-04-30): graduation moves from user ask to
+  // assistant output — once the output is useful, "run on a schedule".
   const showMakeRecurring =
     msg.role === 'assistant' &&
     isInlineAction &&
@@ -84,7 +84,16 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     !!onMakeRecurring &&
     !!msg.content?.trim();
 
-  // Reviewer verdicts render full-width without a wrapping chip stack.
+  // Extract the output path from the dispatcher's narrative body.
+  // Dispatcher writes "Output at {path}.\nRun log at..." as the first lines.
+  const outputPath = (() => {
+    if (!recurrenceSlug) return null;
+    const match = msg.content?.match(/Output at ([^\n.]+)/);
+    const raw = match?.[1]?.trim();
+    return raw?.startsWith('/workspace') ? raw : null;
+  })();
+
+  // Reviewer verdicts render full-width without chip stack.
   if (msg.role === 'reviewer') {
     return (
       <div className="max-w-[92%]">
@@ -93,34 +102,19 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     );
   }
 
-  // Authorship chip rendered above the bubble for non-user material
-  // messages. Composes around — not inside — the per-shape renderer
-  // so the chip surface stays role-agnostic.
-  // Recurrence chip: links to the output file in the Files explorer.
-  // The dispatcher writes "Output at {path}.\nRun log at..." in the message
-  // body — extract the path from there so the chip points to the exact output
-  // location rather than a generic /work page.
-  // Fallback: /context (Files root) if extraction fails.
-  const outputPath = (() => {
-    if (!recurrenceSlug) return null;
-    const match = msg.content?.match(/Output at ([^\n.]+)/);
-    const raw = match?.[1]?.trim();
-    return raw?.startsWith('/workspace') ? raw : null;
-  })();
-  const chipHref = outputPath
-    ? `/context?path=${encodeURIComponent(outputPath)}`
-    : '/context';
-
   const chip =
     showRecurrenceChip ? (
-      <a
-        href={chipHref}
+      // Chip opens an inline WorkspaceFileView panel — no navigation.
+      // Universal kernel pattern: WorkspaceFileView renders any path.
+      <button
+        type="button"
+        onClick={() => setFileViewOpen(v => !v)}
         className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-foreground/5 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded transition-colors"
-        title={`From recurrence: ${recurrenceSlug} — open in Files`}
+        title={`From recurrence: ${recurrenceSlug} — view output inline`}
       >
         <CornerDownRight className="w-2.5 h-2.5" />
         <span className="font-mono">{recurrenceSlug}</span>
-      </a>
+      </button>
     ) : showInlineFireHint ? (
       <span
         className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/60 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded"
@@ -135,6 +129,39 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     <div className="flex flex-col">
       {chip}
       <MessageRenderer msg={msg} isLoading={isLoading} />
+
+      {/* Inline file view — opens when operator clicks the recurrence chip.
+          Renders the output file in-place with WorkspaceFileView.
+          No navigation. No redirect. Operator stays in chat. */}
+      {fileViewOpen && outputPath && (
+        <div className="mt-2 rounded-lg border border-border bg-muted/10 p-3 relative max-w-[92%]">
+          <button
+            type="button"
+            onClick={() => setFileViewOpen(false)}
+            className="absolute top-2 right-2 text-muted-foreground/40 hover:text-muted-foreground"
+            aria-label="Close"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+          <WorkspaceFileView
+            path={outputPath}
+            title={recurrenceSlug ?? undefined}
+            editPrompt={`I want to talk about the output from ${recurrenceSlug}.`}
+            onEdit={(prompt) => { setFileViewOpen(false); sendMessage(prompt); }}
+          />
+        </div>
+      )}
+
+      {/* Fallback: no path extracted — show context link */}
+      {fileViewOpen && !outputPath && (
+        <div className="mt-2 rounded-lg border border-border bg-muted/10 p-3 max-w-[92%] text-xs text-muted-foreground">
+          Output path not available in this message.{' '}
+          <a href="/context" className="underline underline-offset-4">
+            Browse in Files →
+          </a>
+        </div>
+      )}
+
       {showMakeRecurring && (
         <div className="mt-1.5 -mb-0.5">
           <button
