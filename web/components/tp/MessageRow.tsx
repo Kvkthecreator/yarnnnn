@@ -96,12 +96,27 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
   // Authorship chip rendered above the bubble for non-user material
   // messages. Composes around — not inside — the per-shape renderer
   // so the chip surface stays role-agnostic.
+  // Recurrence chip: links to the output file in the Files explorer.
+  // The dispatcher writes "Output at {path}.\nRun log at..." in the message
+  // body — extract the path from there so the chip points to the exact output
+  // location rather than a generic /work page.
+  // Fallback: /context (Files root) if extraction fails.
+  const outputPath = (() => {
+    if (!recurrenceSlug) return null;
+    const match = msg.content?.match(/Output at ([^\n.]+)/);
+    const raw = match?.[1]?.trim();
+    return raw?.startsWith('/workspace') ? raw : null;
+  })();
+  const chipHref = outputPath
+    ? `/context?path=${encodeURIComponent(outputPath)}`
+    : '/context';
+
   const chip =
     showRecurrenceChip ? (
       <a
-        href={`/work?task=${encodeURIComponent(recurrenceSlug!)}`}
+        href={chipHref}
         className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-foreground/5 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded transition-colors"
-        title={`From recurrence: ${recurrenceSlug}`}
+        title={`From recurrence: ${recurrenceSlug} — open in Files`}
       >
         <CornerDownRight className="w-2.5 h-2.5" />
         <span className="font-mono">{recurrenceSlug}</span>
