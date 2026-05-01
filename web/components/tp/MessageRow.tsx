@@ -84,14 +84,26 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     !!onMakeRecurring &&
     !!msg.content?.trim();
 
-  // Extract the output path from the dispatcher's narrative body.
-  // Dispatcher writes "Output at {path}.\nRun log at..." as the first lines.
+  // Extract the run log path from the dispatcher's narrative body.
+  // Dispatcher writes "Output at {dir}.\nRun log at {file}.\n..." as the
+  // first lines. The run log is a real file (_run_log.md); the output path
+  // is a directory which would 404 on getFile. Use run log as the
+  // primary view — it's the most informative single file per invocation.
+  const runLogPath = (() => {
+    if (!recurrenceSlug) return null;
+    const match = msg.content?.match(/Run log at ([^\n.]+)/);
+    const raw = match?.[1]?.trim();
+    return raw?.startsWith('/workspace') ? raw : null;
+  })();
+  // Also extract the output directory for the fallback label.
   const outputPath = (() => {
     if (!recurrenceSlug) return null;
     const match = msg.content?.match(/Output at ([^\n.]+)/);
     const raw = match?.[1]?.trim();
     return raw?.startsWith('/workspace') ? raw : null;
   })();
+  // Prefer run log (actual file); fall back to output dir for labelling.
+  const fileViewPath = runLogPath ?? outputPath;
 
   // Reviewer verdicts render full-width without chip stack.
   if (msg.role === 'reviewer') {
@@ -130,35 +142,40 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
       {chip}
       <MessageRenderer msg={msg} isLoading={isLoading} />
 
-      {/* Inline file view — opens when operator clicks the recurrence chip.
-          Renders the output file in-place with WorkspaceFileView.
+      {/* Inline run log view — opens when operator clicks the recurrence chip.
+          Renders the _run_log.md file in-place with WorkspaceFileView.
           No navigation. No redirect. Operator stays in chat. */}
-      {fileViewOpen && outputPath && (
-        <div className="mt-2 rounded-lg border border-border bg-muted/10 p-3 relative max-w-[92%]">
+      {fileViewOpen && fileViewPath && (
+        <div className="mt-2 rounded-lg border border-border bg-background p-3 relative max-w-[92%] shadow-sm">
           <button
             type="button"
             onClick={() => setFileViewOpen(false)}
-            className="absolute top-2 right-2 text-muted-foreground/40 hover:text-muted-foreground"
+            className="absolute top-2 right-2 p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
             aria-label="Close"
           >
             <X className="h-3.5 w-3.5" />
           </button>
           <WorkspaceFileView
-            path={outputPath}
+            path={fileViewPath}
             title={recurrenceSlug ?? undefined}
-            editPrompt={`I want to talk about the output from ${recurrenceSlug}.`}
+            tagline={outputPath ? `Output: ${outputPath}` : undefined}
+            editPrompt={`I want to talk about the latest run of ${recurrenceSlug} — what did it do and what should we do next?`}
             onEdit={(prompt) => { setFileViewOpen(false); sendMessage(prompt); }}
           />
         </div>
       )}
 
-      {/* Fallback: no path extracted — show context link */}
-      {fileViewOpen && !outputPath && (
+      {/* Fallback: no path extractable from message body */}
+      {fileViewOpen && !fileViewPath && (
         <div className="mt-2 rounded-lg border border-border bg-muted/10 p-3 max-w-[92%] text-xs text-muted-foreground">
-          Output path not available in this message.{' '}
-          <a href="/context" className="underline underline-offset-4">
-            Browse in Files →
-          </a>
+          Run log path not found in this message.{' '}
+          <button
+            type="button"
+            onClick={() => { setFileViewOpen(false); sendMessage(`Tell me about the latest run of ${recurrenceSlug}.`); }}
+            className="underline underline-offset-4 hover:no-underline"
+          >
+            Ask YARNNN instead
+          </button>
         </div>
       )}
 
