@@ -1,28 +1,30 @@
 'use client';
 
 /**
- * ToggleBar — top-level pill navigation (cockpit nav per ADR-205 F1 + ADR-214).
+ * ToggleBar — top-level pill navigation (cockpit nav per ADR-205 F1 + ADR-214 + ADR-243).
  *
- * Current segments: Chat | Work | Agents | Files
+ * Current segments: Chat | Work | Schedule | Agents | Files
  *   - Chat: "Tell YARNNN what you want." (authoring surface, HOME — ADR-205 F1)
- *   - Work: "Let me check the work." (task list with briefing strip + detail — ADR-205 F2)
+ *   - Work: "Let me check the work." (output-kind framing — Reports / Tracking / Actions / System)
+ *   - Schedule: "What's on my schedule?" (cadence framing — Recurring / Reactive / One-time, ADR-243)
  *   - Agents: "Let me check on my agents." (systemic + domain Agents — ADR-214)
  *   - Files (nav label) / Context (route): "What does my workspace know?" (ADR-180)
  *
- * ADR-214 (2026-04-23): Four-tab consolidation. /review is deleted; Reviewer
- * lives as a systemic agent detail at /agents?agent=reviewer. /team reverses
- * back to /agents per ADR-212 vocabulary (only judgment-bearing entities are
- * Agents — production roles + integrations are Orchestration, not shown here).
+ * ADR-243 (2026-05-01): /schedule slotted between /work and /agents as the
+ * cadence-framed sibling of /work. List-only surface; row click hands off to
+ * /work?task={slug} for the canonical detail view. Calendar/timeline is
+ * Phase 2 (deferred until alpha demand).
  */
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageSquare, Briefcase, Users, FolderOpen } from 'lucide-react';
+import { MessageSquare, Briefcase, CalendarClock, Users, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SEGMENTS = [
   { id: 'chat', label: 'Chat', icon: MessageSquare, href: '/chat' },
   { id: 'work', label: 'Work', icon: Briefcase, href: '/work' },
+  { id: 'schedule', label: 'Schedule', icon: CalendarClock, href: '/schedule' },
   { id: 'agents', label: 'Agents', icon: Users, href: '/agents' },
   { id: 'context', label: 'Files', icon: FolderOpen, href: '/context' },
 ] as const;
