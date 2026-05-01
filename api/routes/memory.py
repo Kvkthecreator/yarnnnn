@@ -15,14 +15,17 @@ Endpoints:
   POST /user/memories        - Add a note
   POST /user/memories/import - Bulk import from text
   DELETE /memories/{id}      - Delete a note
-  GET  /user/onboarding-state - Check if user has agents
-  POST /user/onboarding      - Scaffold agents + tasks from onboarding
   GET  /activity             - List recent activity
+
+ADR-244 (2026-05-01): GET /user/onboarding-state DELETED — workspace
+lifecycle state moved to GET /api/workspace/state (routes/workspace.py).
+The "onboarding" framing dies with the modal; one canonical workspace-state
+read.
 """
 
 import hashlib
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
@@ -95,32 +98,11 @@ class BulkImportResponse(BaseModel):
     memories_extracted: int
 
 
-class OnboardingStateResponse(BaseModel):
-    """ADR-138 + ADR-240: onboarding state.
-
-    has_agents — legacy ADR-138 field; True if the user has any active agents
-        (kernel scaffolding side-effect). Used by auth callback to gate the
-        kernel-init lazy path.
-
-    activation_state — ADR-226 classifier mirrored here for the FE
-        onboarding modal's first-mount gate. Values match
-        `working_memory._classify_activation_state`:
-        'none' | 'post_fork_pre_author' | 'operational'.
-
-    active_program_slug — ADR-240 D5: durable signal that the operator
-        has picked a program at some point. Derived from bundle-template
-        marker presence in /workspace/context/_shared/MANDATE.md
-        (independent of platform connection — a fresh fork without
-        Alpaca connected still counts). Null when MANDATE.md is the
-        kernel-default placeholder (operator never picked a program).
-    """
-    has_agents: bool = False
-    activation_state: str = "none"
-    active_program_slug: Optional[str] = None
-
-
-# ─── ADR-140: Onboarding state (roster scaffolding) ──
-# ADR-144/146/235: POST /user/onboarding deleted — context enrichment via InferContext / InferWorkspace primitives
+# ADR-244 (2026-05-01): OnboardingStateResponse + GET /user/onboarding-state
+# DELETED. Replaced by GET /api/workspace/state (routes/workspace.py) with
+# extended shape (substrate_status + capability_gaps + available_programs).
+# ADR-144/146/235: POST /user/onboarding deleted — context enrichment via
+# InferContext / InferWorkspace primitives.
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -158,140 +140,17 @@ def _note_to_entry(note: dict, idx: int) -> dict:
     }
 
 
-# ─── Onboarding ───────────────────────────────────────────────────────────────
-
-@router.get("/user/onboarding-state", response_model=OnboardingStateResponse)
-async def get_onboarding_state(request: Request, auth: UserClient):
-    """Check if user has completed onboarding (ADR-138/140).
-
-    Lazy scaffolding: if no agents exist, create the default workforce roster.
-    Returns has_agents: True if user has any active agents.
-    Used by auth callback to gate new users to /onboarding.
-    """
-    try:
-        result = (
-            auth.client.table("agents")
-            .select("id")
-            .eq("user_id", auth.user_id)
-            .neq("status", "archived")
-            .limit(1)
-            .execute()
-        )
-        has_agents = len(result.data or []) > 0
-
-        # ADR-152: Full workspace initialization on first check
-        if not has_agents:
-            from services.workspace_init import initialize_workspace
-            # Infer timezone from browser header (sent by frontend via X-Timezone).
-            # Falls back to UTC inside initialize_workspace if absent or invalid.
-            browser_tz = request.headers.get("X-Timezone")
-            init_result = await initialize_workspace(auth.client, auth.user_id, browser_tz=browser_tz)
-            has_agents = True
-
-            # ADR-179: Write workspace_init_complete system card as persisted session_messages row.
-            # Zero LLM cost. TP reads as conversation history on every subsequent turn.
-            if not init_result.get("already_initialized"):
-                try:
-                    from routes.chat import get_or_create_session, append_message
-                    session = await get_or_create_session(auth.client, auth.user_id)
-                    agents_created = init_result.get("agents_created", [])
-                    tasks_created = init_result.get("tasks_created", [])
-                    # ADR-219 envelope: workspace_init is the heartbeat
-                    # that confirms the operator's account is alive. One
-                    # firing per workspace lifetime; material because
-                    # everything else depends on it. Role stays
-                    # 'assistant' so the frontend continues to render
-                    # the SystemCard inside YARNNN's bubble (the
-                    # `system_card` metadata key drives the UI dispatch,
-                    # not the role).
-                    await append_message(
-                        client=auth.client,
-                        session_id=session["id"],
-                        role="assistant",
-                        content=(
-                            "Your workspace is ready. I've set up 9 agents, scaffolded your "
-                            "directories, and scheduled a daily update at 9am. "
-                            "Tell me what you work on and I'll set up the rest."
-                        ),
-                        metadata={
-                            "system_card": "workspace_init_complete",
-                            "agents_created": len(agents_created),
-                            "tasks_created": tasks_created,
-                            "summary": "Workspace ready",
-                            "pulse": "heartbeat",
-                            "weight": "material",
-                        },
-                    )
-                except Exception as card_err:
-                    # Non-fatal — workspace init succeeded, card write is best-effort
-                    logger.warning(f"[SYSTEM_CARD] Failed to write workspace_init_complete: {card_err}")
-
-        # ADR-240: surface activation_state + active_program_slug for the
-        # onboarding modal's idempotency gate. Both are derived server-side
-        # from existing substrate (no new DB column, no schema change).
-        activation_state = "none"
-        active_program_slug: Optional[str] = None
-        try:
-            from services.workspace import UserMemory
-            from services.workspace_paths import SHARED_MANDATE_PATH
-            from services.working_memory import _classify_activation_state
-            from services.bundle_reader import _all_slugs
-
-            um = UserMemory(auth.client, auth.user_id)
-            mandate_content = await um.read(SHARED_MANDATE_PATH)
-
-            # _classify_activation_state needs a make_client_fn closure; the
-            # working_memory caller passes one because of test seams. Re-use
-            # the same auth.client via a thin lambda.
-            activation_state = _classify_activation_state(
-                auth.user_id,
-                mandate_content,
-                lambda: auth.client,
-            )
-
-            # active_program_slug — durable "did the operator pick a program?"
-            # signal independent of platform connection. ADR-226 forks write
-            # MANDATE.md with a heading line "# Mandate — {slug} (template)";
-            # we parse that heading and validate against the bundle registry.
-            # Kernel-default MANDATE.md heading is just "# Mandate" with no
-            # em-dash, so this branch returns None for never-picked operators.
-            if mandate_content:
-                for line in mandate_content.splitlines():
-                    stripped = line.strip()
-                    if not stripped.startswith("# "):
-                        continue
-                    # First heading is what we care about; subsequent ones
-                    # are section headers (## Primary Action, etc.).
-                    if " — " in stripped:
-                        # "# Mandate — alpha-trader (template)" → "alpha-trader"
-                        try:
-                            after = stripped.split(" — ", 1)[1]
-                            candidate = after.split()[0].strip()
-                            if candidate in _all_slugs():
-                                active_program_slug = candidate
-                        except Exception:
-                            pass
-                    break
-        except Exception as exc:
-            # Non-fatal — onboarding-state must not 500 if substrate
-            # introspection hits an edge case. The defaults ('none', None)
-            # are correct for a fresh workspace anyway.
-            logger.warning(f"[ONBOARDING_STATE] activation_state derivation failed: {exc}")
-
-        return OnboardingStateResponse(
-            has_agents=has_agents,
-            activation_state=activation_state,
-            active_program_slug=active_program_slug,
-        )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# _scaffold_default_roster — DELETED (ADR-205 Primitive Collapse, 2026-04-22).
-# Was already deprecated in favor of workspace_init.initialize_workspace().
-# ADR-144 + ADR-235: POST /user/onboarding DELETED — context enrichment
-# now via InferContext / InferWorkspace primitives.
+# ─── Onboarding endpoints — DELETED ──────────────────────────────────────────
+#
+# ADR-244 (2026-05-01): GET /user/onboarding-state moved to GET /api/workspace/state
+# (routes/workspace.py). Singular implementation: one canonical workspace-state
+# read, one canonical URL.
+#
+# ADR-205 (2026-04-22): _scaffold_default_roster deleted. Was already deprecated
+# in favor of workspace_init.initialize_workspace().
+#
+# ADR-144 / ADR-235 / ADR-146: POST /user/onboarding deleted. Context enrichment
+# routes through InferContext / InferWorkspace primitives.
 
 
 # ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────

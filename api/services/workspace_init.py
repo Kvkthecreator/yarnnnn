@@ -81,7 +81,10 @@ async def initialize_workspace(
     """Initialize a complete workspace for a new user.
 
     Idempotent — checks for existing workspace before creating.
-    Called from onboarding-state endpoint on first login.
+    Called from `GET /api/workspace/state` on first login (lazy roster
+    scaffolding). Also called from `routes/account.py` L2/L4 reinit paths
+    after purge, optionally with `program_slug` per ADR-244 D4 to re-fork
+    a previously-active bundle.
 
     Args:
         browser_tz: IANA timezone string inferred from the browser (X-Timezone header).

@@ -326,6 +326,37 @@ Each phase lands with: code changes + this doc's contract section updated in the
 
 ---
 
+---
+
+## Settings → Workspace surface (ADR-244, 2026-05-01)
+
+Outside the four-tab cockpit nav, `/settings?tab=workspace` is the **permanent home for program lifecycle**. Same discipline as the rest of this doc — read-mostly, judgment-shaped writes route through chat, structured affordances route through dedicated endpoints.
+
+### What it shows
+
+- **Active program** — current program slug + tagline + phase, or "No program activated".
+- **Capability gaps** — required-but-not-connected platforms for the active bundle. Deep-link to `/settings?tab=connectors`.
+- **Available programs** — activatable bundles list (mirrors `GET /api/programs/activatable`). Active one badged. Switch is the same `POST /api/programs/activate` (idempotent re-fork).
+- **Substrate status** — per-file state (skeleton / authored / missing) for `mandate`, `identity`, `brand`, `autonomy`, Reviewer `principles`. Each row deep-links to Files for raw-markdown viewing.
+
+### What it does
+
+- `Activate(slug)` → `POST /api/programs/activate`
+- `Switch(slug)` → same endpoint; bundle's tier rules preserve operator-authored content
+- `Deactivate()` → `POST /api/programs/deactivate` — soft, drops MANDATE.md program marker, body untouched per ADR-209
+- `?first_run=1` query param surfaces a Welcome banner with "Continue to chat" CTA. Same render path otherwise.
+
+### What it does NOT do
+
+- Zero edit affordances for substrate content. No `<input>`, no `<textarea>`, no inline editor for MANDATE / IDENTITY / BRAND / AUTONOMY / principles. Authoring routes through chat per ADR-206 D6 + ADR-235 D1; raw-markdown editing happens on Files per ADR-180.
+- No `/onboarding` route. The first-run flow is the same surface, accessed via `?first_run=1`. `OnboardingModal` (ADR-240) deleted as part of ADR-244.
+
+### Endpoint contract
+
+`GET /api/workspace/state` — the canonical workspace-state read. Side-effect preserved from the legacy `/api/memory/user/onboarding-state`: lazy roster scaffolding + `workspace_init_complete` system-card write on first init. Response shape: `{ has_agents, activation_state, active_program_slug, available_programs[], substrate_status, capability_gaps[] }`.
+
+---
+
 ## Related docs
 
 - [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — governs this doc
@@ -338,6 +369,7 @@ Each phase lands with: code changes + this doc's contract section updated in the
 - [docs/architecture/compositor.md](../architecture/compositor.md) — architecture-level reference for the resolver pattern, binding taxonomy, kernel-default registry
 - [invocation-and-narrative.md](../architecture/invocation-and-narrative.md) — canonical narrative vocabulary (invocation · pulse · narrative · task as legibility wrapper)
 - [ADR-206](../adr/ADR-206-operation-first-scaffolding.md) — operator-facing three-layer view (Intent · Operation · Deliverables)
+- [ADR-244](../adr/ADR-244-workspace-settings-surface.md) — Settings → Workspace surface, program lifecycle out-of-band of the four-tab cockpit
 - [ADR-168](../architecture/primitives-matrix.md) — canonical primitive matrix (not a design doc, but the authority for what verbs exist)
 - [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) — Axiom 6 (Channel), Axiom 9 (Invocation + Narrative), Derived Principle 12 (Channel legibility gates autonomy)
 - [INLINE-PLUS-MENU.md](./INLINE-PLUS-MENU.md) — existing plus-menu verb taxonomy; under ADR-215 R4 it is strictly a modal launcher

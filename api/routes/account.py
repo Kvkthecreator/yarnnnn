@@ -510,7 +510,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     - workspace_file_versions (ADR-209 authored substrate revision chain — MUST
       wipe before workspace_files since revisions reference files)
     - workspace_files (all paths — agents, context, tasks, memory)
-    - tasks table (including essential tasks — they are re-scaffolded below)
+    - tasks table (thin scheduling index per ADR-231 D4 Path B)
     - agents table (cascades agent_runs, export_log)
     - action_proposals (ADR-194 Reviewer queue — prior proposals must not
       survive a workspace reset)
@@ -526,26 +526,61 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     - user_admin_flags (admin identity survives workspace wipe — L4 only)
     - user_notification_preferences (email prefs survive workspace wipe)
     - token_usage (billing ledger — L4 only, never L2)
+    - active program (ADR-244 D4): if a program was active before the purge,
+      the bundle is re-forked during reinit so the operator lands on the
+      same program with bundle templates restored. Operator's authored
+      content was wiped with the rest of the workspace, but the program
+      *choice* survives. Explicit deactivation (POST /api/programs/deactivate)
+      is the operator's lever to drop a program.
 
     Reinit (transactional — same endpoint, not deferred to next page load):
-    - Full workspace initialization via `initialize_workspace()` per ADR-205:
+    - Full workspace initialization via `initialize_workspace()` per ADR-205/206:
       * YARNNN agent row (sole infrastructure scaffolded at signup;
-        Specialists lazy-create on first dispatch, Platform Bots via ADR-207
-        are capability bundles bound to platform_connections, not agent rows)
-      * Reviewer substrate at /workspace/review/ (ADR-194 seven files)
-      * _shared/ workspace context (IDENTITY, BRAND, CONVENTIONS per ADR-206)
-      * Essential tasks (ADR-161 daily-update + ADR-164 back office tasks)
+        Production roles lazy-create on first dispatch; platform integrations
+        per ADR-207 are capability bundles bound to platform_connections,
+        not agent rows)
+      * Reviewer substrate at /workspace/review/ (ADR-194)
+      * _shared/ workspace skeletons (MANDATE, IDENTITY, BRAND, CONVENTIONS,
+        AUTONOMY, PRECEDENT per ADR-206)
+      * Memory skeletons under /workspace/memory/
+      * Workspace narrative session (ADR-219)
+      * Bundle re-fork if `active_program_slug` was captured pre-purge (ADR-244 D4)
 
-    The reinit is *not* optional. A workspace without the essential task set is
-    a broken workspace — the daily-update heartbeat fires only if the task row
-    exists. Doing reinit here guarantees `/work`, `/chat`, and the scheduler
-    see a consistent state the moment this endpoint returns.
+    Per ADR-206, zero operational tasks are scaffolded at signup. Daily-update
+    and back-office tasks materialize on trigger, not at signup. The reinit's
+    job is to restore substrate skeletons + the YARNNN heartbeat, not tasks.
     """
     user_id = auth.user_id
     deleted: dict[str, int] = {}
 
     try:
         client = get_service_client()
+
+        # ADR-244 D4: capture the active program slug BEFORE purge so we can
+        # re-fork the bundle during reinit. Operator's *choice* of program
+        # survives the L2 reset; their authored content does not (it's part
+        # of what they chose to clear).
+        prior_program_slug: Optional[str] = None
+        try:
+            from services.workspace import UserMemory
+            from services.workspace_paths import SHARED_MANDATE_PATH
+            from services.programs import parse_active_program_slug
+            from services.bundle_reader import _all_slugs
+
+            um = UserMemory(client, user_id)
+            mandate_pre = await um.read(SHARED_MANDATE_PATH)
+            candidate = parse_active_program_slug(mandate_pre)
+            if candidate and candidate in _all_slugs():
+                prior_program_slug = candidate
+                logger.info(
+                    f"[ACCOUNT] User {user_id} L2 — captured active program "
+                    f"for re-fork: {prior_program_slug}"
+                )
+        except Exception as pre_err:
+            # Non-fatal — preservation is a best-effort enhancement, not a
+            # correctness invariant. Operator can re-activate from the
+            # Workspace tab if this slips.
+            logger.warning(f"[ACCOUNT] L2 program capture failed: {pre_err}")
 
         # --- Phase 1: Purge ---
         # ADR-209 FK order: workspace_files.head_version_id → workspace_file_versions.id.
@@ -576,27 +611,38 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         logger.info(f"[ACCOUNT] User {user_id} cleared workspace: {deleted}")
 
         # --- Phase 2: Reinit ---
-        # Restore the fresh-account invariants: roster + domains + seed files + essential tasks.
-        # Failures here are logged but don't fail the request — the purge succeeded, and the
-        # lazy init path in /user/onboarding-state remains as a safety net.
+        # Restore the fresh-account invariants: YARNNN agent + Reviewer substrate +
+        # _shared workspace skeletons + memory skeletons. Per ADR-206, ZERO operational
+        # tasks at signup — back-office tasks materialize on trigger.
+        # Per ADR-244 D4, re-fork the captured program (if any) so the operator
+        # lands on the same program with bundle templates back in place.
+        # Failures here are logged but don't fail the request — the purge succeeded,
+        # and the lazy init path in /api/workspace/state remains as a safety net.
         reinit_summary: dict = {}
         try:
             from services.workspace_init import initialize_workspace
-            reinit_summary = await initialize_workspace(client, user_id)
+            reinit_summary = await initialize_workspace(
+                client, user_id, program_slug=prior_program_slug
+            )
             logger.info(
                 f"[ACCOUNT] User {user_id} reinit after clear: "
                 f"{len(reinit_summary.get('agents_created', []))} agents, "
-                f"{len(reinit_summary.get('tasks_created', []))} tasks"
+                f"program={reinit_summary.get('activated_program')}"
             )
         except Exception as reinit_err:
             logger.error(f"[ACCOUNT] Workspace reinit after clear failed for {user_id}: {reinit_err}")
 
+        program_msg = (
+            f" — re-forked program {reinit_summary['activated_program']}"
+            if reinit_summary.get("activated_program") else ""
+        )
         return OperationResult(
             success=True,
             message=(
-                f"Cleared {deleted['workspace_files']} workspace files and {deleted['agents']} agents; "
-                f"restored {len(reinit_summary.get('agents_created', []))} agents and "
-                f"{len(reinit_summary.get('tasks_created', []))} essential tasks"
+                f"Cleared {deleted['workspace_files']} workspace files and "
+                f"{deleted['agents']} agents; restored "
+                f"{len(reinit_summary.get('agents_created', []))} agents"
+                f"{program_msg}"
             ),
             deleted=deleted,
         )
@@ -623,7 +669,7 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
       - User-authored Agents (origin='user_configured' and similar)
       - Specialist rows that have been lazy-created (they're role-scoped,
         not platform-scoped — they survive platform disconnects)
-      - The essential tasks (ADR-161 daily-update, ADR-164 back office) —
+      - Back-office recurrences (ADR-164) materialized on trigger —
         they are platform-agnostic
       - Canonical context domains under `/workspace/context/` owned by
         Specialists — unchanged by platform disconnect
@@ -686,7 +732,11 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
     Purges every user-scoped table + workspace_files + MCP OAuth state, recreates
     the `workspaces` row, then synchronously re-scaffolds the workspace via
     `initialize_workspace()` so the endpoint returns with the fresh-account
-    invariants intact (roster, Reviewer substrate, seed files, essential tasks).
+    invariants intact (YARNNN agent row, Reviewer substrate, _shared/ skeletons,
+    memory skeletons, workspace narrative session). Per ADR-206, zero operational
+    tasks at signup — back-office tasks materialize on trigger. Per ADR-244 D4,
+    a captured `prior_program_slug` re-forks the bundle during reinit so the
+    operator's program choice survives the reset.
 
     See `clear_workspace` for the reasoning on why reinit is transactional.
 
@@ -710,6 +760,28 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
 
     try:
         client = get_service_client()
+
+        # ADR-244 D4: same as L2 — capture the active program slug pre-purge
+        # so the reinit can re-fork the bundle. Operator chose Reset, not
+        # "Reset and unactivate program"; preservation is the right default.
+        prior_program_slug: Optional[str] = None
+        try:
+            from services.workspace import UserMemory
+            from services.workspace_paths import SHARED_MANDATE_PATH
+            from services.programs import parse_active_program_slug
+            from services.bundle_reader import _all_slugs
+
+            um = UserMemory(client, user_id)
+            mandate_pre = await um.read(SHARED_MANDATE_PATH)
+            candidate = parse_active_program_slug(mandate_pre)
+            if candidate and candidate in _all_slugs():
+                prior_program_slug = candidate
+                logger.info(
+                    f"[ACCOUNT] User {user_id} L4 — captured active program "
+                    f"for re-fork: {prior_program_slug}"
+                )
+        except Exception as pre_err:
+            logger.warning(f"[ACCOUNT] L4 program capture failed: {pre_err}")
 
         # --- Phase 1: Purge ---
         # ADR-209 FK order: workspace_files.head_version_id → workspace_file_versions.id.
@@ -757,23 +829,31 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
 
         # --- Phase 2: Reinit ---
         # Restore the fresh-account invariants. Non-fatal — same rationale as clear_workspace.
+        # ADR-244 D4: re-fork the captured program so the operator lands on the same
+        # program with bundle templates restored.
         reinit_summary: dict = {}
         try:
             from services.workspace_init import initialize_workspace
-            reinit_summary = await initialize_workspace(client, user_id)
+            reinit_summary = await initialize_workspace(
+                client, user_id, program_slug=prior_program_slug
+            )
             logger.info(
                 f"[ACCOUNT] User {user_id} reinit after reset: "
                 f"{len(reinit_summary.get('agents_created', []))} agents, "
-                f"{len(reinit_summary.get('tasks_created', []))} tasks"
+                f"program={reinit_summary.get('activated_program')}"
             )
         except Exception as reinit_err:
             logger.error(f"[ACCOUNT] Workspace reinit after reset failed for {user_id}: {reinit_err}")
 
+        program_msg = (
+            f" — re-forked program {reinit_summary['activated_program']}"
+            if reinit_summary.get("activated_program") else ""
+        )
         return OperationResult(
             success=True,
             message=(
-                f"Account reset complete — restored {len(reinit_summary.get('agents_created', []))} agents "
-                f"and {len(reinit_summary.get('tasks_created', []))} essential tasks."
+                f"Account reset complete — restored "
+                f"{len(reinit_summary.get('agents_created', []))} agents{program_msg}."
             ),
             deleted=deleted,
         )

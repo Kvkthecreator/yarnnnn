@@ -149,3 +149,69 @@ async def activate_program(req: ActivateRequest, auth: UserClient) -> dict:
         "files_written": summary.get("files_written", []),
         "files_skipped": summary.get("files_skipped", []),
     }
+
+
+@router.post("/deactivate")
+async def deactivate_program(auth: UserClient) -> dict:
+    """ADR-244 D3: deactivate the workspace's active program.
+
+    Soft deactivation: rewrites MANDATE.md's first heading line from
+    `# Mandate — alpha-trader (template)` to plain `# Mandate`. Body
+    untouched — operator-authored content stays. Severs the bundle's
+    idempotent re-fork relationship without wiping authored content per
+    ADR-209 (operator's authored substrate is theirs).
+
+    Idempotent — if no program is active, returns deactivated=false with
+    reason=no_active_program.
+
+    Out of scope (deferred to follow-on ADR if pressure surfaces):
+      - auto-archive recurrences scaffolded by the bundle
+      - auto-disconnect bundle-required platforms
+
+    Response:
+      { schema_version: 1, deactivated: bool, prior_program_slug: str | null }
+    """
+    from services.workspace import UserMemory
+    from services.workspace_paths import SHARED_MANDATE_PATH
+    from services.programs import (
+        parse_active_program_slug,
+        strip_program_marker_from_mandate,
+    )
+
+    um = UserMemory(auth.client, auth.user_id)
+    try:
+        mandate_content = await um.read(SHARED_MANDATE_PATH)
+    except Exception as exc:
+        logger.exception(f"[DEACTIVATE] MANDATE.md read failed for {auth.user_id[:8]}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    prior_slug = parse_active_program_slug(mandate_content)
+    if not prior_slug:
+        return {
+            "schema_version": 1,
+            "deactivated": False,
+            "prior_program_slug": None,
+            "reason": "no_active_program",
+        }
+
+    new_content = strip_program_marker_from_mandate(mandate_content or "")
+    try:
+        await um.write(
+            SHARED_MANDATE_PATH,
+            new_content,
+            summary="Mandate (program deactivated)",
+            authored_by="system:program-deactivate",
+            message=f"deactivate program: {prior_slug}",
+        )
+    except Exception as exc:
+        logger.exception(f"[DEACTIVATE] MANDATE.md write failed for {auth.user_id[:8]}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    logger.info(
+        f"[DEACTIVATE] User {auth.user_id[:8]} deactivated program={prior_slug}"
+    )
+    return {
+        "schema_version": 1,
+        "deactivated": True,
+        "prior_program_slug": prior_slug,
+    }

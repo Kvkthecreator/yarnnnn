@@ -7,18 +7,12 @@ import { Suspense } from "react";
 import { getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
 import { api } from "@/lib/api/client";
-import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 
 function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
   const [status, setStatus] = useState("Completing sign in...");
-  // ADR-240: when the operator hasn't picked a program yet
-  // (activation_state==='none' && !active_program_slug), mount the
-  // OnboardingModal before redirecting. The modal calls onComplete
-  // which triggers the redirect we'd otherwise do immediately.
-  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -49,27 +43,17 @@ function CallbackHandler() {
         return;
       }
 
-      if (session) {
-        // ADR-205 + ADR-212: HOME_ROUTE is /chat. initialize_workspace
-        // scaffolds the two systemic Agents (YARNNN + Reviewer seat).
-        // Production roles + platform integrations are orchestration
-        // capability bundles (not Agents) — production-role rows are
-        // lazy-created on first dispatch; platform integrations activate
-        // on OAuth connect.
-        //
-        // ADR-240: if landing on HOME_ROUTE for the first time (operator
-        // hasn't picked a program yet), mount the OnboardingModal first.
-        // The modal owns the redirect via onComplete. If the operator
-        // already picked a program (return visit, post-skip session
-        // restore, etc.), redirect immediately as before.
+      const finalize = async () => {
+        // ADR-244: replace ADR-240's modal-mount with a settings-surface
+        // redirect on first run. Same activation_state gate; the surface
+        // (Settings → Workspace) is the permanent home for program
+        // lifecycle, accessible at any time after signup.
         if (next === HOME_ROUTE) {
           try {
             setStatus("Setting up...");
-            const state = await api.onboarding.getState(); // triggers roster scaffolding
-            if (state.activation_state === 'none' && !state.active_program_slug) {
-              // First-time signup with no program picked → modal flow.
-              setPendingRedirect(next);
-              setStatus("Choose a program...");
+            const state = await api.workspace.getState(); // triggers roster scaffolding
+            if (state.activation_state === "none" && !state.active_program_slug) {
+              window.location.href = "/settings?tab=workspace&first_run=1";
               return;
             }
           } catch {
@@ -77,6 +61,10 @@ function CallbackHandler() {
           }
         }
         window.location.href = next;
+      };
+
+      if (session) {
+        await finalize();
         return;
       }
 
@@ -88,22 +76,7 @@ function CallbackHandler() {
       const { data: { session: retrySession } } = await supabase.auth.getSession();
 
       if (retrySession) {
-        // ADR-144: Ensure roster scaffolding on retry path too.
-        // ADR-163: HOME_ROUTE is now /chat — single landing for all users.
-        // ADR-240: same modal gate on the retry path.
-        if (next === HOME_ROUTE) {
-          try {
-            const state = await api.onboarding.getState();
-            if (state.activation_state === 'none' && !state.active_program_slug) {
-              setPendingRedirect(next);
-              setStatus("Choose a program...");
-              return;
-            }
-          } catch {
-            // Best effort — HOME_ROUTE is the fallback anyway
-          }
-        }
-        window.location.href = next;
+        await finalize();
         return;
       }
 
@@ -113,22 +86,6 @@ function CallbackHandler() {
 
     handleCallback();
   }, [searchParams, router, supabase.auth]);
-
-  // ADR-240: when pendingRedirect is set, mount the OnboardingModal.
-  // onComplete fires the deferred redirect.
-  if (pendingRedirect) {
-    return (
-      <>
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="text-center">
-            <h1 className="text-2xl font-brand mb-2">yarnnn</h1>
-            <p className="text-gray-600">{status}</p>
-          </div>
-        </div>
-        <OnboardingModal onComplete={() => { window.location.href = pendingRedirect; }} />
-      </>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

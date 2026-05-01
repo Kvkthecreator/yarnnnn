@@ -8,7 +8,7 @@ Usage:
 
 Prints the access token on stdout so it can be piped:
     export JWT=$(python -m api.scripts.alpha_ops.mint_jwt alpha-trader)
-    curl -H "Authorization: Bearer $JWT" https://yarnnn-api.onrender.com/api/memory/user/onboarding-state
+    curl -H "Authorization: Bearer $JWT" https://yarnnn-api.onrender.com/api/workspace/state
 
 JWTs are typically valid for 1 hour. Mint a fresh one each session.
 """
