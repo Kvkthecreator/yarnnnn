@@ -33,7 +33,7 @@ import { getAgentSlug } from '@/lib/agent-identity';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
-import { RecurrenceSetupModal } from '@/components/chat-surface/RecurrenceSetupModal';
+// RecurrenceSetupModal removed — creation via Chat
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
 
@@ -43,8 +43,6 @@ export default function AgentsPage() {
   const { loadScopedHistory, sendMessage } = useTP();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
   const { agents, tasks, loading } = useAgentsAndRecurrences();
-  const [recurrenceSetupOpen, setRecurrenceSetupOpen] = useState(false);
-  const [recurrenceSetupNotes, setRecurrenceSetupNotes] = useState('');
 
   const agentFromUrl = searchParams.get('agent');
 
@@ -103,11 +101,8 @@ export default function AgentsPage() {
           id: 'assign-work',
           label: 'Assign new work',
           icon: ListChecks,
-          verb: 'show' as const,
-          onSelect: () => {
-            setRecurrenceSetupNotes(`For ${selectedAgent.title}.`);
-            setRecurrenceSetupOpen(true);
-          },
+          verb: 'prompt' as const,
+          onSelect: () => sendMessage(`I want to assign new work to ${selectedAgent.title} — `, { surface: surfaceOverride }),
         },
       ];
     }
@@ -116,8 +111,8 @@ export default function AgentsPage() {
         id: 'create-task',
         label: 'Start new work',
         icon: ListChecks,
-        verb: 'show' as const,
-        onSelect: () => { setRecurrenceSetupNotes(''); setRecurrenceSetupOpen(true); },
+        verb: 'prompt' as const,
+        onSelect: () => sendMessage('I want to set up some recurring work — ', { surface: surfaceOverride }),
       },
     ];
   }, [selectedAgent, agentTasks, sendMessage, surfaceOverride]);
@@ -167,12 +162,6 @@ export default function AgentsPage() {
       )}
     </ThreePanelLayout>
 
-    <RecurrenceSetupModal
-      open={recurrenceSetupOpen}
-      onClose={() => setRecurrenceSetupOpen(false)}
-      onSubmit={(msg) => { setRecurrenceSetupOpen(false); sendMessage(msg, { surface: surfaceOverride }); }}
-      initialNotes={recurrenceSetupNotes}
-    />
     </>
   );
 }

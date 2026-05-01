@@ -70,7 +70,13 @@ function WorkspaceInitCard({ data }: { data: WorkspaceInitCompleteData }) {
 
 function TaskCompleteCard({ data }: { data: TaskCompleteData }) {
   const title = data.task_title || data.task_slug || 'Task';
-  const href = data.task_slug ? `/work?task=${data.task_slug}` : '/work';
+  // Link to the output file in the Files explorer (path-based, stays in context).
+  // ADR-231 D2 natural-home: reports live at /workspace/reports/{slug}/.
+  const outputPath = data.output_path
+    || (data.task_slug ? `/workspace/reports/${data.task_slug}` : null);
+  const href = outputPath
+    ? `/context?path=${encodeURIComponent(outputPath)}`
+    : '/context';
 
   return (
     <div className="flex items-center justify-between gap-2.5 p-3 rounded-lg border border-border bg-muted/30 my-1 animate-in fade-in slide-in-from-bottom-1 duration-150">
@@ -89,7 +95,7 @@ function TaskCompleteCard({ data }: { data: TaskCompleteData }) {
         href={href}
         className="text-[11px] text-primary hover:underline shrink-0 font-medium"
       >
-        View →
+        Open →
       </Link>
     </div>
   );

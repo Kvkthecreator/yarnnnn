@@ -26,7 +26,7 @@
  * Chip 2 currently triggers the file picker; chips 3-5 seed composer text.
  */
 
-import { FileUp, Link2, Eye, FileText, Sparkles } from 'lucide-react';
+import { FileUp, Link2, Sparkles } from 'lucide-react';
 
 interface ChatEmptyStateProps {
   /** Called when a text-seed chip is clicked. */
@@ -68,18 +68,6 @@ const CHIPS: Chip[] = [
     label: 'Paste a URL',
     action: 'seed',
     seed: 'Here is a URL that describes my work or company: ',
-  },
-  {
-    icon: Eye,
-    label: 'Track something recurring',
-    action: 'seed',
-    seed: 'I want to track ',
-  },
-  {
-    icon: FileText,
-    label: 'Build a recurring report',
-    action: 'seed',
-    seed: 'I want a recurring report on ',
   },
 ];
 

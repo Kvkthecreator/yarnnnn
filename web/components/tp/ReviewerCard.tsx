@@ -95,10 +95,10 @@ export function ReviewerCard({ data, content }: ReviewerCardProps) {
       {proposalId && (
         <div className="mt-2">
           <Link
-            href="/agents?agent=reviewer"
+            href="/work?tab=decisions"
             className="text-[10px] text-primary hover:underline"
           >
-            Open Reviewer decisions →
+            View decisions log →
           </Link>
         </div>
       )}

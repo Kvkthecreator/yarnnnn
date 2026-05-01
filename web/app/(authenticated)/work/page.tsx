@@ -31,7 +31,7 @@ import { WorkDetail } from '@/components/work/WorkDetail';
 import { CockpitRenderer } from '@/components/library/CockpitRenderer';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
-import { RecurrenceSetupModal } from '@/components/chat-surface/RecurrenceSetupModal';
+// RecurrenceSetupModal removed — creation via Chat
 import { getAgentSlug } from '@/lib/agent-identity';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { DeskSurface } from '@/types/desk';
@@ -102,7 +102,6 @@ export default function WorkPage() {
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState<ActionNotice>(null);
   const [chatDraftSeed, setChatDraftSeed] = useState<{ id: string; text: string } | null>(null);
-  const [recurrenceSetupOpen, setRecurrenceSetupOpen] = useState(false);
   const [chatOpenSignal, setChatOpenSignal] = useState(0);
 
   useEffect(() => {
@@ -247,7 +246,7 @@ export default function WorkPage() {
         label: 'Start new work',
         icon: Briefcase,
         verb: 'show' as const,
-        onSelect: () => setRecurrenceSetupOpen(true),
+        onSelect: () => sendMessage('I want to set up some recurring work — ', chatSurfaceOverride ? { surface: chatSurfaceOverride } : undefined),
       },
     ];
   }, [selectedTask]);
@@ -393,18 +392,7 @@ export default function WorkPage() {
       )}
     </ThreePanelLayout>
 
-    {/* ADR-215 Phase 4: singular implementation — /work uses RecurrenceSetupModal,
-        same as /chat, /agents, /context. CreateTaskModal retired; one
-        creation modal across the cockpit (ADR-178 rich intake routes
-        through YARNNN self-declaration on submit). */}
-    <RecurrenceSetupModal
-      open={recurrenceSetupOpen}
-      onClose={() => setRecurrenceSetupOpen(false)}
-      onSubmit={(msg) => {
-        setRecurrenceSetupOpen(false);
-        sendMessage(msg, chatSurfaceOverride ? { surface: chatSurfaceOverride } : undefined);
-      }}
-    />
+    {/* RecurrenceSetupModal removed — all creation via Chat */}
     </>
   );
 }

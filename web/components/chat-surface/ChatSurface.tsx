@@ -1,35 +1,20 @@
 'use client';
 
 /**
- * ChatSurface — YARNNN chat surface (ADR-165 v8, ADR-189, ADR-190, ADR-215 Phases 5 + 6).
+ * ChatSurface — YARNNN chat surface.
  *
- *   <SurfaceIdentityHeader title="YARNNN" actions={Snapshot toggle} />
- *   <ChatPanel emptyState={<ChatEmptyState onChipClick={seedComposer} />} />
+ *   <SurfaceIdentityHeader actions={[Filter, Context]} />
+ *   <ChatPanel emptyState={<ChatEmptyState />} />
+ *   <WorkspaceContextOverlay /> (pure reads, zero LLM)
  *
- * Two sibling modals, opened independently:
- *   1. SnapshotModal — mid-conversation awareness overlay (three tabs:
- *      Mandate / Review standard / Recent). Opened by YARNNN-emitted
- *      `<!-- snapshot: ... -->` marker or the surface header "Snapshot"
- *      button. Pure read, zero LLM at open, stay-in-chat contract per
- *      ADR-215 Phase 6.
- *   2. RecurrenceSetupModal — structured task creation (wraps RecurrenceSetup).
- *      Opened by "Start new work" plus-menu action or Heads Up idle-agents flag.
- *
- * ADR-215 Phase 6 (2026-04-24): the overlay prior named "Workspace" with
- *   four tabs (Readiness / Attention / Last session / Activity) reframed as
- *   "Snapshot" with three tabs — a Briefing archetype that renders content
- *   in place rather than shipping the operator to other tabs. Marker renamed
- *   workspace-state → snapshot.
- *
- * ADR-215 Phase 5 (2026-04-24): OnboardingModal / ContextSetup retired.
- * ADR-190 (2026-04-17): onboarding is conversational with YARNNN.
- * ADR-178 (2026-04-13): RecurrenceSetup added as the singular creation modal.
- * ADR-189 (2026-04-17): TP → YARNNN user-facing rename.
+ * All mutations go through Chat. No separate creation modals.
+ * RecurrenceSetupModal removed — "Start new work" seeds the composer;
+ * YARNNN handles intent conversationally.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { BookOpen, ListChecks, Filter } from 'lucide-react';
+import { BookOpen, Filter } from 'lucide-react';
 import { ChatPanel } from '@/components/tp/ChatPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -39,11 +24,8 @@ import {
   parseSnapshotMeta,
   type SnapshotLead,
 } from '@/lib/snapshot-meta';
-// ADR-236 Round 5+ / chat refactor: WorkspaceContextOverlay replaces SnapshotModal.
-// SnapshotModal.tsx is deleted — WorkspaceContextOverlay uses WorkspaceFileView
-// (universal kernel component) and collapses three tabs into one scrollable panel.
 import { WorkspaceContextOverlay } from './WorkspaceContextOverlay';
-import { RecurrenceSetupModal } from './RecurrenceSetupModal';
+// RecurrenceSetupModal removed — "Start new work" seeds the composer.
 import { ChatEmptyState } from './ChatEmptyState';
 import { ChatFilterBar, parseChatFilterFromSearch } from './ChatFilterBar';
 import { cn } from '@/lib/utils';
@@ -62,14 +44,10 @@ export function ChatSurface({
   const { messages, sendMessage } = useTP();
   const searchParams = useSearchParams();
 
-  // --- Snapshot overlay state ---
+  // --- Context overlay state ---
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [snapshotLead, setSnapshotLead] = useState<SnapshotLead | null>(null);
   const [snapshotReason, setSnapshotReason] = useState<string | null>(null);
-
-  // --- Task setup modal state ---
-  const [recurrenceSetupOpen, setRecurrenceSetupOpen] = useState(false);
-  const [recurrenceSetupInitialNotes, setRecurrenceSetupInitialNotes] = useState('');
 
   // ADR-219 Commit 5: filter bar visibility (off by default — we
   // toggle from the surface header). The filter itself is parsed from
@@ -137,71 +115,26 @@ export function ChatSurface({
     [sendMessage],
   );
 
-  // Task setup modal — opened from plus-menu.
-  const handleOpenRecurrenceSetup = useCallback((initialNotes = '') => {
-    setSnapshotOpen(false);
-    setRecurrenceSetupInitialNotes(initialNotes);
-    setRecurrenceSetupOpen(true);
-  }, []);
-
-  // ADR-219 D6 + ADR-231 D1 + ADR-235 D1.c + ADR-236 Item 8.2: graduation
-  // from inline invocation → recurrence declaration. Per ADR-236 Item 8.2
-  // (2026-04-30) this is **chat-mediated**, not modal-mediated:
-  //
-  //   - The affordance attaches to the assistant **output** (the
-  //     produced artifact), not the user ask. ADR-231 D1 says the ask
-  //     already fired; the operator's decision to schedule attaches to
-  //     "this output is useful, run it again."
-  //   - Clicking sends a chat message to YARNNN. YARNNN proposes a
-  //     recurrence shape conversationally (cadence, delivery, etc.) and
-  //     calls ManageRecurrence(action='create', ...) when the operator
-  //     confirms in chat. Modal-bypass is intentional — post-ADR-235
-  //     "edit via chat" is the canonical mutation path; the
-  //     RecurrenceSetupModal stays available via the plus-menu for
-  //     operators who arrive with explicit creation intent, but the
-  //     graduation flow no longer goes through it.
-  //
-  // We trim aggressively (~280 chars) — YARNNN reads the assistant
-  // output above in conversation history; the chat message just needs
-  // to surface intent + a quoted reference, not duplicate the full
-  // output payload.
+  // "Run this on a schedule" — seeds chat with a scheduling intent.
+  // All mutation flows through Chat; no modal.
   const handleMakeRecurring = useCallback(
     (messageContent: string) => {
       const trimmed = messageContent.trim();
-      const excerpt = trimmed.length > 280
-        ? trimmed.slice(0, 280) + '…'
-        : trimmed;
+      const excerpt = trimmed.length > 280 ? trimmed.slice(0, 280) + '…' : trimmed;
       sendMessage(
-        `Run this on a schedule — turn the output above into a recurrence. ` +
-        `Quoted excerpt: "${excerpt}"`,
+        `Run this on a schedule — turn the output above into a recurrence. Quoted excerpt: "${excerpt}"`,
       );
     },
     [sendMessage],
   );
 
-  const handleRecurrenceSetupClose = useCallback(() => setRecurrenceSetupOpen(false), []);
-
-  const handleRecurrenceSetupSubmit = useCallback(
-    (msg: string) => {
-      setRecurrenceSetupOpen(false);
-      sendMessage(msg);
-    },
-    [sendMessage],
+  // Plus-menu: pass through any page-supplied actions. No built-in modal
+  // launcher — "Start new work" is handled by seeding the composer via
+  // ChatEmptyState chips or just talking to YARNNN.
+  const allPlusMenuActions = useMemo<PlusMenuAction[]>(
+    () => [...plusMenuActions],
+    [plusMenuActions],
   );
-
-  // Built-in plus-menu actions — prepended to any page-supplied actions.
-  // ADR-215 R4: + menu is a modal launcher only. Exactly one built-in —
-  // "Start new work" → RecurrenceSetupModal.
-  const allPlusMenuActions = useMemo<PlusMenuAction[]>(() => [
-    {
-      id: 'create-task',
-      label: 'Start new work',
-      icon: ListChecks,
-      verb: 'show',
-      onSelect: () => handleOpenRecurrenceSetup(),
-    },
-    ...plusMenuActions,
-  ], [plusMenuActions, handleOpenRecurrenceSetup]);
 
   // Context overlay toggle — replaces "Snapshot" button.
   // Label updated to "Context" — more honest about what it shows
@@ -300,13 +233,7 @@ export function ChatSurface({
         onAskTP={handleAskYARNNN}
       />
 
-      {/* Task setup modal — structured task creation (ADR-178) */}
-      <RecurrenceSetupModal
-        open={recurrenceSetupOpen}
-        onClose={handleRecurrenceSetupClose}
-        onSubmit={handleRecurrenceSetupSubmit}
-        initialNotes={recurrenceSetupInitialNotes}
-      />
+      {/* RecurrenceSetupModal removed — all creation via Chat */}
     </div>
   );
 }
