@@ -39,7 +39,7 @@ import { NotificationCard } from '@/components/tp/NotificationCard';
 import { SystemCard } from '@/components/tp/SystemCard';
 import { MessageBlock } from '@/types/desk';
 import { cn, getToolDisplayMessage } from '@/lib/utils';
-import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/snapshot-meta';
+import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/snapshot';
 
 interface InlineToolCallProps {
   block: Extract<MessageBlock, { type: 'tool_call' }>;

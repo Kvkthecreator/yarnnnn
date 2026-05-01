@@ -1,6 +1,6 @@
 # ADR-244: Frontend Kernel Architecture — Three-Layer Content Rendering Model
 
-> **Status**: **Proposed** (2026-05-01). Phase 1 (this ADR) ratifies the model. Phases 2–5 implementation deferred to follow-on commits per the phased plan in §Implementation.
+> **Status**: **Phase 1 + Phase 2 Implemented** (2026-05-01). Phase 1 ratified the model + shipped registry stub (commit `c642173`, 8/8 gate). Phase 2 populated the registry by migrating four parsers + adding two new shape entries (this commit, 14/14 gate). Phases 3–5 deferred to follow-on commits per the phased plan in §Implementation.
 > **Date**: 2026-05-01
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Channel** (Axiom 6) primary — codifies how operator-facing surfaces consume substrate. Secondary: **Substrate** (Axiom 1 — what the layers read), **Mechanism** (Axiom 5 — L2 lives at the deterministic end of the spectrum), **Purpose** (Axiom 3 — L3 is sited by operational meaning).
@@ -168,20 +168,29 @@ This ADR lands as **Proposed**. Adds Python regression test gate `api/test_adr24
 
 ### Phase 2 — Build Content-Shape Registry, Migrate Existing Parsers
 
-Creates `web/lib/content-shapes/` directory with the schema from D3. Migrates:
+**Status: Implemented 2026-05-01.**
 
-- `web/lib/autonomy.ts` → `web/lib/content-shapes/autonomy.ts`
-- `web/lib/reviewer-decisions.ts` → `web/lib/content-shapes/decisions.ts`
-- `web/lib/recurrence-shapes.ts` → `web/lib/content-shapes/recurrence-spec.ts`
-- `web/lib/inference-meta.ts` → `web/lib/content-shapes/inference-meta.ts`
-- `web/lib/snapshot-meta.ts` → `web/lib/content-shapes/snapshot.ts`
+Creates `web/lib/content-shapes/` directory with the schema from D3. Migrates four actual parsers, adds two new shape entries, populates the registry.
 
-All callers updated to import from the new location. Old paths deleted (Singular Implementation rule 1). Adds `web/lib/content-shapes/index.ts` with `CONTENT_SHAPES` registry + `shapeForPath()` resolver.
+**Migrations shipped:**
 
-Adds two new shape entries that don't yet have parsers:
+- `web/lib/autonomy.ts` → `web/lib/content-shapes/autonomy.ts` (✓)
+- `web/lib/reviewer-decisions.ts` → `web/lib/content-shapes/decisions.ts` (✓)
+- `web/lib/inference-meta.ts` → `web/lib/content-shapes/inference-meta.ts` (✓)
+- `web/lib/snapshot-meta.ts` → `web/lib/content-shapes/snapshot.ts` (✓)
 
-- `performance.ts` — parses `_performance.md` frontmatter (already used inline by `MoneyTruthFace`)
-- `principles.ts` — parses `principles.md` (already used inline by `services/review_principles.py` server-side; FE parser for L3 editing UI)
+**New shape entries:**
+
+- `performance.ts` — parser extracted from `MoneyTruthFace.tsx` inline `parseFrontmatter`. Phase 3 audit will refactor MoneyTruthFace to import from this module.
+- `principles.ts` — Phase 2 ships a stub (returns raw markdown wrapped). The structured threshold parser arrives in Phase 4 alongside the threshold-editor L3 affordance.
+
+**Registry populated.** `web/lib/content-shapes/index.ts` imports every shape's `META`, freezes the `CONTENT_SHAPES` map, and exposes `shapeForPath(path)` that walks the registered globs (skipping ephemeral-substrate sentinels like snapshot's `__chat_message__/snapshot`). All callers (11 files across `library/`, `chat-surface/`, `tp/`, `context/`, `work/details/`) migrated to `@/lib/content-shapes/{shape}` imports. Old paths deleted (Singular Implementation rule 1). Test gate `test_phase_2_no_stale_imports` enforces zero residual references.
+
+**Phase 2 implementation-time finding (recurrence-shapes drift).** The Phase 1 spec listed `web/lib/recurrence-shapes.ts → web/lib/content-shapes/recurrence-spec.ts` as a Phase 2 migration. Phase 2 inspection found `recurrence-shapes.ts` is not a content-shape parser — it has no `parse()` of file content, no `PATH_GLOB`. It's a domain-key utility (workspace-path resolution + surface-type coercion of API-returned strings). Migrating it would have forced an artificial schema fit and obscured what the file actually is.
+
+The recurrence-spec content shape (DECLARATION class per D5) exists conceptually — `_spec.yaml` / `_recurring.yaml` / `_action.yaml` per ADR-231. But its FE parser lives nowhere yet: server-side `api/services/recurrence.py` parses YAML; FE reads come through API endpoints, not direct YAML parsing. When Phase 4 lands the recurrence-spec L3 editor, the parser is created at that point — same demand-pull discipline as ADR-225 v2's "ship 6 components, not 14" Phase 2 refinement and ADR-239's "scope smaller than memo predicted" finding. `recurrence-shapes.ts` stays at its current path.
+
+**Test gate**: 14/14 (Phase 1's 8 + Phase 2's 6 — module existence, schema declaration, legacy deletion, no-stale-imports, registry populated, finding logged).
 
 ### Phase 3 — Audit Existing FE for Canonical-L3 Violations
 
@@ -284,11 +293,21 @@ Phases 2–5 add their own assertions; the gate accumulates.
 
 (To be filled in by each Phase commit's "Implementation Notes" section.)
 
-### Phase 1 (this commit)
+### Phase 1 (commit `c642173`)
 
 - ADR file authored.
 - `web/lib/content-shapes/` directory created with stub `index.ts`.
-- `api/test_adr244_three_layer_model.py` regression gate authored — 6/6 Phase 1 assertions pass.
+- `api/test_adr244_three_layer_model.py` regression gate authored — 8/8 Phase 1 assertions pass.
 - CLAUDE.md ADR registry entry added.
-- Predecessor ADRs (167, 225, 237, 238, 239) gain "Amended by ADR-244" footers.
+- Backward amend banners on predecessors (ADR-167, 225, 237, 238, 239) deferred to the phases that actually mutate predecessor code — no banner-only sweep-up in a Phase 1 ratification commit. Forward citation in this ADR's `> **Amends**` header is the canonical record.
 - Phases 2–5 deferred to follow-on commits per the discipline of ADR-236 Rule 8 (drafted-pair sequencing — each phase cites its predecessor only after the predecessor reaches `Implemented`).
+
+### Phase 2 (this commit)
+
+- 4 parsers migrated from `web/lib/{autonomy,reviewer-decisions,inference-meta,snapshot-meta}.ts` into `web/lib/content-shapes/{autonomy,decisions,inference-meta,snapshot}.ts`. Each module gains the D3 schema fields (SHAPE_KEY, PATH_GLOB, WRITE_CONTRACT, CANONICAL_L3, META export) alongside the lifted parser body.
+- 2 new shape entries: `performance.ts` (parser extracted from MoneyTruthFace inline `parseFrontmatter`), `principles.ts` (Phase 2 stub — Phase 4 lands the structured parser).
+- Registry populated: `index.ts` imports each `META`, freezes `CONTENT_SHAPES`, and `shapeForPath()` matches PATH_GLOB with a lightweight glob → regex compiler that handles `**`, `*`, and `{a,b}` alternation. Ephemeral-substrate shapes (snapshot's `__chat_message__/snapshot` sentinel) are skipped at lookup time.
+- 11 caller files migrated to `@/lib/content-shapes/{shape}` imports across `library/`, `chat-surface/`, `tp/`, `context/`, `work/details/`. Sed-based migration verified by `test_phase_2_no_stale_imports`.
+- Old parser files DELETED at `web/lib/{autonomy,reviewer-decisions,inference-meta,snapshot-meta}.ts` per Singular Implementation rule 1.
+- Test gate extended: 6 Phase 2 assertions added; 14/14 total passing.
+- Implementation-time finding logged: `recurrence-shapes.ts` is a domain-key utility, not a content-shape parser. It stays at its current path. The recurrence-spec content shape (DECLARATION class) gets a parser when Phase 4's L3 editor lands.

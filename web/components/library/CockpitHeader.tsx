@@ -25,7 +25,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MessageSquare, ShieldCheck, ShieldAlert, Info } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { useAutonomy } from '@/lib/autonomy';
+import { useAutonomy } from '@/lib/content-shapes/autonomy';
 import { useCockpit } from './CockpitContext';
 import { cn } from '@/lib/utils';
 

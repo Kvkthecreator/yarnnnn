@@ -1,8 +1,9 @@
 """
 ADR-244 regression gate — Frontend Kernel three-layer content rendering.
 
-Phase 1 assertions only (this commit ratifies the model). Phases 2-5 add
-their own assertions to this file as they land.
+Phase 1 ratified the model. Phase 2 (this commit's extension) populates
+the content-shape registry by migrating four existing parsers + adding
+two new shape entries. Phases 3-5 add their own assertions as they land.
 
 Same Python-test-over-TS-source pattern as ADR-237 / ADR-238 / ADR-239 /
 ADR-240 / ADR-241 / ADR-242 (no JS test runner today; see ADR-236 Rule 3).
@@ -26,6 +27,25 @@ CONTENT_SHAPES_DIR = REPO_ROOT / "web" / "lib" / "content-shapes"
 CONTENT_SHAPES_INDEX = CONTENT_SHAPES_DIR / "index.ts"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 DESIGN_ARCHIVE_DIR = REPO_ROOT / "docs" / "design" / "archive"
+WEB_LIB_DIR = REPO_ROOT / "web" / "lib"
+
+# Phase 2 — content-shape modules under web/lib/content-shapes/
+PHASE_2_SHAPES = [
+    "autonomy",
+    "decisions",
+    "inference-meta",
+    "snapshot",
+    "performance",
+    "principles",
+]
+
+# Phase 2 — legacy parser paths that MUST be deleted (Singular Implementation)
+PHASE_2_DELETED_LEGACY = [
+    "autonomy.ts",
+    "reviewer-decisions.ts",
+    "inference-meta.ts",
+    "snapshot-meta.ts",
+]
 
 REQUIRED_PREDECESSORS = ["ADR-167", "ADR-225", "ADR-228", "ADR-237", "ADR-238", "ADR-239", "ADR-241", "ADR-242"]
 
@@ -128,11 +148,129 @@ def test_design_archive_clean_until_phase_5():
 
 
 # ---------------------------------------------------------------------------
+# Phase 2 assertions
+# ---------------------------------------------------------------------------
+
+def test_phase_2_shape_modules_exist():
+    """Assertion #9: every Phase 2 shape ships a TS module under
+    web/lib/content-shapes/{shape}.ts. This is the registry directory's
+    populated state."""
+    missing = [
+        s for s in PHASE_2_SHAPES
+        if not (CONTENT_SHAPES_DIR / f"{s}.ts").exists()
+    ]
+    assert not missing, (
+        f"Phase 2 must ship modules for {PHASE_2_SHAPES} per ADR-244 D3. "
+        f"Missing: {missing}"
+    )
+
+
+def test_phase_2_shape_modules_declare_schema():
+    """Assertion #10: every Phase 2 shape module exports the four required
+    schema fields per ADR-244 D3 — SHAPE_KEY, PATH_GLOB, WRITE_CONTRACT,
+    CANONICAL_L3 — plus a `parse()` function (or alias)."""
+    for shape in PHASE_2_SHAPES:
+        path = CONTENT_SHAPES_DIR / f"{shape}.ts"
+        src = _read(path)
+        for marker in ["SHAPE_KEY", "PATH_GLOB", "WRITE_CONTRACT", "CANONICAL_L3", "META"]:
+            assert marker in src, (
+                f"Shape module {shape}.ts must export {marker!r} per ADR-244 D3."
+            )
+        assert "export function parse" in src or "export const parse" in src, (
+            f"Shape module {shape}.ts must export a `parse` function per ADR-244 D3."
+        )
+
+
+def test_phase_2_legacy_parsers_deleted():
+    """Assertion #11: legacy parser files at web/lib/{*.ts} are DELETED
+    per Singular Implementation rule 1. ADR-244 Phase 2 collapsed parser
+    homes into web/lib/content-shapes/."""
+    survivors = [
+        legacy for legacy in PHASE_2_DELETED_LEGACY
+        if (WEB_LIB_DIR / legacy).exists()
+    ]
+    assert not survivors, (
+        f"Phase 2 must delete legacy parser files {PHASE_2_DELETED_LEGACY} "
+        f"per Singular Implementation. Surviving: {survivors}"
+    )
+
+
+def test_phase_2_no_stale_imports():
+    """Assertion #12: no FE source file imports from the legacy parser
+    paths (`@/lib/autonomy`, `@/lib/reviewer-decisions`, etc.). All
+    consumers must import from `@/lib/content-shapes/{shape}`."""
+    web_root = REPO_ROOT / "web"
+    if not web_root.is_dir():
+        return
+    legacy_paths = [
+        "@/lib/autonomy",
+        "@/lib/reviewer-decisions",
+        "@/lib/inference-meta",
+        "@/lib/snapshot-meta",
+    ]
+    offenders: list[str] = []
+    for ts_file in web_root.rglob("*.ts*"):
+        # Skip node_modules + build output if either gets vendored.
+        parts = set(ts_file.parts)
+        if "node_modules" in parts or ".next" in parts:
+            continue
+        try:
+            txt = ts_file.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for legacy in legacy_paths:
+            # Exact-token match — must end with closing quote, not be a prefix
+            # of `content-shapes/...`.
+            for q in ['"', "'"]:
+                needle = f"{q}{legacy}{q}"
+                if needle in txt:
+                    offenders.append(f"{ts_file.relative_to(REPO_ROOT)} :: {legacy}")
+    assert not offenders, (
+        "Stale legacy parser imports found per ADR-244 Phase 2 D3 + Singular "
+        f"Implementation:\n  " + "\n  ".join(offenders[:10])
+    )
+
+
+def test_phase_2_registry_populated():
+    """Assertion #13: index.ts CONTENT_SHAPES registry imports + exports
+    each Phase 2 shape's META. Empty stub from Phase 1 is no longer
+    acceptable."""
+    src = _read(CONTENT_SHAPES_INDEX)
+    for shape in PHASE_2_SHAPES:
+        # Each shape module has its META imported into index.ts
+        assert f"from './{shape}'" in src, (
+            f"index.ts must import META from ./{shape} per ADR-244 D3."
+        )
+    # Registry object must contain entries
+    assert "CONTENT_SHAPES" in src and "Object.freeze" in src, (
+        "index.ts CONTENT_SHAPES must be populated + frozen per Phase 2."
+    )
+    # Resolver must have non-stub body
+    assert "globToRegExp" in src or "PATH_GLOB" in src, (
+        "shapeForPath must use PATH_GLOB matching per ADR-244 D3."
+    )
+
+
+def test_phase_2_recurrence_shapes_finding_logged():
+    """Assertion #14: ADR-244 records the Phase 2 implementation-time
+    finding that recurrence-shapes.ts is NOT a content-shape parser
+    (no parse() of file content, no PATH_GLOB) and remains at
+    web/lib/recurrence-shapes.ts. Honors ADR-225 v2 / ADR-239 precedent
+    of recording memo-vs-implementation drift in the ADR."""
+    src = _read(ADR_FILE)
+    assert "recurrence-shapes" in src and ("not a content-shape" in src or "implementation-time finding" in src), (
+        "ADR-244 must log the Phase 2 finding about recurrence-shapes.ts. "
+        "Honors ADR-225 v2 / ADR-239 drift-recording precedent."
+    )
+
+
+# ---------------------------------------------------------------------------
 # CLI runner
 # ---------------------------------------------------------------------------
 
 def main() -> int:
     tests = [
+        # Phase 1
         test_adr_file_exists,
         test_adr_references_all_predecessors,
         test_adr_declares_three_layers,
@@ -141,6 +279,13 @@ def main() -> int:
         test_content_shapes_index_declares_schema_types,
         test_claude_md_registers_adr_244,
         test_design_archive_clean_until_phase_5,
+        # Phase 2
+        test_phase_2_shape_modules_exist,
+        test_phase_2_shape_modules_declare_schema,
+        test_phase_2_legacy_parsers_deleted,
+        test_phase_2_no_stale_imports,
+        test_phase_2_registry_populated,
+        test_phase_2_recurrence_shapes_finding_logged,
     ]
     passed = 0
     failed = 0
@@ -153,7 +298,7 @@ def main() -> int:
             print(f"  FAIL  {fn.__name__}: {exc}")
             failed += 1
     total = passed + failed
-    print(f"\nADR-244 Phase 1 gate: {passed}/{total} passing")
+    print(f"\nADR-244 gate (Phase 1 + Phase 2): {passed}/{total} passing")
     return 0 if failed == 0 else 1
 
 

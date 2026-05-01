@@ -23,7 +23,7 @@ import { useTP } from '@/contexts/TPContext';
 import {
   parseSnapshotMeta,
   type SnapshotLead,
-} from '@/lib/snapshot-meta';
+} from '@/lib/content-shapes/snapshot';
 import { WorkspaceContextOverlay } from './WorkspaceContextOverlay';
 // RecurrenceSetupModal removed — "Start new work" seeds the composer.
 import { ChatEmptyState } from './ChatEmptyState';

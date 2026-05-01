@@ -33,7 +33,7 @@ import {
   AUTONOMY_PATH,
   parseAutonomy,
   formatAutonomySummary,
-} from '@/lib/autonomy';
+} from '@/lib/content-shapes/autonomy';
 import { useCockpit } from '../CockpitContext';
 
 const MANDATE_PATH = '/workspace/context/_shared/MANDATE.md';
@@ -113,7 +113,7 @@ function parseMandate(content: string): {
 }
 
 // `parseAutonomy` + `formatAutonomySummary` + `AutonomyMeta` lifted to
-// `@/lib/autonomy` by ADR-238. Singular Implementation: do not re-inline
+// `@/lib/content-shapes/autonomy` by ADR-238. Singular Implementation: do not re-inline
 // here even temporarily.
 
 export function MandateFace() {

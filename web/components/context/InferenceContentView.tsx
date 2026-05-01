@@ -36,7 +36,7 @@ import {
   parseInferenceMeta,
   formatSourceCaption,
   getPrimaryGap,
-} from '@/lib/inference-meta';
+} from '@/lib/content-shapes/inference-meta';
 import { CHAT_ROUTE } from '@/lib/routes';
 
 interface InferenceContentViewProps {

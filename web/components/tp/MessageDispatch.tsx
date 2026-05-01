@@ -44,7 +44,7 @@ import { ToolResultList } from './ToolResultCard';
 // duplication; see SnapshotModal / chat metadata helpers.
 // ---------------------------------------------------------------------------
 
-import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/snapshot-meta';
+import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/snapshot';
 
 // ---------------------------------------------------------------------------
 // Shape resolution

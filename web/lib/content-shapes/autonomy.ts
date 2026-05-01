@@ -1,38 +1,42 @@
 /**
- * Autonomy substrate — shared FE module.
+ * Autonomy content shape — `/workspace/context/_shared/AUTONOMY.md`.
  *
- * Single source of truth for parsing `/workspace/context/_shared/AUTONOMY.md`
- * (per ADR-217 Workspace Autonomy Substrate) on the frontend.
+ * Migrated from `web/lib/autonomy.ts` by ADR-244 Phase 2 (commit
+ * <see git log>). The pure parser + helpers + React hook are unchanged in
+ * shape; only the import path moved into the content-shape registry home.
  *
- * Lifted from MandateFace.tsx by ADR-238 (Round 1 of the ADR-236
- * frontend cockpit coherence pass). Future consumers — ADR-237's chat
- * role grammar, ADR-240's onboarding-as-activation prompts, and Round 5
- * mop-up modal-confirmation flows — import from here rather than
- * re-deriving the parser. Singular Implementation discipline: this is
- * the only autonomy parser on the frontend.
+ * Per ADR-244 D5 the WRITE_CONTRACT is `configuration` — operator mutates
+ * via the canonical L3 (MandateFace) which serializes parsed data and
+ * writes through `WriteFile(scope='workspace', path='context/_shared/AUTONOMY.md', ...)`
+ * per ADR-235 D1.b. The Phase 4 toggle implementation will land
+ * `serialize()` + canonical L3 mutation; Phase 2 ships the parser + read
+ * surfaces only.
  *
- * Pure-TS module — no React imports outside the `useAutonomy()` hook
- * declared at the bottom of the file. The pure functions
- * (`parseAutonomy`, `formatAutonomySummary`, `resolveEffectiveLevel`)
- * are consumable by server components, MCP code, or any non-React
- * surface that needs to format autonomy text.
- *
- * What this module does NOT do (per ADR-238):
- *   - No mutation surface. Operator-authored substrate is mutated
- *     through `WriteFile(scope='workspace', path='context/_shared/AUTONOMY.md', ...)`
- *     per ADR-235 D1.b. The hook is read-only.
- *   - No global React context / provider. Each consumer fetches
- *     independently; if profile shows duplication is a hot path, a
- *     follow-on ADR introduces <AutonomyProvider>.
- *   - No `never_auto` field parsing. The first consumer (chip
- *     display) doesn't need it; ship the field's parser when its
- *     first reader surfaces.
+ * Lifted-from history: MandateFace.tsx → web/lib/autonomy.ts (ADR-238) →
+ * here (ADR-244 Phase 2).
  */
 
 'use client';
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api/client';
+import type { ContentShapeMeta } from './index';
+
+// ---------------------------------------------------------------------------
+// Shape registry metadata (ADR-244 D3)
+// ---------------------------------------------------------------------------
+
+export const SHAPE_KEY = 'autonomy' as const;
+export const PATH_GLOB = '**/_shared/AUTONOMY.md';
+export const WRITE_CONTRACT = 'configuration' as const;
+export const CANONICAL_L3 = 'MandateFace' as const;
+
+export const META: ContentShapeMeta = {
+  SHAPE_KEY,
+  PATH_GLOB,
+  WRITE_CONTRACT,
+  CANONICAL_L3,
+};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -41,9 +45,7 @@ import { api } from '@/lib/api/client';
 /**
  * Absolute path of the autonomy substrate file. Mirrors the Python
  * relative constant `SHARED_AUTONOMY_PATH = "context/_shared/AUTONOMY.md"`
- * in `api/services/workspace_paths.py`, prefixed with `/workspace/` per
- * the FE addressing convention (the Python helper prepends `/workspace/`
- * before writing).
+ * in `api/services/workspace_paths.py`.
  */
 export const AUTONOMY_PATH = '/workspace/context/_shared/AUTONOMY.md';
 
@@ -69,18 +71,10 @@ export interface AutonomyMeta {
 }
 
 // ---------------------------------------------------------------------------
-// Pure parser — lifted verbatim from MandateFace.tsx by ADR-238.
-// Lightweight YAML walk for the two shapes the substrate carries:
-//   default:
-//     level: bounded_autonomous
-//     ceiling_cents: 200000
-//   domains:
-//     trading:
-//       level: bounded_autonomous
-//       ceiling_cents: 50000
+// Pure parser (lifted verbatim from prior `web/lib/autonomy.ts`)
 // ---------------------------------------------------------------------------
 
-export function parseAutonomy(content: string): AutonomyMeta {
+export function parse(content: string): AutonomyMeta {
   const fm = content.match(/^---\s*\n([\s\S]*?)\n---/);
   if (!fm) return {};
   const meta: AutonomyMeta = { domains: {} };
@@ -122,8 +116,11 @@ export function parseAutonomy(content: string): AutonomyMeta {
   return meta;
 }
 
+/** Legacy alias — back-compat for callers still importing `parseAutonomy`. */
+export const parseAutonomy = parse;
+
 // ---------------------------------------------------------------------------
-// Summary formatter — lifted verbatim from MandateFace.tsx by ADR-238.
+// Pure helpers
 // ---------------------------------------------------------------------------
 
 export function formatAutonomySummary(autonomy: AutonomyMeta): string {
@@ -143,14 +140,6 @@ export function formatAutonomySummary(autonomy: AutonomyMeta): string {
   return levelLabel;
 }
 
-// ---------------------------------------------------------------------------
-// Effective level resolver — new helper added by ADR-238.
-//
-// Returns the effective autonomy level for a given domain, falling back
-// to default.level. Returns null when neither is set (skeleton substrate
-// or empty workspace). Consumers without a domain pass `undefined`.
-// ---------------------------------------------------------------------------
-
 export function resolveEffectiveLevel(
   meta: AutonomyMeta | null,
   domain?: string,
@@ -165,28 +154,16 @@ export function resolveEffectiveLevel(
 }
 
 // ---------------------------------------------------------------------------
-// React hook — substrate read for FE consumers.
+// React hook — substrate read for FE consumers
 // ---------------------------------------------------------------------------
 
 export interface UseAutonomyResult {
   meta: AutonomyMeta | null;
   loading: boolean;
   effectiveLevel: AutonomyLevel | null;
-  /** Operator-facing one-liner. "No autonomy declared" when meta is null. */
   summary: string;
 }
 
-/**
- * Reads `/workspace/context/_shared/AUTONOMY.md` and exposes the parsed
- * substrate plus a derived effective-level for the workspace default.
- *
- * Read-only; mutation routes through
- * `WriteFile(scope='workspace', path='context/_shared/AUTONOMY.md', ...)`
- * per ADR-235 D1.b (legacy ADR-217 used UpdateContext; dissolved by ADR-235).
- *
- * Each consumer mount triggers one fetch. Deduplication across multiple
- * components in the same render pass is a deferred concern (ADR-238 R2).
- */
 export function useAutonomy(): UseAutonomyResult {
   const [meta, setMeta] = useState<AutonomyMeta | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,15 +175,12 @@ export function useAutonomy(): UseAutonomyResult {
         const file = await api.workspace.getFile(AUTONOMY_PATH);
         if (cancelled) return;
         if (file?.content) {
-          setMeta(parseAutonomy(file.content));
+          setMeta(parse(file.content));
         } else {
           setMeta(null);
         }
       } catch {
         if (cancelled) return;
-        // Substrate absent (older workspace, or skeleton state per
-        // ADR-226). Hook returns meta=null cleanly; consumers render
-        // their own absent-state path.
         setMeta(null);
       } finally {
         if (!cancelled) setLoading(false);
