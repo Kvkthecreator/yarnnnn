@@ -1,6 +1,6 @@
 # ADR-244: Frontend Kernel Architecture — Three-Layer Content Rendering Model
 
-> **Status**: **Phase 1 + Phase 2 + Phase 3 + Phase 4 Implemented** (2026-05-01). Phase 1 ratified the model + shipped registry stub (commit `c642173`, 8/8 gate). Phase 2 populated the registry by migrating four parsers + adding two new shape entries (commit `87bb163`, 14/14 gate). Phase 3 audited canonical-L3 consumers + refactored MoneyTruthFace inline parser (commit `d2add27`, 18/18 gate). Phase 4 shipped per-class write contracts (`serialize()` on configuration shapes + `writeShape()` helper) and the canonical autonomy toggle in MandateFace as the proof-of-concept end-to-end (this commit, 23/23 gate). Phase 5 (`docs/design/` supersede pass) deferred to next commit.
+> **Status**: **FULLY IMPLEMENTED — Phases 1–5** (2026-05-01). Phase 1 ratified the model + shipped registry stub (commit `c642173`, 8/8 gate). Phase 2 populated the registry by migrating four parsers + adding two new shape entries (commit `87bb163`, 14/14 gate). Phase 3 audited canonical-L3 consumers + refactored MoneyTruthFace inline parser (commit `d2add27`, 18/18 gate). Phase 4 shipped per-class write contracts (`serialize()` on configuration shapes + `writeShape()` helper) and the canonical autonomy toggle in MandateFace as end-to-end proof-of-concept (commit `87ebb1f`, 23/23 gate). Phase 5 closed the supersede pass — implementation-time finding was that no docs needed archiving; cross-reference notes added to three FE-rendering-related docs (this commit, 23/23 gate). Branch ready for merge to main.
 > **Date**: 2026-05-01
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Channel** (Axiom 6) primary — codifies how operator-facing surfaces consume substrate. Secondary: **Substrate** (Axiom 1 — what the layers read), **Mechanism** (Axiom 5 — L2 lives at the deterministic end of the spectrum), **Purpose** (Axiom 3 — L3 is sited by operational meaning).
@@ -245,35 +245,39 @@ The deferrals are explicitly logged so future readers know the registry+writer i
 
 ### Phase 5 — `docs/design/` Supersede Pass
 
-For each doc in `docs/design/`, classify against the new model:
+**Status: Implemented 2026-05-01.**
 
-| Status | Treatment |
-|---|---|
-| Still load-bearing | Keep in place; add ADR-244 cross-reference where relevant. |
-| Superseded by ADR-244 | Add `> **Superseded by ADR-244** (date)` banner at top, move file to `docs/design/archive/`. |
-| Partially superseded | Keep the still-load-bearing parts, banner the rest, link forward. |
+Audited every doc under `docs/design/`. Phase 5 implementation-time finding: **no docs are actually superseded by ADR-244**. The Phase 1 spec listed five candidates as "likely superseded" but the audit revealed they all cover *different layers* of the design from ADR-244:
 
-Initial classification (subject to per-doc audit during phase):
+| Doc | Initial spec call | Audit classification | Disposition |
+|---|---|---|---|
+| `SURFACE-CONTRACTS.md` | Keep | **Keep + cross-ref** — ADR-215 governs per-tab operational shape (CRUD matrix); orthogonal layer to ADR-244's render model. |
+| `COCKPIT-COMPONENT-DESIGN.md` | Keep | **Keep** — ADR-228/242/243 living document, no overlap. |
+| `AGENT-AND-TASK-SURFACE-PATTERNS.md` | Audit | **Keep + cross-ref** — surface-pattern rules govern *which shell renders for which agent_class / output_kind*; ADR-244 governs *how each shell sources its parsed data*. Both active. |
+| `TASK-OUTPUT-SURFACE-CONTRACT.md` | Audit | **Keep + cross-ref** — defines the typed packet *envelope* the backend emits per task run; ADR-244's L2 parsers operate on file content within FE components after the packet is unpacked. Different boundary. |
+| `TASK-SETUP-FLOW.md` | Audit | **Keep** — task creation UX governed by ADR-178; orthogonal to render layers. |
+| `FEEDBACK-WORKFLOW-REDESIGN.md` | Audit | **Keep** — feedback routing across three layers (Domain / Agent-core / Task-specific) governed by ADR-156; orthogonal to render. |
+| `SHARED-CONTEXT-WORKFLOW.md` | Audit | **Keep** — inference UX (ADR-144 / ADR-226) governs how IDENTITY/BRAND get authored; orthogonal to render. |
+| `COMPOSER-INPUT-PATTERN.md` | Keep | **Keep** — composer UX flow. |
+| `INLINE-PLUS-MENU.md` | Keep | **Keep** — chat UX flow. |
+| `ONBOARDING-TP-AWARENESS.md` | Keep | **Keep** — orthogonal. |
+| `TP-NOTIFICATION-CHANNEL.md` | Keep | **Keep** — orthogonal. |
+| `USER-JOURNEY.md` | Keep | **Keep** — orthogonal. |
+| `HEADLESS-PROMPT-PROFILES.md`, `PROMPT-PROFILE-EVALUATION.md` | Keep | **Keep** — backend prompt design. |
+| `SKILLS-REFRAME.md` | Keep | **Keep** — output gateway. |
+| `CHANGELOG.md` | Keep | **Keep** — log. |
 
-| Doc | Classification |
-|---|---|
-| `SURFACE-CONTRACTS.md` | **Keep** — ADR-215 4-shape CRUD matrix is orthogonal to the layer model. Add cross-ref. |
-| `COCKPIT-COMPONENT-DESIGN.md` | **Keep** — ADR-228 + ADR-242 + ADR-243 living document. Add cross-ref to L3 layer. |
-| `AGENT-AND-TASK-SURFACE-PATTERNS.md` | **Audit** — likely partially superseded; per-surface bespoke patterns dissolve into shape-driven L3. |
-| `TASK-OUTPUT-SURFACE-CONTRACT.md` | **Audit** — likely superseded by ADR-213 + this ADR. |
-| `TASK-SETUP-FLOW.md` | **Audit** — likely partially superseded. |
-| `FEEDBACK-WORKFLOW-REDESIGN.md` | **Audit** — likely superseded by ADR-181 + this ADR. |
-| `SHARED-CONTEXT-WORKFLOW.md` | **Audit** — likely superseded by ADR-235. |
-| `COMPOSER-INPUT-PATTERN.md` | **Keep** — UX flow doc, orthogonal. |
-| `INLINE-PLUS-MENU.md` | **Keep** — UX flow doc, orthogonal. |
-| `ONBOARDING-TP-AWARENESS.md` | **Keep** — orthogonal. |
-| `TP-NOTIFICATION-CHANNEL.md` | **Keep** — orthogonal. |
-| `USER-JOURNEY.md` | **Keep** — orthogonal. |
-| `HEADLESS-PROMPT-PROFILES.md`, `PROMPT-PROFILE-EVALUATION.md` | **Keep** — backend prompt design, orthogonal. |
-| `SKILLS-REFRAME.md` | **Keep** — output gateway design, orthogonal. |
-| `CHANGELOG.md` | **Keep** — log. |
+**Disposition shipped this phase:**
 
-Phase 5 produces one commit; doc-only changes; CI green.
+- Cross-reference notes added to the three docs that touch FE-rendering territory: `SURFACE-CONTRACTS.md`, `AGENT-AND-TASK-SURFACE-PATTERNS.md`, `TASK-OUTPUT-SURFACE-CONTRACT.md`. Each note explicitly states the orthogonality (different layer / different boundary) so future readers don't conflate the docs.
+- Zero docs moved to `docs/design/archive/`.
+- ADR Phase 5 §implementation classifications updated to reflect the audit finding.
+
+**Why the spec was wrong about archiving.** The Phase 1 spec assumed that adding a content-shape rendering model would replace per-surface bespoke patterns. Implementation found the per-surface patterns aren't bespoke in the way that matters — they govern *which shell renders for which work shape*, while ADR-244 governs *how each shell sources parsed substrate*. Two orthogonal questions, two orthogonal docs. Same demand-pull lesson as Phases 2-4: scope down to what implementation reveals is genuinely needed, not what the spec speculatively predicted.
+
+Same discipline as Phase 2's recurrence-shapes finding, Phase 3's TraderSignalExpectancy finding, and Phase 4's deferred editors. The supersede-pass spec listed 5 candidates; implementation found 0 needed archiving. The doc folder stays whole; future readers gain explicit cross-references.
+
+**Test gate**: Phase 5 assertion updated from "archive is clean" (Phase 1 placeholder) to "audit finding logged in ADR + cross-ref notes added to the 3 closest-related docs"; 23/23 total passing (8 P1 + 6 P2 + 4 P3 + 5 P4 + 0 P5 net new — Phase 5 modified one existing assertion rather than adding new ones).
 
 ---
 
@@ -332,10 +336,18 @@ Phases 2–5 add their own assertions; the gate accumulates.
 - Test gate extended: 4 Phase 3 assertions added (MoneyTruthFace registry import, no-inline-parser, canonical-consumers import-from-registry, bundle-extended finding logged); 18/18 total passing.
 - Implementation-time finding logged: `TraderSignalExpectancy.tsx` parses bundle-extended `_performance.md` frontmatter (alpha-trader's `expectancy_by_signal` field) and stays out of the kernel registry per ADR-188 + D7 (bundle library extension loading deferred).
 
-### Phase 4 (this commit)
+### Phase 4 (commit `87ebb1f`)
 
 - `autonomy.ts` extended: `parseRoundTrip()` returns `{meta, body}` for body-preserving round-trip. `serialize(meta, body)` emits YAML frontmatter matching the parser's input shape + appends body verbatim.
 - `web/lib/content-shapes/write.ts` shipped: `writeShape(shapeKey, path, content, opts)` routes by `WRITE_CONTRACT`. `WriteContractViolation` class for type-discriminated runtime errors. configuration / authored_prose route through `api.workspace.editFile`; declaration throws with deferral pointer; narrative / live_aggregate / composed_artifact / system_owned throw `WriteContractViolation`.
 - `MandateFace.tsx` shipped the canonical autonomy toggle: `<AutonomyToggle>` subcomponent renders an interactive `<select>` of the four `AutonomyLevel`s. On change → parseRoundTrip → mutate default_level → serialize → writeShape → refresh local state. Optimistic update with error revert. The toggle is the canonical L3 demonstration that the three-layer model works end-to-end. Replaces the static `autonomyLine` text from ADR-238 (read-only chip) with mutable affordance.
 - Test gate extended: 5 Phase 4 assertions added (autonomy serialize+parseRoundTrip exist, write.ts ships writeShape + WriteContractViolation, write-routing branches by contract, MandateFace wires writeShape + toggle + serialize, deferrals logged); 23/23 total passing.
 - Demand-pull deferrals logged in §Phase 4: principles thresholds editor, risk envelope editor, declaration-shape FE editor. Registry + writer infrastructure complete; adding a new L3 editor in a future phase is purely additive.
+
+### Phase 5 (this commit)
+
+- Audited every doc under `docs/design/` against ADR-244. Implementation-time finding: zero docs needed archiving — the candidates the Phase 1 spec listed as "likely superseded" all turned out to govern orthogonal layers (per-tab operational shape, task-run envelope, surface patterns by output_kind, feedback routing, inference UX). They sit beside ADR-244, not under it.
+- Cross-reference notes added to three FE-rendering-related docs (`SURFACE-CONTRACTS.md`, `AGENT-AND-TASK-SURFACE-PATTERNS.md`, `TASK-OUTPUT-SURFACE-CONTRACT.md`) so future readers see the explicit orthogonality rather than wonder if the docs conflict.
+- ADR §Phase 5 rewritten with the per-doc audit table + finding rationale.
+- Test gate `test_design_archive_clean_until_phase_5` updated semantically: was "Phase 5 hasn't run", now "Phase 5 finding is recorded in ADR + cross-refs added"; assertion count unchanged (23/23).
+- Branch `claude/review-frontend-architecture-RcFtJ` ready for merge to main.

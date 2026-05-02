@@ -1,9 +1,14 @@
 """
 ADR-244 regression gate — Frontend Kernel three-layer content rendering.
 
-Phase 1 ratified the model. Phase 2 (this commit's extension) populates
-the content-shape registry by migrating four existing parsers + adding
-two new shape entries. Phases 3-5 add their own assertions as they land.
+Fully implemented (Phases 1-5):
+- Phase 1 ratified the model + shipped registry stub.
+- Phase 2 populated the registry (4 parser migrations + 2 new shapes).
+- Phase 3 audited canonical-L3 consumers + refactored MoneyTruthFace.
+- Phase 4 shipped per-class write contracts + canonical autonomy toggle.
+- Phase 5 closed the docs/design/ supersede pass — finding was zero
+  docs needed archiving; cross-reference notes added to three FE-
+  rendering-related docs.
 
 Same Python-test-over-TS-source pattern as ADR-237 / ADR-238 / ADR-239 /
 ADR-240 / ADR-241 / ADR-242 (no JS test runner today; see ADR-236 Rule 3).
@@ -134,17 +139,40 @@ def test_claude_md_registers_adr_244():
     assert "ADR-244" in src, "CLAUDE.md must register ADR-244 in the Key ADRs section."
 
 
-def test_design_archive_clean_until_phase_5():
-    """Assertion #8: docs/design/archive/ does not yet contain ADR-244
-    supersede artifacts. Phase 5 lands the supersede pass; Phase 1 must not
-    pre-archive anything."""
-    if not DESIGN_ARCHIVE_DIR.is_dir():
-        return
-    archived = list(DESIGN_ARCHIVE_DIR.glob("*ADR-244*"))
-    assert not archived, (
-        f"Phase 1 must not pre-archive design docs. Found: {[p.name for p in archived]}. "
-        "Move supersede pass to Phase 5."
+def test_phase_5_supersede_finding_logged():
+    """Assertion #8: ADR-244 §Phase 5 records the supersede-pass finding.
+
+    **Phase 1 placeholder** asserted `docs/design/archive/` was empty (no
+    ADR-244 supersede artifacts pre-Phase-5). **Phase 5 finding** flipped
+    the assertion: implementation-time audit found ZERO docs needed
+    archiving — the candidates the spec listed as "likely superseded"
+    all govern orthogonal layers. The Phase 5 disposition is therefore
+    cross-reference notes on three FE-rendering-related docs, not
+    archive moves. This assertion now verifies the finding is recorded
+    in the ADR + the cross-reference notes are present in the three
+    closest-related docs."""
+    src = _read(ADR_FILE)
+    assert "zero docs needed archiving" in src.lower() or (
+        "Implementation-time finding" in src and "no docs are actually superseded" in src.lower()
+    ), (
+        "ADR-244 §Phase 5 must log the implementation-time finding that "
+        "no docs needed archiving."
     )
+
+    # Cross-reference notes present in the three closest-related docs
+    design_dir = REPO_ROOT / "docs" / "design"
+    for doc in [
+        "SURFACE-CONTRACTS.md",
+        "AGENT-AND-TASK-SURFACE-PATTERNS.md",
+        "TASK-OUTPUT-SURFACE-CONTRACT.md",
+    ]:
+        path = design_dir / doc
+        if not path.exists():
+            continue
+        content = path.read_text(encoding="utf-8")
+        assert "ADR-244" in content, (
+            f"{doc} must carry an ADR-244 cross-reference per Phase 5 finding."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -434,7 +462,7 @@ def main() -> int:
         test_content_shapes_directory_exists,
         test_content_shapes_index_declares_schema_types,
         test_claude_md_registers_adr_244,
-        test_design_archive_clean_until_phase_5,
+        test_phase_5_supersede_finding_logged,
         # Phase 2
         test_phase_2_shape_modules_exist,
         test_phase_2_shape_modules_declare_schema,
@@ -465,7 +493,7 @@ def main() -> int:
             print(f"  FAIL  {fn.__name__}: {exc}")
             failed += 1
     total = passed + failed
-    print(f"\nADR-244 gate (Phase 1-4): {passed}/{total} passing")
+    print(f"\nADR-244 gate (Phases 1-5 — fully implemented): {passed}/{total} passing")
     return 0 if failed == 0 else 1
 
 

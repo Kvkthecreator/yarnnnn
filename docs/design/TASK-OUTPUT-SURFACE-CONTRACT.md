@@ -1,6 +1,6 @@
 # Task Output Surface Contract
 
-**Date:** 2026-04-09 (amended 2026-04-13, Bucket A composition note 2026-04-27)
+**Date:** 2026-04-09 (amended 2026-04-13, Bucket A composition note 2026-04-27, ADR-244 cross-ref 2026-05-01)
 **Status:** Decision
 **Related:**
 - [AGENT-AND-TASK-SURFACE-PATTERNS.md](./AGENT-AND-TASK-SURFACE-PATTERNS.md) — shell rules for agent and task surfaces
@@ -11,6 +11,7 @@
 - [../adr/ADR-167-list-detail-surfaces.md](../adr/ADR-167-list-detail-surfaces.md) — kind-aware `/work` detail
 - [../adr/ADR-178-task-creation-routes.md](../adr/ADR-178-task-creation-routes.md) — Route A (output-driven) vs Route B (context-driven); DELIVERABLE.md richness at creation
 - [../adr/ADR-149-task-lifecycle.md](../adr/ADR-149-task-lifecycle.md) — DELIVERABLE.md as quality contract; Phase 6 frontend surface (now active)
+- [../adr/ADR-244](../adr/ADR-244-frontend-kernel-three-layer-content-rendering.md) — three-layer content rendering model. **Orthogonal**: this doc defines the typed packet *envelope* the backend emits per task run; ADR-244 defines how the FE *renders* substrate (parser layer + structured affordance layer). The packet sits at the API/backend boundary; ADR-244's L2 content-shape parsers operate on file content within FE components after the packet is unpacked. Both are active design contracts.
 
 ## Purpose
 
