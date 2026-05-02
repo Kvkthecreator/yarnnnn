@@ -70,6 +70,7 @@ export default function SchedulePage() {
         placeholder: 'Ask about your schedule…',
         emptyState: chatEmptyState,
         defaultOpen: false,
+        plusMenuActions: [],
       }}
     >
       <PageHeader defaultLabel="Schedule" />
