@@ -115,13 +115,10 @@ export interface DocumentListResponse {
   offset: number;
 }
 
-// Onboarding State (ADR-138: check if user has any agents)
-export interface OnboardingStateResponse {
-  has_agents: boolean;
-  // ADR-240: extended for the onboarding modal's idempotency gate.
-  activation_state: 'none' | 'post_fork_pre_author' | 'operational';
-  active_program_slug: string | null;
-}
+// ADR-244 (2026-05-01): OnboardingStateResponse deleted — replaced by the
+// inline response type on api.workspace.getState() in lib/api/client.ts.
+// Workspace lifecycle is the canonical name; the type was tied to the
+// "onboarding" framing that died with the modal.
 
 // API Response types
 export interface DeleteResponse {

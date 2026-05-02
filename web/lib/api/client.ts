@@ -15,7 +15,6 @@ import type {
   DocumentDownloadResponse,
   DocumentListResponse,
   DeleteResponse,
-  OnboardingStateResponse,
   SubscriptionStatus,
   CheckoutResponse,
   PortalResponse,
