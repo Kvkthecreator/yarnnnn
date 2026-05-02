@@ -265,6 +265,76 @@ def test_phase_2_recurrence_shapes_finding_logged():
 
 
 # ---------------------------------------------------------------------------
+# Phase 3 assertions
+# ---------------------------------------------------------------------------
+
+WEB_MONEY_TRUTH_FACE = REPO_ROOT / "web" / "components" / "library" / "faces" / "MoneyTruthFace.tsx"
+WEB_MANDATE_FACE = REPO_ROOT / "web" / "components" / "library" / "faces" / "MandateFace.tsx"
+WEB_PERFORMANCE_FACE = REPO_ROOT / "web" / "components" / "library" / "faces" / "PerformanceFace.tsx"
+WEB_DECISIONS_STREAM = REPO_ROOT / "web" / "components" / "work" / "details" / "DecisionsStream.tsx"
+
+
+def test_phase_3_money_truth_imports_from_registry():
+    """Assertion #15: MoneyTruthFace.tsx imports the performance parser
+    from `@/lib/content-shapes/performance` per ADR-244 Phase 3 audit
+    (the inline `parseFrontmatter` was the canonical violation flagged
+    in §Implementation Phase 3 candidates)."""
+    src = _read(WEB_MONEY_TRUTH_FACE)
+    assert "@/lib/content-shapes/performance" in src, (
+        "MoneyTruthFace.tsx must import from @/lib/content-shapes/performance "
+        "per ADR-244 Phase 3 canonical-L3 audit."
+    )
+
+
+def test_phase_3_money_truth_no_inline_parser():
+    """Assertion #16: MoneyTruthFace.tsx has no inline `parseFrontmatter`
+    function and does not redeclare the `MoneyTruthMeta` interface — both
+    moved into `content-shapes/performance.ts` per ADR-244 Phase 3.
+    Singular Implementation rule 1: no parallel parsers."""
+    src = _read(WEB_MONEY_TRUTH_FACE)
+    assert "function parseFrontmatter" not in src, (
+        "MoneyTruthFace.tsx must NOT redeclare inline parseFrontmatter "
+        "(use `parse` from @/lib/content-shapes/performance) per ADR-244 Phase 3."
+    )
+    assert "interface MoneyTruthMeta" not in src, (
+        "MoneyTruthFace.tsx must NOT redeclare MoneyTruthMeta interface "
+        "(use `PerformanceMeta` from registry) per ADR-244 Phase 3."
+    )
+
+
+def test_phase_3_canonical_consumers_import_from_registry():
+    """Assertion #17: every canonical L3 consumer of a registry-covered
+    shape imports its parser from `@/lib/content-shapes/{shape}`.
+    Verifies Phase 2 sed migration didn't miss anything and Phase 3
+    canonical-L3 census is complete."""
+    canonical_consumers = {
+        WEB_MANDATE_FACE: "@/lib/content-shapes/autonomy",
+        WEB_PERFORMANCE_FACE: "@/lib/content-shapes/decisions",
+        WEB_DECISIONS_STREAM: "@/lib/content-shapes/decisions",
+    }
+    for path, expected_import in canonical_consumers.items():
+        src = _read(path)
+        assert expected_import in src, (
+            f"{path.relative_to(REPO_ROOT)} must import from {expected_import} "
+            "per ADR-244 Phase 3 canonical-L3 audit."
+        )
+
+
+def test_phase_3_bundle_specific_parsers_documented():
+    """Assertion #18: ADR documents the Phase 3 finding that
+    TraderSignalExpectancy.tsx parses a bundle-extended shape
+    (`expectancy_by_signal` field on `_performance.md`) and stays out of
+    the kernel registry per ADR-188 + ADR-244 D7 (bundle library
+    extension loading deferred). Same demand-pull discipline as Phase 2's
+    recurrence-shapes finding."""
+    src = _read(ADR_FILE)
+    assert "TraderSignalExpectancy" in src and "bundle" in src.lower(), (
+        "ADR-244 must log the Phase 3 finding about TraderSignalExpectancy "
+        "as a bundle-extended shape per ADR-188 + D7."
+    )
+
+
+# ---------------------------------------------------------------------------
 # CLI runner
 # ---------------------------------------------------------------------------
 
@@ -286,6 +356,11 @@ def main() -> int:
         test_phase_2_no_stale_imports,
         test_phase_2_registry_populated,
         test_phase_2_recurrence_shapes_finding_logged,
+        # Phase 3
+        test_phase_3_money_truth_imports_from_registry,
+        test_phase_3_money_truth_no_inline_parser,
+        test_phase_3_canonical_consumers_import_from_registry,
+        test_phase_3_bundle_specific_parsers_documented,
     ]
     passed = 0
     failed = 0
@@ -298,7 +373,7 @@ def main() -> int:
             print(f"  FAIL  {fn.__name__}: {exc}")
             failed += 1
     total = passed + failed
-    print(f"\nADR-244 gate (Phase 1 + Phase 2): {passed}/{total} passing")
+    print(f"\nADR-244 gate (Phase 1 + Phase 2 + Phase 3): {passed}/{total} passing")
     return 0 if failed == 0 else 1
 
 

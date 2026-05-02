@@ -1,6 +1,6 @@
 # ADR-244: Frontend Kernel Architecture — Three-Layer Content Rendering Model
 
-> **Status**: **Phase 1 + Phase 2 Implemented** (2026-05-01). Phase 1 ratified the model + shipped registry stub (commit `c642173`, 8/8 gate). Phase 2 populated the registry by migrating four parsers + adding two new shape entries (this commit, 14/14 gate). Phases 3–5 deferred to follow-on commits per the phased plan in §Implementation.
+> **Status**: **Phase 1 + Phase 2 + Phase 3 Implemented** (2026-05-01). Phase 1 ratified the model + shipped registry stub (commit `c642173`, 8/8 gate). Phase 2 populated the registry by migrating four parsers + adding two new shape entries (commit `87bb163`, 14/14 gate). Phase 3 audited canonical-L3 consumers + refactored MoneyTruthFace inline parser (this commit, 18/18 gate). Phases 4–5 deferred to follow-on commits per the phased plan in §Implementation.
 > **Date**: 2026-05-01
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Channel** (Axiom 6) primary — codifies how operator-facing surfaces consume substrate. Secondary: **Substrate** (Axiom 1 — what the layers read), **Mechanism** (Axiom 5 — L2 lives at the deterministic end of the spectrum), **Purpose** (Axiom 3 — L3 is sited by operational meaning).
@@ -194,20 +194,28 @@ The recurrence-spec content shape (DECLARATION class per D5) exists conceptually
 
 ### Phase 3 — Audit Existing FE for Canonical-L3 Violations
 
-Audits every component that parses substrate content. For each finding:
+**Status: Implemented 2026-05-01.**
 
-1. If a component re-implements parse logic that the registry already covers → refactor to import from registry.
-2. If two components implement structured-edit affordances for the same shape → designate canonical, downgrade secondary to read-only or route-through.
-3. If a per-path page exists for what should be a shape-driven L3 → flag for restructure.
+Audited every FE component that parses substrate content. The audit pattern: grep for inline frontmatter regexes (`/^---\s*\n([\s\S]*?)\n---/`), parser function names (`parseFrontmatter`, `parseAutonomy`, `parseDecisions`, etc.), and shape-specific match patterns. For each finding, applied one of three rules:
 
-Specific known candidates from current code:
+1. Component re-implements parse logic the registry covers → refactor to import.
+2. Two components implement structured-edit affordances for the same shape → designate canonical, downgrade secondary to read-only.
+3. Per-path page exists for what should be a shape-driven L3 → flag for restructure.
 
-- `PerformanceFace.tsx` had inline `parseDecisions` (fixed in ADR-239) — verify clean.
-- `MandateFace.tsx` inline `parseAutonomy` — fixed in ADR-238 — verify migration to new registry path lands.
-- `MoneyTruthFace.tsx` inline `_performance.md` frontmatter parsing — migrate to `content-shapes/performance.ts`.
-- `WorkListSurface.tsx` recurrence chip — verify it imports from `content-shapes/recurrence-spec.ts`.
+**Census of refactor targets (with disposition):**
 
-Audit produces one commit per migration; no audit-only commits.
+| Component | Status before Phase 3 | Phase 3 disposition |
+|---|---|---|
+| `MandateFace.tsx` | Imported `@/lib/autonomy` (ADR-238) | ✓ Phase 2 sed migrated to `@/lib/content-shapes/autonomy` — verified clean |
+| `PerformanceFace.tsx` | Imported `@/lib/reviewer-decisions` (ADR-239) | ✓ Phase 2 sed migrated to `@/lib/content-shapes/decisions` — verified clean |
+| `DecisionsStream.tsx` | Imported `@/lib/reviewer-decisions` (ADR-241) | ✓ Phase 2 sed migrated to `@/lib/content-shapes/decisions` — verified clean |
+| `MoneyTruthFace.tsx` | **Inline `parseFrontmatter` + `MoneyTruthMeta` interface** | **REFACTORED this commit** — imports `parse` + `PerformanceMeta` from `@/lib/content-shapes/performance`; inline parser deleted; interface deleted. |
+
+**Phase 3 implementation-time finding (TraderSignalExpectancy is bundle-extended).** `web/components/library/TraderSignalExpectancy.tsx` parses `_performance.md` frontmatter to extract a bundle-specific field (`expectancy_by_signal` map, alpha-trader's signal expectancy table per ADR-242 Phase 2). The outer frontmatter parser shape is identical to `content-shapes/performance.ts`, but the extracted shape (`SignalRow[]`) is alpha-trader-specific — no other program declares this field. Per ADR-188 (kernel agnosticism) and ADR-244 D7 (bundle library extension loading deferred), bundle-specific parsers belong with the bundle component, not in the kernel registry. TraderSignalExpectancy stays as-is. When Phase 4 + ADR-225 follow-on lands the bundle library extension mechanism, alpha-trader can register its own per-bundle extension shape (`performance.alpha-trader-expectancy`) without modifying the kernel `performance` shape.
+
+This is the same demand-pull discipline as Phase 2's recurrence-shapes finding and ADR-225 v2's "ship 6 components, not 14" refinement: the spec listed candidates, implementation found which ones genuinely fit the abstraction, the rest stay outside the kernel registry until pressure to register them appears.
+
+**Test gate**: 18/18 (8 Phase 1 + 6 Phase 2 + 4 Phase 3 — MoneyTruthFace registry import, MoneyTruthFace no-inline-parser, canonical consumers import-from-registry, bundle-extended finding logged).
 
 ### Phase 4 — Per-Class Write Contracts in Shape Modules
 
@@ -302,7 +310,7 @@ Phases 2–5 add their own assertions; the gate accumulates.
 - Backward amend banners on predecessors (ADR-167, 225, 237, 238, 239) deferred to the phases that actually mutate predecessor code — no banner-only sweep-up in a Phase 1 ratification commit. Forward citation in this ADR's `> **Amends**` header is the canonical record.
 - Phases 2–5 deferred to follow-on commits per the discipline of ADR-236 Rule 8 (drafted-pair sequencing — each phase cites its predecessor only after the predecessor reaches `Implemented`).
 
-### Phase 2 (this commit)
+### Phase 2 (commit `87bb163`)
 
 - 4 parsers migrated from `web/lib/{autonomy,reviewer-decisions,inference-meta,snapshot-meta}.ts` into `web/lib/content-shapes/{autonomy,decisions,inference-meta,snapshot}.ts`. Each module gains the D3 schema fields (SHAPE_KEY, PATH_GLOB, WRITE_CONTRACT, CANONICAL_L3, META export) alongside the lifted parser body.
 - 2 new shape entries: `performance.ts` (parser extracted from MoneyTruthFace inline `parseFrontmatter`), `principles.ts` (Phase 2 stub — Phase 4 lands the structured parser).
@@ -311,3 +319,10 @@ Phases 2–5 add their own assertions; the gate accumulates.
 - Old parser files DELETED at `web/lib/{autonomy,reviewer-decisions,inference-meta,snapshot-meta}.ts` per Singular Implementation rule 1.
 - Test gate extended: 6 Phase 2 assertions added; 14/14 total passing.
 - Implementation-time finding logged: `recurrence-shapes.ts` is a domain-key utility, not a content-shape parser. It stays at its current path. The recurrence-spec content shape (DECLARATION class) gets a parser when Phase 4's L3 editor lands.
+
+### Phase 3 (this commit)
+
+- `MoneyTruthFace.tsx` refactored: inline `parseFrontmatter` + `MoneyTruthMeta` interface DELETED. Imports `parse` (aliased as `parsePerformance`) + `PerformanceMeta` from `@/lib/content-shapes/performance`. Singular Implementation honored — one parser per shape, kernel-default consumer reaches it through registry import.
+- Canonical L3 consumers verified clean: MandateFace + PerformanceFace + DecisionsStream all importing from `@/lib/content-shapes/{shape}` (Phase 2 sed migration confirmed by Phase 3 audit).
+- Test gate extended: 4 Phase 3 assertions added (MoneyTruthFace registry import, no-inline-parser, canonical-consumers import-from-registry, bundle-extended finding logged); 18/18 total passing.
+- Implementation-time finding logged: `TraderSignalExpectancy.tsx` parses bundle-extended `_performance.md` frontmatter (alpha-trader's `expectancy_by_signal` field) and stays out of the kernel registry per ADR-188 + D7 (bundle library extension loading deferred).
