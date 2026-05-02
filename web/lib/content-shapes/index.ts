@@ -1,5 +1,5 @@
 /**
- * Content-Shape Registry — ADR-244 Frontend Kernel L2 home.
+ * Content-Shape Registry — ADR-245 Frontend Kernel L2 home.
  *
  * Phase 1 shipped the empty stub. Phase 2 (this commit) populates entries
  * by migrating four existing parsers and adding two new shape declarations.
@@ -11,7 +11,7 @@
  * primitive based on WRITE_CONTRACT.
  *
  * Phase 2 implementation-time finding: `web/lib/recurrence-shapes.ts` was
- * listed as a Phase 2 migration target in ADR-244 §Implementation, but
+ * listed as a Phase 2 migration target in ADR-245 §Implementation, but
  * inspection found it isn't a content-shape parser — it's a domain-key
  * utility (no `parse()` of file content, no `PATH_GLOB`). It stays at its
  * current location. The recurrence-spec content shape (DECLARATION class

@@ -4,9 +4,9 @@ ADR-241 regression gate — single cockpit persona.
 Asserts eight invariants for the Reviewer-into-TP collapse landed in
 ADR-241 (Round 5 step of the ADR-236 frontend cockpit coherence pass).
 
-**Amended by ADR-244 Phase 2 (2026-05-01)**: the canonical decisions
+**Amended by ADR-245 Phase 2 (2026-05-01)**: the canonical decisions
 parser relocated from `web/lib/reviewer-decisions.ts` to
-`web/lib/content-shapes/decisions.ts` per ADR-244 D3 content-shape
+`web/lib/content-shapes/decisions.ts` per ADR-245 D3 content-shape
 registry. Path constants + import-string assertions in this gate
 updated accordingly. The semantic invariants (parser exports
 parseDecisions + aggregateReviewerCalibration; DecisionsStream imports
@@ -123,7 +123,7 @@ def test_canonical_parser_preserved():
     """Assertion #7: the canonical decisions shape module continues to
     export parseDecisions and aggregateReviewerCalibration.
 
-    **Amended by ADR-244 Phase 2**: module relocated to
+    **Amended by ADR-245 Phase 2**: module relocated to
     `web/lib/content-shapes/decisions.ts`. `parse` is the canonical
     export; `parseDecisions` is the back-compat alias
     (`export const parseDecisions = parse;`). Both function-form and

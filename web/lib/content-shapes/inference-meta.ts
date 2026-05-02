@@ -2,9 +2,9 @@
  * Inference-meta content shape — `<!-- inference-meta: {...} -->` HTML
  * comment trailer on inferred files (IDENTITY.md, BRAND.md).
  *
- * Migrated from `web/lib/inference-meta.ts` by ADR-244 Phase 2.
+ * Migrated from `web/lib/inference-meta.ts` by ADR-245 Phase 2.
  *
- * Per ADR-244 D5 the WRITE_CONTRACT is `system_owned` — only
+ * Per ADR-245 D5 the WRITE_CONTRACT is `system_owned` — only
  * `infer_shared_context()` (server-side, ADR-162 Sub-phase D + ADR-209
  * Phase 4) writes the trailer; operators don't edit through L3.
  *
@@ -17,7 +17,7 @@
 import type { ContentShapeMeta } from './index';
 
 // ---------------------------------------------------------------------------
-// Shape registry metadata (ADR-244 D3)
+// Shape registry metadata (ADR-245 D3)
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'inference-meta' as const;

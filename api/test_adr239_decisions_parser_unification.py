@@ -4,9 +4,9 @@ ADR-239 regression gate — decisions parser unification.
 Asserts six invariants for the parser consolidation landed in ADR-239
 (Round 3 of the ADR-236 frontend cockpit coherence pass).
 
-**Amended by ADR-244 Phase 2 (2026-05-01)**: the canonical decisions
+**Amended by ADR-245 Phase 2 (2026-05-01)**: the canonical decisions
 parser relocated from `web/lib/reviewer-decisions.ts` to
-`web/lib/content-shapes/decisions.ts` per ADR-244 D3 content-shape
+`web/lib/content-shapes/decisions.ts` per ADR-245 D3 content-shape
 registry. Path constants + import-string assertions in this gate
 updated accordingly. The semantic invariants (parser exports
 parseDecisions + aggregateReviewerCalibration; PerformanceFace +
@@ -56,7 +56,7 @@ def test_reviewer_decisions_lib_exposes_aggregator_and_calibration_type():
     """Assertion #1: the canonical decisions shape module exposes the
     parser, the aggregator, and the calibration interface.
 
-    **Amended by ADR-244 Phase 2**: module relocated to
+    **Amended by ADR-245 Phase 2**: module relocated to
     `web/lib/content-shapes/decisions.ts`. `parseDecisions` may be
     function-form OR alias-const-form (`export const parseDecisions = parse`)
     — both are valid public exports."""

@@ -1,22 +1,22 @@
 /**
  * Reviewer decisions content shape — `/workspace/review/decisions.md`.
  *
- * Migrated from `web/lib/reviewer-decisions.ts` by ADR-244 Phase 2.
+ * Migrated from `web/lib/reviewer-decisions.ts` by ADR-245 Phase 2.
  *
- * Per ADR-244 D5 the WRITE_CONTRACT is `narrative` — Reviewer-layer
+ * Per ADR-245 D5 the WRITE_CONTRACT is `narrative` — Reviewer-layer
  * (`api/services/reviewer_audit.py`) writes append-only decision blocks
  * per ADR-194 v2 Phase 2a; operator never edits through L3. The
  * canonical L3 (DecisionsStream per ADR-241 D3) renders the Stream
  * archetype as read-only.
  *
  * Lifted-from history: `web/lib/reviewer-decisions.ts` (ADR-239) →
- * here (ADR-244 Phase 2).
+ * here (ADR-245 Phase 2).
  */
 
 import type { ContentShapeMeta } from './index';
 
 // ---------------------------------------------------------------------------
-// Shape registry metadata (ADR-244 D3)
+// Shape registry metadata (ADR-245 D3)
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'decisions' as const;

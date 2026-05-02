@@ -1,11 +1,11 @@
 /**
  * Performance content shape — `_performance.md` + `_performance_summary.md`.
  *
- * NEW shape entry added by ADR-244 Phase 2. Parser extracted from
+ * NEW shape entry added by ADR-245 Phase 2. Parser extracted from
  * `MoneyTruthFace.tsx` inline `parseFrontmatter` (ADR-228 substrate path).
  * Phase 3 audit will refactor `MoneyTruthFace` to import from this module.
  *
- * Per ADR-244 D5 the WRITE_CONTRACT is `live_aggregate` — only the system
+ * Per ADR-245 D5 the WRITE_CONTRACT is `live_aggregate` — only the system
  * outcomes ledger (`api/services/outcomes/ledger.py` per ADR-195 v2)
  * writes; operators never edit through L3. The canonical L3
  * (MoneyTruthFace) renders parsed metrics + `last reconciled` link to the
@@ -15,7 +15,7 @@
 import type { ContentShapeMeta } from './index';
 
 // ---------------------------------------------------------------------------
-// Shape registry metadata (ADR-244 D3)
+// Shape registry metadata (ADR-245 D3)
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'performance' as const;

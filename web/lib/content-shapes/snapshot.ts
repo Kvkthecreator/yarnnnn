@@ -2,9 +2,9 @@
  * Snapshot-marker content shape — `<!-- snapshot: {...} -->` HTML comment
  * trailer on assistant chat messages.
  *
- * Migrated from `web/lib/snapshot-meta.ts` by ADR-244 Phase 2.
+ * Migrated from `web/lib/snapshot-meta.ts` by ADR-245 Phase 2.
  *
- * Per ADR-244 D5 the WRITE_CONTRACT is `system_owned` — only YARNNN
+ * Per ADR-245 D5 the WRITE_CONTRACT is `system_owned` — only YARNNN
  * (server-side, `api/agents/yarnnn.py` + prompt directives in
  * `api/agents/prompts/`) emits the marker; operators don't author it.
  *
@@ -20,7 +20,7 @@
 import type { ContentShapeMeta } from './index';
 
 // ---------------------------------------------------------------------------
-// Shape registry metadata (ADR-244 D3)
+// Shape registry metadata (ADR-245 D3)
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'snapshot' as const;

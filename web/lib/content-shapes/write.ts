@@ -1,8 +1,8 @@
 /**
- * writeShape() — ADR-244 Phase 4 typed write helper.
+ * writeShape() — ADR-245 Phase 4 typed write helper.
  *
  * Routes operator-initiated writes to the correct primitive based on the
- * shape's WRITE_CONTRACT (per ADR-244 D5):
+ * shape's WRITE_CONTRACT (per ADR-245 D5):
  *
  *   - `authored_prose`  → WriteFile(scope='workspace')   via api.workspace.editFile
  *   - `configuration`   → WriteFile(scope='workspace')   via api.workspace.editFile
@@ -51,9 +51,9 @@ export class WriteContractViolation extends Error {
 function describeContract(c: WriteContract): string {
   switch (c) {
     case 'narrative':
-      return 'Narrative substrate is append-only by system writers per ADR-244 D5.';
+      return 'Narrative substrate is append-only by system writers per ADR-245 D5.';
     case 'live_aggregate':
-      return 'Live aggregates are system-owned per ADR-244 D5; operator interacts via outcome → feedback path.';
+      return 'Live aggregates are system-owned per ADR-245 D5; operator interacts via outcome → feedback path.';
     case 'composed_artifact':
       return 'Composed artifacts are system-derived (ADR-213 surface-pull pipeline).';
     case 'system_owned':
@@ -94,13 +94,13 @@ export async function writeShape(
   if (shape.WRITE_CONTRACT === DECLARATION_CONTRACT) {
     // Declaration shapes (`_spec.yaml`, `_recurring.yaml`, `_action.yaml`)
     // route through ManageRecurrence per ADR-235 D1.c, NOT WriteFile. The
-    // FE editor for declaration shapes is deferred — see ADR-244 §Phase 4
+    // FE editor for declaration shapes is deferred — see ADR-245 §Phase 4
     // deferrals. When the editor lands, this branch wires up the
     // ManageRecurrence call.
     throw new Error(
       `writeShape: declaration shape '${shapeKey}' routes through ` +
         `ManageRecurrence (ADR-235 D1.c), not WriteFile. The FE editor ` +
-        `for declaration shapes is deferred — see ADR-244 §Phase 4.`,
+        `for declaration shapes is deferred — see ADR-245 §Phase 4.`,
     );
   }
 

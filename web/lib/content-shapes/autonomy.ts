@@ -1,11 +1,11 @@
 /**
  * Autonomy content shape — `/workspace/context/_shared/AUTONOMY.md`.
  *
- * Migrated from `web/lib/autonomy.ts` by ADR-244 Phase 2 (commit
+ * Migrated from `web/lib/autonomy.ts` by ADR-245 Phase 2 (commit
  * <see git log>). The pure parser + helpers + React hook are unchanged in
  * shape; only the import path moved into the content-shape registry home.
  *
- * Per ADR-244 D5 the WRITE_CONTRACT is `configuration` — operator mutates
+ * Per ADR-245 D5 the WRITE_CONTRACT is `configuration` — operator mutates
  * via the canonical L3 (MandateFace) which serializes parsed data and
  * writes through `WriteFile(scope='workspace', path='context/_shared/AUTONOMY.md', ...)`
  * per ADR-235 D1.b. The Phase 4 toggle implementation will land
@@ -13,7 +13,7 @@
  * surfaces only.
  *
  * Lifted-from history: MandateFace.tsx → web/lib/autonomy.ts (ADR-238) →
- * here (ADR-244 Phase 2).
+ * here (ADR-245 Phase 2).
  */
 
 'use client';
@@ -23,7 +23,7 @@ import { api } from '@/lib/api/client';
 import type { ContentShapeMeta } from './index';
 
 // ---------------------------------------------------------------------------
-// Shape registry metadata (ADR-244 D3)
+// Shape registry metadata (ADR-245 D3)
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'autonomy' as const;
@@ -146,7 +146,7 @@ export function parseRoundTrip(content: string): ParsedAutonomy {
 }
 
 // ---------------------------------------------------------------------------
-// serialize() — Phase 4 (ADR-244 D5 configuration class write contract)
+// serialize() — Phase 4 (ADR-245 D5 configuration class write contract)
 // ---------------------------------------------------------------------------
 //
 // Round-trips AutonomyMeta + optional body back to file content. Emits

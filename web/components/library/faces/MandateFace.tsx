@@ -117,11 +117,11 @@ function parseMandate(content: string): {
 }
 
 // `parseAutonomy` + `AutonomyMeta` lifted to `@/lib/content-shapes/autonomy`
-// by ADR-238 (parser) and ADR-244 Phase 2 (registry home). Singular
-// Implementation: do not re-inline here. ADR-244 Phase 4 adds mutation —
+// by ADR-238 (parser) and ADR-245 Phase 2 (registry home). Singular
+// Implementation: do not re-inline here. ADR-245 Phase 4 adds mutation —
 // the autonomy posture is now operator-toggleable from this face,
 // making MandateFace the canonical L3 for the autonomy content shape
-// per ADR-244 D4.
+// per ADR-245 D4.
 
 const AUTONOMY_LEVELS: ReadonlyArray<{ value: AutonomyLevel; label: string }> = [
   { value: 'manual', label: 'Manual' },
