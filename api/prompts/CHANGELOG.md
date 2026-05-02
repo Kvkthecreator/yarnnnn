@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.01.3] - ADR-245 TP meta-awareness — surface substrate richness + Workspace tab
+
+ADR-245 makes TP aware of (a) per-file substrate richness for MANDATE / AUTONOMY / Reviewer principles, (b) capability gaps for the active program, (c) the existence and purpose of the `Settings → Workspace` surface introduced by ADR-244. Pure prompt-layer + working-memory extension; no new endpoints, primitives, or schema.
+
+### Changed
+
+- `api/services/working_memory.py::build_working_memory` — extended `workspace_state` dict with five new keys: `mandate`, `autonomy`, `principles` (each `empty | sparse | rich` per `_classify_richness`), `active_program_slug` (parsed via `services.programs.parse_active_program_slug`, validated against bundle registry), and `capability_gaps` (slim mirror of the ADR-244 surface signal — `[{capability, platform, connected}]`). Two new helpers: `_parse_active_program_for_workspace_state` and `_compute_capability_gaps_for_workspace_state`. The two new file reads (AUTONOMY.md, review/principles.md) join the existing `asyncio.gather` batch — no extra round-trips beyond the file reads themselves.
+- `api/services/working_memory.py::format_compact_index` — extended Intent section. The substrate richness line now reads `Mandate · Identity · Brand · Autonomy · Reviewer principles` instead of just `Identity · Brand`. New conditional line surfaces active program + capability gap signal when applicable. Key files section gains `/settings?tab=workspace` pointer. Net token impact ≤ 50 tokens worst-case; ceiling (600) preserved.
+- `api/agents/prompts/chat/onboarding.py::CONTEXT_AWARENESS` — new `### Workspace Settings Surface (ADR-244 + ADR-245)` subsection inserted after the Workspace Context Awareness intro, before Situational Awareness. Names the surface, what it shows, what it does, what it does NOT do (no substrate authoring), and the three-state posture (`none` / `post_fork_pre_author` / `operational`). Adds `When to deep-link` / `When NOT to deep-link` guidance.
+
+### Expected behavior
+
+- TP sees per-file substrate richness for all five authored files in working memory and the compact index. Reasoning patterns that already work for `identity` / `brand` (`empty | sparse | rich`) extend naturally to `mandate` / `autonomy` / `principles`.
+- TP sees the active program slug + capability-gap signal when applicable. Operator-asked lifecycle questions ("can I switch programs", "is alpaca connected for my program") now have a deterministic deep-link target: `/settings?tab=workspace`.
+- TP knows the surface is for inspection / lifecycle ops only, not substrate authoring. Mandate / identity / brand authoring continues through chat per ADR-206 D6 + ADR-235 D1.
+- During `post_fork_pre_author`, the surface awareness is silent — ACTIVATION_OVERLAY (ADR-226) owns the conversational walk; surface awareness would conflict.
+
+### Not changed
+
+- ACTIVATION_OVERLAY (`prompts/chat/activation.py`) — engagement criteria unchanged (`post_fork_pre_author` only).
+- ADR-244 surface, endpoint shape, deactivation behavior, L2/L4 program preservation — all untouched.
+- No new prompt module. No `no_program.py` overlay analog. Singular implementation: one CONTEXT_AWARENESS prompt is enough.
+
+### Test gate
+
+- `api/test_adr245_tp_meta_awareness.py` — 11/11 passing.
+
+---
+
 ## [2026.05.01.2] - ADR-244 Workspace Settings Surface — endpoint rename + program lifecycle primitives
 
 ADR-244 (Workspace Settings Surface) reshapes the one-shot `OnboardingModal` (ADR-240) into a permanent `Settings → Workspace` surface. No prompt changes; this entry tracks the API contract changes that downstream LLM-facing code may have referenced.

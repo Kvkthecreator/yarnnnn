@@ -106,11 +106,17 @@ async def build_working_memory(
     # ADR-144 + ADR-206: Read identity + awareness + conversation summary + compute context readiness
     # ADR-226: also read MANDATE.md (used by activation-state detection — skeleton-or-empty
     # MANDATE.md combined with one-or-more-active-bundles signals post-fork-pre-author state).
-    identity_content, awareness_content, conversation_summary, mandate_content = await asyncio.gather(
+    identity_content, awareness_content, conversation_summary, mandate_content, autonomy_content, principles_content = await asyncio.gather(
         asyncio.to_thread(_get_workspace_file_sync, user_id, SHARED_IDENTITY_PATH, _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, MEMORY_AWARENESS_PATH, _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "memory/conversation.md", _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "context/_shared/MANDATE.md", _make_client()),
+        # ADR-245: include AUTONOMY.md + Reviewer principles.md so workspace_state
+        # carries per-file richness for all five authored substrate files (MANDATE,
+        # IDENTITY, BRAND, AUTONOMY, principles). TP needs this to reason about
+        # what's authored vs skeleton without reading files inline.
+        asyncio.to_thread(_get_workspace_file_sync, user_id, "context/_shared/AUTONOMY.md", _make_client()),
+        asyncio.to_thread(_get_workspace_file_sync, user_id, "review/principles.md", _make_client()),
     )
     task_count, doc_count, recent_uploads, recent_authorship, recent_md_signal = await asyncio.gather(
         asyncio.to_thread(_count_tasks_sync, user_id, _make_client()),
@@ -199,6 +205,24 @@ async def build_working_memory(
             # ADR-226: Activation state — feeds the YARNNN activation prompt
             # overlay. Values: "none" | "post_fork_pre_author" | "operational"
             "activation_state": activation_state,
+            # ADR-245: Per-file richness for the five authored substrate files.
+            # Identity + brand are already above; mandate + autonomy + principles
+            # complete the set. TP reads `_classify_richness` vocabulary
+            # (empty | sparse | rich) — same shape as identity/brand, so TP's
+            # existing reasoning patterns apply.
+            "mandate": _classify_richness(mandate_content),
+            "autonomy": _classify_richness(autonomy_content),
+            "principles": _classify_richness(principles_content),
+            # ADR-245: Active program slug parsed from MANDATE.md heading
+            # marker (per ADR-244 D2 + services/programs.py). None if no
+            # bundle template is forked.
+            "active_program_slug": _parse_active_program_for_workspace_state(mandate_content),
+            # ADR-245: Capability gaps — bundle declares X but platform Y
+            # not connected. Slim mirror of the ADR-244 surface signal.
+            # Empty list when no active program or no gaps.
+            "capability_gaps": _compute_capability_gaps_for_workspace_state(
+                mandate_content, platforms
+            ),
         },
     }
 
@@ -300,6 +324,68 @@ def _classify_activation_state(
         return "post_fork_pre_author"
 
     return "operational"
+
+
+def _parse_active_program_for_workspace_state(mandate_content: Optional[str]) -> Optional[str]:
+    """ADR-245: thin wrapper around services.programs.parse_active_program_slug
+    + bundle registry validation. Returns the active program slug only when
+    the bundle is registered. None for kernel-default mandate or unknown slugs.
+    """
+    try:
+        from services.programs import parse_active_program_slug
+        from services.bundle_reader import _all_slugs
+
+        candidate = parse_active_program_slug(mandate_content)
+        if candidate and candidate in _all_slugs():
+            return candidate
+    except Exception:
+        pass
+    return None
+
+
+def _compute_capability_gaps_for_workspace_state(
+    mandate_content: Optional[str], platforms: list[dict]
+) -> list[dict]:
+    """ADR-245: slim mirror of the ADR-244 surface's capability_gaps logic.
+
+    For the active bundle (parsed from MANDATE.md heading marker), return
+    the list of capabilities whose required platform is not currently
+    connected (status='active' on platform_connections).
+
+    Empty list when:
+      - no active program (kernel-default mandate)
+      - active program has no required platform capabilities
+      - all required platforms are connected
+
+    Format (slim — same shape as ADR-244 D2's CapabilityGap, minus path):
+      [{"capability": str, "platform": str, "connected": bool}, ...]
+    """
+    slug = _parse_active_program_for_workspace_state(mandate_content)
+    if not slug:
+        return []
+    try:
+        from services.bundle_reader import _load_manifest
+
+        manifest = _load_manifest(slug) or {}
+        connected = {p.get("platform") for p in (platforms or []) if p.get("status") == "active"}
+        gaps: list[dict] = []
+        seen: set[tuple] = set()
+        for cap in manifest.get("capabilities") or []:
+            req = cap.get("requires_connection")
+            if not req:
+                continue
+            key = (cap.get("name") or "", req)
+            if key in seen:
+                continue
+            seen.add(key)
+            gaps.append({
+                "capability": cap.get("name") or req,
+                "platform": req,
+                "connected": req in connected,
+            })
+        return gaps
+    except Exception:
+        return []
 
 
 def _classify_richness(content: Optional[str]) -> str:
@@ -1175,9 +1261,30 @@ def format_compact_index(
 
     # === Intent (authored rules) ===
     lines.append("### Intent (authored rules)")
-    lines.append(f"- Identity: {identity} · Brand: {brand} · {docs} uploaded documents")
+    # ADR-245: extend the substrate richness line to cover all five authored files.
+    mandate = ws.get("mandate", "empty")
+    autonomy = ws.get("autonomy", "empty")
+    principles = ws.get("principles", "empty")
+    lines.append(
+        f"- Mandate: {mandate} · Identity: {identity} · Brand: {brand} · "
+        f"Autonomy: {autonomy} · Reviewer principles: {principles} · {docs} documents"
+    )
     if identity in ("empty", "sparse"):
         lines.append("- Gap: workspace identity not declared — elicit operation + domain + platform + rules")
+    # ADR-245: active program + capability-gap signal. Only surfaces when
+    # a bundle is forked. TP can deep-link to /settings?tab=workspace when
+    # the operator asks about lifecycle ops.
+    active_program = ws.get("active_program_slug")
+    if active_program:
+        gaps = ws.get("capability_gaps") or []
+        unmet = [g for g in gaps if not g.get("connected")]
+        if unmet:
+            unmet_names = ", ".join(g.get("platform", "?") for g in unmet[:2])
+            lines.append(
+                f"- Active program: {active_program} (capability gap: {unmet_names} not connected)"
+            )
+        else:
+            lines.append(f"- Active program: {active_program} (operational)")
     if ws.get("budget_exhausted"):
         lines.append(f"- Budget: EXHAUSTED ({ws.get('credits_used', 0)}/{ws.get('credits_limit', 0)})")
 
@@ -1340,6 +1447,9 @@ def format_compact_index(
     lines.append("- `/workspace/memory/conversation.md` — summary of earlier conversation")
     lines.append("- `/workspace/memory/notes.md` — stable facts and user preferences")
     lines.append("- `/workspace/memory/recent.md` — recent material non-conversation events (ADR-221)")
+    # ADR-245: Workspace settings surface — operator-facing program lifecycle
+    # (activate / switch / deactivate / inspect substrate status / capability gaps).
+    lines.append("- `/settings?tab=workspace` — program lifecycle, substrate status, capability gaps (ADR-244)")
 
     # --- Agent health flags (only if flagged) ---
     flagged = ws.get("agents_flagged", [])
