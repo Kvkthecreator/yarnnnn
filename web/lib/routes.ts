@@ -37,7 +37,7 @@
 //   /overview      → /work                             (ADR-205 F2, ADR-225 Phase 3)
 //   /workfloor     → /chat                             (ADR-163)
 //   /memory        → /context?path=...IDENTITY.md      (ADR-215 R3)
-//   /system        → /settings?tab=system              (settings absorption)
+//   /system        → /settings                         (system tab removed 2026-05-02)
 //
 // =============================================================================
 export const HOME_ROUTE = "/chat";

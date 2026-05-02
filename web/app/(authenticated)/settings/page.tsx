@@ -26,7 +26,6 @@ import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useTP } from "@/contexts/TPContext";
-import { SystemSection } from "@/components/settings/SystemSection";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 import { WorkspaceSection } from "@/components/settings/WorkspaceSection";
 
@@ -50,7 +49,7 @@ interface NotificationPreferences {
   email_agent_failed: boolean;
 }
 
-type SettingsTab = "billing" | "usage" | "system" | "workspace" | "connectors" | "account";
+type SettingsTab = "billing" | "usage" | "workspace" | "connectors" | "account";
 type DangerAction =
   | "work-history"
   | "workspace"
@@ -69,7 +68,6 @@ export default function SettingsPage() {
   // Legacy `?tab=memory` redirects to Files IDENTITY.md via effect below.
   const initialTab: SettingsTab =
     tabParam === "usage" ? "usage" :
-    tabParam === "system" ? "system" :
     tabParam === "workspace" ? "workspace" :
     tabParam === "connectors" ? "connectors" :
     tabParam === "account" ? "account" :
@@ -365,19 +363,6 @@ export default function SettingsPage() {
           </span>
         </button>
         <button
-          onClick={() => setActiveTab("system")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "system"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Database className="w-4 h-4" />
-            System
-          </span>
-        </button>
-        <button
           onClick={() => setActiveTab("workspace")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "workspace"
@@ -491,13 +476,6 @@ export default function SettingsPage() {
           ) : (
               <p className="text-sm text-muted-foreground">Unable to load usage data.</p>
           )}
-        </section>
-      )}
-
-      {/* System Tab */}
-      {activeTab === "system" && (
-        <section className="mb-8">
-          <SystemSection />
         </section>
       )}
 
