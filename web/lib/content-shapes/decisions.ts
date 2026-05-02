@@ -1,29 +1,39 @@
 /**
- * Reviewer decisions parser — canonical FE parser for the verdict log.
+ * Reviewer decisions content shape — `/workspace/review/decisions.md`.
  *
- * Consumers (post-ADR-241):
- *   - DecisionsStream (web/components/work/details/DecisionsStream.tsx)
- *     — full Stream archetype on /work
- *   - PerformanceFace calibration aggregate (via aggregateReviewerCalibration)
+ * Migrated from `web/lib/reviewer-decisions.ts` by ADR-245 Phase 2.
  *
- * Pre-ADR-241 the Stream consumer lived at
- * web/components/agents/reviewer/DecisionsStreamPane.tsx; that surface
- * collapsed into TP per ADR-241 D3 and the consumer relocated.
+ * Per ADR-245 D5 the WRITE_CONTRACT is `narrative` — Reviewer-layer
+ * (`api/services/reviewer_audit.py`) writes append-only decision blocks
+ * per ADR-194 v2 Phase 2a; operator never edits through L3. The
+ * canonical L3 (DecisionsStream per ADR-241 D3) renders the Stream
+ * archetype as read-only.
  *
- * Decisions live in `/workspace/review/decisions.md` as append-only blocks
- * per ADR-194 v2 Phase 2a:
- *
- *   --- decision ---
- *   timestamp: <iso>
- *   reviewer_identity: human:<uuid> | ai:reviewer-sonnet-v1 | reviewer-layer:observed | …
- *   decision: approve | reject | defer
- *   action_type: <e.g., trading.submit_bracket_order>
- *   proposal_id: <uuid>
- *   reasoning: <multi-line>
- *
- * Tolerant parser — missing fields become null; malformed blocks are
- * skipped silently. Never throws.
+ * Lifted-from history: `web/lib/reviewer-decisions.ts` (ADR-239) →
+ * here (ADR-245 Phase 2).
  */
+
+import type { ContentShapeMeta } from './index';
+
+// ---------------------------------------------------------------------------
+// Shape registry metadata (ADR-245 D3)
+// ---------------------------------------------------------------------------
+
+export const SHAPE_KEY = 'decisions' as const;
+export const PATH_GLOB = '**/review/decisions.md';
+export const WRITE_CONTRACT = 'narrative' as const;
+export const CANONICAL_L3 = 'DecisionsStream' as const;
+
+export const META: ContentShapeMeta = {
+  SHAPE_KEY,
+  PATH_GLOB,
+  WRITE_CONTRACT,
+  CANONICAL_L3,
+};
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export type DecisionVerdict = 'approve' | 'reject' | 'defer';
 export type IdentityKind = 'human' | 'ai' | 'impersonated' | 'observed' | 'unknown';
@@ -39,7 +49,11 @@ export interface ReviewerDecision {
   reasoning: string | null;
 }
 
-export function parseDecisions(content: string): ReviewerDecision[] {
+// ---------------------------------------------------------------------------
+// Pure parser
+// ---------------------------------------------------------------------------
+
+export function parse(content: string): ReviewerDecision[] {
   if (!content) return [];
   const blocks = content.split(/\n?---\s*decision\s*---\n/i).filter(Boolean);
   const decisions: ReviewerDecision[] = [];
@@ -66,9 +80,11 @@ export function parseDecisions(content: string): ReviewerDecision[] {
       reasoning,
     });
   }
-  // Newest at top — append-only log means later lines = newer entries.
   return decisions.reverse();
 }
+
+/** Legacy alias — back-compat for `parseDecisions` import name. */
+export const parseDecisions = parse;
 
 function extractField(block: string, key: string): string | null {
   const re = new RegExp(`^\\s*${key}:\\s*(.+?)\\s*$`, 'm');
@@ -91,7 +107,10 @@ function classifyIdentity(identity: string | null): IdentityKind {
   return 'unknown';
 }
 
-/** Short action label, e.g. "trading.submit_bracket_order" → "Trading · Submit bracket order". */
+// ---------------------------------------------------------------------------
+// Pure formatters
+// ---------------------------------------------------------------------------
+
 export function formatActionType(action: string | null | undefined): string {
   if (!action) return '—';
   const [provider, ...rest] = action.split('.');
@@ -104,7 +123,6 @@ function capitalize(s: string): string {
   return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
-/** Human-readable identity label. */
 export function identityLabel(identity: string | null | undefined): string {
   if (!identity) return 'Reviewer';
   if (identity.startsWith('human:')) return 'You';
@@ -114,7 +132,6 @@ export function identityLabel(identity: string | null | undefined): string {
   return identity;
 }
 
-/** Relative-time label, e.g. "3m ago", "2h ago", "yesterday". */
 export function formatRelativeTimestamp(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -135,44 +152,16 @@ export function formatRelativeTimestamp(iso: string | null | undefined): string 
 // ---------------------------------------------------------------------------
 // Reviewer calibration aggregate (ADR-239)
 // ---------------------------------------------------------------------------
-//
-// Per ADR-239 D1+D2: PerformanceFace's previous inline parseDecisions
-// returned this shape directly from raw markdown. The new layering is:
-//   parseDecisions(content) → ReviewerDecision[]  (canonical parser)
-//   aggregateReviewerCalibration(decisions) → ReviewerCalibration
-//
-// Pure transformation. No I/O, no React. Composes with parseDecisions
-// at call sites:
-//   const calib = aggregateReviewerCalibration(parseDecisions(content));
-//
-// Note: ADR-239's drafting found that PerformanceFace's inline parser
-// was looking for a stale format (`## YYYY-MM-DDTHH... — action` headings
-// + `verdict:` field) that the canonical writer
-// (`api/services/reviewer_audit.py` per ADR-194 v2 Phase 2a) never
-// produces. The canonical write format is `--- decision ---` blocks
-// with `decision:` field. PerformanceFace's calibration display has
-// been quietly rendering empty/zero state for that reason. ADR-239
-// fixes the bug by routing aggregation through the canonical parser.
 
 export interface ReviewerCalibration {
-  /** Counts within the 7-day rolling window. */
   approves: number;
   rejects: number;
   defers: number;
-  /** Total within the 7-day rolling window. */
   total: number;
-  /** Most recent decision timestamp regardless of window. Null if no decisions parseable. */
   lastDecisionAt: Date | null;
-  /** Approves / total within the window. Null when total is 0. */
   ratio: number | null;
 }
 
-/**
- * Aggregate a parsed decisions list into a 7-day rolling-window calibration.
- * Mirrors the prior PerformanceFace inline aggregation intent — counts +
- * approval ratio over the last 7 days + most-recent decision timestamp
- * across the full list.
- */
 export function aggregateReviewerCalibration(
   decisions: ReviewerDecision[],
 ): ReviewerCalibration {
@@ -189,11 +178,9 @@ export function aggregateReviewerCalibration(
     if (!d.timestamp || !d.decision) continue;
     const ts = new Date(d.timestamp);
     if (Number.isNaN(ts.getTime())) continue;
-    // Track most-recent timestamp regardless of window.
     if (!calib.lastDecisionAt || ts > calib.lastDecisionAt) {
       calib.lastDecisionAt = ts;
     }
-    // Skip out-of-window entries for the count totals.
     if (ts.getTime() < cutoff) continue;
     if (d.decision === 'approve') calib.approves += 1;
     if (d.decision === 'reject') calib.rejects += 1;

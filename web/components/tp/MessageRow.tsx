@@ -38,7 +38,7 @@ import { ChevronDown, CornerDownRight, Zap, Repeat, X } from 'lucide-react';
 import type { TPMessage } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/snapshot-meta';
+import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/snapshot';
 import { MessageRenderer } from './MessageDispatch';
 import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
 import { useTP } from '@/contexts/TPContext';

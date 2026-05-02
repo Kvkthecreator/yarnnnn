@@ -29,46 +29,11 @@ import Link from 'next/link';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useComposition } from '@/lib/compositor';
+import { parse as parsePerformance, type PerformanceMeta } from '@/lib/content-shapes/performance';
 // ADR-243 Phase B: TraderMoneyTruth import removed. Bundle dispatch is now
 // handled by CockpitRenderer via program_sections, not by face-level
 // override. MoneyTruthFace is a kernel-default face for workspaces without
 // an active bundle declaring program_sections.
-
-interface MoneyTruthMeta {
-  pnl_30d_pct?: number;
-  pnl_30d_target_pct?: number;
-  drawdown_30d_pct?: number;
-  drawdown_limit_pct?: number;
-  exposure_pct?: number;
-  exposure_limit_pct?: number;
-  win_rate?: number;
-  generated_at?: string;
-}
-
-function parseFrontmatter(content: string): MoneyTruthMeta {
-  const fm = content.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!fm) return {};
-  const meta: MoneyTruthMeta = {};
-  for (const line of fm[1].split('\n')) {
-    const m = line.match(/^([a-z_0-9]+):\s*(.*)$/);
-    if (!m) continue;
-    const k = m[1].trim();
-    const v = m[2].trim().replace(/^['"]|['"]$/g, '');
-    const num = Number(v);
-    if (!Number.isNaN(num)) {
-      if (k === 'pnl_30d_pct') meta.pnl_30d_pct = num;
-      if (k === 'pnl_30d_target_pct') meta.pnl_30d_target_pct = num;
-      if (k === 'drawdown_30d_pct' || k === 'max_drawdown_30d_pct') meta.drawdown_30d_pct = num;
-      if (k === 'drawdown_limit_pct') meta.drawdown_limit_pct = num;
-      if (k === 'exposure_pct') meta.exposure_pct = num;
-      if (k === 'exposure_limit_pct') meta.exposure_limit_pct = num;
-      if (k === 'win_rate') meta.win_rate = num;
-    } else if (k === 'generated_at') {
-      meta.generated_at = v;
-    }
-  }
-  return meta;
-}
 
 const DEFAULT_FALLBACK = '/workspace/context/_performance_summary.md';
 
@@ -81,7 +46,7 @@ export function MoneyTruthFace() {
   const { data: composition } = useComposition();
   const path = readMoneyTruthSource(composition);
 
-  const [meta, setMeta] = useState<MoneyTruthMeta | null>(null);
+  const [meta, setMeta] = useState<PerformanceMeta | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -90,7 +55,7 @@ export function MoneyTruthFace() {
       try {
         const file = await api.workspace.getFile(path);
         if (!cancelled) {
-          setMeta(file?.content ? parseFrontmatter(file.content) : {});
+          setMeta(file?.content ? parsePerformance(file.content) : {});
         }
       } catch {
         if (!cancelled) setMeta({});

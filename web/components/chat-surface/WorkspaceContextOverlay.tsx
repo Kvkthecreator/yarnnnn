@@ -35,9 +35,9 @@ import {
 import { api } from '@/lib/api/client';
 import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
-import { formatActionType, formatRelativeTimestamp } from '@/lib/reviewer-decisions';
+import { formatActionType, formatRelativeTimestamp } from '@/lib/content-shapes/decisions';
 import type { Recurrence } from '@/types';
-import type { SnapshotLead } from '@/lib/snapshot-meta';
+import type { SnapshotLead } from '@/lib/content-shapes/snapshot';
 
 interface WorkspaceContextOverlayProps {
   open: boolean;

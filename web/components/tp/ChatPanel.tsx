@@ -23,7 +23,7 @@ import {
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
-import { useAutonomy } from '@/lib/autonomy';
+import { useAutonomy } from '@/lib/content-shapes/autonomy';
 import { cn } from '@/lib/utils';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';

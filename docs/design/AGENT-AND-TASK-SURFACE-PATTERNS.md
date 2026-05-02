@@ -1,7 +1,7 @@
 # Agent And Task Surface Patterns
 
-**Date:** 2026-04-09  
-**Status:** Active (Bucket A note 2026-04-27 — composition layer added to Core Rule)
+**Date:** 2026-04-09
+**Status:** Active (Bucket A note 2026-04-27 — composition layer added to Core Rule. ADR-245 Phase 5 cross-ref note 2026-05-01.)
 **Related:**
 - [SURFACE-CONTRACTS.md](./SURFACE-CONTRACTS.md) — canonical per-tab surface contracts (ADR-215)
 - [TASK-OUTPUT-SURFACE-CONTRACT.md](./TASK-OUTPUT-SURFACE-CONTRACT.md) — proposed run-level API contract for `/work`
@@ -10,6 +10,7 @@
 - [ADR-140](../adr/ADR-140-agent-workforce-model.md) — workforce classes
 - [ADR-164](../adr/ADR-164-back-office-tasks-tp-as-agent.md) — Thinking Partner as meta-cognitive agent
 - [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — canonical `/agents` list/detail surface
+- [ADR-245](../adr/ADR-245-frontend-kernel-three-layer-content-rendering.md) — three-layer content rendering model. **Orthogonal layer**: surface-pattern rules in this doc govern *which shell renders for which agent_class / output_kind*; ADR-245 governs *how each shell sources its parsed data* (L1 raw view + L2 content-shape parser + L3 structured affordance). Both are active.
 
 ## Purpose
 
