@@ -232,14 +232,25 @@ async def run_unified_scheduler():
 
     # -------------------------------------------------------------------------
     # Discover active users for heartbeat writes.
+    # Include any user with a platform connection OR a tasks index row so that
+    # users running programs without platform OAuth (e.g. alpha-trader) still
+    # receive a heartbeat and the Settings > System panel shows activity.
     # -------------------------------------------------------------------------
     try:
         conn_result = supabase.table("platform_connections").select("user_id").eq(
             "status", "active"
         ).execute()
-        active_user_ids = list({row["user_id"] for row in (conn_result.data or [])})
+        platform_user_ids = {row["user_id"] for row in (conn_result.data or [])}
     except Exception:
-        active_user_ids = []
+        platform_user_ids = set()
+
+    try:
+        tasks_result = supabase.table("tasks").select("user_id").execute()
+        tasks_user_ids = {row["user_id"] for row in (tasks_result.data or [])}
+    except Exception:
+        tasks_user_ids = set()
+
+    active_user_ids = list(platform_user_ids | tasks_user_ids)
 
     # -------------------------------------------------------------------------
     # ADR-231 Phase 3.3: dispatch due invocations from YAML declarations
