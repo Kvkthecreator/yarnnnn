@@ -28,6 +28,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useTP } from "@/contexts/TPContext";
 import { SystemSection } from "@/components/settings/SystemSection";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
+import { WorkspaceSection } from "@/components/settings/WorkspaceSection";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -49,7 +50,7 @@ interface NotificationPreferences {
   email_agent_failed: boolean;
 }
 
-type SettingsTab = "billing" | "usage" | "system" | "connectors" | "account";
+type SettingsTab = "billing" | "usage" | "system" | "workspace" | "connectors" | "account";
 type DangerAction =
   | "work-history"
   | "workspace"
@@ -69,6 +70,7 @@ export default function SettingsPage() {
   const initialTab: SettingsTab =
     tabParam === "usage" ? "usage" :
     tabParam === "system" ? "system" :
+    tabParam === "workspace" ? "workspace" :
     tabParam === "connectors" ? "connectors" :
     tabParam === "account" ? "account" :
     "billing";
@@ -248,7 +250,7 @@ export default function SettingsPage() {
           clearMessages();
           // Backend now re-scaffolds transactionally (ADR-140/151/161/164 invariants).
           // This call is a harmless safety net; it returns the already-restored state.
-          await api.onboarding.getState().catch(() => null);
+          await api.workspace.getState().catch(() => null);
           // Route to /chat so TP greets the user and triggers the onboarding
           // modal (identity is empty/sparse after purge). Previously routed to
           // /work which skipped onboarding entirely.
@@ -264,7 +266,7 @@ export default function SettingsPage() {
           clearMessages();
           // Backend now re-scaffolds transactionally (ADR-140/151/161/164 invariants).
           // This call is a harmless safety net; it returns the already-restored state.
-          await api.onboarding.getState().catch(() => null);
+          await api.workspace.getState().catch(() => null);
           // Route to /chat so TP greets the user and triggers the onboarding
           // modal (identity is empty/sparse after full reset). Previously routed
           // to /work which skipped onboarding entirely.
@@ -376,6 +378,19 @@ export default function SettingsPage() {
           </span>
         </button>
         <button
+          onClick={() => setActiveTab("workspace")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "workspace"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Package className="w-4 h-4" />
+            Workspace
+          </span>
+        </button>
+        <button
           onClick={() => setActiveTab("connectors")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "connectors"
@@ -483,6 +498,13 @@ export default function SettingsPage() {
       {activeTab === "system" && (
         <section className="mb-8">
           <SystemSection />
+        </section>
+      )}
+
+      {/* Workspace Tab — program lifecycle (ADR-244) */}
+      {activeTab === "workspace" && (
+        <section className="mb-8">
+          <WorkspaceSection />
         </section>
       )}
 

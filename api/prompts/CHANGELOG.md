@@ -6,6 +6,36 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.01.2] - ADR-244 Workspace Settings Surface — endpoint rename + program lifecycle primitives
+
+ADR-244 (Workspace Settings Surface) reshapes the one-shot `OnboardingModal` (ADR-240) into a permanent `Settings → Workspace` surface. No prompt changes; this entry tracks the API contract changes that downstream LLM-facing code may have referenced.
+
+### Changed
+
+- `api/routes/memory.py` — `OnboardingStateResponse` model + `GET /user/onboarding-state` endpoint **DELETED**. The body that previously returned `{has_agents, activation_state, active_program_slug}` is now served by `GET /api/workspace/state` (`api/routes/workspace.py`) with extended shape (`+ available_programs + substrate_status + capability_gaps`). Singular implementation: one canonical workspace-state read; legacy URL deleted, not aliased. Side-effects preserved: lazy roster scaffolding + `workspace_init_complete` system-card write on first init.
+- `api/routes/programs.py` — new `POST /deactivate` endpoint. Soft deactivation: rewrites MANDATE.md first heading from `# Mandate — alpha-trader (template)` to plain `# Mandate`. Body untouched. ADR-209-attributed via `authored_by="system:program-deactivate"`. Idempotent.
+- `api/routes/account.py` L2 (`clear_workspace`) + L4 (`reset_account`) — capture `active_program_slug` pre-purge via the new `services.programs.parse_active_program_slug()` and pass to `initialize_workspace(program_slug=...)` during reinit so the workspace reset doesn't silently drop program activation. Operator's program *choice* survives the reset; their authored content is wiped with the rest of the workspace.
+- `web/lib/api/client.ts` — `api.onboarding` namespace **DELETED**. `getState` migrated into the existing `api.workspace` namespace alongside `getNav`, `getFile`, `editFile`, etc. Added `api.programs.deactivate()`. Inline response types replace the deleted `OnboardingStateResponse` named type.
+- `web/types/index.ts` — `OnboardingStateResponse` interface **DELETED**.
+
+### New helpers
+
+- `api/services/programs.py` (new module) — `parse_active_program_slug(mandate_content)` + `strip_program_marker_from_mandate(content)`. Pure-Python parsers shared between `routes/workspace.py`, `routes/programs.py::deactivate`, and `routes/account.py` L2/L4 capture. The marker convention (`# Mandate — {slug} (template)`) is what `_fork_reference_workspace` writes per ADR-226; these helpers are the canonical reverse.
+
+### Expected behavior
+
+- Auth callback for first-run signup operators (`activation_state==='none' && !active_program_slug`) redirects to `/settings?tab=workspace&first_run=1` instead of mounting `OnboardingModal`. Same activation gate; permanent surface.
+- L2/L4 purge of an alpha-trader workspace reinits to `post_fork_pre_author` state with bundle templates back in place — operator re-authors against the same program rather than losing it.
+- `POST /api/programs/deactivate` is the operator's lever to drop a program. Soft by design — operator's authored content stays; only the bundle's idempotent re-fork relationship is severed.
+- `GET /api/workspace/state` is the load-bearing first-login endpoint for both auth/callback (lazy roster scaffolding) and the Workspace tab (program lifecycle status board).
+
+### Test gate
+
+- `api/test_adr244_workspace_settings_surface.py` — 14/14 passing.
+- TypeScript typecheck — clean.
+
+---
+
 ## [2026.05.01.1] - ACCUMULATION cost hardening — round cap + dedup discipline
 
 ### Changed

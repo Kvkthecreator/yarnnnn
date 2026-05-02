@@ -1,6 +1,6 @@
 # ADR-214: Agents Page Consolidation — Four-Tab Nav, Systemic Agents Inside
 
-**Status:** Proposed (implementation in same commit)
+**Status:** Implemented 2026-04-23. Nav extended to five tabs by **[ADR-243](./ADR-243-schedule-surface.md)** (2026-05-01) which slotted `/schedule` between `/work` and `/agents`. The four-tab framing in this ADR's Decision 1 is preserved as the structural foundation; ADR-243 is purely additive.
 **Date:** 2026-04-23
 **Dimensional classification:** **Channel** (primary, Axiom 6) + **Identity** (Axiom 2)
 

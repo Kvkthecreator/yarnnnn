@@ -15,7 +15,6 @@ import type {
   DocumentDownloadResponse,
   DocumentListResponse,
   DeleteResponse,
-  OnboardingStateResponse,
   SubscriptionStatus,
   CheckoutResponse,
   PortalResponse,
@@ -215,20 +214,11 @@ export const api = {
 
   // (styles API deleted — ADR-133: preferences dissolved into BRAND.md)
 
-  // ADR-144 + ADR-235: onboarding.enrich deleted — context enrichment via
-  // InferContext / InferWorkspace primitives. getState kept for roster
-  // scaffolding trigger on first login.
-  // ADR-240: response shape extended with activation_state +
-  // active_program_slug so the OnboardingModal's idempotency gate can
-  // decide whether to mount.
-  onboarding: {
-    getState: () =>
-      request<{
-        has_agents: boolean;
-        activation_state: 'none' | 'post_fork_pre_author' | 'operational';
-        active_program_slug: string | null;
-      }>("/api/memory/user/onboarding-state"),
-  },
+  // ADR-244 (2026-05-01): api.onboarding deleted — `getState` migrated into
+  // the existing api.workspace namespace below (workspace lifecycle is the
+  // canonical name; the OnboardingModal lived for the duration of signup,
+  // the surface lives forever). Singular implementation: one canonical
+  // state read, one canonical namespace.
 
   // ADR-133: Brand — reads/writes /workspace/BRAND.md
   brand: {
@@ -571,6 +561,18 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ program_slug: programSlug }),
       }),
+
+    // ADR-244 D3: soft deactivation — drops the bundle marker on MANDATE.md
+    // first heading; operator-authored content stays. Idempotent.
+    deactivate: () =>
+      request<{
+        schema_version: number;
+        deactivated: boolean;
+        prior_program_slug: string | null;
+        reason?: string;
+      }>("/api/programs/deactivate", {
+        method: "POST",
+      }),
   },
 
   // ADR-242 + ADR-243 Phase C: Cockpit live platform reads.
@@ -761,8 +763,41 @@ export const api = {
     },
   },
 
-  // Workspace Explorer (ADR-152)
+  // Workspace Explorer (ADR-152) + Workspace Lifecycle (ADR-244)
   workspace: {
+    // ADR-244: canonical workspace-state read. Replaces the legacy
+    // memory-user-onboarding-state endpoint with extended shape
+    // (substrate_status + capability_gaps + available_programs). Triggers
+    // lazy roster scaffolding when no agents exist (idempotent first-login
+    // side-effect preserved from the legacy endpoint).
+    getState: () =>
+      request<{
+        has_agents: boolean;
+        activation_state: 'none' | 'post_fork_pre_author' | 'operational';
+        active_program_slug: string | null;
+        available_programs: Array<{
+          slug: string;
+          title: string;
+          tagline: string | null;
+          status: 'active' | 'deferred';
+          deferred: boolean;
+          oracle: Record<string, unknown>;
+          current_phase: string | null;
+        }>;
+        substrate_status: {
+          mandate: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
+          identity: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
+          brand: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
+          autonomy: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
+          principles: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
+        };
+        capability_gaps: Array<{
+          capability: string;
+          requires_platform: string;
+          connected: boolean;
+        }>;
+      }>("/api/workspace/state"),
+
     // ADR-154: Structured navigation for Agent OS workfloor.
     // ADR-236 Item 6 (2026-04-29): `mode` and `essential` removed from
     // the contract — both were dropped from `tasks` by ADR-231

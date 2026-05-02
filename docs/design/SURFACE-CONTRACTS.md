@@ -1,9 +1,9 @@
 # Surface Contracts
 
-**Version:** v2.3 (2026-05-01 — ADR-245 cross-ref)
+**Version:** v2.3 (2026-05-01 — ADR-243 Schedule sibling extends nav to five tabs + ADR-245 cross-ref)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
-**Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) task abstraction sunset · [ADR-235](../adr/ADR-235-update-context-dissolution.md) UpdateContext dissolution (lifecycle → `ManageRecurrence`; substrate writes → `WriteFile(scope='workspace')`; identity/brand merges → `InferContext` / `InferWorkspace`) · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [ADR-245](../adr/ADR-245-frontend-kernel-three-layer-content-rendering.md) three-layer content rendering model (orthogonal: per-tab CRUD matrix here governs the **operational shape** of each tab; ADR-245 governs the **render layers** — L1 raw view + L2 content-shape parsers + L3 structured affordances — that L3 components on these tabs sit in) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
+**Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) + [ADR-243](../adr/ADR-243-schedule-surface.md) five-tab nav (Chat | Work | Schedule | Agents | Files) · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) task abstraction sunset · [ADR-235](../adr/ADR-235-update-context-dissolution.md) UpdateContext dissolution (lifecycle → `ManageRecurrence`; substrate writes → `WriteFile(scope='workspace')`; identity/brand merges → `InferContext` / `InferWorkspace`) · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [ADR-245](../adr/ADR-245-frontend-kernel-three-layer-content-rendering.md) three-layer content rendering model (orthogonal: per-tab CRUD matrix here governs the **operational shape** of each tab; ADR-245 governs the **render layers** — L1 raw view + L2 content-shape parsers + L3 structured affordances — that L3 components on these tabs sit in) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
 **Supersedes:** `archive/SURFACE-ARCHITECTURE.md`, `archive/SURFACE-ACTION-MAPPING.md`, `archive/SURFACE-DISPLAY-MAP.md`, `archive/SURFACE-PRIMITIVES-MAP.md`
 
 ---
@@ -326,11 +326,43 @@ Each phase lands with: code changes + this doc's contract section updated in the
 
 ---
 
+---
+
+## Settings → Workspace surface (ADR-244, 2026-05-01)
+
+Outside the four-tab cockpit nav, `/settings?tab=workspace` is the **permanent home for program lifecycle**. Same discipline as the rest of this doc — read-mostly, judgment-shaped writes route through chat, structured affordances route through dedicated endpoints.
+
+### What it shows
+
+- **Active program** — current program slug + tagline + phase, or "No program activated".
+- **Capability gaps** — required-but-not-connected platforms for the active bundle. Deep-link to `/settings?tab=connectors`.
+- **Available programs** — activatable bundles list (mirrors `GET /api/programs/activatable`). Active one badged. Switch is the same `POST /api/programs/activate` (idempotent re-fork).
+- **Substrate status** — per-file state (skeleton / authored / missing) for `mandate`, `identity`, `brand`, `autonomy`, Reviewer `principles`. Each row deep-links to Files for raw-markdown viewing.
+
+### What it does
+
+- `Activate(slug)` → `POST /api/programs/activate`
+- `Switch(slug)` → same endpoint; bundle's tier rules preserve operator-authored content
+- `Deactivate()` → `POST /api/programs/deactivate` — soft, drops MANDATE.md program marker, body untouched per ADR-209
+- `?first_run=1` query param surfaces a Welcome banner with "Continue to chat" CTA. Same render path otherwise.
+
+### What it does NOT do
+
+- Zero edit affordances for substrate content. No `<input>`, no `<textarea>`, no inline editor for MANDATE / IDENTITY / BRAND / AUTONOMY / principles. Authoring routes through chat per ADR-206 D6 + ADR-235 D1; raw-markdown editing happens on Files per ADR-180.
+- No `/onboarding` route. The first-run flow is the same surface, accessed via `?first_run=1`. `OnboardingModal` (ADR-240) deleted as part of ADR-244.
+
+### Endpoint contract
+
+`GET /api/workspace/state` — the canonical workspace-state read. Side-effect preserved from the legacy `/api/memory/user/onboarding-state`: lazy roster scaffolding + `workspace_init_complete` system-card write on first init. Response shape: `{ has_agents, activation_state, active_program_slug, available_programs[], substrate_status, capability_gaps[] }`.
+
+---
+
 ## Related docs
 
 - [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — governs this doc
 - [ADR-198](../adr/ADR-198-surface-archetypes.md) — archetype vocabulary (Document · Dashboard · Queue · Briefing · Stream)
-- [ADR-214](../adr/ADR-214-agents-page-consolidation.md) — four-tab nav + Reviewer-inside-Agents
+- [ADR-214](../adr/ADR-214-agents-page-consolidation.md) — Reviewer-inside-Agents (originated four-tab nav; extended to five by ADR-243)
+- [ADR-243](../adr/ADR-243-schedule-surface.md) — `/schedule` surface (cadence-framed sibling of `/work`); five-tab nav `Chat | Work | Schedule | Agents | Files`
 - [ADR-167 v2](../adr/ADR-167-list-detail-surfaces.md) — list/detail pattern per tab
 - [ADR-209](../adr/ADR-209-authored-substrate.md) — revision chain, `authored_by`, substrate attribution
 - [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) — invocation as atom; `/chat` is the narrative surface; `/work` is the narrative filtered by task slug
@@ -338,6 +370,7 @@ Each phase lands with: code changes + this doc's contract section updated in the
 - [docs/architecture/compositor.md](../architecture/compositor.md) — architecture-level reference for the resolver pattern, binding taxonomy, kernel-default registry
 - [invocation-and-narrative.md](../architecture/invocation-and-narrative.md) — canonical narrative vocabulary (invocation · pulse · narrative · task as legibility wrapper)
 - [ADR-206](../adr/ADR-206-operation-first-scaffolding.md) — operator-facing three-layer view (Intent · Operation · Deliverables)
+- [ADR-244](../adr/ADR-244-workspace-settings-surface.md) — Settings → Workspace surface, program lifecycle out-of-band of the four-tab cockpit
 - [ADR-168](../architecture/primitives-matrix.md) — canonical primitive matrix (not a design doc, but the authority for what verbs exist)
 - [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) — Axiom 6 (Channel), Axiom 9 (Invocation + Narrative), Derived Principle 12 (Channel legibility gates autonomy)
 - [INLINE-PLUS-MENU.md](./INLINE-PLUS-MENU.md) — existing plus-menu verb taxonomy; under ADR-215 R4 it is strictly a modal launcher

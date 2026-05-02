@@ -13,7 +13,7 @@ All paths are relative to the user's workspace scope in workspace_files table.
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from services.supabase import UserClient
@@ -880,3 +880,323 @@ def _build_tree(rows: list[dict], root: str) -> list[dict]:
     sort_children(top_level)
 
     return top_level
+
+
+# =============================================================================
+# GET /workspace/state — Workspace lifecycle status (ADR-244)
+# =============================================================================
+# Replaces the legacy GET /api/memory/user/onboarding-state endpoint. Single
+# canonical workspace-state read for both auth/callback (lazy roster
+# scaffolding gate) and the Settings → Workspace surface (program lifecycle).
+#
+# Side-effect preserved from the legacy endpoint: lazy roster scaffolding
+# (calls initialize_workspace if no agents). Idempotent — only fires when
+# zero agents exist for the user.
+#
+# Shape (ADR-244 D2):
+#   - has_agents, activation_state, active_program_slug — preserved from
+#     legacy OnboardingStateResponse for the auth/callback gate.
+#   - available_programs — list of activatable bundles (mirrors the existing
+#     /api/programs/activatable endpoint shape; co-located here so the
+#     Workspace tab makes one round-trip).
+#   - substrate_status — per-file skeleton/authored classification for the
+#     core workspace files (mandate, identity, brand, autonomy, principles).
+#   - capability_gaps — required-but-not-connected platforms for the active
+#     bundle; closes the visibility gap between the substrate marker
+#     (active_program_slug) and the capability-implicit signal
+#     (bundles_active_for_workspace per ADR-224 §3).
+
+class ProgramItem(BaseModel):
+    slug: str
+    title: str
+    tagline: Optional[str] = None
+    status: str
+    deferred: bool
+    oracle: dict = {}
+    current_phase: Optional[str] = None
+
+
+class SubstrateFileStatus(BaseModel):
+    """Per-file classification surfaced to the Workspace tab.
+
+    `state` semantics:
+      - "skeleton" — kernel-default placeholder OR bundle template not yet
+        overwritten by operator (matches `_is_skeleton_content` heuristics).
+      - "authored" — operator has written substantive content.
+      - "missing" — file does not exist (rare; substrate seeding failed).
+    """
+    path: str
+    state: str  # "skeleton" | "authored" | "missing"
+    last_revised_at: Optional[str] = None
+
+
+class SubstrateStatus(BaseModel):
+    mandate: SubstrateFileStatus
+    identity: SubstrateFileStatus
+    brand: SubstrateFileStatus
+    autonomy: SubstrateFileStatus
+    principles: SubstrateFileStatus  # /workspace/review/principles.md
+
+
+class CapabilityGap(BaseModel):
+    """A capability the active bundle declares but the workspace does not
+    have a corresponding active platform_connection for. Surfaces in the
+    Workspace tab so operators see why autonomous execution is paused.
+    """
+    capability: str
+    requires_platform: str
+    connected: bool
+
+
+class WorkspaceStateResponse(BaseModel):
+    """ADR-244: canonical workspace-state response.
+
+    Replaces ADR-138/240 OnboardingStateResponse — same auth/callback gate
+    fields preserved, plus surface-tab signals.
+    """
+    has_agents: bool = False
+    activation_state: str = "none"
+    active_program_slug: Optional[str] = None
+    available_programs: list[ProgramItem] = []
+    substrate_status: SubstrateStatus
+    capability_gaps: list[CapabilityGap] = []
+
+
+def _classify_file_state(content: Optional[str]) -> str:
+    """Lightweight classifier for the surface — mirrors `_is_skeleton_content`
+    detection patterns from `services/workspace_init.py:593-658` but without
+    needing a bundle-body comparison (the surface only distinguishes
+    skeleton/authored/missing, not bundle-vs-operator divergence).
+    """
+    if content is None:
+        return "missing"
+    stripped = content.strip()
+    if not stripped:
+        return "skeleton"
+
+    lower = stripped.lower()
+    placeholder_phrases = (
+        "not yet declared",
+        "not yet provided",
+        "<!-- identity not yet",
+        "<!-- brand not yet",
+        "<!-- mandate not yet",
+        "<!-- awareness",
+    )
+    if any(p in lower for p in placeholder_phrases) and len(stripped) < 800:
+        return "skeleton"
+
+    # Bundle template signature — operator hasn't authored yet
+    first_line = stripped.split("\n", 1)[0].lower()
+    if "(template)" in first_line:
+        return "skeleton"
+    if "author here:" in lower or "_<not yet" in lower:
+        return "skeleton"
+
+    # Very-short-and-sparse rule: kernel defaults inflated by Phase 2
+    # (e.g. browser_tz appended) are short and have no H2 section.
+    if len(stripped) < 200:
+        h2_count = sum(1 for line in stripped.split("\n") if line.startswith("## "))
+        if h2_count == 0:
+            return "skeleton"
+
+    return "authored"
+
+
+@router.get("/workspace/state", response_model=WorkspaceStateResponse)
+async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceStateResponse:
+    """ADR-244: workspace lifecycle state — sole canonical read.
+
+    Side effect: triggers lazy roster scaffolding when no agents exist.
+    This is the load-bearing first-login behavior the auth/callback depends
+    on — preserved verbatim from the legacy onboarding-state endpoint
+    (browser timezone via X-Timezone header + workspace_init_complete
+    system-card write on first init).
+    """
+    from services.workspace import UserMemory
+    from services.workspace_paths import (
+        SHARED_MANDATE_PATH,
+        SHARED_IDENTITY_PATH,
+        SHARED_BRAND_PATH,
+        SHARED_AUTONOMY_PATH,
+        REVIEW_PRINCIPLES_PATH,
+    )
+    from services.working_memory import _classify_activation_state
+    from services.bundle_reader import _all_slugs, _load_manifest
+    from services.programs import parse_active_program_slug
+
+    # ─── Step 1: lazy roster scaffolding ────────────────────────────────
+    try:
+        result = (
+            auth.client.table("agents")
+            .select("id")
+            .eq("user_id", auth.user_id)
+            .neq("status", "archived")
+            .limit(1)
+            .execute()
+        )
+        has_agents = len(result.data or []) > 0
+
+        if not has_agents:
+            from services.workspace_init import initialize_workspace
+            browser_tz = request.headers.get("X-Timezone")
+            init_result = await initialize_workspace(
+                auth.client, auth.user_id, browser_tz=browser_tz
+            )
+            has_agents = True
+
+            # ADR-179: Write workspace_init_complete system card as persisted
+            # session_messages row. Zero LLM cost. TP reads as conversation
+            # history on every subsequent turn. Best-effort — workspace init
+            # already succeeded; failure to write the card is non-fatal.
+            if not init_result.get("already_initialized"):
+                try:
+                    from routes.chat import get_or_create_session, append_message
+                    session = await get_or_create_session(auth.client, auth.user_id)
+                    agents_created = init_result.get("agents_created", [])
+                    tasks_created = init_result.get("tasks_created", [])
+                    await append_message(
+                        client=auth.client,
+                        session_id=session["id"],
+                        role="assistant",
+                        content=(
+                            "Your workspace is ready. Tell me what you work on "
+                            "and I'll set up the rest."
+                        ),
+                        metadata={
+                            "system_card": "workspace_init_complete",
+                            "agents_created": len(agents_created),
+                            "tasks_created": tasks_created,
+                            "summary": "Workspace ready",
+                            "pulse": "heartbeat",
+                            "weight": "material",
+                        },
+                    )
+                except Exception as card_err:
+                    logger.warning(
+                        f"[WORKSPACE_STATE] system_card write failed: {card_err}"
+                    )
+    except Exception as e:
+        logger.error(f"[WORKSPACE_STATE] Lazy scaffold failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # ─── Step 2: activation state + active program slug ─────────────────
+    um = UserMemory(auth.client, auth.user_id)
+    mandate_content = await um.read(SHARED_MANDATE_PATH)
+
+    activation_state = "none"
+    active_program_slug: Optional[str] = None
+    try:
+        activation_state = _classify_activation_state(
+            auth.user_id,
+            mandate_content,
+            lambda: auth.client,
+        )
+        candidate = parse_active_program_slug(mandate_content)
+        if candidate and candidate in _all_slugs():
+            active_program_slug = candidate
+    except Exception as exc:
+        logger.warning(f"[WORKSPACE_STATE] activation derivation failed: {exc}")
+
+    # ─── Step 3: available programs (activatable list) ──────────────────
+    available_programs: list[ProgramItem] = []
+    try:
+        for slug in _all_slugs():
+            manifest = _load_manifest(slug)
+            if not manifest:
+                continue
+            status = manifest.get("status")
+            if status not in ("active", "deferred"):
+                continue
+            available_programs.append(ProgramItem(
+                slug=manifest.get("slug"),
+                title=manifest.get("title"),
+                tagline=manifest.get("tagline"),
+                status=status,
+                deferred=(status == "deferred"),
+                oracle=manifest.get("oracle") or {},
+                current_phase=manifest.get("current_phase"),
+            ))
+    except Exception as exc:
+        logger.warning(f"[WORKSPACE_STATE] available_programs read failed: {exc}")
+
+    # ─── Step 4: substrate status (per-file classification) ─────────────
+    async def _read_file_status(path: str) -> SubstrateFileStatus:
+        try:
+            content = await um.read(path)
+            return SubstrateFileStatus(
+                path=path,
+                state=_classify_file_state(content),
+                last_revised_at=None,  # populated below via head_version_id lookup
+            )
+        except Exception:
+            return SubstrateFileStatus(path=path, state="missing")
+
+    substrate_status = SubstrateStatus(
+        mandate=await _read_file_status(SHARED_MANDATE_PATH),
+        identity=await _read_file_status(SHARED_IDENTITY_PATH),
+        brand=await _read_file_status(SHARED_BRAND_PATH),
+        autonomy=await _read_file_status(SHARED_AUTONOMY_PATH),
+        principles=await _read_file_status(REVIEW_PRINCIPLES_PATH),
+    )
+
+    # last_revised_at via batched workspace_files lookup (singular round-trip)
+    try:
+        paths = [
+            SHARED_MANDATE_PATH, SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
+            SHARED_AUTONOMY_PATH, REVIEW_PRINCIPLES_PATH,
+        ]
+        rows = (
+            auth.client.table("workspace_files")
+            .select("path, updated_at")
+            .eq("user_id", auth.user_id)
+            .in_("path", paths)
+            .execute()
+        )
+        timestamps = {r["path"]: r.get("updated_at") for r in (rows.data or [])}
+        substrate_status.mandate.last_revised_at = timestamps.get(SHARED_MANDATE_PATH)
+        substrate_status.identity.last_revised_at = timestamps.get(SHARED_IDENTITY_PATH)
+        substrate_status.brand.last_revised_at = timestamps.get(SHARED_BRAND_PATH)
+        substrate_status.autonomy.last_revised_at = timestamps.get(SHARED_AUTONOMY_PATH)
+        substrate_status.principles.last_revised_at = timestamps.get(REVIEW_PRINCIPLES_PATH)
+    except Exception as exc:
+        logger.warning(f"[WORKSPACE_STATE] timestamp lookup failed: {exc}")
+
+    # ─── Step 5: capability gaps (active bundle's required platforms) ───
+    capability_gaps: list[CapabilityGap] = []
+    if active_program_slug:
+        try:
+            manifest = _load_manifest(active_program_slug) or {}
+            connections = (
+                auth.client.table("platform_connections")
+                .select("platform")
+                .eq("user_id", auth.user_id)
+                .eq("status", "active")
+                .execute()
+            )
+            connected = {r["platform"] for r in (connections.data or [])}
+            seen: set[str] = set()
+            for cap in manifest.get("capabilities") or []:
+                req = cap.get("requires_connection")
+                if not req:
+                    continue
+                key = (cap.get("name") or "", req)
+                if key in seen:
+                    continue
+                seen.add(key)
+                capability_gaps.append(CapabilityGap(
+                    capability=cap.get("name") or req,
+                    requires_platform=req,
+                    connected=(req in connected),
+                ))
+        except Exception as exc:
+            logger.warning(f"[WORKSPACE_STATE] capability_gaps lookup failed: {exc}")
+
+    return WorkspaceStateResponse(
+        has_agents=has_agents,
+        activation_state=activation_state,
+        active_program_slug=active_program_slug,
+        available_programs=available_programs,
+        substrate_status=substrate_status,
+        capability_gaps=capability_gaps,
+    )

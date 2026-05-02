@@ -94,6 +94,7 @@ class TaskResponse(BaseModel):
     context_writes: Optional[list] = None
     phase: Optional[str] = None
     essential: bool = False  # vestigial — always False post-ADR-231
+    paused: bool = False  # ADR-231 Phase 3.4 explicit flag (replaces status='paused')
     sources: Optional[dict] = None
     run_log: Optional[str] = None
     deliverable_spec: Optional[dict] = None
@@ -197,6 +198,7 @@ def _decl_to_response(
         context_writes=decl.context_writes if decl else None,
         phase=None,
         essential=False,
+        paused=bool(row.get("paused", False)),
         sources=decl.data.get("sources") if decl else None,
         run_log=run_log,
         deliverable_spec=deliverable_spec,
