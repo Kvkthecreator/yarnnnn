@@ -24,7 +24,7 @@
  * frontmatter and renders that label only.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Compass } from 'lucide-react';
 import { api } from '@/lib/api/client';
@@ -32,8 +32,12 @@ import { useComposition } from '@/lib/compositor';
 import {
   AUTONOMY_PATH,
   parseAutonomy,
-  formatAutonomySummary,
+  parseRoundTrip as parseAutonomyRoundTrip,
+  serialize as serializeAutonomy,
+  type AutonomyLevel,
+  type AutonomyMeta,
 } from '@/lib/content-shapes/autonomy';
+import { writeShape } from '@/lib/content-shapes/write';
 import { useCockpit } from '../CockpitContext';
 
 const MANDATE_PATH = '/workspace/context/_shared/MANDATE.md';
@@ -112,9 +116,77 @@ function parseMandate(content: string): {
   return { meta, intent: intentLines, isSkeleton };
 }
 
-// `parseAutonomy` + `formatAutonomySummary` + `AutonomyMeta` lifted to
-// `@/lib/content-shapes/autonomy` by ADR-238. Singular Implementation: do not re-inline
-// here even temporarily.
+// `parseAutonomy` + `AutonomyMeta` lifted to `@/lib/content-shapes/autonomy`
+// by ADR-238 (parser) and ADR-244 Phase 2 (registry home). Singular
+// Implementation: do not re-inline here. ADR-244 Phase 4 adds mutation —
+// the autonomy posture is now operator-toggleable from this face,
+// making MandateFace the canonical L3 for the autonomy content shape
+// per ADR-244 D4.
+
+const AUTONOMY_LEVELS: ReadonlyArray<{ value: AutonomyLevel; label: string }> = [
+  { value: 'manual', label: 'Manual' },
+  { value: 'assisted', label: 'Assisted' },
+  { value: 'bounded_autonomous', label: 'Bounded autonomous' },
+  { value: 'autonomous', label: 'Autonomous' },
+];
+
+interface AutonomyToggleProps {
+  raw: string;
+  onWritten: (newContent: string) => void;
+}
+
+function AutonomyToggle({ raw, onWritten }: AutonomyToggleProps) {
+  const { meta, body } = parseAutonomyRoundTrip(raw);
+  const currentLevel = (meta.default_level as AutonomyLevel | undefined) ?? null;
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleChange = useCallback(
+    async (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const next = e.target.value as AutonomyLevel;
+      if (next === currentLevel) return;
+      const nextMeta: AutonomyMeta = { ...meta, default_level: next };
+      const serialized = serializeAutonomy(nextMeta, body);
+      setPending(true);
+      setError(null);
+      try {
+        await writeShape('autonomy', AUTONOMY_PATH, serialized, {
+          message: `autonomy posture: default → ${next}`,
+        });
+        onWritten(serialized);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to write autonomy');
+      } finally {
+        setPending(false);
+      }
+    },
+    [meta, body, currentLevel, onWritten],
+  );
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <select
+        value={currentLevel ?? ''}
+        onChange={handleChange}
+        disabled={pending}
+        aria-label="Autonomy posture"
+        className="rounded-sm border border-border bg-card px-1.5 py-0.5 text-[11px] font-medium text-foreground hover:border-foreground/40 focus:outline-none focus:ring-1 focus:ring-foreground/40 disabled:opacity-50"
+      >
+        {currentLevel === null && <option value="">No autonomy declared</option>}
+        {AUTONOMY_LEVELS.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      {error && (
+        <span className="text-[10px] text-destructive" title={error}>
+          ⚠ failed
+        </span>
+      )}
+    </span>
+  );
+}
 
 export function MandateFace() {
   const { onOpenChatDraft } = useCockpit();
@@ -140,15 +212,19 @@ export function MandateFace() {
     return () => { cancelled = true; };
   }, []);
 
+  const handleAutonomyWritten = useCallback((newContent: string) => {
+    setAutonomy(newContent);
+  }, []);
+
   if (!loaded) return null;
 
   const { meta, intent, isSkeleton } = parseMandate(mandate ?? '');
   const autonomyMeta = parseAutonomy(autonomy ?? '');
-  const autonomyLine = autonomy ? formatAutonomySummary(autonomyMeta) : 'No autonomy declared';
-
-  const headerParts: string[] = [];
-  if (phase) headerParts.push(phase);
-  headerParts.push(autonomyLine);
+  const ceiling =
+    autonomyMeta.default_ceiling_cents ??
+    Object.values(autonomyMeta.domains ?? {})[0]?.ceiling_cents ??
+    null;
+  const ceilingSuffix = ceiling && ceiling > 0 ? ` · ceiling $${(ceiling / 100).toLocaleString()}` : '';
 
   if (isSkeleton) {
     return (
@@ -197,8 +273,17 @@ export function MandateFace() {
         <span className="font-medium uppercase tracking-wide text-muted-foreground/70">
           Mandate
         </span>
-        <span className="text-muted-foreground/60">
-          {headerParts.join(' · ')}
+        <span className="flex items-center gap-1.5 text-muted-foreground/60">
+          {phase && <span>{phase}</span>}
+          {phase && <span aria-hidden="true">·</span>}
+          {autonomy ? (
+            <>
+              <AutonomyToggle raw={autonomy} onWritten={handleAutonomyWritten} />
+              {ceilingSuffix && <span>{ceilingSuffix}</span>}
+            </>
+          ) : (
+            <span>No autonomy declared</span>
+          )}
         </span>
       </div>
       <Link

@@ -4,6 +4,14 @@ ADR-241 regression gate — single cockpit persona.
 Asserts eight invariants for the Reviewer-into-TP collapse landed in
 ADR-241 (Round 5 step of the ADR-236 frontend cockpit coherence pass).
 
+**Amended by ADR-244 Phase 2 (2026-05-01)**: the canonical decisions
+parser relocated from `web/lib/reviewer-decisions.ts` to
+`web/lib/content-shapes/decisions.ts` per ADR-244 D3 content-shape
+registry. Path constants + import-string assertions in this gate
+updated accordingly. The semantic invariants (parser exports
+parseDecisions + aggregateReviewerCalibration; DecisionsStream imports
+the canonical parser) are unchanged — only the path moved.
+
 Same Python-test-over-TS-source pattern as ADR-237 / ADR-238 / ADR-239 /
 ADR-240 (no JS test runner today; see ADR-236 Rule 3).
 
@@ -27,7 +35,7 @@ WEB_AGENT_ROSTER = REPO_ROOT / "web" / "components" / "agents" / "AgentRosterSur
 WEB_AGENTS_PAGE = REPO_ROOT / "web" / "app" / "(authenticated)" / "agents" / "page.tsx"
 WEB_AGENT_CONTENT = REPO_ROOT / "web" / "components" / "agents" / "AgentContentView.tsx"
 API_REVIEWER_AUDIT = REPO_ROOT / "api" / "services" / "reviewer_audit.py"
-WEB_LIB_REVIEWER = REPO_ROOT / "web" / "lib" / "reviewer-decisions.ts"
+WEB_LIB_REVIEWER = REPO_ROOT / "web" / "lib" / "content-shapes" / "decisions.ts"
 
 
 def _read(p: Path) -> str:
@@ -112,27 +120,35 @@ def test_reviewer_audit_substrate_preserved():
 
 
 def test_canonical_parser_preserved():
-    """Assertion #7: web/lib/reviewer-decisions.ts continues to export
-    parseDecisions and aggregateReviewerCalibration. ADR-239 D1+D2
-    preservation regression guard — ADR-241 reuses these exports."""
+    """Assertion #7: the canonical decisions shape module continues to
+    export parseDecisions and aggregateReviewerCalibration.
+
+    **Amended by ADR-244 Phase 2**: module relocated to
+    `web/lib/content-shapes/decisions.ts`. `parse` is the canonical
+    export; `parseDecisions` is the back-compat alias
+    (`export const parseDecisions = parse;`). Both function-form and
+    alias-const-form are valid public exports."""
     src = _read(WEB_LIB_REVIEWER)
-    assert "export function parseDecisions" in src, (
-        "reviewer-decisions.ts must continue to export parseDecisions "
-        "(ADR-239 D1 preserved by ADR-241)."
+    assert (
+        "export function parseDecisions" in src
+        or "export const parseDecisions" in src
+    ), (
+        "decisions shape module must continue to export parseDecisions "
+        "(function or const alias) — ADR-239 D1 preserved by ADR-241."
     )
     assert "export function aggregateReviewerCalibration" in src, (
-        "reviewer-decisions.ts must continue to export "
+        "decisions shape module must continue to export "
         "aggregateReviewerCalibration (ADR-239 D2 preserved by ADR-241)."
     )
 
 
 def test_decisions_stream_uses_canonical_parser():
     """Assertion #8: DecisionsStream.tsx imports parseDecisions from
-    @/lib/reviewer-decisions. Singular Implementation: one parser, one
+    @/lib/content-shapes/decisions. Singular Implementation: one parser, one
     canonical home."""
     src = _read(WEB_DECISIONS_STREAM)
-    assert "from '@/lib/reviewer-decisions'" in src, (
-        "DecisionsStream.tsx must import from @/lib/reviewer-decisions "
+    assert "from '@/lib/content-shapes/decisions'" in src, (
+        "DecisionsStream.tsx must import from @/lib/content-shapes/decisions "
         "per ADR-241 Singular Implementation discipline."
     )
     assert "parseDecisions" in src, (

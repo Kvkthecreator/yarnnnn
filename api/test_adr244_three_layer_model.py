@@ -335,6 +335,92 @@ def test_phase_3_bundle_specific_parsers_documented():
 
 
 # ---------------------------------------------------------------------------
+# Phase 4 assertions
+# ---------------------------------------------------------------------------
+
+WEB_AUTONOMY_SHAPE = REPO_ROOT / "web" / "lib" / "content-shapes" / "autonomy.ts"
+WEB_WRITE_HELPER = REPO_ROOT / "web" / "lib" / "content-shapes" / "write.ts"
+
+
+def test_phase_4_autonomy_serialize_exists():
+    """Assertion #19: autonomy.ts exports `serialize` + `parseRoundTrip`
+    per ADR-244 D5 configuration class write contract. Round-trip
+    body preservation is required so operator-authored prose under the
+    YAML frontmatter survives toggle mutations."""
+    src = _read(WEB_AUTONOMY_SHAPE)
+    assert "export function serialize" in src, (
+        "autonomy.ts must export serialize() per ADR-244 Phase 4 D5."
+    )
+    assert "export function parseRoundTrip" in src, (
+        "autonomy.ts must export parseRoundTrip() for body-preserving "
+        "round-trip per ADR-244 Phase 4."
+    )
+
+
+def test_phase_4_write_helper_exists():
+    """Assertion #20: web/lib/content-shapes/write.ts ships writeShape()
+    helper + WriteContractViolation per ADR-244 D5 write-routing contract."""
+    src = _read(WEB_WRITE_HELPER)
+    for marker in [
+        "export async function writeShape",
+        "export class WriteContractViolation",
+        "WRITABLE_CONTRACTS",
+    ]:
+        assert marker in src, (
+            f"write.ts must export {marker!r} per ADR-244 Phase 4 D5."
+        )
+
+
+def test_phase_4_write_helper_routes_by_contract():
+    """Assertion #21: writeShape body branches by WRITE_CONTRACT —
+    declaration throws (FE editor deferred), configuration/authored_prose
+    routes through api.workspace.editFile, system-owned classes throw via
+    WriteContractViolation. Verifies the routing rule from D5 is encoded
+    in the helper, not just documented."""
+    src = _read(WEB_WRITE_HELPER)
+    for marker in [
+        "DECLARATION_CONTRACT",
+        "WriteContractViolation",
+        "api.workspace.editFile",
+        "ManageRecurrence",  # referenced in declaration-throw message
+    ]:
+        assert marker in src, (
+            f"write.ts must reference {marker!r} per ADR-244 D5 routing."
+        )
+
+
+def test_phase_4_mandate_face_uses_writeshape():
+    """Assertion #22: MandateFace ships the autonomy toggle — imports
+    writeShape + serializeAutonomy and contains the AutonomyToggle
+    subcomponent. This is the Phase 4 canonical-L3 demonstration that
+    the registry + write-routing infrastructure is exercised end-to-end."""
+    src = _read(WEB_MANDATE_FACE)
+    for marker in [
+        "from '@/lib/content-shapes/write'",
+        "writeShape",
+        "AutonomyToggle",
+        "serializeAutonomy",
+    ]:
+        assert marker in src, (
+            f"MandateFace.tsx must wire {marker!r} per ADR-244 Phase 4 toggle."
+        )
+
+
+def test_phase_4_deferrals_logged():
+    """Assertion #23: ADR-244 §Phase 4 logs the demand-pull deferrals
+    (principles thresholds editor + risk envelope editor + declaration-
+    shape FE editor). Same discipline as Phase 2 recurrence-shapes
+    finding and Phase 3 TraderSignalExpectancy finding."""
+    src = _read(ADR_FILE)
+    assert "principles" in src.lower() and "deferred" in src.lower(), (
+        "ADR-244 must log Phase 4 demand-pull deferrals."
+    )
+    assert "risk envelope" in src.lower(), (
+        "ADR-244 must log risk envelope editor as a Phase 4 deferral."
+    )
+
+
+# ---------------------------------------------------------------------------
 # CLI runner
 # ---------------------------------------------------------------------------
 
@@ -361,6 +447,12 @@ def main() -> int:
         test_phase_3_money_truth_no_inline_parser,
         test_phase_3_canonical_consumers_import_from_registry,
         test_phase_3_bundle_specific_parsers_documented,
+        # Phase 4
+        test_phase_4_autonomy_serialize_exists,
+        test_phase_4_write_helper_exists,
+        test_phase_4_write_helper_routes_by_contract,
+        test_phase_4_mandate_face_uses_writeshape,
+        test_phase_4_deferrals_logged,
     ]
     passed = 0
     failed = 0
@@ -373,7 +465,7 @@ def main() -> int:
             print(f"  FAIL  {fn.__name__}: {exc}")
             failed += 1
     total = passed + failed
-    print(f"\nADR-244 gate (Phase 1 + Phase 2 + Phase 3): {passed}/{total} passing")
+    print(f"\nADR-244 gate (Phase 1-4): {passed}/{total} passing")
     return 0 if failed == 0 else 1
 
 

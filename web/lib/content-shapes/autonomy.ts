@@ -120,6 +120,73 @@ export function parse(content: string): AutonomyMeta {
 export const parseAutonomy = parse;
 
 // ---------------------------------------------------------------------------
+// Round-trip parser — splits frontmatter from operator-authored body
+// ---------------------------------------------------------------------------
+//
+// Phase 4 introduces serialize() for the autonomy `configuration` shape.
+// Bundle-shipped AUTONOMY.md templates (e.g. alpha-trader's reference
+// workspace) have prose body after the closing `---` explaining phase
+// progression + design intent. The toggle round-trip MUST preserve that
+// body verbatim — operators reading the file later must see what was
+// written. parseRoundTrip returns both halves so serialize can re-emit
+// the body unchanged.
+
+export interface ParsedAutonomy {
+  meta: AutonomyMeta;
+  body: string;
+}
+
+export function parseRoundTrip(content: string): ParsedAutonomy {
+  const fm = content.match(/^---\s*\n([\s\S]*?)\n---/);
+  if (!fm) return { meta: {}, body: content };
+  return {
+    meta: parse(content),
+    body: content.slice(fm[0].length).replace(/^\s*\n/, ''),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// serialize() — Phase 4 (ADR-244 D5 configuration class write contract)
+// ---------------------------------------------------------------------------
+//
+// Round-trips AutonomyMeta + optional body back to file content. Emits
+// the same YAML frontmatter shape that parse() reads. Body is preserved
+// verbatim. The output is structurally idempotent: parse(serialize(m)) ≡ m
+// for every meta the parser can produce.
+
+export function serialize(meta: AutonomyMeta, body: string = ''): string {
+  const lines: string[] = ['---'];
+  if (meta.default_level !== undefined || meta.default_ceiling_cents !== undefined) {
+    lines.push('default:');
+    if (meta.default_level !== undefined) {
+      lines.push(`  level: ${meta.default_level}`);
+    }
+    if (meta.default_ceiling_cents !== undefined) {
+      lines.push(`  ceiling_cents: ${meta.default_ceiling_cents}`);
+    }
+  }
+  if (meta.domains && Object.keys(meta.domains).length > 0) {
+    lines.push('domains:');
+    for (const [name, dom] of Object.entries(meta.domains)) {
+      lines.push(`  ${name}:`);
+      if (dom.level !== undefined) {
+        lines.push(`    level: ${dom.level}`);
+      }
+      if (dom.ceiling_cents !== undefined) {
+        lines.push(`    ceiling_cents: ${dom.ceiling_cents}`);
+      }
+    }
+  }
+  lines.push('---');
+  let out = lines.join('\n') + '\n';
+  if (body) {
+    out += '\n' + body;
+    if (!out.endsWith('\n')) out += '\n';
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Pure helpers
 // ---------------------------------------------------------------------------
 

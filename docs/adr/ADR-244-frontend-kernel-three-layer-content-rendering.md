@@ -1,6 +1,6 @@
 # ADR-244: Frontend Kernel Architecture — Three-Layer Content Rendering Model
 
-> **Status**: **Phase 1 + Phase 2 + Phase 3 Implemented** (2026-05-01). Phase 1 ratified the model + shipped registry stub (commit `c642173`, 8/8 gate). Phase 2 populated the registry by migrating four parsers + adding two new shape entries (commit `87bb163`, 14/14 gate). Phase 3 audited canonical-L3 consumers + refactored MoneyTruthFace inline parser (this commit, 18/18 gate). Phases 4–5 deferred to follow-on commits per the phased plan in §Implementation.
+> **Status**: **Phase 1 + Phase 2 + Phase 3 + Phase 4 Implemented** (2026-05-01). Phase 1 ratified the model + shipped registry stub (commit `c642173`, 8/8 gate). Phase 2 populated the registry by migrating four parsers + adding two new shape entries (commit `87bb163`, 14/14 gate). Phase 3 audited canonical-L3 consumers + refactored MoneyTruthFace inline parser (commit `d2add27`, 18/18 gate). Phase 4 shipped per-class write contracts (`serialize()` on configuration shapes + `writeShape()` helper) and the canonical autonomy toggle in MandateFace as the proof-of-concept end-to-end (this commit, 23/23 gate). Phase 5 (`docs/design/` supersede pass) deferred to next commit.
 > **Date**: 2026-05-01
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Channel** (Axiom 6) primary — codifies how operator-facing surfaces consume substrate. Secondary: **Substrate** (Axiom 1 — what the layers read), **Mechanism** (Axiom 5 — L2 lives at the deterministic end of the spectrum), **Purpose** (Axiom 3 — L3 is sited by operational meaning).
@@ -219,24 +219,29 @@ This is the same demand-pull discipline as Phase 2's recurrence-shapes finding a
 
 ### Phase 4 — Per-Class Write Contracts in Shape Modules
 
-Each shape's registry entry gains:
+**Status: Implemented 2026-05-01 (with demand-pull deferrals).**
 
-- `WRITE_CONTRACT` field (one of the six classes from D5).
-- For `configuration` and `declaration` classes: a `serialize()` function that round-trips data → file content with frontmatter preservation.
-- For `narrative` and `live_aggregate` classes: explicit `WRITE_CONTRACT = "system_owned"` so editors that try to mutate trip a TypeScript error.
+Per-class write infrastructure shipped + first canonical L3 affordance (autonomy toggle in MandateFace) ships as the proof-of-concept that the registry + write-routing model works end-to-end.
 
-Adds a typed `writeShape<S>(shape, data, opts)` helper in `web/lib/content-shapes/write.ts` that:
+**Shipped this phase:**
 
-1. Looks up the shape's `WRITE_CONTRACT`.
-2. Routes to the correct primitive (`WriteFile` for authored_prose / configuration; `ManageRecurrence` for declaration; throws for system_owned).
-3. Invokes the shape's `serialize()` for structured classes.
-4. Honors ADR-209 attribution requirements (passes `authored_by="operator"` on operator-initiated writes).
+1. **`serialize()` on autonomy.ts** — round-trips `AutonomyMeta` back to YAML frontmatter. Body preserved verbatim via new `parseRoundTrip()` helper that returns `{meta, body}`. The body-preservation is critical: bundle-shipped AUTONOMY.md templates (e.g. alpha-trader's reference workspace) carry prose explaining phase progression; toggle mutations must not destroy that prose.
+2. **`writeShape()` helper at `web/lib/content-shapes/write.ts`** — looks up the shape's `WRITE_CONTRACT` and routes:
+   - `authored_prose` / `configuration` → `api.workspace.editFile()` (which calls `WriteFile(scope='workspace')` per ADR-235 D1.b).
+   - `declaration` → throws today with a "FE editor deferred" error message that points to ADR-244 Phase 4 deferrals (the `ManageRecurrence` wiring lands when the declaration L3 editor surfaces).
+   - `narrative` / `live_aggregate` / `composed_artifact` / `system_owned` → throws `WriteContractViolation` with a contract-specific explanation.
+   - ADR-209 attribution: backend defaults `authored_by="operator"` from the operator session; helper forwards optional `message` for the revision commit message.
+3. **Autonomy toggle in MandateFace** — replaces the static `autonomyLine` text with an interactive `<select>` showing the four `AutonomyLevel`s (`manual`, `assisted`, `bounded_autonomous`, `autonomous`). Selecting a new level: parses round-trip, mutates `default_level`, calls `serialize(meta, body)`, writes through `writeShape('autonomy', AUTONOMY_PATH, content)`, refreshes local state. Optimistic-then-revert error handling. This is the **canonical L3 demonstration** that ADR-244's three-layer model works end-to-end: L1 substrate (AUTONOMY.md) ← L2 parser+serializer (`content-shapes/autonomy.ts`) ← L3 affordance (MandateFace toggle) ← writeShape (D5 write-contract router).
 
-This phase closes the missing L3 affordances flagged in the audit:
+**Phase 4 demand-pull deferrals** (same discipline as Phase 2 recurrence-shapes finding + Phase 3 TraderSignalExpectancy finding + ADR-225 v2's "ship 6 components, not 14" refinement):
 
-- Autonomy toggle in `MandateFace` (ADR-238 shipped read-only chip; this phase ships the toggle).
-- Principles auto-approval threshold editor in `PrinciplesTab`.
-- Risk envelope editor in MandateFace (or its own face slot — TBD during phase).
+- **Principles auto-approval thresholds editor** — `principles.ts` Phase 2 stub remains (returns raw markdown wrapped). The structured threshold parser + editor L3 affordance ship when operator pressure surfaces. Today operators edit principles via the chat-driven `editPrompt` path on the `WorkspaceFileView` shown by `PrinciplesTab` — that surface is sufficient for the alpha population.
+- **Risk envelope editor** — `_risk.md` is currently authored-prose (no structured shape registered). When operator pressure surfaces for a structured editor (rather than prose authoring through chat), a new `risk.ts` shape entry + L3 component ships at that point.
+- **Declaration-shape FE editor** (recurrence-spec) — `_spec.yaml` / `_recurring.yaml` / `_action.yaml` get an L3 editor when a recurrence-spec face surfaces. Today operators author recurrences via YARNNN chat through `ManageRecurrence` per ADR-235 D1.c; that path is sufficient.
+
+The deferrals are explicitly logged so future readers know the registry+writer infrastructure is complete; only specific L3 editors are demand-pull. Adding a new L3 editor in a future phase is purely additive — register the shape (if new), add `serialize()`, build the L3 component, call `writeShape()`. No further infrastructure work needed.
+
+**Test gate**: 23/23 (8 P1 + 6 P2 + 4 P3 + 5 P4 — autonomy.serialize + parseRoundTrip exist, write.ts ships writeShape + WriteContractViolation, write-routing branches by contract, MandateFace wires writeShape + AutonomyToggle + serializeAutonomy, deferrals logged).
 
 ### Phase 5 — `docs/design/` Supersede Pass
 
@@ -320,9 +325,17 @@ Phases 2–5 add their own assertions; the gate accumulates.
 - Test gate extended: 6 Phase 2 assertions added; 14/14 total passing.
 - Implementation-time finding logged: `recurrence-shapes.ts` is a domain-key utility, not a content-shape parser. It stays at its current path. The recurrence-spec content shape (DECLARATION class) gets a parser when Phase 4's L3 editor lands.
 
-### Phase 3 (this commit)
+### Phase 3 (commit `d2add27`)
 
 - `MoneyTruthFace.tsx` refactored: inline `parseFrontmatter` + `MoneyTruthMeta` interface DELETED. Imports `parse` (aliased as `parsePerformance`) + `PerformanceMeta` from `@/lib/content-shapes/performance`. Singular Implementation honored — one parser per shape, kernel-default consumer reaches it through registry import.
 - Canonical L3 consumers verified clean: MandateFace + PerformanceFace + DecisionsStream all importing from `@/lib/content-shapes/{shape}` (Phase 2 sed migration confirmed by Phase 3 audit).
 - Test gate extended: 4 Phase 3 assertions added (MoneyTruthFace registry import, no-inline-parser, canonical-consumers import-from-registry, bundle-extended finding logged); 18/18 total passing.
 - Implementation-time finding logged: `TraderSignalExpectancy.tsx` parses bundle-extended `_performance.md` frontmatter (alpha-trader's `expectancy_by_signal` field) and stays out of the kernel registry per ADR-188 + D7 (bundle library extension loading deferred).
+
+### Phase 4 (this commit)
+
+- `autonomy.ts` extended: `parseRoundTrip()` returns `{meta, body}` for body-preserving round-trip. `serialize(meta, body)` emits YAML frontmatter matching the parser's input shape + appends body verbatim.
+- `web/lib/content-shapes/write.ts` shipped: `writeShape(shapeKey, path, content, opts)` routes by `WRITE_CONTRACT`. `WriteContractViolation` class for type-discriminated runtime errors. configuration / authored_prose route through `api.workspace.editFile`; declaration throws with deferral pointer; narrative / live_aggregate / composed_artifact / system_owned throw `WriteContractViolation`.
+- `MandateFace.tsx` shipped the canonical autonomy toggle: `<AutonomyToggle>` subcomponent renders an interactive `<select>` of the four `AutonomyLevel`s. On change → parseRoundTrip → mutate default_level → serialize → writeShape → refresh local state. Optimistic update with error revert. The toggle is the canonical L3 demonstration that the three-layer model works end-to-end. Replaces the static `autonomyLine` text from ADR-238 (read-only chip) with mutable affordance.
+- Test gate extended: 5 Phase 4 assertions added (autonomy serialize+parseRoundTrip exist, write.ts ships writeShape + WriteContractViolation, write-routing branches by contract, MandateFace wires writeShape + toggle + serialize, deferrals logged); 23/23 total passing.
+- Demand-pull deferrals logged in §Phase 4: principles thresholds editor, risk envelope editor, declaration-shape FE editor. Registry + writer infrastructure complete; adding a new L3 editor in a future phase is purely additive.
