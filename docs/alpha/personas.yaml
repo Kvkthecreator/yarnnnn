@@ -141,8 +141,8 @@ personas:
       risk_md_path: /workspace/context/trading/_risk.md
 
   - slug: alpha-commerce
-    label: "Korea↔USA international commerce operator (KVK voice)"
-    program: alpha-commerce   # ADR-230 D1: bundle at docs/programs/alpha-commerce/ (status: deferred)
+    label: "KVK personal alpha-trader workspace (trades with KVK's own Alpaca account)"
+    program: alpha-trader   # ADR-230 D1: kvk runs alpha-trader program on personal workspace
     email: kvkthecreator@gmail.com
     user_id: 2abf3f96-118b-4987-9d95-40f2d9be9a18
     workspace_id: ff92352e-5b8a-4ba3-9a8c-eb93540df542
@@ -158,18 +158,31 @@ personas:
       api_key: ALPHA_COMMERCE_LEMONSQUEEZY_KEY
     vault_entry: "1Password > YARNNN Alpha-1 > alpha-commerce.lemonsqueezy"
     expected:
-      # Live-DB note (2026-04-29): alpha-commerce workspace has only YARNNN scaffolded.
-      # The alpha-commerce program bundle is `status: deferred` per ADR-224, and
-      # `activate_persona.py --persona alpha-commerce` has not been run against this
-      # workspace yet. The invariants below reflect the unactivated state — when
-      # activation runs, agent_count and scaffolded_recurrences will need to grow.
-      agent_count: 1
-      active_roles: [thinking_partner]
-      scaffolded_recurrences: []
-      # platform_connections: 0 — Lemon Squeezy not yet connected for this persona.
-      platform_connections: 0
+      # Live-DB note (2026-04-30): kvk runs alpha-trader program on personal workspace.
+      # activate_persona.py --persona alpha-commerce --skip-connect forks the
+      # alpha-trader reference-workspace into this workspace.
+      agent_count: 4
+      active_roles: [thinking_partner, tracker, analyst, writer]
+      scaffolded_recurrences:
+        - track-universe
+        - signal-evaluation
+        - pre-market-brief
+        - trade-proposal
+        - weekly-performance-review
+        - quarterly-signal-audit
+        - back-office-outcome-reconciliation
+        - back-office-proposal-cleanup
+        - back-office-reviewer-calibration
+        - back-office-reviewer-reflection
+      platform_connections: 1
       core_files:
-        # No core files yet — bundle has not been forked. Post-activation, expect
-        # the same _shared/* + _operator_profile + _risk + review/* shape as
-        # the trader personas.
+        - /workspace/context/_shared/IDENTITY.md
         - /workspace/context/_shared/MANDATE.md
+        - /workspace/context/_shared/AUTONOMY.md
+        - /workspace/context/_shared/BRAND.md
+        - /workspace/context/_shared/CONVENTIONS.md
+        - /workspace/context/trading/_operator_profile.md
+        - /workspace/context/trading/_risk.md
+        - /workspace/review/IDENTITY.md
+        - /workspace/review/principles.md
+      risk_md_path: /workspace/context/trading/_risk.md
