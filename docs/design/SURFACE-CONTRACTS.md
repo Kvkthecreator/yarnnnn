@@ -1,9 +1,9 @@
 # Surface Contracts
 
-**Version:** v2.2 (2026-04-29 — ADR-235 UpdateContext dissolution alignment)
+**Version:** v2.3 (2026-05-01 — ADR-243 Schedule sibling extends nav to five tabs)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
-**Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) task abstraction sunset · [ADR-235](../adr/ADR-235-update-context-dissolution.md) UpdateContext dissolution (lifecycle → `ManageRecurrence`; substrate writes → `WriteFile(scope='workspace')`; identity/brand merges → `InferContext` / `InferWorkspace`) · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
+**Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) + [ADR-243](../adr/ADR-243-schedule-surface.md) five-tab nav (Chat | Work | Schedule | Agents | Files) · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) task abstraction sunset · [ADR-235](../adr/ADR-235-update-context-dissolution.md) UpdateContext dissolution (lifecycle → `ManageRecurrence`; substrate writes → `WriteFile(scope='workspace')`; identity/brand merges → `InferContext` / `InferWorkspace`) · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
 **Supersedes:** `archive/SURFACE-ARCHITECTURE.md`, `archive/SURFACE-ACTION-MAPPING.md`, `archive/SURFACE-DISPLAY-MAP.md`, `archive/SURFACE-PRIMITIVES-MAP.md`
 
 ---
@@ -361,7 +361,8 @@ Outside the four-tab cockpit nav, `/settings?tab=workspace` is the **permanent h
 
 - [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — governs this doc
 - [ADR-198](../adr/ADR-198-surface-archetypes.md) — archetype vocabulary (Document · Dashboard · Queue · Briefing · Stream)
-- [ADR-214](../adr/ADR-214-agents-page-consolidation.md) — four-tab nav + Reviewer-inside-Agents
+- [ADR-214](../adr/ADR-214-agents-page-consolidation.md) — Reviewer-inside-Agents (originated four-tab nav; extended to five by ADR-243)
+- [ADR-243](../adr/ADR-243-schedule-surface.md) — `/schedule` surface (cadence-framed sibling of `/work`); five-tab nav `Chat | Work | Schedule | Agents | Files`
 - [ADR-167 v2](../adr/ADR-167-list-detail-surfaces.md) — list/detail pattern per tab
 - [ADR-209](../adr/ADR-209-authored-substrate.md) — revision chain, `authored_by`, substrate attribution
 - [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) — invocation as atom; `/chat` is the narrative surface; `/work` is the narrative filtered by task slug
