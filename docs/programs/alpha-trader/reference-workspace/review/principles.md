@@ -3,7 +3,7 @@ tier: authored
 prompt: "What are YOUR hard rejection rules and capital-EV thresholds? The defaults are the program's typical shape; tune them to your edge."
 ---
 
-# Reviewer Principles — alpha-trader (template)
+# Reviewer Principles — alpha-trader
 
 > Operator authors. The Reviewer applies these principles to every trading proposal. Persona (IDENTITY.md) determines *how* the Reviewer reasons; principles determine *what* it tests.
 

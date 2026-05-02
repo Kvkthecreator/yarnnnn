@@ -3,7 +3,7 @@ tier: authored
 prompt: "Who are you as an operator? How do you communicate? What do you actively avoid?"
 ---
 
-# Identity (template)
+# Identity
 
 > **Operator**: author this file. YARNNN reads it to understand who is at the keyboard — not your bio, but the operating posture of the trader running this workspace.
 

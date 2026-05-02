@@ -3,7 +3,7 @@ tier: authored
 prompt: "What is the Primary Action this workspace produces? What's your edge — and what would falsify it?"
 ---
 
-# Mandate — alpha-trader (template)
+# Mandate — alpha-trader
 
 > **Operator**: author this file. Keep what serves you, delete what doesn't, and add what's missing for your edge. The platform reads this as the gate for task creation (per ADR-207).
 

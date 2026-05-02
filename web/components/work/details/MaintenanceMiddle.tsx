@@ -8,9 +8,8 @@
  * The nested-document pattern keeps the log's internal headers subordinate
  * to the task's real H1 in SurfaceIdentityHeader above.
  *
- * For TP-owned back office tasks (back-office-agent-hygiene,
- * back-office-workspace-cleanup) — these run deterministic Python (no LLM,
- * no playbooks). The user wants to know:
+ * For TP-owned back office tasks (outcome-reconciliation, proposal-cleanup,
+ * reviewer-calibration, reviewer-reflection, narrative-digest). The user wants to know:
  *
  *   1. Did it run? (run history)
  *   2. What did it touch? (hygiene log markdown from output)

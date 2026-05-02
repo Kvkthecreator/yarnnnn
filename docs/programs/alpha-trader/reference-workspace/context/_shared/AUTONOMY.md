@@ -3,7 +3,7 @@ tier: canon
 note: "Program-typical delegation defaults. Operator may tighten or widen as Phase progression earns calibration data — but defaults match the program's risk posture."
 ---
 
-# Autonomy — alpha-trader (template)
+# Autonomy — alpha-trader
 
 > Per ADR-217: this file declares operator-to-role delegation. Not Reviewer-owned; operator-owned. Reviewer reads it to understand its delegation ceiling.
 

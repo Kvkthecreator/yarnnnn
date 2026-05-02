@@ -1,4 +1,4 @@
-"""ADR-245 regression gate — TP meta-awareness of the Workspace surface.
+"""ADR-246 regression gate — TP meta-awareness of the Workspace surface.
 
 Validates: working_memory exposes new workspace_state fields + helpers;
 compact index surfaces the new signals within the 600-token ceiling;
@@ -7,7 +7,7 @@ three-state posture; ADR-226 ACTIVATION_OVERLAY engagement criteria
 unchanged.
 
 Pure-Python script per ADR-236 Rule 3 (no JS test runner). Run with:
-    python -m api.test_adr245_tp_meta_awareness
+    python -m api.test_adr246_tp_meta_awareness
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-ADR_FILE = REPO_ROOT / "docs" / "adr" / "ADR-245-tp-meta-awareness-workspace-surface.md"
+ADR_FILE = REPO_ROOT / "docs" / "adr" / "ADR-246-tp-meta-awareness-workspace-surface.md"
 WORKING_MEMORY = REPO_ROOT / "api" / "services" / "working_memory.py"
 ONBOARDING_PROMPT = REPO_ROOT / "api" / "agents" / "prompts" / "chat" / "onboarding.py"
 ACTIVATION_PROMPT = REPO_ROOT / "api" / "agents" / "prompts" / "chat" / "activation.py"
@@ -48,7 +48,7 @@ def assertion_2_workspace_state_has_new_fields():
     ]
     for key in required_keys:
         assert key in src, (
-            f"workspace_state dict must include {key} per ADR-245 D1"
+            f"workspace_state dict must include {key} per ADR-246 D1"
         )
 
 
@@ -127,7 +127,7 @@ def assertion_6_context_awareness_has_surface_subsection():
 
 def assertion_7_activation_overlay_unchanged_engagement():
     """ADR-226 ACTIVATION_OVERLAY still engages on post_fork_pre_author only.
-    ADR-245 D4 commits to no engagement-criteria change."""
+    ADR-246 D4 commits to no engagement-criteria change."""
     src = ACTIVATION_PROMPT.read_text()
     # Engagement state may be referenced as `post_fork_pre_author` (code form)
     # or `post-fork-pre-author` (prose form). Either is acceptable.
@@ -140,23 +140,23 @@ def assertion_7_activation_overlay_unchanged_engagement():
 
 def assertion_8_changelog_entry_exists():
     src = CHANGELOG.read_text()
-    assert "[2026.05.01.3]" in src, "CHANGELOG must have [2026.05.01.3] entry"
-    assert "ADR-245" in src, "CHANGELOG entry must cite ADR-245"
+    assert "[2026.05.01.4]" in src, "CHANGELOG must have [2026.05.01.4] entry"
+    assert "ADR-246" in src, "CHANGELOG entry must cite ADR-246"
 
 
 def assertion_9_claude_md_entry_exists():
     src = CLAUDE_MD.read_text()
-    # The new entry must mention ADR-245 and its key decisions.
-    assert "ADR-245" in src, "CLAUDE.md must have ADR-245 entry"
+    # The new entry must mention ADR-246 and its key decisions.
+    assert "ADR-246" in src, "CLAUDE.md must have ADR-246 entry"
     # Spot-check that the entry mentions the workspace_state extension
-    adr245_section = src.split("ADR-245")[1] if "ADR-245" in src else ""
+    adr245_section = src.split("ADR-246")[1] if "ADR-246" in src else ""
     assert "workspace_state" in adr245_section, (
-        "CLAUDE.md ADR-245 entry must mention workspace_state extension"
+        "CLAUDE.md ADR-246 entry must mention workspace_state extension"
     )
 
 
 def assertion_10_no_new_prompt_module():
-    """ADR-245 D4 commits to NOT introducing a no_program.py or similar
+    """ADR-246 D4 commits to NOT introducing a no_program.py or similar
     overlay. Verify the prompts/chat/ dir didn't grow a new file."""
     chat_dir = REPO_ROOT / "api" / "agents" / "prompts" / "chat"
     expected = {
@@ -171,7 +171,7 @@ def assertion_10_no_new_prompt_module():
     actual = {p.name for p in chat_dir.iterdir() if p.is_file()}
     extra = actual - expected
     assert not extra, (
-        f"ADR-245 D4 forbids new prompt modules in prompts/chat/. Extra: {extra}"
+        f"ADR-246 D4 forbids new prompt modules in prompts/chat/. Extra: {extra}"
     )
 
 
@@ -224,11 +224,11 @@ def main() -> int:
             print(f"  FAIL  {t.__name__}: {e}")
     print()
     if failures:
-        print(f"ADR-245 regression gate: {len(tests) - len(failures)}/{len(tests)} passed")
+        print(f"ADR-246 regression gate: {len(tests) - len(failures)}/{len(tests)} passed")
         for f in failures:
             print(f"  - {f}")
         return 1
-    print(f"ADR-245 regression gate: {len(tests)}/{len(tests)} passed")
+    print(f"ADR-246 regression gate: {len(tests)}/{len(tests)} passed")
     return 0
 
 

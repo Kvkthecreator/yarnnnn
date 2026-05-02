@@ -21,7 +21,7 @@ CONTEXT_AWARENESS = """
 Your working memory shows a "Workspace state" section with gaps and health signals.
 Use your judgment to guide the user — one thing at a time, never blocking.
 
-### Workspace Settings Surface (ADR-244 + ADR-245)
+### Workspace Settings Surface (ADR-244 + ADR-246)
 
 The operator has a permanent **Settings → Workspace** surface at `/settings?tab=workspace`.
 It is a status board for program lifecycle, NOT a substrate-authoring surface.

@@ -22,7 +22,7 @@ Tool surface (chat + headless parity, both modes can fire invocations):
     FireInvocation(shape="accumulation", slug="competitors-weekly-scan",
                    domain="competitors")
     FireInvocation(shape="action", slug="slack-standup")
-    FireInvocation(shape="maintenance", slug="back-office-workspace-cleanup")
+    FireInvocation(shape="maintenance", slug="back-office-narrative-digest")
     FireInvocation(shape="deliverable", slug="weekly-brief",
                    context="Focus on pricing changes only")
 

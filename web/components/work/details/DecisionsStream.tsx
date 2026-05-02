@@ -23,7 +23,7 @@
  *
  * Tolerant parser: missing fields render as "—"; malformed blocks skipped
  * silently. Never errors-out the surface. Uses the canonical parser at
- * @/lib/reviewer-decisions per ADR-239 D1.
+ * @/lib/content-shapes/decisions per ADR-239 D1.
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -45,7 +45,7 @@ import {
   formatActionType,
   formatRelativeTimestamp as formatTimestamp,
   type ReviewerDecision as Decision,
-} from '@/lib/reviewer-decisions';
+} from '@/lib/content-shapes/decisions';
 
 type IdentityFilter = 'all' | 'human' | 'ai' | 'impersonated';
 type DecisionFilter = 'all' | 'approve' | 'reject' | 'defer';

@@ -38,7 +38,7 @@ import {
   parseDecisions,
   aggregateReviewerCalibration,
   type ReviewerCalibration,
-} from '@/lib/reviewer-decisions';
+} from '@/lib/content-shapes/decisions';
 // ADR-243 Phase B: dispatchComponent import removed — bundle dispatch is now
 // handled by CockpitRenderer via program_sections, not by face-level additions.
 // PerformanceFace renders Reviewer calibration only (kernel-default).
@@ -47,7 +47,7 @@ const DECISIONS_PATH = '/workspace/review/decisions.md';
 const DEFAULT_PERFORMANCE = '/workspace/context/_performance_summary.md';
 
 // ADR-239: parsing + calibration aggregation lifted to
-// @/lib/reviewer-decisions. `parseDecisions` returns ReviewerDecision[];
+// @/lib/content-shapes/decisions. `parseDecisions` returns ReviewerDecision[];
 // `aggregateReviewerCalibration` rolls those up into the calibration
 // shape this face renders. The previous inline parser was looking for a
 // stale on-disk format (## headings with `verdict:` field) that the

@@ -6,15 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.05.01.3] - ADR-245 TP meta-awareness — surface substrate richness + Workspace tab
+## [2026.05.01.4] - ADR-246 TP meta-awareness — surface substrate richness + Workspace tab
 
-ADR-245 makes TP aware of (a) per-file substrate richness for MANDATE / AUTONOMY / Reviewer principles, (b) capability gaps for the active program, (c) the existence and purpose of the `Settings → Workspace` surface introduced by ADR-244. Pure prompt-layer + working-memory extension; no new endpoints, primitives, or schema.
+ADR-246 makes TP aware of (a) per-file substrate richness for MANDATE / AUTONOMY / Reviewer principles, (b) capability gaps for the active program, (c) the existence and purpose of the `Settings → Workspace` surface introduced by ADR-244. Pure prompt-layer + working-memory extension; no new endpoints, primitives, or schema.
 
 ### Changed
 
 - `api/services/working_memory.py::build_working_memory` — extended `workspace_state` dict with five new keys: `mandate`, `autonomy`, `principles` (each `empty | sparse | rich` per `_classify_richness`), `active_program_slug` (parsed via `services.programs.parse_active_program_slug`, validated against bundle registry), and `capability_gaps` (slim mirror of the ADR-244 surface signal — `[{capability, platform, connected}]`). Two new helpers: `_parse_active_program_for_workspace_state` and `_compute_capability_gaps_for_workspace_state`. The two new file reads (AUTONOMY.md, review/principles.md) join the existing `asyncio.gather` batch — no extra round-trips beyond the file reads themselves.
 - `api/services/working_memory.py::format_compact_index` — extended Intent section. The substrate richness line now reads `Mandate · Identity · Brand · Autonomy · Reviewer principles` instead of just `Identity · Brand`. New conditional line surfaces active program + capability gap signal when applicable. Key files section gains `/settings?tab=workspace` pointer. Net token impact ≤ 50 tokens worst-case; ceiling (600) preserved.
-- `api/agents/prompts/chat/onboarding.py::CONTEXT_AWARENESS` — new `### Workspace Settings Surface (ADR-244 + ADR-245)` subsection inserted after the Workspace Context Awareness intro, before Situational Awareness. Names the surface, what it shows, what it does, what it does NOT do (no substrate authoring), and the three-state posture (`none` / `post_fork_pre_author` / `operational`). Adds `When to deep-link` / `When NOT to deep-link` guidance.
+- `api/agents/prompts/chat/onboarding.py::CONTEXT_AWARENESS` — new `### Workspace Settings Surface (ADR-244 + ADR-246)` subsection inserted after the Workspace Context Awareness intro, before Situational Awareness. Names the surface, what it shows, what it does, what it does NOT do (no substrate authoring), and the three-state posture (`none` / `post_fork_pre_author` / `operational`). Adds `When to deep-link` / `When NOT to deep-link` guidance.
 
 ### Expected behavior
 
@@ -31,7 +31,7 @@ ADR-245 makes TP aware of (a) per-file substrate richness for MANDATE / AUTONOMY
 
 ### Test gate
 
-- `api/test_adr245_tp_meta_awareness.py` — 11/11 passing.
+- `api/test_adr246_tp_meta_awareness.py` — 11/11 passing.
 
 ---
 

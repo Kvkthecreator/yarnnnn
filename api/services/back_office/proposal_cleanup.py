@@ -7,8 +7,7 @@ back-office task owned by YARNNN (per ADR-164 pattern).
 Zero LLM cost — deterministic SQL update only. Output is a markdown
 report with counts.
 
-The executor scopes by user_id so task runs don't touch other users'
-proposals (parallel to workspace_cleanup pattern from ADR-164).
+The executor scopes by user_id so task runs don't touch other users' proposals.
 """
 
 from __future__ import annotations

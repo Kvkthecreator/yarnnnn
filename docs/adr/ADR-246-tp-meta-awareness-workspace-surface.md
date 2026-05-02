@@ -1,4 +1,4 @@
-# ADR-245 — TP Meta-Awareness of the Workspace Settings Surface
+# ADR-246 — TP Meta-Awareness of the Workspace Settings Surface
 
 **Status:** Implemented (2026-05-01, single commit)
 
@@ -52,7 +52,7 @@ The fields added:
 
 ### D2. Surface in compact index — at most three lines, conditional
 
-The compact index has a 600-token ceiling (ADR-159). ADR-245 adds **at most three lines**, each conditional on signal:
+The compact index has a 600-token ceiling (ADR-159). ADR-246 adds **at most three lines**, each conditional on signal:
 
 1. **Authored substrate roll-up** (in the "Intent (authored rules)" section): one line summarizing the five authored files. Already existing: `- Identity: {identity} · Brand: {brand} · {docs} uploaded documents`. Extended:
    `- Identity: {identity} · Brand: {brand} · Mandate: {mandate} · Autonomy: {autonomy} · Reviewer principles: {principles} · {docs} documents`
@@ -84,7 +84,7 @@ The subsection is ~30 lines; total CONTEXT_AWARENESS adds ~700 chars.
 
 ### D4. No new prompt module, no new overlay
 
-ADR-245 is intentionally minimal. The first instinct was to add a `no_program.py` overlay analogous to `activation.py`. Rejected because:
+ADR-246 is intentionally minimal. The first instinct was to add a `no_program.py` overlay analogous to `activation.py`. Rejected because:
 
 - The CONTEXT_AWARENESS prompt is already always-on and already discusses the mandate-authoring posture for the empty-MANDATE case (under "Priority: Mandate → Operation → Identity → Brand"). A second "no program" overlay would duplicate it.
 - The `Settings → Workspace` surface is itself the empty-state's affordance — the operator can browse and pick from there. The chat-side prompt just needs to know the surface exists and when to point at it.
@@ -92,7 +92,7 @@ ADR-245 is intentionally minimal. The first instinct was to add a `no_program.py
 
 ### D5. No primitive changes, no schema changes
 
-Per ADR-244 the surface reads existing substrate via existing primitives. ADR-245 adds prompt awareness, not capability. The only code change beyond the prompt is the `working_memory.py` extension that surfaces signal already computed elsewhere.
+Per ADR-244 the surface reads existing substrate via existing primitives. ADR-246 adds prompt awareness, not capability. The only code change beyond the prompt is the `working_memory.py` extension that surfaces signal already computed elsewhere.
 
 ---
 
@@ -122,11 +122,11 @@ Per ADR-244 the surface reads existing substrate via existing primitives. ADR-24
 
 3. **`api/agents/prompts/chat/onboarding.py::CONTEXT_AWARENESS`** — insert new subsection.
 
-4. **`api/prompts/CHANGELOG.md`** — `[2026.05.01.3]` entry.
+4. **`api/prompts/CHANGELOG.md`** — `[2026.05.01.4]` entry.
 
-5. **`CLAUDE.md`** — ADR-245 entry in ADR list.
+5. **`CLAUDE.md`** — ADR-246 entry in ADR list.
 
-6. **`api/test_adr245_tp_meta_awareness.py`** — regression gate.
+6. **`api/test_adr246_tp_meta_awareness.py`** — regression gate.
 
 ---
 
