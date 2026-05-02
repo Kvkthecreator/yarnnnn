@@ -437,7 +437,7 @@ def _parse_back_office_block(
 def _slug_from_executor(executor: str) -> str:
     """Derive a slug from a dotted executor path.
 
-    `services.back_office.workspace_cleanup` → `back-office-workspace-cleanup`
+    `services.back_office.narrative_digest` → `back-office-narrative-digest`
     """
     last = executor.rsplit(".", 1)[-1]
     last = last.replace("_", "-")

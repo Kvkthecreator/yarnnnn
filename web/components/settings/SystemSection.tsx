@@ -3,13 +3,10 @@
 /**
  * System section for Settings page.
  *
- * Shows background job status: Workspace Cleanup + Agent Hygiene + Scheduler Heartbeat.
- *
- * ADR-141/153/156/164: Platform sync cron, memory extraction, session summaries,
- * Composer heartbeat, and task_executed activity events are all deleted.
- * Back office tasks (cleanup, hygiene) are TP-owned tasks — their status comes
- * from tasks.last_run_at + workspace output manifests, not activity_log.
- * Scheduler heartbeat is still written hourly to activity_log.
+ * Shows scheduler heartbeat status only. All other back-office work runs as
+ * recurrences visible on /work (ADR-231, ADR-206). Workspace Cleanup and
+ * Agent Hygiene removed — neither had a creation trigger and no ephemeral
+ * files exist in prod (audited 2026-05-02).
  */
 
 import { useState, useEffect } from 'react';
@@ -20,7 +17,6 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  HeartPulse,
   Cpu,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
@@ -78,41 +74,20 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-const BACKGROUND_JOBS: Array<{
-  label: string;
-  icon: React.ReactNode;
-  type: string;
-}> = [
-  {
-    label: 'Workspace Cleanup',
-    icon: <HeartPulse className="w-4 h-4 text-cyan-500" />,
-    type: 'Workspace Cleanup',
-  },
-  {
-    label: 'Agent Hygiene',
-    icon: <HeartPulse className="w-4 h-4 text-violet-400" />,
-    type: 'Agent Hygiene',
-  },
-  {
-    label: 'Scheduler Heartbeat',
-    icon: <Cpu className="w-4 h-4 text-gray-400" />,
-    type: 'Scheduler Heartbeat',
-  },
-];
-
 // =============================================================================
 // Main Exported Component
 // =============================================================================
 
 export function SystemSection() {
   const [loading, setLoading] = useState(true);
-  const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJobStatus[]>([]);
+  const [heartbeat, setHeartbeat] = useState<BackgroundJobStatus | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const result = await api.system.getStatus();
-      setBackgroundJobs(result.background_jobs);
+      const hb = result.background_jobs.find((j) => j.job_type === 'Scheduler Heartbeat') ?? null;
+      setHeartbeat(hb);
     } catch (err) {
       console.error('Failed to load system status:', err);
     } finally {
@@ -124,18 +99,6 @@ export function SystemSection() {
     loadData();
   }, []);
 
-  const jobDisplays = BACKGROUND_JOBS.map((def) => {
-    const job = backgroundJobs.find((j) => j.job_type === def.type);
-    return {
-      ...def,
-      lastRunAt: job?.last_run_at ?? null,
-      lastRunStatus: job?.last_run_status ?? 'never_run',
-      lastRunSummary: job?.last_run_summary ?? null,
-      itemsProcessed: job?.items_processed ?? 0,
-      scheduleDescription: job?.schedule_description ?? null,
-    };
-  });
-
   return (
     <div className="space-y-6">
       {/* Header with refresh */}
@@ -143,7 +106,8 @@ export function SystemSection() {
         <div>
           <h2 className="text-lg font-semibold">System</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Background processing and scheduler status.
+            Scheduler status. Back-office recurrences are visible on{' '}
+            <a href="/work" className="underline underline-offset-2 hover:text-foreground">/work</a>.
           </p>
         </div>
         <button
@@ -161,58 +125,31 @@ export function SystemSection() {
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="space-y-8">
-          {/* Background Activity */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold">Background Activity</h3>
-            </div>
-
-            {/* Job rows */}
-            <div className="border border-border rounded-lg divide-y divide-border">
-              {jobDisplays.map((job) => (
-                <div key={job.label} className="px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {job.icon}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{job.label}</span>
-                        <StatusBadge status={job.lastRunStatus} />
-                      </div>
-                      {job.lastRunSummary && (
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {job.lastRunSummary}
-                        </div>
-                      )}
-                      {job.scheduleDescription && (
-                        <div className="text-[11px] text-muted-foreground/70 mt-0.5">
-                          {job.scheduleDescription}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right text-sm text-muted-foreground">
-                    {job.lastRunAt ? (
-                      <>
-                        {formatDistanceToNow(new Date(job.lastRunAt), { addSuffix: true })}
-                        {job.itemsProcessed > 0 && (
-                          <span className="text-xs ml-1">
-                            ({job.itemsProcessed} items)
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-xs">Never run</span>
-                    )}
-                  </div>
+        <div className="border border-border rounded-lg">
+          <div className="px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Cpu className="w-4 h-4 text-gray-400" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Scheduler Heartbeat</span>
+                  <StatusBadge status={heartbeat?.last_run_status ?? 'never_run'} />
                 </div>
-              ))}
+                {heartbeat?.last_run_summary && (
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {heartbeat.last_run_summary}
+                  </div>
+                )}
+                <div className="text-[11px] text-muted-foreground/70 mt-0.5">Hourly</div>
+              </div>
             </div>
-          </section>
-
-          {/* ADR-163: /activity page deleted. Workspace-wide activity now
-              surfaces on the Chat briefing dashboard; per-entity activity
-              lives on the relevant work/agent surfaces. */}
+            <div className="text-right text-sm text-muted-foreground">
+              {heartbeat?.last_run_at ? (
+                formatDistanceToNow(new Date(heartbeat.last_run_at), { addSuffix: true })
+              ) : (
+                <span className="text-xs">Never run</span>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

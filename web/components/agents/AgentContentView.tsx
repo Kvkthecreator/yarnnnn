@@ -169,7 +169,7 @@ const AGENT_EMPTY_STATE_REGISTRY: Record<RegistryAgentClass, AgentEmptyStateDesc
   },
   'meta-cognitive': {
     title: () => 'No back-office work yet',
-    description: () => 'Back-office recurrences materialize on trigger (first proposal, platform connect, agent-hygiene threshold).',
+    description: () => 'Back-office recurrences materialize on trigger (first proposal, platform connect).',
   },
 };
 

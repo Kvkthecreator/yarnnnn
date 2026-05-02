@@ -3,12 +3,15 @@ System routes - Operations status (ADR-073, ADR-141)
 
 Provides operational visibility into background orchestration:
 - Platform connection status with per-resource detail from sync_registry
-- Background job status from activity_log (task execution + system health)
 - Scheduler heartbeat observability
 
-ADR-141/153/156 cleanup: Platform sync cron, memory extraction, session summaries,
-Composer heartbeat, and content cleanup are all deleted. The scheduler now only does
-task execution, workspace cleanup, and lifecycle hygiene.
+ADR-141/153/156/164 cleanup: Platform sync cron, memory extraction, session summaries,
+Composer heartbeat, content cleanup, agent hygiene, and workspace cleanup are all deleted.
+The scheduler now only does recurrence dispatch and writes hourly heartbeat events.
+
+Back-office tasks (outcome-reconciliation, proposal-cleanup, reviewer-calibration,
+reviewer-reflection, narrative-digest) are recurrences that materialize on trigger —
+they surface on /work with include_system=true, not here.
 
 Mounted at /api/system
 """
@@ -62,7 +65,7 @@ class BackgroundJobStatus(BaseModel):
     last_run_status: str = "unknown"  # success, failed, never_run
     last_run_summary: Optional[str] = None
     items_processed: int = 0
-    schedule_description: Optional[str] = None  # ADR-084: when this job is expected to run
+    schedule_description: Optional[str] = None
 
 
 class SystemStatusResponse(BaseModel):
@@ -71,17 +74,6 @@ class SystemStatusResponse(BaseModel):
     background_jobs: list[BackgroundJobStatus]
     tier: str = "free"
     sync_frequency: str = "2x_daily"
-
-
-# Static schedule descriptions for background jobs
-# ADR-141/153/156/164: task_executed events deleted — status sourced from
-# tasks.last_run_at + agent_runs. Only scheduler_heartbeat remains in activity_log.
-JOB_SCHEDULE_DESCRIPTIONS = {
-    "Workspace Cleanup": "Daily (back office task)",
-    "Agent Hygiene": "Daily (back office task)",
-    "Scheduler Heartbeat": "Hourly",
-}
-
 
 
 # =============================================================================
@@ -95,8 +87,7 @@ async def get_system_status(auth: UserClient):
 
     Returns:
     - Platform sync status per connected platform with per-resource detail
-    - Content accumulation counts
-    - Background job last-run status
+    - Scheduler heartbeat last-run
     """
     user_id = auth.user_id
     now = datetime.now(timezone.utc)
@@ -122,7 +113,7 @@ async def get_system_status(auth: UserClient):
     }
     hours_between = freshness_hours.get(sync_frequency, 12)
 
-    # ─── User Timezone (ADR-206: from /workspace/context/_shared/IDENTITY.md) ───
+    # ─── User Timezone ──────────────────────────────────────────────────────────
     user_tz_str = "UTC"
     try:
         from services.workspace import UserMemory
@@ -133,33 +124,30 @@ async def get_system_status(auth: UserClient):
     except Exception as e:
         logger.debug(f"Failed to fetch user timezone: {e}")
 
-    # ─── Platform Connections (status + landscape only; freshness from sync_registry) ──
+    # ─── Platform Connections ──────────────────────────────────────────────────
     platforms_result = auth.client.table("platform_connections").select(
         "platform, status, landscape"
     ).eq("user_id", user_id).execute()
     connection_rows = platforms_result.data or []
 
-    # ─── Sync Registry (single query, partition by platform) ───────────────────
+    # ─── Sync Registry ─────────────────────────────────────────────────────────
     registry_result = auth.client.table("sync_registry").select(
         "platform, resource_id, resource_name, last_synced_at, platform_cursor, item_count, last_error, last_error_at"
     ).eq("user_id", user_id).execute()
 
-    # Group by platform
     registry_by_platform: dict[str, list[dict]] = {}
     for row in (registry_result.data or []):
         p = row["platform"]
         registry_by_platform.setdefault(p, []).append(row)
 
-    # ─── Build Platform Connection Status ────────────────────────────────────────
+    # ─── Build Platform Connection Status ──────────────────────────────────────
     platform_sync = []
     all_platforms = ["slack", "notion"]  # ADR-131: Gmail/Calendar sunset
 
     def _get_active_connection(logical_platform: str) -> Optional[dict]:
-        candidates = (logical_platform,)
-        for candidate in candidates:
-            row = next((r for r in connection_rows if r.get("platform") == candidate), None)
-            if row and row.get("status") == "active":
-                return row
+        row = next((r for r in connection_rows if r.get("platform") == logical_platform), None)
+        if row and row.get("status") == "active":
+            return row
         return None
 
     for platform in all_platforms:
@@ -168,7 +156,6 @@ async def get_system_status(auth: UserClient):
             landscape = p_data.get("landscape", {}) or {}
             selected_sources = landscape.get("selected_sources", [])
 
-            # Build per-resource status from sync_registry
             registry_rows = registry_by_platform.get(platform, [])
             resources = []
             latest_sync_dt = None
@@ -203,7 +190,6 @@ async def get_system_status(auth: UserClient):
                     last_error_at=row.get("last_error_at"),
                 ))
 
-            # Derive platform-level status from resources
             if resources:
                 stale_count = sum(1 for r in resources if r.status == "stale")
                 never_count = sum(1 for r in resources if r.status == "never_synced")
@@ -214,11 +200,8 @@ async def get_system_status(auth: UserClient):
                 else:
                     platform_status = "healthy"
             else:
-                # No sync_registry entries — platform connected but never synced
                 platform_status = "pending"
 
-            # Compute last_synced_at and next_sync_at
-            # ADR-084: Use schedule-aware calculation instead of last_sync + hours
             last_synced_str = latest_sync_dt.isoformat() if latest_sync_dt else None
             next_sync = get_next_sync_time(sync_frequency, user_tz_str)
 
@@ -238,53 +221,11 @@ async def get_system_status(auth: UserClient):
                 status="disconnected",
             ))
 
-    # ─── Background Jobs Status ───────────────────────────────────────────────
-    # ADR-231 D2: back-office collapses to a single shared audit log at
-    # /workspace/_shared/back-office-audit.md. Status comes from tasks.last_run_at
-    # (the scheduling index, scheduler-maintained) + the latest audit-log entry
-    # for the slug. The per-task /tasks/{slug}/outputs/{date}/manifest.json layout
-    # was retired by ADR-231 D2; ALL back-office firings append to one audit file.
+    # ─── Scheduler Heartbeat ───────────────────────────────────────────────────
+    # The only background job surfaced here. All other back-office work runs as
+    # recurrences visible on /work?include_system=true (ADR-231, ADR-206).
     background_jobs = []
 
-    back_office_task_slugs = [
-        ("back-office-workspace-cleanup", "Workspace Cleanup"),
-        ("back-office-agent-hygiene", "Agent Hygiene"),
-    ]
-
-    # Read the shared audit log once and parse per-slug entries on demand.
-    audit_result = auth.client.table("workspace_files").select("content").eq(
-        "user_id", user_id
-    ).eq("path", "/workspace/_shared/back-office-audit.md").limit(1).execute()
-    audit_text = (audit_result.data or [{}])[0].get("content", "")
-
-    import re as _re
-    def _summary_for_slug(slug: str) -> Optional[str]:
-        # Match ## [<timestamp>] <slug> ... block, take the most recent one.
-        # The dispatcher writes entries with "## [{ts}] {slug}\n- Executor: ...\n- Summary: <text>".
-        pattern = rf"## \[[^\]]+\] {_re.escape(slug)}\n(?:- [^\n]+\n)*?- Summary:\s*([^\n]+)"
-        matches = _re.findall(pattern, audit_text)
-        return matches[-1].strip() if matches else None
-
-    for task_slug, label in back_office_task_slugs:
-        task_result = auth.client.table("tasks").select(
-            "id, last_run_at, status"
-        ).eq("user_id", user_id).eq("slug", task_slug).limit(1).execute()
-
-        task_row = (task_result.data or [None])[0]
-        if task_row and task_row.get("last_run_at"):
-            background_jobs.append(BackgroundJobStatus(
-                job_type=label,
-                last_run_at=task_row["last_run_at"],
-                last_run_status="success",
-                last_run_summary=_summary_for_slug(task_slug),
-            ))
-        elif task_row:
-            background_jobs.append(BackgroundJobStatus(
-                job_type=label,
-                last_run_status="never_run",
-            ))
-
-    # --- Scheduler heartbeat: still written to activity_log hourly ---
     hb_result = auth.client.table("activity_log").select(
         "id, summary, metadata, created_at"
     ).eq("user_id", user_id).eq(
@@ -300,19 +241,14 @@ async def get_system_status(auth: UserClient):
             last_run_status="success" if not hb_meta.get("error") else "failed",
             last_run_summary=hb.get("summary"),
             items_processed=hb_meta.get("items_processed", 0),
+            schedule_description="Hourly",
         ))
     else:
         background_jobs.append(BackgroundJobStatus(
             job_type="Scheduler Heartbeat",
             last_run_status="never_run",
+            schedule_description="Hourly",
         ))
-
-    # ADR-153: Sync schedule observability removed — no platform sync cron.
-    # Platform data flows through task execution now.
-
-    # Add schedule descriptions to background jobs
-    for job in background_jobs:
-        job.schedule_description = JOB_SCHEDULE_DESCRIPTIONS.get(job.job_type)
 
     return SystemStatusResponse(
         platform_sync=platform_sync,

@@ -84,7 +84,7 @@ export default function SystemDiagnosticPage() {
               /work
             </Link>{' '}
             by default. Materializes on trigger — proposal-cleanup on first proposal,
-            outcome-reconciliation on platform connect, agent-hygiene at run threshold.
+            outcome-reconciliation on platform connect.
           </p>
         </div>
         <button
@@ -111,8 +111,7 @@ export default function SystemDiagnosticPage() {
             No back-office recurrences have materialized yet.
           </p>
           <p className="mt-1 text-xs text-muted-foreground/70">
-            They'll appear as triggers fire: first proposal, first platform connect, or
-            when user-authored agents accumulate runs.
+            They'll appear as triggers fire: first proposal, first platform connect.
           </p>
         </div>
       ) : (
