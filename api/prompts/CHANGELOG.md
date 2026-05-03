@@ -6,6 +6,34 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.04.2] - ReadFile path normalization + compact-index-first prompt discipline
+
+Two fixes for the file-not-found + re-read loops observed in production logs.
+
+### Changed
+
+- `api/services/primitives/workspace.py` — `handle_read_file`: normalize path before
+  passing to UserMemory.read(). UserMemory prepends `/workspace/` itself; when the model
+  passes `/workspace/context/_shared/MANDATE.md` or `workspace/context/_shared/MANDATE.md`
+  the result was `/workspace/workspace/...` — not found. Now strips `/workspace/` and
+  `workspace/` prefixes before the read so all three input shapes work correctly.
+
+- `api/agents/prompts/tools_core.py` — new "Compact Index First" section:
+  - Explicit rule: check compact index before calling ReadFile for MANDATE/AUTONOMY/principles
+  - Named files that are already summarised (should NOT trigger ReadFile)
+  - ReadFile path convention block: always `/workspace/` prefix, ✓/✗ examples
+  - Pruning stub section: "~3 rounds" → "~6 rounds" (matches raised keep_recent=6)
+  - ReadFile examples updated: removed MANDATE.md (compact index covers it), added
+    _operator_profile.md and _risk.md (these legitimately need full ReadFile)
+
+### Expected behavior
+
+- Model no longer gets "File not found" for correctly-authored files (path prefix bug fixed)
+- Model reads MANDATE/AUTONOMY/principles from compact index one-liners, not ReadFile
+- Model uses correct absolute paths (`/workspace/...`) when ReadFile IS needed
+
+---
+
 ## [2026.05.04.1] - Compact index surfaces autonomy level, mandate summary, principles status
 
 Eliminates the most common unnecessary ReadFile calls in operational sessions.

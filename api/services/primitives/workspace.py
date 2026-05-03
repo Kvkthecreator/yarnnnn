@@ -363,6 +363,16 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
     scope = input.get("scope") or _default_file_scope(auth)
 
     if scope == "workspace":
+        # Normalize path: UserMemory.read() expects a workspace-relative path
+        # (e.g. "context/_shared/MANDATE.md") and prepends "/workspace/" itself.
+        # The model sometimes passes the full absolute path ("/workspace/context/...")
+        # or the path with a leading "workspace/" — strip both so we don't get
+        # /workspace/workspace/... double-prefix.
+        if path.startswith("/workspace/"):
+            path = path[len("/workspace/"):]
+        elif path.startswith("workspace/"):
+            path = path[len("workspace/"):]
+
         um = UserMemory(auth.client, auth.user_id)
         content = await um.read(path)
         if content is None:

@@ -12,18 +12,40 @@ ADR-176: Work-first agent model.
 
 TOOLS_CORE = """---
 
+## Compact Index First — Read Files Only for Detail
+
+Your compact index (the `## Workspace Index` section above) already carries the
+operational state of the workspace. **Check the compact index before calling ReadFile.**
+
+Specifically — do NOT call ReadFile for these files when the compact index already
+surfaces their content:
+- **MANDATE.md** — the `- Mandate: ...` line in the Intent section IS the primary
+  action. If you need the full mandate, read it once. If the one-liner is enough, act.
+- **AUTONOMY.md** — the `- Autonomy level: ...` line tells you the delegation level
+  and ceiling. Do not re-read AUTONOMY.md to confirm what you already see.
+- **principles.md** — the `- Reviewer principles: authored` line tells you the
+  framework exists. The Reviewer reads this file; you don't need to.
+
+**Rule:** if the compact index answers the question, act on it. ReadFile is for
+detail beyond what the index provides, not for confirming what it already says.
+
+## ReadFile Path Convention
+
+Always use **absolute workspace paths** starting with `/workspace/`:
+- ✓ `ReadFile(path="/workspace/context/_shared/MANDATE.md")`
+- ✓ `ReadFile(path="/workspace/context/trading/_operator_profile.md")`
+- ✗ `ReadFile(path="workspace/context/_shared/MANDATE.md")` — missing leading slash
+
 ## Tool Result Pruning (read this before re-calling)
 
-After ~3 tool rounds, older tool results in your context window are replaced
-with a stub: *"[Prior tool succeeded — content pruned from window to save
-tokens. Trust your earlier reasoning; do NOT re-call the same tool to recover
-this data.]"*
+After ~6 tool rounds, older tool results in your context window are replaced
+with a stub: *"[Prior tool result pruned — content was read successfully.
+Trust your earlier reasoning. Do NOT re-call this tool...]"*
 
 This is a **success indicator, not a failure**. The tool returned data; the
-data was used to inform your reasoning in that round; the raw payload was
-pruned to keep your window economical. Re-calling the same tool will return
-the same data and trigger the same pruning — wasted round, wasted tokens, no
-new information.
+data informed your reasoning; the raw payload was pruned to keep the window
+economical. Re-calling will return the same data and trigger the same pruning —
+wasted round, wasted tokens, no new information.
 
 When you see this stub: keep going from the synthesis you already produced.
 If you genuinely need fresh data (e.g. position prices may have moved since a
@@ -61,10 +83,13 @@ You have direct read/write/search/list reach into the workspace filesystem.
 Same vocabulary you'd use in Claude Code or Cowork — substrate is files, files
 are reachable.
 
-**ReadFile(path)** — Read a single file by absolute workspace path.
+**ReadFile(path)** — Read a single file by absolute workspace path (always starts with `/workspace/`).
+- `ReadFile(path="/workspace/context/trading/_operator_profile.md")` — operator signal declarations
+- `ReadFile(path="/workspace/context/trading/_risk.md")` — risk rules
 - `ReadFile(path="/workspace/context/competitors/landscape.md")` — domain synthesis
-- `ReadFile(path="/workspace/context/_shared/MANDATE.md")` — operator mandate
 - `ReadFile(path="/workspace/reports/weekly-brief/2026-04-22/output.md")` — prior report
+- **Note**: MANDATE.md, AUTONOMY.md, and principles.md are already summarised in your compact
+  index — read them only when you need detail beyond the one-liner summary.
 
 **WriteFile(path, content, summary?, ...)** — Write a workspace file. Goes
 through the Authored Substrate (ADR-209) — every write attributed and retained.
