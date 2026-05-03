@@ -1,6 +1,6 @@
 # ADR-248: Periodic Reviewer Pulse — Autonomy Loop Closure
 
-> **Status**: Proposed
+> **Status**: **Implemented** (2026-05-03, Commits 1–4)
 > **Date**: 2026-05-03
 > **Authors**: KVK, Claude
 > **Builds on**: ADR-247 (three-party narrative model), ADR-218 (reviewer reflection), ADR-211 (reviewer calibration), ADR-194 v2 (Reviewer substrate), ADR-217 (AUTONOMY.md authorship), ADR-209 (Authored Substrate write path)

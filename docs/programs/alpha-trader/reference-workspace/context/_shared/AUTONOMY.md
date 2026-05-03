@@ -24,6 +24,26 @@ trading-execute:
 - **Phase 2 (Live Float)**: AUTONOMY flips trading-execute to `manual_operator` for live orders, regardless of paper-account autonomy.
 - **Phase 3 (Calibrated Autonomy)**: operator-authored thresholds for selective auto-approval, e.g., reversible orders below $X notional may auto-approve when expectancy data justifies.
 
+## Reviewer-written pause fields (ADR-248 D3)
+
+The Reviewer's periodic reflection can write two optional fields to the `default:` block when it detects structural drift (consistent capital loss, win rate below defensible threshold):
+
+```yaml
+default:
+  level: bounded_autonomous
+  ceiling_cents: 150000
+  paused_until: "2026-05-10T00:00:00Z"   # ISO-8601 UTC — Reviewer-written
+  pause_reason: "Win rate dropped below 35% over 7d. Reviewer auto-paused."
+```
+
+**When set**: `should_auto_execute_verdict()` routes all proposals to the operator Queue until `paused_until` expires — regardless of delegation level.
+
+**When expired**: the fields are silently ignored on the next evaluation. Autonomy resumes automatically. No second write needed.
+
+**Operator override**: remove `paused_until` via YARNNN chat at any time (`WriteFile scope=workspace path=context/_shared/AUTONOMY.md`).
+
+The operator always retains authority over this file. The Reviewer's pause is advisory-with-teeth (it gates execution) but the operator can lift it instantly.
+
 ## What AUTONOMY does NOT do
 
 - Does not declare operator preferences or values (those live in `IDENTITY.md` + `MANDATE.md`).
