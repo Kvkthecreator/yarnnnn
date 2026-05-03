@@ -144,29 +144,31 @@ personas:
         - /workspace/review/principles.md
       risk_md_path: /workspace/context/trading/_risk.md
 
-  - slug: alpha-commerce
-    label: "KVK personal alpha-trader workspace (trades with KVK's own Alpaca account)"
-    program: alpha-trader   # ADR-230 D1: kvk runs alpha-trader program on personal workspace
+  - slug: kvk
+    label: "KVK personal alpha-trader workspace (kvkthecreator@gmail.com)"
+    program: alpha-trader
     email: kvkthecreator@gmail.com
     user_id: 2abf3f96-118b-4987-9d95-40f2d9be9a18
     workspace_id: ff92352e-5b8a-4ba3-9a8c-eb93540df542
     platform:
-      kind: commerce
-      provider: lemonsqueezy
-      store_name: KVKtheCreator
+      kind: trading
+      provider: alpaca
+      mode: paper
+      account_suffix: ""   # update once Alpaca connected
     context_domains:
-      - customers
-      - revenue
+      - trading
+      - portfolio
       - signals
     credentials_env:
-      api_key: ALPHA_COMMERCE_LEMONSQUEEZY_KEY
-    vault_entry: "1Password > YARNNN Alpha-1 > alpha-commerce.lemonsqueezy"
+      api_key:    KVK_ALPACA_KEY
+      api_secret: KVK_ALPACA_SECRET
+    vault_entry: "1Password > YARNNN Alpha-1 > kvk.alpaca-paper"
     expected:
-      # Live-DB note (2026-04-30): kvk runs alpha-trader program on personal workspace.
-      # activate_persona.py --persona alpha-commerce --skip-connect forks the
-      # alpha-trader reference-workspace into this workspace.
-      agent_count: 4
-      active_roles: [thinking_partner, tracker, analyst, writer]
+      # Post-ADR-205: only YARNNN scaffolds at init; tracker/analyst/writer
+      # lazy-create on first dispatch. agent_count=1 post-reset, grows to 4
+      # after first run. verify.py checks will pass once first task fires.
+      agent_count: 1
+      active_roles: [thinking_partner]
       scaffolded_recurrences:
         - track-universe
         - signal-evaluation
@@ -174,14 +176,14 @@ personas:
         - trade-proposal
         - weekly-performance-review
         - quarterly-signal-audit
-        - back-office-narrative-digest         # /workspace/_shared/back-office.yaml (ADR-248)
+        - back-office-narrative-digest
         - back-office-outcome-reconciliation
         - back-office-proposal-cleanup
         - back-office-reviewer-calibration
         - back-office-reviewer-reflection
       platform_connections: 1
       core_files:
-        - /workspace/_shared/back-office.yaml   # ADR-248: forked from bundle at activation
+        - /workspace/_shared/back-office.yaml
         - /workspace/context/_shared/IDENTITY.md
         - /workspace/context/_shared/MANDATE.md
         - /workspace/context/_shared/AUTONOMY.md
