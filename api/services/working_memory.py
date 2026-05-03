@@ -293,8 +293,8 @@ def _classify_activation_state(
         Workspace runs normally; no activation overlay.
 
     Uses bundle_reader.bundles_active_for_workspace per ADR-224 §3
-    capability-implicit activation. Skeleton detection mirrors the logic
-    in workspace_init._is_skeleton_content.
+    capability-implicit activation. Skeleton detection via
+    services.workspace_utils.is_skeleton_content (single implementation).
     """
     try:
         from services.bundle_reader import bundles_active_for_workspace
@@ -307,20 +307,8 @@ def _classify_activation_state(
         return "none"
 
     # Bundle is active for this workspace. Now classify MANDATE.md.
-    mandate = (mandate_content or "").strip()
-    if not mandate:
-        return "post_fork_pre_author"
-    # Heuristic skeleton detection — same shape as workspace_init's logic.
-    # Kernel-default mandate placeholder + bundle template "author here"
-    # both contain "not yet declared" or are short.
-    if "not yet declared" in mandate.lower() and len(mandate) < 800:
-        return "post_fork_pre_author"
-    # Bundle template MANDATE.md (alpha-trader's reference) opens with
-    # "# Mandate — alpha-trader (template)" and contains author-prompt
-    # markers like "Author here:" — detect those as skeleton.
-    if "(template)" in mandate.split("\n", 1)[0].lower():
-        return "post_fork_pre_author"
-    if "author here:" in mandate.lower() or "_<not yet" in mandate.lower():
+    from services.workspace_utils import is_skeleton_content
+    if is_skeleton_content(mandate_content):
         return "post_fork_pre_author"
 
     return "operational"

@@ -1,20 +1,21 @@
-"""Programs service helpers — shared utilities for program lifecycle.
+"""Programs service helpers — program lifecycle + bundle fork.
 
-ADR-244: this module hosts logic shared between `routes/workspace.py`
-(workspace state endpoint), `routes/programs.py` (activate/deactivate),
-and `routes/account.py` (purge program preservation).
+ADR-244: parse_active_program_slug / strip_program_marker_from_mandate are shared
+between routes/workspace.py (workspace state), routes/programs.py (activate/deactivate),
+and routes/account.py (purge program preservation).
 
-Functions here are pure: they read existing substrate (MANDATE.md heading
-marker) and parse it. Substrate writes happen at the call site through
-`UserMemory.write` so revision attribution stays at the operator's seat
-per ADR-209.
+ADR-226: _fork_reference_workspace + helpers relocated here 2026-05-03 from
+workspace_init.py. The fork is program-bundle logic, not initialization logic.
+routes/programs.py and workspace_init.py both call fork_reference_workspace()
+from here. Single implementation.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -103,3 +104,152 @@ def strip_program_marker_from_mandate(mandate_content: str) -> str:
         break
 
     return "".join(lines)
+
+
+# =============================================================================
+# ADR-226: Reference-workspace fork (relocated from workspace_init.py 2026-05-03)
+# =============================================================================
+
+
+def _bundle_root_dir(program_slug: str) -> Path:
+    """Resolve docs/programs/{slug}/reference-workspace/ from repo root."""
+    return (
+        Path(__file__).resolve().parent.parent.parent
+        / "docs"
+        / "programs"
+        / program_slug
+        / "reference-workspace"
+    )
+
+
+def _strip_tier_frontmatter(text: str) -> tuple[str, dict[str, Any]]:
+    """Parse YAML frontmatter (if present) from a reference-workspace file.
+
+    Per ADR-223 §5: tier metadata (tier:, prompt:, note:, optional:) is
+    bundle-only — stripped before the file is written to operator's /workspace/.
+    Returns (body_without_frontmatter, metadata_dict).
+    """
+    if not text.startswith("---\n"):
+        return text, {}
+    end_marker = text.find("\n---\n", 4)
+    if end_marker < 0:
+        return text, {}
+    fm_text = text[4:end_marker]
+    body = text[end_marker + 5:]
+    metadata: dict[str, Any] = {}
+    try:
+        import yaml as _yaml
+        parsed = _yaml.safe_load(fm_text)
+        if isinstance(parsed, dict):
+            metadata = parsed
+    except Exception:
+        pass
+    if body.startswith("\n"):
+        body = body[1:]
+    return body, metadata
+
+
+async def fork_reference_workspace(
+    client: Any, user_id: str, program_slug: str
+) -> dict[str, Any]:
+    """Copy bundle's reference-workspace/ into operator's /workspace/.
+
+    Per ADR-226: honors ADR-223 §5 three-tier file categorization:
+      - canon: re-applied on every fork (operator edits preserved as prior
+        revisions per ADR-209; no-op when content already matches).
+      - authored: only applied if operator's file is still skeleton.
+      - placeholder: only written on first fork; never overwritten.
+
+    Written through UserMemory.write → authored_substrate.write_revision
+    with authored_by="system:bundle-fork".
+
+    Returns {"files_written": [...], "files_skipped": [...], "program_slug": slug}.
+    """
+    from services.workspace import UserMemory
+    from services.bundle_reader import _load_manifest
+    from services.workspace_utils import is_skeleton_content
+
+    bundle_root = _bundle_root_dir(program_slug)
+    if not bundle_root.is_dir():
+        raise ValueError(
+            f"Bundle reference-workspace not found: {bundle_root}. "
+            f"Bundle '{program_slug}' may not exist or may not have a "
+            f"reference-workspace/ directory."
+        )
+
+    manifest = _load_manifest(program_slug)
+    if not manifest:
+        raise ValueError(f"Bundle '{program_slug}' has no MANIFEST.yaml.")
+    if manifest.get("status") not in ("active", "deferred"):
+        raise ValueError(
+            f"Bundle '{program_slug}' has status='{manifest.get('status')}'; "
+            f"only active or deferred bundles can be forked."
+        )
+
+    um = UserMemory(client, user_id)
+    files_written: list[str] = []
+    files_skipped: list[str] = []
+
+    bundle_files = sorted(
+        list(bundle_root.rglob("*.md")) + list(bundle_root.rglob("*.yaml"))
+    )
+    for src_path in bundle_files:
+        if src_path.name == "README.md" and src_path.parent == bundle_root:
+            continue
+
+        relative = src_path.relative_to(bundle_root).as_posix()
+        target_path = relative
+
+        try:
+            raw = src_path.read_text(encoding="utf-8")
+        except Exception as exc:
+            logger.warning(f"[FORK] Failed to read {src_path}: {exc}")
+            continue
+
+        if src_path.suffix == ".yaml":
+            body = raw
+            tier = "canon"
+        else:
+            body, meta = _strip_tier_frontmatter(raw)
+            tier = (meta.get("tier") or "placeholder").lower()
+            if tier not in ("canon", "authored", "placeholder"):
+                logger.warning(f"[FORK] Unknown tier '{tier}' for {src_path}; defaulting to placeholder")
+                tier = "placeholder"
+
+        existing = await um.read(target_path)
+        should_write = False
+        if existing is None:
+            should_write = True
+        elif tier == "canon":
+            should_write = existing.strip() != body.strip()
+        elif tier == "authored":
+            should_write = (
+                is_skeleton_content(existing, bundle_body=body)
+                and existing.strip() != body.strip()
+            )
+        elif tier == "placeholder":
+            should_write = False
+
+        if should_write:
+            await um.write(
+                target_path,
+                body,
+                summary=f"Forked from {program_slug} bundle (tier={tier})",
+                authored_by="system:bundle-fork",
+                message=(
+                    f"ADR-226: forked {src_path.name} from "
+                    f"docs/programs/{program_slug}/reference-workspace/ "
+                    f"(tier={tier})"
+                ),
+            )
+            files_written.append(target_path)
+            logger.info(f"[FORK] {target_path} (tier={tier}) ← {program_slug}/reference-workspace/{relative}")
+        else:
+            files_skipped.append(target_path)
+            logger.info(f"[FORK] {target_path} (tier={tier}) — skipped (operator-authored or no-op)")
+
+    return {
+        "files_written": files_written,
+        "files_skipped": files_skipped,
+        "program_slug": program_slug,
+    }

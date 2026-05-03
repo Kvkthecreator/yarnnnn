@@ -785,75 +785,15 @@ DEFAULT_AWARENESS_MD = """\
 """
 
 
-DEFAULT_CONVENTIONS_MD = """\
-# Workspace Conventions
-
-ADR-174: Structural rules for the workspace filesystem. Agents follow these
-conventions to produce consistent, searchable file structure. TP extends this
-document when new workspace-wide conventions are established.
-
-Extension discipline: append to existing sections or add new ### sections.
-Do not rename or remove existing sections. New sections use structured bullets,
-not prose paragraphs.
-
----
-
-### Directory Layout
-
-- `/workspace/context/{domain}/{entity-slug}/` — entity-specific files for a context domain
-- `/workspace/context/{domain}/landscape.md` — cross-entity synthesis for a domain (overwrite each run)
-- `/workspace/context/signals/` — temporal signal log, cross-domain (append newest-first)
-- `/workspace/uploads/` — user-contributed files (never modified by agents)
-- `/tasks/{slug}/outputs/latest/` — current best task output (overwrite)
-- `/tasks/{slug}/outputs/{datetime}/` — dated output snapshot (preserved)
-- `/tasks/{slug}/memory/` — task working memory (agent-managed)
-- `/agents/{slug}/` — agent identity (AGENT.md) and memory
-- `/workspace/context/_shared/IDENTITY.md` — who the user is (ADR-206)
-- `/workspace/context/_shared/BRAND.md` — visual style and voice (ADR-206)
-- `/workspace/memory/awareness.md` — YARNNN shift notes across sessions (ADR-206)
-
-### Entity File Conventions
-
-- Each entity gets its own subfolder: `{domain}/{entity-slug}/`
-- Standard files per entity: `profile.md`, `signals.md` (domain-specific variants documented by registry)
-- Naming: lowercase hyphen-separated slugs — e.g., `openai/`, `acme-corp/`
-- Assets: `{domain}/assets/{entity-slug}-{asset-type}.png` — favicons, charts, images
-
-### Write Modes
-
-- `profile.md`, `product.md`, `strategy.md` — **overwrite**: keep current best version, no append
-- `signals.md`, `latest.md`, log files — **append newest-first**: preserve dated history
-- `landscape.md`, `_synthesis.md` — **overwrite**: full rewrite each cycle, synthesize all entities
-- `outputs/latest/output.md` — **overwrite**: current best output
-- `outputs/{datetime}/` — **preserve**: dated snapshots are never modified
-
-### Creating New Context Domains
-
-- If work requires a domain that does not exist, create it — no registry approval needed
-- Name like existing domains: lowercase, plural noun (e.g., `customers/`, `investors/`, `campaigns/`)
-- First file to create: `{domain}/landscape.md` describing what the domain tracks
-- New domain appears in TP's workspace index automatically once it contains files
-
-### page_structure Format (for TP-authored produces_deliverable tasks)
-
-Declare as a top-level `## Page Structure` section in TASK.md containing a YAML list:
-
-```yaml
-- id: section-slug
-  title: "Section Title"
-  kind: narrative          # narrative | metric-cards | entity-grid | comparison-table | trend-chart | callout
-  source_domains:
-    - competitors
-    - market
-  asset_type: chart        # optional: chart | image | mermaid
-```
-
-Section kinds: `narrative`, `metric-cards`, `entity-grid`, `comparison-table`, `trend-chart`,
-`distribution-chart`, `timeline`, `status-matrix`, `data-table`, `callout`, `checklist`
-
-The compose pipeline reads `page_structure` from TASK.md first, task type registry as fallback.
-For ManageTask(action="create") custom tasks, pass `page_structure` as a list of dicts directly.
-"""
+# DEFAULT_CONVENTIONS_MD DELETED (workspace-init refactor 2026-05-03).
+# CONVENTIONS.md is program-scoped, not kernel-scoped. The kernel default was stale
+# (referenced deleted /tasks/{slug}/ paths pre-ADR-231) and was never read by
+# working_memory, the compact index, or any automatic context injection.
+# Program bundles that need CONVENTIONS.md (e.g. alpha-trader) fork it via
+# reference-workspace/ with tier:canon. Generic workspaces do not get a
+# CONVENTIONS.md skeleton — the headless base prompt carries a compact inline
+# summary and the full docs/architecture/workspace-conventions.md is the
+# authoritative reference. See SHARED_CONTEXT_FILES in workspace_paths.py.
 
 
 # =============================================================================

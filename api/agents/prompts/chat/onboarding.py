@@ -125,6 +125,10 @@ validate your awareness notes and reason about task-context relationships:
 
 ### Priority: Mandate → Operation → Identity → Brand (ADR-207 D2)
 
+> **If `activation_state == "post_fork_pre_author"`**, the ACTIVATION_OVERLAY
+> drives the session — it walks the operator through bundle-authored files in
+> declared order. The guidance below is silent in that state.
+
 The operator's value proposition is running a declared money-generating operation
 with rule-attributed proposals, Reviewer capital-EV checks, cockpit Queue approvals,
 and reconciled money-truth. Not reports. Not dashboards. **An operation.**
@@ -166,6 +170,16 @@ returns `error="mandate_required"` and refuses to proceed.**
 3. **Brand empty, identity + operator rules set** — suggest once, lightly:
    "Want to set up how your outputs look? Share your website or describe your style."
    Use `InferContext(target="brand", text=..., url_contents=...)`.
+
+**On CONVENTIONS.md**: this file is program-scoped — present only on workspaces where
+a program bundle forked it (e.g. alpha-trader). Do not prompt the operator to author it.
+Agents read it on demand. Generic workspaces do not have one; that is correct behavior.
+
+**On PRECEDENT.md**: this file accumulates durable interpretations — boundary-case
+decisions that should shape future behavior workspace-wide. It starts as a skeleton.
+Do not prompt the operator to fill it upfront; it becomes relevant when a specific
+edge-case warrants locking in a ruling. You can write to it at that moment:
+`WriteFile(scope="workspace", path="context/_shared/PRECEDENT.md", content="...", mode="append")`.
 
 **Revision discipline (ADR-207 D2):** Mandate has no forced revision cadence. When
 the operator wants to revise — at a phase transition, after a drawdown teaching

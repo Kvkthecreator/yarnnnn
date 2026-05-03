@@ -29,7 +29,7 @@ if str(_API_ROOT) not in sys.path:
 
 
 def test_strip_frontmatter_with_no_frontmatter_returns_unchanged():
-    from services.workspace_init import _strip_tier_frontmatter
+    from services.programs import _strip_tier_frontmatter
     raw = "# Mandate\n\nSome body content.\n"
     body, meta = _strip_tier_frontmatter(raw)
     assert body == raw
@@ -37,7 +37,7 @@ def test_strip_frontmatter_with_no_frontmatter_returns_unchanged():
 
 
 def test_strip_frontmatter_extracts_tier_and_strips_block():
-    from services.workspace_init import _strip_tier_frontmatter
+    from services.programs import _strip_tier_frontmatter
     raw = (
         "---\n"
         "tier: authored\n"
@@ -58,7 +58,7 @@ def test_strip_frontmatter_extracts_tier_and_strips_block():
 
 
 def test_strip_frontmatter_handles_canon_tier():
-    from services.workspace_init import _strip_tier_frontmatter
+    from services.programs import _strip_tier_frontmatter
     raw = (
         "---\n"
         "tier: canon\n"
@@ -74,7 +74,7 @@ def test_strip_frontmatter_handles_canon_tier():
 
 
 def test_strip_frontmatter_handles_optional_field():
-    from services.workspace_init import _strip_tier_frontmatter
+    from services.programs import _strip_tier_frontmatter
     raw = (
         "---\n"
         "tier: authored\n"
@@ -91,7 +91,7 @@ def test_strip_frontmatter_handles_optional_field():
 
 
 def test_strip_frontmatter_malformed_returns_text_unchanged():
-    from services.workspace_init import _strip_tier_frontmatter
+    from services.programs import _strip_tier_frontmatter
     # Opens frontmatter but never closes — treat as no frontmatter
     raw = "---\ntier: canon\n# No closing fence\n\n# Body\n"
     body, meta = _strip_tier_frontmatter(raw)
@@ -106,13 +106,13 @@ def test_strip_frontmatter_malformed_returns_text_unchanged():
 
 
 def test_skeleton_detection_empty_content_is_skeleton():
-    from services.workspace_init import _is_skeleton_content
+    from services.workspace_utils import is_skeleton_content as _is_skeleton_content
     assert _is_skeleton_content("", "# bundle template") is True
     assert _is_skeleton_content("   ", "# bundle template") is True
 
 
 def test_skeleton_detection_matches_bundle_body():
-    from services.workspace_init import _is_skeleton_content
+    from services.workspace_utils import is_skeleton_content as _is_skeleton_content
     body = "# Mandate (template)\nAuthor here:\n"
     assert _is_skeleton_content(body, body) is True
     # Whitespace-only difference still counts as skeleton
@@ -120,7 +120,7 @@ def test_skeleton_detection_matches_bundle_body():
 
 
 def test_skeleton_detection_kernel_default_is_skeleton():
-    from services.workspace_init import _is_skeleton_content
+    from services.workspace_utils import is_skeleton_content as _is_skeleton_content
     kernel_default = (
         "# Mandate\n\n"
         "## Primary Action\n"
@@ -133,7 +133,7 @@ def test_skeleton_detection_kernel_default_is_skeleton():
 
 
 def test_skeleton_detection_authored_content_is_not_skeleton():
-    from services.workspace_init import _is_skeleton_content
+    from services.workspace_utils import is_skeleton_content as _is_skeleton_content
     operator_authored = (
         "# Mandate\n\n"
         "## Primary Action\n"
@@ -151,7 +151,7 @@ def test_skeleton_detection_kernel_default_identity_with_browser_tz_is_skeleton(
     """ADR-226 implementation refinement: kernel-default IDENTITY.md is short
     and lacks H2 sections, even after browser-tz inflation. Must be detected
     as skeleton so the bundle's IDENTITY template overwrites at fork time."""
-    from services.workspace_init import _is_skeleton_content
+    from services.workspace_utils import is_skeleton_content as _is_skeleton_content
     kernel_with_tz = "# About Me\n\ntimezone: Asia/Seoul\n"
     bundle_identity = (
         "# Identity (template)\n\n"
@@ -167,7 +167,7 @@ def test_skeleton_detection_kernel_default_identity_with_browser_tz_is_skeleton(
 def test_skeleton_detection_short_with_h2_is_authored():
     """Short content with at least one H2 section is treated as
     operator-authored (sparse but substantive)."""
-    from services.workspace_init import _is_skeleton_content
+    from services.workspace_utils import is_skeleton_content as _is_skeleton_content
     short_authored = (
         "# Identity\n\n"
         "## Posture\n"
@@ -182,7 +182,7 @@ def test_skeleton_detection_kernel_default_reviewer_principles_is_skeleton():
     (DEFAULT_REVIEW_PRINCIPLES_MD) is longer than typical skeletons but still
     represents pre-activation state. Detected via signature phrase so the
     bundle's program-specific principles template wins at activation time."""
-    from services.workspace_init import _is_skeleton_content
+    from services.workspace_utils import is_skeleton_content as _is_skeleton_content
     kernel_principles = (
         "# Review — Principles\n\n"
         "This is the declared review framework for this workspace. **You can\n"
@@ -330,7 +330,7 @@ def test_alpha_trader_reference_workspace_files_have_valid_tier_frontmatter():
     """Every alpha-trader reference-workspace/*.md file must declare
     `tier:` per ADR-223 §5 amendment. Validates the bundle is real."""
     from pathlib import Path
-    from services.workspace_init import _strip_tier_frontmatter
+    from services.programs import _strip_tier_frontmatter
 
     bundle_root = (
         Path(__file__).resolve().parent.parent
@@ -361,7 +361,7 @@ def test_alpha_trader_authored_files_carry_prompts():
     field — that's the question YARNNN surfaces during the activation
     conversation."""
     from pathlib import Path
-    from services.workspace_init import _strip_tier_frontmatter
+    from services.programs import _strip_tier_frontmatter
 
     bundle_root = (
         Path(__file__).resolve().parent.parent

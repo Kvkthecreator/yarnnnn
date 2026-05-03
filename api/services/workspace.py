@@ -648,7 +648,7 @@ class UserMemory:
     - /workspace/context/_shared/MANDATE.md     — what the workspace is running
     - /workspace/context/_shared/IDENTITY.md    — who you are (name, role, company, timezone, summary)
     - /workspace/context/_shared/BRAND.md       — how outputs look and sound
-    - /workspace/context/_shared/CONVENTIONS.md — workspace filesystem rules (agent-readable)
+    - /workspace/context/_shared/CONVENTIONS.md — program-specific behavioral rules (program-scoped; only present when a bundle forks it)
     - /workspace/context/_shared/AUTONOMY.md    — delegation ceiling for AI judgment
     - /workspace/context/_shared/PRECEDENT.md   — durable interpretations and boundary cases
 
@@ -723,9 +723,10 @@ class UserMemory:
 
         UserMemory spans two content classes with different typical authors:
           - /workspace/context/_shared/* — authored shared context
-            (IDENTITY.md, BRAND.md, CONVENTIONS.md). Typical author:
-            `operator` (via route handlers) or `yarnnn:<model>` (via
-            inference primitives).
+            (IDENTITY.md, BRAND.md, MANDATE.md, AUTONOMY.md, PRECEDENT.md,
+            and CONVENTIONS.md when present on program workspaces). Typical
+            author: `operator` (via route handlers) or `yarnnn:<model>`
+            (via inference primitives).
           - /workspace/memory/* — YARNNN working memory (awareness, notes,
             conversation summary, style distillation). Typical author:
             `yarnnn:<model>` or `system:*`.

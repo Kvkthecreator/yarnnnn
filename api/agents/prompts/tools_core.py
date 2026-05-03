@@ -84,7 +84,7 @@ through the Authored Substrate (ADR-209) — every write attributed and retained
 **Path conventions — where chat reads/writes vs. where it doesn't:**
 
 Chat reaches these natural-home substrate paths directly:
-- `/workspace/context/_shared/` — operator-authored shared context (MANDATE, IDENTITY, BRAND, AUTONOMY, PRECEDENT, CONVENTIONS)
+- `/workspace/context/_shared/` — operator-authored shared context (MANDATE, IDENTITY, BRAND, AUTONOMY, PRECEDENT; CONVENTIONS.md present only on program workspaces)
 - `/workspace/context/{domain}/` — accumulated domain entities (competitors, customers, trading, etc.)
 - `/workspace/memory/` — YARNNN's working notes (awareness, conversation summary, recent.md)
 - `/workspace/reports/{slug}/{date}/` — recurring deliverable outputs (read prior, don't write)

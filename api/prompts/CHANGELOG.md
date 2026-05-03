@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.03.1] - Workspace-init refactor — CONVENTIONS scope clarification + PRECEDENT guidance
+
+Workspace-init refactor 2026-05-03. Prompt changes to align with new substrate reality.
+
+### Changed
+
+- `api/agents/prompts/headless/base.py` — CONVENTIONS.md pointer now conditional:
+  "Program-specific conventions (if present): ReadFile(...) — only exists on program workspaces; skip if absent."
+  Previously stated as a definite read, which was wrong for generic workspaces.
+- `api/agents/prompts/tools_core.py` — shared context directory listing updated to note CONVENTIONS.md
+  is program-scoped, not universally present.
+- `api/agents/prompts/chat/activation.py` — canon file list updated: CONVENTIONS.md listed as
+  "when the bundle includes it" rather than implied always-present.
+- `api/agents/prompts/chat/onboarding.py` — three additions:
+  (1) Activation overlay note at top of Priority section: when `activation_state == "post_fork_pre_author"`,
+  ACTIVATION_OVERLAY drives; the Mandate-first guidance is silent.
+  (2) CONVENTIONS.md clarification: program-scoped, do not prompt operator to author.
+  (3) PRECEDENT.md guidance: skeleton at signup, accumulates on edge cases, write with
+  WriteFile(scope="workspace", path="context/_shared/PRECEDENT.md", mode="append").
+
+### Expected behavior
+
+- Headless agents on generic workspaces no longer attempt ReadFile on CONVENTIONS.md (it won't exist).
+- YARNNN does not prompt operators to fill in CONVENTIONS.md during onboarding.
+- YARNNN knows PRECEDENT.md exists and when to use it (boundary-case lockdown).
+- On program workspaces where the bundle forked CONVENTIONS.md, agents still read it — the pointer is conditional, not deleted.
+
+---
+
 ## [2026.05.01.4] - ADR-246 TP meta-awareness — surface substrate richness + Workspace tab
 
 ADR-246 makes TP aware of (a) per-file substrate richness for MANDATE / AUTONOMY / Reviewer principles, (b) capability gaps for the active program, (c) the existence and purpose of the `Settings → Workspace` surface introduced by ADR-244. Pure prompt-layer + working-memory extension; no new endpoints, primitives, or schema.

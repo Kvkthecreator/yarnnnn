@@ -2188,7 +2188,7 @@ async def connect_commerce(
     # ADR-218: reviewer-reflection rides alongside — outcomes-producing
     # platforms give the persona substrate to reflect on.
     try:
-        from services.workspace_init import materialize_back_office_task
+        from services.back_office import materialize_back_office_task
         await materialize_back_office_task(
             service_client, user_id,
             type_key="back-office-outcome-reconciliation",
@@ -2499,7 +2499,7 @@ async def connect_trading(
     # ADR-218: reviewer-reflection rides alongside — persona reflects on
     # its own track record against real outcomes.
     try:
-        from services.workspace_init import materialize_back_office_task
+        from services.back_office import materialize_back_office_task
         await materialize_back_office_task(
             service_client, user_id,
             type_key="back-office-outcome-reconciliation",

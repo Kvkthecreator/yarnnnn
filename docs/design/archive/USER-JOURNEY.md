@@ -1,3 +1,5 @@
+> **SUPERSEDED 2026-05-03** — Canonical reference is now [docs/architecture/workspace-init.md](../../../architecture/workspace-init.md) for the init + first-run flow. Archived for historical context.
+
 # User Journey
 
 **Version:** v1.3 (2026-04-27)

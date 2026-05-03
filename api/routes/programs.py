@@ -131,7 +131,7 @@ async def activate_program(req: ActivateRequest, auth: UserClient) -> dict:
         "files_skipped": ["..."]
       }
     """
-    from services.workspace_init import _fork_reference_workspace
+    from services.programs import fork_reference_workspace as _fork_reference_workspace
 
     try:
         summary = await _fork_reference_workspace(

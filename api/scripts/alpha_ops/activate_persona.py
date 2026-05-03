@@ -85,7 +85,7 @@ def _service_client() -> Any:
 
 async def _run_fork(persona: Persona) -> dict[str, Any]:
     """Step 3: ADR-226 reference-workspace fork via the canonical primitive."""
-    from services.workspace_init import _fork_reference_workspace
+    from services.programs import fork_reference_workspace as _fork_reference_workspace
     return await _fork_reference_workspace(
         client=_service_client(),
         user_id=persona.user_id,

@@ -540,8 +540,8 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         per ADR-207 are capability bundles bound to platform_connections,
         not agent rows)
       * Reviewer substrate at /workspace/review/ (ADR-194)
-      * _shared/ workspace skeletons (MANDATE, IDENTITY, BRAND, CONVENTIONS,
-        AUTONOMY, PRECEDENT per ADR-206)
+      * _shared/ workspace skeletons (MANDATE, IDENTITY, BRAND, AUTONOMY,
+        PRECEDENT per ADR-206; CONVENTIONS.md is program-scoped, not seeded)
       * Memory skeletons under /workspace/memory/
       * Workspace narrative session (ADR-219)
       * Bundle re-fork if `active_program_slug` was captured pre-purge (ADR-244 D4)
@@ -673,7 +673,7 @@ async def clear_integrations(auth: UserClient) -> OperationResult:
         they are platform-agnostic
       - Canonical context domains under `/workspace/context/` owned by
         Specialists — unchanged by platform disconnect
-      - _shared/ context (IDENTITY.md / BRAND.md / CONVENTIONS.md per ADR-206)
+      - _shared/ context (IDENTITY.md / BRAND.md / AUTONOMY.md / MANDATE.md per ADR-206; CONVENTIONS.md is program-scoped)
 
     ADR-207 P4a: Platform Bots are NOT agent rows — they're capability bundles
     bound to active platform_connections. Disconnect = delete connection row,

@@ -963,44 +963,13 @@ class WorkspaceStateResponse(BaseModel):
 
 
 def _classify_file_state(content: Optional[str]) -> str:
-    """Lightweight classifier for the surface — mirrors `_is_skeleton_content`
-    detection patterns from `services/workspace_init.py:593-658` but without
-    needing a bundle-body comparison (the surface only distinguishes
-    skeleton/authored/missing, not bundle-vs-operator divergence).
+    """Classify a workspace file as 'missing', 'skeleton', or 'authored'.
+
+    Delegates to services.workspace_utils.classify_file_state — single
+    implementation shared with workspace_init and working_memory.
     """
-    if content is None:
-        return "missing"
-    stripped = content.strip()
-    if not stripped:
-        return "skeleton"
-
-    lower = stripped.lower()
-    placeholder_phrases = (
-        "not yet declared",
-        "not yet provided",
-        "<!-- identity not yet",
-        "<!-- brand not yet",
-        "<!-- mandate not yet",
-        "<!-- awareness",
-    )
-    if any(p in lower for p in placeholder_phrases) and len(stripped) < 800:
-        return "skeleton"
-
-    # Bundle template signature — operator hasn't authored yet
-    first_line = stripped.split("\n", 1)[0].lower()
-    if "(template)" in first_line:
-        return "skeleton"
-    if "author here:" in lower or "_<not yet" in lower:
-        return "skeleton"
-
-    # Very-short-and-sparse rule: kernel defaults inflated by Phase 2
-    # (e.g. browser_tz appended) are short and have no H2 section.
-    if len(stripped) < 200:
-        h2_count = sum(1 for line in stripped.split("\n") if line.startswith("## "))
-        if h2_count == 0:
-            return "skeleton"
-
-    return "authored"
+    from services.workspace_utils import classify_file_state
+    return classify_file_state(content)
 
 
 @router.get("/workspace/state", response_model=WorkspaceStateResponse)

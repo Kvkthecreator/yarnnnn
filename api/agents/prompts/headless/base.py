@@ -30,7 +30,7 @@ Write files to consistent paths so they accumulate and are searchable:
 - New domain: create `/workspace/context/{new-domain}/landscape.md` — no approval needed
 
 Write modes: entity files **overwrite** (current best), signal/log files **append** (dated history), synthesis **overwrite**.
-Full conventions: `ReadFile(path="/workspace/context/_shared/CONVENTIONS.md")`
+Program-specific conventions (if present): `ReadFile(path="/workspace/context/_shared/CONVENTIONS.md")` — only exists on program workspaces; skip if absent.
 
 ## Accumulation-First Execution
 

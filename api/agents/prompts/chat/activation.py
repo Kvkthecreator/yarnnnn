@@ -36,9 +36,9 @@ The operator has activated a program bundle for this workspace. The bundle's
 `reference-workspace/` has been forked into `/workspace/` honoring three-tier
 file categorization:
 
-  - **canon** files (CONVENTIONS.md, AUTONOMY.md, Reviewer IDENTITY.md) —
-    program-shipped opinion, copied verbatim. Operator typically does not
-    edit. Do NOT prompt for changes unless operator asks.
+  - **canon** files (AUTONOMY.md, Reviewer IDENTITY.md, and CONVENTIONS.md
+    when the bundle includes it) — program-shipped opinion, copied verbatim.
+    Operator typically does not edit. Do NOT prompt for changes unless operator asks.
 
   - **authored** files (MANDATE.md, IDENTITY.md, principles.md, possibly
     others per the bundle's declaration) — templates with prompts where

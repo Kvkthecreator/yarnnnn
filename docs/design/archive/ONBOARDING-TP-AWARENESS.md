@@ -1,3 +1,5 @@
+> **SUPERSEDED 2026-05-03** — Canonical reference is now [docs/architecture/workspace-init.md](../../../architecture/workspace-init.md). The modal-based onboarding flow described here was replaced by the Settings → Workspace surface (ADR-244). Archived for historical context.
+
 # Onboarding & YARNNN Awareness — Design Brief
 
 **Status:** Active (v5 — cockpit-aligned cold-start; `/chat`-modal flow preserved for re-entry only)

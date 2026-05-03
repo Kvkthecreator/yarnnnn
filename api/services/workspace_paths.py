@@ -1,5 +1,5 @@
 """
-Workspace path constants (ADR-206).
+Workspace path constants (ADR-206 + workspace-init refactor 2026-05-03).
 
 Single source of truth for canonical workspace file paths. Callers pass these
 to UserMemory (AgentWorkspace is agent-scoped; these are workspace-scoped).
@@ -12,9 +12,10 @@ Post-ADR-206 layout:
       │   │   ├── MANDATE.md        ← workspace's CLAUDE.md equivalent (ADR-207 D2)
       │   │   ├── IDENTITY.md
       │   │   ├── BRAND.md
-      │   │   ├── CONVENTIONS.md
       │   │   ├── AUTONOMY.md      ← delegation ceiling (ADR-217)
-      │   │   └── PRECEDENT.md     ← durable interpretations / boundary cases
+      │   │   ├── PRECEDENT.md     ← durable interpretations / boundary cases
+      │   │   └── CONVENTIONS.md   ← program-scoped (NOT kernel-seeded; only present
+      │   │                           when a program bundle forks it via reference-workspace/)
       │   └── {domain}/             ← accumulated domain context (ADR-151)
       ├── memory/                   ← YARNNN working memory (ADR-206 relocation)
       │   ├── awareness.md
@@ -28,15 +29,17 @@ Post-ADR-206 layout:
       │   ├── decisions.md          ← append-only verdict trail
       │   ├── handoffs.md           ← append-only occupant-rotation log
       │   └── calibration.md        ← auto-generated judgments-vs-outcomes trail
-      ├── tasks/                    ← task substrate (ADR-138)
       ├── agents/                   ← agent substrate (ADR-106)
+      ├── reports/                  ← deliverable recurrence outputs (ADR-231)
+      ├── operations/               ← action recurrence state (ADR-231)
       ├── uploads/                  ← user-contributed reference material (ADR-152)
       └── working/                  ← ephemeral scratch (ADR-119)
 
-Post-ADR-206 root contains only folders — no loose .md files at root. IDENTITY,
-BRAND, CONVENTIONS moved under `context/_shared/` because they are *authored
-shared context readable by all agents and tasks*. Awareness, playbook, style,
-notes moved under `memory/` because they are *YARNNN's own working memory*.
+IDENTITY, BRAND, AUTONOMY, PRECEDENT are kernel-seeded at every workspace init.
+CONVENTIONS.md is a valid writable path but is NOT seeded by the kernel — it is
+program-scoped (program bundles like alpha-trader fork it via reference-workspace/
+with tier:canon). Generic workspaces do not receive a CONVENTIONS skeleton.
+Awareness, playbook, style, notes moved under `memory/` per ADR-206.
 """
 
 # -----------------------------------------------------------------------------
@@ -45,20 +48,23 @@ notes moved under `memory/` because they are *YARNNN's own working memory*.
 SHARED_MANDATE_PATH = "context/_shared/MANDATE.md"
 SHARED_IDENTITY_PATH = "context/_shared/IDENTITY.md"
 SHARED_BRAND_PATH = "context/_shared/BRAND.md"
+# CONVENTIONS.md path constant kept for callers that need to reference or write
+# it (bundle forks, editable-path allowlist in workspace.py). NOT in
+# SHARED_CONTEXT_FILES — kernel does not seed it at init.
 SHARED_CONVENTIONS_PATH = "context/_shared/CONVENTIONS.md"
-# ADR-217: Workspace-scoped autonomy delegation. Sibling to MANDATE/IDENTITY/
-# BRAND/CONVENTIONS. Operator-authored; read by Reviewer dispatcher (replaces
-# the deleted review/modes.md) and task pipeline capability gate.
+# ADR-217: Workspace-scoped autonomy delegation. Operator-authored; read by
+# Reviewer dispatcher and task pipeline capability gate.
 SHARED_AUTONOMY_PATH = "context/_shared/AUTONOMY.md"
 # Shared durable interpretations: operator-authored precedent that survives
 # seat rotation and is readable by YARNNN, Reviewer, and domain Agents alike.
 SHARED_PRECEDENT_PATH = "context/_shared/PRECEDENT.md"
 
+# Files the kernel seeds at every workspace init. CONVENTIONS.md is intentionally
+# excluded — it is program-scoped, not kernel-scoped. See module docstring above.
 SHARED_CONTEXT_FILES = (
     SHARED_MANDATE_PATH,
     SHARED_IDENTITY_PATH,
     SHARED_BRAND_PATH,
-    SHARED_CONVENTIONS_PATH,
     SHARED_AUTONOMY_PATH,
     SHARED_PRECEDENT_PATH,
 )
