@@ -6,6 +6,40 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.04.1] - Compact index surfaces autonomy level, mandate summary, principles status
+
+Eliminates the most common unnecessary ReadFile calls in operational sessions.
+Zero extra DB reads — extracts from content already fetched by build_working_memory().
+
+### Changed
+
+- `api/services/working_memory.py` — new helpers `_extract_autonomy_signal()` and
+  `_extract_mandate_signal()`. Both parse already-fetched content; zero DB cost.
+  - `_extract_autonomy_signal`: reads YAML frontmatter `level:` + `ceiling_cents:`,
+    returns e.g. `"bounded_autonomous · $2,000 ceiling"` or `"autonomous"`.
+  - `_extract_mandate_signal`: extracts first substantive line under `## Primary Action`
+    (or first non-heading line as fallback), truncated to 120 chars.
+- `workspace_state` dict gains three new keys:
+  - `autonomy_level`: extracted level string or None
+  - `mandate_summary`: extracted primary action sentence or None
+  - `principles_authored`: bool (True if principles.md has >100 chars of content)
+- `format_compact_index()` Intent section: adds three one-liners when signals present:
+  - `- Autonomy level: bounded_autonomous · $2,000 ceiling`
+  - `- Mandate: Submit equity orders to Alpaca...`
+  - `- Reviewer principles: authored (6-check framework active)`
+
+### Expected behavior
+
+- YARNNN reads the compact index and knows the autonomy level, mandate primary
+  action, and whether principles are active — without calling ReadFile.
+- Operational sessions should now read AUTONOMY.md, MANDATE.md, and principles.md
+  zero times (compact index has the actionable content). ReadFile is reserved for
+  cases where the model needs detail beyond the one-liner summary.
+- Combined with the ReadFile truncation fix [2026.05.03.5], operational sessions
+  should complete their task in 2-4 tool rounds instead of 15+ read-only rounds.
+
+---
+
 ## [2026.05.03.5] - Critical fix: ReadFile content no longer truncated to 200 chars
 
 Root-cause fix for YARNNN burning all 15 tool rounds reading the same files repeatedly.

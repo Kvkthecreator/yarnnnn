@@ -213,6 +213,12 @@ async def build_working_memory(
             "mandate": _classify_richness(mandate_content),
             "autonomy": _classify_richness(autonomy_content),
             "principles": _classify_richness(principles_content),
+            # Operational signals — extracted from already-fetched content.
+            # Zero extra DB reads. Lets YARNNN act without calling ReadFile
+            # for files it has already seen via the compact index.
+            "autonomy_level": _extract_autonomy_signal(autonomy_content),
+            "mandate_summary": _extract_mandate_signal(mandate_content),
+            "principles_authored": bool(principles_content and len(principles_content.strip()) > 100),
             # ADR-248 D5: Reviewer-written pause marker from AUTONOMY.md.
             # Extracted here where autonomy_content is available; surfaced in
             # format_compact_index() as a one-line ⚠ signal.
@@ -425,6 +431,58 @@ def _extract_autonomy_pause(autonomy_content: Optional[str]) -> dict:
 
 
     # _get_inference_state DELETED — TP judges from raw context_domains data directly
+
+
+def _extract_autonomy_signal(autonomy_content: Optional[str]) -> Optional[str]:
+    """Extract one actionable line from AUTONOMY.md content.
+
+    Returns a display string like "bounded_autonomous · $2K ceiling" or
+    "autonomous" that YARNNN can use without reading the file. None if
+    content is absent or skeleton. Zero DB reads — caller already has content.
+    """
+    if not autonomy_content or len(autonomy_content.strip()) < 20:
+        return None
+    import re as _re
+    # Try frontmatter YAML first (new format)
+    level_match = _re.search(r"level:\s*(manual|assisted|bounded_autonomous|autonomous)", autonomy_content)
+    if not level_match:
+        return None
+    level = level_match.group(1)
+    ceiling_match = _re.search(r"ceiling_cents:\s*(\d+)", autonomy_content)
+    if ceiling_match and level == "bounded_autonomous":
+        cents = int(ceiling_match.group(1))
+        return f"{level} · ${cents // 100:,} ceiling"
+    return level
+
+
+def _extract_mandate_signal(mandate_content: Optional[str]) -> Optional[str]:
+    """Extract the primary action summary from MANDATE.md.
+
+    Returns the first substantial sentence under ## Primary Action, or
+    the first non-heading non-blank line if no Primary Action section.
+    None if content is absent or skeleton. Zero DB reads.
+    """
+    if not mandate_content or len(mandate_content.strip()) < 50:
+        return None
+    lines = mandate_content.splitlines()
+    in_primary_action = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.lower().startswith("## primary action"):
+            in_primary_action = True
+            continue
+        if in_primary_action:
+            if stripped.startswith("##"):
+                break  # Next section
+            if stripped and not stripped.startswith(">") and not stripped.startswith("```"):
+                # First substantive line — truncate to 120 chars
+                return stripped[:120] + ("..." if len(stripped) > 120 else "")
+    # Fallback: first substantive non-heading line
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and not stripped.startswith(">") and len(stripped) > 20:
+            return stripped[:120] + ("..." if len(stripped) > 120 else "")
+    return None
 
 
 def _count_tasks_sync(user_id: str, client: Any) -> int:
@@ -1286,14 +1344,24 @@ def format_compact_index(
 
     # === Intent (authored rules) ===
     lines.append("### Intent (authored rules)")
-    # ADR-246: extend the substrate richness line to cover all five authored files.
     mandate = ws.get("mandate", "empty")
     autonomy = ws.get("autonomy", "empty")
     principles = ws.get("principles", "empty")
+    # Substrate richness line (unchanged — used by activation checks)
     lines.append(
-        f"- Mandate: {mandate} · Identity: {identity} · Brand: {brand} · "
-        f"Autonomy: {autonomy} · Reviewer principles: {principles} · {docs} documents"
+        f"- Substrate: Mandate:{mandate} · Identity:{identity} · Brand:{brand} · "
+        f"Autonomy:{autonomy} · Principles:{principles} · {docs} docs"
     )
+    # Operational signals — extracted content so YARNNN acts without ReadFile
+    autonomy_level = ws.get("autonomy_level")
+    mandate_summary = ws.get("mandate_summary")
+    principles_authored = ws.get("principles_authored", False)
+    if autonomy_level:
+        lines.append(f"- Autonomy level: {autonomy_level}")
+    if mandate_summary:
+        lines.append(f"- Mandate: {mandate_summary}")
+    if principles_authored:
+        lines.append("- Reviewer principles: authored (6-check framework active)")
     if identity in ("empty", "sparse"):
         lines.append("- Gap: workspace identity not declared — elicit operation + domain + platform + rules")
 
