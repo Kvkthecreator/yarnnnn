@@ -2,7 +2,7 @@
 
 /**
  * SubstrateTab — thin wrapper for rendering a workspace substrate file
- * in the Thinking Partner detail view (ADR-241 + ADR-236 Round 5+).
+ * in the YARNNN detail view (ADR-241 + ADR-236 Round 5+).
  *
  * Previously had its own fetch loop; now delegates to WorkspaceFileView
  * (universal kernel component) per the chat-page refactor that established

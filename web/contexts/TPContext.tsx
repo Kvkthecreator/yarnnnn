@@ -3,7 +3,7 @@
 /**
  * ADR-023: Supervisor Desk Architecture
  * ADR-025: Claude Code Agentic Alignment - Todo tracking
- * TP (Thinking Partner) context - manages conversation state
+ * YARNNN context - manages conversation state
  */
 
 import React, { createContext, useContext, useReducer, useCallback, useRef, useState, useEffect, ReactNode } from 'react';

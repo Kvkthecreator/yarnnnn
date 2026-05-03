@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * MandateTab — Thinking Partner detail Mandate tab.
+ * MandateTab — YARNNN detail Mandate tab.
  *
  * Renders /workspace/context/_shared/MANDATE.md per ADR-207. The
  * mandate is the operator's standing intent — Primary Action +

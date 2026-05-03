@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AutonomyTab — Thinking Partner detail Autonomy tab.
+ * AutonomyTab — YARNNN detail Autonomy tab.
  *
  * Renders /workspace/context/_shared/AUTONOMY.md per ADR-217. The
  * autonomy substrate is the operator's standing intent about how

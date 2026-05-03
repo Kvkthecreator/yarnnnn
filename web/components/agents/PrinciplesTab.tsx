@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * PrinciplesTab — Thinking Partner detail Principles tab.
+ * PrinciplesTab — YARNNN detail Principles tab.
  *
  * Lifted from web/components/agents/reviewer/PrinciplesPane.tsx by
  * ADR-241 D2. Refactored to use WorkspaceFileView (universal kernel

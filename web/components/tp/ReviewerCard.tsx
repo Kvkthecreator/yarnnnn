@@ -1,5 +1,7 @@
 /**
  * ADR-212 / 2026-04-23: Reviewer verdict card for unified chat thread.
+ * ADR-246 / 2026-05-03: surfaces operator-authored persona name from
+ * /workspace/review/IDENTITY.md instead of generic "AI Reviewer" label.
  *
  * Renders a role='reviewer' session_messages row as an inline card showing
  * the verdict (approve/reject/defer/observation), the occupant who rendered
@@ -26,6 +28,8 @@ import { cn } from '@/lib/utils';
 interface ReviewerCardProps {
   data: ReviewerCardData;
   content: string;
+  /** ADR-246: operator-authored persona name from /workspace/review/IDENTITY.md */
+  personaName?: string | null;
 }
 
 function verdictIcon(verdict: string | undefined) {
@@ -57,15 +61,21 @@ function verdictLabel(verdict: string | undefined) {
   }
 }
 
-function occupantLabel(occupant: string | undefined): string {
-  if (!occupant) return 'Reviewer';
+/**
+ * ADR-246 D2: when occupant is AI and operator has authored a persona name,
+ * surface the persona name ("Simons") rather than the generic "AI Reviewer".
+ * Human occupant always shows "You". Skeleton/missing persona falls back to
+ * "your Reviewer" (warmer than bare "Reviewer").
+ */
+function occupantLabel(occupant: string | undefined, personaName?: string | null): string {
+  if (!occupant) return personaName ?? 'your Reviewer';
   if (occupant.startsWith('human:')) return 'You';
-  if (occupant.startsWith('ai:')) return 'AI Reviewer';
-  if (occupant === 'reviewer-layer:observed') return 'Reviewer (observing)';
-  return occupant;
+  if (occupant.startsWith('ai:')) return personaName ?? 'your Reviewer';
+  if (occupant === 'reviewer-layer:observed') return `${personaName ?? 'Reviewer'} (observing)`;
+  return personaName ?? occupant;
 }
 
-export function ReviewerCard({ data, content }: ReviewerCardProps) {
+export function ReviewerCard({ data, content, personaName }: ReviewerCardProps) {
   const { verdict, occupant, actionType, proposalId } = data;
 
   return (
@@ -79,7 +89,7 @@ export function ReviewerCard({ data, content }: ReviewerCardProps) {
         {verdictIcon(verdict)}
         <span className="text-[11px] font-medium">{verdictLabel(verdict)}</span>
         <span className="text-[10px] text-muted-foreground">·</span>
-        <span className="text-[10px] text-muted-foreground">{occupantLabel(occupant)}</span>
+        <span className="text-[10px] text-muted-foreground">{occupantLabel(occupant, personaName)}</span>
         {actionType && (
           <>
             <span className="text-[10px] text-muted-foreground">·</span>

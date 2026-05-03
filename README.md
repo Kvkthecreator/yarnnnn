@@ -38,7 +38,7 @@ yarnnn/
 
 ## Core Concepts
 
-- **Thinking Partner (TP)**: The system's meta-intelligence for conversation, supervision, and agent scaffolding
+- **YARNNN**: The system surface — conversation, supervision, and orchestration of all agent work
 - **Persistent Agents**: Domain specialists with their own memory, workspace, directives, and run history
 - **Compounding Context**: Synced platform data, workspace memory, prior outputs, and user feedback all improve future runs
 - **Recurring Work Products**: Agents produce summaries, briefs, monitoring outputs, research, and richer rendered artifacts when the job requires them

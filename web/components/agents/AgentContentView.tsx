@@ -710,11 +710,11 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 }
 
 
-// ADR-241 D2: Thinking Partner detail view is tab-based (Identity /
-// ADR-236 Round 5+ extension (2026-04-30): TP detail tabs reorganized
-// to surface TP's substrate. The legacy Tasks tab was always-empty for
-// TP (recurrences never assign agent_slugs=['thinking-partner']) — DELETED.
-// Replaced with substrate-shaped tabs that show what TP actually reads
+// ADR-241 D2: YARNNN detail view is tab-based (Identity /
+// ADR-236 Round 5+ extension (2026-04-30): YARNNN detail tabs reorganized
+// to surface YARNNN's substrate. The legacy Tasks tab was always-empty for
+// YARNNN (recurrences never assign agent_slugs=['thinking-partner']) — DELETED.
+// Replaced with substrate-shaped tabs that show what YARNNN actually reads
 // + uses: Mandate (gate for task creation, ADR-207), Autonomy (delegation
 // posture, ADR-217), Principles (judgment framework, ADR-194 v2).
 // Identity stays as the cockpit role/agent overview.
@@ -807,9 +807,9 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
   }
 
   // ADR-241 D2 + ADR-236 Round 5+ (2026-04-30): meta-cognitive
-  // (Thinking Partner) gets the tab-based detail view. Other classes
+  // (YARNNN) gets the tab-based detail view. Other classes
   // keep the single-page rendering — the tab refactor only applies
-  // to TP because TP is the persona with multiple operator-facing
+  // to YARNNN because it is the system surface with multiple operator-facing
   // substrate axes (Identity / Mandate / Autonomy / Principles).
   // Tasks tab DELETED per ADR-236 Round 5+ — recurrences never assign
   // agent_slugs=['thinking-partner']; tab was always-empty.

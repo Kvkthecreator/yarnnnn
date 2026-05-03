@@ -36,6 +36,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { ReviewerCard } from './ReviewerCard';
 import { MessageBlocks } from './InlineToolCall';
 import { ToolResultList } from './ToolResultCard';
+import { useReviewerPersona } from '@/lib/reviewer-persona';
 
 // ---------------------------------------------------------------------------
 // Onboarding/snapshot meta strippers — kept colocated with the assistant
@@ -169,9 +170,13 @@ function renderAgentBubble({ msg }: RendererProps): JSX.Element {
 /**
  * Reviewer verdict — full-width card per ADR-212. ReviewerCard owns
  * the visual treatment; this renderer just threads metadata + body.
+ *
+ * ADR-246 D2: component (not plain function) so useReviewerPersona()
+ * can resolve the operator-authored persona name from IDENTITY.md.
  */
-function renderReviewerVerdict({ msg }: RendererProps): JSX.Element {
-  return <ReviewerCard data={msg.reviewer ?? {}} content={msg.content} />;
+function ReviewerVerdictRenderer({ msg }: RendererProps): JSX.Element {
+  const personaName = useReviewerPersona();
+  return <ReviewerCard data={msg.reviewer ?? {}} content={msg.content} personaName={personaName} />;
 }
 
 /**
@@ -237,7 +242,7 @@ export function MessageRenderer({ msg, isLoading }: MessageRendererProps): JSX.E
     case 'agent-bubble':
       return renderAgentBubble(props);
     case 'reviewer-verdict':
-      return renderReviewerVerdict(props);
+      return <ReviewerVerdictRenderer {...props} />;
     case 'system-event':
       return renderSystemEvent(props);
     case 'external-event':

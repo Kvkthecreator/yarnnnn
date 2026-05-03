@@ -31,11 +31,11 @@
  *     a specific agent).
  *   - "md": `text-base font-semibold` — lighter treatment for surfaces
  *     where the title is more of an intro than a subject (the /chat page
- *     reads as "this is a conversation with Thinking Partner" — the
+ *     reads as "this is a conversation with YARNNN" — the
  *     conversation itself is the hero, not the H1).
  *
  * Icon slot: optional `icon` ReactNode renders to the left of the title.
- * Used by ChatSurface for the yarnnn circle logo next to "Thinking Partner"
+ * Used by ChatSurface for the yarnnn circle logo next to "YARNNN"
  * — matching the sidebar chat panel's logo treatment for consistency.
  */
 
