@@ -288,23 +288,23 @@ async def chat_completion_stream(
 
 
 _PRUNED_STUB = (
-    "[Prior tool succeeded — content pruned from window to save tokens. "
-    "Trust your earlier reasoning; do NOT re-call the same tool to recover this data.]"
+    "[Prior tool result pruned — content was read successfully. "
+    "Trust your earlier reasoning. Do NOT re-call this tool; "
+    "the data is still valid in your reasoning context.]"
 )
 
 
-def _microcompact_tool_history(messages: list[dict], keep_recent: int = 3) -> None:
+def _microcompact_tool_history(messages: list[dict], keep_recent: int = 6) -> None:
     """Clear old tool results from message history to prevent geometric growth.
 
     CC-style microcompact: replaces tool_result content older than the last N
     results with a stub. The model retains tool_use_id linkage but doesn't
     re-process full content on subsequent rounds.
 
-    The stub text is deliberately legible: it tells the model the prior call
-    *succeeded* (not failed) and that re-calling will not recover the data.
-    Without this, the model sees the stub on round N+1 and loops trying to
-    re-fetch what it already had — exhausting max_tool_rounds without
-    producing a final response.
+    keep_recent=6: raised from 3 because ReadFile now passes full file content
+    (up to 20K chars per result). With only 3 kept, a rapid sequence of 4 file
+    reads would prune the first immediately — causing the model to re-read it.
+    6 keeps two full read-batches visible, reducing re-read loops.
 
     Mutates messages in place.
     """
@@ -483,16 +483,32 @@ async def chat_completion_stream_with_tools(
                     }
                 )
 
-                # Truncate large results to prevent context overflow
-                # ADR-043: Keep tool results concise for conversation history
-                # Per-tool limits:
-                # - platform_*: high limits (TP needs full channel/message lists)
-                # - WebSearch: preserve snippet content (already capped at 500 chars
-                #   per result in the primitive; default 200 would double-truncate)
-                # - everything else: default 200 chars (entity lookups, system state)
+                # Truncate large results to prevent context overflow.
+                # Per-tool limits — ordered from most permissive to least:
+                # - platform_*: high limits (full channel/message lists needed)
+                # - ReadFile / WriteFile / ListRevisions / ReadRevision:
+                #     Files can be many KB. 200-char default was silently
+                #     truncating file content, causing the model to re-read
+                #     the same file repeatedly (burning tool rounds). Raise
+                #     to 20K chars — large enough for any realistic workspace
+                #     file. The model sees the full content and doesn't loop.
+                # - WebSearch / SearchEntities / QueryKnowledge / SearchFiles:
+                #     Primitives already cap snippets internally; match cap.
+                # - everything else: default 200 chars (entity lookups, state)
                 if tool_use.name.startswith("platform_"):
                     truncated_result = _truncate_tool_result(
                         result, max_items=100, max_content_len=1000, max_depth=6
+                    )
+                elif tool_use.name in (
+                    "ReadFile", "WriteFile", "ListFiles",
+                    "ListRevisions", "ReadRevision", "DiffRevisions",
+                    "ReadAgentFile",
+                ):
+                    # File primitives: pass full content. 20K chars covers any
+                    # realistic workspace file (MANDATE.md ~7K, _operator_profile ~4K).
+                    # Microcompact will prune old results after 3 rounds regardless.
+                    truncated_result = _truncate_tool_result(
+                        result, max_items=50, max_content_len=20000, max_depth=4
                     )
                 elif tool_use.name in ("WebSearch", "SearchEntities", "QueryKnowledge", "SearchFiles"):
                     # These primitives already cap snippets at 500 chars internally.

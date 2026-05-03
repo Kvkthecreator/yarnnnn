@@ -6,6 +6,55 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.03.5] - Critical fix: ReadFile content no longer truncated to 200 chars
+
+Root-cause fix for YARNNN burning all 15 tool rounds reading the same files repeatedly.
+
+### Root cause
+
+`_truncate_tool_result()` in `api/services/anthropic.py` had a flat default of
+`max_content_len=200` applied to ALL tool results not explicitly whitelisted.
+ReadFile was in the catch-all bucket — so MANDATE.md (7K chars), _operator_profile.md
+(4K chars), _risk.md, principles.md etc. were all silently truncated to 200 characters
+before being passed back to the model.
+
+The model received a 200-char fragment, couldn't reason from it, re-read the same file
+next round, which pushed the previous result out of the microcompact keep_recent=3 window,
+which caused the model to re-read again. 42 ReadFile calls, 15 tool rounds, summary with
+no action taken. This affected every YARNNN chat session reading multiple workspace files.
+
+### Changed
+
+- `api/services/anthropic.py` — `_truncate_tool_result` dispatch table extended:
+  `ReadFile`, `WriteFile`, `ListFiles`, `ListRevisions`, `ReadRevision`, `DiffRevisions`,
+  `ReadAgentFile` now use `max_content_len=20000` (covers any realistic workspace file).
+  Previous: 200 chars (silently breaking every file read > 200 chars).
+
+- `api/services/anthropic.py` — `_microcompact_tool_history` `keep_recent` raised from
+  3 → 6. With full file content in results (up to 20K each), keeping only 3 means a
+  4th file read immediately prunes the first — re-triggering the loop. 6 keeps two full
+  read-batches visible.
+
+- `api/services/anthropic.py` — stub text updated to be more explicit that the content
+  was read successfully and the model should trust its prior reasoning.
+
+### Expected behavior
+
+- YARNNN reads MANDATE.md once and gets the full 7K content. No re-reads.
+- Operational sessions (alpha-trader) can read mandate + operator_profile + risk +
+  principles + autonomy in one batch and proceed to action in the same turn.
+- Reviewer invocation path unblocked: session now reaches FireInvocation →
+  signal-evaluation → ProposeAction → on_proposal_created → AI Reviewer runs.
+
+### Not changed
+
+- No prompt changes. No primitive changes. No schema changes.
+- Reviewer invocation is architecturally correct (ProposeAction → on_proposal_created →
+  _run_ai_reviewer runs reactively). The substrate gap (no _performance.md on fresh
+  workspace) may cause observe-only fallback on first proposals — correct behavior.
+
+---
+
 ## [2026.05.03.4] - ADR-248 Commit 3: pause_autonomy proposal type in reflection prompt
 
 Adds pause_autonomy as a new proposal type in the Reviewer's reflection-mode
