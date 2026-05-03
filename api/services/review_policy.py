@@ -88,6 +88,8 @@ _KNOWN_AUTONOMY_KEYS = {
     "level",          # manual | assisted | bounded_autonomous | autonomous
     "ceiling_cents",  # int — threshold for bounded_autonomous
     "never_auto",     # list[str] — action_type fragments always deferred
+    "paused_until",   # ISO-8601 str — ADR-248 D3: Reviewer-written pause marker
+    "pause_reason",   # str — ADR-248 D3: human-readable reason for the pause
 }
 
 #: Synthetic domain key the parser treats as the fallback policy. When a
@@ -190,6 +192,32 @@ def should_auto_execute_verdict(
     DELETED — singular implementation rule. New callers must pass the
     verdict; the renamed function is the single binding gate.
     """
+    # ADR-248 D3: Reviewer-written pause marker — checked before any other gate.
+    # The Reviewer's periodic reflection can write paused_until to AUTONOMY.md when
+    # it detects drift. If set and in the future, all proposals route to Queue
+    # regardless of level. Expiry is time-based — no second write needed to un-pause.
+    paused_until_raw = autonomy_policy.get("paused_until")
+    if paused_until_raw:
+        try:
+            from datetime import timezone as _tz
+            from datetime import datetime as _dt
+            ts_str = str(paused_until_raw)
+            if ts_str.endswith("Z"):
+                ts_str = ts_str[:-1] + "+00:00"
+            paused_until = _dt.fromisoformat(ts_str)
+            if paused_until.tzinfo is None:
+                paused_until = paused_until.replace(tzinfo=_tz.utc)
+            now_utc = _dt.now(_tz.utc)
+            if paused_until > now_utc:
+                pause_reason = autonomy_policy.get("pause_reason", "Reviewer-initiated pause")
+                return (
+                    False,
+                    f"autonomy_paused until {paused_until.isoformat()} — {pause_reason}",
+                )
+            # paused_until is in the past — silently ignore, continue normal gating
+        except (ValueError, TypeError):
+            pass  # Malformed timestamp — ignore and proceed
+
     # ADR-229 D1: non-approve verdicts never auto-execute.
     if verdict == "reject":
         return False, "verdict=reject — Reviewer's own narrowing, never auto-executes"

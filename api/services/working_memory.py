@@ -213,6 +213,10 @@ async def build_working_memory(
             "mandate": _classify_richness(mandate_content),
             "autonomy": _classify_richness(autonomy_content),
             "principles": _classify_richness(principles_content),
+            # ADR-248 D5: Reviewer-written pause marker from AUTONOMY.md.
+            # Extracted here where autonomy_content is available; surfaced in
+            # format_compact_index() as a one-line ⚠ signal.
+            **_extract_autonomy_pause(autonomy_content),
             # ADR-246: Active program slug parsed from MANDATE.md heading
             # marker (per ADR-244 D2 + services/programs.py). None if no
             # bundle template is forked.
@@ -385,6 +389,39 @@ def _classify_richness(content: Optional[str]) -> str:
     if len(stripped) < 100 or stripped.count("\n") < 3:
         return "sparse"
     return "rich"
+
+
+def _extract_autonomy_pause(autonomy_content: Optional[str]) -> dict:
+    """Extract ADR-248 pause fields from AUTONOMY.md content.
+
+    Returns dict with autonomy_paused_until (display str) and
+    autonomy_pause_reason if a non-expired paused_until is present.
+    Returns empty dict otherwise — safe to ** spread into workspace_state.
+    """
+    if not autonomy_content or "paused_until:" not in autonomy_content:
+        return {}
+    try:
+        import re as _re
+        from datetime import datetime as _dt, timezone as _tz
+        match = _re.search(r"paused_until:\s*['\"]?([^'\"\n#]+)['\"]?", autonomy_content)
+        if not match:
+            return {}
+        ts_str = match.group(1).strip()
+        if ts_str.endswith("Z"):
+            ts_str = ts_str[:-1] + "+00:00"
+        paused_until = _dt.fromisoformat(ts_str)
+        if paused_until.tzinfo is None:
+            paused_until = paused_until.replace(tzinfo=_tz.utc)
+        if paused_until <= _dt.now(_tz.utc):
+            return {}  # Expired — treat as unpaused
+        reason_match = _re.search(r"pause_reason:\s*['\"]?([^'\"\n#]+)['\"]?", autonomy_content)
+        reason = reason_match.group(1).strip() if reason_match else "Reviewer-initiated pause"
+        return {
+            "autonomy_paused_until": paused_until.strftime("%Y-%m-%d %H:%M UTC"),
+            "autonomy_pause_reason": reason,
+        }
+    except Exception:
+        return {}  # Non-fatal — pause signal is advisory
 
 
     # _get_inference_state DELETED — TP judges from raw context_domains data directly
@@ -1259,6 +1296,17 @@ def format_compact_index(
     )
     if identity in ("empty", "sparse"):
         lines.append("- Gap: workspace identity not declared — elicit operation + domain + platform + rules")
+
+    # ADR-248 D5: surface Reviewer-written pause marker.
+    # paused_until is extracted from AUTONOMY.md during build_working_memory
+    # and stored in workspace_state. Non-fatal if absent.
+    paused_until_display = ws.get("autonomy_paused_until")
+    if paused_until_display:
+        pause_reason_display = ws.get("autonomy_pause_reason", "Reviewer-initiated pause")
+        lines.append(
+            f"- ⚠ Autonomy paused until {paused_until_display} — {pause_reason_display[:120]}"
+        )
+
     # ADR-246: active program + capability-gap signal. Only surfaces when
     # a bundle is forked. TP can deep-link to /settings?tab=workspace when
     # the operator asks about lifecycle ops.
