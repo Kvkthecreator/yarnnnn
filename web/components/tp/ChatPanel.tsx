@@ -132,13 +132,13 @@ export function ChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ADR-238: surface the workspace's autonomy posture above the form
-  // when it's non-default. Hidden for the dominant `manual` case to
-  // keep the composer quiet; visible only when delegation is wider.
-  // Read-only chip — clicking is a no-op in this ADR; ADR-237's role
-  // grammar may later route it to a posture modal.
-  const { effectiveLevel, summary: autonomySummary } = useAutonomy();
-  const showAutonomyChip = !!effectiveLevel && effectiveLevel !== 'manual';
+  // ADR-238 + inline switcher: surface autonomy posture above the composer.
+  // Always visible (not just non-manual) so the operator knows their current
+  // delegation level and can switch with one click. setLevel writes directly
+  // to AUTONOMY.md via PATCH /api/workspace/file — zero LLM.
+  const { effectiveLevel, summary: autonomySummary, setLevel: setAutonomyLevel } = useAutonomy();
+  const [autonomyPopoverOpen, setAutonomyPopoverOpen] = useState(false);
+  const autonomyChipRef = useRef<HTMLButtonElement>(null);
 
   // Accept action card from parent
   useEffect(() => {
@@ -315,23 +315,56 @@ export function ChatPanel({
           </div>
         )}
 
-        {showAutonomyChip && (
-          <div className="flex items-center mb-1.5">
-            {/* ADR-236 Cluster B (2026-04-30): chip becomes clickable.
-                Anchor to /context?path=AUTONOMY.md so the operator can
-                see the full substrate file. Edits flow through chat per
-                ADR-235 D1.b (WriteFile scope='workspace'); viewing flows
-                through Files. ADR-237 R3's "later route to a posture
-                modal" is fulfilled here as a navigation, not a modal —
-                the substrate file IS the posture explainer. */}
-            <a
-              href="/context?path=%2Fworkspace%2Fcontext%2F_shared%2FAUTONOMY.md"
-              className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full border border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              title={`${autonomySummary} — click to view AUTONOMY.md`}
-              aria-label={`Workspace autonomy: ${autonomySummary}. Click to view substrate.`}
+        {/* Autonomy level chip + inline switcher.
+            Always rendered when AUTONOMY.md exists. Writes directly to
+            AUTONOMY.md via PATCH /api/workspace/file — zero LLM. */}
+        {effectiveLevel && (
+          <div className="relative flex items-center mb-1.5">
+            <button
+              ref={autonomyChipRef}
+              type="button"
+              onClick={() => setAutonomyPopoverOpen(o => !o)}
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full border border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title={`${autonomySummary} — click to change`}
             >
               {autonomySummary}
-            </a>
+              <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="opacity-50">
+                <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              </svg>
+            </button>
+
+            {autonomyPopoverOpen && (
+              <>
+                {/* Click-outside dismiss overlay */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setAutonomyPopoverOpen(false)}
+                />
+                <div className="absolute bottom-full mb-1.5 left-0 z-50 min-w-[200px] rounded-lg border border-border bg-background shadow-md py-1">
+                {([
+                  { level: 'manual' as const, label: 'Manual', desc: 'Every proposal requires your approval' },
+                  { level: 'bounded_autonomous' as const, label: 'Bounded', desc: 'Auto-approve within ceiling, queue the rest' },
+                  { level: 'autonomous' as const, label: 'Full', desc: 'Reviewer approves, executes automatically' },
+                ] as const).map(({ level, label, desc }) => (
+                  <button
+                    key={level}
+                    type="button"
+                    className={cn(
+                      'w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/60 transition-colors',
+                      effectiveLevel === level && 'bg-muted/40 font-medium',
+                    )}
+                    onClick={async () => {
+                      setAutonomyPopoverOpen(false);
+                      await setAutonomyLevel(level);
+                    }}
+                  >
+                    <span className="block font-medium">{label}</span>
+                    <span className="block text-muted-foreground text-[10px]">{desc}</span>
+                  </button>
+                ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 

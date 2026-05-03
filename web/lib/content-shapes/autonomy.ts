@@ -229,11 +229,15 @@ export interface UseAutonomyResult {
   loading: boolean;
   effectiveLevel: AutonomyLevel | null;
   summary: string;
+  /** Direct DB write via PATCH /api/workspace/file — zero LLM. */
+  setLevel: (level: AutonomyLevel, ceilingCents?: number) => Promise<void>;
 }
 
 export function useAutonomy(): UseAutonomyResult {
   const [meta, setMeta] = useState<AutonomyMeta | null>(null);
   const [loading, setLoading] = useState(true);
+  // rawBody preserves the human-readable prose below the YAML frontmatter
+  const [rawBody, setRawBody] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -243,6 +247,9 @@ export function useAutonomy(): UseAutonomyResult {
         if (cancelled) return;
         if (file?.content) {
           setMeta(parse(file.content));
+          // Preserve prose body so serialize() round-trip keeps it intact
+          const bodyMatch = file.content.match(/^---[\s\S]*?---\s*\n?([\s\S]*)$/);
+          setRawBody(bodyMatch?.[1] ?? '');
         } else {
           setMeta(null);
         }
@@ -258,8 +265,28 @@ export function useAutonomy(): UseAutonomyResult {
     };
   }, []);
 
+  const setLevel = async (level: AutonomyLevel, ceilingCents?: number) => {
+    const next: AutonomyMeta = {
+      ...(meta ?? {}),
+      default_level: level,
+      default_ceiling_cents:
+        level === 'bounded_autonomous'
+          ? (ceilingCents ?? meta?.default_ceiling_cents ?? 200000)
+          : undefined,
+    };
+    const content = serialize(next, rawBody);
+    // Optimistic update — UI reflects immediately, API confirms in background
+    setMeta(next);
+    await api.workspace.editFile(
+      'context/_shared/AUTONOMY.md',
+      content,
+      `autonomy level → ${level}`,
+      `set autonomy level to ${level}`,
+    );
+  };
+
   const effectiveLevel = resolveEffectiveLevel(meta);
   const summary = formatAutonomySummary(meta ?? {});
 
-  return { meta, loading, effectiveLevel, summary };
+  return { meta, loading, effectiveLevel, summary, setLevel };
 }
