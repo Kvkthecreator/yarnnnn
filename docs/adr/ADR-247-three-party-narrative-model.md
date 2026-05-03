@@ -1,4 +1,4 @@
-# ADR-246: Three-Party Narrative Model — YARNNN as System Name, Reviewer as Operator-Named Persona
+# ADR-247: Three-Party Narrative Model — YARNNN as System Name, Reviewer as Operator-Named Persona
 
 > **Status**: Proposed
 > **Date**: 2026-05-03
@@ -158,7 +158,7 @@ The correct fix is a **periodic pulse for the Reviewer seat** — a back-office 
 
 This is architecturally clean (Reviewer already has both reactive and periodic trigger shapes per Axiom 4), doesn't merge YARNNN and Reviewer, and closes the autonomy loop properly.
 
-**Scoped to follow-on ADR** (ADR-247): this is a non-trivial implementation (new recurrence declaration, new Reviewer prompt profile, pause-marker write path, AUTONOMY.md mutation rules). It deserves its own ADR.
+**Scoped to follow-on ADR** (ADR-248): this is a non-trivial implementation (new recurrence declaration, new Reviewer prompt profile, pause-marker write path, AUTONOMY.md mutation rules). It deserves its own ADR.
 
 ---
 
@@ -191,13 +191,13 @@ Options (pick one):
 Recommendation: Option A first (no new endpoint, uses existing file API). Option B when the endpoint is needed for other surfaces.
 
 ### Commit 3 — Doc sync
-Update FOUNDATIONS.md Axiom 2 operator-facing framing, LAYER-MAPPING.md vocabulary table, THESIS.md §Vocabulary. Add ADR-246 to CLAUDE.md ADR index.
+Update FOUNDATIONS.md Axiom 2 operator-facing framing, LAYER-MAPPING.md vocabulary table, THESIS.md §Vocabulary. Add ADR-247 to CLAUDE.md ADR index.
 
 ---
 
 ## Test Gate
 
-`api/test_adr246_three_party_narrative.py`:
+`api/test_adr247_three_party_narrative.py`:
 1. No user-facing "Thinking Partner" string in `web/components/tp/` display text (excluding URL params and code comments)
 2. No user-facing "Thinking Partner" string in `web/components/agents/` display text
 3. `ReviewerCard.tsx` references a persona name resolution path (not hardcoded "AI Reviewer" as only label)

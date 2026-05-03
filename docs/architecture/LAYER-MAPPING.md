@@ -6,7 +6,7 @@
 > **Scope**: The authoritative taxonomy for YARNNN's two-class cognitive-layer model. Names every entity, classifies it, and specifies where it lives in code and documentation.
 > **Audience**: Internal. Frames code renames, ADR amendments, and canonical vocabulary. **Not a compromise with industry vocabulary** — this document corrects the earlier canon's vocabulary drift.
 > **Supersedes**: the hedge in THESIS §"Vocabulary: production layers vs. judgment layers" v1 (same-day earlier) — this doc corrects that section's "we call production entities Agents because industry" compromise.
-> **Amended by**: ADR-216 (YARNNN reclassified from Agent to orchestration surface), ADR-217 (autonomy delegation moved from `review/modes.md` to `_shared/AUTONOMY.md`), ADR-246 (three-party narrative model — "Thinking Partner" retired as user-facing name; YARNNN is the system name and chat surface name; Reviewer seat surfaces operator-authored persona name from `/workspace/review/IDENTITY.md`).
+> **Amended by**: ADR-216 (YARNNN reclassified from Agent to orchestration surface), ADR-217 (autonomy delegation moved from `review/modes.md` to `_shared/AUTONOMY.md`), ADR-247 (three-party narrative model — "Thinking Partner" retired as user-facing name; YARNNN is the system name and chat surface name; Reviewer seat surfaces operator-authored persona name from `/workspace/review/IDENTITY.md`).
 
 ---
 
