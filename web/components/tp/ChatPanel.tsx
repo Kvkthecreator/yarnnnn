@@ -315,63 +315,11 @@ export function ChatPanel({
           </div>
         )}
 
-        {/* Autonomy level chip + inline switcher.
-            Always rendered when AUTONOMY.md exists. Writes directly to
-            AUTONOMY.md via PATCH /api/workspace/file — zero LLM. */}
-        {effectiveLevel && (
-          <div className="relative flex items-center mb-1.5">
-            <button
-              ref={autonomyChipRef}
-              type="button"
-              onClick={() => setAutonomyPopoverOpen(o => !o)}
-              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full border border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              title={`${autonomySummary} — click to change`}
-            >
-              {autonomySummary}
-              <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="opacity-50">
-                <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-              </svg>
-            </button>
-
-            {autonomyPopoverOpen && (
-              <>
-                {/* Click-outside dismiss overlay */}
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setAutonomyPopoverOpen(false)}
-                />
-                <div className="absolute bottom-full mb-1.5 left-0 z-50 min-w-[200px] rounded-lg border border-border bg-background shadow-md py-1">
-                {([
-                  { level: 'manual' as const, label: 'Manual', desc: 'Every proposal requires your approval' },
-                  { level: 'bounded_autonomous' as const, label: 'Bounded', desc: 'Auto-approve within ceiling, queue the rest' },
-                  { level: 'autonomous' as const, label: 'Full', desc: 'Reviewer approves, executes automatically' },
-                ] as const).map(({ level, label, desc }) => (
-                  <button
-                    key={level}
-                    type="button"
-                    className={cn(
-                      'w-full text-left px-3 py-1.5 text-[11px] hover:bg-muted/60 transition-colors',
-                      effectiveLevel === level && 'bg-muted/40 font-medium',
-                    )}
-                    onClick={async () => {
-                      setAutonomyPopoverOpen(false);
-                      await setAutonomyLevel(level);
-                    }}
-                  >
-                    <span className="block font-medium">{label}</span>
-                    <span className="block text-muted-foreground text-[10px]">{desc}</span>
-                  </button>
-                ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
         <form onSubmit={handleSubmit}>
-          <div className="flex items-end gap-1.5 border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
+          <div className="border border-border bg-background rounded-xl focus-within:ring-2 focus-within:ring-primary/50">
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.txt,.md" multiple onChange={handleFileSelect} className="hidden" />
-            <PlusMenu actions={allPlusMenuActions} disabled={isLoading} />
+
+            {/* Textarea row */}
             <textarea
               ref={textareaRef}
               value={input}
@@ -382,9 +330,76 @@ export function ChatPanel({
               enterKeyHint="send"
               placeholder={placeholder}
               rows={1}
-              className="flex-1 py-2.5 pr-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
+              className="w-full px-3 pt-2.5 pb-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
             />
-            <button type="submit" disabled={isLoading || (!input.trim() && attachments.length === 0)} className="shrink-0 p-2.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"><Send className="w-4 h-4" /></button>
+
+            {/* Bottom toolbar row — mirrors Claude Code: + / [mode chip] … [send] */}
+            <div className="flex items-center gap-1 px-1.5 pb-1.5">
+              <PlusMenu actions={allPlusMenuActions} disabled={isLoading} />
+
+              {/* Autonomy mode chip — inline switcher, zero LLM write */}
+              <div className="relative">
+                <button
+                  ref={autonomyChipRef}
+                  type="button"
+                  onClick={() => setAutonomyPopoverOpen(o => !o)}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
+                    effectiveLevel && effectiveLevel !== 'manual'
+                      ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                  title={effectiveLevel ? `${autonomySummary} — click to change` : 'Set autonomy level'}
+                >
+                  {effectiveLevel
+                    ? effectiveLevel === 'manual' ? 'Manual'
+                      : effectiveLevel === 'bounded_autonomous' ? 'Bounded'
+                      : 'Full auto'
+                    : 'Autonomy'}
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="opacity-50 shrink-0">
+                    <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+
+                {autonomyPopoverOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setAutonomyPopoverOpen(false)} />
+                    <div className="absolute bottom-full mb-1.5 left-0 z-50 min-w-[210px] rounded-lg border border-border bg-background shadow-lg py-1">
+                      {([
+                        { level: 'manual' as const, label: 'Manual', desc: 'Every proposal requires your approval' },
+                        { level: 'bounded_autonomous' as const, label: 'Bounded', desc: 'Auto-approve within $2K ceiling' },
+                        { level: 'autonomous' as const, label: 'Full auto', desc: 'Reviewer approves and executes' },
+                      ] as const).map(({ level, label, desc }) => (
+                        <button
+                          key={level}
+                          type="button"
+                          className={cn(
+                            'w-full text-left px-3 py-1.5 hover:bg-muted/60 transition-colors',
+                            effectiveLevel === level && 'bg-muted/40',
+                          )}
+                          onClick={async () => {
+                            setAutonomyPopoverOpen(false);
+                            await setAutonomyLevel(level);
+                          }}
+                        >
+                          <span className="block text-[11px] font-medium">{label}</span>
+                          <span className="block text-[10px] text-muted-foreground">{desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex-1" />
+              <button
+                type="submit"
+                disabled={isLoading || (!input.trim() && attachments.length === 0)}
+                className="shrink-0 p-1.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </form>
       </div>
