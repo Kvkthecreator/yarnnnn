@@ -230,6 +230,139 @@ Favicons fetched automatically via ManageDomains when entities have a `url` fiel
 
 ---
 
+## Task Type Registry Schema
+
+> **Source**: `api/services/task_types.py` — single source of truth. See also [ADR-145](../adr/ADR-145-task-type-registry-premeditated-orchestration.md).
+
+```python
+TASK_TYPES: dict[str, TaskTypeDefinition] = {
+    "type-key": {
+        "display_name": str,           # User-facing name
+        "description": str,            # One-line description for onboarding cards
+        "output_kind": str,            # accumulates_context | produces_deliverable | external_action | system_maintenance
+        "default_mode": str,           # recurring | goal | reactive
+        "default_schedule": str,       # daily | weekly | biweekly | monthly | on-demand
+        "surface_type": str,           # report | deck | dashboard | digest | workbook | preview | video (ADR-170 RD-6)
+        "output_format": str,          # html | markdown
+        "export_options": list[str],   # ["pdf", "pptx", "xlsx"]
+        "process": list[ProcessStep],  # Ordered execution steps
+        "context_reads": list[str],    # Domains or ["*"] for all domains
+        "context_writes": list[str],   # Domains written by tracking tasks
+        "requires_platform": str|None, # "slack" | "notion" | None
+        "default_deliverable": dict,   # Deliverable contract scaffold for DELIVERABLE.md
+        "bootstrap": dict|None,        # Optional readiness criteria for context tasks
+    }
+}
+```
+
+### Process Step Schema
+
+```python
+ProcessStep = {
+    "agent_type": str,      # Key from AGENT_TYPES registry (ADR-140)
+    "step": str,            # Human-readable step name: "investigate", "compose", "extract"
+    "instruction": str,     # Step-specific instruction merged into task execution prompt
+    "requires": list[str],  # Optional capability requirements: ["web_search", "chart"]
+}
+```
+
+### Resolution Path
+
+```
+User selects task type
+    → look up TASK_TYPES[type_key]
+    → assign output_kind + default_mode + context wiring
+    → for each process step:
+        → resolve agent from user's roster by agent_type
+        → verify required capabilities via AGENT_TYPES registry
+        → inject step instruction into execution prompt
+    → scaffold TASK.md with type_key, objective, process reference
+```
+
+---
+
+## Pipeline Execution Model
+
+### Pre-Meditated vs. Improvised
+
+| Aspect | Pre-Meditated | Improvised |
+|---|---|---|
+| When | Task has registered type_key | Custom/novel task (no type_key) |
+| Who decides | Registry (product decision) | YARNNN at runtime (AI decision) |
+| Cost | Deterministic (steps × ~$0.05) | Variable |
+| Quality | Consistent, improving via feedback | Variable, depends on YARNNN prompt |
+| Use case | Known deliverable patterns | Novel user requests |
+
+**Promotion path:** When YARNNN consistently improvises the same pattern (3+ times), suggest promoting it to a registered task type.
+
+### Single-Step (Simple)
+
+Most platform digests and single-domain tasks:
+
+```
+Scheduler → read TASK.md → resolve agent → execute → save output → deliver
+```
+
+### Multi-Step (Collaborative)
+
+Research, operations, and content tasks that benefit from agent specialization:
+
+```
+Scheduler → read TASK.md → resolve pipeline from type_key
+    → Step 1: execute agent_type[0] with step instruction
+        → save to /tasks/{slug}/outputs/{date}/step-1/output.md
+    → Step 2: execute agent_type[1] with step instruction + Step 1 output as context
+        → save to /tasks/{slug}/outputs/{date}/step-2/output.md
+    → ...
+    → Final step output → post-generation (compose HTML) → deliver
+```
+
+**Handoff mechanism:** Step N+1 receives Step N's output as explicit context injection in the user message (not via knowledge-base discovery) — ensures deterministic context flow.
+
+### Output Storage Convention
+
+```
+/tasks/{slug}/outputs/{date}/
+├── step-1/output.md + manifest.json
+├── step-2/output.md + manifest.json
+├── output.md              # Final deliverable (copy of last step)
+├── output.html            # Composed HTML (post-generation)
+├── manifest.json          # Pipeline-level manifest
+└── assets/                # Charts, diagrams, images from any step
+```
+
+### Surface Implications
+
+`output_kind` decides the primary `/work` detail shape. Registry metadata (`requires_platform`, `bootstrap`, `surface_type`) adds bounded secondary modules. `type_key` specializes copy only.
+
+- `accumulates_context` tasks: context growth, freshness, change logs
+- `produces_deliverable` tasks: rendering and delivering an artifact
+- `external_action` tasks: target, payload, and delivery result
+- `system_maintenance` tasks: deterministic upkeep and observability
+
+---
+
+## The Five-Layer Capability Web
+
+```
+Layer 1: DELIVERABLES (task types — what users see and select)
+    ↕ Product decisions: curated, deliberate
+Layer 2: PROCESSES (execution plans — ordered agent steps)
+    ↕ Platform decisions: deterministic, versioned
+Layer 3: AGENTS (identity + capabilities — who executes)
+    ↕ Roster decisions: pre-scaffolded, expandable
+Layer 4: CAPABILITIES (skills + runtimes — what's technically possible)
+    ↕ Engineering decisions: tools, integrations
+Layer 5: KNOWLEDGE (workspace + platforms + memory — what agents know)
+    ↕ Emergent: accumulates from usage
+```
+
+**Upward:** New capability (L4) → new agent ability (L3) → new pipeline option (L2) → new task type (L1)
+
+**Downward:** User demand for deliverable (L1) → pipeline design (L2) → capability gap identified (L4) → engineering work
+
+---
+
 ## File System Summary
 
 ```

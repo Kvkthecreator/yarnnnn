@@ -1,7 +1,15 @@
 # Agent Framework: Scope × Role × Trigger
 
-**Status:** Partially superseded — see ADR-176 (universal specialist roster), ADR-164 (TP as agent), and **ADR-207 P4a (2026-04-22): platform-bot class dissolved** for current canonical model
-**Date:** 2026-03-12 (updated 2026-03-17: `skill` → `role` per ADR-118; updated 2026-03-20: pulse model + role cadence per ADR-126; updated 2026-03-22: ADR-130 three-registry architecture — seniority/portfolios removed; updated 2026-04-08: ADR-164 added meta-cognitive class; updated 2026-04-13: ADR-176 universal specialist roster; updated 2026-04-22: **ADR-207 P4a — platform-bot class DELETED; platform access is a specialist capability, not a dedicated agent class**)
+> **⚠ HISTORICAL REFERENCE** — This document describes the Era 1 Scope × Role × Trigger taxonomy (ADR-109, 2026-03-12). It is retained for architectural context only. **For current state:**
+> - Roster: [registry-matrix.md](registry-matrix.md) (ADR-176/207 universal specialists)
+> - Orchestration canon: [SERVICE-MODEL.md](SERVICE-MODEL.md)
+> - Layer mapping: [LAYER-MAPPING.md](LAYER-MAPPING.md) (ADR-216)
+> - Primitives: [primitives-matrix.md](primitives-matrix.md) (ADR-168)
+>
+> Many code references below point to **deleted files** (`execution_strategies.py`, `composer.py`, `agent_pulse.py`) and **deleted primitives** (`RefreshPlatformContent`, `ReadWorkspace`/`WriteWorkspace` renamed to `ReadFile`/`WriteFile`, `platform_content` table dropped per ADR-153). Do not use as a coding reference.
+
+**Status:** Historical — see ADR-176 (universal specialist roster), ADR-164 (TP as agent), ADR-207 P4a (platform-bot class dissolved), ADR-231 (task abstraction sunset), ADR-216 (orchestration vs judgment reframe)
+**Date:** 2026-03-12 (last meaningful update 2026-04-22)
 **Supersedes:** ADR-093 (7 purpose-first types), ADR-082 (8-type consolidation), ADR-044 (type reconceptualization)
 
 > **2026-04-22 update (ADR-207 P4a):** Platform-bot agent class DELETED. `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, `trading_bot` removed from `AGENT_TEMPLATES` and `agents_role_check` (migration 157). Platform access (read_slack, write_trading, etc.) is now a **capability** declared on any specialist (tracker, writer, analyst) via TASK.md `**Required Capabilities:**` + gated at dispatch by `capability_available()`. See [ADR-207](../adr/ADR-207-primary-action-centric-workflow.md) P3 + P4a.
@@ -620,23 +628,20 @@ UPDATE agents SET scope = 'research', role = 'research' WHERE agent_type = 'cust
 
 ---
 
-## Key Files
+## Current Canonical References (use these instead)
 
-| Concern | Location |
+| Concern | Current Location |
 |---------|----------|
-| This document | `docs/architecture/agent-orchestration.md` |
-| Agent type registry & pulse cadence | `api/services/orchestration.py` (ADR-130, ADR-126 Phase 5) |
-| Pulse engine | `api/services/agent_pulse.py` (ADR-126) |
-| Discourse & stress-testing | `docs/analysis/agent-taxonomy-first-principles-2026-03-12.md` |
-| Execution strategies | `api/services/execution_strategies.py` |
-| Primitive registry | `api/services/primitives/registry.py` |
-| Type prompts (→ role prompts) | `api/services/agent_pipeline.py` |
-| Agent execution pipeline | `api/services/agent_execution.py` |
+| Agent roster + registry | [registry-matrix.md](registry-matrix.md) + `api/services/orchestration.py` |
+| Layer taxonomy (agents vs orchestration) | [LAYER-MAPPING.md](LAYER-MAPPING.md) + [ADR-216](../adr/ADR-216-orchestration-surface-vs-judgment-persona.md) |
+| Primitive matrix | [primitives-matrix.md](primitives-matrix.md) + `api/services/primitives/registry.py` |
+| Invocation dispatcher | `api/services/invocation_dispatcher.py` (ADR-231) |
 | Agent workspace | `api/services/workspace.py` |
-| Composer (portfolio management) | `api/services/composer.py` |
 | Output gateway skills | `render/skills/` (ADR-118) |
-| Frontend constants | `web/lib/constants/agents.ts` |
+| Discourse (historical) | `docs/analysis/agent-taxonomy-first-principles-2026-03-12.md` |
+
+> **DELETED files referenced below in this doc:** `execution_strategies.py` (ADR-141), `agent_pulse.py` (ADR-141), `composer.py` (ADR-156), `task_pipeline.py` (ADR-231), `agent_pipeline.py` (ADR-231).
 
 ---
 
-*This document is the canonical reference for agent taxonomy. For the full discourse that produced this framework, see the [analysis document](../analysis/agent-taxonomy-first-principles-2026-03-12.md). For the formal ADR, see ADR-109 (pending).*
+*This document is preserved as the historical architectural record of the Scope × Role × Trigger taxonomy that shaped YARNNN's agent model through 2026-04-22. For full discourse see [docs/analysis/agent-taxonomy-first-principles-2026-03-12.md](../analysis/agent-taxonomy-first-principles-2026-03-12.md).*
