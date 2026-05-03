@@ -6,6 +6,43 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.03.4] - ADR-248 Commit 3: pause_autonomy proposal type in reflection prompt
+
+Adds pause_autonomy as a new proposal type in the Reviewer's reflection-mode
+tool definition and system prompt. Closes the write side of the ADR-248 D4
+autonomy pause mechanism.
+
+### Changed
+
+- `api/agents/reviewer_agent.py` — `_REFLECTION_TOOL` schema:
+  - `overall` enum: added `"pause_autonomy"` with description of bar and use case.
+  - Proposal `change_type` enum: added `"pause_autonomy"`.
+  - Proposal `target_file` enum: added `"AUTONOMY.md"` (pause_autonomy only).
+  - New optional proposal fields: `duration_hours` (int, 24–168, default 48)
+    and `reason` (str, max 200 chars, shown to operator in narrative + AUTONOMY.md).
+  - `ReflectionProposal` TypedDict: change_type + target_file Literals updated.
+  - `ReflectionVerdict` TypedDict: overall Literal updated.
+
+- `api/agents/reviewer_agent.py` — `_REFLECTION_SYSTEM_PROMPT`:
+  - Scope ceiling updated: AUTONOMY.md added as pause_autonomy-only target.
+  - New `pause_autonomy` change-type discipline block: highest bar, circuit-
+    breaker for observable structural problems only (consistent capital loss,
+    win rate below defensible threshold, drift beyond risk limits). NOT for
+    single losing trades, temporary drawdowns, or uncertainty.
+
+### Expected behavior
+
+- Reflection-mode model can now return overall='pause_autonomy' with a
+  pause proposal targeting AUTONOMY.md. reflection_writer._apply_pause_autonomy()
+  writes paused_until + pause_reason to AUTONOMY.md via ADR-209 write_revision.
+- should_auto_execute_verdict() (Commit 2) reads paused_until on the next
+  proposal evaluation and routes to Queue until expiry.
+- YARNNN compact index (Commit 2) surfaces ⚠ pause signal to operator.
+- High bar language in the prompt prevents spurious pauses — the model
+  is explicitly told NOT to pause for a single loss or temporary drawdown.
+
+---
+
 ## [2026.05.03.3] - Three-party model + runtime-gate philosophy in tools_core.py
 
 Aligns the LLM-facing vocabulary in `tools_core.py` with the ADR-216/247 three-party model

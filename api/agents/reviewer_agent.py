@@ -641,13 +641,13 @@ REFLECTION_MODEL_SLUG = "claude-haiku-4-5-20251001"
 _REFLECTION_TOKEN_CALLER = "reviewer-reflection"
 
 
-class ReflectionProposal(TypedDict):
+class ReflectionProposal(TypedDict, total=False):
     """A single proposed change to the Reviewer's substrate."""
     #: Which kind of change — shapes how reflection_writer applies it.
-    change_type: Literal["narrow", "relax", "character_note", "no_change"]
-    #: Which file to edit. Commit 4's writer enforces the scope ceiling
-    #: (only IDENTITY.md or principles.md allowed; anything else rejected).
-    target_file: Literal["principles.md", "IDENTITY.md", ""]
+    change_type: Literal["narrow", "relax", "character_note", "no_change", "pause_autonomy"]
+    #: Which file to edit. Scope ceiling enforced by reflection_writer.
+    #: pause_autonomy proposals use "AUTONOMY.md" and leave new_content empty.
+    target_file: Literal["principles.md", "IDENTITY.md", "AUTONOMY.md", ""]
     #: Concise description of what to change and why. Written into the
     #: revision message + reflections.md entry.
     reasoning: str
@@ -671,7 +671,7 @@ class ReflectionVerdict(TypedDict):
     framework is working) and should be common, not rare.
     """
     #: Top-level verdict — controls whether writer applies any changes.
-    overall: Literal["no_change", "narrow", "relax", "character_note"]
+    overall: Literal["no_change", "narrow", "relax", "character_note", "pause_autonomy"]
     #: The persona's own one-paragraph reasoning about what it noticed
     #: (or didn't notice) in its track record. This is the meta-commentary
     #: appended to reflections.md verbatim regardless of overall verdict.
@@ -698,7 +698,7 @@ _REFLECTION_TOOL = {
         "properties": {
             "overall": {
                 "type": "string",
-                "enum": ["no_change", "narrow", "relax", "character_note"],
+                "enum": ["no_change", "narrow", "relax", "character_note", "pause_autonomy"],
                 "description": (
                     "Top-level verdict. 'no_change' — framework is working, "
                     "no adjustment warranted; common and expected. "
@@ -706,7 +706,11 @@ _REFLECTION_TOOL = {
                     "'relax' — remove an overly-conservative rule; evidence "
                     "bar is higher than narrow. 'character_note' — propose "
                     "an IDENTITY.md edit; rare, only when decisions reveal "
-                    "a persona trait not in the declared character."
+                    "a persona trait not in the declared character. "
+                    "'pause_autonomy' — write a timed pause to AUTONOMY.md "
+                    "(ADR-248 D3); highest bar — only when cumulative outcomes "
+                    "show consistent capital loss or drift severe enough that "
+                    "continued autonomous execution is unsafe."
                 ),
             },
             "reasoning": {
@@ -738,15 +742,16 @@ _REFLECTION_TOOL = {
                     "properties": {
                         "change_type": {
                             "type": "string",
-                            "enum": ["narrow", "relax", "character_note", "no_change"],
+                            "enum": ["narrow", "relax", "character_note", "no_change", "pause_autonomy"],
                         },
                         "target_file": {
                             "type": "string",
-                            "enum": ["principles.md", "IDENTITY.md", ""],
+                            "enum": ["principles.md", "IDENTITY.md", "AUTONOMY.md", ""],
                             "description": (
-                                "Scope ceiling: only principles.md or IDENTITY.md. "
-                                "Empty string for no-op proposals (rare; typically "
-                                "the outer verdict captures no_change)."
+                                "Scope ceiling: principles.md or IDENTITY.md for "
+                                "framework/persona changes. AUTONOMY.md only for "
+                                "pause_autonomy proposals (writes paused_until + "
+                                "pause_reason). Empty string for no-op proposals."
                             ),
                         },
                         "reasoning": {"type": "string"},
@@ -754,10 +759,25 @@ _REFLECTION_TOOL = {
                         "new_content": {
                             "type": "string",
                             "description": (
-                                "Full new content for target_file. The writer "
-                                "replaces the file wholesale (via ADR-209 "
-                                "write_revision). If you want to keep most of "
-                                "the file, echo it back with your changes."
+                                "Full new content for target_file. For "
+                                "pause_autonomy, leave empty — the writer "
+                                "constructs the paused_until patch from "
+                                "duration_hours + reason fields instead."
+                            ),
+                        },
+                        "duration_hours": {
+                            "type": "integer",
+                            "description": (
+                                "pause_autonomy only. How long to pause autonomous "
+                                "execution (hours). Default 48. Range 24–168."
+                            ),
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": (
+                                "pause_autonomy only. Short human-readable reason "
+                                "surfaced to the operator in the narrative and the "
+                                "AUTONOMY.md pause_reason field. Max 200 chars."
                             ),
                         },
                     },
@@ -816,11 +836,12 @@ Substrate available to you (passed in the user message):
 to:
   - `principles.md` — your declared framework
   - `IDENTITY.md` — your persona character (rare; high bar)
+  - `AUTONOMY.md` — ONLY via pause_autonomy proposal type (see below)
 
-You CANNOT propose changes to: MANDATE.md, AUTONOMY.md, PRECEDENT.md,
-any file under `/workspace/context/{domain}/`, any file outside
-`/workspace/review/`. The writer will reject any proposal targeting
-files outside the scope ceiling.
+You CANNOT propose changes to: MANDATE.md, PRECEDENT.md, any file
+under `/workspace/context/{domain}/`, any file outside `/workspace/review/`
+(except the AUTONOMY.md pause via the pause_autonomy mechanism below).
+The writer will reject any proposal targeting files outside this ceiling.
 
 **Evidence requirement.** Every proposal must cite specific substrate
 evidence — decision counts, outcome deltas, pattern observations.
@@ -841,6 +862,17 @@ Proposals without evidence should be declared `no_change` instead.
   is ambiguous or the patterns you observe don't clearly warrant
   change. Include reasoning about what you looked at and why it
   didn't warrant change — that reasoning itself is valuable data.
+- `pause_autonomy` — ADR-248 D3. Highest bar. Use ONLY when cumulative
+  outcomes show consistent capital loss, win rate has fallen below a
+  defensible threshold across multiple cycles, or position/exposure
+  has drifted beyond declared risk limits in a way that cannot be
+  corrected by narrowing principles alone. Do NOT pause autonomy for:
+  a single losing trade, a temporary drawdown within declared limits,
+  or uncertainty about future outcomes. Pause is a circuit-breaker
+  for observable structural problems, not a precaution. When proposing
+  pause_autonomy: set target_file="AUTONOMY.md", leave new_content="",
+  set duration_hours (24–168, default 48), set reason to a single
+  concrete sentence the operator will read in the narrative.
 
 **Full-content replacement.** For each proposal, return the FULL new
 content of `target_file`. The writer replaces the file wholesale (via
