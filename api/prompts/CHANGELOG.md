@@ -6,6 +6,49 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.04.3] - Platform market data truncation + FireInvocation dispatch discipline
+
+Three fixes for the 40+ tool call re-fetch loop on signal-evaluation.
+
+### Root cause (observed)
+
+Model attempted to do signal evaluation inline in chat instead of dispatching
+via FireInvocation. Fetched market data for 5 tickers × multiple timeframes.
+Each response was truncated (1000 chars << full bar history). Pruned after 6
+tool rounds. Model re-fetched in an endless loop, never reached ProposeAction.
+
+### Changed
+
+- `api/services/anthropic.py` — platform_trading_get_market_data / get_positions /
+  get_orders / get_account: raised to max_content_len=100000, max_items=1000.
+  30 days of 1-hour bars for one ticker = ~720 data points; 1000-char limit
+  was returning ~15 bars. Model couldn't compute any indicators from fragments.
+  Other platform_* tools raised from 1000 → 5000 chars (Slack/Notion messages).
+
+- `api/services/anthropic.py` — microcompact keep_recent: 6 → 10 in the stream
+  loop call site (was hardcoded to 3, then to 6 by parameter default but not
+  updated at call site). 5 tickers × 1 timeframe = 5 calls; keep_recent=6
+  pruned the 1st ticker result the moment the 7th call landed. 10 keeps a full
+  5-ticker single-timeframe batch visible without pruning.
+
+- `api/agents/prompts/tools_core.py` — FireInvocation docs: added CRITICAL note
+  that FireInvocation dispatches to the headless executor — the model must NOT
+  attempt to do the work itself inline. "Your job is to dispatch and report."
+  Added trading-domain example: FireInvocation(shape:"accumulation", slug:
+  "signal-evaluation", domain:"trading").
+
+### Expected behavior
+
+- `FireInvocation(shape:"accumulation", slug:"signal-evaluation", domain:"trading")`
+  dispatches to the headless analyst agent in round 1.
+- Analyst fetches market data, computes indicators, writes signal state files
+  to /workspace/context/trading/signals/.
+- If a signal fires, analyst calls ProposeAction; Reviewer evaluates reactively;
+  autonomy gate decides whether to auto-execute.
+- YARNNN reports the result without ever touching platform_trading_get_market_data.
+
+---
+
 ## [2026.05.04.2] - ReadFile path normalization + compact-index-first prompt discipline
 
 Two fixes for the file-not-found + re-read loops observed in production logs.

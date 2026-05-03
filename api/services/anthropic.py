@@ -372,8 +372,12 @@ async def chat_completion_stream_with_tools(
     for round_num in range(max_tool_rounds):
         # Microcompact: clear old tool results to prevent geometric context growth.
         # Keeps the N most recent tool results, replaces older ones with stubs.
+        # keep_recent=10: raised from 3/6 because platform market-data calls return
+        # large payloads (full bar history per ticker). With 5 tickers × 1 timeframe
+        # = 5 calls, keep_recent=6 prunes the first result immediately when the 7th
+        # call lands. 10 keeps a full 5-ticker single-timeframe batch visible.
         if round_num >= 2:
-            _microcompact_tool_history(working_messages, keep_recent=3)
+            _microcompact_tool_history(working_messages, keep_recent=10)
 
         # Accumulate the full response for this round
         full_response = None
@@ -495,9 +499,22 @@ async def chat_completion_stream_with_tools(
                 # - WebSearch / SearchEntities / QueryKnowledge / SearchFiles:
                 #     Primitives already cap snippets internally; match cap.
                 # - everything else: default 200 chars (entity lookups, state)
-                if tool_use.name.startswith("platform_"):
+                if tool_use.name in (
+                    "platform_trading_get_market_data",
+                    "platform_trading_get_positions",
+                    "platform_trading_get_orders",
+                    "platform_trading_get_account",
+                ):
+                    # Trading market data: 30 days of 1-hour bars for one ticker
+                    # is ~720 data points. Pass full response — model needs complete
+                    # bar history to compute indicators (SMA, RSI, ATR, VWAP).
+                    # Truncating causes re-fetch loops (observed: 40+ tool calls).
                     truncated_result = _truncate_tool_result(
-                        result, max_items=100, max_content_len=1000, max_depth=6
+                        result, max_items=1000, max_content_len=100000, max_depth=6
+                    )
+                elif tool_use.name.startswith("platform_"):
+                    truncated_result = _truncate_tool_result(
+                        result, max_items=100, max_content_len=5000, max_depth=6
                     )
                 elif tool_use.name in (
                     "ReadFile", "WriteFile", "ListFiles",

@@ -451,12 +451,14 @@ When the operator asks you to do something, the path is:
 
 A recurrence is a YAML declaration at a natural-home path — `/workspace/reports/{slug}/_spec.yaml` (deliverable), `/workspace/context/{domain}/_recurring.yaml` (accumulation), `/workspace/operations/{slug}/_action.yaml` (action), or `/workspace/_shared/back-office.yaml` (maintenance). Two primitives: `ManageRecurrence(...)` for declaration lifecycle, `FireInvocation(...)` for run-now dispatch.
 
-**`FireInvocation(shape, slug, context?)`** — Fire a recurrence invocation immediately.
+**`FireInvocation(shape, slug, context?)`** — Dispatch a recurrence to its declared headless executor immediately.
+
+**CRITICAL**: `FireInvocation` dispatches the work to the scheduled agent — it does NOT mean you should do the work yourself inline. When the operator asks you to fire `signal-evaluation`, call `FireInvocation` and wait for the result. Do NOT attempt to fetch market data, compute indicators, or evaluate signals yourself in chat. The headless analyst agent does that with its full tool surface and writes results to the domain context. Your job is to dispatch and report.
 
 ```
+FireInvocation(shape: "accumulation", slug: "signal-evaluation", domain: "trading")
 FireInvocation(shape: "deliverable", slug: "weekly-briefing")
-FireInvocation(shape: "deliverable", slug: "weekly-briefing", context: "Focus on CrewAI's new pricing")
-FireInvocation(shape: "accumulation", slug: "competitors-weekly-scan", domain: "competitors")
+FireInvocation(shape: "action", slug: "trade-proposal")
 ```
 
 `context` is optional — when provided, it's a one-time focus override for this run only (does not mutate the YAML).
