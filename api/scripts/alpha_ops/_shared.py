@@ -239,6 +239,9 @@ class ProdClient:
     def post(self, path: str, **kwargs: Any) -> httpx.Response:
         return self._client.post(f"{self.base}{path}", **kwargs)
 
+    def patch(self, path: str, **kwargs: Any) -> httpx.Response:
+        return self._client.patch(f"{self.base}{path}", **kwargs)
+
     def delete(self, path: str, **kwargs: Any) -> httpx.Response:
         return self._client.delete(f"{self.base}{path}", **kwargs)
 

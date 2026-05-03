@@ -154,7 +154,7 @@ personas:
       kind: trading
       provider: alpaca
       mode: paper
-      account_suffix: ""   # update once Alpaca connected
+      account_suffix: EE8K
     context_domains:
       - trading
       - portfolio
@@ -164,11 +164,9 @@ personas:
       api_secret: KVK_ALPACA_SECRET
     vault_entry: "1Password > YARNNN Alpha-1 > kvk.alpaca-paper"
     expected:
-      # Post-ADR-205: only YARNNN scaffolds at init; tracker/analyst/writer
-      # lazy-create on first dispatch. agent_count=1 post-reset, grows to 4
-      # after first run. verify.py checks will pass once first task fires.
-      agent_count: 1
-      active_roles: [thinking_partner]
+      # activate_persona.py ensures specialist rows; agent_count=4 post-activation.
+      agent_count: 4
+      active_roles: [thinking_partner, tracker, analyst, writer]
       scaffolded_recurrences:
         - track-universe
         - signal-evaluation
