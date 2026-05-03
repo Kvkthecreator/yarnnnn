@@ -1406,8 +1406,13 @@ def format_compact_index(
                     lines.append(f"Agent instructions preview: {preview}")
                 lines.append(f"(Read full AGENT.md: `/agents/{agent_slug}/AGENT.md`)")
         elif task_slug:
-            lines.append(f"\nCurrently viewing: Task > {task_slug}")
-            lines.append(f"(Read full task: `/tasks/{task_slug}/TASK.md`)")
+            lines.append(f"\nCurrently viewing: Work > {task_slug}")
+            lines.append(
+                f"(Declaration: find via ListFiles or check "
+                f"`/workspace/reports/{task_slug}/_spec.yaml`, "
+                f"`/workspace/operations/{task_slug}/_action.yaml`, "
+                f"or the domain `_recurring.yaml` for this slug)"
+            )
         elif page == "context":
             lines.append("\nCurrently viewing: Context (workspace explorer)")
         else:

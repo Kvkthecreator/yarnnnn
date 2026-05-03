@@ -67,7 +67,7 @@ Three independent axes per role/Agent (ADR-140, ADR-176):
   - Identity (AGENT.md, for Agents): name, domain, evolves with use
   - Capabilities (role's template in SYSTEMIC_AGENTS or PRODUCTION_ROLES):
     tool access, fixed at template definition
-  - Tasks (TASK.md): work assignments, come and go
+  - Recurrences (YAML declarations at natural-home paths per ADR-231): work assignments, come and go
 
 Four agent classes:
   - specialist: universal contributor — does one thing (research, analyze, write,
@@ -616,12 +616,13 @@ SYSTEMIC_AGENTS: dict[str, dict[str, Any]] = {
     # runtime modes share this identity:
     #   1. Chat runtime — invoked from routes/chat.py via YarnnnAgent
     #      class. Full conversation, streaming, all CHAT_PRIMITIVES.
-    #   2. Task runtime — invoked from task_pipeline._execute_tp_task()
-    #      when the scheduler dispatches a back office task owned by
-    #      YARNNN. Runs a declarative executor declared in TASK.md.
+    #   2. Maintenance runtime — invoked from invocation_dispatcher when
+    #      the scheduler dispatches a back-office MAINTENANCE recurrence.
+    #      Executor dotted-path declared in /workspace/_shared/back-office.yaml.
     #
-    # Back office tasks (agent-hygiene, workspace-cleanup, outcome-
-    # reconciliation, reviewer-calibration) are tasks owned by YARNNN.
+    # Back office tasks (outcome-reconciliation, reviewer-calibration,
+    # reviewer-reflection, narrative-digest, proposal-cleanup) are MAINTENANCE
+    # shape recurrences owned by YARNNN (ADR-231 + ADR-164).
     # No separate data model — a task is a task; owner determines class.
     #
     # DB slug `thinking_partner` retained as exception (migration 142;
@@ -640,28 +641,25 @@ SYSTEMIC_AGENTS: dict[str, dict[str, Any]] = {
     "thinking_partner": {
         "class": "meta-cognitive",  # ADR-216: enum retained; classification = orchestration surface
         "domain": None,
-        "display_name": "Thinking Partner",
+        "display_name": "YARNNN",
         "tagline": "Orchestrates your workforce",
         "capabilities": [
             "read_workspace", "write_workspace", "search_knowledge",
             "produce_markdown",
         ],
-        "description": "The conversational meta-cognitive Agent. Manages the "
-                       "operator's attention allocation and the workforce's health. "
-                       "Creates tasks, evaluates outputs, steers agents, and runs "
-                       "back office maintenance via task runtime. YARNNN's outputs "
+        "description": "The YARNNN orchestration surface. Routes operator intent, "
+                       "manages workforce health, runs back-office maintenance "
+                       "via scheduled recurrence declarations. YARNNN's outputs "
                        "serve the coherence of the system itself.",
         "default_instructions": (
-            "You are Thinking Partner — the meta-cognitive Agent. Your domain is the "
-            "operator's workforce itself, not any segment of operator work. When you "
-            "execute tasks in task runtime, you are running back office maintenance: "
-            "evaluating agent health, cleaning up the workspace, reviewing task "
-            "freshness, reconciling outcomes, rebuilding reviewer calibration. You "
-            "never produce domain content (reports, briefs, analyses). You produce "
-            "orchestration signals that keep the rest of the workforce coherent.\n\n"
-            "In task runtime, read the TASK.md ## Process section to find your "
-            "declared executor. Run it. Write a structured output summarizing what "
-            "you observed and any actions taken."
+            "You are YARNNN — the orchestration surface. Your domain is the "
+            "operator's workforce itself, not any segment of operator work. When "
+            "dispatched as a back-office maintenance invocation, your work is "
+            "declared in a recurrence YAML entry at "
+            "/workspace/_shared/back-office.yaml — read the `executor:` field "
+            "to find the dotted-path executor, then run it. Write a structured "
+            "output summarizing what you observed and any actions taken. "
+            "You never produce domain content (reports, briefs, analyses)."
         ),
         "methodology": {},
     },
@@ -708,7 +706,7 @@ Cross-domain summary?               → Reporting (synthesizer)
 Platform access (ADR-207 P4a — capabilities, not bots):
 - Platform reads/writes are capabilities on specialists — `read_slack`, `write_slack`,
   `read_notion`, `write_notion`, `read_github`, `read_commerce`, `write_commerce`,
-  `read_trading`, `write_trading`. Declared on TASK.md via `**Required Capabilities:**`.
+  `read_trading`, `write_trading`. Declared on the recurrence YAML via `required_capabilities:` field.
 - Gate: `capability_available(user_id, cap, client)` checks the matching
   `platform_connections` row at dispatch. Missing = fail fast with "connect X first".
 
@@ -723,7 +721,7 @@ Composition criteria:
 - Visual output needed → add Designer
 - Cross-domain synthesis → Reporting
 
-Write team decisions into the ## Team section of TASK.md. Document reasoning briefly.
+Write team decisions into the `team:` field of the recurrence YAML declaration. Document reasoning briefly.
 
 ## Capability Discipline
 - Researcher and Analyst: text and knowledge files only. Do NOT assign charts or images.
@@ -1403,7 +1401,7 @@ def get_capability_requirement(capability_name: str) -> Optional[dict]:
 
     None means: either the capability doesn't exist, or it needs no platform
     connection (internal runtime). Callers should treat unknown capabilities
-    as "not available" to fail loudly on typos in TASK.md.
+    as "not available" to fail loudly on typos in the recurrence YAML.
 
     Per ADR-224: falls through to active program bundles' capabilities[]
     declarations for program-specific capabilities (read_trading, write_trading,
@@ -1423,7 +1421,7 @@ def capability_available(user_id: str, capability_name: str, client: Any) -> boo
     row matching the declared requirement.
 
     Unknown capability names return False — callers should surface the
-    mismatch so the operator can correct TASK.md.
+    mismatch so the operator can correct the recurrence YAML declaration.
 
     Per ADR-224: falls through to active program bundles' capabilities[]
     declarations for program-specific capabilities.

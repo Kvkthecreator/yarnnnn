@@ -27,7 +27,7 @@ SEARCH_ENTITIES_TOOL = {
 Scopes: document (uploaded files), agent, version, all. Memory is not a scope — already in working memory.
 
 DOES NOT SEARCH:
-- Task bodies (TASK.md, DELIVERABLE.md) — these are workspace files. Use ReadFile with path /tasks/{slug}/TASK.md instead. The compact index already lists every task by slug; pick the slug, read the file directly.
+- Work declarations — these are recurrence YAML files at natural-home paths. The compact index lists every recurrence by slug; use ReadFile with the YAML path directly (/workspace/reports/{slug}/_spec.yaml, /workspace/context/{domain}/_recurring.yaml, /workspace/operations/{slug}/_action.yaml, /workspace/_shared/back-office.yaml).
 - Context domain files (/workspace/context/**) — use QueryKnowledge for semantic search or ReadFile for a known path.
 - AGENT.md, IDENTITY.md, BRAND.md — these are workspace files. Use ReadFile with the known path.
 

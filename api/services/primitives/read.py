@@ -120,9 +120,13 @@ async def handle_lookup_entity(auth: Any, input: dict) -> dict:
                 if parsed.entity_type == "task":
                     hint = (
                         f"'{parsed.identifier}' looks like a slug, not a UUID. "
-                        f"Task bodies live at /tasks/{parsed.identifier}/TASK.md — use "
-                        f"ReadFile(path='/tasks/{parsed.identifier}/TASK.md'). "
-                        f"For task scheduling/status/update, use ManageTask(task_slug='{parsed.identifier}', action='...'). "
+                        f"Work declarations live in recurrence YAML at natural-home paths — "
+                        f"check /workspace/context/{{domain}}/_recurring.yaml (accumulation), "
+                        f"/workspace/reports/{parsed.identifier}/_spec.yaml (deliverable), "
+                        f"/workspace/operations/{parsed.identifier}/_action.yaml (action), "
+                        f"or /workspace/_shared/back-office.yaml (maintenance). "
+                        f"Use ListFiles or ReadFile with the relevant path. "
+                        f"For scheduling/status, use ManageRecurrence(slug='{parsed.identifier}', action='...'). "
                         f"For the entity row, pass the id from ListEntities(pattern='task:*')."
                     )
                 else:

@@ -6,6 +6,34 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.03.2] - Stale TASK.md/tasks/ references purged from LLM-facing content
+
+ADR-231 deleted the /tasks/{slug}/ filesystem and TASK.md as the work descriptor.
+Four LLM-facing sites still referenced stale paths — model was being directed to
+files that no longer exist. All four corrected to recurrence YAML vocabulary.
+
+### Changed
+
+- `api/services/primitives/read.py` — error hint for task slug: was `ReadFile(/tasks/{slug}/TASK.md)`,
+  now points to the four natural-home YAML paths per ADR-231 D2 and ManageRecurrence primitive.
+- `api/services/primitives/search.py` — SearchEntities tool description: "DOES NOT SEARCH" section
+  was `Use ReadFile with path /tasks/{slug}/TASK.md`, now describes recurrence YAML paths.
+- `api/services/working_memory.py` — compact index "Currently viewing: Task" context:
+  was `(Read full task: /tasks/{task_slug}/TASK.md)`, now lists the three likely YAML paths
+  for the slug (spec/action/recurring).
+- `api/services/orchestration.py` — YARNNN `display_name` updated "Thinking Partner" → "YARNNN"
+  (ADR-247 D1); `default_instructions` updated: was "read the TASK.md ## Process section",
+  now "read executor: field from /workspace/_shared/back-office.yaml"; capability docstrings
+  updated from "Declared on TASK.md" to "Declared on the recurrence YAML".
+
+### Expected behavior
+
+- Model no longer receives dead paths when it asks about work declarations
+- Back-office YARNNN instructions correctly describe the recurrence YAML executor pattern
+- YARNNN display name aligns with ADR-247 (no more "Thinking Partner" in model-visible registry)
+
+---
+
 ## [2026.05.03.1] - Workspace-init refactor — CONVENTIONS scope clarification + PRECEDENT guidance
 
 Workspace-init refactor 2026-05-03. Prompt changes to align with new substrate reality.
