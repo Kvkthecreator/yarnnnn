@@ -73,12 +73,14 @@ personas:
         - trade-proposal                 # /workspace/operations/trade-proposal/_action.yaml
         - weekly-performance-review      # /workspace/reports/weekly-performance-review/_spec.yaml
         - quarterly-signal-audit         # /workspace/reports/quarterly-signal-audit/_spec.yaml
+        - back-office-narrative-digest         # /workspace/_shared/back-office.yaml (ADR-248)
         - back-office-outcome-reconciliation  # /workspace/_shared/back-office.yaml
         - back-office-proposal-cleanup        # /workspace/_shared/back-office.yaml
         - back-office-reviewer-calibration    # /workspace/_shared/back-office.yaml
         - back-office-reviewer-reflection     # /workspace/_shared/back-office.yaml
       platform_connections: 1
       core_files:
+        - /workspace/_shared/back-office.yaml   # ADR-248: forked from bundle at activation
         - /workspace/context/_shared/IDENTITY.md
         - /workspace/context/_shared/MANDATE.md
         - /workspace/context/_shared/AUTONOMY.md
@@ -124,11 +126,13 @@ personas:
         - trade-proposal-2                # /workspace/operations/trade-proposal-2/_action.yaml
         - weekly-performance-review-2     # /workspace/reports/weekly-performance-review-2/_spec.yaml
         - quarterly-signal-audit-2        # /workspace/reports/quarterly-signal-audit-2/_spec.yaml
+        - back-office-narrative-digest         # /workspace/_shared/back-office.yaml (ADR-248)
         - back-office-outcome-reconciliation
         - back-office-reviewer-calibration
         - back-office-reviewer-reflection
       platform_connections: 1
       core_files:
+        - /workspace/_shared/back-office.yaml   # ADR-248: forked from bundle at activation
         - /workspace/context/_shared/IDENTITY.md
         - /workspace/context/_shared/MANDATE.md
         - /workspace/context/_shared/AUTONOMY.md
@@ -170,12 +174,14 @@ personas:
         - trade-proposal
         - weekly-performance-review
         - quarterly-signal-audit
+        - back-office-narrative-digest         # /workspace/_shared/back-office.yaml (ADR-248)
         - back-office-outcome-reconciliation
         - back-office-proposal-cleanup
         - back-office-reviewer-calibration
         - back-office-reviewer-reflection
       platform_connections: 1
       core_files:
+        - /workspace/_shared/back-office.yaml   # ADR-248: forked from bundle at activation
         - /workspace/context/_shared/IDENTITY.md
         - /workspace/context/_shared/MANDATE.md
         - /workspace/context/_shared/AUTONOMY.md
