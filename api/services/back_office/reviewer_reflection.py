@@ -62,6 +62,11 @@ REFLECTION_MODEL = "claude-haiku-4-5-20251001"
 
 # Invocation gate: don't bother invoking if nothing has happened or if
 # we just reflected. These are not triggers — they are cost floors.
+#
+# _MIN_TOTAL_DECISIONS (ADR-248): pattern-detection floor. One or two decisions
+# is too thin a sample to detect meaningful drift. Reflection only fires once
+# the seat has accumulated enough data to reason about calibration quality.
+_MIN_TOTAL_DECISIONS = 5
 _MIN_NEW_DECISIONS = 1
 _MIN_HOURS_BETWEEN_REFLECTIONS = 24
 
@@ -138,6 +143,15 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         }
 
         # --- 2. Invocation gate (not a trigger — just cost floors) ---
+        # Floor 1: enough total decisions to detect patterns (ADR-248 D1).
+        if len(decisions) < _MIN_TOTAL_DECISIONS:
+            structured["reason"] = (
+                f"skipped: only {len(decisions)} total decisions in decisions.md "
+                f"(minimum {_MIN_TOTAL_DECISIONS} for meaningful pattern detection)"
+            )
+            return _shape_result(started_at, structured)
+
+        # Floor 2: at least one new decision since last reflection (something to reflect on).
         if len(new_decisions) < _MIN_NEW_DECISIONS:
             structured["reason"] = (
                 f"skipped: {len(new_decisions)} new decisions since last reflection "

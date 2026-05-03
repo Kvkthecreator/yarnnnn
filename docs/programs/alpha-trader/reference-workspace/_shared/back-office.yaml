@@ -1,0 +1,68 @@
+# ADR-248: Back-office recurrence declarations for alpha-trader program.
+#
+# Forked to /workspace/_shared/back-office.yaml at activation (tier: canon).
+# Walked by scheduler via walk_workspace_recurrences() → _parse_back_office_block().
+# Each entry routes to services.back_office.{executor_tail} via invocation_dispatcher.
+#
+# Execution order (dependencies):
+#   outcome-reconciliation  →  reviewer-calibration  →  reviewer-reflection
+#   narrative-digest and proposal-cleanup are independent.
+#
+# Key: back_office_jobs (list of entries, each with executor: dotted.path)
+
+back_office_jobs:
+
+  # ── narrative-digest ──────────────────────────────────────────────────────
+  # Rolls up non-conversation narrative events (reviewer verdicts, agent runs,
+  # system events) into /workspace/memory/recent.md for the compact index.
+  # Runs daily — cheap SQL read + filesystem write, zero LLM cost.
+  - slug: back-office-narrative-digest
+    executor: services.back_office.narrative_digest
+    schedule: "0 3 * * *"      # 03:00 UTC daily (quiet window)
+    display_name: "Narrative Digest"
+    paused: false
+
+  # ── proposal-cleanup ──────────────────────────────────────────────────────
+  # Archives stale action_proposals rows that were never acted on.
+  # Runs daily — pure DB maintenance, zero LLM cost.
+  - slug: back-office-proposal-cleanup
+    executor: services.back_office.proposal_cleanup
+    schedule: "0 4 * * *"      # 04:00 UTC daily
+    display_name: "Proposal Cleanup"
+    paused: false
+
+  # ── outcome-reconciliation ────────────────────────────────────────────────
+  # Reconciles trading + commerce platform outcomes into per-domain
+  # /workspace/context/{domain}/_performance.md rolling windows.
+  # MUST run before reviewer-calibration (calibration reads _performance.md).
+  # Zero LLM cost — pure platform API reads + deterministic aggregation.
+  - slug: back-office-outcome-reconciliation
+    executor: services.back_office.outcome_reconciliation
+    schedule: "0 5 * * *"      # 05:00 UTC daily (after market close + settlement)
+    display_name: "Outcome Reconciliation"
+    paused: false
+
+  # ── reviewer-calibration ──────────────────────────────────────────────────
+  # Cross-references decisions.md verdict trail with _performance.md outcomes
+  # to produce /workspace/review/calibration.md rolling-window summary.
+  # Closes the money-truth → future-judgment loop (FOUNDATIONS Axiom 7 + 8).
+  # MUST run after outcome-reconciliation. Zero LLM cost — deterministic.
+  - slug: back-office-reviewer-calibration
+    executor: services.back_office.reviewer_calibration
+    schedule: "0 6 * * *"      # 06:00 UTC daily (1h after reconciliation)
+    display_name: "Reviewer Calibration"
+    paused: false
+
+  # ── reviewer-reflection ───────────────────────────────────────────────────
+  # Persona reads its own substrate (IDENTITY + principles + calibration +
+  # _performance.md) and produces a structured reflection verdict on whether
+  # its judgment framework warrants change. Invocation gate: ≥5 total decisions
+  # in decisions.md AND ≥1 new since last reflection AND ≥24h since last run.
+  # LLM cost: ~$0.002/invocation (Haiku). ~$0.06/month at 1-2 proposals/day.
+  # Writes back to reflections.md; material verdicts emit role='reviewer' narrative.
+  # ADR-248 D4: can emit pause_autonomy proposal → writes paused_until to AUTONOMY.md.
+  - slug: back-office-reviewer-reflection
+    executor: services.back_office.reviewer_reflection
+    schedule: "0 7 * * *"      # 07:00 UTC daily (1h after calibration)
+    display_name: "Reviewer Reflection"
+    paused: false
