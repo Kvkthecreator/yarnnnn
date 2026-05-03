@@ -3,6 +3,7 @@
 **Status:** Canonical (v13 — ADR-170 compose substrate + output surfaces)
 **Date:** 2026-04-10
 **Related:**
+- [workspace-init.md](workspace-init.md) — **which files are seeded at init, in what order, and why** (canonical counterpart; read together with this doc)
 - [ADR-106: Agent Workspace Architecture](../adr/ADR-106-agent-workspace-architecture.md) — governing ADR
 - [ADR-119: Workspace Filesystem Architecture](../adr/ADR-119-workspace-filesystem-architecture.md) — folder conventions, lifecycle, versioning
 - [ADR-138: Agents as Work Units](../adr/ADR-138-agents-as-work-units.md) — agents own tasks directly

@@ -1,3 +1,5 @@
+> **HISTORICAL — Pre-ADR compass document (March 2026).** Current canonical reference: [docs/architecture/workspace-init.md](../architecture/workspace-init.md). This predates the current init system (ADR-205/206) and describes a workspace layout that no longer exists.
+
 # Workspace Architecture — Development Landscape
 
 YARNNN | March 2026 | Living compass document

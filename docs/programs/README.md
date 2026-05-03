@@ -3,6 +3,7 @@ title: Programs — OS / Program Separation
 date: 2026-04-26 (v2 alignment 2026-04-27 for ADR-222; lifecycle states + alpha-commerce row 2026-04-27 for ADR-224 v3)
 status: canonical
 related:
+  - docs/architecture/workspace-init.md   # Phase 5 fork — fork_reference_workspace() runs from here
   - docs/architecture/SERVICE-MODEL.md
   - docs/architecture/FOUNDATIONS.md
   - docs/architecture/GLOSSARY.md

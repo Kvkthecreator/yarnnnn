@@ -1,3 +1,5 @@
+> **HISTORICAL — Pre-ADR analysis (March 2026).** Current canonical reference: [docs/architecture/workspace-init.md](../architecture/workspace-init.md). This document predates ADR-106, ADR-205, ADR-206, ADR-226 and describes an architecture that no longer exists.
+
 # Workspace Architecture Analysis
 
 Fork Decision, Execution Path Trace, and Memory Audit

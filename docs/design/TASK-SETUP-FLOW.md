@@ -3,7 +3,7 @@
 **Version:** v1.1 (2026-04-27 — Bucket A catch-up: task type catalog source)
 **Status:** Canonical
 **Governed by:** [ADR-178](../adr/ADR-178-task-creation-routes.md) — Task Creation Routes
-**Parallel pattern:** [SHARED-CONTEXT-WORKFLOW.md](./SHARED-CONTEXT-WORKFLOW.md) — identity/brand capture via ContextSetup
+**Parallel pattern:** [workspace-init.md](../architecture/workspace-init.md) — identity/brand capture and full init sequence (SHARED-CONTEXT-WORKFLOW.md archived 2026-05-03)
 **Composition layer:** [ADR-207](../adr/ADR-207-primary-action-centric-workflow.md) P4b (TASK.md is dispatch-authoritative; TASK_TYPES is a frozen seed library), [ADR-224](../adr/ADR-224-kernel-program-boundary-refactor.md) (program-shaped task types live in bundle MANIFESTs, not in kernel)
 
 ---
