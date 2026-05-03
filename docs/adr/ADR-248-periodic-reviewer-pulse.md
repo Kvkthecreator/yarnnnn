@@ -55,7 +55,7 @@ Add `back-office-reviewer-reflection` as a daily entry in `/workspace/_shared/ba
 
 **Cadence**: daily, offset from `back-office-outcome-reconciliation` and `back-office-reviewer-calibration` (which must run first — reflection reads `calibration.md`). Suggested: reconciliation → calibration → reflection, each ~1h apart. Expressed as cron offsets in the YAML.
 
-**Invocation gate** (already in `reviewer_reflection.py`): ≥1 new decision since last reflection AND ≥24h since last reflection. If gate fails, executor returns immediately with a `skipped` status. Zero LLM cost when skipped.
+**Invocation gate**: ≥5 total decisions in `decisions.md` AND ≥1 new decision since last reflection AND ≥24h since last reflection. If gate fails, executor returns immediately with a `skipped` status. Zero LLM cost when skipped. The minimum of 5 total decisions is a pattern-detection floor — one or two decisions is too thin a sample to detect meaningful drift. The existing `reviewer_reflection.py` has a ≥1 floor; Commit 1 updates it to ≥5 total alongside the YAML wiring.
 
 **Cost**: ~$0.002 per invocation when triggered (Haiku, ~1-2K tokens). ~$0.06/month for a daily trading operation producing 1-2 proposals/day.
 
@@ -116,6 +116,20 @@ Default pause duration: **48 hours**. The reflection prompt instructs the person
 
 ---
 
+## Governing Philosophy: Runtime Gate, Not Model-Side Reasoning
+
+This ADR follows the Claude Code gate model explicitly.
+
+**Claude Code never asks "am I allowed to do this?" before calling a tool.** It calls the tool; the runtime either executes or surfaces for approval. The permission model is at the tool boundary, not in the model's head.
+
+The same principle governs this ADR's design:
+
+- Production agents always produce the best proposal they can from the substrate they read. They never reason about their autonomy level. They call `ProposeAction`.
+- `should_auto_execute_verdict()` is the single runtime gate. It reads AUTONOMY.md. It decides. The model is not in that loop.
+- The Reviewer's periodic pulse (this ADR) adds a new *write path* to the gate — the Reviewer can write `paused_until` to AUTONOMY.md, which the gate then reads. This is a substrate mutation, not a model instruction.
+
+**Consequence**: this ADR adds no lifecycle prompt instructions, no document readiness checks, no "if AUTONOMY.md is skeleton, do X" model guidance. If `_operator_profile.md` is skeleton and the agent reads it and finds no signals, the agent naturally produces no proposal or an explicit "standing down — no signals declared" proposal. The gate handles the rest. The model reads substrate and acts; the gate controls execution.
+
 ## What This ADR Does NOT Do
 
 - Does not change `reviewer_agent.py` verdict mode (per-proposal judgment unchanged)
@@ -123,6 +137,7 @@ Default pause duration: **48 hours**. The reflection prompt instructs the person
 - Does not add new primitives
 - Does not change `review_proposal_dispatch.py`
 - Does not change the four autonomy levels (manual/assisted/bounded_autonomous/autonomous)
+- Does not add lifecycle prompt instructions or document readiness checks to the ACTION posture
 - Does not add a `pause_autonomy` UI affordance — the operator sees the pause in the narrative and can lift it via chat; no new surface needed
 
 ---

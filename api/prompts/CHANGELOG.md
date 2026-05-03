@@ -6,6 +6,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.03.3] - Three-party model + runtime-gate philosophy in tools_core.py
+
+Aligns the LLM-facing vocabulary in `tools_core.py` with the ADR-216/247 three-party model
+and the Claude Code runtime-gate philosophy established in ADR-248.
+
+### Changed
+
+- `api/agents/prompts/tools_core.py` — **Domain Terms** section rewritten (ADR-216/247):
+  - `"Agent" = judgment-bearing entity — YARNNN (you), Reviewer..."` was wrong per ADR-216.
+    YARNNN is the orchestration surface, not a judgment-bearing Agent. Corrected.
+  - **YARNNN** now defined as orchestration chat surface explicitly: "You route work, keep the
+    workspace legible, and drive the operation forward. You do not embody an operator-authored
+    judgment persona — that belongs to the Reviewer."
+  - **Reviewer** defined as the operator's judgment character: persona-bearing, capital-EV
+    reasoning, independent of production agents by design.
+  - `task` term replaced with `recurrence` (YAML declaration at natural-home path per ADR-231).
+- `api/agents/prompts/tools_core.py` — **The Workforce Model** section rewritten:
+  - Replaces "A fresh workspace contains YARNNN (you) and the Reviewer seat — the two systemic
+    Agents" with the three-party model: Operator (authors mandate), YARNNN (orchestration shell),
+    Reviewer (named judgment persona).
+  - Adds **Runtime gate model** paragraph: "The agent always acts with full intent. The gate is
+    at the action boundary, not in the model's head... The agent never reasons about its
+    permission level."
+  - Loop vocabulary updated: "Mandate → Operation → Proposals → Reviewer verdict → Execution
+    (or Queue) → Outcomes → Mandate refined."
+  - "Agents in the workspace" block replaced with the three-party table.
+
+### Expected behavior
+
+- Model correctly understands YARNNN's role as orchestration surface, not judgment entity.
+- Model correctly understands the Reviewer is the operator's installed judgment character,
+  independent of production agents.
+- Model understands `ProposeAction` is always its output for external writes — it never
+  reasons about whether it's "allowed" to execute. The gate is downstream.
+- Model uses `recurrence` vocabulary (YAML) not `task` vocabulary (deleted TASK.md).
+
+---
+
 ## [2026.05.03.2] - Stale TASK.md/tasks/ references purged from LLM-facing content
 
 ADR-231 deleted the /tasks/{slug}/ filesystem and TASK.md as the work descriptor.

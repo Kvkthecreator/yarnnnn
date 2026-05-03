@@ -1,9 +1,9 @@
 # Primitives Matrix — Substrate × Mode × Capability
 
-**Status:** Canonical — reflects post-ADR-168 + post-ADR-196 state
-**Last updated:** 2026-04-20 (FOUNDATIONS v6.0 alignment — primitives framed as Mechanism-dimension vocabulary)
-**Governing ADRs:** ADR-146 (Primitive Hardening), ADR-168 (this matrix — substrate/mode/capability axes + entity/file naming reform), ADR-169 (MCP as third caller), ADR-196 (user_memory table sunset)
-**Related:** ADR-154 (Who/What/How), ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-164 (YARNNN as Agent), ADR-166 (precedent for two-axis registry cleanup), FOUNDATIONS Axiom 1 (filesystem substrate) + Axiom 5 (Mechanism spectrum)
+**Status:** Canonical — reflects post-ADR-168 + post-ADR-196 + post-ADR-231 + post-ADR-235 + post-ADR-247 state
+**Last updated:** 2026-05-03 (ManageTask dissolved ADR-231; UpdateContext dissolved ADR-235; YARNNN reclassified as orchestration surface ADR-216/247)
+**Governing ADRs:** ADR-146 (Primitive Hardening), ADR-168 (substrate/mode/capability axes + naming reform), ADR-169 (MCP as third caller), ADR-196 (user_memory sunset), ADR-231 (ManageTask dissolved → ManageRecurrence + FireInvocation), ADR-235 (UpdateContext dissolved → InferContext / InferWorkspace / ManageRecurrence / WriteFile)
+**Related:** ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-166 (registry cleanup), ADR-216 (YARNNN as orchestration surface, not judgment Agent), ADR-247 (three-party narrative model + primitive ownership), FOUNDATIONS Axiom 1 (filesystem substrate) + Axiom 5 (Mechanism spectrum)
 
 ---
 
@@ -61,10 +61,22 @@ The primitive set is runtime-neutral, but the *operator surface* convention per 
 | **Create** (recurrence, rule, signal, SKU) | Modal (`CreateTaskModal`, `CreateRuleModal`) | `ManageRecurrence(action="create")` / `WriteFile(scope="workspace", ...)` for governance + rule authoring. High-precision, well-specified; modal provides structured fields. **Note (ADR-235 D2):** there is no chat-surface or modal pathway to author *new agents* — the systemic roster is fixed at signup. |
 | **Read** | Direct surface view | Any read primitive (`ReadFile`, `LookupEntity`, `SearchFiles`, `QueryKnowledge`). No modal or chat required. |
 | **Update** | Chat + YARNNN | `ManageRecurrence(action="update")`, `ManageAgent(action="update")`, `InferContext` (identity/brand merge), `WriteFile(scope="workspace", ...)` (substrate writes), `EditEntity`. Judgment-shaped — YARNNN asks "why", proposes alternatives, remembers reasoning. |
-| **Delete / archive** | Chat + YARNNN, confirmation required | `ManageTask(action="archive")`, `ManageAgent(action="archive")`. Irreversibility warrants conversation; YARNNN writes attribution to `/workspace/memory/awareness.md`. |
+| **Delete / archive** | Chat + YARNNN, confirmation required | `ManageRecurrence(action="archive")`, `ManageAgent(action="archive")`. Irreversibility warrants conversation; YARNNN writes attribution to `/workspace/memory/awareness.md`. |
 | **Approve / reject proposal** (money-bearing) | Direct click on cockpit Queue | `handle_execute_proposal` / `handle_reject_proposal`. Not CRUD — surface-level action on a Deliverable. YARNNN observes via compact index. |
 
 **Rule of thumb:** direct surface action for *high-precision actions on a known artifact*; chat for *judgment-shaped or context-rich actions*. YARNNN observes all of them regardless — the operator never leaves YARNNN's awareness, but YARNNN is not a mandatory mediator for every click.
+
+### Three-party primitive ownership (ADR-247 D4)
+
+The approval loop primitives express the structural independence of the three parties:
+
+| Party | Primitives available | What they cannot do |
+|-------|---------------------|---------------------|
+| **YARNNN** (chat) | `ProposeAction`, `ExecuteProposal`, `RejectProposal` | Cannot act without the operator present (chat-only) |
+| **Reviewer** | None — pure judgment entity | Cannot scaffold, compose, or route; reads substrate + writes `decisions.md` via `reviewer_audit.py` outside the primitive surface |
+| **Headless agents** (production) | `ProposeAction` only | Cannot bind decisions — `ExecuteProposal` / `RejectProposal` are chat-only |
+
+This is the structural expression of THESIS Commitment 2 (independent judgment): the Reviewer's independence is enforced because it has no primitive surface — it cannot produce or scaffold, only judge. YARNNN can bind operator intent; production agents can only propose.
 
 ---
 
@@ -104,7 +116,9 @@ Verbs that update, pause, resume, archive an agent, recurrence, or domain entity
 
 Mental model: **"take this lifecycle action on this named thing."**
 
-Verbs: `ManageAgent`, `ManageTask`, `ManageDomains`, `DiscoverAgents` (read-only lifecycle).
+Verbs: `ManageAgent`, `ManageRecurrence`, `ManageDomains`, `DiscoverAgents` (read-only lifecycle), `FireInvocation` (run-now trigger).
+
+`ManageTask` was dissolved by ADR-231 Phase 3.7 — lifecycle actions route to `ManageRecurrence`, run-now trigger routes to `FireInvocation`.
 
 ### `action` — User-initiated typed actions
 
