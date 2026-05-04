@@ -28,7 +28,6 @@ import { AgentIcon } from './AgentIcon';
 import { PrinciplesTab } from './PrinciplesTab';
 import { MandateTab } from './MandateTab';
 import { AutonomyTab } from './AutonomyTab';
-import { HeartbeatTab } from './HeartbeatTab';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -723,13 +722,12 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 // Tab is URL-driven via ?tab= so deep-links round-trip cleanly. Each
 // substrate tab uses the shared <SubstrateTab> shell for visual
 // consistency.
-type YarnnnTab = 'identity' | 'mandate' | 'autonomy' | 'principles' | 'heartbeat';
+type YarnnnTab = 'identity' | 'mandate' | 'autonomy' | 'principles';
 const YARNNN_TABS: ReadonlyArray<{ id: YarnnnTab; label: string }> = [
   { id: 'identity', label: 'Identity' },
   { id: 'mandate', label: 'Mandate' },
   { id: 'autonomy', label: 'Autonomy' },
   { id: 'principles', label: 'Principles' },
-  { id: 'heartbeat', label: 'Heartbeat' },
 ];
 
 function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
@@ -737,7 +735,7 @@ function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
   const activeTab: YarnnnTab =
-    tabParam === 'mandate' || tabParam === 'autonomy' || tabParam === 'principles' || tabParam === 'heartbeat'
+    tabParam === 'mandate' || tabParam === 'autonomy' || tabParam === 'principles'
       ? tabParam
       : 'identity';
 
@@ -781,7 +779,6 @@ function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
         {activeTab === 'mandate' && <MandateTab />}
         {activeTab === 'autonomy' && <AutonomyTab />}
         {activeTab === 'principles' && <PrinciplesTab />}
-        {activeTab === 'heartbeat' && <HeartbeatTab />}
       </div>
     </div>
   );
