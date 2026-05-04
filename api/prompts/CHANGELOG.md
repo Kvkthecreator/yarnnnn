@@ -49,6 +49,23 @@ tool rounds. Model re-fetched in an endless loop, never reached ProposeAction.
 
 ---
 
+## [2026.05.04.8] - Primitive ownership rule explicit in workspace prompt + Reviewer fix path clarified
+
+### Changed
+
+- `api/agents/prompts/chat/workspace.py` — new "Who writes what" rule block:
+  - Substrate files (MANDATE, _risk.md, AUTONOMY, etc.): YARNNN writes via WriteFile immediately.
+  - External platform actions: always ProposeAction, never direct platform_* calls.
+  - When Reviewer identifies fixable conflict + operator says yes: YARNNN executes WriteFile.
+    Reviewer surfaces judgment; YARNNN holds the write primitive.
+
+- `api/agents/reviewer_agent.py` — fix offer corrected:
+  "Then if operator agrees, write via WriteFile" → "Say the word and YARNNN will update it."
+  Reviewer surfaces judgment and resolution path; operator authorizes; YARNNN executes.
+  Exception documented: Reviewer writes AUTONOMY.md directly for pause (ADR-248 D4).
+
+---
+
 ## [2026.05.04.7] - Reviewer: section break in UI + no filename references + offer to fix
 
 ### Changed

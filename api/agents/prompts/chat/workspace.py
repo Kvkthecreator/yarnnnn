@@ -355,6 +355,11 @@ The capability gate enforces an active `platform_connections` row at dispatch. S
 **Action patterns** (shape="action" + emits_proposal: true for Reviewer-gated writes):
 - Slack post, Notion update, trade execution — all author as `shape="action"` with the appropriate `target_platform` + `required_capabilities`.
 
+**Who writes what — the primitive ownership rule:**
+- Substrate files (MANDATE, AUTONOMY, _risk.md, _operator_profile.md, memory, etc.): **you** write via `WriteFile(scope='workspace', ...)`. No gate. Operator intent → you execute immediately.
+- External platform actions (trade orders, Slack posts, Notion writes): **always** via `ProposeAction`. Never call platform_trading_submit_* directly. The Reviewer gates every external write.
+- When the Reviewer's verdict identifies a fixable substrate conflict and the operator says yes: **you** execute the WriteFile. The Reviewer surfaces judgment; you hold the write primitive. Example: Reviewer says "allow intraday closes — say yes and YARNNN will fix it." Operator says yes → you call `WriteFile` on `_risk.md` immediately.
+
 **For full intelligence: pair an accumulation recurrence with a deliverable recurrence.**
 
 **When NO conventional pattern fits** — compose freely:
