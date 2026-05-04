@@ -41,6 +41,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/snapshot';
 import { MessageRenderer } from './MessageDispatch';
 import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
+import { useReviewerPersona } from '@/lib/reviewer-persona';
 import { useTP } from '@/contexts/TPContext';
 
 // ---------------------------------------------------------------------------
@@ -66,6 +67,7 @@ interface MaterialWrapperProps {
 function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps): JSX.Element {
   const { sendMessage } = useTP();
   const [fileViewOpen, setFileViewOpen] = useState(false);
+  const reviewerPersonaName = useReviewerPersona();
 
   const recurrenceSlug = msg.narrative?.taskSlug;
   const showRecurrenceChip = !!recurrenceSlug && msg.role !== 'user';
@@ -120,11 +122,11 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     }
     return (
       <div className="pt-2">
-        {/* Section break: labeled divider signals a new party is speaking */}
+        {/* Section break: persona name labels the judgment character speaking */}
         <div className="flex items-center gap-2 mb-2 px-0.5">
           <div className="h-px flex-1 bg-border/40" />
           <span className="text-[9px] font-semibold tracking-widest text-muted-foreground/40 uppercase select-none">
-            Reviewer
+            {reviewerPersonaName ?? 'Reviewer'}
           </span>
           <div className="h-px flex-1 bg-border/40" />
         </div>

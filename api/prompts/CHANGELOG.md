@@ -49,6 +49,41 @@ tool rounds. Model re-fetched in an endless loop, never reached ProposeAction.
 
 ---
 
+## [2026.05.04.9] - Two roles, three participants: system narrates, persona judges
+
+Three changes committing fully to the two-role model (ADR-249).
+
+### Changed
+
+- `web/components/tp/MessageRow.tsx` — reviewer divider label now renders
+  the operator's installed persona name from IDENTITY.md via useReviewerPersona()
+  hook. "Reviewer" hardcode replaced with `{reviewerPersonaName ?? 'Reviewer'}`.
+  When Simons is installed: "— Simons —" not "— Reviewer —". The operator
+  reads their own judgment character speaking, not an abstract third party.
+
+- `api/agents/prompts/base.py` — YARNNN terminology block rewritten:
+  "YARNNN is the super-agent... you are an Agent" removed entirely.
+  New: "YARNNN is you — the system surface. You execute, route, narrate.
+  You do not hold judgment." Reviewer and user named as the judgment
+  participants; YARNNN explicitly excluded from that class.
+
+- `api/agents/reviewer_agent.py` — system prompt opening rewritten:
+  "You are the independent judgment seat" → "You are the operator's
+  judgment character — personified via IDENTITY.md. You are not a system,
+  not a filter, not a policy engine. You are a person."
+  Context list reformatted: IDENTITY.md first with instruction to "read it
+  first — this is who you are." Persona-first framing throughout.
+
+### Expected behavior
+
+- Divider above Reviewer verdict reads "— Simons —" (or installed persona)
+  rather than "— Reviewer —". Operator recognizes their own character.
+- YARNNN describes itself as a system surface when asked, not an Agent.
+- Reviewer opens each verdict reasoning in the persona's voice, having
+  read IDENTITY.md as the foundation of its character.
+
+---
+
 ## [2026.05.04.8] - Primitive ownership rule explicit in workspace prompt + Reviewer fix path clarified
 
 ### Changed
