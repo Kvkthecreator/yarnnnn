@@ -48,7 +48,8 @@ export const SCHEDULE_ROUTE = "/schedule"; // ADR-243 — cadence-framed sibling
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 export const CONTEXT_ROUTE = "/context";
 // ADR-241: deep-link to TP detail. /agents (no param) redirects here.
-export const THINKING_PARTNER_ROUTE = "/agents?agent=thinking-partner";
+// Slug is "yarnnn" — derived from title "YARNNN" (ADR-247 display_name change).
+export const THINKING_PARTNER_ROUTE = "/agents?agent=yarnnn";
 
 export function isHomeRoute(pathname: string): boolean {
   return pathname === HOME_ROUTE || pathname.startsWith(`${HOME_ROUTE}/`);

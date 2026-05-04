@@ -794,7 +794,7 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
   // breadcrumbs and ADR-cross-link integrity (ADR-194 v2 chain).
   useEffect(() => {
     if (cls === 'reviewer') {
-      router.replace('/agents?agent=thinking-partner&tab=principles', { scroll: false });
+      router.replace('/agents?agent=yarnnn&tab=principles', { scroll: false });
     }
   }, [cls, router]);
 

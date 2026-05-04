@@ -30,7 +30,7 @@ import { useCockpit } from './CockpitContext';
 import { cn } from '@/lib/utils';
 
 const MANDATE_PATH = '/workspace/context/_shared/MANDATE.md';
-const AUTONOMY_EDIT_HREF = '/agents?agent=thinking-partner&tab=autonomy';
+const AUTONOMY_EDIT_HREF = '/agents?agent=yarnnn&tab=autonomy';
 
 // ---------------------------------------------------------------------------
 // Mandate parsing — extract operator-authored title + summary paragraph.

@@ -50,7 +50,7 @@ export default function AgentsPage() {
   // agent param is set. Roster mode is dead UX post-ADR-235 D2.
   useEffect(() => {
     if (!agentFromUrl) {
-      router.replace('/agents?agent=thinking-partner', { scroll: false });
+      router.replace('/agents?agent=yarnnn', { scroll: false });
     }
   }, [agentFromUrl, router]);
 

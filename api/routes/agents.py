@@ -231,6 +231,7 @@ class AgentResponse(BaseModel):
     """Agent response — ADR-138: identity-only agent schema."""
     id: str
     title: str
+    slug: Optional[str] = None  # Stable URL slug — derived server-side from title
     # ADR-109: Scope × Role
     scope: str = "cross_platform"
     role: str = "custom"
@@ -462,7 +463,7 @@ async def list_agents(
 
     # ADR-106: Read workspace intelligence for all agents in parallel
     import asyncio
-    from services.workspace import get_agent_intelligence
+    from services.workspace import get_agent_intelligence, get_agent_slug as _get_slug
 
     intelligence_map = {}
     async def _fetch_intelligence(agent_dict):
@@ -533,10 +534,10 @@ async def list_agents(
         intel = intelligence_map.get(d["id"], {})
         role = d.get("role", "custom")
         agent_class, context_domain = get_agent_class_and_domain(role)
-
         responses.append(AgentResponse(
             id=d["id"],
             title=d["title"],
+            slug=_get_slug(d),
             scope=d.get("scope", "cross_platform"),
             role=role,
             type_config=d.get("type_config"),
@@ -567,6 +568,7 @@ async def list_agents(
         responses.insert(0, AgentResponse(
             id="reviewer",
             title="Reviewer",
+            slug="reviewer",
             scope="workspace",
             role="reviewer",
             type_config=None,
