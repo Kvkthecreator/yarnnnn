@@ -1,7 +1,7 @@
 # Supervision Dashboard — Route Restructure & Autonomous Surfacing
 
 **Date:** 2026-03-16
-**Status:** Implemented (Phases 1-3)
+**Status:** Archived — Phases 1-3 implementation was superseded by successive ADRs. Composer (ADR-111) deleted by ADR-156. ADR-092 five-mode taxonomy dissolved into pulse model (ADR-126) then invocation model (ADR-231). `/activity` page deleted by ADR-163. Current activity surfacing: workspace events in Chat briefing, per-task in /work, per-agent in /agents. Retained as design-intent record.
 **Related:**
 - [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md) — source-first mental model, grouping
 - [Surface-Action Mapping](SURFACE-ACTION-MAPPING.md) — directive vs configuration surfaces

@@ -1,7 +1,7 @@
 # Agent Presentation Principles
 
 **Date:** 2026-04-05 (v3 — three-tab center panel, knowledge-first); 2026-04-08 note added for ADR-163 + ADR-164
-**Status:** Partially superseded — ADR-163 collapsed the Agents page to roster + identity (no tabs); see SURFACE-ARCHITECTURE.md v8 for current surface model
+**Status:** Archived — superseded by [AGENT-AND-TASK-SURFACE-PATTERNS.md](../AGENT-AND-TASK-SURFACE-PATTERNS.md) (2026-05-02, current canonical). ADR-163 collapsed Agents page; ADR-214 consolidated Reviewer into TP; ADR-241 collapsed to single cockpit persona. Current surface model: [SURFACE-CONTRACTS.md](../SURFACE-CONTRACTS.md) v2.3. Retained as design-evolution record.
 **Supersedes:** v2 (2026-04-04, task-cards-as-bridge vertical stack)
 **Related:**
 - [Surface Architecture](SURFACE-ARCHITECTURE.md) v8 — current model (ADR-163: Chat | Work | Agents | Context, Agents page is roster + identity only)

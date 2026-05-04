@@ -1,7 +1,7 @@
 # Cognitive Dashboard Design — ADR-128 Phase 6
 
 **Date:** 2026-03-21
-**Status:** Active
+**Status:** Archived — ADR-128 Phase 6 deferred indefinitely. Composer (ADR-111) deleted by ADR-156. PM coordination layer dissolved by ADR-138. The cognitive substrate (reflections.md, directives.md) remains but the "situation room" dashboard surface was never shipped and the architectural layer it depended on no longer exists. Retained as design intent record only.
 **Related:**
 - [ADR-128: Multi-Agent Coherence Protocol](../adr/ADR-128-multi-agent-coherence-protocol.md) — governing ADR, Phases 0-5
 - [Agent Presentation Principles](AGENT-PRESENTATION-PRINCIPLES.md) — source-first mental model, card anatomy

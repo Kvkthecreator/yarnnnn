@@ -1,8 +1,8 @@
 # Workfloor Liveness — Dynamic Agent Office
 
 **Date:** 2026-03-25
-**Status:** Proposed
-**Depends on:** [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v2, [ADR-139](../adr/ADR-139-workfloor-task-surface-architecture.md), [ADR-140](../adr/ADR-140-agent-workforce-model.md)
+**Status:** Archived — never shipped. SURFACE-ARCHITECTURE.md v2 superseded through v9.1 (ADR-163/167/214/241). ADR-139 (workfloor surface) dissolved into ADR-163/167. ADR-140 (agent workforce) superseded by ADR-176 then ADR-188/205. "Workfloor" as a surface name retired; /chat is now HOME_ROUTE. Retained as design-intent record for future liveness/presence features.
+**Depends on:** [SURFACE-ARCHITECTURE.md](SURFACE-ARCHITECTURE.md) v2 (archived), [ADR-139](../adr/ADR-139-workfloor-task-surface-architecture.md), [ADR-140](../adr/ADR-140-agent-workforce-model.md)
 **Related:** [AGENT-PRESENTATION-PRINCIPLES.md](AGENT-PRESENTATION-PRINCIPLES.md) (source-first mental model → extended with liveness)
 
 ---

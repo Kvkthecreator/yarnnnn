@@ -1,7 +1,7 @@
 # Structured Output Schemas Per Skill
 
-**Status:** Parked — low-hanging fruit, revisit after agent identity/workspace architecture matures
-**Date:** 2026-03-17
+**Status:** Parked / Superseded — the problem this addresses (unstructured markdown outputs) is now solved architecturally. Section kinds (ADR-170, [output-substrate.md](../architecture/output-substrate.md)) define a typed component vocabulary with explicit data contracts per kind (narrative, metric-cards, entity-grid, trend-chart, etc.). The compose pipeline (ADR-177/213) parses LLM output into section partials. No further action needed on this doc — the thesis was correct; the implementation path is different (section kinds, not per-skill schemas). Retained as reasoning trail.
+**Date:** 2026-03-17 (parked note updated 2026-05-04)
 **Context:** Emerged from agent-native ecosystem discourse (conversation 2026-03-17)
 
 ---
