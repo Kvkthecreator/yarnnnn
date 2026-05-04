@@ -1,7 +1,7 @@
 # YARNNN Thesis
 
 > **Status**: Canonical (internal)
-> **Date**: 2026-04-24
+> **Date**: 2026-04-24 (amended 2026-05-04 — ADR-249 operator loop + autonomy reframe)
 > **Authors**: KVK, Claude
 > **Scope**: The philosophical thesis from which YARNNN's architecture derives.
 > **Audience**: Internal. Not external messaging. External framing lives in `docs/NARRATIVE.md` and `docs/ESSENCE.md`.
@@ -22,6 +22,33 @@ THESIS is not a marketing document. It is the founder-level statement of what th
 ## The Thesis in one paragraph
 
 Autonomy is not a capability of agents; it is a **structural property** of a system that combines four architectural commitments: *declared intent* (mandate), *independent judgment* (reviewer), *ground-truth evaluation* (money-truth), and *authored accumulation* (substrate). Take any one of the four away and what remains is automation, assistance, or chat — not autonomy. YARNNN exists to prove that an operation built on these four commitments produces outcomes that any simpler composition cannot, and that the resulting operation compounds in value over time in a way that inferred-context, human-in-the-loop, or pure-autonomy systems demonstrably do not.
+
+## The Runtime Model (ADR-249 amendment)
+
+The thesis above describes what the system is built from. This section describes how it runs.
+
+**The primary runtime conversation is between the Operator and the System — not between the User and the System.**
+
+The Operator is the user in their principal role: the entity that holds declared intent (MANDATE.md), authors the judgment framework (principles.md), and acts on the user's behalf continuously. The Operator is always present in the operation — through authored substrate when the user is absent, and through real-time presence when the user is engaged.
+
+The System (YARNNN) is the executor and narrator. It reads the operator's declared substrate and acts on it. It does not reason about what the operation *should* do — it does what was declared. The operation runs at operational cadence (the heartbeat) regardless of the user's real-time presence.
+
+The user is the supervising principal. They can cut into the Operator ↔ System conversation at any moment from the chat surface — ask a question, override a decision, change the mandate, pause autonomy. But they are not required to be present for the loop to run.
+
+**Autonomy mode governs how much explicit user approval is required before Operator-initiated actions execute:**
+
+- **Manual**: user must explicitly approve each consequence (approve/reject in Queue) before it executes
+- **Bounded**: Operator actions within declared limits execute without user approval; actions above the ceiling surface for user confirmation
+- **Autonomous**: Operator acts within pre-declared framework; executes without user confirmation; user sees outcomes in the narrative
+
+In all three modes: the user can always cut in. The mode controls the default continuation — whether the system pauses and waits for the user or proceeds and narrates.
+
+This is distinct from every other autonomy model in the AI landscape:
+- Not "how much the AI can do" (the AI always follows the operator's declared framework)
+- Not "human vs. AI judgment" (the operator's judgment is always present, through human real-time or AI instantiation of pre-declared principles)
+- Not "permission levels" (the operator always has full authority; autonomy mode controls the user's confirmation requirement, not the operator's capability)
+
+The Reviewer is the operator's judgment function — the operator in judging posture. When the human user is present and engaged, they occupy the Reviewer seat directly. When the AI occupies the seat, it instantiates the operator's pre-declared judgment framework. In both cases, it is the operator's judgment executing — the independence comes from the architectural separation of the production path from the judgment path, not from different principals.
 
 ---
 

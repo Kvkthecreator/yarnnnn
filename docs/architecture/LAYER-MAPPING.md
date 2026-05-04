@@ -6,7 +6,21 @@
 > **Scope**: The authoritative taxonomy for YARNNN's two-class cognitive-layer model. Names every entity, classifies it, and specifies where it lives in code and documentation.
 > **Audience**: Internal. Frames code renames, ADR amendments, and canonical vocabulary. **Not a compromise with industry vocabulary** — this document corrects the earlier canon's vocabulary drift.
 > **Supersedes**: the hedge in THESIS §"Vocabulary: production layers vs. judgment layers" v1 (same-day earlier) — this doc corrects that section's "we call production entities Agents because industry" compromise.
-> **Amended by**: ADR-216 (YARNNN reclassified from Agent to orchestration surface), ADR-217 (autonomy delegation moved from `review/modes.md` to `_shared/AUTONOMY.md`), ADR-247 (three-party narrative model — "Thinking Partner" retired as user-facing name; YARNNN is the system name and chat surface name; Reviewer seat surfaces operator-authored persona name from `/workspace/review/IDENTITY.md`).
+> **Amended by**: ADR-216 (YARNNN reclassified from Agent to orchestration surface), ADR-217 (autonomy delegation moved from `review/modes.md` to `_shared/AUTONOMY.md`), ADR-247 (three-party narrative model — "Thinking Partner" retired as user-facing name; YARNNN is the system name and chat surface name; Reviewer seat surfaces operator-authored persona name from `/workspace/review/IDENTITY.md`), ADR-249 (Operator as primary runtime entity — the Operator ↔ System loop is the primary conversation; the Reviewer is the operator's judgment function, not a separate entity; autonomy mode = degree of user approval required on operator actions).
+
+---
+
+## The Operator — above the Agent/Orchestration split
+
+Before the two-class taxonomy, there is the **Operator**: the user in their principal role. The operator is the entity whose declared intent the entire system serves. They are not a system entity — they are the human principal whose substrate (MANDATE.md, principles.md, IDENTITY.md, `_operator_profile.md`, AUTONOMY.md) IS the system's intelligence.
+
+The operator is always present in the operation through their authored substrate. When they engage the chat surface in real-time, they are present directly. When they are absent, their substrate speaks for them.
+
+**The primary runtime conversation** is Operator ↔ System (YARNNN). This loop runs at operational cadence. The user (same person as the operator) supervises from outside the loop and can cut in at any moment.
+
+**Autonomy mode** (AUTONOMY.md) declares how much explicit user approval is required before operator-initiated actions execute. Manual = user approves each consequence. Bounded = user approves above declared ceiling. Autonomous = operator acts within pre-declared framework without user confirmation.
+
+**The Reviewer** is the operator's judgment function — the operator in judging posture. The Reviewer seat is occupied by the human user when they are present and engaging with proposals, or by the AI instantiating the operator's pre-declared principles when the operator has delegated. The Reviewer is architecturally independent of the production path (it doesn't see how proposals were generated, only the proposal itself) — but it is not a separate principal. It is the operator, acting in judgment posture.
 
 ---
 
