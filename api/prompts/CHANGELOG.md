@@ -49,6 +49,32 @@ tool rounds. Model re-fetched in an endless loop, never reached ProposeAction.
 
 ---
 
+## [2026.05.04.7] - Reviewer: section break in UI + no filename references + offer to fix
+
+### Changed
+
+- `web/components/tp/MessageRow.tsx` — real Reviewer verdicts (non-observation)
+  get a labeled section break above them: thin horizontal rule with "REVIEWER"
+  centered in it. Makes the three-party separation (user / YARNNN / Reviewer)
+  visually explicit in the stream. Observation entries skip the divider.
+
+- `api/agents/reviewer_agent.py` — voice discipline instruction tightened:
+  - Never cite filenames. "_risk.md says max_day_trades: 0" → "you told me
+    no same-day closes". "_signals.md" → "your declared signals IH-1..5".
+  - When a fixable conflict exists, offer to resolve it: "I can update your
+    risk parameters — want me to?" Active participant, not verdict machine.
+  - Two-sentence structure: verdict first sentence, reasoning second.
+
+### Expected behavior
+
+- Reviewer verdict visually separated from YARNNN narration by a "REVIEWER"
+  divider line — operator immediately knows a different party is speaking
+- Reviewer voice: "These two rules can't coexist. You told me no same-day
+  closes, but IH-3 requires an intraday exit — I can fix that if you want."
+  Not: "per _risk.md max_day_trades: 0 and principles.md hard rejection rule #2"
+
+---
+
 ## [2026.05.04.6] - Reviewer voice discipline: persona voice not compliance report
 
 ### Changed

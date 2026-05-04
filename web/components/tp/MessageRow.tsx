@@ -105,11 +105,32 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
   // Prefer run log (actual file); fall back to output dir for labelling.
   const fileViewPath = runLogPath ?? outputPath;
 
-  // Reviewer verdicts render full-width without chip stack.
+  // Reviewer verdicts render with a labeled section break above — visually
+  // separating the Reviewer's voice from YARNNN's narration. The divider
+  // makes it clear a different party is speaking (ADR-249: three-party model).
   if (msg.role === 'reviewer') {
+    const isObservation = msg.reviewer?.verdict === 'observation';
+    if (isObservation) {
+      // Observations don't need the full divider — they're housekeeping
+      return (
+        <div className="max-w-[92%]">
+          <MessageRenderer msg={msg} isLoading={isLoading} />
+        </div>
+      );
+    }
     return (
-      <div className="max-w-[92%]">
-        <MessageRenderer msg={msg} isLoading={isLoading} />
+      <div className="pt-2">
+        {/* Section break: labeled divider signals a new party is speaking */}
+        <div className="flex items-center gap-2 mb-2 px-0.5">
+          <div className="h-px flex-1 bg-border/40" />
+          <span className="text-[9px] font-semibold tracking-widest text-muted-foreground/40 uppercase select-none">
+            Reviewer
+          </span>
+          <div className="h-px flex-1 bg-border/40" />
+        </div>
+        <div className="max-w-[92%]">
+          <MessageRenderer msg={msg} isLoading={isLoading} />
+        </div>
       </div>
     );
   }
