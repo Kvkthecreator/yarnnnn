@@ -97,6 +97,23 @@ async def materialize_back_office_task(
         },
     })
     if not result.get("success"):
+        # If the YAML entry already exists (bundle fork pre-populated it) but the
+        # tasks scheduling index row doesn't exist yet, ensure the row is created.
+        # This happens when the bundle fork writes back-office.yaml before the
+        # first platform-connect trigger fires materialize_back_office_task.
+        if result.get("error") == "already_exists":
+            # Walk the YAML to ensure tasks rows are created for all entries.
+            try:
+                from services.scheduling import materialize_scheduling_index
+                await materialize_scheduling_index(client, user_id)
+                logger.info(
+                    f"[MATERIALIZE] YAML entry existed; scheduling index synced for {slug} / {user_id[:8]}"
+                )
+                return
+            except Exception as sync_err:
+                logger.warning(
+                    f"[MATERIALIZE] scheduling index sync failed for {user_id[:8]}: {sync_err}"
+                )
         raise RuntimeError(
             f"Failed to materialize back-office recurrence: {slug} ({result.get('message')})"
         )
