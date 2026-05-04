@@ -3,22 +3,27 @@
 /**
  * WorkListSurface — Full-width list surface for /work.
  *
- * SURFACE-ARCHITECTURE.md v13.0 — three-tab architecture.
+ * Six tabs (ADR-243 folded into Work; Schedule page deleted):
  *
- * Three tabs:
- *   My Work (default) — user's knowledge work, grouped by output kind
- *     (Reports / Tracking / Actions). Cadence badge (Recurring / One-time)
- *     on each row.
- *   Connectors — platform-bound tasks (requires_platform), grouped by platform
- *   System — system_maintenance tasks, flat list
+ *   Dashboard  — cockpit kernel (Mandate · Money truth · Performance · Tracking)
+ *   My Work    — user's knowledge work, grouped by output kind (Reports / Tracking / Actions)
+ *   Schedule   — cadence-grouped view (Recurring / Reactive / One-time); replaces /schedule page
+ *   Connectors — platform-bound tasks, grouped by platform
+ *   System     — system_maintenance tasks, flat list
+ *   Decisions  — Reviewer decisions stream (/workspace/review/decisions.md)
  *
- * Search is preserved within each tab.
+ * Cockpit content (formerly always-visible above the list) is now the
+ * Dashboard tab — opt-in, no longer forced above every list view.
+ *
+ * /schedule route is a redirect stub → /work (same row data, cadence framing).
  */
 
-import { useRef, useEffect, useMemo, useState } from 'react';
+import { useRef, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  CalendarClock,
   Database,
   FileText,
+  LayoutDashboard,
   Link2,
   MoreHorizontal,
   Scale,
@@ -34,9 +39,15 @@ import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
 import { getAgentSlug } from '@/lib/agent-identity';
 import { recurrenceLabel } from '@/types';
+import {
+  cadenceCategory,
+  humanizeSchedule,
+  CADENCE_ORDER,
+  CADENCE_LABELS,
+  type CadenceCategory,
+} from '@/lib/schedule';
 import type { Recurrence, Agent, NarrativeByTaskSlice } from '@/types';
-// ADR-225 Phase 2: bundle-supplied list-mode banner (e.g., alpha-trader's
-// "Paper-only..." for current_phase=observation)
+// ADR-225 Phase 2: bundle-supplied list-mode banner
 import { BundleBanner } from '@/components/library/BundleBanner';
 // ADR-225 Phase 3: bundle-supplied pinned tasks float to top of their group
 import { useComposition, getTab } from '@/lib/compositor';
@@ -47,64 +58,36 @@ interface WorkListSurfaceProps {
   /**
    * ADR-219 Commit 4: narrative slices keyed by task slug. Source for
    * recent-activity headlines on the list rows, replacing the legacy
-   * `task.last_run_at` timestamp. Tasks with no narrative entries yet
-   * are simply absent from the map — the row falls back to the
-   * forward-looking next_run_at signal (still useful) or no headline.
+   * `task.last_run_at` timestamp.
    */
   narrativeByTask: Map<string, NarrativeByTaskSlice>;
   agentFilter: string | null;
   dataError?: string | null;
+  /** Cockpit content rendered inside the Dashboard tab. */
+  cockpitSlot?: ReactNode;
   onClearAgentFilter: () => void;
   onSelect: (slug: string) => void;
 }
 
 // ADR-241 D3: 'decisions' tab added — surfaces /workspace/review/decisions.md
-// (Stream archetype) on /work. Decisions are the actionable consequence of
-// the kernel's judgment layer over operator-emitted action_proposals; their
-// natural home is the page where proposals live (TrackingFace already shows
-// pending ones).
-type WorkTab = 'my-work' | 'connectors' | 'system' | 'decisions';
+type WorkTab = 'dashboard' | 'my-work' | 'schedule' | 'connectors' | 'system' | 'decisions';
 
 // ─── Classification helpers ──────────────────────────────────────────────────
 
-// Platform-bound recurrences — slugs the operator should see under
-// "Connectors" rather than "My Work."
-//
-// FE-maintained set (avoids an extra API call per render). The architectural
-// limitation: classification is by slug-string-match, which doesn't scale as
-// programs grow. The proper fix is a `requires_platform: bool` field in
-// recurrence YAML (or capability inference from the process step's tool
-// declaration), exposed via /api/recurrences/* response. Tracked as a
-// follow-up; today's hygiene is to keep the set aligned with shipped bundle
-// slugs.
-//
-// Includes:
-//   - generic platform integrations (slack/notion/github + write-backs)
-//   - alpha-commerce platform-bound tasks
-//   - alpha-trader platform-bound tasks (per
-//     docs/programs/alpha-trader/reference-workspace/) — `track-universe`
-//     reads Alpaca market data; `trade-proposal` emits a proposal that
-//     hits Alpaca on approval. `signal-evaluation` is pure compute over
-//     tracked context (stays in My Work). Reports stay in My Work.
+// Platform-bound recurrences — shown under "Connectors" not "My Work."
 const CONNECTOR_TYPE_KEYS = new Set([
-  // Generic platform digests + write-backs
   'slack-digest',
   'notion-digest',
   'github-digest',
   'slack-respond',
   'notion-update',
-  // alpha-commerce
   'commerce-digest',
   'revenue-report',
-  // alpha-trader (per current bundle slugs)
   'track-universe',
   'trade-proposal',
 ]);
 
 function isConnectorTask(task: Recurrence): boolean {
-  // ADR-231: type_key dissolved. Connector recurrences identified by slug
-  // matching against the curated set (operator-conventional naming for
-  // platform-awareness recurrences per ADR-207 P4a).
   return CONNECTOR_TYPE_KEYS.has(task.slug);
 }
 
@@ -124,7 +107,7 @@ const KIND_ICON: Record<string, React.ElementType> = {
   system_maintenance: Settings2,
 };
 
-// ─── My Work grouping (primary axis: output kind) ───────────────────────────
+// ─── My Work grouping (output kind) ─────────────────────────────────────────
 
 const OUTPUT_KIND_LABELS: Record<string, string> = {
   accumulates_context: 'Tracking',
@@ -141,8 +124,6 @@ const MY_WORK_GROUP_ORDER = ['Reports', 'Tracking', 'Actions'];
 // ─── Connector grouping (by platform) ────────────────────────────────────────
 
 function connectorPlatform(task: Recurrence): string {
-  // ADR-231: type_key dissolved; use slug-prefix matching against the
-  // operator-conventional platform-aware recurrence naming.
   const key = task.slug ?? '';
   if (key.startsWith('slack')) return 'Slack';
   if (key.startsWith('notion')) return 'Notion';
@@ -187,14 +168,7 @@ function compareGroups(order: string[], a: string, b: string): number {
   return a.localeCompare(b);
 }
 
-// ─── Search ──────────────────────────────────────────────────────────────────
-
-function agentNameFor(task: Recurrence, agents: Agent[]): string | null {
-  const assigned = task.agent_slugs?.[0];
-  if (!assigned) return null;
-  const agent = agents.find(a => getAgentSlug(a) === assigned);
-  return agent?.title ?? assigned;
-}
+// ─── Search helpers ──────────────────────────────────────────────────────────
 
 function agentNamesFor(task: Recurrence, agents: Agent[]): string[] {
   if (!task.agent_slugs?.length) return [];
@@ -287,6 +261,7 @@ export function WorkListSurface({
   narrativeByTask,
   agentFilter,
   dataError,
+  cockpitSlot,
   onClearAgentFilter,
   onSelect,
 }: WorkListSurfaceProps) {
@@ -307,18 +282,19 @@ export function WorkListSurface({
     };
   }, [tasks, includeHistorical]);
 
-  // ── Apply search + agent filter to the active tab ──
-  // ADR-241 D3: 'decisions' tab is substrate-driven (DecisionsStream
-  // component reads /workspace/review/decisions.md directly). It does
-  // not consume the tasks list — empty array suffices for the search/
-  // group machinery downstream.
+  // ── Schedule tab: all non-archived recurrences, cadence-grouped ──
+  const scheduleRecurrences = useMemo(() => {
+    return tasks.filter(t => t.status !== 'archived');
+  }, [tasks]);
+
+  // ── Active task list for the selected tab (Dashboard/Schedule/Decisions handled separately) ──
   const tabTasks = activeTab === 'my-work'
     ? myWork
     : activeTab === 'connectors'
       ? connectors
       : activeTab === 'system'
         ? system
-        : []; // 'decisions' branch — handled at render time
+        : [];
 
   const filtered = useMemo(() => {
     let result = tabTasks;
@@ -333,11 +309,6 @@ export function WorkListSurface({
   }, [tabTasks, agentFilter, search, agents]);
 
   // ── ADR-225 Phase 3: bundle-supplied pinned tasks ──
-  // Pull `tabs.work.list.pinned_tasks` from active composition.
-  // Pinned tasks float to the top of their group (preserving the
-  // pinned-list ordering); non-pinned tasks fall through to the
-  // existing compareTasks ordering. Singular implementation: the
-  // Set lookup is the only place "is this task pinned?" gets decided.
   const { data: composition } = useComposition();
   const pinnedSlugs = useMemo(() => {
     const list = getTab(composition.composition, 'work').list?.pinned_tasks ?? [];
@@ -367,8 +338,6 @@ export function WorkListSurface({
       groups[key].push(task);
     }
 
-    // Sort within each group: pinned first (in pinned-list order),
-    // remainder via compareTasks.
     for (const key of Object.keys(groups)) {
       groups[key].sort((a, b) => {
         const aPinned = pinnedSlugs.has(a.slug);
@@ -395,37 +364,32 @@ export function WorkListSurface({
     ? agents.find(a => getAgentSlug(a) === agentFilter)?.title ?? agentFilter
     : null;
 
-  // For My Work: skip group headers if only one group exists
   const flattenMyWork = activeTab === 'my-work' && grouped.length <= 1;
 
+  // Search/filter UI is hidden on substrate-driven tabs (Dashboard, Schedule, Decisions)
+  const isListTab = activeTab === 'my-work' || activeTab === 'connectors' || activeTab === 'system';
+
   const tabs: { id: WorkTab; label: string; count: number; icon: React.ElementType }[] = [
+    { id: 'dashboard', label: 'Dashboard', count: 0, icon: LayoutDashboard },
     { id: 'my-work', label: 'My Work', count: myWork.length, icon: FileText },
+    { id: 'schedule', label: 'Schedule', count: 0, icon: CalendarClock },
     { id: 'connectors', label: 'Connectors', count: connectors.length, icon: Link2 },
     { id: 'system', label: 'System', count: system.length, icon: Settings2 },
-    // ADR-241 D3: Decisions tab — Stream archetype over /workspace/review/decisions.md.
-    // No count badge — Decisions are substrate-driven (read at render time), not a
-    // task collection. The DecisionsStream component manages its own loading + filter
-    // state.
     { id: 'decisions', label: 'Decisions', count: 0, icon: Scale },
   ];
 
   return (
     <div className="flex flex-col h-full">
-      {/* ADR-215 Phase 4: zone header pair with Cockpit (CockpitRenderer above).
-          The two zones — "Cockpit" (glance) and "Work" (manage) — share
-          the /work surface under one vertical scroll per ADR-205 F2. The
-          section labels make the zones legible without tabs. ADR-225 Phase 3:
-          cockpit panes are compositor-resolved (kernel default or bundle). */}
       <div className="flex items-baseline justify-between px-4 sm:px-6 pt-5 pb-2 shrink-0">
         <h2 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
           Work
         </h2>
         <span className="text-[10px] text-muted-foreground/40">
-          Tasks you own — my work · connectors · system
+          dashboard · my work · schedule · connectors · system
         </span>
       </div>
 
-      {/* ADR-225 Phase 2: bundle-supplied phase-aware banner (silent when absent) */}
+      {/* ADR-225 Phase 2: bundle-supplied phase-aware banner */}
       <BundleBanner tab="work" />
 
       {/* ── Toolbar ── */}
@@ -436,8 +400,8 @@ export function WorkListSurface({
           </div>
         )}
 
-        {/* Row 1: Tabs */}
-        <div className="flex items-center gap-1">
+        {/* Tab row */}
+        <div className="flex items-center gap-1 flex-wrap">
           {tabs.map(tab => (
             <button
               key={tab.id}
@@ -465,84 +429,228 @@ export function WorkListSurface({
           ))}
         </div>
 
-        {/* Row 2: Search + agent filter + overflow */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-muted/40 border border-border/60 rounded-md focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
+        {/* Search + agent filter + overflow — only on list tabs */}
+        {isListTab && (
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-muted/40 border border-border/60 rounded-md focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
+              />
+            </div>
+
+            {agentFilter && (
+              <button
+                onClick={onClearAgentFilter}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-primary/10 text-primary text-xs hover:bg-primary/20 transition-colors shrink-0"
+              >
+                {agentLabel}
+                <X className="w-3 h-3" />
+              </button>
+            )}
+
+            <OverflowOptions
+              includeHistorical={includeHistorical}
+              onToggleHistorical={() => setIncludeHistorical(v => !v)}
             />
           </div>
-
-          {agentFilter && (
-            <button
-              onClick={onClearAgentFilter}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-primary/10 text-primary text-xs hover:bg-primary/20 transition-colors shrink-0"
-            >
-              {agentLabel}
-              <X className="w-3 h-3" />
-            </button>
-          )}
-
-          <OverflowOptions
-            includeHistorical={includeHistorical}
-            onToggleHistorical={() => setIncludeHistorical(v => !v)}
-          />
-        </div>
+        )}
       </div>
 
-      {/* ── List body ── */}
+      {/* ── Tab body ── */}
       <div className="flex-1 overflow-auto">
-        {/* ADR-241 D3: Decisions tab is substrate-driven (DecisionsStream
-            reads /workspace/review/decisions.md directly). Renders before
-            the tasks-list machinery — no search, no group, no agent filter
-            apply (the Stream component owns its own filters). */}
-        {activeTab === 'decisions' ? (
+
+        {/* Dashboard — cockpit kernel (Mandate · Money truth · Performance · Tracking) */}
+        {activeTab === 'dashboard' && (
+          <div className="h-full">
+            {cockpitSlot ?? (
+              <div className="flex items-center justify-center h-full min-h-[200px] px-4">
+                <div className="text-center max-w-sm">
+                  <LayoutDashboard className="w-6 h-6 text-muted-foreground/25 mx-auto mb-3" />
+                  <p className="text-sm font-medium mb-1.5">No dashboard yet</p>
+                  <p className="text-xs text-muted-foreground">The operational dashboard will appear here once your workspace is set up.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Schedule — cadence-grouped (Recurring / Reactive / One-time) */}
+        {activeTab === 'schedule' && (
+          <ScheduleTabContent recurrences={scheduleRecurrences} onSelect={onSelect} />
+        )}
+
+        {/* Decisions — substrate-driven stream */}
+        {activeTab === 'decisions' && (
           <div className="px-4 sm:px-6 py-4 max-w-4xl">
             <DecisionsStream />
           </div>
-        ) : filtered.length === 0 ? (
-          <EmptyResult tab={activeTab} hasFilters={!!search || !!agentFilter} />
-        ) : (
-          <div className="px-4 sm:px-6 py-4 space-y-6 max-w-4xl">
-            {grouped.map(([groupName, items]) => (
-              <section key={groupName}>
-                {!flattenMyWork && (
-                  <div className="flex items-center gap-2 mb-2 px-1">
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      {groupName}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground/40">{items.length}</span>
-                    <div className="flex-1 border-t border-border/30" />
+        )}
+
+        {/* List tabs: my-work / connectors / system */}
+        {isListTab && (
+          filtered.length === 0 ? (
+            <EmptyResult tab={activeTab} hasFilters={!!search || !!agentFilter} />
+          ) : (
+            <div className="px-4 sm:px-6 py-4 space-y-6 max-w-4xl">
+              {grouped.map(([groupName, items]) => (
+                <section key={groupName}>
+                  {!flattenMyWork && (
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        {groupName}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground/40">{items.length}</span>
+                      <div className="flex-1 border-t border-border/30" />
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    {items.map(task => (
+                      <WorkRow
+                        key={task.slug}
+                        task={task}
+                        agents={agents}
+                        narrativeSlice={narrativeByTask.get(task.slug) ?? null}
+                        tab={activeTab}
+                        isPinned={pinnedSlugs.has(task.slug)}
+                        onSelect={() => onSelect(task.slug)}
+                      />
+                    ))}
                   </div>
-                )}
-                <div className="space-y-1">
-                  {items.map(task => (
-                    <WorkRow
-                      key={task.slug}
-                      task={task}
-                      agents={agents}
-                      narrativeSlice={narrativeByTask.get(task.slug) ?? null}
-                      tab={activeTab}
-                      isPinned={pinnedSlugs.has(task.slug)}
-                      onSelect={() => onSelect(task.slug)}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
+                </section>
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>
   );
 }
 
-// ─── Row ─────────────────────────────────────────────────────────────────────
+// ─── Schedule tab content ─────────────────────────────────────────────────────
+
+function ScheduleTabContent({
+  recurrences,
+  onSelect,
+}: {
+  recurrences: Recurrence[];
+  onSelect: (slug: string) => void;
+}) {
+  const grouped = useMemo(() => {
+    const buckets: Record<CadenceCategory, Recurrence[]> = {
+      recurring: [],
+      reactive: [],
+      'one-time': [],
+    };
+    for (const r of recurrences) {
+      buckets[cadenceCategory(r)].push(r);
+    }
+    return CADENCE_ORDER
+      .map(key => ({
+        key,
+        label: CADENCE_LABELS[key],
+        items: buckets[key],
+      }))
+      .filter(g => g.items.length > 0);
+  }, [recurrences]);
+
+  if (grouped.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[200px] px-4">
+        <div className="text-center max-w-sm">
+          <CalendarClock className="w-6 h-6 text-muted-foreground/25 mx-auto mb-3" />
+          <p className="text-sm font-medium mb-1.5">Nothing scheduled</p>
+          <p className="text-xs text-muted-foreground">
+            Tell YARNNN what you want done and on what cadence.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 sm:px-6 py-4 max-w-4xl space-y-6">
+      {grouped.map(group => (
+        <section key={group.key}>
+          <header className="mb-2 px-1">
+            <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              {group.label.title}
+              <span className="ml-2 text-[11px] font-normal text-muted-foreground/40">
+                {group.items.length}
+              </span>
+            </h3>
+            <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+              {group.label.description}
+            </p>
+          </header>
+          <div className="space-y-1">
+            {group.items.map(r => (
+              <ScheduleRow key={r.id} recurrence={r} category={cadenceCategory(r)} onSelect={onSelect} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function ScheduleRow({
+  recurrence,
+  category,
+  onSelect,
+}: {
+  recurrence: Recurrence;
+  category: CadenceCategory;
+  onSelect: (slug: string) => void;
+}) {
+  const cadenceText =
+    category === 'recurring'
+      ? humanizeSchedule(recurrence.schedule)
+      : category === 'reactive'
+        ? 'On event'
+        : 'One-time';
+
+  const isPaused = recurrence.paused === true;
+  const isCompleted = recurrence.status === 'completed';
+  const dotColor = isPaused
+    ? 'bg-amber-500'
+    : isCompleted
+      ? 'bg-muted-foreground/40'
+      : 'bg-emerald-500';
+
+  return (
+    <button
+      onClick={() => onSelect(recurrence.slug)}
+      className={cn(
+        'w-full text-left px-3 py-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center gap-3',
+        isPaused && 'opacity-60',
+      )}
+    >
+      <span className={cn('h-2 w-2 rounded-full shrink-0', dotColor)} />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">{recurrence.title}</div>
+        <div className="text-[11px] text-muted-foreground/60 mt-0.5 truncate">
+          {cadenceText}
+        </div>
+      </div>
+      <div className="text-[11px] text-muted-foreground/50 shrink-0 text-right tabular-nums">
+        {recurrence.next_run_at ? (
+          <>Next {formatRelativeTime(recurrence.next_run_at)}</>
+        ) : recurrence.last_run_at ? (
+          <>Last {formatRelativeTime(recurrence.last_run_at)}</>
+        ) : (
+          <span className="text-muted-foreground/40 italic">Not yet run</span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+// ─── Work row ─────────────────────────────────────────────────────────────────
 
 function WorkRow({
   task,
@@ -565,7 +673,6 @@ function WorkRow({
 
   const KindIcon = KIND_ICON[task.output_kind ?? ''] ?? FileText;
 
-  // Status indicator color
   const dotColor = dim
     ? 'bg-muted-foreground/20'
     : isActive
@@ -574,26 +681,12 @@ function WorkRow({
         ? 'bg-amber-400'
         : 'bg-muted-foreground/20';
 
-  // Agent names for inline display
   const assignedAgents = agentNamesFor(task, agents);
 
   const schedule = task.schedule
     ? task.schedule.charAt(0).toUpperCase() + task.schedule.slice(1)
     : null;
 
-  // ADR-219 Commit 4: right-side signal sources from the narrative.
-  //
-  // Forward-looking: when active + scheduled, show the next-run hint
-  // (this is the schedule, not historical activity — narrative
-  // doesn't speak to the future).
-  //
-  // Backward-looking: replace the legacy `Last: 5m ago` timestamp
-  // with the most-recent material narrative entry's headline. If
-  // no narrative entry exists yet for this task (likely on
-  // pre-Commit-2 tasks until the next run lands one), no headline
-  // is shown — the row simply doesn't claim activity it can't
-  // attribute. This is the singular-implementation answer per
-  // discipline rule 1.
   const lastMaterial = narrativeSlice?.last_material ?? null;
   const timeSignal = isActive && task.next_run_at
     ? `Next: ${formatRelativeTime(task.next_run_at)}`
@@ -602,16 +695,7 @@ function WorkRow({
       : null;
   const headlineSummary = !isActive && lastMaterial ? lastMaterial.summary : null;
 
-  // Sub-label varies by tab
-  let subParts: string[] = [];
-  if (tab === 'my-work') {
-    // Group header shows kind — row shows schedule
-    if (schedule) subParts.push(schedule);
-  } else if (tab === 'connectors') {
-    if (schedule) subParts.push(schedule);
-  } else {
-    if (schedule) subParts.push(schedule);
-  }
+  const subParts: string[] = schedule ? [schedule] : [];
 
   return (
     <button
@@ -621,7 +705,6 @@ function WorkRow({
         dim && 'opacity-50',
       )}
     >
-      {/* Status dot + kind icon */}
       <div className="relative shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-muted/50 group-hover:bg-muted/80 transition-colors">
         <KindIcon className={cn('w-3.5 h-3.5', dim ? 'text-muted-foreground/40' : 'text-muted-foreground')} />
         {(isActive || isPaused) && !dim && (
@@ -629,11 +712,8 @@ function WorkRow({
         )}
       </div>
 
-      {/* Title + metadata */}
       <div className="flex-1 min-w-0">
         <p className={cn('text-sm truncate flex items-center gap-1.5', dim ? 'text-muted-foreground' : 'font-medium')}>
-          {/* ADR-225 Phase 3: bundle-pinned tasks float to the top of
-              their group with a subtle pin glyph for legibility. */}
           {isPinned && (
             <span
               className="text-primary/60 text-[10px] leading-none"
@@ -661,10 +741,6 @@ function WorkRow({
             </>
           )}
         </div>
-        {/* ADR-219 Commit 4: narrative headline — the most-recent material
-            invocation's summary, sourced from session_messages. Active
-            scheduled tasks keep their forward-looking next-run signal in
-            the right column; this line shows what actually shipped last. */}
         {headlineSummary && (
           <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5 italic">
             {headlineSummary}
@@ -672,7 +748,6 @@ function WorkRow({
         )}
       </div>
 
-      {/* Time signal */}
       {timeSignal && (
         <span className="text-[11px] text-muted-foreground/50 shrink-0 tabular-nums">
           {timeSignal}
@@ -682,14 +757,10 @@ function WorkRow({
   );
 }
 
-// ─── Empty state ─────────────────────────────────────────────────────────────
+// ─── Empty states ─────────────────────────────────────────────────────────────
 
 function EmptyResult({ tab, hasFilters }: { tab: WorkTab; hasFilters: boolean }) {
-  // ADR-190 + ADR-189: empty states funnel back to /chat (the authorship
-  // surface) so a user who lands on /work or /agents with nothing yet has
-  // a clear path forward. CTA present only on the "no work authored yet"
-  // case — not when filters merely hide existing work.
-  const messages: Record<WorkTab, { icon: React.ElementType; title: string; sub: string; cta?: { label: string; href: string } }> = {
+  const messages: Partial<Record<WorkTab, { icon: React.ElementType; title: string; sub: string; cta?: { label: string; href: string } }>> = {
     'my-work': {
       icon: Sparkles,
       title: hasFilters ? 'No tasks match' : 'No tasks yet',
@@ -710,19 +781,10 @@ function EmptyResult({ tab, hasFilters }: { tab: WorkTab; hasFilters: boolean })
       title: 'No system tasks',
       sub: 'System tasks are created automatically.',
     },
-    // ADR-241 D3: Decisions tab is substrate-driven; the DecisionsStream
-    // component handles its own empty state ("No decisions logged yet").
-    // EmptyResult never renders for the decisions tab (the render branch
-    // above bypasses this map for activeTab === 'decisions'), but the
-    // Record type needs all WorkTab keys — this entry is unreachable.
-    decisions: {
-      icon: Scale,
-      title: 'No decisions yet',
-      sub: 'Decisions will appear here as the kernel evaluates proposals.',
-    },
   };
 
   const msg = messages[tab];
+  if (!msg) return null;
   const Icon = msg.icon;
 
   return (

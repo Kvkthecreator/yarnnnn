@@ -1,14 +1,15 @@
 // Cockpit nav per ADR-205 Phase 4 F1 (chat-first landing) + ADR-214 (four-tab
-// consolidation, 2026-04-23) + ADR-243 (Schedule sibling, 2026-05-01).
-// See docs/adr/ADR-243-schedule-surface.md, docs/adr/ADR-214-agents-page-consolidation.md
+// consolidation, 2026-04-23).
+// See docs/adr/ADR-214-agents-page-consolidation.md
 // and docs/adr/ADR-198-surface-archetypes.md for surface archetypes.
 //
 // HOME_ROUTE = /chat. A brand-new workspace has no authored agents and no
 // authored tasks — the user's first meaningful action is conversational.
 // Landing on /chat re-aligns with ADR-189's authored-team moat.
 //
-// Current nav (ADR-243): Chat | Work | Schedule | Agents | Files
-// /schedule is the cadence-framed sibling of /work (list view; row click → /work?task=).
+// Current nav: Chat | Work | Agents | Files
+// /schedule was a top-level tab (ADR-243) that has been folded into /work as
+// the "Schedule" inner tab. /schedule now redirects to /work.
 // /review deleted; Reviewer lives at /agents?agent=reviewer.
 //
 // =============================================================================
@@ -31,20 +32,20 @@
 //      external links to the route are known. Until both hold, the stub
 //      stays.
 //
-// Active stubs (verified 2026-04-29 by ADR-236 Item 5):
+// Active stubs (verified 2026-05-04):
 //   /orchestrator  → /chat                             (ADR-163, ADR-205 F1)
 //   /team          → /agents                           (ADR-214 — reverses ADR-201)
 //   /overview      → /work                             (ADR-205 F2, ADR-225 Phase 3)
 //   /workfloor     → /chat                             (ADR-163)
 //   /memory        → /context?path=...IDENTITY.md      (ADR-215 R3)
 //   /system        → /settings                         (system tab removed 2026-05-02)
+//   /schedule      → /work                             (ADR-243 folded into Work tabs)
 //
 // =============================================================================
 export const HOME_ROUTE = "/chat";
 export const HOME_LABEL = "Chat";
 export const CHAT_ROUTE = "/chat";
 export const WORK_ROUTE = "/work";
-export const SCHEDULE_ROUTE = "/schedule"; // ADR-243 — cadence-framed sibling of /work.
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 export const CONTEXT_ROUTE = "/context";
 // ADR-241: deep-link to TP detail. /agents (no param) redirects here.

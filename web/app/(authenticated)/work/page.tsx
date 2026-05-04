@@ -374,17 +374,18 @@ export default function WorkPage() {
         ) : null
       ) : (
         <div className="flex flex-1 flex-col overflow-y-auto">
-          {/* ADR-228: CockpitRenderer renders the four faces of the
-              operation (Mandate · Money truth · Performance · Tracking).
-              Hidden when an agent filter is active so the filtered list
-              is the primary focus (ADR-206 deliberate focus shift). */}
-          {!agentFilter && <CockpitRenderer onOpenChatDraft={handleOpenChatDraft} />}
           <WorkListSurface
             tasks={tasks}
             agents={agents}
             narrativeByTask={narrativeByTask}
             agentFilter={agentFilter}
             dataError={error}
+            cockpitSlot={
+              // Hidden when an agent filter is active (ADR-206 deliberate focus shift).
+              !agentFilter
+                ? <CockpitRenderer onOpenChatDraft={handleOpenChatDraft} />
+                : undefined
+            }
             onClearAgentFilter={handleClearAgentFilter}
             onSelect={handleSelect}
           />
