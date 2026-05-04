@@ -1,26 +1,21 @@
 /**
  * ADR-212 / 2026-04-23: Reviewer verdict card for unified chat thread.
- * ADR-246 / 2026-05-03: surfaces operator-authored persona name from
- * /workspace/review/IDENTITY.md instead of generic "AI Reviewer" label.
+ * ADR-246 / 2026-05-03: operator-authored persona name from IDENTITY.md.
+ * ADR-249 / 2026-05-04: visual separation from YARNNN — distinct identity,
+ *   summary-first with collapsed reasoning, demoted observation entries.
  *
- * Renders a role='reviewer' session_messages row as an inline card showing
- * the verdict (approve/reject/defer/observation), the occupant who rendered
- * it (human:<uid>, ai:reviewer-sonnet-v1, reviewer-layer:observed, …), the
- * action it concerned, and a link to the Reviewer detail view for the full
- * audit trail. Content is the reviewer's reasoning — same text persisted to
- * decisions.md.
- *
- * Stream archetype (ADR-198 §3): chat stream is append-only; verdict cards
- * are historical entries, never mutated inline. The operator can click
- * through to the Reviewer detail view (`/agents?agent=reviewer`) for the
- * full decisions stream per ADR-214.
- *
- * ADR-215 Phase 5: deep-link points to `/agents?agent=reviewer` (ADR-214
- * canonical route). The prior `/review` path was retired by ADR-214.
+ * Three visual tiers:
+ *   1. observation (reviewer-layer:observed) — single dim line, no expansion
+ *   2. real verdict (approve/reject/defer) — verdict chip + one-line summary
+ *      + collapsed "Full reasoning" disclosure
+ *   3. approve specifically — green left border to signal action completed
  */
 
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, XCircle, Eye, PauseCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, Eye, PauseCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import type { ReviewerCardData } from '@/types/desk';
 import { cn } from '@/lib/utils';
@@ -35,78 +30,136 @@ interface ReviewerCardProps {
 function verdictIcon(verdict: string | undefined) {
   switch (verdict) {
     case 'approve':
-      return <CheckCircle2 className="w-4 h-4 text-green-600" />;
+      return <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0" />;
     case 'reject':
-      return <XCircle className="w-4 h-4 text-red-600" />;
+      return <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />;
     case 'defer':
-      return <PauseCircle className="w-4 h-4 text-amber-600" />;
+      return <PauseCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />;
     case 'observation':
     default:
-      return <Eye className="w-4 h-4 text-muted-foreground" />;
+      return <Eye className="w-3 h-3 text-muted-foreground/50 shrink-0" />;
   }
 }
 
 function verdictLabel(verdict: string | undefined) {
   switch (verdict) {
-    case 'approve':
-      return 'Approved';
-    case 'reject':
-      return 'Rejected';
-    case 'defer':
-      return 'Deferred';
-    case 'observation':
-      return 'Observed';
-    default:
-      return 'Reviewer';
+    case 'approve': return 'Approved';
+    case 'reject':  return 'Rejected';
+    case 'defer':   return 'Deferred';
+    case 'observation': return 'Observed';
+    default: return 'Reviewed';
   }
 }
 
-/**
- * ADR-246 D2: when occupant is AI and operator has authored a persona name,
- * surface the persona name ("Simons") rather than the generic "AI Reviewer".
- * Human occupant always shows "You". Skeleton/missing persona falls back to
- * "your Reviewer" (warmer than bare "Reviewer").
- */
+function borderColor(verdict: string | undefined) {
+  switch (verdict) {
+    case 'approve': return 'border-l-green-500';
+    case 'reject':  return 'border-l-red-400';
+    case 'defer':   return 'border-l-amber-400';
+    default:        return 'border-l-border';
+  }
+}
+
 function occupantLabel(occupant: string | undefined, personaName?: string | null): string {
-  if (!occupant) return personaName ?? 'your Reviewer';
+  if (!occupant) return personaName ?? 'Reviewer';
   if (occupant.startsWith('human:')) return 'You';
-  if (occupant.startsWith('ai:')) return personaName ?? 'your Reviewer';
-  if (occupant === 'reviewer-layer:observed') return `${personaName ?? 'Reviewer'} (observing)`;
+  if (occupant.startsWith('ai:')) return personaName ?? 'Reviewer';
+  if (occupant === 'reviewer-layer:observed') return 'Reviewer';
   return personaName ?? occupant;
+}
+
+/** Extract first substantive sentence for the summary line. */
+function extractSummary(content: string): string {
+  if (!content) return '';
+  // Strip markdown headers, bold markers, leading whitespace
+  const cleaned = content
+    .replace(/^#+\s+/gm, '')
+    .replace(/\*\*/g, '')
+    .replace(/\n+/g, ' ')
+    .trim();
+  // First sentence — stop at period/exclamation/question or 160 chars
+  const match = cleaned.match(/^(.{20,160}?[.!?])(?:\s|$)/);
+  if (match) return match[1];
+  return cleaned.slice(0, 140) + (cleaned.length > 140 ? '…' : '');
 }
 
 export function ReviewerCard({ data, content, personaName }: ReviewerCardProps) {
   const { verdict, occupant, actionType, proposalId } = data;
+  const [expanded, setExpanded] = useState(false);
 
+  const isObservation = verdict === 'observation' || occupant === 'reviewer-layer:observed';
+  const persona = occupantLabel(occupant, personaName);
+  const summary = extractSummary(content);
+
+  // Tier 1: observation — single dim line, no expansion
+  if (isObservation) {
+    return (
+      <div className="flex items-center gap-1.5 px-1 py-0.5 my-0.5 opacity-40">
+        <Eye className="w-3 h-3 text-muted-foreground shrink-0" />
+        <span className="text-[10px] text-muted-foreground">
+          {persona} observed
+          {actionType ? ` · ${actionType}` : ''}
+        </span>
+      </div>
+    );
+  }
+
+  // Tier 2 + 3: real verdict
   return (
     <div
       className={cn(
-        'rounded-lg border border-border bg-muted/30 px-3 py-2.5 my-1',
+        'rounded-r-lg border border-l-2 border-border bg-background',
+        'px-3 py-2 my-1.5 max-w-[94%]',
         'animate-in fade-in slide-in-from-bottom-1 duration-150',
+        borderColor(verdict),
       )}
     >
-      <div className="flex items-center gap-2 mb-1.5">
+      {/* Header row: persona name (distinct from YARNNN) */}
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <span className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-widest">
+          {persona}
+        </span>
+        <span className="text-muted-foreground/30 text-[9px]">·</span>
         {verdictIcon(verdict)}
-        <span className="text-[11px] font-medium">{verdictLabel(verdict)}</span>
-        <span className="text-[10px] text-muted-foreground">·</span>
-        <span className="text-[10px] text-muted-foreground">{occupantLabel(occupant, personaName)}</span>
+        <span className="text-[11px] font-semibold text-foreground">{verdictLabel(verdict)}</span>
         {actionType && (
           <>
-            <span className="text-[10px] text-muted-foreground">·</span>
-            <span className="text-[10px] font-mono text-muted-foreground">{actionType}</span>
+            <span className="text-muted-foreground/30 text-[9px]">·</span>
+            <span className="text-[10px] font-mono text-muted-foreground/60">{actionType}</span>
           </>
         )}
       </div>
-      {content && (
-        <div className="text-[12px] leading-relaxed">
+
+      {/* Summary — always visible */}
+      {summary && (
+        <p className="text-[12px] text-foreground/80 leading-relaxed mb-1.5">
+          {summary}
+        </p>
+      )}
+
+      {/* Expand/collapse full reasoning */}
+      {content && content.length > summary.length + 10 && (
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors mb-1"
+        >
+          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {expanded ? 'Hide reasoning' : 'Full reasoning'}
+        </button>
+      )}
+
+      {expanded && content && (
+        <div className="text-[11px] leading-relaxed text-muted-foreground border-t border-border/50 pt-2 mt-1">
           <MarkdownRenderer content={content} compact />
         </div>
       )}
+
+      {/* Footer: decisions log link */}
       {proposalId && (
-        <div className="mt-2">
+        <div className="mt-1.5 pt-1.5 border-t border-border/40">
           <Link
             href="/work?tab=decisions"
-            className="text-[10px] text-primary hover:underline"
+            className="text-[10px] text-primary/70 hover:text-primary transition-colors"
           >
             View decisions log →
           </Link>
