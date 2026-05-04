@@ -120,119 +120,89 @@ Mode 3 is what makes the operator ↔ system loop feel like a genuine conversati
 
 ---
 
-## Implementation — Four Layers, Singular Discipline
+## Implementation — Three Layers, Singular Discipline
 
 Each layer is a distinct code commitment. No dual approaches, no backwards-compat shims. Each commit replaces the old behavior entirely. Test gate per layer.
 
-Dependency order is strict: Layer 1 → Layer 2 → Layer 3 → Layer 4.
+Dependency order is strict: Layer 1 → Layer 2 → Layer 3.
+
+**Why three layers, not four**: Layer 4 (autonomy-aware framing) is folded into Layer 2. The unacknowledged events brief is always autonomy-aware — there is no intermediate state where events surface without autonomy framing. One implementation, not two separate commits.
 
 ---
 
-### Layer 1: YARNNN prompt posture — executor/narrator replaces co-reasoner
+### Layer 1: YARNNN prompt posture — executor/narrator replaces co-reasoner ✅ COMPLETE
 
 **Scope**: `api/agents/prompts/` — four files  
-**Risk**: Low. Prompt-only. No schema, route, or primitive changes.  
-**CHANGELOG entry**: Required per CLAUDE.md rule 7.
+**Status**: Shipped 2026-05-04, commit `1be3e02`. CHANGELOG `[2026.05.04.4]`.
 
-The co-reasoner character in YARNNN's current prompts violates D2. Three archetypes to eliminate:
+Three co-reasoner archetypes eliminated: proactive suggestion, inference+confirmation ("Sound good?"), advisory guidance. Replaced with executor/narrator posture: "You execute what was declared. You narrate what happened. You do not propose what should happen next."
 
-1. **Proactive suggestion** — YARNNN offering changes the operator didn't request ("consider asking", "propose", "want me to")
-2. **Inference + confirmation** — YARNNN inferring intent then asking for validation ("Sound good?")  
-3. **Advisory guidance** — YARNNN reasoning about what the operation *should* do ("seems recurring", "fastest way")
-
-**File-level changes** (from audit, 2026-05-04):
-
-`base.py`:
-- Lines 6, 25: Rewrite "help the user think through" → "read declared substrate and act"
-- Line 52: REMOVE "Proactiveness balance" section — co-reasoner framing
-
-`chat/workspace.py`:
-- Lines 56-84: REWRITE "Explore Before Asking" → "Search Before Acting" — inference+confirmation removed, declaration-gate added
-- Lines 375-379: REWRITE recurrence suggestion guidance → declaration-only creation gate
-- Line 394: REMOVE "consider asking about scheduling" — unsolicited advisory
-- Lines 413-414: REWRITE platform awareness proposal → reactive-only
-
-`chat/entity.py`:
-- Lines 148-158: REWRITE "Before suggesting a rerun" → surface output metadata, act when operator declares intent
-
-`chat/onboarding.py`:
-- Lines 143-149: REWRITE mandate elicitation — remove example suggestions, accept operator framing verbatim
-- Lines 252-264: REWRITE proactive upload offer → "You uploaded X. Should I read it?" (declarative, not suggestive)
-- Lines 389-393: REWRITE daily-update opt-in — remove proactive suggestion, create only on explicit request
-- Lines 415-420: REMOVE "Behaviors" section — explicit suggestion framing
-
-**What replaces the removed language**: Nothing lengthy. The posture is expressed in one sentence added to the preamble of each chat profile: *"You execute what was declared. You narrate what happened. You do not propose what should happen next."*
+Files: `base.py`, `chat/workspace.py`, `chat/entity.py`, `chat/onboarding.py`.
 
 ---
 
-### Layer 2: Narrative stream integration — scheduler events surface in chat
+### Layer 2: Narrative stream integration — loop events surface on session open, autonomy-aware
 
-**Scope**: `api/routes/chat.py`, `api/services/working_memory.py`  
+**Scope**: `api/services/working_memory.py`, `api/routes/chat.py`  
 **Risk**: Medium. Changes how the first chat message of a session is assembled.  
-**Dependency**: Layer 1 must be complete — YARNNN needs executor/narrator posture before narrating loop events.
+**Dependency**: Layer 1 complete.
 
-**The gap**: The scheduler and the chat surface are two separate streams. Events from the scheduled loop (signal-evaluation ran, Reviewer approved, order executed) live in `session_messages` with `role='reviewer'` or `role='agent'`. They appear in the narrative scroll. But when the user opens chat after being away, YARNNN doesn't proactively surface what happened — the user has to scroll back or ask.
+**The gap**: The scheduler and the chat surface run as separate streams. Scheduled events (signal-evaluation, Reviewer assessment, order execution, reconciliation) write to `session_messages` and appear in the narrative scroll — but when the user opens chat after being away, YARNNN doesn't surface what happened. The user scrolls back or asks. The operation feels silent.
 
-**The fix**: On session open (first user message of a new session), YARNNN assembles an "unacknowledged events" brief from `session_messages` since the last `role='user'` message. If material events exist (proposals created, verdicts rendered, orders executed, patterns flagged), YARNNN opens with a factual brief before responding to the user's message.
+**The fix**: On session open (first user message of a new session), YARNNN assembles an unacknowledged events brief from `session_messages` since the last `role='user'` message. If material events exist, YARNNN opens with a factual brief — framed by autonomy level — before responding to the user's message.
 
-**Autonomy-mode-aware framing**:
-- Manual: "A proposal for MSFT (IH-2) is waiting for your approval."
-- Bounded: "IH-2 fired on MSFT. Reviewer approved and executed ($150 at risk). One proposal above ceiling is in Queue."
+**Autonomy-aware framing** (built in, not a separate layer):
+- Manual: "A proposal for MSFT (IH-2) is waiting for your approval." — Queue link surfaced
+- Bounded: "IH-2 fired on MSFT. Reviewer approved and executed ($150 at risk). One proposal above ceiling needs your approval."
 - Autonomous: "Signal-evaluation ran at 08:05. IH-2 fired on MSFT. Reviewer approved. Order executed at $247.50. No action needed."
 
-**Implementation**: A new `_get_unacknowledged_loop_events()` function in `working_memory.py` that queries `session_messages` for material non-user events since last user message. Result injected into the compact index as a "Loop events since your last session" block (conditional, only when events exist). YARNNN reads this from the compact index on the first turn and surfaces it in its response.
+**Implementation**:
+- `working_memory.py`: new `_get_unacknowledged_loop_events(user_id, client, session_id)` — queries `session_messages` for non-user-role entries since the last `role='user'` message. Returns a structured list: event type, timestamp, autonomy-relevant classification (needs-action / handled / informational).
+- `working_memory.py`: `format_compact_index()` gains a "Since you were away" block (conditional, renders only when events exist). Formatted per autonomy level from `workspace_state.autonomy_level`.
+- `recent_md` signal: **removed**. It was a pointer to a file the user had to read separately. This block is the single surface for loop events — direct, not indirect.
 
-**Singular implementation**: This replaces the current `recent_md` signal (which exists but requires the user to ask). `recent_md` signal is removed; this new block is the single surface for loop events.
-
----
-
-### Layer 3: Reviewer conversational mode
-
-**Scope**: `api/routes/chat.py` (routing), `api/agents/reviewer_agent.py` (new conversational method), `api/services/primitives/` (no changes)  
-**Risk**: Medium-high. New execution path in the chat route.  
-**Dependency**: Layer 1 (YARNNN must have executor posture before Reviewer can have distinct voice).
-
-**The gap (D7 Mode 3)**: When the user addresses the Reviewer's judgment in chat ("what does Simons think about holding this position?" / "should I adjust the ceiling?" / "is the win rate good enough?"), YARNNN currently answers. The Reviewer's voice is never invoked conversationally. The back-and-forth between user and operator's judgment function doesn't exist.
-
-**Intent detection**: A lightweight classifier in `chat.py` before dispatching to `YarnnnAgent`. Reads the user message for judgment-invocation signals:
-- Reviewer name mentioned ("what does Simons think", "what would Buffett say")
-- Judgment-framed question about an active operation ("should I", "is this within risk", "does this match the mandate")
-- Direct address to principles ("given my principles, should I")
-
-When triggered: route to `reviewer_agent.respond_conversationally(user_message, workspace_substrate)` — a new method in `reviewer_agent.py` that reads IDENTITY.md + principles.md + `_performance.md` + recent decisions and responds in the Reviewer persona's voice. Response written to `session_messages` with `role='reviewer'` so it renders as ReviewerCard in the narrative.
-
-When not triggered: normal YARNNN dispatch (unchanged).
-
-**Singular implementation**: One routing decision point. No fallback path. If the classifier is uncertain, route to YARNNN (default). Reviewer conversational mode only fires on confident signal.
+**Singular implementation**: One function, one compact index block, one autonomy-aware formatter. No parallel paths.
 
 ---
 
-### Layer 4: Autonomy-mode-aware loop closure
+### Layer 3: Reviewer natural rhythm — operational cadence wired, not conversational mode
 
-**Scope**: `api/routes/chat.py`, `api/services/working_memory.py`  
-**Risk**: Low. Additive to Layer 2.  
-**Dependency**: Layers 1, 2, 3 complete.
+**Scope**: `api/services/reflection_writer.py` (confirm wire), `api/services/back_office/reviewer_reflection.py` (confirm output shape), `api/services/back_office/__init__.py` (trigger confirmation)  
+**Risk**: Low. Infrastructure already exists — this layer confirms the wire is complete and the output reaches the narrative correctly.  
+**Dependency**: Layer 2 complete (Reviewer's narrative entries must surface in the "Since you were away" block).
 
-**The gap**: After the loop runs (invocations fire, proposals are created/evaluated/executed), the user's next chat turn sees the loop events (Layer 2). But the framing of those events isn't autonomy-mode-aware. "A proposal was created" reads the same whether the user is in manual mode (needs to act) or autonomous mode (already handled).
+**The correct framing** (revised from prior Layer 3 draft):
 
-**The fix**: The unacknowledged events brief (Layer 2) is post-processed through the autonomy level from `workspace_state.autonomy_level`. The same underlying events are framed differently:
+The Reviewer is not a conversational mode activated by user intent detection. The Reviewer is the Operator's judgment function running at its natural operational rhythm. It speaks at two cadences — both already architected:
 
-- Manual: "needs your action" framing — surface Queue link, make the required action explicit
-- Bounded: "handled within ceiling / needs your action above ceiling" framing — split events by threshold
-- Autonomous: "handled, no action needed" framing — summary only, no Queue prompt
+**Cadence 1 — Per-proposal verdict** (event-triggered, already implemented):
+`ProposeAction` → `on_proposal_created` → `_run_ai_reviewer` → verdict rendered → `write_reviewer_message` writes `role='reviewer'` to `session_messages`. This is mechanical execution of the judgment function. Not the Reviewer's "voice" in the narrative sense — it's the judgment gate operating.
 
-**Implementation**: A small formatting function `_frame_loop_events_for_autonomy(events, autonomy_level)` in `working_memory.py`. Called by the compact index when assembling the loop events block.
+**Cadence 2 — Periodic operational assessment** (scheduled, ADR-248):
+`back-office-reviewer-reflection` runs daily after reconciliation. Reads `_performance.md` + `decisions.md` + `calibration.md`. On material findings, `reflection_writer.apply_reflection_writes()` calls `write_reviewer_message` → `role='reviewer'` entry in `session_messages`. This IS the Reviewer's operational voice — the scheduled assessment the Operator produces at their natural rhythm.
+
+**The missing wire**: Cadence 2 is fully implemented in code (ADR-248) but the narrative entry may not surface correctly in the Layer 2 "Since you were away" block because `_get_unacknowledged_loop_events()` (Layer 2) must include `role='reviewer'` events from reflection runs. This must be verified when Layer 2 ships — if reflection-sourced reviewer entries are already captured, Layer 3 is complete at no additional code cost.
+
+**What Layer 3 explicitly does NOT do**:
+- No intent detection in `chat.py`
+- No new execution path routing user messages to the Reviewer
+- No "conversational Reviewer mode" triggered by user message content
+- The user can address the Reviewer's persona by name in chat — YARNNN handles it using the Reviewer's substrate (principles, IDENTITY) as context, but YARNNN speaks, not the Reviewer. The Reviewer's voice comes only at its declared rhythm.
+
+**Why**: The Reviewer's independence depends on it not being reactive to every user prompt. If the Reviewer responds conversationally to every "what does Simons think?", it becomes a chatbot persona, not a judgment entity. Its voice carries weight precisely because it speaks on its own schedule, not on demand.
+
+**Implementation**: Verify that `_get_unacknowledged_loop_events()` (Layer 2) queries `session_messages` filtering on `role IN ('reviewer', 'agent', 'system', 'external')` — all non-user narrative roles. If so, Layer 3 is complete when Layer 2 ships. If reflection-sourced reviewer entries are not reaching `session_messages`, trace the `write_reviewer_message` call in `reflection_writer.py` and confirm it writes to the correct session.
 
 ---
 
 ## Hooks discipline checklist (per commit)
 
-| Rule | Layer 1 | Layer 2 | Layer 3 | Layer 4 |
-|------|---------|---------|---------|---------|
-| Singular impl — delete old, no shims | Remove co-reasoner sections, don't leave comments | Remove `recent_md` signal, replace | Single routing point, no fallback path | Single format function, no parallel |
-| CHANGELOG entry | Yes — prompt change per rule 7 | Yes — working_memory change | Yes — new execution path | Yes — formatting change |
-| ADR docs alongside | This ADR updated each phase | This ADR updated | This ADR updated | This ADR updated |
-| No backwards compat | Language removed, not commented | Old signal removed | No old path preserved | Old framing removed |
+| Rule | Layer 1 | Layer 2 | Layer 3 |
+|------|---------|---------|---------|
+| Singular impl — delete old, no shims | Remove co-reasoner sections entirely | Remove `recent_md` signal, replace with single block | Verify wire, no parallel path |
+| CHANGELOG entry | ✅ Done `[2026.05.04.4]` | Yes — working_memory change | Yes if code change needed |
+| ADR docs alongside | ✅ Done | This ADR updated at ship | This ADR updated at verify |
+| No backwards compat | ✅ Language removed | Old signal removed | No new path added |
 
 ---
 
