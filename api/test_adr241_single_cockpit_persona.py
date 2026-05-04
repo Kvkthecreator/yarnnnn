@@ -79,30 +79,31 @@ def test_agent_roster_surface_deleted():
     )
 
 
-def test_agents_page_redirects_to_thinking_partner():
+def test_agents_page_redirects_to_yarnnn():
     """Assertion #4: /agents (no query param) redirects to
-    ?agent=thinking-partner per ADR-241 D1."""
+    ?agent=yarnnn per ADR-241 D1. Slug updated from 'thinking-partner'
+    to 'yarnnn' after ADR-247 renamed display_name to 'YARNNN'."""
     src = _read(WEB_AGENTS_PAGE)
-    assert "/agents?agent=thinking-partner" in src, (
-        "agents/page.tsx must redirect to ?agent=thinking-partner when "
-        "no agent param is set per ADR-241 D1."
+    assert "/agents?agent=yarnnn" in src, (
+        "agents/page.tsx must redirect to ?agent=yarnnn when "
+        "no agent param is set per ADR-241 D1 (slug = YARNNN title)."
     )
 
 
 def test_agent_content_view_no_reviewer_dispatch():
     """Assertion #5: AgentContentView.tsx no longer dispatches to
     ReviewerDetailView. The reviewer branch is now a redirect to
-    TP's Principles tab per ADR-241 D3 + R1."""
+    YARNNN's Principles tab per ADR-241 D3."""
     src = _read(WEB_AGENT_CONTENT)
     assert "ReviewerDetailView" not in src, (
         "AgentContentView.tsx must NOT reference ReviewerDetailView "
         "(dispatch component deleted by ADR-241). Reviewer branch is "
-        "now a redirect to ?agent=thinking-partner&tab=principles."
+        "now a redirect to ?agent=yarnnn&tab=principles."
     )
     # The redirect target must be present.
-    assert "agent=thinking-partner&tab=principles" in src, (
+    assert "agent=yarnnn&tab=principles" in src, (
         "AgentContentView.tsx reviewer branch must redirect to "
-        "TP's Principles tab per ADR-241 D3 + R1."
+        "YARNNN's Principles tab per ADR-241 D3."
     )
 
 
@@ -165,7 +166,7 @@ def _run_all() -> int:
         test_decisions_stream_relocated_to_work,
         test_reviewer_directory_deleted,
         test_agent_roster_surface_deleted,
-        test_agents_page_redirects_to_thinking_partner,
+        test_agents_page_redirects_to_yarnnn,
         test_agent_content_view_no_reviewer_dispatch,
         test_reviewer_audit_substrate_preserved,
         test_canonical_parser_preserved,

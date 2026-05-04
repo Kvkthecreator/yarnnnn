@@ -28,6 +28,7 @@ import { AgentIcon } from './AgentIcon';
 import { PrinciplesTab } from './PrinciplesTab';
 import { MandateTab } from './MandateTab';
 import { AutonomyTab } from './AutonomyTab';
+import { OperationsTab } from './OperationsTab';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -722,24 +723,25 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 // Tab is URL-driven via ?tab= so deep-links round-trip cleanly. Each
 // substrate tab uses the shared <SubstrateTab> shell for visual
 // consistency.
-type TPTab = 'identity' | 'mandate' | 'autonomy' | 'principles';
-const TP_TABS: ReadonlyArray<{ id: TPTab; label: string }> = [
+type YarnnnTab = 'identity' | 'mandate' | 'autonomy' | 'principles' | 'operations';
+const YARNNN_TABS: ReadonlyArray<{ id: YarnnnTab; label: string }> = [
   { id: 'identity', label: 'Identity' },
   { id: 'mandate', label: 'Mandate' },
   { id: 'autonomy', label: 'Autonomy' },
   { id: 'principles', label: 'Principles' },
+  { id: 'operations', label: 'Operations' },
 ];
 
-function ThinkingPartnerDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
+function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const activeTab: TPTab =
-    tabParam === 'mandate' || tabParam === 'autonomy' || tabParam === 'principles'
+  const activeTab: YarnnnTab =
+    tabParam === 'mandate' || tabParam === 'autonomy' || tabParam === 'principles' || tabParam === 'operations'
       ? tabParam
       : 'identity';
 
-  const setTab = (tab: TPTab) => {
+  const setTab = (tab: YarnnnTab) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', tab);
     router.replace(`/agents?${params.toString()}`, { scroll: false });
@@ -754,7 +756,7 @@ function ThinkingPartnerDetail({ agent, tasks }: { agent: Agent; tasks: Recurren
       {/* Tab bar — minimal, URL-driven */}
       <div className="border-b border-border px-4">
         <div className="flex gap-1 max-w-3xl">
-          {TP_TABS.map((t) => (
+          {YARNNN_TABS.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -779,6 +781,7 @@ function ThinkingPartnerDetail({ agent, tasks }: { agent: Agent; tasks: Recurren
         {activeTab === 'mandate' && <MandateTab />}
         {activeTab === 'autonomy' && <AutonomyTab />}
         {activeTab === 'principles' && <PrinciplesTab />}
+        {activeTab === 'operations' && <OperationsTab />}
       </div>
     </div>
   );
@@ -788,10 +791,9 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
   const router = useRouter();
   const cls = agent.agent_class || 'specialist';
 
-  // ADR-241 D3 + R1: legacy `?agent=reviewer` deep-links redirect to
-  // TP's Principles tab. Substrate (Reviewer's principles.md) is the
-  // same; only the surface label changes. This preserves existing
-  // breadcrumbs and ADR-cross-link integrity (ADR-194 v2 chain).
+  // ADR-241 D3: legacy `?agent=reviewer` deep-links redirect to
+  // YARNNN's Principles tab — same principles.md substrate, different
+  // surface label. Preserves ADR-194 v2 cross-link integrity.
   useEffect(() => {
     if (cls === 'reviewer') {
       router.replace('/agents?agent=yarnnn&tab=principles', { scroll: false });
@@ -806,15 +808,10 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
     );
   }
 
-  // ADR-241 D2 + ADR-236 Round 5+ (2026-04-30): meta-cognitive
-  // (YARNNN) gets the tab-based detail view. Other classes
-  // keep the single-page rendering — the tab refactor only applies
-  // to YARNNN because it is the system surface with multiple operator-facing
-  // substrate axes (Identity / Mandate / Autonomy / Principles).
-  // Tasks tab DELETED per ADR-236 Round 5+ — recurrences never assign
-  // agent_slugs=['thinking-partner']; tab was always-empty.
+  // meta-cognitive = YARNNN system surface. Gets its own tab shell:
+  // Identity / Mandate / Autonomy / Principles / Operations.
   if (cls === 'meta-cognitive') {
-    return <ThinkingPartnerDetail agent={agent} tasks={tasks} />;
+    return <YarnnnDetail agent={agent} tasks={tasks} />;
   }
 
   // After the meta-cognitive + reviewer early returns, cls is narrowed to

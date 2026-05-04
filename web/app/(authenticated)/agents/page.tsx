@@ -3,18 +3,15 @@
 /**
  * Agents Page — Detail-only surface (ADR-167 v5, ADR-214, ADR-241).
  *
- * Per ADR-241 (2026-04-30), `/agents` defaults to Thinking Partner detail.
- * With ADR-235 D2 removing custom-agent creation and Reviewer collapsing
- * into TP per ADR-241, the roster surface was always-empty ceremony —
- * `/agents` (no query param) now redirects to `?agent=thinking-partner`.
+ * `/agents` (no query param) redirects to `?agent=yarnnn` per ADR-241 D1.
+ * Slug is "yarnnn" — derived from the YARNNN display_name (ADR-247).
  *
- * Legacy `?agent=reviewer` deep-links continue to work — they redirect to
- * `?agent=thinking-partner&tab=principles` per ADR-241 D3 (the Reviewer's
- * principles.md substrate becomes TP's Principles tab).
+ * Legacy `?agent=reviewer` deep-links redirect to `?agent=yarnnn&tab=principles`
+ * per ADR-241 D3 — the Reviewer's principles.md substrate surfaces under
+ * YARNNN's Principles tab.
  *
- * AgentRosterSurface is deleted (Singular Implementation rule). Future
- * ADRs that re-introduce user-authored Agents will reintroduce a roster
- * landing then.
+ * AgentRosterSurface deleted (ADR-241 Singular Implementation). Future ADRs
+ * re-introducing user-authored Agents will add a roster landing then.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -46,8 +43,8 @@ export default function AgentsPage() {
 
   const agentFromUrl = searchParams.get('agent');
 
-  // ADR-241: detail-only landing. Default to thinking-partner when no
-  // agent param is set. Roster mode is dead UX post-ADR-235 D2.
+  // ADR-241: detail-only landing. Default to YARNNN (?agent=yarnnn)
+  // when no agent param is set. Roster mode dead post-ADR-235 D2.
   useEffect(() => {
     if (!agentFromUrl) {
       router.replace('/agents?agent=yarnnn', { scroll: false });
