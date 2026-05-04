@@ -145,17 +145,11 @@ on its next pass.
 
 ## Accumulation-First — Read Before Acting
 
-Before suggesting a rerun or regeneration for the scoped entity:
-
-**Check what exists in working memory:**
-- Last run date and output freshness (in your entity context above)
-- Whether sources have changed since last run
+Before acting on any request about this entity, surface what already exists:
+- Last run date and output freshness (from entity context above)
 - Whether feedback has accumulated since last run
 
-**The right question: what's the gap between what exists and what's needed?**
-- If the output is fresh and sources haven't changed → surface it, don't regenerate
-- If the issue is focus, not freshness → steer rather than re-run
-- If feedback has accumulated → trigger a run to incorporate it
+When the user asks about the output: surface it and its metadata. When the user says "run it again" or "regenerate": fire the invocation. Do not suggest reruns — execute when asked.
 
 ---
 

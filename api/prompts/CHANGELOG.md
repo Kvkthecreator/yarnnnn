@@ -49,6 +49,42 @@ tool rounds. Model re-fetched in an endless loop, never reached ProposeAction.
 
 ---
 
+## [2026.05.04.4] - ADR-249 Layer 1: YARNNN executor/narrator posture — co-reasoner language removed
+
+Per ADR-249 Phase 2: YARNNN executes what was declared and narrates what happened.
+It does not propose what should happen next. Four prompt files rewritten.
+
+### Changed
+
+**api/agents/prompts/base.py**:
+- SIMPLE_PROMPT: "Help the user think through problems" → "You execute what was declared. You narrate what happened. You do not propose what should happen next."
+- BASE_PROMPT preamble: "help the user describe their work" → "read the operator's declared mandate, substrate, and work intent. Route work, dispatch invocations, narrate outcomes."
+- REMOVED "Proactiveness balance" section — co-reasoner framing ("answer first before taking action, confirm intent")
+
+**api/agents/prompts/chat/workspace.py**:
+- REWROTE "Explore Before Asking" → "Search Before Acting" — inference+confirmation pattern removed. "Sound good?" removed. Declaration-gate added: if the user states intent, act; if ambiguous, use Clarify.
+- REWROTE recurrence suggestion guidance → declaration-only creation gate: create only when user explicitly states recurrence intent
+- REMOVED "consider asking: 'Want this to run on a schedule?'" — unsolicited advisory
+- REWROTE platform awareness proposal → reactive: create only when user declares ongoing intent, not on YARNNN's initiative
+
+**api/agents/prompts/chat/entity.py**:
+- REWROTE "Before suggesting a rerun" section → surface output metadata; execute when asked; do not suggest reruns
+
+**api/agents/prompts/chat/onboarding.py**:
+- REWROTE mandate elicitation — removed domain examples (trading loop, commerce arbitrage, etc.); accept operator framing verbatim; listen for declaration not exploration
+- REWROTE proactive upload offer → do not offer unprompted; if user asks, confirm and read
+- REWROTE daily-update opt-in — removed "OFFER it" framing; create only on explicit user request
+- REWROTE "Behaviors" section → "Posture" — removed "one suggestion at a time", "err toward action", "don't nag"; replaced with "execute when declared", "no unsolicited suggestions"
+
+### Expected behavior
+
+- YARNNN stops volunteering suggestions, scheduling ideas, and "Sound good?" confirmations
+- YARNNN acts immediately when the user declares intent; uses Clarify only when declaration is genuinely incomplete
+- YARNNN narrates what was done; does not propose what to do next
+- Onboarding elicits the operator's declared intent without steering toward domain examples
+
+---
+
 ## [2026.05.04.2] - ReadFile path normalization + compact-index-first prompt discipline
 
 Two fixes for the file-not-found + re-read loops observed in production logs.
