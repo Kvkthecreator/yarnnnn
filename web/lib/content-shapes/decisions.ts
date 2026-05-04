@@ -6,8 +6,7 @@
  * Per ADR-245 D5 the WRITE_CONTRACT is `narrative` — Reviewer-layer
  * (`api/services/reviewer_audit.py`) writes append-only decision blocks
  * per ADR-194 v2 Phase 2a; operator never edits through L3. The
- * canonical L3 (DecisionsStream per ADR-241 D3) renders the Stream
- * archetype as read-only.
+ * No L3 consumer on the cockpit surfaces — decisions.md is substrate-only.
  *
  * Lifted-from history: `web/lib/reviewer-decisions.ts` (ADR-239) →
  * here (ADR-245 Phase 2).
@@ -22,7 +21,7 @@ import type { ContentShapeMeta } from './index';
 export const SHAPE_KEY = 'decisions' as const;
 export const PATH_GLOB = '**/review/decisions.md';
 export const WRITE_CONTRACT = 'narrative' as const;
-export const CANONICAL_L3 = 'DecisionsStream' as const;
+export const CANONICAL_L3 = '' as const;
 
 export const META: ContentShapeMeta = {
   SHAPE_KEY,
