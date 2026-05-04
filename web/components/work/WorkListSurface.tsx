@@ -380,15 +380,6 @@ export function WorkListSurface({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-baseline justify-between px-4 sm:px-6 pt-5 pb-2 shrink-0">
-        <h2 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
-          Work
-        </h2>
-        <span className="text-[10px] text-muted-foreground/40">
-          dashboard · my work · schedule · connectors · system
-        </span>
-      </div>
-
       {/* ADR-225 Phase 2: bundle-supplied phase-aware banner */}
       <BundleBanner tab="work" />
 
