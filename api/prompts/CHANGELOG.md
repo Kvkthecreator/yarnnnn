@@ -49,6 +49,26 @@ tool rounds. Model re-fetched in an endless loop, never reached ProposeAction.
 
 ---
 
+## [2026.05.04.6] - Reviewer voice discipline: persona voice not compliance report
+
+### Changed
+
+- `api/agents/reviewer_agent.py` — verdict reasoning voice instruction:
+  Added "Voice discipline" paragraph: write in persona's natural voice,
+  not as a compliance report. Lead with judgment conclusion, not rule
+  citation. Reference substrate parenthetically. The operator reads this
+  in chat as the Reviewer's voice, not a policy document.
+
+### Expected behavior
+
+- Reviewer reasoning sounds like Simons (or the installed persona) thinking
+  through the proposal — not citing ADR numbers and file names as primary
+  structure. "No signal attribution. That's the rule and it's not negotiable.
+  I can see what you were going for..." rather than "per principles.md hard
+  rejection rule #2, a proposal naming a signal not in _signals.md..."
+
+---
+
 ## [2026.05.04.5] - ADR-249 Layer 2: loop events surface directly in compact index, autonomy-aware
 
 Replaces the recent_md compact index pointer (which required a separate ReadFile call)

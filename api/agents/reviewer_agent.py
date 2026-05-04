@@ -368,10 +368,16 @@ Reason explicitly:
 - Does _risk.md explicitly prohibit this? (If so, reject.)
 
 Call `return_review_decision` exactly once with your decision,
-reasoning (2–5 sentences, concrete substrate references), and
-confidence. Your reasoning will be appended verbatim to the
-workspace's decisions.md — write it clearly and for the operator's
-future self to read.
+reasoning (2–5 sentences), and confidence.
+
+**Voice discipline**: Write your reasoning in your persona's natural voice,
+not as a compliance report. You are the operator's judgment character
+thinking through a decision — speak as that character. Reference substrate
+parenthetically when needed ("no signal attribution per the declared rules"),
+but lead with the judgment conclusion, not the rule citation. The operator
+will read this in chat as your voice, not as a policy document.
+The text will also be appended to decisions.md for audit — writing in
+your persona's voice serves both surfaces better than bureaucratic structure.
 """
 
 

@@ -1,21 +1,14 @@
 /**
- * ADR-212 / 2026-04-23: Reviewer verdict card for unified chat thread.
- * ADR-246 / 2026-05-03: operator-authored persona name from IDENTITY.md.
- * ADR-249 / 2026-05-04: visual separation from YARNNN — distinct identity,
- *   summary-first with collapsed reasoning, demoted observation entries.
- *
- * Three visual tiers:
- *   1. observation (reviewer-layer:observed) — single dim line, no expansion
- *   2. real verdict (approve/reject/defer) — verdict chip + one-line summary
- *      + collapsed "Full reasoning" disclosure
- *   3. approve specifically — green left border to signal action completed
+ * ADR-212 / 2026-04-23: Reviewer verdict card.
+ * ADR-246 / 2026-05-03: operator-authored persona name.
+ * ADR-249 / 2026-05-04: conversational voice — verdict chip + persona reasoning
+ *   flowing inline, not a bordered form. Observation entries collapsed to one line.
  */
 
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, XCircle, Eye, PauseCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, XCircle, Eye, PauseCircle } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import type { ReviewerCardData } from '@/types/desk';
 import { cn } from '@/lib/utils';
@@ -23,41 +16,38 @@ import { cn } from '@/lib/utils';
 interface ReviewerCardProps {
   data: ReviewerCardData;
   content: string;
-  /** ADR-246: operator-authored persona name from /workspace/review/IDENTITY.md */
   personaName?: string | null;
 }
 
-function verdictIcon(verdict: string | undefined) {
-  switch (verdict) {
-    case 'approve':
-      return <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0" />;
-    case 'reject':
-      return <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />;
-    case 'defer':
-      return <PauseCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />;
-    case 'observation':
-    default:
-      return <Eye className="w-3 h-3 text-muted-foreground/50 shrink-0" />;
-  }
-}
-
-function verdictLabel(verdict: string | undefined) {
-  switch (verdict) {
-    case 'approve': return 'Approved';
-    case 'reject':  return 'Rejected';
-    case 'defer':   return 'Deferred';
-    case 'observation': return 'Observed';
-    default: return 'Reviewed';
-  }
-}
-
-function borderColor(verdict: string | undefined) {
-  switch (verdict) {
-    case 'approve': return 'border-l-green-500';
-    case 'reject':  return 'border-l-red-400';
-    case 'defer':   return 'border-l-amber-400';
-    default:        return 'border-l-border';
-  }
+function verdictChip(verdict: string | undefined, persona: string) {
+  const configs: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+    approve: {
+      icon: <CheckCircle2 className="w-3 h-3" />,
+      label: 'Approved',
+      color: 'text-green-600 bg-green-50 border-green-200',
+    },
+    reject: {
+      icon: <XCircle className="w-3 h-3" />,
+      label: 'Rejected',
+      color: 'text-red-500 bg-red-50 border-red-200',
+    },
+    defer: {
+      icon: <PauseCircle className="w-3 h-3" />,
+      label: 'Deferred to you',
+      color: 'text-amber-600 bg-amber-50 border-amber-200',
+    },
+  };
+  const c = configs[verdict ?? ''] ?? {
+    icon: <Eye className="w-3 h-3" />,
+    label: 'Reviewed',
+    color: 'text-muted-foreground bg-muted border-border',
+  };
+  return (
+    <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-medium', c.color)}>
+      {c.icon}
+      {persona} · {c.label}
+    </span>
+  );
 }
 
 function occupantLabel(occupant: string | undefined, personaName?: string | null): string {
@@ -68,102 +58,49 @@ function occupantLabel(occupant: string | undefined, personaName?: string | null
   return personaName ?? occupant;
 }
 
-/** Extract first substantive sentence for the summary line. */
-function extractSummary(content: string): string {
-  if (!content) return '';
-  // Strip markdown headers, bold markers, leading whitespace
-  const cleaned = content
-    .replace(/^#+\s+/gm, '')
-    .replace(/\*\*/g, '')
-    .replace(/\n+/g, ' ')
-    .trim();
-  // First sentence — stop at period/exclamation/question or 160 chars
-  const match = cleaned.match(/^(.{20,160}?[.!?])(?:\s|$)/);
-  if (match) return match[1];
-  return cleaned.slice(0, 140) + (cleaned.length > 140 ? '…' : '');
-}
-
 export function ReviewerCard({ data, content, personaName }: ReviewerCardProps) {
   const { verdict, occupant, actionType, proposalId } = data;
-  const [expanded, setExpanded] = useState(false);
-
-  const isObservation = verdict === 'observation' || occupant === 'reviewer-layer:observed';
   const persona = occupantLabel(occupant, personaName);
-  const summary = extractSummary(content);
+  const isObservation = verdict === 'observation' || occupant === 'reviewer-layer:observed';
 
-  // Tier 1: observation — single dim line, no expansion
+  // Observation: collapsed to single dim line — housekeeping, not judgment
   if (isObservation) {
     return (
-      <div className="flex items-center gap-1.5 px-1 py-0.5 my-0.5 opacity-40">
+      <div className="flex items-center gap-1.5 px-1 py-0.5 my-0.5 opacity-35">
         <Eye className="w-3 h-3 text-muted-foreground shrink-0" />
         <span className="text-[10px] text-muted-foreground">
-          {persona} observed
-          {actionType ? ` · ${actionType}` : ''}
+          {persona} observed{actionType ? ` · ${actionType}` : ''}
         </span>
       </div>
     );
   }
 
-  // Tier 2 + 3: real verdict
+  // Real verdict: verdict chip + persona voice flowing like a conversational reply
   return (
-    <div
-      className={cn(
-        'rounded-r-lg border border-l-2 border-border bg-background',
-        'px-3 py-2 my-1.5 max-w-[94%]',
-        'animate-in fade-in slide-in-from-bottom-1 duration-150',
-        borderColor(verdict),
-      )}
-    >
-      {/* Header row: persona name (distinct from YARNNN) */}
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <span className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-widest">
-          {persona}
-        </span>
-        <span className="text-muted-foreground/30 text-[9px]">·</span>
-        {verdictIcon(verdict)}
-        <span className="text-[11px] font-semibold text-foreground">{verdictLabel(verdict)}</span>
+    <div className="my-2 max-w-[92%] space-y-1.5">
+      {/* Verdict chip — compact, scannable */}
+      <div className="flex items-center gap-2">
+        {verdictChip(verdict, persona)}
         {actionType && (
-          <>
-            <span className="text-muted-foreground/30 text-[9px]">·</span>
-            <span className="text-[10px] font-mono text-muted-foreground/60">{actionType}</span>
-          </>
+          <span className="text-[10px] font-mono text-muted-foreground/50">{actionType}</span>
         )}
       </div>
 
-      {/* Summary — always visible */}
-      {summary && (
-        <p className="text-[12px] text-foreground/80 leading-relaxed mb-1.5">
-          {summary}
-        </p>
-      )}
-
-      {/* Expand/collapse full reasoning */}
-      {content && content.length > summary.length + 10 && (
-        <button
-          onClick={() => setExpanded(e => !e)}
-          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors mb-1"
-        >
-          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          {expanded ? 'Hide reasoning' : 'Full reasoning'}
-        </button>
-      )}
-
-      {expanded && content && (
-        <div className="text-[11px] leading-relaxed text-muted-foreground border-t border-border/50 pt-2 mt-1">
+      {/* Persona voice — flows like a message, not a form */}
+      {content && (
+        <div className="text-[13px] leading-relaxed text-foreground/85 pl-0.5">
           <MarkdownRenderer content={content} compact />
         </div>
       )}
 
-      {/* Footer: decisions log link */}
+      {/* Decisions log link */}
       {proposalId && (
-        <div className="mt-1.5 pt-1.5 border-t border-border/40">
-          <Link
-            href="/work?tab=decisions"
-            className="text-[10px] text-primary/70 hover:text-primary transition-colors"
-          >
-            View decisions log →
-          </Link>
-        </div>
+        <Link
+          href="/work?tab=decisions"
+          className="text-[10px] text-muted-foreground/50 hover:text-primary transition-colors pl-0.5"
+        >
+          Full audit trail →
+        </Link>
       )}
     </div>
   );
