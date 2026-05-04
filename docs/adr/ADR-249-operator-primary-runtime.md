@@ -1,6 +1,6 @@
 # ADR-249: Operator as Primary Runtime Entity — Autonomy as User Approval Degree
 
-> **Status**: Proposed
+> **Status**: **Implemented** (2026-05-04 — Layers 1, 2, 3 complete)
 > **Date**: 2026-05-04
 > **Authors**: KVK, Claude
 > **Amends**: THESIS.md (autonomy definition + operator framing), FOUNDATIONS.md (Axiom 2 operator loop, Axiom 3 autonomy corollary), LAYER-MAPPING.md (operator above the system/judgment split)
@@ -141,10 +141,10 @@ Files: `base.py`, `chat/workspace.py`, `chat/entity.py`, `chat/onboarding.py`.
 
 ---
 
-### Layer 2: Narrative stream integration — loop events surface on session open, autonomy-aware
+### Layer 2: Narrative stream integration — loop events surface on session open, autonomy-aware ✅ COMPLETE
 
 **Scope**: `api/services/working_memory.py`, `api/routes/chat.py`  
-**Risk**: Medium. Changes how the first chat message of a session is assembled.  
+**Status**: Shipped 2026-05-04, commit `79bd1fb`. CHANGELOG `[2026.05.04.5]`.  
 **Dependency**: Layer 1 complete.
 
 **The gap**: The scheduler and the chat surface run as separate streams. Scheduled events (signal-evaluation, Reviewer assessment, order execution, reconciliation) write to `session_messages` and appear in the narrative scroll — but when the user opens chat after being away, YARNNN doesn't surface what happened. The user scrolls back or asks. The operation feels silent.
@@ -165,11 +165,11 @@ Files: `base.py`, `chat/workspace.py`, `chat/entity.py`, `chat/onboarding.py`.
 
 ---
 
-### Layer 3: Reviewer natural rhythm — operational cadence wired, not conversational mode
+### Layer 3: Reviewer natural rhythm — operational cadence wired, not conversational mode ✅ COMPLETE
 
-**Scope**: `api/services/reflection_writer.py` (confirm wire), `api/services/back_office/reviewer_reflection.py` (confirm output shape), `api/services/back_office/__init__.py` (trigger confirmation)  
-**Risk**: Low. Infrastructure already exists — this layer confirms the wire is complete and the output reaches the narrative correctly.  
-**Dependency**: Layer 2 complete (Reviewer's narrative entries must surface in the "Since you were away" block).
+**Scope**: `api/services/reflection_writer.py`, `api/services/reviewer_chat_surfacing.py`, `api/services/narrative.py`  
+**Status**: Verified 2026-05-04 — zero code changes required. Wire confirmed complete.  
+**Dependency**: Layer 2 complete.
 
 **The correct framing** (revised from prior Layer 3 draft):
 
@@ -181,17 +181,17 @@ The Reviewer is not a conversational mode activated by user intent detection. Th
 **Cadence 2 — Periodic operational assessment** (scheduled, ADR-248):
 `back-office-reviewer-reflection` runs daily after reconciliation. Reads `_performance.md` + `decisions.md` + `calibration.md`. On material findings, `reflection_writer.apply_reflection_writes()` calls `write_reviewer_message` → `role='reviewer'` entry in `session_messages`. This IS the Reviewer's operational voice — the scheduled assessment the Operator produces at their natural rhythm.
 
-**The missing wire**: Cadence 2 is fully implemented in code (ADR-248) but the narrative entry may not surface correctly in the Layer 2 "Since you were away" block because `_get_unacknowledged_loop_events()` (Layer 2) must include `role='reviewer'` events from reflection runs. This must be verified when Layer 2 ships — if reflection-sourced reviewer entries are already captured, Layer 3 is complete at no additional code cost.
+**Wire verified complete** (2026-05-04):
 
-**What Layer 3 explicitly does NOT do**:
+`reflection_writer.apply_reflection_writes()` → `write_reviewer_message()` → `write_narrative_entry()` → inserts into `session_messages` with `role='reviewer'`. `_get_unacknowledged_loop_events_sync()` (Layer 2) queries `session_messages` filtering `role IN ('reviewer', 'agent', 'system', 'external')`. These two are connected — Reviewer rhythm entries (periodic reflection, per-proposal verdicts) reach the "Since you were away" block automatically.
+
+**What Layer 3 does NOT do** (by design):
 - No intent detection in `chat.py`
 - No new execution path routing user messages to the Reviewer
-- No "conversational Reviewer mode" triggered by user message content
-- The user can address the Reviewer's persona by name in chat — YARNNN handles it using the Reviewer's substrate (principles, IDENTITY) as context, but YARNNN speaks, not the Reviewer. The Reviewer's voice comes only at its declared rhythm.
+- The Reviewer's voice comes at its declared rhythm, not on user demand
+- The Reviewer's independence depends on not being reactive to every user prompt — its voice carries weight because it speaks on schedule, not on request
 
-**Why**: The Reviewer's independence depends on it not being reactive to every user prompt. If the Reviewer responds conversationally to every "what does Simons think?", it becomes a chatbot persona, not a judgment entity. Its voice carries weight precisely because it speaks on its own schedule, not on demand.
-
-**Implementation**: Verify that `_get_unacknowledged_loop_events()` (Layer 2) queries `session_messages` filtering on `role IN ('reviewer', 'agent', 'system', 'external')` — all non-user narrative roles. If so, Layer 3 is complete when Layer 2 ships. If reflection-sourced reviewer entries are not reaching `session_messages`, trace the `write_reviewer_message` call in `reflection_writer.py` and confirm it writes to the correct session.
+**Zero code changes required.** The infrastructure was already correct.
 
 ---
 
@@ -199,10 +199,10 @@ The Reviewer is not a conversational mode activated by user intent detection. Th
 
 | Rule | Layer 1 | Layer 2 | Layer 3 |
 |------|---------|---------|---------|
-| Singular impl — delete old, no shims | Remove co-reasoner sections entirely | Remove `recent_md` signal, replace with single block | Verify wire, no parallel path |
-| CHANGELOG entry | ✅ Done `[2026.05.04.4]` | Yes — working_memory change | Yes if code change needed |
-| ADR docs alongside | ✅ Done | This ADR updated at ship | This ADR updated at verify |
-| No backwards compat | ✅ Language removed | Old signal removed | No new path added |
+| Singular impl — delete old, no shims | ✅ Co-reasoner sections deleted | ✅ `recent_md` signal deleted, replaced | ✅ No new path — wire confirmed |
+| CHANGELOG entry | ✅ `[2026.05.04.4]` | ✅ `[2026.05.04.5]` | ✅ N/A (zero code change) |
+| ADR docs alongside | ✅ Done | ✅ Done | ✅ Done |
+| No backwards compat | ✅ Language removed | ✅ Old signal removed | ✅ Verified complete |
 
 ---
 
