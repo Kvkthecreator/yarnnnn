@@ -49,6 +49,46 @@ tool rounds. Model re-fetched in an endless loop, never reached ProposeAction.
 
 ---
 
+## [2026.05.04.5] - ADR-249 Layer 2: loop events surface directly in compact index, autonomy-aware
+
+Replaces the recent_md compact index pointer (which required a separate ReadFile call)
+with direct loop events surfaced in the "Since you were away" block. The recent.md
+file is preserved as readable substrate for on-demand 24h detail.
+
+### Changed
+
+- `api/services/working_memory.py` — `_get_recent_md_signal_sync()` DELETED.
+  Replaced with `_get_unacknowledged_loop_events_sync()`: queries `session_messages`
+  for the workspace's active session, finds the most recent `role='user'` message
+  timestamp, returns all non-user/non-assistant messages since then (reviewer, agent,
+  system, external roles). Caps at 10 entries. Empty list when no events (silent).
+
+- `api/services/working_memory.py` — `build_working_memory()` gather:
+  `recent_md_signal` renamed to `loop_events`. `working_memory["recent_md"]` replaced
+  with `working_memory["loop_events"]`.
+
+- `api/services/working_memory.py` — `format_compact_index()` "Recent narrative events"
+  block replaced with "Since you were away" block. Autonomy-aware framing:
+  - Manual: "⚠ Reviewer: [verdict] — waiting for your approval"
+  - Bounded/Autonomous: "Reviewer: [verdict]" / "Agent: [completion]" (factual, no prompt)
+  Silent when no loop events since last user message (common case).
+
+- `api/agents/prompts/tools_core.py` — Narrative axis description updated:
+  "Surfaced directly in compact index as 'Since you were away' entries. Do NOT
+  call ReadFile to see what happened — it's already here." recent.md ReadFile
+  guidance kept for 24h historical detail.
+
+### Expected behavior
+
+- User opens chat after being away. Compact index contains "Since you were away"
+  block listing Reviewer verdicts, agent completions, etc. YARNNN surfaces these
+  in its first response without requiring the user to ask "what happened?"
+- Autonomy-aware: in manual mode, proposals show "⚠ ... waiting for approval";
+  in autonomous mode, events are factual ("Reviewer approved, order executed").
+- No ReadFile to recent.md needed for current-session events.
+
+---
+
 ## [2026.05.04.4] - ADR-249 Layer 1: YARNNN executor/narrator posture — co-reasoner language removed
 
 Per ADR-249 Phase 2: YARNNN executes what was declared and narrates what happened.
