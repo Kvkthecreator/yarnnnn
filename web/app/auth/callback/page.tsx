@@ -53,7 +53,7 @@ function CallbackHandler() {
             setStatus("Setting up...");
             const state = await api.workspace.getState(); // triggers roster scaffolding
             if (state.activation_state === "none" && !state.active_program_slug) {
-              window.location.href = "/settings?tab=workspace&first_run=1";
+              window.location.href = "/operation?first_run=1";
               return;
             }
           } catch {

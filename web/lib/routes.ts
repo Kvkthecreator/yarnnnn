@@ -48,6 +48,7 @@ export const CHAT_ROUTE = "/chat";
 export const WORK_ROUTE = "/work";
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 export const CONTEXT_ROUTE = "/context";
+export const OPERATION_ROUTE = "/operation"; // Workspace-level config (mandate, autonomy, principles, programs).
 // ADR-241: deep-link to TP detail. /agents (no param) redirects here.
 // Slug is "yarnnn" — derived from title "YARNNN" (ADR-247 display_name change).
 export const THINKING_PARTNER_ROUTE = "/agents?agent=yarnnn";

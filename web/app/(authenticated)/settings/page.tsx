@@ -18,7 +18,6 @@ import {
   Link2,
   Shield,
   FolderKanban,
-  Package,
   Database,
   History,
 } from "lucide-react";
@@ -27,7 +26,6 @@ import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useTP } from "@/contexts/TPContext";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
-import { WorkspaceSection } from "@/components/settings/WorkspaceSection";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -49,7 +47,7 @@ interface NotificationPreferences {
   email_agent_failed: boolean;
 }
 
-type SettingsTab = "billing" | "usage" | "workspace" | "connectors" | "account";
+type SettingsTab = "billing" | "usage" | "connectors" | "account";
 type DangerAction =
   | "work-history"
   | "workspace"
@@ -68,7 +66,6 @@ export default function SettingsPage() {
   // Legacy `?tab=memory` redirects to Files IDENTITY.md via effect below.
   const initialTab: SettingsTab =
     tabParam === "usage" ? "usage" :
-    tabParam === "workspace" ? "workspace" :
     tabParam === "connectors" ? "connectors" :
     tabParam === "account" ? "account" :
     "billing";
@@ -363,19 +360,6 @@ export default function SettingsPage() {
           </span>
         </button>
         <button
-          onClick={() => setActiveTab("workspace")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "workspace"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Package className="w-4 h-4" />
-            Workspace
-          </span>
-        </button>
-        <button
           onClick={() => setActiveTab("connectors")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "connectors"
@@ -479,14 +463,6 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {/* Workspace Tab — program lifecycle (ADR-244) */}
-      {activeTab === "workspace" && (
-        <section className="mb-8">
-          <WorkspaceSection />
-        </section>
-      )}
-
-      {/* Notifications Tab */}
       {/* Connectors Tab — platform connections (ADR-133: moved from Workspace) */}
       {activeTab === "connectors" && (
         <ConnectedIntegrationsSection

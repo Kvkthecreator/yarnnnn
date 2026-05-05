@@ -25,13 +25,10 @@ import {
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentIcon } from './AgentIcon';
-import { PrinciplesTab } from './PrinciplesTab';
-import { MandateTab } from './MandateTab';
-import { AutonomyTab } from './AutonomyTab';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
-import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
+import { CONTEXT_ROUTE, WORK_ROUTE, OPERATION_ROUTE } from '@/lib/routes';
 import {
   agentClassDescription,
   agentClassLabel,
@@ -718,67 +715,30 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 // + uses: Mandate (gate for task creation, ADR-207), Autonomy (delegation
 // posture, ADR-217), Principles (judgment framework, ADR-194 v2).
 // Identity stays as the cockpit role/agent overview.
-//
-// Tab is URL-driven via ?tab= so deep-links round-trip cleanly. Each
-// substrate tab uses the shared <SubstrateTab> shell for visual
-// consistency.
-type YarnnnTab = 'identity' | 'mandate' | 'autonomy' | 'principles';
-const YARNNN_TABS: ReadonlyArray<{ id: YarnnnTab; label: string }> = [
-  { id: 'identity', label: 'Identity' },
-  { id: 'mandate', label: 'Mandate' },
-  { id: 'autonomy', label: 'Autonomy' },
-  { id: 'principles', label: 'Principles' },
-];
-
 function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const tabParam = searchParams.get('tab');
-  const activeTab: YarnnnTab =
-    tabParam === 'mandate' || tabParam === 'autonomy' || tabParam === 'principles'
-      ? tabParam
-      : 'identity';
-
-  const setTab = (tab: YarnnnTab) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', tab);
-    router.replace(`/agents?${params.toString()}`, { scroll: false });
-  };
-
   return (
     <div className="flex-1 overflow-auto">
       <SurfaceIdentityHeader
         title={agent.title}
         metadata={<AgentMetadata agent={agent} tasks={tasks} />}
       />
-      {/* Tab bar — minimal, URL-driven */}
-      <div className="border-b border-border px-4">
-        <div className="flex gap-1 max-w-3xl">
-          {YARNNN_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                'px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px',
-                activeTab === t.id
-                  ? 'border-foreground text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
+      <div className="max-w-3xl px-4 py-4 space-y-6">
+        <AgentRoleBlock agent={agent} tasks={tasks} />
+        {/* Mandate, Autonomy, and Principles live at /operation */}
+        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Operation setup</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Mandate, Autonomy, Reviewer principles, and program configuration.
+            </p>
+          </div>
+          <a
+            href={OPERATION_ROUTE}
+            className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            Open →
+          </a>
         </div>
-      </div>
-
-      <div className="max-w-3xl px-4 py-4">
-        {activeTab === 'identity' && (
-          <AgentRoleBlock agent={agent} tasks={tasks} />
-        )}
-        {activeTab === 'mandate' && <MandateTab />}
-        {activeTab === 'autonomy' && <AutonomyTab />}
-        {activeTab === 'principles' && <PrinciplesTab />}
       </div>
     </div>
   );
