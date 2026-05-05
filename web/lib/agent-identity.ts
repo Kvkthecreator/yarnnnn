@@ -193,7 +193,7 @@ const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
   },
   'meta-cognitive': {
     label: 'YARNNN',
-    description: 'Owns orchestration and back office maintenance.',
+    description: 'System surface — executes, routes, narrates.',
   },
   reviewer: {
     label: 'Reviewer',

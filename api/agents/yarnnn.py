@@ -1,13 +1,17 @@
 """
-YARNNN — Conversational super-agent with unified memory (ADR-005, ADR-189)
+YARNNN — System orchestration surface (ADR-189, ADR-216, ADR-249)
 
-ADR-007: Tool use for work authority
-ADR-025: Claude Code agentic alignment with skills and todo tracking
-ADR-034: Domain-based context scoping (replaces projects)
-ADR-036/037: Primitive-based architecture (Read, Write, Edit, etc.)
-ADR-059: Modular prompt architecture (prompts/, formerly yarnnn_prompts/ per ADR-233)
-ADR-189: Class renamed ThinkingPartnerAgent → YarnnnAgent; user-facing "TP" retired.
+The conversational surface the operator addresses. Executes declared work,
+routes invocations, narrates outcomes. Does not hold judgment — that belongs
+to the Reviewer (operator's judgment character) and the user.
+
+ADR-216: Reclassified from Agent to orchestration surface. Fixed voice,
+         no workspace-authored persona file.
+ADR-249: Two roles, three participants. YARNNN is the system role.
+         Reviewer and user are the judgment role.
+ADR-189: Class renamed ThinkingPartnerAgent → YarnnnAgent; "TP" retired.
          Internal DB slug `thinking_partner` retained (glossary exception).
+ADR-059: Modular prompt architecture (prompts/ directory).
 """
 
 from __future__ import annotations
@@ -43,29 +47,16 @@ class ToolExecution:
 
 class YarnnnAgent(BaseAgent):
     """
-    YARNNN — the conversational super-agent (ADR-189 + ADR-212).
+    YARNNN — system orchestration surface (ADR-216, ADR-249).
 
-    The product and the conversational Agent share a name. Users address YARNNN
-    directly. YARNNN is the systemic meta-cognitive Agent in YARNNN's Agent
-    layer (LAYER-MAPPING.md) — it composes, supervises, and orchestrates.
-    Other Agents: Reviewer (systemic, judgment seat at /workspace/review/) and
-    user-authored domain Agents (instance, on /agents). Production roles
-    (Researcher, Analyst, Writer, Tracker, Designer, Reporting) and platform
-    integrations are orchestration capability bundles — NOT Agents — that
-    YARNNN draws from when dispatching production work.
+    Implements the conversational surface the operator addresses. Executes
+    declared work, routes invocations, narrates outcomes. Does not hold
+    standing intent or render judgment — those are the Reviewer's domain.
 
-    Uses memories from two scopes (ADR-034):
-    - Default domain: User's portable profile (preferences, patterns, business facts)
-    - Source domains: Context that emerged from agent sources (e.g., "Notion: Board Updates")
+    Two roles (ADR-249): system (this class) and judgment (Reviewer + user).
+    Three participants: YARNNN, Reviewer, user.
 
-    ADR-007: Can use tools to manage memories, Agents, and work.
-
-    Output: Chat response (text, optionally streamed)
-
-    ADR-059: Prompts modularized in prompts/ directory.
-    ADR-144: Context awareness always injected (graduated, not binary).
-    ADR-189: Class renamed from ThinkingPartnerAgent. DB role slug remains
-             `thinking_partner` (glossary exception).
+    DB role slug `thinking_partner` retained as glossary exception (ADR-189).
     """
 
     # ADR-059: Prompts are modularized in prompts/ directory
