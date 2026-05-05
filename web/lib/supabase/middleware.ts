@@ -4,7 +4,7 @@ import { isAdminEmail } from "@/lib/internal-access";
 import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
 
-// ADR-205 F1 + ADR-214 cockpit nav: Chat | Work | Agents | Files + /operation (user menu).
+// ADR-205 F1 + ADR-214 cockpit nav: Chat | Work | Agents | Files + /workspace (user menu).
 // HOME_ROUTE is /chat. /overview was absorbed into /work's cockpit zone
 // (F2); ADR-225 Phase 3 made cockpit panes compositor-resolved. The
 // /overview path itself is a redirect stub for old bookmarks.
@@ -16,7 +16,8 @@ const PROTECTED_PREFIXES = [
   "/work",
   "/agents",
   "/context",
-  "/operation",
+  "/workspace",
+  "/operation", // redirect stub → /workspace
   "/memory",
   "/system",
   "/settings",

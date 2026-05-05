@@ -28,7 +28,7 @@ import { AgentIcon } from './AgentIcon';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
-import { CONTEXT_ROUTE, WORK_ROUTE, OPERATION_ROUTE } from '@/lib/routes';
+import { CONTEXT_ROUTE, WORK_ROUTE, WORKSPACE_CONFIG_ROUTE } from '@/lib/routes';
 import {
   agentClassDescription,
   agentClassLabel,
@@ -724,16 +724,16 @@ function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
       />
       <div className="max-w-3xl px-4 py-4 space-y-6">
         <AgentRoleBlock agent={agent} tasks={tasks} />
-        {/* Mandate, Autonomy, and Principles live at /operation */}
+        {/* Mandate, Autonomy, and Principles live at /workspace */}
         <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium">Operation setup</p>
+            <p className="text-sm font-medium">Workspace setup</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               Mandate, Autonomy, Reviewer principles, and program configuration.
             </p>
           </div>
           <a
-            href={OPERATION_ROUTE}
+            href={WORKSPACE_CONFIG_ROUTE}
             className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
           >
             Open →

@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * OperationSection — body of /operation.
+ * WorkspaceConfigSection — body of /workspace.
  *
  * The canonical home for workspace-level configuration:
  *   - Active program + switch/deactivate
  *   - Capability gaps (connected platforms)
- *   - Operation setup: the five authored files that govern how the
+ *   - Workspace setup: the five authored files that govern how the
  *     system behaves (Mandate, Identity, Brand, Autonomy, Reviewer principles).
  *     Files are shown inline — content readable without leaving the page.
  *     Edits route through the chat panel on the right (ThreePanelLayout).
@@ -77,7 +77,7 @@ const FILE_PATHS: Record<FileStatusKey, string> = {
 
 const FILE_ORDER: FileStatusKey[] = ['mandate', 'identity', 'brand', 'autonomy', 'principles'];
 
-export function OperationSection() {
+export function WorkspaceConfigSection() {
   const { sendMessage } = useTP();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -100,7 +100,7 @@ export function OperationSection() {
       setState(next);
       setLoadError(null);
     } catch (err) {
-      setLoadError(err instanceof APIError ? err.message : 'Failed to load operation state');
+      setLoadError(err instanceof APIError ? err.message : 'Failed to load workspace state');
     }
   };
 
@@ -301,10 +301,10 @@ export function OperationSection() {
         </div>
       </section>
 
-      {/* Operation setup — the five config files */}
+      {/* Workspace setup — the five config files */}
       <section className="space-y-3">
         <div>
-          <h2 className="text-sm font-semibold">Operation setup</h2>
+          <h2 className="text-sm font-semibold">Workspace setup</h2>
           <p className="text-xs text-muted-foreground mt-1">
             These files govern how YARNNN and your agents behave. Read them here — edit via chat on the right.
           </p>

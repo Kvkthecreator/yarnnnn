@@ -40,6 +40,7 @@
 //   /memory        → /context?path=...IDENTITY.md      (ADR-215 R3)
 //   /system        → /settings                         (system tab removed 2026-05-02)
 //   /schedule      → /work                             (ADR-243 folded into Work tabs)
+//   /operation     → /workspace                         (renamed before launch)
 //
 // =============================================================================
 export const HOME_ROUTE = "/chat";
@@ -48,7 +49,7 @@ export const CHAT_ROUTE = "/chat";
 export const WORK_ROUTE = "/work";
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 export const CONTEXT_ROUTE = "/context";
-export const OPERATION_ROUTE = "/operation"; // Workspace-level config (mandate, autonomy, principles, programs).
+export const WORKSPACE_CONFIG_ROUTE = "/workspace"; // Workspace-level config (mandate, autonomy, principles, programs).
 // ADR-241: deep-link to TP detail. /agents (no param) redirects here.
 // Slug is "yarnnn" — derived from title "YARNNN" (ADR-247 display_name change).
 export const THINKING_PARTNER_ROUTE = "/agents?agent=yarnnn";
