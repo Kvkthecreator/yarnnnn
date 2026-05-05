@@ -677,6 +677,8 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                   outputTokens: event.usage.output_tokens,
                   totalTokens: event.usage.total_tokens,
                 });
+              } else if (event.balance_exhausted) {
+                throw new Error('__balance_exhausted__');
               } else if (event.error) {
                 throw new Error(event.error);
               }
@@ -752,15 +754,20 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
           return null;
         }
 
-        const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
+        const rawMessage = err instanceof Error ? err.message : 'Failed to send message';
+        const isBalanceExhausted = rawMessage === '__balance_exhausted__';
+        const errorMessage = isBalanceExhausted ? 'Balance exhausted' : rawMessage;
         dispatch({ type: 'SET_ERROR', error: errorMessage });
         setStatus({ type: 'idle' });
 
-        // Add error message
+        const errorContent = isBalanceExhausted
+          ? 'Your account balance is exhausted. [Top up your balance](https://yarnnn.com/settings?tab=billing) to continue.'
+          : `Sorry, I encountered an error: ${errorMessage}`;
+
         const errorAssistantMessage: TPMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `Sorry, I encountered an error: ${errorMessage}`,
+          content: errorContent,
           timestamp: new Date(),
         };
         dispatch({ type: 'ADD_MESSAGE', message: errorAssistantMessage });

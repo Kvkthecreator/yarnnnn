@@ -1154,6 +1154,14 @@ async def global_chat(
         # ADR-053: Capture cumulative token usage for persistence
         last_token_usage = {"input_tokens": 0, "output_tokens": 0}
 
+        # ADR-172: Balance is the sole gate. Check before opening the Anthropic stream
+        # so the frontend receives a clean structured event instead of a raw API error.
+        from services.platform_limits import check_balance
+        balance_ok, effective_balance = check_balance(auth.client, auth.user_id)
+        if not balance_ok:
+            yield f"data: {json.dumps({'balance_exhausted': True, 'balance_usd': round(effective_balance, 4)})}\n\n"
+            return
+
         try:
             # ADR-124: User message metadata with attribution.
             # ADR-219 envelope: operator messages are addressed-pulsed
