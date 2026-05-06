@@ -219,6 +219,19 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
   );
 }
 
+// Maps raw DB role → operator-facing display label.
+function roleDisplayLabel(role: TPMessage['role']): string {
+  switch (role) {
+    case 'assistant': return 'yarnnn';
+    case 'user': return 'you';
+    case 'reviewer': return 'reviewer';
+    case 'agent': return 'agent';
+    case 'system': return 'system';
+    case 'external': return 'external';
+    default: return role;
+  }
+}
+
 /**
  * Routine weight — collapsed line with role label, summary, timestamp,
  * and an expand control. When expanded, the full content shows below
@@ -244,7 +257,7 @@ function RoutineRow({ msg }: { msg: TPMessage }): JSX.Element {
             )}
           />
           <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
-            {msg.role}
+            {roleDisplayLabel(msg.role)}
           </span>
           <span className="truncate">{summary}</span>
         </button>
@@ -279,7 +292,7 @@ function HousekeepingRow({ msg }: { msg: TPMessage }): JSX.Element {
   return (
     <div className="text-[11px] flex items-center gap-2 max-w-[92%] py-0.5 opacity-50 hover:opacity-90 transition-opacity">
       <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/50">
-        {msg.role}
+        {roleDisplayLabel(msg.role)}
       </span>
       <span className="text-muted-foreground truncate flex-1">{summary}</span>
       <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">

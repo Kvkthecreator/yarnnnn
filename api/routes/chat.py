@@ -1405,11 +1405,13 @@ async def global_chat(
             # ADR-124: Add author attribution for meeting room messages
             # ADR-219 envelope: YARNNN's reply is an addressed-pulsed
             # invocation. Weight defaults to material when tool calls
-            # produced substrate writes (ADR-219 D3 default policy when
-            # has_invocation=True), else routine — but this turn doesn't
-            # carry an agent_runs row, so we mark weight explicitly:
-            # material when at least one tool was used, else routine.
+            # Weight classification: material when a tool was called (substrate
+            # writes happened) OR the response is substantive enough to warrant
+            # full rendering (>120 chars). Short tool-less acks ("Got it.", etc.)
+            # are routine — they collapse cleanly. Long reasoning or multi-part
+            # replies must be material so they don't get collapsed on the operator.
             tool_called = bool(tools_used)
+            response_is_substantive = len(full_response.strip()) > 120
             assistant_metadata = {
                 "model": agent.model,
                 "tools_used": tools_used,
@@ -1417,7 +1419,7 @@ async def global_chat(
                 "input_tokens": last_token_usage.get("input_tokens", 0),
                 "output_tokens": last_token_usage.get("output_tokens", 0),
                 "pulse": "addressed",
-                "weight": "material" if tool_called else "routine",
+                "weight": "material" if (tool_called or response_is_substantive) else "routine",
             }
             await append_message(
                 auth.client,
