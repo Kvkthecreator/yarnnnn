@@ -1,6 +1,6 @@
 # ADR-250: Execution Telemetry — Sentry + Postgres Event Ledger + Spend Guard
 
-> **Status**: **Phase 1 Implemented** (2026-05-06 — Sentry wired into API, Scheduler, Next.js; env vars on all 4 Render services)
+> **Status**: **Phases 1–4 Implemented** (2026-05-06 — Sentry wired; execution_events table live (migration 165); telemetry wired into all dispatcher paths; spend guard active; admin dashboard updated)
 > **Date**: 2026-05-06
 > **Authors**: KVK, Claude
 > **Canonical reference**: [docs/architecture/observability.md](../architecture/observability.md)

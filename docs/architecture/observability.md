@@ -368,9 +368,9 @@ These are explicitly out of scope for ADR-250 and should be addressed in subsequ
 |-----------|--------|-----|
 | Sentry wiring (API + Scheduler) | **Implemented** 2026-05-06 | ADR-250 Phase 1 |
 | Sentry wiring (Next.js web) | **Implemented** 2026-05-06 | ADR-250 Phase 1 |
-| `execution_events` table (migration 165) | Proposed | ADR-250 Phase 2 |
-| `api/services/telemetry.py` write module | Proposed | ADR-250 Phase 2 |
-| Dispatcher write path wiring | Proposed | ADR-250 Phase 2 |
-| Admin dashboard cost column | Proposed | ADR-250 Phase 4 |
-| Daily spend guard | Proposed | ADR-250 Phase 3 |
+| `execution_events` table (migration 165) | **Implemented** 2026-05-06 | ADR-250 Phase 2 |
+| `api/services/telemetry.py` write module | **Implemented** 2026-05-06 | ADR-250 Phase 2 |
+| Dispatcher write path wiring | **Implemented** 2026-05-06 | ADR-250 Phase 2 |
+| Admin dashboard cost column | **Implemented** 2026-05-06 | ADR-250 Phase 4 |
+| Daily spend guard | **Implemented** 2026-05-06 | ADR-250 Phase 3 |
 | `scheduler_heartbeat` dedup fix | Proposed | — |

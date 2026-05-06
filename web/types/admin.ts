@@ -51,6 +51,10 @@ export interface TaskExecutionRow {
   avg_input_tokens: number;
   avg_output_tokens: number;
   last_run_at: string | null;
+  // ADR-250 Phase 4 — from execution_events
+  cost_usd_total: number | null;
+  failed_count: number;
+  skipped_count: number;
 }
 
 export interface AdminExecutionStats {
@@ -59,6 +63,8 @@ export interface AdminExecutionStats {
   total_runs_30d: number;
   spend_usd_this_month: number;
   spend_usd_limit: number;
+  daily_spend_today: number;
+  daily_spend_ceiling: number;
   last_scheduler_heartbeat: string | null;
   heartbeats_24h: number;
   tasks: TaskExecutionRow[];

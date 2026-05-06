@@ -472,6 +472,30 @@ async def get_execution_stats(admin: AdminAuth):
             if output_t:
                 ts["output_tokens"].append(output_t)
 
+        # ADR-250 Phase 4: enrich with execution_events (cost + failure counts per slug)
+        today_utc = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        daily_spend_today = 0.0
+        ee_cost_map: dict[str, float] = {}
+        ee_failed_map: dict[str, int] = {}
+        ee_skipped_map: dict[str, int] = {}
+        try:
+            ee_result = client.table("execution_events")\
+                .select("slug, status, cost_usd, created_at")\
+                .gte("created_at", cutoff_30d)\
+                .execute()
+            for ee in (ee_result.data or []):
+                s = ee.get("slug", "unknown")
+                cost = float(ee.get("cost_usd") or 0)
+                ee_cost_map[s] = ee_cost_map.get(s, 0.0) + cost
+                if ee.get("status") == "failed":
+                    ee_failed_map[s] = ee_failed_map.get(s, 0) + 1
+                if ee.get("status") == "skipped":
+                    ee_skipped_map[s] = ee_skipped_map.get(s, 0) + 1
+                if ee.get("created_at", "") >= today_utc:
+                    daily_spend_today += cost
+        except Exception as e:
+            logger.warning("[ADMIN] execution_events enrichment failed (non-fatal): %s", e)
+
         tasks = []
         for slug, ts in sorted(task_stats.items(), key=lambda x: x[1]["runs_total"], reverse=True):
             avg_in = int(sum(ts["input_tokens"]) / len(ts["input_tokens"])) if ts["input_tokens"] else 0
@@ -485,14 +509,20 @@ async def get_execution_stats(admin: AdminAuth):
                 avg_input_tokens=avg_in,
                 avg_output_tokens=avg_out,
                 last_run_at=ts["last_run_at"],
+                cost_usd_total=round(ee_cost_map.get(slug, 0.0), 4) or None,
+                failed_count=ee_failed_map.get(slug, 0),
+                skipped_count=ee_skipped_map.get(slug, 0),
             ))
 
+        import os as _os
         return AdminExecutionStats(
             total_runs_24h=runs_24h.count or 0,
             total_runs_7d=runs_7d.count or 0,
             total_runs_30d=runs_30d.count or 0,
             spend_usd_this_month=spend_usd_this_month,
             spend_usd_limit=spend_usd_limit,
+            daily_spend_today=round(daily_spend_today, 4),
+            daily_spend_ceiling=float(_os.getenv("DAILY_SPEND_CEILING_USD", "10.0")),
             last_scheduler_heartbeat=last_heartbeat,
             heartbeats_24h=hb_24h.count or 0,
             tasks=tasks,
