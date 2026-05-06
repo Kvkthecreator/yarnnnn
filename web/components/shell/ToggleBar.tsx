@@ -19,18 +19,19 @@ import { MessageSquare, Briefcase, Users, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SEGMENTS = [
-  { id: 'chat',    label: 'Chat',   icon: MessageSquare, href: '/chat' },
-  { id: 'work',    label: 'Work',   icon: Briefcase,     href: '/work?tab=dashboard' },
-  { id: 'agents',  label: 'Agents', icon: Users,         href: '/agents' },
-  { id: 'context', label: 'Files',  icon: FolderOpen,    href: '/context' },
+  { id: 'chat',    label: 'Chat',   icon: MessageSquare, href: '/chat',              activePath: '/chat' },
+  { id: 'work',    label: 'Work',   icon: Briefcase,     href: '/work?tab=dashboard', activePath: '/work' },
+  { id: 'agents',  label: 'Agents', icon: Users,         href: '/agents',            activePath: '/agents' },
+  { id: 'context', label: 'Files',  icon: FolderOpen,    href: '/context',           activePath: '/context' },
 ] as const;
 
 export function ToggleBar() {
   const pathname = usePathname();
 
-  // /schedule redirects to /work; treat it as work-active while the redirect fires
+  // Match on activePath (pathname only, no query string) so ?tab=... params
+  // don't break the active highlight. /schedule redirects to /work.
   const activeId = SEGMENTS.find(s =>
-    pathname === s.href || pathname.startsWith(s.href + '/')
+    pathname === s.activePath || pathname.startsWith(s.activePath + '/')
   )?.id ?? (pathname.startsWith('/schedule') ? 'work' : 'chat');
 
   return (
