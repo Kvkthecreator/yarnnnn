@@ -17,8 +17,8 @@
  *   /workspace/context/_shared/MANDATE.md  → title + summary
  *   /workspace/context/_shared/AUTONOMY.md → level + ceiling (via useAutonomy)
  *
- * Autonomy posture links to /agents?agent=thinking-partner&tab=autonomy
- * so the operator can edit the delegation from here (ADR-236 Round 5+).
+ * Autonomy posture links to /agents?agent=reviewer&tab=autonomy
+ * (ADR-251: Autonomy tab moved to Reviewer surface).
  */
 
 import { useEffect, useState } from 'react';
@@ -30,7 +30,8 @@ import { useCockpit } from './CockpitContext';
 import { cn } from '@/lib/utils';
 
 const MANDATE_PATH = '/workspace/context/_shared/MANDATE.md';
-const AUTONOMY_EDIT_HREF = '/agents?agent=yarnnn&tab=autonomy';
+// ADR-251: Autonomy lives under the Reviewer surface.
+const AUTONOMY_EDIT_HREF = '/agents?agent=reviewer&tab=autonomy';
 
 // ---------------------------------------------------------------------------
 // Mandate parsing — extract operator-authored title + summary paragraph.

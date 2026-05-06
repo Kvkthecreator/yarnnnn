@@ -149,21 +149,23 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     authorClass: 'text-slate-600 dark:text-slate-400',
     iconName: 'GitBranch',
   },
+  // ADR-251: cockpit entity label "System Agent". In chat speaks as "YARNNN" (brand).
+  // Internal role slug `thinking_partner` is a data-compat exception (never user-facing).
   thinking_partner: {
-    displayName: 'YARNNN',
-    shortLabel: 'YARNNN',
-    tagline: 'Orchestrates your workforce',
+    displayName: 'System Agent',
+    shortLabel: 'System',
+    tagline: 'Executes declared work. Narrates what happened.',
     avatarHex: '#1f2937',
     badgeClass: 'bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100',
     authorClass: 'text-gray-900 dark:text-gray-100',
     iconName: 'MessageCircle',
   },
-  // ADR-214: Reviewer as systemic pseudo-agent. Substrate at /workspace/review/
-  // per ADR-194 v2 Axiom 1.
+  // ADR-214 + ADR-251: Reviewer as first-class surface. Substrate at /workspace/review/
+  // per ADR-194 v2. Autonomy + Principles + heartbeat cadence housed here (ADR-251 D4).
   reviewer: {
     displayName: 'Reviewer',
-    shortLabel: 'Review',
-    tagline: 'Independent judgment on proposed actions',
+    shortLabel: 'Reviewer',
+    tagline: 'Your judgment seat — independent verdicts on proposed actions',
     avatarHex: '#e11d48',
     badgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
     authorClass: 'text-rose-600 dark:text-rose-400',
@@ -191,13 +193,15 @@ const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
     label: 'Platform Integration',
     description: 'Platform-API capability bundle — activates when the platform is connected.',
   },
+  // NB: enum key "meta-cognitive" is a data-compat exception (GLOSSARY).
+  // Maps to "System Agent" at display layer per ADR-251.
   'meta-cognitive': {
-    label: 'YARNNN',
-    description: 'System surface — executes, routes, narrates.',
+    label: 'System Agent',
+    description: 'System surface — executes declared work, narrates what happened.',
   },
   reviewer: {
     label: 'Reviewer',
-    description: 'Judgment seat — independent approval on proposed actions (ADR-194 / ADR-214).',
+    description: 'Judgment seat — independent verdicts on proposed actions (ADR-194 / ADR-251).',
   },
 };
 

@@ -20,7 +20,7 @@ export function PrinciplesTab() {
       path="/workspace/review/principles.md"
       title="Principles"
       icon={Scale}
-      tagline="The judgment framework TP applies to verdicts. Operator-authored; revision history preserved per ADR-209."
+      tagline="The judgment framework the Reviewer applies to verdicts. Operator-authored; revision history preserved per ADR-209."
       editPrompt="I want to evolve my Reviewer's principles. Walk me through the current declaration and help me decide what to change."
       onEdit={(prompt) => sendMessage(prompt)}
       emptyBody={

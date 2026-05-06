@@ -3,15 +3,16 @@
 /**
  * Agents Page — Detail-only surface (ADR-167 v5, ADR-214, ADR-241).
  *
- * `/agents` (no query param) redirects to `?agent=yarnnn` per ADR-241 D1.
- * Slug is "yarnnn" — derived from the YARNNN display_name (ADR-247).
+ * ADR-251: roster reinstated. `/agents` (no query param) shows the roster.
+ * Two systemic entities: System Agent (?agent=system) + Reviewer (?agent=reviewer).
  *
- * Legacy `?agent=reviewer` deep-links redirect to `?agent=yarnnn&tab=principles`
- * per ADR-241 D3 — the Reviewer's principles.md substrate surfaces under
- * YARNNN's Principles tab.
+ * Bookmark-safety redirects:
+ *   ?agent=yarnnn → ?agent=system
+ *   ?agent=thinking-partner → ?agent=system
+ *   ?agent=yarnnn&tab=principles → ?agent=reviewer&tab=principles
+ *   ?agent=yarnnn&tab=autonomy → ?agent=reviewer&tab=autonomy
  *
- * AgentRosterSurface deleted (ADR-241 Singular Implementation). Future ADRs
- * re-introducing user-authored Agents will add a roster landing then.
+ * ?agent=reviewer renders ReviewerDetail directly — no redirect (ADR-251 D7).
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -43,17 +44,30 @@ export default function AgentsPage() {
 
   const agentFromUrl = searchParams.get('agent');
 
-  // ADR-241: detail-only landing. Default to YARNNN (?agent=yarnnn)
-  // when no agent param is set. Roster mode dead post-ADR-235 D2.
+  // ADR-251: roster reinstated — no default redirect when no agent param.
+  // Bookmark-safety redirects for legacy ?agent=yarnnn and ?agent=thinking-partner URLs.
   useEffect(() => {
-    if (!agentFromUrl) {
-      router.replace('/agents?agent=yarnnn', { scroll: false });
+    if (agentFromUrl === 'yarnnn' || agentFromUrl === 'thinking-partner') {
+      router.replace('/agents?agent=system', { scroll: false });
     }
-  }, [agentFromUrl, router]);
+    // ?agent=yarnnn&tab=principles|autonomy → ?agent=reviewer&tab=...
+    const tab = searchParams.get('tab');
+    if (agentFromUrl === 'yarnnn' && (tab === 'principles' || tab === 'autonomy')) {
+      router.replace(`/agents?agent=reviewer&tab=${tab}`, { scroll: false });
+    }
+  }, [agentFromUrl, router, searchParams]);
 
-  // Detail mode is determined by URL — no auto-selection (ADR-167)
+  // Detail mode is determined by URL — no auto-selection (ADR-167).
+  // ADR-251: ?agent=system maps to the meta-cognitive agent (System Agent).
+  // ?agent=reviewer maps to the synthesized Reviewer pseudo-agent.
   const selectedAgent = useMemo(() => {
     if (!agentFromUrl) return null;
+    if (agentFromUrl === 'system') {
+      return agents.find(a => a.agent_class === 'meta-cognitive') ?? null;
+    }
+    if (agentFromUrl === 'reviewer') {
+      return agents.find(a => a.agent_class === 'reviewer') ?? null;
+    }
     return agents.find(a => a.id === agentFromUrl || getAgentSlug(a) === agentFromUrl) ?? null;
   }, [agentFromUrl, agents]);
 
@@ -151,10 +165,33 @@ export default function AgentsPage() {
           tasks={agentTasks}
         />
       ) : (
-        // ADR-241: roster mode deleted; this branch only shows briefly
-        // during the redirect-to-thinking-partner effect.
-        <div className="flex items-center justify-center h-full">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        // ADR-251: roster landing — no agent selected. Shows two systemic cards.
+        // Full AgentRosterSurface component is the follow-on; this is the interim
+        // placeholder that signals the roster is the correct landing state.
+        <div className="flex-1 overflow-auto p-6 max-w-3xl space-y-4">
+          <p className="text-sm font-medium text-muted-foreground">Your workspace</p>
+          <div className="grid grid-cols-2 gap-3">
+            {agents.filter(a => a.agent_class === 'meta-cognitive').map(a => (
+              <button
+                key={a.id}
+                onClick={() => router.push('/agents?agent=system')}
+                className="text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
+              >
+                <p className="text-sm font-medium">System Agent</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Executes declared work. Narrates what happened.</p>
+              </button>
+            ))}
+            {agents.filter(a => a.agent_class === 'reviewer').map(a => (
+              <button
+                key={a.id}
+                onClick={() => router.push('/agents?agent=reviewer')}
+                className="text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
+              >
+                <p className="text-sm font-medium">Reviewer</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Your judgment seat — independent verdicts on proposed actions.</p>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </ThreePanelLayout>

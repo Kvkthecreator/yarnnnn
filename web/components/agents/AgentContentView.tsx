@@ -29,6 +29,8 @@ import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPane
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
 import { CONTEXT_ROUTE, WORK_ROUTE, WORKSPACE_CONFIG_ROUTE } from '@/lib/routes';
+import { PrinciplesTab } from './PrinciplesTab';
+import { AutonomyTab } from './AutonomyTab';
 import {
   agentClassDescription,
   agentClassLabel,
@@ -707,29 +709,25 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 }
 
 
-// ADR-241 D2: YARNNN detail view is tab-based (Identity /
-// ADR-236 Round 5+ extension (2026-04-30): YARNNN detail tabs reorganized
-// to surface YARNNN's substrate. The legacy Tasks tab was always-empty for
-// YARNNN (recurrences never assign agent_slugs=['thinking-partner']) — DELETED.
-// Replaced with substrate-shaped tabs that show what YARNNN actually reads
-// + uses: Mandate (gate for task creation, ADR-207), Autonomy (delegation
-// posture, ADR-217), Principles (judgment framework, ADR-194 v2).
-// Identity stays as the cockpit role/agent overview.
+// ADR-251 D3: System Agent detail view. Tabs: Identity · Mandate · Back Office.
+// Renamed from YarnnnDetail — cockpit entity is "System Agent" (ADR-251 D1).
+// Mandate surfaces here (system reads + executes against it).
+// Autonomy + Principles migrated to ReviewerDetail (ADR-251 D4).
 function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
   return (
     <div className="flex-1 overflow-auto">
       <SurfaceIdentityHeader
-        title={agent.title}
+        title="System Agent"
         metadata={<AgentMetadata agent={agent} tasks={tasks} />}
       />
       <div className="max-w-3xl px-4 py-4 space-y-6">
         <AgentRoleBlock agent={agent} tasks={tasks} />
-        {/* Mandate, Autonomy, and Principles live at /workspace */}
+        {/* Mandate: the operator's declared primary intent — system reads and executes against this */}
         <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium">Workspace setup</p>
+            <p className="text-sm font-medium">Mandate &amp; configuration</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Mandate, Autonomy, Reviewer principles, and program configuration.
+              Primary intent, program configuration, and workspace settings.
             </p>
           </div>
           <a
@@ -737,6 +735,77 @@ function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
             className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
           >
             Open →
+          </a>
+        </div>
+        {/* Reviewer: link out to the Reviewer surface */}
+        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Reviewer</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Your judgment seat — principles, autonomy delegation, and track record.
+            </p>
+          </div>
+          <a
+            href="/agents?agent=reviewer"
+            className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            Open →
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ADR-251 D4: Reviewer detail view. First-class surface.
+// Tabs: Identity · Principles · Autonomy · Track Record · Decisions.
+// Autonomy + Principles migrated here from System Agent surface.
+function ReviewerDetail({ agent }: { agent: Agent }) {
+  return (
+    <div className="flex-1 overflow-auto">
+      <SurfaceIdentityHeader
+        title="Reviewer"
+        metadata={
+          <span className="text-xs text-muted-foreground">
+            Your judgment seat — independent verdicts on proposed actions
+          </span>
+        }
+      />
+      <div className="max-w-3xl px-4 py-4 space-y-6">
+        <AgentRoleBlock agent={agent} tasks={[]} />
+        {/* Principles + Autonomy: now correctly housed under the Reviewer */}
+        <div className="space-y-3">
+          <PrinciplesTab />
+          <AutonomyTab />
+        </div>
+        {/* Track Record: calibration.md — ADR-251 D4 */}
+        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Track Record</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Calibration data — approval rates, accuracy vs outcomes (7d / 30d / 90d).
+            </p>
+          </div>
+          <a
+            href="/context?path=/workspace/review/calibration.md"
+            className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            View →
+          </a>
+        </div>
+        {/* Decisions: link to decisions.md stream */}
+        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Decisions</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Append-only verdict trail — every approve / reject / defer with reasoning.
+            </p>
+          </div>
+          <a
+            href="/context?path=/workspace/review/decisions.md"
+            className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            View →
           </a>
         </div>
       </div>
@@ -748,27 +817,18 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
   const router = useRouter();
   const cls = agent.agent_class || 'specialist';
 
-  // ADR-241 D3: legacy `?agent=reviewer` deep-links redirect to
-  // YARNNN's Principles tab — same principles.md substrate, different
-  // surface label. Preserves ADR-194 v2 cross-link integrity.
-  useEffect(() => {
-    if (cls === 'reviewer') {
-      router.replace('/agents?agent=yarnnn&tab=principles', { scroll: false });
-    }
-  }, [cls, router]);
+  // ADR-251: reviewer is first-class — no redirect. Renders ReviewerDetail directly.
+  // ADR-251 D7: bookmark-safety redirects for ?agent=yarnnn and ?agent=thinking-partner
+  // are handled in agents/page.tsx (routing layer), not here (rendering layer).
 
-  if (cls === 'reviewer') {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  // meta-cognitive = YARNNN system surface. Gets its own tab shell:
-  // Identity / Mandate / Autonomy / Principles / Operations.
+  // meta-cognitive = System Agent surface (ADR-251). Tabs: Identity · Mandate · Back Office.
   if (cls === 'meta-cognitive') {
     return <YarnnnDetail agent={agent} tasks={tasks} />;
+  }
+
+  // reviewer = Reviewer first-class surface (ADR-251). Tabs: Identity · Principles · Autonomy · Track Record · Decisions.
+  if (cls === 'reviewer') {
+    return <ReviewerDetail agent={agent} />;
   }
 
   // After the meta-cognitive + reviewer early returns, cls is narrowed to

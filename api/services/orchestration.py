@@ -626,7 +626,11 @@ SYSTEMIC_AGENTS: dict[str, dict[str, Any]] = {
     # No separate data model — a task is a task; owner determines class.
     #
     # DB slug `thinking_partner` retained as exception (migration 142;
-    # GLOSSARY exception table). External user-facing name is YARNNN.
+    # GLOSSARY exception table). Internal class enum `meta-cognitive` also
+    # retained as data-compat exception (GLOSSARY Exceptions table).
+    # Cockpit entity label is "System Agent" (ADR-251). In chat speaks as
+    # "YARNNN" (the brand). display_name here drives API responses consumed
+    # by the cockpit roster and detail surfaces.
     #
     # ADR-216 classification note (2026-04-24): YARNNN is the orchestration
     # chat surface, NOT a persona-bearing Agent. The `class: "meta-cognitive"`
@@ -637,20 +641,20 @@ SYSTEMIC_AGENTS: dict[str, dict[str, Any]] = {
     # workspace-authored IDENTITY file; BASE_PROMPT (platform-fixed voice)
     # is the conversational surface. Reviewer is the sole systemic
     # persona-bearing Agent (ADR-216 D3). See ADR-216 for full reframe.
+    # ADR-251: cockpit label "System Agent"; Reviewer now first-class surface.
 
     "thinking_partner": {
-        "class": "meta-cognitive",  # ADR-216: enum retained; classification = orchestration surface
+        "class": "meta-cognitive",  # data-compat enum — maps to "System Agent" at display layer (ADR-251)
         "domain": None,
-        "display_name": "YARNNN",
-        "tagline": "Orchestrates your workforce",
+        "display_name": "System Agent",
+        "tagline": "Executes declared work. Narrates what happened.",
         "capabilities": [
             "read_workspace", "write_workspace", "search_knowledge",
             "produce_markdown",
         ],
-        "description": "The YARNNN orchestration surface. Routes operator intent, "
-                       "manages workforce health, runs back-office maintenance "
-                       "via scheduled recurrence declarations. YARNNN's outputs "
-                       "serve the coherence of the system itself.",
+        "description": "The system's conversational surface. Executes declared work, "
+                       "narrates what happened, surfaces what requires operator attention. "
+                       "Does not hold judgment — judgment lives in the Reviewer seat.",
         "default_instructions": (
             "You are YARNNN — the orchestration surface. Your domain is the "
             "operator's workforce itself, not any segment of operator work. When "

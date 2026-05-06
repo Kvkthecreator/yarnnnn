@@ -52,9 +52,11 @@ export const CONTEXT_ROUTE = "/context";
 export const WORKSPACE_CONFIG_ROUTE = "/workspace"; // Workspace-level config (mandate, autonomy, principles, programs).
 export const BACKEND_ROUTE = "/backend";             // Per-job execution log (execution_events, ADR-250).
 export const CONNECTORS_ROUTE = "/connectors"; // Platform connections — Slack, Notion, GitHub, Lemon Squeezy, Alpaca.
-// ADR-241: deep-link to TP detail. /agents (no param) redirects here.
-// Slug is "yarnnn" — derived from title "YARNNN" (ADR-247 display_name change).
-export const THINKING_PARTNER_ROUTE = "/agents?agent=yarnnn";
+// ADR-251: System Agent + Reviewer as first-class surfaces. Roster reinstated.
+// ?agent=system = System Agent detail. ?agent=reviewer = Reviewer detail.
+// Bookmark-safety: ?agent=yarnnn and ?agent=thinking-partner redirect to ?agent=system.
+export const SYSTEM_AGENT_ROUTE = "/agents?agent=system";
+export const REVIEWER_ROUTE = "/agents?agent=reviewer";
 
 export function isHomeRoute(pathname: string): boolean {
   return pathname === HOME_ROUTE || pathname.startsWith(`${HOME_ROUTE}/`);

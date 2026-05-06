@@ -140,7 +140,7 @@ Members in YARNNN today:
 
 **Systemic Agents** are path-named by role (cardinality one per workspace, no slug needed). **Instance Agents** are path-named by slug (cardinality many per workspace, slug disambiguates). The filesystem encodes the cardinality distinction.
 
-**YARNNN is not an Agent under the current canon.** ADR-216 reclassified YARNNN to the orchestration layer: a fixed-voice, platform-authored chat surface that routes work and keeps the workspace legible, but does not embody an operator-authored judgment persona.
+**YARNNN is not an Agent under the current canon.** ADR-216 reclassified YARNNN to the orchestration layer: a fixed-voice, platform-authored chat surface that routes work and keeps the workspace legible, but does not embody an operator-authored judgment persona. In the cockpit it is labeled **System Agent** (ADR-251) — the entity name for the orchestration surface. In chat it speaks as "YARNNN" (the brand). The distinction: brand = voice in chat; entity label = cockpit identity.
 
 ### Orchestration is NOT Identity-bearing
 

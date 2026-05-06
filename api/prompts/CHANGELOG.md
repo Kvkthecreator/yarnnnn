@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.06.3] - ADR-251: System Agent named; display_name updated
+
+### Changed
+- `api/services/orchestration.py`: `SYSTEMIC_AGENTS['thinking_partner']['display_name']` changed from `"YARNNN"` to `"System Agent"`. Tagline changed from "Orchestrates your workforce" to "Executes declared work. Narrates what happened."
+- `api/services/orchestration.py`: `description` updated to reflect executor/narrator posture per ADR-249 + ADR-251 (no judgment, judgment lives in Reviewer seat).
+
+### Expected behavior
+The System Agent now presents as "System Agent" in all API responses, cockpit roster cards, and agent detail surfaces. The brand name "YARNNN" is the chat voice; "System Agent" is the cockpit entity label. No change to DB slugs, class enums, or internal identifiers.
+
+---
+
 ## [2026.05.06.2] - ADR-249: Reviewer-as-operator-judgment narrative framing
 
 ### Changed

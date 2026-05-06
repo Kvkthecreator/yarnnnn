@@ -11,7 +11,7 @@ export const ROLE_LABELS: Partial<Record<Role, string>> = {
   slack_bot: 'Slack Bot',
   notion_bot: 'Notion Bot',
   github_bot: 'GitHub Bot',
-  thinking_partner: 'YARNNN',
+  thinking_partner: 'System Agent',  // ADR-251: cockpit entity label
   // v4 ICP legacy — kept for backward-compat display of pre-ADR-176 workspaces only.
   // These role values exist in the DB for users created before ADR-176 migration.
   // Remove after Phase 5 clean-slate migration wipes old role values.
