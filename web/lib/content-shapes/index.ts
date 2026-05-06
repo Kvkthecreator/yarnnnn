@@ -41,16 +41,22 @@ export type ContentShape = {
 export type ContentShapeMeta = ContentShape;
 
 import { META as autonomyMeta } from './autonomy';
+import { META as brandMeta } from './brand';
 import { META as decisionsMeta } from './decisions';
+import { META as identityMeta } from './identity';
 import { META as inferenceMetaMeta } from './inference-meta';
+import { META as mandateMeta } from './mandate';
 import { META as snapshotMeta } from './snapshot';
 import { META as performanceMeta } from './performance';
 import { META as principlesMeta } from './principles';
 
 export const CONTENT_SHAPES: Readonly<Record<string, ContentShape>> = Object.freeze({
   autonomy: autonomyMeta,
+  brand: brandMeta,
   decisions: decisionsMeta,
+  identity: identityMeta,
   'inference-meta': inferenceMetaMeta,
+  mandate: mandateMeta,
   snapshot: snapshotMeta,
   performance: performanceMeta,
   principles: principlesMeta,

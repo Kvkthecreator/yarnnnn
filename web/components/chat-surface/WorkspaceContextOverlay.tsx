@@ -26,8 +26,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   X,
-  Compass,
-  Scale,
   Clock,
   Inbox,
   Activity,
@@ -35,6 +33,8 @@ import {
 import { api } from '@/lib/api/client';
 import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
+import { MandateCard } from '@/components/workspace-concepts/MandateCard';
+import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
 import { formatActionType, formatRelativeTimestamp } from '@/lib/content-shapes/decisions';
 import type { Recurrence } from '@/types';
 import type { SnapshotLead } from '@/lib/content-shapes/snapshot';
@@ -129,52 +129,14 @@ export function WorkspaceContextOverlay({
 
           {/* Scrollable body — three stacked sections */}
           <div className="max-h-[75vh] overflow-y-auto divide-y divide-border/40">
-            {/* Mandate */}
+            {/* Mandate — compact variant */}
             <div ref={mandateRef} className="px-5 py-5">
-              <WorkspaceFileView
-                path="/workspace/context/_shared/MANDATE.md"
-                title="Mandate"
-                icon={Compass}
-                tagline="Your Primary Action declaration — what this workspace is running toward."
-                editPrompt="I want to revise my mandate. Show me the current declaration and help me sharpen it."
-                onEdit={editAndClose}
-                emptyBody={
-                  <p className="text-center text-xs">
-                    Your mandate gates task creation (ADR-207).{' '}
-                    <button
-                      type="button"
-                      onClick={() => editAndClose("Help me author my mandate — the Primary Action I'm running, my success criteria, and the boundary conditions.")}
-                      className="font-medium underline underline-offset-4 hover:no-underline"
-                    >
-                      Author in chat
-                    </button>
-                  </p>
-                }
-              />
+              <MandateCard variant="compact" onEdit={editAndClose} />
             </div>
 
-            {/* Principles */}
+            {/* Principles — compact variant */}
             <div ref={reviewRef} className="px-5 py-5">
-              <WorkspaceFileView
-                path="/workspace/review/principles.md"
-                title="Principles"
-                icon={Scale}
-                tagline="The judgment framework applied to every proposal."
-                editPrompt="I want to evolve my Reviewer's principles. Walk me through the current principles and help me decide what to change."
-                onEdit={editAndClose}
-                emptyBody={
-                  <p className="text-center text-xs">
-                    Reviewer principles govern what gets approved vs rejected.{' '}
-                    <button
-                      type="button"
-                      onClick={() => editAndClose("Help me author the Reviewer principles — the rules that govern what proposals get approved, rejected, or deferred.")}
-                      className="font-medium underline underline-offset-4 hover:no-underline"
-                    >
-                      Author in chat
-                    </button>
-                  </p>
-                }
-              />
+              <PrinciplesCard variant="compact" onEdit={editAndClose} />
             </div>
 
             {/* Recent — proposals + runs + awareness note */}

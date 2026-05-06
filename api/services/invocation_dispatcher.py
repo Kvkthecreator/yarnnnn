@@ -73,6 +73,12 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+try:
+    import sentry_sdk as _sentry
+    _SENTRY_AVAILABLE = True
+except ImportError:
+    _SENTRY_AVAILABLE = False
+
 from services.recurrence import RecurrenceDeclaration, RecurrenceShape
 from services.recurrence_paths import resolve_paths, ResolvedPaths
 
@@ -109,6 +115,13 @@ async def dispatch(
 
     started_at = datetime.now(timezone.utc)
     paths = resolve_paths(decl, started_at=started_at)
+
+    # ADR-250: tag Sentry scope so any exception from this invocation carries context
+    if _SENTRY_AVAILABLE:
+        with _sentry.configure_scope() as scope:
+            scope.set_user({"id": user_id})
+            scope.set_tag("task_slug", decl.slug)
+            scope.set_tag("shape", decl.shape.value)
 
     logger.info(
         "[DISPATCH] %s/%s start (decl=%s)",
@@ -152,6 +165,8 @@ async def dispatch(
         logger.exception(
             "[DISPATCH] %s/%s failed: %s", decl.shape.value, decl.slug, exc
         )
+        if _SENTRY_AVAILABLE:
+            _sentry.capture_exception(exc)
         await _emit_narrative(
             client,
             user_id,

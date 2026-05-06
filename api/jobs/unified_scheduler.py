@@ -42,11 +42,23 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sentry_sdk
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Observability — ADR-250 Phase 1
+_sentry_dsn = os.getenv("SENTRY_DSN")
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        environment=os.getenv("ENVIRONMENT", "production"),
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
+    logger.info("[SCHEDULER] Sentry initialized")
 
 
 # ---------------------------------------------------------------------------

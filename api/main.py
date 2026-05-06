@@ -11,6 +11,7 @@ Single FastAPI application with route groups:
 
 import os
 import logging
+import sentry_sdk
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -23,6 +24,21 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Observability — ADR-250 Phase 1
+# Sentry captures unhandled exceptions + performance traces.
+# SENTRY_DSN is required in production; silently no-ops if absent (local dev).
+_sentry_dsn = os.getenv("SENTRY_DSN")
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        environment=os.getenv("ENVIRONMENT", "production"),
+        traces_sample_rate=0.1,   # 10% of transactions — free tier headroom
+        send_default_pii=False,   # no PII sent to Sentry
+    )
+    logger.info("[STARTUP] Sentry initialized (environment=%s)", os.getenv("ENVIRONMENT", "production"))
+else:
+    logger.info("[STARTUP] SENTRY_DSN not set — Sentry disabled")
 
 
 def _validate_environment():
