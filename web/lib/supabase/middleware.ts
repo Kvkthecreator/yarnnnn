@@ -11,12 +11,14 @@ import { HOME_ROUTE } from "@/lib/routes";
 // /team redirects to /agents per ADR-214 (reverses ADR-201). /review is
 // deleted; Reviewer lives at /agents?agent=reviewer.
 // /schedule is now a redirect stub → /work (ADR-243 folded into Work tabs).
+// /connectors is a user-menu shortcut (same pattern as /workspace).
 const PROTECTED_PREFIXES = [
   "/chat",
   "/work",
   "/agents",
   "/context",
   "/workspace",
+  "/connectors",
   "/operation", // redirect stub → /workspace
   "/memory",
   "/system",

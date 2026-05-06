@@ -337,6 +337,12 @@ async def _dispatch_generative(
             role="system", summary=msg,
             pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
         )
+        record_execution_event(
+            client, user_id=user_id, slug=decl.slug,
+            shape=decl.shape.value,
+            trigger_type="scheduled" if decl.schedule else "manual",
+            status="failed", error_reason="exception", error_detail=msg,
+        )
         return _result_failed(decl, msg, paths=paths)
 
     agent = await _resolve_agent(client, user_id, agent_ref)
@@ -346,6 +352,12 @@ async def _dispatch_generative(
             client, user_id, decl,
             role="system", summary=f"{decl.slug} failed: {msg}",
             pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
+        )
+        record_execution_event(
+            client, user_id=user_id, slug=decl.slug,
+            shape=decl.shape.value,
+            trigger_type="scheduled" if decl.schedule else "manual",
+            status="failed", error_reason="exception", error_detail=msg,
         )
         return _result_failed(decl, msg, paths=paths)
 
@@ -366,6 +378,12 @@ async def _dispatch_generative(
             client, user_id, decl,
             role="system", summary=msg,
             pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
+        )
+        record_execution_event(
+            client, user_id=user_id, slug=decl.slug,
+            shape=decl.shape.value,
+            trigger_type="scheduled" if decl.schedule else "manual",
+            status="failed", error_reason="exception", error_detail=msg,
         )
         return _result_failed(decl, msg, paths=paths)
 

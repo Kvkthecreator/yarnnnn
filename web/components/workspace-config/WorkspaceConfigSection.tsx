@@ -191,7 +191,7 @@ export function WorkspaceConfigSection() {
                     <Check className="w-3.5 h-3.5" /> Connected
                   </span>
                 ) : (
-                  <a href="/settings?tab=connectors"
+                  <a href="/connectors"
                     className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1 shrink-0">
                     <Link2 className="w-3.5 h-3.5" /> Connect
                   </a>

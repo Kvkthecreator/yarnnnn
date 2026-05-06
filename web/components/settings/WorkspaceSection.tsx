@@ -13,7 +13,7 @@
  *     bundle's idempotent re-fork rules (ADR-226 §4) handle it
  *   - Deactivate (when a program is active): POST /api/programs/deactivate
  *     — soft, drops MANDATE.md marker, body untouched (ADR-244 D3)
- *   - Connect platform (capability gap): deep-link to /settings?tab=connectors
+ *   - Connect platform (capability gap): deep-link to /connectors
  *
  * Hard boundary (ADR-244 D7): zero edit affordances for substrate content.
  * MANDATE / IDENTITY / BRAND / AUTONOMY / principles authoring routes to
@@ -254,7 +254,7 @@ export function WorkspaceSection() {
                   </span>
                 ) : (
                   <a
-                    href="/settings?tab=connectors"
+                    href="/connectors"
                     className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1 shrink-0"
                   >
                     <Link2 className="w-3.5 h-3.5" />

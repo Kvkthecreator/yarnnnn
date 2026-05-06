@@ -25,7 +25,6 @@ import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useTP } from "@/contexts/TPContext";
-import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -47,7 +46,7 @@ interface NotificationPreferences {
   email_agent_failed: boolean;
 }
 
-type SettingsTab = "billing" | "usage" | "connectors" | "account";
+type SettingsTab = "billing" | "usage" | "account";
 type DangerAction =
   | "work-history"
   | "workspace"
@@ -66,7 +65,6 @@ export default function SettingsPage() {
   // Legacy `?tab=memory` redirects to Files IDENTITY.md via effect below.
   const initialTab: SettingsTab =
     tabParam === "usage" ? "usage" :
-    tabParam === "connectors" ? "connectors" :
     tabParam === "account" ? "account" :
     "billing";
   const subscriptionSuccess = searchParams.get("subscription") === "success";
@@ -360,19 +358,6 @@ export default function SettingsPage() {
           </span>
         </button>
         <button
-          onClick={() => setActiveTab("connectors")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "connectors"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Link2 className="w-4 h-4" />
-            Connectors
-          </span>
-        </button>
-        <button
           onClick={() => setActiveTab("account")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "account"
@@ -461,15 +446,6 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Unable to load usage data.</p>
           )}
         </section>
-      )}
-
-      {/* Connectors Tab — platform connections (ADR-133: moved from Workspace) */}
-      {activeTab === "connectors" && (
-        <ConnectedIntegrationsSection
-          title="Connectors"
-          description="Connect platforms to give your agents data. Platforms are infrastructure — connect once, agents read automatically."
-          redirectTo="/settings?tab=connectors"
-        />
       )}
 
       {/* Account Tab - Data & Privacy */}

@@ -17,5 +17,5 @@ export default function IntegrationProviderRedirect({ params }: IntegrationProvi
   if (agent) {
     redirect(`/agents?agent=${encodeURIComponent(agent)}`);
   }
-  redirect('/settings?tab=connectors');
+  redirect('/connectors');
 }

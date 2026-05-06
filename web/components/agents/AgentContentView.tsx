@@ -583,7 +583,7 @@ function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Recurren
 }
 
 function platformManagementHref(provider: string | null): string {
-  return '/settings?tab=connectors';
+  return '/connectors';
 }
 
 function platformManagementLabel(provider: string | null, connected: boolean): string {

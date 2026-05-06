@@ -50,6 +50,7 @@ export const WORK_ROUTE = "/work";
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 export const CONTEXT_ROUTE = "/context";
 export const WORKSPACE_CONFIG_ROUTE = "/workspace"; // Workspace-level config (mandate, autonomy, principles, programs).
+export const CONNECTORS_ROUTE = "/connectors"; // Platform connections — Slack, Notion, GitHub, Lemon Squeezy, Alpaca.
 // ADR-241: deep-link to TP detail. /agents (no param) redirects here.
 // Slug is "yarnnn" — derived from title "YARNNN" (ADR-247 display_name change).
 export const THINKING_PARTNER_ROUTE = "/agents?agent=yarnnn";

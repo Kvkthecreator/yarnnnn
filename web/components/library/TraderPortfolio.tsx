@@ -121,7 +121,7 @@ export function TraderPortfolio() {
       <section className="rounded-lg border border-dashed border-border bg-muted/20 p-5">
         <p className="text-sm text-muted-foreground">
           Alpaca not connected.{' '}
-          <a href="/settings?tab=connectors" className="underline underline-offset-4 hover:text-foreground">
+          <a href="/connectors" className="underline underline-offset-4 hover:text-foreground">
             Connect in Settings
           </a>{' '}
           to see live portfolio data.
