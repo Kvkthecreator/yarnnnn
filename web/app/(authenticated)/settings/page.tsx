@@ -589,7 +589,7 @@ export default function SettingsPage() {
                       </div>
                       <button
                         onClick={() => initiateDangerAction("reset")}
-                        className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90"
+                        className="px-4 py-2 text-destructive text-sm font-medium hover:underline"
                       >
                         Reset Account
                       </button>
@@ -610,7 +610,7 @@ export default function SettingsPage() {
                       </div>
                       <button
                         onClick={() => initiateDangerAction("deactivate")}
-                        className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90"
+                        className="px-4 py-2 text-destructive text-sm font-medium hover:underline"
                       >
                         Deactivate
                       </button>
@@ -803,7 +803,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleDangerAction}
                 disabled={isPurging}
-                className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md flex items-center gap-2"
+                className="px-4 py-2 text-destructive text-sm font-medium hover:underline flex items-center gap-2 disabled:opacity-50"
               >
                 {isPurging && <Loader2 className="w-4 h-4 animate-spin" />}
                 {isPurging
