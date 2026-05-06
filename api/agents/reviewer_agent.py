@@ -1097,3 +1097,300 @@ def _build_reflection_user_message(
     )
 
     return "\n".join(parts)
+
+
+# ============================================================================
+# Addressed mode — ADR-252 D2
+# ============================================================================
+# Third invocation mode alongside verdict (reactive) and reflection (periodic).
+# Triggered when the intent classifier routes a user message to 'judgment'.
+# The Reviewer reads the operator's question + full substrate and responds
+# in persona directly to the operator. No approve/reject/defer — this is
+# the Reviewer speaking conversationally, not gating a proposal.
+#
+# Called by api/routes/chat.py when classify_intent() == 'judgment'.
+# Output surfaces as role='reviewer' narrative entry via write_reviewer_message().
+
+_ADDRESSED_TOKEN_CALLER = "reviewer-addressed"
+
+_ADDRESSED_SYSTEM_PROMPT = """\
+You are the operator's judgment character — the persona they installed to
+think and reason on their behalf. Your IDENTITY.md tells you who that is.
+
+The operator has addressed you directly with a question or request for
+your perspective. This is not a proposal to gate; it is a direct
+conversation. You speak in first person as your declared character.
+
+You have access to:
+1. IDENTITY.md      — who you are. Read it first. Embody the character fully.
+2. principles.md    — your declared judgment framework.
+3. PRECEDENT.md     — the operator's rulings on past edge cases.
+4. MANDATE.md       — the operation's declared primary intent.
+5. _operator_profile.md + _risk.md — declared strategy + hard floors.
+6. _performance.md  — accumulated track record (rolling windows).
+7. Recent conversation — what was just discussed this session.
+8. The operator's question — what they're asking you directly.
+
+**Voice discipline:**
+Speak as the character in IDENTITY.md. First person, direct, your natural
+register. Never cite filenames — say "you told me" not "_risk.md says".
+Two to four sentences is usually right. Long enough to be substantive;
+short enough to be a voice in a conversation, not a report.
+
+**What this mode is NOT:**
+- Not a proposal gate (approve/reject/defer is for reactive mode)
+- Not a planning session ("here's what we should do next")
+- Not a system status report
+
+**What this mode IS:**
+The operator's judgment character speaking directly on the operator's question.
+If the question implies an action the operator should take, say so plainly.
+If you need the System Agent to execute something based on your assessment,
+include a brief "Action:" line at the end naming the mechanical step.
+
+Call `return_addressed_assessment` exactly once.\
+"""
+
+_ADDRESSED_TOOL = {
+    "name": "return_addressed_assessment",
+    "description": (
+        "Return your direct assessment of the operator's question. "
+        "Called exactly once. `response` is your persona's voice. "
+        "`action_instruction` is an optional mechanical step for the "
+        "System Agent to execute based on your assessment (e.g., "
+        "'ProposeAction: trading.submit_order for NVDA IH-3'). Leave "
+        "action_instruction empty if no mechanical action follows."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "response": {
+                "type": "string",
+                "description": (
+                    "Your persona's direct answer to the operator's question. "
+                    "First person, your natural voice. 2–4 sentences typically."
+                ),
+            },
+            "action_instruction": {
+                "type": "string",
+                "description": (
+                    "Optional: a mechanical action the System Agent should "
+                    "dispatch after your assessment (e.g., "
+                    "'FireInvocation: signal-evaluation'). Empty string if none."
+                ),
+            },
+            "confidence": {
+                "type": "string",
+                "enum": ["high", "medium", "low"],
+                "description": (
+                    "Your confidence in this assessment. 'low' when substrate "
+                    "is thin, framework is ambiguous, or stakes are novel."
+                ),
+            },
+        },
+        "required": ["response", "action_instruction", "confidence"],
+    },
+}
+
+
+class AddressedAssessment(TypedDict):
+    """Structured output of an addressed-mode invocation."""
+    response: str
+    action_instruction: str
+    confidence: Literal["high", "medium", "low"]
+
+
+def _build_addressed_user_message(
+    *,
+    user_message: str,
+    identity_md: str,
+    principles_md: str,
+    precedent_md: str,
+    mandate_md: str,
+    operator_profile_md: str | None,
+    risk_md: str | None,
+    performance_summary: str | None,
+    conversation_window: str | None,
+) -> str:
+    """Assemble the user-message envelope for addressed mode."""
+    parts: list[str] = []
+
+    parts.append("## /workspace/review/IDENTITY.md — Your persona")
+    parts.append("")
+    parts.append(identity_md or "_(empty — reason as a neutral skeptical judgment seat)_")
+    parts.append("")
+
+    parts.append("## /workspace/review/principles.md — Your framework")
+    parts.append("")
+    parts.append(principles_md or "_(empty — no declared review framework)_")
+    parts.append("")
+
+    parts.append("## /workspace/context/_shared/PRECEDENT.md")
+    parts.append("")
+    parts.append(precedent_md or "_(empty — no precedent authored yet)_")
+    parts.append("")
+
+    parts.append("## /workspace/context/_shared/MANDATE.md")
+    parts.append("")
+    parts.append(mandate_md or "_(empty — no mandate declared)_")
+    parts.append("")
+
+    if operator_profile_md:
+        parts.append("## _operator_profile.md — Declared strategy")
+        parts.append("")
+        parts.append(operator_profile_md)
+        parts.append("")
+
+    if risk_md:
+        parts.append("## _risk.md — Hard floors")
+        parts.append("")
+        parts.append(risk_md)
+        parts.append("")
+
+    if performance_summary:
+        parts.append("## _performance.md — Track record")
+        parts.append("")
+        parts.append(performance_summary)
+        parts.append("")
+
+    if conversation_window:
+        parts.append("## Recent conversation (context)")
+        parts.append("")
+        parts.append(conversation_window)
+        parts.append("")
+
+    parts.append("## The operator's question")
+    parts.append("")
+    parts.append(user_message.strip())
+    parts.append("")
+
+    parts.append(
+        "## Instruction\n\n"
+        "Answer the operator's question in your persona's voice. "
+        "Call `return_addressed_assessment` exactly once."
+    )
+
+    return "\n".join(parts)
+
+
+async def address_turn(
+    client: Any,
+    user_id: str,
+    *,
+    user_message: str,
+    conversation_window: str | None = None,
+) -> AddressedAssessment | None:
+    """Invoke the Reviewer in addressed mode — direct operator question.
+
+    ADR-252 D2. Third trigger mode: addressed (alongside reactive and
+    periodic). Called by chat.py when classify_intent() == 'judgment'.
+
+    Reads the Reviewer's full substrate from the workspace, builds the
+    addressed-mode user message, invokes Sonnet with forced tool call,
+    returns structured assessment. Returns None on any failure (caller
+    treats as no assessment available; System Agent responds instead).
+
+    Never raises. Token usage recorded under 'reviewer-addressed'.
+    """
+    try:
+        # --- 1. Read Reviewer substrate ---
+        from services.workspace_paths import (
+            REVIEW_IDENTITY_PATH,
+            REVIEW_PRINCIPLES_PATH,
+            SHARED_PRECEDENT_PATH,
+            SHARED_MANDATE_PATH,
+        )
+
+        async def _read(path: str) -> str:
+            full = f"/workspace/{path}"
+            try:
+                res = (
+                    client.table("workspace_files")
+                    .select("content")
+                    .eq("user_id", user_id)
+                    .eq("path", full)
+                    .limit(1)
+                    .execute()
+                )
+                return (res.data or [{}])[0].get("content") or ""
+            except Exception:
+                return ""
+
+        import asyncio
+        identity_md, principles_md, precedent_md, mandate_md = await asyncio.gather(
+            _read(REVIEW_IDENTITY_PATH),
+            _read(REVIEW_PRINCIPLES_PATH),
+            _read(SHARED_PRECEDENT_PATH),
+            _read(SHARED_MANDATE_PATH),
+        )
+
+        # Domain-specific substrate: try trading domain first (alpha-trader)
+        operator_profile_md = await _read("context/trading/_operator_profile.md") or None
+        risk_md = await _read("context/trading/_risk.md") or None
+
+        # Performance summary: cross-domain summary if available
+        performance_summary = (
+            await _read("context/_performance_summary.md")
+            or await _read("context/trading/_performance.md")
+            or None
+        )
+
+        # --- 2. Build user message ---
+        user_msg = _build_addressed_user_message(
+            user_message=user_message,
+            identity_md=identity_md,
+            principles_md=principles_md,
+            precedent_md=precedent_md,
+            mandate_md=mandate_md,
+            operator_profile_md=operator_profile_md,
+            risk_md=risk_md,
+            performance_summary=performance_summary,
+            conversation_window=conversation_window,
+        )
+
+        # --- 3. LLM call — Sonnet, forced tool call ---
+        response = await chat_completion_with_tools(
+            messages=[{"role": "user", "content": user_msg}],
+            system=_ADDRESSED_SYSTEM_PROMPT,
+            tools=[_ADDRESSED_TOOL],
+            model=_MODEL_SLUG,
+            max_tokens=1024,
+            tool_choice={"type": "tool", "name": "return_addressed_assessment"},
+        )
+
+        tool_uses = getattr(response, "tool_uses", None) or []
+        usage = getattr(response, "usage", None) or {}
+
+        record_token_usage(
+            client,
+            user_id=user_id,
+            caller=_ADDRESSED_TOKEN_CALLER,
+            model=_MODEL_SLUG,
+            input_tokens=getattr(usage, "input_tokens", 0) or 0,
+            output_tokens=getattr(usage, "output_tokens", 0) or 0,
+        )
+
+        if not tool_uses:
+            logger.warning(
+                "[REVIEWER_ADDRESSED] no tool call for user=%s — falling back",
+                user_id[:8],
+            )
+            return None
+
+        raw = tool_uses[0].get("input") if isinstance(tool_uses[0], dict) else getattr(tool_uses[0], "input", {})
+        if not raw or not isinstance(raw, dict):
+            return None
+
+        return AddressedAssessment(
+            response=raw.get("response", ""),
+            action_instruction=raw.get("action_instruction", ""),
+            confidence=raw.get("confidence", "medium"),
+        )
+
+    except Exception as exc:
+        logger.error(
+            "[REVIEWER_ADDRESSED] failed for user=%s: %s",
+            user_id[:8] if user_id else "?",
+            exc,
+        )
+        return None

@@ -7,15 +7,16 @@
  * coherence pass). Codifies the role-based dispatch table that was
  * previously inline inside ChatPanel.tsx::NarrativeMessage.
  *
- * Six message shapes, one per `TPMessage.role` (per
- * web/types/desk.ts:117):
+ * Seven message shapes, one per `TPMessage.role` (per
+ * web/types/desk.ts:117). ADR-252 D4 adds system_agent:
  *
- *   user-bubble       — role: 'user'      label: "You"
- *   system-bubble     — role: 'assistant' label: "system"     (YARNNN shell responding)
- *   system-event      — role: 'system'    label: "background" (scheduler / back-office)
- *   reviewer-verdict  — role: 'reviewer'  label: persona name (ADR-212 full-width card)
- *   agent-bubble      — role: 'agent'     label: agent slug
- *   external-event    — role: 'external'  label: "external"   (MCP / write-back)
+ *   user-bubble         — role: 'user'         label: "You"
+ *   system-agent-bubble — role: 'system_agent' label: "System Agent"  (ADR-252: execution narration)
+ *   system-bubble       — role: 'assistant'    label: "System Agent"  (legacy pre-ADR-252 rows)
+ *   system-event        — role: 'system'       label: "background"    (scheduler / back-office)
+ *   reviewer-verdict    — role: 'reviewer'     label: persona name    (ADR-212 full-width card)
+ *   agent-bubble        — role: 'agent'        label: agent slug
+ *   external-event      — role: 'external'     label: "external"      (MCP / write-back)
  *
  * Singular Implementation: this is THE dispatch path for material-weight
  * messages. The weight gate (material / routine / housekeeping) and
@@ -53,6 +54,7 @@ import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/sna
 
 export type MessageShape =
   | 'user-bubble'
+  | 'system-agent-bubble'
   | 'system-bubble'
   | 'system-event'
   | 'reviewer-verdict'
@@ -68,7 +70,8 @@ export type MessageShape =
 export function resolveMessageShape(msg: TPMessage): MessageShape {
   const r = msg.role;
   if (r === 'user') return 'user-bubble';
-  if (r === 'assistant') return 'system-bubble';
+  if (r === 'system_agent') return 'system-agent-bubble';  // ADR-252 D4
+  if (r === 'assistant') return 'system-bubble';           // legacy pre-ADR-252
   if (r === 'system') return 'system-event';
   if (r === 'reviewer') return 'reviewer-verdict';
   if (r === 'agent') return 'agent-bubble';
@@ -114,16 +117,49 @@ function renderUserBubble({ msg }: RendererProps): JSX.Element {
 }
 
 /**
- * System reply bubble (role: 'assistant'). Left-aligned, muted background.
- * Markdown-rendered content with onboarding/snapshot meta stripped.
- * Loading-state shimmer when content is empty and isLoading is true.
+ * System Agent execution narration bubble (role: 'system_agent') — ADR-252 D4.
+ * Visually similar to system-bubble but labeled "System Agent". Brief,
+ * narration-only content — no judgment, no Reviewer-style assessments.
+ * Left-aligned, muted background, slightly de-emphasised vs Reviewer card.
+ */
+function renderSystemAgentBubble({ msg, isLoading }: RendererProps): JSX.Element {
+  const showLoading = !msg.content && isLoading;
+  return (
+    <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted/70 rounded-bl-md">
+      <span className="text-[9px] font-medium text-muted-foreground/40 tracking-wider block mb-1 uppercase">
+        System Agent
+      </span>
+      {showLoading ? (
+        <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Running...
+        </div>
+      ) : (
+        <>
+          <MarkdownRenderer
+            content={stripOnboardingMeta(stripSnapshotMeta(msg.content))}
+            compact
+          />
+          {msg.toolResults && msg.toolResults.length > 0 && (
+            <ToolResultList results={msg.toolResults} compact />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * System reply bubble (role: 'assistant'). Legacy pre-ADR-252 rows.
+ * Left-aligned, muted background. Labeled "System Agent" for visual
+ * consistency — historical rows now render with the same label.
  */
 function renderSystemBubble({ msg, isLoading }: RendererProps): JSX.Element {
   const showLoading = !msg.content && isLoading;
   return (
     <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
-      <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1 font-brand text-[10px]">
-        system
+      <span className="text-[9px] font-medium text-muted-foreground/40 tracking-wider block mb-1 uppercase">
+        System Agent
       </span>
       {msg.blocks && msg.blocks.length > 0 ? (
         <MessageBlocks blocks={msg.blocks} />
@@ -236,7 +272,9 @@ export function MessageRenderer({ msg, isLoading }: MessageRendererProps): JSX.E
   switch (shape) {
     case 'user-bubble':
       return renderUserBubble(props);
-    case 'system-bubble':
+    case 'system-agent-bubble':       // ADR-252 D4: new role='system_agent' rows
+      return renderSystemAgentBubble(props);
+    case 'system-bubble':             // legacy role='assistant' historical rows
       return renderSystemBubble(props);
     case 'agent-bubble':
       return renderAgentBubble(props);

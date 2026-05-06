@@ -697,6 +697,12 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                   outputTokens: event.usage.output_tokens,
                   totalTokens: event.usage.total_tokens,
                 });
+              } else if (event.reviewer_response) {
+                // ADR-252 D2: Reviewer addressed-mode response surfaced inline.
+                // Arrives before the System Agent stream content as a distinct
+                // SSE event. Reload history so the role='reviewer' entry
+                // written by write_reviewer_message() renders as a ReviewerCard.
+                await loadScopedHistory();
               } else if (event.balance_exhausted) {
                 throw new Error('__balance_exhausted__');
               } else if (event.error) {

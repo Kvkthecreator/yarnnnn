@@ -111,10 +111,12 @@ export interface TPMessage {
   /**
    * ADR-219 Commit 2 widened the session_messages.role enum to include
    * the full Identity taxonomy: user, assistant, system, reviewer, agent,
-   * external. The frontend mirrors that union so every narrative entry
-   * round-trips through TPMessage without conflation.
+   * external, system_agent. The frontend mirrors that union so every narrative
+   * entry round-trips through TPMessage without conflation.
+   * ADR-252 D4: system_agent added for System Agent execution narration.
+   * assistant is preserved for historical rows (pre-ADR-252).
    */
-  role: 'user' | 'assistant' | 'system' | 'reviewer' | 'agent' | 'external';
+  role: 'user' | 'assistant' | 'system' | 'reviewer' | 'agent' | 'external' | 'system_agent';
   content: string;
   /** Images attached to this message (user messages only) */
   images?: TPImageAttachment[];

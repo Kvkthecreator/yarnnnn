@@ -43,15 +43,18 @@ logger = logging.getLogger(__name__)
 
 
 NarrativeRole = Literal[
-    "user", "assistant", "system", "reviewer", "agent", "external"
+    "user", "assistant", "system", "reviewer", "agent", "external", "system_agent"
 ]
-"""The six Identity classes that can author a narrative entry. Mirrors the
-session_messages.role CHECK constraint (migration 161). Validation lives
+"""The Identity classes that can author a narrative entry. Mirrors the
+session_messages.role CHECK constraint (migration 167). Validation lives
 here at the application layer; the constraint is the database backstop.
+
+ADR-252 D4: 'system_agent' added for System Agent execution narration.
+'assistant' retained for historical rows (pre-ADR-252 writes).
 """
 
 VALID_ROLES: frozenset[str] = frozenset(
-    {"user", "assistant", "system", "reviewer", "agent", "external"}
+    {"user", "assistant", "system", "reviewer", "agent", "external", "system_agent"}
 )
 
 

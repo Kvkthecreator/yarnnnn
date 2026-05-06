@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.06.4] - ADR-252 Phase 1: Reviewer primary intelligence — no-impersonation clause + addressed mode
+
+### Changed
+- `api/agents/prompts/base.py`: System Agent identity clause rewritten — explicit structural prohibition on composing Reviewer-style assessments. "Never speak as the Reviewer. Your only role when the operator's question is judgment-seeking: narrate what the system did and indicate the Reviewer has assessed. 'Signal-evaluation ran. Results written. Simons will assess.' Full stop."
+- `api/agents/prompts/chat/workspace.py`: Added "Never speak as the Reviewer" section in action patterns. Explicit examples of forbidden vs correct behavior.
+- `api/agents/reviewer_agent.py`: New `address_turn()` function — third Reviewer invocation mode (addressed, alongside reactive + periodic). New `_ADDRESSED_SYSTEM_PROMPT` + `_ADDRESSED_TOOL` (`return_addressed_assessment`). Sonnet, ~1K output max. Token caller: `reviewer-addressed`.
+- `api/services/intent_classifier.py` (NEW): Haiku-based intent classifier. Returns `"execution"` or `"judgment"`. Safe fallback to `"judgment"`. Token caller: `intent-classifier`.
+
+### Expected behavior
+- Judgment-seeking operator messages route to Reviewer (`address_turn()`) which responds in persona (Simons, Buffett, etc.) as a `role='reviewer'` narrative entry
+- System Agent no longer composes Reviewer-style assessments — narrates execution only
+- Three visually distinct participants in chat: Operator · System Agent bubble · Reviewer card
+
+---
+
 ## [2026.05.06.3] - ADR-251: System Agent named; display_name updated
 
 ### Changed

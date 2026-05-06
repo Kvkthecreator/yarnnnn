@@ -605,7 +605,7 @@ def build_history_for_claude(
     last_assistant_with_tools_idx = -1
     for i, m in enumerate(messages):
         if (
-            m.get("role") == "assistant"
+            m.get("role") in ("assistant", "system_agent")  # ADR-252 D4
             and (m.get("metadata") or {}).get("tool_history")
         ):
             last_assistant_with_tools_idx = i
@@ -619,6 +619,10 @@ def build_history_for_claude(
         # them directly) but never enter the Claude API messages list (Claude only
         # accepts user/assistant). The narrative-side rollup (recent.md, ADR-221
         # Commit C) is the singular re-entry point for these into YARNNN's reasoning.
+        # ADR-252 D4: system_agent is the new write role; map to 'assistant'
+        # for Claude API (which only accepts user/assistant).
+        if role == "system_agent":
+            role = "assistant"
         if role not in ("user", "assistant"):
             continue
         content = m.get("content") or ""
@@ -1272,7 +1276,18 @@ async def global_chat(
             }
 
             await append_message(auth.client, session_id, "user", request.content, user_message_metadata)
-            logger.info(f"[YARNNN-STREAM] Starting stream for message: {request.content[:50]}...")
+            logger.info(f"[SYSTEM_AGENT] Starting stream for message: {request.content[:50]}...")
+
+            # ADR-252 D1: Intent classifier gate — Haiku, near-zero cost.
+            # Routes judgment-seeking messages to the Reviewer (addressed mode).
+            # Falls back to 'judgment' on any failure — safe default.
+            from services.intent_classifier import classify_intent
+            intent_class = await classify_intent(
+                request.content,
+                client=auth.client,
+                user_id=auth.user_id,
+            )
+            logger.info(f"[INTENT_CLASSIFIER] intent={intent_class} for: {request.content[:50]}")
 
             # Build content blocks for Claude API (images + ephemeral file attachments)
             images_for_api = None
@@ -1311,6 +1326,59 @@ async def global_chat(
             # ADR-186: Resolve prompt profile from surface
             profile = resolve_profile(request.surface_context)
 
+            # ADR-252 D2: Judgment path — invoke Reviewer in addressed mode.
+            # Fires before the System Agent stream so the Reviewer's voice
+            # reaches the operator first. System Agent then narrates execution
+            # context (if any tools follow) in its own bubble.
+            reviewer_assessment = None
+            if intent_class == "judgment":
+                try:
+                    from agents.reviewer_agent import address_turn
+                    from services.reviewer_chat_surfacing import write_reviewer_message
+
+                    # Build a compact conversation window from recent history
+                    conv_lines = []
+                    for m in history[-6:]:  # last 3 pairs
+                        role_label = "Operator" if m.get("role") == "user" else "System"
+                        content = m.get("content", "")
+                        if isinstance(content, list):
+                            content = " ".join(
+                                b.get("text", "") for b in content
+                                if isinstance(b, dict) and b.get("type") == "text"
+                            )
+                        if content and isinstance(content, str):
+                            conv_lines.append(f"{role_label}: {content[:300]}")
+                    conversation_window = "\n".join(conv_lines) if conv_lines else None
+
+                    reviewer_assessment = await address_turn(
+                        auth.client,
+                        auth.user_id,
+                        user_message=request.content,
+                        conversation_window=conversation_window,
+                    )
+
+                    if reviewer_assessment and reviewer_assessment.get("response"):
+                        # Surface Reviewer response as role='reviewer' narrative entry
+                        await write_reviewer_message(
+                            auth.client,
+                            auth.user_id,
+                            content=reviewer_assessment["response"],
+                            verdict="addressed",
+                            occupant="ai:reviewer-sonnet-v1",
+                        )
+                        # Yield Reviewer response to frontend as a distinct SSE event
+                        yield f"data: {json.dumps({'reviewer_response': reviewer_assessment['response']})}\n\n"
+                        logger.info(
+                            "[REVIEWER_ADDRESSED] response surfaced for user=%s confidence=%s",
+                            auth.user_id[:8],
+                            reviewer_assessment.get("confidence", "?"),
+                        )
+                except Exception as _rev_exc:
+                    logger.warning(
+                        "[REVIEWER_ADDRESSED] failed — System Agent will respond: %s", _rev_exc
+                    )
+                    reviewer_assessment = None
+
             stream_params = {
                     "include_context": request.include_context,
                     "history": history,
@@ -1319,6 +1387,7 @@ async def global_chat(
                     "scoped_agent": scoped_agent,  # ADR-087: Agent-scoped context
                     "surface_context_raw": request.surface_context.dict() if request.surface_context else None,  # ADR-159
                     "profile": profile,  # ADR-186: Prompt profile
+                    "reviewer_assessment": reviewer_assessment,  # ADR-252: pass to prompt
                 }
 
             async for event in agent.execute_stream_with_tools(
@@ -1421,10 +1490,13 @@ async def global_chat(
                 "pulse": "addressed",
                 "weight": "material" if (tool_called or response_is_substantive) else "routine",
             }
+            # ADR-252 D4: new writes use role='system_agent'. Historical
+            # role='assistant' rows are preserved as-is (migration 167).
+            system_agent_role = "system_agent"
             await append_message(
                 auth.client,
                 session_id,
-                "assistant",
+                system_agent_role,
                 full_response,
                 assistant_metadata,
             )

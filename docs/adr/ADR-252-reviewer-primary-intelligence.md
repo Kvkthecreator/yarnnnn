@@ -1,6 +1,6 @@
 # ADR-252: Reviewer as Primary Intelligence — Chat Routing Inversion
 
-> **Status**: Proposed
+> **Status**: **Phase 1 Implemented** (2026-05-06 — intent classifier, Reviewer addressed mode, system_agent role, three-party narrative rendering, no-impersonation prompt clause)
 > **Date**: 2026-05-06
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-249 D2 partial (System Agent posture sharpened further — executor/narrator, not co-reasoner, now structural not just prompt-layer)
