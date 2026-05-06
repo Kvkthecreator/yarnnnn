@@ -150,7 +150,7 @@ export default function SettingsPage() {
 
       setUsageMetrics({
         agents: Array.isArray(agents) ? agents.length : 0,
-        documents: documents.documents?.length || 0,
+        documents: documents.uploads?.length || 0,
         platforms: {
           connected: connectedCount,
           total: 2, // Slack, Notion
