@@ -262,18 +262,12 @@ export default function WorkPage() {
 
   const handleTabChange = useCallback((tab: WorkTab) => {
     setActiveTab(tab);
-    // Mark this as a self-initiated navigation so the tabParam sync effect ignores it
-    const nextParam = tab === 'schedule' ? null : tab;
-    lastSyncedTabParam.current = nextParam;
-    // Mirror to URL so TP can deep-link and back/forward works
+    // Always write tab to URL — no silent defaults — so the URL always
+    // reflects the active tab and TP can deep-link to either.
+    lastSyncedTabParam.current = tab;
     const sp = new URLSearchParams(searchParams.toString());
-    if (tab === 'schedule') {
-      sp.delete('tab');
-    } else {
-      sp.set('tab', tab);
-    }
-    const qs = sp.toString();
-    router.replace(qs ? `/work?${qs}` : '/work', { scroll: false });
+    sp.set('tab', tab);
+    router.replace(`/work?${sp.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
   const plusMenuActions: PlusMenuAction[] = useMemo(() => {
