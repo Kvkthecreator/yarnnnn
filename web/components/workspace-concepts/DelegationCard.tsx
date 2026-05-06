@@ -66,7 +66,7 @@ export function DelegationCard({ variant = 'full', onOpen, className }: Delegati
           'bg-muted/60 text-muted-foreground hover:text-foreground transition-colors',
           className,
         )}
-        title="Delegation level — click to manage"
+        title="Autonomy mode — click to manage"
       >
         <ShieldCheck className="w-3 h-3" />
         {levelMeta?.label ?? effectiveLevel}
@@ -80,7 +80,7 @@ export function DelegationCard({ variant = 'full', onOpen, className }: Delegati
       <div className={cn('space-y-1.5', className)}>
         <div className="flex items-center gap-1.5">
           <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Delegation</h3>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Autonomy mode</h3>
         </div>
         {loading ? (
           <p className="text-xs text-muted-foreground/40">Loading…</p>
@@ -110,7 +110,7 @@ export function DelegationCard({ variant = 'full', onOpen, className }: Delegati
   return (
     <div className={cn('space-y-3', className)}>
       <div>
-        <p className="text-sm font-semibold">Delegation</p>
+        <p className="text-sm font-semibold">Autonomy mode</p>
         <p className="text-xs text-muted-foreground mt-0.5">How much YARNNN decides without asking first.</p>
       </div>
 

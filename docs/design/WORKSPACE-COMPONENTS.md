@@ -77,7 +77,7 @@ renders it conditionally.
 
 ---
 
-### 2. Delegation (Autonomy)
+### 2. Autonomy mode
 
 **File:** `/workspace/context/_shared/AUTONOMY.md`
 **L2 parser:** `web/lib/content-shapes/autonomy.ts` *(already complete)*
@@ -107,7 +107,7 @@ renders it conditionally.
 ### 3. Principles
 
 **File:** `/workspace/review/principles.md`
-**L2 parser:** `web/lib/content-shapes/principles.ts` *(stub — parse() needed)*
+**L2 parser:** `web/lib/content-shapes/principles.ts`
 **L3 component:** `web/components/workspace-concepts/PrinciplesCard.tsx`
 **Write contract:** `configuration` (Chat edits; complex judgment framework)
 
@@ -155,9 +155,9 @@ separate components at that point.
 
 | Surface | Components used | Variant |
 |---|---|---|
-| `/workspace` page | Mandate + Delegation + Principles + IdentityBrand | `full` |
+| `/workspace` page | Mandate + Autonomy mode + Principles + IdentityBrand | `full` |
 | Chat context overlay | Mandate + Principles + Recent (non-component) | `compact` |
-| Chat composer chip | Delegation | `chip` |
+| Chat composer chip | Autonomy mode | `chip` |
 | Cockpit Mandate face | Mandate | `headline` |
 | Cockpit Tracking face | Principles (threshold summary) | `headline` |
 

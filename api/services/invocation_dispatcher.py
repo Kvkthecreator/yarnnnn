@@ -81,6 +81,7 @@ except ImportError:
 
 from services.recurrence import RecurrenceDeclaration, RecurrenceShape
 from services.recurrence_paths import resolve_paths, ResolvedPaths
+from services.telemetry import record_execution_event, get_daily_spend, DAILY_SPEND_CEILING_USD
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +145,59 @@ async def dispatch(
             weight="routine",
             paths=paths,
         )
+        record_execution_event(
+            client, user_id=user_id, slug=decl.slug,
+            shape=decl.shape.value,
+            trigger_type="scheduled" if decl.schedule else "manual",
+            status="failed", error_reason="capability_unavailable",
+            error_detail=capability_check[:2000],
+        )
         return _result_failed(decl, capability_check, paths=paths)
+
+    # ADR-250 Phase 3: daily spend guard — generative shapes only, scheduled triggers.
+    # Maintenance is always exempt (zero LLM cost). Manual triggers warn but don't block.
+    if decl.shape not in (RecurrenceShape.MAINTENANCE,):
+        trigger_type = "scheduled" if decl.schedule else "manual"
+        daily_spend = get_daily_spend(client, user_id)
+        if daily_spend >= DAILY_SPEND_CEILING_USD:
+            warning = (
+                f"Daily spend ceiling reached (${daily_spend:.2f} / "
+                f"${DAILY_SPEND_CEILING_USD:.2f}). {decl.slug} skipped."
+            )
+            logger.warning("[DISPATCH] %s", warning)
+            if trigger_type == "scheduled":
+                await _emit_narrative(
+                    client, user_id, decl,
+                    role="system",
+                    summary=f"Spend ceiling reached — {decl.slug} skipped",
+                    body=(
+                        f"{decl.slug} was due but today's spend "
+                        f"(${daily_spend:.2f}) has reached the daily ceiling "
+                        f"(${DAILY_SPEND_CEILING_USD:.2f}). Run skipped. "
+                        f"Resets at midnight UTC. Adjust DAILY_SPEND_CEILING_USD to change the limit."
+                    ),
+                    pulse=_pulse_for_decl(decl),
+                    weight="routine",
+                    paths=paths,
+                )
+                record_execution_event(
+                    client, user_id=user_id, slug=decl.slug,
+                    shape=decl.shape.value, trigger_type=trigger_type,
+                    status="skipped", error_reason="spend_ceiling",
+                    error_detail=warning,
+                )
+                return _result_failed(decl, warning, paths=paths)
+            else:
+                # Manual trigger: warn but proceed
+                await _emit_narrative(
+                    client, user_id, decl,
+                    role="system",
+                    summary=f"Spend ceiling warning — {decl.slug} running (manual)",
+                    body=f"Daily ceiling ${DAILY_SPEND_CEILING_USD:.2f} reached, but running anyway (manual trigger). Today: ${daily_spend:.2f}.",
+                    pulse=_pulse_for_decl(decl),
+                    weight="routine",
+                    paths=paths,
+                )
 
     try:
         if decl.shape == RecurrenceShape.MAINTENANCE:
@@ -167,6 +220,15 @@ async def dispatch(
         )
         if _SENTRY_AVAILABLE:
             _sentry.capture_exception(exc)
+        duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+        record_execution_event(
+            client, user_id=user_id, slug=decl.slug,
+            shape=decl.shape.value,
+            trigger_type="scheduled" if decl.schedule else "manual",
+            status="failed", error_reason="exception",
+            error_detail=str(exc),
+            duration_ms=duration_ms,
+        )
         await _emit_narrative(
             client,
             user_id,
@@ -255,6 +317,12 @@ async def _dispatch_generative(
             pulse=_pulse_for_decl(decl),
             weight="routine",
             paths=paths,
+        )
+        record_execution_event(
+            client, user_id=user_id, slug=decl.slug,
+            shape=decl.shape.value,
+            trigger_type="scheduled" if decl.schedule else "manual",
+            status="failed", error_reason="balance_exhausted",
         )
         return _result_failed(decl, "balance exhausted", paths=paths)
 
@@ -503,6 +571,23 @@ async def _dispatch_generative(
         }).eq("id", version_id).execute()
     except Exception as e:
         logger.warning("[DISPATCH] agent_runs delivered-mark failed: %s", e)
+
+    # ---- Execution telemetry (ADR-250 Phase 2) ----
+    duration_ms_telem = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+    record_execution_event(
+        client, user_id=user_id, slug=decl.slug,
+        shape=decl.shape.value,
+        trigger_type="scheduled" if decl.schedule else "manual",
+        status="success",
+        tool_rounds=tool_rounds,
+        input_tokens=version_metadata.get("input_tokens"),
+        output_tokens=version_metadata.get("output_tokens"),
+        cache_read_tokens=version_metadata.get("cache_read_input_tokens"),
+        cache_create_tokens=version_metadata.get("cache_creation_input_tokens"),
+        model=version_metadata.get("model", "claude-sonnet-4-6"),
+        duration_ms=duration_ms_telem,
+        agent_run_id=str(version_id),
+    )
 
     # ---- Narrative emission (ADR-219) ----
     duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)

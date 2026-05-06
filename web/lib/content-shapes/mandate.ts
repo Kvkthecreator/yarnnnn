@@ -84,10 +84,13 @@ export function parse(content: string): MandateData {
   const criteriaSection = extractSection(content, 'Success Criteria');
   const boundarySection = extractSection(content, 'Boundary Conditions');
 
-  const primaryRaw = primarySection
+  // Join all non-empty, non-placeholder, non-heading lines in the section
+  // into a single prose block. The Primary Action is often a multi-line paragraph.
+  const primaryLines = primarySection
     .split('\n')
-    .find(l => l.trim().length > 0 && !PLACEHOLDER_RE.test(l) && !l.startsWith('#'))
-    ?.trim() ?? null;
+    .map(l => l.trim())
+    .filter(l => l.length > 0 && !PLACEHOLDER_RE.test(l) && !l.startsWith('#') && !l.startsWith('>'));
+  const primaryRaw = primaryLines.length > 0 ? primaryLines.join(' ') : null;
 
   const successCriteria = extractBullets(criteriaSection);
   const boundaryCount = countItems(boundarySection);

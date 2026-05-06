@@ -99,6 +99,10 @@ class TaskExecutionRow(BaseModel):
     avg_input_tokens: int
     avg_output_tokens: int
     last_run_at: Optional[str]
+    # ADR-250 Phase 4 — from execution_events
+    cost_usd_total: Optional[float] = None
+    failed_count: int = 0
+    skipped_count: int = 0
 
 
 class AdminExecutionStats(BaseModel):
@@ -110,6 +114,8 @@ class AdminExecutionStats(BaseModel):
     # Spend
     spend_usd_this_month: float
     spend_usd_limit: float
+    daily_spend_today: float = 0.0
+    daily_spend_ceiling: float = 10.0
     # Scheduler
     last_scheduler_heartbeat: Optional[str]
     heartbeats_24h: int
