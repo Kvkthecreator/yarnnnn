@@ -455,6 +455,13 @@ export const api = {
       return request<Agent[]>(`/api/agents${params}`);
     },
 
+    // ADR-251 D5: Reviewer heartbeat cadence — schedule + last-run data
+    reviewerCadence: () =>
+      request<{
+        reflection: { schedule: string | null; last_ran_at: string | null; last_verdict: string | null };
+        calibration: { schedule: string | null; last_ran_at: string | null };
+      }>("/api/agents/reviewer/cadence"),
+
     // Create a new agent
     create: (data: AgentCreate) =>
       request<Agent>("/api/agents", {

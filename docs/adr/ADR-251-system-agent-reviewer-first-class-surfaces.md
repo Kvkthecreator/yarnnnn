@@ -1,6 +1,6 @@
 # ADR-251: System Agent + Reviewer as First-Class Surfaces — Roster Reinstated
 
-> **Status**: Proposed
+> **Status**: **Implemented** (2026-05-06 — Commits 1–2; D5 cadence panel shipped)
 > **Date**: 2026-05-06
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-241 D1 (roster deletion — reversed with justification; see below)

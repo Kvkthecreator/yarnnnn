@@ -587,6 +587,96 @@ async def list_agents(
     return responses
 
 
+@router.get("/reviewer/cadence")
+async def get_reviewer_cadence(auth: UserClient) -> dict:
+    """ADR-251 D5: Reviewer heartbeat cadence — schedule strings + last-run data.
+
+    Reads two sources:
+    1. /workspace/_shared/back-office.yaml — schedule cron strings for
+       back-office-reviewer-reflection and back-office-reviewer-calibration.
+    2. execution_events — last successful run timestamps + verdict (for
+       reflection, verdict is extracted from the summary column).
+
+    Returns a structured dict the FE cadence panel renders directly.
+    Never raises — returns empty/null fields on any read failure.
+    """
+    import yaml as _yaml
+    from datetime import timezone as _tz
+
+    BACK_OFFICE_PATH = "/workspace/_shared/back-office.yaml"
+
+    # --- 1. Read back-office.yaml for schedule strings ---
+    reflection_schedule: str | None = None
+    calibration_schedule: str | None = None
+    try:
+        yaml_result = (
+            auth.client.table("workspace_files")
+            .select("content")
+            .eq("user_id", auth.user_id)
+            .eq("path", BACK_OFFICE_PATH)
+            .limit(1)
+            .execute()
+        )
+        if yaml_result.data:
+            raw = _yaml.safe_load(yaml_result.data[0].get("content") or "") or {}
+            for entry in raw.get("back_office_jobs") or []:
+                slug = entry.get("slug", "")
+                schedule = entry.get("schedule")
+                if slug == "back-office-reviewer-reflection":
+                    reflection_schedule = schedule
+                elif slug == "back-office-reviewer-calibration":
+                    calibration_schedule = schedule
+    except Exception as e:
+        logger.warning("[REVIEWER_CADENCE] back-office YAML read failed: %s", e)
+
+    # --- 2. Query execution_events for last runs ---
+    reflection_last: dict | None = None
+    calibration_last: dict | None = None
+    try:
+        events_result = (
+            auth.client.table("execution_events")
+            .select("slug, status, created_at, summary")
+            .eq("user_id", auth.user_id)
+            .in_("slug", ["back-office-reviewer-reflection", "back-office-reviewer-calibration"])
+            .eq("status", "success")
+            .order("created_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+        seen: set[str] = set()
+        for row in events_result.data or []:
+            slug = row.get("slug", "")
+            if slug in seen:
+                continue
+            seen.add(slug)
+            entry = {
+                "ran_at": row.get("created_at"),
+                "verdict": None,
+            }
+            # Extract verdict from summary (format: "Reflection {verdict}" or "Reflection skipped: ...")
+            summary = row.get("summary") or ""
+            if summary.startswith("Reflection ") and "skipped" not in summary:
+                entry["verdict"] = summary.replace("Reflection ", "").strip()
+            if slug == "back-office-reviewer-reflection":
+                reflection_last = entry
+            elif slug == "back-office-reviewer-calibration":
+                calibration_last = entry
+    except Exception as e:
+        logger.warning("[REVIEWER_CADENCE] execution_events read failed: %s", e)
+
+    return {
+        "reflection": {
+            "schedule": reflection_schedule,
+            "last_ran_at": reflection_last["ran_at"] if reflection_last else None,
+            "last_verdict": reflection_last["verdict"] if reflection_last else None,
+        },
+        "calibration": {
+            "schedule": calibration_schedule,
+            "last_ran_at": calibration_last["ran_at"] if calibration_last else None,
+        },
+    }
+
+
 @router.get("/{agent_id}")
 async def get_agent(
     agent_id: UUID,

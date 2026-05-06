@@ -1,6 +1,6 @@
 # Surface Contracts
 
-**Version:** v2.4 (2026-05-06 — four-tab nav, /schedule dissolved into Work, /workspace page added, Agents YARNNN detail simplified, Work Decisions/Schedule tabs removed)
+**Version:** v2.5 (2026-05-06 — ADR-251: Agents tab — roster reinstated, System Agent + Reviewer as first-class surfaces, Autonomy + Principles migrated to Reviewer detail, cadence panel added)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
 **Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav (Chat | Work | Agents | Files) · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) task abstraction sunset · [ADR-235](../adr/ADR-235-update-context-dissolution.md) UpdateContext dissolution (lifecycle → `ManageRecurrence`; substrate writes → `WriteFile(scope='workspace')`; identity/brand merges → `InferContext` / `InferWorkspace`) · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [ADR-245](../adr/ADR-245-frontend-kernel-three-layer-content-rendering.md) three-layer content rendering model (orthogonal: per-tab CRUD matrix here governs the **operational shape** of each tab; ADR-245 governs the **render layers** — L1 raw view + L2 content-shape parsers + L3 structured affordances — that L3 components on these tabs sit in) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
@@ -96,20 +96,20 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
 
 **Route:** `/agents` (canonical per ADR-214, reverses ADR-201)
 
-- **Archetype:** List (list mode) + Dashboard (detail mode, per ADR-167 v2). Reviewer decisions stream is a Stream archetype embed inside Reviewer detail.
-- **Reads:** `agents` table filtered to principals (YARNNN `thinking_partner` + user-authored domain agents, per ADR-189 origin filter + ADR-214 synthesized Reviewer pseudo-agent), plus each agent's filesystem home (`/workspace/agents/{slug}/*` or `/workspace/review/*` for Reviewer).
-- **List mode** — **DELETED by ADR-241** (2026-04-30). `/agents` (no query param) redirects directly to `?agent=thinking-partner`.
+- **Archetype:** List (list mode — roster) + Dashboard (detail mode, per ADR-167 v2 + ADR-251). Reviewer decisions stream is a Stream archetype accessible via Files deep-link.
+- **Reads:** `agents` table filtered to principals (`thinking_partner` System Agent + user-authored domain agents, per ADR-189 origin filter + ADR-214 synthesized Reviewer pseudo-agent), plus each agent's filesystem home (`/workspace/agents/{slug}/*` for domain agents, `/workspace/review/*` for Reviewer, `/workspace/memory/*` for System Agent).
+- **List mode** (no query param) — **Reinstated by ADR-251 D2**. Roster shows two systemic cards (System Agent + Reviewer) + "Your Agents" section (user-authored domain agents). Clicking a card navigates to `?agent=system` or `?agent=reviewer`. Bookmark-safety: `?agent=yarnnn` and `?agent=thinking-partner` redirect to `?agent=system`.
 - **Detail mode** (`?agent={slug}`): dispatches on `agent_class`:
-  - `thinking_partner` (YARNNN) → Identity card + AgentRoleBlock + pointer card to `/workspace` (Mandate/Autonomy/Principles moved there in the 2026-05-06 pass — they are workspace configuration, not agent identity).
-  - `reviewer` → **redirects to `?agent=thinking-partner`** per ADR-241 D3.
-  - domain agents → IDENTITY card + health card + AGENT.md + memory/style substrate panes.
-- **Decisions stream** — previously on a `/work` Decisions tab (ADR-241 D3), removed in the 2026-05-06 pass. `decisions.md` is substrate-only; no L3 consumer on cockpit surfaces. Accessible via Files (`/context?path=/workspace/review/decisions.md`).
+  - `meta-cognitive` (System Agent, `?agent=system`) → **SystemDetail**: Identity card + Mandate pointer (links to `/workspace`) + Reviewer cross-link. Tabs: Identity · Mandate · Back Office. **Autonomy and Principles removed from this surface — migrated to Reviewer (ADR-251 D3).**
+  - `reviewer` (`?agent=reviewer`) → **ReviewerDetail** directly — **no redirect (ADR-251 D4, reverses ADR-241 D3)**. Five sections: Identity (`IDENTITY.md`) · Principles (`principles.md`) · Autonomy (`AUTONOMY.md` + cadence panel) · Track Record (`calibration.md`) · Decisions (`decisions.md` link-out). The Autonomy section renders `AUTONOMY.md` via `SubstrateTab` + a `ReviewerCadencePanel` below showing Reviewer heartbeat schedule and last-run data from `GET /api/agents/reviewer/cadence`.
+  - domain agents → IDENTITY card + health card + AGENT.md + memory/style substrate panes (unchanged).
+- **Cadence panel** (ADR-251 D5) — `ReviewerCadencePanel` in Autonomy tab. Live-aggregate content class (ADR-245 D5): reads `back-office.yaml` schedule strings + `execution_events` last-run timestamps via `GET /api/agents/reviewer/cadence`. Read-only; edit is chat-routed ("Edit cadence via chat →" seeds a YARNNN message). No compositor slot needed — kernel component directly in `AutonomyTab`.
 - **`+` menu:** none. Per ADR-235 D2, no chat-surface pathway to create user-authored Agents.
-- **Deep-links out:** each agent's files on Files (`/context?path=/workspace/agents/{slug}/AGENT.md`), the agent's tasks filtered on Work (`/work?agent={slug}`), and Chat with the agent preselected (`/chat?agent={slug}`).
+- **Deep-links out:** each agent's files on Files (`/context?path=/workspace/agents/{slug}/AGENT.md`), Reviewer substrate on Files (`/context?path=/workspace/review/decisions.md` etc.), the agent's tasks filtered on Work (`/work?agent={slug}`), Chat with the agent preselected (`/chat?agent={slug}`). CockpitHeader autonomy chip links to `?agent=reviewer&tab=autonomy` (ADR-251 D6).
 - **Refuses:**
   - Task management (tasks live on Work; this tab shows agent *identity*, not agent *work*)
   - Editing production roles or platform integrations as if they were agents (ADR-212 — those are Orchestration, not Agents)
-  - Principles/IDENTITY modal editing (ADR-215 R3 — substrate edit goes to Files)
+  - Principles/IDENTITY modal editing (ADR-215 R3 — substrate edit goes to Files or via chat)
 
 ### Tab: Work
 
