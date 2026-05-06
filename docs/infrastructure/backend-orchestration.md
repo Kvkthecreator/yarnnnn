@@ -1,7 +1,7 @@
 # Backend Orchestration — Canonical Reference
 
-**Version**: 7.0
-**Last updated**: 2026-04-08 (ADR-164 — scheduler as pure dispatcher)
+**Version**: 7.1
+**Last updated**: 2026-05-06 (ADR-250 — observability reference added)
 **Status**: Canonical — single authoritative reference for active background processing.
 
 ---
@@ -186,9 +186,25 @@ Anthropic Batch API offers 50% off for non-real-time calls. All scheduled task r
 
 ---
 
+## Observability
+
+Logging, error tracking, cost telemetry, and the daily spend guard are governed by **ADR-250**.
+
+Canonical reference: [docs/architecture/observability.md](../architecture/observability.md) — start here for all observability questions.
+
+Summary of the stack:
+- **Sentry** — unhandled exceptions + performance traces (all 4 services). Free tier. Alerts on Anthropic API errors.
+- **`execution_events` table** — one row per invocation attempt, always written. Cost (cache-inclusive), token counts, error reason, duration. The authoritative record for "what ran and what did it cost?"
+- **Daily spend guard** — configured via `DAILY_SPEND_CEILING_USD` env var (default $10/day). Blocks generative invocations when ceiling is reached; exempt for maintenance shape.
+
+Do not add new logging patterns or cost-tracking writes without reading [observability.md](../architecture/observability.md) first.
+
+---
+
 ## See Also
 
 - [agent-execution-model.md](./agent-execution-model.md) — deep-dive on the 3-layer execution model
 - [SERVICE-MODEL.md](./SERVICE-MODEL.md) — end-to-end system description
+- [../architecture/observability.md](../architecture/observability.md) — logging, telemetry, error tracking, spend guard (ADR-250)
 - [../monetization/TOKEN-ECONOMICS-ANALYSIS.md](../monetization/TOKEN-ECONOMICS-ANALYSIS.md) — per-consumer cost analysis
 - [../integrations/RENDER-SERVICES.md](../integrations/RENDER-SERVICES.md) — infrastructure operations
