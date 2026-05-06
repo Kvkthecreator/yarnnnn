@@ -86,7 +86,12 @@ export default function WorkPage() {
   // ?tab=dashboard|schedule — URL-driven so TP can deep-link to a specific tab.
   // Default is 'schedule'; 'dashboard' is the cockpit view.
   const tabParam = searchParams.get('tab');
-  const activeTab: WorkTab = tabParam === 'dashboard' ? 'dashboard' : 'schedule';
+  // Local state is the source of truth for the active tab — router.replace
+  // updates the URL as a side effect but useSearchParams can lag in the
+  // App Router. Initial value is derived from the URL param.
+  const [activeTab, setActiveTab] = useState<WorkTab>(
+    tabParam === 'dashboard' ? 'dashboard' : 'schedule'
+  );
   const {
     task: selectedRecurrenceDetail,
     loading: taskDetailLoading,
@@ -107,6 +112,12 @@ export default function WorkPage() {
   const [actionNotice, setActionNotice] = useState<ActionNotice>(null);
   const [chatDraftSeed, setChatDraftSeed] = useState<{ id: string; text: string } | null>(null);
   const [chatOpenSignal, setChatOpenSignal] = useState(0);
+
+  // Sync local tab state when URL param changes externally (back/forward, TP deep-link)
+  useEffect(() => {
+    const derived: WorkTab = tabParam === 'dashboard' ? 'dashboard' : 'schedule';
+    setActiveTab(derived);
+  }, [tabParam]);
 
   useEffect(() => {
     if (!actionNotice) return;
@@ -243,9 +254,11 @@ export default function WorkPage() {
   }, [router, searchParams]);
 
   const handleTabChange = useCallback((tab: WorkTab) => {
+    setActiveTab(tab);
+    // Mirror to URL so TP can deep-link and back/forward works
     const sp = new URLSearchParams(searchParams.toString());
     if (tab === 'schedule') {
-      sp.delete('tab'); // schedule is the default — keep URL clean
+      sp.delete('tab');
     } else {
       sp.set('tab', tab);
     }
