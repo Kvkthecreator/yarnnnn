@@ -683,6 +683,9 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                 throw new Error(event.error);
               }
             } catch (parseErr) {
+              if (parseErr instanceof Error && parseErr.message.startsWith('__')) {
+                throw parseErr;
+              }
               console.warn('Failed to parse SSE event:', data, parseErr);
             }
           }
