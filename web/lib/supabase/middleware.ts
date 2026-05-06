@@ -18,6 +18,7 @@ const PROTECTED_PREFIXES = [
   "/agents",
   "/context",
   "/workspace",
+  "/backend",
   "/connectors",
   "/operation", // redirect stub → /workspace
   "/memory",

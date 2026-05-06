@@ -44,6 +44,8 @@ import type {
   WorkspaceFile,
   // ADR-219 Commit 4: narrative filter-over-substrate
   NarrativeByTaskResponse,
+  // ADR-250: per-invocation execution log
+  ExecutionEvent,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -1420,6 +1422,16 @@ export const api = {
       request<{
         timestamps: Record<string, string>;
       }>("/api/system/sync-timestamps"),
+
+    // Per-invocation execution log — powers /backend page (ADR-250)
+    executionEvents: (opts: { slug?: string; status?: string; limit?: number } = {}) => {
+      const parts: string[] = [];
+      if (opts.slug) parts.push(`slug=${encodeURIComponent(opts.slug)}`);
+      if (opts.status) parts.push(`status=${encodeURIComponent(opts.status)}`);
+      if (opts.limit) parts.push(`limit=${opts.limit}`);
+      const qs = parts.length ? `?${parts.join("&")}` : "";
+      return request<ExecutionEvent[]>(`/api/system/execution-events${qs}`);
+    },
   },
 
   // ADR-193: Action proposals (approval loop)

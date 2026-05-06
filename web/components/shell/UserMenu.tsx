@@ -8,7 +8,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Settings, LogOut, CreditCard, Sun, Moon, Monitor, Zap, Layers, Link2 } from 'lucide-react';
+import { Settings, LogOut, CreditCard, Sun, Moon, Monitor, Zap, Layers, Link2, Terminal } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
@@ -155,6 +155,17 @@ export function UserMenu({ email }: UserMenuProps) {
           >
             <Layers className="w-4 h-4 text-muted-foreground" />
             <span>Workspace</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setIsOpen(false);
+              router.push('/backend');
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+          >
+            <Terminal className="w-4 h-4 text-muted-foreground" />
+            <span>Backend</span>
           </button>
 
           <button

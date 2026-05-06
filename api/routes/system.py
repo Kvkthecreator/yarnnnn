@@ -4,14 +4,14 @@ System routes - Operations status (ADR-073, ADR-141)
 Provides operational visibility into background orchestration:
 - Platform connection status with per-resource detail from sync_registry
 - Scheduler heartbeat observability
+- Per-invocation execution event log (user-scoped, from execution_events table)
 
 ADR-141/153/156/164 cleanup: Platform sync cron, memory extraction, session summaries,
 Composer heartbeat, content cleanup, agent hygiene, and workspace cleanup are all deleted.
 The scheduler now only does recurrence dispatch and writes hourly heartbeat events.
 
 Back-office tasks (outcome-reconciliation, proposal-cleanup, reviewer-calibration,
-reviewer-reflection, narrative-digest) are recurrences that materialize on trigger —
-they surface on /work with include_system=true, not here.
+reviewer-reflection, narrative-digest) are recurrences that surface in execution-events.
 
 Mounted at /api/system
 """
@@ -278,3 +278,59 @@ async def get_sync_timestamps(auth: UserClient):
             timestamps[p] = ts
 
     return {"timestamps": timestamps}
+
+
+# =============================================================================
+# Execution Events — user-scoped invocation log (ADR-250)
+# =============================================================================
+
+class ExecutionEventRow(BaseModel):
+    id: Optional[str] = None
+    slug: str
+    shape: str
+    trigger_type: str
+    status: str
+    error_reason: Optional[str] = None
+    error_detail: Optional[str] = None
+    tool_rounds: Optional[int] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    cache_read_tokens: Optional[int] = None
+    cache_create_tokens: Optional[int] = None
+    cost_usd: Optional[float] = None
+    duration_ms: Optional[int] = None
+    created_at: str
+
+
+@router.get("/execution-events", response_model=list[ExecutionEventRow])
+async def get_execution_events(
+    auth: UserClient,
+    slug: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 100,
+) -> list[ExecutionEventRow]:
+    """
+    User-scoped execution event log.
+
+    Returns one row per invocation attempt, newest first.
+    Optionally filtered by slug (single job) or status (success/failed/skipped).
+    Powers the /backend page job activity log.
+    """
+    query = (
+        auth.client.table("execution_events")
+        .select(
+            "id, slug, shape, trigger_type, status, error_reason, error_detail, "
+            "tool_rounds, input_tokens, output_tokens, cache_read_tokens, "
+            "cache_create_tokens, cost_usd, duration_ms, created_at"
+        )
+        .eq("user_id", auth.user_id)
+        .order("created_at", desc=True)
+        .limit(min(limit, 500))
+    )
+    if slug:
+        query = query.eq("slug", slug)
+    if status:
+        query = query.eq("status", status)
+
+    rows = (query.execute()).data or []
+    return [ExecutionEventRow(**r) for r in rows]

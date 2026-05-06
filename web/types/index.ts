@@ -863,6 +863,25 @@ export interface RunStatus {
   completed_at?: string;
 }
 
+// ADR-250: Per-invocation execution event row (powers /backend page)
+export interface ExecutionEvent {
+  id: string | null;
+  slug: string;
+  shape: string;
+  trigger_type: string;
+  status: "success" | "failed" | "skipped";
+  error_reason: string | null;
+  error_detail: string | null;
+  tool_rounds: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_create_tokens: number | null;
+  cost_usd: number | null;
+  duration_ms: number | null;
+  created_at: string;
+}
+
 // ADR-119 Phase 4b: Output manifest (used by agent outputs)
 export interface OutputManifest {
   folder: string;
