@@ -163,7 +163,7 @@ TABLE_MAP = {
     "version": "agent_runs",  # Generated agent content
     "platform": "platform_connections",
     "session": "chat_sessions",
-    "document": "filesystem_documents",  # ADR-058; see ADR-197 for planned /workspace/uploads/ migration
+    "document": "workspace_files",  # ADR-249: /workspace/uploads/*.md (was filesystem_documents)
     "task": "tasks",  # ADR-138: work units
     # ADR-196: "memory" and "domain" entries removed (user_memory table dropped).
 }
@@ -277,53 +277,35 @@ async def resolve_ref(
 
 
 async def _enrich_document_with_content(client: Any, doc: dict) -> dict:
-    """
-    Enrich a document with its actual content from filesystem_chunks.
+    """Enrich a document ref with content from /workspace/uploads/*.md (ADR-249).
 
-    Documents are stored as metadata in filesystem_documents, with content
-    chunked into filesystem_chunks for efficient retrieval.
+    The workspace file IS the document — content is the full extracted text
+    stored in the markdown body. No chunked DB reads needed.
     """
-    doc_id = doc.get("id")
-    if not doc_id:
+    path = doc.get("path") or doc.get("id")  # ADR-249: path is the identifier
+    user_id = doc.get("user_id")
+    if not path or not user_id:
         return doc
 
     try:
-        # Fetch all chunks for this document, ordered by chunk_index
-        chunks_result = client.table("filesystem_chunks").select(
-            "content, chunk_index, page_number"
-        ).eq(
-            "document_id", doc_id
-        ).order(
-            "chunk_index"
-        ).execute()
+        result = client.table("workspace_files").select(
+            "content, path"
+        ).eq("user_id", user_id).eq("path", path).execute()
 
-        if chunks_result.data:
-            # Combine all chunks into full content
-            full_content = "\n\n".join(
-                chunk.get("content", "") for chunk in chunks_result.data
-            )
-            doc["content"] = full_content
-            doc["chunk_count"] = len(chunks_result.data)
-
-            # Also include page-indexed content for reference
-            pages = {}
-            for chunk in chunks_result.data:
-                page_num = chunk.get("page_number")
-                if page_num is not None:
-                    if page_num not in pages:
-                        pages[page_num] = []
-                    pages[page_num].append(chunk.get("content", ""))
-            if pages:
-                doc["pages"] = {
-                    page: "\n".join(contents)
-                    for page, contents in sorted(pages.items())
-                }
+        row = (result.data or [None])[0]
+        if row:
+            raw = row.get("content", "") or ""
+            # Strip YAML frontmatter for cleaner content delivery
+            if raw.startswith("---"):
+                parts = raw.split("---", 2)
+                body = parts[2].strip() if len(parts) >= 3 else raw
+            else:
+                body = raw
+            doc["content"] = body
         else:
             doc["content"] = ""
-            doc["chunk_count"] = 0
 
     except Exception as e:
-        # Log but don't fail - return document without content
         import logging
         logging.warning(f"[REFS] Failed to fetch document content: {e}")
         doc["content"] = f"[Error loading content: {e}]"

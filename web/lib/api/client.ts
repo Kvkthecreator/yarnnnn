@@ -9,11 +9,10 @@ import type {
   MemoryCreate,
   MemoryUpdate,
   BulkImportRequest,
-  Document,
-  DocumentDetail,
-  DocumentUploadResponse,
+  WorkspaceUpload,
+  WorkspaceUploadResponse,
+  WorkspaceUploadListResponse,
   DocumentDownloadResponse,
-  DocumentListResponse,
   DeleteResponse,
   SubscriptionStatus,
   CheckoutResponse,
@@ -246,49 +245,38 @@ export const api = {
       ),
   },
 
-  // Document endpoints (ADR-008: Document Pipeline)
+  // Document endpoints (ADR-249: persistent uploads → /workspace/uploads/*.md)
   documents: {
-    // List user's documents
-    list: (status?: string) => {
-      const params = status ? `?status=${status}` : "";
-      return request<DocumentListResponse>(`/api/documents${params}`);
-    },
+    // List workspace uploads
+    list: () => request<WorkspaceUploadListResponse>("/api/documents"),
 
-    // Upload document
+    // Persistent upload — returns workspace_path
     upload: async (file: File) => {
       const headers = await getAuthHeaders();
-      delete (headers as Record<string, string>)["Content-Type"]; // Let browser set for FormData
-
+      delete (headers as Record<string, string>)["Content-Type"];
       const formData = new FormData();
       formData.append("file", file);
-
       const response = await fetch(`${API_BASE_URL}/api/documents/upload`, {
         method: "POST",
         credentials: "include",
         headers,
         body: formData,
       });
-
       if (!response.ok) {
         const data = await response.json().catch(() => null);
         throw new APIError(response.status, response.statusText, data);
       }
-
-      return response.json() as Promise<DocumentUploadResponse>;
+      return response.json() as Promise<WorkspaceUploadResponse>;
     },
 
-    // Get document details with stats
-    get: (documentId: string) =>
-      request<DocumentDetail>(`/api/documents/${documentId}`),
+    // Get signed download URL — documentPath is the workspace path e.g. /workspace/uploads/foo.md
+    download: (documentPath: string) =>
+      request<DocumentDownloadResponse>(`/api/documents${documentPath}/download`),
 
-    // Get signed download URL
-    download: (documentId: string) =>
-      request<DocumentDownloadResponse>(`/api/documents/${documentId}/download`),
-
-    // Delete document
-    delete: (documentId: string) =>
+    // Delete workspace upload
+    delete: (documentPath: string) =>
       request<{ success: boolean; message: string }>(
-        `/api/documents/${documentId}`,
+        `/api/documents${documentPath}`,
         { method: "DELETE" }
       ),
 
@@ -302,6 +290,32 @@ export const api = {
 
   // Chat endpoints (streaming handled separately in useChat hook)
   chat: {
+    // Ephemeral file attach — ADR-249. Returns {type, file_id?, filename, mime_type?}
+    // or {type: "text_block", filename, content} for DOCX.
+    attach: async (file: File): Promise<{
+      type: "file_id" | "text_block";
+      file_id?: string;
+      filename: string;
+      mime_type?: string;
+      content?: string;
+    }> => {
+      const headers = await getAuthHeaders();
+      delete (headers as Record<string, string>)["Content-Type"];
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(`${API_BASE_URL}/api/chat/attach`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: formData,
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new APIError(response.status, response.statusText, data);
+      }
+      return response.json();
+    },
+
     // Get global chat history
     globalHistory: (limit: number = 1, agentId?: string, taskSlug?: string) => {
       const params = new URLSearchParams({ limit: String(limit) });

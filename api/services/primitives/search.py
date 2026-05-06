@@ -149,97 +149,76 @@ async def _search_document_content(
     query: str,
     limit: int,
 ) -> list[dict]:
-    """
-    Search uploaded documents by their content.
+    """Search uploaded documents by content (ADR-249).
 
-    ADR-058: Documents are stored in filesystem_documents, but their
-    actual content is chunked and stored in filesystem_chunks for retrieval.
-    We search chunks and return the parent document info.
+    Reads /workspace/uploads/*.md workspace files via ilike full-text match
+    on content. The file body IS the document — no chunk table needed.
     """
     import logging
 
     try:
-        # First, get user's documents to scope the search
-        user_docs_result = auth.client.table("filesystem_documents").select(
-            "id"
+        result = auth.client.table("workspace_files").select(
+            "path, content, updated_at"
         ).eq(
             "user_id", auth.user_id
-        ).eq(
-            "processing_status", "completed"
-        ).execute()
-
-        if not user_docs_result.data:
-            # No documents, try filename fallback
-            return await _search_entity(auth, query, "document", limit)
-
-        user_doc_ids = [doc["id"] for doc in user_docs_result.data]
-
-        # Search document chunks for the query, filtered to user's documents
-        chunk_result = auth.client.table("filesystem_chunks").select(
-            "id, document_id, content, chunk_index, page_number"
-        ).in_(
-            "document_id", user_doc_ids
+        ).like(
+            "path", "/workspace/uploads/%.md"
         ).ilike(
             "content", f"%{query}%"
-        ).limit(limit * 2).execute()  # Get more chunks to dedupe by document
+        ).limit(limit).execute()
 
-        if not chunk_result.data:
-            # Fallback: search document filenames as well
-            return await _search_entity(auth, query, "document", limit)
-
-        # Get unique document IDs from chunks
-        matched_doc_ids = list(set(chunk["document_id"] for chunk in chunk_result.data))
-
-        # Fetch the full document info
-        doc_result = auth.client.table("filesystem_documents").select(
-            "id, filename, file_type, file_size, page_count, word_count, "
-            "processing_status, uploaded_at"
-        ).eq(
-            "user_id", auth.user_id
-        ).in_(
-            "id", matched_doc_ids
-        ).execute()
-
-        if not doc_result.data:
-            return []
-
-        # Build results with matched content snippets
-        doc_map = {doc["id"]: doc for doc in doc_result.data}
+        rows = result.data or []
         results = []
-        seen_docs = set()
+        for row in rows:
+            path = row["path"]
+            raw = row.get("content", "") or ""
 
-        for chunk in chunk_result.data:
-            doc_id = chunk["document_id"]
-            if doc_id in seen_docs or doc_id not in doc_map:
-                continue
-            seen_docs.add(doc_id)
+            # Parse frontmatter fields
+            original_filename = path.rsplit("/", 1)[-1].removesuffix(".md")
+            word_count = 0
+            for line in raw.split("\n"):
+                if line.startswith("original_filename:"):
+                    original_filename = line.split(":", 1)[1].strip()
+                elif line.startswith("word_count:"):
+                    try:
+                        word_count = int(line.split(":", 1)[1].strip())
+                    except (ValueError, IndexError):
+                        pass
 
-            doc = doc_map[doc_id]
-            content_snippet = chunk["content"][:500] + "..." if len(chunk.get("content", "")) > 500 else chunk.get("content", "")
+            # Extract body snippet (skip frontmatter)
+            if raw.startswith("---"):
+                parts = raw.split("---", 2)
+                body = parts[2].strip() if len(parts) >= 3 else raw
+            else:
+                body = raw
+
+            # Find query position for a relevant snippet
+            idx = body.lower().find(query.lower())
+            start = max(0, idx - 100)
+            snippet = body[start:start + 400]
+            if start > 0:
+                snippet = "..." + snippet
+            if start + 400 < len(body):
+                snippet += "..."
 
             results.append({
                 "entity_type": "document",
-                "ref": f"document:{doc_id}",
+                "ref": f"document:{path}",
                 "data": {
-                    "filename": doc.get("filename"),
-                    "file_type": doc.get("file_type"),
-                    "page_count": doc.get("page_count"),
-                    "word_count": doc.get("word_count"),
-                    "matched_content": content_snippet,
-                    "matched_page": chunk.get("page_number"),
+                    "path": path,
+                    "filename": original_filename,
+                    "word_count": word_count,
+                    "matched_content": snippet,
+                    "uploaded_at": (row.get("updated_at") or "")[:10],
                 },
                 "score": 0.5,
             })
-
-            if len(results) >= limit:
-                break
 
         return results
 
     except Exception as e:
         logging.warning(f"[SEARCH] Document content search failed: {e}")
-        # Fallback to filename search
-        return await _search_entity(auth, query, "document", limit)
+        return []
 
 
 async def _search_versions(

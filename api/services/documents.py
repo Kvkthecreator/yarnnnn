@@ -1,18 +1,24 @@
 """
 Document Processing Service
 
-ADR-005: Unified memory with embeddings
-Handles document upload, parsing, chunking, and indexing.
+ADR-249: Two-Intent File Handling — Ephemeral vs Persistent.
+
+Persistent uploads (POST /documents/upload) write extracted text to
+/workspace/uploads/{slug}.md via the Authored Substrate (ADR-209).
+YARNNN sees uploaded content immediately via ReadFile — no chunking,
+no separate DB table needed.
+
+Ephemeral chat attachments are handled separately via POST /api/chat/attach
+(Anthropic Files API path). See api/routes/chat.py.
 """
 
 import io
+import re
 import logging
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
-
-from services.embeddings import get_embeddings_batch
 
 
 # =============================================================================
@@ -20,22 +26,11 @@ from services.embeddings import get_embeddings_batch
 # =============================================================================
 
 async def extract_text_from_pdf(file_content: bytes) -> tuple[str, int]:
-    """
-    Extract text from PDF file.
-
-    Returns:
-        Tuple of (extracted_text, page_count)
-    """
+    """Extract text from PDF. Returns (text, page_count)."""
     try:
         from PyPDF2 import PdfReader
-
         reader = PdfReader(io.BytesIO(file_content))
-        pages = []
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                pages.append(text)
-
+        pages = [page.extract_text() for page in reader.pages if page.extract_text()]
         return "\n\n".join(pages), len(reader.pages)
     except Exception as e:
         logger.error(f"PDF extraction failed: {e}")
@@ -43,18 +38,11 @@ async def extract_text_from_pdf(file_content: bytes) -> tuple[str, int]:
 
 
 async def extract_text_from_docx(file_content: bytes) -> tuple[str, int]:
-    """
-    Extract text from DOCX file.
-
-    Returns:
-        Tuple of (extracted_text, paragraph_count)
-    """
+    """Extract text from DOCX. Returns (text, paragraph_count)."""
     try:
         import docx
-
         doc = docx.Document(io.BytesIO(file_content))
         paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-
         return "\n\n".join(paragraphs), len(paragraphs)
     except Exception as e:
         logger.error(f"DOCX extraction failed: {e}")
@@ -62,222 +50,183 @@ async def extract_text_from_docx(file_content: bytes) -> tuple[str, int]:
 
 
 async def extract_text_from_txt(file_content: bytes) -> tuple[str, int]:
-    """
-    Extract text from plain text file.
-
-    Returns:
-        Tuple of (text, line_count)
-    """
+    """Extract text from plain text or markdown. Returns (text, line_count)."""
     try:
         text = file_content.decode("utf-8")
-        lines = text.split("\n")
-        return text, len(lines)
+        return text, len(text.split("\n"))
     except Exception as e:
         logger.error(f"TXT extraction failed: {e}")
         return "", 0
 
 
 async def extract_text(file_content: bytes, file_type: str) -> tuple[str, int]:
-    """
-    Extract text from file based on type.
-
-    Args:
-        file_content: Raw file bytes
-        file_type: File extension (pdf, docx, txt, etc.)
-
-    Returns:
-        Tuple of (extracted_text, unit_count)
-    """
+    """Dispatch text extraction by file type. Returns (text, unit_count)."""
     file_type = file_type.lower().strip(".")
-
     if file_type == "pdf":
         return await extract_text_from_pdf(file_content)
     elif file_type in ("docx", "doc"):
         return await extract_text_from_docx(file_content)
-    elif file_type in ("txt", "md", "markdown"):
-        return await extract_text_from_txt(file_content)
     else:
-        # Try as plain text
         return await extract_text_from_txt(file_content)
 
 
 # =============================================================================
-# CHUNKING
+# SLUG GENERATION
 # =============================================================================
 
-def semantic_chunk(
+def _filename_to_slug(filename: str) -> str:
+    """Convert a filename to a workspace-safe slug (kebab-case, max 60 chars)."""
+    # Strip extension
+    name = filename.rsplit(".", 1)[0] if "." in filename else filename
+    slug = name.lower().strip()
+    slug = re.sub(r"[^a-z0-9-]", "-", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug[:60] or "document"
+
+
+def _unique_upload_path(slug: str, db_client, user_id: str) -> str:
+    """Return /workspace/uploads/{slug}.md, appending -N if path already exists."""
+    base = f"/workspace/uploads/{slug}.md"
+    try:
+        existing = db_client.table("workspace_files") \
+            .select("path") \
+            .eq("user_id", user_id) \
+            .like("path", f"/workspace/uploads/{slug}%.md") \
+            .execute()
+        paths = {r["path"] for r in (existing.data or [])}
+    except Exception:
+        paths = set()
+
+    if base not in paths:
+        return base
+
+    for i in range(2, 100):
+        candidate = f"/workspace/uploads/{slug}-{i}.md"
+        if candidate not in paths:
+            return candidate
+    return f"/workspace/uploads/{slug}-{int(datetime.now(timezone.utc).timestamp())}.md"
+
+
+# =============================================================================
+# WORKSPACE FILE WRITE
+# =============================================================================
+
+def _build_upload_workspace_file(
+    filename: str,
+    file_type: str,
+    file_size: int,
+    storage_path: str,
     text: str,
-    target_tokens: int = 400,
-    overlap_ratio: float = 0.1
-) -> list[dict]:
-    """
-    Split text into semantic chunks.
+    unit_count: int,
+    uploaded_at: str,
+    user_id: str,
+) -> str:
+    """Build the markdown content for /workspace/uploads/{slug}.md."""
+    word_count = len(text.split())
+    extraction_method = f"{file_type}-pypdf2" if file_type == "pdf" else f"{file_type}-extract"
 
-    Uses paragraph boundaries when possible, falls back to sentence splitting.
-
-    Args:
-        text: Full document text
-        target_tokens: Target tokens per chunk (~4 chars per token)
-        overlap_ratio: Overlap between chunks (0-1)
-
-    Returns:
-        List of dicts with: content, chunk_index, token_count
-    """
-    target_chars = target_tokens * 4
-    overlap_chars = int(target_chars * overlap_ratio)
-
-    # Split by paragraphs first
-    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-
-    chunks = []
-    current_chunk = ""
-    chunk_index = 0
-
-    for para in paragraphs:
-        # If adding this paragraph exceeds target, start new chunk
-        if current_chunk and len(current_chunk) + len(para) > target_chars:
-            chunks.append({
-                "content": current_chunk.strip(),
-                "chunk_index": chunk_index,
-                "token_count": len(current_chunk) // 4
-            })
-            chunk_index += 1
-
-            # Keep overlap from end of previous chunk
-            if overlap_chars > 0 and len(current_chunk) > overlap_chars:
-                current_chunk = current_chunk[-overlap_chars:] + "\n\n" + para
-            else:
-                current_chunk = para
-        else:
-            if current_chunk:
-                current_chunk += "\n\n" + para
-            else:
-                current_chunk = para
-
-    # Don't forget the last chunk
-    if current_chunk.strip():
-        chunks.append({
-            "content": current_chunk.strip(),
-            "chunk_index": chunk_index,
-            "token_count": len(current_chunk) // 4
-        })
-
-    return chunks
+    frontmatter_lines = [
+        "---",
+        f"original_filename: {filename}",
+        f"mime_type: application/{file_type}",
+        f"uploaded_at: {uploaded_at}",
+        f"size_bytes: {file_size}",
+        f"storage_path: {storage_path}",
+        f"word_count: {word_count}",
+        f"extraction_method: {extraction_method}",
+        "---",
+        "",
+        f"# {filename}",
+        "",
+        text,
+    ]
+    return "\n".join(frontmatter_lines)
 
 
 # =============================================================================
-# DOCUMENT PROCESSING PIPELINE
+# DOCUMENT PROCESSING PIPELINE (ADR-249 persistent path)
 # =============================================================================
 
 async def process_document(
     document_id: str,
     file_content: bytes,
     file_type: str,
-    project_id: str,
+    filename: str,
+    file_size: int,
+    storage_path: str,
     user_id: str,
-    db_client
+    db_client,
 ) -> dict:
     """
-    Full document processing pipeline:
-    1. Extract text from file
-    2. Chunk into segments
-    3. Generate embeddings for chunks
-    4. Store chunks
-    5. Update document status
+    Persistent upload pipeline (ADR-249 Type B):
+      1. Extract text from file
+      2. Build /workspace/uploads/{slug}.md content
+      3. Write via authored_substrate.write_revision (ADR-209)
+      4. Embed at file level via workspace_files.embedding
 
-    Args:
-        document_id: Document UUID
-        file_content: Raw file bytes
-        file_type: File extension
-        project_id: Project UUID
-        user_id: User UUID
-        db_client: Supabase client
+    No chunking. No filesystem_chunks writes.
+    The workspace file IS the document — YARNNN reads it via ReadFile.
 
     Returns:
-        Dict with processing results
+        {success, workspace_path, word_count} or {success: False, error}
     """
+    uploaded_at = datetime.now(timezone.utc).isoformat()
+
+    # 1. Extract text
+    text, unit_count = await extract_text(file_content, file_type)
+
+    if not text or len(text.strip()) < 50:
+        return {"success": False, "error": "No text could be extracted from document"}
+
+    # 2. Build workspace file content
+    slug = _filename_to_slug(filename)
+    workspace_path = _unique_upload_path(slug, db_client, user_id)
+    content = _build_upload_workspace_file(
+        filename=filename,
+        file_type=file_type,
+        file_size=file_size,
+        storage_path=storage_path,
+        text=text,
+        unit_count=unit_count,
+        uploaded_at=uploaded_at,
+        user_id=user_id,
+    )
+
+    # 3. Write via authored substrate (ADR-209)
     try:
-        # Update status to processing
-        db_client.table("filesystem_documents").update({
-            "processing_status": "processing"
-        }).eq("id", document_id).execute()
-
-        # 1. Extract text
-        text, unit_count = await extract_text(file_content, file_type)
-
-        if not text or len(text) < 50:
-            db_client.table("filesystem_documents").update({
-                "processing_status": "failed",
-                "error_message": "No text could be extracted from document"
-            }).eq("id", document_id).execute()
-            return {"success": False, "error": "No text extracted"}
-
-        # Estimate word count
-        word_count = len(text.split())
-
-        # 2. Chunk text
-        chunks = semantic_chunk(text)
-
-        if not chunks:
-            db_client.table("filesystem_documents").update({
-                "processing_status": "failed",
-                "error_message": "Failed to chunk document"
-            }).eq("id", document_id).execute()
-            return {"success": False, "error": "Chunking failed"}
-
-        # 3. Generate embeddings for all chunks
-        chunk_texts = [c["content"] for c in chunks]
-        try:
-            embeddings = await get_embeddings_batch(chunk_texts)
-        except Exception as e:
-            logger.error(f"Embedding generation failed: {e}")
-            embeddings = [None] * len(chunks)
-
-        # 4. Store chunks
-        chunks_inserted = 0
-        for i, chunk in enumerate(chunks):
-            chunk_record = {
-                "document_id": document_id,
-                "content": chunk["content"],
-                "chunk_index": chunk["chunk_index"],
-                "token_count": chunk["token_count"],
-                "metadata": {}
-            }
-
-            if embeddings[i]:
-                chunk_record["embedding"] = embeddings[i]
-
-            try:
-                db_client.table("filesystem_chunks").insert(chunk_record).execute()
-                chunks_inserted += 1
-            except Exception as e:
-                logger.error(f"Failed to insert chunk {i}: {e}")
-
-        # ADR-059: LLM memory extraction from documents removed.
-        # Document content is available via filesystem_chunks for search only.
-        memories_inserted = 0
-
-        # 6. Update document status
-        db_client.table("filesystem_documents").update({
-            "processing_status": "completed",
-            "processed_at": datetime.utcnow().isoformat(),
-            "page_count": unit_count if file_type == "pdf" else None,
-            "word_count": word_count,
-            "error_message": None
-        }).eq("id", document_id).execute()
-
-        return {
-            "success": True,
-            "chunks_created": chunks_inserted,
-            "memories_extracted": memories_inserted,  # Legacy response key; always 0.
-            "word_count": word_count
-        }
-
+        from services.authored_substrate import write_revision
+        write_revision(
+            db_client,
+            user_id=user_id,
+            path=workspace_path,
+            content=content,
+            authored_by="operator",
+            message=f"upload {filename}",
+            lifecycle="permanent",
+        )
     except Exception as e:
-        # Update status to failed
-        db_client.table("filesystem_documents").update({
-            "processing_status": "failed",
-            "error_message": str(e)
-        }).eq("id", document_id).execute()
+        logger.error(f"[DOCUMENTS] Failed to write workspace file {workspace_path}: {e}")
+        return {"success": False, "error": f"Failed to write workspace file: {e}"}
 
-        return {"success": False, "error": str(e)}
+    # 4. Embed at file level for SearchFiles findability
+    try:
+        from services.embeddings import get_embedding
+        # Embed a representative excerpt (first 2000 chars of body text avoids frontmatter noise)
+        excerpt = text[:2000]
+        embedding = await get_embedding(excerpt)
+        if embedding:
+            db_client.table("workspace_files").update({
+                "embedding": embedding
+            }).eq("user_id", user_id).eq("path", workspace_path).execute()
+    except Exception as e:
+        # Non-fatal: file is readable, just not semantically searchable yet
+        logger.warning(f"[DOCUMENTS] Embedding failed for {workspace_path}: {e}")
+
+    word_count = len(text.split())
+    logger.info(f"[DOCUMENTS] Wrote {workspace_path} ({word_count} words)")
+
+    return {
+        "success": True,
+        "workspace_path": workspace_path,
+        "word_count": word_count,
+    }

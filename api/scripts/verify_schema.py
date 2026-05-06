@@ -29,7 +29,7 @@ def main():
         "agents", "agent_runs",
         "chat_sessions", "session_messages",
         "user_memory", "platform_connections",
-        "filesystem_documents", "filesystem_chunks",
+        "workspace_files",  # ADR-249: uploads now in /workspace/uploads/*.md
     ]
 
     print("\n=== TABLE CHECK ===")

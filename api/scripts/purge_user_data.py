@@ -18,7 +18,7 @@ This gives a TRUE cold-start. Wipe order (FK-safe):
 7. platform_connections (OAuth tokens)
 8. token_usage (ADR-171 billing ledger)
 9. notifications (ADR-041)
-10. filesystem_documents (ADR-142 uploads — chunks cascade via FK)
+10. uploaded documents purged via workspace_files (ADR-249: /workspace/uploads/*)
 11. user_admin_flags (ADR-194 v2 Phase 2b impersonation scope)
 12. activity_log
 
@@ -230,11 +230,9 @@ def purge_user_data(email: str, dry_run: bool = False):
     print(f"   {n} notifications")
 
     # ──────────────────────────────────────────────────────────────────────
-    # 9. Uploaded documents (ADR-142 — chunks cascade via FK)
+    # 9. Uploaded documents (ADR-249: now in workspace_files /workspace/uploads/)
+    # Purged via workspace_files user-scoped delete above — no separate step needed.
     # ──────────────────────────────────────────────────────────────────────
-    print(f"🗑️  {label} filesystem_documents (uploaded docs — chunks cascade)...")
-    n = _delete(client, "filesystem_documents", user_id, dry_run=dry_run)
-    print(f"   {n} documents")
 
     # ──────────────────────────────────────────────────────────────────────
     # 10. Admin flags (ADR-194 v2 Phase 2b — impersonation scope)

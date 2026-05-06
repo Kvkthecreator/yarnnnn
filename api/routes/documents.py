@@ -1,16 +1,15 @@
 """
 Document routes - File upload and management
 
-ADR-008: Document Pipeline Architecture
+ADR-249: Two-Intent File Handling — Ephemeral vs Persistent.
 ADR-127: User-shared file staging (TP-level)
 
 Endpoints:
-- POST /documents/upload - Upload and process a document
-- POST /share - Share a file to global user_shared/ (ADR-127)
-- GET /documents - List user's documents
-- GET /documents/{id} - Get document details with stats
-- GET /documents/{id}/download - Get signed download URL
-- DELETE /documents/{id} - Delete document (cascades to chunks)
+- POST /documents/upload  - Persistent upload → /workspace/uploads/{slug}.md
+- POST /share             - Share a file to global user_shared/ (ADR-127)
+- GET /documents          - List workspace uploads (reads workspace_files)
+- GET /documents/{id}/download - Download original binary from storage (reads frontmatter)
+- DELETE /documents/{id}  - Delete workspace file + storage binary
 """
 
 import logging
@@ -18,12 +17,10 @@ import logging
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
-from uuid import UUID
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-from services.supabase import UserClient, get_supabase_url, get_service_client
+from services.supabase import UserClient, get_service_client
 from services.documents import process_document
 
 router = APIRouter()
@@ -33,30 +30,18 @@ router = APIRouter()
 # Response Models
 # =============================================================================
 
-class DocumentResponse(BaseModel):
-    id: str
-    filename: str
-    file_type: Optional[str]
-    file_size: Optional[int]
-    project_id: Optional[str]
-    processing_status: str
-    processed_at: Optional[str]
-    error_message: Optional[str]
-    page_count: Optional[int]
-    word_count: Optional[int]
-    created_at: str
-
-
-class DocumentDetailResponse(DocumentResponse):
-    chunk_count: int
-    memory_count: int
-
-
 class UploadResponse(BaseModel):
-    document_id: str
+    workspace_path: str
     filename: str
     processing_status: str
     message: str
+
+
+class WorkspaceUploadItem(BaseModel):
+    path: str
+    filename: str
+    word_count: int
+    uploaded_at: str
 
 
 class DownloadResponse(BaseModel):
@@ -65,7 +50,7 @@ class DownloadResponse(BaseModel):
 
 
 # =============================================================================
-# UPLOAD
+# UPLOAD (ADR-249 persistent path)
 # =============================================================================
 
 ALLOWED_TYPES = {
@@ -82,29 +67,17 @@ MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB
 async def upload_document(
     auth: UserClient,
     file: UploadFile = File(...),
-    project_id: Optional[str] = Form(None),
+    project_id: Optional[str] = Form(None),  # accepted for compat, ignored
 ):
+    """Persistent document upload (ADR-249 Type B).
+
+    Extracts text → writes /workspace/uploads/{slug}.md via authored substrate.
+    Original binary stored in Supabase Storage (documents bucket).
+    YARNNN sees the file immediately in its compact index via ListFiles.
     """
-    Upload a document for processing.
-
-    The document will be:
-    1. Stored in Supabase Storage
-    2. Parsed and chunked
-    3. Embeddings generated
-    4. Indexed for document search
-
-    Args:
-        file: The file to upload (PDF, DOCX, TXT, MD)
-        project_id: Optional project to scope the document to
-
-    Returns:
-        Document ID and processing status
-    """
-    # Validate file type
     content_type = file.content_type or ""
     if content_type not in ALLOWED_TYPES:
-        # Try to infer from filename
-        ext = file.filename.split(".")[-1].lower() if file.filename else ""
+        ext = (file.filename or "").split(".")[-1].lower()
         if ext not in ("pdf", "docx", "txt", "md"):
             raise HTTPException(
                 status_code=400,
@@ -114,28 +87,18 @@ async def upload_document(
     else:
         file_type = ALLOWED_TYPES[content_type]
 
-    # Read file content
     content = await file.read()
-
     if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB"
-        )
-
+        raise HTTPException(status_code=400, detail=f"File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB")
     if len(content) < 10:
         raise HTTPException(status_code=400, detail="File is empty or too small")
 
-    # project_id parameter accepted but projects table does not exist;
-    # ignore project_id validation (legacy parameter)
-
-    # Create document record
     import uuid
     document_id = str(uuid.uuid4())
     storage_path = f"{auth.user_id}/{document_id}/original.{file_type}"
+    filename = file.filename or f"document.{file_type}"
 
-    # Upload to storage using service client (user already authenticated via endpoint)
-    # Storage RLS doesn't work well with user JWT auth, so we use service role
+    # Store binary in Supabase Storage
     try:
         service = get_service_client()
         storage_result = service.storage.from_("documents").upload(
@@ -143,8 +106,7 @@ async def upload_document(
             file=content,
             file_options={"content-type": content_type or f"application/{file_type}"}
         )
-        # Check for storage errors in response
-        if hasattr(storage_result, 'error') and storage_result.error:
+        if hasattr(storage_result, "error") and storage_result.error:
             raise HTTPException(status_code=500, detail=f"Storage error: {storage_result.error}")
     except HTTPException:
         raise
@@ -152,172 +114,113 @@ async def upload_document(
         logger.error(f"Storage upload error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
 
-    # Create document record
-    # ADR-058: filesystem_documents doesn't have project_id or file_url columns
-    doc_record = {
-        "id": document_id,
-        "user_id": auth.user_id,
-        "filename": file.filename or f"document.{file_type}",
-        "file_type": file_type,
-        "file_size": len(content),
-        "storage_path": storage_path,
-        "processing_status": "pending",
-    }
-
-    try:
-        auth.client.table("filesystem_documents").insert(doc_record).execute()
-    except Exception as e:
-        # Clean up storage if DB insert fails
-        try:
-            auth.client.storage.from_("documents").remove([storage_path])
-        except Exception as e:
-            logger.warning(f"[DOCUMENTS] Failed to clean up storage after DB insert failure: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create document record: {e}")
-
-    # Process document (synchronous for MVP)
-    # Use service client to bypass RLS for chunk/memory insertion
-    # (user auth already verified at this point)
+    # Extract text and write /workspace/uploads/{slug}.md
     service = get_service_client()
     result = await process_document(
         document_id=document_id,
         file_content=content,
         file_type=file_type,
-        project_id=project_id,
+        filename=filename,
+        file_size=len(content),
+        storage_path=storage_path,
         user_id=auth.user_id,
-        db_client=service
+        db_client=service,
     )
 
-    status = "completed" if result.get("success") else "failed"
+    if not result.get("success"):
+        # Clean up storage on failure
+        try:
+            service.storage.from_("documents").remove([storage_path])
+        except Exception:
+            pass
+        raise HTTPException(status_code=422, detail=result.get("error", "Processing failed"))
+
+    workspace_path = result["workspace_path"]
+    word_count = result.get("word_count", 0)
 
     return UploadResponse(
-        document_id=document_id,
-        filename=file.filename or f"document.{file_type}",
-        processing_status=status,
-        message=f"Processed: {result.get('chunks_created', 0)} chunks indexed"
-        if result.get("success")
-        else f"Processing failed: {result.get('error', 'Unknown error')}"
+        workspace_path=workspace_path,
+        filename=filename,
+        processing_status="completed",
+        message=f"Added to workspace: {workspace_path} ({word_count} words)"
     )
 
 
 # =============================================================================
-# LIST
+# LIST (reads workspace_files)
 # =============================================================================
 
 @router.get("/documents")
 async def list_documents(
     auth: UserClient,
-    project_id: Optional[str] = None,
-    status: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
 ):
-    """
-    List user's documents.
+    """List persistent workspace uploads."""
+    result = auth.client.table("workspace_files") \
+        .select("path, content, updated_at") \
+        .eq("user_id", auth.user_id) \
+        .like("path", "/workspace/uploads/%.md") \
+        .order("updated_at", desc=True) \
+        .range(offset, offset + limit - 1) \
+        .execute()
 
-    Args:
-        project_id: Filter by project (null for user-scoped docs)
-        status: Filter by processing_status
-        limit: Max results (default 50)
-        offset: Pagination offset
-    """
-    query = auth.client.table("filesystem_documents").select("*").eq("user_id", auth.user_id)
+    items = []
+    for row in (result.data or []):
+        raw = row.get("content", "") or ""
+        original_filename = row["path"].rsplit("/", 1)[-1].removesuffix(".md")
+        word_count = 0
+        for line in raw.split("\n"):
+            if line.startswith("original_filename:"):
+                original_filename = line.split(":", 1)[1].strip()
+            elif line.startswith("word_count:"):
+                try:
+                    word_count = int(line.split(":", 1)[1].strip())
+                except (ValueError, IndexError):
+                    pass
+        items.append(WorkspaceUploadItem(
+            path=row["path"],
+            filename=original_filename,
+            word_count=word_count,
+            uploaded_at=(row.get("updated_at") or "")[:10],
+        ))
 
-    if project_id:
-        query = query.eq("project_id", project_id)
-
-    if status:
-        query = query.eq("processing_status", status)
-
-    query = query.order("uploaded_at", desc=True).range(offset, offset + limit - 1)
-
-    result = query.execute()
-
-    return {
-        "documents": [
-            DocumentResponse(
-                id=d["id"],
-                filename=d["filename"],
-                file_type=d.get("file_type"),
-                file_size=d.get("file_size"),
-                project_id=d.get("project_id"),
-                processing_status=d.get("processing_status", "unknown"),
-                processed_at=d.get("processed_at"),
-                error_message=d.get("error_message"),
-                page_count=d.get("page_count"),
-                word_count=d.get("word_count"),
-                created_at=d.get("uploaded_at"),  # ADR-058: uploaded_at replaces created_at
-            )
-            for d in (result.data or [])
-        ],
-        "total": len(result.data or []),
-        "limit": limit,
-        "offset": offset,
-    }
+    return {"uploads": items, "total": len(items), "limit": limit, "offset": offset}
 
 
 # =============================================================================
-# GET DETAIL
+# DOWNLOAD (reads storage_path from workspace file frontmatter)
 # =============================================================================
 
-@router.get("/documents/{document_id}")
-async def get_document(auth: UserClient, document_id: str):
+@router.get("/documents/{document_path:path}/download")
+async def download_document(auth: UserClient, document_path: str):
+    """Get a signed download URL for a persistent upload.
+
+    document_path is the workspace file path, e.g.
+    'workspace/uploads/acme-brief.md' (leading slash optional).
     """
-    Get document details with chunk stats.
-    """
-    # Use the RPC function for stats
-    result = auth.client.rpc(
-        "get_document_with_stats",
-        {"doc_id": document_id}
-    ).execute()
+    if not document_path.startswith("/"):
+        document_path = "/" + document_path
+
+    result = auth.client.table("workspace_files") \
+        .select("content") \
+        .eq("user_id", auth.user_id) \
+        .eq("path", document_path) \
+        .execute()
 
     if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    d = result.data[0]
+    raw = result.data[0].get("content", "") or ""
+    storage_path = None
+    for line in raw.split("\n"):
+        if line.startswith("storage_path:"):
+            storage_path = line.split(":", 1)[1].strip()
+            break
 
-    return DocumentDetailResponse(
-        id=d["id"],
-        filename=d["filename"],
-        file_type=d.get("file_type"),
-        file_size=d.get("file_size"),
-        project_id=d.get("project_id"),
-        processing_status=d.get("processing_status", "unknown"),
-        processed_at=d.get("processed_at"),
-        error_message=d.get("error_message"),
-        page_count=d.get("page_count"),
-        word_count=d.get("word_count"),
-        created_at=d["created_at"],
-        chunk_count=d.get("chunk_count", 0),
-        memory_count=d.get("memory_count", 0),
-    )
-
-
-# =============================================================================
-# DOWNLOAD
-# =============================================================================
-
-@router.get("/documents/{document_id}/download")
-async def download_document(auth: UserClient, document_id: str):
-    """
-    Get a signed URL to download the original document.
-
-    Returns a URL that expires in 1 hour.
-    """
-    # Get document to verify ownership and get storage path
-    doc = auth.client.table("filesystem_documents")\
-        .select("storage_path, filename")\
-        .eq("id", document_id)\
-        .eq("user_id", auth.user_id)\
-        .execute()
-
-    if not doc.data:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    storage_path = doc.data[0].get("storage_path")
     if not storage_path:
-        raise HTTPException(status_code=404, detail="Document file not found in storage")
+        raise HTTPException(status_code=404, detail="Storage path not found in document frontmatter")
 
-    # Generate signed URL (1 hour expiry) - use service client for storage
     try:
         service = get_service_client()
         signed = service.storage.from_("documents").create_signed_url(
@@ -336,29 +239,29 @@ async def download_document(auth: UserClient, document_id: str):
 # DELETE
 # =============================================================================
 
-@router.delete("/documents/{document_id}")
-async def delete_document(auth: UserClient, document_id: str):
-    """
-    Delete a document and all associated data.
+@router.delete("/documents/{document_path:path}")
+async def delete_document(auth: UserClient, document_path: str):
+    """Delete a workspace upload and its storage binary."""
+    if not document_path.startswith("/"):
+        document_path = "/" + document_path
 
-    Cascades to:
-    - Chunks (via FK cascade)
-    - Storage file
-    - Memories are NOT deleted (they persist as extracted knowledge)
-    """
-    # Get document to verify ownership and get storage path
-    doc = auth.client.table("filesystem_documents")\
-        .select("storage_path")\
-        .eq("id", document_id)\
-        .eq("user_id", auth.user_id)\
+    result = auth.client.table("workspace_files") \
+        .select("content") \
+        .eq("user_id", auth.user_id) \
+        .eq("path", document_path) \
         .execute()
 
-    if not doc.data:
+    if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    storage_path = doc.data[0].get("storage_path")
+    raw = result.data[0].get("content", "") or ""
+    storage_path = None
+    for line in raw.split("\n"):
+        if line.startswith("storage_path:"):
+            storage_path = line.split(":", 1)[1].strip()
+            break
 
-    # Delete from storage (if exists) - use service client for storage
+    # Delete storage binary
     if storage_path:
         try:
             service = get_service_client()
@@ -366,8 +269,12 @@ async def delete_document(auth: UserClient, document_id: str):
         except Exception as e:
             logger.warning(f"Failed to delete storage file: {e}")
 
-    # Delete document record (chunks cascade via FK)
-    auth.client.table("filesystem_documents").delete().eq("id", document_id).execute()
+    # Delete workspace file
+    auth.client.table("workspace_files") \
+        .delete() \
+        .eq("user_id", auth.user_id) \
+        .eq("path", document_path) \
+        .execute()
 
     return {"success": True, "message": "Document deleted"}
 
@@ -386,15 +293,9 @@ async def share_file_global(
     body: ShareFileRequest,
     auth: UserClient = None,
 ):
-    """
-    ADR-127: Share a file to the global user_shared/ staging area.
-
-    Files land in /user_shared/{filename} with ephemeral lifecycle (30-day TTL).
-    TP can reference these files. If user later creates a project, relevant files
-    can be promoted to the project's user_shared/ by TP or PM.
-    """
+    """ADR-127: Share a file to the global user_shared/ staging area."""
     import re
-    from services.workspace import AgentWorkspace
+    from services.authored_substrate import write_revision
 
     filename = body.filename.strip()
     if not filename:
@@ -403,22 +304,13 @@ async def share_file_global(
     if not content or not content.strip():
         raise HTTPException(status_code=400, detail="content is required")
 
-    # Sanitize filename
     safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '-', filename).strip('-')
     if not safe_filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    # Write to /user_shared/{filename} — global, not agent-scoped
-    # Using raw workspace_files write since this isn't scoped to an agent or project
     path = f"/user_shared/{safe_filename}"
 
     try:
-        # ADR-209: operator-initiated share routes through the Authored Substrate.
-        # authored_by="operator" because the share is a direct user action.
-        # Versioning is substrate-native — the `version` integer column is
-        # being retired in Phase 5 and is not set here.
-        from services.authored_substrate import write_revision
-
         write_revision(
             auth.client,
             user_id=auth.user_id,
@@ -429,12 +321,9 @@ async def share_file_global(
             summary=f"User shared: {safe_filename}",
             lifecycle="ephemeral",
         )
-
     except Exception as e:
         logger.error(f"[SHARE] Failed to write user_shared file: {e}")
         raise HTTPException(status_code=500, detail="Failed to share file")
-
-    logger.info(f"[SHARE] User shared file {safe_filename} to global user_shared/")
 
     return {
         "success": True,

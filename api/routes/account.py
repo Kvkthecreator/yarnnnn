@@ -600,8 +600,8 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         deleted["chat_sessions"] = _delete_rows(client, "chat_sessions", user_id)
         deleted["activity_log"] = _delete_rows(client, "activity_log", user_id)
         deleted["event_trigger_log"] = _delete_rows(client, "event_trigger_log", user_id, optional=True)
-        # Uploaded documents (filesystem_documents + chunks cascade from FK)
-        deleted["filesystem_documents"] = _delete_rows(client, "filesystem_documents", user_id, optional=True)
+        # Uploaded documents: workspace_files with /workspace/uploads/* paths
+        # are purged via the workspace_files cascade below (user_id scoped delete)
         # Notifications scoped to this user
         deleted["notifications"] = _delete_rows(client, "notifications", user_id, optional=True)
         # MCP OAuth tokens — user's active MCP sessions should not survive a workspace clear
@@ -802,7 +802,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "destination_delivery_log",
             "event_trigger_log",
             "export_log",
-            "filesystem_documents",       # cascades filesystem_chunks via FK
+            # filesystem_documents dropped (ADR-249) — uploads now in workspace_files
             "integration_sync_config",
             "notifications",
             "platform_connections",

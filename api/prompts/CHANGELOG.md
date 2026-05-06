@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.06.1] - ADR-249: Upload compact index signal rewrite
+
+### Changed
+- `working_memory.py`: compact index upload signal changed from
+  `"Recent uploads (N in last 7 days) — consider offering to process via InferContext / InferWorkspace"`
+  to `"Workspace uploads (N files — read via ReadFile): - /workspace/uploads/{slug}.md ({word_count} words)"`.
+  YARNNN now knows the exact file path and how to read it. No ambiguous "consider offering" hint.
+- `working_memory._get_recent_uploads_sync` → `_get_workspace_uploads_sync`:
+  reads `workspace_files` where `path LIKE /workspace/uploads/%.md` instead of `filesystem_documents`.
+  Returns `{path, word_count, updated_at}` not `{filename, uploaded_at}`.
+
+### Expected behavior
+YARNNN sees uploaded documents as workspace files in its compact index. Can call
+`ReadFile(path="/workspace/uploads/foo.md")` directly to read content. Previously
+YARNNN only saw filenames with no content path and often ignored the hint.
+
+---
+
 ## [2026.05.04.3] - Platform market data truncation + FireInvocation dispatch discipline
 
 Three fixes for the 40+ tool call re-fetch loop on signal-evaluation.

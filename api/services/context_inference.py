@@ -509,33 +509,55 @@ async def read_uploaded_documents(
     user_id: str,
     document_ids: list,
 ) -> list:
-    """Read content from uploaded documents by ID.
+    """Read content from uploaded documents.
+
+    ADR-249: reads from /workspace/uploads/*.md workspace files.
+    document_ids are treated as workspace file paths (e.g.
+    '/workspace/uploads/acme-brief.md') or path slugs to match.
+    Falls back to searching by partial path match when no exact hit.
 
     Returns [{filename, content}] for inference input.
     """
     docs = []
-    for doc_id in (document_ids or [])[:5]:
+    for doc_ref in (document_ids or [])[:5]:
         try:
-            result = client.table("filesystem_documents").select(
-                "filename, file_type"
-            ).eq("id", doc_id).eq("user_id", user_id).single().execute()
-            if not result.data:
+            doc_ref = str(doc_ref)
+            # Normalise: treat as path if it starts with '/', else match by slug
+            if doc_ref.startswith("/workspace/uploads/"):
+                path_filter = doc_ref
+                result = client.table("workspace_files").select(
+                    "path, content"
+                ).eq("user_id", user_id).eq("path", path_filter).execute()
+            else:
+                # Match by partial path (slug or filename fragment)
+                result = client.table("workspace_files").select(
+                    "path, content"
+                ).eq("user_id", user_id).like(
+                    "path", f"/workspace/uploads/%{doc_ref}%"
+                ).limit(1).execute()
+
+            rows = result.data or []
+            if not rows:
                 continue
 
-            chunks_result = client.table("filesystem_chunks").select(
-                "content"
-            ).eq("document_id", doc_id).order("chunk_index").execute()
+            row = rows[0]
+            content = row.get("content", "") or ""
+            # Strip YAML frontmatter block for cleaner inference input
+            if content.startswith("---"):
+                parts = content.split("---", 2)
+                content = parts[2].strip() if len(parts) >= 3 else content
 
-            content = "\n".join(
-                c["content"] for c in (chunks_result.data or []) if c.get("content")
-            )
+            # Extract filename from frontmatter or path
+            filename = row["path"].rsplit("/", 1)[-1].removesuffix(".md")
+            for line in (row.get("content", "") or "").split("\n"):
+                if line.startswith("original_filename:"):
+                    filename = line.split(":", 1)[1].strip()
+                    break
+
             if content:
-                docs.append({
-                    "filename": result.data.get("filename", "document"),
-                    "content": content,
-                })
+                docs.append({"filename": filename, "content": content})
         except Exception as e:
-            logger.warning(f"[INFERENCE] Failed to read doc {doc_id}: {e}")
+            logger.warning(f"[INFERENCE] Failed to read doc {doc_ref}: {e}")
 
     return docs
 

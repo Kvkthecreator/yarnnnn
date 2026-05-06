@@ -3,22 +3,32 @@
 /**
  * Shared file attachment handling for chat surfaces.
  *
+ * ADR-249: Two-Intent File Handling.
+ * - Images: base64 inline (ephemeral, Claude vision, unchanged)
+ * - Documents: ephemeral via POST /chat/attach → Anthropic Files API file_id
+ *   returned as FileAttachment for inclusion in ChatRequest.file_attachments.
+ *   Nothing persisted to workspace.
+ *
  * Supports:
  * - Click-to-upload (paperclip / file input)
  * - Drag-and-drop onto chat area
- * - Clipboard paste (Cmd+V / Ctrl+V)
- * - File size validation (5MB limit)
- * - Preview thumbnails
+ * - Clipboard paste (Cmd+V / Ctrl+V) — images only
+ * - File size validation
+ * - Preview thumbnails for images
  */
 
 import { useState, useRef, useCallback } from 'react';
 import type { TPImageAttachment } from '@/types/desk';
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — Claude API limit for images
-const MAX_DOC_SIZE = 20 * 1024 * 1024; // 20MB — document upload limit
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;  // 5MB — Claude API limit for images
+const MAX_DOC_SIZE = 20 * 1024 * 1024;   // 20MB — Anthropic Files API limit
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const DOCUMENT_TYPES = ['application/pdf', 'text/plain', 'text/markdown',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+const DOCUMENT_TYPES = [
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
 const DOCUMENT_EXTENSIONS = ['.pdf', '.txt', '.md', '.docx'];
 
 function isImage(file: File): boolean {
@@ -27,9 +37,19 @@ function isImage(file: File): boolean {
 
 function isDocument(file: File): boolean {
   if (DOCUMENT_TYPES.includes(file.type)) return true;
-  // Fallback: check extension (browsers sometimes report empty/wrong MIME)
   const ext = '.' + file.name.split('.').pop()?.toLowerCase();
   return DOCUMENT_EXTENSIONS.includes(ext);
+}
+
+/** Ephemeral document attachment — either a Files API file_id or extracted text. */
+export interface EphemeralDocAttachment {
+  filename: string;
+  status: 'uploading' | 'done' | 'error';
+  /** Returned when attachment type is "file_id" (PDF, TXT, MD) */
+  file_id?: string;
+  mime_type?: string;
+  /** Returned when attachment type is "text_block" (DOCX) */
+  content?: string;
 }
 
 export interface DropZoneProps {
@@ -40,20 +60,26 @@ export interface DropZoneProps {
 }
 
 export interface UseFileAttachmentsReturn {
+  /** Image files (for base64 inline path) */
   attachments: File[];
   attachmentPreviews: string[];
   isDragging: boolean;
   error: string | null;
-  /** Documents uploaded via drag-and-drop (non-image files) */
-  uploadedDocs: Array<{ name: string; status: 'uploading' | 'done' | 'error' }>;
+  /** Ephemeral document attachments (for Files API path) */
+  docAttachments: EphemeralDocAttachment[];
 
-  /** Spread on the container element: {...dropZoneProps} */
   dropZoneProps: DropZoneProps;
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handlePaste: (e: React.ClipboardEvent) => void;
   removeAttachment: (index: number) => void;
+  removeDocAttachment: (filename: string) => void;
   clearAttachments: () => void;
+  /** Returns Claude API-ready image blocks for base64 images */
   getImagesForAPI: () => Promise<TPImageAttachment[]>;
+  /** Returns file_attachment objects ready for ChatRequest.file_attachments */
+  getDocAttachmentsForAPI: () => Array<{ file_id: string; filename: string; mime_type: string }>;
+  /** Returns DOCX text-block content for appending to message text */
+  getDocxTextBlocks: () => Array<{ filename: string; content: string }>;
 
   fileInputRef: React.RefObject<HTMLInputElement>;
 }
@@ -83,7 +109,7 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
   const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploadedDocs, setUploadedDocs] = useState<Array<{ name: string; status: 'uploading' | 'done' | 'error' }>>([]);
+  const [docAttachments, setDocAttachments] = useState<EphemeralDocAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
 
@@ -92,19 +118,31 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     setTimeout(() => setError(null), 5000);
   }, []);
 
-  const uploadDocument = useCallback(async (file: File) => {
+  const attachDocument = useCallback(async (file: File) => {
     const { api } = await import('@/lib/api/client');
-    setUploadedDocs((prev) => [...prev, { name: file.name, status: 'uploading' }]);
+    setDocAttachments((prev) => [...prev, { filename: file.name, status: 'uploading' }]);
     try {
-      await api.documents.upload(file);
-      setUploadedDocs((prev) =>
-        prev.map((d) => d.name === file.name ? { ...d, status: 'done' as const } : d)
+      const result = await api.chat.attach(file);
+      setDocAttachments((prev) =>
+        prev.map((d) =>
+          d.filename === file.name
+            ? {
+                filename: file.name,
+                status: 'done' as const,
+                file_id: result.file_id,
+                mime_type: result.mime_type,
+                content: result.content,
+              }
+            : d
+        )
       );
     } catch {
-      setUploadedDocs((prev) =>
-        prev.map((d) => d.name === file.name ? { ...d, status: 'error' as const } : d)
+      setDocAttachments((prev) =>
+        prev.map((d) =>
+          d.filename === file.name ? { ...d, status: 'error' as const } : d
+        )
       );
-      showError(`Failed to upload ${file.name}`);
+      showError(`Failed to attach ${file.name}`);
     }
   }, [showError]);
 
@@ -116,7 +154,7 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
 
       for (const file of files) {
         if (isImage(file)) {
-          if (file.size > MAX_FILE_SIZE) {
+          if (file.size > MAX_IMAGE_SIZE) {
             showError('Images must be under 5MB');
             continue;
           }
@@ -132,29 +170,22 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
         }
       }
 
-      // Attach images inline (for Claude vision)
       if (images.length > 0) {
         images.forEach((f) => addPreview(f, setAttachmentPreviews));
         setAttachments((prev) => [...prev, ...images]);
       }
 
-      // Upload documents via document pipeline
+      // Ephemeral path: upload to Anthropic Files API via /chat/attach
       if (docs.length > 0) {
-        docs.forEach((f) => uploadDocument(f));
+        docs.forEach((f) => attachDocument(f));
       }
 
       if (hasUnsupported) {
         showError('Some files skipped — supported: images, PDF, DOCX, TXT, MD.');
       }
-      if (images.length === 0 && docs.length === 0 && !hasUnsupported) {
-        // Files array was empty or all filtered out silently
-        showError('No supported files found.');
-      }
     },
-    [showError, uploadDocument]
+    [showError, attachDocument]
   );
-
-  // --- File input (paperclip button) ---
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,8 +194,6 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     },
     [addFiles]
   );
-
-  // --- Clipboard paste ---
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
@@ -178,16 +207,11 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     [addFiles]
   );
 
-  // --- Drag and drop ---
-  // Uses a counter to avoid flicker from child element drag events
-
   const onDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     dragCounterRef.current++;
-    if (dragCounterRef.current === 1) {
-      setIsDragging(true);
-    }
+    if (dragCounterRef.current === 1) setIsDragging(true);
   }, []);
 
   const onDragOver = useCallback((e: React.DragEvent) => {
@@ -199,9 +223,7 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     e.preventDefault();
     e.stopPropagation();
     dragCounterRef.current--;
-    if (dragCounterRef.current === 0) {
-      setIsDragging(false);
-    }
+    if (dragCounterRef.current === 0) setIsDragging(false);
   }, []);
 
   const onDrop = useCallback(
@@ -215,16 +237,19 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     [addFiles]
   );
 
-  // --- Attachment management ---
-
   const removeAttachment = useCallback((index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
     setAttachmentPreviews((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const removeDocAttachment = useCallback((filename: string) => {
+    setDocAttachments((prev) => prev.filter((d) => d.filename !== filename));
+  }, []);
+
   const clearAttachments = useCallback(() => {
     setAttachments([]);
     setAttachmentPreviews([]);
+    setDocAttachments([]);
   }, []);
 
   const getImagesForAPI = useCallback(async (): Promise<TPImageAttachment[]> => {
@@ -239,18 +264,41 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
     return images;
   }, [attachments]);
 
+  const getDocAttachmentsForAPI = useCallback(
+    () =>
+      docAttachments
+        .filter((d) => d.status === 'done' && d.file_id)
+        .map((d) => ({
+          file_id: d.file_id!,
+          filename: d.filename,
+          mime_type: d.mime_type || 'application/octet-stream',
+        })),
+    [docAttachments]
+  );
+
+  const getDocxTextBlocks = useCallback(
+    () =>
+      docAttachments
+        .filter((d) => d.status === 'done' && d.content)
+        .map((d) => ({ filename: d.filename, content: d.content! })),
+    [docAttachments]
+  );
+
   return {
     attachments,
     attachmentPreviews,
     isDragging,
     error,
-    uploadedDocs,
+    docAttachments,
     dropZoneProps: { onDragEnter, onDragOver, onDragLeave, onDrop },
     handleFileSelect,
     handlePaste,
     removeAttachment,
+    removeDocAttachment,
     clearAttachments,
     getImagesForAPI,
+    getDocAttachmentsForAPI,
+    getDocxTextBlocks,
     fileInputRef,
   };
 }

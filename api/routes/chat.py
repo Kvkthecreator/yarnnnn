@@ -36,7 +36,7 @@ Endpoints:
 
 import json
 import logging
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Literal
@@ -120,12 +120,25 @@ class ImageAttachment(BaseModel):
     data: str  # Base64-encoded image data
 
 
+class FileAttachment(BaseModel):
+    """Ephemeral file attachment for chat — referenced by Anthropic Files API file_id.
+
+    ADR-249: Ephemeral path. file_id comes from POST /chat/attach.
+    The file is passed as a document content block to Claude API in this turn only.
+    Nothing is persisted to the workspace.
+    """
+    file_id: str          # Anthropic Files API file_id
+    filename: str         # Original filename for display
+    mime_type: str        # MIME type (application/pdf, text/plain, etc.)
+
+
 class ChatRequest(BaseModel):
     content: str
     include_context: bool = True
     session_id: Optional[str] = None  # Optional: continue existing session
     surface_context: Optional[SurfaceContext] = None  # ADR-023: What user is viewing
     images: Optional[list[ImageAttachment]] = None  # Images attached to message (ephemeral)
+    file_attachments: Optional[list[FileAttachment]] = None  # Ephemeral doc attachments (ADR-249)
     target_agent_id: Optional[str] = None  # ADR-124: route message to specific agent in meeting room
 
 
@@ -1033,6 +1046,93 @@ async def _load_task_context(
 
 
 # =============================================================================
+# Chat Attach — Ephemeral File Upload (ADR-249)
+# =============================================================================
+
+@router.post("/chat/attach")
+async def chat_attach(
+    auth: UserClient,
+    file: UploadFile = File(...),
+):
+    """Upload a file for ephemeral use in the current chat turn.
+
+    ADR-249 ephemeral path: file is uploaded to the Anthropic Files API
+    and a file_id is returned. The caller includes file_id in the next
+    ChatRequest.file_attachments list. Claude reads the file natively
+    in that turn. File expires after Anthropic's TTL (~24h).
+
+    Nothing is written to the workspace or database.
+
+    Supported types:
+    - PDF (read natively by Claude API)
+    - TXT, MD (read as text)
+    - DOCX (extracted server-side → text block)
+    - Images: use the existing base64 inline path (ChatRequest.images)
+    """
+    import anthropic as _anthropic
+
+    SUPPORTED = {
+        "application/pdf": "pdf",
+        "text/plain": "txt",
+        "text/markdown": "md",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    }
+    MAX_SIZE = 20 * 1024 * 1024  # 20MB
+
+    if file is None:
+        raise HTTPException(status_code=400, detail="file is required")
+
+    content_type = file.content_type or ""
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
+    file_type = SUPPORTED.get(content_type) or (ext if ext in ("pdf", "txt", "md", "docx") else None)
+    if not file_type:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type for chat attach. Supported: PDF, TXT, MD, DOCX. For images use the base64 inline path."
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 20MB)")
+    if len(file_bytes) < 10:
+        raise HTTPException(status_code=400, detail="File is empty")
+
+    filename = file.filename or f"document.{file_type}"
+
+    # DOCX: extract text server-side (not natively supported by Files API)
+    if file_type == "docx":
+        from services.documents import extract_text_from_docx
+        text, _ = await extract_text_from_docx(file_bytes)
+        if not text or len(text.strip()) < 20:
+            raise HTTPException(status_code=422, detail="Could not extract text from DOCX")
+        return {
+            "type": "text_block",
+            "filename": filename,
+            "content": text[:50000],  # Cap at ~50K chars for context window safety
+        }
+
+    # PDF / TXT / MD: upload to Anthropic Files API
+    try:
+        import os
+        client = _anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        response = client.beta.files.upload(
+            file=(filename, file_bytes, content_type or f"application/{file_type}"),
+        )
+        file_id = response.id
+        logger.info(f"[CHAT-ATTACH] Uploaded {filename} → file_id={file_id} for user={auth.user_id}")
+    except Exception as e:
+        logger.error(f"[CHAT-ATTACH] Anthropic Files API upload failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to upload file to Anthropic: {e}")
+
+    return {
+        "type": "file_id",
+        "file_id": file_id,
+        "filename": filename,
+        "mime_type": content_type or f"application/{file_type}",
+    }
+
+
+# =============================================================================
 # Chat Endpoints
 # =============================================================================
 
@@ -1174,7 +1274,7 @@ async def global_chat(
             await append_message(auth.client, session_id, "user", request.content, user_message_metadata)
             logger.info(f"[YARNNN-STREAM] Starting stream for message: {request.content[:50]}...")
 
-            # Build images list for Claude API format (if any)
+            # Build content blocks for Claude API (images + ephemeral file attachments)
             images_for_api = None
             if request.images:
                 images_for_api = [
@@ -1189,6 +1289,24 @@ async def global_chat(
                     for img in request.images
                 ]
                 logger.info(f"[YARNNN] Processing {len(images_for_api)} image attachment(s)")
+
+            # ADR-249: Ephemeral document attachments via Anthropic Files API
+            # file_id blocks are prepended to the user message content so YARNNN
+            # reads the file natively in this turn. Nothing persisted.
+            if request.file_attachments:
+                doc_blocks = [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "file",
+                            "file_id": att.file_id,
+                        },
+                        "title": att.filename,
+                    }
+                    for att in request.file_attachments
+                ]
+                images_for_api = (images_for_api or []) + doc_blocks
+                logger.info(f"[YARNNN] Processing {len(doc_blocks)} ephemeral document attachment(s)")
 
             # ADR-186: Resolve prompt profile from surface
             profile = resolve_profile(request.surface_context)
