@@ -1,9 +1,9 @@
 # Surface Contracts
 
-**Version:** v2.3 (2026-05-01 — ADR-243 Schedule sibling extends nav to five tabs + ADR-245 cross-ref)
+**Version:** v2.4 (2026-05-06 — four-tab nav, /schedule dissolved into Work, /workspace page added, Agents YARNNN detail simplified, Work Decisions/Schedule tabs removed)
 **Status:** Canonical
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
-**Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) + [ADR-243](../adr/ADR-243-schedule-surface.md) five-tab nav (Chat | Work | Schedule | Agents | Files) · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) task abstraction sunset · [ADR-235](../adr/ADR-235-update-context-dissolution.md) UpdateContext dissolution (lifecycle → `ManageRecurrence`; substrate writes → `WriteFile(scope='workspace')`; identity/brand merges → `InferContext` / `InferWorkspace`) · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [ADR-245](../adr/ADR-245-frontend-kernel-three-layer-content-rendering.md) three-layer content rendering model (orthogonal: per-tab CRUD matrix here governs the **operational shape** of each tab; ADR-245 governs the **render layers** — L1 raw view + L2 content-shape parsers + L3 structured affordances — that L3 components on these tabs sit in) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
+**Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav (Chat | Work | Agents | Files) · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) task abstraction sunset · [ADR-235](../adr/ADR-235-update-context-dissolution.md) UpdateContext dissolution (lifecycle → `ManageRecurrence`; substrate writes → `WriteFile(scope='workspace')`; identity/brand merges → `InferContext` / `InferWorkspace`) · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [ADR-245](../adr/ADR-245-frontend-kernel-three-layer-content-rendering.md) three-layer content rendering model (orthogonal: per-tab CRUD matrix here governs the **operational shape** of each tab; ADR-245 governs the **render layers** — L1 raw view + L2 content-shape parsers + L3 structured affordances — that L3 components on these tabs sit in) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
 **Supersedes:** `archive/SURFACE-ARCHITECTURE.md`, `archive/SURFACE-ACTION-MAPPING.md`, `archive/SURFACE-DISPLAY-MAP.md`, `archive/SURFACE-PRIMITIVES-MAP.md`
 
 ---
@@ -61,7 +61,9 @@ When this doc and `docs/architecture/compositor.md` disagree, the architecture d
 
 ## Part 1 — Per-Tab Surface Contracts
 
-Four tabs, four contracts. Each contract has seven fixed sections: **Archetype · Reads · List mode · Detail mode · `+` menu · Deep-links out · Refuses.**
+Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, user menu). Each tab contract has seven fixed sections: **Archetype · Reads · List mode · Detail mode · `+` menu · Deep-links out · Refuses.**
+
+> **Nav history:** ADR-243 added /schedule as a fifth tab (cadence-framed sibling of /work). In the 2026-05-06 pass /schedule was dissolved — its cadence view became the "Schedule" inner tab on /work; /schedule redirects to /work. The five-tab nav reverted to four.
 
 ### Tab: Files
 
@@ -96,12 +98,12 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
 
 - **Archetype:** List (list mode) + Dashboard (detail mode, per ADR-167 v2). Reviewer decisions stream is a Stream archetype embed inside Reviewer detail.
 - **Reads:** `agents` table filtered to principals (YARNNN `thinking_partner` + user-authored domain agents, per ADR-189 origin filter + ADR-214 synthesized Reviewer pseudo-agent), plus each agent's filesystem home (`/workspace/agents/{slug}/*` or `/workspace/review/*` for Reviewer).
-- **List mode** — **DELETED by ADR-241** (2026-04-30). Post-ADR-235 D2 (no user-authored agent creation), the roster was always-empty ceremony. `/agents` (no query param) redirects directly to `?agent=thinking-partner`. If a future ADR re-introduces user-authored Agents, the roster reappears.
+- **List mode** — **DELETED by ADR-241** (2026-04-30). `/agents` (no query param) redirects directly to `?agent=thinking-partner`.
 - **Detail mode** (`?agent={slug}`): dispatches on `agent_class`:
-  - `thinking_partner` (YARNNN) → tab-based detail (Identity / Principles / Tasks per ADR-241 D2). The Principles tab renders `/workspace/review/principles.md` — the judgment framework TP applies to verdicts.
-  - `reviewer` → **redirects to `?agent=thinking-partner&tab=principles`** per ADR-241 D3. Legacy URL preserved for bookmark + ADR-194 cross-link integrity; substrate (`/workspace/review/`) unchanged.
-  - domain agents → IDENTITY card + health card + AGENT.md + memory/style substrate panes (AGENT.md edits flow through primitives). User-authored Agents not currently creatable per ADR-235 D2; existing rows tolerated.
-- **Decisions surface** (`/work` Decisions tab) — Stream archetype over `/workspace/review/decisions.md` lives on `/work` per ADR-241 D3, not `/agents`. The actionable consequence of judgment lives where proposals live.
+  - `thinking_partner` (YARNNN) → Identity card + AgentRoleBlock + pointer card to `/workspace` (Mandate/Autonomy/Principles moved there in the 2026-05-06 pass — they are workspace configuration, not agent identity).
+  - `reviewer` → **redirects to `?agent=thinking-partner`** per ADR-241 D3.
+  - domain agents → IDENTITY card + health card + AGENT.md + memory/style substrate panes.
+- **Decisions stream** — previously on a `/work` Decisions tab (ADR-241 D3), removed in the 2026-05-06 pass. `decisions.md` is substrate-only; no L3 consumer on cockpit surfaces. Accessible via Files (`/context?path=/workspace/review/decisions.md`).
 - **`+` menu:** none. Per ADR-235 D2, no chat-surface pathway to create user-authored Agents.
 - **Deep-links out:** each agent's files on Files (`/context?path=/workspace/agents/{slug}/AGENT.md`), the agent's tasks filtered on Work (`/work?agent={slug}`), and Chat with the agent preselected (`/chat?agent={slug}`).
 - **Refuses:**
@@ -122,7 +124,7 @@ Four tabs, four contracts. Each contract has seven fixed sections: **Archetype �
     - **Bundle override** (e.g., alpha-trader): `tabs.work.list.cockpit` declares per-face bindings (e.g., `cockpit.money_truth.substrate_fallback: /workspace/context/portfolio/_performance.md`). Platform-live bindings for Money truth (Alpaca / commerce providers) are reserved for ADR-228 Commit 3.
     - **Empty states:** each face renders its own empty/skeleton state inside the face. Skeleton MANDATE renders destructive-tinted authoring CTA. The other faces remain readable when MANDATE is absent — the operator can still see balances, recent activity. No whole-cockpit posture switch.
     - **Hidden when `?agent=` filter active** — deliberate focus shift per ADR-206 (filtered list becomes the primary focus). The gate lives in `page.tsx`; `<CockpitRenderer>` doesn't know about the agent filter.
-  - **Work zone** (`<WorkListSurface>`) — section label "Work". Task list grouped by output_kind (Reports · Tracking · Connected · Actions), with My Work / Connectors / System tab switcher for scope. **Pinned tasks** (`tabs.work.list.pinned_tasks`) float to the top of their group with a small pin glyph. **Banner** (`tabs.work.list.banner`, including via `phase_overlays`) renders above the task list via `<BundleBanner tab="work" />`.
+  - **Work zone** (`<WorkListSurface>`) — two inner tabs: **Dashboard** (cockpit kernel rendered inline — the four faces) and **Schedule** (all recurrences cadence-grouped: Recurring · Reactive · One-time). Schedule is the canonical recurrence list; "My Work / Connectors / System" classification tabs and the standalone Decisions tab were removed in the 2026-05-06 pass. System recurrences hidden by default (overflow toggle "Show system"). **Pinned tasks** (`tabs.work.list.pinned_tasks`) float to the top of their group in Schedule view. **Banner** (`tabs.work.list.banner`, including via `phase_overlays`) renders above via `<BundleBanner tab="work" />`.
   - Zones share one vertical scroll (ADR-205 F2 — deliberate: glance-then-drill mental model; tab-ify was considered and rejected because it would force proposals behind a click).
 - **Detail mode** (`?task={slug}`): three compositor-resolved layers — chrome (top), middle (content), feedback strip (bottom). Per Part 0, every layer flows through the resolver pattern.
   - **Chrome** (`<ChromeRenderer>`) — single component for the metadata strip + array of components for the actions row. Resolved via `resolveChrome(ctx, middles)`:
@@ -328,32 +330,34 @@ Each phase lands with: code changes + this doc's contract section updated in the
 
 ---
 
-## Settings → Workspace surface (ADR-244, 2026-05-01)
+## /workspace surface (2026-05-06, replaces Settings → Workspace tab)
 
-Outside the four-tab cockpit nav, `/settings?tab=workspace` is the **permanent home for program lifecycle**. Same discipline as the rest of this doc — read-mostly, judgment-shaped writes route through chat, structured affordances route through dedicated endpoints.
+`/workspace` is the **permanent home for workspace-level configuration** — accessible from the user menu (between Settings and Billing). Replaces `Settings → Workspace tab` (removed 2026-05-06) and the Mandate/Autonomy/Principles tabs on the YARNNN agent detail (also removed 2026-05-06).
+
+Layout: `ThreePanelLayout` with chat open — operator reads configuration on the left, edits via YARNNN chat on the right. Same discipline as the rest of this doc — read-mostly, judgment-shaped writes route through chat.
 
 ### What it shows
 
 - **Active program** — current program slug + tagline + phase, or "No program activated".
-- **Capability gaps** — required-but-not-connected platforms for the active bundle. Deep-link to `/settings?tab=connectors`.
-- **Available programs** — activatable bundles list (mirrors `GET /api/programs/activatable`). Active one badged. Switch is the same `POST /api/programs/activate` (idempotent re-fork).
-- **Substrate status** — per-file state (skeleton / authored / missing) for `mandate`, `identity`, `brand`, `autonomy`, Reviewer `principles`. Each row deep-links to Files for raw-markdown viewing.
+- **Platform connections needed** — required-but-not-connected platforms for the active bundle. Deep-link to `/settings?tab=connectors`.
+- **Available programs** — activatable bundles list. Switch is `POST /api/programs/activate` (idempotent re-fork).
+- **Workspace setup** — per-file state (authored / template / empty) for `mandate`, `identity`, `brand`, `autonomy`, Reviewer `principles`. Each row is **expandable inline** — content readable without leaving the page. "Edit in chat →" fires an edit prompt into the chat panel.
 
 ### What it does
 
 - `Activate(slug)` → `POST /api/programs/activate`
-- `Switch(slug)` → same endpoint; bundle's tier rules preserve operator-authored content
 - `Deactivate()` → `POST /api/programs/deactivate` — soft, drops MANDATE.md program marker, body untouched per ADR-209
-- `?first_run=1` query param surfaces a Welcome banner with "Continue to chat" CTA. Same render path otherwise.
+- `?first_run=1` → Welcome banner with "Go to chat" CTA. Same render path otherwise.
+- auth/callback first-run redirect: `/workspace?first_run=1` (was `/settings?tab=workspace&first_run=1`).
 
 ### What it does NOT do
 
-- Zero edit affordances for substrate content. No `<input>`, no `<textarea>`, no inline editor for MANDATE / IDENTITY / BRAND / AUTONOMY / principles. Authoring routes through chat per ADR-206 D6 + ADR-235 D1; raw-markdown editing happens on Files per ADR-180.
-- No `/onboarding` route. The first-run flow is the same surface, accessed via `?first_run=1`. `OnboardingModal` (ADR-240) deleted as part of ADR-244.
+- Zero `<input>` / `<textarea>` edit affordances for substrate content. Authoring routes through chat; raw-markdown editing on Files.
+- `/operation` → redirects to `/workspace` (bookmark safety stub).
 
 ### Endpoint contract
 
-`GET /api/workspace/state` — the canonical workspace-state read. Side-effect preserved from the legacy `/api/memory/user/onboarding-state`: lazy roster scaffolding + `workspace_init_complete` system-card write on first init. Response shape: `{ has_agents, activation_state, active_program_slug, available_programs[], substrate_status, capability_gaps[] }`.
+`GET /api/workspace/state` — canonical workspace-state read. Response: `{ has_agents, activation_state, active_program_slug, available_programs[], substrate_status, capability_gaps[] }`.
 
 ---
 
@@ -361,8 +365,8 @@ Outside the four-tab cockpit nav, `/settings?tab=workspace` is the **permanent h
 
 - [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — governs this doc
 - [ADR-198](../adr/ADR-198-surface-archetypes.md) — archetype vocabulary (Document · Dashboard · Queue · Briefing · Stream)
-- [ADR-214](../adr/ADR-214-agents-page-consolidation.md) — Reviewer-inside-Agents (originated four-tab nav; extended to five by ADR-243)
-- [ADR-243](../adr/ADR-243-schedule-surface.md) — `/schedule` surface (cadence-framed sibling of `/work`); five-tab nav `Chat | Work | Schedule | Agents | Files`
+- [ADR-214](../adr/ADR-214-agents-page-consolidation.md) — Reviewer-inside-Agents (four-tab nav `Chat | Work | Agents | Files`)
+- [ADR-243](../adr/ADR-243-schedule-surface.md) — `/schedule` (dissolved 2026-05-06 into Work's Schedule inner tab; five-tab nav reverted to four)
 - [ADR-167 v2](../adr/ADR-167-list-detail-surfaces.md) — list/detail pattern per tab
 - [ADR-209](../adr/ADR-209-authored-substrate.md) — revision chain, `authored_by`, substrate attribution
 - [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) — invocation as atom; `/chat` is the narrative surface; `/work` is the narrative filtered by task slug
@@ -370,7 +374,7 @@ Outside the four-tab cockpit nav, `/settings?tab=workspace` is the **permanent h
 - [docs/architecture/compositor.md](../architecture/compositor.md) — architecture-level reference for the resolver pattern, binding taxonomy, kernel-default registry
 - [invocation-and-narrative.md](../architecture/invocation-and-narrative.md) — canonical narrative vocabulary (invocation · pulse · narrative · task as legibility wrapper)
 - [ADR-206](../adr/ADR-206-operation-first-scaffolding.md) — operator-facing three-layer view (Intent · Operation · Deliverables)
-- [ADR-244](../adr/ADR-244-workspace-settings-surface.md) — Settings → Workspace surface, program lifecycle out-of-band of the four-tab cockpit
+- [ADR-244](../adr/ADR-244-workspace-settings-surface.md) — Settings → Workspace surface (now `/workspace` — promoted to first-class route 2026-05-06)
 - [ADR-168](../architecture/primitives-matrix.md) — canonical primitive matrix (not a design doc, but the authority for what verbs exist)
 - [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) — Axiom 6 (Channel), Axiom 9 (Invocation + Narrative), Derived Principle 12 (Channel legibility gates autonomy)
 - [INLINE-PLUS-MENU.md](./INLINE-PLUS-MENU.md) — existing plus-menu verb taxonomy; under ADR-215 R4 it is strictly a modal launcher
