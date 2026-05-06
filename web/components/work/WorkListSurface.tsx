@@ -41,6 +41,8 @@ import type { Recurrence, Agent, NarrativeByTaskSlice } from '@/types';
 import { BundleBanner } from '@/components/library/BundleBanner';
 import { useComposition, getTab } from '@/lib/compositor';
 
+export type WorkTab = 'dashboard' | 'schedule';
+
 interface WorkListSurfaceProps {
   tasks: Recurrence[];
   agents: Agent[];
@@ -49,11 +51,12 @@ interface WorkListSurfaceProps {
   dataError?: string | null;
   /** Cockpit content rendered inside the Dashboard tab. */
   cockpitSlot?: ReactNode;
+  /** URL-driven active tab — controlled by parent so ?tab= stays in sync. */
+  activeTab: WorkTab;
+  onTabChange: (tab: WorkTab) => void;
   onClearAgentFilter: () => void;
   onSelect: (slug: string) => void;
 }
-
-type WorkTab = 'dashboard' | 'schedule';
 
 // output_kind → icon
 const KIND_ICON: Record<string, React.ElementType> = {
@@ -185,10 +188,11 @@ export function WorkListSurface({
   agentFilter,
   dataError,
   cockpitSlot,
+  activeTab,
+  onTabChange,
   onClearAgentFilter,
   onSelect,
 }: WorkListSurfaceProps) {
-  const [activeTab, setActiveTab] = useState<WorkTab>('schedule');
   const [search, setSearch] = useState('');
   const [includeSystem, setIncludeSystem] = useState(false);
   const [includeHistorical, setIncludeHistorical] = useState(false);
@@ -272,7 +276,7 @@ export function WorkListSurface({
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => onTabChange(tab.id)}
               className={cn(
                 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
                 activeTab === tab.id

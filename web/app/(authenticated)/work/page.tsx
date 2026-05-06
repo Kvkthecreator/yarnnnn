@@ -26,7 +26,7 @@ import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { useRecurrenceDetail } from '@/hooks/useRecurrenceDetail';
 import { APIError, api } from '@/lib/api/client';
-import { WorkListSurface } from '@/components/work/WorkListSurface';
+import { WorkListSurface, type WorkTab } from '@/components/work/WorkListSurface';
 import { WorkDetail } from '@/components/work/WorkDetail';
 import { CockpitRenderer } from '@/components/library/CockpitRenderer';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
@@ -83,6 +83,10 @@ export default function WorkPage() {
 
   const agentFilter = searchParams.get('agent');
   const taskSlugFromUrl = searchParams.get('task');
+  // ?tab=dashboard|schedule — URL-driven so TP can deep-link to a specific tab.
+  // Default is 'schedule'; 'dashboard' is the cockpit view.
+  const tabParam = searchParams.get('tab');
+  const activeTab: WorkTab = tabParam === 'dashboard' ? 'dashboard' : 'schedule';
   const {
     task: selectedRecurrenceDetail,
     loading: taskDetailLoading,
@@ -238,6 +242,17 @@ export default function WorkPage() {
     router.replace(qs ? `/work?${qs}` : '/work', { scroll: false });
   }, [router, searchParams]);
 
+  const handleTabChange = useCallback((tab: WorkTab) => {
+    const sp = new URLSearchParams(searchParams.toString());
+    if (tab === 'schedule') {
+      sp.delete('tab'); // schedule is the default — keep URL clean
+    } else {
+      sp.set('tab', tab);
+    }
+    const qs = sp.toString();
+    router.replace(qs ? `/work?${qs}` : '/work', { scroll: false });
+  }, [router, searchParams]);
+
   const plusMenuActions: PlusMenuAction[] = useMemo(() => {
     if (selectedTask) return [];
     return [
@@ -380,6 +395,8 @@ export default function WorkPage() {
             narrativeByTask={narrativeByTask}
             agentFilter={agentFilter}
             dataError={error}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
             cockpitSlot={
               // Hidden when an agent filter is active (ADR-206 deliberate focus shift).
               !agentFilter
