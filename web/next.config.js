@@ -17,4 +17,9 @@ module.exports = withSentryConfig(nextConfig, {
   widenClientFileUpload: true,
   hideSourceMaps: true,
   disableLogger: true,
+  // ADR-250: Sentry init is now handled via instrumentation.ts (Next.js 15 API).
+  // Disable auto-instrumentation of middleware to prevent edge runtime crashes
+  // when the old sentry.edge.config.ts no longer exists.
+  autoInstrumentMiddleware: false,
+  autoInstrumentServerFunctions: false,
 });
