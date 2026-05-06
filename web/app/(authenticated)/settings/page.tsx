@@ -133,7 +133,7 @@ export default function SettingsPage() {
       // Fetch counts from various endpoints in parallel
       const [agents, documents, summary, facts] = await Promise.all([
         api.agents.list().catch(() => []),
-        api.documents.list().catch(() => ({ documents: [] })),
+        api.documents.list().catch(() => ({ uploads: [], total: 0, limit: 50, offset: 0 })),
         api.integrations.getSummary().catch(() => ({ platforms: [] })),
         api.userMemories.list().catch(() => []),
       ]);
