@@ -149,7 +149,12 @@ interface TPContextValue {
   // Actions
   sendMessage: (
     content: string,
-    context?: { surface?: DeskSurface; images?: TPImageAttachment[]; targetAgentId?: string }
+    context?: {
+      surface?: DeskSurface;
+      images?: TPImageAttachment[];
+      targetAgentId?: string;
+      fileAttachments?: Array<{ file_id: string; filename: string; mime_type: string }>;
+    }
   ) => Promise<TPToolResult[] | null>;
   clearMessages: () => void;
   clearClarification: () => void;
@@ -364,7 +369,12 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   const sendMessage = useCallback(
     async (
       content: string,
-      context?: { surface?: DeskSurface; images?: TPImageAttachment[]; targetAgentId?: string }
+      context?: {
+        surface?: DeskSurface;
+        images?: TPImageAttachment[];
+        targetAgentId?: string;
+        fileAttachments?: Array<{ file_id: string; filename: string; mime_type: string }>;
+      }
     ): Promise<TPToolResult[] | null> => {
       // Cancel any ongoing request
       if (abortControllerRef.current) {
@@ -421,6 +431,11 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
             media_type: img.mediaType,
             data: img.data,
           }));
+        }
+
+        // ADR-249: ephemeral file attachments via Anthropic Files API
+        if (context?.fileAttachments && context.fileAttachments.length > 0) {
+          body.file_attachments = context.fileAttachments;
         }
 
         // Get auth token for API request

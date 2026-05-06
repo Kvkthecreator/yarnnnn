@@ -170,12 +170,14 @@ export function ChatPanel({
     attachments,
     attachmentPreviews,
     error: fileError,
-    uploadedDocs,
+    docAttachments,
     handleFileSelect,
     handlePaste,
     removeAttachment,
     clearAttachments,
     getImagesForAPI,
+    getDocAttachmentsForAPI,
+    getDocxTextBlocks,
     fileInputRef,
   } = useFileAttachments();
 
@@ -210,9 +212,19 @@ export function ChatPanel({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && attachments.length === 0) || isLoading) return;
+    if ((!input.trim() && attachments.length === 0 && docAttachments.filter(d => d.status === 'done').length === 0) || isLoading) return;
     const images = await getImagesForAPI();
-    sendMessage(input, { surface, images: images.length > 0 ? images : undefined });
+    const fileAttachments = getDocAttachmentsForAPI();
+    // DOCX text blocks: append to message content so Claude sees them as text
+    const docxBlocks = getDocxTextBlocks();
+    const messageContent = docxBlocks.length > 0
+      ? input + '\n\n' + docxBlocks.map(b => `[Document: ${b.filename}]\n${b.content}`).join('\n\n')
+      : input;
+    sendMessage(messageContent, {
+      surface,
+      images: images.length > 0 ? images : undefined,
+      fileAttachments: fileAttachments.length > 0 ? fileAttachments : undefined,
+    });
     setInput('');
     clearAttachments();
   };
@@ -281,11 +293,11 @@ export function ChatPanel({
           </div>
         )}
 
-        {uploadedDocs.length > 0 && (
+        {docAttachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2 p-1.5 rounded-lg border border-border bg-muted/30">
-            {uploadedDocs.map((doc, i) => (
+            {docAttachments.map((doc, i) => (
               <div key={i} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-background border border-border">
-                <span className="truncate max-w-[120px]">{doc.name}</span>
+                <span className="truncate max-w-[120px]">{doc.filename}</span>
                 <span className={doc.status === 'done' ? 'text-green-600' : doc.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}>
                   {doc.status === 'uploading' ? '...' : doc.status === 'done' ? '✓' : '✗'}
                 </span>
