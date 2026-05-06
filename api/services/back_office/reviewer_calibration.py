@@ -82,7 +82,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
 
         # 5. Write (replaces existing content — Axiom 1 substrate write)
         from services.workspace import UserMemory
-        um = UserMemory(client=client, user_id=user_id)
+        um = UserMemory(db_client=client, user_id=user_id)
         await um.write(
             REVIEW_CALIBRATION_PATH,
             content,
