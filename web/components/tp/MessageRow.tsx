@@ -219,12 +219,19 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
   );
 }
 
-// Maps raw DB role → operator-facing display label.
-function roleDisplayLabel(role: TPMessage['role']): string {
+/**
+ * Maps raw DB role → canonical operator-facing display label per ADR-247 +
+ * FOUNDATIONS v7.0 three-party narrative model.
+ *
+ * Three primary parties: operator ("You"), YARNNN system ("YARNNN"),
+ * Reviewer (operator-authored persona name — caller must resolve and pass).
+ * Secondary roles (agent, system, external) keep their technical names.
+ */
+function roleDisplayLabel(role: TPMessage['role'], reviewerPersona?: string | null): string {
   switch (role) {
-    case 'assistant': return 'yarnnn';
-    case 'user': return 'you';
-    case 'reviewer': return 'reviewer';
+    case 'user': return 'You';
+    case 'assistant': return 'system';
+    case 'reviewer': return reviewerPersona ?? 'Reviewer';
     case 'agent': return 'agent';
     case 'system': return 'system';
     case 'external': return 'external';
@@ -237,7 +244,7 @@ function roleDisplayLabel(role: TPMessage['role']): string {
  * and an expand control. When expanded, the full content shows below
  * (markdown-rendered for assistant; plain text otherwise).
  */
-function RoutineRow({ msg }: { msg: TPMessage }): JSX.Element {
+function RoutineRow({ msg, reviewerPersona }: { msg: TPMessage; reviewerPersona?: string | null }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const summary =
     msg.narrative?.summary ??
@@ -257,7 +264,7 @@ function RoutineRow({ msg }: { msg: TPMessage }): JSX.Element {
             )}
           />
           <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
-            {roleDisplayLabel(msg.role)}
+            {roleDisplayLabel(msg.role, reviewerPersona)}
           </span>
           <span className="truncate">{summary}</span>
         </button>
@@ -285,14 +292,14 @@ function RoutineRow({ msg }: { msg: TPMessage }): JSX.Element {
  * individual housekeeping rows still render here in case the digest
  * hasn't run yet, but they're visually de-emphasized.
  */
-function HousekeepingRow({ msg }: { msg: TPMessage }): JSX.Element {
+function HousekeepingRow({ msg, reviewerPersona }: { msg: TPMessage; reviewerPersona?: string | null }): JSX.Element {
   const summary =
     msg.narrative?.summary ??
     (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '');
   return (
     <div className="text-[11px] flex items-center gap-2 max-w-[92%] py-0.5 opacity-50 hover:opacity-90 transition-opacity">
       <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/50">
-        {roleDisplayLabel(msg.role)}
+        {roleDisplayLabel(msg.role, reviewerPersona)}
       </span>
       <span className="text-muted-foreground truncate flex-1">{summary}</span>
       <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
@@ -321,12 +328,13 @@ export interface MessageRowProps {
  * role-shaped renderings).
  */
 export function MessageRow({ msg, isLoading, onMakeRecurring }: MessageRowProps): JSX.Element {
+  const reviewerPersona = useReviewerPersona();
   const weight = msg.narrative?.weight ?? 'material';
   if (weight === 'material') {
     return <MaterialRow msg={msg} isLoading={isLoading} onMakeRecurring={onMakeRecurring} />;
   }
   if (weight === 'routine') {
-    return <RoutineRow msg={msg} />;
+    return <RoutineRow msg={msg} reviewerPersona={reviewerPersona} />;
   }
-  return <HousekeepingRow msg={msg} />;
+  return <HousekeepingRow msg={msg} reviewerPersona={reviewerPersona} />;
 }
