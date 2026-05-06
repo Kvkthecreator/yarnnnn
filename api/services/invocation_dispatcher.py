@@ -611,11 +611,24 @@ async def _dispatch_generative(
     duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
     output_pointer = paths.output_path or paths.substrate_root
     summary = _generative_summary(decl, agent, version=next_version)
-    body = (
-        f"Output at {output_pointer}.\n"
-        f"Run log at {paths.run_log_path}.\n"
-        f"Duration: {duration_ms}ms · Tool rounds: {tool_rounds}."
-    )
+
+    # ADR-249 D3: when the agent emitted a proposal, make that the headline
+    # of the narrative entry so the operator sees "proposal pending" paired
+    # with the subsequent Reviewer verdict card — not a generic output pointer.
+    has_proposal = "ProposeAction" in (tools_used or [])
+    if has_proposal:
+        body = (
+            f"Proposal submitted — pending Reviewer judgment.\n"
+            f"Run log at {paths.run_log_path}.\n"
+            f"Duration: {duration_ms}ms · Tool rounds: {tool_rounds}."
+        )
+    else:
+        body = (
+            f"Output at {output_pointer}.\n"
+            f"Run log at {paths.run_log_path}.\n"
+            f"Duration: {duration_ms}ms · Tool rounds: {tool_rounds}."
+        )
+
     await _emit_narrative(
         client, user_id, decl,
         role="agent",
@@ -630,6 +643,7 @@ async def _dispatch_generative(
             "agent_role": role,
             "tool_rounds": tool_rounds,
             "tools_used": tools_used,
+            "has_proposal": has_proposal,
             "duration_ms": duration_ms,
             "input_tokens": version_metadata["input_tokens"],
             "output_tokens": version_metadata["output_tokens"],

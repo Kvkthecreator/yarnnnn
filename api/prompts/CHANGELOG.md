@@ -6,6 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.06.2] - ADR-249: Reviewer-as-operator-judgment narrative framing
+
+### Changed
+- `review_proposal_dispatch.py` (`_write_observation`): observe-only framing changed from
+  "Reviewer layer observed… Seat defers to human" to "No reviewable substrate — your judgment
+  is needed to proceed." Removes the third-party framing; operator IS the Reviewer.
+- `review_proposal_dispatch.py` (advisory path): framing changed from
+  "Advisory only (ADR-229 post-judgment gate): {reason} / Operator must click Approve in cockpit"
+  to "Your confirmation required ({reason}). Approve to execute." Correct framing per ADR-249 D3.
+
+### Expected behavior
+Reviewer narrative entries no longer frame the operator as external to the Reviewer's judgment.
+The framing is: "here is what the Reviewer (= you in judgment posture) decided, and whether
+autonomy mode requires your real-time confirmation."
+
+---
+
 ## [2026.05.06.1] - ADR-249: Upload compact index signal rewrite
 
 ### Changed

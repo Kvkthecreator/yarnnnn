@@ -64,9 +64,37 @@ interface MaterialWrapperProps {
  * a ReviewerCard regardless; we suppress the chip stack only for the
  * reviewer shape.
  */
+// ---------------------------------------------------------------------------
+// Workspace path extraction — generalised for any message role.
+//
+// Scans message content for /workspace/... paths that are actual files
+// (end in an extension or known file names). Directories are excluded —
+// WorkspaceFileView would 404 on them. Paths are deduplicated.
+// ---------------------------------------------------------------------------
+
+const WORKSPACE_PATH_RE = /\/workspace\/[^\s,;'")\]>]+/g;
+const FILE_EXTENSION_RE = /\.[a-z]{2,5}$|\/_(run_log|domain|performance|risk|signals|operator_profile|tracker|feedback|deliverable)\.md$/;
+
+function extractWorkspacePaths(content: string | undefined): string[] {
+  if (!content) return [];
+  const matches = content.match(WORKSPACE_PATH_RE) ?? [];
+  // Keep only paths that look like files, not directories
+  const files = matches
+    .map(p => p.replace(/[.,;:)>\]]+$/, '').trim()) // strip trailing punctuation
+    .filter(p => FILE_EXTENSION_RE.test(p));
+  const seen = new Set<string>();
+  return files.filter(f => seen.has(f) ? false : (seen.add(f), true));
+}
+
+function shortPathLabel(path: string): string {
+  // "/workspace/context/trading/_run_log.md" → "_run_log.md"
+  return path.split('/').pop() ?? path;
+}
+
 function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps): JSX.Element {
   const { sendMessage } = useTP();
-  const [fileViewOpen, setFileViewOpen] = useState(false);
+  // openFilePath: which file path is currently open in the overlay (null = closed)
+  const [openFilePath, setOpenFilePath] = useState<string | null>(null);
   const reviewerPersonaName = useReviewerPersona();
 
   const recurrenceSlug = msg.narrative?.taskSlug;
@@ -77,8 +105,6 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     msg.narrative?.pulse === 'addressed' &&
     !!msg.narrative?.invocationId;
   const isInlineAction = !msg.narrative?.taskSlug;
-  // ADR-236 Item 8.2 (2026-04-30): graduation moves from user ask to
-  // assistant output — once the output is useful, "run on a schedule".
   const showMakeRecurring =
     msg.role === 'assistant' &&
     isInlineAction &&
@@ -86,34 +112,19 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     !!onMakeRecurring &&
     !!msg.content?.trim();
 
-  // Extract the run log path from the dispatcher's narrative body.
-  // Dispatcher writes "Output at {dir}.\nRun log at {file}.\n..." as the
-  // first lines. The run log is a real file (_run_log.md); the output path
-  // is a directory which would 404 on getFile. Use run log as the
-  // primary view — it's the most informative single file per invocation.
-  const runLogPath = (() => {
-    if (!recurrenceSlug) return null;
-    const match = msg.content?.match(/Run log at ([^\n.]+)/);
-    const raw = match?.[1]?.trim();
-    return raw?.startsWith('/workspace') ? raw : null;
-  })();
-  // Also extract the output directory for the fallback label.
-  const outputPath = (() => {
-    if (!recurrenceSlug) return null;
-    const match = msg.content?.match(/Output at ([^\n.]+)/);
-    const raw = match?.[1]?.trim();
-    return raw?.startsWith('/workspace') ? raw : null;
-  })();
-  // Prefer run log (actual file); fall back to output dir for labelling.
-  const fileViewPath = runLogPath ?? outputPath;
+  // Generalised workspace path extraction — works for any role.
+  // Replaces the recurrence-only runLogPath/outputPath pattern.
+  const workspacePaths = extractWorkspacePaths(msg.content);
+  // Primary path for the recurrence chip (prefer _run_log.md)
+  const primaryPath =
+    workspacePaths.find(p => p.includes('_run_log')) ??
+    workspacePaths[0] ??
+    null;
 
-  // Reviewer verdicts render with a labeled section break above — visually
-  // separating the Reviewer's voice from YARNNN's narration. The divider
-  // makes it clear a different party is speaking (ADR-249: three-party model).
+  // Reviewer verdicts render with a labeled section break above.
   if (msg.role === 'reviewer') {
     const isObservation = msg.reviewer?.verdict === 'observation';
     if (isObservation) {
-      // Observations don't need the full divider — they're housekeeping
       return (
         <div className="max-w-[92%]">
           <MessageRenderer msg={msg} isLoading={isLoading} />
@@ -122,7 +133,6 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     }
     return (
       <div className="pt-2">
-        {/* Section break: persona name labels the judgment character speaking */}
         <div className="flex items-center gap-2 mb-2 px-0.5">
           <div className="h-px flex-1 bg-border/40" />
           <span className="text-[9px] font-semibold tracking-widest text-muted-foreground/40 uppercase select-none">
@@ -139,11 +149,9 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
 
   const chip =
     showRecurrenceChip ? (
-      // Chip opens an inline WorkspaceFileView panel — no navigation.
-      // Universal kernel pattern: WorkspaceFileView renders any path.
       <button
         type="button"
-        onClick={() => setFileViewOpen(v => !v)}
+        onClick={() => setOpenFilePath(p => p ? null : (primaryPath ?? null))}
         className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-foreground/5 px-1.5 py-0.5 -mx-0.5 -mt-0.5 mb-1 rounded transition-colors"
         title={`From recurrence: ${recurrenceSlug} — view output inline`}
       >
@@ -165,40 +173,48 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
       {chip}
       <MessageRenderer msg={msg} isLoading={isLoading} />
 
-      {/* Inline run log view — opens when operator clicks the recurrence chip.
-          Renders the _run_log.md file in-place with WorkspaceFileView.
-          No navigation. No redirect. Operator stays in chat. */}
-      {fileViewOpen && fileViewPath && (
+      {/* Workspace file path chips — rendered below the bubble for any message
+          that references /workspace/... file paths. Each chip opens the file
+          in an inline overlay. No navigation, no redirect. ADR-249 fix. */}
+      {workspacePaths.length > 0 && msg.role !== 'user' && (
+        <div className="flex flex-wrap gap-1 mt-1.5 -mb-0.5">
+          {workspacePaths.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setOpenFilePath(current => current === p ? null : p)}
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors',
+                openFilePath === p
+                  ? 'border-primary/30 bg-primary/5 text-primary'
+                  : 'border-border/60 text-muted-foreground/60 hover:text-foreground hover:border-border hover:bg-muted/30',
+              )}
+              title={p}
+            >
+              {shortPathLabel(p)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Inline file overlay — opens for whichever path chip was clicked */}
+      {openFilePath && (
         <div className="mt-2 rounded-lg border border-border bg-background p-3 relative max-w-[92%] shadow-sm">
           <button
             type="button"
-            onClick={() => setFileViewOpen(false)}
+            onClick={() => setOpenFilePath(null)}
             className="absolute top-2 right-2 p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
             aria-label="Close"
           >
             <X className="h-3.5 w-3.5" />
           </button>
           <WorkspaceFileView
-            path={fileViewPath}
-            title={recurrenceSlug ?? undefined}
-            tagline={outputPath ? `Output: ${outputPath}` : undefined}
-            editPrompt={`I want to talk about the latest run of ${recurrenceSlug} — what did it do and what should we do next?`}
-            onEdit={(prompt) => { setFileViewOpen(false); sendMessage(prompt); }}
+            path={openFilePath}
+            title={shortPathLabel(openFilePath)}
+            tagline={openFilePath}
+            editPrompt={`I want to discuss the file at ${openFilePath}`}
+            onEdit={(prompt) => { setOpenFilePath(null); sendMessage(prompt); }}
           />
-        </div>
-      )}
-
-      {/* Fallback: no path extractable from message body */}
-      {fileViewOpen && !fileViewPath && (
-        <div className="mt-2 rounded-lg border border-border bg-muted/10 p-3 max-w-[92%] text-xs text-muted-foreground">
-          Run log path not found in this message.{' '}
-          <button
-            type="button"
-            onClick={() => { setFileViewOpen(false); sendMessage(`Tell me about the latest run of ${recurrenceSlug}.`); }}
-            className="underline underline-offset-4 hover:no-underline"
-          >
-            Ask the system instead
-          </button>
         </div>
       )}
 

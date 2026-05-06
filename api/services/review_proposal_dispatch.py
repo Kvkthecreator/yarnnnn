@@ -233,13 +233,17 @@ async def _write_observation(
     expires_at = proposal_row.get("expires_at")
     rationale = (proposal_row.get("rationale") or "").strip()
 
+    # Framing per ADR-249 D3: Reviewer is the operator's judgment function.
+    # Observe-only = no reviewable substrate yet, so the judgment seat cannot
+    # reason. Your confirmation is needed not because you're external to the
+    # Reviewer — you ARE the Reviewer in manual posture.
     reasoning_lines = [
-        "Reviewer layer observed proposal creation.",
-        f"Seat defers to human — {gate_reason}.",
+        f"No reviewable substrate for `{action_type}` — {gate_reason}.",
+        "Your judgment is needed to proceed.",
         "",
     ]
     if rationale:
-        reasoning_lines.append("Proposal rationale (from YARNNN / caller):")
+        reasoning_lines.append("Proposal rationale:")
         reasoning_lines.append(f"> {rationale}")
         reasoning_lines.append("")
     if expires_at:
@@ -421,11 +425,15 @@ async def _run_ai_reviewer(
         # doesn't auto-bind (manual mode, irreversible, over ceiling, etc).
         # Record the verdict + the reason it's advisory, leave proposal
         # pending for operator click.
+        # Framing per ADR-249 D3: the Reviewer IS the operator's judgment
+        # function. "Advisory" means autonomy mode requires the user's
+        # real-time confirmation before execution — not that a separate
+        # party needs to ratify. The gate reason explains why.
         advisory_reasoning = (
             f"{ai_reasoning}\n\n"
-            f"— decided by {REVIEWER_MODEL_IDENTITY} (confidence: {confidence})\n\n"
-            f"**Advisory only** (ADR-229 post-judgment gate): {gate_reason}\n"
-            f"Operator must click Approve in cockpit to bind this verdict."
+            f"— {REVIEWER_MODEL_IDENTITY} (confidence: {confidence})\n\n"
+            f"**Your confirmation required** ({gate_reason}). "
+            f"Approve to execute."
         )
         await append_decision(
             client, user_id,

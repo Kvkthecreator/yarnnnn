@@ -148,7 +148,7 @@ export function ToolResultCard({ result, compact = false }: ToolResultCardProps)
   if (toolName === 'ProposeAction' && !compact && data) {
     return (
       <ProposalCard
-        result={data as Parameters<typeof ProposalCard>[0]['result']}
+        result={data as unknown as Parameters<typeof ProposalCard>[0]['result']}
       />
     );
   }
