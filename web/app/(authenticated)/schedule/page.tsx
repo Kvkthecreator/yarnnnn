@@ -15,6 +15,6 @@ import { useRouter } from 'next/navigation';
 
 export default function ScheduleRedirect() {
   const router = useRouter();
-  useEffect(() => { router.replace('/work'); }, [router]);
+  useEffect(() => { router.replace('/work?tab=schedule'); }, [router]);
   return null;
 }

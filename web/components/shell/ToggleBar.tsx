@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 
 const SEGMENTS = [
   { id: 'chat',    label: 'Chat',   icon: MessageSquare, href: '/chat' },
-  { id: 'work',    label: 'Work',   icon: Briefcase,     href: '/work' },
+  { id: 'work',    label: 'Work',   icon: Briefcase,     href: '/work?tab=dashboard' },
   { id: 'agents',  label: 'Agents', icon: Users,         href: '/agents' },
   { id: 'context', label: 'Files',  icon: FolderOpen,    href: '/context' },
 ] as const;

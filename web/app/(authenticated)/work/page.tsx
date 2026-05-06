@@ -18,7 +18,7 @@
  * The `?agent={slug}` query param is preserved as a deep-link shortcut.
  */
 
-import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Briefcase, Loader2, MessageCircle, RefreshCw } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
@@ -113,8 +113,15 @@ export default function WorkPage() {
   const [chatDraftSeed, setChatDraftSeed] = useState<{ id: string; text: string } | null>(null);
   const [chatOpenSignal, setChatOpenSignal] = useState(0);
 
-  // Sync local tab state when URL param changes externally (back/forward, TP deep-link)
+  // Sync from URL only on initial mount and genuine external navigation
+  // (back/forward, TP deep-link). Do NOT re-sync on every tabParam change —
+  // that races with the optimistic setActiveTab in handleTabChange.
+  // The initial useState value handles the URL-on-load case; this effect
+  // handles the case where the URL changes without a click (e.g. popstate).
+  const lastSyncedTabParam = useRef(tabParam);
   useEffect(() => {
+    if (tabParam === lastSyncedTabParam.current) return; // no external change
+    lastSyncedTabParam.current = tabParam;
     const derived: WorkTab = tabParam === 'dashboard' ? 'dashboard' : 'schedule';
     setActiveTab(derived);
   }, [tabParam]);
@@ -255,6 +262,9 @@ export default function WorkPage() {
 
   const handleTabChange = useCallback((tab: WorkTab) => {
     setActiveTab(tab);
+    // Mark this as a self-initiated navigation so the tabParam sync effect ignores it
+    const nextParam = tab === 'schedule' ? null : tab;
+    lastSyncedTabParam.current = nextParam;
     // Mirror to URL so TP can deep-link and back/forward works
     const sp = new URLSearchParams(searchParams.toString());
     if (tab === 'schedule') {
