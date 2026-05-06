@@ -135,7 +135,7 @@ async def apply_reflection_writes(
 
     authored_by = f"reviewer:{REVIEWER_MODEL_IDENTITY}"
 
-    # --- 0. Handle pause_autonomy proposals before the regular proposal loop ---
+    # --- 0a. Handle pause_autonomy proposals before the regular proposal loop ---
     # pause_autonomy is structurally different (no target_file/new_content);
     # it writes paused_until + pause_reason to AUTONOMY.md via write_revision.
     # ADR-248 D4: scope ceiling preserved — Reviewer can write to AUTONOMY.md
@@ -153,10 +153,29 @@ async def apply_reflection_writes(
                     user_id[:8], exc,
                 )
 
+    # --- 0b. Handle generate_proposal proposals — ADR-252 D6 ---
+    # Reviewer generates an action proposal from periodic reflection.
+    # source='reviewer_periodic' tells review_proposal_dispatch to skip
+    # re-invocation (Reviewer already judged). AUTONOMY gate then decides
+    # whether to auto-execute or queue for operator click.
+    for p in proposals:
+        if (p.get("change_type") or "") == "generate_proposal":
+            try:
+                await _apply_generate_proposal(
+                    client, user_id, p, authored_by=authored_by,
+                    autonomy_md=autonomy_md, summary=summary,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "[REFLECTION_WRITER] generate_proposal failed user=%s: %s",
+                    user_id[:8], exc,
+                )
+
     # --- 1. Apply each proposal (skip + log invalid ones) ---
     applied_proposals: list[dict] = []
     for p in proposals:
-        if (p.get("change_type") or p.get("proposal_type")) == "pause_autonomy":
+        change_type = p.get("change_type") or p.get("proposal_type") or ""
+        if change_type in ("pause_autonomy", "generate_proposal"):
             continue  # Already handled above
         ok, reason = _validate_proposal(p, mandate_md=mandate_md, autonomy_md=autonomy_md)
         if not ok:
@@ -600,3 +619,155 @@ def _read_file_sync(client: Any, user_id: str, path: str) -> str:
     if not rows:
         return ""
     return rows[0].get("content") or ""
+
+
+async def _apply_generate_proposal(
+    client: Any,
+    user_id: str,
+    proposal: dict,
+    *,
+    authored_by: str,
+    autonomy_md: str,
+    summary: dict,
+) -> None:
+    """ADR-252 D6: Reviewer generates an action proposal from periodic reflection.
+
+    Calls handle_propose_action with source='reviewer_periodic' so the
+    reactive Reviewer dispatcher skips re-invocation. The AUTONOMY gate
+    (should_auto_execute_verdict) then decides whether to auto-execute
+    (within ceiling) or queue for operator click (above ceiling).
+
+    If auto-execution is permitted: calls handle_execute_proposal immediately.
+    If not: proposal queues in action_proposals; ProposalCard shows in operator UI.
+
+    Scope constraints:
+    - action_type must be in ACTION_DISPATCH_MAP
+    - proposal_inputs must be valid JSON
+    - Autonomy level must be 'autonomous' or 'bounded_autonomous' for auto-exec
+    - 'manual' / 'assisted' always queues without error (Reviewer proposed; operator confirms)
+    """
+    import json as _json
+    from services.primitives.propose_action import handle_propose_action, ACTION_DISPATCH_MAP
+    from services.review_policy import load_autonomy, autonomy_for_domain, should_auto_execute_verdict
+
+    action_type = (proposal.get("action_type") or "").strip()
+    proposal_inputs_raw = (proposal.get("proposal_inputs") or "").strip()
+    reasoning = (proposal.get("reasoning") or "").strip()
+
+    if not action_type:
+        logger.warning(
+            "[REFLECTION_WRITER] generate_proposal missing action_type user=%s",
+            user_id[:8],
+        )
+        summary["proposals_rejected"] += 1
+        summary["rejections"].append({"target_file": "", "reason": "missing action_type"})
+        return
+
+    if action_type not in ACTION_DISPATCH_MAP:
+        logger.warning(
+            "[REFLECTION_WRITER] generate_proposal action_type=%r not in ACTION_DISPATCH_MAP user=%s",
+            action_type, user_id[:8],
+        )
+        summary["proposals_rejected"] += 1
+        summary["rejections"].append({"target_file": "", "reason": f"action_type {action_type!r} not in ACTION_DISPATCH_MAP"})
+        return
+
+    # Parse inputs
+    try:
+        inputs = _json.loads(proposal_inputs_raw) if proposal_inputs_raw else {}
+        if not isinstance(inputs, dict):
+            raise ValueError("inputs must be a JSON object")
+    except (ValueError, _json.JSONDecodeError) as exc:
+        logger.warning(
+            "[REFLECTION_WRITER] generate_proposal invalid proposal_inputs user=%s: %s",
+            user_id[:8], exc,
+        )
+        summary["proposals_rejected"] += 1
+        summary["rejections"].append({"target_file": "", "reason": f"invalid proposal_inputs: {exc}"})
+        return
+
+    # Resolve context_domain from action_type for autonomy lookup
+    domain = action_type.split(".")[0] if "." in action_type else "default"
+
+    # Build a minimal auth-like object for handle_propose_action
+    class _MinimalAuth:
+        def __init__(self, c, u):
+            self.client = c
+            self.user_id = u
+    _auth = _MinimalAuth(client, user_id)
+
+    # Call ProposeAction with source='reviewer_periodic'
+    prop_input = {
+        "action_type": action_type,
+        "inputs": inputs,
+        "rationale": f"Reviewer reflection: {reasoning[:500]}",
+        "expected_effect": f"Generated by Reviewer during periodic reflection",
+        "reversibility": "reversible",  # conservative default; Reviewer can override
+        "source": "reviewer_periodic",  # ADR-252 D6 — skips reactive re-invocation
+    }
+
+    prop_result = await handle_propose_action(_auth, prop_input)
+    if not prop_result.get("success"):
+        logger.warning(
+            "[REFLECTION_WRITER] generate_proposal ProposeAction failed user=%s: %s",
+            user_id[:8], prop_result.get("error"),
+        )
+        summary["proposals_rejected"] += 1
+        summary["rejections"].append({
+            "target_file": "",
+            "reason": f"ProposeAction failed: {prop_result.get('error')}",
+        })
+        return
+
+    proposal_id = prop_result.get("proposal_id")
+    logger.info(
+        "[REFLECTION_WRITER] generate_proposal created proposal_id=%s action=%s user=%s",
+        (proposal_id or "?")[:8], action_type, user_id[:8],
+    )
+
+    # AUTONOMY gate — should we auto-execute or queue?
+    autonomy = load_autonomy(client, user_id)
+    autonomy_policy = autonomy_for_domain(autonomy, domain)
+    can_execute, gate_reason = should_auto_execute_verdict(
+        autonomy_policy,
+        verdict="approve",  # Reviewer already approved via reflection
+        action_type=action_type,
+        estimated_cents=None,  # unknown at this point; gate will check ceiling
+        reversibility="reversible",
+    )
+
+    if can_execute and proposal_id:
+        try:
+            from services.primitives.propose_action import handle_execute_proposal
+            exec_result = await handle_execute_proposal(
+                _auth,
+                {
+                    "proposal_id": proposal_id,
+                    "reviewer_identity": authored_by,
+                    "reviewer_reasoning": reasoning[:500],
+                },
+            )
+            if exec_result.get("success"):
+                logger.info(
+                    "[REFLECTION_WRITER] generate_proposal auto-executed proposal=%s user=%s",
+                    proposal_id[:8], user_id[:8],
+                )
+                summary["proposals_applied"] += 1
+            else:
+                logger.warning(
+                    "[REFLECTION_WRITER] generate_proposal auto-exec failed proposal=%s: %s",
+                    proposal_id[:8], exec_result.get("error"),
+                )
+                summary["proposals_applied"] += 1  # proposal created; exec failed gracefully
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[REFLECTION_WRITER] generate_proposal exec exception user=%s: %s",
+                user_id[:8], exc,
+            )
+            summary["proposals_applied"] += 1  # proposal persisted; execution error non-fatal
+    else:
+        logger.info(
+            "[REFLECTION_WRITER] generate_proposal queued for operator (gate: %s) user=%s",
+            gate_reason, user_id[:8],
+        )
+        summary["proposals_applied"] += 1  # proposal created and queued

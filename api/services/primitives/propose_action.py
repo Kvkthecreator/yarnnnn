@@ -259,6 +259,10 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
         "agent_slug": input.get("agent_slug"),
         "expires_at": expires_at.isoformat(),
         "status": "pending",
+        # ADR-252 D5: source field distinguishes proposal origin so the
+        # reactive Reviewer dispatcher can skip re-invocation when the
+        # Reviewer already judged. NULL / absent = production_agent path.
+        "source": input.get("source") or None,
     }
 
     try:

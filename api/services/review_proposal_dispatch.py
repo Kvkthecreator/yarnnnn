@@ -127,6 +127,21 @@ async def on_proposal_created(
     try:
         action_type = proposal_row.get("action_type") or "unknown"
 
+        # ADR-252 D5: skip reactive Reviewer when the Reviewer already judged
+        # this proposal. source='reviewer_periodic' → Reviewer generated the
+        # proposal from reflection; source='reviewer_addressed' → Reviewer
+        # assessed it in addressed mode. In both cases, invoking the Reviewer
+        # again would be a self-judgment loop. The AUTONOMY gate still applies
+        # downstream (auto-execute or queue for operator click).
+        source = proposal_row.get("source") or ""
+        if source in ("reviewer_periodic", "reviewer_addressed"):
+            logger.info(
+                "[REVIEW_DISPATCH] skipping reactive Reviewer for source=%r proposal=%s",
+                source,
+                (proposal_id or "?")[:8],
+            )
+            return
+
         # 1. Resolve context_domain from action_type
         context_domain = _resolve_context_domain(action_type)
 

@@ -660,9 +660,13 @@ _REFLECTION_TOKEN_CALLER = "reviewer-reflection"
 class ReflectionProposal(TypedDict, total=False):
     """A single proposed change to the Reviewer's substrate."""
     #: Which kind of change — shapes how reflection_writer applies it.
-    change_type: Literal["narrow", "relax", "character_note", "no_change", "pause_autonomy"]
+    #: ADR-252 D6: generate_proposal added — Reviewer proposes an action
+    #: (trading, commerce, etc.) from reflection. Uses action_type + proposal_inputs
+    #: instead of target_file + new_content. AUTONOMY gate applies downstream.
+    change_type: Literal["narrow", "relax", "character_note", "no_change", "pause_autonomy", "generate_proposal"]
     #: Which file to edit. Scope ceiling enforced by reflection_writer.
     #: pause_autonomy proposals use "AUTONOMY.md" and leave new_content empty.
+    #: generate_proposal proposals leave target_file empty.
     target_file: Literal["principles.md", "IDENTITY.md", "AUTONOMY.md", ""]
     #: Concise description of what to change and why. Written into the
     #: revision message + reflections.md entry.
@@ -674,8 +678,14 @@ class ReflectionProposal(TypedDict, total=False):
     #: Full proposed new content for target_file. For narrow/relax this
     #: is the revised principles.md; for character_note it's the
     #: revised IDENTITY.md; for no_change this is empty and writer
-    #: skips the write.
+    #: skips the write. Empty for generate_proposal.
     new_content: str
+    #: ADR-252 D6: generate_proposal only — action_type for ProposeAction.
+    #: Example: "trading.submit_order_paper". Leave empty for other change_types.
+    action_type: str
+    #: ADR-252 D6: generate_proposal only — inputs dict for ProposeAction.
+    #: Serialized as JSON string to fit TypedDict. Leave empty for other types.
+    proposal_inputs: str
 
 
 class ReflectionVerdict(TypedDict):
@@ -687,7 +697,7 @@ class ReflectionVerdict(TypedDict):
     framework is working) and should be common, not rare.
     """
     #: Top-level verdict — controls whether writer applies any changes.
-    overall: Literal["no_change", "narrow", "relax", "character_note", "pause_autonomy"]
+    overall: Literal["no_change", "narrow", "relax", "character_note", "pause_autonomy", "generate_proposal"]
     #: The persona's own one-paragraph reasoning about what it noticed
     #: (or didn't notice) in its track record. This is the meta-commentary
     #: appended to reflections.md verbatim regardless of overall verdict.
@@ -726,7 +736,11 @@ _REFLECTION_TOOL = {
                     "'pause_autonomy' — write a timed pause to AUTONOMY.md "
                     "(ADR-248 D3); highest bar — only when cumulative outcomes "
                     "show consistent capital loss or drift severe enough that "
-                    "continued autonomous execution is unsafe."
+                    "continued autonomous execution is unsafe. "
+                    "'generate_proposal' — ADR-252 D6: Reviewer generates an "
+                    "action proposal from reflection (trading/commerce action); "
+                    "only when autonomy=autonomous AND evidence clearly supports "
+                    "the action; uses action_type + proposal_inputs fields."
                 ),
             },
             "reasoning": {
@@ -758,7 +772,7 @@ _REFLECTION_TOOL = {
                     "properties": {
                         "change_type": {
                             "type": "string",
-                            "enum": ["narrow", "relax", "character_note", "no_change", "pause_autonomy"],
+                            "enum": ["narrow", "relax", "character_note", "no_change", "pause_autonomy", "generate_proposal"],
                         },
                         "target_file": {
                             "type": "string",
@@ -767,7 +781,8 @@ _REFLECTION_TOOL = {
                                 "Scope ceiling: principles.md or IDENTITY.md for "
                                 "framework/persona changes. AUTONOMY.md only for "
                                 "pause_autonomy proposals (writes paused_until + "
-                                "pause_reason). Empty string for no-op proposals."
+                                "pause_reason). Empty string for generate_proposal "
+                                "and no-op proposals."
                             ),
                         },
                         "reasoning": {"type": "string"},
@@ -776,9 +791,7 @@ _REFLECTION_TOOL = {
                             "type": "string",
                             "description": (
                                 "Full new content for target_file. For "
-                                "pause_autonomy, leave empty — the writer "
-                                "constructs the paused_until patch from "
-                                "duration_hours + reason fields instead."
+                                "pause_autonomy and generate_proposal, leave empty."
                             ),
                         },
                         "duration_hours": {
@@ -794,6 +807,23 @@ _REFLECTION_TOOL = {
                                 "pause_autonomy only. Short human-readable reason "
                                 "surfaced to the operator in the narrative and the "
                                 "AUTONOMY.md pause_reason field. Max 200 chars."
+                            ),
+                        },
+                        "action_type": {
+                            "type": "string",
+                            "description": (
+                                "generate_proposal only (ADR-252 D6). The action to "
+                                "propose — e.g. 'trading.submit_order_paper'. Must "
+                                "be in ACTION_DISPATCH_MAP. Leave empty for other "
+                                "change_types."
+                            ),
+                        },
+                        "proposal_inputs": {
+                            "type": "string",
+                            "description": (
+                                "generate_proposal only. JSON-encoded inputs dict for "
+                                "the ProposeAction call. Include ticker, quantity, "
+                                "order_type, rationale. Leave empty for other change_types."
                             ),
                         },
                     },
@@ -987,7 +1017,11 @@ async def run_reflection(
         evidence_summary = (tool_input.get("evidence_summary") or "").strip()
         proposals_raw = tool_input.get("proposals") or []
 
-        if overall not in ("no_change", "narrow", "relax", "character_note"):
+        _VALID_OVERALL = {
+            "no_change", "narrow", "relax", "character_note",
+            "pause_autonomy", "generate_proposal",  # ADR-248 + ADR-252
+        }
+        if overall not in _VALID_OVERALL:
             logger.warning(
                 "[REVIEWER_REFLECTION] invalid overall=%r for user=%s — "
                 "treating as no-change",
@@ -1014,6 +1048,9 @@ async def run_reflection(
                 reasoning=(p.get("reasoning") or "").strip(),
                 evidence=(p.get("evidence") or "").strip(),
                 new_content=p.get("new_content") or "",
+                # ADR-252 D6: generate_proposal fields
+                action_type=p.get("action_type") or "",
+                proposal_inputs=p.get("proposal_inputs") or "",
             ))
 
         return ReflectionVerdict(

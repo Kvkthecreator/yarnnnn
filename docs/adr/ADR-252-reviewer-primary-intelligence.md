@@ -1,6 +1,6 @@
 # ADR-252: Reviewer as Primary Intelligence — Chat Routing Inversion
 
-> **Status**: **Phases 1 + 2 Implemented** (2026-05-06 — Phase 1: intent classifier, Reviewer addressed mode, system_agent role, three-party narrative rendering, no-impersonation prompt clause; Phase 2: deterministic execution router — zero LLM for fire/pause/resume/list/read patterns)
+> **Status**: **Phases 1 + 2 + 3 Implemented** (2026-05-06 — Phase 1: intent classifier, Reviewer addressed mode, system_agent role, three-party narrative rendering, no-impersonation prompt clause; Phase 2: deterministic execution router — zero LLM for fire/pause/resume/list/read patterns; Phase 3: full autonomy loop — Reviewer-initiated proposals from reflection, source flag skipping double-judgment, auto-execute gate, migration 168)
 > **Date**: 2026-05-06
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-249 D2 partial (System Agent posture sharpened further — executor/narrator, not co-reasoner, now structural not just prompt-layer)

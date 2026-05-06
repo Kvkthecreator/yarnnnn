@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.06.6] - ADR-252 Phase 3: Full autonomy loop — Reviewer-initiated proposals
+
+### Changed
+- `api/agents/reviewer_agent.py`: `ReflectionProposal.change_type` enum gains `generate_proposal`.
+  `ReflectionProposal` gains `action_type` + `proposal_inputs` fields. Reflection tool schema
+  updated: `change_type` enum + proposals items gain `action_type` + `proposal_inputs` fields.
+  `ReflectionVerdict.overall` gains `generate_proposal`. `run_reflection()` normalizes new fields.
+  `_VALID_OVERALL` set replaces hardcoded tuple (includes `pause_autonomy` + `generate_proposal`).
+- `api/services/reflection_writer.py`: `apply_reflection_writes()` gains step 0b for
+  `generate_proposal` proposals. New `_apply_generate_proposal()` async function: validates
+  action_type + inputs, calls `handle_propose_action(source='reviewer_periodic')`, then
+  calls `should_auto_execute_verdict()` — if permitted, calls `handle_execute_proposal()`
+  immediately; if not, queues for operator click. Scope ceiling: action_type must be in
+  ACTION_DISPATCH_MAP; inputs must be valid JSON. Non-fatal on any step failure.
+- `api/services/primitives/propose_action.py`: `source` field written from input into
+  `action_proposals` insert row (migration 168 adds the column).
+- `api/services/review_proposal_dispatch.py`: `on_proposal_created` skips reactive Reviewer
+  when `proposal_row.source in ('reviewer_periodic', 'reviewer_addressed')` — Reviewer already
+  judged; no double-judgment loop. AUTONOMY gate still applies downstream.
+
+### Expected behavior
+Reviewer's daily reflection can now emit `generate_proposal` verdict → action proposal created
+with `source='reviewer_periodic'` → reactive Reviewer skipped → AUTONOMY gate decides:
+  autonomous mode + within ceiling → auto-executed immediately
+  bounded/manual → queued for operator click (ProposalCard in UI)
+Full loop: reflection → proposal → execute/queue → outcome reconciled → next reflection reads it.
+
+---
+
 ## [2026.05.06.5] - ADR-252 Phase 2: Deterministic execution router
 
 ### Changed
