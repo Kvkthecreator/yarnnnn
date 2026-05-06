@@ -8,8 +8,8 @@
  *
  *   - **Weight gating** (material / routine / housekeeping) per
  *     ADR-219. Material renders the full bubble/card via MessageRenderer;
- *     routine collapses to a single expandable line; housekeeping
- *     renders as a dim one-liner that can still be filtered.
+ *     routine renders as a slim non-interactive label+summary row;
+ *     housekeeping renders as a dim one-liner.
  *
  *   - **Authorship attribution chip** per ADR-205 F1 / ADR-219:
  *       - taskSlug set + role !== 'user' → "from {slug}", linked to
@@ -34,7 +34,7 @@
  */
 
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, CornerDownRight, Zap, Repeat, X } from 'lucide-react';
+import { CornerDownRight, Zap, Repeat, X } from 'lucide-react';
 import type { TPMessage } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -240,47 +240,23 @@ function roleDisplayLabel(role: TPMessage['role'], reviewerPersona?: string | nu
 }
 
 /**
- * Routine weight — collapsed line with role label, summary, timestamp,
- * and an expand control. When expanded, the full content shows below
- * (markdown-rendered for assistant; plain text otherwise).
+ * Routine weight — slim non-interactive row. Label + summary + timestamp.
+ * No expand toggle — routine entries are ambient log signal, not actionable
+ * content the operator needs to drill into.
  */
 function RoutineRow({ msg, reviewerPersona }: { msg: TPMessage; reviewerPersona?: string | null }): JSX.Element {
-  const [expanded, setExpanded] = useState(false);
   const summary =
     msg.narrative?.summary ??
-    (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '(no summary)');
+    (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '');
   return (
-    <div className="max-w-[92%]">
-      <div className="text-[12px] flex items-center gap-2 py-1">
-        <button
-          type="button"
-          onClick={() => setExpanded(v => !v)}
-          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-left flex-1 min-w-0"
-        >
-          <ChevronDown
-            className={cn(
-              'w-3 h-3 shrink-0 transition-transform',
-              expanded && 'rotate-180',
-            )}
-          />
-          <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60">
-            {roleDisplayLabel(msg.role, reviewerPersona)}
-          </span>
-          <span className="truncate">{summary}</span>
-        </button>
-        <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
-          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </span>
-      </div>
-      {expanded && msg.content && (
-        <div className="ml-5 mt-0.5 mb-1 text-[12px] text-muted-foreground bg-muted/30 rounded px-2.5 py-1.5">
-          {msg.role === 'assistant' ? (
-            <MarkdownRenderer content={stripOnboardingMeta(stripSnapshotMeta(msg.content))} compact />
-          ) : (
-            <p className="whitespace-pre-wrap">{msg.content}</p>
-          )}
-        </div>
-      )}
+    <div className="flex items-center gap-2 max-w-[92%] py-0.5 opacity-60">
+      <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60 shrink-0">
+        {roleDisplayLabel(msg.role, reviewerPersona)}
+      </span>
+      <span className="text-[12px] text-muted-foreground truncate flex-1">{summary}</span>
+      <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
+        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </span>
     </div>
   );
 }
