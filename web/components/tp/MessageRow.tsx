@@ -197,7 +197,7 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
             onClick={() => { setFileViewOpen(false); sendMessage(`Tell me about the latest run of ${recurrenceSlug}.`); }}
             className="underline underline-offset-4 hover:no-underline"
           >
-            Ask YARNNN instead
+            Ask the system instead
           </button>
         </div>
       )}
@@ -208,7 +208,7 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
             type="button"
             onClick={() => onMakeRecurring!(msg.content)}
             className="inline-flex items-center gap-1 text-[10px] font-medium text-primary/70 hover:text-primary hover:bg-primary/5 px-1.5 py-0.5 rounded transition-colors"
-            title="Run this on a schedule — chat with YARNNN to set cadence + delivery"
+            title="Run this on a schedule — chat with the system to set cadence + delivery"
           >
             <Repeat className="w-2.5 h-2.5" />
             Run this on a schedule
@@ -223,17 +223,17 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
  * Maps raw DB role → canonical operator-facing display label per ADR-247 +
  * FOUNDATIONS v7.0 three-party narrative model.
  *
- * Three primary parties: operator ("You"), YARNNN system ("YARNNN"),
+ * Three primary parties: operator ("You"), system ("system"),
  * Reviewer (operator-authored persona name — caller must resolve and pass).
  * Secondary roles (agent, system, external) keep their technical names.
  */
 function roleDisplayLabel(role: TPMessage['role'], reviewerPersona?: string | null): string {
   switch (role) {
     case 'user': return 'You';
-    case 'assistant': return 'system';
+    case 'assistant': return 'system';      // YARNNN orchestration shell
     case 'reviewer': return reviewerPersona ?? 'Reviewer';
     case 'agent': return 'agent';
-    case 'system': return 'system';
+    case 'system': return 'background';     // scheduler / back-office events
     case 'external': return 'external';
     default: return role;
   }

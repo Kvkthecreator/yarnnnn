@@ -10,12 +10,12 @@
  * Six message shapes, one per `TPMessage.role` (per
  * web/types/desk.ts:117):
  *
- *   user-bubble       — role: 'user'
- *   yarnnn-bubble     — role: 'assistant'
- *   system-event      — role: 'system'
- *   reviewer-verdict  — role: 'reviewer' (ADR-212 full-width card)
- *   agent-bubble      — role: 'agent'
- *   external-event    — role: 'external' (MCP / external write-back)
+ *   user-bubble       — role: 'user'      label: "You"
+ *   system-bubble     — role: 'assistant' label: "system"     (YARNNN shell responding)
+ *   system-event      — role: 'system'    label: "background" (scheduler / back-office)
+ *   reviewer-verdict  — role: 'reviewer'  label: persona name (ADR-212 full-width card)
+ *   agent-bubble      — role: 'agent'     label: agent slug
+ *   external-event    — role: 'external'  label: "external"   (MCP / write-back)
  *
  * Singular Implementation: this is THE dispatch path for material-weight
  * messages. The weight gate (material / routine / housekeeping) and
@@ -53,7 +53,7 @@ import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/sna
 
 export type MessageShape =
   | 'user-bubble'
-  | 'yarnnn-bubble'
+  | 'system-bubble'
   | 'system-event'
   | 'reviewer-verdict'
   | 'agent-bubble'
@@ -68,7 +68,7 @@ export type MessageShape =
 export function resolveMessageShape(msg: TPMessage): MessageShape {
   const r = msg.role;
   if (r === 'user') return 'user-bubble';
-  if (r === 'assistant') return 'yarnnn-bubble';
+  if (r === 'assistant') return 'system-bubble';
   if (r === 'system') return 'system-event';
   if (r === 'reviewer') return 'reviewer-verdict';
   if (r === 'agent') return 'agent-bubble';
@@ -77,7 +77,7 @@ export function resolveMessageShape(msg: TPMessage): MessageShape {
   // Runtime fallback for forward-compatibility if a new role surfaces
   // before MessageDispatch is updated.
   const _exhaustive: never = r;
-  return 'yarnnn-bubble';
+  return 'system-bubble';
 }
 
 // ---------------------------------------------------------------------------
@@ -114,17 +114,16 @@ function renderUserBubble({ msg }: RendererProps): JSX.Element {
 }
 
 /**
- * YARNNN's reply bubble. Left-aligned, muted background. Markdown-rendered
- * content with onboarding/snapshot meta stripped. Loading-state shimmer
- * when content is empty and isLoading is true. Tool-result list composes
- * below the content.
+ * System reply bubble (role: 'assistant'). Left-aligned, muted background.
+ * Markdown-rendered content with onboarding/snapshot meta stripped.
+ * Loading-state shimmer when content is empty and isLoading is true.
  */
-function renderYarnnnBubble({ msg, isLoading }: RendererProps): JSX.Element {
+function renderSystemBubble({ msg, isLoading }: RendererProps): JSX.Element {
   const showLoading = !msg.content && isLoading;
   return (
     <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
       <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1 font-brand text-[10px]">
-        yarnnn
+        system
       </span>
       {msg.blocks && msg.blocks.length > 0 ? (
         <MessageBlocks blocks={msg.blocks} />
@@ -191,7 +190,7 @@ function renderSystemEvent({ msg }: RendererProps): JSX.Element {
   return (
     <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
       <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1 font-brand text-[10px]">
-        system
+        background
       </span>
       <p className="whitespace-pre-wrap">{msg.content}</p>
     </div>
@@ -237,8 +236,8 @@ export function MessageRenderer({ msg, isLoading }: MessageRendererProps): JSX.E
   switch (shape) {
     case 'user-bubble':
       return renderUserBubble(props);
-    case 'yarnnn-bubble':
-      return renderYarnnnBubble(props);
+    case 'system-bubble':
+      return renderSystemBubble(props);
     case 'agent-bubble':
       return renderAgentBubble(props);
     case 'reviewer-verdict':
