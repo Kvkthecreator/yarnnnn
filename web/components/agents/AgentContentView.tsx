@@ -772,8 +772,8 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
         }
       />
       <div className="max-w-3xl px-4 py-4 space-y-6">
-        <AgentRoleBlock agent={agent} tasks={[]} />
-        {/* Principles + Autonomy: now correctly housed under the Reviewer */}
+        {/* Reviewer has no production-role block — it is the judgment seat, not a domain specialist */}
+        {/* Principles + Autonomy: correctly housed under the Reviewer (ADR-251 D4) */}
         <div className="space-y-3">
           <PrinciplesTab />
           <AutonomyTab />
