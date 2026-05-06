@@ -4,7 +4,7 @@
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { default: Sentry } = await import("@sentry/nextjs");
+    const Sentry = await import("@sentry/nextjs");
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
       environment: process.env.ENVIRONMENT ?? "production",
@@ -15,7 +15,7 @@ export async function register() {
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {
-    const { default: Sentry } = await import("@sentry/nextjs");
+    const Sentry = await import("@sentry/nextjs");
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
       environment: process.env.ENVIRONMENT ?? "production",
