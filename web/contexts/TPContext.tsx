@@ -229,12 +229,9 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   // No scope switching. One global session. Surface context sent per message.
   // Messages persist across page navigations — no clearing.
 
-  const loadScopedHistory = useCallback(async (_agentId?: string, _taskSlug?: string) => {
-    // Unified session: always load global history. Agent/task params ignored —
-    // surface context is sent per message, not per session.
-    if (historyLoadedRef.current) return;
-    historyLoadedRef.current = true;
-
+  // Core history fetch — no guard. Used by loadScopedHistory (guarded)
+  // and by post-ProposeAction refresh (unguarded, picks up async reviewer verdicts).
+  const fetchAndSetHistory = useCallback(async () => {
     try {
       const result = await api.chat.globalHistory(1);
 
@@ -347,6 +344,14 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
       console.warn('[TPContext] Failed to load chat history:', err);
     }
   }, []);
+
+  const loadScopedHistory = useCallback(async (_agentId?: string, _taskSlug?: string) => {
+    // Unified session: always load global history. Agent/task params ignored —
+    // surface context is sent per message, not per session.
+    if (historyLoadedRef.current) return;
+    historyLoadedRef.current = true;
+    await fetchAndSetHistory();
+  }, [fetchAndSetHistory]);
 
   // Load global history on mount — unified session, loaded once
   useEffect(() => {
@@ -748,6 +753,14 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
           }, 3000);
         }
 
+        // ADR-247/ADR-194: ProposeAction writes a reviewer verdict to session_messages
+        // asynchronously after the stream completes. Reload history after a short delay
+        // so the role='reviewer' card appears without requiring a page refresh.
+        const hasProposeAction = toolResults.some(r => r.toolName === 'ProposeAction');
+        if (hasProposeAction) {
+          setTimeout(() => fetchAndSetHistory(), 1500);
+        }
+
         return toolResults.length > 0 ? toolResults : null;
       } catch (err) {
         if ((err as Error).name === 'AbortError') {
@@ -778,7 +791,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         return null;
       }
     },
-    [onSurfaceChange]
+    [onSurfaceChange, fetchAndSetHistory]
   );
 
   // ---------------------------------------------------------------------------
