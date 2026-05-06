@@ -1379,6 +1379,52 @@ async def global_chat(
                     )
                     reviewer_assessment = None
 
+            # ADR-252 Phase 2: Deterministic execution router.
+            # Fires only on execution-classified turns. Matches common patterns
+            # (fire X, pause X, resume X, list recurrences, read file) and
+            # dispatches the primitive directly — zero LLM call, ~$0.0003 total.
+            # Unmatched turns fall through to the full System Agent LLM stream.
+            router_result = None
+            if intent_class == "execution":
+                try:
+                    from services.execution_router import route_execution
+                    router_result = await route_execution(auth, request.content)
+                except Exception as _router_exc:
+                    logger.warning("[EXEC_ROUTER] router failed: %s — falling through", _router_exc)
+                    router_result = None
+
+            if router_result is not None:
+                # Pattern matched — write narration as system_agent and skip LLM stream.
+                narration = router_result.get("narration", "Done.")
+                routed_tools = router_result.get("tools_used", [])
+                routed_metadata = {
+                    "tools_used": routed_tools,
+                    "tool_history": [],
+                    "pulse": "addressed",
+                    "weight": "routine",
+                    "execution_router": True,  # flag for analytics
+                }
+                await append_message(
+                    auth.client,
+                    session_id,
+                    "system_agent",
+                    narration,
+                    routed_metadata,
+                )
+                done_payload = {
+                    "done": True,
+                    "session_id": session_id,
+                    "tools_used": routed_tools,
+                }
+                yield f"data: {json.dumps({'content': narration})}\n\n"
+                yield f"data: {json.dumps(done_payload)}\n\n"
+                logger.info(
+                    "[EXEC_ROUTER] routed execution turn — tools=%s for: %.50r",
+                    routed_tools,
+                    request.content,
+                )
+                return  # skip LLM stream entirely
+
             stream_params = {
                     "include_context": request.include_context,
                     "history": history,

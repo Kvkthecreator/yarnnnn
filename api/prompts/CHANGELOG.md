@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.06.5] - ADR-252 Phase 2: Deterministic execution router
+
+### Changed
+- `api/services/execution_router.py` (NEW): pattern-match router for common execution turns.
+  Five patterns: FireInvocation (fire/run/trigger X), ManageRecurrence pause, ManageRecurrence
+  resume, list recurrences, ReadFile (read /path/file.md). Zero LLM call on match.
+  Unmatched turns fall through to System Agent LLM stream. Status check pattern always
+  falls through (working memory in prompt handles it better than a regex dispatch).
+- `api/routes/chat.py`: router wired for intent_class='execution' turns before LLM stream.
+  On match: writes system_agent narration, yields content + done SSE events, skips LLM.
+  On no-match: falls through to existing System Agent stream unchanged.
+
+### Expected behavior
+- "Fire signal-evaluation" → zero LLM, ~$0.0003 total (Haiku classifier only)
+- "Pause trading-signal" → zero LLM
+- "Resume signal-evaluation" → zero LLM
+- "List recurrences" → zero LLM, shows all active/paused declarations
+- "Read /workspace/context/trading/_performance.md" → zero LLM, file content in narration
+- Unrecognised execution phrases → falls through to System Agent LLM (same as Phase 1)
+
+---
+
 ## [2026.05.06.4] - ADR-252 Phase 1: Reviewer primary intelligence — no-impersonation clause + addressed mode
 
 ### Changed
