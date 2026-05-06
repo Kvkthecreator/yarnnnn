@@ -366,8 +366,8 @@ These are explicitly out of scope for ADR-250 and should be addressed in subsequ
 
 | Component | Status | ADR |
 |-----------|--------|-----|
-| Sentry wiring (API + Scheduler) | Proposed | ADR-250 Phase 1 |
-| Sentry wiring (Next.js web) | Proposed | ADR-250 Phase 1 |
+| Sentry wiring (API + Scheduler) | **Implemented** 2026-05-06 | ADR-250 Phase 1 |
+| Sentry wiring (Next.js web) | **Implemented** 2026-05-06 | ADR-250 Phase 1 |
 | `execution_events` table (migration 165) | Proposed | ADR-250 Phase 2 |
 | `api/services/telemetry.py` write module | Proposed | ADR-250 Phase 2 |
 | Dispatcher write path wiring | Proposed | ADR-250 Phase 2 |
