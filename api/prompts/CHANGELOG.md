@@ -6,6 +6,32 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.07.2] - ADR-254: File format discipline — yaml.safe_load replaces all regex parsers
+
+### Changed
+- `api/services/review_policy.py`: `_parse_keyed_yaml()` DELETED. `load_autonomy()` reads
+  `_autonomy.yaml` via `yaml.safe_load`. `load_principles()` reads `_principles.yaml` via
+  `yaml.safe_load`. `should_auto_execute_verdict()` gains `principles_policy` param — dual gate:
+  AUTONOMY ceiling AND `principles.auto_approve_below_cents`.
+- `api/services/working_memory.py`: `_extract_autonomy_signal/pause()` regex DELETED. Both
+  now read `_autonomy.yaml` via `yaml.safe_load`. Zero string matching.
+- `api/services/reflection_writer.py`: `_apply_pause_autonomy()` regex surgery DELETED.
+  Replaced with yaml.safe_load → dict mutation → yaml.dump → write_revision on `_autonomy.yaml`.
+- `api/services/back_office/trading_universe_tracker.py`: reads `_universe.yaml` via yaml.safe_load.
+  Writes `{ticker}.yaml` not `{ticker}.md`. All regex deleted.
+- `api/services/back_office/trading_signal_evaluator.py`: reads `{ticker}.yaml` via yaml.safe_load.
+  Writes `signals/{slug}.yaml`. Intraday signals marked `evaluable: false` with note.
+  `_parse_frontmatter()` regex DELETED.
+
+### Expected behavior
+- Autonomy gate correctly reads `_autonomy.yaml` — no regex failure on comment variants
+- Pause injection writes clean YAML dict via yaml.dump — no regex string surgery
+- Universe tracker reads `_universe.yaml` ticker list directly — no section header guessing
+- Signal evaluator reads `{ticker}.yaml` indicator files — no frontmatter parsing
+- Intraday signals (VWAP, ORB) correctly marked not evaluable from daily bars
+
+---
+
 ## [2026.05.07.1] - ADR-253: Reviewer substrate-native agent
 
 ### Changed

@@ -39,7 +39,8 @@ Writes these files via `UserMemory.write` (→ `authored_substrate.write_revisio
 | `MANDATE.md` | Workspace north star — Primary Action + success criteria + boundary conditions | Hard gate: `ManageRecurrence(create)` blocked until non-skeleton |
 | `IDENTITY.md` | Who the operator is | Inflated with browser timezone if `X-Timezone` header present |
 | `BRAND.md` | Visual style and voice | Empty skeleton; inference populates |
-| `AUTONOMY.md` | Delegation ceiling for AI judgment (level, ceiling_cents, never_auto) | `manual` default; operator authors |
+| `AUTONOMY.md` | Prose documentation — explains delegation concepts | Human/LLM reads only; not machine-parsed (ADR-254) |
+| `_autonomy.yaml` | Machine-parsed delegation config (level, ceiling_cents, never_auto, heartbeat_triggers) | `manual` default; yaml.safe_load (ADR-254) |
 | `PRECEDENT.md` | Durable interpretations and boundary-case decisions | Accumulates over time; not prompted at signup |
 
 **NOT seeded:** `CONVENTIONS.md` — this file is program-scoped, not kernel-scoped. See below.

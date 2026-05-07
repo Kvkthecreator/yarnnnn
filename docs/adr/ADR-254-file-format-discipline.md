@@ -1,6 +1,6 @@
 # ADR-254: File Format Discipline — Prose vs. Structured Data
 
-> **Status**: Proposed
+> **Status**: **Implemented** (2026-05-07 — Commits 1–7; all decisions landed; workspaces purged and re-activated)
 > **Date**: 2026-05-07
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-253 D2 (ticker/signal file format — corrected here); ADR-217 D2 (AUTONOMY.md machine-read model — replaced by _autonomy.yaml)
