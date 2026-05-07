@@ -2,26 +2,15 @@
 # Multi-decl file. Each entry is one recurring invocation against this domain.
 # Forked into operator's /workspace/context/trading/_recurring.yaml at
 # activation per ADR-226. The scheduler walks these on every tick.
+#
+# ADR-253 D4 correction: track-universe and signal-evaluation have been moved
+# to _shared/back-office.yaml. This file (_recurring.yaml) is for ACCUMULATION
+# shape only — declarations where an LLM agent accumulates domain context.
+# MAINTENANCE executors (deterministic Python) must live in back-office.yaml
+# so _parse_back_office_block routes them correctly via `executor:` field.
+#
+# This file intentionally contains no recurrences currently. Future accumulation
+# recurrences (e.g., a domain-knowledge accumulator for trading research) would
+# go here with agent: and context_reads/writes fields.
 
-recurrences:
-  # ADR-253 D4: reclassified from accumulation (LLM) to maintenance (deterministic Python).
-  # Saves ~$1.50/run. track-universe runs in ~2-5s at zero token cost.
-  - slug: track-universe
-    executor: services.back_office.trading_universe_tracker
-    schedule: "0 8,11,15 * * 1-5"   # 08:00, 11:30, 15:45 ET (weekday-only)
-    shape: maintenance
-    paused: false
-    display_name: "Universe Tracker"
-    note: "Fetches Alpaca bars, computes SMA/RSI/ATR/volume, writes {ticker}.md. Zero LLM."
-
-  # ADR-253 D4: reclassified from accumulation (LLM) to maintenance (deterministic Python).
-  # Saves ~$0.80/run. signal-evaluation runs in milliseconds at zero token cost.
-  # Fires trade-proposal invocation when a signal triggers.
-  # Writes _signal_trigger.flag — Reviewer heartbeat_turn() fires after completion (ADR-253 D5).
-  - slug: signal-evaluation
-    executor: services.back_office.trading_signal_evaluator
-    schedule: "5 8 * * 1-5"   # 08:05 ET weekdays
-    shape: maintenance
-    paused: false
-    display_name: "Signal Evaluator"
-    note: "Evaluates declared signals (boolean rules from _operator_profile.md). Fires trade-proposal on trigger. Zero LLM."
+recurrences: []

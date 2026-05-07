@@ -66,3 +66,25 @@ back_office_jobs:
     schedule: "0 7 * * *"      # 07:00 UTC daily (1h after calibration)
     display_name: "Reviewer Reflection"
     paused: false
+
+  # ── track-universe ────────────────────────────────────────────────────────
+  # ADR-253 D4: deterministic Python executor — zero LLM, ~$0/run.
+  # Fetches Alpaca bars, computes SMA/RSI/ATR/volume, writes {ticker}.md.
+  # Moved from _recurring.yaml (was incorrectly classified as ACCUMULATION).
+  # MAINTENANCE shape = walks back_office_jobs block = correct routing.
+  - slug: track-universe
+    executor: services.back_office.trading_universe_tracker
+    schedule: "0 8,11,15 * * 1-5"   # 08:00, 11:30, 15:45 ET (weekday-only)
+    display_name: "Universe Tracker"
+    paused: false
+
+  # ── signal-evaluation ─────────────────────────────────────────────────────
+  # ADR-253 D4: deterministic Python executor — zero LLM, ~$0/run.
+  # Evaluates declared signal boolean rules, writes signal state files.
+  # Fires trade-proposal invocation + Reviewer heartbeat_turn() on trigger.
+  # Moved from _recurring.yaml (was incorrectly classified as ACCUMULATION).
+  - slug: signal-evaluation
+    executor: services.back_office.trading_signal_evaluator
+    schedule: "5 8 * * 1-5"    # 08:05 ET weekdays (after track-universe at 08:00)
+    display_name: "Signal Evaluator"
+    paused: false
