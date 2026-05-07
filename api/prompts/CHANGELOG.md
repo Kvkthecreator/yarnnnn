@@ -6,6 +6,37 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.07.1] - ADR-253: Reviewer substrate-native agent
+
+### Changed
+- `api/agents/reviewer_agent.py`: heartbeat_turn() — fourth Reviewer invocation mode.
+  Reads IDENTITY + principles + MANDATE + AUTONOMY + fresh signal files + decisions trail.
+  Decides: propose trade / issue directive / stand down. Token caller: reviewer-heartbeat.
+  ReviewDecision.propose_followup deleted → ReviewDecision.directives (list).
+  _REVIEW_TOOL: propose_followup schema → directives array (fire_invocation, write_file, clarify).
+  System prompt updated: propose_followup section → directive posture section.
+- `api/services/review_proposal_dispatch.py`: propose_followup handling block deleted.
+  New _execute_reviewer_directives() function: dispatches fire_invocation, write_file
+  (scope-ceiling: /workspace/review/ only), clarify. reviewer_heartbeat added to
+  source-skip list (no double-judgment loop).
+- `api/services/invocation_dispatcher.py`: dispatch() calls _maybe_fire_reviewer_heartbeat()
+  after every sub-dispatcher. Reads AUTONOMY.md heartbeat_triggers, matches completed slug,
+  fires heartbeat_turn() asynchronously.
+- Kernel defaults (orchestration.py): DEFAULT_REVIEW_IDENTITY_MD lifecycle_posture section,
+  DEFAULT_REVIEW_PRINCIPLES_MD defer_posture + auto_approve_below_cents activated,
+  DEFAULT_AUTONOMY_MD heartbeat_triggers block.
+
+### Expected behavior
+- signal-evaluation executor completes → heartbeat_triggers match → Reviewer wakes →
+  reads fresh signal state files → if IH-N conditions met: proposes trade → AUTONOMY gate
+  → auto-execute within $200 paper ceiling OR queue for operator
+- On evidence gap defer: Reviewer issues fire_invocation directive → System Agent fires
+  track-universe → no second Reviewer pass, no action_proposals row
+- Full autonomy loop: reconciliation → calibration → reflection → heartbeat on signal →
+  propose → execute → outcome → next calibration reads the outcome
+
+---
+
 ## [2026.05.06.6] - ADR-252 Phase 3: Full autonomy loop — Reviewer-initiated proposals
 
 ### Changed

@@ -1,6 +1,6 @@
 # ADR-253: Reviewer as Substrate-Native Agent — Execution Authority, Heartbeat Triggers, Deterministic Pipeline
 
-> **Status**: Proposed
+> **Status**: **Implemented** (2026-05-07 — Commits 1–5; all decisions landed)
 > **Date**: 2026-05-07
 > **Authors**: KVK, Claude
 > **Supersedes**: ADR-247 D4 §"The Reviewer" paragraph (primitive ownership statement — see §"Correction to ADR-247 D4" below)
