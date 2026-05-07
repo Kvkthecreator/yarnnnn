@@ -1,19 +1,16 @@
 /**
- * Autonomy content shape — `/workspace/context/_shared/AUTONOMY.md`.
+ * Autonomy content shape — `/workspace/context/_shared/_autonomy.yaml`.
  *
- * Migrated from `web/lib/autonomy.ts` by ADR-245 Phase 2 (commit
- * <see git log>). The pure parser + helpers + React hook are unchanged in
- * shape; only the import path moved into the content-shape registry home.
+ * ADR-254 (file format discipline): machine-parsed delegation config moved
+ * from AUTONOMY.md frontmatter → _autonomy.yaml. AUTONOMY.md is now
+ * prose-only (LLM/human reading). All reads and writes target _autonomy.yaml.
  *
- * Per ADR-245 D5 the WRITE_CONTRACT is `configuration` — operator mutates
- * via the canonical L3 (MandateFace) which serializes parsed data and
- * writes through `WriteFile(scope='workspace', path='context/_shared/AUTONOMY.md', ...)`
- * per ADR-235 D1.b. The Phase 4 toggle implementation will land
- * `serialize()` + canonical L3 mutation; Phase 2 ships the parser + read
- * surfaces only.
+ * _autonomy.yaml has a tier frontmatter block (--- tier: authored ... ---)
+ * prepended by the bundle fork. stripTierFrontmatter() removes it before
+ * YAML parsing so the parser only sees the raw YAML fields.
  *
  * Lifted-from history: MandateFace.tsx → web/lib/autonomy.ts (ADR-238) →
- * here (ADR-245 Phase 2).
+ * content-shapes/autonomy.ts (ADR-245 Phase 2) → _autonomy.yaml target (ADR-254).
  */
 
 'use client';
@@ -27,9 +24,9 @@ import type { ContentShapeMeta } from './index';
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'autonomy' as const;
-export const PATH_GLOB = '**/_shared/AUTONOMY.md';
+export const PATH_GLOB = '**/_shared/_autonomy.yaml';
 export const WRITE_CONTRACT = 'configuration' as const;
-export const CANONICAL_L3 = 'MandateFace' as const;
+export const CANONICAL_L3 = 'DelegationCard' as const;
 
 export const META: ContentShapeMeta = {
   SHAPE_KEY,
@@ -43,10 +40,12 @@ export const META: ContentShapeMeta = {
 // ---------------------------------------------------------------------------
 
 /**
- * Absolute path of the autonomy substrate file. Mirrors the Python
- * relative constant `SHARED_AUTONOMY_PATH = "context/_shared/AUTONOMY.md"`
- * in `api/services/workspace_paths.py`.
+ * Machine-parsed delegation config (ADR-254). Mirrors Python constant
+ * SHARED_AUTONOMY_YAML_PATH = "context/_shared/_autonomy.yaml".
+ * AUTONOMY_PATH kept as alias pointing to prose doc for link-outs only.
  */
+export const AUTONOMY_YAML_PATH = '/workspace/context/_shared/_autonomy.yaml';
+/** Prose documentation — human/LLM reading only. Not machine-parsed. */
 export const AUTONOMY_PATH = '/workspace/context/_shared/AUTONOMY.md';
 
 // ---------------------------------------------------------------------------
@@ -71,17 +70,36 @@ export interface AutonomyMeta {
 }
 
 // ---------------------------------------------------------------------------
-// Pure parser (lifted verbatim from prior `web/lib/autonomy.ts`)
+// Tier frontmatter stripper (ADR-254)
+// ---------------------------------------------------------------------------
+//
+// Bundle-forked yaml files have a `---\ntier: authored\n...\n---` block at
+// the top (same convention as Python _strip_tier_frontmatter). Strip it so
+// the parser only sees raw YAML field lines.
+
+export function stripTierFrontmatter(content: string): string {
+  // Match the leading --- block only if it contains a `tier:` key,
+  // distinguishing bundle tier blocks from legitimate YAML `---` separators.
+  const m = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
+  if (m && /\btier\s*:/.test(m[1])) {
+    return content.slice(m[0].length);
+  }
+  return content;
+}
+
+// ---------------------------------------------------------------------------
+// Pure parser — reads _autonomy.yaml (ADR-254, plain YAML after tier strip)
 // ---------------------------------------------------------------------------
 
 export function parse(content: string): AutonomyMeta {
-  const fm = content.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!fm) return {};
+  const yaml = stripTierFrontmatter(content);
   const meta: AutonomyMeta = { domains: {} };
   let currentDomain: string | null = null;
   let inDefault = false;
   let inDomains = false;
-  for (const line of fm[1].split('\n')) {
+  for (const line of yaml.split('\n')) {
+    // Skip comment lines and blank lines
+    if (/^\s*#/.test(line) || /^\s*$/.test(line)) continue;
     if (/^default:\s*$/.test(line)) {
       inDefault = true;
       inDomains = false;
@@ -94,6 +112,17 @@ export function parse(content: string): AutonomyMeta {
       currentDomain = null;
       continue;
     }
+    // Top-level keys that are not `default` or `domains` (e.g. heartbeat_triggers,
+    // never_auto, paused_until) — reset section context so we don't mis-attribute
+    if (/^[a-z_]+:\s/.test(line) || /^[a-z_]+:\s*$/.test(line)) {
+      const key = line.match(/^([a-z_]+):/)?.[1];
+      if (key && key !== 'default' && key !== 'domains') {
+        inDefault = false;
+        inDomains = false;
+        currentDomain = null;
+        continue;
+      }
+    }
     const domainMatch = line.match(/^\s{2}([a-z_]+):\s*$/);
     if (inDomains && domainMatch) {
       currentDomain = domainMatch[1];
@@ -103,13 +132,13 @@ export function parse(content: string): AutonomyMeta {
     const fieldMatch = line.match(/^\s+([a-z_]+):\s*(.*)$/);
     if (!fieldMatch) continue;
     const k = fieldMatch[1].trim();
-    const v = fieldMatch[2].trim().replace(/^['"]|['"]$/g, '');
+    const v = fieldMatch[2].trim().replace(/^['"]|['"]$/g, '').replace(/\s*#.*$/, '').trim();
     if (inDefault) {
-      if (k === 'level') meta.default_level = v;
+      if (k === 'level') meta.default_level = v as AutonomyLevel;
       if (k === 'ceiling_cents') meta.default_ceiling_cents = Number(v);
     } else if (inDomains && currentDomain) {
       const dom = meta.domains![currentDomain];
-      if (k === 'level') dom.level = v;
+      if (k === 'level') dom.level = v as AutonomyLevel;
       if (k === 'ceiling_cents') dom.ceiling_cents = Number(v);
     }
   }
@@ -123,39 +152,36 @@ export const parseAutonomy = parse;
 // Round-trip parser — splits frontmatter from operator-authored body
 // ---------------------------------------------------------------------------
 //
-// Phase 4 introduces serialize() for the autonomy `configuration` shape.
-// Bundle-shipped AUTONOMY.md templates (e.g. alpha-trader's reference
-// workspace) have prose body after the closing `---` explaining phase
-// progression + design intent. The toggle round-trip MUST preserve that
-// body verbatim — operators reading the file later must see what was
-// written. parseRoundTrip returns both halves so serialize can re-emit
-// the body unchanged.
+// _autonomy.yaml round-trip (ADR-254):
+// The file has an optional tier frontmatter block at the top (bundle-forked
+// workspaces). parseRoundTrip splits that block from the YAML body so
+// serialize() can re-emit it unchanged — operators reading the file keep
+// the documentation comments the bundle shipped.
 
 export interface ParsedAutonomy {
   meta: AutonomyMeta;
+  /** The tier frontmatter block verbatim (e.g. "---\ntier: authored\n...\n---\n"), or ''. */
+  tierBlock: string;
+  /** The raw YAML body after the tier block, including comments. */
   body: string;
 }
 
 export function parseRoundTrip(content: string): ParsedAutonomy {
-  const fm = content.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!fm) return { meta: {}, body: content };
-  return {
-    meta: parse(content),
-    body: content.slice(fm[0].length).replace(/^\s*\n/, ''),
-  };
+  const m = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
+  const hasTierBlock = m && /\btier\s*:/.test(m[1]);
+  const tierBlock = hasTierBlock ? m![0] : '';
+  const body = hasTierBlock ? content.slice(tierBlock.length) : content;
+  return { meta: parse(content), tierBlock, body };
 }
 
 // ---------------------------------------------------------------------------
-// serialize() — Phase 4 (ADR-245 D5 configuration class write contract)
+// serialize() — writes back only the `default:` and `domains:` keys,
+// preserving the tier block and the rest of the YAML body verbatim.
 // ---------------------------------------------------------------------------
-//
-// Round-trips AutonomyMeta + optional body back to file content. Emits
-// the same YAML frontmatter shape that parse() reads. Body is preserved
-// verbatim. The output is structurally idempotent: parse(serialize(m)) ≡ m
-// for every meta the parser can produce.
 
-export function serialize(meta: AutonomyMeta, body: string = ''): string {
-  const lines: string[] = ['---'];
+export function serialize(meta: AutonomyMeta, body: string = '', tierBlock: string = ''): string {
+  // Rebuild only the structured keys we own; preserve comment lines in body.
+  const lines: string[] = [];
   if (meta.default_level !== undefined || meta.default_ceiling_cents !== undefined) {
     lines.push('default:');
     if (meta.default_level !== undefined) {
@@ -169,20 +195,19 @@ export function serialize(meta: AutonomyMeta, body: string = ''): string {
     lines.push('domains:');
     for (const [name, dom] of Object.entries(meta.domains)) {
       lines.push(`  ${name}:`);
-      if (dom.level !== undefined) {
-        lines.push(`    level: ${dom.level}`);
-      }
-      if (dom.ceiling_cents !== undefined) {
-        lines.push(`    ceiling_cents: ${dom.ceiling_cents}`);
-      }
+      if (dom.level !== undefined) lines.push(`    level: ${dom.level}`);
+      if (dom.ceiling_cents !== undefined) lines.push(`    ceiling_cents: ${dom.ceiling_cents}`);
     }
   }
-  lines.push('---');
-  let out = lines.join('\n') + '\n';
-  if (body) {
-    out += '\n' + body;
-    if (!out.endsWith('\n')) out += '\n';
-  }
+  const yamlSection = lines.join('\n') + (lines.length > 0 ? '\n' : '');
+  // Patch the `default:` block inside the existing body to replace only
+  // the structured keys, keeping comment lines (never_auto, heartbeat_triggers…).
+  // Strategy: strip existing `default:` + `domains:` blocks from body, prepend new ones.
+  const bodyWithoutStructured = body
+    .replace(/^default:\s*\n(\s+\S[^\n]*\n)*/m, '')
+    .replace(/^domains:\s*\n(\s+\S[^\n]*\n)*/m, '');
+  let out = tierBlock + yamlSection + bodyWithoutStructured;
+  if (!out.endsWith('\n')) out += '\n';
   return out;
 }
 
@@ -236,20 +261,22 @@ export interface UseAutonomyResult {
 export function useAutonomy(): UseAutonomyResult {
   const [meta, setMeta] = useState<AutonomyMeta | null>(null);
   const [loading, setLoading] = useState(true);
-  // rawBody preserves the human-readable prose below the YAML frontmatter
+  // Preserved for round-trip: tier block + body lines (comments, other keys)
+  const [tierBlock, setTierBlock] = useState('');
   const [rawBody, setRawBody] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const file = await api.workspace.getFile(AUTONOMY_PATH);
+        // ADR-254: machine-parsed config lives in _autonomy.yaml, not AUTONOMY.md
+        const file = await api.workspace.getFile(AUTONOMY_YAML_PATH);
         if (cancelled) return;
         if (file?.content) {
-          setMeta(parse(file.content));
-          // Preserve prose body so serialize() round-trip keeps it intact
-          const bodyMatch = file.content.match(/^---[\s\S]*?---\s*\n?([\s\S]*)$/);
-          setRawBody(bodyMatch?.[1] ?? '');
+          const parsed = parseRoundTrip(file.content);
+          setMeta(parsed.meta);
+          setTierBlock(parsed.tierBlock);
+          setRawBody(parsed.body);
         } else {
           setMeta(null);
         }
@@ -260,9 +287,7 @@ export function useAutonomy(): UseAutonomyResult {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const setLevel = async (level: AutonomyLevel, ceilingCents?: number) => {
@@ -274,11 +299,12 @@ export function useAutonomy(): UseAutonomyResult {
           ? (ceilingCents ?? meta?.default_ceiling_cents ?? 200000)
           : undefined,
     };
-    const content = serialize(next, rawBody);
+    const content = serialize(next, rawBody, tierBlock);
     // Optimistic update — UI reflects immediately, API confirms in background
     setMeta(next);
+    // ADR-254: write to _autonomy.yaml, not AUTONOMY.md
     await api.workspace.editFile(
-      'context/_shared/AUTONOMY.md',
+      'context/_shared/_autonomy.yaml',
       content,
       `autonomy level → ${level}`,
       `set autonomy level to ${level}`,

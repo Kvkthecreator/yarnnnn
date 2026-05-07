@@ -14,7 +14,9 @@
 import { useEffect, useState } from 'react';
 import { Scale, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { parse, type PrinciplesData } from '@/lib/content-shapes/principles';
+import { parse, parseYaml, mergeThresholds, type PrinciplesData } from '@/lib/content-shapes/principles';
+
+const PRINCIPLES_YAML_PATH = '/workspace/review/_principles.yaml';
 import { cn } from '@/lib/utils';
 
 export type PrinciplesVariant = 'full' | 'compact' | 'headline';
@@ -36,8 +38,15 @@ export function PrinciplesCard({ variant = 'full', onEdit, className }: Principl
     let cancelled = false;
     void (async () => {
       try {
-        const file = await api.workspace.getFile('/workspace/review/principles.md');
-        if (!cancelled) setData(parse(file.content ?? ''));
+        // ADR-254: thresholds in _principles.yaml, reject conditions in principles.md
+        const [proseR, yamlR] = await Promise.allSettled([
+          api.workspace.getFile('/workspace/review/principles.md'),
+          api.workspace.getFile(PRINCIPLES_YAML_PATH),
+        ]);
+        if (cancelled) return;
+        const prose = parse(proseR.status === 'fulfilled' ? proseR.value?.content ?? '' : '');
+        const yaml = parseYaml(yamlR.status === 'fulfilled' ? yamlR.value?.content ?? '' : '');
+        setData(mergeThresholds(prose, yaml));
       } catch {
         if (!cancelled) setData({ domains: [], hasPrinciples: false, raw: '' });
       } finally {

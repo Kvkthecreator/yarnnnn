@@ -31,6 +31,7 @@ import { api } from '@/lib/api/client';
 import { useComposition } from '@/lib/compositor';
 import {
   AUTONOMY_PATH,
+  AUTONOMY_YAML_PATH,
   parseAutonomy,
   parseRoundTrip as parseAutonomyRoundTrip,
   serialize as serializeAutonomy,
@@ -150,7 +151,8 @@ function AutonomyToggle({ raw, onWritten }: AutonomyToggleProps) {
       setPending(true);
       setError(null);
       try {
-        await writeShape('autonomy', AUTONOMY_PATH, serialized, {
+        // ADR-254: machine config lives in _autonomy.yaml, not AUTONOMY.md
+        await writeShape('autonomy', AUTONOMY_YAML_PATH, serialized, {
           message: `autonomy posture: default → ${next}`,
         });
         onWritten(serialized);
@@ -202,7 +204,7 @@ export function MandateFace() {
     (async () => {
       const [mandateR, autonomyR] = await Promise.allSettled([
         api.workspace.getFile(MANDATE_PATH),
-        api.workspace.getFile(AUTONOMY_PATH),
+        api.workspace.getFile(AUTONOMY_YAML_PATH), // ADR-254: machine config
       ]);
       if (cancelled) return;
       setMandate(mandateR.status === 'fulfilled' ? mandateR.value?.content ?? '' : '');

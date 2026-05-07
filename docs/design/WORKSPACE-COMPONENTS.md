@@ -79,10 +79,11 @@ renders it conditionally.
 
 ### 2. Autonomy mode
 
-**File:** `/workspace/context/_shared/AUTONOMY.md`
-**L2 parser:** `web/lib/content-shapes/autonomy.ts` *(already complete)*
+**File:** `/workspace/context/_shared/_autonomy.yaml` (machine-parsed, ADR-254)
+**Prose doc:** `/workspace/context/_shared/AUTONOMY.md` (human/LLM reading only)
+**L2 parser:** `web/lib/content-shapes/autonomy.ts` — reads `_autonomy.yaml`, strips tier frontmatter
 **L3 component:** `web/components/workspace-concepts/DelegationCard.tsx`
-**Write contract:** `configuration` (Direct mutation via `setLevel()` — no chat needed)
+**Write contract:** `configuration` (Direct mutation via `setLevel()` — no chat needed, writes `_autonomy.yaml`)
 
 **What the operator needs to see:**
 - Current delegation level (one of four: Manual / Assisted / Bounded / Autonomous)
@@ -156,6 +157,8 @@ separate components at that point.
 | Surface | Components used | Variant |
 |---|---|---|
 | `/workspace` page | Mandate + Autonomy mode + Principles + IdentityBrand | `full` |
+| `/agents?agent=reviewer&tab=autonomy` | Autonomy mode + cadence panel | `full` |
+| `/agents?agent=reviewer&tab=principles` | Principles | `full` |
 | Chat context overlay | Mandate + Principles + Recent (non-component) | `compact` |
 | Chat composer chip | Autonomy mode | `chip` |
 | Cockpit Mandate face | Mandate | `headline` |
@@ -167,7 +170,7 @@ separate components at that point.
 
 - `WorkspaceFileView` used for Mandate and Principles in `WorkspaceContextOverlay` — raw markdown dump, file-path visible, no structure
 - `ConfigFileCard` with `<pre>` blocks in `WorkspaceConfigSection` — expand-to-read raw content
-- `MandateTab` / `AutonomyTab` / `PrinciplesTab` on the YARNNN agent detail — bespoke per-file viewers, not reusable
+- `MandateTab` / `AutonomyTab` / `PrinciplesTab` on the YARNNN agent detail — **deleted**. Replaced by `DelegationCard` and `PrinciplesCard` directly in `ReviewerDetail` tabs.
 
 ---
 

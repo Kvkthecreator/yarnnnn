@@ -29,9 +29,10 @@ import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPane
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
 import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
-import { PrinciplesTab } from './PrinciplesTab';
-import { AutonomyTab } from './AutonomyTab';
 import { SubstrateTab } from './SubstrateTab';
+import { DelegationCard } from '@/components/workspace-concepts/DelegationCard';
+import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
+import { ReviewerCadencePanel } from './ReviewerCadencePanel';
 import {
   agentClassDescription,
   agentClassLabel,
@@ -823,12 +824,13 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
         )}
         {activeTab === 'principles' && (
           <div className="px-6 py-5">
-            <PrinciplesTab />
+            <PrinciplesCard variant="full" />
           </div>
         )}
         {activeTab === 'autonomy' && (
-          <div className="px-6 py-5">
-            <AutonomyTab />
+          <div className="px-6 py-5 space-y-4">
+            <DelegationCard variant="full" />
+            <ReviewerCadencePanel />
           </div>
         )}
       </div>
