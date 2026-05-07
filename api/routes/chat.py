@@ -1244,15 +1244,16 @@ async def global_chat(
             # No system action needed — Reviewer's response is complete
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
 
-    async def _dispatch_system_agent_turn(images_for_api, profile, task_override: str | None = None):
-        """System Agent LLM stream. Executes task_override when Reviewer directed it,
-        otherwise handles the operator message directly (fallback path only)."""
+    async def _dispatch_system_agent_turn(images_for_api, profile, task_override: str):
+        """System Agent executes a Reviewer-directed action_instruction.
+        Only called when the Reviewer explicitly provided an action_instruction.
+        The System Agent has no autonomous path — it executes, narrates, stops."""
         full_response = ""
         tools_used = []
         tool_call_history = []
         current_tool_use = None
         last_token_usage = {"input_tokens": 0, "output_tokens": 0}
-        task_to_execute = task_override or request.content
+        task_to_execute = task_override  # always Reviewer-directed; no fallback to request.content
 
         stream_params = {
             "include_context": request.include_context,
@@ -1388,19 +1389,11 @@ async def global_chat(
                     yield chunk
                 return
 
-            # Path 2: Reviewer (Haiku) — primary conversational intelligence.
-            # No keyword trigger. Reviewer handles every non-execution turn.
-            # If Reviewer includes action_instruction, System Agent executes it.
-            # System Agent (Sonnet) is the fallback only — fires when Reviewer fails.
-            try:
-                async for chunk in _dispatch_reviewer_turn(images_for_api, profile):
-                    yield chunk
-                return
-            except Exception as _rev_exc:
-                logger.warning("[REVIEWER] failed — System Agent fallback: %s", _rev_exc)
-
-            # Path 3: System Agent (Sonnet) — fallback only
-            async for chunk in _dispatch_system_agent_turn(images_for_api, profile):
+            # Path 2: Reviewer (Haiku) — primary and only conversational intelligence.
+            # No System Agent fallback. Reviewer is always the intelligence layer.
+            # If Reviewer includes action_instruction, System Agent executes it as directed.
+            # If Reviewer fails entirely, yield error — do not improvise with System Agent.
+            async for chunk in _dispatch_reviewer_turn(images_for_api, profile):
                 yield chunk
 
         except Exception as e:
