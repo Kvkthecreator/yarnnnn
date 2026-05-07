@@ -121,9 +121,15 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     workspacePaths[0] ??
     null;
 
-  // Reviewer verdicts render with a labeled section break above.
+  // Reviewer entries — three rendering paths:
+  // 1. observation → dim collapsed line (no divider, no full bubble)
+  // 2. addressed   → conversational bubble, no section divider (chat-mode judgment)
+  // 3. proposal verdict (approve/reject/defer) → full section divider + bubble
   if (msg.role === 'reviewer') {
-    const isObservation = msg.reviewer?.verdict === 'observation';
+    const verdict = msg.reviewer?.verdict;
+    const isObservation = verdict === 'observation' || msg.reviewer?.occupant === 'reviewer-layer:observed';
+    const isAddressed = verdict === 'addressed' || verdict === 'heartbeat';
+
     if (isObservation) {
       return (
         <div className="max-w-[92%]">
@@ -131,6 +137,17 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
         </div>
       );
     }
+
+    if (isAddressed) {
+      // Conversational judgment — same visual weight as a chat bubble, no divider.
+      return (
+        <div className="max-w-[92%]">
+          <MessageRenderer msg={msg} isLoading={isLoading} />
+        </div>
+      );
+    }
+
+    // Proposal verdict (approve / reject / defer) — section divider signals a gate decision.
     return (
       <div className="pt-2">
         <div className="flex items-center gap-2 mb-2 px-0.5">
