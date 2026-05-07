@@ -28,7 +28,7 @@ import { AgentIcon } from './AgentIcon';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
-import { CONTEXT_ROUTE, WORK_ROUTE, WORKSPACE_CONFIG_ROUTE } from '@/lib/routes';
+import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
 import { PrinciplesTab } from './PrinciplesTab';
 import { AutonomyTab } from './AutonomyTab';
 import { SubstrateTab } from './SubstrateTab';
@@ -746,77 +746,21 @@ function AgentTabBar({
 }
 
 // ---------------------------------------------------------------------------
-// System Agent detail (ADR-251 D3): Identity · Mandate · Back Office
+// System Agent detail (ADR-251 D3): Identity only.
+// Mandate lives on /workspace (MandateCard + chat edit panel — proper home).
+// Back-office tasks live on /work (maintenance recurrences, toggle-able).
 // ---------------------------------------------------------------------------
 
-const SYSTEM_AGENT_TABS: TabDef[] = [
-  { key: 'identity', label: 'Identity' },
-  { key: 'mandate', label: 'Mandate' },
-  { key: 'back-office', label: 'Back Office' },
-];
-
 function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const tabParam = searchParams.get('tab');
-  const validTab = SYSTEM_AGENT_TABS.some(t => t.key === tabParam) ? tabParam! : 'identity';
-  const [activeTab, setActiveTab] = useState(validTab);
-
-  function handleTabChange(key: string) {
-    setActiveTab(key);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', key);
-    router.replace(`/agents?${params.toString()}`, { scroll: false });
-  }
-
   return (
     <div className="flex-1 overflow-auto">
       <SurfaceIdentityHeader
         title="System Agent"
         metadata={<AgentMetadata agent={agent} tasks={tasks} />}
       />
-      <AgentTabBar tabs={SYSTEM_AGENT_TABS} active={activeTab} onChange={handleTabChange} />
       <div className="max-w-3xl">
-        {activeTab === 'identity' && (
-          <div className="px-6 py-5">
-            <AgentRoleBlock agent={agent} tasks={tasks} />
-          </div>
-        )}
-        {activeTab === 'mandate' && (
-          <div className="px-6 py-5">
-            <SubstrateTab
-              title="Mandate"
-              path="/workspace/context/_shared/MANDATE.md"
-              tagline="The operator's declared primary action — what this workspace is running and why."
-              editPrompt="I want to review and update my workspace mandate. Walk me through the current declaration."
-              emptyBody={
-                <p className="text-center text-xs">
-                  No mandate declared yet. The System Agent reads this to understand
-                  what work to execute and what proposals to gate.
-                </p>
-              }
-            />
-          </div>
-        )}
-        {activeTab === 'back-office' && (
-          <div className="px-6 py-5">
-            <TasksBlock agent={agent} tasks={tasks.filter(t => t.shape === 'maintenance')} />
-            <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">System settings</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Workspace configuration, program activation, and connectors.
-                </p>
-              </div>
-              <a
-                href={WORKSPACE_CONFIG_ROUTE}
-                className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-              >
-                Open →
-              </a>
-            </div>
-          </div>
-        )}
+        <AgentRoleBlock agent={agent} tasks={tasks} />
+        <TasksBlock agent={agent} tasks={tasks} />
       </div>
     </div>
   );
