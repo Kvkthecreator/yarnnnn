@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.07.3] - Reviewer as primary conversational intelligence — Haiku addressed mode
+
+### Changed
+- `api/agents/reviewer_agent.py`: `address_turn()` switched from Sonnet to Haiku
+  (`claude-haiku-4-5-20251001`). Conversational judgment does not require Sonnet.
+  Sonnet preserved for `review_proposal()` (capital decisions) and `heartbeat_turn()`
+  (proactive market assessment). ~68% cost reduction per conversational turn.
+
+- `api/routes/chat.py`: Keyword trigger set (`_REVIEWER_TRIGGERS`) DELETED.
+  Reviewer (Haiku) now fires on EVERY non-execution turn — no brittle string matching.
+  `_dispatch_reviewer_turn()` is Path 2 (primary); System Agent (Sonnet) is Path 3
+  (fallback only, fires when Reviewer fails).
+  System Agent is now optional and Reviewer-directed: if `action_instruction` is
+  present in the Reviewer's assessment, System Agent executes it. Otherwise silent.
+
+### Cost model
+  Execution router: $0 (Python)
+  Reviewer addressed (Haiku): ~$0.018/turn
+  System Agent (Sonnet): ~$0.05/turn, fallback only
+  Session total (~10 turns): ~$0.13 vs prior ~$0.25
+
+### Expected behavior
+  "simon make a trade" → Reviewer (Haiku) reads substrate, responds in Simons voice,
+    includes action_instruction → System Agent fires signal-evaluation → narrates
+  "fire signal-evaluation" → execution router → narration → done ($0)
+  "what happened?" → Reviewer reads narrative, responds briefly ($0.018)
+
+---
+
 ## [2026.05.07.2] - ADR-254: File format discipline — yaml.safe_load replaces all regex parsers
 
 ### Changed

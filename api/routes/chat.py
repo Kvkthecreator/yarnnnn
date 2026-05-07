@@ -1181,21 +1181,6 @@ async def global_chat(
     # No optimistic placeholder. No nested control flow.
     # Each path is self-contained: write to DB → yield SSE → done.
 
-    _REVIEWER_TRIGGERS = {
-        # Direct name address — all variants
-        "simon", "simons", "reviewer",
-        # Judgment invitations
-        "what do you think", "what does simons think", "what would simons",
-        "what do you see", "your view", "your take",
-        "should i", "should we", "is this right", "does this make sense",
-        "assess", "evaluate this", "review this", "judge",
-        "are conditions", "is the market", "is now a good time",
-        "what's your read", "your read", "am i missing",
-        # Decision delegation
-        "let reviewer", "let simon", "you decide", "make the call",
-        "your judgment", "your call",
-    }
-
     async def _dispatch_execution_turn(router_result):
         """Deterministic execution router result → system_agent narration → done."""
         narration = router_result.get("narration", "Done.")
@@ -1208,10 +1193,12 @@ async def global_chat(
         yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': routed_tools})}\n\n"
         logger.info("[EXEC_ROUTER] routed — tools=%s for: %.50r", routed_tools, request.content)
 
-    async def _dispatch_reviewer_turn():
-        """Reviewer keyword triggered → address_turn() → reviewer SSE → done.
-        No streaming placeholder. No empty system_agent write."""
-        from agents.reviewer_agent import address_turn
+    async def _dispatch_reviewer_turn(images_for_api, profile):
+        """Reviewer (Haiku) handles every non-execution turn.
+        No keyword trigger — Reviewer is the primary conversational intelligence.
+        If assessment includes action_instruction, System Agent executes it.
+        System Agent is optional and Reviewer-directed."""
+        from agents.reviewer_agent import address_turn, REVIEWER_MODEL_IDENTITY
         from services.reviewer_chat_surfacing import write_reviewer_message
 
         conv_lines = []
@@ -1232,27 +1219,40 @@ async def global_chat(
             conversation_window="\n".join(conv_lines) if conv_lines else None,
         )
 
-        if assessment and assessment.get("response"):
-            await write_reviewer_message(
-                auth.client, auth.user_id,
-                content=assessment["response"],
-                verdict="addressed",
-                occupant="ai:reviewer-sonnet-v1",
-            )
-            yield f"data: {json.dumps({'reviewer_response': assessment['response']})}\n\n"
-            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
-            logger.info("[REVIEWER] addressed for user=%s", auth.user_id[:8])
-        else:
-            # Reviewer failed — fall through to System Agent (caller handles this)
+        if not assessment or not assessment.get("response"):
             raise RuntimeError("Reviewer returned no response")
 
-    async def _dispatch_system_agent_turn(images_for_api, profile):
-        """Full System Agent LLM stream. No placeholder — frontend adds message on first content event."""
+        # Surface Reviewer response
+        await write_reviewer_message(
+            auth.client, auth.user_id,
+            content=assessment["response"],
+            verdict="addressed",
+            occupant=REVIEWER_MODEL_IDENTITY,
+        )
+        yield f"data: {json.dumps({'reviewer_response': assessment['response']})}\n\n"
+        logger.info("[REVIEWER] addressed (Haiku) for user=%s", auth.user_id[:8])
+
+        # If Reviewer included an action_instruction, System Agent executes it.
+        # System Agent is optional — only speaks when Reviewer directs it.
+        action_instruction = (assessment.get("action_instruction") or "").strip()
+        if action_instruction:
+            logger.info("[REVIEWER→SYSTEM_AGENT] executing directive: %.80r", action_instruction)
+            async for chunk in _dispatch_system_agent_turn(images_for_api, profile,
+                                                           task_override=action_instruction):
+                yield chunk
+        else:
+            # No system action needed — Reviewer's response is complete
+            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
+
+    async def _dispatch_system_agent_turn(images_for_api, profile, task_override: str | None = None):
+        """System Agent LLM stream. Executes task_override when Reviewer directed it,
+        otherwise handles the operator message directly (fallback path only)."""
         full_response = ""
         tools_used = []
         tool_call_history = []
         current_tool_use = None
         last_token_usage = {"input_tokens": 0, "output_tokens": 0}
+        task_to_execute = task_override or request.content
 
         stream_params = {
             "include_context": request.include_context,
@@ -1265,7 +1265,7 @@ async def global_chat(
         }
 
         async for event in agent.execute_stream_with_tools(
-            task=request.content, context=context, auth=auth, parameters=stream_params,
+            task=task_to_execute, context=context, auth=auth, parameters=stream_params,
         ):
             if event.type == "text":
                 full_response += event.content
@@ -1375,7 +1375,7 @@ async def global_chat(
 
             profile = resolve_profile(request.surface_context)
 
-            # Path 1: Execution router (zero LLM)
+            # Path 1: Execution router — zero LLM, mechanical commands
             router_result = None
             try:
                 from services.execution_router import route_execution
@@ -1388,16 +1388,18 @@ async def global_chat(
                     yield chunk
                 return
 
-            # Path 2: Reviewer keyword trigger (zero LLM)
-            if any(t in request.content.lower() for t in _REVIEWER_TRIGGERS):
-                try:
-                    async for chunk in _dispatch_reviewer_turn():
-                        yield chunk
-                    return
-                except Exception as _rev_exc:
-                    logger.warning("[REVIEWER] failed — System Agent responds: %s", _rev_exc)
+            # Path 2: Reviewer (Haiku) — primary conversational intelligence.
+            # No keyword trigger. Reviewer handles every non-execution turn.
+            # If Reviewer includes action_instruction, System Agent executes it.
+            # System Agent (Sonnet) is the fallback only — fires when Reviewer fails.
+            try:
+                async for chunk in _dispatch_reviewer_turn(images_for_api, profile):
+                    yield chunk
+                return
+            except Exception as _rev_exc:
+                logger.warning("[REVIEWER] failed — System Agent fallback: %s", _rev_exc)
 
-            # Path 3: System Agent LLM stream
+            # Path 3: System Agent (Sonnet) — fallback only
             async for chunk in _dispatch_system_agent_turn(images_for_api, profile):
                 yield chunk
 

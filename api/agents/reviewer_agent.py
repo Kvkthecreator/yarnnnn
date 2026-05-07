@@ -1136,6 +1136,10 @@ def _build_reflection_user_message(
 # Called by api/routes/chat.py when Reviewer keyword trigger matches (ADR-252 simplified)..
 # Output surfaces as role='reviewer' narrative entry via write_reviewer_message().
 
+# ADR-255/256: addressed mode uses Haiku — conversational judgment, not capital decisions.
+# Sonnet reserved for review_proposal() (capital-EV verdict) and heartbeat_turn()
+# (proactive market assessment). Haiku at ~68% less cost per conversational turn.
+_ADDRESSED_MODEL_SLUG = "claude-haiku-4-5-20251001"
 _ADDRESSED_TOKEN_CALLER = "reviewer-addressed"
 
 _ADDRESSED_SYSTEM_PROMPT = """\
@@ -1373,12 +1377,12 @@ async def address_turn(
             conversation_window=conversation_window,
         )
 
-        # --- 3. LLM call — Sonnet, forced tool call ---
+        # --- 3. LLM call — Haiku for conversational judgment (not capital decisions) ---
         response = await chat_completion_with_tools(
             messages=[{"role": "user", "content": user_msg}],
             system=_ADDRESSED_SYSTEM_PROMPT,
             tools=[_ADDRESSED_TOOL],
-            model=_MODEL_SLUG,
+            model=_ADDRESSED_MODEL_SLUG,
             max_tokens=1024,
             tool_choice={"type": "tool", "name": "return_addressed_assessment"},
         )
@@ -1390,7 +1394,7 @@ async def address_turn(
             client,
             user_id=user_id,
             caller=_ADDRESSED_TOKEN_CALLER,
-            model=_MODEL_SLUG,
+            model=_ADDRESSED_MODEL_SLUG,
             input_tokens=getattr(usage, "input_tokens", 0) or 0,
             output_tokens=getattr(usage, "output_tokens", 0) or 0,
         )
