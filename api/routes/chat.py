@@ -1278,17 +1278,6 @@ async def global_chat(
             await append_message(auth.client, session_id, "user", request.content, user_message_metadata)
             logger.info(f"[SYSTEM_AGENT] Starting stream for message: {request.content[:50]}...")
 
-            # ADR-252 D1: Intent classifier gate — Haiku, near-zero cost.
-            # Routes judgment-seeking messages to the Reviewer (addressed mode).
-            # Falls back to 'judgment' on any failure — safe default.
-            from services.intent_classifier import classify_intent
-            intent_class = await classify_intent(
-                request.content,
-                client=auth.client,
-                user_id=auth.user_id,
-            )
-            logger.info(f"[INTENT_CLASSIFIER] intent={intent_class} for: {request.content[:50]}")
-
             # Build content blocks for Claude API (images + ephemeral file attachments)
             images_for_api = None
             if request.images:
@@ -1306,16 +1295,11 @@ async def global_chat(
                 logger.info(f"[YARNNN] Processing {len(images_for_api)} image attachment(s)")
 
             # ADR-249: Ephemeral document attachments via Anthropic Files API
-            # file_id blocks are prepended to the user message content so YARNNN
-            # reads the file natively in this turn. Nothing persisted.
             if request.file_attachments:
                 doc_blocks = [
                     {
                         "type": "document",
-                        "source": {
-                            "type": "file",
-                            "file_id": att.file_id,
-                        },
+                        "source": {"type": "file", "file_id": att.file_id},
                         "title": att.filename,
                     }
                     for att in request.file_attachments
@@ -1326,19 +1310,52 @@ async def global_chat(
             # ADR-186: Resolve prompt profile from surface
             profile = resolve_profile(request.surface_context)
 
-            # ADR-252 D2: Judgment path — invoke Reviewer in addressed mode.
-            # Fires before the System Agent stream so the Reviewer's voice
-            # reaches the operator first. System Agent then narrates execution
-            # context (if any tools follow) in its own bubble.
+            # ── Step 1: Deterministic execution router (zero LLM cost) ──────────
+            # Matches common imperative patterns (fire X, pause X, resume X, etc.)
+            # and dispatches the primitive directly. Unmatched turns fall through.
+            router_result = None
+            try:
+                from services.execution_router import route_execution
+                router_result = await route_execution(auth, request.content)
+            except Exception as _router_exc:
+                logger.warning("[EXEC_ROUTER] router failed: %s — falling through", _router_exc)
+
+            if router_result is not None:
+                narration = router_result.get("narration", "Done.")
+                routed_tools = router_result.get("tools_used", [])
+                await append_message(auth.client, session_id, "system_agent", narration, {
+                    "tools_used": routed_tools, "tool_history": [],
+                    "pulse": "addressed", "weight": "routine", "execution_router": True,
+                })
+                yield f"data: {json.dumps({'content': narration})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': routed_tools})}\n\n"
+                logger.info("[EXEC_ROUTER] routed — tools=%s for: %.50r", routed_tools, request.content)
+                return
+
+            # ── Step 2: Reviewer keyword trigger (zero LLM cost) ─────────────────
+            # Operator explicitly addresses the Reviewer — keyword check, no Haiku call.
+            # Covers: direct address ("Simons", "Reviewer"), judgment invitations
+            # ("what do you think", "should I", "assess", "your view").
+            # The operator can always cut in at any point — no conversation state needed.
+            _msg_lower = request.content.lower().strip()
+            _REVIEWER_TRIGGERS = {
+                "what do you think", "what does simons think", "what would simons",
+                "simons", "reviewer", "what do you see", "your view", "your take",
+                "should i", "should we", "is this right", "does this make sense",
+                "assess", "evaluate this", "review this", "judge",
+                "are conditions", "is the market", "is now a good time",
+                "what's your read", "your read", "am i missing",
+            }
+            reviewer_triggered = any(trigger in _msg_lower for trigger in _REVIEWER_TRIGGERS)
+
             reviewer_assessment = None
-            if intent_class == "judgment":
+            if reviewer_triggered:
                 try:
                     from agents.reviewer_agent import address_turn
                     from services.reviewer_chat_surfacing import write_reviewer_message
 
-                    # Build a compact conversation window from recent history
                     conv_lines = []
-                    for m in history[-6:]:  # last 3 pairs
+                    for m in history[-6:]:
                         role_label = "Operator" if m.get("role") == "user" else "System"
                         content = m.get("content", "")
                         if isinstance(content, list):
@@ -1348,110 +1365,44 @@ async def global_chat(
                             )
                         if content and isinstance(content, str):
                             conv_lines.append(f"{role_label}: {content[:300]}")
-                    conversation_window = "\n".join(conv_lines) if conv_lines else None
 
                     reviewer_assessment = await address_turn(
-                        auth.client,
-                        auth.user_id,
+                        auth.client, auth.user_id,
                         user_message=request.content,
-                        conversation_window=conversation_window,
+                        conversation_window="\n".join(conv_lines) if conv_lines else None,
                     )
 
                     if reviewer_assessment and reviewer_assessment.get("response"):
-                        # Surface Reviewer response as role='reviewer' narrative entry
                         await write_reviewer_message(
-                            auth.client,
-                            auth.user_id,
+                            auth.client, auth.user_id,
                             content=reviewer_assessment["response"],
                             verdict="addressed",
                             occupant="ai:reviewer-sonnet-v1",
                         )
-                        # Yield Reviewer response to frontend as a distinct SSE event
                         yield f"data: {json.dumps({'reviewer_response': reviewer_assessment['response']})}\n\n"
-                        logger.info(
-                            "[REVIEWER_ADDRESSED] response surfaced for user=%s confidence=%s",
-                            auth.user_id[:8],
-                            reviewer_assessment.get("confidence", "?"),
-                        )
+                        logger.info("[REVIEWER] keyword-triggered for user=%s", auth.user_id[:8])
+
+                        # Reviewer spoke — System Agent has nothing to add. Done.
+                        await append_message(auth.client, session_id, "system_agent", "", {
+                            "tools_used": [], "tool_history": [],
+                            "pulse": "addressed", "weight": "housekeeping",
+                        })
+                        yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
+                        return
+
                 except Exception as _rev_exc:
-                    logger.warning(
-                        "[REVIEWER_ADDRESSED] failed — System Agent will respond: %s", _rev_exc
-                    )
+                    logger.warning("[REVIEWER] keyword trigger failed — System Agent responds: %s", _rev_exc)
                     reviewer_assessment = None
 
-            # ADR-252 Phase 2: Deterministic execution router.
-            # Fires only on execution-classified turns. Matches common patterns
-            # (fire X, pause X, resume X, list recurrences, read file) and
-            # dispatches the primitive directly — zero LLM call, ~$0.0003 total.
-            # Unmatched turns fall through to the full System Agent LLM stream.
-            router_result = None
-            if intent_class == "execution":
-                try:
-                    from services.execution_router import route_execution
-                    router_result = await route_execution(auth, request.content)
-                except Exception as _router_exc:
-                    logger.warning("[EXEC_ROUTER] router failed: %s — falling through", _router_exc)
-                    router_result = None
-
-            if router_result is not None:
-                # Pattern matched — write narration as system_agent and skip LLM stream.
-                narration = router_result.get("narration", "Done.")
-                routed_tools = router_result.get("tools_used", [])
-                routed_metadata = {
-                    "tools_used": routed_tools,
-                    "tool_history": [],
-                    "pulse": "addressed",
-                    "weight": "routine",
-                    "execution_router": True,  # flag for analytics
-                }
-                await append_message(
-                    auth.client,
-                    session_id,
-                    "system_agent",
-                    narration,
-                    routed_metadata,
-                )
-                done_payload = {
-                    "done": True,
-                    "session_id": session_id,
-                    "tools_used": routed_tools,
-                }
-                yield f"data: {json.dumps({'content': narration})}\n\n"
-                yield f"data: {json.dumps(done_payload)}\n\n"
-                logger.info(
-                    "[EXEC_ROUTER] routed execution turn — tools=%s for: %.50r",
-                    routed_tools,
-                    request.content,
-                )
-                return  # skip LLM stream entirely
-
-            # ADR-252: When judgment turn AND Reviewer fired successfully, skip System Agent stream.
-            # The Reviewer's response is the complete answer. System Agent has no judgment to add —
-            # running the LLM here produces a competing assessment that buries the Reviewer's voice.
-            if intent_class == "judgment" and reviewer_assessment and reviewer_assessment.get("response"):
-                # Write a one-line System Agent acknowledgment and stop.
-                ack = "Reviewer has assessed — see above."
-                ack_metadata = {
-                    "tools_used": [],
-                    "tool_history": [],
-                    "pulse": "addressed",
-                    "weight": "routine",
-                }
-                await append_message(auth.client, session_id, "system_agent", ack, ack_metadata)
-                yield f"data: {json.dumps({'content': ack})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
-                logger.info("[JUDGMENT_SKIP] Reviewer fired — skipping System Agent LLM for: %.50r", request.content)
-                return
-
+            # ── Step 3: System Agent LLM stream (everything else) ────────────────
             stream_params = {
                     "include_context": request.include_context,
                     "history": history,
-                    "surface_content": surface_content,  # ADR-023: What user is viewing
-                    "images": images_for_api,  # Inline base64 images
-                    "scoped_agent": scoped_agent,  # ADR-087: Agent-scoped context
-                    "surface_context_raw": request.surface_context.dict() if request.surface_context else None,  # ADR-159
-                    "profile": profile,  # ADR-186: Prompt profile
-                    "reviewer_assessment": reviewer_assessment,  # ADR-252: pass to prompt
+                    "surface_content": surface_content,
+                    "images": images_for_api,
+                    "scoped_agent": scoped_agent,
+                    "surface_context_raw": request.surface_context.dict() if request.surface_context else None,
+                    "profile": profile,
                 }
 
             async for event in agent.execute_stream_with_tools(

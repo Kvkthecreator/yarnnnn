@@ -1133,7 +1133,7 @@ def _build_reflection_user_message(
 # in persona directly to the operator. No approve/reject/defer — this is
 # the Reviewer speaking conversationally, not gating a proposal.
 #
-# Called by api/routes/chat.py when classify_intent() == 'judgment'.
+# Called by api/routes/chat.py when Reviewer keyword trigger matches (ADR-252 simplified)..
 # Output surfaces as role='reviewer' narrative entry via write_reviewer_message().
 
 _ADDRESSED_TOKEN_CALLER = "reviewer-addressed"
@@ -1308,7 +1308,7 @@ async def address_turn(
     """Invoke the Reviewer in addressed mode — direct operator question.
 
     ADR-252 D2. Third trigger mode: addressed (alongside reactive and
-    periodic). Called by chat.py when classify_intent() == 'judgment'.
+    periodic). Called by chat.py when Reviewer keyword trigger matches (ADR-252 simplified)..
 
     Reads the Reviewer's full substrate from the workspace, builds the
     addressed-mode user message, invokes Sonnet with forced tool call,
