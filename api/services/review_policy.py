@@ -10,6 +10,12 @@ ADR-254: machine-parsed config migrated from .md frontmatter to .yaml files.
 The prose files (principles.md, AUTONOMY.md) are preserved for LLM reading
 and human documentation. They are not machine-parsed.
 
+Type validation: `_validate_autonomy_block` and `_validate_principles_block`
+coerce and validate every block at read time. Type mismatches are logged as
+warnings and replaced with safe defaults (manual/0/empty). This prevents silent
+failures in `should_auto_execute_verdict` when YAML values are mis-typed (e.g.
+ceiling_cents written as "20000" string instead of 20000 int).
+
 Public API (unchanged signatures, new backing files):
 - `load_principles(client, user_id)` → dict keyed by domain
 - `load_autonomy(client, user_id)` → dict keyed by domain + default fallback
@@ -69,6 +75,76 @@ def load_workspace_yaml(content: str) -> dict:
 
 
 # =============================================================================
+# Block validators — coerce types at read time, log on mismatch, fail safe
+# =============================================================================
+
+def _validate_autonomy_block(block: dict, domain: str) -> dict:
+    """Coerce and validate one autonomy domain block.
+
+    Catches the common YAML mis-typing: ceiling_cents written as string
+    "20000" instead of int 20000.  A bad ceiling would cause a TypeError
+    crash in `should_auto_execute_verdict`.  Log and return safe defaults.
+    """
+    if not isinstance(block, dict):
+        return {}
+
+    result = dict(block)
+
+    # --- level ---
+    level = result.get("level", "manual")
+    if level not in _VALID_AUTONOMY_LEVELS:
+        logger.warning(
+            "[REVIEW_POLICY] _autonomy.yaml %s.level=%r not valid — defaulting to manual", domain, level
+        )
+        result["level"] = "manual"
+
+    # --- ceiling_cents ---
+    ceiling_raw = result.get("ceiling_cents")
+    if ceiling_raw is not None:
+        try:
+            result["ceiling_cents"] = int(ceiling_raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                "[REVIEW_POLICY] _autonomy.yaml %s.ceiling_cents=%r not int — removing", domain, ceiling_raw
+            )
+            del result["ceiling_cents"]
+
+    # --- never_auto ---
+    never_auto = result.get("never_auto")
+    if never_auto is not None and not isinstance(never_auto, list):
+        logger.warning(
+            "[REVIEW_POLICY] _autonomy.yaml %s.never_auto expected list — defaulting to []", domain
+        )
+        result["never_auto"] = []
+
+    return result
+
+
+def _validate_principles_block(block: dict, domain: str) -> dict:
+    """Coerce and validate one principles domain block.
+
+    Catches string-typed threshold values (e.g. auto_approve_below_cents: "20000")
+    that would otherwise cause a TypeError crash at comparison time.
+    """
+    if not isinstance(block, dict):
+        return {}
+
+    result = {}
+    for key in ("high_impact_threshold_cents", "auto_approve_below_cents"):
+        raw = block.get(key)
+        if raw is None:
+            continue
+        try:
+            result[key] = int(raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                "[REVIEW_POLICY] _principles.yaml %s.%s=%r not int — ignoring", domain, key, raw
+            )
+
+    return result
+
+
+# =============================================================================
 # Public API
 # =============================================================================
 
@@ -79,13 +155,19 @@ def load_principles(client: Any, user_id: str) -> dict:
         {"trading": {"high_impact_threshold_cents": int,
                      "auto_approve_below_cents": int}, ...}
 
-    Empty dict on missing file or parse failure. Never raises.
+    Values are type-validated via _validate_principles_block — integer fields
+    are coerced and mismatches are logged. Empty dict on missing file or parse
+    failure. Never raises.
     """
     content = _read_file(client, user_id, PRINCIPLES_YAML_PATH)
     if not content:
         return {}
     parsed = load_workspace_yaml(content)
-    return {k: v for k, v in parsed.items() if isinstance(v, dict) and k not in ("tier", "note")}
+    return {
+        k: _validate_principles_block(v, k)
+        for k, v in parsed.items()
+        if isinstance(v, dict) and k not in ("tier", "note")
+    }
 
 
 def load_autonomy(client: Any, user_id: str) -> dict:
@@ -97,13 +179,19 @@ def load_autonomy(client: Any, user_id: str) -> dict:
                      "heartbeat_triggers": list},
          "<domain>": {...per-domain override...}, ...}
 
-    Empty dict on missing file or parse failure. Never raises.
+    Values are type-validated via _validate_autonomy_block — integer and enum
+    fields are coerced and mismatches are logged. Empty dict on missing file or
+    parse failure. Never raises.
     """
     content = _read_file(client, user_id, AUTONOMY_YAML_PATH)
     if not content:
         return {}
     parsed = load_workspace_yaml(content)
-    return {k: v for k, v in parsed.items() if isinstance(v, dict) and k not in ("tier", "note")}
+    return {
+        k: _validate_autonomy_block(v, k)
+        for k, v in parsed.items()
+        if isinstance(v, dict) and k not in ("tier", "note")
+    }
 
 
 def autonomy_for_domain(autonomy: dict, context_domain: str) -> dict:
