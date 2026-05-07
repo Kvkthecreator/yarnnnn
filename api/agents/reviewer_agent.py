@@ -121,7 +121,14 @@ logger = logging.getLogger(__name__)
 #: ADR-229 D1 gate inversion in the system prompt (the AUTONOMY filter
 #: now runs after this verdict, not before — Reviewer reasons on merits
 #: regardless of whether AUTONOMY would auto-execute the result).
-REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v6"
+#:
+#: v6 → v7 (2026-05-07, ADR-256): Addressed mode rewritten from passive
+#: evaluator to active operational principal. Reviewer is now the operator's
+#: thinking partner — reads workspace state (compact index + signal state +
+#: performance), runs their rhythm, directs the system. No longer waits
+#: passively for proposals; actively decides and directs. Addressed mode
+#: uses Haiku for cost efficiency; verdict/heartbeat stay on Sonnet.
+REVIEWER_MODEL_IDENTITY = "ai:reviewer-sonnet-v7"
 
 #: Model slug passed to Anthropic. Keep parallel to REVIEWER_MODEL_IDENTITY.
 _MODEL_SLUG = "claude-sonnet-4-6"
@@ -1144,38 +1151,53 @@ _ADDRESSED_TOKEN_CALLER = "reviewer-addressed"
 
 _ADDRESSED_SYSTEM_PROMPT = """\
 You are the operator's judgment character — the persona they installed to
-think and reason on their behalf. Your IDENTITY.md tells you who that is.
+run this operation on their behalf. Your IDENTITY.md tells you who that is.
+Read it first. Embody it fully.
 
-The operator has addressed you directly with a question or request for
-your perspective. This is not a proposal to gate; it is a direct
-conversation. You speak in first person as your declared character.
+You are not a gatekeeper waiting for proposals. You are the operator's
+active principal — you read what the system has produced, apply your
+framework, and decide what happens next. The operator may address you
+directly or you may be running your scheduled rhythm. Either way: assess,
+decide, direct.
 
-You have access to:
-1. IDENTITY.md      — who you are. Read it first. Embody the character fully.
-2. principles.md    — your declared judgment framework.
-3. PRECEDENT.md     — the operator's rulings on past edge cases.
-4. MANDATE.md       — the operation's declared primary intent.
-5. _operator_profile.md + _risk.md — declared strategy + hard floors.
-6. _performance.md  — accumulated track record (rolling windows).
-7. Recent conversation — what was just discussed this session.
-8. The operator's question — what they're asking you directly.
+You have access to (in order of read priority):
+
+1. IDENTITY.md         — who you are. Your character, posture, vocabulary blocks.
+2. principles.md       — your evaluation framework. What you check and how.
+3. MANDATE.md          — what this operation is trying to achieve. Your north star.
+4. _operator_profile.md + _risk.md — declared strategy, signals, hard floors.
+5. _performance.md     — closed-loop track record. What's been proven vs. untested.
+6. Workspace state     — what the system has done recently (signal runs, positions,
+                         cadence). This tells you whether conditions exist to act.
+7. Recent conversation — context from this session.
+8. The operator's message (if addressed) — what they asked.
+
+**Your operating posture (v7 — active principal, not passive evaluator):**
+
+You run this operation. When the operator says "make a trade" or "what should
+we do" — they are delegating to you. You don't wait for someone to hand you
+a formatted proposal. You read the current state and decide:
+
+- Signal conditions met → direct a proposal ("propose IH-3 on NVDA: [sizing]")
+- Signal evaluation needed first → direct it ("run signal-evaluation; I'll
+  assess the output immediately after")
+- Conditions not met → say why briefly and what changes them
+- Substrate insufficient → name exactly what's missing and commission it
+
+The System Agent executes your directives. You think; it acts.
 
 **Voice discipline:**
-Speak as the character in IDENTITY.md. First person, direct, your natural
-register. Never cite filenames — say "you told me" not "_risk.md says".
-Two to four sentences is usually right. Long enough to be substantive;
-short enough to be a voice in a conversation, not a report.
+First person, direct, your declared character's register. Never cite filenames.
+Say "your declared 3% risk ceiling" not "_risk.md says". Say "the IH-3 signal
+needs the reversal candle to close above prior-day low" not "per _signals.md".
+Two to four sentences for simple assessments. More when conditions warrant.
 
-**What this mode is NOT:**
-- Not a proposal gate (approve/reject/defer is for reactive mode)
-- Not a planning session ("here's what we should do next")
-- Not a system status report
-
-**What this mode IS:**
-The operator's judgment character speaking directly on the operator's question.
-If the question implies an action the operator should take, say so plainly.
-If you need the System Agent to execute something based on your assessment,
-include a brief "Action:" line at the end naming the mechanical step.
+**When to use action_instruction:**
+Include a concrete System Agent directive whenever your assessment implies
+mechanical work: "FireInvocation: signal-evaluation", "ProposeAction: [details]",
+"ReadFile: /workspace/context/trading/NVDA.yaml". The System Agent reads
+action_instruction and executes it immediately. Use it aggressively — you
+direct, the system executes.
 
 Call `return_addressed_assessment` exactly once.\
 """
@@ -1240,32 +1262,39 @@ def _build_addressed_user_message(
     risk_md: str | None,
     performance_summary: str | None,
     conversation_window: str | None,
+    workspace_state: str | None = None,
 ) -> str:
-    """Assemble the user-message envelope for addressed mode."""
+    """Assemble the user-message envelope for addressed mode.
+
+    Load order: persona → framework → mandate → strategy → track record →
+    workspace state (what the system has done) → conversation → operator message.
+    Workspace state (compact index) gives the Reviewer operational awareness so
+    it can direct the system knowledgeably rather than asking the operator to do it.
+    """
     parts: list[str] = []
 
-    parts.append("## /workspace/review/IDENTITY.md — Your persona")
+    parts.append("## IDENTITY.md — Your persona")
     parts.append("")
     parts.append(identity_md or "_(empty — reason as a neutral skeptical judgment seat)_")
     parts.append("")
 
-    parts.append("## /workspace/review/principles.md — Your framework")
+    parts.append("## principles.md — Your framework")
     parts.append("")
     parts.append(principles_md or "_(empty — no declared review framework)_")
     parts.append("")
 
-    parts.append("## /workspace/context/_shared/PRECEDENT.md")
-    parts.append("")
-    parts.append(precedent_md or "_(empty — no precedent authored yet)_")
-    parts.append("")
-
-    parts.append("## /workspace/context/_shared/MANDATE.md")
+    parts.append("## MANDATE.md — Operation's primary intent")
     parts.append("")
     parts.append(mandate_md or "_(empty — no mandate declared)_")
     parts.append("")
 
+    parts.append("## PRECEDENT.md — Durable operator rulings")
+    parts.append("")
+    parts.append(precedent_md or "_(empty — no precedent authored yet)_")
+    parts.append("")
+
     if operator_profile_md:
-        parts.append("## _operator_profile.md — Declared strategy")
+        parts.append("## _operator_profile.md — Declared strategy and signals")
         parts.append("")
         parts.append(operator_profile_md)
         parts.append("")
@@ -1277,9 +1306,16 @@ def _build_addressed_user_message(
         parts.append("")
 
     if performance_summary:
-        parts.append("## _performance.md — Track record")
+        parts.append("## _performance.md — Closed-loop track record")
         parts.append("")
         parts.append(performance_summary)
+        parts.append("")
+
+    if workspace_state:
+        parts.append("## Workspace state — what the system has done recently")
+        parts.append("(Signal runs, positions, cadence, pending proposals, loop events)")
+        parts.append("")
+        parts.append(workspace_state)
         parts.append("")
 
     if conversation_window:
@@ -1288,14 +1324,16 @@ def _build_addressed_user_message(
         parts.append(conversation_window)
         parts.append("")
 
-    parts.append("## The operator's question")
+    parts.append("## Operator message")
     parts.append("")
     parts.append(user_message.strip())
     parts.append("")
 
     parts.append(
         "## Instruction\n\n"
-        "Answer the operator's question in your persona's voice. "
+        "Read the workspace state above. Know what the system has done and what's pending.\n"
+        "Apply your framework. Decide and direct.\n"
+        "If conditions warrant action, include action_instruction.\n"
         "Call `return_addressed_assessment` exactly once."
     )
 
@@ -1309,10 +1347,11 @@ async def address_turn(
     user_message: str,
     conversation_window: str | None = None,
 ) -> AddressedAssessment | None:
-    """Invoke the Reviewer in addressed mode — direct operator question.
+    """Invoke the Reviewer in addressed mode — active operational principal.
 
-    ADR-252 D2. Third trigger mode: addressed (alongside reactive and
-    periodic). Called by chat.py when Reviewer keyword trigger matches (ADR-252 simplified)..
+    ADR-252 D2 + ADR-256 v7: Reviewer is the operator's thinking partner.
+    Loads compact index (workspace state) so Reviewer knows what the system
+    has done and can direct it knowledgeably. Uses Haiku for cost efficiency.
 
     Reads the Reviewer's full substrate from the workspace, builds the
     addressed-mode user message, invokes Sonnet with forced tool call,
@@ -1364,6 +1403,17 @@ async def address_turn(
             or None
         )
 
+        # Workspace state (compact index): what the system has done recently.
+        # Gives the Reviewer operational awareness — signal runs, positions,
+        # cadence, pending proposals — so it can direct the system knowledgeably.
+        workspace_state_text: str | None = None
+        try:
+            from services.working_memory import build_working_memory, format_compact_index
+            wm = await build_working_memory(user_id, client)
+            workspace_state_text = format_compact_index(wm)
+        except Exception as _wm_exc:
+            logger.warning("[REVIEWER_ADDRESSED] compact index load failed: %s", _wm_exc)
+
         # --- 2. Build user message ---
         user_msg = _build_addressed_user_message(
             user_message=user_message,
@@ -1375,6 +1425,7 @@ async def address_turn(
             risk_md=risk_md,
             performance_summary=performance_summary,
             conversation_window=conversation_window,
+            workspace_state=workspace_state_text,
         )
 
         # --- 3. LLM call — Haiku for conversational judgment (not capital decisions) ---

@@ -1403,57 +1403,43 @@ async def _maybe_fire_reviewer_heartbeat(
     user_id: str,
     completed_slug: str,
 ) -> None:
-    """Check AUTONOMY.md heartbeat_triggers after a recurrence completes.
+    """Check _autonomy.yaml heartbeat_triggers after a recurrence completes.
 
-    If the completed slug matches a declared trigger, fire the Reviewer's
-    heartbeat_turn() asynchronously. Never raises — non-blocking, best-effort.
+    ADR-254 fix: reads _autonomy.yaml (machine-parsed) not AUTONOMY.md (prose doc).
+    If the completed slug matches an `after:` trigger, fires heartbeat_turn().
+    Never raises — non-blocking, best-effort.
 
-    ADR-253 D5: the Reviewer wakes when substrate it cares about changes,
-    not just on cron. This closes the loop: signal-evaluation completes →
-    Reviewer reads fresh output → decides: propose/directive/stand-down.
+    ADR-253 D5: the Reviewer wakes when substrate it cares about changes.
+    Signal-evaluation completes → Reviewer reads fresh output → decides:
+    propose/directive/stand-down.
     """
     try:
-        # Read AUTONOMY.md heartbeat_triggers
-        import re as _re
-        import yaml as _yaml
+        # ADR-254 fix: read _autonomy.yaml (machine-parsed) not AUTONOMY.md (prose doc).
+        # AUTONOMY.md has no heartbeat_triggers — it's prose-only post-ADR-254.
+        from services.review_policy import load_workspace_yaml
         result = (
             client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
-            .eq("path", "/workspace/context/_shared/AUTONOMY.md")
+            .eq("path", "/workspace/context/_shared/_autonomy.yaml")
             .limit(1)
             .execute()
         )
         if not result.data:
             return
         content = result.data[0].get("content") or ""
+        parsed = load_workspace_yaml(content)
 
-        # Parse frontmatter for heartbeat_triggers
+        # Extract after: triggers from heartbeat_triggers list
         triggers: list[str] = []
-        if content.startswith("---"):
-            try:
-                end = content.index("---", 3)
-                fm = _yaml.safe_load(content[3:end].strip()) or {}
-                raw_triggers = fm.get("heartbeat_triggers") or []
-                for t in raw_triggers:
-                    if isinstance(t, dict):
-                        after = t.get("after")
-                        if after:
-                            triggers.append(str(after))
-                    elif isinstance(t, str) and t.startswith("after:"):
-                        triggers.append(t.split("after:", 1)[1].strip())
-            except Exception:
-                pass  # malformed frontmatter — skip
-
-        # Also scan the body for heartbeat_triggers block (inline YAML format)
-        if not triggers:
-            m = _re.search(r"heartbeat_triggers:\s*\n((?:\s+-.*\n?)*)", content)
-            if m:
-                block = m.group(1)
-                for line in block.splitlines():
-                    after_m = _re.search(r"after:\s*(\S+)", line)
-                    if after_m:
-                        triggers.append(after_m.group(1))
+        raw_triggers = parsed.get("heartbeat_triggers") or []
+        for t in raw_triggers:
+            if isinstance(t, dict):
+                after = t.get("after")
+                if after:
+                    triggers.append(str(after))
+            elif isinstance(t, str) and t.startswith("after:"):
+                triggers.append(t.split("after:", 1)[1].strip())
 
         if not triggers:
             return

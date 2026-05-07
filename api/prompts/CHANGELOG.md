@@ -6,6 +6,57 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.07.4] - Reviewer v7: active operational principal — ADR-256
+
+### Changed (canonical prompt version bump: v6 → v7)
+
+**`REVIEWER_MODEL_IDENTITY`**: `"ai:reviewer-sonnet-v6"` → `"ai:reviewer-sonnet-v7"`
+
+**`_ADDRESSED_SYSTEM_PROMPT`** (addressed mode — conversational turns):
+- Complete rewrite. Prior prompt framed Reviewer as passive evaluator waiting
+  for proposals. New prompt frames Reviewer as active operational principal.
+- Reviewer now reads workspace state first (compact index), knows what the
+  system has done, and directs accordingly — does not ask operator to do it.
+- Key posture shift: "I decide and direct" not "I wait to be handed proposals."
+- When conditions met: proposes directly. When evidence insufficient: issues
+  directive for missing substrate. Never asks operator to fire signal-evaluation.
+
+**`_build_addressed_user_message()`**:
+- Added `workspace_state` parameter — compact index injected as "Workspace state"
+  section so Reviewer knows operational context (signal runs, positions, cadence,
+  pending proposals, loop events).
+- Load order: persona → framework → mandate → strategy → track record →
+  workspace state → conversation → operator message.
+
+**`address_turn()`**:
+- Now calls `build_working_memory()` + `format_compact_index()` to load
+  workspace state before invoking the LLM. Reviewer has full operational
+  awareness on every addressed turn.
+
+**Reference workspace `review/IDENTITY.md` lifecycle_posture**:
+- Rewritten: "active principal — not a gatekeeper waiting for proposals"
+- When conditions met: proposes directly (does not wait for operator to trigger)
+- Passivity is not an option in a systematic operation
+- Applied to both live alpha-trader workspaces via write_revision.
+
+**`invocation_dispatcher._maybe_fire_reviewer_heartbeat()`**:
+- Bug fix: was reading AUTONOMY.md (prose doc, no heartbeat_triggers). Now
+  reads _autonomy.yaml (machine-parsed, has heartbeat_triggers). This is why
+  heartbeat was not firing after signal-evaluation completed.
+
+### Expected behavior
+  Operator: "simon make a trade"
+  → Reviewer reads workspace state (signal ran 2h ago, IH-3 near-triggered)
+  → "IH-3 conditions were close this morning. I need the current bar data.
+     Running signal-evaluation now — I'll assess and propose if conditions confirm."
+  → action_instruction: "FireInvocation: signal-evaluation"
+  → System Agent fires signal-evaluation immediately
+  
+  signal-evaluation completes → heartbeat fires (now working) → Reviewer
+  reads fresh signal state → proposes if conditions met
+
+---
+
 ## [2026.05.07.3] - Reviewer as primary conversational intelligence — Haiku addressed mode
 
 ### Changed
