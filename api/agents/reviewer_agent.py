@@ -134,16 +134,18 @@ class ReviewDecision(TypedDict, total=False):
     """Structured output of the AI Reviewer.
 
     `decision`, `reasoning`, `confidence` are always present.
-    `propose_followup` (ADR-229 D2) is present only on `defer` verdicts
-    where the Reviewer requested a substrate-building task as recursion
-    to gather evidence; absent on approve/reject and on simple defers.
+    `directives` (ADR-253 D2) replaces the deleted `propose_followup`
+    (ADR-229 D2). Directives are System Agent instructions that execute
+    immediately when the Reviewer defers for evidence gap — no action_proposals
+    row, no second Reviewer pass.
     """
     decision: Literal["approve", "reject", "defer"]
     reasoning: str
     #: Present when the model supplies it; may be empty for defer.
     confidence: str  # "low" | "medium" | "high"
-    #: ADR-229 D2 generative-defer follow-up (optional, defer-only).
-    propose_followup: dict
+    #: ADR-253 D2: System Agent directives on defer verdicts (replaces propose_followup).
+    #: List of dicts: {action: "fire_invocation"|"write_file"|"clarify", ...args}
+    directives: list
 
 
 # ---------------------------------------------------------------------------
@@ -192,57 +194,50 @@ _REVIEW_TOOL = {
                     "High → strong evidence from substrate."
                 ),
             },
-            "propose_followup": {
-                "type": "object",
+            "directives": {
+                "type": "array",
                 "description": (
-                    "ADR-229 D2: optional generative-defer follow-up. "
-                    "ONLY valid when decision='defer' AND the deferral "
-                    "is because evidence is insufficient (sparse "
-                    "_performance.md, ambiguous signal, missing "
-                    "context). Names a research/observation task that "
-                    "would let you reconsider the original proposal. "
-                    "Constraints: (a) only on 'defer'; (b) action_type "
-                    "must be in the reversible/capital-neutral allow-"
-                    "list ('task.create' is the v6 scope; future ADRs "
-                    "may add more); (c) reasoning must specify what "
-                    "evidence shape would unblock the original proposal. "
-                    "The follow-up is RECURSION (gather substrate, "
-                    "re-propose), NOT BYPASS (you cannot widen autonomy "
-                    "through follow-ups)."
+                    "ADR-253 D2: System Agent directives — replaces propose_followup. "
+                    "ONLY valid on decision='defer' when deferring for evidence gap. "
+                    "Each directive executes immediately via the System Agent — no "
+                    "action_proposals row, no second Reviewer pass. "
+                    "Allowed actions: fire_invocation (fire an existing recurrence), "
+                    "write_file (write to /workspace/review/ only), "
+                    "clarify (surface a question to the operator in the narrative). "
+                    "Do NOT use for external platform writes (those are proposals). "
+                    "Do NOT use for infrastructure changes. "
+                    "Do NOT issue a directive to yourself."
                 ),
-                "properties": {
-                    "action_type": {
-                        "type": "string",
-                        "enum": ["task.create"],
-                        "description": (
-                            "Allow-listed action_type for the follow-"
-                            "up proposal. v6 supports task.create only."
-                        ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["fire_invocation", "write_file", "clarify"],
+                        },
+                        "slug": {
+                            "type": "string",
+                            "description": "fire_invocation: recurrence slug to fire (must already exist)",
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "write_file: path within /workspace/review/",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "write_file: file content to write",
+                        },
+                        "message": {
+                            "type": "string",
+                            "description": "clarify: question to surface to the operator",
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "Why this directive is needed — cited evidence gap",
+                        },
                     },
-                    "inputs": {
-                        "type": "object",
-                        "description": (
-                            "kwargs the underlying primitive will "
-                            "receive. For task.create: title, "
-                            "agent_slug, mode, objective, "
-                            "context_reads, context_writes, schedule "
-                            "(optional). Keep tasks scoped tightly to "
-                            "the evidence-gathering need that drove "
-                            "the defer."
-                        ),
-                    },
-                    "rationale": {
-                        "type": "string",
-                        "description": (
-                            "Why this follow-up unblocks the original "
-                            "proposal. 1-2 sentences. Cites the "
-                            "specific evidence gap (e.g., 'IH-1 has "
-                            "zero entries in _performance.md; need 60 "
-                            "days of backtest data')."
-                        ),
-                    },
+                    "required": ["action", "reason"],
                 },
-                "required": ["action_type", "inputs", "rationale"],
             },
         },
         "required": ["decision", "reasoning", "confidence"],
@@ -324,35 +319,32 @@ Always prefer **defer** when in doubt. The operator prefers a thin
 Queue of truly high-confidence auto-decisions over a noisy Queue of
 marginal calls.
 
-**Generative defer (ADR-229 D2).** When you defer because evidence is
-insufficient — sparse `_performance.md`, ambiguous signal definition,
-missing context, no track record on the proposed action shape — you may
-include a `propose_followup` field naming a research/observation task
-that would let you reconsider. Do this when the deferral is *evidence-
-gap-shaped*, not when it is *risk-shaped*. Examples:
+**Directives on defer (ADR-253 D2).** When you defer because evidence is
+insufficient — sparse `_performance.md`, ambiguous signal, missing context —
+you may include `directives`: a list of instructions for the System Agent
+to execute immediately. Use this when the deferral is *evidence-gap-shaped*,
+not when it is *risk-shaped*. The System Agent executes directives without
+another Reviewer pass — you are commissioning substrate work, not proposing.
 
-- *Evidence-gap defer (good for followup):* "I cannot evaluate IH-1
-  expectancy because `_performance.md` has zero entries for it."
-  → `propose_followup: { action_type: "task.create", inputs: { title:
-  "60-day IH-1 vs AAPL backtest", ... }, rationale: "Need 60 days of
-  IH-1 trigger frequency + outcome to evaluate this signal class." }`
-- *Risk-shaped defer (do NOT propose followup):* "Position size exceeds
-  the 3% ceiling in `_risk.md`." — no follow-up; the proposer must
-  resize, the issue is not evidence.
+- *Evidence-gap defer with directive:* "I cannot evaluate IH-2 expectancy;
+  `_performance.md` has zero entries."
+  → `directives: [{action: "fire_invocation", slug: "track-universe",
+     reason: "Need fresh indicator data to evaluate RSI threshold"}]`
+- *Operator clarification needed:* "Signal spec is ambiguous — IH-3 entry
+  says 'prior-day low' but RSI threshold is not declared."
+  → `directives: [{action: "clarify", message: "IH-3 needs RSI threshold
+     declared. What value?", reason: "Cannot evaluate without declared threshold"}]`
+- *Risk-shaped defer (no directive):* "Position size exceeds `_risk.md`
+  VAR budget." — no directive; the proposer must resize.
 
 Constraints:
 - Only valid on `decision="defer"`. NEVER on approve or reject.
-- `action_type` is allow-listed (v6 scope: `task.create` only). The
-  follow-up cannot be a trading or commerce write — you cannot side-
-  channel into capital action through follow-ups.
-- `rationale` MUST cite the specific evidence gap and what evidence
-  shape would unblock the original proposal.
-- The original proposal stays pending; the follow-up does not auto-
-  resolve it. The follow-up generates substrate; subsequent similar
-  proposals will have the data you asked for.
-- Follow-up is **recursion**, not **bypass**. You cannot widen autonomy
-  through follow-ups. If `_risk.md` rejects the original, no amount of
-  research changes that — defer without followup, or reject.
+- Allowed actions: fire_invocation (fire an existing recurrence slug),
+  write_file (write to /workspace/review/ only), clarify (question to operator).
+- You cannot issue directives for external platform writes (those are proposals).
+- You cannot issue a directive to yourself. No `task.create` proposals.
+- Directives are recursion (gather substrate), not bypass. You cannot widen
+  autonomy through directives.
 
 Reason explicitly:
 - What's the upside if this action works out?
@@ -502,20 +494,16 @@ async def review_proposal(
             )
             return None
 
-        # ADR-229 D2: extract optional propose_followup. Only honored
-        # downstream when decision='defer'; if the model misuses it on
-        # approve/reject, the dispatcher silently ignores it (no
-        # generative bypass of the verdict path).
+        # ADR-253 D2: extract optional directives (replaces deleted propose_followup).
+        # Only honored on defer verdicts — System Agent executes them immediately.
         result: ReviewDecision = {
             "decision": decision,
             "reasoning": reasoning,
             "confidence": confidence,
         }
-        followup = tool_input.get("propose_followup")
-        if isinstance(followup, dict) and decision == "defer":
-            # Only carry the field forward on defer. Trim noise on
-            # approve/reject if the model emitted it anyway.
-            result["propose_followup"] = followup
+        directives = tool_input.get("directives")
+        if isinstance(directives, list) and decision == "defer" and directives:
+            result["directives"] = directives
         return result
     except Exception as exc:  # noqa: BLE001 — never raise
         logger.warning(
