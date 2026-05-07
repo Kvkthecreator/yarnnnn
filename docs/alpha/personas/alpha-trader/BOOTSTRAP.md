@@ -131,11 +131,11 @@ ADR-230 D5 unified the activation surface. Two ways to populate kvk's MANDATE.md
 
 The activate harness forks the bundle template (Step 3 of D5) and applies the override (Step 4 of D5) with `authored_by="operator:alpha-alpha-trader-2"` per ADR-209.
 
-**Option B (chat-driven)**: paste content into YARNNN chat: `@yarnnn — store this as my workspace mandate: [paste]`. YARNNN routes through `UpdateContext`; ADR-209 captures the revision with `authored_by="operator"`.
+**Option B (chat-driven)**: paste content into YARNNN chat: `@yarnnn — store this as my workspace mandate: [paste]`. YARNNN routes through `WriteFile(scope="workspace", path="context/_shared/MANDATE.md", content=...)`; ADR-209 captures the revision with `authored_by="operator"`. (The `UpdateContext` primitive was dissolved in ADR-235; WriteFile is the current primitive.)
 
 Either way the workspace ends up with the right MANDATE.md content. Option A is the single-canonical-path per ADR-230; Option B is the operator-driven equivalent for ad-hoc edits after activation.
 
-**Verification:** `MANDATE.md` no longer contains the bundle's "operator-author-here" prompts; instead contains the canonical alpha-trader mandate (Primary Action, Success Criteria, Daily Discipline, Outcome Signal sections). The `ManageTask(create)` hard gate per ADR-207 P2 now passes.
+**Verification:** `MANDATE.md` no longer contains the bundle's "operator-author-here" prompts; instead contains the canonical alpha-trader mandate (Primary Action, Success Criteria, Daily Discipline, Outcome Signal sections). The `ManageRecurrence(action="create")` hard gate per ADR-207 P2 now passes.
 
 ### Step 3 — Author `_operator_profile.md` (5-8 declared signals)
 
@@ -172,7 +172,7 @@ Why this edge exists. Who's on the other side. What would falsify it.
 Author via YARNNN chat:
 
 ```
-@yarnnn — author /workspace/context/trading/_operator_profile.md with the following content. Use UpdateContext(target="domain", domain="trading", file="_operator_profile.md") with authored_by="operator":
+@yarnnn — author /workspace/context/trading/_operator_profile.md with the following content. Use WriteFile(scope="workspace", path="context/trading/_operator_profile.md") with authored_by="operator":
 
 [content]
 ```
@@ -186,24 +186,24 @@ The bundle ships an alpha-trader-typical principles.md template (`docs/programs/
 Tuning happens through YARNNN chat:
 
 ```
-@yarnnn — review /workspace/review/principles.md and walk me through tuning each section to my edge. Start with the hard rejection rules, then capital-EV thresholds. Use UpdateContext writes for each section.
+@yarnnn — review /workspace/review/principles.md and walk me through tuning each section to my edge. Start with the hard rejection rules, then capital-EV thresholds. Use WriteFile(scope="workspace") for each section as we walk through it.
 ```
 
 YARNNN's profile-aware prompt (ADR-186) surfaces the right framing — "you're authoring Reviewer principles for an alpha-trader workspace; the bundle ships defaults; tune them to your edge." Conversation walks Section 1 (hard rejection), Section 2 (capital-EV thresholds), Section 3 (auto-approve threshold — kept commented out for now per ADR-194 v2 Phase 3 safe default), through `principles.md` end.
 
 **Verification:** `principles.md` contains kvk-tuned content, not the bundle template. Reviewer (kvk-as-occupant for now) reads it on every proposal verdict.
 
-### Step 5 — Compose first trading-signal task
+### Step 5 — Compose first trading-signal recurrence
 
-With Mandate + Profile + Risk + Principles authored, kvk asks YARNNN to scaffold a `trading-signal` task:
+With Mandate + Profile + Risk + Principles authored, kvk asks YARNNN to scaffold a `trading-signal` recurrence:
 
 ```
-@yarnnn — scaffold a trading-signal task. Daily cadence. Reads trading + portfolio domains. Writes signal proposals to action_proposals.
+@yarnnn — scaffold a trading-signal recurrence. Daily cadence. Reads trading + portfolio domains. Writes signal proposals to action_proposals.
 ```
 
-YARNNN consults the bundle's task_types (per ADR-224 fallback path: `get_task_type('trading-signal')` returns the alpha-trader-bundled definition); applies the bundle's `default_objective` + `default_deliverable` + `instruction` from MANIFEST.yaml; calls `ManageTask(action='create', type_key='trading-signal')`. Hard gate per ADR-207 P2 passes (MANDATE.md is authored). Task materializes at `/tasks/trading-signal/TASK.md`.
+YARNNN consults the bundle's task_types (per ADR-224 fallback path: `get_task_type('trading-signal')` returns the alpha-trader-bundled definition); applies the bundle's `default_objective` + `default_deliverable` + `instruction` from MANIFEST.yaml; calls `ManageRecurrence(action="create", type_key="trading-signal")`. Hard gate per ADR-207 P2 passes (MANDATE.md is authored). Recurrence materializes at `/workspace/context/trading/_recurring.yaml` (post-ADR-231 D2 natural-home for accumulates_context shape).
 
-**Verification:** task exists. `/work` list-mode pinned-tasks renders it (per ADR-225 alpha-trader SURFACES.yaml). Detail middle (per ADR-225 §4 task_slug match) shows the bundle's `queue` archetype with `TradingProposalQueue` component.
+**Verification:** recurrence exists. `/work` list-mode renders it.
 
 ### Step 6 — Hand off to the autonomous loop, observe
 
@@ -218,9 +218,9 @@ emit proposals where signals fire honestly.
 
 What happens next without operator intervention:
 
-- YARNNN invokes `ManageTask(action='trigger', slug='signal-evaluation')`
+- YARNNN invokes `FireInvocation(slug='signal-evaluation')`
   via the chat surface. This is a chat-initiated invocation per ADR-205
-  chat-first triggering — the canonical path for first-cycle dispatch.
+  chat-first triggering — the canonical path for first-cycle dispatch. (The `ManageTask` primitive was deleted in ADR-231; `FireInvocation` is the current primitive.)
 - Pipeline reads accumulated context (operator profile, declared signals,
   current positions, market data via `platform_trading_get_market_data`),
   evaluates each declared signal mechanically against entry conditions.

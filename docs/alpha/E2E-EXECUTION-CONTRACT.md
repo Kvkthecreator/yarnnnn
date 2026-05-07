@@ -83,7 +83,7 @@ The loop ADR-206 describes at the framework level, made concrete for the trader 
                                     ▼ (surfaces)
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │  DELIVERABLES (the operator's surface)                                        │
-│  /work BriefingStrip NeedsMe pane    ← proposals awaiting operator decision   │
+│  /work Tracking face Queue            ← proposals awaiting operator decision   │
 │  /work task list + outputs           ← pre-market briefs, performance reviews │
 │  /review decisions.md                ← Reviewer's audit trail                 │
 │  /workspace/context/trading/_performance.md ← per-signal P&L + expectancy     │

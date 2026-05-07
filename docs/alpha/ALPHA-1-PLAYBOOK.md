@@ -1197,7 +1197,7 @@ Once Phase 1 is complete for an account and credentials are shared:
 - 8:00: `track-universe` morning recurrence fires → writes `/workspace/context/trading/{ticker}/` per ADR-231 D2
 - 8:05: `signal-evaluation` recurrence fires → state files updated under `/workspace/context/trading/signals/`
 - 8:15: `pre-market-brief` fires → daily-update expository-pointer email arrives per ADR-202 → Claude clicks the deep-link to land at `/work` cockpit (`/overview` redirects to `/work` per ADR-225)
-- 8:15–8:45: Claude reviews the cockpit four faces per ADR-228: **Mandate** (current MANDATE.md + AUTONOMY posture), **Money truth** (substrate fallback to `_performance.md` until live binding lands), **Performance** (decisions.md calibration), **Tracking** (proposal queue via `NeedsMePane` + recurrence health). Reads pre-market brief at `/work?task=pre-market-brief` middle band. Notes any signal-state surprises.
+- 8:15–8:45: Claude reviews the cockpit four faces per ADR-228: **Mandate** (current MANDATE.md + AUTONOMY posture), **Money truth** (substrate fallback to `_performance.md` until live binding lands), **Performance** (decisions.md calibration), **Tracking** (proposal Queue + recurrence health). Reads pre-market brief at `/work?task=pre-market-brief` middle band. Notes any signal-state surprises.
 - 8:45–9:15: If any trade-proposals pending from overnight or pre-market signal fires, Claude + KVK coordinate out-of-band on approval.
 
 **Market hours (9:30–16:00 ET):**
