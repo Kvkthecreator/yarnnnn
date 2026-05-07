@@ -392,19 +392,25 @@ async def _run_ai_reviewer(
         # surfaces as advisory (operator clicks Approve in cockpit).
         from services.review_policy import (
             load_autonomy,
+            load_principles,
             autonomy_for_domain,
+            principles_for_domain,
             should_auto_execute_verdict,
         )
         autonomy = load_autonomy(client, user_id)
         autonomy_policy = autonomy_for_domain(autonomy, context_domain)
+        principles = load_principles(client, user_id)
+        principles_policy = principles_for_domain(principles, context_domain)
         estimated_cents = _estimate_proposal_value_cents(proposal_row)
 
+        # ADR-254 D3: both AUTONOMY gate + PRINCIPLES gate must pass
         should_bind, gate_reason = should_auto_execute_verdict(
             autonomy_policy=autonomy_policy,
             verdict="approve",
             action_type=action_type,
             estimated_cents=estimated_cents,
             reversibility=reversibility or "",
+            principles_policy=principles_policy,
         )
 
         if should_bind:

@@ -52,9 +52,11 @@ SHARED_BRAND_PATH = "context/_shared/BRAND.md"
 # it (bundle forks, editable-path allowlist in workspace.py). NOT in
 # SHARED_CONTEXT_FILES — kernel does not seed it at init.
 SHARED_CONVENTIONS_PATH = "context/_shared/CONVENTIONS.md"
-# ADR-217: Workspace-scoped autonomy delegation. Operator-authored; read by
-# Reviewer dispatcher and task pipeline capability gate.
-SHARED_AUTONOMY_PATH = "context/_shared/AUTONOMY.md"
+# ADR-217 + ADR-254: Autonomy delegation.
+# SHARED_AUTONOMY_PATH = prose documentation (LLM reads, human reads — not machine-parsed)
+# SHARED_AUTONOMY_YAML_PATH = machine-parsed delegation config (yaml.safe_load)
+SHARED_AUTONOMY_PATH = "context/_shared/AUTONOMY.md"          # prose doc — preserved for LLM reads
+SHARED_AUTONOMY_YAML_PATH = "context/_shared/_autonomy.yaml"  # machine-parsed (ADR-254)
 # Shared durable interpretations: operator-authored precedent that survives
 # seat rotation and is readable by YARNNN, Reviewer, and domain Agents alike.
 SHARED_PRECEDENT_PATH = "context/_shared/PRECEDENT.md"
@@ -95,7 +97,8 @@ MEMORY_FILES = (
 # to six files. Singular implementation — no dual path.
 # -----------------------------------------------------------------------------
 REVIEW_IDENTITY_PATH = "review/IDENTITY.md"
-REVIEW_PRINCIPLES_PATH = "review/principles.md"
+REVIEW_PRINCIPLES_PATH = "review/principles.md"          # prose (LLM reads)
+REVIEW_PRINCIPLES_YAML_PATH = "review/_principles.yaml"  # machine-parsed thresholds (ADR-254)
 REVIEW_DECISIONS_PATH = "review/decisions.md"
 # Phase 4 (ADR-211) minus modes.md (ADR-217):
 REVIEW_OCCUPANT_PATH = "review/OCCUPANT.md"
