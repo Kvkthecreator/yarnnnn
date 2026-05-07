@@ -247,8 +247,7 @@ export function ChatPanel({
           </div>
         )}
 
-        {messages
-          .filter(msg => narrativeFilterMatches(msg, narrativeFilter))
+        {dedupeBackOfficeEvents(messages.filter(msg => narrativeFilterMatches(msg, narrativeFilter)))
           .map(msg => (
             <NarrativeMessage
               key={msg.id}
@@ -258,8 +257,11 @@ export function ChatPanel({
             />
           ))}
 
-        {status.type === 'thinking' && messages[messages.length - 1]?.role === 'user' && (
-          <div className="flex items-center gap-1.5 text-muted-foreground text-xs"><Loader2 className="w-3 h-3 animate-spin" />Thinking...</div>
+        {status.type === 'thinking' && (
+          <div className="flex items-center gap-1.5 pl-0.5 py-0.5 opacity-50">
+            <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+            <span className="text-[11px] text-muted-foreground">thinking</span>
+          </div>
         )}
 
         {status.type === 'clarify' && pendingClarification && (
@@ -439,6 +441,45 @@ export function ChatPanel({
 // compact rows. There is one dispatch — singular implementation per
 // discipline rule 1; the legacy "no envelope" path is treated as material
 // so historical messages predating Commit 2 don't disappear.
+
+/**
+ * Collapse back-office event pairs where a system (background) entry and an
+ * adjacent system_agent entry describe the same recurrence run. Pattern:
+ *   system   "back-office: Universe tracker: 5/5 tickers updated"
+ *   system_agent "Fired `track-universe`. Universe tracker: 5/5 tickers updated"
+ *
+ * When both are present within a 60-second window, drop the system_agent
+ * routine row — the background entry already covers it. Material-weight
+ * system_agent messages (execution narration the operator asked for) are
+ * never dropped.
+ */
+function dedupeBackOfficeEvents(msgs: TPMessage[]): TPMessage[] {
+  const suppressedIds = new Set<string>();
+  for (let i = 0; i < msgs.length; i++) {
+    const msg = msgs[i];
+    if (msg.role !== 'system_agent') continue;
+    if ((msg.narrative?.weight ?? 'material') === 'material') continue;
+    // Look for a system (background) message within ±60s with overlapping content
+    const msgTime = msg.timestamp.getTime();
+    for (let j = Math.max(0, i - 3); j <= Math.min(msgs.length - 1, i + 3); j++) {
+      if (j === i) continue;
+      const peer = msgs[j];
+      if (peer.role !== 'system') continue;
+      const timeDiff = Math.abs(peer.timestamp.getTime() - msgTime);
+      if (timeDiff > 60_000) continue;
+      // Check content overlap: both should reference the same recurrence slug or
+      // share a significant token (≥8 chars) from the summary/content.
+      const peerText = (peer.narrative?.summary ?? peer.content ?? '').toLowerCase();
+      const msgText = (msg.narrative?.summary ?? msg.content ?? '').toLowerCase();
+      const words = peerText.split(/\W+/).filter(w => w.length >= 8);
+      if (words.some(w => msgText.includes(w))) {
+        suppressedIds.add(msg.id);
+        break;
+      }
+    }
+  }
+  return suppressedIds.size === 0 ? msgs : msgs.filter(m => !suppressedIds.has(m.id));
+}
 
 function narrativeFilterMatches(
   msg: TPMessage,

@@ -265,11 +265,11 @@ function RoutineRow({ msg, reviewerPersona }: { msg: TPMessage; reviewerPersona?
     msg.narrative?.summary ??
     (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '');
   return (
-    <div className="flex items-center gap-2 max-w-[92%] py-0.5 opacity-60">
-      <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60 shrink-0">
-        {roleDisplayLabel(msg.role, reviewerPersona)}
+    <div className="flex items-center gap-1.5 max-w-[92%] py-0.5 opacity-40">
+      <span className="text-[10px] text-muted-foreground/70 shrink-0 font-mono">
+        {roleDisplayLabel(msg.role, reviewerPersona)}:
       </span>
-      <span className="text-[12px] text-muted-foreground truncate flex-1">{summary}</span>
+      <span className="text-[11px] text-muted-foreground truncate flex-1">{summary}</span>
       <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
         {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </span>
@@ -289,9 +289,9 @@ function HousekeepingRow({ msg, reviewerPersona }: { msg: TPMessage; reviewerPer
     msg.narrative?.summary ??
     (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '');
   return (
-    <div className="text-[11px] flex items-center gap-2 max-w-[92%] py-0.5 opacity-50 hover:opacity-90 transition-opacity">
-      <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/50">
-        {roleDisplayLabel(msg.role, reviewerPersona)}
+    <div className="text-[11px] flex items-center gap-1.5 max-w-[92%] py-0.5 opacity-25 hover:opacity-60 transition-opacity">
+      <span className="text-[10px] text-muted-foreground/70 shrink-0 font-mono">
+        {roleDisplayLabel(msg.role, reviewerPersona)}:
       </span>
       <span className="text-muted-foreground truncate flex-1">{summary}</span>
       <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">

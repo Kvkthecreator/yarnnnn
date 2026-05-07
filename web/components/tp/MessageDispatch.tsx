@@ -224,11 +224,11 @@ function ReviewerVerdictRenderer({ msg }: RendererProps): JSX.Element {
  */
 function renderSystemEvent({ msg }: RendererProps): JSX.Element {
   return (
-    <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
-      <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1 font-brand text-[10px]">
-        background
+    <div className="text-[12px] rounded-lg px-2.5 py-1.5 max-w-[92%] bg-muted/40 border border-border/30">
+      <span className="text-[9px] font-mono text-muted-foreground/40 block mb-0.5">
+        background:
       </span>
-      <p className="whitespace-pre-wrap">{msg.content}</p>
+      <p className="whitespace-pre-wrap text-muted-foreground/60">{msg.content}</p>
     </div>
   );
 }

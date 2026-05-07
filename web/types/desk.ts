@@ -221,7 +221,7 @@ export type TPAction =
   | { type: 'CLEAR_MESSAGES' }
   // ADR-042: Update streaming message blocks in real-time
   // ADR-124: author fields for meeting room attribution
-  | { type: 'UPDATE_STREAMING_MESSAGE'; blocks: MessageBlock[]; content?: string; authorAgentId?: string; authorAgentSlug?: string; authorRole?: string; authorName?: string }
+  | { type: 'UPDATE_STREAMING_MESSAGE'; messageId?: string; blocks: MessageBlock[]; content?: string; authorAgentId?: string; authorAgentSlug?: string; authorRole?: string; authorName?: string }
   | { type: 'SET_LOADING'; isLoading: boolean }
   | { type: 'SET_ERROR'; error: string | null }
   // ADR-025: Todo tracking actions

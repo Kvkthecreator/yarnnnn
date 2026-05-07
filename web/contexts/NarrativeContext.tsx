@@ -50,16 +50,19 @@ function tpReducer(state: TPState, action: TPAction): TPState {
     case 'CLEAR_MESSAGES':
       return { ...state, messages: [] };
 
-    // ADR-042: Update streaming message blocks in place
+    // Update streaming message in place. Targets by ID (action.messageId) when
+    // provided, falls back to last-assistant-role scan for backward compat.
     // ADR-124: Also propagate author attribution fields
     case 'UPDATE_STREAMING_MESSAGE': {
       const messages = [...state.messages];
-      const lastIdx = messages.length - 1;
-      if (lastIdx >= 0 && messages[lastIdx].role === 'assistant') {
-        messages[lastIdx] = {
-          ...messages[lastIdx],
+      const targetIdx = action.messageId
+        ? messages.findIndex(m => m.id === action.messageId)
+        : messages.map(m => m.role).lastIndexOf('assistant');
+      if (targetIdx >= 0) {
+        messages[targetIdx] = {
+          ...messages[targetIdx],
           blocks: action.blocks,
-          content: action.content ?? messages[lastIdx].content,
+          content: action.content ?? messages[targetIdx].content,
           ...(action.authorAgentId && { authorAgentId: action.authorAgentId }),
           ...(action.authorAgentSlug && { authorAgentSlug: action.authorAgentSlug }),
           ...(action.authorRole && { authorRole: action.authorRole }),
@@ -472,23 +475,6 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           throw new Error('No response body');
         }
 
-        // ADR-042: Add empty assistant message immediately for streaming blocks.
-        // ADR-219: stamp envelope so weight-driven rendering applies
-        // immediately; backend will record final weight (material when a
-        // tool call fired, else routine) on the persisted row, but for
-        // streaming-time display we treat the in-flight reply as material
-        // so it renders as a full card during typing.
-        const assistantMessageId = crypto.randomUUID();
-        const initialAssistantMessage: TPMessage = {
-          id: assistantMessageId,
-          role: 'assistant',
-          content: '',
-          blocks: [],
-          timestamp: new Date(),
-          narrative: { pulse: 'addressed', weight: 'material' },
-        };
-        dispatch({ type: 'ADD_MESSAGE', message: initialAssistantMessage });
-
         // Track state during streaming
         let assistantContent = '';
         const toolResults: TPToolResult[] = [];
@@ -503,10 +489,16 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
         const pendingToolCalls: Map<string, number> = new Map(); // tool_use_id -> block index
         // ADR-124: Author attribution from stream_start event
         let streamAuthor: { agentId?: string; agentSlug?: string; role?: string; name?: string } | null = null;
+        // Streaming placeholder ID — set when stream_start fires, null until then.
+        // We only insert a placeholder once we know the System Agent will stream
+        // content. Reviewer turns call loadScopedHistory() instead, so they never
+        // need a client-side placeholder.
+        let streamingMessageId: string | null = null;
 
-        // Helper to update streaming message
+        // Helper to update streaming message in-place by ID
         const updateStreamingMessage = () => {
-          dispatch({ type: 'UPDATE_STREAMING_MESSAGE', blocks: [...blocks], content: assistantContent });
+          if (!streamingMessageId) return;
+          dispatch({ type: 'UPDATE_STREAMING_MESSAGE', messageId: streamingMessageId, blocks: [...blocks], content: assistantContent });
         };
 
         while (true) {
@@ -527,23 +519,31 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
 
               // API sends: {stream_start}, {content}, {tool_use}, {tool_result}, {done}, {error}
               if (event.stream_start) {
-                // ADR-124: Author attribution from backend — update the pending assistant message
+                // ADR-124: Author attribution from backend
                 streamAuthor = {
                   agentId: event.author_agent_id,
                   agentSlug: event.author_agent_slug,
                   role: event.author_role,
                   name: event.author_name,
                 };
-                // Update the already-added assistant message with author info
-                dispatch({
-                  type: 'UPDATE_STREAMING_MESSAGE',
-                  blocks: [...blocks],
-                  content: assistantContent,
-                  authorAgentId: event.author_agent_id,
-                  authorAgentSlug: event.author_agent_slug,
-                  authorRole: event.author_role,
-                  authorName: event.author_name,
-                });
+                // Insert the streaming placeholder now — only when we know the
+                // System Agent will stream content. Reviewer turns never reach
+                // stream_start; they call loadScopedHistory() on reviewer_response.
+                streamingMessageId = crypto.randomUUID();
+                const streamingPlaceholder: TPMessage = {
+                  id: streamingMessageId,
+                  role: 'assistant',
+                  content: '',
+                  blocks: [],
+                  timestamp: new Date(),
+                  narrative: { pulse: 'addressed', weight: 'material' },
+                  ...(event.author_agent_id && { authorAgentId: event.author_agent_id }),
+                  ...(event.author_agent_slug && { authorAgentSlug: event.author_agent_slug }),
+                  ...(event.author_role && { authorRole: event.author_role }),
+                  ...(event.author_name && { authorName: event.author_name }),
+                };
+                dispatch({ type: 'ADD_MESSAGE', message: streamingPlaceholder });
+                setStatus({ type: 'streaming', content: '' });
               } else if (event.content) {
                 assistantContent += event.content;
                 // Update or add text block
@@ -751,17 +751,20 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           if (firstMessage) finalContent = firstMessage;
         }
 
-        // Final update with toolResults for legacy compatibility
-        // ADR-124: Preserve author attribution in final message update
-        dispatch({
-          type: 'UPDATE_STREAMING_MESSAGE',
-          blocks: [...blocks],
-          content: finalContent,
-          ...(streamAuthor?.agentId && { authorAgentId: streamAuthor.agentId }),
-          ...(streamAuthor?.agentSlug && { authorAgentSlug: streamAuthor.agentSlug }),
-          ...(streamAuthor?.role && { authorRole: streamAuthor.role }),
-          ...(streamAuthor?.name && { authorName: streamAuthor.name }),
-        });
+        // Final update — only if we actually inserted a streaming placeholder.
+        // ADR-124: Preserve author attribution in final message update.
+        if (streamingMessageId) {
+          dispatch({
+            type: 'UPDATE_STREAMING_MESSAGE',
+            messageId: streamingMessageId,
+            blocks: [...blocks],
+            content: finalContent,
+            ...(streamAuthor?.agentId && { authorAgentId: streamAuthor.agentId }),
+            ...(streamAuthor?.agentSlug && { authorAgentSlug: streamAuthor.agentSlug }),
+            ...(streamAuthor?.role && { authorRole: streamAuthor.role }),
+            ...(streamAuthor?.name && { authorName: streamAuthor.name }),
+          });
+        }
         dispatch({ type: 'SET_LOADING', isLoading: false });
 
         // Set complete status, then fade to idle (unless clarify is pending)
