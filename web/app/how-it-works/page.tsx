@@ -4,25 +4,22 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
-import { AnimatedTimeline } from "@/components/landing/AnimatedTimeline";
 import { SpotlightCard, BentoGrid } from "@/components/landing/SpotlightCard";
-import { MockPDF, MockEmail, MockBrief } from "@/components/landing/MockOutputs";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
   title: "How yarnnn works",
   description:
-    "Connect your tools, describe the work, and let your AI team execute on schedule. Agents accumulate knowledge of your business and get better every week.",
+    "Declare your intent. Create agents through conversation. The OS runs the operation. You supervise from the cockpit.",
   path: "/how-it-works",
   keywords: [
     "how yarnnn works",
     "autonomous ai workflow",
-    "ai agent task automation",
+    "agent os",
+    "agent operating system",
     "ai agents",
-    "ai workforce",
-    "ai employee",
-    "slack ai summary",
-    "notion ai summary",
+    "ai knowledge work",
+    "recurring ai work",
   ],
 });
 
@@ -34,22 +31,10 @@ export default function HowItWorksPage() {
     description: metadata.description,
     url: `${BRAND.url}/how-it-works`,
     step: [
-      {
-        "@type": "HowToStep",
-        name: "Connect your tools and share context",
-      },
-      {
-        "@type": "HowToStep",
-        name: "Describe the work you need done",
-      },
-      {
-        "@type": "HowToStep",
-        name: "Your agents execute and deliver on schedule",
-      },
-      {
-        "@type": "HowToStep",
-        name: "Review output and watch quality compound over time",
-      },
+      { "@type": "HowToStep", name: "Declare your intent — tell YARNNN what you're trying to accomplish" },
+      { "@type": "HowToStep", name: "Agents are created through conversation, scoped to your domain" },
+      { "@type": "HowToStep", name: "The operation runs — agents connect to tools and execute on schedule" },
+      { "@type": "HowToStep", name: "You supervise from the cockpit — redirect, refine, and watch it compound" },
     ],
   };
 
@@ -66,69 +51,172 @@ export default function HowItWorksPage() {
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <p className="text-white/40 text-sm uppercase tracking-widest mb-4">How It Works</p>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              Your tools. Your context.
+              Declare. Build.
               <br />
-              <span className="text-white/50">Their work. Your review.</span>
+              <span className="text-white/50">Run. Supervise.</span>
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              yarnnn connects to your tools, keeps a shared knowledge base, and runs
-              recurring work on schedule. Your agents accumulate context continuously.
-              Your feedback sharpens future output instead of resetting every session.
+              yarnnn is an operating system for recurring knowledge work. You declare
+              what you&apos;re trying to accomplish. Agents are created around that intent through
+              conversation. The OS runs the operation — scheduled, connected, accumulating.
+              You supervise from the cockpit.
             </p>
           </section>
 
-          {/* ─── Timeline overview ─────────────────────────────────────── */}
+          {/* ─── The operating model ──────────────────────────────────────── */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-5xl mx-auto">
-              <div className="text-center mb-16">
-                <h2 className="text-2xl md:text-3xl font-medium mb-4">
-                  Four steps. Then it runs itself.
-                </h2>
-                <p className="text-white/50 max-w-md mx-auto">
-                  From first context to a running system.
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6 mb-16">
+                <div className="text-4xl font-light text-white/10">00</div>
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-medium mb-4">The operating model</h2>
+                  <p className="text-white/50 leading-relaxed max-w-2xl">
+                    Every yarnnn workspace runs as an operation, not a series of queries.
+                    Three layers make it work.
+                  </p>
+                </div>
               </div>
 
-              <AnimatedTimeline
-                variant="dark"
-                steps={[
-                  { number: "01", title: "Connect your tools", description: "Link Slack, Notion, or GitHub. Upload docs. Or just start talking — your agents learn from every source." },
-                  { number: "02", title: "Describe the work", description: "Tell yarnnn what you need in plain language. It assigns the right agent and sets the schedule." },
-                  { number: "03", title: "Agents deliver", description: "Your team runs on schedule — daily, weekly, monthly — whether you're online or not." },
-                  { number: "04", title: "Review & improve", description: "Check the output. Edit what needs changing. Your corrections teach the agents what you actually want." },
-                ]}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <SpotlightCard variant="dark" spotlightColor="rgba(99,102,241,0.05)">
+                  <div className="p-6 h-full">
+                    <div className="text-xs font-mono text-white/30 uppercase tracking-wider mb-4">Kernel</div>
+                    <h3 className="text-base font-medium mb-3">The kernel runs it</h3>
+                    <p className="text-white/40 text-sm leading-relaxed">
+                      Scheduled recurrences, platform connections, and deterministic pipelines
+                      execute without you present. LLM reasoning is reserved for work that
+                      genuinely requires judgment — not arithmetic, not formatting, not retrieval.
+                    </p>
+                  </div>
+                </SpotlightCard>
+                <SpotlightCard variant="dark" spotlightColor="rgba(14,165,233,0.05)">
+                  <div className="p-6 h-full">
+                    <div className="text-xs font-mono text-white/30 uppercase tracking-wider mb-4">Substrate</div>
+                    <h3 className="text-base font-medium mb-3">The substrate accumulates</h3>
+                    <p className="text-white/40 text-sm leading-relaxed">
+                      Your workspace is the persistent memory of the operation — tool context,
+                      prior outputs, preferences from your edits, domain knowledge from every
+                      run. The substrate is what makes Day 90 different from Day 1.
+                    </p>
+                  </div>
+                </SpotlightCard>
+                <SpotlightCard variant="dark" spotlightColor="rgba(245,158,11,0.05)">
+                  <div className="p-6 h-full">
+                    <div className="text-xs font-mono text-white/30 uppercase tracking-wider mb-4">Judgment</div>
+                    <h3 className="text-base font-medium mb-3">Judgment is independent</h3>
+                    <p className="text-white/40 text-sm leading-relaxed">
+                      What agents want to do and whether they should are two separate questions.
+                      An independent layer evaluates proposed actions against your declared intent
+                      before they bind. Autonomy that you can actually trust.
+                    </p>
+                  </div>
+                </SpotlightCard>
+              </div>
             </div>
           </section>
 
-          {/* ─── Bento: Your team ──────────────────────────────────────── */}
+          {/* ─── Step 01: Declare ─────────────────────────────────────────── */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-5xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6 mb-12">
                 <div className="text-4xl font-light text-white/20">01</div>
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-medium mb-4">Your team is ready at signup</h2>
+                  <h2 className="text-2xl md:text-3xl font-medium mb-4">Declare your intent</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl">
-                    You don&apos;t build agents from scratch. A researcher, analyst,
-                    writer, tracker, designer, platform connectors, and an orchestrator
-                    are waiting when you sign up.
+                    Tell YARNNN what you&apos;re trying to accomplish — a domain you want to track,
+                    a recurring deliverable you want produced, an operation you want running.
+                    Plain language. No configuration forms.
                   </p>
                 </div>
               </div>
 
               <BentoGrid>
-                {/* Large team card */}
+                <SpotlightCard variant="dark" className="md:col-span-4" spotlightColor="rgba(99,102,241,0.05)">
+                  <div className="p-6 md:p-8">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-4">In conversation</div>
+                    <div className="space-y-4 max-w-lg">
+                      <div className="flex justify-end">
+                        <div className="bg-white/10 rounded-2xl rounded-br-sm px-4 py-3 max-w-[85%]">
+                          <p className="text-white/90 text-sm">
+                            I want a weekly competitive intelligence brief. Track three competitors,
+                            synthesize what changed, and have it in my inbox every Monday morning.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex justify-start">
+                        <div className="bg-white/[0.04] border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
+                          <p className="text-white/70 text-sm">
+                            Got it. I&apos;ll create a Researcher scoped to competitive intelligence
+                            and a Writer for the brief. Once you confirm, I&apos;ll set it to run
+                            every Sunday evening so you have it Monday morning.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </SpotlightCard>
+
+                <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(245,158,11,0.05)">
+                  <div className="p-6 h-full flex flex-col">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">The mandate</div>
+                    <h3 className="text-base font-medium mb-2">What you&apos;re trying to accomplish</h3>
+                    <p className="text-white/40 text-xs leading-relaxed flex-1">
+                      Your declared intent is the north star the system reasons against.
+                      Agents evaluate their own output against it. The judgment layer evaluates
+                      proposed actions against it. The operation is always trying to serve it.
+                    </p>
+                  </div>
+                </SpotlightCard>
+
+                <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(16,185,129,0.05)">
+                  <div className="p-6 h-full flex flex-col">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Task shapes</div>
+                    <div className="space-y-3 flex-1">
+                      {([
+                        { mode: "Recurring", desc: "Runs on cadence indefinitely" },
+                        { mode: "Goal-bound", desc: "Runs until success criteria are met" },
+                        { mode: "Reactive", desc: "Fires on event or on-demand" },
+                      ] as const).map((m) => (
+                        <div key={m.mode}>
+                          <div className="text-sm font-medium mb-0.5">{m.mode}</div>
+                          <p className="text-white/40 text-xs leading-relaxed">{m.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </SpotlightCard>
+              </BentoGrid>
+            </div>
+          </section>
+
+          {/* ─── Step 02: Build ───────────────────────────────────────────── */}
+          <section className="border-t border-white/10 px-6 py-24 md:py-32">
+            <div className="max-w-5xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6 mb-12">
+                <div className="text-4xl font-light text-white/20">02</div>
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-medium mb-4">Agents are created through conversation</h2>
+                  <p className="text-white/50 leading-relaxed max-w-2xl">
+                    You don&apos;t pick from a catalog. A conversation with YARNNN is how agents
+                    come into existence — scoped to your domain, drawing from a palette of
+                    specialist roles. The team is authored, not provisioned.
+                  </p>
+                </div>
+              </div>
+
+              <BentoGrid>
+                {/* The palette — large */}
                 <SpotlightCard
                   variant="dark"
                   className="md:col-span-4 md:row-span-2"
-                  spotlightColor="rgba(255,255,255,0.05)"
+                  spotlightColor="rgba(255,255,255,0.03)"
                 >
                   <div className="p-6 md:p-8 h-full">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Your roster</div>
-                    <h3 className="text-xl font-medium mb-2">Nine agents, each with a specialty</h3>
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-4">The specialist palette</div>
+                    <h3 className="text-xl font-medium mb-2">Six roles. Your agents are built from them.</h3>
                     <p className="text-white/50 text-sm mb-8 max-w-md">
-                      Six universal specialists — a researcher, analyst, writer, tracker,
-                      designer, and orchestrator — plus platform connectors for your tools.
+                      YARNNN drafts specialist combinations per task from a universal palette.
+                      Your domain agents are persistent entities that accumulate expertise over time.
                     </p>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -138,10 +226,10 @@ export default function HowItWorksPage() {
                         { name: "Writer", letter: "W", color: "#10b981", desc: "Drafts polished deliverables" },
                         { name: "Tracker", letter: "T", color: "#f59e0b", desc: "Monitors signals and changes" },
                         { name: "Designer", letter: "D", color: "#ef4444", desc: "Creates charts, images & visuals" },
-                        { name: "Slack Bot", letter: "S", color: "#E01E5A", desc: "Reads your channels & threads" },
-                        { name: "Notion Bot", letter: "N", color: "#191919", desc: "Reads your pages & databases" },
-                        { name: "GitHub Bot", letter: "G", color: "#111827", desc: "Follows repos & activity" },
-                        { name: "YARNNN", letter: "Y", color: "#374151", desc: "Manages and orchestrates the team" },
+                        { name: "Slack", letter: "S", color: "#E01E5A", desc: "Reads your channels & threads" },
+                        { name: "Notion", letter: "N", color: "#191919", desc: "Reads your pages & databases" },
+                        { name: "GitHub", letter: "G", color: "#111827", desc: "Follows repos & activity" },
+                        { name: "YARNNN", letter: "Y", color: "#374151", desc: "The orchestrator you talk to" },
                       ] as const).map((agent) => (
                         <div key={agent.name} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/[0.03] transition-colors">
                           <div
@@ -160,250 +248,224 @@ export default function HowItWorksPage() {
                   </div>
                 </SpotlightCard>
 
-                {/* Agent vs Bot explainer */}
+                {/* Authorship card */}
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(99,102,241,0.05)">
                   <div className="p-6 h-full flex flex-col">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">How they work together</div>
-                    <div className="flex-1 space-y-4">
-                      <div>
-                        <div className="text-sm font-medium mb-1">Accumulation specialists</div>
-                        <p className="text-white/40 text-xs leading-relaxed">
-                          Researcher, Analyst, Writer, and Tracker build up knowledge over time.
-                        </p>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium mb-1">Production specialist</div>
-                        <p className="text-white/40 text-xs leading-relaxed">
-                          Designer creates charts, images, and visual assets for your deliverables.
-                        </p>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium mb-1">Platform connectors</div>
-                        <p className="text-white/40 text-xs leading-relaxed">
-                          Read your Slack, Notion, and GitHub so the team always has fresh context.
-                        </p>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium mb-1">Orchestrator</div>
-                        <p className="text-white/40 text-xs leading-relaxed">
-                          The agent you talk to. Manages tasks, coordinates the team, and explains what&apos;s happening.
-                        </p>
-                      </div>
-                    </div>
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Authorship</div>
+                    <h3 className="text-base font-medium mb-2">The team is yours. Built over time.</h3>
+                    <p className="text-white/40 text-xs leading-relaxed flex-1">
+                      Each agent accumulates domain knowledge, learned preferences, and output
+                      history specific to your work. The switching cost begins with the first one.
+                    </p>
                   </div>
                 </SpotlightCard>
 
-                {/* Identity card */}
+                {/* Context sources card */}
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(16,185,129,0.05)">
-                  <div className="p-6 h-full flex flex-col justify-center">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Identity</div>
-                    <h3 className="text-lg font-medium mb-2">They get smarter, not wider.</h3>
-                    <p className="text-white/40 text-xs leading-relaxed">
-                      Each agent deepens its knowledge of your business over time.
-                      The more they work, the better the output.
-                    </p>
-                  </div>
-                </SpotlightCard>
-              </BentoGrid>
-            </div>
-          </section>
-
-          {/* ─── Tasks ─────────────────────────────────────────────────── */}
-          <section className="border-t border-white/10 px-6 py-24 md:py-32">
-            <div className="max-w-5xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6 mb-12">
-                <div className="text-4xl font-light text-white/20">02</div>
-                <div>
-                  <h2 className="text-2xl md:text-3xl font-medium mb-4">Assign tasks</h2>
-                  <p className="text-white/50 leading-relaxed max-w-2xl">
-                    Describe what you need in plain language. yarnnn assigns the right
-                    agent, sets the schedule, and starts delivering.
-                  </p>
-                </div>
-              </div>
-
-              <BentoGrid>
-                {/* Task example — large */}
-                <SpotlightCard variant="dark" className="md:col-span-4" spotlightColor="rgba(14,165,233,0.05)">
-                  <div className="p-6 md:p-8">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Example task</div>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center">
-                        <span className="text-[9px] text-white font-bold">W</span>
-                      </div>
-                      <span className="text-lg font-medium">Weekly leadership brief</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.06] text-white/40 ml-auto">Recurring · Weekly</span>
-                    </div>
-                    <p className="text-white/50 text-sm leading-relaxed max-w-lg">
-                      Slack and Notion keep the workspace fresh. The Writer assembles the
-                      week's changes, decisions, and risks into one Monday morning brief.
-                    </p>
-                  </div>
-                </SpotlightCard>
-
-                {/* Three task mode cards */}
-                <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(99,102,241,0.05)">
-                  <div className="p-6 h-full">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Task modes</div>
-                    <div className="space-y-4">
+                  <div className="p-6 h-full flex flex-col">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Context sources</div>
+                    <div className="grid grid-cols-2 gap-2 flex-1">
                       {([
-                        { mode: "Recurring", desc: "Runs on cadence indefinitely — daily, weekly, monthly" },
-                        { mode: "Goal", desc: "Bounded. Runs until success criteria are met" },
-                        { mode: "Reactive", desc: "On-demand or event-triggered" },
-                      ] as const).map((m) => (
-                        <div key={m.mode}>
-                          <div className="text-sm font-medium mb-0.5">{m.mode}</div>
-                          <p className="text-white/40 text-xs leading-relaxed">{m.desc}</p>
+                        { name: "Chat", desc: "Describe what matters" },
+                        { name: "Docs", desc: "Upload files agents reference" },
+                        { name: "Slack", desc: "Channels and threads" },
+                        { name: "Notion", desc: "Pages and databases" },
+                      ] as const).map((src) => (
+                        <div key={src.name} className="p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                          <div className="text-sm font-medium mb-0.5">{src.name}</div>
+                          <p className="text-white/40 text-[10px]">{src.desc}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 </SpotlightCard>
-
-                {/* More task examples */}
-                {([
-                  { title: "Competitor intelligence brief", agent: "Researcher + Analyst + Writer", mode: "Recurring" },
-                  { title: "Market research deep dive", agent: "Researcher + Analyst", mode: "Goal" },
-                  { title: "Meeting prep brief", agent: "Tracker + Writer", mode: "Reactive" },
-                ] as const).map((task) => (
-                  <SpotlightCard key={task.title} variant="dark" className="md:col-span-2">
-                    <div className="p-5">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">{task.title}</span>
-                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-white/[0.06] text-white/40">{task.mode}</span>
-                      </div>
-                      <p className="text-white/40 text-xs">{task.agent}</p>
-                    </div>
-                  </SpotlightCard>
-                ))}
               </BentoGrid>
             </div>
           </section>
 
-          {/* ─── Context ───────────────────────────────────────────────── */}
+          {/* ─── Step 03: Run ─────────────────────────────────────────────── */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-5xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6 mb-12">
                 <div className="text-4xl font-light text-white/20">03</div>
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-medium mb-4">Share context</h2>
+                  <h2 className="text-2xl md:text-3xl font-medium mb-4">The operation runs</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl">
-                    Everything your agents know lives in a shared knowledge base.
-                    Every source you add makes their work more specific to your business.
+                    Agents connect to your tools, execute on schedule, and accumulate context
+                    from every cycle — whether you&apos;re online or not. The kernel handles what&apos;s
+                    deterministic. LLM judgment handles what actually requires reasoning.
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {([
-                  { name: "Chat", desc: "Describe what matters through conversation" },
-                  { name: "Docs", desc: "Upload files that agents reference" },
-                  { name: "Slack", desc: "Channels, threads, conversations" },
-                  { name: "Notion", desc: "Pages, databases, wikis" },
-                ] as const).map((src) => (
-                  <SpotlightCard key={src.name} variant="dark" spotlightSize={200} className="rounded-xl">
-                    <div className="p-4 text-center">
-                      <div className="text-lg font-medium mb-1">{src.name}</div>
-                      <p className="text-white/40 text-xs">{src.desc}</p>
+                  {
+                    title: "Scheduled execution",
+                    desc: "Daily, weekly, monthly — or event-triggered. Tasks run on cadence without you initiating them.",
+                  },
+                  {
+                    title: "Platform-connected",
+                    desc: "Agents read fresh context from Slack, Notion, and GitHub every cycle. The substrate stays current.",
+                  },
+                  {
+                    title: "Accumulating",
+                    desc: "Prior outputs feed future ones. Domain knowledge deepens with every run. The team gets better at its job.",
+                  },
+                ] as const).map((item) => (
+                  <SpotlightCard key={item.title} variant="dark" spotlightSize={250}>
+                    <div className="p-6">
+                      <h3 className="text-base font-medium mb-2">{item.title}</h3>
+                      <p className="text-white/40 text-sm leading-relaxed">{item.desc}</p>
                     </div>
                   </SpotlightCard>
                 ))}
               </div>
 
-              <p className="text-white/30 text-xs mt-6 max-w-xl">
-                No one source is required. The system can start from conversation
-                alone, then get more grounded as documents and connected tools accumulate.
-              </p>
+              <div className="mt-8">
+                <SpotlightCard variant="dark" spotlightSize={500} className="max-w-2xl">
+                  <div className="p-6">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Multi-agent example</div>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-7 h-7 rounded-full bg-pink-500 flex items-center justify-center shrink-0">
+                          <span className="text-[8px] text-white font-bold">S</span>
+                        </div>
+                        <p className="text-white/70 text-sm pt-1">Slack connector keeps fresh internal context available each cycle</p>
+                      </div>
+                      <div className="flex items-start gap-4">
+                        <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center shrink-0">
+                          <span className="text-[8px] text-white font-bold">R</span>
+                        </div>
+                        <p className="text-white/70 text-sm pt-1">Researcher adds external signals and market movements</p>
+                      </div>
+                      <div className="flex items-start gap-4">
+                        <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                          <span className="text-[8px] text-white font-bold">W</span>
+                        </div>
+                        <p className="text-white/70 text-sm pt-1">Writer synthesizes both into a finished brief</p>
+                      </div>
+                      <div className="flex items-start gap-4 pt-2 border-t border-white/[0.06]">
+                        <div className="w-7 h-7 rounded-full bg-white/[0.1] flex items-center justify-center shrink-0">
+                          <span className="text-[8px] text-white/70 font-bold">→</span>
+                        </div>
+                        <p className="text-white text-sm font-medium pt-1">Delivered Monday 8 AM. Every week.</p>
+                      </div>
+                    </div>
+                  </div>
+                </SpotlightCard>
+              </div>
             </div>
           </section>
 
-          {/* ─── Review + Mock outputs ─────────────────────────────────── */}
+          {/* ─── Step 04: Supervise ───────────────────────────────────────── */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-5xl mx-auto">
               <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6 mb-12">
                 <div className="text-4xl font-light text-white/20">04</div>
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-medium mb-4">You review. They learn.</h2>
+                  <h2 className="text-2xl md:text-3xl font-medium mb-4">You supervise from the cockpit</h2>
                   <p className="text-white/50 leading-relaxed max-w-2xl">
-                    Agents produce finished deliverables — formatted, attributed, and delivered
-                    on schedule. Edit what needs changing and your feedback becomes learned behavior.
+                    Review what ran, redirect what needs changing, and watch the operation compound
+                    over time. You work inside yarnnn — not consuming reports elsewhere. The cockpit
+                    is where the team is tuned and the pending decisions are made.
                   </p>
                 </div>
               </div>
 
-              {/* Mock outputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 items-start mb-16">
-                <MockPDF variant="dark" />
-                <MockEmail variant="dark" />
-                <MockBrief variant="dark" />
-              </div>
-
-              {/* Chat example */}
-              <SpotlightCard variant="dark" spotlightSize={500} className="max-w-2xl">
-                <div className="p-6">
-                  <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Feedback loop</div>
-                  <div className="space-y-4">
-                    <div className="flex justify-end">
-                      <div className="bg-white/10 rounded-2xl rounded-br-sm px-4 py-3 max-w-[85%]">
-                        <p className="text-white/90 text-sm">
-                          The weekly recap is too long. Lead with risks and keep it under 500 words.
-                        </p>
+              <BentoGrid>
+                <SpotlightCard variant="dark" className="md:col-span-3" spotlightColor="rgba(245,158,11,0.05)">
+                  <div className="p-6">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Feedback loop</div>
+                    <div className="space-y-4">
+                      <div className="flex justify-end">
+                        <div className="bg-white/10 rounded-2xl rounded-br-sm px-4 py-3 max-w-[85%]">
+                          <p className="text-white/90 text-sm">
+                            The weekly recap is too long. Lead with risks and keep it under 500 words.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex justify-start">
-                      <div className="bg-white/[0.04] border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
-                        <p className="text-white/70 text-sm">
-                          Got it. I&apos;ll update this task to lead with risks and cap
-                          at 500 words. That preference will carry forward to future runs.
-                        </p>
+                      <div className="flex justify-start">
+                        <div className="bg-white/[0.04] border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
+                          <p className="text-white/70 text-sm">
+                            Got it. Updated to lead with risks, capped at 500 words. That preference
+                            carries forward to every future run.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </SpotlightCard>
+                </SpotlightCard>
+
+                <SpotlightCard variant="dark" className="md:col-span-3" spotlightColor="rgba(99,102,241,0.05)">
+                  <div className="p-6">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">The cockpit</div>
+                    <div className="space-y-3">
+                      {([
+                        { label: "Overview", desc: "What's happening and what needs you" },
+                        { label: "Agents", desc: "Your team — identity, health, accumulated expertise" },
+                        { label: "Work", desc: "What's running, what's produced, what's scheduled" },
+                        { label: "Context", desc: "What the workspace knows — accumulated and searchable" },
+                        { label: "Review", desc: "Proposed actions and the judgment trail" },
+                      ] as const).map((item) => (
+                        <div key={item.label} className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-white w-20 shrink-0">{item.label}</span>
+                          <span className="text-white/40 text-xs">{item.desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </SpotlightCard>
+              </BentoGrid>
             </div>
           </section>
 
-          {/* ─── Multi-agent collab ────────────────────────────────────── */}
+          {/* ─── The judgment layer ───────────────────────────────────────── */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-4">Agents collaborate on tasks</h2>
+              <div className="text-sm text-white/30 mb-4 font-mono uppercase tracking-wider">Independent review</div>
+              <h2 className="text-2xl md:text-3xl font-medium mb-6">
+                Agents propose.
+                <br />
+                <span className="text-white/50">A separate layer judges.</span>
+              </h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                Most tasks need one agent handling the full chain. For bigger jobs,
-                multiple agents contribute domain expertise to a single task.
+                What your agents want to do and whether they should do it are two separate
+                questions — answered by two different layers. An independent judgment function
+                reads your declared intent and principles, evaluates proposed actions, and decides
+                whether to execute, queue for your review, or defer pending more information.
+                This is what makes higher autonomy trustworthy rather than reckless.
               </p>
 
-              <SpotlightCard variant="dark" spotlightSize={500}>
-                <div className="p-6">
-                  <div className="text-xs text-white/30 uppercase tracking-wider mb-6">Example: Weekly leadership brief</div>
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-4">
-                      <div className="w-7 h-7 rounded-full bg-pink-500 flex items-center justify-center shrink-0">
-                        <span className="text-[8px] text-white font-bold">S</span>
-                      </div>
-                      <p className="text-white/70 text-sm pt-1">Slack Bot keeps fresh internal discussion and decision context available</p>
-                    </div>
-                    <div className="flex items-start gap-4">
-                      <div className="w-7 h-7 rounded-full bg-indigo-500 flex items-center justify-center shrink-0">
-                        <span className="text-[8px] text-white font-bold">R</span>
-                      </div>
-                      <p className="text-white/70 text-sm pt-1">Researcher adds external moves and market shifts</p>
-                    </div>
-                    <div className="flex items-start gap-4">
-                      <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center shrink-0">
-                        <span className="text-[8px] text-white font-bold">W</span>
-                      </div>
-                      <p className="text-white/70 text-sm pt-1">Writer synthesizes it into one brief for leadership</p>
-                    </div>
-                    <div className="flex items-start gap-4 pt-2 border-t border-white/[0.06]">
-                      <div className="w-7 h-7 rounded-full bg-white/[0.1] flex items-center justify-center shrink-0">
-                        <span className="text-[8px] text-white/70 font-bold">→</span>
-                      </div>
-                      <p className="text-white text-sm font-medium pt-1">Task combines their work into one brief, delivered Monday 8 AM</p>
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <SpotlightCard variant="dark" spotlightSize={250}>
+                  <div className="p-6">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Approve</div>
+                    <p className="text-white/60 text-sm leading-relaxed">
+                      If the proposed action aligns with your declared intent and falls within
+                      your delegated autonomy ceiling — the action executes. No manual approval needed.
+                    </p>
                   </div>
-                </div>
-              </SpotlightCard>
+                </SpotlightCard>
+                <SpotlightCard variant="dark" spotlightSize={250}>
+                  <div className="p-6">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Queue</div>
+                    <p className="text-white/60 text-sm leading-relaxed">
+                      If the action exceeds your autonomy ceiling or the judgment layer isn&apos;t
+                      confident, it surfaces in your review queue. You decide.
+                    </p>
+                  </div>
+                </SpotlightCard>
+                <SpotlightCard variant="dark" spotlightSize={250}>
+                  <div className="p-6">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Defer</div>
+                    <p className="text-white/60 text-sm leading-relaxed">
+                      If the proposal has an evidence gap, the judgment layer commissions the
+                      missing research before deciding. It doesn&apos;t guess.
+                    </p>
+                  </div>
+                </SpotlightCard>
+              </div>
             </div>
           </section>
 
@@ -412,8 +474,9 @@ export default function HowItWorksPage() {
             <div className="max-w-5xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-4">Why it gets better, not stale</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                Unlike chat tools that reset every session, yarnnn agents accumulate
-                real understanding of your work.
+                The substrate is the moat. Not the model underneath — that&apos;s becoming a
+                commodity. What accumulates in your workspace is what can&apos;t be replicated
+                by starting over.
               </p>
 
               <BentoGrid>
@@ -422,37 +485,41 @@ export default function HowItWorksPage() {
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Preferences</div>
                     <h3 className="text-base font-medium mb-2">Your structure, tone, emphasis</h3>
                     <p className="text-white/40 text-xs leading-relaxed">
-                      Learned from your edits. Every correction teaches the agent what you actually want.
+                      Learned from your edits. Every correction teaches the agent what you actually
+                      want — and carries forward to every future run.
                     </p>
                   </div>
                 </SpotlightCard>
 
                 <SpotlightCard variant="dark" className="md:col-span-3" spotlightColor="rgba(14,165,233,0.05)">
                   <div className="p-6">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Patterns</div>
-                    <h3 className="text-base font-medium mb-2">Shared knowledge base</h3>
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Domain knowledge</div>
+                    <h3 className="text-base font-medium mb-2">Research, patterns, and relationships</h3>
                     <p className="text-white/40 text-xs leading-relaxed">
-                      Fresh material from your tools, files, and prior outputs keeps every task grounded instead of starting from scratch.
+                      Accumulated findings from every task run — competitors, market signals,
+                      team dynamics. Can&apos;t be replicated by switching tools.
                     </p>
                   </div>
                 </SpotlightCard>
 
                 <SpotlightCard variant="dark" className="md:col-span-3" spotlightColor="rgba(16,185,129,0.05)">
                   <div className="p-6">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Domain knowledge</div>
-                    <h3 className="text-base font-medium mb-2">Research, competitors, team dynamics</h3>
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Output history</div>
+                    <h3 className="text-base font-medium mb-2">Prior outputs feed better future outputs</h3>
                     <p className="text-white/40 text-xs leading-relaxed">
-                      Accumulated findings that deepen with every task run. Can&apos;t be replicated by switching tools.
+                      Three months of accumulated work means every new output builds on
+                      everything that came before. The team compounds.
                     </p>
                   </div>
                 </SpotlightCard>
 
                 <SpotlightCard variant="dark" className="md:col-span-3" spotlightColor="rgba(99,102,241,0.05)">
                   <div className="p-6">
-                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">History</div>
-                    <h3 className="text-base font-medium mb-2">Every output feeds better output</h3>
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Platform context</div>
+                    <h3 className="text-base font-medium mb-2">Fresh material every cycle</h3>
                     <p className="text-white/40 text-xs leading-relaxed">
-                      Three months of accumulated work means every new output builds on everything that came before.
+                      Slack, Notion, and GitHub keep the workspace current. Agents always work
+                      from what&apos;s actually happening, not a stale snapshot.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -460,12 +527,12 @@ export default function HowItWorksPage() {
             </div>
           </section>
 
-          {/* ─── Example prompts ───────────────────────────────────────── */}
+          {/* ─── Example prompts ───────────────────────────────────────────── */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-4">What people ask for</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-4">What people describe</h2>
               <p className="text-white/50 leading-relaxed mb-12">
-                Describe the task in plain language. yarnnn assigns the right agent and handles the rest.
+                Describe the work to YARNNN in plain language. It creates the agents and sets the operation.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -487,20 +554,21 @@ export default function HowItWorksPage() {
             </div>
           </section>
 
-          {/* ─── CTA ───────────────────────────────────────────────────── */}
+          {/* ─── CTA ───────────────────────────────────────────────────────── */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Start with one task.
+                Start with one piece of work.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Sign up, connect your tools, and assign your first piece of recurring work.
+                Describe it to YARNNN. The operation it builds will still be running — and getting
+                better — three months from now.
               </p>
               <Link
                 href="/auth/login"
                 className="inline-block px-8 py-4 bg-white text-black text-lg font-medium rounded-full hover:bg-white/90 transition-colors"
               >
-                Meet your AI team
+                Describe your work
               </Link>
             </div>
           </section>
