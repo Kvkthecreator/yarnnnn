@@ -498,6 +498,7 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
         let pendingSurface: DeskSurface | null = null;
         let pendingHandoff: string | null = null;
         let clarifyWasCalled = false;
+        let reviewerFired = false; // tracks whether reviewer_response SSE was received
         // Track pending tool calls by ID for updating status
         const pendingToolCalls: Map<string, number> = new Map(); // tool_use_id -> block index
         // ADR-124: Author attribution from stream_start event
@@ -698,8 +699,9 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   totalTokens: event.usage.total_tokens,
                 });
               } else if (event.reviewer_response) {
-                // ADR-255 D3: Reviewer spoke — reload history so ReviewerCard renders.
-                // No placeholder cleanup needed (placeholder no longer added at stream start).
+                // Reviewer spoke — reload history immediately so ReviewerCard renders.
+                // Set flag so we reload again at stream end to clear any placeholder state.
+                reviewerFired = true;
                 await loadScopedHistory();
               } else if (event.balance_exhausted) {
                 throw new Error('__balance_exhausted__');
@@ -772,12 +774,14 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           }, 3000);
         }
 
-        // ADR-247/ADR-194: ProposeAction writes a reviewer verdict to session_messages
-        // asynchronously after the stream completes. Reload history after a short delay
-        // so the role='reviewer' card appears without requiring a page refresh.
+        // After stream ends: if Reviewer fired, reload history to ensure ReviewerCard
+        // is visible and any stale placeholder is replaced by DB truth.
         const hasProposeAction = toolResults.some(r => r.toolName === 'ProposeAction');
         if (hasProposeAction) {
           setTimeout(() => fetchAndSetHistory(), 1500);
+        }
+        if (reviewerFired) {
+          await loadScopedHistory();
         }
 
         return toolResults.length > 0 ? toolResults : null;

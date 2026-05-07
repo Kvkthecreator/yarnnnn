@@ -1182,12 +1182,18 @@ async def global_chat(
     # Each path is self-contained: write to DB → yield SSE → done.
 
     _REVIEWER_TRIGGERS = {
+        # Direct name address — all variants
+        "simon", "simons", "reviewer",
+        # Judgment invitations
         "what do you think", "what does simons think", "what would simons",
-        "simons", "reviewer", "what do you see", "your view", "your take",
+        "what do you see", "your view", "your take",
         "should i", "should we", "is this right", "does this make sense",
         "assess", "evaluate this", "review this", "judge",
         "are conditions", "is the market", "is now a good time",
         "what's your read", "your read", "am i missing",
+        # Decision delegation
+        "let reviewer", "let simon", "you decide", "make the call",
+        "your judgment", "your call",
     }
 
     async def _dispatch_execution_turn(router_result):
