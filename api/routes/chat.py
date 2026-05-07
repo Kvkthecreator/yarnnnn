@@ -1425,6 +1425,24 @@ async def global_chat(
                 )
                 return  # skip LLM stream entirely
 
+            # ADR-252: When judgment turn AND Reviewer fired successfully, skip System Agent stream.
+            # The Reviewer's response is the complete answer. System Agent has no judgment to add —
+            # running the LLM here produces a competing assessment that buries the Reviewer's voice.
+            if intent_class == "judgment" and reviewer_assessment and reviewer_assessment.get("response"):
+                # Write a one-line System Agent acknowledgment and stop.
+                ack = "Reviewer has assessed — see above."
+                ack_metadata = {
+                    "tools_used": [],
+                    "tool_history": [],
+                    "pulse": "addressed",
+                    "weight": "routine",
+                }
+                await append_message(auth.client, session_id, "system_agent", ack, ack_metadata)
+                yield f"data: {json.dumps({'content': ack})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
+                logger.info("[JUDGMENT_SKIP] Reviewer fired — skipping System Agent LLM for: %.50r", request.content)
+                return
+
             stream_params = {
                     "include_context": request.include_context,
                     "history": history,
