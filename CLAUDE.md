@@ -373,6 +373,25 @@ Two hooks auto-inject context so the user doesn't need to manually paste reminde
 
 - **To edit reminders**: Update the `.txt` or `.sh` file — no need to touch hook config
 
+### 9. File Format Discipline (ADR-254)
+
+Every workspace file has exactly one primary consumer. Format follows the consumer:
+
+| Format | Primary consumer | Rule |
+|--------|-----------------|------|
+| `.md` (UPPERCASE) | Operator / LLM | Prose docs — `MANDATE.md`, `IDENTITY.md`, `AUTONOMY.md`. Never machine-parsed. |
+| `.md` (lowercase) | LLM / append-only | Accumulated narrative — `principles.md`, `decisions.md`, `_performance.md`. Never machine-parsed. |
+| `_.yaml` (underscore prefix) | Python code | Machine config/state — `_autonomy.yaml`, `_universe.yaml`, `_principles.yaml`. Always `yaml.safe_load()`. |
+| `_.yaml` (recurrence declarations) | Scheduler | `_spec.yaml`, `_action.yaml`, `_recurring.yaml`, `back-office.yaml`. |
+| `.json` | Machine only | Manifests — `sys_manifest.json`. No comments needed. |
+| `.html` | Render surface | Composed output artifacts. System-produced. |
+
+**Rules:**
+- **No new YAML-frontmatter `.md` files.** `_performance.md` and `OCCUPANT.md` are grandfathered exceptions (machine-written body + LLM reads full content). No new mixed-format files.
+- **No hand-rolled frontmatter parsers.** Use `load_workspace_yaml()` from `services.review_policy` for `.yaml` bodies, or `re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)` + `yaml.safe_load()` for frontmatter extraction. No regex line-splitting.
+- **Underscore prefix = machine-parsed.** All `_*.yaml` files are machine-parsed config or state. Human edits these to configure; Python reads them at runtime.
+- **Integer fields in `.yaml` are ints, not strings.** `ceiling_cents: 20000` not `ceiling_cents: "20000"`. `load_autonomy()` and `load_principles()` now coerce and log on mismatch.
+
 ---
 
 ## Prompt Change Protocol
