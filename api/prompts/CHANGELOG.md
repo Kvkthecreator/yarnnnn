@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.08.1] - Reviewer addressed posture v8: commission-not-defer + ProposeAction router handler
+
+### Changed
+- `api/agents/reviewer_agent.py`: _ADDRESSED_SYSTEM_PROMPT bumped to v8.
+  Core rule added: Reviewer NEVER says "I need X to proceed" without simultaneously
+  commissioning X via action_instruction. Decision tree made explicit: (1) data +
+  conditions met → ProposeAction; (2) data + conditions not met → explain briefly;
+  (3) data missing → fire the run, don't ask operator. "Commission, don't defer."
+  action_instruction format section extended with ProposeAction examples.
+
+- `api/services/execution_router.py`: added _handle_propose_action handler.
+  Matches pattern: "ProposeAction: trading.submit_order_paper for NVDA IH-3 long 100sh"
+  Parses action_type + details, extracts ticker/direction/quantity/signal, dispatches
+  handle_propose_action with source="reviewer_addressed". Previously ProposeAction was
+  referenced in _ADDRESSED_TOOL description but had no router handler — the directive
+  was surfaced as "Directive noted: ..." instead of dispatching a proposal.
+
+### Expected behavior
+  Operator: "proceed in full and make a trade"
+  Reviewer: assesses workspace state → if signal data missing:
+    response: "Running signal evaluation now — I'll assess the output when it completes."
+    action_instruction: "fire signal-evaluation"
+    → execution router fires signal-evaluation → result narrated
+  (Previously: Reviewer responded with text asking operator to fire signal-evaluation.)
+
+  Reviewer: assesses workspace state → if signal conditions met:
+    action_instruction: "ProposeAction: trading.submit_order_paper for NVDA IH-3 long 100sh"
+    → execution router dispatches ProposeAction → proposal created → Reviewer verdict fires
+
 ## [2026.05.07.5] - ADR-257: unified deterministic dispatch — System Agent LLM stream deleted
 
 ### Changed

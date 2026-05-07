@@ -250,6 +250,74 @@ async def _handle_status(_auth: Any, _match: re.Match, _msg: str) -> Optional[di
     return None  # always fall through — working memory handles this better
 
 
+@_register(
+    r"ProposeAction:\s*(?P<action_type>[\w\.\-]+)\s+(?:for\s+)?(?P<details>.+)$"
+)
+async def _handle_propose_action(auth: Any, match: re.Match, _msg: str) -> Optional[dict]:
+    """ProposeAction: Reviewer-directed trade or platform action proposal.
+
+    Format: "ProposeAction: trading.submit_order_paper for NVDA IH-3 long 100sh"
+    The Reviewer includes this in action_instruction after assessing signal conditions.
+    Dispatches to handle_propose_action with the action_type and parsed inputs.
+    """
+    from services.primitives.propose_action import handle_propose_action
+
+    try:
+        action_type = match.group("action_type").strip()
+        details_raw = match.group("details").strip()
+    except (IndexError, AttributeError):
+        return None
+
+    if not action_type:
+        return None
+
+    # Parse the details string into a structured inputs dict.
+    # Details may be free-form text from the Reviewer describing the trade.
+    # We parse known fields: ticker, direction, quantity, signal, rationale.
+    inputs: dict = {"details": details_raw}
+
+    # Extract ticker (uppercase 1-5 char word at start, or after "for")
+    ticker_match = re.search(r"\b([A-Z]{1,5})\b", details_raw)
+    if ticker_match:
+        inputs["ticker"] = ticker_match.group(1)
+
+    # Extract direction
+    if re.search(r"\blong\b", details_raw, re.IGNORECASE):
+        inputs["direction"] = "long"
+    elif re.search(r"\bshort\b", details_raw, re.IGNORECASE):
+        inputs["direction"] = "short"
+
+    # Extract quantity (number followed by sh/shares or standalone number)
+    qty_match = re.search(r"(\d+)\s*(?:sh(?:ares?)?|qty)?", details_raw, re.IGNORECASE)
+    if qty_match:
+        inputs["quantity"] = int(qty_match.group(1))
+
+    # Extract signal slug (e.g. IH-1, IH-3, pattern reference)
+    sig_match = re.search(r"\b(IH-\d|[A-Z]{2,4}-\d+)\b", details_raw)
+    if sig_match:
+        inputs["signal"] = sig_match.group(1)
+
+    inp = {
+        "action_type": action_type,
+        "inputs": inputs,
+        "rationale": f"Reviewer-directed: {details_raw}",
+        "source": "reviewer_addressed",
+    }
+
+    try:
+        result = await handle_propose_action(auth, inp)
+    except Exception as exc:
+        logger.warning("[EXEC_ROUTER] ProposeAction failed for %r: %s", action_type, exc)
+        return None
+
+    proposal_id = result.get("proposal_id", "")
+    narration = (
+        f"Proposal submitted: `{action_type}` — {details_raw[:120]}."
+        + (f" (ID: {proposal_id[:8]})" if proposal_id else "")
+    )
+    return {"narration": narration, "result": result, "tools_used": ["ProposeAction"]}
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
