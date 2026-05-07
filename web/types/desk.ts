@@ -219,6 +219,7 @@ export type TPAction =
   | { type: 'ADD_MESSAGE'; message: TPMessage }
   | { type: 'SET_MESSAGES'; messages: TPMessage[] }
   | { type: 'CLEAR_MESSAGES' }
+  | { type: 'REMOVE_LAST_MESSAGE' } // ADR-252: remove empty placeholder when Reviewer handled turn
   // ADR-042: Update streaming message blocks in real-time
   // ADR-124: author fields for meeting room attribution
   | { type: 'UPDATE_STREAMING_MESSAGE'; blocks: MessageBlock[]; content?: string; authorAgentId?: string; authorAgentSlug?: string; authorRole?: string; authorName?: string }
