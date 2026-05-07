@@ -1419,3 +1419,234 @@ async def address_turn(
             exc,
         )
         return None
+
+
+# ============================================================================
+# Heartbeat mode — ADR-253 D5
+# ============================================================================
+# Fourth invocation mode alongside verdict (reactive), reflection (periodic),
+# and addressed (operator message). Triggered when a recurrence matching
+# AUTONOMY.md heartbeat_triggers completes.
+#
+# The Reviewer wakes, reads the fresh substrate output, applies principles,
+# and decides: propose a trade / issue a directive / stand down.
+#
+# Called by invocation_dispatcher._maybe_fire_reviewer_heartbeat() after
+# any recurrence dispatch. Never raises.
+
+_HEARTBEAT_TOKEN_CALLER = "reviewer-heartbeat"
+
+_HEARTBEAT_SYSTEM_PROMPT = """\
+You are the operator's judgment character — the persona declared in IDENTITY.md.
+
+A recurrence you declared interest in has just completed. You have been given
+the fresh output so you can decide whether to act.
+
+This is heartbeat mode. You are waking to read what the system just produced
+and decide what to do. You are not reviewing a proposal someone else made.
+You are exercising independent judgment at your declared cadence.
+
+Your CLAUDE.md-equivalent (read before every invocation):
+1. IDENTITY.md   — who you are. Read it first. Embody the character fully.
+2. principles.md — your evaluation framework + defer posture + directive posture.
+3. MANDATE.md    — what the operation is trying to achieve.
+4. AUTONOMY.md   — your delegation ceiling and when you wake.
+
+Your fresh substrate (what just changed):
+5. The trigger recurrence output (signals, indicators, performance data).
+6. Recent decisions.md — your own verdict history for context continuity.
+
+**What you do here (three possible outcomes):**
+
+1. **Propose a trade**: if signal conditions are clearly met per principles.md,
+   include an `action_instruction` with the ProposeAction details. The System
+   Agent will dispatch it immediately. Your reasoning becomes the proposal's
+   rationale.
+
+2. **Issue a directive**: if you need more substrate before you can evaluate
+   (evidence gap), issue directives via `action_instruction`. Not a proposal —
+   a System Agent instruction that executes without gating.
+
+3. **Stand down**: if no actionable condition exists, say so in one sentence.
+   "No IH-2 conditions met on today's scan. Standing by." This is a valid
+   and common outcome. Brief is correct.
+
+**Voice discipline**: speak in your persona's voice. First person. Numbers-first
+if you are Simons. "What's the expectancy? What's the sample?" is the question.
+Never speculate. Never trade on priors without sample. Stand down if the data
+is insufficient — and say why in one sentence.
+
+Call `return_addressed_assessment` exactly once.
+"""
+
+
+async def heartbeat_turn(
+    client: Any,
+    user_id: str,
+    *,
+    trigger_slug: str,
+) -> AddressedAssessment | None:
+    """Invoke the Reviewer in heartbeat mode — substrate-change trigger.
+
+    ADR-253 D5. Fourth trigger mode: heartbeat (alongside reactive, periodic,
+    addressed). Called by invocation_dispatcher after a recurrence matching
+    AUTONOMY.md heartbeat_triggers completes.
+
+    Reads: IDENTITY.md + principles.md + MANDATE.md + AUTONOMY.md (the
+    CLAUDE.md-equivalent) + fresh substrate output (signal state files,
+    performance data) + recent decisions.md.
+
+    Returns AddressedAssessment | None on failure.
+    Never raises.
+    """
+    try:
+        from services.workspace_paths import (
+            REVIEW_IDENTITY_PATH,
+            REVIEW_PRINCIPLES_PATH,
+            SHARED_MANDATE_PATH,
+            SHARED_AUTONOMY_PATH,
+            REVIEW_DECISIONS_PATH,
+        )
+
+        async def _read(path: str) -> str:
+            full = f"/workspace/{path}"
+            try:
+                res = (
+                    client.table("workspace_files")
+                    .select("content")
+                    .eq("user_id", user_id)
+                    .eq("path", full)
+                    .limit(1)
+                    .execute()
+                )
+                return (res.data or [{}])[0].get("content") or ""
+            except Exception:
+                return ""
+
+        import asyncio
+        identity_md, principles_md, mandate_md, autonomy_md, decisions_md = (
+            await asyncio.gather(
+                _read(REVIEW_IDENTITY_PATH),
+                _read(REVIEW_PRINCIPLES_PATH),
+                _read(SHARED_MANDATE_PATH),
+                _read(SHARED_AUTONOMY_PATH),
+                _read(REVIEW_DECISIONS_PATH),
+            )
+        )
+
+        # Read fresh trigger output — signal state files + performance
+        signal_files = await _read_signal_files(client, user_id)
+        performance_summary = (
+            await _read("context/_performance_summary.md")
+            or await _read("context/trading/_performance.md")
+            or ""
+        )
+
+        # Compact decisions trail (last 5 entries)
+        decisions_window = "\n".join(decisions_md.strip().split("\n")[-30:]) if decisions_md else ""
+
+        # Build heartbeat context
+        context_parts = [
+            f"## Trigger: {trigger_slug} just completed",
+            "",
+            "## /workspace/review/IDENTITY.md",
+            identity_md or "_(empty)_",
+            "",
+            "## /workspace/review/principles.md",
+            principles_md or "_(empty)_",
+            "",
+            "## /workspace/context/_shared/MANDATE.md",
+            mandate_md or "_(empty)_",
+            "",
+            "## /workspace/context/_shared/AUTONOMY.md",
+            autonomy_md or "_(empty)_",
+        ]
+        if signal_files:
+            context_parts += ["", "## Fresh signal state files", signal_files]
+        if performance_summary:
+            context_parts += ["", "## _performance.md summary", performance_summary]
+        if decisions_window:
+            context_parts += ["", "## Recent decisions (last entries)", decisions_window]
+
+        context_parts += [
+            "",
+            "## Your task",
+            "Read the fresh signal output. Apply your principles. Decide: propose a trade, "
+            "issue a directive for missing substrate, or stand down with one sentence.",
+        ]
+
+        user_msg = "\n".join(context_parts)
+
+        # LLM call — Sonnet, forced tool call (same as addressed mode)
+        response = await chat_completion_with_tools(
+            messages=[{"role": "user", "content": user_msg}],
+            system=_HEARTBEAT_SYSTEM_PROMPT,
+            tools=[_ADDRESSED_TOOL],  # reuse addressed tool schema
+            model=_MODEL_SLUG,
+            max_tokens=1024,
+            tool_choice={"type": "tool", "name": "return_addressed_assessment"},
+        )
+
+        tool_uses = getattr(response, "tool_uses", None) or []
+        usage = getattr(response, "usage", None) or {}
+
+        record_token_usage(
+            client,
+            user_id=user_id,
+            caller=_HEARTBEAT_TOKEN_CALLER,
+            model=_MODEL_SLUG,
+            input_tokens=getattr(usage, "input_tokens", 0) or 0,
+            output_tokens=getattr(usage, "output_tokens", 0) or 0,
+        )
+
+        if not tool_uses:
+            logger.warning(
+                "[REVIEWER_HEARTBEAT] no tool call for user=%s trigger=%s",
+                user_id[:8], trigger_slug,
+            )
+            return None
+
+        raw = tool_uses[0].get("input") if isinstance(tool_uses[0], dict) else getattr(tool_uses[0], "input", {})
+        if not raw or not isinstance(raw, dict):
+            return None
+
+        return AddressedAssessment(
+            response=raw.get("response", ""),
+            action_instruction=raw.get("action_instruction", ""),
+            confidence=raw.get("confidence", "medium"),
+        )
+
+    except Exception as exc:
+        logger.error(
+            "[REVIEWER_HEARTBEAT] failed for user=%s trigger=%s: %s",
+            user_id[:8] if user_id else "?", trigger_slug, exc,
+        )
+        return None
+
+
+async def _read_signal_files(client: Any, user_id: str) -> str:
+    """Read all signal state files and return compact summary."""
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("path, content")
+            .eq("user_id", user_id)
+            .like("path", "/workspace/context/trading/signals/%.md")
+            .execute()
+        )
+        lines = []
+        for row in result.data or []:
+            path = row.get("path", "")
+            content = row.get("content", "")
+            slug = path.split("/")[-1].replace(".md", "")
+            # Extract key frontmatter fields
+            import re as _re
+            triggered = _re.search(r"triggered_today:\s*(\[.*?\])", content)
+            state = _re.search(r"state:\s*(\S+)", content)
+            lines.append(
+                f"- {slug}: state={state.group(1) if state else '?'} "
+                f"triggered={triggered.group(1) if triggered else '[]'}"
+            )
+        return "\n".join(lines) if lines else "_(no signal state files found)_"
+    except Exception:
+        return "_(signal files unavailable)_"

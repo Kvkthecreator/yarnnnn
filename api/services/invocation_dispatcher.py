@@ -201,19 +201,30 @@ async def dispatch(
 
     try:
         if decl.shape == RecurrenceShape.MAINTENANCE:
-            return await _dispatch_maintenance(
+            result = await _dispatch_maintenance(
                 client, user_id, decl, paths, started_at=started_at
             )
-        if decl.shape == RecurrenceShape.ACTION:
-            return await _dispatch_action(
+        elif decl.shape == RecurrenceShape.ACTION:
+            result = await _dispatch_action(
                 client, user_id, decl, paths,
                 started_at=started_at, context=context,
             )
-        # DELIVERABLE + ACCUMULATION share the same generation path
-        return await _dispatch_generative(
-            client, user_id, decl, paths,
-            started_at=started_at, context=context,
+        else:
+            # DELIVERABLE + ACCUMULATION share the same generation path
+            result = await _dispatch_generative(
+                client, user_id, decl, paths,
+                started_at=started_at, context=context,
+            )
+
+        # ADR-253 D5: after any successful dispatch, check AUTONOMY.md heartbeat_triggers.
+        # If the completed recurrence slug matches a declared trigger, fire the Reviewer's
+        # heartbeat_turn() asynchronously (non-blocking — dispatch result is returned first).
+        import asyncio as _asyncio
+        _asyncio.create_task(
+            _maybe_fire_reviewer_heartbeat(client, user_id, decl.slug)
         )
+
+        return result
     except Exception as exc:
         logger.exception(
             "[DISPATCH] %s/%s failed: %s", decl.shape.value, decl.slug, exc
@@ -1381,3 +1392,108 @@ def _result_failed(
 
 
 __all__ = ["dispatch", "find_declaration_for_agent"]
+
+
+# ---------------------------------------------------------------------------
+# ADR-253 D5: Reviewer heartbeat — fires after substrate-change triggers
+# ---------------------------------------------------------------------------
+
+async def _maybe_fire_reviewer_heartbeat(
+    client: Any,
+    user_id: str,
+    completed_slug: str,
+) -> None:
+    """Check AUTONOMY.md heartbeat_triggers after a recurrence completes.
+
+    If the completed slug matches a declared trigger, fire the Reviewer's
+    heartbeat_turn() asynchronously. Never raises — non-blocking, best-effort.
+
+    ADR-253 D5: the Reviewer wakes when substrate it cares about changes,
+    not just on cron. This closes the loop: signal-evaluation completes →
+    Reviewer reads fresh output → decides: propose/directive/stand-down.
+    """
+    try:
+        # Read AUTONOMY.md heartbeat_triggers
+        import re as _re
+        import yaml as _yaml
+        result = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", "/workspace/context/_shared/AUTONOMY.md")
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return
+        content = result.data[0].get("content") or ""
+
+        # Parse frontmatter for heartbeat_triggers
+        triggers: list[str] = []
+        if content.startswith("---"):
+            try:
+                end = content.index("---", 3)
+                fm = _yaml.safe_load(content[3:end].strip()) or {}
+                raw_triggers = fm.get("heartbeat_triggers") or []
+                for t in raw_triggers:
+                    if isinstance(t, dict):
+                        after = t.get("after")
+                        if after:
+                            triggers.append(str(after))
+                    elif isinstance(t, str) and t.startswith("after:"):
+                        triggers.append(t.split("after:", 1)[1].strip())
+            except Exception:
+                pass  # malformed frontmatter — skip
+
+        # Also scan the body for heartbeat_triggers block (inline YAML format)
+        if not triggers:
+            m = _re.search(r"heartbeat_triggers:\s*\n((?:\s+-.*\n?)*)", content)
+            if m:
+                block = m.group(1)
+                for line in block.splitlines():
+                    after_m = _re.search(r"after:\s*(\S+)", line)
+                    if after_m:
+                        triggers.append(after_m.group(1))
+
+        if not triggers:
+            return
+
+        # Check if completed_slug matches any trigger
+        # Match on full slug or slug prefix (e.g. "signal-evaluation" matches "signal-evaluation-2")
+        matched = any(
+            completed_slug == t or completed_slug.startswith(t) or t.startswith(completed_slug)
+            for t in triggers
+        )
+        if not matched:
+            return
+
+        logger.info(
+            "[HEARTBEAT] %s matches trigger → firing Reviewer heartbeat for user=%s",
+            completed_slug, user_id[:8],
+        )
+
+        from agents.reviewer_agent import heartbeat_turn
+        from services.reviewer_chat_surfacing import write_reviewer_message
+        from agents.reviewer_agent import REVIEWER_MODEL_IDENTITY
+
+        assessment = await heartbeat_turn(
+            client, user_id,
+            trigger_slug=completed_slug,
+        )
+        if assessment and assessment.get("response"):
+            await write_reviewer_message(
+                client, user_id,
+                content=assessment["response"],
+                verdict="heartbeat",
+                occupant=REVIEWER_MODEL_IDENTITY,
+            )
+            logger.info(
+                "[HEARTBEAT] Reviewer heartbeat response surfaced for user=%s trigger=%s",
+                user_id[:8], completed_slug,
+            )
+
+    except Exception as exc:
+        logger.warning(
+            "[HEARTBEAT] _maybe_fire_reviewer_heartbeat failed user=%s slug=%s: %s",
+            user_id[:8], completed_slug, exc,
+        )

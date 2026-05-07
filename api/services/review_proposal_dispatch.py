@@ -124,7 +124,8 @@ async def on_proposal_created(
         # again would be a self-judgment loop. The AUTONOMY gate still applies
         # downstream (auto-execute or queue for operator click).
         source = proposal_row.get("source") or ""
-        if source in ("reviewer_periodic", "reviewer_addressed"):
+        if source in ("reviewer_periodic", "reviewer_addressed", "reviewer_heartbeat"):
+            # ADR-252 D5/ADR-253 D5: Reviewer already judged — skip reactive re-invocation.
             logger.info(
                 "[REVIEW_DISPATCH] skipping reactive Reviewer for source=%r proposal=%s",
                 source,
