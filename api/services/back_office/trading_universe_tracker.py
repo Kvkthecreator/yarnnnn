@@ -249,20 +249,35 @@ async def _read_universe(client: Any, user_id: str) -> list[str]:
             return []
         content = result.data[0].get("content") or ""
 
-        # Find "## Declared universe" section and extract tickers
-        m = re.search(r"##\s+Declared universe\s*\n(.*?)(?=\n##|\Z)", content, re.DOTALL)
+        # Find universe section — supports multiple header variants:
+        # "## Universe", "## Declared universe", "## Watchlist"
+        m = re.search(
+            r"##\s+(?:Declared\s+)?(?:Universe|Watchlist|Tickers?)\s*\n(.*?)(?=\n##|\Z)",
+            content, re.DOTALL | re.IGNORECASE,
+        )
         if not m:
-            return []
-        universe_text = m.group(1)
+            # Fallback: scan entire document for bullet-list tickers
+            universe_text = content
+        else:
+            universe_text = m.group(1)
 
-        # Extract all-caps ticker symbols (2-5 chars)
-        tickers = re.findall(r'\b([A-Z]{1,5})\b', universe_text)
-        # Deduplicate preserving order, filter common false positives
-        _SKIP = {"US", "OR", "AND", "ETF", "AND", "NOT", "FOR", "IF", "QQQ", "SPY", "SMH", "SOXX", "IWM", "XLK", "XLY", "XLF"}
+        # Extract tickers from bullet list items first (most reliable)
+        # Pattern: "- TICKER" or "* TICKER" at start of line
+        bullet_tickers = re.findall(r"^[\-\*]\s+([A-Z]{1,5})\s*$", universe_text, re.MULTILINE)
+
+        if bullet_tickers:
+            tickers = bullet_tickers
+        else:
+            # Fallback: all-caps words, 2–5 chars
+            tickers = re.findall(r'\b([A-Z]{2,5})\b', universe_text)
+
+        # Filter common non-ticker false positives (NOT valid tickers like SPY/QQQ)
+        _SKIP = {"US", "OR", "AND", "NOT", "FOR", "IF", "ETF", "AT", "ON",
+                 "IN", "OF", "TO", "BY", "NO", "AN", "AS", "IT", "BE"}
         seen: set[str] = set()
         result_tickers: list[str] = []
         for t in tickers:
-            if t not in seen and len(t) >= 2:
+            if t not in seen and t not in _SKIP and len(t) >= 1:
                 seen.add(t)
                 result_tickers.append(t)
 
