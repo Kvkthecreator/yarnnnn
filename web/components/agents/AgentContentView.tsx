@@ -12,7 +12,7 @@
  * individual agent pages or legacy role names.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -31,6 +31,7 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { CONTEXT_ROUTE, WORK_ROUTE, WORKSPACE_CONFIG_ROUTE } from '@/lib/routes';
 import { PrinciplesTab } from './PrinciplesTab';
 import { AutonomyTab } from './AutonomyTab';
+import { SubstrateTab } from './SubstrateTab';
 import {
   agentClassDescription,
   agentClassLabel,
@@ -709,58 +710,145 @@ function LearnedBlock({ agent }: { agent: Agent }) {
 }
 
 
-// ADR-251 D3: System Agent detail view. Tabs: Identity · Mandate · Back Office.
-// Renamed from YarnnnDetail — cockpit entity is "System Agent" (ADR-251 D1).
-// Mandate surfaces here (system reads + executes against it).
-// Autonomy + Principles migrated to ReviewerDetail (ADR-251 D4).
+// ---------------------------------------------------------------------------
+// Shared tab bar
+// ---------------------------------------------------------------------------
+
+interface TabDef { key: string; label: string }
+
+function AgentTabBar({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: TabDef[];
+  active: string;
+  onChange: (key: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1 px-6 py-2 border-b border-border/40 bg-background">
+      {tabs.map((tab) => (
+        <button
+          key={tab.key}
+          onClick={() => onChange(tab.key)}
+          className={cn(
+            'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
+            active === tab.key
+              ? 'bg-muted text-foreground'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
+          )}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// System Agent detail (ADR-251 D3): Identity · Mandate · Back Office
+// ---------------------------------------------------------------------------
+
+const SYSTEM_AGENT_TABS: TabDef[] = [
+  { key: 'identity', label: 'Identity' },
+  { key: 'mandate', label: 'Mandate' },
+  { key: 'back-office', label: 'Back Office' },
+];
+
 function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabParam = searchParams.get('tab');
+  const validTab = SYSTEM_AGENT_TABS.some(t => t.key === tabParam) ? tabParam! : 'identity';
+  const [activeTab, setActiveTab] = useState(validTab);
+
+  function handleTabChange(key: string) {
+    setActiveTab(key);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', key);
+    router.replace(`/agents?${params.toString()}`, { scroll: false });
+  }
+
   return (
     <div className="flex-1 overflow-auto">
       <SurfaceIdentityHeader
         title="System Agent"
         metadata={<AgentMetadata agent={agent} tasks={tasks} />}
       />
-      <div className="max-w-3xl px-4 py-4 space-y-6">
-        <AgentRoleBlock agent={agent} tasks={tasks} />
-        {/* Mandate: the operator's declared primary intent — system reads and executes against this */}
-        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">Mandate &amp; configuration</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Primary intent, program configuration, and workspace settings.
-            </p>
+      <AgentTabBar tabs={SYSTEM_AGENT_TABS} active={activeTab} onChange={handleTabChange} />
+      <div className="max-w-3xl">
+        {activeTab === 'identity' && (
+          <div className="px-6 py-5">
+            <AgentRoleBlock agent={agent} tasks={tasks} />
           </div>
-          <a
-            href={WORKSPACE_CONFIG_ROUTE}
-            className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-          >
-            Open →
-          </a>
-        </div>
-        {/* Reviewer: link out to the Reviewer surface */}
-        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">Reviewer</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Your judgment seat — principles, autonomy delegation, and track record.
-            </p>
+        )}
+        {activeTab === 'mandate' && (
+          <div className="px-6 py-5">
+            <SubstrateTab
+              title="Mandate"
+              path="/workspace/context/_shared/MANDATE.md"
+              tagline="The operator's declared primary action — what this workspace is running and why."
+              editPrompt="I want to review and update my workspace mandate. Walk me through the current declaration."
+              emptyBody={
+                <p className="text-center text-xs">
+                  No mandate declared yet. The System Agent reads this to understand
+                  what work to execute and what proposals to gate.
+                </p>
+              }
+            />
           </div>
-          <a
-            href="/agents?agent=reviewer"
-            className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-          >
-            Open →
-          </a>
-        </div>
+        )}
+        {activeTab === 'back-office' && (
+          <div className="px-6 py-5">
+            <TasksBlock agent={agent} tasks={tasks.filter(t => t.shape === 'maintenance')} />
+            <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">System settings</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Workspace configuration, program activation, and connectors.
+                </p>
+              </div>
+              <a
+                href={WORKSPACE_CONFIG_ROUTE}
+                className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+              >
+                Open →
+              </a>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ADR-251 D4: Reviewer detail view. First-class surface.
-// Tabs: Identity · Principles · Autonomy · Track Record · Decisions.
-// Autonomy + Principles migrated here from System Agent surface.
+// ---------------------------------------------------------------------------
+// Reviewer detail (ADR-251 D4): Identity · Principles · Autonomy
+// Track Record + Decisions link-outs deleted — aspirational stubs with no
+// inline renderer. Calibration headline already surfaces on cockpit
+// PerformanceFace (ADR-228). Raw files remain accessible via /context.
+// ---------------------------------------------------------------------------
+
+const REVIEWER_TABS: TabDef[] = [
+  { key: 'identity', label: 'Identity' },
+  { key: 'principles', label: 'Principles' },
+  { key: 'autonomy', label: 'Autonomy' },
+];
+
 function ReviewerDetail({ agent }: { agent: Agent }) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabParam = searchParams.get('tab');
+  const validTab = REVIEWER_TABS.some(t => t.key === tabParam) ? tabParam! : 'identity';
+  const [activeTab, setActiveTab] = useState(validTab);
+
+  function handleTabChange(key: string) {
+    setActiveTab(key);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', key);
+    router.replace(`/agents?${params.toString()}`, { scroll: false });
+  }
+
   return (
     <div className="flex-1 overflow-auto">
       <SurfaceIdentityHeader
@@ -771,43 +859,34 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
           </span>
         }
       />
-      <div className="max-w-3xl px-4 py-4 space-y-6">
-        {/* Reviewer has no production-role block — it is the judgment seat, not a domain specialist */}
-        {/* Principles + Autonomy: correctly housed under the Reviewer (ADR-251 D4) */}
-        <div className="space-y-3">
-          <PrinciplesTab />
-          <AutonomyTab />
-        </div>
-        {/* Track Record: calibration.md — ADR-251 D4 */}
-        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">Track Record</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Calibration data — approval rates, accuracy vs outcomes (7d / 30d / 90d).
-            </p>
+      <AgentTabBar tabs={REVIEWER_TABS} active={activeTab} onChange={handleTabChange} />
+      <div className="max-w-3xl">
+        {activeTab === 'identity' && (
+          <div className="px-6 py-5">
+            <SubstrateTab
+              title="Identity"
+              path="/workspace/review/IDENTITY.md"
+              tagline="The Reviewer's persona — who occupies the judgment seat. Operator-authored; shapes how verdicts are reasoned."
+              editPrompt="I want to evolve my Reviewer's identity and persona. Walk me through the current declaration."
+              emptyBody={
+                <p className="text-center text-xs">
+                  No identity declared yet. Author the Reviewer's persona to shape
+                  how the judgment seat reasons — Simons, Buffett, or your own original.
+                </p>
+              }
+            />
           </div>
-          <a
-            href="/context?path=/workspace/review/calibration.md"
-            className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-          >
-            View →
-          </a>
-        </div>
-        {/* Decisions: link to decisions.md stream */}
-        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">Decisions</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Append-only verdict trail — every approve / reject / defer with reasoning.
-            </p>
+        )}
+        {activeTab === 'principles' && (
+          <div className="px-6 py-5">
+            <PrinciplesTab />
           </div>
-          <a
-            href="/context?path=/workspace/review/decisions.md"
-            className="shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-          >
-            View →
-          </a>
-        </div>
+        )}
+        {activeTab === 'autonomy' && (
+          <div className="px-6 py-5">
+            <AutonomyTab />
+          </div>
+        )}
       </div>
     </div>
   );
