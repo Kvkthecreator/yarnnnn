@@ -111,11 +111,10 @@ async def build_working_memory(
         asyncio.to_thread(_get_workspace_file_sync, user_id, MEMORY_AWARENESS_PATH, _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "memory/conversation.md", _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "context/_shared/MANDATE.md", _make_client()),
-        # ADR-246: include AUTONOMY.md + Reviewer principles.md so workspace_state
-        # carries per-file richness for all five authored substrate files (MANDATE,
-        # IDENTITY, BRAND, AUTONOMY, principles). TP needs this to reason about
-        # what's authored vs skeleton without reading files inline.
-        asyncio.to_thread(_get_workspace_file_sync, user_id, "context/_shared/AUTONOMY.md", _make_client()),
+        # ADR-246 + ADR-254: reads _autonomy.yaml (machine-parsed, ADR-254) for
+        # workspace_state autonomy signals. AUTONOMY.md is prose-only now.
+        # principles.md remains prose (LLM reads it); _principles.yaml has thresholds.
+        asyncio.to_thread(_get_workspace_file_sync, user_id, "context/_shared/_autonomy.yaml", _make_client()),
         asyncio.to_thread(_get_workspace_file_sync, user_id, "review/principles.md", _make_client()),
     )
     task_count, doc_count, recent_uploads, recent_authorship, loop_events = await asyncio.gather(
@@ -399,61 +398,69 @@ def _classify_richness(content: Optional[str]) -> str:
 
 
 def _extract_autonomy_pause(autonomy_content: Optional[str]) -> dict:
-    """Extract ADR-248 pause fields from AUTONOMY.md content.
+    """Extract ADR-248 pause fields from _autonomy.yaml content (ADR-254).
 
     Returns dict with autonomy_paused_until (display str) and
     autonomy_pause_reason if a non-expired paused_until is present.
     Returns empty dict otherwise — safe to ** spread into workspace_state.
     """
-    if not autonomy_content or "paused_until:" not in autonomy_content:
+    if not autonomy_content or "paused_until" not in autonomy_content:
         return {}
     try:
-        import re as _re
+        import yaml as _yaml
         from datetime import datetime as _dt, timezone as _tz
-        match = _re.search(r"paused_until:\s*['\"]?([^'\"\n#]+)['\"]?", autonomy_content)
-        if not match:
-            return {}
-        ts_str = match.group(1).strip()
-        if ts_str.endswith("Z"):
-            ts_str = ts_str[:-1] + "+00:00"
-        paused_until = _dt.fromisoformat(ts_str)
-        if paused_until.tzinfo is None:
-            paused_until = paused_until.replace(tzinfo=_tz.utc)
-        if paused_until <= _dt.now(_tz.utc):
-            return {}  # Expired — treat as unpaused
-        reason_match = _re.search(r"pause_reason:\s*['\"]?([^'\"\n#]+)['\"]?", autonomy_content)
-        reason = reason_match.group(1).strip() if reason_match else "Reviewer-initiated pause"
-        return {
-            "autonomy_paused_until": paused_until.strftime("%Y-%m-%d %H:%M UTC"),
-            "autonomy_pause_reason": reason,
-        }
+        parsed = _yaml.safe_load(autonomy_content) or {}
+        # Find paused_until in any domain block (default first, then others)
+        for block in [parsed.get("default")] + [v for k, v in parsed.items() if k != "default"]:
+            if not isinstance(block, dict):
+                continue
+            raw = block.get("paused_until")
+            if not raw:
+                continue
+            ts_str = str(raw).strip()
+            if ts_str.endswith("Z"):
+                ts_str = ts_str[:-1] + "+00:00"
+            paused_until = _dt.fromisoformat(ts_str)
+            if paused_until.tzinfo is None:
+                paused_until = paused_until.replace(tzinfo=_tz.utc)
+            if paused_until <= _dt.now(_tz.utc):
+                return {}
+            reason = block.get("pause_reason") or "Reviewer-initiated pause"
+            return {
+                "autonomy_paused_until": paused_until.strftime("%Y-%m-%d %H:%M UTC"),
+                "autonomy_pause_reason": str(reason),
+            }
+        return {}
     except Exception:
-        return {}  # Non-fatal — pause signal is advisory
+        return {}  # Non-fatal
 
 
     # _get_inference_state DELETED — TP judges from raw context_domains data directly
 
 
 def _extract_autonomy_signal(autonomy_content: Optional[str]) -> Optional[str]:
-    """Extract one actionable line from AUTONOMY.md content.
+    """Extract one actionable line from _autonomy.yaml content (ADR-254).
 
-    Returns a display string like "bounded_autonomous · $2K ceiling" or
-    "autonomous" that YARNNN can use without reading the file. None if
-    content is absent or skeleton. Zero DB reads — caller already has content.
+    Returns a display string like "bounded_autonomous · $200 ceiling" or
+    "autonomous". None if absent or unparseable.
     """
-    if not autonomy_content or len(autonomy_content.strip()) < 20:
+    if not autonomy_content or len(autonomy_content.strip()) < 10:
         return None
-    import re as _re
-    # Try frontmatter YAML first (new format)
-    level_match = _re.search(r"level:\s*(manual|assisted|bounded_autonomous|autonomous)", autonomy_content)
-    if not level_match:
+    try:
+        import yaml as _yaml
+        parsed = _yaml.safe_load(autonomy_content) or {}
+        default = parsed.get("default") or {}
+        if not isinstance(default, dict):
+            return None
+        level = default.get("level")
+        if not level:
+            return None
+        ceiling = default.get("ceiling_cents")
+        if ceiling and level == "bounded_autonomous":
+            return f"{level} · ${int(ceiling) // 100:,} ceiling"
+        return level
+    except Exception:
         return None
-    level = level_match.group(1)
-    ceiling_match = _re.search(r"ceiling_cents:\s*(\d+)", autonomy_content)
-    if ceiling_match and level == "bounded_autonomous":
-        cents = int(ceiling_match.group(1))
-        return f"{level} · ${cents // 100:,} ceiling"
-    return level
 
 
 def _extract_mandate_signal(mandate_content: Optional[str]) -> Optional[str]:

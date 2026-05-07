@@ -43,7 +43,7 @@ from services.authored_substrate import write_revision
 from services.workspace_paths import (
     REVIEW_IDENTITY_PATH,
     REVIEW_PRINCIPLES_PATH,
-    SHARED_AUTONOMY_PATH,
+    SHARED_AUTONOMY_YAML_PATH,   # ADR-254: machine-parsed yaml (not AUTONOMY.md)
     SHARED_MANDATE_PATH,
 )
 
@@ -131,7 +131,7 @@ async def apply_reflection_writes(
     # Read MANDATE + AUTONOMY for the mandate-preservation sanity check.
     # Not found → skip the check; treat as permissive.
     mandate_md = _read_file_sync(client, user_id, SHARED_MANDATE_PATH)
-    autonomy_md = _read_file_sync(client, user_id, SHARED_AUTONOMY_PATH)
+    autonomy_md = _read_file_sync(client, user_id, SHARED_AUTONOMY_YAML_PATH)  # ADR-254: .yaml
 
     authored_by = f"reviewer:{REVIEWER_MODEL_IDENTITY}"
 
@@ -369,72 +369,67 @@ def _apply_pause_autonomy(
     overall: str,
     summary: dict,
 ) -> None:
-    """Write paused_until + pause_reason into AUTONOMY.md (ADR-248 D4).
+    """Write paused_until + pause_reason into _autonomy.yaml (ADR-254 rewrite of ADR-248 D4).
 
-    Reads current AUTONOMY.md, injects/replaces the pause fields at the
-    top of the `default:` block (or inserts them if not present), then
-    writes via write_revision with Reviewer attribution per ADR-209.
+    ADR-254: reads _autonomy.yaml via yaml.safe_load, mutates the dict,
+    writes back via yaml.dump + write_revision. No regex. No string surgery.
 
-    Scope: Reviewer is permitted to write paused_until + pause_reason to
-    AUTONOMY.md — the delegation contract it was given authority over by
-    ADR-217. It cannot touch MANDATE.md or any other file.
-
-    Duration: proposal may carry `duration_hours` (default 48h).
+    Scope: Reviewer writes to _autonomy.yaml only — the machine-parsed
+    delegation config it was given authority over by ADR-217 + ADR-254.
     """
+    import yaml as _yaml
     from datetime import timedelta
-    import re
 
     duration_hours = int(proposal.get("duration_hours") or 48)
-    reason = (proposal.get("reason") or "Reviewer-initiated pause due to detected drift").strip()
-    reason = reason[:200]  # Cap for YAML inline safety
+    reason = (proposal.get("reason") or "Reviewer-initiated pause due to detected drift").strip()[:200]
 
     paused_until = datetime.now(timezone.utc) + timedelta(hours=duration_hours)
     paused_until_str = paused_until.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    existing = _read_file_sync(client, user_id, SHARED_AUTONOMY_PATH)
+    existing_content = _read_file_sync(client, user_id, SHARED_AUTONOMY_YAML_PATH)
 
-    # Inject or replace paused_until + pause_reason in existing content.
-    # Strategy: if fields exist, replace them; if not, append after
-    # the `default:` block opener.
-    new_paused_block = (
-        f"  paused_until: \"{paused_until_str}\"\n"
-        f"  pause_reason: \"{reason}\"\n"
+    try:
+        parsed = _yaml.safe_load(existing_content or "") or {}
+    except _yaml.YAMLError:
+        parsed = {}
+
+    # Ensure default block exists and set pause fields
+    if "default" not in parsed or not isinstance(parsed["default"], dict):
+        parsed["default"] = {}
+    parsed["default"]["paused_until"] = paused_until_str
+    parsed["default"]["pause_reason"] = reason
+
+    # Preserve tier/note header comment if present
+    header = ""
+    if existing_content and existing_content.startswith("---"):
+        # Extract YAML frontmatter header comment block
+        lines = existing_content.split("\n")
+        header_lines = []
+        in_fm = False
+        for line in lines:
+            if line.strip() == "---":
+                if not in_fm:
+                    in_fm = True
+                    header_lines.append(line)
+                else:
+                    header_lines.append(line)
+                    break
+            elif in_fm:
+                header_lines.append(line)
+        header = "\n".join(header_lines) + "\n"
+
+    # Dump clean YAML
+    body = _yaml.dump(
+        {k: v for k, v in parsed.items() if k not in ("tier", "note")},
+        default_flow_style=False, allow_unicode=True, sort_keys=False,
     )
-
-    if "paused_until:" in existing:
-        # Replace existing pause fields
-        updated = re.sub(r"  paused_until:.*\n", "", existing)
-        updated = re.sub(r"  pause_reason:.*\n", "", updated)
-        # Insert after the `default:` line or the first `level:` line
-        updated = re.sub(
-            r"(default:\s*\n)",
-            r"\1" + new_paused_block,
-            updated,
-            count=1,
-        )
-        if updated == existing:  # Fallback: no `default:` found — append
-            updated = existing.rstrip() + "\n\n" + new_paused_block
-    else:
-        # Insert after `default:` block opener
-        if "default:" in existing:
-            updated = re.sub(
-                r"(default:\s*\n)",
-                r"\1" + new_paused_block,
-                existing,
-                count=1,
-            )
-        else:
-            # No default block — append a minimal one
-            updated = (
-                existing.rstrip()
-                + f"\n\ndefault:\n{new_paused_block}"
-            )
+    updated = (header + "# _autonomy.yaml — delegation config (ADR-254)\n" + body) if header else body
 
     try:
         write_revision(
             client,
             user_id=user_id,
-            path=SHARED_AUTONOMY_PATH,
+            path=SHARED_AUTONOMY_YAML_PATH,
             content=updated,
             authored_by=authored_by,
             message=f"auto-pause: {reason[:80]}",
@@ -448,7 +443,7 @@ def _apply_pause_autonomy(
     except Exception as exc:  # noqa: BLE001
         summary["proposals_rejected"] = summary.get("proposals_rejected", 0) + 1
         summary.setdefault("rejections", []).append(
-            {"target_file": "AUTONOMY.md", "reason": f"write failed: {exc}"}
+            {"target_file": "_autonomy.yaml", "reason": f"write failed: {exc}"}
         )
         logger.warning(
             "[REFLECTION_WRITER] pause_autonomy write failed user=%s: %s",
