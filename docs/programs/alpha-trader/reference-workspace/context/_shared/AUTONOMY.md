@@ -1,62 +1,42 @@
 ---
-tier: canon
-note: "Program-typical delegation defaults. Operator may tighten or widen as Phase progression earns calibration data — but defaults match the program's risk posture."
+tier: authored
+prompt: "How autonomous should the Reviewer be? Default is bounded_autonomous at $200 for paper trading. Tune as you accumulate calibration data."
 ---
 
 # Autonomy — alpha-trader
 
-> Per ADR-217: this file declares operator-to-role delegation. Not Reviewer-owned; operator-owned. Reviewer reads it to understand its delegation ceiling.
+> Per ADR-254: **machine-parsed delegation config lives in `_autonomy.yaml` (sibling file)**. This file is prose documentation for human and LLM reading. Edit `_autonomy.yaml` to change delegation ceilings.
 
-## Trading actions
+## What autonomy controls
 
-**Default for fresh workspace (Phase 0-1, paper)**:
+`_autonomy.yaml` declares the delegation ceiling: how much the Reviewer's approve verdict binds automatically vs. routes to your Queue for a click.
 
-```yaml
-default:
-  level: bounded_autonomous
-  ceiling_cents: 20000             # $200 — paper orders only
-  never_auto:
-    - close_position_market        # always requires operator click
-    - cancel_other_orders
+**Levels:**
+- `manual` — every order surfaces for your click, regardless of Reviewer verdict
+- `assisted` — AI recommends; you click
+- `bounded_autonomous` — Reviewer auto-executes within `ceiling_cents`; defers above
+- `autonomous` — Reviewer auto-executes all approvals within scope
 
-heartbeat_triggers:
-  - after: signal_evaluation       # Reviewer wakes when signal-evaluation executor completes
-  - after: outcome_reconciliation  # Reviewer wakes after daily reconciliation writes _performance.md
-  - cron: "10 8 * * 1-5"          # Morning review at 08:10 ET (after 08:05 signal-evaluation)
-```
+**`ceiling_cents`** — the notional threshold for `bounded_autonomous`. Orders above this always surface to Queue.
 
-`heartbeat_triggers` (ADR-253 D5): declares what substrate changes wake the Reviewer proactively. When a recurrence matching a trigger slug completes, the Reviewer runs `heartbeat_turn()` — reads the fresh output, applies principles, decides: propose / directive / stand-down.
+**`never_auto`** — action types that always route to Queue regardless of level. Hard safety list.
 
 ## Phase progression
 
-- **Phase 0-1 (Observation, Paper Discipline)**: `bounded_autonomous` at $200 ceiling. heartbeat_triggers active. Reviewer wakes on signal-evaluation output, proposes paper orders when conditions met, auto-executes within ceiling.
-- **Phase 2 (Live Float)**: tighten `level: manual` for live orders. Recalibrate from zero on the live account. Paper ceiling preserved for paper-mode validation.
-- **Phase 3 (Calibrated Autonomy)**: raise ceiling as expectancy data accumulates. `principles.md` `auto_approve_below_cents` should track the ceiling.
+- **Phase 0-1 (Observation, Paper)**: `bounded_autonomous` at `ceiling_cents: 20000` ($200). Exercises the loop without large exposure.
+- **Phase 2 (Live Float)**: tighten to `manual` for live orders until calibration justifies loosening.
+- **Phase 3 (Calibrated)**: raise ceiling as approve-correct rate accumulates in `calibration.md`.
 
-## Reviewer-written pause fields (ADR-248 D3)
+## Reviewer-written pause (ADR-248 D3)
 
-The Reviewer's periodic reflection can write two optional fields to the `default:` block when it detects structural drift (consistent capital loss, win rate below defensible threshold):
+The Reviewer's periodic reflection can write `paused_until` and `pause_reason` into `_autonomy.yaml` when it detects structural drift. While set, all proposals queue for your click regardless of level. Expires automatically at the timestamp. You can remove it via chat at any time.
 
-```yaml
-default:
-  level: bounded_autonomous
-  ceiling_cents: 150000
-  paused_until: "2026-05-10T00:00:00Z"   # ISO-8601 UTC — Reviewer-written
-  pause_reason: "Win rate dropped below 35% over 7d. Reviewer auto-paused."
-```
+## Heartbeat triggers
 
-**When set**: `should_auto_execute_verdict()` routes all proposals to the operator Queue until `paused_until` expires — regardless of delegation level.
+`heartbeat_triggers` in `_autonomy.yaml` declares which substrate changes wake the Reviewer proactively (ADR-253 D5). After signal-evaluation or outcome-reconciliation completes, the Reviewer reads the fresh output and decides: propose / directive / stand-down.
 
-**When expired**: the fields are silently ignored on the next evaluation. Autonomy resumes automatically. No second write needed.
+## What AUTONOMY does NOT control
 
-**Operator override**: remove `paused_until` via YARNNN chat at any time (`WriteFile scope=workspace path=context/_shared/AUTONOMY.md`).
-
-The operator always retains authority over this file. The Reviewer's pause is advisory-with-teeth (it gates execution) but the operator can lift it instantly.
-
-## What AUTONOMY does NOT do
-
-- Does not declare operator preferences or values (those live in `IDENTITY.md` + `MANDATE.md`).
-- Does not declare risk rules (those live in `_risk.md`).
-- Does not declare Reviewer's evaluation framework (that lives in `/workspace/review/principles.md`).
-
-AUTONOMY answers exactly one question per role: *what's the operator's delegation ceiling for this kind of action?*
+- Reviewer's evaluation framework (principles.md + _principles.yaml)
+- Risk rules (_risk.md)
+- Operator strategy and persona (MANDATE.md, IDENTITY.md, _operator_profile.md)

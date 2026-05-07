@@ -1,0 +1,14 @@
+---
+tier: authored
+prompt: "Which tickers does your universe tracker scan? List them here. Changes take effect on the next track-universe run."
+---
+# _universe.yaml — operator-declared ticker universe (ADR-254)
+# Machine-parsed by trading_universe_tracker.py via yaml.safe_load.
+# For strategy rationale and candidate criteria, see _operator_profile.md.
+
+tickers:
+  - AAPL
+  - MSFT
+  - NVDA
+  - SPY
+  - TSLA
