@@ -34,6 +34,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+import yaml as _yaml
+
 from services.workspace_paths import REVIEW_OCCUPANT_PATH, REVIEW_HANDOFFS_PATH
 
 logger = logging.getLogger(__name__)
@@ -119,48 +121,27 @@ def _empty_occupant_dict() -> dict[str, Any]:
 
 
 def _parse_occupant_md(content: str) -> dict[str, Any]:
-    """Parse OCCUPANT.md YAML frontmatter. Minimal parser — no PyYAML dep."""
+    """Parse OCCUPANT.md YAML frontmatter via yaml.safe_load (ADR-254)."""
     parsed = _empty_occupant_dict()
     parsed["raw"] = content
 
-    # Locate YAML frontmatter between leading `---` and next `---`
     m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, flags=re.DOTALL)
     if not m:
         return parsed
 
-    frontmatter = m.group(1)
-    # Line-by-line key: value (one level deep for config dict)
-    in_config = False
-    config: dict[str, Any] = {}
+    try:
+        data = _yaml.safe_load(m.group(1)) or {}
+    except _yaml.YAMLError:
+        return parsed
 
-    for raw_line in frontmatter.split("\n"):
-        line = raw_line.rstrip()
-        if not line.strip() or line.strip().startswith("#"):
-            continue
+    for key in ("occupant", "occupant_class", "activated_at", "activated_by"):
+        val = data.get(key)
+        if val is not None:
+            parsed[key] = str(val)
 
-        if line.startswith(("  ", "\t")) and in_config:
-            km = re.match(r"^\s+([a-z][a-z0-9_]*)\s*:\s*(.+?)\s*$", line)
-            if km:
-                config[km.group(1)] = km.group(2).strip()
-            continue
-
-        in_config = False
-        km = re.match(r"^([a-z][a-z0-9_]*)\s*:\s*(.*?)\s*$", line)
-        if not km:
-            continue
-        key, raw_value = km.group(1), km.group(2)
-
-        if key == "config":
-            # Either empty {} or nested block
-            if raw_value.strip() in ("{}", ""):
-                config = {}
-            in_config = raw_value.strip() not in ("{}",)
-            continue
-
-        if key in ("occupant", "occupant_class", "activated_at", "activated_by"):
-            parsed[key] = raw_value.strip().strip('"\'')
-
-    parsed["config"] = config
+    cfg = data.get("config")
+    if isinstance(cfg, dict):
+        parsed["config"] = cfg
 
     # Derive occupant_class from identity if missing
     if not parsed["occupant_class"] and parsed["occupant"]:

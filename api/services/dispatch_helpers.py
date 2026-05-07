@@ -41,6 +41,8 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import yaml as _yaml
+
 from services.schedule_utils import (
     calculate_next_run_at,
     format_daily_local_time_label,
@@ -209,7 +211,7 @@ def _get_primary_entity_filename(domain_key: str) -> Optional[str]:
 
 
 def _read_domain_metadata_sync(client, user_id: str, domain_prefix: str) -> dict:
-    """Read YAML-style frontmatter from `_domain.md` for TP-composed domain metadata."""
+    """Read YAML frontmatter from `_domain.md` for TP-composed domain metadata (ADR-254)."""
     domain_md_path = f"{domain_prefix}/_domain.md"
     try:
         result = (
@@ -223,24 +225,10 @@ def _read_domain_metadata_sync(client, user_id: str, domain_prefix: str) -> dict
         if not result.data or not result.data[0].get("content"):
             return {}
         content = result.data[0]["content"]
-        meta = {}
-        if content.startswith("---"):
-            parts = content.split("---", 2)
-            if len(parts) >= 3:
-                for line in parts[1].strip().splitlines():
-                    if ":" in line:
-                        key, val = line.split(":", 1)
-                        key = key.strip()
-                        val = val.strip()
-                        if val.lower() == "true":
-                            meta[key] = True
-                        elif val.lower() == "false":
-                            meta[key] = False
-                        elif val.isdigit():
-                            meta[key] = int(val)
-                        else:
-                            meta[key] = val
-        return meta
+        m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, flags=re.DOTALL)
+        if not m:
+            return {}
+        return _yaml.safe_load(m.group(1)) or {}
     except Exception:
         return {}
 
