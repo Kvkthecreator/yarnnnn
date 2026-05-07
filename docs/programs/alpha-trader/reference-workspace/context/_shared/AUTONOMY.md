@@ -9,20 +9,29 @@ note: "Program-typical delegation defaults. Operator may tighten or widen as Pha
 
 ## Trading actions
 
-**Default for fresh workspace**: every order requires manual operator approval. AUTONOMY remains conservative until the operator has accumulated calibration data.
+**Default for fresh workspace (Phase 0-1, paper)**:
 
 ```yaml
-trading-execute:
-  approval_required: manual_operator
-  ceiling_usd_per_order: 0
-  ceiling_usd_per_day: 0
+default:
+  level: bounded_autonomous
+  ceiling_cents: 20000             # $200 — paper orders only
+  never_auto:
+    - close_position_market        # always requires operator click
+    - cancel_other_orders
+
+heartbeat_triggers:
+  - after: signal_evaluation       # Reviewer wakes when signal-evaluation executor completes
+  - after: outcome_reconciliation  # Reviewer wakes after daily reconciliation writes _performance.md
+  - cron: "10 8 * * 1-5"          # Morning review at 08:10 ET (after 08:05 signal-evaluation)
 ```
+
+`heartbeat_triggers` (ADR-253 D5): declares what substrate changes wake the Reviewer proactively. When a recurrence matching a trigger slug completes, the Reviewer runs `heartbeat_turn()` — reads the fresh output, applies principles, decides: propose / directive / stand-down.
 
 ## Phase progression
 
-- **Phase 0-1 (Observation, Paper Discipline)**: paper account only. AUTONOMY may permit `bounded_autonomous` (Reviewer-approved auto-execute) for paper orders to exercise the loop.
-- **Phase 2 (Live Float)**: AUTONOMY flips trading-execute to `manual_operator` for live orders, regardless of paper-account autonomy.
-- **Phase 3 (Calibrated Autonomy)**: operator-authored thresholds for selective auto-approval, e.g., reversible orders below $X notional may auto-approve when expectancy data justifies.
+- **Phase 0-1 (Observation, Paper Discipline)**: `bounded_autonomous` at $200 ceiling. heartbeat_triggers active. Reviewer wakes on signal-evaluation output, proposes paper orders when conditions met, auto-executes within ceiling.
+- **Phase 2 (Live Float)**: tighten `level: manual` for live orders. Recalibrate from zero on the live account. Paper ceiling preserved for paper-mode validation.
+- **Phase 3 (Calibrated Autonomy)**: raise ceiling as expectancy data accumulates. `principles.md` `auto_approve_below_cents` should track the ceiling.
 
 ## Reviewer-written pause fields (ADR-248 D3)
 
