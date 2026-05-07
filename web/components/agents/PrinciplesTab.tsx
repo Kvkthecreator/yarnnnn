@@ -11,10 +11,10 @@
 
 import { Scale } from 'lucide-react';
 import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 
 export function PrinciplesTab() {
-  const { sendMessage } = useTP();
+  const { sendMessage } = useNarrative();
   return (
     <WorkspaceFileView
       path="/workspace/review/principles.md"

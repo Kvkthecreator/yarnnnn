@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { cn } from '@/lib/utils';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -51,7 +51,7 @@ export function AgentChatArea({
     respondToClarification,
     tokenUsage,
     loadScopedHistory,
-  } = useTP();
+  } = useNarrative();
 
   // Notify parent when a TP turn completes (for refreshing sessions, etc.)
   const prevLoadingRef = useRef(false);

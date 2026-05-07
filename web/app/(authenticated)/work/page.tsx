@@ -21,7 +21,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Briefcase, Loader2, MessageCircle, RefreshCw } from 'lucide-react';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { useRecurrenceDetail } from '@/hooks/useRecurrenceDetail';
@@ -75,7 +75,7 @@ function SurfaceState({
 export default function WorkPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { sendMessage } = useTP();
+  const { sendMessage } = useNarrative();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
   // ADR-219 Commit 4: opt into narrative fetch — /work is the surface
   // that renders recent-activity headlines from session_messages.

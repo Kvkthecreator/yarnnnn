@@ -15,14 +15,14 @@
 
 import { useEffect } from 'react';
 import { MessageCircle } from 'lucide-react';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { WorkspaceConfigSection } from '@/components/workspace-config/WorkspaceConfigSection';
 
 export default function WorkspaceConfigPage() {
-  const { loadScopedHistory } = useTP();
+  const { loadScopedHistory } = useNarrative();
   const { clearBreadcrumb } = useBreadcrumb();
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);

@@ -16,7 +16,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
-import { TPProvider, useTP } from '@/contexts/TPContext';
+import { NarrativeProvider, useNarrative } from '@/contexts/NarrativeContext';
 import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
@@ -154,7 +154,7 @@ function AuthenticatedLayoutInner({
   }, [isOnHome, router]);
 
   return (
-    <TPProvider onSurfaceChange={handleSurfaceChange}>
+    <NarrativeProvider onSurfaceChange={handleSurfaceChange}>
       <div className="flex flex-col h-screen bg-background">
         {/* Top Bar */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
@@ -180,15 +180,15 @@ function AuthenticatedLayoutInner({
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
       </div>
 
-      {/* Setup Confirmation Modal - rendered inside TPProvider */}
+      {/* Setup Confirmation Modal - rendered inside NarrativeProvider */}
       <SetupConfirmModalWrapper />
-    </TPProvider>
+    </NarrativeProvider>
   );
 }
 
-// Separate component to access TPContext inside TPProvider
+// Separate component to access NarrativeContext inside NarrativeProvider
 function SetupConfirmModalWrapper() {
-  const { setupConfirmModal, closeSetupConfirmModal } = useTP();
+  const { setupConfirmModal, closeSetupConfirmModal } = useNarrative();
 
   return (
     <SetupConfirmModal

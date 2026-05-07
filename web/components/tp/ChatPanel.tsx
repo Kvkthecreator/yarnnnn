@@ -20,7 +20,7 @@ import {
   Send,
   Paperclip,
 } from 'lucide-react';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
 import { useAutonomy } from '@/lib/content-shapes/autonomy';
@@ -122,7 +122,7 @@ export function ChatPanel({
     status,
     pendingClarification,
     respondToClarification,
-  } = useTP();
+  } = useNarrative();
   const { surface: deskSurface } = useDesk();
   const surface = surfaceOverride || deskSurface;
 

@@ -19,7 +19,7 @@ import { ChatPanel } from '@/components/tp/ChatPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { Recurrence } from '@/types';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 import {
   parseSnapshotMeta,
   type SnapshotLead,
@@ -41,7 +41,7 @@ export function ChatSurface({
   tasks,
   plusMenuActions = [],
 }: ChatSurfaceProps) {
-  const { messages, sendMessage } = useTP();
+  const { messages, sendMessage } = useNarrative();
   const searchParams = useSearchParams();
 
   // --- Context overlay state ---

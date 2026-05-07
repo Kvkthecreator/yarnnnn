@@ -12,7 +12,7 @@
  * AutonomyTab) don't need to change.
  */
 
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 import { WorkspaceFileView, type WorkspaceFileViewProps } from '@/components/shared/WorkspaceFileView';
 
 export interface SubstrateTabProps
@@ -24,7 +24,7 @@ export function SubstrateTab({
   editPrompt,
   ...rest
 }: SubstrateTabProps) {
-  const { sendMessage } = useTP();
+  const { sendMessage } = useNarrative();
   return (
     <WorkspaceFileView
       {...rest}

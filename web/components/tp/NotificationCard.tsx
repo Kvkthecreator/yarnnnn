@@ -8,7 +8,7 @@
 import { Sparkles, CheckCircle2, BookmarkPlus } from 'lucide-react';
 
 // Tool-name → icon for inline notification cards. Post-ADR-235 names only.
-// TPContext only emits notifications for InferWorkspace + ManageRecurrence,
+// NarrativeContext only emits notifications for InferWorkspace + ManageRecurrence,
 // so the map covers exactly those toolName values; everything else falls
 // back to BookmarkPlus.
 const ICONS: Record<string, typeof Sparkles> = {

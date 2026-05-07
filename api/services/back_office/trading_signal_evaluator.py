@@ -146,12 +146,15 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
                 logger.warning("[SIGNAL_EVAL] %s failed: %s", slug, e)
                 errors.append(f"{slug}: {e}")
 
-        # 4. If any daily-bar signal fired: write trigger flag + fire trade-proposal
+        # 4. If any daily-bar signal fired: write trigger flag.
+        # ADR-255 D2: trade-proposal dispatch removed from here — it was off-path
+        # (bypassed CAS claim, execution_events recording, spend ceiling).
+        # The _signal_trigger.flag wakes the Reviewer via heartbeat_turn().
+        # The Reviewer's assessment can include a directive to fire trade-proposal,
+        # which then goes through the standard scheduler → dispatcher path.
         if any_triggered:
             await _write_trigger_flag(client, user_id, actions_taken, started_at)
-            await _fire_trade_proposal(client, user_id)
             actions_taken.append({"action": "trigger_flag_written"})
-            actions_taken.append({"action": "trade_proposal_fired"})
 
         return _shape_result(started_at, actions_taken, errors, any_triggered)
 
@@ -268,17 +271,11 @@ async def _write_trigger_flag(client: Any, user_id: str, actions: list, now: dat
     )
 
 
-async def _fire_trade_proposal(client: Any, user_id: str) -> None:
-    try:
-        from services.recurrence import walk_workspace_recurrences
-        import asyncio
-        decls = await asyncio.to_thread(walk_workspace_recurrences, client, user_id)
-        trade_decl = next((d for d in decls if "trade-proposal" in d.slug), None)
-        if trade_decl:
-            from services.invocation_dispatcher import dispatch
-            await dispatch(trade_decl)
-    except Exception as exc:
-        logger.warning("[SIGNAL_EVAL] trade-proposal fire failed: %s", exc)
+# _fire_trade_proposal DELETED — ADR-255 D2.
+# Was an off-path dispatch bypassing CAS claim, execution_events, spend ceiling.
+# Signal fires now write _signal_trigger.flag → Reviewer heartbeat wakes →
+# Reviewer's directive can instruct the System Agent to fire trade-proposal
+# through the standard scheduler → invocation_dispatcher path.
 
 
 # ---------------------------------------------------------------------------
@@ -304,7 +301,7 @@ def _shape_result(started_at: datetime, actions: list, errors: list, any_trigger
         lines += ["", "## Errors"] + [f"- {e}" for e in errors]
 
     summary = (
-        f"Signal evaluation: {len(fired)} signal(s) fired — trade-proposal invoked"
+        f"Signal evaluation: {len(fired)} signal(s) fired — Reviewer heartbeat triggered"
         if any_triggered else f"Signal evaluation: no daily-bar signals triggered"
     )
     return {"output_markdown": "\n".join(lines) + "\n", "summary": summary[:200], "actions_taken": actions}

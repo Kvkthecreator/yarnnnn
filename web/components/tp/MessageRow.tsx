@@ -42,7 +42,7 @@ import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/sna
 import { MessageRenderer } from './MessageDispatch';
 import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
 import { useReviewerPersona } from '@/lib/reviewer-persona';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 
 // ---------------------------------------------------------------------------
 // Per-weight wrappers
@@ -92,7 +92,7 @@ function shortPathLabel(path: string): string {
 }
 
 function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps): JSX.Element {
-  const { sendMessage } = useTP();
+  const { sendMessage } = useNarrative();
   // openFilePath: which file path is currently open in the overlay (null = closed)
   const [openFilePath, setOpenFilePath] = useState<string | null>(null);
   const reviewerPersonaName = useReviewerPersona();

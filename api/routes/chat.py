@@ -249,79 +249,8 @@ async def get_or_create_session(
 # get_or_create_project_session — REMOVED (project sessions dissolved)
 
 
-async def get_or_create_task_session(
-    client,
-    user_id: str,
-    task_slug: str,
-    session_type: str = "thinking_partner",
-) -> dict:
-    """
-    Get or create a task-scoped TP session.
-
-    Same 4h inactivity boundary as global TP sessions.
-    Looks up by user_id + task_slug + session_type + status=active.
-    """
-    from datetime import timedelta, timezone
-
-    inactivity_cutoff = (
-        datetime.now(timezone.utc) - timedelta(hours=4)
-    ).isoformat()
-
-    # Look for active session within inactivity window
-    existing = (
-        client.table("chat_sessions")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("task_slug", task_slug)
-        .eq("session_type", session_type)
-        .eq("status", "active")
-        .gte("updated_at", inactivity_cutoff)
-        .order("updated_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-
-    if existing.data:
-        return {**existing.data[0], "is_new": False}
-
-    # Find previous session for summary generation
-    previous_session_id = None
-    try:
-        prev = (
-            client.table("chat_sessions")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("task_slug", task_slug)
-            .eq("session_type", session_type)
-            .is_("summary", "null")
-            .order("updated_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if prev.data:
-            previous_session_id = prev.data[0]["id"]
-    except Exception as e:
-        logger.debug(f"[SESSION] Failed to find previous task session: {e}")
-
-    # Create new task-scoped session
-    result = (
-        client.table("chat_sessions")
-        .insert({
-            "user_id": user_id,
-            "session_type": session_type,
-            "status": "active",
-            "task_slug": task_slug,
-        })
-        .execute()
-    )
-
-    if result.data:
-        return {
-            **result.data[0],
-            "is_new": True,
-            "previous_session_id": previous_session_id,
-        }
-    return None
+# get_or_create_task_session DELETED — ADR-255 D5.
+# Dead code post-ADR-231 (tasks dissolved into recurrence declarations).
 
 
 async def append_message(
@@ -1248,18 +1177,169 @@ async def global_chat(
     # All messages route to YARNNN (ChatAgent/project meeting room routing removed)
     agent = YarnnnAgent()
 
-    async def response_stream():
+    # ── ADR-255 D3: Three clean dispatch functions ───────────────────────────
+    # No optimistic placeholder. No nested control flow.
+    # Each path is self-contained: write to DB → yield SSE → done.
+
+    _REVIEWER_TRIGGERS = {
+        "what do you think", "what does simons think", "what would simons",
+        "simons", "reviewer", "what do you see", "your view", "your take",
+        "should i", "should we", "is this right", "does this make sense",
+        "assess", "evaluate this", "review this", "judge",
+        "are conditions", "is the market", "is now a good time",
+        "what's your read", "your read", "am i missing",
+    }
+
+    async def _dispatch_execution_turn(router_result):
+        """Deterministic execution router result → system_agent narration → done."""
+        narration = router_result.get("narration", "Done.")
+        routed_tools = router_result.get("tools_used", [])
+        await append_message(auth.client, session_id, "system_agent", narration, {
+            "tools_used": routed_tools, "tool_history": [],
+            "pulse": "addressed", "weight": "routine", "execution_router": True,
+        })
+        yield f"data: {json.dumps({'content': narration})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': routed_tools})}\n\n"
+        logger.info("[EXEC_ROUTER] routed — tools=%s for: %.50r", routed_tools, request.content)
+
+    async def _dispatch_reviewer_turn():
+        """Reviewer keyword triggered → address_turn() → reviewer SSE → done.
+        No streaming placeholder. No empty system_agent write."""
+        from agents.reviewer_agent import address_turn
+        from services.reviewer_chat_surfacing import write_reviewer_message
+
+        conv_lines = []
+        for m in history[-6:]:
+            role_label = "Operator" if m.get("role") == "user" else "System"
+            msg_content = m.get("content", "")
+            if isinstance(msg_content, list):
+                msg_content = " ".join(
+                    b.get("text", "") for b in msg_content
+                    if isinstance(b, dict) and b.get("type") == "text"
+                )
+            if msg_content and isinstance(msg_content, str):
+                conv_lines.append(f"{role_label}: {msg_content[:300]}")
+
+        assessment = await address_turn(
+            auth.client, auth.user_id,
+            user_message=request.content,
+            conversation_window="\n".join(conv_lines) if conv_lines else None,
+        )
+
+        if assessment and assessment.get("response"):
+            await write_reviewer_message(
+                auth.client, auth.user_id,
+                content=assessment["response"],
+                verdict="addressed",
+                occupant="ai:reviewer-sonnet-v1",
+            )
+            yield f"data: {json.dumps({'reviewer_response': assessment['response']})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
+            logger.info("[REVIEWER] addressed for user=%s", auth.user_id[:8])
+        else:
+            # Reviewer failed — fall through to System Agent (caller handles this)
+            raise RuntimeError("Reviewer returned no response")
+
+    async def _dispatch_system_agent_turn(images_for_api, profile):
+        """Full System Agent LLM stream. No placeholder — frontend adds message on first content event."""
         full_response = ""
         tools_used = []
-        # Track tool calls and results for proper history storage
-        # This allows Claude to maintain coherence across turns
-        tool_call_history = []  # List of {"tool_use": {...}, "tool_result": {...}}
+        tool_call_history = []
         current_tool_use = None
-        # ADR-053: Capture cumulative token usage for persistence
         last_token_usage = {"input_tokens": 0, "output_tokens": 0}
 
-        # ADR-172: Balance is the sole gate. Check before opening the Anthropic stream
-        # so the frontend receives a clean structured event instead of a raw API error.
+        stream_params = {
+            "include_context": request.include_context,
+            "history": history,
+            "surface_content": surface_content,
+            "images": images_for_api,
+            "scoped_agent": scoped_agent,
+            "surface_context_raw": request.surface_context.dict() if request.surface_context else None,
+            "profile": profile,
+        }
+
+        async for event in agent.execute_stream_with_tools(
+            task=request.content, context=context, auth=auth, parameters=stream_params,
+        ):
+            if event.type == "text":
+                full_response += event.content
+                yield f"data: {json.dumps({'content': event.content})}\n\n"
+            elif event.type == "tool_use":
+                tools_used.append(event.content["name"])
+                current_tool_use = event.content
+                logger.info("[SYSTEM_AGENT] Tool use: %s", event.content["name"])
+                yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
+            elif event.type == "tool_result":
+                result = event.content.get("result", {})
+                ui_action = result.get("ui_action")
+                tool_name = event.content.get("name")
+                logger.info("[SYSTEM_AGENT] Tool result: %s success=%s", tool_name, result.get("success"))
+                if tool_name == "Respond" and ui_action:
+                    msg = ui_action.get("data", {}).get("message", "")
+                    if msg:
+                        full_response += msg
+                        yield f"data: {json.dumps({'content': msg})}\n\n"
+                elif tool_name == "Clarify" and ui_action:
+                    q = ui_action.get("data", {}).get("question", "")
+                    opts = ui_action.get("data", {}).get("options", [])
+                    if q:
+                        text = q + ("\n" + "\n".join(f"- {o}" for o in opts) if opts else "")
+                        full_response += text
+                        yield f"data: {json.dumps({'content': text})}\n\n"
+                if current_tool_use:
+                    tool_call_history.append({"tool_use": current_tool_use, "tool_result": event.content})
+                    current_tool_use = None
+                yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
+            elif event.type == "usage":
+                last_token_usage = event.content
+                yield f"data: {json.dumps({'usage': event.content})}\n\n"
+
+        # Persist system_agent message
+        history_entries = [
+            {"type": "tool_call", "name": p["tool_use"]["name"],
+             "input_summary": str(p["tool_use"].get("input", {}))[:200],
+             "result_summary": str(p["tool_result"].get("result", {}))[:500]}
+            for p in tool_call_history
+        ]
+        if full_response:
+            history_entries.append({"type": "text", "content": full_response})
+
+        tool_called = bool(tools_used)
+        substantive = len(full_response.strip()) > 120
+        await append_message(auth.client, session_id, "system_agent", full_response, {
+            "model": agent.model, "tools_used": tools_used, "tool_history": history_entries,
+            "input_tokens": last_token_usage.get("input_tokens", 0),
+            "output_tokens": last_token_usage.get("output_tokens", 0),
+            "pulse": "addressed",
+            "weight": "material" if (tool_called or substantive) else "routine",
+        })
+
+        yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
+
+        try:
+            from services.platform_limits import record_token_usage
+            from services.supabase import get_service_client
+            record_token_usage(get_service_client(), user_id=auth.user_id, caller="chat",
+                model=agent.model,
+                input_tokens=last_token_usage.get("input_tokens", 0),
+                output_tokens=last_token_usage.get("output_tokens", 0),
+                metadata={"session_id": session_id})
+        except Exception as _e:
+            logger.warning("[TOKEN_USAGE] chat record failed: %s", _e)
+
+        try:
+            from services.activity_log import write_activity
+            from services.supabase import get_service_client
+            await write_activity(client=get_service_client(), user_id=auth.user_id,
+                event_type="chat_session",
+                summary=f"Chat turn complete" + (f" (tools: {', '.join(tools_used)})" if tools_used else ""),
+                event_ref=session_id, metadata={"session_id": session_id, "tools_used": tools_used})
+        except Exception as e:
+            logger.debug("[SYSTEM_AGENT] Activity log write failed: %s", e)
+
+    # ── Main stream dispatcher ────────────────────────────────────────────────
+    async def response_stream():
+        # Balance gate
         from services.platform_limits import check_balance
         balance_ok, effective_balance = check_balance(auth.client, auth.user_id)
         if not balance_ok:
@@ -1267,297 +1347,57 @@ async def global_chat(
             return
 
         try:
-            # ADR-124: User message metadata with attribution.
-            # ADR-219 envelope: operator messages are addressed-pulsed
-            # invocations on the workspace; material weight by default
-            # policy (operator intent always lands material).
-            user_message_metadata = {
-                "pulse": "addressed",
-            }
+            # Write user message to narrative
+            await append_message(auth.client, session_id, "user", request.content, {"pulse": "addressed"})
+            logger.info("[SYSTEM_AGENT] turn for: %.50r", request.content)
 
-            await append_message(auth.client, session_id, "user", request.content, user_message_metadata)
-            logger.info(f"[SYSTEM_AGENT] Starting stream for message: {request.content[:50]}...")
-
-            # Build content blocks for Claude API (images + ephemeral file attachments)
+            # Build media blocks (images + file attachments)
             images_for_api = None
             if request.images:
                 images_for_api = [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": img.media_type,
-                            "data": img.data,
-                        }
-                    }
+                    {"type": "image", "source": {"type": "base64",
+                     "media_type": img.media_type, "data": img.data}}
                     for img in request.images
                 ]
-                logger.info(f"[YARNNN] Processing {len(images_for_api)} image attachment(s)")
-
-            # ADR-249: Ephemeral document attachments via Anthropic Files API
             if request.file_attachments:
                 doc_blocks = [
-                    {
-                        "type": "document",
-                        "source": {"type": "file", "file_id": att.file_id},
-                        "title": att.filename,
-                    }
+                    {"type": "document", "source": {"type": "file", "file_id": att.file_id},
+                     "title": att.filename}
                     for att in request.file_attachments
                 ]
                 images_for_api = (images_for_api or []) + doc_blocks
-                logger.info(f"[YARNNN] Processing {len(doc_blocks)} ephemeral document attachment(s)")
 
-            # ADR-186: Resolve prompt profile from surface
             profile = resolve_profile(request.surface_context)
 
-            # ── Step 1: Deterministic execution router (zero LLM cost) ──────────
-            # Matches common imperative patterns (fire X, pause X, resume X, etc.)
-            # and dispatches the primitive directly. Unmatched turns fall through.
+            # Path 1: Execution router (zero LLM)
             router_result = None
             try:
                 from services.execution_router import route_execution
                 router_result = await route_execution(auth, request.content)
-            except Exception as _router_exc:
-                logger.warning("[EXEC_ROUTER] router failed: %s — falling through", _router_exc)
+            except Exception as _e:
+                logger.warning("[EXEC_ROUTER] failed: %s", _e)
 
             if router_result is not None:
-                narration = router_result.get("narration", "Done.")
-                routed_tools = router_result.get("tools_used", [])
-                await append_message(auth.client, session_id, "system_agent", narration, {
-                    "tools_used": routed_tools, "tool_history": [],
-                    "pulse": "addressed", "weight": "routine", "execution_router": True,
-                })
-                yield f"data: {json.dumps({'content': narration})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': routed_tools})}\n\n"
-                logger.info("[EXEC_ROUTER] routed — tools=%s for: %.50r", routed_tools, request.content)
+                async for chunk in _dispatch_execution_turn(router_result):
+                    yield chunk
                 return
 
-            # ── Step 2: Reviewer keyword trigger (zero LLM cost) ─────────────────
-            # Operator explicitly addresses the Reviewer — keyword check, no Haiku call.
-            # Covers: direct address ("Simons", "Reviewer"), judgment invitations
-            # ("what do you think", "should I", "assess", "your view").
-            # The operator can always cut in at any point — no conversation state needed.
-            _msg_lower = request.content.lower().strip()
-            _REVIEWER_TRIGGERS = {
-                "what do you think", "what does simons think", "what would simons",
-                "simons", "reviewer", "what do you see", "your view", "your take",
-                "should i", "should we", "is this right", "does this make sense",
-                "assess", "evaluate this", "review this", "judge",
-                "are conditions", "is the market", "is now a good time",
-                "what's your read", "your read", "am i missing",
-            }
-            reviewer_triggered = any(trigger in _msg_lower for trigger in _REVIEWER_TRIGGERS)
-
-            reviewer_assessment = None
-            if reviewer_triggered:
+            # Path 2: Reviewer keyword trigger (zero LLM)
+            if any(t in request.content.lower() for t in _REVIEWER_TRIGGERS):
                 try:
-                    from agents.reviewer_agent import address_turn
-                    from services.reviewer_chat_surfacing import write_reviewer_message
-
-                    conv_lines = []
-                    for m in history[-6:]:
-                        role_label = "Operator" if m.get("role") == "user" else "System"
-                        content = m.get("content", "")
-                        if isinstance(content, list):
-                            content = " ".join(
-                                b.get("text", "") for b in content
-                                if isinstance(b, dict) and b.get("type") == "text"
-                            )
-                        if content and isinstance(content, str):
-                            conv_lines.append(f"{role_label}: {content[:300]}")
-
-                    reviewer_assessment = await address_turn(
-                        auth.client, auth.user_id,
-                        user_message=request.content,
-                        conversation_window="\n".join(conv_lines) if conv_lines else None,
-                    )
-
-                    if reviewer_assessment and reviewer_assessment.get("response"):
-                        await write_reviewer_message(
-                            auth.client, auth.user_id,
-                            content=reviewer_assessment["response"],
-                            verdict="addressed",
-                            occupant="ai:reviewer-sonnet-v1",
-                        )
-                        yield f"data: {json.dumps({'reviewer_response': reviewer_assessment['response']})}\n\n"
-                        logger.info("[REVIEWER] keyword-triggered for user=%s", auth.user_id[:8])
-
-                        # Reviewer spoke — System Agent has nothing to add. Done.
-                        await append_message(auth.client, session_id, "system_agent", "", {
-                            "tools_used": [], "tool_history": [],
-                            "pulse": "addressed", "weight": "housekeeping",
-                        })
-                        yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
-                        return
-
+                    async for chunk in _dispatch_reviewer_turn():
+                        yield chunk
+                    return
                 except Exception as _rev_exc:
-                    logger.warning("[REVIEWER] keyword trigger failed — System Agent responds: %s", _rev_exc)
-                    reviewer_assessment = None
+                    logger.warning("[REVIEWER] failed — System Agent responds: %s", _rev_exc)
 
-            # ── Step 3: System Agent LLM stream (everything else) ────────────────
-            stream_params = {
-                    "include_context": request.include_context,
-                    "history": history,
-                    "surface_content": surface_content,
-                    "images": images_for_api,
-                    "scoped_agent": scoped_agent,
-                    "surface_context_raw": request.surface_context.dict() if request.surface_context else None,
-                    "profile": profile,
-                }
-
-            async for event in agent.execute_stream_with_tools(
-                task=request.content,
-                context=context,
-                auth=auth,
-                parameters=stream_params,
-            ):
-                if event.type == "text":
-                    full_response += event.content
-                    yield f"data: {json.dumps({'content': event.content})}\n\n"
-                elif event.type == "tool_use":
-                    tools_used.append(event.content["name"])
-                    current_tool_use = event.content
-                    msg = f"[YARNNN-STREAM] Tool use: {event.content['name']}"
-                    logger.info(msg)
-                    yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
-                elif event.type == "tool_result":
-                    result = event.content.get("result", {})
-                    ui_action = result.get("ui_action")
-                    tool_name = event.content.get("name")
-                    msg = f"[YARNNN-STREAM] Tool result for {tool_name}: ui_action={ui_action}, success={result.get('success')}"
-                    logger.info(msg)
-
-                    # Extract Respond/Clarify message as text content
-                    # This handles the case where Claude uses Respond tool instead of direct text
-                    if tool_name == "Respond" and ui_action:
-                        respond_message = ui_action.get("data", {}).get("message", "")
-                        if respond_message:
-                            full_response += respond_message
-                            yield f"data: {json.dumps({'content': respond_message})}\n\n"
-                    elif tool_name == "Clarify" and ui_action:
-                        clarify_data = ui_action.get("data", {})
-                        clarify_question = clarify_data.get("question", "")
-                        clarify_options = clarify_data.get("options", [])
-                        if clarify_question:
-                            clarify_text = clarify_question
-                            if clarify_options:
-                                clarify_text += "\n" + "\n".join(f"- {opt}" for opt in clarify_options)
-                            full_response += clarify_text
-                            yield f"data: {json.dumps({'content': clarify_text})}\n\n"
-
-                    # Store tool call pair for history
-                    if current_tool_use:
-                        tool_call_history.append({
-                            "tool_use": current_tool_use,
-                            "tool_result": event.content
-                        })
-                        current_tool_use = None
-                    yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
-                elif event.type == "usage":
-                    # ADR-053: Capture cumulative usage for persistence
-                    last_token_usage = event.content
-                    yield f"data: {json.dumps({'usage': event.content})}\n\n"
-                elif event.type == "done":
-                    msg = f"[YARNNN-STREAM] Stream done, tools_used={tools_used}"
-                    logger.info(msg)
-                    pass  # Will send done event after saving
-
-            # Build a comprehensive content record for the assistant message
-            # This includes tool calls so Claude can maintain coherence across turns
-            assistant_content_for_history = []
-
-            # Add tool use/result pairs
-            for tool_pair in tool_call_history:
-                tu = tool_pair["tool_use"]
-                tr = tool_pair["tool_result"]
-                # Simplified representation for history storage
-                assistant_content_for_history.append({
-                    "type": "tool_call",
-                    "name": tu["name"],
-                    "input_summary": str(tu.get("input", {}))[:200],
-                    "result_summary": str(tr.get("result", {}))[:500]
-                })
-
-            # Add the text response (from respond() tool)
-            if full_response:
-                assistant_content_for_history.append({
-                    "type": "text",
-                    "content": full_response
-                })
-
-            # Append assistant response to session with tool history and token usage in metadata
-            # ADR-124: Add author attribution for meeting room messages
-            # ADR-219 envelope: YARNNN's reply is an addressed-pulsed
-            # invocation. Weight defaults to material when tool calls
-            # Weight classification: material when a tool was called (substrate
-            # writes happened) OR the response is substantive enough to warrant
-            # full rendering (>120 chars). Short tool-less acks ("Got it.", etc.)
-            # are routine — they collapse cleanly. Long reasoning or multi-part
-            # replies must be material so they don't get collapsed on the operator.
-            tool_called = bool(tools_used)
-            response_is_substantive = len(full_response.strip()) > 120
-            assistant_metadata = {
-                "model": agent.model,
-                "tools_used": tools_used,
-                "tool_history": assistant_content_for_history,
-                "input_tokens": last_token_usage.get("input_tokens", 0),
-                "output_tokens": last_token_usage.get("output_tokens", 0),
-                "pulse": "addressed",
-                "weight": "material" if (tool_called or response_is_substantive) else "routine",
-            }
-            # ADR-252 D4: new writes use role='system_agent'. Historical
-            # role='assistant' rows are preserved as-is (migration 167).
-            system_agent_role = "system_agent"
-            await append_message(
-                auth.client,
-                session_id,
-                system_agent_role,
-                full_response,
-                assistant_metadata,
-            )
-
-            done_payload = {'done': True, 'session_id': session_id, 'tools_used': tools_used}
-            yield f"data: {json.dumps(done_payload)}\n\n"
-
-            # ADR-171: Record token spend for this chat turn
-            try:
-                from services.platform_limits import record_token_usage
-                from services.supabase import get_service_client
-                record_token_usage(
-                    get_service_client(),
-                    user_id=auth.user_id,
-                    caller="chat",
-                    model=agent.model,
-                    input_tokens=last_token_usage.get("input_tokens", 0),
-                    output_tokens=last_token_usage.get("output_tokens", 0),
-                    metadata={"session_id": session_id},
-                )
-            except Exception as _e:
-                logger.warning(f"[TOKEN_USAGE] chat record failed: {_e}")
-
-            # Activity log: record chat turn completion (ADR-063)
-            # Must use service client — activity_log RLS blocks INSERT from user JWT
-            try:
-                from services.activity_log import write_activity
-                from services.supabase import get_service_client
-                await write_activity(
-                    client=get_service_client(),
-                    user_id=auth.user_id,
-                    event_type="chat_session",
-                    summary=f"Chat turn complete" + (f" (tools: {', '.join(tools_used)})" if tools_used else ""),
-                    event_ref=session_id,
-                    metadata={"session_id": session_id, "tools_used": tools_used},
-                )
-            except Exception as e:
-                logger.debug(f"[YARNNN] Activity log write failed: {e}")
-
-            # ADR-059: Background extraction removed.
+            # Path 3: System Agent LLM stream
+            async for chunk in _dispatch_system_agent_turn(images_for_api, profile):
+                yield chunk
 
         except Exception as e:
             import traceback
-            error_msg = f"[YARNNN-STREAM] Error: {type(e).__name__}: {str(e)}"
-            logger.error(error_msg)
-            logger.error(f"[YARNNN-STREAM] Traceback: {traceback.format_exc()}")
+            logger.error("[STREAM] %s: %s\n%s", type(e).__name__, e, traceback.format_exc())
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(

@@ -26,7 +26,7 @@ import {
   Link2,
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 import { cn } from '@/lib/utils';
 import { MandateCard } from '@/components/workspace-concepts/MandateCard';
 import { DelegationCard } from '@/components/workspace-concepts/DelegationCard';
@@ -37,7 +37,7 @@ type WorkspaceState = Awaited<ReturnType<typeof api.workspace.getState>>;
 type ProgramItem = WorkspaceState['available_programs'][number];
 
 export function WorkspaceConfigSection() {
-  const { sendMessage } = useTP();
+  const { sendMessage } = useNarrative();
   const router = useRouter();
   const searchParams = useSearchParams();
   const isFirstRun = searchParams.get('first_run') === '1';

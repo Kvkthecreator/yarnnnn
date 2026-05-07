@@ -29,7 +29,7 @@ import {
   ListChecks,
   FolderOpen,
 } from 'lucide-react';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { api } from '@/lib/api/client';
@@ -283,7 +283,7 @@ function formatNodeTimestamp(value: string): string {
 export default function ContextPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { loadScopedHistory, sendMessage } = useTP();
+  const { loadScopedHistory, sendMessage } = useNarrative();
   const { surface } = useDesk();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
 

@@ -50,13 +50,6 @@ function tpReducer(state: TPState, action: TPAction): TPState {
     case 'CLEAR_MESSAGES':
       return { ...state, messages: [] };
 
-    // Remove the empty streaming placeholder when Reviewer handled the turn
-    case 'REMOVE_LAST_MESSAGE': {
-      const msgs = [...state.messages];
-      if (msgs.length > 0) msgs.pop();
-      return { ...state, messages: msgs };
-    }
-
     // ADR-042: Update streaming message blocks in place
     // ADR-124: Also propagate author attribution fields
     case 'UPDATE_STREAMING_MESSAGE': {
@@ -133,7 +126,7 @@ export type TPStatus =
   | { type: 'clarify'; question: string; options?: string[] }  // Waiting for user input
   | { type: 'complete'; message?: string };  // Done, optionally show brief confirmation
 
-interface TPContextValue {
+interface NarrativeContextValue {
   state: TPState;
   messages: TPMessage[];
   isLoading: boolean;
@@ -172,19 +165,19 @@ interface TPContextValue {
   loadScopedHistory: (agentId?: string, taskSlug?: string) => Promise<void>;
 }
 
-const TPContext = createContext<TPContextValue | null>(null);
+const NarrativeContext = createContext<NarrativeContextValue | null>(null);
 
 // =============================================================================
 // Provider
 // =============================================================================
 
-interface TPProviderProps {
+interface NarrativeProviderProps {
   children: ReactNode;
   /** Called when TP navigates to a surface. Optional handoffMessage for context continuity. */
   onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
 }
 
-export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
+export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProviderProps) {
   const router = useRouter();
   const [state, dispatch] = useReducer(tpReducer, initialState);
   const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
@@ -222,7 +215,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
 
     if (timeoutMs !== null) {
       statusTimeoutRef.current = setTimeout(() => {
-        console.warn('[TPContext] Status timeout - resetting stuck state:', status.type);
+        console.warn('[NarrativeContext] Status timeout - resetting stuck state:', status.type);
         setStatus({ type: 'idle' });
         dispatch({ type: 'SET_LOADING', isLoading: false });
       }, timeoutMs);
@@ -353,7 +346,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         dispatch({ type: 'CLEAR_MESSAGES' });
       }
     } catch (err) {
-      console.warn('[TPContext] Failed to load chat history:', err);
+      console.warn('[NarrativeContext] Failed to load chat history:', err);
     }
   }, []);
 
@@ -505,7 +498,6 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         let pendingSurface: DeskSurface | null = null;
         let pendingHandoff: string | null = null;
         let clarifyWasCalled = false;
-        let reviewerHandledTurn = false; // ADR-252: Reviewer fired, skip System Agent placeholder
         // Track pending tool calls by ID for updating status
         const pendingToolCalls: Map<string, number> = new Map(); // tool_use_id -> block index
         // ADR-124: Author attribution from stream_start event
@@ -706,9 +698,8 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                   totalTokens: event.usage.total_tokens,
                 });
               } else if (event.reviewer_response) {
-                // ADR-252: Reviewer fired — remove empty streaming placeholder,
-                // reload history to surface the ReviewerCard, then done.
-                reviewerHandledTurn = true;
+                // ADR-255 D3: Reviewer spoke — reload history so ReviewerCard renders.
+                // No placeholder cleanup needed (placeholder no longer added at stream start).
                 await loadScopedHistory();
               } else if (event.balance_exhausted) {
                 throw new Error('__balance_exhausted__');
@@ -749,17 +740,6 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         // Execute pending surface navigation
         if (pendingSurface && onSurfaceChange) {
           onSurfaceChange(pendingSurface, pendingHandoff || undefined);
-        }
-
-        // ADR-252: Reviewer handled the turn — remove the empty streaming placeholder
-        // and reload history. The ReviewerCard is already in DB from loadScopedHistory()
-        // called on reviewer_response. No System Agent content to show.
-        if (reviewerHandledTurn) {
-          dispatch({ type: 'REMOVE_LAST_MESSAGE' });
-          dispatch({ type: 'SET_LOADING', isLoading: false });
-          setStatus({ type: 'idle' });
-          await loadScopedHistory();
-          return null;
         }
 
         // Finalize content if empty
@@ -880,7 +860,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   // ---------------------------------------------------------------------------
   // Context value
   // ---------------------------------------------------------------------------
-  const value: TPContextValue = {
+  const value: NarrativeContextValue = {
     state,
     messages: state.messages,
     isLoading: state.isLoading,
@@ -907,17 +887,17 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     loadScopedHistory,
   };
 
-  return <TPContext.Provider value={value}>{children}</TPContext.Provider>;
+  return <NarrativeContext.Provider value={value}>{children}</NarrativeContext.Provider>;
 }
 
 // =============================================================================
 // Hook
 // =============================================================================
 
-export function useTP(): TPContextValue {
-  const context = useContext(TPContext);
+export function useNarrative(): NarrativeContextValue {
+  const context = useContext(NarrativeContext);
   if (!context) {
-    throw new Error('useTP must be used within a TPProvider');
+    throw new Error('useNarrative must be used within a NarrativeProvider');
   }
   return context;
 }

@@ -19,7 +19,7 @@
 import { useEffect, useState } from 'react';
 import { Clock, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 
 interface CadenceData {
   reflection: {
@@ -59,7 +59,7 @@ function relativeTime(iso: string | null): string {
 }
 
 export function ReviewerCadencePanel() {
-  const { sendMessage } = useTP();
+  const { sendMessage } = useNarrative();
   const [data, setData] = useState<CadenceData | null>(null);
   const [loading, setLoading] = useState(true);
 

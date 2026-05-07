@@ -11,11 +11,11 @@
 
 import { useEffect } from 'react';
 import { ChatSurface } from '@/components/chat-surface/ChatSurface';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 
 export default function HomePage() {
-  const { loadScopedHistory } = useTP();
+  const { loadScopedHistory } = useNarrative();
   const { tasks } = useAgentsAndRecurrences({ pollInterval: 60_000 });
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);

@@ -209,6 +209,85 @@ async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# ADR-255 D1: cron-based Reviewer heartbeat
+# ---------------------------------------------------------------------------
+
+async def _fire_cron_heartbeats(supabase_client, active_user_ids: list, now) -> None:
+    """Check _autonomy.yaml heartbeat_triggers for cron: entries that are due.
+
+    ADR-255 D1: implements the cron: trigger type declared in _autonomy.yaml.
+    Previously only `after:` triggers were evaluated (ADR-253 D5).
+
+    For each active user, reads /workspace/context/_shared/_autonomy.yaml,
+    extracts `cron:` entries from heartbeat_triggers, checks if due since the
+    last scheduler run (5 min ago), and fires heartbeat_turn() if matched.
+
+    Uses croniter for cron expression evaluation (same library as scheduling.py).
+    """
+    from datetime import timedelta
+    try:
+        import yaml as _yaml
+        from croniter import croniter
+    except ImportError:
+        logger.warning("[CRON_HB] croniter not available — skipping cron heartbeats")
+        return
+
+    five_min_ago = now - timedelta(minutes=6)  # small buffer for scheduler jitter
+
+    for user_id in active_user_ids:
+        try:
+            result = (
+                supabase_client.table("workspace_files")
+                .select("content")
+                .eq("user_id", user_id)
+                .eq("path", "/workspace/context/_shared/_autonomy.yaml")
+                .limit(1)
+                .execute()
+            )
+            if not result.data:
+                continue
+            content = result.data[0].get("content") or ""
+
+            # Strip frontmatter and parse
+            import re as _re
+            cleaned = _re.sub(r"^---\n.*?\n---\n", "", content, flags=_re.DOTALL)
+            parsed = _yaml.safe_load(cleaned) or {}
+
+            triggers = parsed.get("heartbeat_triggers") or []
+            for trigger in triggers:
+                if not isinstance(trigger, dict):
+                    continue
+                cron_expr = trigger.get("cron")
+                if not cron_expr:
+                    continue
+
+                try:
+                    cron = croniter(cron_expr, five_min_ago)
+                    next_fire = cron.get_next(type(now))
+                    if next_fire <= now:
+                        logger.info(
+                            "[CRON_HB] cron trigger due for user=%s expr=%r",
+                            user_id[:8], cron_expr,
+                        )
+                        # Fire asynchronously — non-blocking, best-effort
+                        import asyncio as _asyncio
+                        from services.invocation_dispatcher import _maybe_fire_reviewer_heartbeat
+                        _asyncio.create_task(
+                            _maybe_fire_reviewer_heartbeat(
+                                supabase_client, user_id, f"cron:{cron_expr}"
+                            )
+                        )
+                except Exception as _cron_exc:
+                    logger.warning(
+                        "[CRON_HB] cron expr %r failed for user=%s: %s",
+                        cron_expr, user_id[:8], _cron_exc,
+                    )
+
+        except Exception as _user_exc:
+            logger.warning("[CRON_HB] user=%s failed: %s", user_id[:8], _user_exc)
+
+
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -271,6 +350,16 @@ async def run_unified_scheduler():
         logger.info(f"[SCHED] dispatch complete: {succeeded}/{found} succeeded, {failed} failed")
     else:
         logger.info("[SCHED] no due declarations")
+
+    # -------------------------------------------------------------------------
+    # ADR-255 D1: cron-based Reviewer heartbeat triggers
+    # Evaluates `cron:` entries in _autonomy.yaml heartbeat_triggers for each
+    # active user. Fires heartbeat_turn() asynchronously when due.
+    # -------------------------------------------------------------------------
+    try:
+        await _fire_cron_heartbeats(supabase, active_user_ids, now)
+    except Exception as _cron_hb_exc:
+        logger.warning("[SCHED] cron heartbeat check failed: %s", _cron_hb_exc)
 
     # -------------------------------------------------------------------------
     # Hourly: scheduler_heartbeat (ADR-072)

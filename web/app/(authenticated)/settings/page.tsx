@@ -24,7 +24,7 @@ import {
 import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
-import { useTP } from "@/contexts/TPContext";
+import { useNarrative } from "@/contexts/NarrativeContext";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -58,7 +58,7 @@ type DangerAction =
 export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { clearMessages } = useTP();
+  const { clearMessages } = useNarrative();
   const tabParam = searchParams.get("tab");
   // ADR-215 R3 (2026-04-24): `memory` tab retired — identity/brand/profile
   // are substrate, edited on Files (/context?path=/workspace/context/_shared/…).

@@ -23,7 +23,7 @@ import {
   ListChecks,
   Play,
 } from 'lucide-react';
-import { useTP } from '@/contexts/TPContext';
+import { useNarrative } from '@/contexts/NarrativeContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { getAgentSlug } from '@/lib/agent-identity';
@@ -38,7 +38,7 @@ import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 export default function AgentsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { loadScopedHistory, sendMessage } = useTP();
+  const { loadScopedHistory, sendMessage } = useNarrative();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
   const { agents, tasks, loading } = useAgentsAndRecurrences();
 
