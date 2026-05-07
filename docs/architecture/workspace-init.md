@@ -1,8 +1,8 @@
 # Workspace Initialization
 
-**Status:** Canonical (2026-05-03)
+**Status:** Canonical (2026-05-07)
 **Supersedes:** `docs/design/SHARED-CONTEXT-WORKFLOW.md`, `docs/design/ONBOARDING-TP-AWARENESS.md`, `docs/design/USER-JOURNEY.md` (archived)
-**ADRs:** 205, 206, 207, 209, 219, 223, 226, 244
+**ADRs:** 205, 206, 207, 209, 219, 223, 226, 244, 248, 253, 254, 255
 
 ---
 
@@ -40,7 +40,7 @@ Writes these files via `UserMemory.write` (→ `authored_substrate.write_revisio
 | `IDENTITY.md` | Who the operator is | Inflated with browser timezone if `X-Timezone` header present |
 | `BRAND.md` | Visual style and voice | Empty skeleton; inference populates |
 | `AUTONOMY.md` | Prose documentation — explains delegation concepts | Human/LLM reads only; not machine-parsed (ADR-254) |
-| `_autonomy.yaml` | Machine-parsed delegation config (level, ceiling_cents, never_auto, heartbeat_triggers) | `manual` default; yaml.safe_load (ADR-254) |
+| `_autonomy.yaml` | Machine-parsed delegation config (level, ceiling_cents, never_auto, heartbeat_triggers) | `manual` default, empty `heartbeat_triggers: []`; yaml.safe_load (ADR-254). heartbeat_triggers populated at program fork (ADR-255). |
 | `PRECEDENT.md` | Durable interpretations and boundary-case decisions | Accumulates over time; not prompted at signup |
 
 **NOT seeded:** `CONVENTIONS.md` — this file is program-scoped, not kernel-scoped. See below.
@@ -58,8 +58,9 @@ Writes these files via `UserMemory.write` (→ `authored_substrate.write_revisio
 
 | File | Purpose |
 |------|---------|
-| `IDENTITY.md` | Who the Reviewer seat is (role-level, static) |
-| `principles.md` | Declared judgment framework (operator-editable) |
+| `IDENTITY.md` | Who the Reviewer seat is — role, scope, lifecycle posture, developmental axis (ADR-253) |
+| `principles.md` | Declared judgment framework — defer_posture, directive_posture, auto-approve threshold (operator-editable, ADR-253) |
+| `_principles.yaml` | Machine-parsed thresholds — high_impact_threshold_cents, auto_approve_below_cents per domain (ADR-254) |
 | `OCCUPANT.md` | Current seat occupant — seeded via `review_rotation.rotate_occupant()` |
 | `handoffs.md` | Append-only occupant-rotation log |
 | `calibration.md` | Auto-generated judgments-vs-outcomes trail |
