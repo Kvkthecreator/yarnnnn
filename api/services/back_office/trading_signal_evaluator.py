@@ -183,7 +183,8 @@ async def _load_ticker_indicators(client: Any, user_id: str) -> dict[str, dict]:
             if not ticker or ticker.startswith("_"):
                 continue
             try:
-                parsed = _yaml.safe_load(row.get("content") or "") or {}
+                from services.review_policy import load_workspace_yaml
+                parsed = load_workspace_yaml(row.get("content") or "")
                 if isinstance(parsed, dict) and parsed.get("price"):
                     indicators[ticker] = parsed
             except _yaml.YAMLError:

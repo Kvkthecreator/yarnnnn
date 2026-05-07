@@ -105,7 +105,8 @@ async def _read_universe(client: Any, user_id: str) -> list[str]:
             logger.info("[UNIVERSE_TRACKER] _universe.yaml not found for user=%s", user_id[:8])
             return []
         content = result.data[0].get("content") or ""
-        parsed = _yaml.safe_load(content) or {}
+        from services.review_policy import load_workspace_yaml
+        parsed = load_workspace_yaml(content)
         tickers = parsed.get("tickers") or []
         return [str(t).upper().strip() for t in tickers if str(t).strip()][:20]
     except Exception as exc:

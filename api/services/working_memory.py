@@ -407,10 +407,9 @@ def _extract_autonomy_pause(autonomy_content: Optional[str]) -> dict:
     if not autonomy_content or "paused_until" not in autonomy_content:
         return {}
     try:
-        import yaml as _yaml
+        from services.review_policy import load_workspace_yaml
         from datetime import datetime as _dt, timezone as _tz
-        parsed = _yaml.safe_load(autonomy_content) or {}
-        # Find paused_until in any domain block (default first, then others)
+        parsed = load_workspace_yaml(autonomy_content)
         for block in [parsed.get("default")] + [v for k, v in parsed.items() if k != "default"]:
             if not isinstance(block, dict):
                 continue
@@ -447,8 +446,8 @@ def _extract_autonomy_signal(autonomy_content: Optional[str]) -> Optional[str]:
     if not autonomy_content or len(autonomy_content.strip()) < 10:
         return None
     try:
-        import yaml as _yaml
-        parsed = _yaml.safe_load(autonomy_content) or {}
+        from services.review_policy import load_workspace_yaml
+        parsed = load_workspace_yaml(autonomy_content)
         default = parsed.get("default") or {}
         if not isinstance(default, dict):
             return None

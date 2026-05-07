@@ -21,6 +21,7 @@ Public API (unchanged signatures, new backing files):
 from __future__ import annotations
 
 import logging
+import re as _re
 from typing import Any
 
 import yaml as _yaml
@@ -39,6 +40,33 @@ AUTONOMY_YAML_PATH = f"/workspace/{SHARED_AUTONOMY_YAML_PATH}"
 _DEFAULT_DOMAIN_KEY = "default"
 _VALID_AUTONOMY_LEVELS = {"manual", "assisted", "bounded_autonomous", "autonomous"}
 
+# Frontmatter pattern: leading ---\n...\n--- block (tier:, note:, prompt: metadata)
+_FM_RE = _re.compile(r"^---\n.*?\n---\n", _re.DOTALL)
+
+
+def load_workspace_yaml(content: str) -> dict:
+    """Parse workspace yaml content, stripping --- frontmatter header if present.
+
+    Workspace yaml files seeded from reference bundles carry a frontmatter block:
+        ---
+        tier: canon
+        note: "..."
+        ---
+    yaml.safe_load raises ComposerError on multi-document streams. This helper
+    strips the frontmatter before parsing so the body document loads cleanly.
+    Never raises — returns {} on any parse failure.
+    """
+    if not content:
+        return {}
+    cleaned = _FM_RE.sub("", content, count=1)
+    # Also strip leading comment lines (# ...)
+    lines = [l for l in cleaned.splitlines() if not l.startswith("#")]
+    cleaned = "\n".join(lines)
+    try:
+        return _yaml.safe_load(cleaned) or {}
+    except _yaml.YAMLError:
+        return {}
+
 
 # =============================================================================
 # Public API
@@ -56,16 +84,8 @@ def load_principles(client: Any, user_id: str) -> dict:
     content = _read_file(client, user_id, PRINCIPLES_YAML_PATH)
     if not content:
         return {}
-    try:
-        parsed = _yaml.safe_load(content) or {}
-        # Strip tier/note frontmatter keys (not domain names)
-        return {
-            k: v for k, v in parsed.items()
-            if isinstance(v, dict) and k not in ("tier", "note")
-        }
-    except Exception as exc:
-        logger.warning("[REVIEW_POLICY] _principles.yaml parse failed user=%s: %s", user_id[:8], exc)
-        return {}
+    parsed = load_workspace_yaml(content)
+    return {k: v for k, v in parsed.items() if isinstance(v, dict) and k not in ("tier", "note")}
 
 
 def load_autonomy(client: Any, user_id: str) -> dict:
@@ -82,16 +102,8 @@ def load_autonomy(client: Any, user_id: str) -> dict:
     content = _read_file(client, user_id, AUTONOMY_YAML_PATH)
     if not content:
         return {}
-    try:
-        parsed = _yaml.safe_load(content) or {}
-        # Strip tier/note frontmatter keys
-        return {
-            k: v for k, v in parsed.items()
-            if isinstance(v, dict) and k not in ("tier", "note")
-        }
-    except Exception as exc:
-        logger.warning("[REVIEW_POLICY] _autonomy.yaml parse failed user=%s: %s", user_id[:8], exc)
-        return {}
+    parsed = load_workspace_yaml(content)
+    return {k: v for k, v in parsed.items() if isinstance(v, dict) and k not in ("tier", "note")}
 
 
 def autonomy_for_domain(autonomy: dict, context_domain: str) -> dict:
