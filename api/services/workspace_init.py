@@ -191,8 +191,8 @@ async def initialize_workspace(
         from services.workspace_paths import (
             SHARED_MANDATE_PATH, SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
             # SHARED_CONVENTIONS_PATH not imported — not seeded at init.
-            # Program bundles fork CONVENTIONS.md via reference-workspace/ if needed.
-            SHARED_AUTONOMY_PATH,
+            SHARED_AUTONOMY_PATH,        # prose doc (LLM reads)
+            SHARED_AUTONOMY_YAML_PATH,   # machine-parsed config (ADR-254)
             SHARED_PRECEDENT_PATH,
             MEMORY_AWARENESS_PATH, MEMORY_PLAYBOOK_PATH,
             MEMORY_STYLE_PATH, MEMORY_NOTES_PATH,
@@ -237,7 +237,14 @@ async def initialize_workspace(
             SHARED_MANDATE_PATH: (DEFAULT_MANDATE_MD, "Mandate skeleton — workspace north star"),
             SHARED_IDENTITY_PATH: (identity_content, "User identity template"),
             SHARED_BRAND_PATH: (DEFAULT_BRAND_MD, "Default brand baseline"),
-            SHARED_AUTONOMY_PATH: (DEFAULT_AUTONOMY_MD, "Autonomy delegation — default manual, operator-authored (ADR-217)"),
+            SHARED_AUTONOMY_PATH: (DEFAULT_AUTONOMY_MD, "Autonomy — prose documentation (LLM reads, ADR-254)"),
+            SHARED_AUTONOMY_YAML_PATH: (
+                "# _autonomy.yaml — delegation config (ADR-254)\n"
+                "# Machine-parsed. See AUTONOMY.md for documentation.\n\n"
+                "default:\n"
+                "  level: manual    # manual | assisted | bounded_autonomous | autonomous\n",
+                "Autonomy delegation config — machine-parsed yaml (ADR-254)"
+            ),
             SHARED_PRECEDENT_PATH: (DEFAULT_PRECEDENT_MD, "Precedent substrate — durable boundary-case guidance"),
             # YARNNN working memory (ADR-206)
             MEMORY_AWARENESS_PATH: (DEFAULT_AWARENESS_MD, "YARNNN situational awareness"),
