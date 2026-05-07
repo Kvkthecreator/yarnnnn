@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.07.5] - ADR-257: unified deterministic dispatch — System Agent LLM stream deleted
+
+### Changed
+- `api/routes/chat.py`: _dispatch_system_agent_turn() DELETED (100-line Sonnet LLM stream).
+  action_instruction from Reviewer now routes to route_execution() directly — same
+  deterministic execution router used for operator commands. Zero LLM in execution path.
+  YarnnnAgent, ContextBundle, scoped_agent fetch block all removed (no longer needed).
+  chat.py: 1,688 → 1,428 lines (-260).
+
+- `api/agents/reviewer_agent.py`: _ADDRESSED_TOOL action_instruction description updated
+  with exact verb+slug format the execution router recognizes. _ADDRESSED_SYSTEM_PROMPT
+  action_instruction guidance updated to match router patterns.
+
+### Expected behavior
+  "make a trade" → Reviewer (Haiku): "Need current bars. Fire signal-evaluation."
+    action_instruction: "fire signal-evaluation"
+    → execution router matches → FireInvocation(signal-evaluation) → result narrated
+  Heartbeat fires → Reviewer (Sonnet): reads fresh signals → ProposeAction
+    → AUTONOMY gate → auto-execute or Queue depending on autonomy mode
+
+### The loop
+  autonomy: bounded_autonomous → Reviewer assesses on heartbeat → proposes within
+  ceiling → auto-executes → outcomes reconcile → calibration updates → next Reviewer
+  assessment informed by closed-loop data. No operator intervention required within ceiling.
+
+---
+
 ## [2026.05.07.4] - Reviewer v7: active operational principal — ADR-256
 
 ### Changed (canonical prompt version bump: v6 → v7)
