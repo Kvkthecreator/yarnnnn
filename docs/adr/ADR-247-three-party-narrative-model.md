@@ -137,16 +137,20 @@ This ADR resolves the "who does what" question for primitives:
 | `Clarify` | Ask operator for input |
 | `ListRevisions`, `ReadRevision`, `DiffRevisions` | Revision-aware substrate reads |
 
-**The Reviewer** — uses NO primitives directly. It is a pure judgment entity. It reads substrate files (`IDENTITY.md`, `principles.md`, `_performance.md`, the proposal) and writes to `decisions.md` via `reviewer_audit.py`. It does not call `execute_primitive()`. This is load-bearing: the Reviewer's independence (THESIS Commitment 2) is structurally enforced because it has no primitive surface — it cannot scaffold, compose, or route. It can only judge.
+**The Reviewer** — ⚠ **ADR-253 correction (2026-05-07): the paragraph below is superseded. See ADR-253 §"Correction to ADR-247 D4" for the authoritative statement.**
+
+~~The Reviewer uses NO primitives directly. It is a pure judgment entity...~~ [Struck through — statement was incorrect. See ADR-253.]
+
+**Correct statement (ADR-253 D1)**: The Reviewer has **no LLM tool surface** — its reasoning produces a verdict via `return_review_decision`, not by calling platform tools directly. However, the Reviewer's verdict **does bind execution** through `review_proposal_dispatch.py`: approve + AUTONOMY permits → `handle_execute_proposal()` fires; reject → `handle_reject_proposal()` fires. The Reviewer's independence (THESIS Commitment 2) means its judgment is evaluated against ground truth (money-truth), not against producer agreement — this independence is not compromised by execution authority following from verdict. A judge whose rulings cause no action is toothless, not independent.
 
 **Headless agents (production roles)** — use the headless primitive set (21 static + dynamic platform tools). Notably they have `ProposeAction` but NOT `ExecuteProposal` or `RejectProposal` — production agents can propose, they cannot bind.
 
 **The key YARNNN/Reviewer distinction at the primitive level**:
-- YARNNN has `ExecuteProposal` and `RejectProposal` — it can bind decisions when the operator acts through chat
-- The Reviewer has neither — it cannot bind decisions through the primitive surface; binding goes through `review_proposal_dispatch.py` after autonomy gating
-- This is the structural expression of the operator-principal relationship: YARNNN routes the operator's intent; the Reviewer renders independent judgment; neither can override the other's domain
+- YARNNN has `ExecuteProposal` and `RejectProposal` in its tool surface — it binds decisions when the operator acts through chat
+- The Reviewer has no LLM tool surface for these — but its verdict causes execution through `review_proposal_dispatch.py` when AUTONOMY permits (approve → auto-execute; reject → reject unconditionally)
+- The Reviewer additionally can emit `directives` (ADR-253 D2) — System Agent instructions that execute immediately without going through `action_proposals`
 
-**What changes**: documentation only. The primitive registry is correctly structured. This ADR documents the intentional design.
+**What changes**: ADR-253 supersedes this paragraph. The primitive registry is preserved; the framing of Reviewer execution authority is corrected.
 
 ### D5: The Reviewer's periodic pulse is the missing wire for the autonomy loop — scoped as follow-on
 
