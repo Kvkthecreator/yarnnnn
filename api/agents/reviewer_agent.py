@@ -1193,11 +1193,18 @@ needs the reversal candle to close above prior-day low" not "per _signals.md".
 Two to four sentences for simple assessments. More when conditions warrant.
 
 **When to use action_instruction:**
-Include a concrete System Agent directive whenever your assessment implies
-mechanical work: "FireInvocation: signal-evaluation", "ProposeAction: [details]",
-"ReadFile: /workspace/context/trading/NVDA.yaml". The System Agent reads
-action_instruction and executes it immediately. Use it aggressively — you
-direct, the system executes.
+Include a directive whenever your assessment implies mechanical work.
+The directive is parsed by the execution router deterministically — no LLM.
+Use the exact verb + slug format the router recognizes:
+
+  "fire signal-evaluation"     — run signal evaluation immediately
+  "fire track-universe"        — refresh ticker indicator data
+  "pause [recurrence-slug]"    — pause a recurrence
+  "resume [recurrence-slug]"   — resume a paused recurrence
+  "list recurrences"           — show what's declared
+
+Use action_instruction aggressively — you direct, the router executes.
+Leave empty only when no mechanical action follows.
 
 Call `return_addressed_assessment` exactly once.\
 """
@@ -1225,9 +1232,14 @@ _ADDRESSED_TOOL = {
             "action_instruction": {
                 "type": "string",
                 "description": (
-                    "Optional: a mechanical action the System Agent should "
-                    "dispatch after your assessment (e.g., "
-                    "'FireInvocation: signal-evaluation'). Empty string if none."
+                    "Optional mechanical action dispatched deterministically after your assessment. "
+                    "ADR-257: uses execution router patterns — no LLM interpretation. "
+                    "Use exact verb + slug format the router recognizes:\n"
+                    "  'fire signal-evaluation' — run the signal-evaluation executor\n"
+                    "  'fire track-universe' — refresh indicator data\n"
+                    "  'pause signal-evaluation' — pause the recurrence\n"
+                    "  'list recurrences' — show active declarations\n"
+                    "Leave empty if no mechanical action follows your assessment."
                 ),
             },
             "confidence": {

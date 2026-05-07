@@ -48,8 +48,8 @@ from services.supabase import UserClient
 # replaced with declaration-walker reads via services.recurrence_paths.
 
 logger = logging.getLogger(__name__)
-from agents.base import ContextBundle
-from agents.yarnnn import YarnnnAgent
+# ContextBundle and YarnnnAgent removed — ADR-257: System Agent LLM stream deleted.
+# Reviewer (Haiku) is the sole intelligence; execution router dispatches directives.
 
 router = APIRouter()
 
@@ -1144,38 +1144,14 @@ async def global_chat(
         f"[YARNNN] Loaded {len(existing_messages)} messages, built {len(history)} history entries"
     )
 
-    # ADR-087 Phase 3: agent_id is now set at session creation time (above).
-    # Still need to fetch the agent for working memory injection.
-    agent_id = request_agent_id
-    scoped_agent = None
-    if agent_id:
-        try:
-            d_result = auth.client.table("agents").select(
-                "id, user_id, title, scope, role, agent_instructions, agent_memory"
-            ).eq("id", agent_id).eq("user_id", auth.user_id).single().execute()
-            if d_result.data:
-                scoped_agent = d_result.data
-        except Exception as e:
-            logger.warning(f"[YARNNN] Failed to fetch scoped agent: {e}")
-
-    # ADR-059/064: Memory now loaded via build_working_memory in execute_stream_with_tools
-    # ContextBundle is passed for backwards compatibility but is empty
-    context = ContextBundle()
-
-    # ADR-023: Load surface content if user is viewing something specific
+    # ADR-023: Load surface content for compact index injection into Reviewer context
     surface_content = None
     if request.surface_context:
-        logger.info(f"[YARNNN] Surface context received: {request.surface_context.type}")
         surface_content = await load_surface_content(
             auth.client,
             auth.user_id,
             request.surface_context
         )
-        if surface_content:
-            logger.info(f"[YARNNN] Loaded surface content ({len(surface_content)} chars)")
-
-    # All messages route to YARNNN (ChatAgent/project meeting room routing removed)
-    agent = YarnnnAgent()
 
     # ── ADR-255 D3: Three clean dispatch functions ───────────────────────────
     # No optimistic placeholder. No nested control flow.
@@ -1232,117 +1208,40 @@ async def global_chat(
         yield f"data: {json.dumps({'reviewer_response': assessment['response']})}\n\n"
         logger.info("[REVIEWER] addressed (Haiku) for user=%s", auth.user_id[:8])
 
-        # If Reviewer included an action_instruction, System Agent executes it.
-        # System Agent is optional — only speaks when Reviewer directs it.
+        # If Reviewer included an action_instruction, execute it via the same
+        # deterministic execution router used for operator commands.
+        # Zero LLM — the router parses and dispatches mechanically.
+        # ADR-257: action_instruction → execution router → narration → done.
         action_instruction = (assessment.get("action_instruction") or "").strip()
         if action_instruction:
-            logger.info("[REVIEWER→SYSTEM_AGENT] executing directive: %.80r", action_instruction)
-            async for chunk in _dispatch_system_agent_turn(images_for_api, profile,
-                                                           task_override=action_instruction):
-                yield chunk
+            from services.execution_router import route_execution
+            logger.info("[REVIEWER→ROUTER] directive: %.80r", action_instruction)
+            router_result = None
+            try:
+                router_result = await route_execution(auth, action_instruction)
+            except Exception as _re:
+                logger.warning("[REVIEWER→ROUTER] failed: %s", _re)
+
+            if router_result is not None:
+                narration = router_result.get("narration", "Done.")
+                routed_tools = router_result.get("tools_used", [])
+                await append_message(auth.client, session_id, "system_agent", narration, {
+                    "tools_used": routed_tools, "tool_history": [],
+                    "pulse": "addressed", "weight": "routine", "reviewer_directed": True,
+                })
+                yield f"data: {json.dumps({'content': narration})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': routed_tools})}\n\n"
+            else:
+                # Router couldn't parse the directive — surface it as a note
+                note = f"Directive noted: {action_instruction}"
+                await append_message(auth.client, session_id, "system_agent", note, {
+                    "tools_used": [], "tool_history": [], "pulse": "addressed", "weight": "routine",
+                })
+                yield f"data: {json.dumps({'content': note})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
         else:
-            # No system action needed — Reviewer's response is complete
+            # No system action — Reviewer's response is the complete turn
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
-
-    async def _dispatch_system_agent_turn(images_for_api, profile, task_override: str):
-        """System Agent executes a Reviewer-directed action_instruction.
-        Only called when the Reviewer explicitly provided an action_instruction.
-        The System Agent has no autonomous path — it executes, narrates, stops."""
-        full_response = ""
-        tools_used = []
-        tool_call_history = []
-        current_tool_use = None
-        last_token_usage = {"input_tokens": 0, "output_tokens": 0}
-        task_to_execute = task_override  # always Reviewer-directed; no fallback to request.content
-
-        stream_params = {
-            "include_context": request.include_context,
-            "history": history,
-            "surface_content": surface_content,
-            "images": images_for_api,
-            "scoped_agent": scoped_agent,
-            "surface_context_raw": request.surface_context.dict() if request.surface_context else None,
-            "profile": profile,
-        }
-
-        async for event in agent.execute_stream_with_tools(
-            task=task_to_execute, context=context, auth=auth, parameters=stream_params,
-        ):
-            if event.type == "text":
-                full_response += event.content
-                yield f"data: {json.dumps({'content': event.content})}\n\n"
-            elif event.type == "tool_use":
-                tools_used.append(event.content["name"])
-                current_tool_use = event.content
-                logger.info("[SYSTEM_AGENT] Tool use: %s", event.content["name"])
-                yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
-            elif event.type == "tool_result":
-                result = event.content.get("result", {})
-                ui_action = result.get("ui_action")
-                tool_name = event.content.get("name")
-                logger.info("[SYSTEM_AGENT] Tool result: %s success=%s", tool_name, result.get("success"))
-                if tool_name == "Respond" and ui_action:
-                    msg = ui_action.get("data", {}).get("message", "")
-                    if msg:
-                        full_response += msg
-                        yield f"data: {json.dumps({'content': msg})}\n\n"
-                elif tool_name == "Clarify" and ui_action:
-                    q = ui_action.get("data", {}).get("question", "")
-                    opts = ui_action.get("data", {}).get("options", [])
-                    if q:
-                        text = q + ("\n" + "\n".join(f"- {o}" for o in opts) if opts else "")
-                        full_response += text
-                        yield f"data: {json.dumps({'content': text})}\n\n"
-                if current_tool_use:
-                    tool_call_history.append({"tool_use": current_tool_use, "tool_result": event.content})
-                    current_tool_use = None
-                yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
-            elif event.type == "usage":
-                last_token_usage = event.content
-                yield f"data: {json.dumps({'usage': event.content})}\n\n"
-
-        # Persist system_agent message
-        history_entries = [
-            {"type": "tool_call", "name": p["tool_use"]["name"],
-             "input_summary": str(p["tool_use"].get("input", {}))[:200],
-             "result_summary": str(p["tool_result"].get("result", {}))[:500]}
-            for p in tool_call_history
-        ]
-        if full_response:
-            history_entries.append({"type": "text", "content": full_response})
-
-        tool_called = bool(tools_used)
-        substantive = len(full_response.strip()) > 120
-        await append_message(auth.client, session_id, "system_agent", full_response, {
-            "model": agent.model, "tools_used": tools_used, "tool_history": history_entries,
-            "input_tokens": last_token_usage.get("input_tokens", 0),
-            "output_tokens": last_token_usage.get("output_tokens", 0),
-            "pulse": "addressed",
-            "weight": "material" if (tool_called or substantive) else "routine",
-        })
-
-        yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
-
-        try:
-            from services.platform_limits import record_token_usage
-            from services.supabase import get_service_client
-            record_token_usage(get_service_client(), user_id=auth.user_id, caller="chat",
-                model=agent.model,
-                input_tokens=last_token_usage.get("input_tokens", 0),
-                output_tokens=last_token_usage.get("output_tokens", 0),
-                metadata={"session_id": session_id})
-        except Exception as _e:
-            logger.warning("[TOKEN_USAGE] chat record failed: %s", _e)
-
-        try:
-            from services.activity_log import write_activity
-            from services.supabase import get_service_client
-            await write_activity(client=get_service_client(), user_id=auth.user_id,
-                event_type="chat_session",
-                summary=f"Chat turn complete" + (f" (tools: {', '.join(tools_used)})" if tools_used else ""),
-                event_ref=session_id, metadata={"session_id": session_id, "tools_used": tools_used})
-        except Exception as e:
-            logger.debug("[SYSTEM_AGENT] Activity log write failed: %s", e)
 
     # ── Main stream dispatcher ────────────────────────────────────────────────
     async def response_stream():
