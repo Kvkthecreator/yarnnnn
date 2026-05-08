@@ -225,6 +225,8 @@ async def surface_reviewer_actions(
         summary = action.get("summary", "")
         body = narrate_reviewer_action(tool, summary)
         try:
+            # weight=material — System Agent is a participant in the
+            # conversation, full chat-bubble visual weight.
             write_narrative_entry(
                 client,
                 session_id,
@@ -232,7 +234,7 @@ async def surface_reviewer_actions(
                 summary=body[:200],
                 body=body,
                 pulse="reactive",
-                weight="routine",
+                weight="material",
                 extra_metadata={
                     "tools_used": [tool],
                     "reviewer_directed": True,

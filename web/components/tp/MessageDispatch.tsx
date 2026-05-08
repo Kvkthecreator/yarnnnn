@@ -124,9 +124,13 @@ function renderUserBubble({ msg }: RendererProps): JSX.Element {
  */
 function renderSystemAgentBubble({ msg, isLoading }: RendererProps): JSX.Element {
   const showLoading = !msg.content && isLoading;
+  // ADR-258 (revised): System Agent is a participant in the conversation —
+  // full chat-bubble visual weight, matching Reviewer/Operator. Same shape
+  // as the system bubble (bg-muted, rounded-2xl, persona label) so the
+  // operator reads three participants exchanging messages, not background log.
   return (
-    <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted/70 rounded-bl-md">
-      <span className="text-[9px] font-medium text-muted-foreground/40 tracking-wider block mb-1 uppercase">
+    <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
+      <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1 uppercase">
         System Agent
       </span>
       {showLoading ? (

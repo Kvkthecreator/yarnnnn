@@ -1321,9 +1321,12 @@ async def global_chat(
                 # reasoning, not as a misleading System Agent bubble.
                 if success and tool_name not in _COGNITION_ONLY:
                     narration = _narrate_consequential_action(tool_name, summary)
+                    # weight=material — System Agent is a participant speaking
+                    # in the conversation, not a system log line. Renders as
+                    # a full chat bubble matching Reviewer/Operator visual weight.
                     await append_message(auth.client, session_id, "system_agent", narration, {
                         "tools_used": [tool_name], "tool_history": [],
-                        "pulse": "addressed", "weight": "routine", "reviewer_directed": True,
+                        "pulse": "addressed", "weight": "material", "reviewer_directed": True,
                     })
                     yield f"data: {json.dumps({'content': narration})}\n\n"
 
@@ -1342,7 +1345,7 @@ async def global_chat(
                     narration = _narrate_consequential_action(tool_name, summary)
                     await append_message(auth.client, session_id, "system_agent", narration, {
                         "tools_used": [tool_name], "tool_history": [],
-                        "pulse": "addressed", "weight": "routine", "reviewer_directed": True,
+                        "pulse": "addressed", "weight": "material", "reviewer_directed": True,
                     })
                     yield f"data: {json.dumps({'content': narration})}\n\n"
 
