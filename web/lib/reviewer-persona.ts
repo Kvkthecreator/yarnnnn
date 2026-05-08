@@ -14,6 +14,12 @@
  *
  * Kept intentionally thin — no composition, no inference. Just a name
  * extracted from the operator-authored IDENTITY.md per ADR-246 D2.
+ *
+ * Module-level singleton cache: the persona name is workspace-stable
+ * within a session, so a single fetch (deduped across all hook callers)
+ * is correct. Without this dedupe, every chat message row mounts the
+ * hook → fires its own fetch, producing tens-of-fetches-per-second
+ * loops as the conversation re-renders.
  */
 
 import { useState, useEffect } from 'react';
@@ -52,26 +58,73 @@ function extractPersonaName(content: string): string | null {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Module-level singleton cache + subscriber pattern
+// ---------------------------------------------------------------------------
+// One in-flight fetch shared across all hook callers; one cached result;
+// component subscribers notified when the result resolves.
+
+let cachedPersonaName: string | null = null;
+let resolved = false;
+let inFlight: Promise<string | null> | null = null;
+const subscribers = new Set<(name: string | null) => void>();
+
+async function fetchPersonaOnce(): Promise<string | null> {
+  if (resolved) return cachedPersonaName;
+  if (inFlight) return inFlight;
+
+  inFlight = (async () => {
+    try {
+      const file = await api.workspace.getFile(REVIEWER_IDENTITY_PATH);
+      const name = extractPersonaName(file?.content ?? '');
+      cachedPersonaName = name;
+    } catch {
+      cachedPersonaName = null;
+    } finally {
+      resolved = true;
+      inFlight = null;
+      // Notify all subscribers
+      subscribers.forEach((cb) => cb(cachedPersonaName));
+    }
+    return cachedPersonaName;
+  })();
+
+  return inFlight;
+}
+
 /**
  * Hook that resolves the operator-authored Reviewer persona name.
  * Returns null if the persona hasn't been authored yet (skeleton state).
- * Fetches once per session; result is stable.
+ *
+ * Module-level cache + subscriber pattern: every hook caller subscribes
+ * to the same single fetch. Persona name is workspace-stable within a
+ * session — there is no need to refetch per component mount.
  */
 export function useReviewerPersona(): string | null {
-  const [personaName, setPersonaName] = useState<string | null>(null);
+  const [personaName, setPersonaName] = useState<string | null>(cachedPersonaName);
 
   useEffect(() => {
     let cancelled = false;
-    api.workspace.getFile(REVIEWER_IDENTITY_PATH)
-      .then((file) => {
-        if (cancelled) return;
-        const name = extractPersonaName(file?.content ?? '');
-        setPersonaName(name);
-      })
-      .catch(() => {
-        // Non-fatal — IDENTITY.md may not exist yet; fall back to generic label
-      });
-    return () => { cancelled = true; };
+
+    // Subscribe so this component is notified when the fetch resolves
+    // (even if it mounted after another component already triggered it).
+    const onResolved = (name: string | null) => {
+      if (!cancelled) setPersonaName(name);
+    };
+    subscribers.add(onResolved);
+
+    // Kick the fetch (no-op if already resolved or in flight).
+    if (!resolved) {
+      fetchPersonaOnce();
+    } else if (cachedPersonaName !== personaName) {
+      setPersonaName(cachedPersonaName);
+    }
+
+    return () => {
+      cancelled = true;
+      subscribers.delete(onResolved);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return personaName;
