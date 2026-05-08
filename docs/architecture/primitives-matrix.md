@@ -1,9 +1,11 @@
 # Primitives Matrix — Substrate × Mode × Capability
 
-**Status:** Canonical — reflects post-ADR-168 + post-ADR-196 + post-ADR-231 + post-ADR-235 + post-ADR-247 state
-**Last updated:** 2026-05-03 (ManageTask dissolved ADR-231; UpdateContext dissolved ADR-235; YARNNN reclassified as orchestration surface ADR-216/247)
-**Governing ADRs:** ADR-146 (Primitive Hardening), ADR-168 (substrate/mode/capability axes + naming reform), ADR-169 (MCP as third caller), ADR-196 (user_memory sunset), ADR-231 (ManageTask dissolved → ManageRecurrence + FireInvocation), ADR-235 (UpdateContext dissolved → InferContext / InferWorkspace / ManageRecurrence / WriteFile)
-**Related:** ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-166 (registry cleanup), ADR-216 (YARNNN as orchestration surface, not judgment Agent), ADR-247 (three-party narrative model + primitive ownership), FOUNDATIONS Axiom 1 (filesystem substrate) + Axiom 5 (Mechanism spectrum)
+**Status:** Canonical — reflects post-ADR-168 + post-ADR-196 + post-ADR-231 + post-ADR-235 + post-ADR-247 + post-ADR-260/261/262 state
+**Last updated:** 2026-05-08 (ADRs 260/261/262 — recurrences as prompts; ManageRecurrence renamed to Schedule; DispatchSpecialist added; headless mode reframed as runtime characteristic)
+**Governing ADRs:** ADR-146 (Primitive Hardening), ADR-168 (substrate/mode/capability axes + naming reform), ADR-169 (MCP as third caller), ADR-196 (user_memory sunset), ADR-231 (ManageTask dissolved → ManageRecurrence + FireInvocation), ADR-235 (UpdateContext dissolved → InferContext / InferWorkspace / ManageRecurrence / WriteFile), **ADR-261 (ManageRecurrence → Schedule; recurrences are prompts; specialists are tools the Reviewer's loop calls)**
+**Related:** ADR-080 (Unified Agent Modes), ADR-151 (Context Domains), ADR-166 (registry cleanup), ADR-216 (YARNNN as orchestration surface, not judgment Agent), ADR-247 (three-party narrative model + primitive ownership), **ADR-260 (real-time Reviewer loop, three triggers)**, **ADR-262 (output topology; Compose primitive + opt-out structural default)**, FOUNDATIONS Axiom 1 (filesystem substrate) + Axiom 5 (Mechanism spectrum)
+
+> **Header note (ADR-261, 2026-05-08):** the `ManageRecurrence` primitive is renamed to `Schedule`. Throughout this document, references to `ManageRecurrence` should be read as `Schedule` going forward. The semantic surface (action enum: `create | update | pause | resume | archive`) is preserved; only the verb-name changes. Per CLAUDE.md primitive-rename protocol (rule 7b), the code-PR companion to these ADRs sweeps all references in `api/`, `web/`, and remaining docs in one commit. New primitives added by ADRs 260/261/262: `DispatchSpecialist` (Reviewer-only, ADR-261 D7) and `Compose` (callable + opt-out structural-trigger default, ADR-262 D4). The `headless` permission mode survives as a **runtime characteristic** (LLM-call shape) rather than a separate execution path — specialist sub-LLM-calls run with `headless` characteristics within the Reviewer's loop.
 
 ---
 
