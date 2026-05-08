@@ -555,46 +555,67 @@ async def invoke_reviewer(
         total_output = 0
 
         for _round in range(max_rounds):
+            # Round 0: force any tool call so the model enters the loop.
+            # Subsequent rounds: auto so the model can call ReturnVerdict or
+            # another tool as appropriate.
+            tool_choice = {"type": "any"} if _round == 0 else {"type": "auto"}
+
             response = await chat_completion_with_tools(
                 messages=messages,
                 system=_SYSTEM_PROMPT,
                 tools=_TOOLS,
                 model=model,
                 max_tokens=2048,
+                tool_choice=tool_choice,
             )
 
-            usage = getattr(response, "usage", None) or {}
-            total_input += int(getattr(usage, "input_tokens", 0) or 0)
-            total_output += int(getattr(usage, "output_tokens", 0) or 0)
+            # usage is a dict (from _parse_response) — use .get() not getattr()
+            usage = response.usage or {}
+            total_input += int(usage.get("input_tokens", 0) or 0)
+            total_output += int(usage.get("output_tokens", 0) or 0)
 
-            tool_uses = getattr(response, "tool_uses", None) or []
-            stop_reason = getattr(response, "stop_reason", None)
+            tool_uses = response.tool_uses or []
+            stop_reason = response.stop_reason
 
-            # Collect assistant turn for multi-round history
+            # Collect assistant turn for multi-round history.
+            # Rebuild from response.content (SDK objects) for the API message format.
             assistant_content: list[dict] = []
-            text_content = getattr(response, "content", None)
-            if isinstance(text_content, list):
-                for block in text_content:
-                    btype = getattr(block, "type", None)
-                    if btype == "text":
-                        assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
-                    elif btype == "tool_use":
-                        assistant_content.append({
-                            "type": "tool_use",
-                            "id": getattr(block, "id", ""),
-                            "name": getattr(block, "name", ""),
-                            "input": getattr(block, "input", {}),
-                        })
+            for block in (response.content or []):
+                btype = getattr(block, "type", None)
+                if btype == "text":
+                    assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
+                elif btype == "tool_use":
+                    assistant_content.append({
+                        "type": "tool_use",
+                        "id": getattr(block, "id", ""),
+                        "name": getattr(block, "name", ""),
+                        "input": getattr(block, "input", {}),
+                    })
 
             if assistant_content:
                 messages.append({"role": "assistant", "content": assistant_content})
 
             if not tool_uses:
-                # No tool calls — model gave up or returned text only; treat as failure
-                logger.warning(
-                    "[REVIEWER] no tool calls in round %d trigger=%s user=%s stop=%s",
-                    _round, trigger, user_id[:8], stop_reason,
-                )
+                # Model returned text only — shouldn't happen on round 0 (tool_choice=any)
+                # but can happen on later rounds if model decides it's done.
+                # If there's text content, treat it as a stand_down reasoning fallback.
+                text_fallback = response.text.strip() if response.text else ""
+                if text_fallback:
+                    logger.warning(
+                        "[REVIEWER] text-only response round %d trigger=%s user=%s — "
+                        "constructing stand_down from text",
+                        _round, trigger, user_id[:8],
+                    )
+                    verdict_raw = {
+                        "verdict": "stand_down",
+                        "reasoning": text_fallback[:1000],
+                        "confidence": "medium",
+                    }
+                else:
+                    logger.warning(
+                        "[REVIEWER] no tool calls, no text round %d trigger=%s user=%s stop=%s",
+                        _round, trigger, user_id[:8], stop_reason,
+                    )
                 break
 
             tool_results: list[dict] = []
