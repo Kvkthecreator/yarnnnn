@@ -121,45 +121,14 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
     workspacePaths[0] ??
     null;
 
-  // Reviewer entries — three rendering paths:
-  // 1. observation → dim collapsed line (no divider, no full bubble)
-  // 2. addressed   → conversational bubble, no section divider (chat-mode judgment)
-  // 3. proposal verdict (approve/reject/defer) → full section divider + bubble
+  // Reviewer entries — ADR-258: Reviewer is a chat participant, not a gate announcement.
+  // No section dividers for any verdict type. The persona label on the bubble is
+  // sufficient identity. Observation entries render through MessageRenderer as
+  // dim collapsed lines (ReviewerCard handles that internally).
   if (msg.role === 'reviewer') {
-    const verdict = msg.reviewer?.verdict;
-    const isObservation = verdict === 'observation' || msg.reviewer?.occupant === 'reviewer-layer:observed';
-    const isAddressed = verdict === 'addressed' || verdict === 'heartbeat';
-
-    if (isObservation) {
-      return (
-        <div className="max-w-[92%]">
-          <MessageRenderer msg={msg} isLoading={isLoading} />
-        </div>
-      );
-    }
-
-    if (isAddressed) {
-      // Conversational judgment — same visual weight as a chat bubble, no divider.
-      return (
-        <div className="max-w-[92%]">
-          <MessageRenderer msg={msg} isLoading={isLoading} />
-        </div>
-      );
-    }
-
-    // Proposal verdict (approve / reject / defer) — section divider signals a gate decision.
     return (
-      <div className="pt-2">
-        <div className="flex items-center gap-2 mb-2 px-0.5">
-          <div className="h-px flex-1 bg-border/40" />
-          <span className="text-[9px] font-semibold tracking-widest text-muted-foreground/40 uppercase select-none">
-            {reviewerPersonaName ?? 'Reviewer'}
-          </span>
-          <div className="h-px flex-1 bg-border/40" />
-        </div>
-        <div className="max-w-[92%]">
-          <MessageRenderer msg={msg} isLoading={isLoading} />
-        </div>
+      <div className="max-w-[92%]">
+        <MessageRenderer msg={msg} isLoading={isLoading} />
       </div>
     );
   }

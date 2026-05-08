@@ -1,6 +1,6 @@
 # ADR-237: Chat Role-Based Design System — One Dispatch Table, One Grammar
 
-> **Status**: **Implemented** (2026-04-29, single commit). Round 2 of the ADR-236 frontend cockpit coherence pass — the second Tier 1 sub-ADR. Test gate `api/test_adr237_chat_role_grammar.py` 7/7 passing. TypeScript typecheck clean. Cross-ADR regression check 57/57 across six gates (231 + 233 P1 + 233 P2 + 234 + 237 + 238). CHANGELOG entry `[2026.04.29.10]` recorded.
+> **Status**: **Implemented** (2026-04-29). **Visual grammar superseded by ADR-258** (2026-05-08): the dispatch table and weight gating are preserved; the color-based Reviewer differentiation (rose tinting, section dividers, ReviewerBanner) is deleted and replaced with a uniform muted bubble + compact status chip. See ADR-258 for the first-principles rewrite.
 > **Date**: 2026-04-29
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Channel** (Axiom 6) primary — a shared formal grammar for chat-message rendering across roles. **Identity** (Axiom 2) secondary — the grammar is keyed on `TPMessage.role`, which is the chat-surface projection of FOUNDATIONS Axiom 2's identity layer.

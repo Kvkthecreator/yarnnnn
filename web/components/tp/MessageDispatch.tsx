@@ -14,7 +14,7 @@
  *   system-agent-bubble — role: 'system_agent' label: "System Agent"  (ADR-252: execution narration)
  *   system-bubble       — role: 'assistant'    label: "System Agent"  (legacy pre-ADR-252 rows)
  *   system-event        — role: 'system'       label: "background"    (scheduler / back-office)
- *   reviewer-verdict    — role: 'reviewer'     label: persona name    (ADR-212 full-width card)
+ *   reviewer-verdict    — role: 'reviewer'     label: persona name    (ADR-258 uniform muted bubble)
  *   agent-bubble        — role: 'agent'        label: agent slug
  *   external-event      — role: 'external'     label: "external"      (MCP / write-back)
  *
@@ -203,15 +203,19 @@ function renderAgentBubble({ msg }: RendererProps): JSX.Element {
 }
 
 /**
- * Reviewer verdict — full-width card per ADR-212. ReviewerCard owns
- * the visual treatment; this renderer just threads metadata + body.
- *
- * ADR-246 D2: component (not plain function) so useReviewerPersona()
- * can resolve the operator-authored persona name from IDENTITY.md.
+ * Reviewer bubble — ADR-258. Reviewer is a chat participant; same
+ * bubble shape as other participants, differentiated by persona label.
+ * useReviewerPersona() resolves the operator-authored persona name.
  */
-function ReviewerVerdictRenderer({ msg }: RendererProps): JSX.Element {
+function ReviewerBubbleRenderer({ msg }: RendererProps): JSX.Element {
   const personaName = useReviewerPersona();
-  return <ReviewerCard data={msg.reviewer ?? {}} content={msg.content} personaName={personaName} />;
+  return (
+    <ReviewerCard
+      data={msg.reviewer ?? {}}
+      content={msg.content}
+      personaName={personaName}
+    />
+  );
 }
 
 /**
@@ -279,7 +283,7 @@ export function MessageRenderer({ msg, isLoading }: MessageRendererProps): JSX.E
     case 'agent-bubble':
       return renderAgentBubble(props);
     case 'reviewer-verdict':
-      return <ReviewerVerdictRenderer {...props} />;
+      return <ReviewerBubbleRenderer {...props} />;
     case 'system-event':
       return renderSystemEvent(props);
     case 'external-event':

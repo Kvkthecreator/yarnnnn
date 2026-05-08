@@ -24,6 +24,9 @@ import api from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useReviewerPersona } from '@/lib/reviewer-persona';
 
+// ADR-258: ReviewerBanner (colored panel) deleted. Reviewer verdict is a
+// compact status chip inside the card — no colored borders or backgrounds.
+
 interface ProposalResult {
   success: boolean;
   proposal_id?: string;
@@ -97,18 +100,18 @@ function deriveReviewerPosture(
   return 'none';
 }
 
-interface ReviewerBannerProps {
+// Compact reviewer status chip — replaces the colored ReviewerBanner panels.
+// ADR-258: semantic state uses text + icon, not colored background panels.
+interface ReviewerStatusChipProps {
   posture: ReviewerPosture;
   reasoning: string;
   personaName: string | null;
 }
 
-function ReviewerBanner({ posture, reasoning, personaName }: ReviewerBannerProps) {
+function ReviewerStatusChip({ posture, reasoning, personaName }: ReviewerStatusChipProps) {
   const name = personaName ?? 'Reviewer';
-  // Strip the trailing "Your confirmation required…" sentence for display
-  // — that instruction lives in the action affordance label, not here.
-  // Strip the trailing "Your confirmation required…" and "— decided by…" lines.
-  // Use indexOf-based slice instead of /s flag (tsconfig target compat).
+
+  // Strip trailing boilerplate lines before displaying reasoning
   const confirmIdx = reasoning.indexOf('\n\n**Your confirmation required**');
   const decidedIdx = reasoning.indexOf('\n\n— ');
   const cutAt = Math.min(
@@ -119,48 +122,48 @@ function ReviewerBanner({ posture, reasoning, personaName }: ReviewerBannerProps
 
   if (posture === 'approve_advisory') {
     return (
-      <div className="flex items-start gap-2 rounded border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-2">
-        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-        <div className="space-y-1 min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-            {name} approved
-          </div>
-          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+      <div className="space-y-1 py-1">
+        <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+          <ShieldCheck className="w-3 h-3 shrink-0" />
+          <span className="font-medium">{name} approved</span>
+        </div>
+        {displayReasoning && (
+          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-3 pl-4">
             {displayReasoning}
           </div>
-        </div>
+        )}
       </div>
     );
   }
 
   if (posture === 'defer') {
     return (
-      <div className="flex items-start gap-2 rounded border border-amber-500/30 bg-amber-500/5 px-2.5 py-2">
-        <ShieldQuestion className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-        <div className="space-y-1 min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-            {name} deferred — your judgment needed
-          </div>
-          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+      <div className="space-y-1 py-1">
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <ShieldQuestion className="w-3 h-3 shrink-0" />
+          <span className="font-medium">{name} deferred — your judgment needed</span>
+        </div>
+        {displayReasoning && (
+          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-3 pl-4">
             {displayReasoning}
           </div>
-        </div>
+        )}
       </div>
     );
   }
 
   if (posture === 'rejected') {
     return (
-      <div className="flex items-start gap-2 rounded border border-rose-500/30 bg-rose-500/5 px-2.5 py-2">
-        <ShieldX className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-        <div className="space-y-1 min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400">
-            {name} rejected
-          </div>
-          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+      <div className="space-y-1 py-1">
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <ShieldX className="w-3 h-3 shrink-0" />
+          <span className="font-medium">{name} rejected</span>
+        </div>
+        {displayReasoning && (
+          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-3 pl-4">
             {displayReasoning}
           </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -302,9 +305,9 @@ export function ProposalCard({ result }: ProposalCardProps) {
           </div>
         )}
 
-        {/* Reviewer verdict banner — shown above risk warnings + actions */}
+        {/* Reviewer status chip — compact, no colored panel */}
         {liveProposal.reviewer_reasoning && (
-          <ReviewerBanner
+          <ReviewerStatusChip
             posture={reviewerPosture}
             reasoning={liveProposal.reviewer_reasoning}
             personaName={personaName}
