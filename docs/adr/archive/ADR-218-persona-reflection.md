@@ -1,7 +1,5 @@
 # ADR-218: Persona Reflection — Reviewer Self-Evolution
 
-> **⚠ SUPERSEDED by ADR-256** (2026-05-08). `run_reflection()` deleted; reflection trigger now runs via `invoke_reviewer(trigger="reflection")` with a unified tool-use loop. The back-office cadence logic (reviewer_reflection.py) and reflection_writer.py are unchanged. This ADR's architectural intent is preserved; only the invocation implementation changed.
-
 > **Status**: Proposed — staged implementation across five commits (this ADR, back-office task, reflection-mode invocation, write-back + visibility, E2E validation).
 > **Date**: 2026-04-24
 > **Authors**: KVK, Claude

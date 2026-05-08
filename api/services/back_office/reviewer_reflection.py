@@ -182,19 +182,31 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
         # summary and returns a structured verdict. run_reflection() never
         # raises — on failure it returns None and we treat it as "no
         # reflection available right now," log it, and exit cleanly.
-        from agents.reviewer_agent import run_reflection
+        from agents.reviewer_agent import invoke_reviewer
 
-        verdict = await run_reflection(
-            client=client,
-            user_id=user_id,
-            identity_md=identity_md,
-            principles_md=principles_md,
-            precedent_md=precedent_md,
-            mandate_md=mandate_md,
-            autonomy_md=autonomy_md,
-            recent_decisions_md=recent_decisions_md,
-            performance_summary=performance_md_summary,
+        output = await invoke_reviewer(
+            client, user_id,
+            trigger="reflection",
+            context={
+                "identity_md": identity_md,
+                "principles_md": principles_md,
+                "precedent_md": precedent_md,
+                "mandate_md": mandate_md,
+                "autonomy_md": autonomy_md,
+                "recent_decisions_md": recent_decisions_md,
+                "performance_md": performance_md_summary,
+            },
         )
+        # Adapt ReviewerOutput to the ReflectionVerdict shape this function's
+        # downstream code (structured dict + reflection_writer) expects.
+        verdict = None
+        if output is not None:
+            verdict = {
+                "overall": output.get("verdict", "no_change"),
+                "reasoning": output.get("reasoning", ""),
+                "evidence_summary": output.get("evidence_summary", ""),
+                "proposals": output.get("proposals") or [],
+            }
 
         if verdict is None:
             structured["invoked"] = True

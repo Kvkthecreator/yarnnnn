@@ -310,7 +310,8 @@ async def _run_ai_reviewer(
     Never raises — AI failure falls back to observe-only so the human
     can still decide via ProposalCard.
     """
-    from agents.reviewer_agent import review_proposal, REVIEWER_MODEL_IDENTITY
+    from agents.reviewer_agent import invoke_reviewer, REVIEWER_MODEL_IDENTITY
+    from agents.reviewer_agent_compat import output_to_review_decision
 
     action_type = proposal_row.get("action_type") or "unknown"
     reversibility = proposal_row.get("reversibility")
@@ -351,17 +352,20 @@ async def _run_ai_reviewer(
         client, user_id, f"/workspace/context/{context_domain}/_operator_profile.md",
     )
 
-    decision = await review_proposal(
-        client=client,
-        user_id=user_id,
-        proposal_row=proposal_row,
-        identity_md=identity_md,
-        principles_md=principles_md,
-        precedent_md=precedent_md,
-        performance_md=performance_md,
-        risk_md=risk_md,
-        operator_profile_md=operator_profile_md,
+    output = await invoke_reviewer(
+        client, user_id,
+        trigger="proposal",
+        context={
+            "identity_md": identity_md,
+            "principles_md": principles_md,
+            "precedent_md": precedent_md,
+            "performance_md": performance_md or "",
+            "risk_md": risk_md or "",
+            "operator_profile_md": operator_profile_md or "",
+            "proposal_row": proposal_row,
+        },
     )
+    decision = output_to_review_decision(output)
 
     if decision is None:
         # AI failed or produced no valid decision — observe-only fallback

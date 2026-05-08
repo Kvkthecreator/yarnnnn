@@ -1458,18 +1458,65 @@ async def _maybe_fire_reviewer_heartbeat(
             completed_slug, user_id[:8],
         )
 
-        from agents.reviewer_agent import heartbeat_turn
+        from agents.reviewer_agent import invoke_reviewer, read_signal_files, REVIEWER_MODEL_IDENTITY
         from services.reviewer_chat_surfacing import write_reviewer_message
-        from agents.reviewer_agent import REVIEWER_MODEL_IDENTITY
 
-        assessment = await heartbeat_turn(
-            client, user_id,
-            trigger_slug=completed_slug,
+        # Pre-load heartbeat context: signal files + workspace state
+        signal_files = await read_signal_files(client, user_id)
+        workspace_state_text: str | None = None
+        try:
+            from services.working_memory import build_working_memory, format_compact_index
+            import asyncio
+            wm = await build_working_memory(user_id, client)
+            workspace_state_text = format_compact_index(wm)
+        except Exception:
+            pass
+
+        from services.workspace_paths import (
+            REVIEW_IDENTITY_PATH, REVIEW_PRINCIPLES_PATH,
+            SHARED_MANDATE_PATH, SHARED_AUTONOMY_PATH,
         )
-        if assessment and assessment.get("response"):
+
+        async def _read(path: str) -> str:
+            full = f"/workspace/{path}"
+            try:
+                res = (
+                    client.table("workspace_files")
+                    .select("content")
+                    .eq("user_id", user_id)
+                    .eq("path", full)
+                    .limit(1)
+                    .execute()
+                )
+                return (res.data or [{}])[0].get("content") or ""
+            except Exception:
+                return ""
+
+        import asyncio as _asyncio
+        identity_md, principles_md, mandate_md, autonomy_md = await _asyncio.gather(
+            _read(REVIEW_IDENTITY_PATH),
+            _read(REVIEW_PRINCIPLES_PATH),
+            _read(SHARED_MANDATE_PATH),
+            _read(SHARED_AUTONOMY_PATH),
+        )
+
+        output = await invoke_reviewer(
+            client, user_id,
+            trigger="heartbeat",
+            context={
+                "identity_md": identity_md,
+                "principles_md": principles_md,
+                "mandate_md": mandate_md,
+                "autonomy_md": autonomy_md,
+                "trigger_slug": completed_slug,
+                "signal_files": signal_files,
+                "workspace_state": workspace_state_text or "",
+            },
+        )
+        if output and output.get("reasoning"):
             await write_reviewer_message(
                 client, user_id,
-                content=assessment["response"],
+                content=output["reasoning"],
                 verdict="heartbeat",
                 occupant=REVIEWER_MODEL_IDENTITY,
             )

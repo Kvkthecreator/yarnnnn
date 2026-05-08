@@ -1170,11 +1170,11 @@ async def global_chat(
         logger.info("[EXEC_ROUTER] routed — tools=%s for: %.50r", routed_tools, request.content)
 
     async def _dispatch_reviewer_turn(images_for_api, profile):
-        """Reviewer (Haiku) handles every non-execution turn.
-        No keyword trigger — Reviewer is the primary conversational intelligence.
-        If assessment includes action_instruction, System Agent executes it.
-        System Agent is optional and Reviewer-directed."""
-        from agents.reviewer_agent import address_turn, REVIEWER_MODEL_IDENTITY
+        """Reviewer handles every non-execution turn via invoke_reviewer(addressed).
+        ADR-256: Reviewer has a tool-use loop — it reads substrate, acts, returns.
+        No action_instruction string. No execution router dispatch from here.
+        Actions (FireInvocation, ProposeAction) execute inside the Reviewer's loop."""
+        from agents.reviewer_agent import invoke_reviewer, REVIEWER_MODEL_IDENTITY
         from services.reviewer_chat_surfacing import write_reviewer_message
 
         conv_lines = []
@@ -1189,59 +1189,88 @@ async def global_chat(
             if msg_content and isinstance(msg_content, str):
                 conv_lines.append(f"{role_label}: {msg_content[:300]}")
 
-        assessment = await address_turn(
-            auth.client, auth.user_id,
-            user_message=request.content,
-            conversation_window="\n".join(conv_lines) if conv_lines else None,
+        # Load workspace state (compact index) for Reviewer operational awareness
+        workspace_state_text: str | None = None
+        try:
+            from services.working_memory import build_working_memory, format_compact_index
+            wm = await build_working_memory(auth.user_id, auth.client)
+            workspace_state_text = format_compact_index(wm)
+        except Exception:
+            pass
+
+        from services.workspace_paths import REVIEW_IDENTITY_PATH, REVIEW_PRINCIPLES_PATH, SHARED_PRECEDENT_PATH, SHARED_MANDATE_PATH
+
+        async def _read(path: str) -> str:
+            full = f"/workspace/{path}"
+            try:
+                res = (
+                    auth.client.table("workspace_files")
+                    .select("content")
+                    .eq("user_id", auth.user_id)
+                    .eq("path", full)
+                    .limit(1)
+                    .execute()
+                )
+                return (res.data or [{}])[0].get("content") or ""
+            except Exception:
+                return ""
+
+        import asyncio as _asyncio
+        identity_md, principles_md, precedent_md, mandate_md = await _asyncio.gather(
+            _read(REVIEW_IDENTITY_PATH),
+            _read(REVIEW_PRINCIPLES_PATH),
+            _read(SHARED_PRECEDENT_PATH),
+            _read(SHARED_MANDATE_PATH),
         )
 
-        if not assessment or not assessment.get("response"):
+        output = await invoke_reviewer(
+            auth.client, auth.user_id,
+            trigger="addressed",
+            context={
+                "identity_md": identity_md,
+                "principles_md": principles_md,
+                "precedent_md": precedent_md,
+                "mandate_md": mandate_md,
+                "user_message": request.content,
+                "conversation_window": "\n".join(conv_lines) if conv_lines else "",
+                "workspace_state": workspace_state_text or "",
+            },
+        )
+
+        if not output or not output.get("reasoning"):
             raise RuntimeError("Reviewer returned no response")
 
-        # Surface Reviewer response
+        # Surface Reviewer response — reasoning is the persona-voice answer
+        response_text = output["reasoning"]
         await write_reviewer_message(
             auth.client, auth.user_id,
-            content=assessment["response"],
+            content=response_text,
             verdict="addressed",
             occupant=REVIEWER_MODEL_IDENTITY,
         )
-        yield f"data: {json.dumps({'reviewer_response': assessment['response']})}\n\n"
-        logger.info("[REVIEWER] addressed (Haiku) for user=%s", auth.user_id[:8])
+        yield f"data: {json.dumps({'reviewer_response': response_text})}\n\n"
+        logger.info(
+            "[REVIEWER] addressed (Haiku) for user=%s actions=%d",
+            auth.user_id[:8], len(output.get("actions_taken") or []),
+        )
 
-        # If Reviewer included an action_instruction, execute it via the same
-        # deterministic execution router used for operator commands.
-        # Zero LLM — the router parses and dispatches mechanically.
-        # ADR-257: action_instruction → execution router → narration → done.
-        action_instruction = (assessment.get("action_instruction") or "").strip()
-        if action_instruction:
-            from services.execution_router import route_execution
-            logger.info("[REVIEWER→ROUTER] directive: %.80r", action_instruction)
-            router_result = None
-            try:
-                router_result = await route_execution(auth, action_instruction)
-            except Exception as _re:
-                logger.warning("[REVIEWER→ROUTER] failed: %s", _re)
+        # Narrate any actions the Reviewer took during its loop
+        actions = output.get("actions_taken") or []
+        if actions:
+            action_names = [a.get("tool", "?") for a in actions]
+            narration = "Executed: " + ", ".join(
+                f"`{a.get('tool','?')}`"
+                + (f"({a.get('slug','')})" if a.get("slug") else "")
+                + (f"({a.get('action_type','')})" if a.get("action_type") else "")
+                for a in actions
+            )
+            await append_message(auth.client, session_id, "system_agent", narration, {
+                "tools_used": action_names, "tool_history": [],
+                "pulse": "addressed", "weight": "routine", "reviewer_directed": True,
+            })
+            yield f"data: {json.dumps({'content': narration})}\n\n"
 
-            if router_result is not None:
-                narration = router_result.get("narration", "Done.")
-                routed_tools = router_result.get("tools_used", [])
-                await append_message(auth.client, session_id, "system_agent", narration, {
-                    "tools_used": routed_tools, "tool_history": [],
-                    "pulse": "addressed", "weight": "routine", "reviewer_directed": True,
-                })
-                yield f"data: {json.dumps({'content': narration})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': routed_tools})}\n\n"
-            else:
-                # Router couldn't parse the directive — surface it as a note
-                note = f"Directive noted: {action_instruction}"
-                await append_message(auth.client, session_id, "system_agent", note, {
-                    "tools_used": [], "tool_history": [], "pulse": "addressed", "weight": "routine",
-                })
-                yield f"data: {json.dumps({'content': note})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
-        else:
-            # No system action — Reviewer's response is the complete turn
-            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': []})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': [a.get('tool','') for a in actions]})}\n\n"
 
     # ── Main stream dispatcher ────────────────────────────────────────────────
     async def response_stream():

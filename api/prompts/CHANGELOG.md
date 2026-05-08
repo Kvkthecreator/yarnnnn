@@ -6,6 +6,61 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.08.2] - ADR-256: unified invoke_reviewer() — one function, tool-use loop, four triggers
+
+### Changed
+- `api/agents/reviewer_agent.py`: Complete rewrite. Four separate functions
+  (review_proposal, run_reflection, address_turn, heartbeat_turn) and four system
+  prompts deleted. One `invoke_reviewer(trigger, context)` entry point with a
+  bounded tool-use loop (≤3 rounds). Reviewer tools: ReadFile, FireInvocation,
+  ProposeAction, WriteFile (/workspace/review/ only), ReturnVerdict. One output
+  type: ReviewerOutput {verdict, reasoning, confidence, actions_taken, proposals,
+  evidence_summary}. REVIEWER_MODEL_IDENTITY bumped to v8.
+
+- `api/agents/reviewer_agent_compat.py`: New — thin adapters so existing callers
+  work with ReviewerOutput without large rewrites (output_to_review_decision for
+  proposal dispatch, _normalize_reflection_proposals for reflection writer).
+
+- `api/routes/chat.py`: _dispatch_reviewer_turn() updated — calls invoke_reviewer
+  (addressed). No more action_instruction string. No more execution router dispatch
+  from chat path. Reviewer's actions execute inside its tool-use loop.
+
+- `api/services/review_proposal_dispatch.py`: _run_ai_reviewer() updated — calls
+  invoke_reviewer(proposal) via output_to_review_decision() adapter.
+
+- `api/services/back_office/reviewer_reflection.py`: run() updated — calls
+  invoke_reviewer(reflection). Adapts ReviewerOutput to reflection verdict shape.
+
+- `api/services/invocation_dispatcher.py`: _maybe_fire_reviewer_heartbeat() updated
+  — calls invoke_reviewer(heartbeat) with pre-loaded signal files + workspace state.
+
+- `api/services/execution_router.py`: ProposeAction regex handler deleted (added
+  2026-05-08.1, deleted same day). Reviewer calls ProposeAction as a structured
+  tool directly — no string pattern-matching needed.
+
+### Expected behavior
+- Operator: "proceed in full and make a trade"
+  → Reviewer (Haiku addressed loop): round 1 ReadFile signal state if needed,
+    round 2 ProposeAction if conditions met, ReturnVerdict with reasoning.
+    Actions narrated as "Executed: ProposeAction(trading.submit_order_paper)".
+  Previously: Reviewer returned action_instruction string → regex → "Directive noted"
+
+- Heartbeat fires after signal-evaluation:
+  → Reviewer (Sonnet heartbeat loop): reads fresh signal files, ProposeAction or
+    stand_down, ReturnVerdict. Same path as before but unified entry point.
+
+- Periodic reflection:
+  → Reviewer (Haiku reflection loop): reads decisions + performance, ReturnVerdict
+    with no_change | narrow | relax | character_note | pause_autonomy.
+
+### Deleted
+- review_proposal(), run_reflection(), address_turn(), heartbeat_turn()
+- _SYSTEM_PROMPT, _REFLECTION_SYSTEM_PROMPT, _ADDRESSED_SYSTEM_PROMPT, _HEARTBEAT_SYSTEM_PROMPT
+- _REVIEW_TOOL, _REFLECTION_TOOL, _ADDRESSED_TOOL
+- ReviewDecision, ReflectionVerdict, AddressedAssessment TypedDicts
+- action_instruction field in chat.py dispatch
+- ProposeAction regex handler in execution_router.py
+
 ## [2026.05.08.1] - Reviewer addressed posture v8: commission-not-defer + ProposeAction router handler
 
 ### Changed
