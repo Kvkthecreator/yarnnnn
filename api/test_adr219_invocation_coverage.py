@@ -23,7 +23,7 @@ entry points in YARNNN today:
        send fires the chat card
 
   Addressed-pulse:
-    5. api/routes/chat.py::append_message — operator turn + YARNNN reply
+    5. api/routes/feed.py::append_message — operator turn + YARNNN reply
     6. api/mcp_server/server.py — work_on_this / pull_context / remember_this
 
 This gate asserts each entry point either calls write_narrative_entry
@@ -57,13 +57,13 @@ def _read(rel: str) -> str:
 #   - direct calls to write_narrative_entry / find_active_workspace_session
 #   - imports of services.narrative
 #   - calls to a known shim that delegates to the helper:
-#       routes/chat.py::append_message
+#       routes/feed.py::append_message
 #       services/reviewer_chat_surfacing.py::write_reviewer_message
 #       api/mcp_server/server.py::_emit_mcp_narrative
 COVERAGE_SITES: list[tuple[str, list[str], str]] = [
     (
         "api/services/task_pipeline.py",
-        ["from routes.chat import append_message", "_append_message"],
+        ["from routes.feed import append_message", "_append_message"],
         "Task pipeline writes the task_complete narrative card via "
         "chat.append_message (which routes through write_narrative_entry).",
     ),
@@ -104,21 +104,21 @@ COVERAGE_SITES: list[tuple[str, list[str], str]] = [
         "(replaced direct append_session_message RPC in Commit 2).",
     ),
     (
-        "api/routes/chat.py",
+        "api/routes/feed.py",
         [
             "from services.narrative import write_narrative_entry",
             "write_narrative_entry",
         ],
-        "Chat append_message helper is a thin shim over write_narrative_entry "
+        "Feed append_message helper is a thin shim over write_narrative_entry "
         "(Commit 2) — every operator turn + YARNNN reply lands here.",
     ),
     (
         "api/routes/memory.py",
         [
-            "from routes.chat import",
+            "from routes.feed import",
             "append_message",
         ],
-        "workspace_init_complete system card writes via chat.append_message "
+        "workspace_init_complete system card writes via feed.append_message "
         "(routes through write_narrative_entry per Commit 2).",
     ),
     (

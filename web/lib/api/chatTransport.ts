@@ -1,7 +1,7 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-const CHAT_PROXY_PATH = "/api/chat-proxy";
+const FEED_PROXY_PATH = "/api/feed-proxy";
 
 function normalizeBaseUrl(url: string): string {
   return url.endsWith("/") ? url.slice(0, -1) : url;
@@ -30,7 +30,7 @@ function getChatUrlCandidates(): string[] {
 
   // Retry through same-origin Next route when direct cross-origin transport fails.
   if (isAbsoluteUrl(normalizedBase)) {
-    return [directChatUrl, CHAT_PROXY_PATH];
+    return [directChatUrl, FEED_PROXY_PATH];
   }
 
   return [directChatUrl];

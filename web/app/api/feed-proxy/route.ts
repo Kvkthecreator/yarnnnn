@@ -3,10 +3,10 @@ import { NextRequest } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function resolveBackendChatUrl(): string {
+function resolveBackendFeedUrl(): string {
   const baseUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
   if (!baseUrl) {
-    throw new Error("Missing API_URL or NEXT_PUBLIC_API_URL for chat proxy");
+    throw new Error("Missing API_URL or NEXT_PUBLIC_API_URL for feed proxy");
   }
 
   const normalized = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
@@ -16,11 +16,11 @@ function resolveBackendChatUrl(): string {
 export async function POST(request: NextRequest): Promise<Response> {
   let upstreamUrl: string;
   try {
-    upstreamUrl = resolveBackendChatUrl();
+    upstreamUrl = resolveBackendFeedUrl();
   } catch (error) {
-    console.error("[chat-proxy] configuration error:", error);
+    console.error("[feed-proxy] configuration error:", error);
     return Response.json(
-      { detail: "Chat proxy is not configured" },
+      { detail: "Feed proxy is not configured" },
       { status: 500 }
     );
   }
@@ -43,9 +43,9 @@ export async function POST(request: NextRequest): Promise<Response> {
       cache: "no-store",
     });
   } catch (error) {
-    console.error("[chat-proxy] upstream request failed:", error);
+    console.error("[feed-proxy] upstream request failed:", error);
     return Response.json(
-      { detail: "Upstream chat request failed" },
+      { detail: "Upstream feed request failed" },
       { status: 502 }
     );
   }
