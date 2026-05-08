@@ -735,9 +735,11 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                 setStatus({ type: 'streaming', content: label });
               } else if (event.reviewer_response) {
                 // Reviewer spoke — reload history immediately so ReviewerCard renders.
-                // Set flag so we reload again at stream end to clear any placeholder state.
+                // CRITICAL: use fetchAndSetHistory() (unguarded), not loadScopedHistory()
+                // which has a once-per-page-load guard for initial mount. Without this,
+                // every Reviewer turn after the first looked silent until hard refresh.
                 reviewerFired = true;
-                await loadScopedHistory();
+                await fetchAndSetHistory();
               } else if (event.balance_exhausted) {
                 throw new Error('__balance_exhausted__');
               } else if (event.error) {
@@ -819,7 +821,9 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           setTimeout(() => fetchAndSetHistory(), 1500);
         }
         if (reviewerFired) {
-          await loadScopedHistory();
+          // Same fix as in-stream handler — fetchAndSetHistory is unguarded;
+          // loadScopedHistory's once-per-page-load guard would no-op here.
+          await fetchAndSetHistory();
         }
 
         return toolResults.length > 0 ? toolResults : null;
