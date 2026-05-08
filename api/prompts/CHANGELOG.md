@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.08.7] - ADR-259: Chat surface → Feed surface (atomic rename, pre-users)
+
+### Changed
+- Operator-facing concept "chat surface" renamed to "feed surface" (ADR-259).
+  No prompt content changes — Reviewer + System Agent prompts already used
+  generic vocabulary ("the operator addressed you," "narrate to the operator").
+  The rename is structural (URL, directory, component class names, doc canon)
+  and does not affect LLM behavior. Listed here for changelog completeness.
+
+- Backend: `api/routes/chat.py` → `api/routes/feed.py`. URL `/api/chat/*` →
+  `/api/feed/*`. `from routes import chat` → `from routes import feed` in
+  main.py + 4 test files + 3 service comment refs.
+
+### Not changed
+- `CHAT_PRIMITIVES` registry name (runtime characteristic, not surface)
+- `chat_completion_with_tools` Anthropic-API wrapper
+- `chat_sessions` DB table (schema rename out of scope)
+- All Reviewer / YARNNN prompt content (already vocabulary-neutral)
+
 ## [2026.05.08.6] - Reviewer ownership posture: cockpit operator, not passive judge
 
 ### Changed

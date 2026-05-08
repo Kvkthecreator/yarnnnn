@@ -1,5 +1,7 @@
 # ADR-258: Reviewer as Personified Chat-Mode Operator — Curated Primitive Scope, Attribution-Anchored Safety, Per-Action Narration
 
+> **⚠ Vocabulary update (2026-05-08, [ADR-259](ADR-259-feed-surface.md))**: "Chat-Mode Operator" in the title and references to "chat surface" / "the chat" below are preserved as period vocabulary. The operator-facing surface is now "the Feed." The `chat` permission mode survives as runtime characteristic per ADR-259 D2 — that's why "chat-mode" appears in the title; it describes the runtime, not the surface. Architectural decisions (curated primitives, lock policy, per-action narration, persona-bearing autonomous-operator framing) are unchanged.
+
 **Status**: Implemented 2026-05-08 (revised same day after first deploy — see Revision below)
 
 ---

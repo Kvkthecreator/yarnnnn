@@ -5,7 +5,7 @@ Single FastAPI application with route groups:
 - /api/memory: Memory layer (profile, styles, entries, activity)
 - /api/knowledge: Knowledge filesystem browsing (/knowledge/* in workspace_files)
 - /api/work: Work ticket lifecycle
-- /api/chat: Thinking Partner conversations
+- /api/feed: Feed surface (operator timeline) — multi-actor, asynchronous, ADR-259
 - /api/domains: Context domains (ADR-034)
 """
 
@@ -68,7 +68,7 @@ _validate_environment()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, chat, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, cockpit
+from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, cockpit
 
 app = FastAPI(
     title="YARNNN API",
@@ -101,7 +101,7 @@ async def health():
 
 # Mount routers
 app.include_router(memory.router, prefix="/api/memory", tags=["memory"])
-app.include_router(chat.router, prefix="/api", tags=["chat"])
+app.include_router(feed.router, prefix="/api", tags=["feed"])
 app.include_router(documents.router, prefix="/api", tags=["documents"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])

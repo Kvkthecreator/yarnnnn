@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ChatFilterBar — ADR-219 Commit 5.
+ * FeedFilterBar — ADR-219 Commit 5.
  *
  * Three filter chip rows on /chat that narrow the messages.map render:
  *   - Weight:   material | routine | housekeeping (multi-select)
@@ -24,7 +24,7 @@ import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
-import type { NarrativeFilter } from '@/components/tp/ChatPanel';
+import type { NarrativeFilter } from '@/components/tp/FeedPanel';
 
 const WEIGHTS: Array<'material' | 'routine' | 'housekeeping'> = [
   'material',
@@ -43,8 +43,8 @@ const IDENTITIES: Array<{ id: string; label: string }> = [
 
 
 /**
- * Parse the filter URL params into a NarrativeFilter for ChatPanel.
- * Exported so /chat/page can drive ChatPanel's filter prop without
+ * Parse the filter URL params into a NarrativeFilter for FeedPanel.
+ * Exported so /chat/page can drive FeedPanel's filter prop without
  * re-implementing the parse.
  */
 export function parseChatFilterFromSearch(
@@ -72,7 +72,7 @@ export function parseChatFilterFromSearch(
 }
 
 
-export function ChatFilterBar() {
+export function FeedFilterBar() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -106,7 +106,7 @@ export function ChatFilterBar() {
   };
 
   const clearAll = () => {
-    router.replace('/chat');
+    router.replace('/feed');
   };
 
   const clearTaskSlug = () => {

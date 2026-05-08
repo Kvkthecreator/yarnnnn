@@ -37,7 +37,7 @@ import {
   formatSourceCaption,
   getPrimaryGap,
 } from '@/lib/content-shapes/inference-meta';
-import { CHAT_ROUTE } from '@/lib/routes';
+import { FEED_ROUTE } from '@/lib/routes';
 
 interface InferenceContentViewProps {
   content: string | null;
@@ -91,7 +91,7 @@ export function InferenceContentView({ content, target, className }: InferenceCo
             </div>
             <div className="text-amber-700/80 mb-2">{primaryGap.suggested_question}</div>
             <Link
-              href={`${CHAT_ROUTE}?prompt=${gapChatPrompt}`}
+              href={`${FEED_ROUTE}?prompt=${gapChatPrompt}`}
               className="inline-flex items-center gap-1 text-amber-700 font-medium hover:underline"
             >
               <MessageSquare className="w-3 h-3" />

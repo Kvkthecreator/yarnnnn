@@ -494,7 +494,7 @@ function EmptySchedule({ hasFilters }: { hasFilters: boolean }) {
         </p>
         {!hasFilters && (
           <a
-            href="/chat"
+            href="/feed"
             className="inline-flex items-center gap-2 rounded-md bg-foreground px-3.5 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 transition-colors"
           >
             Talk to YARNNN

@@ -23,7 +23,7 @@
  * Used by:
  *   - WorkDetail (task title + mode/status/schedule strip + Run/Pause/Edit)
  *   - AgentContentView (agent title + class/domain/task count strip)
- *   - ChatSurface (agent title + workspace-state toggle action)
+ *   - FeedSurface (agent title + workspace-state toggle action)
  *
  * Size presets:
  *   - "lg" (default): `text-2xl font-semibold` — full hero treatment for
@@ -35,7 +35,7 @@
  *     conversation itself is the hero, not the H1).
  *
  * Icon slot: optional `icon` ReactNode renders to the left of the title.
- * Used by ChatSurface for the yarnnn circle logo next to "YARNNN"
+ * Used by FeedSurface for the yarnnn circle logo next to "YARNNN"
  * — matching the sidebar chat panel's logo treatment for consistency.
  */
 

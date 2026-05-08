@@ -1,11 +1,11 @@
-# Chat API
+# Feed API
 
-Chat endpoints power the Thinking Partner experience.
+Feed endpoints power the operator's primary view — a multi-actor, asynchronous, continuously-updating timeline (ADR-259). Operator messages are one entry mode; the feed itself is multi-source.
 
 ## Send message
 
 ```text
-POST /api/chat
+POST /api/feed
 ```
 
 Request body:
@@ -28,7 +28,7 @@ Notes:
 ## Get recent chat history
 
 ```text
-GET /api/chat/history?limit=1
+GET /api/feed/history?limit=1
 ```
 
 Response includes recent sessions and message arrays.
@@ -36,7 +36,7 @@ Response includes recent sessions and message arrays.
 ## List chat sessions
 
 ```text
-GET /api/chat/sessions
+GET /api/feed/sessions
 ```
 
 Returns chat session metadata for the current user.

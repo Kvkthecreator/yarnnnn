@@ -6,7 +6,7 @@
 > **Scope**: The authoritative taxonomy for YARNNN's two-class cognitive-layer model. Names every entity, classifies it, and specifies where it lives in code and documentation.
 > **Audience**: Internal. Frames code renames, ADR amendments, and canonical vocabulary. **Not a compromise with industry vocabulary** — this document corrects the earlier canon's vocabulary drift.
 > **Supersedes**: the hedge in THESIS §"Vocabulary: production layers vs. judgment layers" v1 (same-day earlier) — this doc corrects that section's "we call production entities Agents because industry" compromise.
-> **Amended by**: ADR-216 (YARNNN reclassified from Agent to orchestration surface), ADR-217 (autonomy delegation moved from `review/modes.md` to `_shared/AUTONOMY.md`), ADR-247 (three-party narrative model — "Thinking Partner" retired as user-facing name; YARNNN is the system name and chat surface name; Reviewer seat surfaces operator-authored persona name from `/workspace/review/IDENTITY.md`), ADR-249 (Operator as primary runtime entity — the Operator ↔ System loop is the primary conversation; the Reviewer is the operator's judgment function, not a separate entity; autonomy mode = degree of user approval required on operator actions), ADR-251 (System Agent named as cockpit entity label for the orchestration surface; Reviewer as first-class surface with Autonomy + Principles + heartbeat cadence; roster reinstated).
+> **Amended by**: ADR-216 (YARNNN reclassified from Agent to orchestration surface), ADR-217 (autonomy delegation moved from `review/modes.md` to `_shared/AUTONOMY.md`), ADR-247 (three-party narrative model — "Thinking Partner" retired as user-facing name; YARNNN is the system name and feed surface name; Reviewer seat surfaces operator-authored persona name from `/workspace/review/IDENTITY.md`), ADR-249 (Operator as primary runtime entity — the Operator ↔ System loop is the primary conversation; the Reviewer is the operator's judgment function, not a separate entity; autonomy mode = degree of user approval required on operator actions), ADR-251 (System Agent named as cockpit entity label for the orchestration surface; Reviewer as first-class surface with Autonomy + Principles + heartbeat cadence; roster reinstated).
 
 ---
 
@@ -14,7 +14,7 @@
 
 Before the two-class taxonomy, there is the **Operator**: the user in their principal role. The operator is the entity whose declared intent the entire system serves. They are not a system entity — they are the human principal whose substrate (MANDATE.md, principles.md, IDENTITY.md, `_operator_profile.md`, AUTONOMY.md) IS the system's intelligence.
 
-The operator is always present in the operation through their authored substrate. When they engage the chat surface in real-time, they are present directly. When they are absent, their substrate speaks for them.
+The operator is always present in the operation through their authored substrate. When they engage the feed surface in real-time, they are present directly. When they are absent, their substrate speaks for them.
 
 **The primary runtime conversation** is Operator ↔ System (YARNNN). This loop runs at operational cadence. The user (same person as the operator) supervises from outside the loop and can cut in at any moment.
 
@@ -93,14 +93,14 @@ External UI and marketing vocabulary ("Agents" as the personified workers the op
 
 A judge uses court records. A lawyer uses precedent. Neither becomes infrastructure because they use tools. The same applies here: the Reviewer Agent uses `chat_completion_with_tools`, reads `_performance.md`, writes `decisions.md` — all via Orchestration infrastructure. That's Agents-using-tools, not Agents-being-orchestration.
 
-### 2. YARNNN is the orchestration chat surface
+### 2. YARNNN is the orchestration feed surface
 
 ADR-216 resolves the earlier ambiguity: **YARNNN is not a persona-bearing Agent.** It is the conversational surface of the orchestrator.
 
 - **YARNNN** — user-addressable, fixed-voice, platform-authored orchestration surface. It reads workspace state, drafts tasks, routes updates, and keeps the system legible to the operator.
 - **Orchestrator** — the underlying system machinery: task pipeline, dispatch routing, capability gating, back-office scheduling.
 
-The pragmatic implementation detail remains: YARNNN retains a row in the `agents` table with `role='thinking_partner'` because the system needs a durable chat-surface state carrier. The row is implementation substrate, not architectural classification.
+The pragmatic implementation detail remains: YARNNN retains a row in the `agents` table with `role='thinking_partner'` because the system needs a durable feed-surface state carrier. The row is implementation substrate, not architectural classification.
 
 ### 3. Production roles and platform integrations are capability bundles, not Agents
 
@@ -134,7 +134,7 @@ This section records the implementation-planning discourse that accompanied the 
 | Today | Proposed | Rationale |
 |---|---|---|
 | `api/services/agent_orchestration.py` | `api/services/orchestration.py` | Drop "agent_" prefix. The file IS orchestration (production machinery, capability bundles, dispatch metadata). The word "agent" in the name was an artifact of the pre-flip vocabulary. |
-| `api/agents/yarnnn.py` | `api/agents/yarnnn.py` (stays) + extract orchestration-side to `api/services/orchestrator.py` | YARNNN stays the chat-surface entry point. Orchestration logic inside YarnnnAgent (if any bleeds) gets extracted. |
+| `api/agents/yarnnn.py` | `api/agents/yarnnn.py` (stays) + extract orchestration-side to `api/services/orchestrator.py` | YARNNN stays the feed-surface entry point. Orchestration logic inside YarnnnAgent (if any bleeds) gets extracted. |
 | `api/services/agent_creation.py` | **Kept as `agent_creation.py`** — creates Agent DB rows (systemic YARNNN + user-authored instance Agents). Operates on Agents. Name is correct under the sharp mapping. |
 | `api/services/agent_execution.py` | **Kept as `agent_execution.py`** — runs the full Agent generation-to-delivery pipeline. Operates on Agents. Name is correct under the sharp mapping. |
 | `api/services/agent_pipeline.py` | `api/services/orchestration_prompts.py` | Holds production-role prompt templates + prompt assembly — orchestration-side. (Renamed in Commit C.) |

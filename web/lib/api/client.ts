@@ -305,7 +305,7 @@ export const api = {
       delete (headers as Record<string, string>)["Content-Type"];
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetch(`${API_BASE_URL}/api/chat/attach`, {
+      const response = await fetch(`${API_BASE_URL}/api/feed/attach`, {
         method: "POST",
         credentials: "include",
         headers,
@@ -375,7 +375,7 @@ export const api = {
             };
           }>;
         }>;
-      }>(`/api/chat/history?${params.toString()}`);
+      }>(`/api/feed/history?${params.toString()}`);
     },
 
   },

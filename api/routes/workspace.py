@@ -1020,7 +1020,7 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
             # already succeeded; failure to write the card is non-fatal.
             if not init_result.get("already_initialized"):
                 try:
-                    from routes.chat import get_or_create_session, append_message
+                    from routes.feed import get_or_create_session, append_message
                     session = await get_or_create_session(auth.client, auth.user_id)
                     agents_created = init_result.get("agents_created", [])
                     tasks_created = init_result.get("tasks_created", [])

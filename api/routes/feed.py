@@ -982,7 +982,7 @@ async def _load_task_context(
 # Chat Attach — Ephemeral File Upload (ADR-249)
 # =============================================================================
 
-@router.post("/chat/attach")
+@router.post("/feed/attach")
 async def chat_attach(
     auth: UserClient,
     file: UploadFile = File(...),
@@ -1069,7 +1069,7 @@ async def chat_attach(
 # Chat Endpoints
 # =============================================================================
 
-@router.post("/chat")
+@router.post("/feed")
 async def global_chat(
     request: ChatRequest,
     auth: UserClient,
@@ -1441,7 +1441,7 @@ async def global_chat(
     )
 
 
-@router.get("/chat/history")
+@router.get("/feed/history")
 async def get_global_chat_history(
     auth: UserClient,
     limit: int = Query(default=1, le=10),
@@ -1485,7 +1485,7 @@ async def get_global_chat_history(
     return {"sessions": sessions}
 
 
-@router.get("/chat/sessions")
+@router.get("/feed/sessions")
 async def list_global_sessions(
     auth: UserClient,
     limit: int = Query(default=10, le=50),

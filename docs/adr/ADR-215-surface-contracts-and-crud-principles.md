@@ -1,5 +1,7 @@
 # ADR-215: Surface Contracts and CRUD Principles
 
+> **⚠ Vocabulary update (2026-05-08, [ADR-259](ADR-259-feed-surface.md))**: references to "chat" surface in the four-shape CRUD matrix below are preserved as period vocabulary. The "chat" surface is now "the Feed"; URL `/chat` → `/feed`. The four-shape matrix and CRUD principles unchanged.
+
 **Status:** Phases 1–5 Implemented (ADR closed 2026-04-24)
 **Date:** 2026-04-24
 **Dimensional classification:** **Channel** (primary, Axiom 6) + **Purpose** (Axiom 3) — establishes per-surface contracts and the CRUD shape matrix that governs all affordances

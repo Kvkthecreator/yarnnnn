@@ -1,24 +1,30 @@
 'use client';
 
 /**
- * Chat Page — YARNNN chat surface (ADR-167 v5, ADR-178, ADR-215 Phase 6).
+ * Legacy /chat route — redirects to /feed per ADR-259 (Feed Surface, 2026-05-08).
  *
- * HOME route per ADR-205 F1. "Start new work" opens the RecurrenceSetupModal
- * (ADR-178 two-route structured intent capture). Onboarding is conversational
- * with YARNNN per ADR-190 — no onboarding modal. Mid-conversation awareness
- * lives in the SnapshotModal (ADR-215 Phase 6).
+ * Preserves query params so any deep-linked operator bookmarks survive the
+ * vocabulary migration. The Chat → Feed rename is a singular implementation;
+ * /chat URL existed before ADR-259 and any active operator tabs / external
+ * bookmarks would land here. They get forwarded to /feed transparently.
+ *
+ * Stub follows the redirect-stub policy in lib/routes.ts:
+ * thin client component, router.replace, query params preserved, removable
+ * after one major release cycle of zero inbound traffic.
  */
 
 import { useEffect } from 'react';
-import { ChatSurface } from '@/components/chat-surface/ChatSurface';
-import { useNarrative } from '@/contexts/NarrativeContext';
-import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { FEED_ROUTE } from '@/lib/routes';
 
-export default function HomePage() {
-  const { loadScopedHistory } = useNarrative();
-  const { tasks } = useAgentsAndRecurrences({ pollInterval: 60_000 });
+export default function ChatRedirect() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
+  useEffect(() => {
+    const params = searchParams?.toString();
+    router.replace(`${FEED_ROUTE}${params ? `?${params}` : ''}`);
+  }, [router, searchParams]);
 
-  return <ChatSurface tasks={tasks} />;
+  return null;
 }

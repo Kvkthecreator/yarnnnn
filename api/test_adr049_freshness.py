@@ -25,7 +25,7 @@ def test_imports():
     )
     print("  ✓ freshness service imports OK")
 
-    from routes.chat import (
+    from routes.feed import (
         MAX_HISTORY_TOKENS,
         CHARS_PER_TOKEN,
         estimate_message_tokens,
@@ -41,7 +41,7 @@ def test_token_estimation():
     """Test token estimation for messages."""
     print("\nTesting token estimation...")
 
-    from routes.chat import estimate_message_tokens, CHARS_PER_TOKEN
+    from routes.feed import estimate_message_tokens, CHARS_PER_TOKEN
 
     # Simple text message
     text_msg = {"role": "user", "content": "Hello, world!"}
@@ -80,7 +80,7 @@ def test_history_truncation():
     """Test token-based history truncation."""
     print("\nTesting history truncation...")
 
-    from routes.chat import truncate_history_by_tokens
+    from routes.feed import truncate_history_by_tokens
 
     # Create a series of messages
     messages = [
@@ -279,7 +279,7 @@ def test_constants():
     """Test ADR-049 constants are properly defined."""
     print("\nTesting constants...")
 
-    from routes.chat import MAX_HISTORY_TOKENS, CHARS_PER_TOKEN
+    from routes.feed import MAX_HISTORY_TOKENS, CHARS_PER_TOKEN
 
     assert MAX_HISTORY_TOKENS == 50000, f"MAX_HISTORY_TOKENS should be 50000, got {MAX_HISTORY_TOKENS}"
     print(f"  ✓ MAX_HISTORY_TOKENS = {MAX_HISTORY_TOKENS}")

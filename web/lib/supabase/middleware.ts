@@ -4,16 +4,19 @@ import { isAdminEmail } from "@/lib/internal-access";
 import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
 
-// ADR-205 F1 + ADR-214 cockpit nav: Chat | Work | Agents | Files + /workspace (user menu).
-// HOME_ROUTE is /chat. /overview was absorbed into /work's cockpit zone
-// (F2); ADR-225 Phase 3 made cockpit panes compositor-resolved. The
-// /overview path itself is a redirect stub for old bookmarks.
+// ADR-205 F1 + ADR-214 + ADR-259 cockpit nav: Feed | Work | Agents | Files + /workspace (user menu).
+// HOME_ROUTE is /feed (renamed from /chat per ADR-259 — feed surface is the
+// multi-actor, asynchronous, continuously-updating timeline).
+// /chat is a redirect stub → /feed (ADR-259 — preserves bookmarks).
+// /overview was absorbed into /work's cockpit zone (F2); ADR-225 Phase 3 made
+// cockpit panes compositor-resolved. The /overview path itself is a redirect
+// stub for old bookmarks.
 // /team redirects to /agents per ADR-214 (reverses ADR-201). /review is
 // deleted; Reviewer lives at /agents?agent=reviewer.
 // /schedule is now a redirect stub → /work (ADR-243 folded into Work tabs).
 // /connectors is a user-menu shortcut (same pattern as /workspace).
 const PROTECTED_PREFIXES = [
-  "/chat",
+  "/feed",
   "/work",
   "/agents",
   "/context",
@@ -27,6 +30,7 @@ const PROTECTED_PREFIXES = [
   "/integrations",
   "/docs",
   // Legacy routes still protected for redirect stubs
+  "/chat",       // ADR-259 — redirect stub → /feed
   "/schedule",
   "/overview",
   "/team",

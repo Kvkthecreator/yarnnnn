@@ -17,7 +17,7 @@ C. recent.md signal parsing — `_get_recent_md_signal_sync` correctly
 
 D. Compaction sunset — `maybe_compact_history`, `COMPACTION_THRESHOLD`,
    `truncate_history_by_tokens`, `estimate_message_tokens` no longer
-   importable from `routes.chat`. Singular implementation discipline
+   importable from `routes.feed`. Singular implementation discipline
    per rule 1.
 
 E. Substrate authorship signal still rendered (regression check) —
@@ -257,7 +257,7 @@ def test_compaction_helpers_deleted_from_chat_module() -> None:
     """maybe_compact_history + friends are not importable. Singular
     implementation rule 1 — conversation.md is the singular compaction
     substrate."""
-    chat = _import_module("routes.chat")
+    chat = _import_module("routes.feed")
     deleted_names = [
         "maybe_compact_history",
         "COMPACTION_THRESHOLD",
@@ -268,7 +268,7 @@ def test_compaction_helpers_deleted_from_chat_module() -> None:
     ]
     for name in deleted_names:
         assert not hasattr(chat, name), (
-            f"routes.chat.{name} should be deleted per ADR-221 Commit C "
+            f"routes.feed.{name} should be deleted per ADR-221 Commit C "
             f"(singular implementation; conversation.md is the only compaction substrate)"
         )
 
@@ -276,7 +276,7 @@ def test_compaction_helpers_deleted_from_chat_module() -> None:
 def test_build_history_signature_no_max_tokens_or_compaction_block() -> None:
     """build_history_for_claude's signature simplified: only `messages` +
     `use_structured_format`. No `max_tokens`, no `compaction_block`."""
-    chat = _import_module("routes.chat")
+    chat = _import_module("routes.feed")
     import inspect
     sig = inspect.signature(chat.build_history_for_claude)
     params = list(sig.parameters.keys())
@@ -379,7 +379,7 @@ def main() -> int:
         ("B2 compact index omits pointer when recent.md empty", test_compact_index_no_pointer_when_recent_md_empty),
         ("C1 recent.md signal parser reads role counts", test_recent_md_signal_parses_role_counts),
         ("C2 recent.md signal returns safe default when missing", test_recent_md_signal_missing_file_safe),
-        ("D1 compaction helpers deleted from routes.chat", test_compaction_helpers_deleted_from_chat_module),
+        ("D1 compaction helpers deleted from routes.feed", test_compaction_helpers_deleted_from_chat_module),
         ("D2 build_history_for_claude signature simplified", test_build_history_signature_no_max_tokens_or_compaction_block),
         ("E1 ADR-209 substrate authorship signal still rendered", test_substrate_authorship_signal_still_rendered),
         ("E2 compact index stays under 600-token ceiling with new pointer", test_compact_index_within_token_ceiling),

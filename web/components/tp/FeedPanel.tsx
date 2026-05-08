@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * ChatPanel — Shared YARNNN chat component (ADR-189, ADR-190).
+ * FeedPanel — Shared YARNNN feed component (ADR-189, ADR-190, renamed by ADR-259).
  *
  * Used by both the Tasks surface and Context explorer.
  * Handles message display, input, file attachments, command picker,
  * clarification UI, action cards, and token usage.
  *
- * ADR-190: the /chat surface passes `emptyState={<ChatEmptyState />}` to
+ * ADR-190: the /feed surface passes `emptyState={<FeedEmptyState />}` to
  * render a deterministic welcome + chips when messages.length === 0.
  * File drop + URL paste affordances will migrate here in a later commit.
  */
@@ -38,7 +38,7 @@ import type { TPMessage } from '@/types/desk';
  * ADR-219 Commit 5: query-param-driven filters on /chat.
  * Each filter narrows messages.map render. Empty / null filters render
  * the full narrative. Filter parsing is the parent's responsibility
- * (chat/page reads the URL); ChatPanel just consumes.
+ * (chat/page reads the URL); FeedPanel just consumes.
  */
 export interface NarrativeFilter {
   /** Restrict to entries with `metadata.weight` in this set. */
@@ -49,7 +49,7 @@ export interface NarrativeFilter {
   taskSlug?: string | null;
 }
 
-export interface ChatPanelProps {
+export interface FeedPanelProps {
   /** Surface override — when set, used instead of DeskContext surface */
   surfaceOverride?: any;
   /** Prefill the input from a parent surface without auto-sending */
@@ -62,19 +62,19 @@ export interface ChatPanelProps {
   placeholder?: string;
   /**
    * Empty state content — rendered when no messages. Used by:
-   *   - The /chat surface (ADR-190): passes a render function that receives
-   *     helpers (e.g., requestUpload) so the ChatEmptyState chips can trigger
+   *   - The /feed surface (ADR-190): passes a render function that receives
+   *     helpers (e.g., requestUpload) so the FeedEmptyState chips can trigger
    *     composer affordances (file picker) directly.
    *   - Other surfaces (work, agents, context via ThreePanelLayout): pass a
    *     plain ReactNode with contextual "select something" guidance.
    *
-   * The render-function form exposes ChatPanel's internal helpers (file
+   * The render-function form exposes FeedPanel's internal helpers (file
    * picker ref, future URL input focus, etc.) to the empty-state children
-   * without leaking ChatPanel internals through props.
+   * without leaking FeedPanel internals through props.
    */
   emptyState?:
     | React.ReactNode
-    | ((helpers: ChatEmptyStateHelpers) => React.ReactNode);
+    | ((helpers: FeedEmptyStateHelpers) => React.ReactNode);
   /** Whether to show the command picker (/ commands) */
   showCommandPicker?: boolean;
   /** Whether to render a divider above the input */
@@ -98,12 +98,12 @@ export interface ChatPanelProps {
  * Helpers exposed to emptyState render functions (ADR-190).
  * Add new helpers here as rich-input affordances grow (URL capture, etc.).
  */
-export interface ChatEmptyStateHelpers {
+export interface FeedEmptyStateHelpers {
   /** Opens the OS file picker for the composer's hidden file input. */
   requestUpload: () => void;
 }
 
-export function ChatPanel({
+export function FeedPanel({
   surfaceOverride,
   draftSeed,
   plusMenuActions,
@@ -114,7 +114,7 @@ export function ChatPanel({
   showInputDivider = true,
   narrativeFilter = null,
   onMakeRecurring,
-}: ChatPanelProps) {
+}: FeedPanelProps) {
   const {
     messages,
     sendMessage,
@@ -193,7 +193,7 @@ export function ChatPanel({
   }, []);
   useEffect(() => { adjustHeight(); }, [input, adjustHeight]);
 
-  // Built-in attach action — owned by ChatPanel because it references fileInputRef.
+  // Built-in attach action — owned by FeedPanel because it references fileInputRef.
   // Prepended to whatever plusMenuActions the page provides.
   const allPlusMenuActions: PlusMenuAction[] = useMemo(() => [
     {
@@ -518,7 +518,7 @@ function narrativeFilterMatches(
  *     (authorship attribution chip, Make Recurring affordance)
  *   - MessageDispatch.tsx — role-shape rendering for material weight
  *
- * This shell exists only because the surrounding map() in ChatPanel
+ * This shell exists only because the surrounding map() in FeedPanel
  * passes a single message + isLoading + onMakeRecurring; the row API
  * accepts the same triple.
  */

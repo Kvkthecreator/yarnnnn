@@ -73,7 +73,7 @@ Implication: `produces_deliverable` task types (ADR-166) output a **cockpit-cons
 
 ### Frame 4 — Invocation as the Atom, Narrative as the Log (Axiom 9)
 
-One cycle of the six dimensions is an **invocation** — the atom of action. One actor fires once, applies some mechanism, reads and writes substrate, emits to some channel, terminates. Every actor class in YARNNN — persona-bearing Agents (Reviewer, user-authored domain Agents), the orchestration chat surface (YARNNN), orchestration capability bundles (production roles, platform integrations), and external callers (foreign LLMs via MCP) — emits invocations of the same shape. Only the Identity slot rotates.
+One cycle of the six dimensions is an **invocation** — the atom of action. One actor fires once, applies some mechanism, reads and writes substrate, emits to some channel, terminates. Every actor class in YARNNN — persona-bearing Agents (Reviewer, user-authored domain Agents), the orchestration feed surface (YARNNN), orchestration capability bundles (production roles, platform integrations), and external callers (foreign LLMs via MCP) — emits invocations of the same shape. Only the Identity slot rotates.
 
 Every invocation surfaces in one **narrative** — the chat-shaped operator-facing log of everything the system did. Ordered by time, attributed by Identity, filterable by Agent or task-nameplate. The narrative is not "the chat feature"; it is the Axiom 6 Channel that closes Derived Principle 12 (Channel legibility gates autonomy). The operator's own messages are one thread among many.
 
@@ -135,7 +135,7 @@ Current persona-bearing Agents:
 ### Orchestration (HOW work is routed)
 
 The orchestration layer includes:
-- **YARNNN** — the platform-authored chat surface the operator addresses
+- **YARNNN** — the platform-authored feed surface the operator addresses
 - **The Orchestrator** — task pipeline, dispatch routing, team composition logic, capability gating
 - **Production roles** — Researcher, Analyst, Writer, Tracker, Designer, Reporting
 - **Platform integrations** — Slack, Notion, GitHub, Commerce, Trading
@@ -180,7 +180,7 @@ Virtual filesystem over Postgres (`workspace_files` table). Three content areas:
 
 **All four classes share one substrate — the filesystem.** None retains state of its own across invocations. YARNNN, production roles, domain Agents, and Reviewer all read `/workspace/`, `/agents/`, `/tasks/`, and (for Reviewer) `/workspace/review/`, act, write back, and terminate.
 
-YARNNN is the orchestration chat surface. It may retain a row in the `agents` table for pragmatic continuity, but current canon treats that row as implementation substrate, not classification.
+YARNNN is the orchestration feed surface. It may retain a row in the `agents` table for pragmatic continuity, but current canon treats that row as implementation substrate, not classification.
 
 **The Reviewer is the structurally separate judgment seat** (ADR-194, amended by ADR-217). Where YARNNN composes the future (what Agents to create, what tasks to scaffold), the Reviewer applies independent judgment to specific proposed writes. The separation is load-bearing: YARNNN emits many autonomous proposals, and having YARNNN review its own proposals is a conflict of interest. Because the Reviewer seat is structurally separate, a human user and an AI system fill it interchangeably without architectural change (FOUNDATIONS Derived Principle 14: *Roles persist; occupants rotate*). Reviewer state lives in `/workspace/review/` as six seat files, with delegation read from shared `/workspace/context/_shared/AUTONOMY.md`.
 

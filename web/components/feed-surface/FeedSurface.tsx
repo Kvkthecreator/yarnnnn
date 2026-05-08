@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * ChatSurface — YARNNN chat surface.
+ * FeedSurface — YARNNN feed surface (ADR-259).
  *
  *   <SurfaceIdentityHeader actions={[Filter, Context]} />
- *   <ChatPanel emptyState={<ChatEmptyState />} />
+ *   <FeedPanel emptyState={<FeedEmptyState />} />
  *   <WorkspaceContextOverlay /> (pure reads, zero LLM)
  *
  * All mutations go through Chat. No separate creation modals.
@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BookOpen, Filter } from 'lucide-react';
-import { ChatPanel } from '@/components/tp/ChatPanel';
+import { FeedPanel } from '@/components/tp/FeedPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import type { Recurrence } from '@/types';
@@ -26,21 +26,21 @@ import {
 } from '@/lib/content-shapes/snapshot';
 import { WorkspaceContextOverlay } from './WorkspaceContextOverlay';
 // RecurrenceSetupModal removed — "Start new work" seeds the composer.
-import { ChatEmptyState } from './ChatEmptyState';
-import { ChatFilterBar, parseChatFilterFromSearch } from './ChatFilterBar';
+import { FeedEmptyState } from './FeedEmptyState';
+import { FeedFilterBar, parseChatFilterFromSearch } from './FeedFilterBar';
 import { cn } from '@/lib/utils';
 
-interface ChatSurfaceProps {
+interface FeedSurfaceProps {
   /** Tasks feed the Snapshot overlay's Recent tab (last-run list). */
   tasks: Recurrence[];
-  /** Additional plus-menu actions from the page. ChatSurface prepends its own built-in actions. */
+  /** Additional plus-menu actions from the page. FeedSurface prepends its own built-in actions. */
   plusMenuActions?: PlusMenuAction[];
 }
 
-export function ChatSurface({
+export function FeedSurface({
   tasks,
   plusMenuActions = [],
-}: ChatSurfaceProps) {
+}: FeedSurfaceProps) {
   const { messages, sendMessage } = useNarrative();
   const searchParams = useSearchParams();
 
@@ -130,7 +130,7 @@ export function ChatSurface({
 
   // Plus-menu: pass through any page-supplied actions. No built-in modal
   // launcher — "Start new work" is handled by seeding the composer via
-  // ChatEmptyState chips or just talking to YARNNN.
+  // FeedEmptyState chips or just talking to YARNNN.
   const allPlusMenuActions = useMemo<PlusMenuAction[]>(
     () => [...plusMenuActions],
     [plusMenuActions],
@@ -198,12 +198,12 @@ export function ChatSurface({
       </div>
       {filterBarOpen && (
         <div className="mx-auto w-full max-w-3xl">
-          <ChatFilterBar />
+          <FeedFilterBar />
         </div>
       )}
       <div className="flex-1 min-h-0">
         <div className="mx-auto h-full w-full max-w-3xl px-3 sm:px-4 py-3 sm:py-5">
-          <ChatPanel
+          <FeedPanel
             surfaceOverride={{ type: 'chat' }}
             plusMenuActions={allPlusMenuActions}
             placeholder="Type, drop a file, or paste a link..."
@@ -213,7 +213,7 @@ export function ChatSurface({
             narrativeFilter={narrativeFilter}
             onMakeRecurring={handleMakeRecurring}
             emptyState={(helpers) => (
-              <ChatEmptyState
+              <FeedEmptyState
                 onChipClick={handleChipClick}
                 onUploadClick={helpers.requestUpload}
               />

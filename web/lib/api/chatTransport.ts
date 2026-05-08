@@ -26,7 +26,7 @@ function isRetriableNetworkError(error: unknown): boolean {
 
 function getChatUrlCandidates(): string[] {
   const normalizedBase = normalizeBaseUrl(API_BASE_URL);
-  const directChatUrl = `${normalizedBase}/api/chat`;
+  const directChatUrl = `${normalizedBase}/api/feed`;
 
   // Retry through same-origin Next route when direct cross-origin transport fails.
   if (isAbsoluteUrl(normalizedBase)) {

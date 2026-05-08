@@ -5,7 +5,7 @@
  *
  * Authored by ADR-237 (Round 2 of the ADR-236 frontend cockpit
  * coherence pass). Codifies the role-based dispatch table that was
- * previously inline inside ChatPanel.tsx::NarrativeMessage.
+ * previously inline inside FeedPanel.tsx::NarrativeMessage.
  *
  * Seven message shapes, one per `TPMessage.role` (per
  * web/types/desk.ts:117). ADR-252 D4 adds system_agent:

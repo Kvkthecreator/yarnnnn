@@ -10,7 +10,7 @@
  * - Behavior Directives (agent_instructions) — read-only display
  * - Audience (recipient_context) — read-only summary
  * - Prompt Preview (client-side composition of what the agent sees)
- * - "Edit in chat" affordance to direct users to the chat surface
+ * - "Edit in chat" affordance to direct users to the feed surface
  *
  * Instruction editing flows through chat (TP uses Edit primitive).
  * See docs/design/SURFACE-ACTION-MAPPING.md for the design principle.

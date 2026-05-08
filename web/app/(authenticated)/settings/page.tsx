@@ -247,7 +247,7 @@ export default function SettingsPage() {
           // Route to /chat so TP greets the user and triggers the onboarding
           // modal (identity is empty/sparse after purge). Previously routed to
           // /work which skipped onboarding entirely.
-          setTimeout(() => router.push('/chat'), 1500);
+          setTimeout(() => router.push('/feed'), 1500);
           break;
         case "integrations":
           result = await api.account.clearIntegrations();
@@ -263,7 +263,7 @@ export default function SettingsPage() {
           // Route to /chat so TP greets the user and triggers the onboarding
           // modal (identity is empty/sparse after full reset). Previously routed
           // to /work which skipped onboarding entirely.
-          setTimeout(() => router.push('/chat'), 1500);
+          setTimeout(() => router.push('/feed'), 1500);
           break;
         case "deactivate":
           result = await api.account.deactivateAccount();

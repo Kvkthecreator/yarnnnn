@@ -319,7 +319,7 @@ async def initialize_workspace(
     # which returns None if no chat_sessions row exists yet.
     #
     # Pre-2026-04-28 the chat session was lazy-created when the operator
-    # first opened /chat (`routes.chat.get_or_create_session`). That left
+    # first opened /chat (`routes.feed.get_or_create_session`). That left
     # a coverage gap: workspaces where the operator's first action was
     # connecting a platform or running a task — autonomous writers had
     # nowhere to surface, and prior task-run narrative was permanently
@@ -327,7 +327,7 @@ async def initialize_workspace(
     # Surfaced by seulkim88@gmail.com production audit 2026-04-28.
     #
     # Singular implementation: workspace_init is now the sole creator of
-    # the workspace's first chat_sessions row. `routes.chat.get_or_create_session`
+    # the workspace's first chat_sessions row. `routes.feed.get_or_create_session`
     # remains the path for subsequent rotations (4h-inactivity windows
     # per ADR-067 / ADR-159) — it finds the bootstrapped row on first
     # invocation rather than creating one.
@@ -375,7 +375,7 @@ async def initialize_workspace(
     except Exception as e:
         # Best-effort: workspace init proceeds even if session bootstrap
         # fails. The next /chat open will lazy-create via the existing
-        # routes.chat.get_or_create_session path. Log loud so the gap
+        # routes.feed.get_or_create_session path. Log loud so the gap
         # is visible in production logs.
         logger.error(
             f"[WORKSPACE_INIT] Session bootstrap FAILED for {user_id[:8]}: {e} "

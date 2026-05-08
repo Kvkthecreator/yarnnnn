@@ -126,7 +126,7 @@ export function WorkspaceConfigSection() {
               Pick a program to get started, or head to chat and tell YARNNN what you want to do.
             </p>
           </div>
-          <button type="button" onClick={() => router.push('/chat')}
+          <button type="button" onClick={() => router.push('/feed')}
             className="text-sm font-medium text-primary hover:text-primary/80 flex items-center gap-1 shrink-0">
             Go to chat <ArrowRight className="w-3.5 h-3.5" />
           </button>

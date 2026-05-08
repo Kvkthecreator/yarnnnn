@@ -23,7 +23,7 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
-import { ChatPanel, type ChatPanelProps } from '@/components/tp/ChatPanel';
+import { FeedPanel, type FeedPanelProps } from '@/components/tp/FeedPanel';
 
 /** Returns true when viewport width < 640px (Tailwind sm breakpoint). */
 function useIsMobile(): boolean {
@@ -79,11 +79,11 @@ export interface ThreePanelLayoutProps {
   /** Chat panel configuration. Omit to disable chat entirely (e.g., Activity page). */
   chat?: {
     /** Surface override for TP context */
-    surfaceOverride?: ChatPanelProps['surfaceOverride'];
+    surfaceOverride?: FeedPanelProps['surfaceOverride'];
     /** Prefill the chat input from the parent surface without auto-sending */
-    draftSeed?: ChatPanelProps['draftSeed'];
+    draftSeed?: FeedPanelProps['draftSeed'];
     /** Plus menu actions */
-    plusMenuActions: ChatPanelProps['plusMenuActions'];
+    plusMenuActions: FeedPanelProps['plusMenuActions'];
     /** Placeholder text for chat input */
     placeholder?: string;
     /** Empty state content */
@@ -281,7 +281,7 @@ export function ThreePanelLayout({
               </button>
             </div>
             <div className="flex-1 min-h-0">
-              <ChatPanel
+              <FeedPanel
                 surfaceOverride={chat.surfaceOverride}
                 draftSeed={chat.draftSeed}
                 plusMenuActions={chat.plusMenuActions}
@@ -299,7 +299,7 @@ export function ThreePanelLayout({
           Mobile: navigates to /chat (panel layout doesn't work at <640px). */}
       {chat && !chatOpen && (
         <button
-          onClick={() => isMobile ? router.push('/chat') : setChatOpen(true)}
+          onClick={() => isMobile ? router.push('/feed') : setChatOpen(true)}
           className="fixed right-4 z-50 w-12 h-12 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center group sm:right-6"
           style={{ bottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
           title="Chat with YARNNN"

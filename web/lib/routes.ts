@@ -1,16 +1,18 @@
-// Cockpit nav per ADR-205 Phase 4 F1 (chat-first landing) + ADR-214 (four-tab
-// consolidation, 2026-04-23).
-// See docs/adr/ADR-214-agents-page-consolidation.md
-// and docs/adr/ADR-198-surface-archetypes.md for surface archetypes.
+// Cockpit nav per ADR-205 Phase 4 F1 (feed-first landing) + ADR-214 (four-tab
+// consolidation, 2026-04-23) + ADR-259 (feed surface rename, 2026-05-08).
+// See docs/adr/ADR-214-agents-page-consolidation.md, ADR-198-surface-archetypes,
+// and ADR-259-feed-surface for the surface frame.
 //
-// HOME_ROUTE = /chat. A brand-new workspace has no authored agents and no
-// authored tasks — the user's first meaningful action is conversational.
-// Landing on /chat re-aligns with ADR-189's authored-team moat.
+// HOME_ROUTE = /feed. A brand-new workspace has no authored agents and no
+// authored tasks — the user's first meaningful action lands in the feed
+// (continuous multi-actor timeline; operator messages are one entry mode).
+// Landing on /feed re-aligns with ADR-189's authored-team moat.
 //
-// Current nav: Chat | Work | Agents | Files
+// Current nav: Feed | Work | Agents | Files
 // /schedule was a top-level tab (ADR-243) that has been folded into /work as
 // the "Schedule" inner tab. /schedule now redirects to /work.
 // /review deleted; Reviewer lives at /agents?agent=reviewer.
+// /chat redirects to /feed (ADR-259 vocabulary migration; preserves bookmarks).
 //
 // =============================================================================
 // Redirect Stub Policy (ADR-236 Item 5, 2026-04-29)
@@ -32,20 +34,21 @@
 //      external links to the route are known. Until both hold, the stub
 //      stays.
 //
-// Active stubs (verified 2026-05-04):
-//   /orchestrator  → /chat                             (ADR-163, ADR-205 F1)
+// Active stubs (verified 2026-05-08):
+//   /chat          → /feed                             (ADR-259 — surface rename)
+//   /orchestrator  → /feed                             (ADR-163, ADR-205 F1)
 //   /team          → /agents                           (ADR-214 — reverses ADR-201)
 //   /overview      → /work                             (ADR-205 F2, ADR-225 Phase 3)
-//   /workfloor     → /chat                             (ADR-163)
+//   /workfloor     → /feed                             (ADR-163)
 //   /memory        → /context?path=...IDENTITY.md      (ADR-215 R3)
 //   /system        → /settings                         (system tab removed 2026-05-02)
 //   /schedule      → /work                             (ADR-243 folded into Work tabs)
 //   /operation     → /workspace                         (renamed before launch)
 //
 // =============================================================================
-export const HOME_ROUTE = "/chat";
-export const HOME_LABEL = "Chat";
-export const CHAT_ROUTE = "/chat";
+export const HOME_ROUTE = "/feed";
+export const HOME_LABEL = "Feed";
+export const FEED_ROUTE = "/feed";
 export const WORK_ROUTE = "/work";
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 export const CONTEXT_ROUTE = "/context";

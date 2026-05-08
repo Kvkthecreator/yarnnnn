@@ -33,7 +33,7 @@ The Operator is the user in their principal role: the entity that holds declared
 
 The System (YARNNN) is the executor and narrator. It reads the operator's declared substrate and acts on it. It does not reason about what the operation *should* do — it does what was declared. The operation runs at operational cadence (the heartbeat) regardless of the user's real-time presence.
 
-The user is the supervising principal. They can cut into the Operator ↔ System conversation at any moment from the chat surface — ask a question, override a decision, change the mandate, pause autonomy. But they are not required to be present for the loop to run.
+The user is the supervising principal. They can cut into the Operator ↔ System conversation at any moment from the feed surface — ask a question, override a decision, change the mandate, pause autonomy. But they are not required to be present for the loop to run.
 
 **Autonomy mode governs how much explicit user approval is required before Operator-initiated actions execute:**
 
@@ -119,7 +119,7 @@ This is the single sharpest technical differentiator YARNNN has. Inferred contex
 
 ## Vocabulary: Agents and Orchestration
 
-The four commitments above describe the architecture. This section names the two-class taxonomy that falls out of them: **YARNNN has persona-bearing Agents and Orchestration. YARNNN itself is the orchestration chat surface, not an Agent.** The word "Agent" belongs to judgment-bearing entities in the sharp sense; production machinery, capabilities, and chat surfaces do not inherit it by proximity. The full authoritative taxonomy lives in [LAYER-MAPPING.md](LAYER-MAPPING.md); this section states the philosophical claim.
+The four commitments above describe the architecture. This section names the two-class taxonomy that falls out of them: **YARNNN has persona-bearing Agents and Orchestration. YARNNN itself is the orchestration feed surface, not an Agent.** The word "Agent" belongs to judgment-bearing entities in the sharp sense; production machinery, capabilities, and feed surfaces do not inherit it by proximity. The full authoritative taxonomy lives in [LAYER-MAPPING.md](LAYER-MAPPING.md); this section states the philosophical claim.
 
 ### Agents (judgment-bearing entities)
 
@@ -139,7 +139,7 @@ Systemic persona-bearing Agents (Reviewer, future archetypes) are one-per-worksp
 
 Members of this class in YARNNN today:
 
-- **YARNNN** — the platform-authored orchestration chat surface the operator addresses. It keeps the system legible, drafts work, and routes mutations, but it does not embody an operator-authored judgment persona.
+- **YARNNN** — the platform-authored orchestration feed surface the operator addresses. It keeps the system legible, drafts work, and routes mutations, but it does not embody an operator-authored judgment persona.
 - **The Orchestrator** (system machinery) — task pipeline, dispatch routing, team composition logic, capability gating, back-office scheduling. Tooling that YARNNN, the Reviewer, and user-authored domain Agents use to get production work dispatched.
 - **Production roles** — pre-packaged production-style capability bundles: Researcher, Analyst, Writer, Tracker, Designer, Reporting. These are capability bundles, not entities. The Orchestrator dispatches against them when a task requires that style of production. (Previously called "Specialists" — the term is retired for the orchestration concept.)
 - **Platform integrations** — pre-packaged platform-API capability bundles: Slack, Notion, GitHub, Commerce, Trading. Capability-gated by active `platform_connections`. (Previously called "Platform Bots" — the term is retired; ADR-207 P4a already dissolved them as an agent class.)
@@ -169,7 +169,7 @@ Three consequences follow from the sharp mapping:
 
 ### What this does imply (concretely)
 
-- Internal canon, code, and ADRs going forward use "Agent" only for persona-bearing judgment entities. Production roles, platform integrations, and YARNNN chat surface are never called Agents.
+- Internal canon, code, and ADRs going forward use "Agent" only for persona-bearing judgment entities. Production roles, platform integrations, and YARNNN feed surface are never called Agents.
 - The orchestration module is named for what it is (orchestration), not for the legacy "agent_framework" framing.
 - Systemic persona-bearing Agents are path-named by role; instance Agents (user-authored) are slug-named; YARNNN remains an orchestration-surface convention rooted at `/workspace/memory/`. The filesystem encodes the distinction.
 - ADR-212 + LAYER-MAPPING.md ratify this mapping as canonical. Historical ADRs preserve old vocabulary as frozen artifacts and are not rewritten.

@@ -10,7 +10,7 @@ function resolveBackendChatUrl(): string {
   }
 
   const normalized = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
-  return `${normalized}/api/chat`;
+  return `${normalized}/api/feed`;
 }
 
 export async function POST(request: NextRequest): Promise<Response> {

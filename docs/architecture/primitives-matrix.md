@@ -58,7 +58,7 @@ The primitive set is runtime-neutral, but the *operator surface* convention per 
 
 | Operation | Surface | Primitive path |
 |-----------|---------|----------------|
-| **Create** (recurrence, rule, signal, SKU) | Modal (`CreateTaskModal`, `CreateRuleModal`) | `ManageRecurrence(action="create")` / `WriteFile(scope="workspace", ...)` for governance + rule authoring. High-precision, well-specified; modal provides structured fields. **Note (ADR-235 D2):** there is no chat-surface or modal pathway to author *new agents* — the systemic roster is fixed at signup. |
+| **Create** (recurrence, rule, signal, SKU) | Modal (`CreateTaskModal`, `CreateRuleModal`) | `ManageRecurrence(action="create")` / `WriteFile(scope="workspace", ...)` for governance + rule authoring. High-precision, well-specified; modal provides structured fields. **Note (ADR-235 D2):** there is no feed-surface or modal pathway to author *new agents* — the systemic roster is fixed at signup. |
 | **Read** | Direct surface view | Any read primitive (`ReadFile`, `LookupEntity`, `SearchFiles`, `QueryKnowledge`). No modal or chat required. |
 | **Update** | Chat + YARNNN | `ManageRecurrence(action="update")`, `ManageAgent(action="update")`, `InferContext` (identity/brand merge), `WriteFile(scope="workspace", ...)` (substrate writes), `EditEntity`. Judgment-shaped — YARNNN asks "why", proposes alternatives, remembers reasoning. |
 | **Delete / archive** | Chat + YARNNN, confirmation required | `ManageRecurrence(action="archive")`, `ManageAgent(action="archive")`. Irreversibility warrants conversation; YARNNN writes attribution to `/workspace/memory/awareness.md`. |
@@ -238,7 +238,7 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 | `DiscoverAgents` | lifecycle | ○ | ● | ○ | inter-agent | [workspace.py](../../api/services/primitives/workspace.py) | Find other agents in the workspace by role/scope/status (ADR-116 Phase 2). |
 | `InferContext` | context | ● | ○ | ● | inference, context-mutation | [infer_context.py](../../api/services/primitives/infer_context.py) | **ADR-235 D1.a.** Inference-merged write to IDENTITY.md or BRAND.md. Sonnet merge over operator text + uploaded docs + URLs; preserves prior content. ADR-162 gap detection runs on the result and is returned in `gaps`. **MCP `remember_this`** dispatches here for `target='identity'`/`'brand'`. |
 | `InferWorkspace` | context | ● | ○ | ○ | inference, context-mutation | [infer_workspace.py](../../api/services/primitives/infer_workspace.py) | **ADR-235 D1.a.** First-act scaffold (ADR-190). One Sonnet call producing identity + brand + entities + work_intent. Writes IDENTITY.md + BRAND.md, scaffolds entity subfolders, returns work_intent_proposal for follow-on tool calls. |
-| `ManageAgent` | lifecycle | ● | ● | ○ | lifecycle | [coordinator.py](../../api/services/primitives/coordinator.py) | **ADR-235 D2.** Lifecycle only: `update`, `pause`, `resume`, `archive`. The `create` action is removed from the LLM-facing tool definition — there is no chat surface for authoring new agents. Service code (`agent_creation.create_agent_record`) preserved for the kernel/signup path. |
+| `ManageAgent` | lifecycle | ● | ● | ○ | lifecycle | [coordinator.py](../../api/services/primitives/coordinator.py) | **ADR-235 D2.** Lifecycle only: `update`, `pause`, `resume`, `archive`. The `create` action is removed from the LLM-facing tool definition — there is no feed surface for authoring new agents. Service code (`agent_creation.create_agent_record`) preserved for the kernel/signup path. |
 | `ManageRecurrence` | lifecycle | ● | ● | ○ | lifecycle | [manage_recurrence.py](../../api/services/primitives/manage_recurrence.py) | **ADR-235 D1.c.** Recurrence-declaration lifecycle: `create`/`update`/`pause`/`resume`/`archive` over the YAML at the natural-home substrate location (per ADR-231 D2). Spun out of the dissolved `UpdateContext(target='recurrence', ...)` shape. Mirrors `ManageAgent`/`ManageDomains`. |
 | `ManageDomains` | lifecycle | ● | ● | ○ | lifecycle | [scaffold.py](../../api/services/primitives/scaffold.py) | Scaffold, add, remove, list entities in workspace context domains (ADR-155/157). |
 | `RepurposeOutput` | action | ● | ○ | ○ | user-authorized | [repurpose.py](../../api/services/primitives/repurpose.py) | Adapt an existing task output to a different format or channel (ADR-148). |
@@ -260,7 +260,7 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 - Chat has the file-family primitives (`ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`) per **ADR-234**, with `scope='workspace'` per **ADR-235 Option A** so the chat caller (no agent context) can reach operator-shared substrate. **Boundary preserved by prompt convention, not primitive gating:** chat does NOT reach into `/agents/{slug}/` private paths beyond declared canonical feedback substrate; agent-private workspace is read-only via `ReadAgentFile` in headless mode. `QueryKnowledge` stays headless-only (semantic-rank composition). `ReadAgentFile` stays headless-only (inter-agent coordination per ADR-116).
 - Chat has `RuntimeDispatch` for explicit user requests (image generation, charts, diagrams). YARNNN uses it when the user asks for a visual asset or when a visual would materially improve a response.
 - **`UpdateContext` is dissolved** (ADR-235). Inference-merged writes use `InferContext` / `InferWorkspace`; substrate writes use `WriteFile(scope='workspace', ...)`; recurrence lifecycle uses `ManageRecurrence`. There is no successor verb that re-aggregates these.
-- **`ManageAgent` action enum tightened** (ADR-235 D2): no chat-surface `create`. The systemic agent roster is fixed at signup; users compose recurrences against it instead of authoring new agents. Service code (`agent_creation.create_agent_record`) preserved for the kernel/signup path.
+- **`ManageAgent` action enum tightened** (ADR-235 D2): no feed-surface `create`. The systemic agent roster is fixed at signup; users compose recurrences against it instead of authoring new agents. Service code (`agent_creation.create_agent_record`) preserved for the kernel/signup path.
 - Headless does NOT have `EditEntity`, `Clarify`, `RepurposeOutput`, or `list_integrations`. No user-authorization path in headless mode, no user channel, no user-facing mutations, no platform metadata needs that aren't already resolved at capability-bundle time.
 - **MCP does NOT have any lifecycle, entity-layer, or agent-scoped file-layer primitives.** MCP callers (foreign LLMs acting on behalf of the user) are consultation-shaped, not operator-shaped. The user in a foreign LLM is in thinking mode, not workforce-management mode — the MCP surface reflects that. Specifically: no `ManageAgent`/`ManageRecurrence`/`ManageDomains` (no workforce control from foreign LLMs), no `LookupEntity`/`ListEntities`/`SearchEntities`/`EditEntity` (entity layer is YARNNN-chat-only), no `ReadAgentFile` (agent-private file layer is headless-only), no `RuntimeDispatch`/`RepurposeOutput` (output generation lives on YARNNN's own runtime), no `Clarify` (MCP uses the structured `ambiguous` return shape instead). MCP composition (post-ADR-235) routes `remember_this` writes through `WriteFile` (substrate writes) or `InferContext` (identity/brand merges) — see [docs/features/mcp/architecture.md](../features/mcp/architecture.md).
 
@@ -290,7 +290,7 @@ For verbs that carry a typed sub-action, the enum is load-bearing. Single source
 | `resume` | Reactivate agent |
 | `archive` | Soft-delete agent |
 
-**`create` is removed from the LLM-facing tool definition** (ADR-235 D2). The systemic agent roster is fixed at signup; users compose recurrences against it instead of authoring new agents. Service code (`agent_creation.create_agent_record`) is preserved for the kernel/signup path; only the chat-surface entry point narrows.
+**`create` is removed from the LLM-facing tool definition** (ADR-235 D2). The systemic agent roster is fixed at signup; users compose recurrences against it instead of authoring new agents. Service code (`agent_creation.create_agent_record`) is preserved for the kernel/signup path; only the feed-surface entry point narrows.
 
 ### `ManageRecurrence.action` (ADR-235 D1.c)
 
@@ -373,7 +373,7 @@ When renaming, adding, or removing a primitive, perform a grep sweep across thes
 - `web/components/tp/InlineToolCall.tsx` — tool name display branches + icon map
 - `web/contexts/TPContext.tsx` — tool result parsing by name
 - `web/components/tp/NotificationCard.tsx`
-- `web/components/chat-surface/` — artifacts that render tool results
+- `web/components/feed-surface/` — artifacts that render tool results
 - `web/components/workspace/WorkspaceNav.tsx`
 - `web/lib/utils.ts`
 - `web/lib/api/client.ts` — any primitive-name string literals
@@ -442,7 +442,7 @@ Any primitive change (rename, add, remove, mode change, enum extension) writes a
 | `entity:domain` type | (file substrate — `/workspace/context/{domain}/` via ReadFile/WriteFile/QueryKnowledge) | ADR-196 *(shipped 2026-04-20)* | Same rationale — pointed at `user_memory`; semantic content lives in filesystem context domains per ADR-151. |
 | `ManageTask` | `ManageRecurrence` (lifecycle) + `FireInvocation` (run-now) | ADR-231 Phase 3.7 *(shipped 2026-04-29)* | Tasks-as-units dissolved; recurrences are YAML declarations at natural-home substrate paths. ManageTask's 8 actions split: lifecycle to ManageRecurrence, trigger to FireInvocation. |
 | `UpdateContext` | `InferContext` (identity/brand merge) + `InferWorkspace` (first-act scaffold) + `WriteFile(scope='workspace', ...)` (mandate/autonomy/precedent/awareness/feedback) + `ManageRecurrence` (recurrence lifecycle) | ADR-235 *(shipped 2026-04-29)* | Three categorically different cognitive shapes (inference-merged write, substrate write, lifecycle action) hidden under one verb name. Splitting them honors what they are. ADR-209's `write_revision` already unifies the substrate-level write path; the consolidation rationale of ADR-146 is preserved at the substrate level, not at the primitive-name level. |
-| `ManageAgent(action="create")` | (no chat-surface successor) | ADR-235 D2 *(shipped 2026-04-29)* | The systemic agent roster is fixed at signup; no chat-surface pathway to author new agents. Service code (`agent_creation.create_agent_record`) preserved for the kernel/signup path. |
+| `ManageAgent(action="create")` | (no feed-surface successor) | ADR-235 D2 *(shipped 2026-04-29)* | The systemic agent roster is fixed at signup; no feed-surface pathway to author new agents. Service code (`agent_creation.create_agent_record`) preserved for the kernel/signup path. |
 
 ---
 

@@ -1,5 +1,7 @@
 # ADR-258: Chat Message Grammar — First Principles Rewrite
 
+> **⚠ Vocabulary update (2026-05-08, [ADR-259](ADR-259-feed-surface.md))**: "chat message grammar" should be read as "feed event grammar" post-ADR-259. The grammar itself (six message shapes) is unchanged; only the surface name changed. References to "chat" below preserved as period vocabulary.
+
 > **Status**: **Implemented** (2026-05-08)
 > **Date**: 2026-05-08
 > **Authors**: KVK, Claude

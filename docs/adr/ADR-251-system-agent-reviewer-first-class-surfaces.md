@@ -1,5 +1,7 @@
 # ADR-251: System Agent + Reviewer as First-Class Surfaces — Roster Reinstated
 
+> **⚠ Vocabulary update (2026-05-08, [ADR-259](ADR-259-feed-surface.md))**: references to "chat" / "the chat" below are preserved as period vocabulary. Operator-facing surface is "the Feed" post-ADR-259. The three-party participant model (Operator + System Agent + Reviewer) defined here is the foundation of the feed surface.
+
 > **Status**: **Implemented** (2026-05-06 — Commits 1–2; D5 cadence panel shipped)
 > **Date**: 2026-05-06
 > **Authors**: KVK, Claude

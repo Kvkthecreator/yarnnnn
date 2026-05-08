@@ -126,7 +126,7 @@ export function WorkspaceSection() {
   };
 
   const handleContinueToChat = () => {
-    router.push('/chat');
+    router.push('/feed');
   };
 
   // ─── Loading / error states ──────────────────────────────────────────

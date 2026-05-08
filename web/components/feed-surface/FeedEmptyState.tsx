@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * ChatEmptyState — YARNNN's deterministic first-turn welcome surface
+ * FeedEmptyState — YARNNN's deterministic first-turn welcome surface
  * (ADR-190 + ADR-231 D1).
  *
- * Rendered by ChatPanel when messages.length === 0. Zero LLM cost — hardcoded
+ * Rendered by FeedPanel when messages.length === 0. Zero LLM cost — hardcoded
  * client-side copy that establishes the authored-team frame before the
  * operator types.
  *
@@ -28,10 +28,10 @@
 
 import { FileUp, Link2, Sparkles } from 'lucide-react';
 
-interface ChatEmptyStateProps {
+interface FeedEmptyStateProps {
   /** Called when a text-seed chip is clicked. */
   onChipClick: (text: string) => void;
-  /** Opens the composer's file picker. Wired from ChatPanel.fileInputRef. */
+  /** Opens the composer's file picker. Wired from FeedPanel.fileInputRef. */
   onUploadClick: () => void;
 }
 
@@ -71,7 +71,7 @@ const CHIPS: Chip[] = [
   },
 ];
 
-export function ChatEmptyState({ onChipClick, onUploadClick }: ChatEmptyStateProps) {
+export function FeedEmptyState({ onChipClick, onUploadClick }: FeedEmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-10 sm:py-16 px-4">
       <img

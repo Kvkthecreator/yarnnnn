@@ -19,7 +19,7 @@ import { MessageSquare, Briefcase, Users, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const SEGMENTS = [
-  { id: 'chat',    label: 'Chat',   icon: MessageSquare, href: '/chat',              activePath: '/chat' },
+  { id: 'feed',    label: 'Feed',   icon: MessageSquare, href: '/feed',              activePath: '/feed' },
   { id: 'work',    label: 'Work',   icon: Briefcase,     href: '/work?tab=dashboard', activePath: '/work' },
   { id: 'agents',  label: 'Agents', icon: Users,         href: '/agents',            activePath: '/agents' },
   { id: 'context', label: 'Files',  icon: FolderOpen,    href: '/context',           activePath: '/context' },
@@ -32,7 +32,7 @@ export function ToggleBar() {
   // don't break the active highlight. /schedule redirects to /work.
   const activeId = SEGMENTS.find(s =>
     pathname === s.activePath || pathname.startsWith(s.activePath + '/')
-  )?.id ?? (pathname.startsWith('/schedule') ? 'work' : 'chat');
+  )?.id ?? (pathname.startsWith('/schedule') ? 'work' : 'feed');
 
   return (
     <div className="flex items-center gap-0.5 rounded-full bg-muted/60 p-0.5">

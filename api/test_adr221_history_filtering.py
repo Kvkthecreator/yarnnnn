@@ -28,7 +28,7 @@ API_ROOT = REPO_ROOT / "api"
 
 def _import_history_builder():
     sys.path.insert(0, str(API_ROOT))
-    from routes.chat import build_history_for_claude
+    from routes.feed import build_history_for_claude
     return build_history_for_claude
 
 
