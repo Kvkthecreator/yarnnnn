@@ -207,83 +207,75 @@ No hidden flag. No `task_kind` column. Task ownership (agent.role) is the only d
 
 ## Execution Flow
 
-### How Work Gets Created
+> **Updated 2026-05-08 per ADRs 260/261/262.** Prior framing of "three execution layers" with a separate headless task pipeline is dissolved. The unified execution model is: cron wakes the Reviewer with a recurrence's prompt; the Reviewer's real-time tool-use loop runs whatever the prompt directs; specialists run as focused-prompt sub-LLM-calls within that loop; the deterministic System Agent dispatches each step.
+
+### How a recurrence is authored
 
 ```
-User intent (chat or UI)
-  → YARNNN decomposes into task definition (from template library or composed novel)
-  → ManageTask(action="create", ...) writes TASK.md + tasks DB row
-  → next_run_at calculated from schedule
+Operator intent (feed conversation or explicit primitive call)
+  → YARNNN drafts {slug, schedule, prompt} with operator
+  → Schedule(action="create", slug=..., schedule=..., prompt=...)
+  → Append to /workspace/_recurrences.yaml (Authored Substrate write)
 ```
 
-### How Work Gets Executed
+Recurrences live in one canonical file (`/workspace/_recurrences.yaml`); there are no per-shape declaration files (`_spec.yaml`, `_recurring.yaml`, `back-office.yaml`, etc. — all dissolved per ADR-261 D2). A recurrence is three load-bearing fields: `slug`, `schedule`, `prompt`.
 
-Three layers, strictly separated (ADR-141):
+### How a Reviewer session executes (the unified shape)
 
-**Layer 1 — Mechanical Scheduling** (zero LLM cost)
-- Unified scheduler cron runs every 5 minutes
-- SQL query: `tasks WHERE next_run_at <= NOW()`
-- For each due task: calls `execute_task()`
+A Reviewer session runs **synchronously in real-time** as one continuous tool-use loop. It begins for one of three reasons (Axiom 4 sub-shapes): **Scheduled** (cron fires with a recurrence's prompt), **Reactive** (event triggers — proposal arrives, outcome reconciles), or **Addressed** (operator messages the Reviewer in the feed).
 
-**Layer 2 — Task Execution** (Sonnet per task, then mechanical render + compose)
 ```
-execute_task(slug)
-  → Read TASK.md + DELIVERABLE.md + steering.md + feedback.md
-  → Read task type's page_structure + surface_type from registry
-  → Resolve assigned agent(s) from process definition
-  → Check work credits (budget gate)
-  → SCAFFOLD (first run): resolve structural plan from page_structure
-  → ASSEMBLE (pre-gen): query filesystem for scoped directories, discover assets,
-      enumerate entities, flag stale sections, build generation brief
-  → GENERATE: headless agent produces prose guided by assembly brief
-  → ASSEMBLE (post-gen): parse LLM output into section partials,
-      resolve asset refs, render section kinds per surface type, compose index.html
-  → RENDER: derivative assets — data tables → charts, mermaid → SVGs (mechanical, zero LLM)
-  → COMPOSE: apply surface-type arrangement + final HTML styling
-  → Save output folder to /tasks/{slug}/outputs/{date}/
-  → Deliver to destination (email/Slack/Notion) with delivery channel transform
-  → Update agent memory (agent reflection, observations)
-  → YARNNN evaluates task output quality against DELIVERABLE.md (evaluation loop)
-  → Advance next_run_at
+Reviewer session start (Scheduled / Reactive / Addressed)
+  → Reviewer reads operator-authored substrate (MANDATE, IDENTITY, principles, AUTONOMY,
+    PRECEDENT, _operator_profile, _risk, _performance) — pre-loaded into context
+  → Reviewer reads recurrence prompt (Scheduled), proposal (Reactive), or operator
+    message (Addressed)
+  → Reviewer reasons; calls a tool:
+       • ReadFile / ListFiles / SearchFiles — cognition (transient streaming-status
+         in feed)
+       • FireInvocation / Schedule / WriteFile — consequential action (System Agent
+         narrates as a feed bubble)
+       • DispatchSpecialist(role, brief) — focused-prompt sub-LLM-call in headless
+         runtime mode (per ADR-261 D7)
+       • ProposeAction — capital-moving directive (gated by AUTONOMY)
+  → Tool result lands in substrate; Reviewer reads result (read-back as bubble per
+    ADR-260 D6)
+  → Loop continues until Reviewer calls ReturnVerdict to close session
+  → Bounded at ≤12 rounds (addressed/scheduled) or ≤3 rounds (reactive) per ADR-260 D8
 ```
 
-The SCAFFOLD → ASSEMBLE → GENERATE → ASSEMBLE → RENDER → COMPOSE chain is the **compose substrate** (ADR-170) — the binding layer between the accumulating filesystem and rendered output. Assembly and revision routing are deterministic Python (zero LLM cost). The compose substrate reads the task type's **surface type** (visual paradigm: report, deck, dashboard, digest, workbook, preview, video) and **section kinds** (typed components: narrative, metric-cards, entity-grid, etc.) to arrange output structurally. See [compose-substrate.md](compose-substrate.md) for the function, [output-surfaces.md](output-surfaces.md) for the vocabulary.
+**Three actors, three responsibilities** (per ADR-261 D7 amendment):
 
-**Multi-step process** (task types with `process` field defining multiple agent steps):
-```
-For each step in process:
-  → Resolve agent by type from user's roster
-  → Inject prior step output as context (handoff)
-  → Generate → save step output
-  → Final step = deliverable → deliver
-```
+- **Reviewer** — judgment + high-level sequencing. Names specialist invocations as discrete steps. Writes verdicts to `/workspace/review/decisions.md`.
+- **Specialist** (researcher / analyst / writer / tracker / designer / reporting) — focused-prompt sub-LLM-call (`headless` runtime mode), invoked by `DispatchSpecialist`. Identical execution shape to a Claude Code sub-agent. Returns markdown output to the Reviewer's loop.
+- **System Agent** — deterministic dispatcher (per ADR-257). Receives the Reviewer's structured directives (`FireInvocation`, `Schedule`, `WriteFile`, `DispatchSpecialist`), executes them mechanically, narrates each consequential action as a feed bubble.
 
-**Layer 3 — YARNNN Intelligence** (user-driven)
-- Chat mode: responds to user, creates/adjusts tasks
-- Composer heartbeat: periodic workforce assessment
-- The only component that "thinks about" the system
+**Cross-session continuity uses Authored Substrate (ADR-209)** as the only continuity record. When a later session begins, it reads the head revisions of relevant substrate; prior revisions' authored messages (`reviewer:{occupant}` / `agent:{slug}` / `system:{actor}` with `message` field) are the trail of what prior selves did. No parallel session-state mechanism.
 
-### The Heartbeat Artifact (ADR-161)
+### How outputs are produced
 
-Every workspace is scaffolded at signup with exactly one default task: `daily-update`. This task is **essential** — it cannot be archived, cannot be auto-paused, and exists from day one regardless of user engagement.
+Recurrence prompts encode output expectations using two layers (per ADR-262):
 
-The daily-update is the **user-facing manifestation of the system being alive**. It is the only task that arrives in the user's inbox by default. It runs every morning at 09:00 UTC. Its content scales with workspace maturity:
+- **Layer A — filesystem topology** (CONVENTIONS.md, operator-readable markdown). Conventional paths are slug-templated structurally — `/workspace/reports/{slug}/{date}/output.md`, `/workspace/context/{domain}/{entity}.md`. The Reviewer interpolates the convention against substrate-level data; no free-form path authoring.
+- **Layer B — semantic shape** (operator-authored specs at `/workspace/specs/{name}.md`, or inline in the prompt, or by-example referencing a prior output). The Reviewer reads the spec/example, produces conforming output.
 
-- **Empty workspace** (no other active tasks, no context entities): a deterministic template (no LLM cost) — "Your workforce is here. Tell me what matters to start." with a CTA back to chat. ~$0/run.
-- **Sparse workspace** (some context, few runs): a "quiet day" digest framing what little there is. ~$0.03/run.
-- **Active workspace**: a full operational digest reading run logs across all active tasks. ~$0.05–0.15/run.
+**Compose is opt-out structural default** (per ADR-262 D4). When a Reviewer session writes section partials matching the deliverable convention (presence of `sections/*.md` in `/workspace/reports/{slug}/{date}/`) and the session is closing, the framework auto-runs Compose unless the recurrence opts out via `options.skip_compose: true`. The mechanical compose engine (section kind dispatch, structured-data renderers, content-addressed cache) is unchanged from ADR-148 / ADR-170 / ADR-177 / ADR-213; only the trigger surface changes.
 
-Three layers of heartbeat exist:
+### The scheduler
 
-| Layer | Mechanism | What it does | Independence |
-|---|---|---|---|
-| **Infrastructure** | Render cron, every 5 min | Polls tasks, fires due ones | Plumbing — user never sees |
-| **Daily-update task** | One row in tasks, daily cadence | Produces user-facing artifact | Standard task in standard pipeline |
-| **User experiential** | Email landing at 9am | The user knows the system is alive | Emergent from above |
+The scheduler's only job is to walk `/workspace/_recurrences.yaml` and invoke the Reviewer for each due entry (per ADR-261 D3). Three architectural guarantees committed:
 
-These are technically independent but conceptually fused. The daily-update is *not* a special code path — it executes through `task_pipeline.execute_task()` like any other task. It is special only in metadata (`essential=true`) and in having an empty-state branch that short-circuits the LLM call when there is genuinely nothing to summarize.
+1. **Parallel concurrent Reviewer sessions** when multiple recurrences are simultaneously due.
+2. **Sub-minute scheduling precision** — recurrences scheduled at `0 7 * * *` fire at 07:00:00.
+3. **No head-of-line blocking** from slow sessions.
 
-This is the floor that prevents dormant signups from going silent. See ADR-161 for the full rationale.
+The legacy 5-minute polling cron is wrong-shaped under these guarantees. Implementation candidates (per-recurrence Render Crons, `pg_cron`, persistent scheduler service) are deployment-shape choices made at code-PR time per first-principles. The architectural guarantees are what this commits.
+
+### The daily-update artifact (ADR-161 sunset per ADR-261 D6)
+
+The daily-update — previously a hard-coded essential task scaffolded at signup — is now an ordinary recurrence in `/workspace/_recurrences.yaml`. Operator may author it (or YARNNN may suggest it), and program bundles may seed it at activation. There is no `essential: true` flag; archive/pause is unrestricted. The "user-facing artifact arrives daily" promise is preserved by the recurrence's prompt and schedule (`0 9 * * *`); it is no longer infrastructure-special.
+
+This means a brand-new operator's workspace has zero scheduled recurrences until they author one (or activate a program bundle). The "system is alive" floor is now a property of bundle activation, not of signup scaffolding.
 
 ### How Output Gets Displayed and Delivered
 
