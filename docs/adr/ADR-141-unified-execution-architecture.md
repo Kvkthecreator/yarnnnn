@@ -1,5 +1,7 @@
 # ADR-141: Unified Execution Architecture — Mechanical Scheduling, LLM Generation
 
+> **⚠ Layer 2 superseded by [ADR-261](ADR-261-recurrences-as-prompts.md) (2026-05-08).** The "Layer 2 task pipeline" as a separate execution path dissolves. Under ADR-260 + ADR-261, there is one execution shape: cron wakes the Reviewer with a recurrence's prompt; Reviewer's real-time loop runs whatever the prompt directs; production-role specialists are focused-prompt sub-LLM-calls in `headless` runtime mode (per ADR-261 D7), invoked by Reviewer's loop, dispatched by deterministic System Agent (per ADR-257). The `headless` permission mode survives as a runtime characteristic of LLM calls; it no longer denotes a separate execution path. Layer 1 (mechanical scheduling) survives shaped per ADR-261 D3 (the recurrence walker). Layer 3 (YARNNN intelligence) survives reshaped per ADR-216 + ADR-260 — Reviewer is the primary intelligence; YARNNN is the orchestration feed surface.
+
 > **Status**: Phase 1-3 Implemented (task pipeline + scheduler + all callers rewired; execution_strategies + agent_pulse deleted)
 > **Date**: 2026-03-25
 > **Authors**: KVK, Claude

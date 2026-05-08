@@ -1,5 +1,7 @@
 # ADR-178: Task Creation Routes — Context-Driven and Output-Driven Scaffolding
 
+> **⚠ Superseded by [ADR-261](ADR-261-recurrences-as-prompts.md) (2026-05-08).** Route A (output-driven) vs Route B (context-driven) distinction dissolves. With recurrences as `{slug, schedule, prompt}` (one shape) and output expectations encoded in operator-authored specs at `/workspace/specs/{name}.md` per ADR-262 D2/D3, there are no longer two creation routes — there is one (operator authors a recurrence prompt, optionally citing a spec doc). The "thin DELIVERABLE.md vs rich DELIVERABLE.md at creation" distinction is no longer load-bearing; what matters is whether the prompt is specific enough to produce conforming output, and that's a prompt-quality judgment, not a route-classification.
+
 **Date:** 2026-04-13
 **Status:** Proposed
 **Authors:** KVK, Claude

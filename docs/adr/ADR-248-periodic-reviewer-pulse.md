@@ -1,5 +1,7 @@
 # ADR-248: Periodic Reviewer Pulse — Autonomy Loop Closure
 
+> **⚠ D1 + D2 (calibration + reflection as MAINTENANCE recurrences in `back-office.yaml`) superseded by [ADR-261](ADR-261-recurrences-as-prompts.md) (2026-05-08) D6.** Calibration and reflection survive as ordinary recurrences in `/workspace/_recurrences.yaml` whose prompts direct the Reviewer to calibrate / reflect. There is no separate `back-office.yaml` and no MAINTENANCE shape. The `back-office-reviewer-calibration` and `back-office-reviewer-reflection` slugs are now plain recurrence slugs; their schedule and prompt fields encode their behavior. **D3 (pause-authority via `paused_until` + `pause_reason` in AUTONOMY)** survives as part of the rederived AUTONOMY shape per ADR-261 D5.
+
 > **Status**: **Implemented** (2026-05-03, Commits 1–4)
 > **Date**: 2026-05-03
 > **Authors**: KVK, Claude

@@ -1,5 +1,7 @@
 # ADR-164: Back Office Tasks — TP as Agent, Unified Scheduled Work
 
+> **⚠ Superseded by [ADR-261](ADR-261-recurrences-as-prompts.md) (2026-05-08) D6.** Back-office tasks dissolve into ordinary recurrences in `/workspace/_recurrences.yaml`. Maintenance work (agent hygiene, workspace cleanup, outcome reconciliation, calibration, reflection) is encoded as recurrence prompts the Reviewer's loop runs at scheduled times. There is no separate "back-office" tier, no separate dispatch path, no `executor:` directive. The `task_pipeline.py::_execute_tp_task` dispatch on `agent.role == 'thinking_partner'` is dissolved with the task pipeline itself per ADR-261 D7.
+
 **Status:** Implemented
 **Date:** 2026-04-08
 **Authors:** KVK, Claude

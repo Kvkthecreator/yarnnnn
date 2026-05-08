@@ -1,5 +1,7 @@
 # ADR-213: Surface-Pull Composition — Tasks Write Substrate, Surfaces Render
 
+> **⚠ Auto-dispatch portion superseded by [ADR-262](ADR-262-output-topology-and-specs.md) (2026-05-08) D4.** "Compose runs as task-pipeline post-step" framing dissolves with the task pipeline itself per ADR-261. Compose survives as **opt-out structural default** (triggered by substrate shape — presence of `sections/*.md` partials in `/workspace/reports/{slug}/{date}/`) AND as a callable primitive `Compose(...)` for explicit mid-session use. The compose engine's mechanical innards (section kind dispatch, structured-data renderers, content-addressed cache) are preserved verbatim. Surface-pull composition (compose on demand by surfaces) is preserved as the read-side pattern.
+
 **Status:** Phases 1–2 Implemented (2026-04-23). Phase 3 reclassification audit Proposed.
 **Date:** 2026-04-23
 **Dimensional classification:** **Channel** (primary, Axiom 6) + **Substrate** (Axiom 1) + **Mechanism** (Axiom 5)
